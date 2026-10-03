@@ -54,11 +54,11 @@ export const AchievementRewardModal: React.FC<AchievementRewardModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex h-dvh items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md rounded-2xl p-8"
+        className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl p-6 sm:p-8"
         style={{ backgroundColor: "#0c0c14", backgroundImage: `linear-gradient(${colors.bg}, ${colors.bg})`, border: `1px solid ${colors.border}`, boxShadow: colors.glow }}
         onClick={(e) => e.stopPropagation()}
       >

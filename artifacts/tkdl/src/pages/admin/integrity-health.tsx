@@ -28,7 +28,7 @@ export function IntegrityHealth(){
     {error&&<div className="rounded-lg p-3 text-sm" style={{border:"1px solid rgba(255,0,92,.3)",color:"#ff7aa8"}}>{error}</div>}
     {!data&&loading&&<div className="text-sm text-white/40">Inspecting league data…</div>}
     {data&&<>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[{label:"Passed",value:data.summary.passed,color:colors.pass},{label:"Review",value:data.summary.review,color:colors.review},{label:"Problems",value:data.summary.failed,color:colors.fail}].map(x=><div key={x.label} className="rounded-lg p-3" style={{background:"rgba(255,255,255,.025)",border:`1px solid ${x.color}33`}}><strong className="text-2xl" style={{color:x.color,fontFamily:"Oswald, sans-serif"}}>{x.value}</strong><div className="text-[10px] uppercase tracking-widest text-white/40">{x.label}</div></div>)}
       </div>
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2">{data.checks.map(c=>{const Icon=c.status==="pass"?CheckCircle2:c.status==="review"?AlertTriangle:XCircle;return <div key={c.name} className="rounded-lg p-3 flex gap-3" style={{background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.07)"}}><Icon size={18} style={{color:colors[c.status],flex:"0 0 auto"}}/><div><strong className="text-sm">{c.name}</strong><p className="text-xs text-white/40 mt-0.5">{c.detail}</p></div></div>})}</div>

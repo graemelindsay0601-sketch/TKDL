@@ -472,19 +472,40 @@ router.delete("/admin/team-match-corrections/:league/:kind/:id", requireAdminSes
       const autoType = league === "doubles"
         ? (kind === "standard" ? "doubles_match" : kind === "multi" ? "doubles_multi_match" : "doubles_combined_match")
         : (kind === "standard" ? "shift_wars_match" : kind === "multi" ? "shift_wars_multi_match" : "shift_wars_combined_match");
+      const notificationSource = league === "doubles"
+        ? (kind === "standard" ? `doubles:${id}` : kind === "multi" ? `doubles-multi:${id}` : `doubles-combined:${id}`)
+        : (kind === "standard" ? `shift-wars:${id}` : kind === "multi" ? `shift-wars-multi:${id}` : `shift-wars-combined:${id}`);
+      const posterResultRef = league === "doubles"
+        ? (kind === "standard" ? `doubles-${id}` : kind === "multi" ? `doubles-multi-${id}` : `doubles-combined-${id}`)
+        : (kind === "standard" ? `shift-${id}` : kind === "multi" ? `shift-multi-${id}` : `shift-combined-${id}`);
+      const storyResultRef = league === "doubles"
+        ? (kind === "standard" ? null : kind === "multi" ? `doubles-multi:${id}` : `doubles-combined:${id}`)
+        : (kind === "standard" ? `shift-standard:${id}` : kind === "multi" ? `shift-multi:${id}` : `shift-combined:${id}`);
       await tx.execute(sql`
         UPDATE community_posts SET status = 'rejected'
         WHERE post_type = 'auto'
           AND auto_meta->>'type' = ${autoType}
           AND auto_meta->>'matchId' = ${String(id)}
       `);
-      if (kind === "standard") {
-        await tx.execute(sql`
-          UPDATE broadcast_stories
-          SET lifecycle = 'RESOLVED', resolved_at = COALESCE(resolved_at, NOW()), updated_at = NOW()
-          WHERE league_type = ${league} AND anchor_match_id = ${id} AND lifecycle <> 'RESOLVED'
-        `);
-      }
+      await tx.execute(sql`
+        DELETE FROM notifications
+        WHERE dedupe_key LIKE ${`${notificationSource}:%`}
+      `);
+      await tx.execute(sql`
+        UPDATE broadcast_stories
+        SET lifecycle = 'RESOLVED', resolved_at = COALESCE(resolved_at, NOW()), updated_at = NOW()
+        WHERE league_type = ${league}
+          AND lifecycle <> 'RESOLVED'
+          AND (
+            (${kind === "standard"} AND anchor_match_id = ${id})
+            OR (${storyResultRef} IS NOT NULL AND facts->>'resultRef' = ${storyResultRef})
+          )
+      `);
+      await tx.execute(sql`
+        UPDATE match_posters
+        SET status='withdrawn', withdrawn_at=NOW(), updated_at=NOW()
+        WHERE result_ref=${posterResultRef}
+      `);
       return preview;
     });
   } catch (err) {

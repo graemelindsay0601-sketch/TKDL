@@ -191,14 +191,27 @@ router.put("/live-match", async (req, res): Promise<void> => {
       const leagueType=active.format.toLowerCase().includes("double")?"doubles":active.format.toLowerCase().includes("shift")?"shift_wars":"singles";
       await db.execute(sql`INSERT INTO match_posters(session_id,format,side_a,side_b,kicker,reason,level,side_a_points,side_b_points,status,created_by,season_id,season_name,updated_at) SELECT ${active.sessionId},${active.format},${active.sides[0].join(" & ")},${active.sides[1].join(" & ")},${active.presentation?.spotlight?.kicker ?? "MATCHDAY"},${active.presentation?.spotlight?.reason ?? null},${active.presentation?.spotlight?.level ?? "standard"},${active.presentation?.sideA?.points ?? null},${active.presentation?.sideB?.points ?? null},'prematch',${ownerPlayerId},s.id,s.name,NOW() FROM seasons s WHERE s.is_active=true AND s.league_type=${leagueType} ORDER BY s.id DESC LIMIT 1 ON CONFLICT(session_id) DO UPDATE SET format=EXCLUDED.format,side_a=EXCLUDED.side_a,side_b=EXCLUDED.side_b,kicker=EXCLUDED.kicker,reason=EXCLUDED.reason,level=EXCLUDED.level,side_a_points=EXCLUDED.side_a_points,side_b_points=EXCLUDED.side_b_points,season_id=EXCLUDED.season_id,season_name=EXCLUDED.season_name,updated_at=NOW()`);
     } else if (active.status === "finished") {
-      await db.execute(sql`UPDATE match_posters SET status='finished',winner_name=${active.winnerName ?? null},match_key=${active.matchKey ?? null},updated_at=NOW() WHERE session_id=${active.sessionId}`);
+      if (active.matchKey) {
+        // The scorer result creates an automatic final poster. When the same
+        // match was already promoted through Matchday, keep that richer
+        // prematch-to-final record and remove the synthetic duplicate.
+        const matchKey=active.matchKey;
+        const sessionId=active.sessionId;
+        const winnerName=active.winnerName??null;
+        await db.transaction(async tx => {
+          await tx.execute(sql`DELETE FROM match_posters WHERE result_ref=${matchKey} AND session_id<>${sessionId} AND EXISTS(SELECT 1 FROM match_posters WHERE session_id=${sessionId})`);
+          await tx.execute(sql`UPDATE match_posters SET status='finished',winner_name=${winnerName},match_key=${matchKey},result_ref=${matchKey},withdrawn_at=NULL,updated_at=NOW() WHERE session_id=${sessionId}`);
+        });
+      } else {
+        await db.execute(sql`UPDATE match_posters SET status='finished',winner_name=${active.winnerName ?? null},updated_at=NOW() WHERE session_id=${active.sessionId}`);
+      }
     }
   } catch (err) { req.log.warn({err},"Could not update Match Poster Library"); }
   res.json({ ok: true });
 });
 
 router.get("/match-posters",async(_req,res):Promise<void>=>{
-  try{const result=await db.execute(sql`SELECT id,session_id,format,side_a,side_b,kicker,reason,level,side_a_points,side_b_points,status,winner_name,match_key,season_id,season_name,created_at FROM match_posters ORDER BY created_at DESC LIMIT 120`);res.json((result.rows as any[]).map(row=>({id:row.id,sessionId:row.session_id,format:row.format,sideA:row.side_a,sideB:row.side_b,kicker:row.kicker,reason:row.reason,level:row.level,sideAPoints:row.side_a_points,sideBPoints:row.side_b_points,status:row.status,winnerName:row.winner_name,matchKey:row.match_key,seasonId:row.season_id,seasonName:row.season_name,createdAt:new Date(row.created_at).toISOString()})));}catch(err){_req.log.error({err},"GET /match-posters failed");res.status(500).json({error:"Poster library unavailable"});}
+  try{const result=await db.execute(sql`SELECT id,session_id,format,side_a,side_b,kicker,reason,level,side_a_points,side_b_points,status,winner_name,match_key,result_ref,stake,result_type,season_id,season_name,created_at FROM match_posters WHERE withdrawn_at IS NULL ORDER BY created_at DESC LIMIT 120`);res.json((result.rows as any[]).map(row=>({id:row.id,sessionId:row.session_id,format:row.format,sideA:row.side_a,sideB:row.side_b,kicker:row.kicker,reason:row.reason,level:row.level,sideAPoints:row.side_a_points,sideBPoints:row.side_b_points,status:row.status,winnerName:row.winner_name,matchKey:row.match_key,resultRef:row.result_ref,stake:row.stake == null?null:Number(row.stake),resultType:row.result_type,seasonId:row.season_id,seasonName:row.season_name,createdAt:new Date(row.created_at).toISOString()})));}catch(err){_req.log.error({err},"GET /match-posters failed");res.status(500).json({error:"Poster library unavailable"});}
 });
 
 router.delete("/live-match/:sessionId", (req, res) => {

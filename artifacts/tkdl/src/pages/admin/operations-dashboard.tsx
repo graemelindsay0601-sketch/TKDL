@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Activity, BellRing, CheckCircle2, Clock3, Database, RefreshCw, Users, XCircle } from "lucide-react";
+import { Activity, BellRing, CheckCircle2, Clock3, Database, RefreshCw, ShieldCheck, Users, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiFetchJson } from "@/lib/api-fetch";
 import { CollapsibleAdminSection } from "./collapsible-section";
@@ -14,6 +14,7 @@ type Operations = {
   lastAdminAction:{action:string;created_at:string}|null;
 };
 type SeasonPreview={generatedAt:string;nextSeasonName:string;writesPerformed:boolean;singles:{activePlayers:number;leaders:{id:number;name:string;points:number;elo:number}[];blockedByTie:boolean;effect:string};doubles:{champion:string|null;championPoints:number|null;activePlayers:number;nextTeamCount:number;createsThreePlayerTeam:boolean;defendingPairKept:boolean;effect:string};shiftWars:{champion:string|null;teams:{id:number;name:string;currentPoints:number;resetTo:number}[];effect:string}};
+type DeploymentHealth={generatedAt:string;overall:"healthy"|"review"|"attention";versionKey:string|null;checks:{key:string;label:string;status:"pass"|"review"|"fail";detail:string}[]};
 
 export function OperationsDashboard(){
   const [data,setData]=useState<Operations|null>(null);
@@ -21,9 +22,10 @@ export function OperationsDashboard(){
   const [busy,setBusy]=useState<"push"|"season"|null>(null);
   const [error,setError]=useState("");
   const [preview,setPreview]=useState<SeasonPreview|null>(null);
+  const [health,setHealth]=useState<DeploymentHealth|null>(null);
   const [previewing,setPreviewing]=useState(false);
   const {toast}=useToast();
-  const load=useCallback(async()=>{setLoading(true);setError("");try{setData(await apiFetchJson<Operations>("/api/admin/operations"));}catch(e){setError(e instanceof Error?e.message:"Could not load operations");}finally{setLoading(false);}},[]);
+  const load=useCallback(async()=>{setLoading(true);setError("");try{const [operations,deployment]=await Promise.all([apiFetchJson<Operations>("/api/admin/operations"),apiFetchJson<DeploymentHealth>("/api/admin/operations/deployment-health")]);setData(operations);setHealth(deployment);}catch(e){setError(e instanceof Error?e.message:"Could not load operations");}finally{setLoading(false);}},[]);
   useEffect(()=>{void load();},[load]);
   const action=async(kind:"push"|"season")=>{setBusy(kind);try{const url=kind==="push"?"/api/admin/operations/retry-notifications":"/api/admin/operations/run-season-check";const result=await apiFetchJson<any>(url,{method:"POST"});toast({title:kind==="push"?`Notification retry complete`:"Season check complete",description:kind==="push"?`${result.delivered??0} delivered · ${result.failed??0} still waiting`:"All three competitions checked"});await load();}catch(e){toast({title:"Operation failed",description:e instanceof Error?e.message:"Please try again",variant:"destructive"});}finally{setBusy(null);}};
   const loadPreview=async()=>{setPreviewing(true);try{setPreview(await apiFetchJson<SeasonPreview>("/api/admin/operations/season-preview"));}catch(e){toast({title:"Preview failed",description:e instanceof Error?e.message:"Please try again",variant:"destructive"});}finally{setPreviewing(false);}};
@@ -39,6 +41,7 @@ export function OperationsDashboard(){
           <Status icon={Users} label="Doubles draw" value={data.doubles.teamCount?`${data.doubles.teamCount} teams live`:"Waiting for draw"} ok={data.doubles.teamCount>0}/>
           <Status icon={BellRing} label="Push delivery" value={data.notificationQueue.pending?`${data.notificationQueue.pending} waiting`:`Queue clear`} ok={data.notificationQueue.due===0}/>
         </div>
+        {health&&<Panel title="Deployment verification"><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3"><div className="flex items-center gap-2"><ShieldCheck className="w-5 h-5" style={{color:health.overall==="healthy"?"#22c55e":health.overall==="review"?"#ffd24a":"#ff5d91"}}/><div><strong className="block text-sm uppercase" style={{fontFamily:"Oswald, sans-serif"}}>{health.overall==="healthy"?"All core systems ready":health.overall==="review"?"Running with items to review":"Action required"}</strong><span className="text-[10px] text-white/30">Checked {new Date(health.generatedAt).toLocaleString()}{health.versionKey?` · deploy ${health.versionKey.slice(0,8)}`:""}</span></div></div><span className="text-[10px] text-white/30">Runs only when this panel loads or refreshes</span></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-2">{health.checks.map(check=><div key={check.key} className="rounded-lg p-3" style={{background:"rgba(0,0,0,.16)",border:`1px solid ${check.status==="pass"?"rgba(34,197,94,.16)":check.status==="review"?"rgba(255,210,74,.2)":"rgba(255,0,92,.22)"}`}}><div className="flex items-center justify-between gap-2"><strong className="text-[11px] uppercase tracking-wide">{check.label}</strong>{check.status==="pass"?<CheckCircle2 className="w-4 h-4 text-green-400"/>:<XCircle className="w-4 h-4" style={{color:check.status==="review"?"#ffd24a":"#ff5d91"}}/>}</div><p className="mt-1 text-[10px] leading-relaxed text-white/35">{check.detail}</p></div>)}</div></Panel>}
         <div className="grid lg:grid-cols-3 gap-3">
           <Panel title="Current seasons">{data.seasons.map(s=><div key={s.id} className="flex justify-between gap-3 text-xs py-1"><span className="capitalize text-white/65">{s.leagueType.replace("_"," ")}</span><span style={{color:s.currentMonth?"#22c55e":"#ffd24a"}}>{s.name} · {s.startDate}</span></div>)}<p className="text-[10px] text-white/30 mt-2">{data.seasonAutomation.lastSucceededAt?`Last automation check passed ${new Date(data.seasonAutomation.lastSucceededAt).toLocaleString()}.`:"No completed automation check recorded since this server woke."} {data.seasonAutomation.schedule}.</p>{data.seasonAutomation.lastError&&<p className="text-[11px] mt-1" style={{color:"#ff7aa8"}}>{data.seasonAutomation.lastError}</p>}{data.resetLocks.length>0&&<p className="text-[11px] mt-2" style={{color:"#ffd24a"}}>Reset currently running: {data.resetLocks.map(x=>x.leagueType).join(", ")}</p>}</Panel>
           <Panel title="Doubles draw"><p className="text-xs text-white/55">{data.doubles.threePlayerTeams>0?`${data.doubles.threePlayerTeams} three-player team created for the odd roster.`:"Every current team has two players."}</p>{data.doubles.defendingTeam&&<p className="text-xs mt-2" style={{color:data.doubles.defendingPairKept===false?"#ffd24a":"#86efac"}}>{data.doubles.defendingPairAvailable?(data.doubles.defendingPairKept?`${data.doubles.defendingTeam} stayed together to defend their title.`:`${data.doubles.defendingTeam} were eligible to defend but are not paired.`):`${data.doubles.defendingTeam} was a three-player champion team, so no pair was retained.`}</p>}</Panel>

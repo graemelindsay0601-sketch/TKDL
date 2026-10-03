@@ -9,6 +9,9 @@ import { createAutoPost } from "../lib/communityNotify";
 import { sendMatchResultBroadcast, sendRankChangeNotifications, sendTeamMatchResultNotification } from "../services/notificationService";
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 import { invalidateProgressCache } from "./players";
+import { checkStatAchievements } from "../lib/achievements";
+import { checkAndGrantTitles } from "../lib/titles";
+import { upsertResultPoster } from "../services/matchPosterService";
 
 const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
@@ -345,6 +348,15 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
 
   invalidateProgressCache(allIds);
 
+  // Team matches update the same career/season counters as Singles. Run the
+  // stat-based achievement and title checks for every participant so a 2v1
+  // result cannot leave their progress one match behind. Opponent-specific
+  // Singles achievements deliberately remain on the ordinary Singles path.
+  void Promise.all(allIds.map(async playerId => {
+    await checkStatAchievements(playerId);
+    await checkAndGrantTitles(playerId);
+  })).catch(err => console.error("Team match achievement check error:", err));
+
   // Leaderboard-position rank diff for every player who played — reuses
   // the exact same helper the singles flow uses (routes/matches.ts), since
   // Team Match wagers/settles against individual players' own points/elo,
@@ -373,6 +385,18 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
   } catch (err) {
     console.error("Team match rank-change computation error:", err);
   }
+
+  void upsertResultPoster({
+    resultRef: `league-${match.id}`,
+    leagueType: "singles",
+    format: "Uneven Teams",
+    winnerName: match.winnerName,
+    loserName: match.loserName,
+    stake,
+    gameType,
+    seasonId: match.seasonId,
+    resultType: "uneven",
+  });
 
   res.status(201).json({
     match,

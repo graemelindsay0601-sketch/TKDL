@@ -179,7 +179,7 @@ async function checkAndAwardTourAchievements(playerId: number, tourSlug: string,
         INSERT INTO player_tour_achievements (player_id, achievement_key)
         VALUES (${playerId}, ${key})
         ON CONFLICT DO NOTHING
-      `).catch(() => {});
+      `).catch((err) => console.error(`Tour achievement award error (player ${playerId}, key ${key}):`, err));
     }
   }
 }
@@ -378,7 +378,7 @@ router.patch("/tour/runs/:runId", matchSubmitRateLimit, async (req, res): Promis
         INSERT INTO player_tour_achievements (player_id, achievement_key)
         VALUES (${playerId}, 'tour_card_holder')
         ON CONFLICT DO NOTHING
-      `).catch(() => {});
+      `).catch((err) => console.error(`Tour achievement award error (player ${playerId}, key tour_card_holder):`, err));
     }
 
     // Check Q-School survivor (reached final = last 2)
@@ -389,7 +389,7 @@ router.patch("/tour/runs/:runId", matchSubmitRateLimit, async (req, res): Promis
           INSERT INTO player_tour_achievements (player_id, achievement_key)
           VALUES (${playerId}, 'q_school_survivor')
           ON CONFLICT DO NOTHING
-        `).catch(() => {});
+        `).catch((err) => console.error(`Tour achievement award error (player ${playerId}, key q_school_survivor):`, err));
       }
     }
 
@@ -428,32 +428,44 @@ router.patch("/tour/runs/:runId", matchSubmitRateLimit, async (req, res): Promis
         INSERT INTO player_tour_achievements (player_id, achievement_key)
         VALUES (${playerId}, ${trophyAchKey})
         ON CONFLICT DO NOTHING
-      `).catch(() => {});
+      `).catch((err) => console.error(`Tour achievement award error (player ${playerId}, key ${trophyAchKey}):`, err));
 
       // Check broader achievements after awarding trophy
-      await checkAndAwardTourAchievements(playerId, run.slug, run.difficulty).catch(() => {});
-
-      // Fire-and-forget: Award tour round completion coins + update challenges
-      void (async () => {
-        try {
-          const { addCoinsToPlayer } = await import("../services/card-shop-service");
-          const { challengeManager } = await import("../services/challenge-manager");
-          
-          // Award 10 coins per win
-          if (playerWon) {
-            await addCoinsToPlayer(playerId, 10, "match_win", "Tour round win");
-          }
-          
-          // Update challenges for each match/round result
-          await challengeManager.updateProgressFromGameResult(playerId, {
-            gameMode: "TOUR",
-            won: playerWon,
-          });
-        } catch (err) {
-          console.error("Tour coin/challenge award error:", err);
-        }
-      })();
+      await checkAndAwardTourAchievements(playerId, run.slug, run.difficulty)
+        .catch((err) => console.error(`Tour broader-achievement check error (player ${playerId}, slug ${run.slug}, difficulty ${run.difficulty}):`, err));
     }
+
+    // Fire-and-forget: award round-completion coins + update challenge
+    // progress. This used to be nested inside `if (result.won)` above, but
+    // `result.won` only becomes true once the ENTIRE tournament is won
+    // (advanceKOBracket/advancePLBracket), not after each round — so despite
+    // this block itself checking the per-round `playerWon` flag and the
+    // code's own comment calling these "tour round completion coins," the
+    // outer gate meant they only ever paid out to the eventual champion on
+    // their final round, never for any individual round win along the way,
+    // and challengeManager's TOUR-mode progress (total_games_played,
+    // tour_wins, etc.) effectively never advanced from Tour play at all.
+    // This is the only call site for Tour mode, so it needs to run on every
+    // round's result, matching master501.ts's equivalent block.
+    void (async () => {
+      try {
+        const { addCoinsToPlayer } = await import("../services/card-shop-service");
+        const { challengeManager } = await import("../services/challenge-manager");
+
+        // Award 10 coins per round win
+        if (playerWon) {
+          await addCoinsToPlayer(playerId, 10, "match_win", "Tour round win");
+        }
+
+        // Update challenges for each match/round result
+        await challengeManager.updateProgressFromGameResult(playerId, {
+          gameMode: "TOUR",
+          won: playerWon,
+        });
+      } catch (err) {
+        console.error("Tour coin/challenge award error:", err);
+      }
+    })();
 
     res.json({ bracket: result.bracket, won: result.won, eliminated: result.eliminated, status: newStatus });
   } catch (err) {

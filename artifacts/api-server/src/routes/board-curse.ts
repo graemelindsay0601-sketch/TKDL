@@ -90,7 +90,13 @@ router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: 
         END,
         updated_at = NOW()
     `);
-    void checkBoardCurseAchievements(pid);
+    // .catch() required — the route's own try/catch only guards the awaited
+    // work above; a bare `void` fire-and-forget call with no handler becomes
+    // an unhandled promise rejection if checkBoardCurseAchievements ever
+    // throws, crashing the whole Node process (Node >=15 default behavior)
+    // after this result has already committed and responded successfully.
+    void checkBoardCurseAchievements(pid)
+      .catch(err => (req as any).log?.error({ err }, "Board curse achievement check error"));
     res.json({ success: true });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse result");
@@ -143,7 +149,8 @@ router.post("/board-curse/record", bossBattleRateLimit, async (req: Request, res
         wins = board_curse_records.wins + ${won ? 1 : 0},
         losses = board_curse_records.losses + ${won ? 0 : 1}
     `);
-    void checkBoardCurseAchievements(pid);
+    void checkBoardCurseAchievements(pid)
+      .catch(err => (req as any).log?.error({ err }, "Board curse achievement check error"));
     res.json({ success: true });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse match result");

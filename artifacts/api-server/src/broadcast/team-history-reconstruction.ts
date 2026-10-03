@@ -39,6 +39,7 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { db, seasonsTable, type Season } from "@workspace/db";
 import { DOUBLES_STARTING_POINTS } from "../lib/doublesDraw";
+import { londonMidnightUtc } from "../lib/londonDate";
 import { replayTeamTimeline, type TeamMatchState, type TeamState } from "./team-timeline-replay";
 
 export type { TeamMatchState, TeamState } from "./team-timeline-replay";
@@ -184,9 +185,12 @@ export function resolveShiftWarsSeasonWindow(season: Season, referenceNow: Date)
   if (season.leagueType !== "shift_wars") {
     throw new Error(`resolveShiftWarsSeasonWindow: season ${season.id} is not a shift_wars season`);
   }
-  const start = new Date(`${season.startDate}T00:00:00Z`);
+  // startDate/endDate are Europe/London calendar days, not UTC ones — see
+  // lib/londonDate.ts's header for why a bare `T00:00:00Z` parse drifts by
+  // an hour during BST.
+  const start = londonMidnightUtc(season.startDate);
   const end = season.endDate
-    ? new Date(new Date(`${season.endDate}T00:00:00Z`).getTime() + 24 * 60 * 60 * 1000)
+    ? new Date(londonMidnightUtc(season.endDate).getTime() + 24 * 60 * 60 * 1000)
     : referenceNow;
   return { start, end };
 }

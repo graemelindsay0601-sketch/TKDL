@@ -76,10 +76,22 @@ export function SeasonEditor() {
   // PATCH failed silently, the second still ran — leaving a standing marked
   // champion on a season with no championId, or vice versa. Now the second
   // PATCH only fires once the first has actually succeeded.
-  const setChampion = async (seasonId: number, playerId: number, playerName: string) => {
-    const seasonOk = await patchSeason(seasonId, { championId: playerId, championName: playerName, playoffPending: false });
+  //
+  // patchStanding's body has to satisfy the backend's UpdateStandingBody
+  // schema, which requires position/wins/losses/points/elo on every PATCH
+  // (it's an upsert — those fields are needed for the insert-not-exists
+  // branch, not just the update). The wins/losses/points/elo inline editors
+  // below correctly spread the full standing row (`{ ...s, wins: ... }`)
+  // for exactly this reason; this used to send only `{ isChampion: true }`,
+  // which always failed validation (400) and left season.championId set
+  // with season_standings.isChampion never actually flipped — a toast did
+  // fire, but nothing checked it, so the admin had no way to tell the
+  // champion was only half-crowned. Taking the full standing row here keeps
+  // it consistent with every other editor on this row.
+  const setChampion = async (seasonId: number, standing: { playerId: number; playerName: string; position: number; wins: number; losses: number; points: number; elo: number }) => {
+    const seasonOk = await patchSeason(seasonId, { championId: standing.playerId, championName: standing.playerName, playoffPending: false });
     if (!seasonOk) return;
-    await patchStanding(seasonId, playerId, { isChampion: true });
+    await patchStanding(seasonId, standing.playerId, { ...standing, isChampion: true });
   };
 
   useEffect(() => { load(); }, []);
@@ -182,7 +194,7 @@ export function SeasonEditor() {
                         <input type="number" defaultValue={s.losses} className="w-full px-1 py-0.5 rounded text-xs text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#ff005c" }} onBlur={e => patchStanding(season.id, s.playerId, { ...s, losses: Number(e.target.value) })} />
                         <input type="number" defaultValue={s.points} className="w-full px-1 py-0.5 rounded text-xs text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#ffd24a" }} onBlur={e => patchStanding(season.id, s.playerId, { ...s, points: Number(e.target.value) })} />
                         <input type="number" defaultValue={s.elo}    className="w-full px-1 py-0.5 rounded text-xs text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "#0066ff" }} onBlur={e => patchStanding(season.id, s.playerId, { ...s, elo: Number(e.target.value) })} />
-                        <button onClick={() => setChampion(season.id, s.playerId, s.playerName)} className="p-1 rounded hover:bg-yellow-400/10 transition-colors" title="Crown as champion">
+                        <button onClick={() => setChampion(season.id, s)} className="p-1 rounded hover:bg-yellow-400/10 transition-colors" title="Crown as champion">
                           <Trophy className="w-3.5 h-3.5" style={{ color: s.isChampion ? "#ffd24a" : "rgba(255,255,255,0.2)" }} />
                         </button>
                       </div>

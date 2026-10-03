@@ -156,7 +156,12 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
       }
     });
 
-    void checkBossBattleAchievements(pid);
+    // .catch() required — a bare `void` call with no handler becomes an
+    // unhandled promise rejection if checkBossBattleAchievements ever throws,
+    // crashing the whole Node process (Node >=15 default behavior) after this
+    // attempt has already committed and responded successfully.
+    void checkBossBattleAchievements(pid)
+      .catch(err => (req as any).log?.error({ err }, "Boss battle achievement check error"));
     res.json({ success: true });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record boss battle attempt");

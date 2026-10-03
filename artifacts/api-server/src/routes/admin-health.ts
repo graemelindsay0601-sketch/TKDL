@@ -6,6 +6,8 @@ import { logAdminAction } from "../lib/adminAudit";
 import { flushDuePushNotifications } from "../services/notificationService";
 import { getSeasonAutomationStatus, maybeAutoResetLeagueSeasons } from "../lib/seasonReset";
 import { londonMonthKey, londonSeasonName } from "../lib/season-calendar";
+import { getStartupStatus } from "../lib/startup-state";
+import { deploymentBootstrapKey } from "../lib/deployment-bootstrap";
 
 const router = Router();
 
@@ -219,6 +221,69 @@ router.get("/admin/operations", requireAdminSession, async (_req, res): Promise<
     resetLocks:(lockRows.rows as any[]).map(row=>({leagueType:row.league_type,lockedAt:row.locked_at})),
     lastAdminAction:recentRows.rows[0]??null,
   });
+});
+
+router.get("/admin/operations/deployment-health", requireAdminSession, async (_req, res): Promise<void> => {
+  const versionKey=deploymentBootstrapKey();
+  const [tableRows,scoringRows,standingRows,seasonRows,queueRows,broadcastRows,bootstrapRows]=await Promise.all([
+    db.execute(sql`
+      SELECT name,to_regclass(name) IS NOT NULL present FROM unnest(ARRAY[
+        'matches','match_participants','doubles_matches','doubles_combined_matches','doubles_multi_matches',
+        'shift_wars_matches','shift_wars_combined_matches','shift_wars_multi_matches','match_posters',
+        'notifications','pending_push_notifications','broadcast_editions','broadcast_stories'
+      ]) name
+    `),
+    db.execute(sql`
+      SELECT COUNT(*)::int total,MAX(played_at) latest FROM (
+        SELECT played_at FROM matches UNION ALL SELECT played_at FROM doubles_matches
+        UNION ALL SELECT played_at FROM doubles_combined_matches UNION ALL SELECT played_at FROM doubles_multi_matches
+        UNION ALL SELECT played_at FROM shift_wars_matches UNION ALL SELECT played_at FROM shift_wars_combined_matches
+        UNION ALL SELECT played_at FROM shift_wars_multi_matches
+      ) results
+    `),
+    db.execute(sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM players WHERE points<0) player_negative,
+        (SELECT COUNT(*)::int FROM doubles_teams WHERE points<0) doubles_negative,
+        (SELECT COUNT(*)::int FROM shift_wars_teams WHERE points<0) shift_negative,
+        (SELECT COUNT(*)::int FROM players WHERE season_games_played<>season_wins+season_losses) record_mismatch
+    `),
+    db.execute(sql`SELECT league_type,COUNT(*)::int count,BOOL_AND(TO_CHAR(start_date,'YYYY-MM')=${londonMonthKey(new Date())}) current_month FROM seasons WHERE is_active=true GROUP BY league_type`),
+    db.execute(sql`
+      SELECT COUNT(*) FILTER(WHERE sent_at IS NULL AND send_after<=NOW())::int due,
+        COUNT(*) FILTER(WHERE sent_at IS NULL AND send_after<NOW()-INTERVAL '15 minutes')::int overdue,
+        COUNT(*) FILTER(WHERE sent_at IS NULL AND attempt_count>0)::int retrying,
+        MAX(last_attempt_at) last_attempt
+      FROM pending_push_notifications
+    `),
+    db.execute(sql`
+      SELECT
+        (SELECT status FROM broadcast_editions ORDER BY id DESC LIMIT 1) latest_status,
+        (SELECT published_at FROM broadcast_editions WHERE status='PUBLISHED' ORDER BY published_at DESC NULLS LAST,id DESC LIMIT 1) latest_published,
+        (SELECT COUNT(*)::int FROM broadcast_stories WHERE lifecycle IN ('NEW','HOT','ACTIVE','COOLING')) active_stories,
+        (SELECT COUNT(*)::int FROM broadcast_editions WHERE status='FAILED' AND created_at>NOW()-INTERVAL '7 days') recent_failures
+    `),
+    versionKey?db.execute(sql`SELECT completed_at FROM app_bootstrap_versions WHERE version_key=${versionKey} LIMIT 1`):Promise.resolve({rows:[{completed_at:null}]}) as any,
+  ]);
+  const missing=(tableRows.rows as any[]).filter(row=>!row.present).map(row=>String(row.name));
+  const scoring:any=scoringRows.rows[0]??{};
+  const standings:any=standingRows.rows[0]??{};
+  const queue:any=queueRows.rows[0]??{};
+  const broadcast:any=broadcastRows.rows[0]??{};
+  const startup=getStartupStatus();
+  const activeSeasons=new Map((seasonRows.rows as any[]).map(row=>[String(row.league_type),{count:Number(row.count),current:row.current_month===true}]));
+  const seasonReady=["singles","doubles","shift_wars"].every(type=>activeSeasons.get(type)?.count===1&&activeSeasons.get(type)?.current);
+  const negative=Number(standings.player_negative??0)+Number(standings.doubles_negative??0)+Number(standings.shift_negative??0);
+  const checks=[
+    {key:"deployment",label:"Deployment & schema",status:missing.length||!startup.ready||(versionKey&&!bootstrapRows.rows.length)?"fail":"pass",detail:missing.length?`Missing tables: ${missing.join(", ")}`:!startup.ready?startup.message:versionKey?`Bootstrap complete for ${versionKey.slice(0,8)}`:"Local development schema ready"},
+    {key:"scoring",label:"Scoring pipeline",status:missing.some(x=>["matches","match_participants","doubles_matches","shift_wars_matches"].includes(x))?"fail":"pass",detail:`${Number(scoring.total??0)} stored results${scoring.latest?` · latest ${new Date(scoring.latest).toLocaleString("en-GB",{timeZone:"Europe/London"})}`:""}`},
+    {key:"standings",label:"Standings integrity",status:negative||Number(standings.record_mismatch??0)?"fail":"pass",detail:negative||Number(standings.record_mismatch??0)?`${negative} negative balances · ${Number(standings.record_mismatch??0)} player record mismatches`:"Balances and player totals are consistent"},
+    {key:"notifications",label:"Notification delivery",status:Number(queue.overdue??0)>0?"review":"pass",detail:Number(queue.overdue??0)>0?`${Number(queue.overdue)} notifications overdue by 15+ minutes`:`${Number(queue.due??0)} due · ${Number(queue.retrying??0)} retrying`},
+    {key:"seasons",label:"Monthly season rollover",status:seasonReady?"pass":"fail",detail:seasonReady?"Singles, Doubles and Shift Wars are on the current London month":"One or more competitions needs a current monthly season"},
+    {key:"broadcast",label:"TKDL LIVE",status:Number(broadcast.recent_failures??0)>0?"review":broadcast.latest_status?"pass":"review",detail:broadcast.latest_status?`${broadcast.latest_status} latest edition · ${Number(broadcast.active_stories??0)} active stories${Number(broadcast.recent_failures??0)?` · ${Number(broadcast.recent_failures)} recent failures`:""}`:"No broadcast edition has been generated yet"},
+  ] as const;
+  const overall=checks.some(check=>check.status==="fail")?"attention":checks.some(check=>check.status==="review")?"review":"healthy";
+  res.json({generatedAt:new Date().toISOString(),overall,versionKey,startup,checks});
 });
 
 router.post("/admin/operations/retry-notifications", requireAdminSession, async (req, res): Promise<void> => {

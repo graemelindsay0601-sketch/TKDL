@@ -307,15 +307,26 @@ router.patch("/master501/runs/:runId", matchSubmitRateLimit, async (req, res): P
     }
 
     void (async () => {
-      await checkM501Achievements(Number(run.player_id), {
-        tier:        Number(run.tier),
-        round:       Number(run.round),
-        result,
-        legsWon,
-        legsLost,
-        legsFormat:  legsFormatVal,
-      });
-      await checkAndGrantTitles(Number(run.player_id));
+      // Each await below used to run unguarded — any throw inside either
+      // check (DB hiccup, bad data) would become an unhandled promise
+      // rejection with no .catch() anywhere in the chain, which crashes the
+      // whole Node process under default behavior (Node >=15), taking down
+      // the server for every connected player well after this match had
+      // already committed and responded successfully. Isolated in its own
+      // try/catch, matching the coin/challenge block below.
+      try {
+        await checkM501Achievements(Number(run.player_id), {
+          tier:        Number(run.tier),
+          round:       Number(run.round),
+          result,
+          legsWon,
+          legsLost,
+          legsFormat:  legsFormatVal,
+        });
+        await checkAndGrantTitles(Number(run.player_id));
+      } catch (err) {
+        console.error("M-501 achievement/title award error:", err);
+      }
 
       // Award coins on M-501 completion (10 coins per win) + update challenges
       try {

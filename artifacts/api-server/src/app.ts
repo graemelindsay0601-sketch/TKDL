@@ -20,6 +20,7 @@ import { addPerformanceIndexes2 } from "./db/migrations/add_performance_indexes_
 import { addPerformanceIndexes3 } from "./db/migrations/add_performance_indexes_3";
 import { addPerformanceIndexes4 } from "./db/migrations/add_performance_indexes_4";
 import { addPerformanceIndexes5 } from "./db/migrations/add_performance_indexes_5";
+import { addPerformanceIndexes6 } from "./db/migrations/add_performance_indexes_6";
 import { relaxAdminAnnouncementsAdminId } from "./db/migrations/relax_admin_announcements_admin_id";
 import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
@@ -59,6 +60,7 @@ import { addFeaturedStatKeyColumn } from "./db/migrations/add_featured_stat_key"
 import { addDartsSetupColumn } from "./db/migrations/add_darts_setup";
 import { addMatchSpotlightOverride } from "./db/migrations/add_match_spotlight_override";
 import { addMatchPosters } from "./db/migrations/add_match_posters";
+import { extendMatchPostersResultMedia } from "./db/migrations/extend_match_posters_result_media";
 import { addWave5CosmeticColumns } from "./db/migrations/add_wave5_cosmetics";
 import { addWave6CosmeticColumns } from "./db/migrations/add_wave6_cosmetics";
 import { addPlayerRankSnapshotsTable } from "./db/migrations/add_player_rank_snapshots";
@@ -1584,6 +1586,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("addDartsSetupColumn", addDartsSetupColumn);
   await runMigrationStep("addMatchSpotlightOverride", addMatchSpotlightOverride);
   await runMigrationStep("addMatchPosters", addMatchPosters);
+  await runMigrationStep("extendMatchPostersResultMedia", extendMatchPostersResultMedia);
   await runInitStep("addWave5CosmeticColumns", addWave5CosmeticColumns);
   await runInitStep("addWave6CosmeticColumns", addWave6CosmeticColumns);
   await runInitStep("addPlayerRankSnapshotsTable", addPlayerRankSnapshotsTable);
@@ -1615,6 +1618,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("seedTitles", seedTitles);
   await runMigrationStep("addPerformanceIndexes4", addPerformanceIndexes4);
   await runMigrationStep("addPerformanceIndexes5", addPerformanceIndexes5);
+  await runMigrationStep("addPerformanceIndexes6", addPerformanceIndexes6);
   await runMigrationStep("relaxAdminAnnouncementsAdminId", relaxAdminAnnouncementsAdminId);
 
   collectingSchemaFailures = false;

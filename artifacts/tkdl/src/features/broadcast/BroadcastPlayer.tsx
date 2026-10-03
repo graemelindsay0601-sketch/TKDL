@@ -74,6 +74,9 @@ const EMPTY_EDITION_RETRY_MS = 5000;
 const SHELL_STYLE = {
   background: "radial-gradient(ellipse at 20% 0%, rgba(255,0,92,0.15) 0%, transparent 55%), radial-gradient(ellipse at 80% 100%, rgba(0,102,255,0.15) 0%, transparent 55%), #040208",
   fontFamily: "Oswald, sans-serif",
+  width: "100vw",
+  height: "100dvh",
+  maxHeight: "100dvh",
 } as const;
 
 function Wordmark() {
@@ -311,7 +314,7 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
   const sceneAnimationClass = isTransition ? "scene-exit" : "scene-enter";
 
   return (
-    <div className="fixed inset-0 flex flex-col select-none" style={{ background: "#06040e", fontFamily: "Oswald, sans-serif" }}>
+    <div className="fixed inset-0 flex flex-col select-none" style={{ width: "100vw", height: "100dvh", maxHeight: "100dvh", overflow: "hidden", background: "#06040e", fontFamily: "Oswald, sans-serif" }}>
       <StudioBackdrop variant={backdropVariant} />
       <PresenterOverlay
         variant={backdropVariant}

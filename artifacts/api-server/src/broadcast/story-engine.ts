@@ -92,6 +92,7 @@ import { teamStateAsOf, getShiftWarsStartingPoints, DOUBLES_STARTING_ELO } from 
 import type { TeamMatchState, TeamState } from "./team-timeline-replay";
 import { SINGLES_SEASON_STARTING_POINTS, type SinglesPlayerState } from "./timeline-replay";
 import { DOUBLES_STARTING_POINTS } from "../lib/doublesDraw";
+import { londonMidnightUtc } from "../lib/londonDate";
 import { predictSinglesMatch, buildGameTypeCohort } from "./match-predictor";
 import { predictSinglesTitle } from "./title-predictor";
 import { predictDoublesMatch, getDoublesTeamRoster, resolveShiftWarsSeasonForCutoff } from "./team-match-predictor";
@@ -120,7 +121,6 @@ import { detectPerformanceStories, type SinglesPerformanceFacts } from "./story-
 import { detectLeagueStories, detectChampion as detectChampionOnly, detectSeasonRecap, type LeagueStandingsFacts, type LeagueEntityStanding } from "./story-detectors-league";
 import { detectMilestoneStories, type SinglesMilestoneFacts } from "./story-detectors-milestone";
 import { detectDoublesMatchStories, detectDoublesFormStories, type DoublesMatchResultFacts, type DoublesTeamFormFacts } from "./story-detectors-doubles";
-import { detectTeamResult, type TeamResultFacts } from "./story-detectors-team-result";
 import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTeamStanding, type ShiftWarsDeficitWindow } from "./story-detectors-shift-wars";
 import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts, type SeasonComparisonFacts } from "./story-detectors-archive";
 import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, type PracticeActivityFacts } from "./story-detectors-filler";
@@ -232,79 +232,98 @@ export type UpsertedStory = { row: BroadcastStory; isNew: boolean };
  */
 async function upsertStoryCandidate(candidate: StoryCandidate, confidence: number, now: Date, seasonId: number | null): Promise<UpsertedStory> {
   const storyKey = resolveStoryKey(candidate, seasonId);
-  const [existing] = await db.select().from(broadcastStoriesTable).where(eq(broadcastStoriesTable.storyKey, storyKey)).limit(1);
 
-  const previousLifecycle: StoryLifecycle | null = (existing?.lifecycle as StoryLifecycle | undefined) ?? null;
-  const previousScore = existing?.score ?? null;
-  const detectedAt = existing?.detectedAt ?? now;
+  // Locked per storyKey, not just upserted — two broadcast builds can
+  // legitimately run at the same time by design (the scheduler's lazy
+  // check and an admin-forced rebuild/manual episode/clean sweep each own
+  // a different broadcast_editions row and are never meant to collide —
+  // see edition-engine.ts's claimBuildOwnership/admin-build-lock headers),
+  // but both can independently detect and score the SAME ongoing story
+  // (e.g. a season-long title race, keyed by season + subject). Before
+  // this lock, each build read `existing` with a plain SELECT, computed
+  // lifecycle/score/fullCount/headlineCount from it, then upserted — so
+  // whichever build's upsert landed second would silently overwrite the
+  // first's write using stale pre-write values (a lost update), able to
+  // step a story's lifecycle backward or drop a fullCount/headlineCount
+  // increment. Same per-key advisory-lock pattern already used for the
+  // player-code and player-goals races (routes/players.ts, routes/goals.ts).
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('tkdl-broadcast-story-' || ${storyKey}))`);
 
-  const freshnessClass = freshnessClassForStoryType(candidate.storyType);
-  const hoursSinceDetected = (now.getTime() - detectedAt.getTime()) / (1000 * 60 * 60);
-  const freshness = freshnessComponent(hoursSinceDetected, freshnessClass);
-  const narrativeContinuity = narrativeContinuityComponent(previousLifecycle);
+    const [existing] = await tx.select().from(broadcastStoriesTable).where(eq(broadcastStoriesTable.storyKey, storyKey)).limit(1);
 
-  const fullComponents: StoryScoreComponents = { ...candidate.components, freshness, narrativeContinuity };
-  const score = totalScore(fullComponents);
-  const lifecycle = nextLifecycle({ previousLifecycle, stillDetected: true, previousScore, currentScore: score });
+    const previousLifecycle: StoryLifecycle | null = (existing?.lifecycle as StoryLifecycle | undefined) ?? null;
+    const previousScore = existing?.score ?? null;
+    const detectedAt = existing?.detectedAt ?? now;
 
-  // typeof ...$inferInsert, not the exported InsertBroadcastStory (drizzle-zod's
-  // createInsertSchema widens every text().$type<T>() override — leagueType,
-  // lifecycle, sentiment — back down to plain `string`, which is too loose to
-  // safely assign candidate.leagueType/lifecycle/sentiment into). $inferInsert
-  // respects the column-level $type<T>() overrides directly.
-  const values: typeof broadcastStoriesTable.$inferInsert = {
-    storyKey,
-    leagueType: candidate.leagueType,
-    storyType: candidate.storyType,
-    subjectKeys: candidate.subjectKeys,
-    anchorMatchId: candidate.anchorMatchId ?? null,
-    // The column existed but was never actually written here — every row's
-    // real season context lived only inside the storyKey string (for
-    // season-anchored types) or nowhere at all. Persisting it directly is
-    // what lets collectSeasonHighlights (this file, below) query "every
-    // real story from season X" straight off the column, instead of every
-    // caller having to re-derive a season from detectedAt/anchorMatchId
-    // after the fact.
-    seasonId: seasonId ?? existing?.seasonId ?? null,
-    detectedAt,
-    updatedAt: now,
-    resolvedAt: null,
-    lifecycle,
-    score,
-    confidence,
-    sentiment: candidate.sentiment,
-    facts: factsWithSnapshotCutoff(candidate.facts, now),
-    tags: candidate.tags,
-    lastFullEditionId: existing?.lastFullEditionId ?? null,
-    lastHeadlineEditionId: existing?.lastHeadlineEditionId ?? null,
-    fullCount: existing?.fullCount ?? 0,
-    headlineCount: existing?.headlineCount ?? 0,
-  };
+    const freshnessClass = freshnessClassForStoryType(candidate.storyType);
+    const hoursSinceDetected = (now.getTime() - detectedAt.getTime()) / (1000 * 60 * 60);
+    const freshness = freshnessComponent(hoursSinceDetected, freshnessClass);
+    const narrativeContinuity = narrativeContinuityComponent(previousLifecycle);
 
-  const [row] = await db
-    .insert(broadcastStoriesTable)
-    .values(values)
-    .onConflictDoUpdate({
-      target: broadcastStoriesTable.storyKey,
-      set: {
-        leagueType: values.leagueType,
-        storyType: values.storyType,
-        subjectKeys: values.subjectKeys,
-        anchorMatchId: values.anchorMatchId,
-        seasonId: values.seasonId,
-        updatedAt: values.updatedAt,
-        resolvedAt: values.resolvedAt,
-        lifecycle: values.lifecycle,
-        score: values.score,
-        confidence: values.confidence,
-        sentiment: values.sentiment,
-        facts: values.facts,
-        tags: values.tags,
-      },
-    })
-    .returning();
+    const fullComponents: StoryScoreComponents = { ...candidate.components, freshness, narrativeContinuity };
+    const score = totalScore(fullComponents);
+    const lifecycle = nextLifecycle({ previousLifecycle, stillDetected: true, previousScore, currentScore: score });
 
-  return { row, isNew: !existing };
+    // typeof ...$inferInsert, not the exported InsertBroadcastStory (drizzle-zod's
+    // createInsertSchema widens every text().$type<T>() override — leagueType,
+    // lifecycle, sentiment — back down to plain `string`, which is too loose to
+    // safely assign candidate.leagueType/lifecycle/sentiment into). $inferInsert
+    // respects the column-level $type<T>() overrides directly.
+    const values: typeof broadcastStoriesTable.$inferInsert = {
+      storyKey,
+      leagueType: candidate.leagueType,
+      storyType: candidate.storyType,
+      subjectKeys: candidate.subjectKeys,
+      anchorMatchId: candidate.anchorMatchId ?? null,
+      // The column existed but was never actually written here — every row's
+      // real season context lived only inside the storyKey string (for
+      // season-anchored types) or nowhere at all. Persisting it directly is
+      // what lets collectSeasonHighlights (this file, below) query "every
+      // real story from season X" straight off the column, instead of every
+      // caller having to re-derive a season from detectedAt/anchorMatchId
+      // after the fact.
+      seasonId: seasonId ?? existing?.seasonId ?? null,
+      detectedAt,
+      updatedAt: now,
+      resolvedAt: null,
+      lifecycle,
+      score,
+      confidence,
+      sentiment: candidate.sentiment,
+      facts: factsWithSnapshotCutoff(candidate.facts, now),
+      tags: candidate.tags,
+      lastFullEditionId: existing?.lastFullEditionId ?? null,
+      lastHeadlineEditionId: existing?.lastHeadlineEditionId ?? null,
+      fullCount: existing?.fullCount ?? 0,
+      headlineCount: existing?.headlineCount ?? 0,
+    };
+
+    const [row] = await tx
+      .insert(broadcastStoriesTable)
+      .values(values)
+      .onConflictDoUpdate({
+        target: broadcastStoriesTable.storyKey,
+        set: {
+          leagueType: values.leagueType,
+          storyType: values.storyType,
+          subjectKeys: values.subjectKeys,
+          anchorMatchId: values.anchorMatchId,
+          seasonId: values.seasonId,
+          updatedAt: values.updatedAt,
+          resolvedAt: values.resolvedAt,
+          lifecycle: values.lifecycle,
+          score: values.score,
+          confidence: values.confidence,
+          sentiment: values.sentiment,
+          facts: values.facts,
+          tags: values.tags,
+        },
+      })
+      .returning();
+
+    return { row, isNew: !existing };
+  });
 }
 
 /**
@@ -412,9 +431,21 @@ function monthProgress(referenceNow: Date): number {
   return Math.max(0, Math.min(1, 1 - remaining / total));
 }
 
-/** Ranks `standings` (entityId -> points) descending and returns entityId's 1-based rank, or null if entityId isn't present. */
-function rankByPointsDesc(standings: { entityId: number; points: number }[], entityId: number): number | null {
-  const sorted = [...standings].sort((a, b) => b.points - a.points);
+/**
+ * Ranks `standings` descending by points (then Elo, when supplied, as the
+ * tiebreak) and returns entityId's 1-based rank, or null if entityId isn't
+ * present. This used to sort on points alone, which disagreed with the
+ * league's own real ranking convention (lib/leaderboardRank.ts's
+ * rankPlayersByPoints: points desc, then Elo desc) on a points tie — the
+ * actual leaderboard, and this file's own correctly-tiebroken rankById in
+ * routes/broadcast.ts's player-focus endpoint, would put two tied players
+ * in a different order than a FORM story computed here could. `elo` is
+ * optional because the two "position N matches ago" callers reconstruct
+ * their standings from the match-timeline replay, which doesn't track
+ * historical Elo at all — those stay points-only rather than guessing.
+ */
+function rankByPointsDesc(standings: { entityId: number; points: number; elo?: number }[], entityId: number): number | null {
+  const sorted = [...standings].sort((a, b) => b.points - a.points || (b.elo ?? 0) - (a.elo ?? 0));
   const idx = sorted.findIndex(s => s.entityId === entityId);
   return idx === -1 ? null : idx + 1;
 }
@@ -426,128 +457,6 @@ function rankByPointsDesc(standings: { entityId: number; points: number }[], ent
 export type NewSinglesMatch = { id: number; seasonId: number; playedAt: Date; winnerId: number; loserId: number; gameType: string };
 export type NewTeamMatch = { id: number; playedAt: Date; winnerTeamId: number; loserTeamId: number };
 export type NewDoublesMatch = NewTeamMatch & { seasonId: number };
-
-function numericIds(value: unknown): number[] {
-  if (!Array.isArray(value)) return [];
-  return value.map(Number).filter(Number.isFinite);
-}
-
-/** Negative anchors keep combined/multi table ids distinct from the normal
- * match table while still satisfying the broadcast engine's integer anchor
- * contract. The real table/id pair remains in facts.resultRef. */
-function extendedAnchor(matchId: number, kind: "combined" | "multi"): number {
-  return -(matchId * 10 + (kind === "combined" ? 1 : 2));
-}
-
-async function loadTeamResultsSince(cutoffStart: Date, cutoffEnd: Date): Promise<TeamResultFacts[]> {
-  const [playerTeams, doublesCombined, doublesMulti, shiftStandard, shiftCombined, shiftMulti] = await Promise.all([
-    db.execute(sql`
-      SELECT m.id, m.season_id, m.played_at, m.winner_name, m.loser_name, m.stake,
-        COALESCE(array_agg(mp.player_id ORDER BY mp.position) FILTER (WHERE mp.team = 'winner'), ARRAY[m.winner_id]) winner_ids,
-        COALESCE(array_agg(mp.player_id ORDER BY mp.position) FILTER (WHERE mp.team = 'loser'), ARRAY[m.loser_id]) loser_ids
-      FROM matches m
-      JOIN seasons s ON s.id = m.season_id
-      LEFT JOIN match_participants mp ON mp.match_id = m.id
-      WHERE (m.game_type LIKE 'team_%' OR m.game_type = 'multi_killer')
-        AND m.played_at <= ${cutoffEnd}
-        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
-          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'singles-team:' || m.id::text
-        )))
-      GROUP BY m.id, m.season_id, m.played_at, m.winner_name, m.loser_name, m.stake, m.winner_id, m.loser_id
-    `),
-    db.execute(sql`
-      SELECT m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id solo_id, solo.team_name solo_name,
-        string_agg(side.team_name, ' + ' ORDER BY x.id) opposition_name,
-        array_agg(side.id ORDER BY x.id) opposition_ids
-      FROM doubles_combined_matches m
-      JOIN seasons s ON s.id = m.season_id
-      JOIN doubles_teams solo ON solo.id = m.solo_team_id
-      JOIN doubles_combined_match_sides x ON x.match_id = m.id
-      JOIN doubles_teams side ON side.id = x.team_id
-      WHERE m.played_at <= ${cutoffEnd}
-        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
-          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'doubles-combined:' || m.id::text
-        )))
-      GROUP BY m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id, solo.team_name
-    `),
-    db.execute(sql`
-      SELECT m.id, m.season_id, m.played_at, m.pot, winner.id winner_id, winner.team_name winner_name,
-        string_agg(team.team_name, ' + ' ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_name,
-        array_agg(team.id ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_ids
-      FROM doubles_multi_matches m
-      JOIN seasons s ON s.id = m.season_id
-      JOIN doubles_teams winner ON winner.id = m.winner_team_id
-      JOIN doubles_multi_match_participants p ON p.match_id = m.id
-      JOIN doubles_teams team ON team.id = p.team_id
-      WHERE m.played_at <= ${cutoffEnd}
-        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
-          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'doubles-multi:' || m.id::text
-        )))
-      GROUP BY m.id, m.season_id, m.played_at, m.pot, winner.id, winner.team_name
-    `),
-    db.execute(sql`
-      SELECT m.id, m.season_id, m.played_at, m.stake, winner.id winner_id, winner.name winner_name,
-        loser.id loser_id, loser.name loser_name
-      FROM shift_wars_matches m
-      JOIN seasons s ON s.id = m.season_id
-      JOIN shift_wars_teams winner ON winner.id = m.winner_team_id
-      JOIN shift_wars_teams loser ON loser.id = m.loser_team_id
-      WHERE m.played_at <= ${cutoffEnd}
-        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
-          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'shift-standard:' || m.id::text
-        )))
-    `),
-    db.execute(sql`
-      SELECT m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id solo_id, solo.name solo_name,
-        string_agg(side.name, ' + ' ORDER BY x.id) opposition_name,
-        array_agg(side.id ORDER BY x.id) opposition_ids
-      FROM shift_wars_combined_matches m
-      JOIN seasons s ON s.id = m.season_id
-      JOIN shift_wars_teams solo ON solo.id = m.solo_team_id
-      JOIN shift_wars_combined_match_sides x ON x.match_id = m.id
-      JOIN shift_wars_teams side ON side.id = x.team_id
-      WHERE m.played_at <= ${cutoffEnd}
-        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
-          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'shift-combined:' || m.id::text
-        )))
-      GROUP BY m.id, m.season_id, m.played_at, m.solo_won, m.pot, solo.id, solo.name
-    `),
-    db.execute(sql`
-      SELECT m.id, m.season_id, m.played_at, m.pot, winner.id winner_id, winner.name winner_name,
-        string_agg(team.name, ' + ' ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_name,
-        array_agg(team.id ORDER BY p.id) FILTER (WHERE NOT p.is_winner) loser_ids
-      FROM shift_wars_multi_matches m
-      JOIN seasons s ON s.id = m.season_id
-      JOIN shift_wars_teams winner ON winner.id = m.winner_team_id
-      JOIN shift_wars_multi_match_participants p ON p.match_id = m.id
-      JOIN shift_wars_teams team ON team.id = p.team_id
-      WHERE m.played_at <= ${cutoffEnd}
-        AND (m.played_at > ${cutoffStart} OR (s.is_active = true AND NOT EXISTS (
-          SELECT 1 FROM broadcast_stories bs WHERE bs.facts->>'resultRef' = 'shift-multi:' || m.id::text
-        )))
-      GROUP BY m.id, m.season_id, m.played_at, m.pot, winner.id, winner.name
-    `),
-  ]);
-
-  const result: TeamResultFacts[] = [];
-  for (const raw of playerTeams.rows as any[]) result.push({
-    resultRef: `singles-team:${raw.id}`, resultKind: "uneven_team", leagueType: "singles",
-    matchId: Number(raw.id), anchorMatchId: Number(raw.id), seasonId: Number(raw.season_id), playedAt: new Date(raw.played_at),
-    winnerName: String(raw.winner_name), loserName: String(raw.loser_name), winnerEntityIds: numericIds(raw.winner_ids), loserEntityIds: numericIds(raw.loser_ids), stake: Number(raw.stake),
-  });
-  for (const raw of doublesCombined.rows as any[]) {
-    const oppositionIds = numericIds(raw.opposition_ids); const soloWon = Boolean(raw.solo_won);
-    result.push({ resultRef:`doubles-combined:${raw.id}`,resultKind:"doubles_combined",leagueType:"doubles",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"combined"),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:soloWon?String(raw.solo_name):String(raw.opposition_name),loserName:soloWon?String(raw.opposition_name):String(raw.solo_name),winnerEntityIds:soloWon?[Number(raw.solo_id)]:oppositionIds,loserEntityIds:soloWon?oppositionIds:[Number(raw.solo_id)],stake:Number(raw.pot) });
-  }
-  for (const raw of doublesMulti.rows as any[]) result.push({ resultRef:`doubles-multi:${raw.id}`,resultKind:"doubles_multi",leagueType:"doubles",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"multi"),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:String(raw.winner_name),loserName:String(raw.loser_name),winnerEntityIds:[Number(raw.winner_id)],loserEntityIds:numericIds(raw.loser_ids),stake:Number(raw.pot) });
-  for (const raw of shiftStandard.rows as any[]) result.push({ resultRef:`shift-standard:${raw.id}`,resultKind:"shift_standard",leagueType:"shift_wars",matchId:Number(raw.id),anchorMatchId:Number(raw.id),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:String(raw.winner_name),loserName:String(raw.loser_name),winnerEntityIds:[Number(raw.winner_id)],loserEntityIds:[Number(raw.loser_id)],stake:Number(raw.stake) });
-  for (const raw of shiftCombined.rows as any[]) {
-    const oppositionIds = numericIds(raw.opposition_ids); const soloWon = Boolean(raw.solo_won);
-    result.push({ resultRef:`shift-combined:${raw.id}`,resultKind:"shift_combined",leagueType:"shift_wars",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"combined"),seasonId:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:soloWon?String(raw.solo_name):String(raw.opposition_name),loserName:soloWon?String(raw.opposition_name):String(raw.solo_name),winnerEntityIds:soloWon?[Number(raw.solo_id)]:oppositionIds,loserEntityIds:soloWon?oppositionIds:[Number(raw.solo_id)],stake:Number(raw.pot) });
-  }
-  for (const raw of shiftMulti.rows as any[]) result.push({ resultRef:`shift-multi:${raw.id}`,resultKind:"shift_multi",leagueType:"shift_wars",matchId:Number(raw.id),anchorMatchId:extendedAnchor(Number(raw.id),"multi"),seasonId:raw.season_id==null?null:Number(raw.season_id),playedAt:new Date(raw.played_at),winnerName:String(raw.winner_name),loserName:String(raw.loser_name),winnerEntityIds:[Number(raw.winner_id)],loserEntityIds:numericIds(raw.loser_ids),stake:Number(raw.pot) });
-  return result.sort((a,b)=>a.playedAt.getTime()-b.playedAt.getTime() || a.resultRef.localeCompare(b.resultRef));
-}
 
 export type NewMatchesWindow = {
   singles: NewSinglesMatch[];
@@ -951,19 +860,25 @@ function computeSinglesPositionWindow(ctx: SinglesBatchContext, timeline: Single
   const n = Math.min(POSITION_WINDOW_REFERENCE_MATCHES, own.length);
   if (n < POSITION_WINDOW_MIN_MATCHES) return null;
   const referenceCutoff = own[own.length - n].playedAt;
+  // Points-only: the match-timeline replay this reconstructs "N matches ago"
+  // standings from doesn't track historical Elo, only points/wins/losses —
+  // see rankByPointsDesc's header. A tie here falls back to array order
+  // rather than a fabricated Elo guess.
   const standings = ctx.activePlayerIds.map(id => ({ entityId: id, points: playerStateAsOf(timeline, id, referenceCutoff, initialSinglesPlayerState()).points }));
   const positionBefore = rankByPointsDesc(standings, playerId);
   return positionBefore === null ? null : { matches: n, positionBefore };
 }
 
 async function gatherSinglesFormFacts(
-  ctx: SinglesBatchContext, timeline: SinglesMatchState[], playerId: number, currentPointsById: Map<number, number>, majorStoryPlayers: ReadonlySet<number>,
+  ctx: SinglesBatchContext, timeline: SinglesMatchState[], playerId: number, currentPointsById: Map<number, number>, currentEloById: Map<number, number>, majorStoryPlayers: ReadonlySet<number>,
 ): Promise<{ facts: SinglesFormFacts; confidence: number }> {
   const baselines = await buildPlayerBaselines(playerId, ctx.cutoffEnd, undefined);
   const state = playerStateAsOf(timeline, playerId, ctx.cutoffEnd, initialSinglesPlayerState());
   const seasonRate = baselines.currentSeason ? smoothedRate(baselines.currentSeason.wins, baselines.currentSeason.gamesPlayed, PRIOR_GAMES.season) : 0.5;
 
-  const currentStandings = ctx.activePlayerIds.map(id => ({ entityId: id, points: currentPointsById.get(id) ?? 0 }));
+  // Live Elo is available here (unlike the historical window above), so this
+  // one matches the real leaderboard's points-desc/Elo-desc tiebreak exactly.
+  const currentStandings = ctx.activePlayerIds.map(id => ({ entityId: id, points: currentPointsById.get(id) ?? 0, elo: currentEloById.get(id) ?? 0 }));
   const currentPosition = rankByPointsDesc(currentStandings, playerId) ?? currentStandings.length;
 
   const facts: SinglesFormFacts = {
@@ -1190,7 +1105,10 @@ export async function resolveClosedLeagueSeasons(now: Date): Promise<ClosedLeagu
   ));
   const result: ClosedLeagueSeason[] = [];
   for (const season of candidateSeasons) {
-    const endedAt = new Date(`${season.endDate}T00:00:00Z`);
+    // startDate/endDate are Europe/London calendar days, not UTC — see
+    // lib/londonDate.ts's header for why a bare `T00:00:00Z` parse drifts
+    // by an hour during BST.
+    const endedAt = londonMidnightUtc(season.endDate!);
     if (endedAt > now) continue; // defensive only — isActive/endDate already imply this, but never review a season "ahead of" the build's own cutoff
     const leagueType = season.leagueType as LeagueType;
 
@@ -1202,7 +1120,7 @@ export async function resolveClosedLeagueSeasons(now: Date): Promise<ClosedLeagu
     const recap = await computeSeasonRecapFacts(leagueType, season.id);
     result.push({
       leagueType, seasonId: season.id, seasonName: season.name,
-      seasonStart: new Date(`${season.startDate}T00:00:00Z`),
+      seasonStart: londonMidnightUtc(season.startDate),
       seasonEndExclusive: new Date(endedAt.getTime() + 24 * 60 * 60 * 1000),
       championEntityId,
       matchesPlayed: recap.matchesPlayed, topEntityId: recap.topEntityId, topWins: recap.topWins,
@@ -1534,17 +1452,23 @@ function computeDoublesPositionWindow(timeline: TeamMatchState[], allTeamIds: nu
   if (n < DOUBLES_POSITION_WINDOW_MIN_MATCHES) return null;
   const referenceCutoff = own[own.length - n].playedAt;
   const initial = (): TeamState => ({ points: DOUBLES_STARTING_POINTS, elo: DOUBLES_STARTING_ELO, wins: 0, losses: 0, currentWinStreak: 0, currentLossStreak: 0, recentForm: [], isEliminated: false });
-  const standings = allTeamIds.map(id => ({ entityId: id, points: teamStateAsOf(timeline, id, referenceCutoff, initial()).points }));
+  // Unlike Singles' SinglesPlayerState, Doubles' TeamState replay does track
+  // Elo (team-timeline-replay.ts's trackElo: true for Doubles), so a real
+  // historical Elo tiebreak is available here, not just a points-only guess.
+  const standings = allTeamIds.map(id => {
+    const asOf = teamStateAsOf(timeline, id, referenceCutoff, initial());
+    return { entityId: id, points: asOf.points, elo: asOf.elo ?? 0 };
+  });
   const positionBefore = rankByPointsDesc(standings, teamId);
   return positionBefore === null ? null : { matches: n, positionBefore };
 }
 
 type DoublesFormGatherResult = { facts: DoublesTeamFormFacts; confidence: number };
 
-async function gatherDoublesTeamFormFacts(teamId: number, seasonId: number, cutoffEnd: Date, timeline: TeamMatchState[], allTeamIds: number[], currentPointsById: Map<number, number>): Promise<DoublesFormGatherResult> {
+async function gatherDoublesTeamFormFacts(teamId: number, seasonId: number, cutoffEnd: Date, timeline: TeamMatchState[], allTeamIds: number[], currentPointsById: Map<number, number>, currentEloById: Map<number, number>): Promise<DoublesFormGatherResult> {
   const initial = (): TeamState => ({ points: DOUBLES_STARTING_POINTS, elo: DOUBLES_STARTING_ELO, wins: 0, losses: 0, currentWinStreak: 0, currentLossStreak: 0, recentForm: [], isEliminated: false });
   const state = teamStateAsOf(timeline, teamId, cutoffEnd, initial());
-  const currentStandings = allTeamIds.map(id => ({ entityId: id, points: currentPointsById.get(id) ?? 0 }));
+  const currentStandings = allTeamIds.map(id => ({ entityId: id, points: currentPointsById.get(id) ?? 0, elo: currentEloById.get(id) ?? 0 }));
   const currentPosition = rankByPointsDesc(currentStandings, teamId);
 
   const facts: DoublesTeamFormFacts = {
@@ -1797,7 +1721,7 @@ async function sweepStaleSeasonStories(now: Date): Promise<number> {
 export type DetectAndUpdateStoriesResult = {
   cutoffStart: Date;
   cutoffEnd: Date;
-  newMatchesProcessed: { singles: number; doubles: number; shiftWars: number; teamResults: number };
+  newMatchesProcessed: { singles: number; doubles: number; shiftWars: number };
   storiesUpserted: number;
   storiesArchived: number;
   byFamily: Partial<Record<StoryFamily, number>>;
@@ -1826,7 +1750,6 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
   matchRowCache.clear();
 
   const newMatches = await loadNewMatchesSince(cutoffStart, cutoffEnd);
-  const teamResults = await loadTeamResultsSince(cutoffStart, cutoffEnd);
 
   const byFamily: Partial<Record<StoryFamily, number>> = {};
   let storiesUpserted = 0;
@@ -1838,8 +1761,9 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
   }
 
   // ── Shared Singles context ──────────────────────────────────────────────
-  const activePlayers = await db.select({ id: playersTable.id, points: playersTable.points }).from(playersTable).where(eq(playersTable.isActive, true));
+  const activePlayers = await db.select({ id: playersTable.id, points: playersTable.points, elo: playersTable.elo }).from(playersTable).where(eq(playersTable.isActive, true));
   const currentPointsById = new Map(activePlayers.map(p => [p.id, p.points]));
+  const currentEloById = new Map(activePlayers.map(p => [p.id, p.elo]));
   const ctx: SinglesBatchContext = {
     cutoffEnd, timelines: new Map(), highStakeThresholds: new Map(),
     activePlayerIds: activePlayers.map(p => p.id),
@@ -1898,7 +1822,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
   for (const playerId of playersInvolvedThisBatch) {
     const seasonId = playerSeasonId.get(playerId)!;
     const timeline = await getSinglesTimeline(ctx, seasonId);
-    const { facts, confidence } = await gatherSinglesFormFacts(ctx, timeline, playerId, currentPointsById, majorStoryPlayers);
+    const { facts, confidence } = await gatherSinglesFormFacts(ctx, timeline, playerId, currentPointsById, currentEloById, majorStoryPlayers);
     const detected = detectFormStories(facts);
     for (const candidate of detected) await recordUpsert(candidate, confidence, seasonId);
     await resolveUndetectedSubjectStories({
@@ -1944,7 +1868,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
   // "whole current subject set together" contract resolveUndetectedSeasonStories
   // already requires for LEAGUE/SHIFT_WARS). ─────────────────────────────
   for (const seasonId of singlesMatchSeasonIds) {
-    const currentStandings = ctx.activePlayerIds.map(id => ({ entityId: id, points: currentPointsById.get(id) ?? 0 }));
+    const currentStandings = ctx.activePlayerIds.map(id => ({ entityId: id, points: currentPointsById.get(id) ?? 0, elo: currentEloById.get(id) ?? 0 }));
     const detectedKeys = new Set<string>();
     for (const playerId of ctx.activePlayerIds) {
       const currentPosition = rankByPointsDesc(currentStandings, playerId);
@@ -1988,13 +1912,14 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
   for (const [seasonId, teamIds] of doublesTeamsInvolvedBySeasonId) {
     const [timeline, teamRows] = await Promise.all([
       buildDoublesTeamTimeline(seasonId),
-      db.execute(sql`SELECT id, points FROM doubles_teams WHERE season_id = ${seasonId}`).then(r => r.rows as { id: number; points: number }[]),
+      db.execute(sql`SELECT id, points, elo FROM doubles_teams WHERE season_id = ${seasonId}`).then(r => r.rows as { id: number; points: number; elo: number }[]),
     ]);
     const allTeamIds = teamRows.map(t => t.id);
     const doublesCurrentPointsById = new Map(teamRows.map(t => [t.id, t.points]));
+    const doublesCurrentEloById = new Map(teamRows.map(t => [t.id, t.elo]));
 
     for (const teamId of teamIds) {
-      const { facts, confidence } = await gatherDoublesTeamFormFacts(teamId, seasonId, cutoffEnd, timeline, allTeamIds, doublesCurrentPointsById);
+      const { facts, confidence } = await gatherDoublesTeamFormFacts(teamId, seasonId, cutoffEnd, timeline, allTeamIds, doublesCurrentPointsById, doublesCurrentEloById);
       const detected = detectDoublesFormStories(facts);
       for (const candidate of detected) await recordUpsert(candidate, confidence, seasonId);
       await resolveUndetectedSubjectStories({
@@ -2016,25 +1941,6 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
       shiftWarsMatchSeasonIds.add(await resolveShiftWarsSeasonForCutoff(match.playedAt));
     } catch {
       // No Shift Wars season covers this match's date — nothing to attribute it to.
-    }
-  }
-
-  // Baseline result coverage for every wider result shape. This deliberately
-  // runs after the specialised Singles/Doubles detectors: standard 1v1s keep
-  // their richer upset/performance analysis, while uneven/combined/multi and
-  // Shift Wars results receive an honest team-shaped rundown of their own.
-  for (const result of teamResults) {
-    try {
-      const seasonId = result.seasonId ?? (result.leagueType === "shift_wars"
-        ? await resolveShiftWarsSeasonForCutoff(result.playedAt)
-        : null);
-      if (seasonId === null) continue;
-      await recordUpsert(detectTeamResult({ ...result, seasonId }), 100, seasonId);
-      if (result.leagueType === "singles") singlesMatchSeasonIds.add(seasonId);
-      else if (result.leagueType === "doubles") doublesMatchSeasonIds.add(seasonId);
-      else shiftWarsMatchSeasonIds.add(seasonId);
-    } catch (err) {
-      logger.error({ err, resultRef: result.resultRef }, "team result story failed — continuing with the rest of the broadcast batch");
     }
   }
 
@@ -2130,14 +2036,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
 
   return {
     cutoffStart, cutoffEnd,
-    newMatchesProcessed: {
-      singles: newMatches.singles.length,
-      doubles: newMatches.doubles.length,
-      shiftWars: newMatches.shiftWars.length,
-      // Standard Shift Wars rows are already counted immediately above;
-      // this field is the additional uneven/combined/multi result count.
-      teamResults: teamResults.filter(result => result.resultKind !== "shift_standard").length,
-    },
+    newMatchesProcessed: { singles: newMatches.singles.length, doubles: newMatches.doubles.length, shiftWars: newMatches.shiftWars.length },
     storiesUpserted, storiesArchived, byFamily,
     catchUpSeasonIds: newMatches.catchUpSeasonIds,
   };

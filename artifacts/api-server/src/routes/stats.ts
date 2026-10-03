@@ -325,10 +325,11 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
       ) t GROUP BY player_id
     `),
     // Wall of Shame — biggest single-match loss: the largest stake any
-    // player has ever handed over in one game. Scoped to `matches` (singles
-    // + Shift Wars, same table every other shame stat already draws from —
-    // see careerLosses/longestLossStreak/careerBiggestPointsFall below),
-    // grouped by loser so this is "worst single moment", not a running total.
+    // player has ever handed over in one game. Scoped to `matches` (Singles
+    // only — Shift Wars lives in its own shift_wars_matches table, same
+    // table every other shame stat already draws from — see careerLosses/
+    // longestLossStreak/careerBiggestPointsFall below), grouped by loser so
+    // this is "worst single moment", not a running total.
     db.execute(drizzleSql`
       SELECT loser_id AS player_id, MAX(stake)::int AS max_stake
       FROM matches

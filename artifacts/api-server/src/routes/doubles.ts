@@ -10,6 +10,7 @@ import { sendDoublesMatchResultNotification, sendMatchResultBroadcast, sendRankC
 import { createAutoPost } from "../lib/communityNotify";
 import { checkDoublesAchievements } from "../lib/doubles-achievements";
 import { rankDoublesTeams, type RankableDoublesTeam } from "../lib/leaderboardRank";
+import { upsertResultPoster } from "../services/matchPosterService";
 
 const GetSeasonParams = z.object({ id: z.coerce.number().int().positive() });
 
@@ -377,6 +378,17 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       console.error("Doubles rank-change computation error:", err);
     }
 
+    void upsertResultPoster({
+      resultRef: `doubles-${match.id}`,
+      leagueType: "doubles",
+      format: "Doubles Event",
+      winnerName: winnerTeamName,
+      loserName: loserTeamName,
+      stake: effectiveStake,
+      gameType,
+      seasonId: activeSeason.id,
+    });
+
     res.status(201).json({
       match, eloChange, loserEliminated,
       newWinnerTeamRank, newLoserTeamRank,
@@ -384,7 +396,13 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       loserTeamRankChange,
     });
 
-    void checkDoublesAchievements(winnerPlayerIds, winnerTeamId, eloChange, effectiveStake);
+    // .catch() is required here, not cosmetic — a bare `void` call with no
+    // handler becomes an unhandled promise rejection if checkDoublesAchievements
+    // ever throws, which crashes the whole Node process under default behavior
+    // (Node >=15), taking down the server for every connected player well after
+    // this match already committed and responded successfully.
+    void checkDoublesAchievements(winnerPlayerIds, winnerTeamId, eloChange, effectiveStake)
+      .catch(err => console.error("Doubles achievement check error:", err));
 
     // Push notifications (fire and forget — never delay the response). Doubles
     // had no notification integration at all before this; see the "no
@@ -617,6 +635,19 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
       return { match, solo, combined, sideRows, pot, soloPointsDelta, soloEloDelta };
     });
 
+    const combinedPosterNames = result.sideRows.map(s => s.teamName).join(" & ");
+    void upsertResultPoster({
+      resultRef: `doubles-combined-${result.match.id}`,
+      leagueType: "doubles",
+      format: "Doubles Event",
+      winnerName: soloWon ? result.solo.team_name : combinedPosterNames,
+      loserName: soloWon ? combinedPosterNames : result.solo.team_name,
+      stake: result.pot,
+      gameType,
+      seasonId: activeSeason.id,
+      resultType: "combined",
+    });
+
     res.status(201).json({
       match: result.match,
       soloTeamId: result.solo.id,
@@ -634,11 +665,13 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
     const teamPlayerIds = (t: any): number[] =>
       [t.player1_id, t.player2_id, t.player3_id].filter((id): id is number => id != null);
     if (soloWon) {
-      void checkDoublesAchievements(teamPlayerIds(result.solo), result.solo.id, result.soloEloDelta, result.pot);
+      void checkDoublesAchievements(teamPlayerIds(result.solo), result.solo.id, result.soloEloDelta, result.pot)
+        .catch(err => console.error("Doubles achievement check error:", err));
     } else {
       for (const side of result.sideRows) {
         const team = result.combined.find(c => c.id === side.teamId)!;
-        void checkDoublesAchievements(teamPlayerIds(team), team.id, side.eloDelta, side.pointsDelta);
+        void checkDoublesAchievements(teamPlayerIds(team), team.id, side.eloDelta, side.pointsDelta)
+          .catch(err => console.error("Doubles achievement check error:", err));
       }
     }
 
@@ -871,6 +904,18 @@ router.post("/doubles/multi-matches", matchSubmitRateLimit, async (req, res): Pr
       return { match, winner, losers, loserRows, pot, eloChange };
     });
 
+    void upsertResultPoster({
+      resultRef: `doubles-multi-${result.match.id}`,
+      leagueType: "doubles",
+      format: "Doubles Event",
+      winnerName: result.winner.team_name,
+      loserName: result.loserRows.map(l => l.teamName).join(", "),
+      stake: result.pot,
+      gameType,
+      seasonId: activeSeason.id,
+      resultType: "multi",
+    });
+
     res.status(201).json({
       match: result.match,
       winnerTeamId: result.winner.id,
@@ -882,7 +927,8 @@ router.post("/doubles/multi-matches", matchSubmitRateLimit, async (req, res): Pr
 
     const teamPlayerIds = (t: any): number[] =>
       [t.player1_id, t.player2_id, t.player3_id].filter((id): id is number => id != null);
-    void checkDoublesAchievements(teamPlayerIds(result.winner), result.winner.id, result.eloChange, result.pot);
+    void checkDoublesAchievements(teamPlayerIds(result.winner), result.winner.id, result.eloChange, result.pot)
+      .catch(err => console.error("Doubles achievement check error:", err));
 
     // Push notifications + auto community post (fire and forget) — same
     // spirit as every other doubles match integration, phrased for a

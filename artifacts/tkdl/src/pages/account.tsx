@@ -1906,7 +1906,7 @@ export default function AccountPage() {
       <SectionCard title="Practice" icon={Dumbbell} accent="#0066ff">
         {practiceStats ? (
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 grid grid-cols-5 gap-2">
+            <div className="col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-2">
               {[
                 { label: "Sessions",  val: practiceStats.total_sessions ?? 0 },
                 { label: "140+",      val: practiceStats.visit_stats?.v140 ?? 0 },

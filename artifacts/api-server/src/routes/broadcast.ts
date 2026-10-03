@@ -25,7 +25,6 @@ import {
   type EditionProgramme,
 } from "../broadcast/director-math";
 import { buildPowerRankings } from "../broadcast/power-rankings";
-import { familyForStoryType, type StoryType } from "../broadcast/story-types";
 
 /**
  * TKDL LIVE — the automated broadcast "show" feature (handover doc section
@@ -115,6 +114,17 @@ router.post("/broadcast/mark-seen", async (req, res): Promise<void> => {
   try {
     const playerId = sessionPlayerId(req);
     if (!playerId) { res.json({ ok: true }); return; }
+
+    // Every sibling background-poll route in this file (live-status,
+    // hub-spotlight) checks the feature flag and degrades gracefully rather
+    // than using requireBroadcastAvailable's hard 403 — this one didn't, so
+    // a player could still clear their own "new edition" dot via a direct
+    // call to this endpoint while TKDL LIVE is off. Not a security hole
+    // (mark-seen only ever updates the caller's own player row with an
+    // edition id that's meaningless once the feature's off), but it let the
+    // sidebar dot state drift from the feature's real on/off status.
+    const available = await isFeatureAvailable(FEATURES.TKDL_LIVE, sessionIsAdmin(req));
+    if (!available) { res.json({ ok: true }); return; }
 
     const latest = await latestPublishedEdition();
     if (!latest) { res.json({ ok: true }); return; }
@@ -506,12 +516,19 @@ router.get("/broadcast/player-focus", async (req, res): Promise<void> => {
       }).from(playerAchievementsTable)
         .innerJoin(achievementsTable, eq(achievementsTable.id, playerAchievementsTable.achievementId))
         .where(inArray(playerAchievementsTable.playerId, playerIds)),
-      db.execute(sql`SELECT player_id, COUNT(*)::int AS titles FROM season_standings WHERE player_id = ANY(${playerIds}) AND is_champion = true GROUP BY player_id`),
+      // playerIds is a plain number[] — interpolating it directly into
+      // ANY(${playerIds}) doesn't bind as a single array parameter, it
+      // spreads into positional parameters that Postgres can't cast to
+      // int[] (error 42846). The sibling Drizzle-builder queries just above
+      // sidestep this by using inArray(); raw sql`` needs the explicit
+      // ARRAY[...] wrap, same pattern used everywhere else in this codebase
+      // (doubles.ts, community.ts, shift-wars.ts, team-matches.ts, etc).
+      db.execute(sql`SELECT player_id, COUNT(*)::int AS titles FROM season_standings WHERE player_id = ANY(ARRAY[${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)}]::int[]) AND is_champion = true GROUP BY player_id`),
       db.execute(sql`
         SELECT DISTINCT ON (r.player_id) r.player_id, a.answer_text, r.created_at
         FROM interview_requests r
         JOIN interview_answers a ON a.request_id = r.id AND a.response_type = 'comment'
-        WHERE r.player_id = ANY(${playerIds}) AND r.status = 'answered' AND r.is_test = false
+        WHERE r.player_id = ANY(ARRAY[${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)}]::int[]) AND r.status = 'answered' AND r.is_test = false
         ORDER BY r.player_id, r.created_at DESC, CASE WHEN a.turn = 'followup' THEN 0 ELSE 1 END
       `),
       db.select({ payload: broadcastPredictionSnapshotsTable.payload })
@@ -767,41 +784,6 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
       }),
     );
 
-    const publishedProgramme = currentPublished && isEditionProgramme(currentPublished.programme) ? currentPublished.programme as EditionProgramme : null;
-    const monitorSegments = publishedProgramme?.segments.filter(segment => segment.storyId !== null && segment.purpose !== "headlines") ?? [];
-    const monitorStoryIds = [...new Set(monitorSegments.map(segment => segment.storyId).filter((id): id is number => id !== null))];
-    const monitorStories = monitorStoryIds.length > 0
-      ? await db.select({ id: broadcastStoriesTable.id, storyType: broadcastStoriesTable.storyType, lifecycle: broadcastStoriesTable.lifecycle, score: broadcastStoriesTable.score, updatedAt: broadcastStoriesTable.updatedAt, subjectKeys: broadcastStoriesTable.subjectKeys }).from(broadcastStoriesTable).where(inArray(broadcastStoriesTable.id, monitorStoryIds))
-      : [];
-    const monitorStoryById = new Map(monitorStories.map(story => [story.id, story]));
-    const monitorRows = monitorSegments.map((segment, index) => {
-      const story = segment.storyId === null ? null : monitorStoryById.get(segment.storyId) ?? null;
-      const family = segment.storyType ? familyForStoryType(segment.storyType as StoryType) : null;
-      return {
-        order: index + 1, purpose: segment.purpose, storyId: segment.storyId, storyType: segment.storyType,
-        family, leagueType: segment.leagueType, importance: segment.importance,
-        lifecycle: story?.lifecycle ?? segment.lifecycleAtBroadcast, score: story?.score ?? null,
-        ageHours: story ? Math.max(0, Math.round((Date.now() - story.updatedAt.getTime()) / 3_600_000)) : null,
-        subjectKeys: story?.subjectKeys ?? [],
-      };
-    });
-    const topicCounts = new Map<string, number>();
-    for (const row of monitorRows) if (row.storyType) topicCounts.set(row.storyType, (topicCounts.get(row.storyType) ?? 0) + 1);
-    const flowWarnings: string[] = [];
-    for (let index = 1; index < monitorRows.length; index++) {
-      if (monitorRows[index].family && monitorRows[index].family === monitorRows[index - 1].family) flowWarnings.push(`Segments ${index} and ${index + 1} are both ${monitorRows[index].family}`);
-    }
-    for (const [storyType, count] of topicCounts) if (count > 1) flowWarnings.push(`${storyType} appears ${count} times as a full segment`);
-    const editorialMonitor = publishedProgramme ? {
-      editionId: currentPublished!.id,
-      mode: programmeModeOf(publishedProgramme),
-      runtimeSeconds: totalEstimatedSecondsForProgramme(publishedProgramme),
-      segmentCount: monitorRows.length,
-      rows: monitorRows,
-      flowWarnings,
-      verdict: flowWarnings.length === 0 ? "Balanced running order" : `${flowWarnings.length} item${flowWarnings.length === 1 ? "" : "s"} worth reviewing`,
-    } : null;
-
     res.json({
       // Show Bible v1 §1 "Programme lengths" — diagnostic-only runtime band
       // (Quiet/Normal/Busy/Exceptional), never a publish gate (see director-
@@ -828,7 +810,6 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
         storyType: r.story_type, lifecycle: r.lifecycle, count: r.count,
       })),
       predictorDiagnostics,
-      editorialMonitor,
       config,
       // Diagnostic-only: why did the Season Review find zero/thin real
       // content for a league's most recently closed season, when the story

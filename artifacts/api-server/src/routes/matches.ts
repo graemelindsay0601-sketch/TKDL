@@ -16,6 +16,7 @@ import { addCoinsToPlayer, removeCardFromPlayer } from "../services/card-shop-se
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { logAdminAction } from "../lib/adminAudit";
 import { reverseRecordedParticipant } from "../lib/match-rollback";
+import { upsertResultPoster } from "../services/matchPosterService";
 
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
@@ -485,8 +486,13 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     checkMatchAchievements(winnerId, loserId, true,  stake, loserPointsBefore, winnerPointsBefore, loserEliminated, match.seasonId, eloChange),
     checkMatchAchievements(loserId,  winnerId, false, stake, loserPointsBefore, winnerPointsBefore, false, match.seasonId, eloChange),
   ]).catch(err => console.error("Post-match achievement check error:", err));
-  void checkAndGrantTitles(winnerId);
-  void checkAndGrantTitles(loserId);
+  // .catch() required on both — unlike the Promise.all above, these were
+  // bare `void` calls with no handler, so a throw inside checkAndGrantTitles
+  // would become an unhandled promise rejection and crash the whole Node
+  // process (Node >=15 default behavior) after this match already committed
+  // and responded successfully.
+  void checkAndGrantTitles(winnerId).catch(err => console.error("Title grant check error:", err));
+  void checkAndGrantTitles(loserId).catch(err => console.error("Title grant check error:", err));
 
   // Interview Desk — real trigger hook (MAJOR_UPSET / WIN_STREAK /
   // 180_MILESTONE). Fire-and-forget, same reasoning as checkAndGrantTitles
@@ -636,6 +642,17 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     }
   })();
 
+  void upsertResultPoster({
+    resultRef: `league-${match.id}`,
+    leagueType: "singles",
+    format: "Singles",
+    winnerName: winner.name,
+    loserName: loser.name,
+    stake,
+    gameType,
+    seasonId: match.seasonId,
+  });
+
   res.status(201).json({
     ...match,
     loserEliminated,
@@ -738,6 +755,11 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       WHERE league_type = 'singles'
         AND anchor_match_id = ${id}
         AND lifecycle <> 'RESOLVED'
+    `);
+    await tx.execute(sql`
+      UPDATE match_posters
+      SET status='withdrawn', withdrawn_at=NOW(), updated_at=NOW()
+      WHERE result_ref=${`league-${id}`}
     `);
 
     // Recalculate from both direct Singles rows and match_participants so a

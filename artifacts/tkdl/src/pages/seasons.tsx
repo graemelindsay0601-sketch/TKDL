@@ -5,7 +5,6 @@ import { useState, useEffect } from "react";
 import { Calendar, Trophy, Hash, Clock, ChevronDown, ChevronUp, Plus, Check, X, Target } from "lucide-react";
 import { apiFetchJson, apiFetchJsonOr } from "@/lib/api-fetch";
 import { useToast } from "@/hooks/use-toast";
-import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // Fetch players hook
 function usePlayers() {
@@ -456,7 +455,12 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
 
           {/* ── LIVE season narrative ── */}
           {isLive && detail?.standings && detail.standings.length >= 2 && (() => {
-            const st: any[] = [...detail.standings].sort((a: any, b: any) => b.points - a.points);
+            // Elo tiebreak matches the leaderboard/players-page convention
+            // (points desc, then elo desc) — currently masked here by a
+            // stable sort over already-correctly-ordered API data, but kept
+            // explicit so this narrative block can't silently drift from the
+            // real ranking if the standings payload's order ever changes.
+            const st: any[] = [...detail.standings].sort((a: any, b: any) => b.points - a.points || (b.elo ?? 1000) - (a.elo ?? 1000));
             const top = st[0];
             const second = st[1];
             const gap = top && second ? top.points - second.points : null;
@@ -522,7 +526,7 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
                 {isLive ? "Current Standings" : "League Standings"}
               </div>
               <div className="space-y-1">
-                {[...detail.standings].sort((a: any, b: any) => isLive ? b.points - a.points : a.position - b.position).map((s: any, idx: number) => (
+                {[...detail.standings].sort((a: any, b: any) => isLive ? (b.points - a.points || (b.elo ?? 1000) - (a.elo ?? 1000)) : a.position - b.position).map((s: any, idx: number) => (
                   <Link key={s.playerId} href={`/players/${s.playerId}`}>
                     <div className="flex items-center gap-2 px-3 py-2 rounded hover:bg-white/5 transition-colors cursor-pointer group"
                       style={{ background: (isLive ? idx === 0 : s.position === 1) ? "rgba(255,210,74,0.04)" : undefined }}>
@@ -573,8 +577,6 @@ export default function Seasons() {
           {seasons?.length ?? 0} seasons · Full history
         </p>
       </div>
-
-      <MonthlyLeagueReports />
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">

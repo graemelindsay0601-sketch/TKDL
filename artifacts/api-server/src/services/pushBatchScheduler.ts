@@ -12,8 +12,28 @@
  */
 
 import cron from "node-cron";
+import { sql } from "drizzle-orm";
+import { db } from "@workspace/db";
 import { logger } from "../lib/logger";
 import { flushDuePushNotifications } from "./notificationService";
+
+const DELIVERED_OUTBOX_RETENTION_DAYS = 30;
+
+/**
+ * The outbox is a delivery mechanism, not notification history. Once a push
+ * has been sent, the durable notification and analytics rows retain the user-
+ * facing and reporting history. Keep a month for diagnosis, then remove only
+ * delivered outbox copies; queued and failed deliveries are never pruned.
+ */
+export async function pruneDeliveredPushOutbox(): Promise<number> {
+  const result = await db.execute(sql`
+    DELETE FROM pending_push_notifications
+    WHERE sent_at IS NOT NULL
+      AND sent_at < NOW() - INTERVAL '30 days'
+    RETURNING id
+  `);
+  return result.rows.length;
+}
 
 export function initializePushBatchScheduler(): void {
   try {
@@ -28,12 +48,29 @@ export function initializePushBatchScheduler(): void {
     // for the next five-minute cron boundary as well.
     void flushDuePushNotifications().catch(err => logger.error({ err }, "Initial push batch flush failed"));
 
-    logger.info("Push batch scheduler initialized (every 5 minutes)");
+    const cleanup = cron.schedule("30 3 * * *", () => {
+      pruneDeliveredPushOutbox()
+        .then(deleted => {
+          if (deleted > 0) logger.info({ deleted, retentionDays: DELIVERED_OUTBOX_RETENTION_DAYS }, "Delivered push outbox pruned");
+        })
+        .catch(err => logger.error({ err }, "Delivered push outbox cleanup failed"));
+    }, { runOnInit: false });
+
+    // A sleeping free-tier service may miss the scheduled maintenance window.
+    // Running the same bounded cleanup at startup keeps retention reliable.
+    void pruneDeliveredPushOutbox()
+      .then(deleted => {
+        if (deleted > 0) logger.info({ deleted, retentionDays: DELIVERED_OUTBOX_RETENTION_DAYS }, "Delivered push outbox pruned on startup");
+      })
+      .catch(err => logger.error({ err }, "Initial delivered push outbox cleanup failed"));
+
+    logger.info("Push batch scheduler initialized (every 5 minutes; delivered outbox cleanup daily)");
 
     // Expose for testing, same convention as coachTipsScheduler.ts's
     // TKDL_testCoachTips.
     (global as any).TKDL_testPushBatchFlush = flushDuePushNotifications;
     void job;
+    void cleanup;
   } catch (error) {
     logger.error({ error }, "Failed to initialize push batch scheduler");
   }

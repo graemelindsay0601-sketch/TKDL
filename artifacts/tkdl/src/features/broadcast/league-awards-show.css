@@ -2,6 +2,9 @@
   --gold: #ffd24a;
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
   z-index: 70;
   overflow: hidden;
   color: white;
@@ -25,7 +28,7 @@
 .league-awards__close { margin-left: auto; width: 40px; height: 40px; display: grid; place-items: center; color: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.14); border-radius: 50%; background: rgba(255,255,255,.06); transition: .2s ease; }
 .league-awards__close:hover { color: white; border-color: rgba(255,255,255,.4); transform: rotate(4deg) scale(1.05); }
 
-.league-awards__stage { position: absolute; z-index: 2; inset: 76px 0 72px; display: grid; place-items: center; padding: clamp(18px, 4vw, 48px); }
+.league-awards__stage { position: absolute; z-index: 2; inset: 76px 0 72px; display: grid; place-items: center; padding: clamp(18px, 4vw, 48px); overflow-y: auto; overscroll-behavior: contain; }
 .league-awards__intro { width: min(1080px, 94vw); text-align: center; animation: awards-enter .65s cubic-bezier(.2,.8,.2,1) both; }
 .league-awards__eyebrow { display: flex; align-items: center; justify-content: center; gap: 12px; color: rgba(255,255,255,.58); font-size: clamp(10px, 1.25vw, 13px); font-weight: 800; letter-spacing: .3em; text-transform: uppercase; }
 .league-awards__eyebrow span { width: 36px; height: 1px; background: currentColor; }
@@ -80,13 +83,14 @@
 @media (max-width: 720px) {
   .league-awards__header { min-height: 58px; padding-left: 16px; padding-right: 16px; }
   .league-awards__programme { font-size: 9px; padding-left: 10px; }
-  .league-awards__stage { top: 65px; padding: 14px; }
+  .league-awards__stage { top: 65px; display: block; padding: 14px 14px 82px; }
+  .league-awards__stage > * { margin-left: auto; margin-right: auto; }
   .league-awards__intro h1 { font-size: clamp(47px, 16vw, 76px); }
   .league-awards__champions { grid-template-columns: 1fr; gap: 8px; }
   .league-awards__champion { min-height: 88px; padding: 13px 15px; }
   .league-awards__champion strong { margin-top: 11px; font-size: 22px; }
   .league-awards__champion small { margin-top: 4px; }
-  .league-awards__award { min-height: 66vh; grid-template-columns: 1fr; align-content: center; gap: 19px; padding: 44px 24px 28px; text-align: center; }
+  .league-awards__award { min-height: min(66dvh, 620px); grid-template-columns: 1fr; align-content: center; gap: 19px; padding: 44px 24px 28px; text-align: center; }
   .league-awards__award-icon { width: 135px; }
   .league-awards__award-copy { text-align: center; }
   .league-awards__award-copy .league-awards__eyebrow { justify-content: center; }

@@ -99,6 +99,18 @@ type PlayRecoverySnapshot = {
   savedAt: number;
 };
 
+type CompletedMatchSnapshot = {
+  version: 3;
+  phase: "completed";
+  setupData: SetupData;
+  result: GameResult;
+  stats: PracticeStats | null;
+  player1Equipment: EquippedCards | null;
+  player2Equipment: EquippedCards | null;
+  idempotencyKey: string;
+  savedAt: number;
+};
+
 type InterruptedMatch = {
   setupData: SetupData;
   scorerState: ScorerRecoveryState | null;
@@ -125,6 +137,15 @@ function decodeInterruptedMatch(value: unknown): InterruptedMatch | null {
     return { setupData: candidate as SetupData, scorerState: null, player1Equipment: null, player2Equipment: null, equipmentPhase: "player1" };
   }
   return null;
+}
+
+function decodeCompletedMatch(value: unknown): CompletedMatchSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<CompletedMatchSnapshot>;
+  if (candidate.version !== 3 || candidate.phase !== "completed" || !candidate.setupData || !candidate.result) return null;
+  if (typeof candidate.idempotencyKey !== "string" || candidate.idempotencyKey.length === 0) return null;
+  if (!Number.isInteger(candidate.result.winnerIdx) || candidate.result.winnerIdx < 0) return null;
+  return candidate as CompletedMatchSnapshot;
 }
 
 type EquippedCards = {
@@ -1573,7 +1594,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
 }
 
 // ── Game Over Screen ───────────────────────────────────────────────────────────
-function GameOverScreen({ result, data, stats, player1Equipment, player2Equipment, idempotencyKey, onBack }: {
+function GameOverScreen({ result, data, stats, player1Equipment, player2Equipment, idempotencyKey, onSaved, onBack }: {
   result: GameResult; data: SetupData; stats: PracticeStats | null; player1Equipment: EquippedCards | null; player2Equipment: EquippedCards | null;
   // Generated once by the parent the instant a winner is decided (before
   // this screen's own auto-submit even fires) and held stable across this
@@ -1582,6 +1603,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   // as the same attempt instead of writing a genuine duplicate match. See
   // db/migrations/add_match_result_idempotency.ts.
   idempotencyKey: string | null;
+  onSaved: () => void;
   onBack: () => void;
 }) {
   const { toast }   = useToast();
@@ -1867,6 +1889,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         await qc.invalidateQueries({ queryKey: getListMatchesQueryKey() });
       }
       setSubmitted(true);
+      onSaved();
       toast({ title: "Match recorded!", description: `${winnerName} won — result saved` });
     } catch (e: any) {
       setError(e.message ?? "Failed to submit");
@@ -2004,12 +2027,12 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={onBack} className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm"
-          style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)", border: "1px solid rgba(255,255,255,0.08)", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
-          <RotateCcw className="inline w-4 h-4 mr-2" />New Match
+        <button onClick={onBack} disabled={!submitted} className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm"
+          style={{ background: "rgba(255,255,255,0.05)", color: submitted ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.08)", fontFamily: "Oswald, sans-serif", cursor: submitted ? "pointer" : "not-allowed" }}>
+          <RotateCcw className="inline w-4 h-4 mr-2" />{submitted ? "New Match" : "Save result first"}
         </button>
-        <a href="/" className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm text-center block"
-          style={{ background: "rgba(255,0,92,0.12)", color: "#ff005c", border: "1px solid rgba(255,0,92,0.25)", fontFamily: "Oswald, sans-serif", lineHeight: "1.5rem" }}>
+        <a href="/" aria-disabled={!submitted} onClick={event => { if (!submitted) event.preventDefault(); }} className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm text-center block"
+          style={{ background: "rgba(255,0,92,0.12)", color: submitted ? "#ff005c" : "rgba(255,255,255,0.2)", border: "1px solid rgba(255,0,92,0.25)", fontFamily: "Oswald, sans-serif", lineHeight: "1.5rem", cursor: submitted ? "pointer" : "not-allowed" }}>
           Dashboard
         </a>
       </div>
@@ -2023,19 +2046,21 @@ export default function Play() {
   const currentUser                 = useCurrentPlayer();
   const cardClashEnabled            = appSettings?.card_clash_enabled ?? false;
 
-  const [phase, setPhase]           = useState<"setup" | "equipment" | "intro" | "playing" | "gameover">("setup");
-  const [setupData, setSetupData]   = useState<SetupData | null>(null);
-  const [player1Equipment, setPlayer1Equipment] = useState<EquippedCards | null>(null);
-  const [player2Equipment, setPlayer2Equipment] = useState<EquippedCards | null>(null);
+  const [initialRecovery] = useState(() => {
+    const raw = readMatchSnapshot<unknown>(PLAY_SNAPSHOT_KEY);
+    return { completed: decodeCompletedMatch(raw), interrupted: decodeInterruptedMatch(raw) };
+  });
+  const [phase, setPhase]           = useState<"setup" | "equipment" | "intro" | "playing" | "gameover">(initialRecovery.completed ? "gameover" : "setup");
+  const [setupData, setSetupData]   = useState<SetupData | null>(initialRecovery.completed?.setupData ?? null);
+  const [player1Equipment, setPlayer1Equipment] = useState<EquippedCards | null>(initialRecovery.completed?.player1Equipment ?? null);
+  const [player2Equipment, setPlayer2Equipment] = useState<EquippedCards | null>(initialRecovery.completed?.player2Equipment ?? null);
   const [equipmentPhase, setEquipmentPhase] = useState<"player1" | "player2" | "done">("player1");
-  const [gameResult, setResult]     = useState<GameResult | null>(null);
-  const [matchStats, setMatchStats] = useState<PracticeStats | null>(null);
+  const [gameResult, setResult]     = useState<GameResult | null>(initialRecovery.completed?.result ?? null);
+  const [matchStats, setMatchStats] = useState<PracticeStats | null>(initialRecovery.completed?.stats ?? null);
   const [liveScore, setLiveScore]    = useState<LiveScoreState | null>(null);
   const [scorerRecoveryState, setScorerRecoveryState] = useState<ScorerRecoveryState | null>(null);
   const [showResultPresentation, setShowResultPresentation] = useState(false);
-  const [interruptedMatch, setInterruptedMatch] = useState<InterruptedMatch | null>(() =>
-    decodeInterruptedMatch(readMatchSnapshot<unknown>(PLAY_SNAPSHOT_KEY))
-  );
+  const [interruptedMatch, setInterruptedMatch] = useState<InterruptedMatch | null>(initialRecovery.completed ? null : initialRecovery.interrupted);
   const liveScoreRef                 = useRef<LiveScoreState | null>(null);
   const liveSessionIdRef             = useRef<string | null>(null);
   const liveFinishedRef              = useRef(false);
@@ -2043,7 +2068,7 @@ export default function Play() {
   // held stable for the rest of this match attempt, including a manual
   // "Retry" after a failed/timed-out submission — see
   // GameOverScreen's own idempotencyKey prop comment for why.
-  const matchIdempotencyKeyRef       = useRef<string | null>(null);
+  const matchIdempotencyKeyRef       = useRef<string | null>(initialRecovery.completed?.idempotencyKey ?? null);
   liveScoreRef.current = liveScore;
 
   const broadcastFormat = (data: SetupData) => data.format === "1v1" ? "Singles" : data.format === "doubles-event" ? "Doubles Event" : data.format === "shift-wars" ? "Shift Wars" : data.format === "uneven-teams" ? `Uneven Teams ${data.team1.length}v${data.team2.length}` : data.format.toUpperCase();
@@ -2313,7 +2338,6 @@ export default function Play() {
               ? setScorerRecoveryState : undefined;
           })()}
           onWin={r => {
-            clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
             setInterruptedMatch(null);
             setScorerRecoveryState(null);
             // Generated once, right here, before GameOverScreen's own
@@ -2321,6 +2345,18 @@ export default function Play() {
             // comment above and GameOverScreen's idempotencyKey prop.
             matchIdempotencyKeyRef.current = typeof crypto.randomUUID === "function"
               ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+            const completedSnapshot: CompletedMatchSnapshot = {
+              version: 3,
+              phase: "completed",
+              setupData,
+              result: r,
+              stats: matchStats,
+              player1Equipment,
+              player2Equipment,
+              idempotencyKey: matchIdempotencyKeyRef.current,
+              savedAt: Date.now(),
+            };
+            try { sessionStorage.setItem(PLAY_SNAPSHOT_KEY, JSON.stringify(completedSnapshot)); } catch { /* recovery is best-effort */ }
             finishLiveBroadcast(r);
             setResult(r);
             setShowResultPresentation(true);
@@ -2337,7 +2373,7 @@ export default function Play() {
   if (phase === "gameover" && gameResult && setupData) {
     return (
       <>
-        <GameOverScreen result={gameResult} data={setupData} stats={matchStats} player1Equipment={player1Equipment} player2Equipment={player2Equipment} idempotencyKey={matchIdempotencyKeyRef.current} onBack={reset} />
+        <GameOverScreen result={gameResult} data={setupData} stats={matchStats} player1Equipment={player1Equipment} player2Equipment={player2Equipment} idempotencyKey={matchIdempotencyKeyRef.current} onSaved={() => clearMatchSnapshot(PLAY_SNAPSHOT_KEY)} onBack={reset} />
         {showResultPresentation && createPortal(
           <MatchNightPresentation
             mode="result"

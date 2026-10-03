@@ -129,6 +129,17 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
     }
   }
   if (!result) { res.status(404).json({ error: "Match not found" }); return; }
+  const posterResult = await db.execute(sql`
+    SELECT id,status,kicker,reason,created_at
+    FROM match_posters
+    WHERE result_ref=${String(req.params.key)} AND withdrawn_at IS NULL
+    ORDER BY updated_at DESC LIMIT 1
+  `);
+  const poster:any=posterResult.rows[0];
+  result.poster=poster?{
+    id:Number(poster.id),status:poster.status,kicker:poster.kicker,
+    reason:poster.reason,createdAt:poster.created_at,
+  }:null;
   res.json(result);
 });
 

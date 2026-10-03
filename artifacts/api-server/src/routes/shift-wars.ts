@@ -11,6 +11,7 @@ import { createAutoPost } from "../lib/communityNotify";
 import { checkShiftWarsAchievements } from "../lib/shift-wars-achievements";
 import { rankShiftWarsTeams, type RankableShiftWarsTeam } from "../lib/leaderboardRank";
 import { logAdminAction } from "../lib/adminAudit";
+import { upsertResultPoster } from "../services/matchPosterService";
 
 /**
  * Shift Wars — 3 fixed department teams (Fresh, Twilight, Shift Leader) competing
@@ -314,13 +315,25 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
       console.error("Shift Wars rank-change computation error:", err);
     }
 
+    void upsertResultPoster({
+      resultRef: `shift-${match.id}`,
+      leagueType: "shift_wars",
+      format: "Shift Wars",
+      winnerName,
+      loserName,
+      stake: effectiveStake,
+      gameType,
+      seasonId,
+    });
+
     res.status(201).json({
       match, winnerName, loserName,
       newWinnerTeamRank, newLoserTeamRank,
       winnerTeamRankChange, loserTeamRankChange,
     });
 
-    void checkShiftWarsAchievements(winnerTeamId);
+    void checkShiftWarsAchievements(winnerTeamId)
+      .catch(err => console.error("Shift Wars achievement check error:", err));
 
     // Push notifications (fire and forget — never delay the response). Shift
     // Wars had no notification integration at all before this. The match
@@ -589,6 +602,19 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
       return { match, solo, combined, sideRows, pot, soloPointsDelta };
     });
 
+    const combinedPosterNames = result.sideRows.map(s => s.teamName).join(" & ");
+    void upsertResultPoster({
+      resultRef: `shift-combined-${result.match.id}`,
+      leagueType: "shift_wars",
+      format: "Shift Wars",
+      winnerName: soloWon ? result.solo.name : combinedPosterNames,
+      loserName: soloWon ? combinedPosterNames : result.solo.name,
+      stake: result.pot,
+      gameType,
+      seasonId,
+      resultType: "combined",
+    });
+
     res.status(201).json({
       match: result.match,
       soloTeamId: result.solo.id,
@@ -599,9 +625,18 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
       combinedSides: result.sideRows,
     });
 
-    void checkShiftWarsAchievements(soloWon ? result.solo.id : result.sideRows[0].teamId);
+    // .catch() required — a bare `void` call with no handler becomes an
+    // unhandled promise rejection if checkShiftWarsAchievements ever throws,
+    // which crashes the whole Node process (Node >=15 default behavior),
+    // taking down the server for every connected player after this match
+    // already committed and responded successfully.
+    void checkShiftWarsAchievements(soloWon ? result.solo.id : result.sideRows[0].teamId)
+      .catch(err => console.error("Shift Wars achievement check error:", err));
     if (!soloWon) {
-      for (const side of result.sideRows.slice(1)) void checkShiftWarsAchievements(side.teamId);
+      for (const side of result.sideRows.slice(1)) {
+        void checkShiftWarsAchievements(side.teamId)
+          .catch(err => console.error("Shift Wars achievement check error:", err));
+      }
     }
 
     // Push notifications + auto community post (fire and forget) — same
@@ -815,6 +850,18 @@ router.post("/shift-wars/multi-matches", matchSubmitRateLimit, async (req, res):
       return { match, winner, losers, loserRows, pot };
     });
 
+    void upsertResultPoster({
+      resultRef: `shift-multi-${result.match.id}`,
+      leagueType: "shift_wars",
+      format: "Shift Wars",
+      winnerName: result.winner.name,
+      loserName: result.loserRows.map(l => l.teamName).join(", "),
+      stake: result.pot,
+      gameType,
+      seasonId,
+      resultType: "multi",
+    });
+
     res.status(201).json({
       match: result.match,
       winnerTeamId: result.winner.id,
@@ -823,7 +870,8 @@ router.post("/shift-wars/multi-matches", matchSubmitRateLimit, async (req, res):
       losers: result.loserRows,
     });
 
-    void checkShiftWarsAchievements(result.winner.id);
+    void checkShiftWarsAchievements(result.winner.id)
+      .catch(err => console.error("Shift Wars achievement check error:", err));
 
     // Push notifications + auto community post (fire and forget) — same
     // spirit as the normal Shift Wars match, phrased for a multi-team result.

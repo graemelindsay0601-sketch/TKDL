@@ -42,6 +42,33 @@ function hexToRgba(hex: string, alpha: number) {
   return `rgba(${(number >> 16) & 255},${(number >> 8) & 255},${number & 255},${alpha})`;
 }
 
+function safeFilename(filename: string) {
+  return `${filename.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "tkdl-card"}.png`;
+}
+
+function drawDartboardMark(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, accent: string) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalAlpha = .16;
+  for (let ring = 5; ring >= 1; ring -= 1) {
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * ring / 5, 0, Math.PI * 2);
+    ctx.strokeStyle = ring % 2 === 0 ? accent : "#ffffff";
+    ctx.lineWidth = ring === 5 ? 4 : 2;
+    ctx.stroke();
+  }
+  for (let segment = 0; segment < 20; segment += 1) {
+    const angle = (Math.PI * 2 * segment) / 20;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+    ctx.strokeStyle = segment % 2 === 0 ? accent : "#ffffff";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 export async function renderShareCard(spec: ShareCardSpec): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = 1200;
@@ -57,6 +84,29 @@ export async function renderShareCard(spec: ShareCardSpec): Promise<Blob> {
   background.addColorStop(1, "#050b18");
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, 1200, 630);
+
+  // Broadcast-stage geometry gives the graphic depth while keeping all text
+  // readable at social-card size.
+  ctx.save();
+  ctx.globalAlpha = .11;
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.moveTo(0, 430);
+  ctx.lineTo(500, 0);
+  ctx.lineTo(650, 0);
+  ctx.lineTo(0, 555);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = secondary;
+  ctx.beginPath();
+  ctx.moveTo(1200, 125);
+  ctx.lineTo(805, 630);
+  ctx.lineTo(650, 630);
+  ctx.lineTo(1200, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  drawDartboardMark(ctx, 1080, 516, 190, secondary);
 
   const glowA = ctx.createRadialGradient(100, 520, 0, 100, 520, 430);
   glowA.addColorStop(0, hexToRgba(accent, .28));
@@ -76,6 +126,8 @@ export async function renderShareCard(spec: ShareCardSpec): Promise<Blob> {
 
   ctx.fillStyle = accent;
   ctx.fillRect(0, 0, 14, 630);
+  ctx.fillStyle = secondary;
+  ctx.fillRect(14, 0, 5, 630);
   ctx.fillStyle = "#fff";
   ctx.font = "950 34px Oswald, Arial, sans-serif";
   ctx.fillText("TKDL", 70, 74);
@@ -122,6 +174,11 @@ export async function renderShareCard(spec: ShareCardSpec): Promise<Blob> {
     ctx.fillText(right, 1130, 287);
     ctx.shadowBlur = 0;
     ctx.textAlign = "center";
+    const versusGlow = ctx.createRadialGradient(600, 267, 0, 600, 267, 130);
+    versusGlow.addColorStop(0, "rgba(255,210,74,.2)");
+    versusGlow.addColorStop(1, "rgba(255,210,74,0)");
+    ctx.fillStyle = versusGlow;
+    ctx.fillRect(470, 137, 260, 260);
     roundedRect(ctx, 553, 231, 94, 72, 22);
     ctx.fillStyle = "rgba(255,255,255,.065)";
     ctx.fill();
@@ -178,29 +235,43 @@ export async function renderShareCard(spec: ShareCardSpec): Promise<Blob> {
   ctx.fillStyle = "rgba(255,255,255,.2)";
   ctx.fillText("TKDL", 1130, 580);
 
+  ctx.textAlign = "left";
+  ctx.fillStyle = accent;
+  ctx.fillRect(70, 602, 650, 4);
+  ctx.fillStyle = secondary;
+  ctx.fillRect(720, 602, 410, 4);
+
   return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("Could not create image")), "image/png"));
 }
 
-export async function shareCard(spec: ShareCardSpec, filename: string): Promise<"shared" | "downloaded" | "cancelled"> {
-  const blob = await renderShareCard(spec);
-  const safeName = `${filename.replace(/[^a-z0-9-_]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "tkdl-card"}.png`;
+export function downloadRenderedCard(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = safeFilename(filename);
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+export async function shareRenderedCard(blob: Blob, spec: ShareCardSpec, filename: string): Promise<"shared" | "downloaded" | "cancelled"> {
+  const name = safeFilename(filename);
   if (typeof File !== "undefined" && navigator.share) {
-    const file = new File([blob], safeName, { type: "image/png" });
+    const file = new File([blob], name, { type: "image/png" });
     try {
       if (!navigator.canShare?.({ files: [file] })) throw new Error("File sharing is unavailable");
       await navigator.share({ files: [file], title: spec.title, text: spec.subtitle });
       return "shared";
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
-      // Browsers that expose Web Share but reject files still get the
-      // ordinary PNG download below.
     }
   }
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = safeName;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  downloadRenderedCard(blob, filename);
   return "downloaded";
+}
+
+export async function shareCard(spec: ShareCardSpec, filename: string): Promise<"shared" | "downloaded" | "cancelled"> {
+  const blob = await renderShareCard(spec);
+  return shareRenderedCard(blob, spec, filename);
 }

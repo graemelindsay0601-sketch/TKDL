@@ -162,7 +162,13 @@ export default function Master501() {
           player1Id:          playerId,
           gameTypeKey:        "501_double_out",
           gameTypeName:       `Master-501 — ${cfg?.name ?? ""}`,
-          winnerIdx:          result === "win" ? 0 : null,
+          // Every other mode (e.g. tour-run.tsx) uses the 0/1 convention for
+          // a completed single-player-vs-bot session. Sending null on a loss
+          // instead of 1 made the backend treat these as "not completed"
+          // (practice.ts's completed count is COUNT(winner_idx IS NOT NULL)),
+          // undercounted M-501 losses anywhere winner_idx = 1 is tallied, and
+          // rendered as won:null (neither win nor loss) in session history.
+          winnerIdx:          result === "win" ? 0 : 1,
           detail:             `${cfg?.name ?? ""} R${prog?.currentRound ?? 1}: ${legsWon}–${legsLost}`,
           durationSeconds:    Math.round((Date.now() - matchStartRef.current) / 1000),
           p1Darts:            stats.p1Darts,

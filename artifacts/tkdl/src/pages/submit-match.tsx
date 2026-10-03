@@ -470,20 +470,46 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
 
   const involved = [...winnerIds, ...loserIds];
   const involvedPlayers = activePlayers.filter(p => involved.includes(p.id));
-  const maxStake = involvedPlayers.length > 0 ? Math.min(...involvedPlayers.map(p => p.points)) : 25;
+  const loserPlayers = activePlayers.filter(p => loserIds.includes(p.id));
   const stakeN = parseInt(stake) || 0;
   const bothSelected = winnerIds.length > 0 && loserIds.length > 0;
 
-  // Mirrors the backend's pot-and-split exactly: each losing player pays the
-  // full stake (same risk as a 1v1) into a pot; that pot is split evenly
-  // across the winners, with any remainder (pot not divisible by winner
-  // count) going to the first players in the winning list. Equal team sizes
-  // — including a plain 1v1 — reduce to a flat ±stake per player.
-  const pot = stakeN * loserIds.length;
-  const baseShare = winnerIds.length > 0 ? Math.floor(pot / winnerIds.length) : 0;
-  const remainder = pot - baseShare * winnerIds.length;
-  const winnerShares = winnerIds.map((_, i) => baseShare + (i < remainder ? 1 : 0));
+  // Mirrors the backend's lib/wager-pot.ts computeWagerShares exactly: the
+  // pot is stake * the LARGER of the two team sizes (not always loserCount —
+  // this used to silently understate the real stake whenever winners
+  // outnumbered losers, e.g. 3 winners vs 1 loser at stake=10 showed a pot
+  // of 10 and a flat -10 for the lone loser, when the backend actually pools
+  // 30 and charges that whole pot to the one loser), and that pot is split
+  // evenly across EACH side independently — winners split it one way,
+  // losers split it the other way — not "losers each pay a flat stake."
+  // Equal team sizes, including a plain 1v1, reduce to a flat ±stake either
+  // way since both splits divide the same pot by the same count.
+  const split = (total: number, count: number) =>
+    Array.from({ length: count }, (_, i) => Math.floor(total / count) + (i < total % count ? 1 : 0));
+  const pot = stakeN * Math.max(winnerIds.length, loserIds.length);
+  const winnerShares = split(pot, winnerIds.length);
+  const loserShares = split(pot, loserIds.length);
   const unevenTeams = winnerIds.length !== loserIds.length && bothSelected;
+
+  // Only the LOSING side's balance is ever actually at risk (winners only
+  // ever gain — see routes/team-matches.ts's pre-check, which validates
+  // computeWagerShares' loserShares against each loser's own points and
+  // never looks at winner balances at all). The old code took Math.min()
+  // across BOTH sides, so a winner with a low balance could cap — or even
+  // zero out — the max stake for a match that was really still well within
+  // what the losing side could afford. Start from the loser-only, team-size-
+  // scaled bound, then walk it down against the exact same split() used
+  // above so the ±1 remainder (which always lands on the lowest-index
+  // loser) can never let the UI offer a stake the backend would reject.
+  const biggerSide = Math.max(winnerIds.length, loserIds.length, 1);
+  let maxStake = loserPlayers.length > 0
+    ? Math.max(0, Math.min(...loserPlayers.map(p => Math.floor((p.points * loserIds.length) / biggerSide))))
+    : 25;
+  if (loserPlayers.length > 0) {
+    while (maxStake > 0 && loserPlayers.some((p, i) => split(maxStake * biggerSide, loserIds.length)[i] > p.points)) {
+      maxStake--;
+    }
+  }
 
   function nameOf(id: number) { return activePlayers.find(p => p.id === id)?.name ?? "?"; }
 
@@ -501,7 +527,7 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
       return;
     }
     if (stakeN > maxStake) {
-      toast({ title: "Stake Too High", description: `Maximum stake is ${maxStake} points — one player's balance is the limit`, variant: "destructive" });
+      toast({ title: "Stake Too High", description: `Maximum stake is ${maxStake} points — a losing player's balance is the limit`, variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -518,7 +544,7 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
       }
       const data = await res.json() as any;
       const payoutDesc = unevenTeams
-        ? `${winnerIds.map((id, i) => `${nameOf(id)} +${winnerShares[i]}`).join(", ")} · ${loserIds.map(id => `${nameOf(id)} -${stakeN}`).join(", ")}`
+        ? `${winnerIds.map((id, i) => `${nameOf(id)} +${winnerShares[i]}`).join(", ")} · ${loserIds.map((id, i) => `${nameOf(id)} -${loserShares[i]}`).join(", ")}`
         : `${winnerIds.map(nameOf).join(" & ")} def. ${loserIds.map(nameOf).join(" & ")} — ±${stakeN} pts`;
       toast({ title: "Team Match Recorded ✓", description: payoutDesc });
       const rankFor = (id: number) => data.rankChanges?.[id] ?? {};
@@ -534,9 +560,9 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
             const rank = rankFor(id);
             return { id, name: player.name, result: "win" as const, pointsBefore: player.points, pointsAfter: player.points + share, eloBefore: player.elo, eloAfter: player.elo + Number(data.eloChange ?? 0), rank: rank.newRank, rankChange: rank.rankChange, record: `${(player.seasonWins ?? 0) + 1}W–${player.seasonLosses ?? 0}L` };
           }),
-          ...loserIds.map(id => {
+          ...loserIds.map((id, index) => {
             const player = activePlayers.find(p => p.id === id)!;
-            const owed = data.loserShares?.find((row: any) => row.id === id)?.owed ?? stakeN;
+            const owed = data.loserShares?.find((row: any) => row.id === id)?.owed ?? loserShares[index] ?? stakeN;
             const rank = rankFor(id), after = Math.max(0, player.points - owed);
             return { id, name: player.name, result: "loss" as const, pointsBefore: player.points, pointsAfter: after, eloBefore: player.elo, eloAfter: Math.max(800, player.elo - Number(data.eloChange ?? 0)), rank: rank.newRank, rankChange: rank.rankChange, record: `${player.seasonWins ?? 0}W–${(player.seasonLosses ?? 0) + 1}L`, eliminated: data.eliminations?.includes(id) || after === 0 };
           }),
@@ -645,16 +671,16 @@ function TeamModeSubmitSection({ onExit }: { onExit: () => void }) {
           {unevenTeams ? (
             <div className="space-y-1.5">
               <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Uneven teams ({winnerIds.length}v{loserIds.length}) — losers each pay the full stake into a pot of <strong style={{ color: "#ffd24a" }}>{pot}</strong>, split across the winners:
+                Uneven teams ({winnerIds.length}v{loserIds.length}) — stake × the larger side pools a pot of <strong style={{ color: "#ffd24a" }}>{pot}</strong>, split evenly across each side:
               </div>
               {winnerIds.map((id, i) => (
                 <div key={id} className="flex justify-between text-sm font-mono" style={{ color: "#22c55e" }}>
                   <span>{nameOf(id)}</span><span>+{winnerShares[i]}</span>
                 </div>
               ))}
-              {loserIds.map(id => (
+              {loserIds.map((id, i) => (
                 <div key={id} className="flex justify-between text-sm font-mono" style={{ color: "#ff005c" }}>
-                  <span>{nameOf(id)}</span><span>-{stakeN}</span>
+                  <span>{nameOf(id)}</span><span>-{loserShares[i]}</span>
                 </div>
               ))}
             </div>

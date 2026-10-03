@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { ensureCurrentBroadcastEdition } from "./broadcast/edition-engine";
 import { deploymentBootstrapKey, ensureBootstrapLedger, isBootstrapComplete, markBootstrapComplete } from "./lib/deployment-bootstrap";
 import { markStartupFailed, markStartupReady, setStartupPhase } from "./lib/startup-state";
+import { getFeatureFlag, FEATURES } from "./services/feature-flags-service";
 
 const rawPort = process.env["PORT"];
 
@@ -21,6 +22,19 @@ function startBroadcastScheduler() {
     if (running) return;
     running = true;
     try {
+      // Every HTTP route in routes/broadcast.ts gates behind
+      // requireBroadcastAvailable() (isFeatureAvailable(FEATURES.TKDL_LIVE)),
+      // but this scheduler called ensureCurrentBroadcastEdition() directly
+      // on a bare 60s timer with no flag check at all — so even with
+      // tkdl_live fully switched off (not even admin preview), it was still
+      // building and publishing real editions to the DB around the clock.
+      // We still want it running during admin-preview (adminTestMode) so an
+      // admin reviewing the feature finds fresh content waiting rather than
+      // triggering a build on every visit — it's only "fully disabled"
+      // (neither live for everyone nor in admin preview) that should stop
+      // this entirely.
+      const flag = await getFeatureFlag(FEATURES.TKDL_LIVE);
+      if (!flag?.enabled && !flag?.adminTestMode) return;
       await ensureCurrentBroadcastEdition();
     } catch (err) {
       logger.error({ err }, "Scheduled broadcast edition check failed");

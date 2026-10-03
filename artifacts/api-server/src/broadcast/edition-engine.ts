@@ -52,6 +52,7 @@ import {
 } from "@workspace/db";
 import { getBroadcastConfig, type BroadcastConfig } from "./config.ts";
 import { maybeAutoResetLeagueSeasons } from "../lib/seasonReset.ts";
+import { londonMidnightUtc } from "../lib/londonDate.ts";
 import {
   manualEpisodeSlotKey, rebuildAttemptSlotKey, resolveLogicalSlot, type ResolvedSlot,
 } from "./edition-slots.ts";
@@ -598,7 +599,10 @@ async function anySeasonEndedInWindow(cutoffStart: Date, cutoffEnd: Date): Promi
   const closedSeasons = await db.select().from(seasonsTable).where(sql`${seasonsTable.endDate} IS NOT NULL`);
   for (const season of closedSeasons) {
     if (season.isActive || !season.endDate) continue;
-    const endedAt = new Date(`${season.endDate}T00:00:00Z`);
+    // endDate is a Europe/London calendar day, not UTC — see
+    // lib/londonDate.ts's header for why a bare `T00:00:00Z` parse drifts
+    // by an hour during BST.
+    const endedAt = londonMidnightUtc(season.endDate);
     if (endedAt > cutoffStart && endedAt <= cutoffEnd) return true;
   }
   return false;
@@ -749,7 +753,7 @@ async function buildSegmentForEntry(entry: RunningOrderEntry, ctx: SegmentBuildC
   }
   if (dialogue.length === 0 && story.anchorMatchId !== null) {
     const baseline = [story, ...entry.group.supporting].find(candidate =>
-      candidate.storyType === "MATCH_RESULT" || candidate.storyType === "PAIR_RESULT" || candidate.storyType === "TEAM_RESULT"
+      candidate.storyType === "MATCH_RESULT" || candidate.storyType === "PAIR_RESULT"
     );
     if (baseline) {
       const facts = await buildTemplateFacts(baseline.leagueType, baseline.facts);
@@ -891,7 +895,7 @@ async function buildEdition(params: {
     }
   }
   const mergedForChangeScore = mergeStoriesByAnchorAndNarrative(pool);
-  const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars + storyState.newMatchesProcessed.teamResults;
+  const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars;
   const changeScore = editionChangeScore({
     newCompletedMatchCount: newMatchCount,
     newlyCreatedGroupTreatments: newlyCreatedGroupTreatments(mergedForChangeScore),
@@ -915,7 +919,7 @@ async function buildEdition(params: {
   // resolveCutoffStart() picked the real starting point instead, and THAT is
   // the value worth seeing if a match ever again goes missing at the seam
   // between "no previous Edition yet" and "first one published."
-  const scanSummary = `scanned (${storyState.cutoffStart.toISOString()}, ${storyState.cutoffEnd.toISOString()}]: singles=${storyState.newMatchesProcessed.singles} doubles=${storyState.newMatchesProcessed.doubles} shiftWars=${storyState.newMatchesProcessed.shiftWars} teamResults=${storyState.newMatchesProcessed.teamResults}, storiesUpserted=${storyState.storiesUpserted}, interviews=${interviewSegments.length}, fanVerdicts=${fanVerdictSegments.length}, previousEditionId=${previous?.id ?? "none"}, catchUp(singles)=${JSON.stringify(storyState.catchUpSeasonIds.singles)} catchUp(doubles)=${JSON.stringify(storyState.catchUpSeasonIds.doubles)}`;
+  const scanSummary = `scanned (${storyState.cutoffStart.toISOString()}, ${storyState.cutoffEnd.toISOString()}]: singles=${storyState.newMatchesProcessed.singles} doubles=${storyState.newMatchesProcessed.doubles} shiftWars=${storyState.newMatchesProcessed.shiftWars}, storiesUpserted=${storyState.storiesUpserted}, interviews=${interviewSegments.length}, fanVerdicts=${fanVerdictSegments.length}, previousEditionId=${previous?.id ?? "none"}, catchUp(singles)=${JSON.stringify(storyState.catchUpSeasonIds.singles)} catchUp(doubles)=${JSON.stringify(storyState.catchUpSeasonIds.doubles)}`;
 
   const seasonBoundaryEventOccurred = await anySeasonEndedInWindow(previous?.dataCutoff ?? new Date(0), cutoffEnd);
 

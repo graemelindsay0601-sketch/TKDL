@@ -119,9 +119,16 @@ export async function snapshotTodaysRanks(): Promise<{ playerCount: number }> {
   for (const p of players) {
     const rank = ranks.get(p.id);
     if (rank === undefined) continue;
+    // CURRENT_DATE depends on the DB session's own default timezone (likely
+    // UTC), not league-local time — a match in the last hour or so of a BST
+    // evening could land on the wrong snapshot_date relative to when the
+    // league itself considers the day to have rolled over. Anchored to
+    // Europe/London explicitly, matching the scheduler's own cron timezone
+    // above and the rest of this codebase's day-boundary conventions
+    // (lib/seasonReset.ts, batchingService.ts).
     await db.execute(sql`
       INSERT INTO player_rank_snapshots (player_id, season_id, rank, points, elo, snapshot_date)
-      VALUES (${p.id}, ${activeSeason?.id ?? null}, ${rank}, ${p.points}, ${p.elo}, CURRENT_DATE)
+      VALUES (${p.id}, ${activeSeason?.id ?? null}, ${rank}, ${p.points}, ${p.elo}, (NOW() AT TIME ZONE 'Europe/London')::date)
       ON CONFLICT (player_id, snapshot_date)
       DO UPDATE SET rank = EXCLUDED.rank, points = EXCLUDED.points, elo = EXCLUDED.elo, season_id = EXCLUDED.season_id
     `);
@@ -154,7 +161,7 @@ export async function getPositionChanges(currentRanks: Map<number, number>): Pro
     const rows = await db.execute(sql`
       SELECT DISTINCT ON (player_id) player_id, rank
       FROM player_rank_snapshots
-      WHERE snapshot_date < CURRENT_DATE
+      WHERE snapshot_date < (NOW() AT TIME ZONE 'Europe/London')::date
       ORDER BY player_id, snapshot_date DESC
     `);
     for (const row of rows.rows as { player_id: number; rank: number }[]) {
