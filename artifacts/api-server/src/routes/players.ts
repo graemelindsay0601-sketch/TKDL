@@ -934,6 +934,55 @@ router.patch("/players/:id/tagline", async (req, res): Promise<void> => {
   }
 });
 
+const DartsSetupBody = z.object({
+  weightGrams: z.number().int().min(12).max(40).optional(),
+  barrels: z.string().trim().max(60).optional(),
+  shafts: z.string().trim().max(60).optional(),
+  flights: z.string().trim().max(60).optional(),
+  points: z.string().trim().max(60).optional(),
+});
+
+// PATCH /players/:id/darts-setup — the owner's real equipment setup, shown
+// on their public profile and available to Matchday/TKDL LIVE coverage.
+router.patch("/players/:id/darts-setup", async (req, res): Promise<void> => {
+  const params = IdParam.safeParse(req.params);
+  if (!params.success) { res.status(400).json({ error: "Invalid id" }); return; }
+  const id = params.data.id;
+  const sessionPlayerId = Number((req.session as any)?.playerId);
+  if (!sessionPlayerId) { res.status(401).json({ error: "Login required" }); return; }
+  if (sessionPlayerId !== id) { res.status(403).json({ error: "You can only change your own darts setup" }); return; }
+
+  const parsed = DartsSetupBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid darts setup" }); return; }
+  const setup = Object.fromEntries(Object.entries(parsed.data).filter(([, value]) => value !== ""));
+  const stored = Object.keys(setup).length > 0 ? JSON.stringify(setup) : null;
+  try {
+    await db.execute(sql`UPDATE players SET darts_setup = ${stored}::jsonb, darts_setup_updated_at = NOW() WHERE id = ${id}`);
+    res.json({ success: true, dartsSetup: Object.keys(setup).length > 0 ? setup : null });
+  } catch (err) {
+    req.log.error({ err }, "PATCH /players/:id/darts-setup failed");
+    res.status(500).json({ error: "Couldn't save darts setup" });
+  }
+});
+
+router.get("/players/:id/darts-setup-performance",async(req,res):Promise<void>=>{
+  const params=IdParam.safeParse(req.params);if(!params.success){res.status(400).json({error:"Invalid id"});return;}
+  try{
+    const playerResult=await db.execute(sql`SELECT darts_setup_updated_at FROM players WHERE id=${params.data.id}`);const updated=(playerResult.rows[0] as any)?.darts_setup_updated_at;
+    if(!updated){res.json({available:false,reason:"Save a Darts Locker setup to start tracking its match record."});return;}
+    const result=await db.execute(sql`
+      SELECT COUNT(*)::int matches,
+        COUNT(*) FILTER(WHERE winner_id=${params.data.id})::int wins,
+        COALESCE(SUM(CASE WHEN winner_id=${params.data.id} THEN winner_darts ELSE loser_darts END),0)::int darts,
+        COALESCE(SUM(CASE WHEN winner_id=${params.data.id} THEN winner_180s ELSE loser_180s END),0)::int scores_180,
+        COALESCE(SUM(CASE WHEN winner_id=${params.data.id} THEN COALESCE(winner_100s,0)+COALESCE(winner_140s,0)+COALESCE(winner_170s,0)+COALESCE(winner_180s,0) ELSE COALESCE(loser_100s,0)+COALESCE(loser_140s,0)+COALESCE(loser_170s,0)+COALESCE(loser_180s,0) END),0)::int high_scores,
+        COALESCE(SUM(CASE WHEN winner_id=${params.data.id} THEN winner_checkout_attempts ELSE loser_checkout_attempts END),0)::int checkout_attempts,
+        COALESCE(SUM(CASE WHEN winner_id=${params.data.id} THEN winner_checkout_hits ELSE loser_checkout_hits END),0)::int checkout_hits
+      FROM matches WHERE played_at>=${new Date(updated)} AND (winner_id=${params.data.id} OR loser_id=${params.data.id})
+    `);const row:any=result.rows[0];const matches=Number(row.matches);const darts=Number(row.darts);const attempts=Number(row.checkout_attempts);res.json({available:true,since:new Date(updated).toISOString(),matches,wins:Number(row.wins),losses:matches-Number(row.wins),winRate:matches?Math.round(Number(row.wins)/matches*100):0,scores180:Number(row.scores_180),highScores:Number(row.high_scores),highScoresPer100Darts:darts?Math.round(Number(row.high_scores)/darts*10000)/100:0,checkoutRate:attempts?Math.round(Number(row.checkout_hits)/attempts*100):0,darts});
+  }catch(err){req.log.error({err},"GET darts-setup-performance failed");res.status(500).json({error:"Couldn't load Darts Locker performance"});}
+});
+
 // Featured Stat Spotlight — a free (not coin-gated) profile customization,
 // separate from the coin-cosmetics system: one stat a player picks to
 // headline next to their Trophy Case (see components/TrophyCase.tsx and

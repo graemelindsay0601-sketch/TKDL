@@ -72,6 +72,19 @@ export async function getTodaysFeaturedCards() {
  */
 export async function rotateFeatureCards() {
   try {
+    // The daily cron below already re-checks this flag on every firing, but
+    // app.ts's "rotateFeatureCards" boot-time init step calls this function
+    // directly, bypassing that check entirely — so every single server wake
+    // was still marking cards inactive and picking a fresh featured
+    // selection even with Card Clash fully disabled. Checking here instead
+    // of (only) at each call site means every caller is covered, present
+    // and future, without relying on each one remembering to ask first.
+    const flag = await getFeatureFlag(FEATURES.CARD_CLASH);
+    if (!flag?.enabled) {
+      logger.info("Featured card shop: skipping rotation — Card Clash is disabled");
+      return [];
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -372,17 +385,12 @@ export function initializeFeaturedCardScheduler(): void {
     // edge-of-day race with the `today` cutoff used in rotateFeatureCards)
     cron.schedule("5 0 * * *", async () => {
       try {
-        // Re-checked on every firing (not just at scheduler-init time) so
-        // flipping the card_clash flag off in the admin panel takes effect
-        // the very next midnight without needing a restart — part of the
-        // Card Clash kill switch (see routes/card-clash.ts's gating
-        // middleware for the other half). A disabled shop nobody can reach
-        // doesn't need daily re-stocking.
-        const flag = await getFeatureFlag(FEATURES.CARD_CLASH);
-        if (!flag?.enabled) {
-          logger.info("Featured card shop: skipping daily rotation — Card Clash is disabled");
-          return;
-        }
+        // The card_clash flag check now lives inside rotateFeatureCards()
+        // itself (so every caller gets it, including app.ts's boot-time
+        // call, which used to skip this check entirely) — part of the Card
+        // Clash kill switch (see routes/card-clash.ts's gating middleware
+        // for the other half). Flipping the flag off in the admin panel
+        // takes effect the very next time this fires, no restart needed.
         await rotateFeatureCards();
         logger.info("Featured card shop: daily rotation complete");
       } catch (error) {

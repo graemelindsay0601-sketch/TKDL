@@ -344,10 +344,20 @@ router.get("/players/:id/stats/time-of-day", async (req, res) => {
     const playerId = parseInt(req.params.id, 10);
     if (isNaN(playerId)) { res.status(400).json({ error: "Invalid player ID" }); return; }
 
+    // played_at is TIMESTAMPTZ, so bare EXTRACT(HOUR FROM played_at) returns
+    // the hour in whatever timezone the DB session happens to default to —
+    // UTC on this hosted Postgres, not league-local time. A match actually
+    // played at 9pm Europe/London (8pm UTC in summer, or 9pm UTC in winter)
+    // would land in the wrong bucket, or drift across the DST change twice a
+    // year, purely because nothing pinned the zone. The rest of this
+    // codebase already treats this as a real footgun, not a non-issue —
+    // see batchingService.ts's `sent_at AT TIME ZONE 'Europe/London'` and
+    // the add_performance_indexes_5 migration's comment on exactly this —
+    // so this query gets the same explicit conversion.
     const result = await db.execute(sql`
       WITH matches_with_hour AS (
         SELECT
-          EXTRACT(HOUR FROM played_at)::int as hour,
+          EXTRACT(HOUR FROM played_at AT TIME ZONE 'Europe/London')::int as hour,
           winner_id = ${playerId} as won,
           CASE WHEN winner_id = ${playerId} THEN winner_darts ELSE loser_darts END as darts,
           CASE WHEN winner_id = ${playerId}

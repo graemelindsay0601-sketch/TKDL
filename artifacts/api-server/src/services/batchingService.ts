@@ -192,12 +192,29 @@ export async function queueNotificationForBatching(
   delayMs: number,
   message: QueuedPushMessage
 ): Promise<number> {
-  const sendAfter = new Date(Date.now() + Math.max(0, delayMs));
+  // Derive send_after from the database's own clock (NOW() + interval)
+  // rather than resolving "now" in JS and sending that as a fixed
+  // timestamp. claimDuePushNotifications() (notificationService.ts)
+  // compares send_after against its own NOW() too — using two different
+  // clocks (this app server's Date.now() here vs. Neon's server clock
+  // there) meant even a small amount of drift could put a notification
+  // meant to go out "immediately" a hair into the future from the
+  // database's point of view. The insert would still succeed, but the very
+  // next claim attempt — fired moments later, in the same request, by
+  // createNotification()'s immediate deliverQueuedPushNotification() call —
+  // would silently find nothing to claim and return false with nothing
+  // logged anywhere. The notification would still eventually go out once
+  // real wall-clock time caught up (the 5-minute batch flush, or the next
+  // server-wake flush), just not on the immediate/fast path this call is
+  // meant to use. Computing the delay as a Postgres interval instead
+  // removes the skew entirely, since both sides of the comparison now come
+  // from the same clock.
+  const delaySeconds = Math.max(0, Math.round(delayMs / 1000));
 
   try {
     const result = await db.execute(sql`
       INSERT INTO pending_push_notifications (player_id, notification_id, title, body, data, send_after)
-      VALUES (${playerId}, ${notificationId}, ${message.title}, ${message.body}, ${JSON.stringify(message.data || {})}, ${sendAfter})
+      VALUES (${playerId}, ${notificationId}, ${message.title}, ${message.body}, ${JSON.stringify(message.data || {})}, NOW() + make_interval(secs => ${delaySeconds}))
       ON CONFLICT (notification_id) DO UPDATE SET
         title = EXCLUDED.title,
         body = EXCLUDED.body,

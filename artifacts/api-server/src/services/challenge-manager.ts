@@ -159,6 +159,20 @@ export const challengeManager = {
       .map(([type]) => type);
     if (matchingTypes.length === 0) return;
 
+    // Interpolating the plain array directly as `${matchingTypes}` inside a
+    // `sql` tagged template doesn't bind it as one array parameter — Drizzle
+    // spreads it into separate positional parameters, which Postgres then
+    // reads as a row/record constructor "(val1,val2,val3)". Casting THAT to
+    // text[] for ANY(...::text[]) below failed with "cannot cast type record
+    // to text[]" (42846) on every single match submission, silently aborting
+    // this whole function before either UPDATE ran — so daily/weekly
+    // challenge progress has not been tracked at all. sql.join binds each
+    // element as its own parameter joined by literal commas inside an
+    // explicit ARRAY[...] constructor instead — the same pattern already
+    // used for this exact problem in notificationService.ts and
+    // shift-wars.ts — so it casts cleanly to text[].
+    const matchingTypesSql = sql.join(matchingTypes.map((type) => sql`${type}`), sql`, `);
+
     // getDailyChallengesForPlayer/getWeeklyChallengesForPlayer (challenge-
     // service.ts — what the player-facing Challenges screen actually reads)
     // create a FRESH player_daily_challenges/player_weekly_challenges row
@@ -208,7 +222,7 @@ export const challengeManager = {
         AND pdc.player_id = ${playerId}
         AND pdc.is_completed = false
         AND pdc.date_assigned >= ${today} AND pdc.date_assigned < ${tomorrow}
-        AND dc.requirement_type = ANY(${matchingTypes}::text[])
+        AND dc.requirement_type = ANY(ARRAY[${matchingTypesSql}]::text[])
       RETURNING pdc.is_completed AS is_completed, dc.reward_coins AS reward_coins, dc.reward_pack_tokens AS reward_pack_tokens
     `)).rows as { is_completed: boolean; reward_coins: number; reward_pack_tokens: number | null }[];
 
@@ -231,7 +245,7 @@ export const challengeManager = {
         AND pwc.is_completed = false
         AND pwc.week_number = ${weekNumber}
         AND pwc.week_year = ${weekYear}
-        AND wc.requirement_type = ANY(${matchingTypes}::text[])
+        AND wc.requirement_type = ANY(ARRAY[${matchingTypesSql}]::text[])
       RETURNING pwc.is_completed AS is_completed, wc.reward_coins AS reward_coins, wc.reward_pack_tokens AS reward_pack_tokens
     `)).rows as { is_completed: boolean; reward_coins: number; reward_pack_tokens: number | null }[];
 

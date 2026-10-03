@@ -402,12 +402,73 @@ function dartForValue(v: number): Dart {
   return makeDart(20, 3);
 }
 
+// Every single-dart value a real dart can actually produce — singles 1-20,
+// doubles 2-40 (even), trebles 3-60 (multiples of 3), plus bull (25) and
+// bullseye (50). Sorted descending so splitTotalIntoDarts tries the biggest,
+// most natural-looking hits first.
+const REACHABLE_DART_VALUES: number[] = (() => {
+  const values = new Set<number>([0, 25, 50]);
+  for (let seg = 1; seg <= 20; seg++) {
+    values.add(seg);
+    values.add(seg * 2);
+    values.add(seg * 3);
+  }
+  return Array.from(values).sort((a, b) => b - a);
+})();
+
+/** Three real dart values summing exactly to `target`, or null if no such
+ *  combination exists. */
+function tryDecompose(target: number): [number, number, number] | null {
+  for (const v1 of REACHABLE_DART_VALUES) {
+    if (v1 > target) continue;
+    const rem1 = target - v1;
+    for (const v2 of REACHABLE_DART_VALUES) {
+      if (v2 > rem1) continue;
+      const rem2 = rem1 - v2;
+      if (REACHABLE_DART_VALUES.includes(rem2)) return [v1, v2, rem2];
+    }
+  }
+  return null;
+}
+
+/**
+ * Split a visit total into three dart values that are each individually
+ * reachable by a real dart and sum exactly to `total`.
+ *
+ * This used to be `split3`, which dumped the WHOLE total into one dart
+ * (dartForValue(total)) whenever total <= 60 — the common case for most
+ * visits. But most integers in that range aren't a real dart's value at
+ * all (23, 29, 31, 35, 37, 41, 43...; roughly a third of 21-59), and
+ * dartForValue() was silently substituting Single 20 or Treble 20 instead
+ * of flagging the mismatch. scorers.tsx's handleDart() then deducts the
+ * live score by that dart's actual .value, not the visit total this was
+ * meant to represent — so a bot's real deduction could be off by up to
+ * ±37 points from its configured avg/sd on a large fraction of all
+ * visits, in every mode that uses non-shadow bots (Practice, Tour,
+ * Master 501). This instead searches for a genuine three-dart
+ * combination that adds up to exactly `total`.
+ */
 function split3(total: number): [Dart, Dart, Dart] {
   if (total <= 0) return [BOT_MISS, BOT_MISS, BOT_MISS];
-  const d1 = Math.min(60, total);
-  const d2 = Math.min(60, Math.max(0, total - d1));
-  const d3 = Math.max(0, total - d1 - d2);
-  return [dartForValue(d1), dartForValue(d2), dartForValue(d3)];
+  const target = Math.min(180, total);
+  const hit = tryDecompose(target);
+  if (hit) return [dartForValue(hit[0]), dartForValue(hit[1]), dartForValue(hit[2])];
+
+  // Every integer 0-180 decomposes into three real darts except nine exact
+  // totals — 163, 166, 169, 172, 173, 175, 176, 178, 179 — the same "bogey"
+  // numbers darts players already know can't be hit with any three darts at
+  // all (not just as a double-out checkout, which is the stricter, more
+  // famous version of this same trivia that checkoutDarts() above already
+  // accounts for). A bot's randomly-generated visit score can still land on
+  // one of these nine by chance, so step down to the nearest total that IS
+  // reachable rather than ever returning a wrong one.
+  for (let adjust = 1; adjust <= 3 && target - adjust >= 0; adjust++) {
+    const retry = tryDecompose(target - adjust);
+    if (retry) return [dartForValue(retry[0]), dartForValue(retry[1]), dartForValue(retry[2])];
+  }
+  // Unreachable in practice given the above, but cap at a single real dart
+  // rather than ever fabricating a wrong one.
+  return [dartForValue(Math.min(60, target)), BOT_MISS, BOT_MISS];
 }
 
 function checkoutDarts(remaining: number): [Dart, Dart, Dart] | null {

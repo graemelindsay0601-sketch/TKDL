@@ -19,6 +19,7 @@ import { DrillProgressTracker } from "@/components/stats/drill-progress-tracker"
 import { AdaptiveDifficulty } from "@/components/stats/adaptive-difficulty";
 import { LogDrillModal, type LoggableDrill } from "@/components/stats/log-drill-modal";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, bubbleColorStyle, avatarBadgeIcon, taglineStyleCSS, stickerEmoji, accountAccentColor, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
+import { DartsLocker, type DartsSetup } from "@/components/DartsLocker";
 import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
 import { SPOTLIGHT_STATS, SPOTLIGHT_STAT_KEYS, useSpotlightValues } from "@/lib/statSpotlight";
@@ -1474,6 +1475,8 @@ export default function AccountPage() {
       </div>
 
       {activeTab === "overview" && (<>
+
+      {user?.playerId && <DartsLocker playerId={user.playerId} setup={(player as any)?.dartsSetup ?? null} editable onSaved={(dartsSetup: DartsSetup) => setStats((prev: any) => prev ? { ...prev, player: { ...prev.player, dartsSetup } } : prev)} />}
 
       {/* ── Gamerscore ─────────────────────────────────────────── */}
       <div className="pdc-card p-4">
@@ -2953,4 +2956,3 @@ export default function AccountPage() {
     </div>
   );
 }
-

@@ -9,6 +9,8 @@ export type ShareCardSpec = {
   secondaryAccent?: string;
   stats?: ShareCardStat[];
   footer?: string;
+  /** Optional match-poster layout: two named sides with a central VS mark. */
+  versus?: { sideA: string; sideB: string };
 };
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -103,14 +105,42 @@ export async function renderShareCard(spec: ShareCardSpec): Promise<Blob> {
   ctx.fillStyle = "rgba(255,255,255,.11)";
   ctx.fillRect(70, 192, 1060, 2);
 
-  const title = spec.title.toUpperCase();
-  const titleSize = fitText(ctx, title, 1060, 92);
-  ctx.font = `950 ${titleSize}px Oswald, Arial, sans-serif`;
-  ctx.fillStyle = "#fff";
-  ctx.shadowColor = hexToRgba(accent, .28);
-  ctx.shadowBlur = 28;
-  ctx.fillText(title, 70, 292);
-  ctx.shadowBlur = 0;
+  if (spec.versus) {
+    const left = spec.versus.sideA.toUpperCase();
+    const right = spec.versus.sideB.toUpperCase();
+    const sideWidth = 440;
+    const leftSize = fitText(ctx, left, sideWidth, 62, 26);
+    ctx.font = `950 ${leftSize}px Oswald, Arial, sans-serif`;
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = hexToRgba(accent, .3);
+    ctx.shadowBlur = 24;
+    ctx.fillText(left, 70, 287);
+    const rightSize = fitText(ctx, right, sideWidth, 62, 26);
+    ctx.font = `950 ${rightSize}px Oswald, Arial, sans-serif`;
+    ctx.textAlign = "right";
+    ctx.shadowColor = hexToRgba(secondary, .3);
+    ctx.fillText(right, 1130, 287);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "center";
+    roundedRect(ctx, 553, 231, 94, 72, 22);
+    ctx.fillStyle = "rgba(255,255,255,.065)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,210,74,.42)";
+    ctx.stroke();
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "950 28px Oswald, Arial, sans-serif";
+    ctx.fillText("VS", 600, 277);
+    ctx.textAlign = "left";
+  } else {
+    const title = spec.title.toUpperCase();
+    const titleSize = fitText(ctx, title, 1060, 92);
+    ctx.font = `950 ${titleSize}px Oswald, Arial, sans-serif`;
+    ctx.fillStyle = "#fff";
+    ctx.shadowColor = hexToRgba(accent, .28);
+    ctx.shadowBlur = 28;
+    ctx.fillText(title, 70, 292);
+    ctx.shadowBlur = 0;
+  }
 
   if (spec.subtitle) {
     ctx.font = "600 25px Inter, Arial, sans-serif";

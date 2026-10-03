@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -61,6 +61,7 @@ const leagueNav = [
   // from the nav.
   { href: "/h2h",           label: "Head to Head", icon: Swords          },
   { href: "/match-centre",  label: "Match Centre", icon: CalendarDays    },
+  { href: "/posters",       label: "Poster Library", icon: Images        },
   { href: "/seasons",      label: "Seasons",      icon: History         },
   { href: "/hall-of-fame", label: "Hall of Fame", icon: Award           },
   { href: "/rules",        label: "Rules",        icon: BookOpen        },

@@ -710,46 +710,59 @@ router.post("/community/posts/:id/react", authedWriteRateLimit, async (req, res)
 
   // Single statement toggle: the old code read (SELECT), then decided
   // INSERT vs DELETE in JS — two concurrent taps (a double-tap, or two
-  // devices) could both see "not reacted yet" and both INSERT (harmless
-  // thanks to ON CONFLICT DO NOTHING, but then both think they "added" it),
-  // or both see "reacted" and both DELETE. Folding the whole toggle into one
+  // devices) could both see "not reacted yet" and both try to INSERT, or
+  // both see "reacted" and both DELETE. Folding the whole toggle into one
   // CTE means Postgres evaluates del/ins against a single consistent
-  // snapshot, so it's race-free without needing a transaction wrapper.
-  const toggled = await db.execute(sql`
-    WITH del AS (
-      DELETE FROM post_reactions
-      WHERE post_id = ${postId} AND player_id = ${playerId} AND emoji = ${emoji}
-      RETURNING id
-    ), ins AS (
-      INSERT INTO post_reactions (post_id, player_id, emoji)
-      SELECT ${postId}, ${playerId}, ${emoji}
-      WHERE NOT EXISTS (SELECT 1 FROM del)
-      RETURNING id
-    )
-    SELECT
-      (SELECT COUNT(*) FROM del)::int AS deleted_count,
-      (SELECT COUNT(*) FROM ins)::int AS inserted_count
-  `);
-  const { inserted_count } = toggled.rows[0] as any;
-  const wasAdded = inserted_count > 0;
+  // snapshot, so the two-reads-then-decide race is gone. But the INSERT's
+  // WHERE NOT EXISTS check only looks at THIS statement's own snapshot —
+  // it doesn't stop a second, truly concurrent request (different
+  // connection) from also passing that same check before either commits.
+  // Without ON CONFLICT, that second request's INSERT then hits the
+  // post_reactions UNIQUE(post_id, player_id, emoji) constraint at commit
+  // time and throws an uncaught 23505, turning a harmless double-tap into
+  // a 500. ON CONFLICT DO NOTHING closes that window; the try/catch below
+  // is just the established belt-and-braces for anything else unexpected.
+  try {
+    const toggled = await db.execute(sql`
+      WITH del AS (
+        DELETE FROM post_reactions
+        WHERE post_id = ${postId} AND player_id = ${playerId} AND emoji = ${emoji}
+        RETURNING id
+      ), ins AS (
+        INSERT INTO post_reactions (post_id, player_id, emoji)
+        SELECT ${postId}, ${playerId}, ${emoji}
+        WHERE NOT EXISTS (SELECT 1 FROM del)
+        ON CONFLICT (post_id, player_id, emoji) DO NOTHING
+        RETURNING id
+      )
+      SELECT
+        (SELECT COUNT(*) FROM del)::int AS deleted_count,
+        (SELECT COUNT(*) FROM ins)::int AS inserted_count
+    `);
+    const { inserted_count } = toggled.rows[0] as any;
+    const wasAdded = inserted_count > 0;
 
-  if (wasAdded) {
-    const postRow = (await db.execute(sql`
-      SELECT player_id FROM community_posts WHERE id = ${postId}
-    `)).rows[0] as any;
-    if (postRow && postRow.player_id !== playerId) {
-      const actor = (await db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`)).rows[0] as any;
-      void createNotification({
-        playerId: postRow.player_id,
-        type: "post_liked",
-        actorId: playerId,
-        entityId: postId,
-        entityType: "post",
-        message: `${actor?.name ?? "Someone"} reacted ${emoji} to your post`,
-      });
+    if (wasAdded) {
+      const postRow = (await db.execute(sql`
+        SELECT player_id FROM community_posts WHERE id = ${postId}
+      `)).rows[0] as any;
+      if (postRow && postRow.player_id !== playerId) {
+        const actor = (await db.execute(sql`SELECT name FROM players WHERE id = ${playerId}`)).rows[0] as any;
+        void createNotification({
+          playerId: postRow.player_id,
+          type: "post_liked",
+          actorId: playerId,
+          entityId: postId,
+          entityType: "post",
+          message: `${actor?.name ?? "Someone"} reacted ${emoji} to your post`,
+        });
+      }
     }
+    res.json({ toggled: wasAdded });
+  } catch (err) {
+    req.log.error({ err, postId, playerId, emoji }, "Failed to toggle reaction");
+    res.status(500).json({ error: "Failed to toggle reaction" });
   }
-  res.json({ toggled: wasAdded });
 });
 
 // ── POST /community/posts/:id/bookmark — toggle, private per-player ──────────
@@ -764,20 +777,31 @@ router.post("/community/posts/:id/bookmark", authedWriteRateLimit, async (req, r
   const postId = Number(req.params.id);
   if (isNaN(postId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const toggled = await db.execute(sql`
-    WITH del AS (
-      DELETE FROM post_bookmarks
-      WHERE post_id = ${postId} AND player_id = ${playerId}
-      RETURNING id
-    ), ins AS (
-      INSERT INTO post_bookmarks (post_id, player_id)
-      SELECT ${postId}, ${playerId}
-      WHERE NOT EXISTS (SELECT 1 FROM del)
-      RETURNING id
-    )
-    SELECT (SELECT COUNT(*) FROM ins)::int AS inserted_count
-  `);
-  res.json({ bookmarked: (toggled.rows[0] as any).inserted_count > 0 });
+  // Same concurrent-double-tap gap as /react above: WHERE NOT EXISTS only
+  // guards against this statement's own snapshot, not a second genuinely
+  // concurrent request — without ON CONFLICT, two overlapping toggles can
+  // both attempt the INSERT and the loser hits post_bookmarks'
+  // UNIQUE(post_id, player_id) constraint as an uncaught 23505.
+  try {
+    const toggled = await db.execute(sql`
+      WITH del AS (
+        DELETE FROM post_bookmarks
+        WHERE post_id = ${postId} AND player_id = ${playerId}
+        RETURNING id
+      ), ins AS (
+        INSERT INTO post_bookmarks (post_id, player_id)
+        SELECT ${postId}, ${playerId}
+        WHERE NOT EXISTS (SELECT 1 FROM del)
+        ON CONFLICT (post_id, player_id) DO NOTHING
+        RETURNING id
+      )
+      SELECT (SELECT COUNT(*) FROM ins)::int AS inserted_count
+    `);
+    res.json({ bookmarked: (toggled.rows[0] as any).inserted_count > 0 });
+  } catch (err) {
+    req.log.error({ err, postId, playerId }, "Failed to toggle bookmark");
+    res.status(500).json({ error: "Failed to toggle bookmark" });
+  }
 });
 
 // ── POST /community/posts/:id/rsvp — toggle "I'm in" ─────────────────────────
@@ -795,21 +819,31 @@ router.post("/community/posts/:id/rsvp", authedWriteRateLimit, async (req, res):
   const eligible = (await db.execute(sql`SELECT pinned FROM community_posts WHERE id = ${postId}`)).rows[0] as any;
   if (!eligible?.pinned) { res.status(400).json({ error: "Only pinned posts accept RSVPs" }); return; }
 
-  const toggled = await db.execute(sql`
-    WITH del AS (
-      DELETE FROM post_rsvps
-      WHERE post_id = ${postId} AND player_id = ${playerId}
-      RETURNING id
-    ), ins AS (
-      INSERT INTO post_rsvps (post_id, player_id)
-      SELECT ${postId}, ${playerId}
-      WHERE NOT EXISTS (SELECT 1 FROM del)
-      RETURNING id
-    )
-    SELECT (SELECT COUNT(*) FROM ins)::int AS inserted_count
-  `);
-  const rsvpCount = (await db.execute(sql`SELECT COUNT(*)::int AS c FROM post_rsvps WHERE post_id = ${postId}`)).rows[0] as any;
-  res.json({ rsvped: (toggled.rows[0] as any).inserted_count > 0, rsvp_count: rsvpCount.c as number });
+  // Same concurrent-double-tap gap as /react and /bookmark above — without
+  // ON CONFLICT, two overlapping toggles can both attempt the INSERT and
+  // the loser hits post_rsvps' UNIQUE(post_id, player_id) constraint as an
+  // uncaught 23505.
+  try {
+    const toggled = await db.execute(sql`
+      WITH del AS (
+        DELETE FROM post_rsvps
+        WHERE post_id = ${postId} AND player_id = ${playerId}
+        RETURNING id
+      ), ins AS (
+        INSERT INTO post_rsvps (post_id, player_id)
+        SELECT ${postId}, ${playerId}
+        WHERE NOT EXISTS (SELECT 1 FROM del)
+        ON CONFLICT (post_id, player_id) DO NOTHING
+        RETURNING id
+      )
+      SELECT (SELECT COUNT(*) FROM ins)::int AS inserted_count
+    `);
+    const rsvpCount = (await db.execute(sql`SELECT COUNT(*)::int AS c FROM post_rsvps WHERE post_id = ${postId}`)).rows[0] as any;
+    res.json({ rsvped: (toggled.rows[0] as any).inserted_count > 0, rsvp_count: rsvpCount.c as number });
+  } catch (err) {
+    req.log.error({ err, postId, playerId }, "Failed to toggle RSVP");
+    res.status(500).json({ error: "Failed to toggle RSVP" });
+  }
 });
 
 // ── GET /community/posts/:id/rsvps — who's in ─────────────────────────────────

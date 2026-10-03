@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, real, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -86,6 +86,16 @@ export const playersTable = pgTable("players", {
   // community posts/DMs elsewhere in this app. Not itself a cosmetic; see
   // equippedTaglineStyleId below for how it's coloured.
   tagline: text("tagline"),
+  // Player-entered equipment details for the public Darts Locker. Kept as a
+  // small JSON object so the setup can evolve without a migration per field.
+  dartsSetup: jsonb("darts_setup").$type<{
+    weightGrams?: number;
+    barrels?: string;
+    shafts?: string;
+    flights?: string;
+    points?: string;
+  } | null>(),
+  dartsSetupUpdatedAt: timestamp("darts_setup_updated_at", { withTimezone: true }),
   // TAGLINE_STYLE cosmetic category — colour/gradient/glow treatment for
   // the tagline above.
   equippedTaglineStyleId: text("equipped_tagline_style_id"),

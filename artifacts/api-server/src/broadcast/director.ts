@@ -64,6 +64,8 @@ import {
   type MergedStoryGroup, type CarryForwardState, type RunningOrderSlotPurpose,
   type EditionProgramme, type ProgrammeSegment, type ProgrammeMode, type OrdinaryProgrammeMode,
   PROGRAMME_PACING_RULES,
+  sequenceEditorialBeats,
+  topicRecurrencePenalty,
 } from "./director-math.ts";
 import { seededRng } from "./seeded-rng.ts";
 import type { BroadcastStory } from "@workspace/db/schema";
@@ -228,8 +230,10 @@ function isFlashbackFamily(story: Pick<BroadcastStory, "storyType">): boolean {
 
 function rankCandidates(merged: readonly MergedStoryGroup[], previousProgramme: EditionProgramme | null, slotKey: string): RankedCandidate[] {
   const previousSegmentByStoryId = new Map<number, ProgrammeSegment>();
+  const previousTypeCounts = new Map<string, number>();
   if (previousProgramme) {
     for (const seg of previousProgramme.segments) {
+      if (seg.storyType && seg.purpose !== "headlines") previousTypeCounts.set(seg.storyType, (previousTypeCounts.get(seg.storyType) ?? 0) + 1);
       if (seg.storyId !== null) previousSegmentByStoryId.set(seg.storyId, seg);
       for (const id of seg.supportingStoryIds) previousSegmentByStoryId.set(id, seg);
     }
@@ -243,7 +247,8 @@ function rankCandidates(merged: readonly MergedStoryGroup[], previousProgramme: 
     });
     const alreadyGivenResolutionSegment = previousSegment?.lifecycleAtBroadcast === "RESOLVED";
     const treatment = treatmentForScore(group.primary.score);
-    const priority = fullSegmentPriority({ baseScore: group.primary.score, carryForwardState, alreadyGivenResolutionSegment });
+    const basePriority = fullSegmentPriority({ baseScore: group.primary.score, carryForwardState, alreadyGivenResolutionSegment });
+    const priority = basePriority - topicRecurrencePenalty({ previousTypeCount: previousTypeCounts.get(group.primary.storyType) ?? 0, family: storyFamily(group.primary), treatment, exactStoryRepeated: previousSegment !== null });
     return { group, treatment, carryForwardState, priority };
   });
 
@@ -416,23 +421,6 @@ export function directorSelect(params: {
     pickForSlot(ranked, () => true, ctx);
   place(9, "lighter_or_archive_or_callback", lighterPick);
 
-  // Sequence each mode's selected stories against its configured editorial
-  // mix. Preserve every selected story and purpose; the mix only changes the
-  // order in which news, analysis, and feature beats play.
-  const beatFor = (entry: RunningOrderEntry): "news" | "analysis" | "feature" => {
-    const family = storyFamily(entry.group!.primary);
-    if (family === "RESULT") return "news";
-    if (family === "LEAGUE" || family === "FORM") return "analysis";
-    return "feature";
-  };
-  const remaining = [...entries];
-  const sequenced: RunningOrderEntry[] = [];
-  for (const beat of pacing.contentMix) {
-    const index = remaining.findIndex(entry => beatFor(entry) === beat);
-    if (index >= 0) sequenced.push(remaining.splice(index, 1)[0]);
-  }
-  entries.splice(0, entries.length, ...sequenced, ...remaining);
-
   // ── Quiet-Edition backfill ────────────────────────────────────────────
   // Show Bible v1 §1's own Quiet Edition row: "Calmer; archive, spotlight,
   // table state, predictor if useful" — several calmer beats, not the
@@ -495,6 +483,20 @@ export function directorSelect(params: {
     place(9, "lighter_or_archive_or_callback", bonusLighterPick);
   }
 
+  // Sequence only after all backfill has been selected. Previously the
+  // backfill loops ran after sequencing, so quiet Editions ended with a
+  // clump of form/table/features regardless of the configured programme
+  // rhythm. H2H and PERFORMANCE are analysis beats; current team-league
+  // stories are news, which stops almost everything collapsing into the
+  // old catch-all feature bucket.
+  const beatFor = (entry: RunningOrderEntry): "news" | "analysis" | "feature" => {
+    const family = storyFamily(entry.group!.primary);
+    if (family === "RESULT" || family === "DOUBLES" || family === "SHIFT_WARS") return "news";
+    if (family === "LEAGUE" || family === "FORM" || family === "H2H" || family === "PERFORMANCE") return "analysis";
+    return "feature";
+  };
+  entries.splice(0, entries.length, ...sequenceEditorialBeats(entries, pacing.contentMix, beatFor, entry => storyFamily(entry.group!.primary)));
+
   // Slot 1 — opening: a fixed ~20-30s desk sign-on with no story of its own
   // (Show Bible v1 section 4/5 — "explain why this Edition matters," not a
   // templated claim about any specific story, so it carries no group and
@@ -520,10 +522,10 @@ export function directorSelect(params: {
 
   // Slot 10 — what_to_watch (required): an UNRESOLVED LEAGUE-family
   // question — something a viewer would actually keep watching for. Prefer
-  // a not-yet-used LEAGUE candidate; failing that, legitimately re-reference
-  // the best LEAGUE candidate already placed elsewhere (recapping the open
-  // question is real content, not duplication, since it airs in a
-  // structurally different slot). If the ENTIRE pool has no LEAGUE-family
+  // a not-yet-used LEAGUE candidate. If the remaining pool has no new open
+  // question, use the utility close rather than repeating a story that has
+  // already appeared in both headlines and a full segment. If the ENTIRE
+  // pool has no LEAGUE-family
   // story at all — realistically only possible in the first few days of a
   // brand-new season, before any standings-based story has ever been
   // detected — this slot is left with no group; edition-engine.ts's quality
@@ -559,10 +561,10 @@ export function directorSelect(params: {
     commit(unusedLeaguePick, ctx);
     whatToWatchEntry = { slot: 10, purpose: "what_to_watch", group: unusedLeaguePick.group, treatment: unusedLeaguePick.treatment, carryForwardState: unusedLeaguePick.carryForwardState };
   } else {
-    const bestLeagueOverall = storyBudgetRemaining ? (ranked.find(isOpenLeagueQuestion) ?? null) : null;
-    whatToWatchEntry = bestLeagueOverall
-      ? { slot: 10, purpose: "what_to_watch", group: bestLeagueOverall.group, treatment: bestLeagueOverall.treatment, carryForwardState: bestLeagueOverall.carryForwardState }
-      : { slot: 10, purpose: "what_to_watch", group: null, treatment: "utility", carryForwardState: null };
+    // Repeating an already-used league story here produced a third telling
+    // after its headline and full segment. A quiet Edition is clearer with a
+    // short utility close than another pass over the same table narrative.
+    whatToWatchEntry = { slot: 10, purpose: "what_to_watch", group: null, treatment: "utility", carryForwardState: null };
   }
 
   // Slot 11 — closing: a short sign-off — still no SEGMENT of its own (this

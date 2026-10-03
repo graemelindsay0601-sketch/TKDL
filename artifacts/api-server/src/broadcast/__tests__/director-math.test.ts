@@ -13,6 +13,8 @@ import {
   NORMAL_RUNNING_ORDER_TEMPLATE, evaluateQualityGate,
   totalEstimatedSecondsForProgramme, classifyEditionLength,
   LEAGUE_AIRTIME_SOFT_CAP, MAX_FULL_SEGMENTS_PER_SUBJECT,
+  sequenceEditorialBeats,
+  topicRecurrencePenalty,
   type EditionProgramme, type ProgrammeSegment,
 } from "../director-math.ts";
 import { seededRng } from "../seeded-rng.ts";
@@ -386,6 +388,31 @@ describe("NORMAL_RUNNING_ORDER_TEMPLATE", () => {
   test("opening, headlines, main story, what-to-watch and closing are required; everything else is optional", () => {
     const required = NORMAL_RUNNING_ORDER_TEMPLATE.filter(s => s.required).map(s => s.purpose);
     assert.deepEqual(required, ["opening", "headlines", "main_story", "what_to_watch", "closing"]);
+  });
+});
+
+describe("sequenceEditorialBeats", () => {
+  test("includes late backfill in the programme rhythm and avoids adjacent families when an alternative exists", () => {
+    const items = [
+      { id: "result", beat: "news" as const, family: "RESULT" },
+      { id: "table", beat: "analysis" as const, family: "LEAGUE" },
+      { id: "form", beat: "analysis" as const, family: "FORM" },
+      { id: "h2h", beat: "analysis" as const, family: "H2H" },
+      { id: "promo", beat: "feature" as const, family: "FILLER" },
+    ];
+    const sequenced = sequenceEditorialBeats(items, ["news", "analysis", "feature", "analysis", "analysis"], item => item.beat, item => item.family);
+    assert.deepEqual(sequenced.map(item => item.id), ["result", "table", "promo", "form", "h2h"]);
+    assert.equal(new Set(sequenced.map(item => item.id)).size, items.length);
+  });
+});
+
+describe("topicRecurrencePenalty", () => {
+  test("rotates recurring analysis topics without suppressing fresh results or major events", () => {
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "featured", exactStoryRepeated: false }), 5);
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 3, family: "LEAGUE", treatment: "supporting", exactStoryRepeated: false }), 10);
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "RESULT", treatment: "featured", exactStoryRepeated: false }), 0);
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "major", exactStoryRepeated: false }), 0);
+    assert.equal(topicRecurrencePenalty({ previousTypeCount: 1, family: "H2H", treatment: "featured", exactStoryRepeated: true }), 0);
   });
 });
 

@@ -8,15 +8,23 @@ import { applySettingsPatch, replaceAppSettings, type AppSettings } from "@/hook
 
 // Friendly display names for the two-stage (admin-preview → live-for-everyone)
 // flags stored in featureFlagsTable, as opposed to the simple on/off flags
-// above that live in the plain settingsTable. Only flags actually still in
-// beta get a row here — card_shop/coins/card_clash are long since fully live
-// and Card Clash's own settings live elsewhere, so they're deliberately left
-// out of this list rather than given a toggle that's never meant to move.
+// above that live in the plain settingsTable. card_shop/coins are long since
+// fully live with no reason to ever move again, so they're left out. Card
+// Clash used to be in that same "never moves" category too — this comment
+// used to say so — but it's since been given a real kill switch
+// (routes/card-clash.ts) so it CAN be turned off, which means it needs to
+// live here, driving the real featureFlagsTable row, not the old plain
+// "Card Clash" switch below (now removed) that patched the unrelated
+// settingsTable and never touched the row this kill switch actually reads.
+// That mismatch is exactly why the toggle looked like it worked while Card
+// Clash stayed reachable (or, as happened here, looked "on" while the real
+// flag was actually off with no way to change it back from this page).
 const STAGED_FLAG_LABELS: Record<string, string> = {
+  card_clash: "Card Clash",
   tkdl_live: "TKDL Live",
   new_scoring_ui: "New Scoring UI",
 };
-const STAGED_FLAG_ORDER = ["tkdl_live", "new_scoring_ui"];
+const STAGED_FLAG_ORDER = ["card_clash", "tkdl_live", "new_scoring_ui"];
 
 interface StagedFlag {
   featureName: string;
@@ -38,7 +46,6 @@ export function FeatureFlags() {
   const [messagingOn,       setMessagingOn]        = useState<boolean | null>(null);
   const [notificationsOn,   setNotificationsOn]    = useState<boolean | null>(null);
   const [shadowLeagueOn,    setShadowLeagueOn]     = useState<boolean | null>(null);
-  const [cardClashOn,       setCardClashOn]        = useState<boolean | null>(null);
   const [doublesEventOn,    setDoublesEventOn]     = useState<boolean | null>(null);
   const [heatmapOn,         setHeatmapOn]          = useState<boolean | null>(null);
   const [voiceCalloutsOn,   setVoiceCalloutsOn]    = useState<boolean | null>(null);
@@ -116,7 +123,6 @@ export function FeatureFlags() {
         setMessagingOn(s.messaging_enabled === true);
         setNotificationsOn(s.notifications_enabled === true);
         setShadowLeagueOn(s.shadow_league_enabled === true);
-        setCardClashOn(s.card_clash_enabled === true);
         setDoublesEventOn(s.doubles_event_enabled !== false);
         setHeatmapOn(s.dartboard_heatmap_enabled === true);
         setVoiceCalloutsOn(s.voice_callouts_enabled === true);
@@ -127,7 +133,7 @@ export function FeatureFlags() {
       })
       .catch(() => {
         setLiveScorer(false);
-        setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false); setCardClashOn(false);
+        setCommunityOn(false); setMessagingOn(false); setNotificationsOn(false); setShadowLeagueOn(false);
         setDoublesEventOn(true);
         setHeatmapOn(false); setVoiceCalloutsOn(false); setBossBattleOn(false); setBoardCurseOn(false); setShiftWarsOn(false);
         setUnevenTeamsOn(false);
@@ -179,8 +185,6 @@ export function FeatureFlags() {
         {row("Notifications", "Fire in-app notifications for reactions, comments, messages, and match events", notificationsOn, setNotificationsOn, "notifications_enabled", "Notifications enabled", "Notifications disabled")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         {row("Shadow League", "Enable the /shadow-league page — shows all bots ranked by average. Enable once 4+ bots are active", shadowLeagueOn, setShadowLeagueOn, "shadow_league_enabled", "Shadow League live", "Shadow League hidden")}
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
-        {row("Card Clash", "Enable the Card Clash game mode with card collecting, packs, and seasons", cardClashOn, setCardClashOn, "card_clash_enabled", "Card Clash live", "Card Clash hidden")}
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />
         <div>
           <div className="text-xs font-bold uppercase mb-1" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>Season Events</div>

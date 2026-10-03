@@ -134,13 +134,24 @@ export async function getFeatureFlag(featureName: string) {
  */
 export async function enableFeatureForAll(featureName: string): Promise<boolean> {
   try {
-    await db
+    const result = await db
       .update(featureFlagsTable)
       .set({
         enabled: true,
         adminTestMode: false,
       })
       .where(eq(featureFlagsTable.featureName, featureName));
+
+    // This returned true as long as the query itself didn't throw, even
+    // when featureName matched zero rows (a typo, or a flag referenced
+    // before initializeFeatureFlags() has ever run on a fresh DB) — the
+    // exact "silent no-op with no trace" pattern flagged elsewhere in this
+    // codebase: the caller gets {ok:true} and a log line claiming success
+    // for a change that never happened.
+    if ((result.rowCount ?? 0) === 0) {
+      console.error(`Feature ${featureName} not found — no row updated`);
+      return false;
+    }
 
     console.log(`Feature ${featureName} enabled for all users`);
     return true;
@@ -155,12 +166,17 @@ export async function enableFeatureForAll(featureName: string): Promise<boolean>
  */
 export async function disableFeature(featureName: string): Promise<boolean> {
   try {
-    await db
+    const result = await db
       .update(featureFlagsTable)
       .set({
         enabled: false,
       })
       .where(eq(featureFlagsTable.featureName, featureName));
+
+    if ((result.rowCount ?? 0) === 0) {
+      console.error(`Feature ${featureName} not found — no row updated`);
+      return false;
+    }
 
     console.log(`Feature ${featureName} disabled for all users`);
     return true;
@@ -175,7 +191,7 @@ export async function disableFeature(featureName: string): Promise<boolean> {
  */
 export async function setAdminTestMode(featureName: string, testMode: boolean): Promise<boolean> {
   try {
-    await db
+    const result = await db
       .update(featureFlagsTable)
       .set({
         adminTestMode: testMode,
@@ -183,6 +199,11 @@ export async function setAdminTestMode(featureName: string, testMode: boolean): 
         enabled: testMode ? false : undefined,
       })
       .where(eq(featureFlagsTable.featureName, featureName));
+
+    if ((result.rowCount ?? 0) === 0) {
+      console.error(`Feature ${featureName} not found — no row updated`);
+      return false;
+    }
 
     console.log(`Feature ${featureName} admin test mode set to ${testMode}`);
     return true;

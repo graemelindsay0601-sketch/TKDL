@@ -223,6 +223,16 @@ export function isCarryForwardEligibleForFullSegment(state: CarryForwardState, a
 export const LEAGUE_AIRTIME_SOFT_CAP = 0.55; // "55% of full-segment time per league in a normal Edition"
 export const MAX_FULL_SEGMENTS_PER_SUBJECT = 2; // "at most two full segments in one Edition unless separate Major events justify more"
 export const REPETITION_PENALTY = 15; // judgment call: enough to usually push a repeated ACTIVE story below a genuinely new one of similar raw score, without being an absolute ban (11.2's "may carry forward ... reduce priority", not "never again")
+export const TOPIC_RECURRENCE_PENALTY = 5;
+
+/** A new story id can still repeat the previous Edition's exact topic. Keep
+ * fresh results and major events untouched; gently rotate recurring analysis
+ * and feature topics when another story is close enough in value. */
+export function topicRecurrencePenalty(params: { previousTypeCount: number; family: string; treatment: Treatment; exactStoryRepeated: boolean }): number {
+  if (params.exactStoryRepeated || params.previousTypeCount < 1 || params.treatment === "major") return 0;
+  if (params.family === "RESULT" || params.family === "MILESTONE") return 0;
+  return Math.min(2, params.previousTypeCount) * TOPIC_RECURRENCE_PENALTY;
+}
 
 /**
  * The one number director.ts's running-order selection actually ranks
@@ -481,6 +491,35 @@ export const PROGRAMME_PACING_RULES: Record<OrdinaryProgrammeMode, ProgrammePaci
     contentMix: ["feature", "analysis", "feature", "analysis", "news", "feature", "analysis"],
   },
 };
+
+/**
+ * Applies the producer's beat mix after the complete story list is known.
+ * If two candidates fit the requested beat, prefer the one that does not
+ * repeat the previous narrative family. This keeps late quiet-day backfill
+ * from collecting into a same-topic block at the end of the programme.
+ */
+export function sequenceEditorialBeats<T>(
+  items: readonly T[],
+  mix: readonly ProgrammeContentBeat[],
+  beatFor: (item: T) => ProgrammeContentBeat,
+  familyFor: (item: T) => string,
+): T[] {
+  const remaining = [...items];
+  const output: T[] = [];
+  for (const beat of mix) {
+    const previousFamily = output.length > 0 ? familyFor(output[output.length - 1]) : null;
+    let index = remaining.findIndex(item => beatFor(item) === beat && familyFor(item) !== previousFamily);
+    if (index < 0) index = remaining.findIndex(item => beatFor(item) === beat);
+    if (index >= 0) output.push(remaining.splice(index, 1)[0]);
+  }
+  while (remaining.length > 0) {
+    const previousFamily = output.length > 0 ? familyFor(output[output.length - 1]) : null;
+    let index = remaining.findIndex(item => familyFor(item) !== previousFamily);
+    if (index < 0) index = 0;
+    output.push(remaining.splice(index, 1)[0]);
+  }
+  return output;
+}
 
 export function isRuntimeWithinProgrammeMode(
   mode: OrdinaryProgrammeMode,

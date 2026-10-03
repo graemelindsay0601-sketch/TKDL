@@ -528,7 +528,13 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       await createAutoPost({
         playerId:        winnerId,
         content:         `🏆 ${winner.name} has reached ${winnerTierAfter} tier!`,
-        autoMeta:        { type: "tier_up", playerId: winnerId, from: winnerTierBefore, to: winnerTierAfter },
+        // matchId is required here, not just nice-to-have: createAutoPost's
+        // INSERT relies on ON CONFLICT DO NOTHING against the partial
+        // unique index community_posts_auto_match_idx, which only covers
+        // rows where auto_meta->>'matchId' IS NOT NULL. Without matchId
+        // this post wasn't deduplicated at all — any retry/duplicate
+        // delivery of this same match event posted the tier change twice.
+        autoMeta:        { type: "tier_up", matchId: match.id, playerId: winnerId, from: winnerTierBefore, to: winnerTierAfter },
         notifyPlayerIds: [winnerId],
       });
     }
@@ -539,7 +545,10 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       await createAutoPost({
         playerId:        loserId,
         content:         `📉 ${loser.name} dropped to ${loserTierAfter} tier`,
-        autoMeta:        { type: "tier_drop", playerId: loserId, from: loserTierBefore, to: loserTierAfter },
+        // Same idempotency gap as the tier_up post above — matchId is what
+        // makes the unique index (and therefore ON CONFLICT DO NOTHING)
+        // actually apply to this post.
+        autoMeta:        { type: "tier_drop", matchId: match.id, playerId: loserId, from: loserTierBefore, to: loserTierAfter },
         notifyPlayerIds: [loserId],
       });
     }
@@ -564,16 +573,24 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       );
 
       // Threat alert notifications (if gap < 15 points) — sent to whichever
-      // player is now ahead, warning them the other is closing in.
-      const eloGap = Math.abs(newWinnerElo - newLoserElo);
-      const winnerIsAhead = newWinnerElo >= newLoserElo;
+      // player is now ahead, warning them the other is closing in. This used
+      // to compare Elo instead of points — Elo is just the leaderboard's
+      // tiebreak (see lib/leaderboardRank.ts), points is what actually
+      // determines rank, and the two drift apart over a career (most
+      // visibly right after a season reset, when every player's points go
+      // back to 25 but career Elo doesn't move at all — the exact moment
+      // this alert should be firing constantly, it was going silent
+      // instead). dashboard.tsx's own "Being Chased"/"Chasing" widget
+      // already computes this same gap from points, so this now matches it.
+      const pointGap = Math.abs(newWinnerPoints - newLoserPoints);
+      const winnerIsAhead = newWinnerPoints >= newLoserPoints;
       await sendThreatAlertNotifications([
         {
           playerId: winnerIsAhead ? winnerId : loserId,
           playerName: winnerIsAhead ? winner.name : loser.name,
           threatenerId: winnerIsAhead ? loserId : winnerId,
           threateningPlayerName: winnerIsAhead ? loser.name : winner.name,
-          pointGap: eloGap,
+          pointGap,
         },
       ]);
 

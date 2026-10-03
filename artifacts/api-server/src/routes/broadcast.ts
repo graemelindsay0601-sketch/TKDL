@@ -25,6 +25,7 @@ import {
   type EditionProgramme,
 } from "../broadcast/director-math";
 import { buildPowerRankings } from "../broadcast/power-rankings";
+import { familyForStoryType, type StoryType } from "../broadcast/story-types";
 
 /**
  * TKDL LIVE — the automated broadcast "show" feature (handover doc section
@@ -766,6 +767,41 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
       }),
     );
 
+    const publishedProgramme = currentPublished && isEditionProgramme(currentPublished.programme) ? currentPublished.programme as EditionProgramme : null;
+    const monitorSegments = publishedProgramme?.segments.filter(segment => segment.storyId !== null && segment.purpose !== "headlines") ?? [];
+    const monitorStoryIds = [...new Set(monitorSegments.map(segment => segment.storyId).filter((id): id is number => id !== null))];
+    const monitorStories = monitorStoryIds.length > 0
+      ? await db.select({ id: broadcastStoriesTable.id, storyType: broadcastStoriesTable.storyType, lifecycle: broadcastStoriesTable.lifecycle, score: broadcastStoriesTable.score, updatedAt: broadcastStoriesTable.updatedAt, subjectKeys: broadcastStoriesTable.subjectKeys }).from(broadcastStoriesTable).where(inArray(broadcastStoriesTable.id, monitorStoryIds))
+      : [];
+    const monitorStoryById = new Map(monitorStories.map(story => [story.id, story]));
+    const monitorRows = monitorSegments.map((segment, index) => {
+      const story = segment.storyId === null ? null : monitorStoryById.get(segment.storyId) ?? null;
+      const family = segment.storyType ? familyForStoryType(segment.storyType as StoryType) : null;
+      return {
+        order: index + 1, purpose: segment.purpose, storyId: segment.storyId, storyType: segment.storyType,
+        family, leagueType: segment.leagueType, importance: segment.importance,
+        lifecycle: story?.lifecycle ?? segment.lifecycleAtBroadcast, score: story?.score ?? null,
+        ageHours: story ? Math.max(0, Math.round((Date.now() - story.updatedAt.getTime()) / 3_600_000)) : null,
+        subjectKeys: story?.subjectKeys ?? [],
+      };
+    });
+    const topicCounts = new Map<string, number>();
+    for (const row of monitorRows) if (row.storyType) topicCounts.set(row.storyType, (topicCounts.get(row.storyType) ?? 0) + 1);
+    const flowWarnings: string[] = [];
+    for (let index = 1; index < monitorRows.length; index++) {
+      if (monitorRows[index].family && monitorRows[index].family === monitorRows[index - 1].family) flowWarnings.push(`Segments ${index} and ${index + 1} are both ${monitorRows[index].family}`);
+    }
+    for (const [storyType, count] of topicCounts) if (count > 1) flowWarnings.push(`${storyType} appears ${count} times as a full segment`);
+    const editorialMonitor = publishedProgramme ? {
+      editionId: currentPublished!.id,
+      mode: programmeModeOf(publishedProgramme),
+      runtimeSeconds: totalEstimatedSecondsForProgramme(publishedProgramme),
+      segmentCount: monitorRows.length,
+      rows: monitorRows,
+      flowWarnings,
+      verdict: flowWarnings.length === 0 ? "Balanced running order" : `${flowWarnings.length} item${flowWarnings.length === 1 ? "" : "s"} worth reviewing`,
+    } : null;
+
     res.json({
       // Show Bible v1 §1 "Programme lengths" — diagnostic-only runtime band
       // (Quiet/Normal/Busy/Exceptional), never a publish gate (see director-
@@ -792,6 +828,7 @@ router.get("/admin/broadcast/status", requireAdminSession, async (_req, res): Pr
         storyType: r.story_type, lifecycle: r.lifecycle, count: r.count,
       })),
       predictorDiagnostics,
+      editorialMonitor,
       config,
       // Diagnostic-only: why did the Season Review find zero/thin real
       // content for a league's most recently closed season, when the story

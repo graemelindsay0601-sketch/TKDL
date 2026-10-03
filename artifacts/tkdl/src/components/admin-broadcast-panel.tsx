@@ -56,6 +56,10 @@ type BroadcastAdminStatus = {
   storyCounts: StoryCount[];
   predictorDiagnostics: Record<string, { generatedAt: string; modelVersion: string } | null>;
   config: { programmeProfiles: Record<ProgrammeMode, ProgrammeProfile> } & Record<string, unknown>;
+  editorialMonitor: null | {
+    editionId: number; mode: ProgrammeMode; runtimeSeconds: number; segmentCount: number; verdict: string; flowWarnings: string[];
+    rows: Array<{ order:number; purpose:string; storyId:number|null; storyType:string|null; family:string|null; leagueType:string|null; importance:string; lifecycle:string|null; score:number|null; ageHours:number|null; subjectKeys:string[] }>;
+  };
 };
 
 const PROGRAMME_MODES: ProgrammeMode[] = ["NEWS", "BALANCED", "MAGAZINE"];
@@ -97,6 +101,9 @@ export default function AdminBroadcastPanel() {
   const [msgType, setMsgType]       = useState<"success" | "error">("success");
   const [profiles, setProfiles] = useState<Record<ProgrammeMode, ProgrammeProfile> | null>(null);
   const [savingProfiles, setSavingProfiles] = useState(false);
+  const [spotlightOverride,setSpotlightOverride]=useState<any>(null);
+  const [spotlightSaving,setSpotlightSaving]=useState(false);
+  const [spotlightForm,setSpotlightForm]=useState({format:"Singles",sideA:"",sideB:"",kicker:"MATCH SPOTLIGHT",reason:"A matchup selected for featured league coverage",hours:6,matchKey:""});
 
   useEffect(() => { loadStatus(); }, []);
 
@@ -113,9 +120,14 @@ export default function AdminBroadcastPanel() {
       if (r.ok) {
         setStatus(d);
         setProfiles(d.config.programmeProfiles);
+        fetch("/api/admin/match-spotlight",{headers:getAdminHeaders()}).then(x=>x.ok?x.json():null).then(x=>setSpotlightOverride(x?.override??null)).catch(()=>{});
       }
       else toast(d.error ?? "Failed to load broadcast status", "error");
     } catch { toast("Failed to load broadcast status", "error"); } finally { setLoading(false); }
+  };
+
+  const controlSpotlight=async(action:"automatic"|"dismiss"|"pin")=>{
+    try{setSpotlightSaving(true);const body=action==="automatic"?{action}:action==="dismiss"?{action,hours:spotlightForm.hours}:{action,hours:spotlightForm.hours,format:spotlightForm.format,sideA:spotlightForm.sideA,sideB:spotlightForm.sideB,kicker:spotlightForm.kicker,reason:spotlightForm.reason,...(spotlightForm.matchKey?{matchKey:spotlightForm.matchKey}:{})};const r=await fetch("/api/admin/match-spotlight",{method:"PUT",headers:getAdminHeaders(),body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error??"Spotlight update failed");setSpotlightOverride(d.override??null);toast(action==="automatic"?"Automatic spotlight selection restored":action==="dismiss"?"Automatic spotlight hidden temporarily":"Match spotlight pinned");}catch(error){toast(error instanceof Error?error.message:"Spotlight update failed","error");}finally{setSpotlightSaving(false)}
   };
 
   const regenerate = async () => {
@@ -296,6 +308,26 @@ export default function AdminBroadcastPanel() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {status?.editorialMonitor && (
+            <div style={{ background: "linear-gradient(135deg,rgba(0,180,255,.07),rgba(255,0,92,.035))", border: `1px solid ${D.info}38`, borderRadius: "10px", padding: "18px", marginBottom: "1rem" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",gap:"12px",alignItems:"start",flexWrap:"wrap",marginBottom:"14px" }}>
+                <div><div style={{fontSize:"12px",fontWeight:900,letterSpacing:".08em"}}>EDITORIAL MONITOR · EDITION #{status.editorialMonitor.editionId}</div><div style={{fontSize:"11px",color:D.sub,marginTop:"3px"}}>{status.editorialMonitor.mode} · {formatRuntime(status.editorialMonitor.runtimeSeconds)} · {status.editorialMonitor.segmentCount} story segments</div></div>
+                <span style={{fontSize:"10px",fontWeight:800,color:status.editorialMonitor.flowWarnings.length?D.warn:D.success,padding:"5px 9px",borderRadius:"999px",border:`1px solid ${status.editorialMonitor.flowWarnings.length?D.warn:D.success}55`}}>{status.editorialMonitor.verdict}</span>
+              </div>
+              {status.editorialMonitor.flowWarnings.length>0&&<div style={{display:"grid",gap:"5px",marginBottom:"12px"}}>{status.editorialMonitor.flowWarnings.map(warning=><div key={warning} style={{fontSize:"11px",color:D.warn}}>⚠ {warning}</div>)}</div>}
+              <div style={{display:"grid",gap:"6px"}}>{status.editorialMonitor.rows.map(row=><div key={`${row.order}-${row.storyId}`} style={{display:"grid",gridTemplateColumns:"30px minmax(150px,1.5fr) minmax(90px,.8fr) minmax(80px,.7fr) auto",gap:"9px",alignItems:"center",padding:"9px 10px",borderRadius:"7px",background:"rgba(0,0,0,.2)",fontSize:"10px"}}><b style={{color:D.info}}>#{row.order}</b><div><strong style={{display:"block",fontSize:"11px"}}>{row.storyType?.replaceAll("_"," ")??row.purpose}</strong><span style={{color:D.sub}}>{row.purpose.replaceAll("_"," ")}</span></div><span style={{color:D.sub}}>{row.family??"Utility"} · {row.leagueType??"—"}</span><span style={{color:row.importance==="major"?D.warn:D.sub}}>{row.importance} · {row.lifecycle??"—"}</span><span style={{color:row.ageHours!=null&&row.ageHours>72?D.warn:D.sub}}>{row.ageHours==null?"—":`${row.ageHours}h old`}</span></div>)}</div>
+            </div>
+          )}
+
+          <div style={{background:D.card,border:`1px solid ${D.warn}35`,borderRadius:"10px",padding:"18px",marginBottom:"1rem"}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:"12px",flexWrap:"wrap",marginBottom:"12px"}}><div><div style={{fontSize:"12px",fontWeight:900,letterSpacing:".08em"}}>MATCH SPOTLIGHT CONTROL</div><div style={{fontSize:"11px",color:D.sub,marginTop:"3px"}}>Automatic selects major live matches and notable saved results. Pin an editorial choice or pause promotion temporarily.</div></div><span style={{fontSize:"10px",color:spotlightOverride?D.warn:D.success}}>{spotlightOverride?`${spotlightOverride.action} until ${formatWhen(spotlightOverride.expiresAt)}`:"AUTOMATIC"}</span></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"8px"}}>
+              {(["format","sideA","sideB","kicker","reason","matchKey"] as const).map(key=><label key={key} style={{display:"grid",gap:"4px",fontSize:"10px",color:D.sub,...(key==="reason"?{gridColumn:"span 2"}:{})}}>{key==="sideA"?"Side A":key==="sideB"?"Side B":key==="matchKey"?"Match Centre key (optional)":key[0].toUpperCase()+key.slice(1)}<input value={spotlightForm[key]} onChange={e=>setSpotlightForm(current=>({...current,[key]:e.target.value}))} style={{background:"rgba(0,0,0,.25)",border:`1px solid ${D.border}`,borderRadius:"6px",color:D.text,padding:"7px"}}/></label>)}
+              <label style={{display:"grid",gap:"4px",fontSize:"10px",color:D.sub}}>Hours<input type="number" min={1} max={168} value={spotlightForm.hours} onChange={e=>setSpotlightForm(current=>({...current,hours:Number(e.target.value)}))} style={{background:"rgba(0,0,0,.25)",border:`1px solid ${D.border}`,borderRadius:"6px",color:D.text,padding:"7px"}}/></label>
+            </div>
+            <div style={{display:"flex",gap:"8px",flexWrap:"wrap",marginTop:"12px"}}><button disabled={spotlightSaving||!spotlightForm.sideA||!spotlightForm.sideB} onClick={()=>void controlSpotlight("pin")} style={{padding:"8px 13px",borderRadius:"7px",border:`1px solid ${D.warn}55`,background:`${D.warn}18`,color:D.warn,fontWeight:800}}>Pin matchup</button><button disabled={spotlightSaving} onClick={()=>void controlSpotlight("dismiss")} style={{padding:"8px 13px",borderRadius:"7px",border:`1px solid ${D.danger}44`,background:`${D.danger}12`,color:D.danger,fontWeight:800}}>Hide automatic</button><button disabled={spotlightSaving} onClick={()=>void controlSpotlight("automatic")} style={{padding:"8px 13px",borderRadius:"7px",border:`1px solid ${D.success}44`,background:`${D.success}12`,color:D.success,fontWeight:800}}>Restore automatic</button></div>
           </div>
 
           {profiles && (

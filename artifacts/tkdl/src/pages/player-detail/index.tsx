@@ -15,6 +15,7 @@ import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
 import { useSpotlightValues } from "@/lib/statSpotlight";
 import { SeasonRecapModal } from "@/components/SeasonRecapCard";
+import { DartsLocker } from "@/components/DartsLocker";
 
 // Renders a GitHub-style contribution calendar: 7 rows (Sun–Sat) x up to 53
 // columns covering the trailing 365 days, padded at the front so the grid
@@ -655,6 +656,8 @@ export default function PlayerDetail() {
         <div className="absolute bottom-0 left-0 right-0 h-px"
           style={{ background: `linear-gradient(90deg, transparent, ${tierColor}40, transparent)` }} />
       </div>
+
+      <DartsLocker playerId={player.id} setup={(player as any).dartsSetup ?? null} editable={isOwnProfile} />
 
       {/* ══ GAME MODES ══ */}
       {/* One tile per mode instead of a full-width card each — same colors

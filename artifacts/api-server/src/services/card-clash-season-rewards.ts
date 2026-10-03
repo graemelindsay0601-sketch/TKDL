@@ -18,6 +18,7 @@ import {
 import { sql, eq, desc, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { addCoinsToPlayer } from "./card-shop-service";
+import { getFeatureFlag, FEATURES } from "./feature-flags-service";
 
 interface SeasonReward {
   playerId: number;
@@ -301,6 +302,19 @@ export async function endSeasonAndAwardRewards(
  */
 export async function checkAndEndSeasonIfNeeded(): Promise<void> {
   try {
+    // This ran on every single server boot with no awareness of the
+    // card_clash flag at all — unlike the featured-card-shop rotation,
+    // which already had a (partial) kill switch, this one would happily
+    // keep creating new seasons and auto-ending/awarding the previous one
+    // behind the scenes even with Card Clash fully disabled and its UI
+    // unreachable. Checked here the same way featured-card-shop-service.ts
+    // checks it, so disabling the flag actually quiets this too.
+    const flag = await getFeatureFlag(FEATURES.CARD_CLASH);
+    if (!flag?.enabled) {
+      logger.info("Card Clash season auto-check: skipped — Card Clash is disabled");
+      return;
+    }
+
     const [activeSeason] = await db
       .select()
       .from(cardClashSeasonsTable)

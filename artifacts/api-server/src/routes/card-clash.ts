@@ -60,6 +60,17 @@ function sessionIsAdmin(req: Request): boolean {
 }
 router.use(async (req, res, next) => {
   if (req.path === "/feature-status") { next(); return; }
+  // The player currency/wallet balance started as a Card-Clash-only concept
+  // but has since become the shared "Customise" shop's currency too —
+  // CosmeticsShop.tsx reads it from here (/api/card-clash/shop/currency/:id)
+  // even though the actual cosmetics purchase/equip/catalog endpoints live
+  // under a separate, un-gated router (/api/players/:id/cosmetics/*,
+  // /api/cosmetics/catalog). This kill switch blocking that balance meant
+  // turning Card Clash off (or it ending up off, as it currently is in
+  // production) broke every player's wallet display and cosmetics
+  // purchases app-wide — collateral damage this gate was never meant to
+  // cause. Exempted the same way /feature-status is.
+  if (req.path.startsWith("/shop/currency/")) { next(); return; }
   const available = await isFeatureAvailable(FEATURES.CARD_CLASH, sessionIsAdmin(req));
   if (!available) { res.status(403).json({ error: "Card Clash is currently unavailable." }); return; }
   next();

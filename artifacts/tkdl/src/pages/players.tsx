@@ -212,9 +212,18 @@ export default function Players() {
   const inactive   = searched.filter(p => !p.isActive);
 
   // Rank badges (#1, #2, ...) are always by points — that's the league
-  // standing. sortBy only changes the order the cards are laid out in.
+  // standing. sortBy only changes the order the cards are laid out in. This
+  // dropped the Elo tiebreak that every backend rank calculation uses
+  // (lib/leaderboardRank.ts's rankPlayersByPoints — season leaderboard,
+  // rank-change notifications, position-change diffs), so two players tied
+  // on points could show a different relative badge here than anywhere
+  // else in the app, purely based on whatever order the fetch happened to
+  // return them in. Matching that same points-desc/elo-desc tiebreak here
+  // keeps this page's numbers consistent with the rest of the app.
   const rankMap = new Map(
-    [...active].sort((a, b) => (b.points ?? 25) - (a.points ?? 25)).map((p, i) => [p.id, i])
+    [...active]
+      .sort((a, b) => (b.points ?? 25) - (a.points ?? 25) || (b.elo ?? 1000) - (a.elo ?? 1000))
+      .map((p, i) => [p.id, i])
   );
   const SORTERS: Record<typeof sortBy, (a: any, b: any) => number> = {
     points: (a, b) => (b.points ?? 25) - (a.points ?? 25),

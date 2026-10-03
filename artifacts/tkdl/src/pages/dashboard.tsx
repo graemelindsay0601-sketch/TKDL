@@ -18,6 +18,7 @@ import {
   MessageSquare, CircuitBoard, Calendar,
 } from "lucide-react";
 import { format } from "date-fns";
+import { MatchSpotlight } from "@/components/MatchSpotlight";
 
 // ══════════════════════════════════════════════════════════════════════════
 // HUB REWORK v3 — see the mockup this was built from for the full rationale.
@@ -742,6 +743,8 @@ export default function Dashboard() {
       {currentPlayer && <FreshnessBar playerName={currentPlayer.playerName} previousVisit={visit?.previousVisit ?? null} pulse={pulse} />}
 
       <QuickActions liveScorerEnabled={appSettings?.live_scorer_enabled ?? false} />
+
+      <MatchSpotlight />
 
       <StateBand leaderboard={leaderboard} summary={summary} currentPlayer={currentPlayer} form={formData?.results ?? null} />
 

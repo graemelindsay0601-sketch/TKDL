@@ -1575,13 +1575,29 @@ router.post("/shadow-bot/simulate", async (req, res): Promise<void> => {
     const legLog: { leg: number; p1Won: boolean; p1Darts: number; p2Darts: number }[] = [];
 
     for (let leg = 1; leg <= 7 && p1Legs < LEG_TARGET && p2Legs < LEG_TARGET; leg++) {
-      const l1 = simLeg(p1Avg, p1CoPct);
-      const l2 = simLeg(p2Avg, p2CoPct);
-      const p1WinsLeg = l1.darts <= l2.darts && l1.won;
-      if (p1WinsLeg || (!l2.won && l1.won)) p1Legs++;
+      let l1 = simLeg(p1Avg, p1CoPct);
+      let l2 = simLeg(p2Avg, p2CoPct);
+      // simLeg caps at 60 visits (180 darts) and returns won:false if neither
+      // bot checks out by then — vanishingly rare, but real with a low
+      // checkout%. The old formula (p1 wins iff l1.won) fell through to the
+      // `else` whenever l1.won was false, so a leg where NEITHER bot finished
+      // was silently awarded to p2 every time, regardless of how either bot
+      // actually played. Re-simulate until someone actually finishes, same
+      // as two real players would just keep throwing.
+      let retries = 0;
+      while (!l1.won && !l2.won && retries++ < 25) {
+        l1 = simLeg(p1Avg, p1CoPct);
+        l2 = simLeg(p2Avg, p2CoPct);
+      }
+      let p1WinsLeg: boolean;
+      if (l1.won && l2.won) p1WinsLeg = l1.darts <= l2.darts;
+      else if (l1.won) p1WinsLeg = true;
+      else if (l2.won) p1WinsLeg = false;
+      else p1WinsLeg = Math.random() < 0.5; // retry budget exhausted (astronomically unlikely) — coin flip, not an automatic p2 win
+      if (p1WinsLeg) p1Legs++;
       else p2Legs++;
       p1TotalDarts += l1.darts; p2TotalDarts += l2.darts;
-      legLog.push({ leg, p1Won: p1WinsLeg || (!l2.won && l1.won), p1Darts: l1.darts, p2Darts: l2.darts });
+      legLog.push({ leg, p1Won: p1WinsLeg, p1Darts: l1.darts, p2Darts: l2.darts });
     }
 
     const totalLegs = p1Legs + p2Legs;

@@ -135,7 +135,17 @@ export async function createNotification(payload: NotificationPayload): Promise<
  * createNotification's call site and queueNotificationForBatching.
  */
 async function shouldSendNotification(payload: NotificationPayload, prefs: any): Promise<{ shouldSend: boolean; batchingDelay?: number }> {
-  if (!prefs?.push_enabled) return { shouldSend: false };
+  if (!prefs?.push_enabled) {
+    // Unlike the quiet-hours/daily-cap skip below, this and the per-type
+    // skip just past it used to return silently — no log line at all. That
+    // made "why didn't my notification arrive" unanswerable from the logs:
+    // a preference-based skip looked identical to the notification never
+    // having been attempted in the first place. Logging it here means a
+    // future case like this is a one-line log search instead of a full
+    // pipeline re-trace.
+    logger.info({ playerId: payload.playerId, type: payload.type }, "Notification skipped — push disabled for player");
+    return { shouldSend: false };
+  }
 
   // Check type-specific preference. notification_preferences' columns are
   // plural (match_results, rank_changes, coach_tips, announcements) while
@@ -159,9 +169,22 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     post_liked:            "community_activity",
     post_commented:        "community_activity",
     auto_post_fired:       "community_activity",
+    // post_mentioned and top_post_reward were missing from this map
+    // entirely — not just mapped to the wrong column, like the others
+    // documented above, but absent, so typeKey came back undefined and the
+    // `if (typeKey && ...)` guard just below always skipped the check. That
+    // meant a player could never turn either off: being @mentioned in a
+    // post kept pushing regardless of the "Community Activity" toggle,
+    // which is likely the single community notification most worth being
+    // able to silence.
+    post_mentioned:        "community_activity",
+    top_post_reward:       "community_activity",
   };
   const typeKey = TYPE_TO_PREF_COLUMN[payload.type];
-  if (typeKey && typeKey in prefs && !prefs[typeKey]) return { shouldSend: false };
+  if (typeKey && typeKey in prefs && !prefs[typeKey]) {
+    logger.info({ playerId: payload.playerId, type: payload.type, prefColumn: typeKey }, "Notification skipped — type preference off for player");
+    return { shouldSend: false };
+  }
 
   // Critical notifications always go through. This used to treat every
   // announcement as critical unconditionally, so the admin composer's
