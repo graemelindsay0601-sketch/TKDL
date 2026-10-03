@@ -12,6 +12,7 @@
     "career:world": "node scripts/career-world.ts",
     "career:balance": "node scripts/career-balance.ts",
     "career:calendar": "node scripts/career-calendar.ts",
+    "career:finance": "node scripts/career-finance.ts",
     "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {

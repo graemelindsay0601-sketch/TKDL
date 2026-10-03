@@ -50,7 +50,8 @@ export async function post(tx: CareerExecutor, root: { id: string; world_seed: s
       throw new InsufficientFundsError(-entry.amountPence, balance);
     }
   }
-  const id = stableUuid(root.world_seed, FINANCE_VERSION, "ledger", entry.operationKey);
+  // A1 gave the ledger a global primary key: scope ids by save as well as seed (saves can share a seed in fixtures).
+  const id = stableUuid(root.world_seed, FINANCE_VERSION, "ledger", root.id, entry.operationKey);
   const row = (await tx.execute(sql`INSERT INTO career_finance_entries (id, career_save_id, kind, amount_pence, category, headline, operation_key, season, week,
       event_id, trip_id, contract_id, reverses_entry_id, gross_amount_pence, sponsor_covered_pence, finance_version, reason, detail)
     VALUES (${id}, ${root.id}, ${entry.category}, ${entry.amountPence}, ${entry.category}, ${headline}, ${entry.operationKey}, ${entry.season ?? null}, ${entry.week ?? null},

@@ -419,7 +419,14 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       const started = await database.transaction(async tx => {
         const { root } = await requireSeason(tx, actor, saveId);
         const op = (await tx.execute(sql`SELECT request, result FROM career_calendar_operations WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey}`)).rows[0];
-        if (op) { checkRetry(op.request, request); return { stored: op.result as unknown }; }
+        if (op) {
+          checkRetry(op.request, request);
+          const stored = op.result as { stop?: { reason?: string }; to?: { season: number; week: number } } | null;
+          // A blocked (human-match) advance may resume only from the exact position it stopped at;
+          // once the Career has moved on, retrying it returns the stored result and never moves time.
+          if (stored?.stop?.reason === "HUMAN_MATCH_PENDING" && stored.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
+          return { stored: (stored ?? null) as unknown };
+        }
         if (Number(root.current_season) !== request.expectedSeason || Number(root.current_week) !== request.expectedWeek) throw new CareerError(409, "Career calendar has moved; refresh before advancing");
         await tx.execute(sql`INSERT INTO career_calendar_operations (career_save_id, operation_key, request) VALUES (${saveId}, ${request.operationKey}, ${JSON.stringify(request)}::jsonb)`);
         return { stored: null };
@@ -447,9 +454,10 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const { root } = await requireSeason(tx, actor, saveId);
         const result = { operationKey: request.operationKey, from: { season: request.expectedSeason, week: request.expectedWeek },
           to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps };
-        // A blocked advance is not stored as final, so the same key can resume after the human plays.
-        if (stop.reason !== "HUMAN_MATCH_PENDING") await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb, completed_at = NOW()
-          WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND result IS NULL`);
+        // Blocked advances are recorded (resumable from the same position); completed ones are final.
+        await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
+            completed_at = ${stop.reason === "HUMAN_MATCH_PENDING" ? null : sql`NOW()`}
+          WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
         return result;
       });
     },
