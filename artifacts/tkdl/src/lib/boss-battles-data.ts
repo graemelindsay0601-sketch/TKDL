@@ -44,6 +44,8 @@ export interface Boss {
   botLevel: BotLevel;
   /** Ladder position — beat bosses in this order. */
   order: number;
+  /** Clear time required for the speed mastery medal. */
+  masterySeconds: number;
   moves: BossMove[];
   /** Fires instead of the regular rotation on the decisive leg (leg 3 of a
    *  best-of-3, which only happens when the match is tied 1-1). Optional so
@@ -59,6 +61,7 @@ export const BOSSES: Boss[] = [
     gameMode: "X01",
     botLevel: "amateur",
     order: 1,
+    masterySeconds: 180,
     moves: [
       {
         name: "Wall Block",
@@ -91,6 +94,7 @@ export const BOSSES: Boss[] = [
     gameMode: "X01",
     botLevel: "club",
     order: 2,
+    masterySeconds: 210,
     moves: [
       {
         name: "Jinxed",
@@ -116,6 +120,7 @@ export const BOSSES: Boss[] = [
     gameMode: "CRICKET",
     botLevel: "club",
     order: 3,
+    masterySeconds: 240,
     moves: [
       {
         name: "Cricket Prison",
@@ -141,6 +146,7 @@ export const BOSSES: Boss[] = [
     gameMode: "X01",
     botLevel: "county",
     order: 4,
+    masterySeconds: 270,
     moves: [
       {
         name: "Locked In",
@@ -172,6 +178,7 @@ export const BOSSES: Boss[] = [
     gameMode: "X01",
     botLevel: "pro",
     order: 5,
+    masterySeconds: 300,
     moves: [
       {
         name: "Trebles Curse",
@@ -201,6 +208,7 @@ export const BOSSES: Boss[] = [
     gameMode: "X01",
     botLevel: "elite",
     order: 6,
+    masterySeconds: 360,
     moves: [
       {
         name: "Everything, All At Once",
@@ -234,9 +242,15 @@ const LEGS_PER_FIGHT = 3;
  * except on the decisive leg (leg 3 of a bo3, which can only happen when the
  * match is 1-1), where the boss's enrageMove fires instead, if it has one.
  */
-export function getBossEffectsForLeg(boss: Boss, legNumber: number): { effects: CCEffect[]; move: BossMove; isEnrage: boolean } {
-  const isEnrage = legNumber === LEGS_PER_FIGHT && !!boss.enrageMove;
-  const move = isEnrage ? boss.enrageMove! : boss.moves[(legNumber - 1) % boss.moves.length];
+export function getBossEffectsForLeg(boss: Boss, legNumber: number, ascension = 0): { effects: CCEffect[]; move: BossMove; isEnrage: boolean } {
+  const isEnrage = !!boss.enrageMove && (legNumber === LEGS_PER_FIGHT || (ascension >= 1 && legNumber === 2) || ascension >= 2);
+  const regularMove = boss.moves[(legNumber - 1) % boss.moves.length];
+  const sourceMoves = ascension >= 2 && boss.enrageMove ? [regularMove, boss.enrageMove] : [isEnrage ? boss.enrageMove! : regularMove];
+  const move: BossMove = sourceMoves.length === 1 ? sourceMoves[0] : {
+    name: `Ascended ${boss.enrageMove!.name}`,
+    description: `${regularMove.description} ${boss.enrageMove!.description}`,
+    effects: sourceMoves.flatMap(source => source.effects),
+  };
   const effects: CCEffect[] = move.effects.map(partial => {
     const filled = { ...partial };
     // Lockdown's target number, and Rookie Wall's wild dart slot, are randomized

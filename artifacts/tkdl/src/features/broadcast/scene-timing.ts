@@ -152,9 +152,9 @@ export function popReadyOverlay(queue: readonly LiveOverlayItem[], position: Pla
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Wall-clock-synchronized playhead — real user feedback: "if I started
-// watching the show right now and someone else started it in 5 mins, we'd
-// both be at the same part, same as how a live TV show actually works."
+// Elapsed-time playhead. BroadcastPlayer supplies milliseconds since this
+// viewer opened the Edition, so playback begins at the opening rather than
+// joining the programme at the Edition's publication-time position.
 //
 // This used to be a per-client chained-setTimeout state machine (a
 // PlayerState advanced one dialogue turn/segment at a time by
@@ -167,17 +167,15 @@ export function popReadyOverlay(queue: readonly LiveOverlayItem[], position: Pla
 // former resume-point mitigation, superseded by this) only pulled that
 // viewer further from everyone else's.
 //
-// `computeTimedPosition` below replaces that with a pure function of two
-// inputs every viewer already shares: this Edition's own `generatedAt`
-// timestamp (identical for everyone watching it) and `Date.now()`. Two tabs
-// opened minutes apart compute the exact same segment/turn from the exact
-// same formula — no per-tab state to advance, drift, or lose on a reload.
+// `computeTimedPosition` remains a pure function of the playlist and elapsed
+// playback time. Separate viewers now intentionally have separate elapsed
+// values, while each one still gets timer-drift-resistant segment timing.
 // advancePlayerState/PlayerState/PlayerPhase (the old discrete machine) are
 // gone rather than kept alongside this as dead code, matching this file's
 // own established precedent (kit.tsx's removed v1 skin, same reasoning).
 // ═══════════════════════════════════════════════════════════════════════
 
-/** The fixed beat between one segment ending and the next starting — previously TRANSITION's own hard-coded `setTimeout(..., 500)` in BroadcastPlayer.tsx, folded in here so the shared clock accounts for it too. */
+/** The fixed beat between one segment ending and the next starting — previously TRANSITION's own hard-coded `setTimeout(..., 500)` in BroadcastPlayer.tsx, folded in here so the elapsed-time playhead accounts for it too. */
 export const TRANSITION_HOLD_MS = 500;
 
 export type TimedPosition =
@@ -190,9 +188,9 @@ export type TimedPosition =
  * dialogue plus its trailing transition beat, invalidated (11.6) segments
  * skipped entirely. Once elapsed time since the Edition started reaches
  * this, the prepared programme has played out in full; the caller wraps
- * `elapsedMs` back into [0, this) to loop the same Edition (still perfectly
- * in sync — every viewer wraps at the identical instant) while it asks for
- * whatever Edition is current now, mirroring the old advancePlayerState's
+ * `elapsedMs` back into [0, this) to loop the same Edition for that viewer
+ * while it asks for whatever Edition is current now, mirroring the old
+ * advancePlayerState's
  * own TRANSITION -> LOAD_EDITION rule. Zero when nothing is playable at all
  * (an empty programme, or every segment invalidated).
  */
@@ -206,9 +204,9 @@ export function totalPlayableDurationMs(playlist: readonly Segment[], invalidSeg
 }
 
 /**
- * Where the shared clock says playback is right now, `elapsedMs` after the
- * programme's own start — a pure function of the programme data and a
- * clock reading, so any two callers with the same inputs get the identical
+ * Where the viewer's playback clock says the programme is right now,
+ * `elapsedMs` after this viewing started — a pure function of the programme
+ * data and a clock reading, so any two callers with the same inputs get the identical
  * answer. `elapsedMs` is assumed already wrapped into [0,
  * totalPlayableDurationMs(...)) by the caller; this returns null only for
  * the degenerate case of nothing playable to show (an empty playlist, or
@@ -216,10 +214,7 @@ export function totalPlayableDurationMs(playlist: readonly Segment[], invalidSeg
  *
  * A segment invalidated (11.6) after some viewers have already played
  * through it, in wall-clock terms, still simply isn't in this walk — every
- * CURRENT viewer's timeline shifts uniformly to skip it, the same as a real
- * broadcast schedule adjusting for a story getting pulled, rather than only
- * affecting whoever's local state hadn't reached it yet (the old model's
- * own, weaker, per-client version of the same idea).
+ * current viewer's timeline shifts uniformly to skip it.
  */
 export function computeTimedPosition(playlist: readonly Segment[], invalidSegmentIds: ReadonlySet<string>, elapsedMs: number): TimedPosition | null {
   let cursor = 0;

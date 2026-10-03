@@ -46,7 +46,7 @@
 // drift out of sync with the detector's own real output.
 import type { ProgrammeSegment, EditionProgramme, RunningOrderSlotPurpose } from "./director-math.ts";
 import type { StoryType } from "./story-types.ts";
-import { familyForStoryType, type StoryFamily } from "./story-types.ts";
+import { familyForStoryType, type StoryFamily, BREAKING_WORTHY_STORY_TYPES } from "./story-types.ts";
 import type { SlotType } from "@workspace/db/schema";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -65,19 +65,40 @@ export type Scene = "desk" | "analysis" | "graphic" | "result" | "headlines" | "
  * routine content, not "stop the show" moments — only the ones the Story
  * Engine itself already scores as its most dramatic within each family
  * (MAJOR/MODEL-prefixed, a beaten leader, a broken streak, a swung title
- * race, a shift-wars comeback) qualify.
+ * race, a shift-wars comeback) qualify. The list itself now lives in
+ * story-types.ts (hoisted there so edition-engine.ts's own cold-open beat
+ * can share it) — this is just the Set wrapper this file's own lookup wants.
  */
-const BREAKING_WORTHY_STORY_TYPES = new Set<StoryType>([
-  "MAJOR_UPSET", "MODEL_SHOCK", "LEADER_BEATEN", "STREAK_BREAKER", "TITLE_SWING", "SHIFT_COMEBACK",
-]);
+const BREAKING_WORTHY_STORY_TYPE_SET = new Set<StoryType>(BREAKING_WORTHY_STORY_TYPES);
 
 type SceneInput = Pick<ProgrammeSegment, "purpose" | "storyType" | "storyId" | "importance">;
 
 export function sceneForSegment(segment: SceneInput): Scene {
+  // Cold open (director-math.ts's own "cold_open" purpose, edition-engine.ts's
+  // buildColdOpenSegment): a brief flash of this Edition's single most
+  // dramatic story, aired BEFORE the formal "opening" sign-on — it always
+  // carries storyId: null (presenter narration ABOUT a story that gets its
+  // own full segment moments later, same convention as "closing"'s own
+  // tease), so it must be special-cased ahead of the storyId === null ->
+  // "desk" fallback below, exactly like "season_finale_board" already is.
+  // Routes to the SAME "breaking" scene BREAKING_WORTHY_STORY_TYPES earns a
+  // few seconds later — edition-engine.ts only ever builds a cold open from
+  // one of those exact story types (cold-open-math.ts), so the promise this
+  // beat makes ("something big is coming") is always honoured by the scene
+  // the viewer is actually teased toward.
+  if (segment.purpose === "cold_open") return "breaking";
+  // Guest cameo (director-math.ts's own "guest_cameo" purpose,
+  // edition-engine.ts's buildGuestCameoSegment): always carries storyId:
+  // null (same "narration ABOUT a story elsewhere" convention as "closing"/
+  // "cold_open" above), so it must be special-cased ahead of the
+  // storyId === null -> "desk" fallback below, exactly like those two. A
+  // brief moment in the spotlight reads better than more plain desk chat.
+  if (segment.purpose === "guest_cameo") return "spotlight";
   if (segment.purpose === "opening") return "desk";
   if (segment.purpose === "headlines") return "headlines";
   if (segment.purpose === "closing") return "desk";
   if (segment.purpose === "leaderboard_after_results") return "graphic";
+  if (segment.purpose === "season_finale_board") return "graphic";
   if (segment.purpose === "player_interview") return "interview";
   if (segment.purpose === "fan_verdict") return "fan_verdict";
   if (segment.purpose === "season_launch") return "season_launch";
@@ -89,7 +110,7 @@ export function sceneForSegment(segment: SceneInput): Scene {
   // title front" line reads naturally from the presenters' desk.
   if (segment.storyId === null) return "desk";
 
-  if (segment.importance === "major" && BREAKING_WORTHY_STORY_TYPES.has(segment.storyType as StoryType)) return "breaking";
+  if (segment.importance === "major" && BREAKING_WORTHY_STORY_TYPE_SET.has(segment.storyType as StoryType)) return "breaking";
 
   switch (segment.purpose) {
     case "analysis_or_predictor":
@@ -120,7 +141,43 @@ export function sceneForSegment(segment: SceneInput): Scene {
 export type GraphicKind =
   | "LeagueTableGraphic" | "TitlePredictorGraphic" | "MatchContextGraphic"
   | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic"
-  | "TeamResultGraphic";
+  | "TeamResultGraphic" | "PosterRevealGraphic" | "StatOfTheNightGraphic"
+  // Season Finale-only utility board — see director-math.ts's own
+  // ProgrammeSegment.graphicKind comment; never derived from a StoryType
+  // (these segments carry storyId: null), so it's deliberately absent from
+  // GRAPHIC_KIND_BY_STORY_TYPE below and only ever reaches a segment via the
+  // explicit graphicKind override edition-engine.ts sets directly.
+  | "SeasonSpecialGraphic";
+
+/**
+ * A small set of story types normally render through a quieter card
+ * (ResultGraphic/TeamResultGraphic via GRAPHIC_KIND_BY_STORY_TYPE below) but
+ * earn a louder, bespoke "hero" treatment instead once the Story Engine
+ * itself has scored one "major" — the same rare, genuinely-dramatic tier
+ * theme.ts's own VisualTier research already reserves the loudest on-screen
+ * treatment for. MATCH_RESULT/TEAM_RESULT earn the Match Poster Library's
+ * own visual language (lib/match-poster-art.ts, translated into a live
+ * graphic by PosterRevealGraphic.tsx); SEASON_BEST/PERSONAL_BEST earn a
+ * single-number "Stat of the Night" hero treatment (StatOfTheNightGraphic.tsx)
+ * for the rare verified record that's dramatic enough to lead a segment on
+ * its own, not just ride along as a supporting fact chip. A deliberately
+ * narrow override — not more entries in GRAPHIC_KIND_BY_STORY_TYPE itself,
+ * since that table is a pure StoryType -> GraphicKind identity mapping with
+ * no notion of treatment, and importance-gating belongs where the other
+ * treatment-driven scene decisions already live (sceneForSegment's own
+ * "major" check, immediately above).
+ */
+const MAJOR_GRAPHIC_OVERRIDE: Partial<Record<StoryType, GraphicKind>> = {
+  MATCH_RESULT: "PosterRevealGraphic",
+  TEAM_RESULT: "PosterRevealGraphic",
+  SEASON_BEST: "StatOfTheNightGraphic",
+  PERSONAL_BEST: "StatOfTheNightGraphic",
+};
+
+function graphicKindForSegment(storyType: StoryType, importance: string): GraphicKind {
+  const override = importance === "major" ? MAJOR_GRAPHIC_OVERRIDE[storyType] : undefined;
+  return override ?? GRAPHIC_KIND_BY_STORY_TYPE[storyType];
+}
 
 /**
  * Every StoryType maps to exactly one graphic kind — a TypeScript object
@@ -279,7 +336,7 @@ export function serializeSegment(segment: ProgrammeSegment, segmentId: string): 
   const graphic = segment.graphicKind && segment.facts !== null
     ? { kind: segment.graphicKind, data: segment.facts }
     : segment.storyType !== null && segment.storyType !== "CHAMPION" && segment.facts !== null
-      ? { kind: GRAPHIC_KIND_BY_STORY_TYPE[segment.storyType as StoryType], data: segment.facts }
+      ? { kind: graphicKindForSegment(segment.storyType as StoryType, segment.importance), data: segment.facts }
       : null;
 
   // See ApiSegment's own comment on championInfo — reads straight off

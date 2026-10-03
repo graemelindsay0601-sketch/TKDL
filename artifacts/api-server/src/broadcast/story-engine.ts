@@ -74,6 +74,7 @@ import {
   playersTable,
   seasonsTable,
   seasonStandingsTable,
+  matchParticipantsTable,
   broadcastStoriesTable,
   broadcastEditionsTable,
   broadcastPredictionSnapshotsTable,
@@ -123,6 +124,7 @@ import { detectMilestoneStories, type SinglesMilestoneFacts } from "./story-dete
 import { detectDoublesMatchStories, detectDoublesFormStories, type DoublesMatchResultFacts, type DoublesTeamFormFacts } from "./story-detectors-doubles";
 import { detectShiftWarsStories, type ShiftWarsStandingsFacts, type ShiftWarsTeamStanding, type ShiftWarsDeficitWindow } from "./story-detectors-shift-wars";
 import { detectArchiveH2HStories, detectSeasonComparison, type ArchiveH2HFacts, type SeasonComparisonFacts } from "./story-detectors-archive";
+import { detectTeamResult, type TeamResultFacts } from "./story-detectors-team-result";
 import { detectShadowBotPromo, detectPracticeActivity, detectFeatureSpotlight, detectArcadeMilestone, type PracticeActivityFacts } from "./story-detectors-filler";
 import { listEnabledFeatureSpotlights } from "./feature-spotlight-registry";
 import { factsWithSnapshotCutoff } from "./cutoff-snapshot-math";
@@ -458,10 +460,31 @@ export type NewSinglesMatch = { id: number; seasonId: number; playedAt: Date; wi
 export type NewTeamMatch = { id: number; playedAt: Date; winnerTeamId: number; loserTeamId: number };
 export type NewDoublesMatch = NewTeamMatch & { seasonId: number };
 
+/**
+ * A Team Match (or multi_killer free-for-all) result — the RESULT family's
+ * deliberate carve-out for shapes wider than 1v1 (TEAM_RESULT, story-
+ * types.ts's own header). Unlike Doubles/Shift Wars, these rows live in
+ * matchesTable itself (team-matches.ts inserts them there, in the same
+ * transaction as a matchParticipantsTable row per player — see that
+ * route's own participantRows insert), which is exactly why SINGLES_ONLY
+ * has to explicitly exclude `gameType LIKE 'team_%' OR gameType =
+ * 'multi_killer'` from every Singles history query above. winnerEntityIds/
+ * loserEntityIds come from matchParticipantsTable so commentary can name
+ * every player on each side, not just the match row's own captain-only
+ * winnerId/loserId (team-matches.ts's own comment: "first player in each
+ * team is the captain").
+ */
+export type NewTeamResultMatch = {
+  id: number; seasonId: number; playedAt: Date;
+  winnerName: string; loserName: string; stake: number; gameType: string;
+  winnerEntityIds: number[]; loserEntityIds: number[];
+};
+
 export type NewMatchesWindow = {
   singles: NewSinglesMatch[];
   doubles: NewDoublesMatch[];
   shiftWars: NewTeamMatch[];
+  teamMatch: NewTeamResultMatch[];
   /** Which active season ids (if any) neverScannedActiveSeasonIds found and
    * folded into this batch's singles/doubles queries — surfaced all the way
    * out to buildEdition's own scanSummary diagnostic (edition-engine.ts) so
@@ -575,10 +598,56 @@ async function loadNewMatchesSince(cutoffStart: Date, cutoffEnd: Date): Promise<
     ORDER BY played_at ASC, id ASC
   `)).rows as { id: number; played_at: string | Date; winner_team_id: number; loser_team_id: number }[];
 
+  // Team Match / multi_killer — the exact inverse of SINGLES_ONLY, matching
+  // team-matches.ts's own `GET /team-matches` filter. Real activity here is
+  // rare (occasional one-off team nights, not a weekly fixture), so unlike
+  // Singles/Doubles above this is left on plain incremental scanning with no
+  // catch-up query of its own — the same deliberate choice Shift Wars already
+  // makes (NewTeamMatch's own header), just for "not enough real history to
+  // have ever needed it yet" rather than "no seasonId column to catch up by."
+  const teamMatchRows = await db
+    .select({
+      id: matchesTable.id, seasonId: matchesTable.seasonId, playedAt: matchesTable.playedAt,
+      winnerId: matchesTable.winnerId, loserId: matchesTable.loserId,
+      winnerName: matchesTable.winnerName, loserName: matchesTable.loserName,
+      stake: matchesTable.stake, gameType: matchesTable.gameType,
+    })
+    .from(matchesTable)
+    .where(and(
+      sql`${matchesTable.gameType} LIKE 'team_%' OR ${matchesTable.gameType} = 'multi_killer'`,
+      gt(matchesTable.playedAt, cutoffStart), lte(matchesTable.playedAt, cutoffEnd),
+    ))
+    .orderBy(asc(matchesTable.playedAt), asc(matchesTable.id));
+
+  const teamMatchIds = teamMatchRows.map(r => r.id);
+  const teamParticipants = teamMatchIds.length > 0
+    ? await db.select({ matchId: matchParticipantsTable.matchId, playerId: matchParticipantsTable.playerId, team: matchParticipantsTable.team })
+        .from(matchParticipantsTable)
+        .where(inArray(matchParticipantsTable.matchId, teamMatchIds))
+    : [];
+  const rosterByMatch = new Map<number, { winnerIds: number[]; loserIds: number[] }>();
+  for (const p of teamParticipants) {
+    let roster = rosterByMatch.get(p.matchId);
+    if (!roster) { roster = { winnerIds: [], loserIds: [] }; rosterByMatch.set(p.matchId, roster); }
+    (p.team === "winner" ? roster.winnerIds : roster.loserIds).push(p.playerId);
+  }
+
   return {
     singles: singlesRows,
     doubles: doublesRows.map(r => ({ id: r.id, playedAt: new Date(r.played_at), winnerTeamId: r.winner_team_id, loserTeamId: r.loser_team_id, seasonId: r.season_id })),
     shiftWars: shiftWarsRows.map(r => ({ id: r.id, playedAt: new Date(r.played_at), winnerTeamId: r.winner_team_id, loserTeamId: r.loser_team_id })),
+    teamMatch: teamMatchRows.map(r => {
+      // Defensive floor only — every real team-matches.ts insert writes the
+      // match row and its matchParticipantsTable roster in the same
+      // transaction, so an empty roster here should never actually happen.
+      const roster = rosterByMatch.get(r.id);
+      return {
+        id: r.id, seasonId: r.seasonId, playedAt: r.playedAt,
+        winnerName: r.winnerName, loserName: r.loserName, stake: r.stake, gameType: r.gameType,
+        winnerEntityIds: roster && roster.winnerIds.length > 0 ? roster.winnerIds : [r.winnerId],
+        loserEntityIds: roster && roster.loserIds.length > 0 ? roster.loserIds : [r.loserId],
+      };
+    }),
     catchUpSeasonIds: { singles: [...catchUpSingles], doubles: [...catchUpDoubles] },
   };
 }
@@ -1721,7 +1790,7 @@ async function sweepStaleSeasonStories(now: Date): Promise<number> {
 export type DetectAndUpdateStoriesResult = {
   cutoffStart: Date;
   cutoffEnd: Date;
-  newMatchesProcessed: { singles: number; doubles: number; shiftWars: number };
+  newMatchesProcessed: { singles: number; doubles: number; shiftWars: number; teamMatch: number };
   storiesUpserted: number;
   storiesArchived: number;
   byFamily: Partial<Record<StoryFamily, number>>;
@@ -1815,6 +1884,45 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
       }
     } catch (err) {
       logger.error({ err, matchId: match.id }, "processSinglesMatch failed — skipping this match's RESULT/PERFORMANCE/MILESTONE stories, continuing with the rest of the batch");
+    }
+  }
+
+  // ── Team Match: TEAM_RESULT (match-anchored; result shapes wider than
+  // 1v1 — uneven teams, or a multi_killer free-for-all). TEAM_RESULT and
+  // detectTeamResult() (story-detectors-team-result.ts) and api-shapes.ts's
+  // own TeamResultGraphic mapping were already built, purpose-designed for
+  // exactly this gap, but never actually called anywhere in this
+  // orchestrator — this loop is what the rest of the pipeline was clearly
+  // left waiting for. Team Match settles on the Singles ladder (its rows
+  // live in matchesTable, its season is a Singles season), so leagueType is
+  // "singles" here, same as every other subjectKey this file produces for
+  // these players. No subject-anchored reconciliation pass follows, same as
+  // the Doubles PAIR_UPSET/PAIR_ELIMINATED loop below: matchAnchoredStoryKey
+  // makes each of these rows unique per match with nothing to resolve
+  // "undetected" against. ──────────────────────────────────────────────────
+  for (const match of newMatches.teamMatch) {
+    try {
+      const resultKind = match.gameType === "multi_killer" ? "multi_killer" : "team_match";
+      const facts: TeamResultFacts = {
+        resultRef: `league-${match.id}`,
+        resultKind,
+        leagueType: "singles",
+        matchId: match.id,
+        anchorMatchId: match.id,
+        seasonId: match.seasonId,
+        playedAt: match.playedAt,
+        winnerName: match.winnerName,
+        loserName: match.loserName,
+        winnerEntityIds: match.winnerEntityIds,
+        loserEntityIds: match.loserEntityIds,
+        stake: match.stake,
+      };
+      // Exact recorded result, not a prediction — same maximal-confidence
+      // reasoning as MILESTONE/ARCHIVE/SEASON_COMPARISON elsewhere in this
+      // file: there's nothing here for a predictor to have been uncertain about.
+      await recordUpsert(detectTeamResult(facts), 100, match.seasonId);
+    } catch (err) {
+      logger.error({ err, matchId: match.id }, "detectTeamResult failed — skipping this match's TEAM_RESULT story, continuing with the rest of the batch");
     }
   }
 
@@ -2055,7 +2163,7 @@ export async function detectAndUpdateStories(opts?: { cutoffStart?: Date; cutoff
 
   return {
     cutoffStart, cutoffEnd,
-    newMatchesProcessed: { singles: newMatches.singles.length, doubles: newMatches.doubles.length, shiftWars: newMatches.shiftWars.length },
+    newMatchesProcessed: { singles: newMatches.singles.length, doubles: newMatches.doubles.length, shiftWars: newMatches.shiftWars.length, teamMatch: newMatches.teamMatch.length },
     storiesUpserted, storiesArchived, byFamily,
     catchUpSeasonIds: newMatches.catchUpSeasonIds,
   };

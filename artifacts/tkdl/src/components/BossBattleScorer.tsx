@@ -26,9 +26,10 @@ interface BossBattleScorerProps {
   playerName: string;
   onMatchComplete: (result: GameResult) => void;
   onAbandon: () => void;
+  ascension?: number;
 }
 
-export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon }: BossBattleScorerProps) {
+export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon, ascension = 0 }: BossBattleScorerProps) {
   const newScoringUI = useNewScoringUI();
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
@@ -54,7 +55,7 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon 
   const handleLegStart = (legNumber: number) => {
     if (legNumber === lastLegRef.current) return; // guard against StrictMode double-invoke
     lastLegRef.current = legNumber;
-    const { effects, move, isEnrage } = getBossEffectsForLeg(boss, legNumber);
+    const { effects, move, isEnrage } = getBossEffectsForLeg(boss, legNumber, ascension);
     setCardEffects(effects);
     setAttackBanner(move);
     setIsEnrageBanner(isEnrage);
@@ -73,7 +74,9 @@ export function BossBattleScorer({ boss, playerName, onMatchComplete, onAbandon 
     onMatchComplete({ winnerIdx, detail });
   };
 
-  const botConfig = BOT_LEVELS[boss.botLevel];
+  const botOrder = ["amateur", "club", "county", "pro", "elite"] as const;
+  const baseIndex = Math.max(0, botOrder.indexOf(boss.botLevel as typeof botOrder[number]));
+  const botConfig = BOT_LEVELS[botOrder[Math.min(botOrder.length - 1, baseIndex + ascension)]];
 
   return (
     <div style={{ position: "relative" }}>

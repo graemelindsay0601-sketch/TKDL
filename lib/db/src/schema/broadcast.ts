@@ -120,7 +120,12 @@ export type BroadcastPredictionSnapshot = typeof broadcastPredictionSnapshotsTab
 // (section 12), a later phase. Defined now because the doc's schema section
 // specifies all four tables together, but nothing in this phase touches it.
 
-export const MEMORY_TYPES = ["PHRASE", "PLAYER_NEGATIVE", "PLAYER_FEATURE", "RUNNING_JOKE", "PRESENTER_CALL"] as const;
+// PRESENTER_PREDICTION: a specific, later-checkable call the presenters made
+// on air (currently only "this win streak keeps going"), so a later Edition
+// can follow up on whether it held up against the subject's own real,
+// live state — see edition-engine.ts's presenter-prediction bookkeeping and
+// presenter-prediction-math.ts for the full design.
+export const MEMORY_TYPES = ["PHRASE", "PLAYER_NEGATIVE", "PLAYER_FEATURE", "RUNNING_JOKE", "PRESENTER_CALL", "PRESENTER_PREDICTION"] as const;
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 
 export const broadcastMemoryTable = pgTable("broadcast_memory", {

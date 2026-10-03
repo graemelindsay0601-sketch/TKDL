@@ -1,6 +1,23 @@
 import { Award, ChevronRight, Crown, ExternalLink, Medal, Skull, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Link } from "wouter";
 import { ShareCardButton } from "@/components/ShareCardButton";
+import { renderMatchPoster } from "@/lib/match-poster-art";
+
+// This modal's "Share result" button and the Poster Library (see
+// pages/poster-library.tsx) show the same real match result, so they share
+// the one poster design (lib/match-poster-art.ts) rather than each having
+// their own look. `competition` here is a free-text label set by whichever
+// submit-match.tsx form built this receipt ("Singles League", "Doubles
+// Event", "Shift Wars", "Team Match" / "2v1 Team Match", ...) rather than
+// one of the four fixed format names, hence the pattern match below instead
+// of a direct lookup.
+function posterFormatFor(competition: string): string {
+  if (/shift wars/i.test(competition)) return "Shift Wars";
+  if (/doubles/i.test(competition)) return "Doubles Event";
+  if (/team match/i.test(competition)) return "Team Match";
+  return "Singles";
+}
+const FORMAT_ACCENT: Record<string, string> = { Singles: "#ff005c", "Doubles Event": "#0066ff", "Shift Wars": "#22c55e", "Team Match": "#ffd24a" };
 
 export type FinalWhistleParticipant = {
   id?: number;
@@ -68,7 +85,16 @@ export function FinalWhistle({ receipt, onClose }: { receipt: FinalWhistleReceip
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <Link href={`/match-centre/${receipt.matchKey}`} onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-xs font-black uppercase tracking-wider text-white" style={{ background:"rgba(0,102,255,.15)", border:"1px solid rgba(0,102,255,.3)", fontFamily:"Oswald, sans-serif" }}><ExternalLink size={14}/>Match record</Link>
           <Link href="/leaderboard" onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-xs font-black uppercase tracking-wider text-white" style={{ background:"rgba(255,255,255,.05)", border:"1px solid rgba(255,255,255,.1)", fontFamily:"Oswald, sans-serif" }}>Standings</Link>
-          <ShareCardButton className="col-span-2 sm:col-span-1" filename={`tkdl-result-${receipt.matchKey}`} label="Share result" spec={{ eyebrow:`${receipt.competition} · Final Whistle`, title:`${receipt.winnerName} beat ${receipt.loserName}`, subtitle:`${receipt.gameType || "501"} · ${receipt.stake} points at stake`, badge:"Result", accent:"#22c55e", secondaryAccent:"#ff005c", stats:[{label:"Winner",value:receipt.winnerName},{label:"Opposition",value:receipt.loserName},{label:"Stake",value:String(receipt.stake)}] }}/>
+          <ShareCardButton className="col-span-2 sm:col-span-1" filename={`tkdl-result-${receipt.matchKey}`} label="Share result"
+            spec={{ eyebrow:`${receipt.competition} · Final Whistle`, title:`${receipt.winnerName} beat ${receipt.loserName}`, subtitle:`${receipt.gameType || "501"} · ${receipt.stake} points at stake`, accent: FORMAT_ACCENT[posterFormatFor(receipt.competition)] }}
+            render={() => renderMatchPoster({
+              format: posterFormatFor(receipt.competition),
+              kicker: receipt.stake >= 20 ? "Big Result" : receipt.stake >= 10 ? "Match Result" : "Final Whistle",
+              winnerName: receipt.winnerName, loserName: receipt.loserName, stake: receipt.stake,
+              gameType: receipt.gameType || "501",
+              accent: FORMAT_ACCENT[posterFormatFor(receipt.competition)],
+            })}
+          />
         </div>
         <button type="button" onClick={onClose} className="w-full py-3 text-xs font-black uppercase tracking-[.16em] text-white/45 hover:text-white" style={{ fontFamily:"Oswald, sans-serif" }}>Record another result</button>
       </div>

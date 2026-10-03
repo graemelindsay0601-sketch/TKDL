@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Flame } from "lucide-react";
+import { Flame, Shield } from "lucide-react";
 import { X01Scorer, CricketScorer } from "@/lib/scorers";
 import type { GameResult } from "./game-scorer";
 import type { BotConfig } from "@/lib/bot-engine";
-import { getTierForVisit, rollCurse, type CurseDef, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
+import { createCurseRandom, getTierForVisit, rollCurse, type CurseDef, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
 import type { CCEffect } from "@/lib/card-effect-engine";
 import { useNewScoringUI } from "@/lib/useNewScoringUI";
 
@@ -13,6 +13,8 @@ const TIER_COLOR: Record<CurseTier, string> = { 1: "#ffb400", 2: "#ff6a00", 3: "
 
 export interface BoardCurseResult extends GameResult {
   visitsTaken: number;
+  endedByVisitLimit?: boolean;
+  decisiveCurse?: string;
 }
 
 interface BoardCurseScorerProps {
@@ -28,11 +30,16 @@ interface BoardCurseScorerProps {
    *  banner, never as a page-level sibling. See X01Scorer's topBanner for why that
    *  distinction matters on mobile. */
   topBanner?: React.ReactNode;
+  /** In Survival, beginning another visit after this many visits ends the run. */
+  visitLimit?: number;
+  wardAvailable?: boolean;
+  onWardUsed?: () => void;
+  challengeSeed?: string;
   onMatchComplete: (result: BoardCurseResult) => void;
   onAbandon: () => void;
 }
 
-export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, legs = 1, topBanner, onMatchComplete, onAbandon }: BoardCurseScorerProps) {
+export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, legs = 1, topBanner, visitLimit, wardAvailable = false, onWardUsed, challengeSeed, onMatchComplete, onAbandon }: BoardCurseScorerProps) {
   const newScoringUI = useNewScoringUI();
   if (typeof window !== "undefined") {
     sessionStorage.setItem("card_clash_mode", "true");
@@ -58,6 +65,10 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
   // Last few curse IDs drawn (not just the one immediately before), so a
   // long leg doesn't keep cycling the same one or two curses back-to-back.
   const recentCurseIdsRef = useRef<string[]>([]);
+  const activeCurseRef = useRef<{ def: CurseDef; description: string; target: 0 | 1 } | null>(null);
+  const finishedRef = useRef(false);
+  const duelTargetRef = useRef<{ target: 0 | 1; repeats: number } | null>(null);
+  const randomRef = useRef<() => number>(challengeSeed ? createCurseRandom(challengeSeed) : Math.random);
 
   const names: [string, string] = [p1Name, p2Name];
 
@@ -68,10 +79,23 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
     recentCurseIdsRef.current = [];
     setCardEffects([]);
     setActiveCurse(null);
+    activeCurseRef.current = null;
     setStrikeBanner(null);
   };
 
   const handleVisitStart = () => {
+    if (finishedRef.current) return;
+    if (visitLimit && totalVisitsRef.current >= visitLimit) {
+      finishedRef.current = true;
+      onMatchComplete({
+        winnerIdx: 1,
+        detail: `The curse held after ${visitLimit} visits`,
+        visitsTaken: visitLimit,
+        endedByVisitLimit: true,
+        decisiveCurse: activeCurseRef.current?.def.name,
+      });
+      return;
+    }
     visitCountRef.current += 1;
     totalVisitsRef.current += 1;
     const count = visitCountRef.current;
@@ -80,8 +104,18 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
     // A fresh curse strikes on every visit now (previously this was a
     // 15/35/55% roll by tier) — the tier still escalates how nasty the
     // curse can be as the leg drags on, just no longer whether one lands.
-    const target: 0 | 1 = format === "solo" ? 0 : Math.random() < 0.5 ? 0 : 1;
-    const { def, effect, description } = rollCurse(gameMode, tier, recentCurseIdsRef.current);
+    let target: 0 | 1 = format === "solo" ? 0 : randomRef.current() < 0.5 ? 0 : 1;
+    if (format !== "solo") {
+      const previous = duelTargetRef.current;
+      // Random targeting stays unpredictable, but nobody can be hit more
+      // than twice in succession. This removes the unfair 4–5 visit runs
+      // that could decide a duel before the other player was pressured.
+      if (previous?.target === target && previous.repeats >= 2) target = target === 0 ? 1 : 0;
+      duelTargetRef.current = previous?.target === target
+        ? { target, repeats: previous.repeats + 1 }
+        : { target, repeats: 1 };
+    }
+    const { def, effect, description } = rollCurse(gameMode, tier, recentCurseIdsRef.current, randomRef.current);
     recentCurseIdsRef.current = [def.id, ...recentCurseIdsRef.current].slice(0, 3);
 
     const fullEffect: CCEffect = {
@@ -101,8 +135,10 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
       ...effect,
     };
     setCardEffects([fullEffect]);
-    setActiveCurse({ def, description, target });
-    setStrikeBanner({ def, description, target });
+    const nextCurse = { def, description, target };
+    activeCurseRef.current = nextCurse;
+    setActiveCurse(nextCurse);
+    setStrikeBanner(nextCurse);
   };
 
   useEffect(() => {
@@ -112,10 +148,21 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
   }, [strikeBanner]);
 
   const handleMatchComplete = (winnerIdx: 0 | 1, detail?: string) => {
-    onMatchComplete({ winnerIdx, detail, visitsTaken: totalVisitsRef.current });
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    onMatchComplete({ winnerIdx, detail, visitsTaken: totalVisitsRef.current, decisiveCurse: activeCurseRef.current?.def.name });
   };
 
   const targetLabel = (target: 0 | 1) => format === "solo" ? "you" : names[target];
+
+  const useWard = () => {
+    if (!wardAvailable || !activeCurseRef.current) return;
+    activeCurseRef.current = null;
+    setCardEffects([]);
+    setActiveCurse(null);
+    setStrikeBanner(null);
+    onWardUsed?.();
+  };
 
   // Everything here is rendered INSIDE the scorer's own scrollable top region (via
   // topBanner below), never as a page-level sibling above it — ScorerLayout claims the
@@ -144,7 +191,10 @@ export function BoardCurseScorer({ gameMode, format, p1Name, p2Name, botConfig, 
                 <div style={{ fontSize: "1.15rem", fontWeight: 900, color: "#fff", textShadow: `0 0 10px ${color}a0`, lineHeight: 1.15 }}>{activeCurse.def.name}</div>
               </div>
             </div>
-            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "rgba(255,255,255,0.85)", textAlign: "right", maxWidth: "60%" }}>{activeCurse.description}</div>
+            <div style={{ marginLeft: "auto", textAlign: "right", maxWidth: "60%" }}>
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "rgba(255,255,255,0.85)" }}>{activeCurse.description}</div>
+              {wardAvailable && <button type="button" onClick={useWard} style={{ marginTop: 7, padding: "5px 9px", borderRadius: 7, border: `1px solid ${color}80`, background: "rgba(0,0,0,.28)", color: "#fff", font: "700 .58rem Oswald,sans-serif", textTransform: "uppercase", cursor: "pointer" }}><Shield className="inline w-3 h-3 mr-1" />Use ward</button>}
+            </div>
           </div>
         );
       })()}

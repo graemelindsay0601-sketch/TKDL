@@ -198,8 +198,8 @@ export default function Rules() {
 
         {/* Board Curse & Boss Battles */}
         <RuleSection icon={<Flame className="w-5 h-5" />} title="Board Curse & Boss Battles" accent="#eab308">
-          <Rule><Highlight>Board Curse</Highlight> — curse-themed challenge formats, playable solo, vs. the bot, or local pass-and-play, including an <Gold>Endless</Gold> mode that tracks your best streak.</Rule>
-          <Rule><Highlight>Boss Battles</Highlight> — a fixed ladder of bosses fought in order; beating one unlocks the next. Times and clears are tracked on their own leaderboard.</Rule>
+          <Rule><Highlight>Board Curse</Highlight> — curse-themed challenge formats, playable solo, vs. the bot, or local pass-and-play. <Gold>Endless Survival</Gold> gives each leg a visit limit that tightens as the streak grows, plus one Ward per run to neutralise an active curse.</Rule>
+          <Rule><Highlight>Boss Battles</Highlight> — a fixed ladder of bosses fought in order. Each boss has clear, clean-sweep and speed mastery medals; clearing the ladder unlocks the two-life <Gold>Boss Rush</Gold>.</Rule>
           <Rule>Both are shared-device, no-login game modes, same as Practice and Tour Mode.</Rule>
         </RuleSection>
 

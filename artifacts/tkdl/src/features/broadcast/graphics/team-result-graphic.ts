@@ -11,18 +11,25 @@ export type TeamResultGraphicModel = {
   loserCount: number;
 };
 
-const FORMAT_LABELS: Record<string, string> = {
+// Exported so poster-reveal-graphic.ts (PosterRevealGraphic.tsx's own data
+// model) can label a plain Singles MATCH_RESULT's resultKind ("singles")
+// through the exact same table, rather than keeping a second copy that
+// could drift out of sync with this one.
+export const FORMAT_LABELS: Record<string, string> = {
+  singles: "Singles",
   uneven_team: "Uneven Player Teams",
   doubles_combined: "Combined Doubles",
   doubles_multi: "Multi-Team Doubles",
   shift_standard: "Shift Wars",
   shift_combined: "Combined Shift Wars",
   shift_multi: "Multi-Team Shift Wars",
+  team_match: "Team Match",
+  multi_killer: "Multi-Killer",
 };
 
-function ids(data: GraphicData, key: string): number[] {
+function num(data: GraphicData, key: string): number | null {
   const value = data[key];
-  return Array.isArray(value) ? value.filter((id): id is number => typeof id === "number") : [];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function text(data: GraphicData, key: string): string | null {
@@ -44,13 +51,21 @@ export function buildTeamResultGraphicModel(
   const stake = data.stake;
   if (!resultKind || !winnerName || !loserName || typeof stake !== "number" || !Number.isFinite(stake)) return null;
 
-  const winnerCount = Math.max(1, ids(data, "winnerEntityIds").length);
-  const loserCount = Math.max(1, ids(data, "loserEntityIds").length);
+  // winnerCount/loserCount are plain numbers (detectTeamResult's own
+  // addition) — see this file's own num() header. By the time a graphic
+  // sees `data`, commentary-engine.ts's buildGraphicFacts() has already
+  // replaced any "*EntityIds" array with a resolved "*NamesJoined" string
+  // (its own header: a raw id can't be shown to a viewer as-is), so reading
+  // an id array's own .length here would always be zero — TEAM_RESULT never
+  // fired before winnerCount/loserCount existed, so there's no older
+  // persisted row to fall back for.
+  const winnerCount = num(data, "winnerCount") ?? 1;
+  const loserCount = num(data, "loserCount") ?? 1;
   const isMulti = resultKind.includes("multi");
   const isCombined = resultKind.includes("combined");
   const noun = leagueType === "singles" ? "player" : "team";
   const contextLabel = isMulti
-    ? `${winnerCount + loserCount} teams contested the result`
+    ? `${countLabel(winnerCount + loserCount, noun)} contested the result`
     : isCombined
       ? `${countLabel(winnerCount, noun)} beat ${countLabel(loserCount, noun)}`
       : winnerCount !== loserCount

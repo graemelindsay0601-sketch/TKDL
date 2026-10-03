@@ -378,17 +378,6 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
       console.error("Doubles rank-change computation error:", err);
     }
 
-    void upsertResultPoster({
-      resultRef: `doubles-${match.id}`,
-      leagueType: "doubles",
-      format: "Doubles Event",
-      winnerName: winnerTeamName,
-      loserName: loserTeamName,
-      stake: effectiveStake,
-      gameType,
-      seasonId: activeSeason.id,
-    });
-
     res.status(201).json({
       match, eloChange, loserEliminated,
       newWinnerTeamRank, newLoserTeamRank,
@@ -403,6 +392,18 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
     // this match already committed and responded successfully.
     void checkDoublesAchievements(winnerPlayerIds, winnerTeamId, eloChange, effectiveStake)
       .catch(err => console.error("Doubles achievement check error:", err));
+
+    void upsertResultPoster({
+      resultRef: `doubles-${match.id}`,
+      leagueType: "doubles",
+      format: "Doubles Event",
+      resultType: "standard",
+      winnerName: winnerTeamName,
+      loserName: loserTeamName,
+      stake: effectiveStake,
+      gameType,
+      seasonId: activeSeason.id,
+    }).catch(err => console.error("Match poster error:", err));
 
     // Push notifications (fire and forget — never delay the response). Doubles
     // had no notification integration at all before this; see the "no
@@ -635,19 +636,6 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
       return { match, solo, combined, sideRows, pot, soloPointsDelta, soloEloDelta };
     });
 
-    const combinedPosterNames = result.sideRows.map(s => s.teamName).join(" & ");
-    void upsertResultPoster({
-      resultRef: `doubles-combined-${result.match.id}`,
-      leagueType: "doubles",
-      format: "Doubles Event",
-      winnerName: soloWon ? result.solo.team_name : combinedPosterNames,
-      loserName: soloWon ? combinedPosterNames : result.solo.team_name,
-      stake: result.pot,
-      gameType,
-      seasonId: activeSeason.id,
-      resultType: "combined",
-    });
-
     res.status(201).json({
       match: result.match,
       soloTeamId: result.solo.id,
@@ -673,6 +661,21 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
         void checkDoublesAchievements(teamPlayerIds(team), team.id, side.eloDelta, side.pointsDelta)
           .catch(err => console.error("Doubles achievement check error:", err));
       }
+    }
+
+    {
+      const combinedNames = result.sideRows.map(side => side.teamName).join(" & ");
+      void upsertResultPoster({
+        resultRef: `doubles-combined-${result.match.id}`,
+        leagueType: "doubles",
+        format: "Doubles Event",
+        resultType: "combined",
+        winnerName: soloWon ? result.solo.team_name : combinedNames,
+        loserName: soloWon ? combinedNames : result.solo.team_name,
+        stake: result.pot,
+        gameType,
+        seasonId: activeSeason.id,
+      }).catch(err => console.error("Match poster error:", err));
     }
 
     // Push notifications + auto community post (fire and forget) — same
@@ -904,18 +907,6 @@ router.post("/doubles/multi-matches", matchSubmitRateLimit, async (req, res): Pr
       return { match, winner, losers, loserRows, pot, eloChange };
     });
 
-    void upsertResultPoster({
-      resultRef: `doubles-multi-${result.match.id}`,
-      leagueType: "doubles",
-      format: "Doubles Event",
-      winnerName: result.winner.team_name,
-      loserName: result.loserRows.map(l => l.teamName).join(", "),
-      stake: result.pot,
-      gameType,
-      seasonId: activeSeason.id,
-      resultType: "multi",
-    });
-
     res.status(201).json({
       match: result.match,
       winnerTeamId: result.winner.id,
@@ -929,6 +920,18 @@ router.post("/doubles/multi-matches", matchSubmitRateLimit, async (req, res): Pr
       [t.player1_id, t.player2_id, t.player3_id].filter((id): id is number => id != null);
     void checkDoublesAchievements(teamPlayerIds(result.winner), result.winner.id, result.eloChange, result.pot)
       .catch(err => console.error("Doubles achievement check error:", err));
+
+    void upsertResultPoster({
+      resultRef: `doubles-multi-${result.match.id}`,
+      leagueType: "doubles",
+      format: "Doubles Event",
+      resultType: "multi",
+      winnerName: result.winner.team_name,
+      loserName: result.loserRows.map(l => l.teamName).join(" & "),
+      stake: result.pot,
+      gameType,
+      seasonId: activeSeason.id,
+    }).catch(err => console.error("Match poster error:", err));
 
     // Push notifications + auto community post (fire and forget) — same
     // spirit as every other doubles match integration, phrased for a

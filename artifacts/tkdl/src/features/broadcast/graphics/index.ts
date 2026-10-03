@@ -12,6 +12,9 @@ import { FormWatchGraphic } from "./FormWatchGraphic";
 import { WagerGraphic } from "./WagerGraphic";
 import { ResultGraphic } from "./ResultGraphic";
 import { TeamResultGraphic } from "./TeamResultGraphic";
+import { PosterRevealGraphic } from "./PosterRevealGraphic";
+import { StatOfTheNightGraphic } from "./StatOfTheNightGraphic";
+import { SeasonSpecialGraphic } from "./SeasonSpecialGraphic";
 
 /** `compact` — see GraphicFrame.tsx's own header on hierarchy-by-treatment. Optional (defaults true, GraphicFrame's own restrained default) so an older call site that hasn't been updated to thread a real tier through still gets the quiet treatment, never the loud one. */
 export type GraphicComponentProps = { leagueType: LeagueType | null; data: GraphicData; compact?: boolean };
@@ -25,10 +28,14 @@ export const GRAPHIC_COMPONENTS: Record<GraphicKind, ComponentType<GraphicCompon
   WagerGraphic,
   ResultGraphic,
   TeamResultGraphic,
+  PosterRevealGraphic,
+  StatOfTheNightGraphic,
+  SeasonSpecialGraphic,
 };
 
 export {
   LeagueTableGraphic, TitlePredictorGraphic, MatchContextGraphic,
   HeadToHeadGraphic, FormWatchGraphic, WagerGraphic, ResultGraphic,
-  TeamResultGraphic,
+  TeamResultGraphic, PosterRevealGraphic, StatOfTheNightGraphic,
+  SeasonSpecialGraphic,
 };

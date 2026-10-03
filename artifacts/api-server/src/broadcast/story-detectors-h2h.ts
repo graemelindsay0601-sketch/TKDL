@@ -44,13 +44,24 @@ export function detectH2HDominance(facts: SinglesH2HFacts): StoryCandidate | nul
   const share = dominantWins / facts.gamesPlayed;
   if (share < H2H_DOMINANCE_MIN_SHARE) return null;
 
+  // "dominant"/"dominated" tokens, not raw winner ids — dominantPlayerId
+  // itself gets REPLACED by its resolved dominantPlayerName before a
+  // graphic ever sees `facts` (commentary-engine.ts's buildGraphicFacts,
+  // same *Id -> *Name convention every other scalar id already goes
+  // through), so a tale-of-the-tape strip component couldn't compare a raw
+  // winner id against it even if this field kept the ids. Capped at 8,
+  // newest first, same convention as story-detectors-form.ts's own
+  // recentForm — not "*Ids"-suffixed, so buildGraphicFacts leaves it alone.
+  const recentMeetingsResult: ("dominant" | "dominated")[] =
+    facts.recentMeetings.slice(0, 8).map(m => (m.winnerId === dominantId ? "dominant" : "dominated"));
+
   return {
     storyType: "H2H_DOMINANCE",
     leagueType: "singles",
     subjectKeys: subjects(facts),
     sentiment: "positive",
     tags: ["h2h_dominance"],
-    facts: { dominantPlayerId: dominantId, dominatedPlayerId: dominatedId, wins: dominantWins, gamesPlayed: facts.gamesPlayed, share },
+    facts: { dominantPlayerId: dominantId, dominatedPlayerId: dominatedId, wins: dominantWins, gamesPlayed: facts.gamesPlayed, share, recentMeetingsResult },
     components: {
       competitiveImportance: 5,
       unexpectedness: 0,
@@ -71,13 +82,19 @@ export function detectRivalry(facts: SinglesH2HFacts): StoryCandidate | null {
   const topShare = Math.max(facts.aWins, facts.bWins) / facts.gamesPlayed;
   if (topShare > RIVALRY_MAX_SHARE) return null;
 
+  // Same "a"/"b" token convention as H2H_DOMINANCE's own "dominant"/
+  // "dominated" above, matching this story's own playerA/playerB naming —
+  // see that detector's comment for why a token, not a raw winner id.
+  const recentMeetingsResult: ("a" | "b")[] =
+    facts.recentMeetings.slice(0, 8).map(m => (m.winnerId === facts.playerAId ? "a" : "b"));
+
   return {
     storyType: "RIVALRY",
     leagueType: "singles",
     subjectKeys: subjects(facts),
     sentiment: "neutral",
     tags: ["rivalry"],
-    facts: { playerAId: facts.playerAId, playerBId: facts.playerBId, aWins: facts.aWins, bWins: facts.bWins, gamesPlayed: facts.gamesPlayed },
+    facts: { playerAId: facts.playerAId, playerBId: facts.playerBId, aWins: facts.aWins, bWins: facts.bWins, gamesPlayed: facts.gamesPlayed, recentMeetingsResult },
     components: {
       competitiveImportance: 6,
       unexpectedness: 0,

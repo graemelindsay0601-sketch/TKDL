@@ -94,7 +94,22 @@ export function StudioBackdrop({ variant = "main" }: { variant?: StudioBackdropV
 // moments that earn it (BreakingScene/ChampionScene). Trimmed down from a
 // 64px full title-card bar to a slim strip closer to a channel bug's own
 // footprint.
-export function ShowTitleBar({ subtitle }: { subtitle: string }) {
+export function ShowTitleBar({ subtitle, special = false, specialLabel = "Season Finale" }: { subtitle: string; special?: boolean; specialLabel?: string }) {
+  // `special` — the Season Finale / Awards Night episode's own "visually
+  // distinct special edition mode" (task #68's explicit ask, alongside the
+  // champion crowning/biggest upset/gamerscore board/Hall of Fame nods
+  // content it airs). Previously a SEASON_REVIEW Edition played through the
+  // exact same chrome as any ordinary one, with only this bar's own
+  // subtitle TEXT ("SEASON REVIEW · ...") telling a viewer anything had
+  // changed. This is the one piece of the player's own chrome that's pure
+  // CSS rather than commissioned backdrop art (StudioBackdrop's three
+  // variants are real baked images — see this file's own header on why a
+  // fourth "season finale" backdrop isn't added the same way), so it's the
+  // safe, always-on-screen place to make the whole episode visibly a
+  // ceremony rather than routine coverage: a gold ribbon in place of the
+  // normal pink-to-dark wipe, plus a small trophy badge ahead of the
+  // subtitle instead of relying on the subtitle text alone.
+  const gold = "#ffd24a";
   return (
     <div className="relative shrink-0 w-full shadow-2xl" style={{ zIndex: 10 }}>
       <div
@@ -102,15 +117,22 @@ export function ShowTitleBar({ subtitle }: { subtitle: string }) {
         style={{
           minHeight: 48,
           paddingTop: "env(safe-area-inset-top)",
-          background: "linear-gradient(90deg, rgba(255,0,92,0.95) 0%, rgba(6,4,14,0.98) 30%, rgba(6,4,14,0.98) 100%)",
-          borderBottom: "2px solid rgba(255,255,255,0.1)",
+          background: special
+            ? `linear-gradient(90deg, rgba(255,210,74,0.95) 0%, rgba(6,4,14,0.98) 30%, rgba(6,4,14,0.98) 100%)`
+            : "linear-gradient(90deg, rgba(255,0,92,0.95) 0%, rgba(6,4,14,0.98) 30%, rgba(6,4,14,0.98) 100%)",
+          borderBottom: special ? `2px solid ${gold}66` : "2px solid rgba(255,255,255,0.1)",
         }}
       >
         <div className="flex items-center gap-3">
           <span className="font-black uppercase text-white drop-shadow-md" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.15rem", letterSpacing: "0.02em" }}>
-            TKDL<span style={{ color: "#ffd24a" }}>LIVE</span>
+            TKDL<span style={{ color: gold }}>LIVE</span>
           </span>
-          <span className="live-dot shadow-lg" aria-hidden="true" style={{ background: "#ffd24a" }} />
+          <span className="live-dot shadow-lg" aria-hidden="true" style={{ background: gold }} />
+          {special && (
+            <span className="font-black uppercase hidden sm:inline" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", letterSpacing: "0.12em", color: "#08080c", background: gold, padding: "2px 9px", clipPath: "polygon(6% 0, 100% 0, 94% 100%, 0% 100%)" }}>
+              🏆 {specialLabel}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <span className="font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", letterSpacing: "0.2em", color: "rgba(255,255,255,0.7)" }}>
@@ -118,7 +140,7 @@ export function ShowTitleBar({ subtitle }: { subtitle: string }) {
           </span>
         </div>
       </div>
-      <div style={{ height: 3, background: "linear-gradient(90deg, #ff005c, #ffd24a, #0066ff)" }} />
+      <div style={{ height: 3, background: special ? `linear-gradient(90deg, ${gold}, #ff005c, ${gold})` : "linear-gradient(90deg, #ff005c, #ffd24a, #0066ff)" }} />
     </div>
   );
 }

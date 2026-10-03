@@ -1,12 +1,17 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import type { ProgrammeSegment } from "./director-math.ts";
-import { buildFanVerdictSegment, type FanVerdictOption } from "./fan-verdict-math.ts";
+import { buildFanVerdictSegment, type FanVerdictOption, type FanVerdictReaction } from "./fan-verdict-math.ts";
 
 type PollRow = {
   id: number;
   question: string;
   activity_at: Date | string;
+};
+
+type CommentRow = {
+  player_name: string;
+  content: string;
 };
 
 /** Latest poll whose voting activity belongs to this Edition window and
@@ -48,10 +53,36 @@ export async function collectFanVerdictSegments(cutoffStart: Date, cutoffEnd: Da
     ORDER BY po.sort_order ASC, po.id ASC
   `)).rows as FanVerdictOption[];
 
+  // Real, already-public reactions on this exact poll's own community post —
+  // same visibility the comment already has in the app today, just surfaced
+  // again on air. post_comments has no profanity filter and no per-comment
+  // approval (unlike community_posts itself, gated above by status =
+  // 'approved'), so this is the one broadcast fact source that is raw player
+  // free text rather than a verified numeric/named fact. The minimum-length
+  // filter below is a basic quality gate, not a safety one — it only keeps
+  // out one- or two-word noise, so keep the list short (earliest, substantive
+  // comments only) and never widen this query to pull more without adding
+  // real moderation first.
+  const comments = (await db.execute(sql`
+    SELECT pl.name AS player_name, pc.content
+    FROM post_comments pc
+    JOIN players pl ON pl.id = pc.player_id
+    WHERE pc.post_id = ${poll.id}
+      AND char_length(trim(pc.content)) >= 15
+    ORDER BY pc.created_at ASC
+    LIMIT 3
+  `)).rows as CommentRow[];
+
+  const reactions: FanVerdictReaction[] = comments.map(row => ({
+    playerName: row.player_name,
+    text: row.content,
+  }));
+
   return [buildFanVerdictSegment({
     pollId: poll.id,
     question: poll.question,
     activityAt: new Date(poll.activity_at),
     options,
+    reactions,
   })];
 }

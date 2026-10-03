@@ -9,7 +9,7 @@ import { getFeatureStatus, isFeatureAvailable, FEATURES } from "../services/feat
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { paramStr } from "../lib/http";
 import {
-  createBroadcastCleanSweep, createManualBroadcastEpisode, ensureCurrentBroadcastEdition,
+  createBroadcastCleanSweep, createManualBroadcastEpisode, createWeeklyHighlightsEpisode, ensureCurrentBroadcastEdition,
   forceRebuildCurrentEdition, latestPublishedEdition, isEditionProgramme, AdminBuildLockedError,
 } from "../broadcast/edition-engine";
 import { getLivePayload } from "../broadcast/live-events";
@@ -962,6 +962,43 @@ router.post("/admin/broadcast/clean-sweep", requireAdminSession, async (req, res
     if (result.attempt.status !== "PUBLISHED") {
       res.status(422).json({
         error: "The clean sweep did not clear the quality gate. The previous published Edition remains live.",
+        attempt,
+        retainedEditionId: result.edition?.id ?? null,
+      });
+      return;
+    }
+    res.status(201).json({ edition: attempt });
+  } catch (err) {
+    if (err instanceof AdminBuildLockedError) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+router.post("/admin/broadcast/weekly-highlights", requireAdminSession, async (_req, res): Promise<void> => {
+  try {
+    const result = await createWeeklyHighlightsEpisode();
+    const attemptProgramme = isEditionProgramme(result.attempt.programme) ? result.attempt.programme : null;
+    const runtimeSeconds = attemptProgramme ? totalEstimatedSecondsForProgramme(attemptProgramme) : null;
+    const highlightCount = attemptProgramme
+      ? attemptProgramme.segments.filter(segment => segment.storyId !== null).length
+      : 0;
+    const attempt = {
+      id: result.attempt.id,
+      slotKey: result.attempt.slotKey,
+      status: result.attempt.status,
+      diagnostic: result.attempt.diagnostic,
+      publishedAt: result.attempt.publishedAt?.toISOString() ?? null,
+      mode: attemptProgramme ? programmeModeOf(attemptProgramme) : null,
+      runtimeSeconds,
+      runtimeBand: runtimeSeconds === null ? null : classifyEditionLength(runtimeSeconds),
+      highlightCount,
+    };
+    if (result.attempt.status !== "PUBLISHED") {
+      res.status(422).json({
+        error: result.attempt.diagnostic ?? "The weekly highlights reel did not build. The previous published Edition remains live.",
         attempt,
         retainedEditionId: result.edition?.id ?? null,
       });

@@ -132,6 +132,22 @@ export function familyForStoryType(storyType: StoryType): StoryFamily {
   return family;
 }
 
+// ── Breaking-worthy story types ──────────────────────────────────────────
+// The short, deliberately narrow set of story types dramatic enough to earn
+// the show's heaviest "breaking" visual treatment once the Story Engine has
+// scored one "major" — most upsets are routine content, not "stop the show"
+// moments, so this stays a short, named set rather than "every RESULT-family
+// story" (see api-shapes.ts's own sceneForSegment, this list's original
+// home). Hoisted here, out of api-shapes.ts, once edition-engine.ts's own
+// cold-open beat (cold-open-math.ts) needed the exact same set: a cold open
+// that teases a story BreakingScene wouldn't actually render as breaking a
+// few seconds later would be a broken promise to the viewer, so both
+// features now read from one shared list rather than two that could quietly
+// drift apart.
+export const BREAKING_WORTHY_STORY_TYPES = [
+  "MAJOR_UPSET", "MODEL_SHOCK", "LEADER_BEATEN", "STREAK_BREAKER", "TITLE_SWING", "SHIFT_COMEBACK",
+] as const satisfies readonly StoryType[];
+
 // ── 9.3: treatment ───────────────────────────────────────────────────────
 // A pure classification of a story, not an identity — kept here (rather
 // than story-engine-math.ts) because the doc's own file map (section 20.1)

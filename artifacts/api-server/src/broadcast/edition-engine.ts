@@ -44,7 +44,7 @@
 // final rendered text — not the primary enforcement mechanism, which lives
 // one layer down, but a real safety net per 17's own reliability table.
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   db,
   broadcastEditionsTable, broadcastStoriesTable, broadcastMemoryTable, seasonsTable, playersTable, matchesTable,
@@ -63,15 +63,24 @@ import {
 import { directorSelect, selectProgrammeMode, type RunningOrderEntry } from "./director.ts";
 import { treatmentForScore } from "./story-engine-math.ts";
 import { selectSeasonReviewRunningOrder } from "./director-season-review.ts";
+import { selectWeeklyHighlightSegments, type WeeklySourceEdition } from "./director-weekly-highlights.ts";
 import {
   editionChangeScore, newlyCreatedGroupTreatments, isForcedRefresh, mergeStoriesByAnchorAndNarrative,
   evaluateQualityGate, programmeSegmentId, totalEstimatedSecondsForProgramme, isRuntimeWithinProgrammeMode,
+  programmeModeOf,
   type EditionProgramme, type ProgrammeSegment, type QualityGateInput, type QualityGateSegment, type ProgrammeMode,
 } from "./director-math.ts";
 import { validityRulesForStory } from "./live-events-math.ts";
 import { renderConversation, buildGraphicFacts, buildTemplateFacts, type DialogueTurn, type BanterContext } from "./commentary-engine.ts";
 import { commentaryRng, dialogueHoldSeconds, interpolateTemplate } from "./commentary-math.ts";
 import { CLOSING_TEASE_TEMPLATES, hasClosingTease } from "./closing-tease-math.ts";
+import { COLD_OPEN_TEASE_TEMPLATES, hasColdOpenTease } from "./cold-open-math.ts";
+import { pickEligibleRunningJoke, type RunningJoke } from "./running-jokes-math.ts";
+import { GUEST_CAMEO_TEMPLATES, hasGuestCameo } from "./guest-cameo-math.ts";
+import {
+  PREDICTION_MAKE_TEMPLATES, PREDICTION_CORRECT_TEMPLATES, PREDICTION_INCORRECT_TEMPLATES,
+  gradeWinStreakPrediction, MAX_EDITIONS_BEFORE_PREDICTION_EXPIRES, MIN_WIN_STREAK_FOR_PREDICTION,
+} from "./presenter-prediction-math.ts";
 import { pickFrom } from "./seeded-rng.ts";
 import {
   ARCHIVE_STORY_TYPES, DOUBLES_STORY_TYPES, FORM_STORY_TYPES, H2H_STORY_TYPES,
@@ -83,6 +92,7 @@ import { buildEditorialFeatures, weaveStudioSegments } from "./editorial-feature
 import { collectInterviewSegments } from "./interview-feature.ts";
 import { collectFanVerdictSegments } from "./fan-verdict.ts";
 import type { PowerRankingMatch } from "./power-rankings.ts";
+import { SHADOW_BOT_ACHIEVEMENT_DEFS, gamerscoreForRarity } from "../lib/shadow-bot-achievements.ts";
 
 // ── Fixed utility dialogue (11.1's required "opening" and "closing" slots,
 // and slot 10's own documented no-LEAGUE-story fallback — see director.ts's
@@ -108,6 +118,15 @@ const OPENING_DIALOGUE_OPTIONS: Record<ProgrammeMode, readonly { a: string; b: s
   SEASON_REVIEW: [
     { a: "Welcome to the TKDL LIVE Season Review.", b: "The titles are settled. Now we can work out how it really happened." },
     { a: "TKDL LIVE is on air for the final word on the season.", b: "Champions, turning points, and a few predictions we may want quietly deleted." },
+  ],
+  // createWeeklyHighlightsEpisode builds its own opening segment directly
+  // (never through this file's own per-entry running-order loop, since a
+  // repackaged reel has no running order of its own to walk), but still
+  // reads from this same pool rather than a separate one-off line — one
+  // dialogue-options convention for "opening," not two.
+  WEEKLY_HIGHLIGHTS: [
+    { a: "Welcome to the TKDL LIVE weekly highlights reel.", b: "Everything worth seeing from the last seven days, back to back." },
+    { a: "TKDL LIVE here with the best of the week.", b: "No new news tonight — just the moments that earned their place the first time round." },
   ],
 };
 
@@ -309,6 +328,156 @@ async function buildCatchUpLeaderboardSegments(pool: readonly BroadcastStory[]):
 }
 
 /**
+ * Season Finale-only ceremony content: "gamerscore leaderboard" and "Hall of
+ * Fame nods", named explicitly as their own moments (task's own "Season
+ * Finale / Awards Night special episode" ask) alongside champion crowning
+ * and the season's biggest upset (director-season-review.ts's own
+ * findBiggestUpset). Built the same way the two catch-up leaderboard
+ * segments above are: a real DB query straight into a utility ProgrammeSegment
+ * with an explicit graphicKind override, never a broadcast_stories row — a
+ * career-wide, whole-club shoutout genuinely isn't "this season's news," so
+ * it has no place in the Story Engine's own per-season detection pipeline,
+ * only in this one special episode's own running order. Each board is
+ * omitted outright (never fabricated with placeholder zeros) if the data
+ * behind it doesn't exist yet — same "never a story and nothing to show"
+ * discipline director-season-review.ts's own pickFillerPromo documents.
+ */
+async function buildSeasonFinaleSpecialSegments(): Promise<ProgrammeSegment[]> {
+  const result: ProgrammeSegment[] = [];
+
+  // ── Gamerscore leaderboard — the same three DB-backed sources routes/
+  // leaderboard.ts's own /leaderboard/achievements totals (league
+  // achievements, Tour achievements + trophies), plus Shadow Bot's own
+  // achievements, which that route also only resolves in application code
+  // (SHADOW_BOT_ACHIEVEMENT_DEFS has no DB-side gamerscore column to SUM).
+  // Top 5 active players only — a season finale board, not the full roster.
+  const [achievementRows, shadowRows] = await Promise.all([
+    db.execute(sql`
+      WITH lg AS (
+        SELECT pa.player_id,
+          COALESCE(SUM(CASE a.rarity
+            WHEN 'Common' THEN 5 WHEN 'Uncommon' THEN 10 WHEN 'Rare' THEN 25
+            WHEN 'Epic' THEN 50 WHEN 'Legendary' THEN 100 WHEN 'Mythic' THEN 250
+            ELSE 5 END), 0)::int AS league_gs
+        FROM player_achievements pa JOIN achievements a ON a.id = pa.achievement_id
+        GROUP BY pa.player_id
+      ),
+      tg AS (
+        SELECT pta.player_id, COALESCE(SUM(tad.gamerscore), 0)::int AS tour_gs
+        FROM player_tour_achievements pta
+        JOIN tour_achievement_definitions tad ON tad.key = pta.achievement_key
+        GROUP BY pta.player_id
+      ),
+      tt AS (
+        SELECT player_id, COALESCE(SUM(gamerscore), 0)::int AS trophy_gs
+        FROM tour_trophies GROUP BY player_id
+      )
+      SELECT p.id, p.name,
+        COALESCE(lg.league_gs, 0) + COALESCE(tg.tour_gs, 0) + COALESCE(tt.trophy_gs, 0) AS total_gs
+      FROM players p
+      LEFT JOIN lg ON lg.player_id = p.id
+      LEFT JOIN tg ON tg.player_id = p.id
+      LEFT JOIN tt ON tt.player_id = p.id
+      WHERE p.is_active = true
+    `),
+    db.execute(sql`
+      SELECT player_id, achievement_key FROM shadow_bot_achievements
+      WHERE player_id IN (SELECT id FROM players WHERE is_active = true)
+    `),
+  ]);
+  const shadowGsByPlayer = new Map<number, number>();
+  for (const row of shadowRows.rows as { player_id: number; achievement_key: string }[]) {
+    const def = SHADOW_BOT_ACHIEVEMENT_DEFS.find(d => d.key === row.achievement_key);
+    const gs = def ? gamerscoreForRarity(def.rarity) : 0;
+    shadowGsByPlayer.set(Number(row.player_id), (shadowGsByPlayer.get(Number(row.player_id)) ?? 0) + gs);
+  }
+  const gamerscoreRows = (achievementRows.rows as { id: number; name: string; total_gs: number }[])
+    .map(row => ({ id: Number(row.id), name: row.name, totalGs: Number(row.total_gs) + (shadowGsByPlayer.get(Number(row.id)) ?? 0) }))
+    .filter(row => row.totalGs > 0)
+    .sort((a, b) => b.totalGs - a.totalGs || a.name.localeCompare(b.name))
+    .slice(0, 5);
+
+  if (gamerscoreRows.length > 0) {
+    result.push({
+      slot: 0, purpose: "season_finale_board", importance: "utility",
+      storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+      dialogue: buildFixedDialogue({
+        a: "Before the credits roll, the gamerscore board — every achievement, trophy and milestone across the whole club.",
+        b: `${gamerscoreRows[0].name} leads the way on ${gamerscoreRows[0].totalGs.toLocaleString()} gamerscore.`,
+      }),
+      validityRules: [],
+      facts: {
+        specialKind: "gamerscore_leaderboard",
+        title: "Gamerscore Leaderboard",
+        rows: gamerscoreRows.map((row, index) => ({ rank: index + 1, name: row.name, gamerscore: row.totalGs })),
+      },
+      graphicKind: "SeasonSpecialGraphic",
+    });
+  }
+
+  // ── Hall of Fame nods — career-wide record shoutouts (stats.ts's own
+  // /stats/hall-of-fame already surfaces these as a standalone page; this is
+  // the same real numbers, read directly rather than over HTTP, voiced as a
+  // short "nod" rather than that page's own full leaderboard). Any league's
+  // title counts toward "Most League Titles" — a finale closing out one or
+  // two leagues' seasons still airs this as a whole-club honour, same as
+  // LeagueAwardsShow.tsx's own champions-across-every-league intro slide.
+  const [players, titleRows, achievementCountRows] = await Promise.all([
+    db.select({ id: playersTable.id, name: playersTable.name, careerWins: playersTable.careerWins, careerPeakElo: playersTable.careerPeakElo })
+      .from(playersTable).where(eq(playersTable.isActive, true)),
+    db.select({ championId: seasonsTable.championId }).from(seasonsTable).where(eq(seasonsTable.isActive, false)),
+    db.execute(sql`
+      SELECT player_id, SUM(cnt)::int AS cnt FROM (
+        SELECT player_id, COUNT(*) AS cnt FROM player_achievements      GROUP BY player_id
+        UNION ALL
+        SELECT player_id, COUNT(*) AS cnt FROM shadow_bot_achievements  GROUP BY player_id
+        UNION ALL
+        SELECT player_id, COUNT(*) AS cnt FROM player_tour_achievements GROUP BY player_id
+      ) t GROUP BY player_id
+    `),
+  ]);
+  const titleCounts = new Map<number, number>();
+  for (const row of titleRows) {
+    if (row.championId) titleCounts.set(row.championId, (titleCounts.get(row.championId) ?? 0) + 1);
+  }
+  const achievementCounts = new Map<number, number>();
+  for (const row of achievementCountRows.rows as { player_id: number; cnt: number }[]) {
+    achievementCounts.set(Number(row.player_id), Number(row.cnt));
+  }
+  const byId = new Map(players.map(p => [p.id, p]));
+
+  const nods: { category: string; name: string; stat: string }[] = [];
+  const mostTitled = [...titleCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (mostTitled && byId.has(mostTitled[0])) {
+    nods.push({ category: "Most League Titles", name: byId.get(mostTitled[0])!.name, stat: `${mostTitled[1]} title${mostTitled[1] === 1 ? "" : "s"}` });
+  }
+  const highestElo = [...players].filter(p => p.careerPeakElo > 0).sort((a, b) => b.careerPeakElo - a.careerPeakElo)[0];
+  if (highestElo) nods.push({ category: "Highest Peak Elo", name: highestElo.name, stat: `${highestElo.careerPeakElo} Elo` });
+  const mostWins = [...players].filter(p => p.careerWins > 0).sort((a, b) => b.careerWins - a.careerWins)[0];
+  if (mostWins) nods.push({ category: "Most Career Wins", name: mostWins.name, stat: `${mostWins.careerWins} win${mostWins.careerWins === 1 ? "" : "s"}` });
+  const mostAchievements = [...achievementCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (mostAchievements && byId.has(mostAchievements[0])) {
+    nods.push({ category: "Most Achievements", name: byId.get(mostAchievements[0])!.name, stat: `${mostAchievements[1]} earned` });
+  }
+
+  if (nods.length > 0) {
+    result.push({
+      slot: 0, purpose: "season_finale_board", importance: "utility",
+      storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+      dialogue: buildFixedDialogue({
+        a: "And a nod to the Hall of Fame — the records that stand across every season this club has played.",
+        b: `${nods[0].name} leads "${nods[0].category}" on ${nods[0].stat}.`,
+      }),
+      validityRules: [],
+      facts: { specialKind: "hall_of_fame_nods", title: "Hall of Fame Nods", nods },
+      graphicKind: "SeasonSpecialGraphic",
+    });
+  }
+
+  return result;
+}
+
+/**
  * Slot 11's required sign-off (11.1) — always present, never a full segment
  * of its own. The A-line stays one of the fixed CLOSING_DIALOGUE_OPTIONS
  * wrap-ups exactly as before. The B-line is where "what's coming up" lives:
@@ -361,6 +530,209 @@ async function buildClosingSegment(entry: RunningOrderEntry, slotKey: string, co
     validityRules: [],
     facts: null,
   };
+}
+
+/**
+ * A brief, high-energy flash of this Edition's single most dramatic result,
+ * aired BEFORE slot 1's own fixed "opening" sign-on — see cold-open-math.ts's
+ * own header for the full design reasoning. storyId stays null (the exact
+ * same convention buildClosingSegment's own forward-looking tease already
+ * uses, immediately above): this is presenter narration ABOUT a story that
+ * gets its own full, separate segment moments later in the real running
+ * order, never a second segment about it, so it needs no graphic of its
+ * own, no 10.4 exposure/airtime accounting, and can never trip
+ * findDuplicateStoryIds. Returns null (no cold open this Edition) on any
+ * interpolation failure or if this story type simply has no template — a
+ * decorative hook is never worth risking a build over, exactly like
+ * buildClosingSegment's own tease falls back rather than ever throwing.
+ */
+async function buildColdOpenSegment(story: BroadcastStory, slotKey: string, config: BroadcastConfig): Promise<ProgrammeSegment | null> {
+  if (!hasColdOpenTease(story.storyType as StoryType)) return null;
+  try {
+    const templates = COLD_OPEN_TEASE_TEMPLATES[story.storyType as keyof typeof COLD_OPEN_TEASE_TEMPLATES];
+    const pair = pickFrom(templates, commentaryRng(slotKey, "utility:cold_open", config.commentaryVersion));
+    const templateFacts = await buildTemplateFacts(story.leagueType, story.facts);
+    const aLine = interpolateTemplate(pair.a, templateFacts);
+    const bLine = interpolateTemplate(pair.b, templateFacts);
+    return {
+      slot: 0, purpose: "cold_open", importance: "utility",
+      storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+      dialogue: [
+        { speaker: "A", text: aLine, holdSeconds: dialogueHoldSeconds(aLine) },
+        { speaker: "B", text: bLine, holdSeconds: dialogueHoldSeconds(bLine) },
+      ],
+      validityRules: [],
+      facts: null,
+    };
+  } catch {
+    return null; // e.g. MissingFactError — skip the cold open rather than ever risking broken/placeholder text.
+  }
+}
+
+/**
+ * A brief "come and join us at the desk" invitation for a real player who
+ * just hit a genuine, celebratory career milestone this Edition — see
+ * guest-cameo-math.ts's own header for the full design, especially why
+ * neither line is ever attributed to the guest themselves. storyId stays
+ * null (the same convention buildColdOpenSegment/buildClosingSegment both
+ * already use): this is presenter narration ABOUT a story that gets its
+ * own full, separate segment elsewhere in the running order, never a
+ * second segment about it. Returns null (no cameo) on any interpolation
+ * failure or if this story type has no template — a decorative moment is
+ * never worth risking a build over.
+ */
+async function buildGuestCameoSegment(story: BroadcastStory, slotKey: string, config: BroadcastConfig): Promise<ProgrammeSegment | null> {
+  if (!hasGuestCameo(story.storyType as StoryType)) return null;
+  try {
+    const templates = GUEST_CAMEO_TEMPLATES[story.storyType as StoryType]!;
+    const pair = pickFrom(templates, commentaryRng(slotKey, `utility:guest_cameo:${story.id}`, config.commentaryVersion));
+    const templateFacts = await buildTemplateFacts(story.leagueType, story.facts);
+    const aLine = interpolateTemplate(pair.a, templateFacts);
+    const bLine = interpolateTemplate(pair.b, templateFacts);
+    return {
+      slot: 0, purpose: "guest_cameo", importance: "utility",
+      storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+      dialogue: [
+        { speaker: "A", text: aLine, holdSeconds: dialogueHoldSeconds(aLine) },
+        { speaker: "B", text: bLine, holdSeconds: dialogueHoldSeconds(bLine) },
+      ],
+      validityRules: [],
+      facts: null,
+    };
+  } catch {
+    return null; // e.g. MissingFactError — skip the cameo rather than ever risking broken/placeholder text.
+  }
+}
+
+/**
+ * The presenters making a specific, later-checkable call on a player
+ * currently on a win streak — see presenter-prediction-math.ts's own header.
+ * storyId stays null, same convention as every other utility beat above:
+ * this is narration ABOUT the WIN_STREAK story that just aired its own real
+ * segment elsewhere, never a second segment about it. Returns null on any
+ * interpolation failure, same fail-soft behaviour as every sibling builder.
+ */
+async function buildPresenterPredictionSegment(playerId: number, currentWinStreak: number, slotKey: string, config: BroadcastConfig): Promise<ProgrammeSegment | null> {
+  try {
+    const pair = pickFrom(PREDICTION_MAKE_TEMPLATES, commentaryRng(slotKey, `utility:presenter_prediction:make:${playerId}`, config.commentaryVersion));
+    const templateFacts = await buildTemplateFacts("singles", { playerId, currentWinStreak });
+    const aLine = interpolateTemplate(pair.a, templateFacts);
+    const bLine = interpolateTemplate(pair.b, templateFacts);
+    return {
+      slot: 0, purpose: "presenter_prediction", importance: "utility",
+      storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+      dialogue: [
+        { speaker: "A", text: aLine, holdSeconds: dialogueHoldSeconds(aLine) },
+        { speaker: "B", text: bLine, holdSeconds: dialogueHoldSeconds(bLine) },
+      ],
+      validityRules: [],
+      facts: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The follow-up on an earlier presenter_prediction call, once it's actually
+ * resolved (see findResolvedPresenterPrediction below) — graded purely from
+ * the subject's own real, live win-streak number, never anything invented.
+ * storyId stays null for the same reason as buildPresenterPredictionSegment.
+ */
+async function buildPresenterPredictionGradedSegment(
+  playerId: number, streakAtPrediction: number, currentWinStreak: number, outcome: "correct" | "incorrect", slotKey: string, config: BroadcastConfig,
+): Promise<ProgrammeSegment | null> {
+  try {
+    const templates = outcome === "correct" ? PREDICTION_CORRECT_TEMPLATES : PREDICTION_INCORRECT_TEMPLATES;
+    const pair = pickFrom(templates, commentaryRng(slotKey, `utility:presenter_prediction:grade:${playerId}`, config.commentaryVersion));
+    const templateFacts = await buildTemplateFacts("singles", { playerId, currentWinStreak, streakAtPrediction });
+    const aLine = interpolateTemplate(pair.a, templateFacts);
+    const bLine = interpolateTemplate(pair.b, templateFacts);
+    return {
+      slot: 0, purpose: "presenter_prediction_graded", importance: "utility",
+      storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+      dialogue: [
+        { speaker: "A", text: aLine, holdSeconds: dialogueHoldSeconds(aLine) },
+        { speaker: "B", text: bLine, holdSeconds: dialogueHoldSeconds(bLine) },
+      ],
+      validityRules: [],
+      facts: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Presenter prediction bookkeeping (13.4's own "PRESENTER_PREDICTION"
+// memory type) — one pending call per subject at a time: recordPresenterPrediction
+// only ever INSERTs (onConflictDoNothing), so a subject already carrying an
+// unresolved call never has its original streakAtPrediction baseline
+// clobbered by a fresh one before the first gets a chance to resolve.
+const PRESENTER_PREDICTION_MEMORY_KEY = "win_streak";
+
+type PendingPresenterPrediction = { subjectKey: string; playerId: number; streakAtPrediction: number; lastEditionId: number };
+
+async function loadPendingPresenterPredictions(): Promise<PendingPresenterPrediction[]> {
+  const rows = await db.select().from(broadcastMemoryTable).where(eq(broadcastMemoryTable.memoryType, "PRESENTER_PREDICTION"));
+  const result: PendingPresenterPrediction[] = [];
+  for (const row of rows) {
+    const payload = row.payload as { playerId?: number; streakAtPrediction?: number } | null;
+    if (!row.subjectKey || row.lastEditionId === null || !payload || typeof payload.playerId !== "number" || typeof payload.streakAtPrediction !== "number") continue;
+    result.push({ subjectKey: row.subjectKey, playerId: payload.playerId, streakAtPrediction: payload.streakAtPrediction, lastEditionId: row.lastEditionId });
+  }
+  return result;
+}
+
+async function clearPresenterPrediction(subjectKey: string): Promise<void> {
+  await db.delete(broadcastMemoryTable).where(and(
+    eq(broadcastMemoryTable.memoryType, "PRESENTER_PREDICTION"),
+    eq(broadcastMemoryTable.memoryKey, PRESENTER_PREDICTION_MEMORY_KEY),
+    eq(broadcastMemoryTable.subjectKey, subjectKey),
+  ));
+}
+
+async function recordPresenterPrediction(subjectKey: string, playerId: number, streakAtPrediction: number, editionId: number): Promise<void> {
+  await db
+    .insert(broadcastMemoryTable)
+    .values({ memoryType: "PRESENTER_PREDICTION", memoryKey: PRESENTER_PREDICTION_MEMORY_KEY, subjectKey, lastUsedAt: new Date(), lastEditionId: editionId, usageCount: 1, payload: { playerId, streakAtPrediction } })
+    .onConflictDoNothing({ target: [broadcastMemoryTable.memoryType, broadcastMemoryTable.memoryKey, broadcastMemoryTable.subjectKey] });
+}
+
+/**
+ * Finds (at most) one pending call that's actually ready to follow up on —
+ * either resolved (the subject's real, live win-streak now reads higher or
+ * lower than it did when the call was made) or stale enough to drop
+ * silently (see MAX_EDITIONS_BEFORE_PREDICTION_EXPIRES). Only ever returns
+ * the first one found; any others stay pending and get another chance next
+ * build, exactly like a real pundit only gets to revisit one old call at a
+ * time rather than opening every Edition with a scoreboard of them.
+ */
+async function findResolvedPresenterPrediction(currentEditionId: number): Promise<{ playerId: number; streakAtPrediction: number; currentWinStreak: number; outcome: "correct" | "incorrect"; subjectKey: string } | null> {
+  const pending = await loadPendingPresenterPredictions();
+  if (pending.length === 0) return null;
+
+  const playerIds = [...new Set(pending.map(p => p.playerId))];
+  const playerRows = await db.select({ id: playersTable.id, currentWinStreak: playersTable.currentWinStreak }).from(playersTable).where(inArray(playersTable.id, playerIds));
+  const streakByPlayerId = new Map(playerRows.map(r => [r.id, r.currentWinStreak]));
+
+  for (const prediction of pending) {
+    const editionsElapsed = Math.max(0, currentEditionId - prediction.lastEditionId);
+    if (editionsElapsed === 0) continue; // never grade in the same build the call was made
+
+    const currentWinStreak = streakByPlayerId.get(prediction.playerId);
+    if (currentWinStreak === undefined) {
+      await clearPresenterPrediction(prediction.subjectKey); // player record no longer exists — drop rather than risk a stale read
+      continue;
+    }
+
+    const outcome = gradeWinStreakPrediction(prediction.streakAtPrediction, currentWinStreak);
+    if (outcome === "pending") {
+      if (editionsElapsed >= MAX_EDITIONS_BEFORE_PREDICTION_EXPIRES) await clearPresenterPrediction(prediction.subjectKey);
+      continue;
+    }
+    return { playerId: prediction.playerId, streakAtPrediction: prediction.streakAtPrediction, currentWinStreak, outcome, subjectKey: prediction.subjectKey };
+  }
+  return null;
 }
 
 // A lightweight defensive scan over final rendered text — see this file's
@@ -649,6 +1021,59 @@ async function recordPlayerNegativeUse(subjectKey: string, editionId: number, fu
     });
 }
 
+// ── Presenter running jokes (13.4's own "RUNNING_JOKE" memory type, unused
+// until now) — see running-jokes-math.ts's own header for the full design.
+// subjectKey is an explicit "presenters" sentinel, deliberately NEVER a real
+// NULL: broadcast.ts's own schema comment on idx_broadcast_memory_type_key_
+// subject already flags that Postgres treats NULLs as distinct for
+// uniqueness, so a genuinely NULL subjectKey here would never hit
+// onConflictDoUpdate's target index — every Edition would silently INSERT a
+// fresh duplicate row instead of updating the one real cooldown row, and
+// cooldowns would never actually accumulate. A fixed non-null sentinel
+// string sidesteps that trap entirely.
+const PRESENTER_MEMORY_SUBJECT = "presenters";
+
+/** Maps each RUNNING_JOKE's own id to editions-since-last-use. A joke with no row yet is simply absent — pickEligibleRunningJoke treats "absent" as "never used, always eligible". */
+async function loadRunningJokeCooldowns(currentEditionId: number): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ memoryKey: broadcastMemoryTable.memoryKey, lastEditionId: broadcastMemoryTable.lastEditionId })
+    .from(broadcastMemoryTable)
+    .where(and(
+      eq(broadcastMemoryTable.memoryType, "RUNNING_JOKE"),
+      eq(broadcastMemoryTable.subjectKey, PRESENTER_MEMORY_SUBJECT),
+    ));
+  const result = new Map<string, number>();
+  for (const row of rows) {
+    if (row.lastEditionId !== null) result.set(row.memoryKey, Math.max(0, currentEditionId - row.lastEditionId));
+  }
+  return result;
+}
+
+async function recordRunningJokeUsage(jokeId: string, editionId: number): Promise<void> {
+  await db
+    .insert(broadcastMemoryTable)
+    .values({ memoryType: "RUNNING_JOKE", memoryKey: jokeId, subjectKey: PRESENTER_MEMORY_SUBJECT, lastUsedAt: new Date(), lastEditionId: editionId, usageCount: 1, payload: null })
+    .onConflictDoUpdate({
+      target: [broadcastMemoryTable.memoryType, broadcastMemoryTable.memoryKey, broadcastMemoryTable.subjectKey],
+      set: { lastUsedAt: new Date(), lastEditionId: editionId, usageCount: sql`${broadcastMemoryTable.usageCount} + 1` },
+    });
+}
+
+/** The two-line exchange for one already-chosen running joke — a fresh, separately-seeded pick among that joke's own variants (never the same seed the eligibility/fire roll used) so which joke fires and which of its lines gets read are independent decisions, exactly like buildClosingSegment's own A-line/tease/B-line each drawing their own seed. */
+function buildRunningJokeSegment(joke: RunningJoke, slotKey: string, config: BroadcastConfig): ProgrammeSegment {
+  const variant = pickFrom(joke.variants, commentaryRng(slotKey, `utility:running_joke:variant:${joke.id}`, config.commentaryVersion));
+  return {
+    slot: 0, purpose: "presenter_bit", importance: "utility",
+    storyId: null, supportingStoryIds: [], storyType: null, leagueType: null, lifecycleAtBroadcast: null,
+    dialogue: [
+      { speaker: "A", text: variant.a, holdSeconds: dialogueHoldSeconds(variant.a) },
+      { speaker: "B", text: variant.b, holdSeconds: dialogueHoldSeconds(variant.b) },
+    ],
+    validityRules: [],
+    facts: null,
+  };
+}
+
 async function buildBanterContext(
   subjectKey: string, editionId: number, negativeJokesThisEdition: ReadonlyMap<string, number>, currentGlobalFullSegmentCounter: number,
 ): Promise<BanterContext> {
@@ -895,7 +1320,7 @@ async function buildEdition(params: {
     }
   }
   const mergedForChangeScore = mergeStoriesByAnchorAndNarrative(pool);
-  const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars;
+  const newMatchCount = storyState.newMatchesProcessed.singles + storyState.newMatchesProcessed.doubles + storyState.newMatchesProcessed.shiftWars + storyState.newMatchesProcessed.teamMatch;
   const changeScore = editionChangeScore({
     newCompletedMatchCount: newMatchCount,
     newlyCreatedGroupTreatments: newlyCreatedGroupTreatments(mergedForChangeScore),
@@ -919,7 +1344,7 @@ async function buildEdition(params: {
   // resolveCutoffStart() picked the real starting point instead, and THAT is
   // the value worth seeing if a match ever again goes missing at the seam
   // between "no previous Edition yet" and "first one published."
-  const scanSummary = `scanned (${storyState.cutoffStart.toISOString()}, ${storyState.cutoffEnd.toISOString()}]: singles=${storyState.newMatchesProcessed.singles} doubles=${storyState.newMatchesProcessed.doubles} shiftWars=${storyState.newMatchesProcessed.shiftWars}, storiesUpserted=${storyState.storiesUpserted}, interviews=${interviewSegments.length}, fanVerdicts=${fanVerdictSegments.length}, previousEditionId=${previous?.id ?? "none"}, catchUp(singles)=${JSON.stringify(storyState.catchUpSeasonIds.singles)} catchUp(doubles)=${JSON.stringify(storyState.catchUpSeasonIds.doubles)}`;
+  const scanSummary = `scanned (${storyState.cutoffStart.toISOString()}, ${storyState.cutoffEnd.toISOString()}]: singles=${storyState.newMatchesProcessed.singles} doubles=${storyState.newMatchesProcessed.doubles} shiftWars=${storyState.newMatchesProcessed.shiftWars} teamMatch=${storyState.newMatchesProcessed.teamMatch}, storiesUpserted=${storyState.storiesUpserted}, interviews=${interviewSegments.length}, fanVerdicts=${fanVerdictSegments.length}, previousEditionId=${previous?.id ?? "none"}, catchUp(singles)=${JSON.stringify(storyState.catchUpSeasonIds.singles)} catchUp(doubles)=${JSON.stringify(storyState.catchUpSeasonIds.doubles)}`;
 
   const seasonBoundaryEventOccurred = await anySeasonEndedInWindow(previous?.dataCutoff ?? new Date(0), cutoffEnd);
 
@@ -1129,6 +1554,20 @@ async function buildEdition(params: {
     if (segment) segments.push(segment);
   }
 
+  // Season Finale ceremony content (gamerscore leaderboard, Hall of Fame
+  // nods) — see buildSeasonFinaleSpecialSegments's own header. Spliced in
+  // before "what's next"/closing (whichever comes first — selectSeasonReview
+  // RunningOrder always places both, in that order, last) so the show still
+  // signs off looking forward, not immediately after a stats board; never
+  // built for an ordinary Edition, exactly like editorialSegments below.
+  if (closedLeagueSeasons.length > 0) {
+    const finaleSegments = await buildSeasonFinaleSpecialSegments();
+    if (finaleSegments.length > 0) {
+      const insertAt = segments.findIndex(segment => segment.purpose === "what_to_watch" || segment.purpose === "closing");
+      segments.splice(insertAt >= 0 ? insertAt : segments.length, 0, ...finaleSegments);
+    }
+  }
+
   // Commentary eligibility is deliberately stricter than story eligibility:
   // a Director pick can have valid facts yet exhaust every suitable phrase.
   // Do not let those silent render drops turn a busy match day into a one-story
@@ -1289,6 +1728,114 @@ async function buildEdition(params: {
       .concat(audienceSegments.slice(editorialSegments.length))
     : editorialSegments;
   segments.splice(0, segments.length, ...weaveStudioSegments(segments, studioSegments));
+
+  // Presenter running jokes: a small, recurring bit between Chalky and Ton
+  // themselves, never about any one story — see running-jokes-math.ts's own
+  // header. Spliced right after the fixed opening/headlines block (a quick
+  // "before we get into it" moment between the two hosts), computed before
+  // the cold open below so this scan of "where does opening/headlines end"
+  // is never confused by a cold-open segment that hasn't been unshifted in
+  // yet. Never built for a Season Review (its own ceremony tone has no room
+  // for this kind of chat) or a Weekly Highlights reel (its own separate
+  // function, createWeeklyHighlightsEpisode, never reaches this code path).
+  if (programmeMode !== "SEASON_REVIEW") {
+    const runningJokeCooldowns = await loadRunningJokeCooldowns(claimedRow.id);
+    const runningJokeGateRng = commentaryRng(seedSlotKey, "utility:running_joke:gate", config.commentaryVersion);
+    const runningJoke = pickEligibleRunningJoke(runningJokeCooldowns, runningJokeGateRng);
+    if (runningJoke) {
+      const runningJokeSegment = buildRunningJokeSegment(runningJoke, seedSlotKey, config);
+      let insertAt = 0;
+      while (insertAt < segments.length && (segments[insertAt].purpose === "opening" || segments[insertAt].purpose === "headlines")) insertAt++;
+      segments.splice(insertAt, 0, runningJokeSegment);
+      await recordRunningJokeUsage(runningJoke.id, claimedRow.id);
+    }
+  }
+
+  // Guest presenter cameo: see buildGuestCameoSegment's own header. Scanned
+  // from the FINAL segment list (after weaving, so the index found below is
+  // where the milestone's own real segment actually ends up airing) for the
+  // first segment whose story type earns a cameo invitation; spliced
+  // immediately after that segment, so the desk literally invites the
+  // player up right after celebrating them, rather than at some unrelated
+  // point in the show. Only the first qualifying milestone gets a cameo —
+  // never for a Season Review (its own distinct ceremony content covers
+  // "celebrate a real player" a different way, via buildSeasonFinale
+  // SpecialSegments' Hall of Fame nods).
+  if (programmeMode !== "SEASON_REVIEW") {
+    const cameoIndex = segments.findIndex(seg => seg.storyType !== null && hasGuestCameo(seg.storyType as StoryType));
+    const cameoStory = cameoIndex >= 0 ? pool.find(s => s.id === segments[cameoIndex].storyId) ?? null : null;
+    if (cameoStory) {
+      const cameoSegment = await buildGuestCameoSegment(cameoStory, seedSlotKey, config);
+      if (cameoSegment) segments.splice(cameoIndex + 1, 0, cameoSegment);
+    }
+  }
+
+  // Presenter predictions — making a new call and following up on an old
+  // one are independent of each other (a follow-up can fire in an Edition
+  // with no WIN_STREAK story at all, and a fresh call doesn't wait on any
+  // earlier one resolving first beyond the one-pending-per-subject guard
+  // recordPresenterPrediction's own onConflictDoNothing enforces). See
+  // presenter-prediction-math.ts's own header for why this is scoped to win
+  // streaks and never a specific upcoming match result. Never for a Season
+  // Review, same reasoning as every other utility beat in this block.
+  if (programmeMode !== "SEASON_REVIEW") {
+    const streakIndex = segments.findIndex(seg => seg.storyType === "WIN_STREAK" && seg.leagueType === "singles");
+    const streakStory = streakIndex >= 0 ? pool.find(s => s.id === segments[streakIndex].storyId) ?? null : null;
+    if (streakStory) {
+      const playerId = streakStory.facts.playerId as number;
+      const currentWinStreak = streakStory.facts.currentWinStreak as number;
+      const predictionSubjectKey = streakStory.subjectKeys[0];
+      if (currentWinStreak >= MIN_WIN_STREAK_FOR_PREDICTION) {
+        const pending = await loadPendingPresenterPredictions();
+        const alreadyPending = pending.some(p => p.subjectKey === predictionSubjectKey);
+        if (!alreadyPending) {
+          const predictionSegment = await buildPresenterPredictionSegment(playerId, currentWinStreak, seedSlotKey, config);
+          if (predictionSegment) {
+            segments.splice(streakIndex + 1, 0, predictionSegment);
+            await recordPresenterPrediction(predictionSubjectKey, playerId, currentWinStreak, claimedRow.id);
+          }
+        }
+      }
+    }
+
+    const resolved = await findResolvedPresenterPrediction(claimedRow.id);
+    if (resolved) {
+      const gradedSegment = await buildPresenterPredictionGradedSegment(
+        resolved.playerId, resolved.streakAtPrediction, resolved.currentWinStreak, resolved.outcome, seedSlotKey, config,
+      );
+      if (gradedSegment) {
+        let insertAt = 0;
+        while (insertAt < segments.length && (segments[insertAt].purpose === "opening" || segments[insertAt].purpose === "headlines" || segments[insertAt].purpose === "presenter_bit")) insertAt++;
+        segments.splice(insertAt, 0, gradedSegment);
+        await clearPresenterPrediction(resolved.subjectKey);
+      }
+    }
+  }
+
+  // Cold open: see buildColdOpenSegment's own header. Scanned from the
+  // FINAL segment list (after weaving, so it reflects whatever is actually
+  // about to air) for the first already-selected "major" segment whose
+  // story type earns BreakingScene's heaviest chrome — "first" rather than
+  // "best-scoring" because segments are still in running-order sequence
+  // here, and the running order itself already placed the Edition's single
+  // best story first (main_story ahead of second_major_story). Never built
+  // for a Season Review (its own ceremony framing already opens the show)
+  // or a Weekly Highlights reel (built entirely outside this function, in
+  // createWeeklyHighlightsEpisode, with no running order of its own to
+  // scan). Show Bible v1's own "NO FAKE URGENCY" rule means a genuinely
+  // quiet Edition with nothing breaking-worthy simply gets no cold open —
+  // this is deliberately never manufactured.
+  if (programmeMode !== "SEASON_REVIEW") {
+    const coldOpenCandidate = segments.find(seg =>
+      seg.importance === "major" && seg.storyType !== null && hasColdOpenTease(seg.storyType as StoryType)
+    );
+    const coldOpenStory = coldOpenCandidate ? pool.find(s => s.id === coldOpenCandidate.storyId) ?? null : null;
+    if (coldOpenStory) {
+      const coldOpen = await buildColdOpenSegment(coldOpenStory, seedSlotKey, config);
+      if (coldOpen) segments.unshift(coldOpen);
+    }
+  }
+
   segments.forEach((segment, index) => { segment.slot = index + 1; });
 
   const selectedStoriesById = new Map<number, BroadcastStory>();
@@ -1700,6 +2247,105 @@ export async function createBroadcastCleanSweep(
     } catch (err) {
       const diagnostic = err instanceof Error ? err.message : String(err);
       console.error(`edition-engine: clean sweep failed for slot ${slotKey}:`, err);
+      const [failed] = await db.update(broadcastEditionsTable)
+        .set({ status: "FAILED", diagnostic })
+        .where(eq(broadcastEditionsTable.id, claimedRow.id))
+        .returning();
+      return { attempt: failed ?? { ...claimedRow, status: "FAILED", diagnostic }, edition: previous };
+    }
+  } finally {
+    stopAdminBuildLockHeartbeat(lockHeartbeat);
+    await releaseAdminBuildLock(lockHolder);
+  }
+}
+
+/**
+ * Creates a genuinely REPACKAGED special — director-weekly-highlights.ts's
+ * own "best of the week" reel (task's own ask, named explicitly as a
+ * "repackaged edition stitching the week's top segments... into a show").
+ * Unlike every other create-/forceRebuild-prefixed function in this file, this one
+ * never calls buildEdition() at all: there is no fresh detection to run, no
+ * Commentary Engine pass to make, no Director running order to walk — the
+ * content is the last 7 days' own already-published segments, re-aired
+ * verbatim. Still goes through the same admin build lock + BroadcastEdition
+ * row lifecycle as createManualBroadcastEpisode/createBroadcastCleanSweep so
+ * concurrent admin actions can never race each other, and so a failed
+ * attempt is marked FAILED (never silently dropped) while viewers keep the
+ * previous published Edition exactly as those two functions already do.
+ */
+export async function createWeeklyHighlightsEpisode(now: Date = new Date()): Promise<CreateManualEpisodeResult> {
+  const lockHolder = randomUUID();
+  if (!(await claimAdminBuildLock(lockHolder, now))) throw new AdminBuildLockedError();
+  const lockHeartbeat = startAdminBuildLockHeartbeat(lockHolder);
+
+  try {
+    const config = await getBroadcastConfig();
+    const previous = await latestPublishedEdition();
+    const slotKey = manualEpisodeSlotKey(now, randomUUID());
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [claimedRow] = await db.insert(broadcastEditionsTable).values({
+      slotKey, slotType: "manual", scheduledFor: now, dataCutoff: now, status: "BUILDING",
+      changeScore: 0, programmeVersion: config.programmeVersion, programme: null, diagnostic: null, publishedAt: null,
+    }).returning();
+    if (!claimedRow) throw new Error("Could not create the weekly highlights Edition");
+
+    try {
+      const sourceRows = await db.select({
+        id: broadcastEditionsTable.id,
+        publishedAt: broadcastEditionsTable.publishedAt,
+        programme: broadcastEditionsTable.programme,
+      }).from(broadcastEditionsTable).where(and(
+        eq(broadcastEditionsTable.status, "PUBLISHED"),
+        sql`${broadcastEditionsTable.publishedAt} >= ${weekStart}`,
+        sql`${broadcastEditionsTable.publishedAt} <= ${now}`,
+      ));
+
+      const sourceEditions: WeeklySourceEdition[] = sourceRows
+        // A previous highlights reel is itself already-repackaged content —
+        // re-airing one of ITS segments would just reshow the same moment a
+        // second time removed from when it actually happened, so the week's
+        // own reel(s) are excluded as a source for this one.
+        .filter(row => row.publishedAt !== null && isEditionProgramme(row.programme) && programmeModeOf(row.programme) !== "WEEKLY_HIGHLIGHTS")
+        .map(row => ({ id: row.id, publishedAt: row.publishedAt as Date, segments: (row.programme as EditionProgramme).segments }));
+
+      const picked = selectWeeklyHighlightSegments(sourceEditions);
+      if (picked.length === 0) {
+        throw new Error("No published segments from the last 7 days to build a highlights reel from.");
+      }
+
+      const openingRng = commentaryRng(slotKey, "utility:opening", config.commentaryVersion);
+      const opening: ProgrammeSegment = {
+        slot: 1, purpose: "opening", importance: "utility", storyId: null, supportingStoryIds: [], storyType: null,
+        leagueType: null, lifecycleAtBroadcast: null,
+        dialogue: buildFixedDialogue(pickFrom(OPENING_DIALOGUE_OPTIONS.WEEKLY_HIGHLIGHTS, openingRng)),
+        validityRules: [], facts: null,
+      };
+      const closing: ProgrammeSegment = {
+        slot: picked.length + 2, purpose: "closing", importance: "utility", storyId: null, supportingStoryIds: [], storyType: null,
+        leagueType: null, lifecycleAtBroadcast: null,
+        dialogue: buildFixedDialogue({
+          a: "That's the best of the last seven days from TKDL LIVE.",
+          b: "Regular coverage picks straight back up from here.",
+        }),
+        validityRules: [], facts: null,
+      };
+      const segments: ProgrammeSegment[] = [
+        opening,
+        ...picked.map((segment, index) => ({ ...segment, slot: index + 2 })),
+        closing,
+      ];
+      const programme: EditionProgramme = { mode: "WEEKLY_HIGHLIGHTS", segments };
+
+      const [published] = await db.update(broadcastEditionsTable)
+        .set({ status: "PUBLISHED", programme, publishedAt: now })
+        .where(eq(broadcastEditionsTable.id, claimedRow.id))
+        .returning();
+      if (!published) throw new Error("Could not publish the weekly highlights Edition");
+      return { attempt: published, edition: published };
+    } catch (err) {
+      const diagnostic = err instanceof Error ? err.message : String(err);
+      console.error(`edition-engine: weekly highlights reel failed for slot ${slotKey}:`, err);
       const [failed] = await db.update(broadcastEditionsTable)
         .set({ status: "FAILED", diagnostic })
         .where(eq(broadcastEditionsTable.id, claimedRow.id))

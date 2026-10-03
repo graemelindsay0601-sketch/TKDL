@@ -494,6 +494,22 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
   void checkAndGrantTitles(winnerId).catch(err => console.error("Title grant check error:", err));
   void checkAndGrantTitles(loserId).catch(err => console.error("Title grant check error:", err));
 
+  // Match Poster Library — auto-generates (or refreshes, if this is a
+  // corrected re-submission) the shareable result graphic for this match.
+  // Fire-and-forget, same reasoning as the title checks above: never delay
+  // the response, and upsertResultPoster already swallows its own errors.
+  void upsertResultPoster({
+    resultRef: `league-${match.id}`,
+    leagueType: "singles",
+    format: "Singles",
+    resultType: "standard",
+    winnerName: winner.name,
+    loserName: loser.name,
+    stake,
+    gameType,
+    seasonId: match.seasonId,
+  }).catch(err => console.error("Match poster error:", err));
+
   // Interview Desk — real trigger hook (MAJOR_UPSET / WIN_STREAK /
   // 180_MILESTONE). Fire-and-forget, same reasoning as checkAndGrantTitles
   // above: never delay the response, never let a problem here fail a real
@@ -642,17 +658,6 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     }
   })();
 
-  void upsertResultPoster({
-    resultRef: `league-${match.id}`,
-    leagueType: "singles",
-    format: "Singles",
-    winnerName: winner.name,
-    loserName: loser.name,
-    stake,
-    gameType,
-    seasonId: match.seasonId,
-  });
-
   res.status(201).json({
     ...match,
     loserEliminated,
@@ -755,11 +760,6 @@ router.delete("/matches/:id", requireAdminSession, async (req, res): Promise<voi
       WHERE league_type = 'singles'
         AND anchor_match_id = ${id}
         AND lifecycle <> 'RESOLVED'
-    `);
-    await tx.execute(sql`
-      UPDATE match_posters
-      SET status='withdrawn', withdrawn_at=NOW(), updated_at=NOW()
-      WHERE result_ref=${`league-${id}`}
     `);
 
     // Recalculate from both direct Singles rows and match_participants so a

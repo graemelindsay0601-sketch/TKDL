@@ -2,27 +2,15 @@
 // wordmark/label chrome, which scene is currently mounted, and admitting
 // queued live inserts at a safe boundary.
 //
-// ── One shared clock, not one timer per viewer ───────────────────────────
-// Real user feedback, in order: (1) "the show restarts every time you
-// click away... jarring" — a phone (especially an installed/home-screen
-// web app, which this one is — index.html's own apple-mobile-web-app-
-// capable meta tag) routinely unloads a backgrounded tab's memory outright
-// and reloads the page fresh; (2) directly after, the actual ask: "if I
-// started watching the show right now and someone else started it in 5
-// mins, we'd both be at the same part, same as how a live TV show actually
-// works." A per-client chained-setTimeout state machine (what used to live
-// here) can only ever half-solve either problem — a resume-point hack can
-// paper over a reload, but two independently-paced tabs are still never
-// actually watching the same instant. Both are properly solved at once by
-// not tracking "which segment/turn is playing" as this component's own
-// state at all: scene-timing.ts's computeTimedPosition() derives it fresh,
-// every tick, purely from this Edition's own `generatedAt` timestamp
-// (shared by every viewer of it) and `Date.now()`. A reload just
-// recomputes the same formula and lands back on the live position — better
-// than resuming where THIS viewer left off, it resumes where the
-// PROGRAMME actually is, the same as turning a real TV back on. This does
-// assume viewing devices' clocks are roughly correct, the same assumption
-// this file's own live-insert auto-dismiss timers already make.
+// ── Start each viewing from the opening ─────────────────────────────────
+// TKDL LIVE originally used the Edition's generatedAt timestamp as one
+// shared television clock, so everybody saw the same instant. In practice
+// that meant a viewer opening an already-published show could land halfway
+// through a result or debate with no context. Playback now keeps a local
+// start timestamp for this mounted Edition. Opening the player, reopening
+// it later, selecting a replay, or loading a newly-published Edition starts
+// at the beginning; once started, computeTimedPosition() still supplies the
+// same deterministic turn timing, transitions and invalid-segment skips.
 //
 // ── Studio backdrop ───────────────────────────────────────────────────────
 // No literal illustrated set: the user's own reference clip plays entirely
@@ -56,7 +44,7 @@ import { ProgrammeStrip } from "./ProgrammeStrip";
 import { LEAGUE_LABEL, SCENE_LABEL } from "./theme";
 import type { CurrentEdition, LiveOverlayItem, LiveTickerItem, Segment } from "./types";
 
-// How often the shared clock re-derives the current position. Dialogue
+// How often the playback clock re-derives the current position. Dialogue
 // turns hold for several real seconds each (`holdSeconds`, DialogueTurn's
 // own field), so this is far finer-grained than it needs to be to feel
 // instant, while staying cheap enough to leave running on a kiosk screen
@@ -181,12 +169,11 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
   // inline logic here.
   const playlist: Segment[] = useMemo(() => buildPlaylist(edition.headlines, edition.segments), [edition]);
 
-  // The shared clock (this file's own header comment above) — `editionStartMs`
-  // is this Edition's own `generatedAt`, identical for every viewer of it,
-  // so `now - editionStartMs` is the same "how far into the programme" value
-  // wherever it's computed, and `now` itself only ever moves forward in real
-  // time (CLOCK_TICK_MS below), never advanced or paused by this component.
-  const editionStartMs = useMemo(() => new Date(edition.generatedAt).getTime(), [edition.generatedAt]);
+  // PlayerRuntime is keyed by Edition id in BroadcastPlayer, so this resets
+  // exactly when a viewer opens/remounts the player or a new Edition arrives.
+  // It deliberately does not use edition.generatedAt: publication time is
+  // programme metadata, not this viewer's playback position.
+  const [playbackStartedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
@@ -194,10 +181,9 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
   }, []);
 
   const totalMs = useMemo(() => totalPlayableDurationMs(playlist, invalidSegmentIds), [playlist, invalidSegmentIds]);
-  const rawElapsedMs = Math.max(0, now - editionStartMs); // clamped for a clock-skewed/future `generatedAt` — never a negative "how far in"
+  const rawElapsedMs = Math.max(0, now - playbackStartedAt);
   // Once the prepared programme has played out in full, loop the SAME
-  // Edition from the top — still perfectly in sync, since every viewer
-  // wraps at the identical instant — while asking once per completed loop
+  // Edition from the top for this viewer while asking once per completed loop
   // for whatever Edition is actually current now (mirrors the old model's
   // own "TRANSITION -> LOAD_EDITION" trigger, just driven by the clock
   // reaching the end of the timeline instead of a client walking off the
@@ -249,15 +235,14 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
     setOverlayQueue(q => mergeOverlayQueue(q, fresh));
   }, [overlays, seenIds]);
 
-  // Admits a queued overlay the instant the shared clock crosses a safe
+  // Admits a queued overlay the instant the playback clock crosses a safe
   // boundary (11.4) — `segment_boundary` for the whole `transition` beat
   // (wide enough this tick-based check reliably lands inside it),
   // `turn_boundary` the first tick the clock reaches a new turn. Overlays
-  // are deliberately NOT part of the shared clock at all: LiveInsertOverlay
+  // are deliberately NOT part of the playback timeline: LiveInsertOverlay
   // .tsx is a small banner layered on top (not a full-screen takeover), and
-  // the whole point of a shared clock is that it never pauses for any one
-  // viewer — the programme underneath keeps advancing exactly on schedule
-  // while the banner is up, the same as a real breaking-news crawl never
+  // the programme underneath keeps advancing while the banner is visible,
+  // the same as a real breaking-news crawl never
   // pausing the show playing behind it. `lastBoundaryKeyRef` only fires this
   // once per distinct position, not on every tick that happens to re-render
   // with the same one.
@@ -281,7 +266,7 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
 
   function dismissOverlay() {
     if (previewActiveOverlay === undefined) {
-      setQueuedActiveOverlay(null); // the shared clock never paused, so this just uncovers wherever the programme already is
+      setQueuedActiveOverlay(null); // playback never paused, so this uncovers wherever the programme has reached
     }
   }
 
@@ -322,7 +307,11 @@ function PlayerRuntime({ edition, refetchEdition, overlays, tickerItems, invalid
         activeState={activeTurnState}
       />
       <div data-broadcast-region="title-bar">
-        <ShowTitleBar subtitle={`${edition.mode.replace("_", " ")} · ${cornerLabel}`} />
+        <ShowTitleBar
+          subtitle={`${edition.mode.replace("_", " ")} · ${cornerLabel}`}
+          special={edition.mode === "SEASON_REVIEW" || edition.mode === "WEEKLY_HIGHLIGHTS"}
+          specialLabel={edition.mode === "WEEKLY_HIGHLIGHTS" ? "Best of the Week" : "Season Finale"}
+        />
       </div>
       {position && <ProgrammeStrip playlist={playlist} currentIndex={position.segmentIndex} invalidSegmentIds={invalidSegmentIds} />}
 

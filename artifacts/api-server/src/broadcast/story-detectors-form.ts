@@ -54,7 +54,12 @@ export function detectWinStreak(facts: SinglesFormFacts): StoryCandidate | null 
     subjectKeys: subjects(facts.playerId),
     sentiment: "positive",
     tags: ["win_streak", tier],
-    facts: { playerId: facts.playerId, currentWinStreak: streak, tier },
+    // recentForm: the player's own already-capped recent W/L sequence
+    // (newest first), carried straight through as the "Win"/"Loss" strings
+    // winRate() above already works with — not an id-shaped or "*Ids"-
+    // suffixed key, so commentary-engine.ts's buildGraphicFacts() passes it
+    // through unchanged for FormWatchGraphic.tsx's own recent-form strip.
+    facts: { playerId: facts.playerId, currentWinStreak: streak, tier, recentForm: facts.recentResultsNewestFirst.slice(0, 8) },
     components: {
       competitiveImportance: SCORE_MAX.competitiveImportance * 0.3 * tierFraction,
       unexpectedness: 0, // not a RESULT-family story — no single pre-match probability to derive this from
@@ -86,7 +91,7 @@ export function detectLossStreak(facts: SinglesFormFacts): StoryCandidate | null
     subjectKeys: subjects(facts.playerId),
     sentiment: "negative",
     tags: ["loss_streak", "cooldown_sensitive"],
-    facts: { playerId: facts.playerId, currentLossStreak: streak },
+    facts: { playerId: facts.playerId, currentLossStreak: streak, recentForm: facts.recentResultsNewestFirst.slice(0, 8) },
     components: {
       competitiveImportance: SCORE_MAX.competitiveImportance * 0.2,
       unexpectedness: 0,
@@ -126,6 +131,7 @@ export function detectFormReversal(facts: SinglesFormFacts): StoryCandidate | nu
       playerId: facts.playerId, direction,
       recentFiveWins: recentFive.filter(r => r === "W").length,
       priorFiveWins: priorFive.filter(r => r === "W").length,
+      recentForm: facts.recentResultsNewestFirst.slice(0, 8),
     },
     components: {
       competitiveImportance: SCORE_MAX.competitiveImportance * 0.15,
@@ -227,7 +233,7 @@ export function detectAboveBaseline(facts: SinglesFormFacts): StoryCandidate | n
     subjectKeys: subjects(facts.playerId),
     sentiment: "positive",
     tags: ["above_baseline"],
-    facts: { playerId: facts.playerId, recentRate, seasonRate: facts.seasonRate },
+    facts: { playerId: facts.playerId, recentRate, seasonRate: facts.seasonRate, recentForm: facts.recentResultsNewestFirst.slice(0, 8) },
     components: {
       competitiveImportance: SCORE_MAX.competitiveImportance * 0.15,
       unexpectedness: 0,

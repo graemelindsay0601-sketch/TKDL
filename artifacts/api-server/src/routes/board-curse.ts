@@ -53,7 +53,7 @@ router.get("/board-curse/best/:playerId/:gameType", async (req: Request, res: Re
 
 router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: Response) => {
   try {
-    const { playerId, gameType, visits, streak } = req.body ?? {};
+    const { playerId, gameType, visits, streak, outcome } = req.body ?? {};
     const pid = parseInt(playerId, 10);
     const v = visits !== undefined ? parseInt(visits, 10) : null;
     const s = streak !== undefined ? parseInt(streak, 10) : null;
@@ -71,18 +71,21 @@ router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: 
       res.status(400).json({ error: "visits must be a positive number" });
       return;
     }
-    if (s !== null && (!Number.isFinite(s) || s <= 0)) {
-      res.status(400).json({ error: "streak must be a positive number" });
+    if (s !== null && (!Number.isFinite(s) || s < 0)) {
+      res.status(400).json({ error: "streak must be zero or a positive number" });
       return;
     }
+    const safeOutcome = outcome === "loss" ? "loss" : "win";
+    const savedVisits = safeOutcome === "win" ? v : null;
+    const savedStreak = s !== null && s > 0 ? s : null;
     const [previous, player] = await Promise.all([
       db.execute(sql`SELECT best_visits,best_streak FROM board_curse_best WHERE player_id=${pid} AND game_type=${gameType}`),
       db.execute(sql`SELECT name FROM players WHERE id=${pid}`),
     ]);
     if (!player.rows[0]) { res.status(400).json({ error: "Player not found" }); return; }
     const old = previous.rows[0] as any;
-    const newVisitBest = v !== null && (old?.best_visits == null || v < Number(old.best_visits));
-    const newStreakBest = s !== null && (old?.best_streak == null || s > Number(old.best_streak));
+    const newVisitBest = savedVisits !== null && (old?.best_visits == null || savedVisits < Number(old.best_visits));
+    const newStreakBest = savedStreak !== null && (old?.best_streak == null || savedStreak > Number(old.best_streak));
     const milestoneKind = newStreakBest ? "curse_streak_best" : newVisitBest ? "curse_visit_best" : null;
     const playerName = String((player.rows[0] as any).name);
     const milestoneLabel = newStreakBest
@@ -91,23 +94,23 @@ router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: 
     await db.transaction(async tx => {
       await tx.execute(sql`
         INSERT INTO board_curse_best (player_id, game_type, best_visits, best_streak)
-        VALUES (${pid}, ${gameType}, ${v}, ${s})
+        VALUES (${pid}, ${gameType}, ${savedVisits}, ${savedStreak})
         ON CONFLICT (player_id, game_type) DO UPDATE SET
           best_visits = CASE
-            WHEN ${v}::int IS NULL THEN board_curse_best.best_visits
-            WHEN board_curse_best.best_visits IS NULL THEN ${v}::int
-            ELSE LEAST(board_curse_best.best_visits, ${v}::int)
+            WHEN ${savedVisits}::int IS NULL THEN board_curse_best.best_visits
+            WHEN board_curse_best.best_visits IS NULL THEN ${savedVisits}::int
+            ELSE LEAST(board_curse_best.best_visits, ${savedVisits}::int)
           END,
           best_streak = CASE
-            WHEN ${s}::int IS NULL THEN board_curse_best.best_streak
-            WHEN board_curse_best.best_streak IS NULL THEN ${s}::int
-            ELSE GREATEST(board_curse_best.best_streak, ${s}::int)
+            WHEN ${savedStreak}::int IS NULL THEN board_curse_best.best_streak
+            WHEN board_curse_best.best_streak IS NULL THEN ${savedStreak}::int
+            ELSE GREATEST(board_curse_best.best_streak, ${savedStreak}::int)
           END,
           updated_at = NOW()
       `);
       await tx.execute(sql`
         INSERT INTO arcade_runs (player_id,mode,game_type,format,opponent_label,outcome,visits,streak,milestone_kind,milestone_label)
-        VALUES (${pid},'board_curse',${gameType},'solo','The Board','win',${v},${s},${milestoneKind},${milestoneLabel})
+        VALUES (${pid},'board_curse',${gameType},'solo','The Board',${safeOutcome},${v},${s},${milestoneKind},${milestoneLabel})
       `);
     });
     // .catch() required — the route's own try/catch only guards the awaited
@@ -120,6 +123,36 @@ router.post("/board-curse/best", bossBattleRateLimit, async (req: Request, res: 
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record board curse result");
     res.status(500).json({ error: "Failed to record board curse result" });
+  }
+});
+
+router.post("/board-curse/daily", bossBattleRateLimit, async (req: Request, res: Response) => {
+  try {
+    const pid = parseInt(req.body?.playerId, 10);
+    const gameType = req.body?.gameType;
+    const visits = Math.round(Number(req.body?.visits));
+    const won = req.body?.won === true;
+    const limit = gameType === "X01" ? 15 : 17;
+    if (!Number.isFinite(pid) || !isValidGameType(gameType) || !Number.isFinite(visits) || visits <= 0 || visits > limit) {
+      res.status(400).json({ error: "Invalid Daily Curse result" });
+      return;
+    }
+    const player = await db.execute(sql`SELECT name FROM players WHERE id=${pid}`);
+    if (!player.rows[0]) { res.status(400).json({ error: "Player not found" }); return; }
+    const challengeDate = new Date().toISOString().slice(0, 10);
+    const previous = won ? await db.execute(sql`
+      SELECT 1 FROM arcade_runs WHERE player_id=${pid} AND mode='board_curse_daily' AND game_type=${gameType}
+      AND played_at::date=CURRENT_DATE AND outcome='win' LIMIT 1
+    `) : null;
+    const firstDailyClear = won && previous?.rows.length === 0;
+    await db.execute(sql`
+      INSERT INTO arcade_runs (player_id,mode,game_type,format,opponent_label,outcome,visits,milestone_kind,milestone_label,metadata)
+      VALUES (${pid},'board_curse_daily',${gameType},'solo','Daily Curse',${won ? "win" : "loss"},${visits},${firstDailyClear ? "daily_curse_clear" : null},${firstDailyClear ? `${String((player.rows[0] as any).name)} cleared the Daily Curse` : null},${JSON.stringify({ challengeDate, limit })}::jsonb)
+    `);
+    res.json({ success: true, saved: true, challengeDate, firstDailyClear });
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to save Daily Curse");
+    res.status(500).json({ error: "Failed to save Daily Curse" });
   }
 });
 
@@ -244,7 +277,7 @@ router.get("/board-curse/leaderboard/:gameType", async (req: Request, res: Respo
       res.status(400).json({ error: "Invalid gameType" });
       return;
     }
-    const [bestVisitsRows, bestStreakRows] = await Promise.all([
+    const [bestVisitsRows, bestStreakRows, dailyRows] = await Promise.all([
       db.execute(sql`
         SELECT p.name AS player_name, b.best_visits AS value
         FROM board_curse_best b JOIN players p ON p.id = b.player_id
@@ -257,10 +290,20 @@ router.get("/board-curse/leaderboard/:gameType", async (req: Request, res: Respo
         WHERE b.game_type = ${gameType} AND b.best_streak IS NOT NULL
         ORDER BY b.best_streak DESC LIMIT 10
       `),
+      db.execute(sql`
+        SELECT DISTINCT ON (ar.player_id) p.name AS player_name, ar.visits AS value, ar.outcome
+        FROM arcade_runs ar JOIN players p ON p.id=ar.player_id
+        WHERE ar.mode='board_curse_daily' AND ar.game_type=${gameType} AND ar.played_at::date=CURRENT_DATE
+        ORDER BY ar.player_id, CASE WHEN ar.outcome='win' THEN 0 ELSE 1 END, ar.visits ASC, ar.played_at ASC
+      `),
     ]);
+    const daily = dailyRows.rows.map((r: any) => ({ playerName: String(r.player_name), value: Number(r.value), outcome: String(r.outcome) }))
+      .sort((a, b) => Number(b.outcome === "win") - Number(a.outcome === "win") || a.value - b.value)
+      .slice(0, 10);
     res.json({
       bestVisits: bestVisitsRows.rows.map((r: any) => ({ playerName: r.player_name as string, value: r.value as number })),
       bestStreak: bestStreakRows.rows.map((r: any) => ({ playerName: r.player_name as string, value: r.value as number })),
+      daily,
     });
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to load board curse leaderboard");

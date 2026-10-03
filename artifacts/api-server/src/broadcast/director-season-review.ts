@@ -71,6 +71,25 @@ function isFlashbackFamily(story: Pick<BroadcastStory, "storyType">): boolean {
  * exists, this returns null and the running order simply has one fewer
  * beat, exactly like every other optional slot in this file.
  */
+/**
+ * The season's real biggest upset — explicitly guaranteed its own highlight
+ * slot rather than left to the generic ranked loop below to maybe include.
+ * Real user ask, named as its own moment alongside the gamerscore board and
+ * Hall of Fame nods ("Season Finale / Awards Night special episode"): "the
+ * biggest upset of the season." story-engine.ts's own score ordering has no
+ * notion that this show's producers want that specific result singled out —
+ * the generic loop below already caps each league at MAX_HIGHLIGHTS_PER_
+ * LEAGUE, so a real upset that merely ranked outside that cut (a quieter
+ * result story, or the per-subject diversity cap in collectSeasonHighlights,
+ * can easily bump it) would previously just never air. `highlights` is
+ * already this league's own real, season-scoped candidate list (collect
+ * SeasonHighlights), sorted by score — the highest-scoring UPSET/MAJOR_UPSET
+ * in it is the real "nobody saw that coming" result, not a fabricated one.
+ */
+function findBiggestUpset(highlights: readonly BroadcastStory[]): BroadcastStory | null {
+  return highlights.find(s => s.storyType === "MAJOR_UPSET") ?? highlights.find(s => s.storyType === "UPSET") ?? null;
+}
+
 function pickFillerPromo(pool: readonly BroadcastStory[], usedStoryIds: ReadonlySet<number>): BroadcastStory | null {
   const filler = pool.filter(s => storyFamily(s) === "FILLER" && !usedStoryIds.has(s.id));
   return filler.find(s => s.storyType === "SHADOW_BOT_PROMO")
@@ -138,11 +157,25 @@ export function selectSeasonReviewRunningOrder(input: SeasonReviewInput): Runnin
   }
 
   // The real storylines — actual matches and topics from the season, the
-  // exact gap a real user report named.
+  // exact gap a real user report named. The season's single biggest upset
+  // (findBiggestUpset's own header) goes first and always counts toward this
+  // league's MAX_HIGHLIGHTS_PER_LEAGUE budget, rather than being an extra on
+  // top of it — the generic loop below tops that same budget back up to 6
+  // with the next-best highlights, skipping whichever one the upset already
+  // was so nothing airs twice.
   for (const closed of input.closedSeasons) {
     const highlights = input.highlightsByLeague.get(closed.leagueType) ?? [];
-    for (const story of highlights.slice(0, MAX_HIGHLIGHTS_PER_LEAGUE)) {
+    let placedForLeague = 0;
+    const biggestUpset = findBiggestUpset(highlights);
+    if (biggestUpset && !usedStoryIds.has(biggestUpset.id)) {
+      place("season_highlight", biggestUpset);
+      placedForLeague += 1;
+    }
+    for (const story of highlights) {
+      if (placedForLeague >= MAX_HIGHLIGHTS_PER_LEAGUE) break;
+      if (usedStoryIds.has(story.id)) continue;
       place("season_highlight", story);
+      placedForLeague += 1;
     }
   }
 

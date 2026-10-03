@@ -16,6 +16,7 @@ import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
 import { useSpotlightValues } from "@/lib/statSpotlight";
 import { SeasonRecapModal } from "@/components/SeasonRecapCard";
 import { DartsLocker } from "@/components/DartsLocker";
+import { BOSSES } from "@/lib/boss-battles-data";
 
 // Renders a GitHub-style contribution calendar: 7 rows (Sun–Sat) x up to 53
 // columns covering the trailing 365 days, padded at the front so the grid
@@ -299,8 +300,8 @@ export default function PlayerDetail() {
   // blanks out the others.
   const [master501, setMaster501] = useState<any>(null);
   const [shadowStats, setShadowStats] = useState<any>(null);
-  const [bossBattle, setBossBattle] = useState<{ defeated: string[] } | null>(null);
-  const [boardCurseRecord, setBoardCurseRecord] = useState<{ wins: number; losses: number } | null>(null);
+  const [bossBattle, setBossBattle] = useState<{ defeated: string[]; stats?: Record<string, { bestSeconds: number | null; cleanSweep: boolean }> } | null>(null);
+  const [boardCurseRecord, setBoardCurseRecord] = useState<{ wins: number; losses: number; bestStreak: number | null; bestVisits: number | null } | null>(null);
   const [cardClashStats, setCardClashStats] = useState<any>(null);
   const [tourRuns, setTourRuns] = useState<any[]>([]);
   useEffect(() => {
@@ -319,9 +320,17 @@ export default function PlayerDetail() {
     Promise.all([
       fetch(`/api/board-curse/record/${playerId}/bot`).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch(`/api/board-curse/record/${playerId}/local`).then(r => r.ok ? r.json() : null).catch(() => null),
-    ]).then(([bot, local]) => {
-      if (!bot && !local) { setBoardCurseRecord(null); return; }
-      setBoardCurseRecord({ wins: (bot?.wins ?? 0) + (local?.wins ?? 0), losses: (bot?.losses ?? 0) + (local?.losses ?? 0) });
+      fetch(`/api/board-curse/best/${playerId}/X01`).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`/api/board-curse/best/${playerId}/CRICKET`).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([bot, local, x01, cricket]) => {
+      if (!bot && !local && !x01 && !cricket) { setBoardCurseRecord(null); return; }
+      const visits = [x01?.bestVisits, cricket?.bestVisits].filter((v): v is number => typeof v === "number");
+      const streaks = [x01?.bestStreak, cricket?.bestStreak].filter((v): v is number => typeof v === "number");
+      setBoardCurseRecord({
+        wins: (bot?.wins ?? 0) + (local?.wins ?? 0), losses: (bot?.losses ?? 0) + (local?.losses ?? 0),
+        bestVisits: visits.length ? Math.min(...visits) : null,
+        bestStreak: streaks.length ? Math.max(...streaks) : null,
+      });
     });
   }, [playerId]);
 
@@ -689,10 +698,16 @@ export default function PlayerDetail() {
             {shiftWarsTeam ? `${shiftWarsTeam.wins}-${shiftWarsTeam.losses} · ${shiftWarsTeam.points}pts` : "Unassigned"}
           </ModeTile>
           <ModeTile href="/boss-battle" icon={<Skull className="w-3.5 h-3.5" />} accent="#ef4444" label="Boss Battle">
-            {bossBattle ? `${bossBattle.defeated?.length ?? 0}/6 bosses beaten` : "Not started"}
+            {bossBattle ? (() => {
+              const medals = BOSSES.reduce((total, boss) => {
+                const stat = bossBattle.stats?.[boss.id];
+                return total + Number(bossBattle.defeated?.includes(boss.id)) + Number(stat?.cleanSweep === true) + Number(stat?.bestSeconds != null && stat.bestSeconds <= boss.masterySeconds);
+              }, 0);
+              return `${bossBattle.defeated?.length ?? 0}/6 bosses · ${medals}/18 mastery`;
+            })() : "Not started"}
           </ModeTile>
           <ModeTile href="/board-curse" icon={<Ghost className="w-3.5 h-3.5" />} accent="#8b5cf6" label="Board Curse">
-            {boardCurseRecord ? `${boardCurseRecord.wins}-${boardCurseRecord.losses} overall` : "Not started"}
+            {boardCurseRecord ? `${boardCurseRecord.wins}-${boardCurseRecord.losses} · streak ${boardCurseRecord.bestStreak ?? "—"} · best ${boardCurseRecord.bestVisits ?? "—"} visits` : "Not started"}
           </ModeTile>
         </div>
       </div>

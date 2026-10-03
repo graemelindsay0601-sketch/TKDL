@@ -61,6 +61,7 @@ import { addDartsSetupColumn } from "./db/migrations/add_darts_setup";
 import { addMatchSpotlightOverride } from "./db/migrations/add_match_spotlight_override";
 import { addMatchPosters } from "./db/migrations/add_match_posters";
 import { extendMatchPostersResultMedia } from "./db/migrations/extend_match_posters_result_media";
+import { addMatchPostersGameType } from "./db/migrations/add_match_posters_game_type";
 import { addWave5CosmeticColumns } from "./db/migrations/add_wave5_cosmetics";
 import { addWave6CosmeticColumns } from "./db/migrations/add_wave6_cosmetics";
 import { addPlayerRankSnapshotsTable } from "./db/migrations/add_player_rank_snapshots";
@@ -1054,9 +1055,13 @@ async function seedBossBattleProgress() {
       attempts     INTEGER NOT NULL DEFAULT 0,
       wins         INTEGER NOT NULL DEFAULT 0,
       best_seconds INTEGER,
+      clean_sweep  BOOLEAN NOT NULL DEFAULT FALSE,
+      highest_ascension INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (player_id, boss_id)
     )
   `);
+  await db.execute(sql`ALTER TABLE boss_battle_stats ADD COLUMN IF NOT EXISTS clean_sweep BOOLEAN NOT NULL DEFAULT FALSE`);
+  await db.execute(sql`ALTER TABLE boss_battle_stats ADD COLUMN IF NOT EXISTS highest_ascension INTEGER NOT NULL DEFAULT 0`);
   logger.info("Boss battle progress + stats tables ready");
 }
 
@@ -1618,6 +1623,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("addMatchSpotlightOverride", addMatchSpotlightOverride);
   await runMigrationStep("addMatchPosters", addMatchPosters);
   await runMigrationStep("extendMatchPostersResultMedia", extendMatchPostersResultMedia);
+  await runMigrationStep("addMatchPostersGameType", addMatchPostersGameType);
   await runInitStep("addWave5CosmeticColumns", addWave5CosmeticColumns);
   await runInitStep("addWave6CosmeticColumns", addWave6CosmeticColumns);
   await runInitStep("addPlayerRankSnapshotsTable", addPlayerRankSnapshotsTable);

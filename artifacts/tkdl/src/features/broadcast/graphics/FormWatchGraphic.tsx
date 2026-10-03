@@ -19,7 +19,8 @@ import type { ReactNode } from "react";
 import {
   Panel, PanelTag, PanelLine,
   BigPanel, BigPanelHeader, BigHeroNumber, BigMove, BigRow, BigBadge, BigLine,
-  pct, str, num,
+  ResultStrip,
+  pct, str, num, strArray,
 } from "./kit";
 import type { GraphicData, LeagueType } from "../types";
 import { LEAGUE_ACCENT } from "../theme";
@@ -41,6 +42,12 @@ export function FormWatchGraphic({ leagueType, data, compact }: { leagueType: Le
   const winShare = num(data, "winShare");
   const wins = num(data, "wins");
   const losses = num(data, "losses");
+  // Only story-detectors-form.ts's four streak/rate/reversal shapes above
+  // carry this (not the Doubles/Shift-Wars win-share facts this component
+  // also renders) — see this component's own module header on where each
+  // fact shape comes from.
+  const recentFormRaw = strArray(data, "recentForm");
+  const recentForm = recentFormRaw ? recentFormRaw.map(r => r === "W") : null;
 
   let body: ReactNode;
   let badge: ReactNode = null;
@@ -114,6 +121,7 @@ export function FormWatchGraphic({ leagueType, data, compact }: { leagueType: Le
           <div className="bug-chip-in font-bold uppercase truncate" style={{ animationDelay: "80ms", color: leagueAccent, fontSize: "1.15rem", letterSpacing: "0.02em" }}>{subject}</div>
         )}
         {body}
+        {recentForm && <ResultStrip values={recentForm} trueAccent="#22c55e" falseAccent="#ff005c" />}
         {badge}
       </BigPanel>
     );
@@ -126,6 +134,7 @@ export function FormWatchGraphic({ leagueType, data, compact }: { leagueType: Le
         <div className="bug-chip-in font-bold uppercase truncate" style={{ animationDelay: "80ms", color: leagueAccent, fontSize: "0.68rem", letterSpacing: "0.04em" }}>{subject}</div>
       )}
       {body}
+      {recentForm && <ResultStrip values={recentForm} trueAccent="#22c55e" falseAccent="#ff005c" compact />}
     </Panel>
   );
 }

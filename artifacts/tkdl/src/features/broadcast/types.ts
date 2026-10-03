@@ -16,7 +16,8 @@ export type Scene = "desk" | "analysis" | "graphic" | "result" | "headlines" | "
 export type GraphicKind =
   | "LeagueTableGraphic" | "TitlePredictorGraphic" | "MatchContextGraphic"
   | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic"
-  | "TeamResultGraphic";
+  | "TeamResultGraphic" | "PosterRevealGraphic" | "StatOfTheNightGraphic"
+  | "SeasonSpecialGraphic";
 
 export type DialogueTurn = { speaker: "A" | "B"; text: string; pose?: string; holdSeconds: number };
 
@@ -48,7 +49,7 @@ export type Segment = {
 };
 
 export type SlotType = "midday" | "evening" | "night" | "manual";
-export type ProgrammeMode = "NEWS" | "BALANCED" | "MAGAZINE" | "SEASON_REVIEW";
+export type ProgrammeMode = "NEWS" | "BALANCED" | "MAGAZINE" | "SEASON_REVIEW" | "WEEKLY_HIGHLIGHTS";
 
 // ── 14.4 current-edition response ───────────────────────────────────────
 

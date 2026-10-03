@@ -3,7 +3,7 @@ import { Check, Download, Image, LoaderCircle, RefreshCw, Share2 } from "lucide-
 import { downloadRenderedCard, renderShareCard, shareRenderedCard, type ShareCardSpec } from "@/lib/share-card";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-export function ShareCardButton({ spec, filename, label = "Share card", className = "" }: { spec: ShareCardSpec; filename: string; label?: string; className?: string }) {
+export function ShareCardButton({ spec, filename, label = "Share card", className = "", render }: { spec: ShareCardSpec; filename: string; label?: string; className?: string; render?: () => Promise<Blob> }) {
   const [state, setState] = useState<"idle" | "busy" | "done" | "failed">("idle");
   const [preview, setPreview] = useState<{ blob: Blob; url: string } | null>(null);
   const [open, setOpen] = useState(false);
@@ -12,7 +12,12 @@ export function ShareCardButton({ spec, filename, label = "Share card", classNam
     if (state === "busy") return;
     setState("busy");
     try {
-      const blob = await renderShareCard(spec);
+      // `render` lets a caller swap in its own canvas renderer (see
+      // pages/poster-library.tsx, which draws a dedicated poster graphic)
+      // while reusing this component's preview/share/download dialog as-is.
+      // spec is still used below for the Web Share title/text regardless of
+      // which renderer actually produced the pixels.
+      const blob = await (render ? render() : renderShareCard(spec));
       const url = URL.createObjectURL(blob);
       setPreview(current => { if (current) URL.revokeObjectURL(current.url); return { blob, url }; });
       setOpen(true);

@@ -190,7 +190,12 @@ export function detectSeasonBest(facts: SinglesPerformanceFacts): StoryCandidate
     // it on any phrase using "best"/"record"/"highest"-type language, per the
     // fact firewall's own rule that nothing may be interpolated that isn't
     // traceable to a real, already-verified query result.
-    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue, verifiedRecordClaim: true },
+    // recordScope distinguishes this from PERSONAL_BEST below for
+    // StatOfTheNightGraphic.tsx's own "Season Best"/"Career Best" ribbon —
+    // both story types otherwise persist the identical metric/value/
+    // verifiedRecordClaim shape, and a graphic routed to either one by
+    // api-shapes.ts's "major" override has no other way to tell them apart.
+    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue, verifiedRecordClaim: true, recordScope: "season" },
     components: {
       competitiveImportance: 4,
       unexpectedness: 0,
@@ -212,8 +217,8 @@ export function detectPersonalBest(facts: SinglesPerformanceFacts): StoryCandida
     sentiment: "positive",
     tags: ["personal_best"],
     // See detectSeasonBest's own comment just above for why this is a real
-    // fact and not a placeholder.
-    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue, verifiedRecordClaim: true },
+    // fact and not a placeholder, and for recordScope's own purpose.
+    facts: { playerId: facts.playerId, metric: facts.recordMetricLabel, value: facts.recordMetricValue, verifiedRecordClaim: true, recordScope: "career" },
     components: {
       competitiveImportance: 5,
       unexpectedness: 0,

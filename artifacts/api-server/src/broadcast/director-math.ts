@@ -376,6 +376,18 @@ export type RunningOrderSlotPurpose =
   | "opening" | "headlines" | "main_story" | "second_major_story" | "analysis_or_predictor"
   | "supporting_story_or_checkin" | "form_h2h_or_spotlight" | "third_league_current_state"
   | "lighter_or_archive_or_callback" | "what_to_watch" | "closing"
+  /** A brief, high-energy flash of this Edition's single most dramatic
+   * result, aired BEFORE slot 1's own fixed "opening" sign-on — standard
+   * sports-broadcast cold-open convention (hook with the moment, then cut
+   * to titles). Built only in edition-engine.ts's own buildColdOpenSegment,
+   * never through the normal NORMAL_RUNNING_ORDER_TEMPLATE/directorSelect
+   * path below (it isn't a running-order slot at all — there's no fixed
+   * numbered position for it in the doc's own 11.1 table, since the show
+   * never had one before). Always carries storyId: null, the same
+   * "presenter narration ABOUT a story that gets its own real segment
+   * elsewhere" convention "closing"'s own forward-looking tease already
+   * uses — see cold-open-math.ts's own header for the rest of the design. */
+  | "cold_open"
   // "season_highlight" is director-season-review.ts's own purpose, not part
   // of NORMAL_RUNNING_ORDER_TEMPLATE below — a Season Review special (built
   // when a league's season closes) uses it for each of the season's own
@@ -396,7 +408,51 @@ export type RunningOrderSlotPurpose =
   /** Results-update utility shown immediately after the completed-match
    * rundown. It carries a full before/after standings payload rather than
    * borrowing one detector story's narrower league facts. */
-  | "leaderboard_after_results";
+  | "leaderboard_after_results"
+  /** Season Finale-only ceremony utility (edition-engine.ts's own
+   * buildSeasonFinaleSpecialSegments) — the gamerscore leaderboard and Hall
+   * of Fame nods boards. Its own purpose, distinct from "lighter_or_archive
+   * _or_callback", exactly so api-shapes.ts's sceneForSegment can route it
+   * to the "graphic" scene the same way "leaderboard_after_results" is
+   * special-cased just above: both are storyId === null utility segments
+   * that still need their own graphic rendered, which that function's
+   * default storyId === null -> "desk" fallback would otherwise swallow. */
+  | "season_finale_board"
+  /** A small recurring bit between the two presenters themselves (Chalky vs
+   * Ton) — show-level continuity, never about any one story. Built only in
+   * edition-engine.ts's own buildRunningJokeSegment, spliced in right after
+   * the fixed opening/headlines block. Always carries storyId: null and
+   * needs no scene special-case in api-shapes.ts: sceneForSegment's own
+   * existing storyId === null -> "desk" fallback is already exactly right
+   * for two presenters chatting with no graphic behind it. See
+   * running-jokes-math.ts's own header for the rest of the design. */
+  | "presenter_bit"
+  /** A brief "come and join us at the desk" invitation for a real player who
+   * just hit a genuine, celebratory career milestone this Edition (see
+   * guest-cameo-math.ts's own header for exactly which MILESTONE story
+   * types qualify, and why the guest never gets a scripted line of their
+   * own). Built only in edition-engine.ts's own buildGuestCameoSegment,
+   * spliced in immediately after the milestone's own real full segment.
+   * Always carries storyId: null, the same "narration ABOUT a story that
+   * gets its own segment elsewhere" convention "closing"/"cold_open"/
+   * "presenter_bit" already use. Routed to the existing "spotlight" scene
+   * (api-shapes.ts's sceneForSegment) rather than the storyId === null ->
+   * "desk" default — a cameo is its own brief moment in the spotlight, not
+   * just more desk chat. */
+  | "guest_cameo"
+  /** The presenters making a specific, later-checkable call on a player
+   * currently on a win streak — spliced in right after that player's own
+   * real WIN_STREAK segment. Always carries storyId: null, the same
+   * convention as every other utility purpose above. See
+   * presenter-prediction-math.ts's own header for the full design, and why
+   * it's deliberately never phrased as a specific upcoming match result. */
+  | "presenter_prediction"
+  /** The follow-up on an earlier "presenter_prediction" call, built from
+   * that player's own real, live state rather than anything invented — see
+   * presenter-prediction-math.ts's gradeWinStreakPrediction. Not tied to any
+   * story airing in the same Edition it appears in, so it is scanned for
+   * and spliced in independently of this Edition's own running order. */
+  | "presenter_prediction_graded";
 
 export type RunningOrderSlotTemplate = { slot: number; purpose: RunningOrderSlotPurpose; required: boolean };
 
@@ -450,13 +506,26 @@ export type ProgrammeSegment = {
    * no broadcast_stories row of its own. Ordinary story segments derive their
    * graphic from storyType in api-shapes.ts. */
   graphicKind?: "LeagueTableGraphic" | "TitlePredictorGraphic" | "MatchContextGraphic"
-    | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic";
+    | "HeadToHeadGraphic" | "FormWatchGraphic" | "WagerGraphic" | "ResultGraphic"
+    // Season Finale-only utility board (gamerscore leaderboard / Hall of Fame
+    // nods) — real career-wide numbers with no broadcast_stories row behind
+    // either one, built directly in edition-engine.ts's buildSeasonFinale
+    // SpecialSegments the same way the two LeagueTableGraphic leaderboard-
+    // movement segments above it already are.
+    | "SeasonSpecialGraphic";
 };
 
-export const PROGRAMME_MODES = ["NEWS", "BALANCED", "MAGAZINE", "SEASON_REVIEW"] as const;
+// WEEKLY_HIGHLIGHTS: director-weekly-highlights.ts's own repackaged "best of
+// the week" special (edition-engine.ts's createWeeklyHighlightsEpisode) —
+// never built through the normal directorSelect()/PROGRAMME_PACING_RULES
+// path at all (that function re-airs already-published segments verbatim,
+// it never runs fresh detection), so it joins SEASON_REVIEW below in
+// OrdinaryProgrammeMode's exclusion rather than needing its own pacing
+// profile.
+export const PROGRAMME_MODES = ["NEWS", "BALANCED", "MAGAZINE", "SEASON_REVIEW", "WEEKLY_HIGHLIGHTS"] as const;
 export type ProgrammeMode = (typeof PROGRAMME_MODES)[number];
 
-export type OrdinaryProgrammeMode = Exclude<ProgrammeMode, "SEASON_REVIEW">;
+export type OrdinaryProgrammeMode = Exclude<ProgrammeMode, "SEASON_REVIEW" | "WEEKLY_HIGHLIGHTS">;
 
 export type ProgrammeContentBeat = "news" | "analysis" | "feature";
 

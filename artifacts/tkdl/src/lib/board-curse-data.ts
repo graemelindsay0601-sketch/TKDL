@@ -5,12 +5,13 @@ export type CurseTier = 1 | 2 | 3;
 
 const X01_NUMBERS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20];
 const CRICKET_NUMBERS = [20,19,18,17,16,15,25];
+let randomSource: () => number = Math.random;
 
 function pickN<T>(arr: T[], n: number): T[] {
   const copy = [...arr];
   const out: T[] = [];
   for (let i = 0; i < n && copy.length > 0; i++) {
-    out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+    out.push(copy.splice(Math.floor(randomSource() * copy.length), 1)[0]);
   }
   return out;
 }
@@ -18,12 +19,12 @@ function pickN<T>(arr: T[], n: number): T[] {
 /** Random integer in [min, max], inclusive — used so a curse's bite is never
  *  the exact same number twice, even on a repeat draw of the same curse. */
 function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(randomSource() * (max - min + 1)) + min;
 }
 
 /** Random float in [min, max], rounded to 2dp. */
 function randFloat(min: number, max: number): number {
-  return Math.round((Math.random() * (max - min) + min) * 100) / 100;
+  return Math.round((randomSource() * (max - min) + min) * 100) / 100;
 }
 
 export interface CurseDef {
@@ -108,7 +109,7 @@ const X01_CURSES: CurseDef[] = [
     description: "Every double you hit counts as a single instead.",
   })),
   def("missing-dart", "Missing Dart", 2, "X01", () => ({
-    effect: { wildDartIndex: Math.floor(Math.random() * 3) },
+    effect: { wildDartIndex: Math.floor(randomSource() * 3) },
     description: "One of your three darts this visit goes wide and scores 0.",
   })),
   def("capped-visit", "Capped Visit", 2, "X01", () => {
@@ -313,13 +314,36 @@ export function getTierForVisit(visitCount: number): CurseTier {
  * Falls back to the full tier pool if recency filtering would leave
  * nothing to pick from (small pools, e.g. Cricket tier 1's four curses).
  */
-export function rollCurse(gameMode: CurseGameMode, tier: CurseTier, recentIds: string[] = []): { def: CurseDef; effect: Partial<CCEffect>; description: string } {
+export function rollCurse(gameMode: CurseGameMode, tier: CurseTier, recentIds: string[] = [], rng: () => number = Math.random): { def: CurseDef; effect: Partial<CCEffect>; description: string } {
   const pool = getCursePool(gameMode).filter(c => c.tier === tier);
   const fresh = pool.filter(c => !recentIds.includes(c.id));
   const choices = fresh.length > 0 ? fresh : pool;
-  const chosen = choices[Math.floor(Math.random() * choices.length)];
-  const { effect, description } = chosen.build();
-  return { def: chosen, effect, description };
+  const chosen = choices[Math.floor(rng() * choices.length)];
+  const previous = randomSource;
+  randomSource = rng;
+  try {
+    const { effect, description } = chosen.build();
+    return { def: chosen, effect, description };
+  } finally {
+    randomSource = previous;
+  }
+}
+
+/** Small deterministic PRNG used by Daily Curse. The same text seed yields
+ * the same curse IDs and all of their rolled values on every device. */
+export function createCurseRandom(seed: string): () => number {
+  let state = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    state ^= seed.charCodeAt(i);
+    state = Math.imul(state, 16777619);
+  }
+  return () => {
+    state += 0x6D2B79F5;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 /**

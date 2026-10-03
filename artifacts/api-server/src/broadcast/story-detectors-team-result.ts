@@ -39,6 +39,17 @@ export function detectTeamResult(facts: TeamResultFacts): StoryCandidate {
       loserName: facts.loserName,
       winnerEntityIds: facts.winnerEntityIds,
       loserEntityIds: facts.loserEntityIds,
+      // Plain counts, kept alongside the id arrays above — commentary-
+      // engine.ts's buildGraphicFacts() REPLACES any "*Ids"-suffixed array
+      // with a resolved "*NamesJoined" string before a graphic ever sees
+      // this object (its own header: "a raw id left in here shows up to a
+      // viewer as a literal database number"), so a graphic component
+      // reading winnerEntityIds.length directly (as team-result-graphic.ts
+      // used to) would always see an empty array in production and under-
+      // count every side as 1. Non-id-shaped names, so they pass through
+      // that resolution untouched.
+      winnerCount: facts.winnerEntityIds.length,
+      loserCount: facts.loserEntityIds.length,
       stake: facts.stake,
     },
     components: {

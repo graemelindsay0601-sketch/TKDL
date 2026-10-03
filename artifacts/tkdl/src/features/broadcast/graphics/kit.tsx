@@ -59,6 +59,15 @@ export function numArray(data: GraphicData, key: string): number[] | null {
   const v = data[key];
   return Array.isArray(v) && v.every((x): x is number => typeof x === "number") ? v : null;
 }
+/** Same idea for a string-tagged sequence — story-detectors-form.ts's own
+ * recentForm ("W"/"L") and story-detectors-h2h.ts's own recentMeetingsResult
+ * ("dominant"/"dominated" or "a"/"b") are the two current shapes this reads;
+ * ResultStrip below takes whichever boolean projection each caller derives
+ * from it, since "which token means 'this side'" differs per fact shape. */
+export function strArray(data: GraphicData, key: string): string[] | null {
+  const v = data[key];
+  return Array.isArray(v) && v.every((x): x is string => typeof x === "string") ? v : null;
+}
 
 export function staggerDelay(i: number): string {
   return `${i * 80}ms`;
@@ -446,6 +455,48 @@ export function BigVersus({
           {splitLabel && <div className="text-center uppercase font-bold" style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.72rem", letterSpacing: "0.06em" }}>{splitLabel}</div>}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A short strip of recent-result chips, oldest to newest left to right (the
+ * standard form-strip/ticker convention) — shared by FormWatchGraphic (a
+ * player's own recent win/loss sequence) and HeadToHeadGraphic (who won
+ * each of the last N meetings in THIS pairing). `values` is newest-first,
+ * matching every story detector's own already-capped "recent history" fact
+ * shape (story-detectors-form.ts's recentResultsNewestFirst,
+ * story-detectors-h2h.ts's recentMeetings); reversed once here for display.
+ * Each chip dims a little further back in time so the strip itself reads as
+ * "then -> now" without a separate axis label, and the most recent result
+ * gets its own small glow so it reads as the live edge of the sequence. One
+ * size for both skins (via `compact`), not a separate Panel/BigPanel
+ * variant — a form strip is a small decorative accent either way, never the
+ * component carrying the whole graphic's own layout weight.
+ */
+export function ResultStrip({ values, trueAccent, falseAccent, compact = false }: { values: boolean[]; trueAccent: string; falseAccent: string; compact?: boolean }) {
+  if (values.length === 0) return null;
+  const display = [...values].reverse();
+  const size = compact ? 9 : 15;
+  const gap = compact ? 3 : 5;
+  return (
+    <div className="flex items-center" style={{ gap }} role="img" aria-label="Recent results, oldest to newest">
+      {display.map((isTrue, i) => {
+        const color = isTrue ? trueAccent : falseAccent;
+        const isLatest = i === display.length - 1;
+        return (
+          <div
+            key={i}
+            className="bug-chip-in shrink-0"
+            style={{
+              width: size, height: size, animationDelay: staggerDelay(i),
+              background: color,
+              opacity: 0.4 + (i / Math.max(1, display.length - 1)) * 0.6,
+              boxShadow: isLatest ? `0 0 10px ${withAlpha(color, "88")}` : undefined,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

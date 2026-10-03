@@ -1,8 +1,9 @@
-import { BarChart3, Users } from "lucide-react";
+import { BarChart3, MessageCircle, Users } from "lucide-react";
 import { SceneEyebrow, SceneHeadline, SceneShell } from "./SceneShell";
 import type { SceneProps } from "./scene-support";
 
 type VerdictOption = { id: number; label: string; votes: number; percentage: number };
+type VerdictReaction = { playerName: string; text: string };
 
 function verdictOptions(value: unknown): VerdictOption[] {
   if (!Array.isArray(value)) return [];
@@ -19,11 +20,25 @@ function verdictOptions(value: unknown): VerdictOption[] {
   });
 }
 
+function verdictReactions(value: unknown): VerdictReaction[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(item => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    if (typeof row.playerName !== "string" || typeof row.text !== "string") return [];
+    return [{ playerName: row.playerName, text: row.text }];
+  });
+}
+
 export function FanVerdictScene({ segment, turnsPlayed }: SceneProps) {
   const data = segment.graphic?.data ?? {};
   const question = typeof data.question === "string" ? data.question : "The TKDL community has had its say.";
   const totalVotes = typeof data.totalVotes === "number" ? data.totalVotes : 0;
   const options = verdictOptions(data.options);
+  // Capped to 2 on screen (facts/dialogue may carry up to 3) to keep this
+  // panel compact next to the vote bars rather than risking overflow on a
+  // shorter broadcast frame.
+  const reactions = verdictReactions(data.reactions).slice(0, 2);
   const leader = Math.max(...options.map(option => option.votes), 0);
 
   return (
@@ -74,6 +89,22 @@ export function FanVerdictScene({ segment, turnsPlayed }: SceneProps) {
           })}
         </div>
       </div>
+
+      {reactions.length > 0 && (
+        <div className="mt-4 shrink-0 rounded-2xl border border-white/10 bg-black/20 p-4 backdrop-blur-sm">
+          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-white/50">
+            <MessageCircle size={14} color="#54a0ff" /> From the comments
+          </div>
+          <div className="space-y-2.5">
+            {reactions.map((reaction, index) => (
+              <p key={`${reaction.playerName}-${index}`} className="text-sm leading-relaxed text-white/75">
+                <span className="text-white/90">&ldquo;{reaction.text}&rdquo;</span>
+                <span className="ml-2 text-white/45">— {reaction.playerName}</span>
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
     </SceneShell>
   );
 }

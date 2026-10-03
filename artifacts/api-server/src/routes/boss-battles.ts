@@ -40,6 +40,14 @@ const BOSS_ORDER: Record<string, number> = {
   "the-reckoning":    6,
 };
 const TOTAL_BOSSES = Object.keys(BOSS_ORDER).length;
+const MASTERY_SECONDS: Record<string, number> = {
+  "rookie-wall": 180,
+  "old-jinx": 210,
+  "the-warden": 240,
+  "lockdown": 270,
+  "the-annihilator": 300,
+  "the-reckoning": 360,
+};
 const bossIdForOrder = (order: number) => Object.keys(BOSS_ORDER).find(id => BOSS_ORDER[id] === order);
 
 /** Clamp an untrusted client-reported fight duration to something sane, or
@@ -60,14 +68,16 @@ router.get("/boss-battles/progress/:playerId", async (req: Request, res: Respons
     }
     const [progressRows, statsRows] = await Promise.all([
       db.execute(sql`SELECT boss_id FROM boss_battle_progress WHERE player_id = ${playerId}`),
-      db.execute(sql`SELECT boss_id, attempts, wins, best_seconds FROM boss_battle_stats WHERE player_id = ${playerId}`),
+      db.execute(sql`SELECT boss_id, attempts, wins, best_seconds, clean_sweep, highest_ascension FROM boss_battle_stats WHERE player_id = ${playerId}`),
     ]);
-    const stats: Record<string, { attempts: number; wins: number; bestSeconds: number | null }> = {};
+    const stats: Record<string, { attempts: number; wins: number; bestSeconds: number | null; cleanSweep: boolean; highestAscension: number }> = {};
     for (const r of statsRows.rows as any[]) {
       stats[r.boss_id as string] = {
         attempts: Number(r.attempts),
         wins: Number(r.wins),
         bestSeconds: r.best_seconds === null ? null : Number(r.best_seconds),
+        cleanSweep: r.clean_sweep === true,
+        highestAscension: Number(r.highest_ascension ?? 0),
       };
     }
     res.json({ defeated: progressRows.rows.map((r: any) => r.boss_id as string), stats });
@@ -79,7 +89,7 @@ router.get("/boss-battles/progress/:playerId", async (req: Request, res: Respons
 
 router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, res: Response) => {
   try {
-    const { playerId, bossId, won, elapsedSeconds } = req.body ?? {};
+    const { playerId, bossId, won, elapsedSeconds, cleanSweep, ascension } = req.body ?? {};
     const pid = parseInt(playerId, 10);
     if (!Number.isFinite(pid) || typeof bossId !== "string" || !(bossId in BOSS_ORDER)) {
       res.status(400).json({ error: "A valid playerId and bossId are required" });
@@ -94,13 +104,15 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
     // reintroduce a login requirement the app deliberately doesn't want.
     const order = BOSS_ORDER[bossId];
     const didWin = won === true;
+    const didCleanSweep = didWin && cleanSweep === true;
+    const ascensionLevel = Math.max(0, Math.min(2, Math.round(Number(ascension) || 0)));
 
     // Same reasoning as board-curse.ts's /record route: this body has no
     // per-attempt nonce or timing data to hash for real idempotency, so a
     // retried/double-tapped submit is indistinguishable from a second real
     // fight by content alone. Treat the exact same outcome arriving again
     // within a few seconds as a duplicate (see recentSubmitGuard.ts).
-    if (isRecentDuplicateSubmit(`boss-battle-attempt:${pid}:${bossId}:${didWin}`)) {
+    if (isRecentDuplicateSubmit(`boss-battle-attempt:${pid}:${bossId}:${ascensionLevel}:${didWin}`)) {
       res.json({ success: true });
       return;
     }
@@ -125,21 +137,41 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
       }
     }
 
+    if (ascensionLevel > 0) {
+      const current = (await db.execute(sql`SELECT 1 FROM boss_battle_progress WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`)).rows[0];
+      if (!current) { res.status(400).json({ error: "Defeat this boss before attempting Ascension" }); return; }
+      if (ascensionLevel === 2) {
+        const mastery = (await db.execute(sql`SELECT clean_sweep,best_seconds FROM boss_battle_stats WHERE player_id=${pid} AND boss_id=${bossId}`)).rows[0] as any;
+        if (!mastery?.clean_sweep || mastery.best_seconds == null || Number(mastery.best_seconds) > MASTERY_SECONDS[bossId]) {
+          res.status(400).json({ error: "Earn all three mastery medals before Ascension II" }); return;
+        }
+      }
+    }
+
     const bestSeconds = didWin ? sanitizeSeconds(elapsedSeconds) : null;
     const [previousProgress, previousStats] = await Promise.all([
       db.execute(sql`SELECT 1 FROM boss_battle_progress WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`),
-      db.execute(sql`SELECT best_seconds FROM boss_battle_stats WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`),
+      db.execute(sql`SELECT best_seconds,clean_sweep,highest_ascension FROM boss_battle_stats WHERE player_id=${pid} AND boss_id=${bossId} LIMIT 1`),
     ]);
     const firstDefeat = didWin && previousProgress.rows.length === 0;
     const previousBest = (previousStats.rows[0] as any)?.best_seconds;
     const newBest = bestSeconds !== null && (previousBest === null || previousBest === undefined || bestSeconds < Number(previousBest));
-    const milestoneKind = firstDefeat ? (order === TOTAL_BOSSES ? "boss_ladder_clear" : "boss_defeat") : newBest ? "boss_personal_best" : null;
+    const firstCleanSweep = didCleanSweep && (previousStats.rows[0] as any)?.clean_sweep !== true;
+    const firstSpeedMastery = bestSeconds !== null && bestSeconds <= MASTERY_SECONDS[bossId]
+      && (previousBest == null || Number(previousBest) > MASTERY_SECONDS[bossId]);
+    const newAscension = didWin && ascensionLevel > Number((previousStats.rows[0] as any)?.highest_ascension ?? 0);
+    const milestoneKind = firstDefeat ? (order === TOTAL_BOSSES ? "boss_ladder_clear" : "boss_defeat")
+      : newAscension ? "boss_ascension" : firstCleanSweep || firstSpeedMastery ? "boss_mastery" : newBest ? "boss_personal_best" : null;
     const milestoneLabel = milestoneKind === "boss_ladder_clear"
       ? `${player.name} cleared the full Boss Battle ladder`
       : milestoneKind === "boss_defeat"
         ? `${player.name} defeated boss ${order} of ${TOTAL_BOSSES}`
         : milestoneKind === "boss_personal_best"
           ? `${player.name} set a new best time against boss ${order}`
+        : milestoneKind === "boss_mastery"
+            ? `${player.name} earned a new mastery medal against boss ${order}`
+          : milestoneKind === "boss_ascension"
+            ? `${player.name} cleared Ascension ${ascensionLevel} against boss ${order}`
           : null;
 
     // Both statements below are individually safe via ON CONFLICT, but they
@@ -149,11 +181,13 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
     // makes them succeed or fail together.
     await db.transaction(async (tx) => {
       await tx.execute(sql`
-        INSERT INTO boss_battle_stats (player_id, boss_id, attempts, wins, best_seconds)
-        VALUES (${pid}, ${bossId}, 1, ${didWin ? 1 : 0}, ${bestSeconds})
+        INSERT INTO boss_battle_stats (player_id, boss_id, attempts, wins, best_seconds, clean_sweep, highest_ascension)
+        VALUES (${pid}, ${bossId}, 1, ${didWin ? 1 : 0}, ${bestSeconds}, ${didCleanSweep}, ${didWin ? ascensionLevel : 0})
         ON CONFLICT (player_id, boss_id) DO UPDATE SET
           attempts     = boss_battle_stats.attempts + 1,
           wins         = boss_battle_stats.wins + ${didWin ? 1 : 0},
+          clean_sweep  = boss_battle_stats.clean_sweep OR ${didCleanSweep},
+          highest_ascension = GREATEST(boss_battle_stats.highest_ascension, ${didWin ? ascensionLevel : 0}),
           best_seconds = CASE
             WHEN ${bestSeconds}::int IS NULL THEN boss_battle_stats.best_seconds
             WHEN boss_battle_stats.best_seconds IS NULL THEN ${bestSeconds}
@@ -170,8 +204,8 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
         `);
       }
       await tx.execute(sql`
-        INSERT INTO arcade_runs (player_id,mode,game_type,format,boss_id,opponent_label,outcome,elapsed_seconds,milestone_kind,milestone_label)
-        VALUES (${pid},'boss_battle',NULL,'solo',${bossId},${`Boss ${order}`},${didWin ? "win" : "loss"},${bestSeconds},${milestoneKind},${milestoneLabel})
+        INSERT INTO arcade_runs (player_id,mode,game_type,format,boss_id,opponent_label,outcome,elapsed_seconds,milestone_kind,milestone_label,metadata)
+        VALUES (${pid},'boss_battle',NULL,'solo',${bossId},${ascensionLevel ? `Boss ${order} · Ascension ${ascensionLevel}` : `Boss ${order}`},${didWin ? "win" : "loss"},${bestSeconds},${milestoneKind},${milestoneLabel},${JSON.stringify({ cleanSweep: didCleanSweep, ascension: ascensionLevel })}::jsonb)
       `);
     });
 
@@ -184,6 +218,38 @@ router.post("/boss-battles/attempt", bossBattleRateLimit, async (req: Request, r
   } catch (err) {
     (req as any).log?.error({ err }, "Failed to record boss battle attempt");
     res.status(500).json({ error: "Failed to record boss battle attempt" });
+  }
+});
+
+router.post("/boss-battles/rush", bossBattleRateLimit, async (req: Request, res: Response) => {
+  try {
+    const pid = parseInt(req.body?.playerId, 10);
+    const wins = Math.max(0, Math.min(TOTAL_BOSSES, Math.round(Number(req.body?.wins) || 0)));
+    const rawElapsed = Number(req.body?.elapsedSeconds);
+    const elapsedSeconds = Number.isFinite(rawElapsed) && rawElapsed > 0 && rawElapsed <= 21600 ? Math.round(rawElapsed) : null;
+    const cleared = req.body?.cleared === true && wins === TOTAL_BOSSES;
+    if (!Number.isFinite(pid) || elapsedSeconds === null) {
+      res.status(400).json({ error: "A valid playerId and elapsedSeconds are required" });
+      return;
+    }
+    const [player, progress] = await Promise.all([
+      db.execute(sql`SELECT name FROM players WHERE id=${pid}`),
+      db.execute(sql`SELECT COUNT(*)::int count FROM boss_battle_progress WHERE player_id=${pid}`),
+    ]);
+    if (!player.rows[0] || Number((progress.rows[0] as any)?.count ?? 0) < TOTAL_BOSSES) {
+      res.status(400).json({ error: "Clear the ladder before entering Boss Rush" });
+      return;
+    }
+    const previousClear = cleared ? await db.execute(sql`SELECT 1 FROM arcade_runs WHERE player_id=${pid} AND mode='boss_rush' AND outcome='win' LIMIT 1`) : null;
+    const firstClear = cleared && previousClear?.rows.length === 0;
+    await db.execute(sql`
+      INSERT INTO arcade_runs (player_id,mode,format,opponent_label,outcome,elapsed_seconds,streak,milestone_kind,milestone_label)
+      VALUES (${pid},'boss_rush','solo','Full Boss Ladder',${cleared ? "win" : "loss"},${elapsedSeconds},${wins},${firstClear ? "boss_rush_clear" : null},${firstClear ? `${String((player.rows[0] as any).name)} cleared Boss Rush` : null})
+    `);
+    res.json({ success: true, saved: true, firstClear });
+  } catch (err) {
+    (req as any).log?.error({ err }, "Failed to save Boss Rush");
+    res.status(500).json({ error: "Failed to save Boss Rush" });
   }
 });
 

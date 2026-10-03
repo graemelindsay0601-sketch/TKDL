@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen } from "lucide-react";
+import { Flame, Swords, User, Users, Bot, Trophy, Skull, Crown, Square, Infinity as InfinityIcon, BookOpen, CalendarDays } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { useListPlayers } from "@workspace/api-client-react";
 import { BoardCurseScorer, type BoardCurseResult } from "@/components/BoardCurseScorer";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
 import { getCurseCompendium, type CurseGameMode, type CurseTier } from "@/lib/board-curse-data";
 import { AchievementRewardModal, type AchievementRewardData } from "@/components/AchievementRewardModal";
+import { dailyVisitLimit, endlessVisitLimit } from "@/lib/board-curse-survival";
 import "./board-curse.css";
 
 type RosterPlayer = { id: number; name: string; status: string; isActive: boolean };
@@ -16,9 +17,9 @@ type MatchLegs = 1 | 3 | 5;
 
 type Screen =
   | { kind: "setup" }
-  | { kind: "fight"; gameMode: CurseGameMode; format: Format; p1Name: string; p2Name: string; botLevel?: BotLevel; legs: MatchLegs; endless: boolean }
+  | { kind: "fight"; gameMode: CurseGameMode; format: Format; p1Name: string; p2Name: string; botLevel?: BotLevel; legs: MatchLegs; endless: boolean; daily: boolean }
   | { kind: "result"; gameMode: CurseGameMode; format: Format; p1Name: string; p2Name: string; result: BoardCurseResult }
-  | { kind: "endless-result"; streak: number; bestStreak: number | null }
+  | { kind: "endless-result"; streak: number; bestStreak: number | null; failed: boolean; visitLimit: number; decisiveCurse?: string }
   | { kind: "leaderboard"; gameMode: CurseGameMode }
   | { kind: "compendium"; gameMode: CurseGameMode };
 
@@ -29,7 +30,7 @@ const TIER_LABEL: Record<CurseTier, string> = { 1: "Mild — early visits", 2: "
 const TIER_COLOR: Record<CurseTier, string> = { 1: "#fbbf24", 2: "#ff8a00", 3: "#ef4444" };
 
 type Record_ = { wins: number; losses: number };
-type LeaderboardEntry = { playerName: string; value: number };
+type LeaderboardEntry = { playerName: string; value: number; outcome?: string };
 type ArcadeRun = { id:number; mode:string; gameType:string|null; format:string|null; opponentLabel:string|null; outcome:string; visits:number|null; streak:number|null; milestoneLabel:string|null; playedAt:string };
 
 export default function BoardCursePage() {
@@ -69,20 +70,22 @@ export default function BoardCursePage() {
   ));
   const [matchLegs, setMatchLegs] = useState<MatchLegs>(3);
   const [endlessMode, setEndlessMode] = useState(false);
+  const [dailyMode, setDailyMode] = useState(false);
   const [bestVisits, setBestVisits] = useState<number | null>(null);
   const [bestStreak, setBestStreak] = useState<number | null>(null);
   const [record, setRecord] = useState<Record_ | null>(null);
   const [endlessStreak, setEndlessStreak] = useState(0);
   const [endlessKey, setEndlessKey] = useState(0);
-  const [leaderboard, setLeaderboard] = useState<{ bestVisits: LeaderboardEntry[]; bestStreak: LeaderboardEntry[] } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<{ bestVisits: LeaderboardEntry[]; bestStreak: LeaderboardEntry[]; daily?: LeaderboardEntry[] } | null>(null);
   const [history, setHistory] = useState<ArcadeRun[]>([]);
   const [saveState, setSaveState] = useState<"idle"|"saving"|"saved"|"error">("idle");
   const [rewardQueue, setRewardQueue] = useState<AchievementRewardData[]>([]);
+  const [wardAvailable, setWardAvailable] = useState(true);
 
   const loadHistory = () => {
     if (!playerId) { setHistory([]); return; }
     fetch(`/api/arcade/history/${playerId}?limit=10`).then(r => r.ok ? r.json() : [])
-      .then((rows: ArcadeRun[]) => setHistory(rows.filter(row => row.mode === "board_curse")))
+      .then((rows: ArcadeRun[]) => setHistory(rows.filter(row => row.mode === "board_curse" || row.mode === "board_curse_daily")))
       .catch(() => setHistory([]));
   };
   useEffect(loadHistory, [playerId]);
@@ -110,7 +113,7 @@ export default function BoardCursePage() {
   }, [format, playerId]);
 
   useEffect(() => {
-    if (format !== "solo") setEndlessMode(false);
+    if (format !== "solo") { setEndlessMode(false); setDailyMode(false); }
   }, [format]);
 
   const handleStart = () => {
@@ -118,16 +121,18 @@ export default function BoardCursePage() {
     const p1Name = playerName;
     const p2Name = format === "bot" ? `CPU (${BOT_LEVELS[botLevel].label})` : format === "local" ? opponentName : "The Board";
     setEndlessStreak(0);
+    setWardAvailable(true);
     setEndlessKey(k => k + 1);
     setScreen({
       kind: "fight", gameMode, format, p1Name, p2Name,
       botLevel: format === "bot" ? botLevel : undefined,
       legs: format === "solo" ? 1 : matchLegs,
       endless: format === "solo" && endlessMode,
+      daily: format === "solo" && dailyMode,
     });
   };
 
-  const reportBest = async (mode: CurseGameMode, opts: { visits?: number; streak?: number }) => {
+  const reportBest = async (mode: CurseGameMode, opts: { visits?: number; streak?: number; outcome?: "win" | "loss" }) => {
     if (!playerId) return false;
     try {
       setSaveState("saving");
@@ -146,7 +151,25 @@ export default function BoardCursePage() {
   };
 
   const handleMatchComplete = async (s: Extract<Screen, { kind: "fight" }>, result: BoardCurseResult) => {
+    if (s.daily) {
+      if (playerId) {
+        setSaveState("saving");
+        try {
+          const response = await fetch("/api/board-curse/daily", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ playerId, gameType: s.gameMode, won: !result.endedByVisitLimit, visits: result.visitsTaken }) });
+          if (!response.ok) throw new Error("Daily result could not be saved");
+          setSaveState("saved"); loadHistory();
+        } catch { setSaveState("error"); }
+      }
+      setScreen({ kind: "result", gameMode: s.gameMode, format: s.format, p1Name: s.p1Name, p2Name: s.p2Name, result });
+      return;
+    }
     if (s.endless) {
+      const limit = endlessVisitLimit(s.gameMode, endlessStreak);
+      if (result.endedByVisitLimit) {
+        await reportBest(s.gameMode, { streak: endlessStreak, visits: result.visitsTaken, outcome: "loss" });
+        setScreen({ kind: "endless-result", streak: endlessStreak, bestStreak, failed: true, visitLimit: limit, decisiveCurse: result.decisiveCurse });
+        return;
+      }
       const nextStreak = endlessStreak + 1;
       setEndlessStreak(nextStreak);
       setEndlessKey(k => k + 1); // remount BoardCurseScorer fresh for the next leg
@@ -177,15 +200,15 @@ export default function BoardCursePage() {
   const handleStopEndless = async () => {
     if (screen.kind !== "fight") return;
     if (endlessStreak > 0) await reportBest(screen.gameMode, { streak: endlessStreak });
-    setScreen({ kind: "endless-result", streak: endlessStreak, bestStreak });
+    setScreen({ kind: "endless-result", streak: endlessStreak, bestStreak, failed: false, visitLimit: endlessVisitLimit(screen.gameMode, endlessStreak) });
   };
 
   const loadLeaderboard = (mode: CurseGameMode) => {
     setLeaderboard(null);
     fetch(`/api/board-curse/leaderboard/${mode}`)
-      .then(r => r.ok ? r.json() : { bestVisits: [], bestStreak: [] })
+      .then(r => r.ok ? r.json() : { bestVisits: [], bestStreak: [], daily: [] })
       .then(setLeaderboard)
-      .catch(() => setLeaderboard({ bestVisits: [], bestStreak: [] }));
+      .catch(() => setLeaderboard({ bestVisits: [], bestStreak: [], daily: [] }));
   };
 
   const openLeaderboard = () => {
@@ -194,14 +217,18 @@ export default function BoardCursePage() {
   };
 
   if (screen.kind === "fight") {
+    const visitLimit = screen.daily ? dailyVisitLimit(screen.gameMode) : screen.endless ? endlessVisitLimit(screen.gameMode, endlessStreak) : undefined;
+    const challengeDate = new Date().toISOString().slice(0, 10);
     // Passed in as topBanner rather than rendered as a sibling above BoardCurseScorer —
     // the scorer's own layout claims the full screen height for itself on mobile, so
     // anything rendered outside/above it here would push it (and the curse readout)
     // off the bottom of the screen, forcing a scroll to reach either one.
-    const endlessBanner = screen.endless ? (
+    const endlessBanner = screen.daily ? (
+      <div className="bc-endless-banner daily"><span><CalendarDays size={16} />Daily Curse · {visitLimit} visits</span><small>Same curses for everyone</small></div>
+    ) : screen.endless ? (
       <div className="bc-endless-banner">
-        <span><InfinityIcon size={16} />Endless — Leg {endlessStreak + 1}</span>
-        <button onClick={handleStopEndless}><Square className="inline w-3 h-3 mr-1" />Stop</button>
+        <span><InfinityIcon size={16} />Leg {endlessStreak + 1} · {visitLimit} visit limit</span>
+        <button onClick={handleStopEndless}><Square className="inline w-3 h-3 mr-1" />Cash out</button>
       </div>
     ) : null;
     return (
@@ -214,6 +241,10 @@ export default function BoardCursePage() {
         botConfig={screen.botLevel ? BOT_LEVELS[screen.botLevel] : undefined}
         legs={screen.legs}
         topBanner={endlessBanner}
+        visitLimit={visitLimit}
+        wardAvailable={wardAvailable}
+        onWardUsed={() => setWardAvailable(false)}
+        challengeSeed={screen.daily ? `${challengeDate}:${screen.gameMode}` : undefined}
         onMatchComplete={(r) => handleMatchComplete(screen, r)}
         onAbandon={() => screen.endless ? handleStopEndless() : setScreen({ kind: "setup" })}
       />
@@ -228,8 +259,10 @@ export default function BoardCursePage() {
         <div className="bc-result" style={{ "--glow": "#ff8a00" } as React.CSSProperties}>
           <div className="bc-result-glow" />
           <div className="bc-result-icon"><InfinityIcon /></div>
-          <h1>Streak ended at {screen.streak} leg{screen.streak === 1 ? "" : "s"}</h1>
-          <p>{screen.streak === 0 ? "Didn't finish a single leg that time." : isNewBest ? "New personal best!" : `Personal best: ${screen.bestStreak} legs`}</p>
+          <h1>{screen.failed ? "The curse ended your run" : "Streak banked"} · {screen.streak} leg{screen.streak === 1 ? "" : "s"}</h1>
+          <p>{screen.failed
+            ? `The ${screen.visitLimit}-visit limit expired${screen.decisiveCurse ? ` under ${screen.decisiveCurse}` : ""}.`
+            : screen.streak === 0 ? "No completed leg was banked." : isNewBest ? "New personal best!" : `Personal best: ${screen.bestStreak} legs`}</p>
           <div className={`bc-save-state ${saveState}`}>{saveState === "saving" ? "Saving run…" : saveState === "saved" ? "Run saved · records and rewards updated" : saveState === "error" ? "Run shown, but it could not be saved" : "Arcade run"}</div>
           <div className="bc-result-actions">
             <button className="bc-btn-ghost" onClick={() => setScreen({ kind: "setup" })}>Back to setup</button>
@@ -296,6 +329,12 @@ export default function BoardCursePage() {
         ) : (
           <div className="pdc-card p-4">
             <div className="bc-lb-section">
+              <div className="bc-lb-title">Today's Daily Curse</div>
+              {!leaderboard.daily?.length ? <div className="bc-empty">Nobody has challenged today's board yet.</div> : leaderboard.daily.map((e, i) => (
+                <div key={`daily-${i}`} className="bc-lb-row"><span className={`bc-lb-rank ${i === 0 ? "gold" : ""}`}>{i + 1}</span><span className="bc-lb-name">{e.playerName}</span><span className="bc-lb-value">{e.outcome === "win" ? `${e.value} visits` : "DNF"}</span></div>
+              ))}
+            </div>
+            <div className="bc-lb-section">
               <div className="bc-lb-title">Fewest Visits to Close Out</div>
               {leaderboard.bestVisits.length === 0 ? (
                 <div className="bc-empty">No runs recorded yet.</div>
@@ -335,7 +374,9 @@ export default function BoardCursePage() {
       <div className="bc-shell">
         <div className="bc-result" style={{ "--glow": glow } as React.CSSProperties}>
           <div className="bc-result-glow" />
-          {f === "solo" ? (
+          {f === "solo" && result.endedByVisitLimit ? (
+            <><div className="bc-result-icon"><Skull /></div><h1>The board survived</h1><p>The visit limit expired after {result.visitsTaken} visits{result.decisiveCurse ? ` under ${result.decisiveCurse}` : ""}.</p></>
+          ) : f === "solo" ? (
             <>
               <div className="bc-result-icon"><Trophy /></div>
               <h1>Closed out in {result.visitsTaken} visit{result.visitsTaken === 1 ? "" : "s"}</h1>
@@ -404,11 +445,11 @@ export default function BoardCursePage() {
           </div>
           <div className="bc-contract-card">
             <span>Active Contract</span>
-            <strong>{format === "solo" ? (endlessMode ? "Endless Survival" : "Solo Survival") : format === "bot" ? `CPU Duel · ${BOT_LEVELS[botLevel].label}` : "Local Duel"}</strong>
-            <p>{gameMode === "X01" ? "501" : "Cricket"} · {format === "solo" ? (endlessMode ? "Until you stop" : "One leg") : `Best of ${matchLegs}`}</p>
+            <strong>{format === "solo" ? (dailyMode ? "Daily Curse" : endlessMode ? "Endless Survival" : "Solo Survival") : format === "bot" ? `CPU Duel · ${BOT_LEVELS[botLevel].label}` : "Local Duel"}</strong>
+            <p>{gameMode === "X01" ? "501" : "Cricket"} · {format === "solo" ? (dailyMode ? `Today's shared ${dailyVisitLimit(gameMode)}-visit challenge` : endlessMode ? `Survive ${endlessVisitLimit(gameMode, 0)} visits, then the limit tightens` : "One leg") : `Best of ${matchLegs}`}</p>
             <div><i /><small>No Elo or league points at risk</small></div>
           </div>
-          {history.length > 0 && <div className="bc-history"><div className="bc-lb-title">Recent Curses</div>{history.slice(0,4).map(run => <div className="bc-history-row" key={run.id}><i className={run.outcome}/><span>{run.format === "solo" ? run.streak ? `${run.streak} leg streak` : `${run.visits ?? "—"} visits` : run.opponentLabel}</span><b>{run.outcome === "win" ? "W" : "L"}</b></div>)}</div>}
+          {history.length > 0 && <div className="bc-history"><div className="bc-lb-title">Recent Curses</div>{history.slice(0,4).map(run => <div className="bc-history-row" key={run.id}><i className={run.outcome}/><span>{run.mode === "board_curse_daily" ? `Daily · ${run.visits ?? "—"} visits` : run.format === "solo" ? run.streak ? `${run.streak} leg streak` : `${run.visits ?? "—"} visits` : run.opponentLabel}</span><b>{run.outcome === "win" ? "W" : "L"}</b></div>)}</div>}
         </aside>
 
         <section className="bc-setup-panel">
@@ -442,12 +483,16 @@ export default function BoardCursePage() {
 
       {format === "solo" && (
         <div className="bc-field">
-          <button onClick={() => setEndlessMode(v => !v)} className={`bc-toggle-row ${endlessMode ? "active" : ""}`}>
+          <button onClick={() => { setEndlessMode(v => !v); setDailyMode(false); }} className={`bc-toggle-row ${endlessMode ? "active" : ""}`}>
             <span className="bc-toggle-left">
               <InfinityIcon size={18} />
-              <span><div className="bc-format-name">Endless</div><div className="bc-format-desc">Keep playing leg after leg until you stop — chase your longest streak.</div></span>
+              <span><div className="bc-format-name">Endless Survival</div><div className="bc-format-desc">Clear each leg before its visit limit; the limit tightens as your streak grows.</div></span>
             </span>
             <span className={`bc-switch ${endlessMode ? "on" : ""}`}><i /></span>
+          </button>
+          <button onClick={() => { setDailyMode(v => !v); setEndlessMode(false); }} className={`bc-toggle-row ${dailyMode ? "active" : ""}`} style={{ marginTop: 8 }}>
+            <span className="bc-toggle-left"><CalendarDays size={18} /><span><div className="bc-format-name">Daily Curse</div><div className="bc-format-desc">One shared curse sequence and visit limit for the whole league each day.</div></span></span>
+            <span className={`bc-switch ${dailyMode ? "on" : ""}`}><i /></span>
           </button>
         </div>
       )}
