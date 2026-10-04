@@ -70,8 +70,8 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
             {g.events.map(e => (
               <div key={e.id}>
                 <CareerEventCard event={e} saveId={save.id} awaitingMatch={pending.has(e.id)} retired={retired || !isCurrent} onEnter={retired || !isCurrent ? undefined : onEnter} entering={enter.isPending} />
-                <button className="w-full flex items-center justify-center gap-1 py-1 text-xs career-row-link" aria-expanded={open === e.id} onClick={() => setOpen(open === e.id ? null : e.id)}
-                  style={{ color: "rgba(255,255,255,0.4)", ...OSWALD, letterSpacing: "0.08em" }}>
+                <button className="w-full flex items-center justify-center gap-1 min-h-[2.25rem] text-xs career-row-link" aria-expanded={open === e.id} onClick={() => setOpen(open === e.id ? null : e.id)}
+                  style={{ color: "rgba(255,255,255,0.62)", ...OSWALD, letterSpacing: "0.08em" }}>
                   {open === e.id ? "Hide details" : "Details"} <ChevronDown className="w-3 h-3" style={{ transform: open === e.id ? "rotate(180deg)" : undefined }} aria-hidden />
                 </button>
                 {open === e.id && <QuickFacts event={e} saveId={save.id} />}

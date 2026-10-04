@@ -87,7 +87,7 @@ function EntryActions({ ctx, detail }: { ctx: ShellContext; detail: EventDetail 
         <div className="flex flex-wrap items-center gap-3">
           <button className="career-btn career-btn-primary" disabled={enter.isPending} onClick={() => enter.mutate(e.id, { onSuccess: r => setMsg(r.entered ? "Entry confirmed." : `Entry refused: ${r.denials.map(denialLabel).join(", ")}`), onError: x => setMsg(errorMessage(x)) })}>
             {enter.isPending ? "Entering…" : f && f.estimatedPlayerCostPence > 0 ? `Enter · ${formatPence(f.estimatedPlayerCostPence)}` : "Enter"}</button>
-          {f && <span className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>Entry fee {formatPence(f.entryFeePence)}{f.entryFeeBasis === "PER_SERIES" ? " (whole series)" : ""} charged now · travel {formatPence(f.estimatedTravelPence + f.estimatedAccommodationPence)} reserved, charged in the week you travel</span>}
+          {f && <span className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Entry fee {formatPence(f.entryFeePence)}{f.entryFeeBasis === "PER_SERIES" ? " (whole series)" : ""} charged now · travel {formatPence(f.estimatedTravelPence + f.estimatedAccommodationPence)} reserved, charged in the week you travel</span>}
         </div>
       ) : entered ? (
         <div className="flex flex-wrap items-center gap-3">
@@ -180,7 +180,7 @@ function MatchRow({ m, rounds }: { m: CareerMatch; rounds: number }) {
   const legs = m.legs ? (m.a?.key === "HUMAN" ? m.legs : [m.legs[1], m.legs[0]]) : null;
   return (
     <div className="px-4 py-2.5 border-b last:border-b-0 flex items-center gap-3 flex-wrap" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-      <span className="w-24 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.5)" }}>{roundName(m.round, rounds)}</span>
+      <span className="w-24 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>{roundName(m.round, rounds)}</span>
       <span className="flex-1 min-w-0 truncate text-sm" style={{ color: "#fff" }}>vs {opp?.name ?? (m.status === "BYE" ? "Bye" : "TBC")}</span>
       {legs && <span className="font-black tabular-nums" style={{ ...OSWALD, color: won ? "#4ade80" : "#ff005c" }}>{legs[0]}–{legs[1]}</span>}
       <StatusBadge label={m.status === "AWAITING_HUMAN" ? "Awaiting your match" : m.winnerKey ? (won ? "Won" : "Lost") : titleCase(m.status)} tone={m.status === "AWAITING_HUMAN" ? "gold" : m.winnerKey ? (won ? "success" : "danger") : "neutral"} />
@@ -197,7 +197,7 @@ function Schedule({ detail }: { detail: EventDetail }) {
         return <li key={d} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-3 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
           <span className="w-20" style={{ ...OSWALD, color: "#fff" }}>Day {d}</span>
           <span className="flex-1" style={{ color: "rgba(255,255,255,0.7)" }}>{rounds.map(r => roundName(r, detail.draw.rounds)).join(", ")}</span>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{ms.filter(m => ["COMPLETED", "WALKOVER", "BYE"].includes(m.status)).length}/{ms.length} done</span></li>;
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{ms.filter(m => ["COMPLETED", "WALKOVER", "BYE"].includes(m.status)).length}/{ms.length} done</span></li>;
       })}</ul>
     </CareerSection>
   );
@@ -212,7 +212,7 @@ function Players({ detail }: { detail: EventDetail }) {
             <span className="w-6 text-center text-xs" style={{ ...OSWALD, color: "#ffd24a" }}>{p.seed ?? ""}</span>
             <Flag code={p.nationality} />
             <span className="flex-1 truncate" style={{ ...OSWALD, color: "#fff" }}>{p.kind === "HUMAN" ? "You" : p.name}</span>
-            <span className="hidden sm:inline text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{titleCase(p.source)}</span>
+            <span className="hidden sm:inline text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{titleCase(p.source)}</span>
             {r && <StatusBadge label={r.champion ? "Champion" : stageLabel(r.stageReached)} tone={r.champion ? "gold" : "neutral"} />}
             {p.status === "WITHDRAWN" && <StatusBadge label="Withdrawn" tone="muted" />}
           </li>); })}
@@ -241,7 +241,7 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
           </> : p ? <><F label="Entry fee (est.)" value={formatPence(p.entryFeePence)} /><F label="Travel + stay (est.)" value={formatPence(p.estimatedTravelPence + p.estimatedAccommodationPence)} /></> : null}
         </dl>
       )}
-      <p className="px-4 pb-3 text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>Prize bands by finishing position are set by the event's prize profile; amounts shown are the authoritative A4 figures.</p>
+      <p className="px-4 pb-3 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Prize bands by finishing position are set by the event's prize profile; amounts shown are the authoritative A4 figures.</p>
     </CareerSection>
   );
 }
@@ -259,7 +259,7 @@ function RankingTab({ saveId, detail, retired }: { saveId: string; detail: Event
           <div><Label>How you qualify</Label>
             <ul className="mt-1 space-y-1">{routeLines(ev.routes).map((l, i) => <li key={i} className="flex gap-2"><span aria-hidden style={{ color: l.met ? TONES.success : TONES.muted }}>{l.met ? "✓" : "✗"}</span><span>{l.text}</span><span className="sr-only">{l.met ? "met" : "not met"}</span></li>)}</ul></div>
         ) : null}
-        {qual.data?.rankings && Object.keys(qual.data.rankings).length > 0 && <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Your positions: {Object.entries(qual.data.rankings).map(([l, p]) => `${listLabel(l)} ${ordinal(p)}`).join(" · ")}</div>}
+        {qual.data?.rankings && Object.keys(qual.data.rankings).length > 0 && <div className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Your positions: {Object.entries(qual.data.rankings).map(([l, p]) => `${listLabel(l)} ${ordinal(p)}`).join(" · ")}</div>}
       </div>
     </CareerSection>
   );

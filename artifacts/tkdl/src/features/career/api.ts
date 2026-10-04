@@ -118,7 +118,9 @@ export function useSaveLifecycle() {
 }
 
 export function newOperationKey() {
-  const random = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const c: Crypto | undefined = typeof globalThis.crypto !== "undefined" ? globalThis.crypto : undefined;
+  const random = c && typeof c.randomUUID === "function" ? c.randomUUID()
+    : `${Date.now()}-${Array.from(c ? c.getRandomValues(new Uint32Array(2)) : [Date.now() >>> 0, performance.now() >>> 0], (n: number) => n.toString(36)).join("")}`;
   return `ui-${random}`.replace(/[^A-Za-z0-9:_-]/g, "").slice(0, 100);
 }
 export const errorMessage = (e: unknown) => e instanceof ApiRequestError ? e.message : e instanceof Error ? e.message : "Something went wrong";

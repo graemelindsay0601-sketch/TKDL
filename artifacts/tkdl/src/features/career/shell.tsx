@@ -55,18 +55,18 @@ function BackToSaves() {
 function CareerHeader({ save, overview, retired }: { save: CareerSave; overview: CalendarOverview | null; retired: boolean }) {
   const pending = overview?.pendingHumanMatches ?? [];
   return (
-    <header className="pdc-card px-4 py-3 space-y-2.5">
+    <header className="pdc-card career-hero px-4 py-3 space-y-2.5">
       <div className="flex flex-col sm:flex-row sm:items-start gap-3">
         <div className="flex items-start gap-2 flex-1 min-w-0">
           <Link href="/career" className="p-2 -ml-2 rounded-lg hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" aria-label="Back to Career saves">
-            <ArrowLeft className="w-4 h-4" style={{ color: "rgba(255,255,255,0.5)" }} />
+            <ArrowLeft className="w-4 h-4" style={{ color: "rgba(255,255,255,0.62)" }} />
           </Link>
           <div className="flex-1 min-w-0">
-            <Label color="#ff005c" className="whitespace-nowrap">Career · Slot {save.slotNumber}</Label>
+            <div className="flex items-center gap-1.5 whitespace-nowrap"><Label color="#3d8bff">TKDL</Label><Label color="#ff005c">Career</Label><Label>· Slot {save.slotNumber}</Label></div>
             <h1 className="font-black uppercase leading-tight break-words" style={{ ...OSWALD, fontSize: "clamp(1.3rem, 4.5vw, 2rem)", color: "#fff", letterSpacing: "0.04em" }}>
               {save.careerName ?? "My Career"}
             </h1>
-            <div className="text-xs mt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.55)", letterSpacing: "0.06em" }}>
+            <div className="text-xs mt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em" }}>
               {weekLabel(save.currentSeason, save.currentWeek)}{overview ? ` · ${overview.grouping.name}` : ""}
             </div>
           </div>
@@ -95,7 +95,7 @@ function AdvanceControl({ save, pendingEventId, pendingCount }: { save: CareerSa
         {advance.isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
         {advance.isPending ? "Playing…" : "Continue"}
       </button>
-      {message && <span role="status" className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.6)" }}>{message}</span>}
+      {message && <span role="status" className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.7)" }}>{message}</span>}
     </div>
   );
 }
@@ -111,7 +111,7 @@ export function CareerNav({ saveId }: { saveId: string }) {
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
   return (
-    <nav aria-label="Career" className="pdc-card px-2 py-1.5 space-y-1">
+    <nav aria-label="Career" className="pdc-card career-nav px-2 py-1.5 space-y-1">
       <div className="grid grid-cols-3 gap-1">
         {CAREER_NAV.map(section => (
           <Link key={section.layer} href={`/career/${saveId}${section.items[0].path}`} className="career-nav-link justify-center"

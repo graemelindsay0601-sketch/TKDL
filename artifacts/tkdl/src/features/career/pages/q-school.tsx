@@ -29,7 +29,7 @@ export function QSchoolPage({ ctx }: { ctx: ShellContext }) {
           <div className="flex-1 min-w-0">
             <Label color="#ffd24a">The road to a Tour Card</Label>
             <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.4rem, 4.5vw, 2rem)", color: "#fff" }}>Q-School · Season {season}</h2>
-            <p className="text-xs mt-1.5 max-w-xl" style={{ color: "rgba(255,255,255,0.6)" }}>Two separate pathways. First Stage finishes earn a Final Stage place; each Final Stage day winner earns a Tour Card, and the rest go down the Order of Merit.</p>
+            <p className="text-xs mt-1.5 max-w-xl" style={{ color: "rgba(255,255,255,0.7)" }}>Two separate pathways. First Stage finishes earn a Final Stage place; each Final Stage day winner earns a Tour Card, and the rest go down the Order of Merit.</p>
           </div>
           <label className="flex items-center gap-2"><Label>Season</Label>
             <select value={season} onChange={e => setSeason(Number(e.target.value))} className="rounded-lg px-2 py-1.5 bg-black/40 border border-white/15 text-sm">
@@ -46,7 +46,7 @@ export function QSchoolPage({ ctx }: { ctx: ShellContext }) {
               : <CareerEmptyState title="No Q-School events found" />}
             {msg && <p role="status" className="px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
           </CareerSection>
-          <p className="text-xs px-1" style={{ color: "rgba(255,255,255,0.4)" }}>Order of Merit tie-breaks: {q.data.tieBreaks.map(t => t.toLowerCase().replace(/_/g, " ")).join(" → ")}.</p>
+          <p className="text-xs px-1" style={{ color: "rgba(255,255,255,0.62)" }}>Order of Merit tie-breaks: {q.data.tieBreaks.map(t => t.toLowerCase().replace(/_/g, " ")).join(" → ")}.</p>
         </>
       )}
     </div>
@@ -105,7 +105,7 @@ function PathwayView({ view }: { view: QSchoolPathwayView }) {
               </tr>))}</tbody>
           </table>
         )}
-        {view.allocation && <p className="px-4 py-2 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Allocated in week {view.allocation.allocatedWeek}: {view.allocation.directCards} direct, {view.allocation.orderOfMeritCards} Order of Merit{view.allocation.unusedDirectCards ? ` (${view.allocation.unusedDirectCards} unused day card${view.allocation.unusedDirectCards > 1 ? "s" : ""} rolled into the OoM)` : ""}.</p>}
+        {view.allocation && <p className="px-4 py-2 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Allocated in week {view.allocation.allocatedWeek}: {view.allocation.directCards} direct, {view.allocation.orderOfMeritCards} Order of Merit{view.allocation.unusedDirectCards ? ` (${view.allocation.unusedDirectCards} unused day card${view.allocation.unusedDirectCards > 1 ? "s" : ""} rolled into the OoM)` : ""}.</p>}
       </CareerSection>
     </>
   );

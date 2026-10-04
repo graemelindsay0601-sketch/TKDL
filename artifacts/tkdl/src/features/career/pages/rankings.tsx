@@ -56,10 +56,10 @@ function ListView({ saveId, meta }: { saveId: string; meta: RankingListMeta }) {
       </div>
 
       <CareerSection title={meta.name} icon={<BarChart3 className="w-3.5 h-3.5" />} accent="#c084fc"
-        action={meta.published ? <span className="text-xs whitespace-nowrap" style={{ color: "rgba(255,255,255,0.45)" }}>S{meta.published.season} W{meta.published.week}</span> : undefined}>
+        action={meta.published ? <span className="text-xs whitespace-nowrap" style={{ color: "rgba(255,255,255,0.62)" }}>S{meta.published.season} W{meta.published.week}</span> : undefined}>
         <div className="px-3 pt-2.5 pb-1 flex flex-wrap items-center justify-between gap-2">
           <Segmented label="Table view" value={view} onChange={v => { setView(v); setOffset(0); }} options={[...(me ? [{ value: "AROUND" as const, label: "Around me" }] : []), { value: "TOP", label: "Top 32" }, { value: "PAGE", label: "Full table" }]} />
-          {meta.cutLines.length > 0 && <span className="text-xs inline-flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.5)" }}><span aria-hidden className="inline-block w-5 border-t border-dashed" style={{ borderColor: "rgba(255,210,74,0.7)" }} />Cut lines: top {meta.cutLines.join(", ")}</span>}
+          {meta.cutLines.length > 0 && <span className="text-xs inline-flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.62)" }}><span aria-hidden className="inline-block w-5 border-t border-dashed" style={{ borderColor: "rgba(255,210,74,0.7)" }} />Cut lines: top {meta.cutLines.join(", ")}</span>}
         </div>
         {!meta.published ? <CareerEmptyState title="Not published yet">The first {meta.name} is published after the first week in which ranking money is won.</CareerEmptyState>
           : table.isLoading ? <CareerLoading /> : table.error || !table.data ? <CareerError error={table.error} onRetry={() => table.refetch()} />
@@ -68,7 +68,7 @@ function ListView({ saveId, meta }: { saveId: string; meta: RankingListMeta }) {
         {view === "PAGE" && table.data && meta.published && (
           <div className="flex items-center justify-between px-3 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <button className="career-btn career-btn-ghost" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}><ChevronLeft className="w-4 h-4" aria-hidden />Previous</button>
-            <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{offset + 1}–{Math.min(offset + PAGE, meta.published.participantCount)} of {meta.published.participantCount}</span>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{offset + 1}–{Math.min(offset + PAGE, meta.published.participantCount)} of {meta.published.participantCount}</span>
             <button className="career-btn career-btn-ghost" disabled={offset + PAGE >= meta.published.participantCount} onClick={() => setOffset(offset + PAGE)}>Next<ChevronRight className="w-4 h-4" aria-hidden /></button>
           </div>
         )}
@@ -78,25 +78,25 @@ function ListView({ saveId, meta }: { saveId: string; meta: RankingListMeta }) {
         <CareerSection title="Your ranking history" icon={<BarChart3 className="w-3.5 h-3.5" />}>
           {history.isLoading ? <CareerLoading /> : !history.data?.snapshots.length ? <CareerEmptyState title="No history yet">Your history starts with your first ranking entry on this list.</CareerEmptyState> : (
             <div className="px-4 py-3 space-y-2">
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>Season highs: {history.data.seasonHighs.map(s => `S${s.season} ${ordinal(s.best)}`).join(" · ")}</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Season highs: {history.data.seasonHighs.map(s => `S${s.season} ${ordinal(s.best)}`).join(" · ")}</div>
               <ul className="space-y-1">{history.data.snapshots.map(s => (
-                <li key={s.sequence} className="flex items-center gap-3 text-sm"><span className="w-20 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.5)" }}>S{s.season} W{s.week}</span>
+                <li key={s.sequence} className="flex items-center gap-3 text-sm"><span className="w-20 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>S{s.season} W{s.week}</span>
                   <span className="w-12 font-black tabular-nums" style={{ ...OSWALD, color: "#fff" }}>{ordinal(s.position)}</span><Movement movement={s.movement} isNew={s.isNew} />
-                  <span className="ml-auto tabular-nums text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{formatPence(s.valuePence, { compact: true })}</span></li>))}</ul>
+                  <span className="ml-auto tabular-nums text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{formatPence(s.valuePence, { compact: true })}</span></li>))}</ul>
             </div>
           )}
         </CareerSection>
         <CareerSection title="Why this ranking?" icon={<HelpCircle className="w-3.5 h-3.5" />} accent="#38bdf8"
           action={<button className="career-btn career-btn-ghost" aria-expanded={showExplain} onClick={() => setShowExplain(!showExplain)}>{showExplain ? "Hide" : "Show"}</button>}>
-          {!showExplain ? <p className="px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>Every ranking value is the sum of counting prize money from specific results ({windowLabel.toLowerCase()}).</p>
+          {!showExplain ? <p className="px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Every ranking value is the sum of counting prize money from specific results ({windowLabel.toLowerCase()}).</p>
             : explain.isLoading ? <CareerLoading /> : explain.error || !explain.data ? <CareerError error={explain.error} onRetry={() => explain.refetch()} /> : explain.data.counting.length === 0 ? <CareerEmptyState title="No counting results" /> : (
               <div className="px-4 py-3 space-y-1.5">
                 {explain.data.counting.map(c => (
                   <div key={c.eventId} className="flex items-center gap-2 text-sm"><span className="flex-1 truncate" style={{ color: "#fff" }}>{c.eventName}</span>
-                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>S{c.season} W{c.week}</span>
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>S{c.season} W{c.week}</span>
                     <span className="w-20 text-right tabular-nums" style={{ ...OSWALD, color: "#4ade80" }}>{formatPence(c.amountPence)}</span></div>))}
                 <div className="flex justify-between pt-1.5 border-t text-sm" style={{ borderColor: "rgba(255,255,255,0.08)" }}><Label>Total</Label><span className="tabular-nums font-black" style={{ ...OSWALD, color: "#fff" }}>{formatPence(explain.data.contributionTotalPence)}</span></div>
-                {explain.data.expired.length > 0 && <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{explain.data.expired.length} older result{explain.data.expired.length > 1 ? "s" : ""} no longer count.</div>}
+                {explain.data.expired.length > 0 && <div className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{explain.data.expired.length} older result{explain.data.expired.length > 1 ? "s" : ""} no longer count.</div>}
               </div>
             )}
         </CareerSection>

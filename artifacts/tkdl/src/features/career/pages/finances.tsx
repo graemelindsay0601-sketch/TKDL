@@ -39,7 +39,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
               <div className="px-4 py-3 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap"><span aria-hidden className="inline-block w-3 h-3 rounded-sm" style={{ background: sponsors.data.active.terms.presentation?.colour ?? "#fff", border: "1px solid rgba(255,255,255,0.3)" }} /><span className="font-black uppercase" style={{ ...OSWALD, fontSize: "1.2rem", color: "#fff" }}>{sponsors.data.active.terms.displayName}</span>
                   <StatusBadge label={titleCase(sponsors.data.active.tier)} tone="success" /></div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>S{sponsors.data.active.start.season} W{sponsors.data.active.start.week} → S{sponsors.data.active.end.season} W{sponsors.data.active.end.week} · paid {formatPence(sponsors.data.active.totals.paidPence)} · covered {formatPence(sponsors.data.active.totals.coveredPence)}</div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>S{sponsors.data.active.start.season} W{sponsors.data.active.start.week} → S{sponsors.data.active.end.season} W{sponsors.data.active.end.week} · paid {formatPence(sponsors.data.active.totals.paidPence)} · covered {formatPence(sponsors.data.active.totals.coveredPence)}</div>
                 <Terms terms={sponsors.data.active.terms} />
               </div>
             ) : <CareerEmptyState title="Self-funded" icon={<Wallet className="w-6 h-6" />}>No sponsor yet. Offers arrive from real results — titles, finishes, qualifications and later your ranking.</CareerEmptyState>}
@@ -49,7 +49,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
             <div key={o.id} className="px-4 py-3 border-b last:border-b-0 space-y-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
               <div className="flex items-center gap-2 flex-wrap"><span className="font-black uppercase" style={{ ...OSWALD, color: "#fff" }}>{o.terms.displayName}</span>
                 <StatusBadge label={titleCase(o.tier)} tone="gold" />{o.kind === "RENEWAL" && <StatusBadge label="Renewal" tone="info" />}
-                <span className="text-xs ml-auto" style={{ color: "rgba(255,255,255,0.5)" }}>Expires S{o.expires.season} W{o.expires.week}</span></div>
+                <span className="text-xs ml-auto" style={{ color: "rgba(255,255,255,0.62)" }}>Expires S{o.expires.season} W{o.expires.week}</span></div>
               <Terms terms={o.terms} />
               {!retired && <div className="flex flex-wrap gap-2">
                 <ConfirmButton label="Accept" confirmLabel="Sign contract" busy={accept.isPending} description={sponsors.data?.active ? `Signing replaces your current contract with ${sponsors.data.active.terms.displayName}.` : `Sign with ${o.terms.displayName}. The signing bonus is paid immediately.`}
@@ -66,12 +66,12 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
           <ul>{commitments.map(e => (
             <li key={e.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-3 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
               <Link href={`/career/${save.id}/events/${e.id}`} className="flex-1 min-w-0 truncate career-row-link rounded py-1.5" style={{ ...OSWALD, color: "#fff" }}>{e.name}</Link>
-              <span className="text-xs hidden sm:inline" style={{ color: "rgba(255,255,255,0.5)" }}>Wk {e.dates.startWeek} · {circuitLabel(e.circuit)}</span>
+              <span className="text-xs hidden sm:inline" style={{ color: "rgba(255,255,255,0.62)" }}>Wk {e.dates.startWeek} · {circuitLabel(e.circuit)}</span>
               <StatusBadge label={e.finance!.commitment!.status === "TRAVEL_COMMITTED" ? "Travel paid" : "Travel reserved"} tone="info" />
               <span className="w-20 text-right tabular-nums" style={OSWALD}>{formatPence(e.finance!.estimatedTravelPence + e.finance!.estimatedAccommodationPence)}</span>
             </li>))}</ul>
         ) : <CareerEmptyState title="No upcoming commitments" />}
-        {fin.data && fin.data.reservedForTravelPence > 0 && <p className="px-4 py-2 text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{formatPence(fin.data.reservedForTravelPence)} is reserved for travel on events you have entered; it is charged in the week you travel.</p>}
+        {fin.data && fin.data.reservedForTravelPence > 0 && <p className="px-4 py-2 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{formatPence(fin.data.reservedForTravelPence)} is reserved for travel on events you have entered; it is charged in the week you travel.</p>}
       </CareerSection>
 
       <Ledger saveId={save.id} />
@@ -82,7 +82,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
             <li key={o.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-2 text-sm flex-wrap" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
               <span className="font-bold" style={{ ...OSWALD, color: "#fff" }}>{o.terms.displayName}</span><StatusBadge label={titleCase(o.tier)} tone="muted" />
               <StatusBadge label={o.statusReason === "LAPSED" ? "Lapsed" : titleCase(o.status)} tone="muted" />
-              <span className="ml-auto text-xs tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>Offered S{o.offered.season} W{o.offered.week} · valid to S{o.expires.season} W{o.expires.week}</span></li>))}</ul>
+              <span className="ml-auto text-xs tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>Offered S{o.offered.season} W{o.offered.week} · valid to S{o.expires.season} W{o.expires.week}</span></li>))}</ul>
         </CareerSection>
       )}
       {sponsors.data && sponsors.data.history.contracts.length > 0 && (
@@ -90,8 +90,8 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
           <ul>{sponsors.data.history.contracts.map(c => (
             <li key={c.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-2 text-sm flex-wrap" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
               <span className="font-bold" style={{ ...OSWALD, color: "#fff" }}>{c.terms.displayName}</span><StatusBadge label={titleCase(c.status)} tone="muted" />
-              {c.endReason && <span className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{titleCase(c.endReason)}</span>}
-              <span className="ml-auto text-xs tabular-nums" style={{ color: "rgba(255,255,255,0.6)" }}>S{c.start.season}–S{c.end.season} · {formatPence(c.totals.paidPence)} paid</span></li>))}</ul>
+              {c.endReason && <span className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{titleCase(c.endReason)}</span>}
+              <span className="ml-auto text-xs tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>S{c.start.season}–S{c.end.season} · {formatPence(c.totals.paidPence)} paid</span></li>))}</ul>
         </CareerSection>
       )}
     </div>
@@ -122,7 +122,7 @@ function Ledger({ saveId }: { saveId: string }) {
         <ul>{rows.map(e => (
           <li key={e.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
             <div className="flex-1 min-w-0"><div className="text-sm truncate" style={{ color: "#fff" }}>{e.reason ?? ledgerLabel(e.category)}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{ledgerLabel(e.category)}{e.season ? ` · S${e.season} W${e.week}` : ""}{e.sponsorCoveredPence ? ` · ${formatPence(e.sponsorCoveredPence)} sponsor-covered` : ""}</div></div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{ledgerLabel(e.category)}{e.season ? ` · S${e.season} W${e.week}` : ""}{e.sponsorCoveredPence ? ` · ${formatPence(e.sponsorCoveredPence)} sponsor-covered` : ""}</div></div>
             <span className="tabular-nums font-black" style={{ ...OSWALD, color: e.amountPence >= 0 ? TONES.success : "rgba(255,255,255,0.85)" }}>{formatPence(e.amountPence, { signed: true })}</span>
           </li>))}</ul>
       )}

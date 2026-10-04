@@ -44,9 +44,9 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
           {milestones.isLoading ? <CareerLoading /> : milestones.error ? <CareerError error={milestones.error} onRetry={() => milestones.refetch()} /> : milestones.data?.milestones.length ? (
             <ol className="px-4 py-2">{milestones.data.milestones.map((m, i) => { const l = milestoneLabel(m); return (
               <li key={m.id ?? i} className="flex items-start gap-3 py-1.5 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                <span className="w-16 shrink-0 text-xs pt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.45)" }}>S{m.season} W{m.week}</span>
+                <span className="w-16 shrink-0 text-xs pt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>S{m.season} W{m.week}</span>
                 <span aria-hidden style={{ color: TONES[l.tone] }}>●</span>
-                <div className="min-w-0"><div className="text-sm" style={{ color: "#fff" }}>{l.title}</div>{l.detail && <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.5)" }}>{l.detail}</div>}</div>
+                <div className="min-w-0"><div className="text-sm" style={{ color: "#fff" }}>{l.title}</div>{l.detail && <div className="text-xs truncate" style={{ color: "rgba(255,255,255,0.62)" }}>{l.detail}</div>}</div>
               </li>); })}</ol>
           ) : <CareerEmptyState title="No milestones yet">Your first ranking entry, Q-School progress and Tour Card news are recorded here as they happen.</CareerEmptyState>}
         </CareerSection>
@@ -98,7 +98,7 @@ export function ResultList({ rows, saveId }: { rows: { eventId: string; season: 
       <li key={r.eventId} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
         <Link href={`/career/${saveId}/events/${r.eventId}`} className="flex-1 min-w-0 career-row-link rounded">
           <div className="text-sm truncate font-bold" style={{ ...OSWALD, color: "#fff" }}>{r.name}</div>
-          <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>S{r.season} W{r.week} · {circuitLabel(r.circuit)}</div></Link>
+          <div className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>S{r.season} W{r.week} · {circuitLabel(r.circuit)}</div></Link>
         <StatusBadge label={r.champion ? "Champion" : stageLabel(r.stageReached)} tone={r.champion ? "gold" : "neutral"} />
       </li>))}</ul>
   );

@@ -8,18 +8,18 @@ import { errorMessage } from "./api";
 /** Shared Career primitives. Built on TKDL's pdc-card surfaces, Oswald labels and palette. */
 export const OSWALD = { fontFamily: "Oswald, sans-serif" } as const;
 
-export function Label({ children, color = "rgba(255,255,255,0.45)", className = "" }: { children: ReactNode; color?: string; className?: string }) {
+export function Label({ children, color = "rgba(255,255,255,0.55)", className = "" }: { children: ReactNode; color?: string; className?: string }) {
   return <span className={`uppercase font-black ${className}`} style={{ ...OSWALD, fontSize: "0.62rem", letterSpacing: "0.16em", color }}>{children}</span>;
 }
 
 export function CareerSection({ title, icon, action, children, accent = "#ff005c", id }: { title: string; icon?: ReactNode; action?: ReactNode; children: ReactNode; accent?: string; id?: string }) {
   const headingId = useId();
   return (
-    <section className="pdc-card overflow-hidden" aria-labelledby={headingId} id={id}>
-      <div className="px-4 py-2.5 border-b flex items-center justify-between gap-2" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <section className="pdc-card career-section overflow-hidden" aria-labelledby={headingId} id={id} style={{ ["--section-accent" as string]: accent }}>
+      <div className="career-section-head px-4 py-2.5 border-b flex items-center justify-between gap-2">
         <h2 id={headingId} className="flex items-center gap-2 min-w-0">
           {icon && <span aria-hidden style={{ color: accent }}>{icon}</span>}
-          <Label color="rgba(255,255,255,0.65)">{title}</Label>
+          <Label color="rgba(255,255,255,0.85)">{title}</Label>
         </h2>
         {action}
       </div>
@@ -40,10 +40,10 @@ export function StatusBadge({ label, tone = "neutral", icon }: { label: string; 
 
 export function StatTile({ label, value, sub, tone = "neutral", to }: { label: string; value: ReactNode; sub?: ReactNode; tone?: Tone; to?: string }) {
   const body = (
-    <div className="pdc-card h-full px-3 py-2.5 flex flex-col gap-1 min-w-0">
+    <div className="pdc-card career-stat h-full px-3 py-2.5 flex flex-col gap-1 min-w-0">
       <Label>{label}</Label>
       <div className="font-black tabular-nums leading-none truncate" style={{ ...OSWALD, fontSize: "clamp(1.15rem, 3.6vw, 1.55rem)", color: TONES[tone] === TONES.neutral ? "#fff" : TONES[tone] }}>{value}</div>
-      {sub && <div className="text-xs leading-snug" style={{ color: "rgba(255,255,255,0.5)" }}>{sub}</div>}
+      {sub && <div className="text-xs leading-snug" style={{ color: "rgba(255,255,255,0.62)" }}>{sub}</div>}
     </div>
   );
   return to ? <Link href={to} className="block h-full rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">{body}</Link> : body;
@@ -51,7 +51,7 @@ export function StatTile({ label, value, sub, tone = "neutral", to }: { label: s
 
 export function CareerLoading({ label = "Loading" }: { label?: string }) {
   return (
-    <div role="status" aria-live="polite" className="flex items-center justify-center gap-2 py-8 text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
+    <div role="status" aria-live="polite" className="flex items-center justify-center gap-2 py-8 text-sm" style={{ color: "rgba(255,255,255,0.62)" }}>
       <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> {label}…
     </div>
   );
@@ -69,8 +69,8 @@ export function CareerEmptyState({ title, children, icon }: { title: string; chi
   return (
     <div className="px-4 py-7 text-center flex flex-col items-center gap-1.5">
       <span aria-hidden style={{ color: "rgba(255,255,255,0.25)" }}>{icon ?? <Inbox className="w-6 h-6" />}</span>
-      <div className="font-black uppercase text-sm" style={{ ...OSWALD, color: "rgba(255,255,255,0.6)" }}>{title}</div>
-      {children && <div className="text-xs max-w-sm" style={{ color: "rgba(255,255,255,0.45)" }}>{children}</div>}
+      <div className="font-black uppercase text-sm" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)" }}>{title}</div>
+      {children && <div className="text-xs max-w-sm" style={{ color: "rgba(255,255,255,0.62)" }}>{children}</div>}
     </div>
   );
 }
@@ -130,7 +130,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
       </div>
       <Link href={href} className="flex-1 min-w-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
         <div className="font-black uppercase leading-tight line-clamp-2 break-words" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>
           <span>{circuitLabel(event.circuit)}</span>
           <span aria-hidden>·</span><span className="truncate">{event.venue.city}</span>
           {event.finance && event.finance.topPrizePence > 0 && <><span aria-hidden>·</span><span>Top prize {formatPence(event.finance.topPrizePence, { compact: true })}</span></>}

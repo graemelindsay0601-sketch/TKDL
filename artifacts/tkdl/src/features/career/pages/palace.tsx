@@ -37,12 +37,12 @@ export function PalacePage({ ctx }: { ctx: ShellContext }) {
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Dates</Label><div style={{ ...OSWALD, color: "#fff" }}>Weeks {wc.dates.startWeek}–{wc.dates.endWeek} · {wc.venue.name}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{formatLabel(wc.format)} · field of {wc.field.size}</div></div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{formatLabel(wc.format)} · field of {wc.field.size}</div></div>
             <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Prize</Label><div style={{ ...OSWALD, color: "#fff" }}>{wc.finance?.topPrizePence ? `Champion: ${formatPence(wc.finance.topPrizePence)}` : "—"}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{!wc.capability.executable ? "Defined as World Ranking money, but nothing is awarded while the format is unsupported" : wc.finance?.rankingEligible ? "Ranking money (World Ranking)" : "Non-ranking"}</div></div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{!wc.capability.executable ? "Defined as World Ranking money, but nothing is awarded while the format is unsupported" : wc.finance?.rankingEligible ? "Ranking money (World Ranking)" : "Non-ranking"}</div></div>
             <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Engine status</Label>
               <StatusBadge label={wc.capability.executable ? "Playable" : "Set-play format not supported yet"} tone={wc.capability.executable ? "success" : "muted"} />
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{wc.capability.executable ? "" : wc.status === "CANCELLED" ? "Recorded as cancelled this season. No field, draw or result was invented." : "It will be cancelled when it starts; qualification is still recorded as a fact."}</div></div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{wc.capability.executable ? "" : wc.status === "CANCELLED" ? "Recorded as cancelled this season. No field, draw or result was invented." : "It will be cancelled when it starts; qualification is still recorded as a fact."}</div></div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <CareerSection title="Your qualification" icon={<Star className="w-3.5 h-3.5" />} accent="#ffd24a">

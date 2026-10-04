@@ -2,6 +2,7 @@ import { Info, Swords } from "lucide-react";
 import { useEvent, useWithdrawEvent, errorMessage } from "../api";
 import { ConfirmButton, Label, OSWALD, StatusBadge } from "../components";
 import { useState } from "react";
+import { MATCH_PLAY_STATUS } from "../model";
 
 /**
  * HUMAN MATCH-PLAY BOUNDARY (A6 → integration checkpoint).
@@ -17,10 +18,6 @@ import { useState } from "react";
  *     walkover by A3, with A4's refund policy applying).
  * While a human match is pending the Career calendar cannot advance (A3 rule).
  */
-export const MATCH_PLAY_STATUS = {
-  connected: false,
-  reason: "Live Career match play is not connected yet. The TKDL scorer will launch from here once the Career result hand-off is integrated.",
-} as const;
 
 export function MatchBoundaryNotice({ saveId, eventId, compact }: { saveId: string; eventId: string; compact?: boolean }) {
   const event = useEvent(saveId, eventId);
@@ -37,7 +34,7 @@ export function MatchBoundaryNotice({ saveId, eventId, compact }: { saveId: stri
       </div>
       {match ? (
         <div className="font-black uppercase" style={{ ...OSWALD, color: "#fff", fontSize: compact ? "1rem" : "1.2rem" }}>You vs {opponent?.name ?? "TBC"}</div>
-      ) : event.isLoading ? null : <div className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>Match details unavailable.</div>}
+      ) : event.isLoading ? null : <div className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Match details unavailable.</div>}
       <div className="flex items-start gap-2 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
         <span>{MATCH_PLAY_STATUS.reason} The Career calendar cannot move past a pending match, so it waits here.</span>

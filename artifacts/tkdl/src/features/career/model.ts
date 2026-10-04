@@ -320,3 +320,9 @@ export function matchesStatusFilter(e: CareerEvent, filter: string): boolean {
     default: return true;
   }
 }
+
+/** Human match play is not connected to the TKDL scorer yet (integration checkpoint). The UI must never pretend otherwise. */
+export const MATCH_PLAY_STATUS = {
+  connected: false,
+  reason: "Live Career match play is not connected yet. The TKDL scorer will launch from here once the Career result hand-off is integrated.",
+} as const;

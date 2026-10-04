@@ -86,7 +86,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
             <ul>{history.data.slice(0, 5).map(r => (
               <li key={r.eventId} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                 <Link href={`/career/${id}/events/${r.eventId}`} className="flex-1 min-w-0 career-row-link rounded"><div className="truncate text-sm font-bold" style={{ ...OSWALD, color: "#fff" }}>{r.name}</div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>S{r.season} W{r.week} · {circuitLabel(r.circuit)}</div></Link>
+                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>S{r.season} W{r.week} · {circuitLabel(r.circuit)}</div></Link>
                 <StatusBadge label={r.champion ? "Champion" : stageLabel(r.stageReached)} tone={r.champion ? "gold" : "neutral"} />
               </li>))}</ul>
           ) : <CareerEmptyState title="No results yet">Your first finished event will appear here.</CareerEmptyState>}
@@ -124,9 +124,9 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
         {s.recentMilestones.length ? (
           <ul className="space-y-1">{s.recentMilestones.slice(0, 4).map((m, i) => { const l = milestoneLabel(m); return (
             <li key={i} className="flex items-baseline gap-2 text-xs"><span style={{ color: TONES[l.tone] }} aria-hidden>●</span>
-              <span style={{ color: "#fff" }}>{l.title}</span>{l.detail && <span style={{ color: "rgba(255,255,255,0.45)" }} className="truncate">{l.detail}</span>}
+              <span style={{ color: "#fff" }}>{l.title}</span>{l.detail && <span style={{ color: "rgba(255,255,255,0.62)" }} className="truncate">{l.detail}</span>}
               <span className="ml-auto shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>S{m.season} W{m.week}</span></li>); })}</ul>
-        ) : <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>No milestones yet.</p>}
+        ) : <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>No milestones yet.</p>}
       </div>
     );
   }
@@ -151,7 +151,7 @@ function NextEventCard({ event, reason, saveId, awaiting, retired, onEnter, ente
             <span>{formatLabel(event.format)}</span>
           </div>
         </div>
-        {status.detail && <p className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{status.detail}</p>}
+        {status.detail && <p className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{status.detail}</p>}
         {f && (
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Fact label="Entry fee" value={formatPence(f.entryFeePence)} sub={f.sponsorCoverage.entryFeePence ? `${formatPence(f.sponsorCoverage.entryFeePence)} sponsor-covered` : f.entryFeeBasis === "PER_SERIES" ? "Whole series" : undefined} />
@@ -176,6 +176,6 @@ function Fact({ label, value, sub, tone }: { label: string; value: string; sub?:
   return <div className="rounded-lg px-2.5 py-2" style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)" }}>
     <dt><Label color="rgba(255,255,255,0.4)">{label}</Label></dt>
     <dd className="font-black tabular-nums" style={{ ...OSWALD, color: tone ?? "#fff", fontSize: "1rem" }}>{value}</dd>
-    {sub && <dd className="text-xs truncate" style={{ color: "rgba(255,255,255,0.45)" }}>{sub}</dd>}
+    {sub && <dd className="text-xs truncate" style={{ color: "rgba(255,255,255,0.62)" }}>{sub}</dd>}
   </div>;
 }

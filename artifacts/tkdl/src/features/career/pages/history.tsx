@@ -59,8 +59,8 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
           {milestones.isLoading ? <CareerLoading /> : milestones.data?.milestones.length ? (
             <ol className="px-4 py-2">{milestones.data.milestones.map((m, i) => { const l = milestoneLabel(m); return (
               <li key={m.id ?? i} className="flex gap-3 py-1.5 border-b last:border-b-0 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                <span className="w-16 shrink-0 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.45)" }}>S{m.season} W{m.week}</span><span style={{ color: "#fff" }}>{l.title}</span>
-                {l.detail && <span className="truncate" style={{ color: "rgba(255,255,255,0.5)" }}>{l.detail}</span>}</li>); })}</ol>
+                <span className="w-16 shrink-0 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>S{m.season} W{m.week}</span><span style={{ color: "#fff" }}>{l.title}</span>
+                {l.detail && <span className="truncate" style={{ color: "rgba(255,255,255,0.62)" }}>{l.detail}</span>}</li>); })}</ol>
           ) : <CareerEmptyState title="Nothing on the timeline yet" />}
         </CareerSection>
       )}
@@ -93,21 +93,21 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
             <ul>{sporting.data.rankings.map(r => (
               <li key={r.key} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-2 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                 <span className="flex-1" style={{ ...OSWALD, color: "#fff" }}>{r.name}</span>
-                <span style={{ color: "rgba(255,255,255,0.6)" }}>now {r.position ? ordinal(r.position) : "unranked"}</span>
+                <span style={{ color: "rgba(255,255,255,0.7)" }}>now {r.position ? ordinal(r.position) : "unranked"}</span>
                 <span style={{ color: "#ffd24a" }}>high {r.careerHighPosition ? ordinal(r.careerHighPosition) : "—"}</span></li>))}</ul>
           ) : <CareerLoading />}
         </CareerSection>
       )}
       {tab === "TROPHIES" && (
         <CareerSection title="Career trophy room" icon={<Award className="w-3.5 h-3.5" />} accent="#ffd24a">
-          <p className="px-4 pt-3 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Titles won in this Career. Separate from the Classic Tour's 305 Trophy Hunt trophies, which are untouched.</p>
+          <p className="px-4 pt-3 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Titles won in this Career. Separate from the Classic Tour's 305 Trophy Hunt trophies, which are untouched.</p>
           {titles.length ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-3">
               {titles.map(t => { const tier = tierStyle(t.presentationTier); return (
                 <div key={t.eventId} className="rounded-xl p-3 text-center" style={{ background: tier.surface, border: `1px solid ${tier.accent}44` }}>
                   <Trophy className="w-6 h-6 mx-auto" style={{ color: tier.accent }} aria-hidden />
                   <div className="mt-1.5 text-xs font-black uppercase leading-tight" style={{ ...OSWALD, color: "#fff" }}>{t.name}</div>
-                  <div className="text-[0.65rem]" style={{ color: "rgba(255,255,255,0.5)" }}>Season {t.season} · {circuitLabel(t.circuit)}</div>
+                  <div className="text-[0.65rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Season {t.season} · {circuitLabel(t.circuit)}</div>
                 </div>); })}
             </div>
           ) : <CareerEmptyState title="The cabinet is empty" icon={<Trophy className="w-6 h-6" />}>Win an event and its trophy appears here.</CareerEmptyState>}
