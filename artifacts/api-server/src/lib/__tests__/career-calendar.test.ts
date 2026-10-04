@@ -11,7 +11,7 @@ import { createCareerCalendar, syncEventDefinitions } from "../../db/migrations/
 import { createCareerService } from "../../career/service.ts";
 import { createCareerCalendarService } from "../../career/calendar/service.ts";
 import { generateSeason, calendarHashOf, definitionHash } from "../../career/calendar/generation.ts";
-import { EVENT_CATALOGUE_V1 } from "../../career/calendar/catalogue.ts";
+import { EVENT_CATALOGUE_V1, catalogueFor } from "../../career/calendar/catalogue.ts";
 import { assessCapability, knockout501, setsKnockout501, groupKnockout501, league501, x01Variant, specialGame, pairs501 } from "../../career/calendar/formats.ts";
 import { evaluateRule, R, type ParticipantFacts } from "../../career/calendar/eligibility.ts";
 import { bracketOrder, generateKnockoutDraw, finishingPosition } from "../../career/calendar/draw.ts";
@@ -91,8 +91,10 @@ test("static harness reports a broad, international, non-flat calendar", () => {
 
 test("instance snapshots preserve the definition they were generated from", async () => {
   const save = await careerFor();
-  const [definitionRow] = await rows(sql`SELECT * FROM career_event_definitions WHERE event_database_version = 1 AND definition_key = 'open-championship'`);
-  const definition = EVENT_CATALOGUE_V1.find(d => d.key === "open-championship")!;
+  // A6.5: new saves use event database v2; the snapshot must match the save's own version.
+  const version = Number((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version);
+  const [definitionRow] = await rows(sql`SELECT * FROM career_event_definitions WHERE event_database_version = ${version} AND definition_key = 'open-championship'`);
+  const definition = catalogueFor(version).find(d => d.key === "open-championship")!;
   assert.equal(definitionRow.definition_hash, definitionHash(definition));
   const [instance] = await rows(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${save.id} AND definition_key = 'open-championship'`);
   const snapshot = instance.snapshot as Record<string, unknown>;
@@ -101,9 +103,9 @@ test("instance snapshots preserve the definition they were generated from", asyn
   assert.deepEqual(snapshot.qualificationOutputs, definition.qualificationOutputs);
   assert.equal(snapshot.schedule, undefined, "schedule is resolved into instance columns, not copied");
   // A later edit of the catalogue row cannot rewrite the instance; a changed shipped definition is refused.
-  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${"0".repeat(64)} WHERE definition_key = 'open-championship'`);
+  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${"0".repeat(64)} WHERE definition_key = 'open-championship' AND event_database_version = ${version}`);
   await assert.rejects(db.transaction(tx => syncEventDefinitions(tx)), /changed inside shipped database version/);
-  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${definitionHash(definition)} WHERE definition_key = 'open-championship'`);
+  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${definitionHash(definition)} WHERE definition_key = 'open-championship' AND event_database_version = ${version}`);
   const [after] = await rows(sql`SELECT snapshot FROM career_event_instances WHERE career_save_id = ${save.id} AND id = ${instance.id}`);
   assert.deepEqual(after.snapshot, instance.snapshot);
 });
@@ -224,11 +226,15 @@ test("retired NPCs are never selected into fields", async () => {
 });
 
 // ------------------------------------------------------------------ formats
-test("only 501 double-out legs knockout is executable; everything else is explicit UNSUPPORTED_FORMAT", () => {
-  assert.deepEqual(assessCapability(knockout501([5, 7], "floor")), { executable: true, engine: "A2_501_DO_KNOCKOUT", simulationVersion: 1 });
+test("A6.5 capability: 501 double-out knockouts (straight/double-in, legs or sets) are executable; everything else is explicit UNSUPPORTED_FORMAT", () => {
+  const live = { executable: true, engine: "A2_X01_KNOCKOUT", simulationVersion: 1, liveScorer: "GAME_SCORER_X01" };
+  assert.deepEqual(assessCapability(knockout501([5, 7], "floor")), live);
+  assert.deepEqual(assessCapability(setsKnockout501([3, 5], 5, "major", 3)), live, "set play");
+  assert.deepEqual(assessCapability(x01Variant(501, "DOUBLE", [5], "local")), live, "double-in legs");
+  assert.deepEqual(assessCapability(setsKnockout501([3, 5], 5, "major", 3, "DOUBLE")), live, "double-in set play");
   const cases: [string, ReturnType<typeof knockout501>, string][] = [
-    ["sets", setsKnockout501([3, 5], 5, "major", 3), "SET_PLAY"], ["double-in", x01Variant(501, "DOUBLE", [5], "local"), "IN_RULE"],
     ["301", x01Variant(301, "STRAIGHT", [5], "local"), "STARTING_SCORE"], ["cricket", specialGame("CRICKET", [3]), "GAME_TYPE"],
+    ["master-out", { ...knockout501([3], "local"), outRule: "MASTER" }, "OUT_RULE"],
     ["groups", groupKnockout501(9, [11], 4, 2, "major", 4), "STRUCTURE"], ["league", league501(11, "stage", 16), "STRUCTURE"], ["pairs", pairs501([3]), "PAIRS"],
   ];
   for (const [name, format, reason] of cases) {
@@ -237,7 +243,7 @@ test("only 501 double-out legs knockout is executable; everything else is explic
     assert.ok(!capability.executable && capability.code === "UNSUPPORTED_FORMAT" && capability.reasons.includes(reason as never), name);
   }
   const wc = EVENT_CATALOGUE_V1.find(d => d.key === "world-darts-championship")!;
-  assert.equal(assessCapability(wc.format).executable, false, "the sets-play Palace is not faked as legs");
+  assert.equal(assessCapability(wc.format).executable, true, "the Palace runs as authored set play");
   assert.equal(wc.format.scoringUnit, "SETS");
 });
 

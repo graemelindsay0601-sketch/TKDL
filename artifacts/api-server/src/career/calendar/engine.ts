@@ -8,13 +8,19 @@ import { simulateMatchesInTransaction, type Root, type World } from "../world/se
 import type { Npc } from "../world/types.ts";
 import { CALENDAR_GENERATION_VERSION, WEEKS_PER_SEASON, DAYS_PER_WEEK, type EventStatus } from "./config.ts";
 import { generateSeason, canonicalJson, type EventInstanceDraft, type InstanceSnapshot } from "./generation.ts";
-import { bestOfForRound } from "./formats.ts";
+import { bestOfForRound, a2MatchFormat, assessCapability, CAPABILITY_ENGINE_VERSION } from "./formats.ts";
 import { evaluateRule, type ParticipantFacts, type Rule, type RuleOutcome } from "./eligibility.ts";
 import { npcFacts, type CalendarProviders } from "./providers.ts";
 import { geographyWeight, weightedSample, tierWeight, fillTarget } from "./selection.ts";
 import { generateKnockoutDraw, finishingPosition, stageName } from "./draw.ts";
+import { careerAge, type CareerIdentity } from "../identity/age.ts";
 
 export const HUMAN = "HUMAN";
+/** A6.5: identity columns joined onto the locked root by lockRoot (null when the save has no profile row). */
+export function rootIdentity(root: object): CareerIdentity | null {
+  const r = root as { identity_dob?: unknown; identity_start?: unknown };
+  return typeof r.identity_start === "string" ? { dateOfBirth: typeof r.identity_dob === "string" ? r.identity_dob : null, careerStartDate: r.identity_start } : null;
+}
 export type RootRow = Root & { status: string; current_week: number; has_tour_card: boolean; settings_snapshot: Record<string, unknown>; event_database_version: number };
 
 export type InstanceRow = {
@@ -32,6 +38,25 @@ export type MatchRow = {
   legs_a: number | null; legs_b: number | null; first_throw: number | null; first_throw_method: string; first_throw_detail: unknown;
   result_source: string | null; simulated_match_key: string | null; summary: unknown;
 };
+
+// ------------------------------------------------------------------ capability refresh (A6.5)
+/**
+ * When the executable-format set grows (CAPABILITY_ENGINE_VERSION), events of an
+ * existing save that have not yet closed registration are re-assessed from their
+ * own immutable format snapshot. Closed/cancelled/played events keep their history.
+ * Cheap: only non-executable, still-open X01 instances are candidates.
+ */
+export async function refreshCapabilities(tx: CareerExecutor, saveId: string) {
+  const rows = (await tx.execute(sql`SELECT id, snapshot FROM career_event_instances WHERE career_save_id = ${saveId} AND NOT executable
+    AND status IN ('SCHEDULED','REGISTRATION_OPEN') AND snapshot->'format'->>'gameType' = 'X01'`)).rows as { id: string; snapshot: InstanceSnapshot }[];
+  const flips = rows.map(r => ({ id: r.id, capability: assessCapability(r.snapshot.format) })).filter(r => r.capability.executable);
+  if (!flips.length) return 0;
+  await tx.execute(sql`UPDATE career_event_instances i SET executable = TRUE,
+      snapshot = i.snapshot || jsonb_build_object('capability', f.capability, 'capabilityEngineVersion', ${CAPABILITY_ENGINE_VERSION}::int)
+    FROM jsonb_to_recordset(${JSON.stringify(flips)}::jsonb) AS f(id uuid, capability jsonb)
+    WHERE i.career_save_id = ${saveId} AND i.id = f.id AND NOT i.executable`);
+  return flips.length;
+}
 
 // ------------------------------------------------------------------ lifecycle
 const TRANSITIONS: Record<EventStatus, EventStatus[]> = {
@@ -150,19 +175,22 @@ export async function loadFactsContext(tx: CareerExecutor, saveId: string, seaso
   return { season, entitlements, results, champions };
 }
 
-export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; country: string; zone: string; locality: string | null; professionalStatus: "AMATEUR" | "PROFESSIONAL"; tourCard: boolean | null; rankings: Record<string, number> },
+export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; country: string; zone: string; locality: string | null; professionalStatus: "AMATEUR" | "PROFESSIONAL"; tourCard: boolean | null; rankings: Record<string, number>;
+  age?: number | null; identity?: CareerIdentity | null },
   ctx: FactsContext, event: InstanceRow, invited = false): ParticipantFacts {
-  return { ...participant, zone: participant.zone as ParticipantFacts["zone"],
+  // A6.5: the human's age is taken on THIS event's start date (Career-world time).
+  const age = participant.identity !== undefined ? careerAge(participant.identity, event.season, event.start_day) : participant.age;
+  return { ...participant, age, zone: participant.zone as ParticipantFacts["zone"],
     entitlementTargets: ctx.entitlements.get(participant.key) ?? new Set(), invited,
     results: { SAME: ctx.results.SAME.get(participant.key) ?? new Map(), PREVIOUS: ctx.results.PREVIOUS.get(participant.key) ?? new Map() },
     defendingChampion: ctx.champions.get(`${event.definition_key}:${event.ordinal}`)?.has(participant.key) ?? false };
 }
-export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc),
+export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age,
   professionalStatus: providers.sportingStatus.npcProfessionalStatus?.(npc) ?? npc.professionalStatus, tourCard: providers.sportingStatus.npcTourCard(npc), rankings: providers.sportingStatus.rankings(npc.id) });
 export const humanParticipant = (root: RootRow, providers: CalendarProviders) => {
   const profile = providers.sportingStatus.human(root);
   return { key: HUMAN, kind: "HUMAN" as const, country: profile.country, zone: profile.zone, locality: profile.locality,
-    professionalStatus: profile.professionalStatus, tourCard: profile.tourCard, rankings: providers.sportingStatus.rankings(HUMAN) };
+    professionalStatus: profile.professionalStatus, tourCard: profile.tourCard, rankings: providers.sportingStatus.rankings(HUMAN), identity: rootIdentity(root) };
 };
 export const evaluate = (event: InstanceRow, facts: ParticipantFacts): RuleOutcome => evaluateRule(event.snapshot.eligibility, facts);
 
@@ -440,16 +468,18 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       m.first_throw = bull.firstThrow; m.first_throw_detail = { method: bull.method, throws: bull.throws };
       return { matchKey: key, playerAId: m.a_key!, playerBId: m.b_key!,
         context: { category: event.snapshot.format.matchContext, roundImportance: Math.round(m.round / rounds * 1000) / 1000, elimination: true },
-        format: { bestOf: m.best_of, firstThrow: bull.firstThrow } };
+        format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow) };
     });
     const results = await simulateMatchesInTransaction(tx, root, world, requests);
     simulated += results.length;
     const done = npcReady.map(({ match: m }, i) => {
       const r = results[i];
+      // legs_a/legs_b are always total legs; set play also records the set score in the summary.
       return { id: m.id, winner_key: r.winnerId, legs_a: r.stats[0].legsWon, legs_b: r.stats[1].legsWon, first_throw: m.first_throw,
         first_throw_detail: m.first_throw_detail, simulated_match_key: requests[i].matchKey,
         summary: { averages: [round2(r.stats[0].average), round2(r.stats[1].average)], checkoutPercentages: [round2(r.stats[0].checkoutPercentage), round2(r.stats[1].checkoutPercentage)],
-          maximums: [r.stats[0].maximums, r.stats[1].maximums], highestCheckouts: [r.stats[0].highestCheckout, r.stats[1].highestCheckout], simulationVersion: r.simulationVersion } };
+          maximums: [r.stats[0].maximums, r.stats[1].maximums], highestCheckouts: [r.stats[0].highestCheckout, r.stats[1].highestCheckout], simulationVersion: r.simulationVersion,
+          ...(r.stats[0].setsWon !== undefined ? { sets: [r.stats[0].setsWon, r.stats[1].setsWon] } : {}) } };
     });
     await tx.execute(sql`UPDATE career_tournament_matches t SET status = 'COMPLETED', winner_key = d.winner_key, legs_a = d.legs_a, legs_b = d.legs_b,
         first_throw = d.first_throw, first_throw_detail = d.first_throw_detail, result_source = 'A2_SIMULATION', simulated_match_key = d.simulated_match_key,
@@ -483,7 +513,9 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
       matches_played: completed.length, wins: completed.filter(m => m.winner_key === key).length, losses: played.filter(m => FINAL.has(m.status) && m.status !== "BYE" && m.winner_key !== key).length,
       legs_for: legs[0], legs_against: legs[1],
       metadata: { byes: played.filter(m => m.status === "BYE").length, walkovers: played.filter(m => m.status === "WALKOVER").map(m => ({ round: m.round, won: m.winner_key === key })),
-        qSchool: event.snapshot.qSchool ?? null, rankingCategory: event.ranking_category, classification: event.classification, roundLost: lost?.round ?? null, rounds } };
+        qSchool: event.snapshot.qSchool ?? null, rankingCategory: event.ranking_category, classification: event.classification, roundLost: lost?.round ?? null, rounds,
+        // A6.5: the human's age on the event's start date (a persisted fact for later storytelling).
+        ...(key === HUMAN ? { humanAge: careerAge(rootIdentity(root as RootRow & { identity_dob?: unknown; identity_start?: unknown }), event.season, event.start_day) } : {}) } };
   });
   await tx.execute(sql`INSERT INTO career_event_results (career_save_id, event_id, participant_key, participant_kind, npc_id, season, definition_key, finishing_position,
       stage_reached, is_champion, matches_played, wins, losses, legs_for, legs_against, metadata)

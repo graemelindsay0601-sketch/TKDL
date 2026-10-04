@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { ensureCareerProfileSchema } from "./create_career_live.ts";
 import type { CareerDatabase } from "../../career/database.ts";
 
 /** Immutable A1 migration. Do not import mutable balancing/version constants. */
@@ -68,5 +69,7 @@ export async function createCareerSaves(database: CareerDatabase): Promise<void>
       VALUES ('tour_career_2', false, false, 'Tour Career 2.0 foundation - enable admin test mode for development')
       ON CONFLICT (feature_name) DO NOTHING
     `);
+    // A6.5: Career identity (DOB / start date / home) — additive, idempotent.
+    await ensureCareerProfileSchema(tx);
   });
 }

@@ -94,6 +94,8 @@ export type VisitRecord = {
   /** Points actually deducted (0 for a bust or an unopened visit). */
   points: number; startScore: number; endScore: number;
   bust: boolean; checkout: boolean; openedDuringVisit: boolean;
+  /** Whether the thrower was already opened when this visit began (double-in). */
+  startOpened: boolean;
 };
 export type LegRecord = { setNo: number; legNo: number; legInSet: number; starter: PlayerIdx; winner: PlayerIdx; darts: [number, number]; checkout: number };
 
@@ -147,7 +149,7 @@ function closeVisit(s: X01MatchState, opts: { bust: boolean; checkout: boolean }
   const p = v.thrower;
   if (opts.bust) { s.scores[p] = v.startScore; s.opened[p] = v.startOpened; }
   s.visits.push({ thrower: p, setNo: s.setNo, legNo: s.legNo, darts: v.darts, points: opts.bust ? 0 : v.startScore - s.scores[p],
-    startScore: v.startScore, endScore: s.scores[p], bust: opts.bust, checkout: opts.checkout, openedDuringVisit: !opts.bust && !v.startOpened && s.opened[p] });
+    startScore: v.startScore, endScore: s.scores[p], bust: opts.bust, checkout: opts.checkout, openedDuringVisit: !opts.bust && !v.startOpened && s.opened[p], startOpened: v.startOpened });
   s.visit = null;
 }
 

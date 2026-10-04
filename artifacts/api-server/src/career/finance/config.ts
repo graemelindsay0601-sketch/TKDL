@@ -30,6 +30,8 @@ const fee = (key: string, entryFeePence: number, refundPolicy = "standard", basi
 /** Keyed by the A3 snapshot reference `profiles.entryFee`. */
 export const FEE_PROFILES: Record<string, FeeProfile> = {
   "fee:grassroots": fee("fee:grassroots", 500, "local"),
+  /** A6.5: Junior Development Circuit entries are free (youth development). */
+  "fee:junior": fee("fee:junior", 0, "local"),
   "fee:special": fee("fee:special", 300, "local"),
   "fee:county": fee("fee:county", 1000, "local"),
   "fee:regional": fee("fee:regional", 2000),

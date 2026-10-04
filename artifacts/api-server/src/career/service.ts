@@ -5,6 +5,11 @@ import type { CareerDifficulty } from "./config.ts";
 import type { CareerDatabase, CareerExecutor } from "./database.ts";
 import { careerIdSchema, createCareerSchema } from "./validation.ts";
 import type { CreateCareerInput } from "./validation.ts";
+import { careerStartDateFor, validateDateOfBirth } from "./identity/age.ts";
+import { LOCALITIES } from "./calendar/geography.ts";
+
+/** A6.5 Career profile schema version (career_profiles.profile_version). */
+export const PROFILE_VERSION = 1;
 
 type CareerRow = {
   id: string; player_id: number; slot_number: number; career_name: string | null;
@@ -68,10 +73,20 @@ function requireActive(row: CareerRow): void {
   if (row.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
 }
 
-async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateCareerInput): Promise<CareerRow> {
+type CloneIdentity = { dateOfBirth: string | null; careerStartDate: string; homeLocality: string | null; displayName: string | null };
+
+async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateCareerInput, clone?: CloneIdentity | null): Promise<CareerRow> {
   const defaults = CAREER_DEFAULTS;
   const versions = CAREER_VERSIONS;
-  const snapshot = { ...defaults, difficulty: input.difficulty };
+  // A6.5 identity. A restart carries the same identity (incl. start date) so the DOB/age can never drift.
+  const startDate = clone?.careerStartDate ?? careerStartDateFor(new Date());
+  const dateOfBirth = clone ? clone.dateOfBirth : input.dateOfBirth ?? null;
+  const homeLocality = clone ? clone.homeLocality : input.homeLocality ?? null;
+  if (dateOfBirth && !clone) {
+    try { validateDateOfBirth(dateOfBirth, startDate); } catch (error) { throw new CareerError(409, (error as Error).message); }
+  }
+  if (homeLocality && !LOCALITIES.some(l => l.key === homeLocality)) throw new CareerError(409, "Unknown home locality");
+  const snapshot = { ...defaults, difficulty: input.difficulty, ...(homeLocality ? { homeLocality } : {}) };
   const result = await tx.execute(sql`
     INSERT INTO career_saves (
       id, player_id, slot_number, career_name, status, difficulty, current_season, current_week,
@@ -92,6 +107,11 @@ async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateC
     INSERT INTO career_finance_entries (id, career_save_id, kind, amount_pence)
     VALUES (${randomUUID()}, ${row.id}, 'CAREER_START', ${defaults.balancePence})
   `);
+  // Profile row only when an identity exists; a save without one is PROFILE_INCOMPLETE.
+  if (dateOfBirth) {
+    await tx.execute(sql`INSERT INTO career_profiles (career_save_id, profile_version, display_name, date_of_birth, career_start_date, home_locality)
+      VALUES (${row.id}, ${PROFILE_VERSION}, ${clone?.displayName ?? input.careerName ?? null}, ${dateOfBirth}::date, ${startDate}::date, ${homeLocality})`);
+  }
   return row;
 }
 
@@ -137,12 +157,15 @@ export function createCareerService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const old = await ownedSave(tx, playerId, id, true);
         requireActive(old);
+        const identity = (await tx.execute(sql`SELECT to_char(date_of_birth, 'YYYY-MM-DD') AS dob, to_char(career_start_date, 'YYYY-MM-DD') AS start, home_locality, display_name
+          FROM career_profiles WHERE career_save_id = ${old.id}`)).rows[0];
         // New universe ID prevents stale requests from mutating the restarted world.
         // Every future child FK must cascade from this root; no table list to maintain.
         await tx.execute(sql`DELETE FROM career_saves WHERE id = ${old.id} AND player_id = ${playerId}`);
         return present(await insertCareer(tx, playerId, {
           slot: old.slot_number, difficulty: old.difficulty, careerName: old.career_name ?? undefined,
-        }));
+        }, identity ? { dateOfBirth: identity.dob as string | null, careerStartDate: String(identity.start), homeLocality: (identity.home_locality as string | null) ?? null,
+          displayName: (identity.display_name as string | null) ?? null } : null));
       });
     },
 

@@ -10,9 +10,10 @@ import { DEFAULT_PROVIDERS, type CalendarProviders } from "./providers.ts";
 import { venueByKey } from "./geography.ts";
 import { canonicalJson } from "./generation.ts";
 import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
+import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
-  insertBookings, exclusiveConflicts, insertEntitlements, lastDayOfWeek, type InstanceRow, type RootRow, type MatchRow,
+  insertBookings, exclusiveConflicts, insertEntitlements, lastDayOfWeek, refreshCapabilities, type InstanceRow, type RootRow, type MatchRow,
 } from "./engine.ts";
 
 const eventRefSchema = z.object({ eventId: z.string().uuid() }).strict();
@@ -26,9 +27,17 @@ const advanceSchema = z.object({
     z.object({ kind: z.literal("WEEK"), week: z.number().int().min(1).max(WEEKS_PER_SEASON) }).strict(),
   ]),
 }).strict();
+/**
+ * Human result boundary. Legs are total legs won in the match. Set-play matches
+ * (A6.5) also carry the set score, which decides the match. `live` is the
+ * server-verified summary attached by the Career match-session boundary.
+ */
 const humanResultSchema = z.object({
-  matchId: z.string().uuid(), humanLegs: z.number().int().min(0).max(51), opponentLegs: z.number().int().min(0).max(51), humanThrewFirst: z.boolean(),
+  matchId: z.string().uuid(), humanLegs: z.number().int().min(0).max(301), opponentLegs: z.number().int().min(0).max(301), humanThrewFirst: z.boolean(),
+  humanSets: z.number().int().min(0).max(51).optional(), opponentSets: z.number().int().min(0).max(51).optional(),
+  live: z.record(z.string(), z.unknown()).optional(),
 }).strict();
+type HumanResultInput = z.infer<typeof humanResultSchema>;
 const calendarQuerySchema = z.object({
   season: z.number().int().positive().optional(),
   fromWeek: z.number().int().min(1).max(52).optional(), toWeek: z.number().int().min(1).max(52).optional(),
@@ -65,8 +74,30 @@ async function loadHumanContext(tx: CareerExecutor, root: RootRow, season: numbe
 }
 
 /** Structured, actionable view of one event for the human. Pure over loaded context. */
+/** A6.5: age bounds for an event = authored AGE rules + the config circuit policy (all database versions). */
+export function ageRequirement(event: InstanceRow) {
+  const leaves: { minAge?: number; maxAgeExclusive?: number }[] = [];
+  const walk = (r: Rule) => { if ("all" in r) r.all.forEach(walk); else if ("any" in r) r.any.forEach(walk); else if ("not" in r) return; else if (r.type === "AGE") leaves.push(r); };
+  walk(event.snapshot.eligibility);
+  const policyMin = AGE_POLICY.circuitMinimumAge[event.circuit];
+  const mins = [...leaves.map(l => l.minAge), policyMin].filter((n): n is number => n !== undefined);
+  const maxes = leaves.map(l => l.maxAgeExclusive).filter((n): n is number => n !== undefined);
+  return { minAge: mins.length ? Math.max(...mins) : null, maxAgeExclusive: maxes.length ? Math.min(...maxes) : null, policyMin: policyMin ?? null,
+    junior: maxes.some(n => n <= AGE_POLICY.juniorMaxAgeExclusive) };
+}
+
 function humanView(event: InstanceRow, human: HumanContext, seriesWindows: SeriesWindows) {
-  const rule = evaluateRule(event.snapshot.eligibility, factsFor(human.participant, human.ctx, event));
+  const facts = factsFor(human.participant, human.ctx, event);
+  const authored = evaluateRule(event.snapshot.eligibility, facts);
+  const ages = ageRequirement(event);
+  // The circuit age policy applies whenever the age is known (a save without a DOB is gated at the API).
+  const underPolicy = ages.policyMin !== null && facts.age !== null && facts.age !== undefined && facts.age < ages.policyMin;
+  const rule = underPolicy ? { eligible: false, reasons: [...new Set([...authored.reasons, "BELOW_MINIMUM_AGE" as const])] } : authored;
+  const identity = human.participant.identity;
+  const ageInfo = (ages.minAge !== null || ages.maxAgeExclusive !== null) ? {
+    ...ages, ageOnEventDate: facts.age ?? null,
+    eligibleFrom: identity && ages.minAge !== null && facts.age !== null && facts.age !== undefined && facts.age < ages.minAge ? eligibleFrom(identity, ages.minAge, event.season, event.start_week) : null,
+  } : null;
   const entry = human.entries.get(event.id) ?? null;
   const denials: DenialReason[] = [];
   const currentSeason = event.season === human.season;
@@ -99,7 +130,7 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   else if (!rule.eligible) relationship = "NOT_ELIGIBLE";
   else relationship = entitlement ? "QUALIFIED" : "AVAILABLE";
   return {
-    relationship, eligible: rule.eligible, eligibilityReasons: rule.reasons,
+    relationship, eligible: rule.eligible, eligibilityReasons: rule.reasons, age: ageInfo,
     canEnter: denials.length === 0, denials: [...new Set(denials)], conflictsWith: [...conflicts],
     entryStatus: entry?.status ?? null, result: result ? { finishingPosition: Number(result.finishing_position), stageReached: String(result.stage_reached), champion: Boolean(result.is_champion) } : null,
   };
@@ -160,12 +191,49 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     if (!SUPPORTED_EVENT_DATABASE_VERSIONS.some(v => v === Number(root.event_database_version))) throw new CareerError(409, "Career event database requires a version migration");
     const state = await worldState(tx, root);
     const season = (await tx.execute(sql`SELECT * FROM career_seasons WHERE career_save_id = ${saveId} AND season = ${root.current_season}`)).rows[0];
+    if (season && root.status === "ACTIVE") await refreshCapabilities(tx, saveId);
     return { root, world: state, season };
   }
   async function requireSeason(tx: CareerExecutor, actor: CareerActor, saveId: string, active = true) {
     const ctx = await open(tx, actor, saveId, active);
     if (!ctx.season) throw new CareerError(409, "Initialize Career calendar first");
     return ctx as typeof ctx & { season: Record<string, unknown> };
+  }
+  async function recordHumanResultTx(tx: CareerExecutor, actor: CareerActor, saveId: string, input: HumanResultInput) {
+    const { root, world: state } = await requireSeason(tx, actor, saveId);
+    const match = (await tx.execute(sql`SELECT * FROM career_tournament_matches WHERE career_save_id = ${root.id} AND id = ${input.matchId} FOR UPDATE`)).rows[0] as MatchRow | undefined;
+    if (!match) throw new CareerError(404, "Career match not found");
+    if (match.status !== "AWAITING_HUMAN") throw new CareerError(409, "Match is not awaiting a human result");
+    const humanSide = match.a_key === HUMAN ? 0 : match.b_key === HUMAN ? 1 : -1;
+    if (humanSide < 0) throw new CareerError(409, "Match does not involve the human player");
+    const event = await eventOwned(tx, root.id, match.event_id);
+    const sets = event.snapshot.format.scoringUnit === "SETS";
+    const target = (match.best_of + 1) / 2;
+    let humanWon: boolean;
+    if (sets) {
+      if (input.humanSets === undefined || input.opponentSets === undefined) throw new CareerError(409, "Set-play result needs the set score");
+      const valid = (input.humanSets === target) !== (input.opponentSets === target) && input.humanSets <= target && input.opponentSets <= target;
+      const perSet = (event.snapshot.format.legsPerSet! + 1) / 2;
+      if (!valid || input.humanLegs < input.humanSets * perSet || input.opponentLegs < input.opponentSets * perSet) throw new CareerError(409, "Sets do not form a completed best-of result");
+      humanWon = input.humanSets === target;
+    } else {
+      if (input.humanSets !== undefined || input.opponentSets !== undefined) throw new CareerError(409, "Legs-play result cannot carry sets");
+      const valid = (input.humanLegs === target) !== (input.opponentLegs === target) && input.humanLegs <= target && input.opponentLegs <= target;
+      if (!valid) throw new CareerError(409, "Legs do not form a completed best-of result");
+      humanWon = input.humanLegs === target;
+    }
+    const legs = humanSide === 0 ? [input.humanLegs, input.opponentLegs] : [input.opponentLegs, input.humanLegs];
+    const winner = humanWon ? HUMAN : (humanSide === 0 ? match.b_key : match.a_key);
+    const firstThrow = input.humanThrewFirst ? humanSide : 1 - humanSide;
+    const summary = { ...(sets ? { sets: humanSide === 0 ? [input.humanSets, input.opponentSets] : [input.opponentSets, input.humanSets] } : {}), ...(input.live ? { live: input.live } : {}) };
+    const firstThrowDetail = input.live?.bullUp ? { method: "LIVE_BULL_UP", bullUp: input.live.bullUp } : { method: "LIVE_BULL_UP" };
+    const updated = await tx.execute(sql`UPDATE career_tournament_matches SET status = 'COMPLETED', winner_key = ${winner}, legs_a = ${legs[0]}, legs_b = ${legs[1]}, first_throw = ${firstThrow},
+      first_throw_detail = ${JSON.stringify(firstThrowDetail)}::jsonb, result_source = 'HUMAN_LIVE', completed_at = NOW(),
+      summary = ${Object.keys(summary).length ? JSON.stringify(summary) : null}::jsonb
+      WHERE career_save_id = ${root.id} AND id = ${match.id} AND status = 'AWAITING_HUMAN' RETURNING id`);
+    if (updated.rows.length !== 1) throw new CareerError(409, "Match result was already recorded");
+    const progress = await progressEvent(tx, root, state, event, lastDayOfWeek(Number(root.current_week)), await bind(tx, root));
+    return { matchId: match.id, winnerKey: winner, eventStatus: event.status, eventCompleted: progress.completed, nextHumanMatchIds: progress.awaitingHuman.map(m => m.id) };
   }
   async function eventOwned(tx: CareerExecutor, saveId: string, eventId: string) {
     const event = (await loadInstances(tx, saveId, sql`id = ${eventId}`))[0];
@@ -400,29 +468,12 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
      */
     async recordHumanMatchResult(actor: CareerActor, saveId: string, body: unknown) {
       const input = humanResultSchema.parse(body);
-      return database.transaction(async tx => {
-        const { root, world: state } = await requireSeason(tx, actor, saveId);
-        const match = (await tx.execute(sql`SELECT * FROM career_tournament_matches WHERE career_save_id = ${root.id} AND id = ${input.matchId}`)).rows[0] as MatchRow | undefined;
-        if (!match) throw new CareerError(404, "Career match not found");
-        if (match.status !== "AWAITING_HUMAN") throw new CareerError(409, "Match is not awaiting a human result");
-        const humanSide = match.a_key === HUMAN ? 0 : match.b_key === HUMAN ? 1 : -1;
-        if (humanSide < 0) throw new CareerError(409, "Match does not involve the human player");
-        const target = (match.best_of + 1) / 2;
-        const valid = (input.humanLegs === target) !== (input.opponentLegs === target) && input.humanLegs <= target && input.opponentLegs <= target;
-        if (!valid) throw new CareerError(409, "Legs do not form a completed best-of result");
-        const legs = humanSide === 0 ? [input.humanLegs, input.opponentLegs] : [input.opponentLegs, input.humanLegs];
-        const winner = input.humanLegs === target ? HUMAN : (humanSide === 0 ? match.b_key : match.a_key);
-        const firstThrow = input.humanThrewFirst ? humanSide : 1 - humanSide;
-        await tx.execute(sql`UPDATE career_tournament_matches SET status = 'COMPLETED', winner_key = ${winner}, legs_a = ${legs[0]}, legs_b = ${legs[1]}, first_throw = ${firstThrow},
-          first_throw_detail = ${JSON.stringify({ method: "LIVE_BULL_UP" })}::jsonb, result_source = 'HUMAN_LIVE', completed_at = NOW()
-          WHERE career_save_id = ${root.id} AND id = ${match.id} AND status = 'AWAITING_HUMAN'`);
-        const event = await eventOwned(tx, root.id, match.event_id);
-        const progress = await progressEvent(tx, root, state, event, lastDayOfWeek(Number(root.current_week)), await bind(tx, root));
-        return { matchId: match.id, winnerKey: winner, eventStatus: event.status, eventCompleted: progress.completed };
-      });
+      return database.transaction(async tx => recordHumanResultTx(tx, actor, saveId, input));
     },
-
-    /** Retry-safe calendar advancement. Each week step is itself idempotent. */
+    /** Same boundary inside a caller's transaction (Career live match session completion). */
+    async recordHumanMatchResultInTx(tx: CareerExecutor, actor: CareerActor, saveId: string, body: unknown) {
+      return recordHumanResultTx(tx, actor, saveId, humanResultSchema.parse(body));
+    },
     async advance(actor: CareerActor, saveId: string, body: unknown) {
       const request = advanceSchema.parse(body);
       const started = await database.transaction(async tx => {

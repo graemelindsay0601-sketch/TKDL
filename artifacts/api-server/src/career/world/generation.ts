@@ -11,7 +11,7 @@ export function stageForAge(age: number, peakStart: number, peakEnd: number): Np
   return age < 23 ? "PROSPECT" : age < peakStart ? "DEVELOPING" : age <= peakEnd ? "PRIME" : "VETERAN";
 }
 
-function generateNpc(seed: string, version: number, worldKey: string, tier: Tier, season: number, names: Set<string>, prospect: boolean): Npc {
+function generateNpc(seed: string, version: number, worldKey: string, tier: Tier, season: number, names: Set<string>, prospect: boolean, ageRange?: readonly [number, number]): Npc {
   const identity = scopedRandom(seed, version, "identity", worldKey);
   const attributes = scopedRandom(seed, version, "attributes", worldKey);
   const development = scopedRandom(seed, version, "development-profile", worldKey);
@@ -25,7 +25,7 @@ function generateNpc(seed: string, version: number, worldKey: string, tier: Tier
   const prospectClass = weighted(development, D.prospects);
   const centre = prospect ? between(attributes, prospectClass.ability[0], prospectClass.ability[1]) : W.ability[tier][0] + normal(attributes) * W.ability[tier][1];
   const ability = Object.fromEntries(ATTRIBUTES.map(key => [key, clamp(centre + normal(attributes) * W.attributeSpread, W.attributeMin, W.attributeMax)])) as Ability;
-  const age = prospect ? integer(identity, ...D.prospectAge) : integer(identity, W.ages[tier][0], W.ages[tier][1]);
+  const age = ageRange ? integer(identity, ageRange[0], ageRange[1]) : prospect ? integer(identity, ...D.prospectAge) : integer(identity, W.ages[tier][0], W.ages[tier][1]);
   const peakStart = integer(development, ...D.peakStart);
   const peakEnd = peakStart + integer(development, ...D.peakLength);
   const late = development() < D.lateBloomShare;
@@ -72,4 +72,18 @@ export function generateProspects(seed: string, version: number, season: number,
   if (!Number.isSafeInteger(season) || season < 2 || !Number.isSafeInteger(count) || count < 0) throw new Error("Invalid generation request");
   const names = new Set(existing.map(npc => `${npc.firstName} ${npc.surname}`));
   return Array.from({ length: count }, (_, i) => generateNpc(seed, version, `generation:${season}:${i}`, "GRASSROOTS", season, names, true));
+}
+
+/**
+ * A6.5 junior cohort, used only by saves on event database v2+ (which carry the
+ * Junior Development Circuit). Generated on their own world keys, so every v1
+ * player and every existing RNG stream is untouched. Juniors are ordinary NPCs:
+ * prospect-grade ability, the same development and simulation as everyone else.
+ */
+export const JUNIOR_COHORT = Object.freeze({ initial: 40, annualIntake: 18, initialAges: [16, 17] as const, intakeAges: [16, 16] as const });
+export function generateJuniorCohort(seed: string, version: number, season: number, count: number, existing: readonly Npc[], tag: string): Npc[] {
+  assertGenerationVersion(version);
+  const names = new Set(existing.map(npc => `${npc.firstName} ${npc.surname}`));
+  const ages = tag === "initial" ? JUNIOR_COHORT.initialAges : JUNIOR_COHORT.intakeAges;
+  return Array.from({ length: count }, (_, i) => generateNpc(seed, version, `junior:${tag}:${i}`, "GRASSROOTS", season, names, true, ages));
 }

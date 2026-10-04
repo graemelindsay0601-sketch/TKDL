@@ -2,7 +2,8 @@
 export const CAREER_VERSIONS = Object.freeze({
   careerSchemaVersion: 1,
   worldGenerationVersion: 1,
-  eventDatabaseVersion: 1,
+  /** A6.5: new saves use event database v2 (junior circuit, Double Crown, age rules). */
+  eventDatabaseVersion: 2,
   playerDatabaseVersion: 1,
 });
 

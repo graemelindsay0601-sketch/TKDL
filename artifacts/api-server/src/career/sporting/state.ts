@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
-import type { RootRow } from "../calendar/engine.ts";
+import { HUMAN, rootIdentity, type RootRow } from "../calendar/engine.ts";
+import { ageOn, careerWeekDate } from "../identity/age.ts";
 import { stableUuid } from "../world/random.ts";
 import { CareerError } from "../service.ts";
 import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, SUPPORTED_SPORTING_VERSIONS } from "./config.ts";
@@ -28,8 +29,13 @@ export type Milestone = { operationKey: string; participantKey: string; particip
 /** Idempotent factual milestones (one row per operation key). No prose. */
 export async function recordMilestones(tx: CareerExecutor, root: RootRow, milestones: readonly Milestone[]) {
   if (!milestones.length) return;
+  // A6.5: the human's age on the milestone's Career date is persisted as a fact (for A7; no narrative).
+  const identity = rootIdentity(root as RootRow & { identity_dob?: unknown; identity_start?: unknown });
+  const withAge = (m: Milestone) => m.participantKey === HUMAN && identity?.dateOfBirth
+    ? { ...(m.detail ?? {}), humanAge: ageOn(identity.dateOfBirth, careerWeekDate(identity.careerStartDate, m.season, Math.min(52, Math.max(1, m.week)))) }
+    : m.detail ?? {};
   const rows = milestones.map(m => ({ id: stableUuid(root.world_seed, RANKING_RULES_VERSION, "sporting-milestone", root.id, m.operationKey), operation_key: m.operationKey,
-    participant_key: m.participantKey, participant_kind: m.participantKind, npc_id: m.npcId, kind: m.kind, list_key: m.listKey ?? null, season: m.season, week: m.week, detail: m.detail ?? {} }));
+    participant_key: m.participantKey, participant_kind: m.participantKind, npc_id: m.npcId, kind: m.kind, list_key: m.listKey ?? null, season: m.season, week: m.week, detail: withAge(m) }));
   for (let i = 0; i < rows.length; i += 400) {
     await tx.execute(sql`INSERT INTO career_sporting_milestones (career_save_id, id, operation_key, participant_key, participant_kind, npc_id, kind, list_key, season, week, detail)
       SELECT ${root.id}::uuid, m.id, m.operation_key, m.participant_key, m.participant_kind, m.npc_id, m.kind, m.list_key, m.season, m.week, m.detail

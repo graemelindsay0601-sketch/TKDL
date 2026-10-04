@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { catalogueFor } from "../../career/calendar/catalogue.ts";
 import { definitionHash } from "../../career/calendar/generation.ts";
@@ -283,6 +284,8 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
       )
     `);
     await syncEventDefinitions(tx);
+    // A6.5: server-authoritative live match sessions — additive, idempotent.
+    await ensureCareerMatchSessionSchema(tx);
   });
 }
 

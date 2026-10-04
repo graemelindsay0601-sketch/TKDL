@@ -53,7 +53,14 @@ function throwDart(aim: Aim, profile: Performance, scoring: number, decisive: bo
 
 const emptyStats = (): MatchStats => ({ points: 0, darts: 0, average: 0, doubleAttempts: 0, checkouts: 0, checkoutPercentage: 0, maximums: 0, highestCheckout: 0, legsWon: 0 });
 
-/** Result follows legal darts, visits and repeated alternating-throw legs. No winner roll. */
+/**
+ * Result follows legal darts, visits and repeated alternating-throw legs. No winner roll.
+ * A6.5: also models double-in (the NPC must hit a double before any dart scores; the
+ * opening dart scores) and set play (legs within sets; the first leg of each set
+ * alternates by set, legs alternate within a set) — the same conventions as the
+ * shared live scorer, so a human match and an NPC match mean the same thing.
+ * The 501 straight-in legs path is unchanged dart-for-dart (same RNG scopes/order).
+ */
 export function simulateNpcMatch(input: {
   players: [Npc, Npc]; context: MatchContext; format: MatchFormat;
   seed: string; generationVersion: number; matchKey: string; difficulty: CareerDifficulty;
@@ -69,12 +76,24 @@ export function simulateNpcMatch(input: {
   const stats: [MatchStats, MatchStats] = [emptyStats(), emptyStats()];
   const legs: SimulatedMatch["legs"] = [];
   const momentum = [0, 0];
-  const targetLegs = (format.bestOf + 1) / 2;
-  while (stats[0].legsWon < targetLegs && stats[1].legsWon < targetLegs) {
+  const startingScore = format.startingScore ?? S.startingScore;
+  const doubleIn = format.inRule === "DOUBLE";
+  const sets = format.unit === "SETS";
+  // LEGS: target legs in the match. SETS: target legs in a set and target sets in the match.
+  const targetLegs = sets ? (format.legsPerSet! + 1) / 2 : (format.bestOf + 1) / 2;
+  const targetSets = sets ? (format.bestOf + 1) / 2 : 1;
+  const setsWon: [number, number] = [0, 0];
+  let setLegs: [number, number] = [0, 0];
+  let setNo = 1, legInSet = 1;
+  const matchOver = () => sets ? Math.max(...setsWon) >= targetSets : Math.max(stats[0].legsWon, stats[1].legsWon) >= targetLegs;
+  while (!matchOver()) {
     const legIndex = legs.length;
-    const firstThrow = ((format.firstThrow + legIndex) % 2) as 0 | 1;
+    const legsHere: [number, number] = sets ? setLegs : [stats[0].legsWon, stats[1].legsWon];
+    const setStarter = ((format.firstThrow + setNo - 1) % 2) as 0 | 1;
+    const firstThrow = (sets ? (setStarter + legInSet - 1) % 2 : (format.firstThrow + legIndex) % 2) as 0 | 1;
     const rng = players.map(player => scopedRandom(seed, generationVersion, "darts", SIMULATION_VERSION, matchKey, legIndex, player.id));
-    const remaining = [S.startingScore, S.startingScore] as number[];
+    const remaining = [startingScore, startingScore] as number[];
+    const opened = [!doubleIn, !doubleIn];
     const darts: [number, number] = [0, 0];
     const points: [number, number] = [0, 0];
     let won = false;
@@ -82,13 +101,26 @@ export function simulateNpcMatch(input: {
       const who = ((firstThrow + visit) % 2) as 0 | 1;
       const other = (1 - who) as 0 | 1;
       const before = remaining[who];
+      const openedBefore = opened[who];
       const profile = performance[who];
       const random = rng[who];
-      const decisive = stats[0].legsWon === targetLegs - 1 && stats[1].legsWon === targetLegs - 1;
-      const leverage = decisive || (remaining[other] <= 170 && (stats[who].legsWon === targetLegs - 1 || stats[other].legsWon === targetLegs - 1));
+      const lastSet = !sets || (setsWon[0] === targetSets - 1 && setsWon[1] === targetSets - 1);
+      const decisive = lastSet && legsHere[0] === targetLegs - 1 && legsHere[1] === targetLegs - 1;
+      const leverage = decisive || (remaining[other] <= 170 && (legsHere[who] === targetLegs - 1 || legsHere[other] === targetLegs - 1));
       const scoring = clamp(profile.effective.scoring + normal(random) * profile.visitSd + momentum[who], W.attributeMin, W.attributeMax);
       let visitPoints = 0, bust = false, missedDoubles = 0;
       for (let dart = 0; dart < 3; dart++) {
+        if (!opened[who]) {
+          // Double-in: aim at D20; only a double opens, and the opening dart scores.
+          const thrown = throwDart({ segment: 20, multiplier: 2 }, profile, scoring, false, momentum[who], random);
+          stats[who].darts++; darts[who]++;
+          stats[who].openingAttempts = (stats[who].openingAttempts ?? 0) + 1;
+          if (!thrown.double) continue;
+          opened[who] = true;
+          if (remaining[who] - thrown.score < 2) { bust = true; break; }
+          remaining[who] -= thrown.score; visitPoints += thrown.score;
+          continue;
+        }
         const aim = chooseAim(remaining[who], 3 - dart);
         const finishAttempt = aim.multiplier === 2 && aim.segment * 2 === remaining[who];
         const thrown = throwDart(aim, profile, scoring, leverage, momentum[who], random);
@@ -107,11 +139,18 @@ export function simulateNpcMatch(input: {
         }
         if (finishAttempt) missedDoubles++;
       }
-      if (bust) { remaining[who] = before; visitPoints = 0; }
+      if (bust) { remaining[who] = before; visitPoints = 0; opened[who] = openedBefore; }
       stats[who].points += visitPoints; points[who] += visitPoints;
       if (visitPoints === 180) { stats[who].maximums++; momentum[who] += S.maximumMomentum; }
       momentum[who] = clamp(momentum[who] * S.momentumDecay - missedDoubles * S.missedDoubleMomentum, -S.momentumLimit, S.momentumLimit);
-      if (won) legs.push({ winner: who, firstThrow, checkout: before, darts, points });
+      if (won) {
+        legs.push(sets ? { winner: who, firstThrow, checkout: before, darts, points, set: setNo } : { winner: who, firstThrow, checkout: before, darts, points });
+        if (sets) {
+          setLegs[who]++;
+          if (setLegs[who] >= targetLegs) { setsWon[who]++; setNo++; legInSet = 1; setLegs = [0, 0]; }
+          else legInSet++;
+        }
+      }
     }
     if (!won) throw new Error("NPC leg exceeded simulation safety limit; result not fabricated");
   }
@@ -119,7 +158,8 @@ export function simulateNpcMatch(input: {
     row.average = row.points / row.darts * 3;
     row.checkoutPercentage = row.doubleAttempts ? row.checkouts / row.doubleAttempts * 100 : 0;
   }
-  const winner = stats[0].legsWon === targetLegs ? 0 : 1;
+  if (sets) { stats[0].setsWon = setsWon[0]; stats[1].setsWon = setsWon[1]; }
+  const winner = sets ? (setsWon[0] === targetSets ? 0 : 1) : (stats[0].legsWon === targetLegs ? 0 : 1);
   return { simulationVersion: SIMULATION_VERSION, winnerId: players[winner].id, loserId: players[1 - winner].id,
     participants: [players[0].id, players[1].id], context, format, performance, stats, legs };
 }

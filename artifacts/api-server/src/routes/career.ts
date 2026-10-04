@@ -6,13 +6,21 @@ import { createCareerCalendarRouter } from "../career/calendar/router.ts";
 import { createCareerFinanceRouter } from "../career/finance/router.ts";
 import { createCareerSportingService } from "../career/sporting/service.ts";
 import { createCareerSportingRouter } from "../career/sporting/router.ts";
+import { createCareerLiveMatchService } from "../career/live/service.ts";
+import { createCareerLiveRouter } from "../career/live/router.ts";
+import { createCareerIdentityService, createCareerIdentityRouter } from "../career/identity/service.ts";
 
 const saves = createCareerService(db);
 // A5 composes the Career: A3 calendar with A4 finance hooks and A5 sporting status/seeding/hooks,
 // and A4 sponsorship reading A5 sporting facts. Every Career route uses this one composition.
 const sporting = createCareerSportingService(db);
 const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
+// A6.5: live Career matches through the real scorer; results enter via A3's human-result boundary.
+const live = createCareerLiveMatchService(db, sporting.calendar);
 const router = Router();
+// A6.5: Career identity endpoints + PROFILE_INCOMPLETE gate (first, so it guards sporting routes).
+router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
+router.use(createCareerLiveRouter(live, available));
 router.use(createCareerSportingRouter(sporting, available));
 router.use(createCareerFinanceRouter(sporting.finance, available));
 router.use(createCareerCalendarRouter(sporting.calendar, available));

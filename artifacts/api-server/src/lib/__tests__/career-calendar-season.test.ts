@@ -87,12 +87,14 @@ test("every event finishes honestly: completed with a valid champion or explicit
   const fakes = await rows(sql`SELECT COUNT(*)::int AS n FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
     WHERE m.career_save_id = ${world.id} AND NOT i.executable`);
   assert.equal(fakes[0].n, 0, "unsupported formats never produce 501 matches");
-  const wc = (await rows(sql`SELECT status, status_reason FROM career_event_instances WHERE career_save_id = ${world.id} AND season = 1 AND definition_key = 'world-darts-championship'`))[0];
-  assert.deepEqual(wc, { status: "CANCELLED", status_reason: "UNSUPPORTED_FORMAT" });
+  // A6.5: set play is executable (human scorer + A2 set simulation), so the Palace is played, never faked.
+  const wc = (await rows(sql`SELECT status, status_reason, champion_participant_key FROM career_event_instances WHERE career_save_id = ${world.id} AND season = 1 AND definition_key = 'world-darts-championship'`))[0];
+  assert.equal(wc.status, "COMPLETED"); assert.ok(wc.champion_participant_key, "World Championship produced a champion");
 });
 
 test("knockout brackets are internally consistent from first round to champion", async () => {
-  const matches = await rows(sql`SELECT m.event_id, m.round, m.slot, m.a_key, m.b_key, m.winner_key, m.status, m.best_of, m.legs_a, m.legs_b, i.champion_participant_key
+  const matches = await rows(sql`SELECT m.event_id, m.round, m.slot, m.a_key, m.b_key, m.winner_key, m.status, m.best_of, m.legs_a, m.legs_b, m.summary, i.champion_participant_key,
+      i.snapshot->'format'->>'scoringUnit' AS unit, (i.snapshot->'format'->>'legsPerSet')::int AS legs_per_set
     FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
     WHERE m.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' ORDER BY m.event_id, m.round, m.slot`);
   const byEvent = new Map<string, typeof matches>();
@@ -102,8 +104,17 @@ test("knockout brackets are internally consistent from first round to champion",
     for (const m of list) {
       if (m.status === "COMPLETED") {
         const target = (Number(m.best_of) + 1) / 2;
-        const [wl, ll] = m.winner_key === m.a_key ? [m.legs_a, m.legs_b] : [m.legs_b, m.legs_a];
-        assert.equal(wl, target); assert.ok(Number(ll) < target);
+        if (m.unit === "SETS") {
+          // best_of is best-of SETS; legs are totals across sets.
+          const setScore = (m.summary as { sets: [number, number] }).sets;
+          const [ws, ls] = m.winner_key === m.a_key ? setScore : [setScore[1], setScore[0]];
+          assert.equal(ws, target); assert.ok(ls < target);
+          const [wl] = m.winner_key === m.a_key ? [m.legs_a, m.legs_b] : [m.legs_b, m.legs_a];
+          assert.ok(Number(wl) >= target * (Number(m.legs_per_set) + 1) / 2, "set winner won enough legs");
+        } else {
+          const [wl, ll] = m.winner_key === m.a_key ? [m.legs_a, m.legs_b] : [m.legs_b, m.legs_a];
+          assert.equal(wl, target); assert.ok(Number(ll) < target);
+        }
       }
       if (Number(m.round) > 1) {
         const feeders = list.filter(f => Number(f.round) === Number(m.round) - 1 && Math.ceil(Number(f.slot) / 2) === Number(m.slot));

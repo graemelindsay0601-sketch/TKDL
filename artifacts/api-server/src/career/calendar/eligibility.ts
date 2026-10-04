@@ -19,7 +19,9 @@ export type Rule =
   | { type: "INVITATION" }
   | { type: "RANKING"; list: string; maxPosition: number }
   | { type: "EVENT_RESULT"; definitionKey: string; maxPosition: number; season: "SAME" | "PREVIOUS" }
-  | { type: "DEFENDING_CHAMPION" };
+  | { type: "DEFENDING_CHAMPION" }
+  /** A6.5: age on the event's start date. Bounds come from AGE_POLICY when authored. */
+  | { type: "AGE"; minAge?: number; maxAgeExclusive?: number };
 
 const leaf = z.discriminatedUnion("type", [
   z.object({ type: z.literal("OPEN") }).strict(),
@@ -34,6 +36,7 @@ const leaf = z.discriminatedUnion("type", [
   z.object({ type: z.literal("RANKING"), list: z.string().min(1), maxPosition: z.number().int().positive() }).strict(),
   z.object({ type: z.literal("EVENT_RESULT"), definitionKey: z.string().min(1), maxPosition: z.number().int().positive(), season: z.enum(["SAME", "PREVIOUS"]) }).strict(),
   z.object({ type: z.literal("DEFENDING_CHAMPION") }).strict(),
+  z.object({ type: z.literal("AGE"), minAge: z.number().int().min(5).max(120).optional(), maxAgeExclusive: z.number().int().min(6).max(121).optional() }).strict(),
 ]);
 export const ruleSchema: z.ZodType<Rule> = z.lazy(() => z.union([
   z.object({ all: z.array(ruleSchema).min(1) }).strict(),
@@ -48,6 +51,7 @@ export const DENIAL_REASONS = [
   "REQUIRES_RANKING", "REQUIRES_EVENT_RESULT", "REQUIRES_DEFENDING_CHAMPION",
   "REGISTRATION_NOT_OPEN", "REGISTRATION_CLOSED", "SCHEDULE_CONFLICT", "ALREADY_ENTERED", "NOT_ENTERED",
   "UNSUPPORTED_FORMAT", "CAREER_NOT_ACTIVE", "PARTICIPANT_RETIRED", "FIELD_LOCKED", "EVENT_FINISHED", "INSUFFICIENT_FUNDS",
+  "BELOW_MINIMUM_AGE", "ABOVE_MAXIMUM_AGE", "PROFILE_INCOMPLETE",
 ] as const;
 export type DenialReason = typeof DENIAL_REASONS[number];
 
@@ -66,6 +70,8 @@ export type ParticipantFacts = {
   /** definitionKey -> best finishing position, per relative season. */
   results: { SAME: ReadonlyMap<string, number>; PREVIOUS: ReadonlyMap<string, number> };
   defendingChampion: boolean;
+  /** A6.5: age on the event's start date; null = unknown (save without a DOB). Absent = not supplied. */
+  age?: number | null;
 };
 
 export type RuleOutcome = { eligible: boolean; reasons: DenialReason[] };
@@ -102,6 +108,12 @@ export function evaluateRule(rule: Rule, facts: ParticipantFacts): RuleOutcome {
       return position !== undefined && position <= rule.maxPosition ? ok : deny("REQUIRES_EVENT_RESULT");
     }
     case "DEFENDING_CHAMPION": return facts.defendingChampion ? ok : deny("REQUIRES_DEFENDING_CHAMPION");
+    case "AGE": {
+      if (facts.age === null || facts.age === undefined) return deny("PROFILE_INCOMPLETE");
+      if (rule.minAge !== undefined && facts.age < rule.minAge) return deny("BELOW_MINIMUM_AGE");
+      if (rule.maxAgeExclusive !== undefined && facts.age >= rule.maxAgeExclusive) return deny("ABOVE_MAXIMUM_AGE");
+      return ok;
+    }
   }
 }
 const unique = <T>(values: T[]) => [...new Set(values)];
@@ -123,6 +135,7 @@ export const R = {
   ranking: (list: string, maxPosition: number): Rule => ({ type: "RANKING", list, maxPosition }),
   result: (definitionKey: string, maxPosition: number, season: "SAME" | "PREVIOUS"): Rule => ({ type: "EVENT_RESULT", definitionKey, maxPosition, season }),
   defendingChampion: (): Rule => ({ type: "DEFENDING_CHAMPION" }),
+  age: (bounds: { minAge?: number; maxAgeExclusive?: number }): Rule => ({ type: "AGE", ...bounds }),
 };
 
 /** Q-School pathway geography: UK/Ireland vs Europe; rest of world may choose either. */

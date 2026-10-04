@@ -30,8 +30,14 @@ before(async () => {
 beforeEach(async () => { await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled=true, admin_test_mode=false"); });
 after(async () => { await pg.close(); });
 
+/** These A2 checks pin the v1 world (220 NPCs). A6.5 v2 saves add a junior cohort, tested in career-a65-identity.test.ts. */
+async function createV1(player: number, body: Record<string, unknown>) {
+  const save = await saves.create(player, body);
+  await db.execute(sql`UPDATE career_saves SET event_database_version = 1 WHERE id = ${save.id}`);
+  return save;
+}
 async function initialized(slot = 1, player = 1) {
-  const save = await saves.create(player, { slot });
+  const save = await createV1(player, { slot });
   // Fixed server-side fixture seed; never a client input to the Career service.
   await db.execute(sql`UPDATE career_saves SET world_seed = ${slot === 1 ? HARNESS_SEED : "bc".repeat(32)} WHERE id = ${save.id}`);
   await worlds.initialize({ playerId: player }, save.id);
@@ -52,7 +58,7 @@ async function requestFor(saveId: string, matchKey = "a3-match-identity") {
 const rejectsStatus = async (promise: Promise<unknown>, status: number) => assert.rejects(promise, error => (error as { status?: number }).status === status);
 
 test("existing A1 saves initialize exactly once without rewriting seed or version; concurrent retry is safe", async () => {
-  const save = await saves.create(1, { slot: 1 });
+  const save = await createV1(1, { slot: 1 });
   const rootBefore = (await db.execute(sql`SELECT * FROM career_saves WHERE id=${save.id}`)).rows[0];
   const results = await Promise.all([worlds.initialize(actor, save.id), worlds.initialize(actor, save.id)]);
   assert.equal(results.filter(result => result.created).length, 1);
@@ -66,7 +72,7 @@ test("existing A1 saves initialize exactly once without rewriting seed or versio
 });
 
 test("failed initialization rolls back all 220 NPCs and can be retried", async () => {
-  const save = await saves.create(1, { slot: 1 });
+  const save = await createV1(1, { slot: 1 });
   await pg.exec(`CREATE FUNCTION fail_world_init() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'world init fault'; END; $$ LANGUAGE plpgsql;
     CREATE TRIGGER fail_world_init BEFORE INSERT ON career_world_state FOR EACH ROW EXECUTE FUNCTION fail_world_init()`);
   try {
@@ -184,7 +190,7 @@ test("save retirement preserves NPCs and blocks every world mutation; uninitiali
   await rejectsStatus(worlds.processOffSeason(actor, save.id, { season: 1, opportunity: 1 }), 409);
   assert.deepEqual(await snapshot(save.id), before);
   assert.equal((await worlds.listPlayers(actor, save.id)).length, 220);
-  const empty = await saves.create(1, { slot: 1 });
+  const empty = await createV1(1, { slot: 1 });
   await saves.retire(1, empty.id);
   await rejectsStatus(worlds.initialize(actor, empty.id), 409);
   assert.equal((await worlds.listPlayers(actor, empty.id)).length, 0);

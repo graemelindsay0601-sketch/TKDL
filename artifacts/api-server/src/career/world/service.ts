@@ -5,7 +5,7 @@ import { CAREER_FEATURE, type CareerDifficulty } from "../config.ts";
 import { CareerError } from "../service.ts";
 import { careerIdSchema } from "../validation.ts";
 import { CAREER_WORLD_CONFIG, CAREER_DEVELOPMENT_CONFIG, CAREER_DIFFICULTY_CONFIG, CAREER_SIMULATION_CONFIG, SIMULATION_VERSION } from "./config.ts";
-import { assertGenerationVersion, generateInitialWorld } from "./generation.ts";
+import { assertGenerationVersion, generateInitialWorld, generateJuniorCohort, JUNIOR_COHORT } from "./generation.ts";
 import { loadNpcs, persistNpcs, presentNpc } from "./repository.ts";
 import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./types.ts";
 import { simulateNpcMatch } from "./simulation.ts";
@@ -25,7 +25,9 @@ export async function lockRoot(tx: CareerExecutor, actor: CareerActor, saveId: s
   if (!Number.isSafeInteger(actor.playerId) || actor.playerId <= 0) throw new Error("Authenticated Career actor required");
   const flags = (await tx.execute(sql`SELECT enabled, admin_test_mode FROM feature_flags WHERE feature_name = ${CAREER_FEATURE}`)).rows;
   if (!(flags[0]?.enabled === true || (actor.isAdmin === true && flags[0]?.admin_test_mode === true))) throw new CareerError(404, "Career not available");
-  const row = (await tx.execute(sql`SELECT * FROM career_saves WHERE id = ${saveId} AND player_id = ${actor.playerId} FOR UPDATE`)).rows[0];
+  // A6.5: identity (DOB / Career start date) rides along with the locked root for age facts.
+  const row = (await tx.execute(sql`SELECT s.*, to_char(p.date_of_birth, 'YYYY-MM-DD') AS identity_dob, to_char(p.career_start_date, 'YYYY-MM-DD') AS identity_start
+    FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId} AND s.player_id = ${actor.playerId} FOR UPDATE OF s`)).rows[0];
   if (!row) throw new CareerError(404, "Career not found");
   if (active && row.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
   assertGenerationVersion(Number(row.world_generation_version));
@@ -107,6 +109,9 @@ export function createCareerWorldService(database: CareerDatabase) {
         // A1 saves start in season 1. Refuse to fabricate historical populations.
         if (root.current_season !== 1) throw new CareerError(409, "Uninitialized advanced save requires migration");
         const players = generateInitialWorld(root.world_seed, root.world_generation_version);
+        // A6.5: event database v2 carries the Junior Development Circuit, which needs junior opponents.
+        if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 2)
+          players.push(...generateJuniorCohort(root.world_seed, root.world_generation_version, 1, JUNIOR_COHORT.initial, players, "initial"));
         await persistNpcs(tx, saveId, players);
         await tx.execute(sql`INSERT INTO career_world_state (career_save_id, generation_version, simulation_version, season, period, elapsed_year, config_snapshot)
           VALUES (${saveId}, ${root.world_generation_version}, ${SIMULATION_VERSION}, ${root.current_season}, 0, 0, ${JSON.stringify(configSnapshot())}::jsonb)`);
@@ -156,6 +161,10 @@ export function createCareerWorldService(database: CareerDatabase) {
         if (old) { checkRetry(old.request, request); return old.summary; }
         if (request.season !== world.season || root.current_season !== world.season) throw new CareerError(409, "Off-season must close the current season");
         const evolved = evolveOffSeason(await loadNpcs(tx, saveId), root.world_seed, root.world_generation_version, world.season, 1 - world.elapsed_year, request.opportunity);
+        if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 2) {
+          const intake = generateJuniorCohort(root.world_seed, root.world_generation_version, world.season + 1, JUNIOR_COHORT.annualIntake, evolved.players, `intake:${world.season + 1}`);
+          evolved.players.push(...intake); evolved.entrants.push(...intake.map(npc => npc.id));
+        }
         await persistNpcs(tx, saveId, evolved.players);
         const summary = { completedSeason: world.season, nextSeason: world.season + 1, retired: evolved.retired, entrants: evolved.entrants };
         await tx.execute(sql`INSERT INTO career_world_periods (career_save_id, season, kind, sequence, request, summary)

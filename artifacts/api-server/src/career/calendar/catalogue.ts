@@ -3,6 +3,7 @@ import type { Circuit, Classification, PresentationTier } from "./config.ts";
 import { EVENT_DATABASE_VERSION } from "./config.ts";
 import { knockout501, setsKnockout501, groupKnockout501, league501, x01Variant, specialGame, pairs501, type EventFormat } from "./formats.ts";
 import { R, Q_SCHOOL_PATHWAYS, type Rule, type QSchoolPathway } from "./eligibility.ts";
+import { AGE_POLICY } from "../identity/age.ts";
 import { COUNTRIES, LOCALITIES, type Zone } from "./geography.ts";
 
 /**
@@ -387,9 +388,41 @@ export const EVENT_CATALOGUE_V1: readonly EventDefinition[] = Object.freeze([
   ...grassroots, ...county, ...regional, ...nationalAmateur, ...qSchool, ...challenger, ...vault, ...pro, ...european, ...worldSeries, ...majors, ...worldChampionship, ...specials,
 ]);
 
+// ---------------------------------------------------------------- EVENT DATABASE v2 (A6.5)
+/**
+ * v2 = every v1 definition (re-versioned, unchanged) plus the narrow A6.5 content:
+ *  - Junior Development Circuit (fictional; under-18 on the event date, from AGE_POLICY).
+ *    Juniors may still enter any open/amateur event they are otherwise eligible for.
+ *  - The Double Crown: the Grand-Prix-style 501 double-in / double-out set-play major,
+ *    replacing v1's "Double Start Grand Prix" slot (same week, venue and field rules).
+ */
+const JUNIOR_ONLY = R.all(AMATEUR_ONLY, R.age({ maxAgeExclusive: AGE_POLICY.juniorMaxAgeExclusive }));
+const junior: Omit<EventDefinition, "eventDatabaseVersion">[] = [
+  def({ key: "junior-development-night", name: "{city} Junior Development Night", family: "junior-development-circuit", circuit: "GRASSROOTS", classification: "RANKING", rankingCategory: "AMATEUR_LOCAL",
+    presentation: { tier: "LOCAL", featured: false, calendarPriority: 11, brandingFamily: "junior-development-circuit" }, format: knockout501([3, 3, 5, 5], "local"), fieldSize: 16, npcFill: [0.6, 1],
+    npcTierWeights: tw(1, 0.6, 0.05, 0), geography: { kind: "COUNTRY" }, eligibility: R.all(R.country("{country}"), JUNIOR_ONLY), registrationLeadWeeks: 3,
+    profiles: { ...profiles("grassroots"), entryFee: "fee:junior" },
+    legacyConcept: "Junior development (fictional circuit)", schedule: { kind: "LOCAL_ROTATION", venueKind: "CLUB", perWeight: 0.6, day: 6, weekRange: [2, 48], countries: ["GBR", "IRL", "NLD", "DEU", "BEL"] } }),
+  def({ key: "junior-development-championship", name: "Junior Development Championship", family: "junior-development-circuit", circuit: "NATIONAL_AMATEUR", classification: "RANKING", rankingCategory: "AMATEUR_NATIONAL",
+    presentation: { tier: "FEATURED", featured: true, calendarPriority: 40, brandingFamily: "junior-development-circuit" }, format: knockout501([5, 5, 5, 7, 7], "stage", 2), fieldSize: 32, minimumEntrants: 8, npcFill: [0.7, 1],
+    npcTierWeights: tw(1, 1, 0.2, 0), geography: { kind: "INTERNATIONAL", hostBonus: 1 }, eligibility: JUNIOR_ONLY, registrationLeadWeeks: 6,
+    profiles: { ...profiles("national_amateur"), entryFee: "fee:junior" },
+    legacyConcept: "Junior development finals (fictional circuit)", schedule: { kind: "FIXED", slots: [{ week: 33, day: 6, endDay: 7, venue: "midlands-oche" }] } }),
+];
+const doubleCrown = (() => {
+  const original = majors.find(d => d.key === "double-start-grand-prix")!;
+  return { ...original, key: "double-crown", name: "The Double Crown", family: "double-crown",
+    presentation: { ...original.presentation, brandingFamily: "double-crown", heroAssetKey: "hero:double-crown", badgeAssetKey: "badge:double-crown" },
+    legacyConcept: "Grand-Prix-style double-in major (fictional)" };
+})();
+export const EVENT_CATALOGUE_V2: readonly EventDefinition[] = Object.freeze([
+  ...EVENT_CATALOGUE_V1.filter(d => d.key !== "double-start-grand-prix"), doubleCrown, ...junior,
+].map(d => ({ ...d, eventDatabaseVersion: 2 })));
+
 export function catalogueFor(version: number): readonly EventDefinition[] {
-  if (version !== EVENT_DATABASE_VERSION) throw new Error(`Unsupported Career event database version ${version}; migration required`);
-  return EVENT_CATALOGUE_V1;
+  if (version === EVENT_DATABASE_VERSION) return EVENT_CATALOGUE_V1;
+  if (version === 2) return EVENT_CATALOGUE_V2;
+  throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;
