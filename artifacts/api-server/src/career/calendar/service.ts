@@ -150,6 +150,10 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
 export function createCareerCalendarService(database: CareerDatabase, options: { providers?: Partial<CalendarProviders> } = {}) {
   const providers: CalendarProviders = { ...DEFAULT_PROVIDERS, ...options.providers };
   const world = createCareerWorldService(database);
+  /** A5: sporting status/seeding bound to this save's persisted state, after the root lock. Without A5 the A3 placeholders apply. */
+  async function bind(tx: CareerExecutor, root: RootRow): Promise<CalendarProviders> {
+    return providers.sporting ? { ...providers, ...(await providers.sporting.bind(tx, root)) } : providers;
+  }
 
   async function open(tx: CareerExecutor, actor: CareerActor, saveId: string, active = true) {
     const root = await lockRoot(tx, actor, saveId, active) as RootRow;
@@ -172,7 +176,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
   /** Meaningful-date evaluation for a (season, week). */
   async function meaningfulReasons(tx: CareerExecutor, root: RootRow, season: number, week: number) {
     const events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week = ${week}`);
-    const human = await loadHumanContext(tx, root, season, events, providers);
+    const human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
     const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
     return reasonsFor(events, human, windows, season, week);
   }
@@ -183,7 +187,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const pending = (await tx.execute(sql`SELECT m.id, m.event_id FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
       WHERE m.career_save_id = ${root.id} AND m.status = 'AWAITING_HUMAN' AND i.season = ${season}`)).rows;
     const events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
-    const human = await loadHumanContext(tx, root, season, events, providers);
+    const human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
     const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
     let next: { season: number; week: number; reasons: unknown[] } | null = null;
     for (let w = week + 1; w <= WEEKS_PER_SEASON && !next; w++) {
@@ -207,9 +211,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       const { root, world: state, season } = await requireSeason(tx, actor, saveId);
       const s = Number(root.current_season), w = Number(root.current_week);
       if (Number(season.played_week) >= w) return { season: s, week: w, summary: null as unknown, blocked: false };
-      const summary = await playWeek(tx, root, state, s, w, providers);
+      const summary = await playWeek(tx, root, state, s, w, await bind(tx, root));
       if (summary.awaitingHuman.length) return { season: s, week: w, summary, blocked: true };
       await tx.execute(sql`UPDATE career_seasons SET played_week = ${w} WHERE career_save_id = ${saveId} AND season = ${s} AND played_week = ${w - 1}`);
+      // A5: ranking publication / Q-School allocation / season review for the completed week (same transaction).
+      await providers.sporting?.afterWeek(tx, root, s, w);
       return { season: s, week: w, summary, blocked: false };
     });
     if (played.blocked) return { ...played, advancedTo: null };
@@ -225,6 +231,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         await tx.execute(sql`UPDATE career_saves SET current_week = ${played.week + 1}, updated_at = NOW() WHERE id = ${saveId} AND current_week = ${played.week}`);
         await openRegistrations(tx, saveId, played.season, played.week + 1);
         await providers.finance?.onCalendarMoved(tx, root, played.season, played.week + 1);
+        await providers.sporting?.onCalendarMoved(tx, root, played.season, played.week + 1);
         return { seasonEnd: false, next: { season: played.season, week: played.week + 1 } };
       }
       const open = (await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${saveId} AND season = ${played.season} AND status NOT IN ('COMPLETED','CANCELLED')`)).rows[0];
@@ -240,6 +247,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await ensureSeason(tx, root, Number(root.current_season));
       await openRegistrations(tx, saveId, Number(root.current_season), Number(root.current_week));
       await providers.finance?.onCalendarMoved(tx, root, Number(root.current_season), Number(root.current_week));
+      await providers.sporting?.onCalendarMoved(tx, root, Number(root.current_season), Number(root.current_week));
       return { season: Number(root.current_season), week: Number(root.current_week) };
     });
     return { ...played, advancedTo: next, offSeason };
@@ -259,7 +267,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const season = Number(root.current_season);
     const siblings = event.series_key ? await loadInstances(tx, root.id, sql`season = ${event.season} AND series_key = ${event.series_key}`) : [event];
     const all = await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`);
-    const human = await loadHumanContext(tx, root, season, siblings, providers);
+    const human = await loadHumanContext(tx, root, season, siblings, await bind(tx, root));
     const view = humanView(event, human, seriesWindowsOf(all));
     if (view.denials.includes("ALREADY_ENTERED") && view.denials.length === 1) return { created: false, view };
     if (!view.canEnter) return { created: false, denied: view.denials, view };
@@ -283,6 +291,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
 
   return {
     providers,
+    bind,
     /** Idempotent: ensures the A2 world, then the current season calendar. */
     async initialize(actor: CareerActor, saveId: string) {
       careerIdSchema.parse(saveId);
@@ -308,7 +317,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         if (q.family) filters.push(sql`family = ${q.family}`);
         if (q.scope === "FEATURED") filters.push(sql`featured`);
         const events = (await loadInstances(tx, root.id, sql.join(filters, sql` AND `))).sort((a, b) => a.start_day - b.start_day || b.calendar_priority - a.calendar_priority || (a.instance_key < b.instance_key ? -1 : 1));
-        const human = await loadHumanContext(tx, root, season, events, providers);
+        const human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
         const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
         const previews = providers.finance ? await providers.finance.previews(tx, root, season, events) : null;
         let rows = events.map(event => withFinance(presentEvent(event, humanView(event, human, windows)), previews?.get(event.id)));
@@ -323,7 +332,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       return database.transaction(async tx => {
         const { root } = await requireSeason(tx, actor, saveId, false);
         const event = await eventOwned(tx, root.id, eventId);
-        const human = await loadHumanContext(tx, root, event.season, [event], providers);
+        const human = await loadHumanContext(tx, root, event.season, [event], await bind(tx, root));
         const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${event.season} AND series_key IS NOT NULL`));
         const entries = (await tx.execute(sql`SELECT e.participant_key, e.participant_kind, e.npc_id, e.source, e.status, e.draw_seed, p.first_name, p.surname, p.nickname, p.nationality, p.tier
           FROM career_event_entries e LEFT JOIN career_world_players p ON p.career_save_id = e.career_save_id AND p.id = e.npc_id
@@ -377,7 +386,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           await tx.execute(sql`UPDATE career_event_entries SET status = 'WITHDRAWN', withdrawn_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${target.id} AND participant_key = ${HUMAN} AND status <> 'WITHDRAWN'`);
           await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${root.id} AND event_id = ${target.id} AND participant_key = ${HUMAN}`);
           // Post-lock withdrawal is auditable: the entry stays, matches resolve as walkovers.
-          if (target.status === "IN_PROGRESS") await progressEvent(tx, root, state, target, lastDayOfWeek(Number(root.current_week)), providers);
+          if (target.status === "IN_PROGRESS") await progressEvent(tx, root, state, target, lastDayOfWeek(Number(root.current_week)), await bind(tx, root));
         }
         await providers.finance?.onHumanWithdraw(tx, root, targets, postLock);
         return { withdrawn: true, postLock, denials: [] as DenialReason[] };
@@ -408,7 +417,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           first_throw_detail = ${JSON.stringify({ method: "LIVE_BULL_UP" })}::jsonb, result_source = 'HUMAN_LIVE', completed_at = NOW()
           WHERE career_save_id = ${root.id} AND id = ${match.id} AND status = 'AWAITING_HUMAN'`);
         const event = await eventOwned(tx, root.id, match.event_id);
-        const progress = await progressEvent(tx, root, state, event, lastDayOfWeek(Number(root.current_week)), providers);
+        const progress = await progressEvent(tx, root, state, event, lastDayOfWeek(Number(root.current_week)), await bind(tx, root));
         return { matchId: match.id, winnerKey: winner, eventStatus: event.status, eventCompleted: progress.completed };
       });
     },

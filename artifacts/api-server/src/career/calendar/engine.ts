@@ -158,7 +158,7 @@ export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; coun
     defendingChampion: ctx.champions.get(`${event.definition_key}:${event.ordinal}`)?.has(participant.key) ?? false };
 }
 export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc),
-  professionalStatus: npc.professionalStatus, tourCard: providers.sportingStatus.npcTourCard(npc), rankings: providers.sportingStatus.rankings(npc.id) });
+  professionalStatus: providers.sportingStatus.npcProfessionalStatus?.(npc) ?? npc.professionalStatus, tourCard: providers.sportingStatus.npcTourCard(npc), rankings: providers.sportingStatus.rankings(npc.id) });
 export const humanParticipant = (root: RootRow, providers: CalendarProviders) => {
   const profile = providers.sportingStatus.human(root);
   return { key: HUMAN, kind: "HUMAN" as const, country: profile.country, zone: profile.zone, locality: profile.locality,
@@ -213,6 +213,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   };
   const eligible = (npc: Npc, invited = false) => evaluate(event, factsFor(npcParticipant(npc, providers), ctx, event, invited)).eligible;
   const byId = new Map(npcs.map(npc => [npc.id, npc]));
+  const tierOf = (npc: Npc) => providers.sportingStatus.selectionTier?.(npc) ?? npc.tier;
 
   if (snapshot.fieldPolicy === "SERIES_FIRST_DAY" && event.series_key) {
     const first = (await tx.execute(sql`SELECT e.participant_key, e.participant_kind FROM career_event_entries e JOIN career_event_instances i
@@ -241,13 +242,13 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     const policy = snapshot.invitationPolicy;
     const need = Math.min(capacity - taken.size, policy.count - additions.filter(a => a.source === "INVITATION").length);
     const pool = npcs.filter(npc => free(npc) && eligible(npc, true));
-    for (const npc of weightedSample(pool, npc => tierWeight(policy.tierWeights, npc), need, rng)) add(npc, "INVITATION");
+    for (const npc of weightedSample(pool, npc => tierWeight(policy.tierWeights, npc, tierOf), need, rng)) add(npc, "INVITATION");
   }
   if (snapshot.fieldPolicy === "SELECTION") {
     const target = Math.max(taken.size, fillTarget(capacity, snapshot.npcFill, rng));
     const pool = npcs.filter(npc => free(npc) && eligible(npc));
     const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
-    for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc) * geographyWeight(snapshot.geography, geo, npc), target - taken.size, rng)) add(npc, "SELECTION");
+    for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc), target - taken.size, rng)) add(npc, "SELECTION");
   }
   const entrants = taken.size;
   if (entrants < event.minimum_entrants || entrants < 2) {
@@ -503,6 +504,8 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
   await transition(tx, event, "COMPLETED", { set: sql`champion_participant_key = ${champion}, champion_npc_id = ${champion === HUMAN ? null : champion}, completed_at = NOW()` });
   // A4: financial consequences of the immutable result, same transaction (exactly-once via ledger operation keys).
   await providers?.finance?.onEventCompleted(tx, root, event, results);
+  // A5: ranking contributions / Q-School standings from the same immutable facts (after A4's prize tables).
+  await providers?.sporting?.onEventCompleted(tx, root, event, results);
 }
 
 export async function insertEntitlements(tx: CareerExecutor, saveId: string, awardedSeason: number, grants: Record<string, unknown>[], sourceKind: "EVENT_RESULT" | "PROVIDER") {

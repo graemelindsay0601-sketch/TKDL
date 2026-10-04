@@ -37,7 +37,7 @@ export function weightedSample<T extends { id: string }>(candidates: readonly T[
     .map(entry => entry.candidate);
 }
 
-export const tierWeight = (weights: Record<Tier, number>, npc: Npc) => weights[npc.tier] ?? 0;
+export const tierWeight = (weights: Record<Tier, number>, npc: Npc, tierOf: (npc: Npc) => Tier = n => n.tier) => weights[tierOf(npc)] ?? 0;
 
 /** Deterministic NPC fill target within the definition's [min,max] fraction. */
 export function fillTarget(capacity: number, fill: [number, number], rng: Random): number {

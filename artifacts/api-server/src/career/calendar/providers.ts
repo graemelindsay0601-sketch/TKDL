@@ -1,4 +1,4 @@
-import type { Npc } from "../world/types.ts";
+import type { Npc, Tier } from "../world/types.ts";
 import { zoneOf, localityByRegion, type Zone } from "./geography.ts";
 import type { CareerExecutor } from "../database.ts";
 import type { DenialReason } from "./eligibility.ts";
@@ -22,6 +22,14 @@ export interface SportingStatusProvider {
   npcTourCard(npc: Npc): boolean | null;
   /** Ranking positions for a participant by ranking list key. Empty until A5. */
   rankings(participantKey: string): Record<string, number>;
+  /** A5: NPC professional status as a sporting fact (Tour Card), replacing the A2 tier label. */
+  npcProfessionalStatus?(npc: Npc): "AMATEUR" | "PROFESSIONAL";
+  /**
+   * A5: tier used ONLY for A3 participation weighting (who is likely to enter).
+   * A3's authored weights assume "professional tier == card holder"; A5 maps card
+   * holders/non-holders onto those weights. Never affects ability or results.
+   */
+  selectionTier?(npc: Npc): Tier;
 }
 
 export interface SeedingProvider {
@@ -69,7 +77,23 @@ export interface CalendarFinanceHooks {
   previews(tx: CareerExecutor, root: RootRow, season: number, events: readonly InstanceRow[]): Promise<Map<string, { affordable: boolean } & Record<string, unknown>>>;
 }
 
-export type CalendarProviders = { sportingStatus: SportingStatusProvider; seeding: SeedingProvider; finance?: CalendarFinanceHooks };
+/**
+ * A5 sporting boundary. A3 stays the event/result authority; A5 owns rankings,
+ * Tour Cards and Q-School. `bind` returns status/seeding providers backed by the
+ * save's persisted A5 state, loaded inside the caller's (root-locked) transaction.
+ */
+export type SportingResult = { participant_key: string; participant_kind: string; npc_id: string | null; finishing_position: number; is_champion: boolean; legs_for: number; legs_against: number };
+export interface CalendarSportingHooks {
+  bind(tx: CareerExecutor, root: RootRow): Promise<{ sportingStatus: SportingStatusProvider; seeding: SeedingProvider }>;
+  /** Immutable results exist (after A4 prize processing), same transaction. */
+  onEventCompleted(tx: CareerExecutor, root: RootRow, event: InstanceRow, results: readonly SportingResult[]): Promise<void>;
+  /** A week has been fully played out (not blocked), same transaction that marks it played. */
+  afterWeek(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
+  /** The calendar clock moved to (season, week). */
+  onCalendarMoved(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
+}
+
+export type CalendarProviders = { sportingStatus: SportingStatusProvider; seeding: SeedingProvider; finance?: CalendarFinanceHooks; sporting?: CalendarSportingHooks };
 export const DEFAULT_PROVIDERS: CalendarProviders = { sportingStatus: A3_PLACEHOLDER_STATUS, seeding: NO_SEEDING };
 
 export function npcFacts(npc: Npc) {

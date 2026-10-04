@@ -32,3 +32,4 @@ export * from "./career-saves";
 export * from "./career-world";
 export * from "./career-calendar";
 export * from "./career-finance";
+export * from "./career-sporting";
