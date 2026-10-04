@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images } from "lucide-react";
+import { useCareerSaves } from "@/features/career/api";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -26,7 +27,8 @@ const practiceNav = [
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },
 ];
 const tourModeNav = [
-  { href: "/tour",         label: "Tour Mode",    icon: Star            },
+  { href: "/career",       label: "Career",       icon: Briefcase       },
+  { href: "/tour",         label: "Classic Tour", icon: Star            },
 ];
 const master501Nav = [
   { href: "/master501",    label: "Master-501",   icon: Target          },
@@ -254,6 +256,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const isStandalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
   const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
   const canOfferInstall = !isStandalone && (installPrompt !== null || isIos);
+  const careerAvailable = useCareerSaves(!!authUser).isSuccess;
   const matchInProgressRoute = /^\/(play|practice|master501|card-clash|boss-battle|board-curse)(\/|$)/.test(location) || /^\/tour\/[^/]+/.test(location);
 
   useEffect(() => {
@@ -357,7 +360,8 @@ export function Layout({ children }: { children: ReactNode }) {
     { key: "community",    label: "Off the Oche", items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
     { key: "play",         label: "Play",         items: dynamicPlayNav,       color: "#ff005c", show: dynamicPlayNav.length > 0 },
     { key: "practice",     label: "Practice",     items: practiceNav,          color: "#00e5a0", show: true },
-    { key: "tour",         label: "Tour Mode",    items: tourModeNav,          color: "#6366f1", show: true },
+    // Career (A6) is listed only when the tour_career_2 flag makes it available to this account.
+    { key: "tour",         label: "Tour Mode",    items: careerAvailable ? tourModeNav : tourModeNav.filter(i => i.href !== "/career"), color: "#6366f1", show: true },
     { key: "master501",    label: "Master 501",   items: master501Nav,         color: "#00c8a0", show: true },
     { key: "bot",          label: "Bot",          items: dynamicBotNav,        color: "#22d3ee", show: dynamicBotNav.length > 0 },
     { key: "cardclash",    label: "Card Clash",   items: dynamicCardClashNav,  color: "#f97316", show: dynamicCardClashNav.length > 0 },

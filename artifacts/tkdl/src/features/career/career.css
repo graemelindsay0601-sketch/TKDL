@@ -1,0 +1,42 @@
+/* TKDL Career (A6). Scoped `career-*` classes on top of pdc-card surfaces and the TKDL palette. */
+.career-root { --career-pink: #ff005c; --career-gold: #ffd24a; --career-green: #4ade80; --career-blue: #38bdf8; --career-purple: #c084fc; }
+.career-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  min-height: 2.5rem; padding: 0.45rem 0.85rem; border-radius: 0.65rem;
+  font-family: Oswald, sans-serif; font-weight: 900; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.88);
+  cursor: pointer; white-space: nowrap; transition: background 150ms, border-color 150ms, opacity 150ms;
+}
+.career-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+.career-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.career-btn-primary { background: linear-gradient(135deg, #ff005c, #cc0048); border-color: transparent; color: #fff; }
+.career-btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #ff1a6e, #d6004c); }
+.career-btn-gold { background: #ffd24a; border-color: transparent; color: #0b0b12; }
+.career-btn-danger { background: rgba(255,0,92,0.12); border-color: rgba(255,0,92,0.45); color: #ff6b9d; }
+.career-btn-ghost { background: transparent; }
+.career-btn:focus-visible, .career-chip:focus-visible, .career-nav-link:focus-visible, .career-row-link:focus-visible {
+  outline: 2px solid #ff005c; outline-offset: 2px;
+}
+.career-chip {
+  min-height: 2.25rem; padding: 0.35rem 0.75rem; border-radius: 999px; flex-shrink: 0;
+  font-family: Oswald, sans-serif; font-weight: 700; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6); cursor: pointer;
+}
+.career-chip[data-active="true"], .career-chip[aria-pressed="true"] { background: #ff005c; border-color: #ff005c; color: #fff; }
+.career-nav-link {
+  display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 0.8rem; border-radius: 0.6rem; flex-shrink: 0;
+  font-family: Oswald, sans-serif; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.55); border: 1px solid transparent;
+}
+.career-nav-link[aria-current="page"] { color: #fff; background: rgba(255,0,92,0.14); border-color: rgba(255,0,92,0.4); }
+.career-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }
+.career-table { width: 100%; border-collapse: collapse; }
+.career-table th { font-family: Oswald, sans-serif; font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.4); text-align: left; padding: 0.5rem 0.6rem; font-weight: 700; }
+.career-table td { padding: 0.55rem 0.6rem; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; color: rgba(255,255,255,0.85); }
+.career-table tr[data-me="true"] td { background: rgba(255,0,92,0.1); color: #fff; }
+.career-cut td { padding: 0 !important; border-top: 1px dashed rgba(255,210,74,0.55) !important; }
+/* The Palace: WORLD tier — darker, restrained gold. */
+.career-palace { background: radial-gradient(120% 80% at 50% 0%, rgba(255,210,74,0.09), transparent 60%), #07060a; border: 1px solid rgba(255,210,74,0.28); border-radius: 1rem; }
+.career-palace .pdc-card { background: rgba(10,9,14,0.92); border-color: rgba(255,210,74,0.16); }
+@media (prefers-reduced-motion: reduce) { .career-root * { transition: none !important; animation: none !important; } }

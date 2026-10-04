@@ -1,6 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { ZodError } from "zod";
 import { CareerError } from "../service.ts";
+import { authedWriteRateLimit } from "../../middleware/writeRateLimit.ts";
 import type { CareerSportingService } from "./service.ts";
 
 type PlayerSession = { playerId?: number; isAdmin?: boolean };
@@ -14,7 +15,7 @@ const defined = (o: Record<string, unknown>) => Object.fromEntries(Object.entrie
  */
 export function createCareerSportingRouter(service: CareerSportingService, isAvailable: (isAdmin: boolean) => Promise<boolean>) {
   const router = Router();
-  router.use(["/saves/:id/sporting", "/saves/:id/rankings", "/saves/:id/tour-card", "/saves/:id/q-school", "/saves/:id/qualification", "/saves/:id/milestones"], async (req, res, next) => {
+  router.use(["/saves/:id/initialize", "/saves/:id/sporting", "/saves/:id/rankings", "/saves/:id/tour-card", "/saves/:id/q-school", "/saves/:id/qualification", "/saves/:id/milestones"], async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const session = req.session as PlayerSession | undefined;
     if (!Number.isSafeInteger(session?.playerId) || (session?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
@@ -23,6 +24,8 @@ export function createCareerSportingRouter(service: CareerSportingService, isAva
     next();
   });
   const id = (req: Request) => String(req.params.id);
+  // A6: one idempotent initialize for the whole composed Career (A2 world, A3 calendar, A4 finance, A5 sporting state).
+  router.post("/saves/:id/initialize", authedWriteRateLimit, async (req, res) => { res.json(await service.initialize(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/sporting", async (req, res) => { res.json(await service.summary(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/rankings", async (req, res) => { res.json(await service.rankingLists(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/rankings/:list", async (req, res) => {

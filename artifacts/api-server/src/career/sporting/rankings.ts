@@ -157,8 +157,8 @@ async function publishList(tx: CareerExecutor, root: RootRow, rulesVersion: numb
   await recordMilestones(tx, root, milestones);
   if (list.key === "pro-world") {
     const mine = rows.find(r => r.participant_key === HUMAN);
-    // A1 display cache: the human's current World Ranking money.
-    await tx.execute(sql`UPDATE career_saves SET professional_ranking_money_pence = ${mine?.value_pence ?? 0} WHERE id = ${root.id}`);
+    // A1 display caches: the human's current World Ranking money and position (A6 save slots read these).
+    await tx.execute(sql`UPDATE career_saves SET professional_ranking_money_pence = ${mine?.value_pence ?? 0}, professional_ranking = ${mine?.position ?? null} WHERE id = ${root.id}`);
   }
 }
 
