@@ -7,6 +7,7 @@ import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award, PawPrint, ArrowDownToLine, LayoutGrid, Flame } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHareHoundsVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg, botPickADoubleVisit, botNoughtsCrossesDart, botOcheRouletteVisit, botOneEightyVisit, botFivesVisit, botTennisVisit, botBattleshipShot, botBlindKillerVisit, botDonkeyDerbyVisit, botLimboVisit, botSnakesLaddersDart, botQuackshotVisit, botFightGameVisit, BOARD_ORDER } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
+import { starterFor, opensLeg } from "./darts-rules";
 import type { X01StatsAccumulator, X01RecoveryState, CricketMarks, CricketUndoSnapshot, CricketRecoveryState, TeamX01RecoveryState, TeamCricketRecoveryState } from "./scorer-recovery";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
@@ -662,7 +663,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
 export type LiveScoreState = { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string };
 
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, botVisitPlanner, onDartLog }: {
   p1Name: string; p2Name: string;
   config: {
     startingScore: number;
@@ -708,6 +709,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   scorerThemeColor?: string | null;
   initialRecovery?: X01RecoveryState;
   onRecoveryState?: (state: X01RecoveryState) => void;
+  /** Who throws first in leg 1 (bull-up winner). Player indices never swap: the bot is always index 1. */
+  firstThrower?: 0 | 1;
+  /** Career: deterministic bot visits (seeded) so the server can verify them. Default: shared planner with Math.random. */
+  botVisitPlanner?: (ctx: { remaining: number; opened: boolean }) => Dart[];
+  /** Every dart thrown in the match, in order (after undo). The canonical log the shared rules replay. */
+  onDartLog?: (darts: Dart[]) => void;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
@@ -731,13 +738,20 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
   const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []); // Track who won each leg (for conditional cards)
   const [started, setStarted]       = useState<[boolean, boolean]>(() => initialRecovery?.started ?? [!doubleIn, !doubleIn]);
-  const [turn, setTurn]             = useState<0 | 1>(() => initialRecovery?.turn ?? 0);
-  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? 0);
+  const [turn, setTurn]             = useState<0 | 1>(() => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
+  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
+  // Leg counters (A6.5): legNo keys the bot turn so a bot that wins a leg AND
+  // starts the next one still throws; legInSet drives the set-aware starter rule.
+  const [legNo, setLegNo]           = useState<number>(() => initialRecovery?.legNo ?? 1);
+  const [legInSet, setLegInSet]     = useState<number>(() => initialRecovery?.legInSet ?? 1);
+  const dartLogRef                  = useRef<Dart[]>(initialRecovery?.dartLog ?? []);
+  const pushDartLog = (darts: Dart[]) => { dartLogRef.current = darts; onDartLog?.(darts); };
+  const visitStartOpenedRef         = useRef<boolean>(true);
   const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
   const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
-  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[] }[]>(() => initialRecovery?.history ?? []);
+  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[]; leg?: number; openedBefore?: boolean }[]>(() => initialRecovery?.history ?? []);
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -868,11 +882,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     if (visitDarts.length > 0 && scores[turn] - visitTotal === 0) return; // winning dart is awaiting its leg/match transition
     recoveryCallbackRef.current?.({
-      scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history,
+      scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, legNo, legInSet, dartLog: [...dartLogRef.current],
       p1Stats: { ...p1StatsRef.current, dartLog: [...p1StatsRef.current.dartLog] },
       p2Stats: { ...p2StatsRef.current, dartLog: [...p2StatsRef.current.dartLog] },
     });
-  }, [scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, bust]);
+  }, [scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, bust, legNo, legInSet]);
 
   // Visit-score milestone buckets are cumulative, not exclusive — a 180 visit
   // is also a 170+, 140+, and 100+ visit, same convention real darts stats use.
@@ -894,11 +908,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const triggerBust = useCallback((darts: Dart[], msg: string) => {
     matchLoggerRef.current.log("bust", { player: turn, msg, darts: darts.map(d => d.label) });
     setBust(true); setBustMsg(msg); setVisitDarts(darts);
+    // A6.5: a bust is a real visit (score 0). Recording it keeps undo and the
+    // visit history aligned with the shared rules; opening state reverts with it.
+    setHistory(h => [...h, { turn, score: 0, left: scores[turn], darts, leg: legNo, openedBefore: visitStartOpenedRef.current }]);
+    if (doubleIn && !visitStartOpenedRef.current) setStarted(prev => { const n = [...prev] as [boolean, boolean]; n[turn] = false; return n; });
     if (bustResetTo !== undefined) {
       setScores(prev => { const n = [...prev] as [number, number]; n[turn] = bustResetTo; return n; });
     }
     safeTimeout(() => { setBust(false); setBustMsg(""); setVisitDarts([]); setTurn(t => soloMode ? 0 : (t === 0 ? 1 : 0)); }, 1500);
-  }, [turn, bustResetTo]);
+  }, [turn, bustResetTo, scores, legNo, doubleIn]);
 
   const handleWin = useCallback((winnerIdx: 0|1, darts: Dart[]) => {
     // Cancel any bot darts still scheduled for this visit — see
@@ -921,10 +939,18 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         p2CheckoutHits: p2StatsRef.current.coHits, p2DartLog: [...p2StatsRef.current.dartLog],
       } : {}),
     });
-    const resetForLeg = (delay: number, newLegState: [number,number]) => {
+    const resetForLeg = (delay: number, newLegState: [number,number], newSet = false, setsPlayed = 0) => {
       safeTimeout(() => {
-        const ns: 0|1 = legStarter === 0 ? 1 : 0;
+        // A6.5: professional throw order — legs alternate; in set play the first
+        // leg of each set alternates BY SET (shared starterFor). Previously the
+        // starter simply toggled every leg, which is wrong whenever a set ends
+        // after an even number of legs.
+        const nextLegInSet = newSet ? 1 : legInSet + 1;
+        const nextSetNo = setsToWin > 0 ? (newSet ? setsPlayed + 1 : setWins[0] + setWins[1] + 1) : 1;
+        const ns: 0|1 = soloMode ? 0 : starterFor({ unit: setsToWin > 0 ? "SETS" : "LEGS" } as never, firstThrower, nextSetNo, nextLegInSet).legStarter;
         setLegStarter(ns);
+        setLegInSet(nextLegInSet);
+        setLegNo(n => n + 1);
         // Fold in any Board Mark reward/penalty that hasn't settled yet (see
         // pendingBoardMarkAdjustmentRef's BUGFIX note) so it isn't silently
         // lost if this leg ended on the exact same dart that triggered it.
@@ -1040,7 +1066,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
           } else {
             safeTimeout(() => {
               setSetWins(ns);
-              resetForLeg(0, [0, 0]);
+              resetForLeg(0, [0, 0], true, ns[0] + ns[1]);
             }, 1500);
           }
           return [0, 0];
@@ -1112,7 +1138,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // close to tautologically true for any win and blind to a Chaos-mode
   // Perfect Game drawn mid-leg. Matches the deps CricketScorer's equivalent
   // resetForLeg already correctly includes for the same check.
-  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScores, doubleIn, onWin, onPracticeStats, setWins, isCardClash, scores, p1Cards, p2Cards, activeEffects]);
+  }, [legs, legsNeeded, setsNeeded, setsToWin, legStarter, startingScores, doubleIn, onWin, onPracticeStats, setWins, isCardClash, scores, p1Cards, p2Cards, activeEffects, legInSet, firstThrower, soloMode]);
 
   const handleDart = useCallback((dart: Dart) => {
     // Checkout Confidence grants one bonus 4th dart for the visit after a
@@ -1124,6 +1150,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (bust || visitDarts.length >= 3 + freeRetriesUsed[turn]) return;
 
     matchLoggerRef.current.log("dart_thrown", { player: turn, segment: dart.segment, multiplier: dart.multiplier, value: dart.value, label: dart.label, remainingBefore: scores[turn] });
+    if (visitDarts.length === 0) visitStartOpenedRef.current = started[turn];
 
     if (isChaosLabMode && visitDarts.length === 0) {
       boardMarkVisitNotesRef.current[turn] = [];
@@ -1138,6 +1165,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (noTrebles && dart.multiplier === 3) {
       dart = { ...dart, multiplier: 1 as const, value: dart.segment, label: String(dart.segment) };
     }
+    pushDartLog([...dartLogRef.current, dart]);
 
     // Double-in: before started, only doubles open the scoring. A dart that
     // doesn't open you is worth 0 and ends there — but the double that DOES
@@ -1147,11 +1175,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // and returned early, silently discarding the 32-50 points a player's
     // opening double is worth, every leg, forever).
     if (doubleIn && !started[turn]) {
-      const isDouble = dart.multiplier === 2 || (dart.segment === 25 && dart.value === 50);
+      const isDouble = opensLeg(dart, "DOUBLE");
       if (!isDouble) {
         const nv: Dart[] = [...visitDarts, { ...dart, value: 0 }];
         setVisitDarts(nv);
-        if (nv.length === 3) { setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0)); }
+        if (nv.length === 3) {
+          // A6.5: an unopened visit is still a visit (score 0) — recorded so undo stays in step.
+          setHistory(h => [...h, { turn, score: 0, left: scores[turn], darts: nv, leg: legNo, openedBefore: false }]);
+          setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0));
+        }
         return;
       }
       setStarted(prev => { const n=[...prev] as [boolean,boolean]; n[turn]=true; return n; });
@@ -1432,41 +1464,59 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         }
       }
       setScores(prev => { const n=[...prev] as [number,number]; n[turn] = Math.max(1, n[turn] - effectiveCum); return n; });
-      setHistory(h => [...h, { turn, score: effectiveCum, left: scores[turn] - effectiveCum, darts: nv, boardMarkNotes: isChaosLabMode ? [...boardMarkVisitNotesRef.current[turn]] : undefined }]);
+      setHistory(h => [...h, { turn, score: effectiveCum, left: scores[turn] - effectiveCum, darts: nv, boardMarkNotes: isChaosLabMode ? [...boardMarkVisitNotesRef.current[turn]] : undefined, leg: legNo, openedBefore: visitStartOpenedRef.current }]);
       setVisitDarts([]);
       // Card Clash: expire this-turn effects; promote opponent's pending → active
       if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
       setTurn(t => soloMode ? 0 : (t===0?1:0));
     }
-  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects, isChaosLabMode, activeBoardMarks, freeRetriesUsed]);
+  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects, isChaosLabMode, activeBoardMarks, freeRetriesUsed, legNo]);
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
     if (bust) return;
     if (visitDarts.length > 0) {
       // Remove the last dart within the current visit
-      setVisitDarts(prev => prev.slice(0, -1));
+      const remaining = visitDarts.slice(0, -1);
+      setVisitDarts(remaining);
+      pushDartLog(dartLogRef.current.slice(0, -1));
+      // A6.5: undoing the opening double un-opens the player again.
+      if (doubleIn && !visitStartOpenedRef.current) {
+        const stillOpen = remaining.some(d => opensLeg(d, "DOUBLE"));
+        setStarted(prev => { const n = [...prev] as [boolean, boolean]; n[turn] = stillOpen; return n; });
+      }
       // NOTE: activeEffects persist within a turn (that's correct)
     } else if (history.length > 0) {
-      // Build new state from history stack
+      // Build new state from history stack. A6.5: undo never crosses a leg
+      // boundary (the finished leg is settled), and restores opening state.
       const h = [...history];
+      const sameLeg = (e: typeof h[number] | undefined) => !!e && (e.leg ?? legNo) === legNo;
+      if (!sameLeg(h[h.length - 1])) return;
+      if (botConfig && h[h.length - 1].turn === 1 && !sameLeg(h[h.length - 2])) return; // bot opened this leg; nothing of the human's to undo
       const last = h.pop()!;
       const newScores: [number, number] = [...scores];
+      const newStarted: [boolean, boolean] = [...started];
       newScores[last.turn] = last.left + last.score;
+      if (last.openedBefore !== undefined) newStarted[last.turn] = last.openedBefore;
       let finalTurn = last.turn as 0 | 1;
+      let removedDarts = last.darts.length;
 
       // Vs-bot: if the most recent history entry was the bot's turn (turn=1),
       // also roll back the human's preceding visit so we land on the human's turn
       if (botConfig && last.turn === 1 && h.length > 0) {
         const prev = h.pop()!;
         newScores[prev.turn] = prev.left + prev.score;
+        if (prev.openedBefore !== undefined) newStarted[prev.turn] = prev.openedBefore;
         finalTurn = prev.turn as 0 | 1;
+        removedDarts += prev.darts.length;
       }
 
       setHistory(h);
       setScores(newScores);
+      setStarted(newStarted);
       setTurn(finalTurn);
       setVisitDarts([]);
+      pushDartLog(dartLogRef.current.slice(0, dartLogRef.current.length - removedDarts));
       
       // CRITICAL FIX: When undoing to a different turn, clear activeEffects for the previous player
       // This prevents effects from leaking across turns
@@ -1624,8 +1674,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [isCardClash, activeEffects, turn, p1Cards, p2Cards]);
   const isBotTurnX01 = !!botConfig && turn === 1;
   useEffect(() => {
-    if (!botConfig || turn !== 1) return;
-    const [d1, d2, d3] = botX01Visit(scores[1], !!doubleOut, botConfig);
+    if (!botConfig || turn !== 1 || bust) return;
+    const [d1, d2, d3] = botVisitPlanner
+      ? botVisitPlanner({ remaining: scores[1], opened: started[1] }) as [Dart, Dart, Dart]
+      : botX01Visit(scores[1], !!doubleOut, botConfig, { opened: started[1] });
     const t1 = safeTimeout(() => handleDartRef.current(d1), 700);
     const t2 = safeTimeout(() => handleDartRef.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRef.current(d3), 2100);
@@ -1639,7 +1691,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // them the instant it actually wins, not up to ~1.5s later.
     botTimersRef.current = [t1, t2, t3];
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+    // A6.5: keyed on legNo too — a bot that wins a leg AND starts the next one
+    // keeps turn === 1, which previously never re-fired this effect (match hang).
+  }, [turn, botConfig, legNo, bust]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Boss Battle: leg 1 never goes through resetForLeg (that only runs between
   // legs), so it needs its own one-time call on mount to keep leg numbering
@@ -2211,7 +2265,7 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0 }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
@@ -2239,6 +2293,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   scorerThemeColor?: string | null;
   initialRecovery?: CricketRecoveryState;
   onRecoveryState?: (state: CricketRecoveryState) => void;
+  /** Who throws first in leg 1 (bull-up winner); players are never swapped. */
+  firstThrower?: 0 | 1;
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
@@ -2248,11 +2304,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const legsNeeded = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
   const [marks, setMarks]       = useState<CricketMarks>(() => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
   const [scores, setScores]     = useState<[number,number]>(() => initialRecovery?.scores ?? [0,0]);
-  const [turn, setTurn]         = useState<0|1>(() => initialRecovery?.turn ?? 0);
+  const [turn, setTurn]         = useState<0|1>(() => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
   const [legWins, setLegWins]       = useState<[number, number]>(() => initialRecovery?.legWins ?? [0, 0]);
   const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
   const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []);
-  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? 0);
+  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
   const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
   const [lastHit, setLastHit]   = useState<string>(() => initialRecovery?.lastHit ?? "");
   useEffect(() => {
@@ -3526,7 +3582,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     const t2 = safeTimeout(() => handleDartRefCri.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefCri.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turn, botConfig, legWins, setWins]); // eslint-disable-line react-hooks/exhaustive-deps -- A6.5: legWins/setWins key the leg so a bot that wins a leg and starts the next still throws
 
   // Activate deferred-next-turn effects when it becomes the player's turn
   // Also apply penalty blocking if player has blockOpponentPenalties active
