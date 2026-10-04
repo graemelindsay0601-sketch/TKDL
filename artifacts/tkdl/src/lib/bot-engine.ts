@@ -3,6 +3,7 @@
  * Named personas are fictional alter-egos of real pros — same skill archetype, different identity.
  */
 import type { Dart } from "./dartboard";
+import { planBotX01Visit } from "./darts-rules";
 
 export type BotLevel = "beginner" | "amateur" | "club" | "county" | "pro" | "elite";
 
@@ -563,20 +564,19 @@ export function botShadowX01Visit(remaining: number, doubleOut: boolean, p: Shad
 }
 
 // ── X01 visit ─────────────────────────────────────────────────────────────────
+/**
+ * X01 bot visit. Delegates to the shared planner in darts-rules (the same code the
+ * Career server uses to verify a live match). `opened: false` = double-in leg not
+ * yet opened: the bot then aims at a double dart by dart instead of scoring blind.
+ */
 export function botX01Visit(
   remaining: number,
   doubleOut: boolean,
   cfg: BotConfig,
+  options: { opened?: boolean; rng?: () => number } = {},
 ): [Dart, Dart, Dart] {
-  if (cfg.shadowProfile) return botShadowX01Visit(remaining, doubleOut, cfg.shadowProfile);
-  if (remaining <= 170 && Math.random() < cfg.checkoutPct) {
-    const co = checkoutDarts(remaining);
-    if (co) return co;
-  }
-  const minLeft = doubleOut ? 2 : 0;
-  const maxScore = Math.max(0, Math.min(180, remaining - minLeft));
-  const visitScore = Math.max(0, Math.min(maxScore, Math.round(gauss(cfg.avg, cfg.sd))));
-  return split3(visitScore);
+  if (cfg.shadowProfile && options.opened !== false) return botShadowX01Visit(remaining, doubleOut, cfg.shadowProfile);
+  return planBotX01Visit(remaining, cfg, { doubleOut, opened: options.opened, rng: options.rng }) as [Dart, Dart, Dart];
 }
 
 // ── Cricket visit ─────────────────────────────────────────────────────────────

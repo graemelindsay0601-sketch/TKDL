@@ -2,7 +2,9 @@
  * GameScorer — orchestrator that routes any game type to its proper scorer engine.
  * Used by both /play (real matches) and /practice (practice sessions).
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { resolveBullUp, botBullThrow, type BullThrow, type BullUpState } from "@/lib/darts-rules";
+import type { Dart } from "@/lib/dartboard";
 import {
   X01Scorer, CricketScorer, KillerScorer, SequenceScorer,
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
@@ -39,180 +41,115 @@ function safeParse(s: string | null | undefined): Record<string, unknown> {
 }
 
 // ── Bull Up ──────────────────────────────────────────────────────────────────
+// A6.5: one canonical bull-up for the whole app. Rules live in the shared
+// darts-rules module (resolveBullUp): one dart each at the bull, inner beats
+// outer beats miss, a tie in the same ring (or two misses) is re-thrown IN
+// REVERSE ORDER, never a coin flip. The bot throws from its own accuracy.
 
-type BullScore = 50 | 25 | 0;
+const THROW_OPTS: { t: BullThrow; label: string; emoji: string; color: string; pts: string }[] = [
+  { t: "INNER", label: "Inner Bull", emoji: "🎯", color: "#22c55e",              pts: "50" },
+  { t: "OUTER", label: "Outer Bull", emoji: "⭕", color: "#ffd24a",              pts: "25" },
+  { t: "MISS",  label: "Miss",       emoji: "❌", color: "rgba(255,255,255,0.45)", pts: "0"  },
+];
+const throwLabel = (t: BullThrow | undefined) => t === "INNER" ? "Inner Bull" : t === "OUTER" ? "Outer Bull" : t === "MISS" ? "Miss" : "–";
+const throwEmoji = (t: BullThrow | undefined) => t === "INNER" ? "🎯" : t === "OUTER" ? "⭕" : t === "MISS" ? "❌" : "";
 
-function BullUpPhase({
-  p1Name, p2Name, isBot, onComplete,
-}: {
-  p1Name: string; p2Name: string; isBot: boolean;
-  onComplete: (starterIdx: 0 | 1) => void;
+/**
+ * Presentational bull-up. `state` is a resolveBullUp() result; `isHuman(idx)`
+ * says whose dart the user enters. Used by GameScorer (local) and Career
+ * (server-authoritative: the server records each throw and the bot's throws).
+ */
+export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, error, subtitle }: {
+  names: [string, string]; state: BullUpState; isHuman: (idx: 0 | 1) => boolean;
+  onThrow: (idx: 0 | 1, t: BullThrow) => void; onContinue: () => void; busy?: boolean; error?: string | null; subtitle?: string;
 }) {
-  const [phase, setPhase]  = useState<"p1" | "p2" | "result">("p1");
-  const [p1Score, setP1]   = useState<BullScore | null>(null);
-  const [p2Score, setP2]   = useState<BullScore | null>(null);
-  const [round, setRound]  = useState(1);
-
-  const botThrow = (): BullScore => {
-    const r = Math.random();
-    return r < 0.15 ? 50 : r < 0.35 ? 25 : 0;
-  };
-
-  const scoreLabel = (s: BullScore | null) =>
-    s === 50 ? "Inner Bull" : s === 25 ? "Outer Bull" : s === 0 ? "Miss" : "–";
-  const scoreEmoji = (s: BullScore | null) =>
-    s === 50 ? "🎯" : s === 25 ? "⭕" : "❌";
-
-  const handleThrow = (score: BullScore) => {
-    if (phase === "p1") {
-      setP1(score);
-      if (isBot) {
-        setP2(botThrow());
-        setPhase("result");
-      } else {
-        setPhase("p2");
-      }
-    } else {
-      setP2(score);
-      setPhase("result");
-    }
-  };
-
-  const handleContinue = () => {
-    if (p1Score === null || p2Score === null) return;
-    if (p1Score > p2Score) { onComplete(0); return; }
-    if (p2Score > p1Score) { onComplete(1); return; }
-    setP1(null); setP2(null); setPhase("p1"); setRound(r => r + 1);
-  };
-
-  const isTie = phase === "result" && p1Score !== null && p2Score !== null && p1Score === p2Score;
-
-  const THROW_OPTS: { score: BullScore; label: string; emoji: string; color: string; pts: string }[] = [
-    { score: 50, label: "Inner Bull", emoji: "🎯", color: "#22c55e",              pts: "50 pts" },
-    { score: 25, label: "Outer Bull", emoji: "⭕", color: "#ffd24a",              pts: "25 pts" },
-    { score: 0,  label: "Miss",       emoji: "❌", color: "rgba(255,255,255,0.3)", pts: "0 pts"  },
-  ];
-
+  const round = state.rounds[state.rounds.length - 1];
+  const roundNo = state.rounds.length;
+  const thrower = state.nextThrower;
+  const prev = state.rounds.length > 1 ? state.rounds[state.rounds.length - 2] : null;
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 200,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: `linear-gradient(rgba(4,4,10,0.93), rgba(4,4,10,0.97)), url("https://i.postimg.cc/Bbf9fbrp/pdc1.jpg")`,
-      backgroundSize: "cover", backgroundPosition: "center",
+    <div role="dialog" aria-label="Bull up" style={{
+      position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center",
+      background: `linear-gradient(rgba(4,4,10,0.93), rgba(4,4,10,0.97)), url("https://i.postimg.cc/Bbf9fbrp/pdc1.jpg")`, backgroundSize: "cover", backgroundPosition: "center",
     }}>
       <div style={{ width: "100%", maxWidth: 380, padding: "0 20px" }}>
-
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{ fontSize: 44, marginBottom: 10 }}>🎯</div>
-          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.85rem", fontWeight: 900, color: "#fff", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-            BULL UP
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }} aria-hidden>🎯</div>
+          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.85rem", fontWeight: 900, color: "#fff", letterSpacing: "0.14em", textTransform: "uppercase" }}>BULL UP</div>
+          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.55)", marginTop: 5, letterSpacing: "0.08em" }}>
+            {subtitle ?? (roundNo > 1 ? `RE-THROW ${roundNo - 1} — REVERSE ORDER` : "NEAREST THE BULL THROWS FIRST")}
           </div>
-          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.32)", marginTop: 5, letterSpacing: "0.08em" }}>
-            {round > 1 ? `TIE — ROUND ${round}` : "CLOSEST TO BULL GOES FIRST"}
-          </div>
+          {prev && <div style={{ fontSize: "0.72rem", color: "rgba(255,210,74,0.85)", marginTop: 6 }}>
+            Tie: {throwLabel(prev.throws[0])} v {throwLabel(prev.throws[1])} — {names[round.order[0]]} throws first now.
+          </div>}
         </div>
-
-        {phase !== "result" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+          {round.order.map(idx => {
+            const t = round.throws[idx];
+            const win = state.winner === idx;
+            return (
+              <div key={idx} style={{ padding: "12px 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 10,
+                background: win ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)", border: `1px solid ${win ? "rgba(34,197,94,0.28)" : thrower === idx ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.07)"}` }}>
+                <span style={{ fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.88rem", textTransform: "uppercase", flex: 1, color: win ? "#22c55e" : "#fff" }}>{names[idx]}</span>
+                <span aria-hidden style={{ fontSize: 15 }}>{throwEmoji(t)}</span>
+                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.6)" }}>{t ? throwLabel(t) : thrower === idx ? "to throw" : "waiting"}</span>
+                {win && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", fontWeight: 900, color: "#22c55e", letterSpacing: "0.1em" }}>FIRST ▶</span>}
+              </div>
+            );
+          })}
+        </div>
+        {state.winner === null && thrower !== null && isHuman(thrower) && (
           <>
-            {/* Current thrower */}
-            <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "rgba(255,0,92,0.65)", letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: 5 }}>
-                {phase === "p1" ? "PLAYER 1" : "PLAYER 2"}
-              </div>
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.5rem", fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {phase === "p1" ? p1Name : p2Name}
-              </div>
-              <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.28)", marginTop: 6 }}>
-                Throw one dart at the bull
-              </div>
+            <div style={{ textAlign: "center", marginBottom: 12, fontFamily: "Oswald, sans-serif", color: "#fff", fontSize: "0.9rem", letterSpacing: "0.06em" }}>
+              {names[thrower]} — where did your dart land?
             </div>
-
-            {/* Throw buttons */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {THROW_OPTS.map(opt => (
-                <button key={opt.score} onClick={() => handleThrow(opt.score)}
-                  style={{
-                    width: "100%", padding: "16px 20px", borderRadius: 12,
-                    display: "flex", alignItems: "center", gap: 14,
-                    background: `${opt.color}12`, border: `1px solid ${opt.color}3a`,
-                    cursor: "pointer",
-                  }}>
-                  <span style={{ fontSize: 22 }}>{opt.emoji}</span>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", fontWeight: 700, color: opt.color, flex: 1, textAlign: "left", textTransform: "uppercase" }}>
-                    {opt.label}
-                  </span>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", fontWeight: 900, color: opt.color, opacity: 0.55 }}>
-                    {opt.pts}
-                  </span>
+                <button key={opt.t} disabled={busy} onClick={() => onThrow(thrower, opt.t)} style={{
+                  width: "100%", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14,
+                  background: `${opt.color}12`, border: `1px solid ${opt.color}3a`, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}>
+                  <span aria-hidden style={{ fontSize: 22 }}>{opt.emoji}</span>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", fontWeight: 700, color: opt.color, flex: 1, textAlign: "left", textTransform: "uppercase" }}>{opt.label}</span>
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", fontWeight: 900, color: opt.color, opacity: 0.7 }}>{opt.pts}</span>
                 </button>
               ))}
             </div>
           </>
-        ) : (
+        )}
+        {state.winner === null && thrower !== null && !isHuman(thrower) && (
+          <div role="status" style={{ textAlign: "center", color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif" }}>{names[thrower]} is throwing…</div>
+        )}
+        {error && <p role="alert" style={{ marginTop: 12, color: "#ff8fb4", textAlign: "center", fontSize: "0.85rem" }}>{error}</p>}
+        {state.winner !== null && (
           <>
-            {/* Results */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
-              {([
-                { name: p1Name, score: p1Score, win: p1Score !== null && p2Score !== null && p1Score > p2Score },
-                { name: p2Name, score: p2Score, win: p2Score !== null && p1Score !== null && p2Score > p1Score },
-              ] as { name: string; score: BullScore | null; win: boolean }[]).map(({ name, score, win }, i) => (
-                <div key={i} style={{
-                  padding: "12px 16px", borderRadius: 10,
-                  display: "flex", alignItems: "center", gap: 10,
-                  background: win ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${win ? "rgba(34,197,94,0.28)" : "rgba(255,255,255,0.07)"}`,
-                }}>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.88rem", textTransform: "uppercase", flex: 1, color: win ? "#22c55e" : "rgba(255,255,255,0.55)" }}>
-                    {name}
-                  </span>
-                  <span style={{ fontSize: 15 }}>{scoreEmoji(score)}</span>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.35)" }}>
-                    {scoreLabel(score)}
-                  </span>
-                  {win && (
-                    <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", fontWeight: 900, color: "#22c55e", letterSpacing: "0.1em" }}>
-                      FIRST ▶
-                    </span>
-                  )}
-                </div>
-              ))}
+            <div style={{ textAlign: "center", marginBottom: 16, fontFamily: "Oswald, sans-serif", fontSize: "1rem", fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {names[state.winner]} throws first
             </div>
-
-            {isTie ? (
-              <>
-                <div style={{ textAlign: "center", marginBottom: 16, fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", color: "rgba(255,210,74,0.8)", letterSpacing: "0.05em" }}>
-                  It's a tie — throw again!
-                </div>
-                <button onClick={handleContinue} style={{
-                  width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
-                  fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.85rem",
-                  background: "#ffd24a", color: "#000", cursor: "pointer",
-                  textTransform: "uppercase", letterSpacing: "0.12em",
-                }}>
-                  Throw Again
-                </button>
-              </>
-            ) : (
-              <>
-                <div style={{ textAlign: "center", marginBottom: 16, fontFamily: "Oswald, sans-serif", fontSize: "1rem", fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  {p1Score! > p2Score! ? p1Name : p2Name} goes first!
-                </div>
-                <button onClick={handleContinue} style={{
-                  width: "100%", padding: "14px 0", borderRadius: 12, border: "none",
-                  fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.88rem",
-                  background: "linear-gradient(135deg, #ff005c, #cc0048)", color: "#fff",
-                  cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.14em",
-                }}>
-                  Start Game →
-                </button>
-              </>
-            )}
+            <button onClick={onContinue} disabled={busy} style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.88rem",
+              background: "linear-gradient(135deg, #ff005c, #cc0048)", color: "#fff", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.14em" }}>
+              Start Game →
+            </button>
           </>
         )}
       </div>
     </div>
   );
+}
+
+/** Local bull-up (Play / Practice / Classic Tour). Player 1 throws first in round 1. */
+function BullUpPhase({ p1Name, p2Name, botHitAcc, onComplete }: {
+  p1Name: string; p2Name: string; botHitAcc: number | null; onComplete: (starterIdx: 0 | 1) => void;
+}) {
+  const [throws, setThrows] = useState<BullThrow[]>([]);
+  const state = resolveBullUp(0, throws);
+  const isBot = (idx: 0 | 1) => botHitAcc !== null && idx === 1;
+  useEffect(() => {
+    if (state.winner !== null || state.nextThrower === null || !isBot(state.nextThrower)) return;
+    const t = setTimeout(() => setThrows(prev => [...prev, botBullThrow(botHitAcc!, Math.random)]), 700);
+    return () => clearTimeout(t);
+  }, [throws.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <BullUpBoard names={[p1Name, p2Name]} state={state} isHuman={idx => !isBot(idx)}
+    onThrow={(_, t) => setThrows(prev => [...prev, t])} onContinue={() => state.winner !== null && onComplete(state.winner)} />;
 }
 
 // ── GameScorer ────────────────────────────────────────────────────────────────
@@ -221,7 +158,7 @@ export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
   teamNames, playerNames, soloMode, bullUp, scorerThemeColor, teamTurnOrder,
-  onLiveState, initialRecovery, onRecoveryState,
+  onLiveState, initialRecovery, onRecoveryState, firstThrower, botVisitPlanner, onDartLog,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -251,9 +188,19 @@ export function GameScorer({
   onLiveState?: (state: LiveScoreState) => void;
   initialRecovery?: ScorerRecoveryState | null;
   onRecoveryState?: (state: ScorerRecoveryState) => void;
+  /** First thrower already decided (e.g. Career's server-side bull-up). Skips the local bull-up. */
+  firstThrower?: 0 | 1;
+  /** X01 only: deterministic bot visits (Career). */
+  botVisitPlanner?: (ctx: { remaining: number; opened: boolean }) => Dart[];
+  /** X01 only: canonical dart log of the match after every dart/undo. */
+  onDartLog?: (darts: Dart[]) => void;
 }) {
-  const isBullUpApplicable = bullUp && !soloMode;
-  const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(() => initialRecovery?.starterIdx ?? (isBullUpApplicable ? null : 0));
+  // X01 and Cricket take the starter directly (bot stays player 2); other engines
+  // still swap names, which is only correct between two humans, so with a bot
+  // they skip the bull-up rather than hand the bot's start to the human.
+  const swapless = gameType.engine === "X01" || gameType.engine === "Cricket";
+  const isBullUpApplicable = !!bullUp && !soloMode && firstThrower === undefined && (swapless || !botConfig);
+  const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(() => initialRecovery?.starterIdx ?? firstThrower ?? (isBullUpApplicable ? null : 0));
   // Admin-preview-only redesign of the 8 party game scoring screens — see
   // useNewScoringUI() and /admin's Feature Flags panel ("New Scoring UI").
   // Everything else (X01, Cricket, Killer, every non-party engine) ignores
@@ -261,21 +208,21 @@ export function GameScorer({
   const newScoringUI = useNewScoringUI();
   const reportLiveState = useCallback((state: LiveScoreState) => {
     if (!onLiveState) return;
-    onLiveState(starterIdx === 1
+    onLiveState(starterIdx === 1 && !swapless
       ? { ...state, scores: [state.scores[1], state.scores[0]], turn: state.turn === 0 ? 1 : 0, detail: state.detail ? [state.detail[1], state.detail[0]] : undefined }
       : state);
-  }, [onLiveState, starterIdx]);
+  }, [onLiveState, starterIdx, swapless]);
   const reportX01Recovery = useCallback((state: X01RecoveryState) => {
-    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "X01", state });
+    if (starterIdx !== null) onRecoveryState?.({ version: 2, starterIdx, engine: "X01", state });
   }, [onRecoveryState, starterIdx]);
   const reportCricketRecovery = useCallback((state: CricketRecoveryState) => {
-    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "Cricket", state });
+    if (starterIdx !== null) onRecoveryState?.({ version: 2, starterIdx, engine: "Cricket", state });
   }, [onRecoveryState, starterIdx]);
   const reportTeamX01Recovery = useCallback((state: TeamX01RecoveryState) => {
-    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "TeamX01", state });
+    if (starterIdx !== null) onRecoveryState?.({ version: 2, starterIdx, engine: "TeamX01", state });
   }, [onRecoveryState, starterIdx]);
   const reportTeamCricketRecovery = useCallback((state: TeamCricketRecoveryState) => {
-    if (starterIdx !== null) onRecoveryState?.({ version: 1, starterIdx, engine: "TeamCricket", state });
+    if (starterIdx !== null) onRecoveryState?.({ version: 2, starterIdx, engine: "TeamCricket", state });
   }, [onRecoveryState, starterIdx]);
 
   function renderInner() {
@@ -284,16 +231,19 @@ export function GameScorer({
         <BullUpPhase
           p1Name={p1Name}
           p2Name={p2Name}
-          isBot={!!botConfig}
+          botHitAcc={botConfig ? botConfig.hitAcc : null}
           onComplete={setStarterIdx}
         />
       );
     }
 
-    // Swap names + invert winner index if P2 won the bull-up
-    const ep1 = starterIdx === 1 ? p2Name : p1Name;
-    const ep2 = starterIdx === 1 ? p1Name : p2Name;
-    const wrappedOnWin: typeof onWin = starterIdx === 1
+    // X01/Cricket: players keep their seats and the engine starts with the
+    // bull-up winner (A6.5 fix: swapping put the human in the bot's seat).
+    // Other engines: swap names + invert winner index if P2 won the bull-up.
+    const swap = starterIdx === 1 && !swapless;
+    const ep1 = swap ? p2Name : p1Name;
+    const ep2 = swap ? p1Name : p2Name;
+    const wrappedOnWin: typeof onWin = swap
       ? (result) => onWin({ ...result, winnerIdx: result.winnerIdx === 0 ? 1 : 0 })
       : onWin;
 
@@ -323,11 +273,13 @@ export function GameScorer({
   switch (gameType.engine) {
     case "X01":
       return <X01Scorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
-        initialRecovery={initialRecovery?.engine === "X01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportX01Recovery : undefined} />;
+        initialRecovery={initialRecovery?.engine === "X01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportX01Recovery : undefined}
+        firstThrower={starterIdx} botVisitPlanner={botVisitPlanner} onDartLog={onDartLog} />;
 
     case "Cricket":
       return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
-        initialRecovery={initialRecovery?.engine === "Cricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportCricketRecovery : undefined} />;
+        initialRecovery={initialRecovery?.engine === "Cricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportCricketRecovery : undefined}
+        firstThrower={starterIdx} />;
 
     case "Killer":
       return <KillerScorer p1Name={ep1} p2Name={ep2} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;

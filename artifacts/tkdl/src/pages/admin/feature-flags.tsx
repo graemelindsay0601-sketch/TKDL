@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import { CollapsibleAdminSection } from "./collapsible-section";
 import { applySettingsPatch, replaceAppSettings, type AppSettings } from "@/hooks/use-settings";
+import { CareerBetaReset } from "./career-beta-reset";
 
 // Friendly display names for the two-stage (admin-preview → live-for-everyone)
 // flags stored in featureFlagsTable, as opposed to the simple on/off flags
@@ -23,8 +24,9 @@ const STAGED_FLAG_LABELS: Record<string, string> = {
   card_clash: "Card Clash",
   tkdl_live: "TKDL Live",
   new_scoring_ui: "New Scoring UI",
+  tour_career_2: "Career 2.0 BETA",
 };
-const STAGED_FLAG_ORDER = ["card_clash", "tkdl_live", "new_scoring_ui"];
+const STAGED_FLAG_ORDER = ["card_clash", "tkdl_live", "new_scoring_ui", "tour_career_2"];
 
 interface StagedFlag {
   featureName: string;
@@ -104,6 +106,8 @@ export function FeatureFlags() {
         if (!preview.ok) throw new Error((await preview.json().catch(() => null))?.error ?? "Could not disable preview");
       }
       await loadStagedFlags();
+      await queryClient.invalidateQueries({ queryKey: ["feature-status", featureName] });
+      if (featureName === "tour_career_2") await queryClient.invalidateQueries({ queryKey: ["career"] });
       const settingsResponse = await fetch("/api/settings", { cache: "no-store" });
       if (settingsResponse.ok) replaceAppSettings(queryClient, await settingsResponse.json() as AppSettings);
       toast({ title: `${label} — ${target === "live" ? "live for everyone" : target === "preview" ? "admin preview only" : "hidden"}` });
@@ -244,6 +248,7 @@ export function FeatureFlags() {
                 </div>
               );
             })}
+            <CareerBetaReset />
           </div>
         </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }} />

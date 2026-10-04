@@ -30,6 +30,7 @@ const ShadowBotDetail = lazyWithRetry(() => import("@/pages/shadow-bot-detail"),
 const ShadowLeague = lazyWithRetry(() => import("@/pages/shadow-league"), "shadow-league");
 const Tour = lazyWithRetry(() => import("@/pages/tour"), "tour");
 const TourRun = lazyWithRetry(() => import("@/pages/tour-run"), "tour-run");
+const CareerApp = lazyWithRetry(() => import("@/features/career"), "career");
 const Master501 = lazyWithRetry(() => import("@/pages/master501"), "master501");
 const HallOfFame = lazyWithRetry(() => import("@/pages/hall-of-fame"), "hall-of-fame");
 const Broadcast = lazyWithRetry(() => import("@/pages/broadcast"), "broadcast");
@@ -157,6 +158,9 @@ function AppRoutes() {
             </Route>
             <Route path="/shadow-bot">
               <RoutePage><ShadowBot /></RoutePage>
+            </Route>
+            <Route path="/career/*?">
+              <RoutePage><CareerApp /></RoutePage>
             </Route>
             <Route path="/tour/:runId">
               <RoutePage><TourRun /></RoutePage>

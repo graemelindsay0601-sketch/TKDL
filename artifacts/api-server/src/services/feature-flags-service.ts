@@ -9,6 +9,7 @@ export const FEATURES = {
   CARD_CLASH: "card_clash",
   TKDL_LIVE: "tkdl_live",
   NEW_SCORING_UI: "new_scoring_ui",
+  TOUR_CAREER_2: "tour_career_2",
 } as const;
 
 /**
@@ -28,6 +29,12 @@ export const FEATURES = {
 export async function initializeFeatureFlags() {
   try {
     await db.insert(featureFlagsTable).values([
+      {
+        featureName: FEATURES.TOUR_CAREER_2,
+        enabled: false,
+        adminTestMode: false,
+        description: "Career 2.0 BETA - persistent Career saves and live matches",
+      },
       {
         featureName: FEATURES.CARD_SHOP,
         enabled: true,

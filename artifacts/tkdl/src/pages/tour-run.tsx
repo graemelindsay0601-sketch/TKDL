@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Trophy, Swords, ChevronRight, Crown } from "lucide-react";
-import { GameScorer, type GameTypeOption } from "@/components/game-scorer";
+import { GameScorer, BullUpBoard, type GameTypeOption } from "@/components/game-scorer";
+import { resolveBullUp, botBullThrow, type BullThrow } from "@/lib/darts-rules";
 import { BOT_LEVELS, type BotLevel } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
@@ -340,7 +341,7 @@ export default function TourRun() {
   const [advancing,   setAdvancing]   = useState(false);
   const [advancingError, setAdvancingError] = useState<string | null>(null);
   const [bullup,      setBullup]      = useState(false);
-  const [bullResult,  setBullResult]  = useState<{ playerScore: number; botScore: number; playerFirst: boolean } | null>(null);
+  const [bullWinner,  setBullWinner]  = useState<0 | 1>(0);
 
   const pendingStatsRef = useRef<PracticeStats | null>(null);
   const matchStartRef   = useRef<number>(Date.now());
@@ -352,12 +353,6 @@ export default function TourRun() {
   useZoomLock(scoring);
   useExitGuard(scoring, () => setScoring(false));
 
-  const handleBullThrow = (playerScore: number) => {
-    const BOT_POOL = [50, 50, 25, 25, 25, 20, 18, 16, 14, 11, 9, 7, 5, 3, 1, 0];
-    const botScore = BOT_POOL[Math.floor(Math.random() * BOT_POOL.length)];
-    setBullResult({ playerScore, botScore, playerFirst: playerScore >= botScore });
-    setTimeout(() => { setBullResult(null); setBullup(false); setScoring(true); }, 3000);
-  };
 
   useEffect(() => {
     if (!runId) return;
@@ -474,85 +469,20 @@ export default function TourRun() {
   const gameType = gameTypes.find(g => g.key === run.game_type_key);
 
   // ── Bull Up overlay ───────────────────────────────────────────────────────
+  // A6.5: the canonical shared bull-up (re-throws in reverse order, bot throws
+  // from its own accuracy, never a coin flip) and its result now actually decides
+  // who throws first. Previously the result was shown but ignored.
   if (bullup && opponent) {
-    const threw = bullResult !== null;
-    const ScoreLabel = ({ score }: { score: number }) => {
-      if (score === 50) return <><span style={{ color: "#ff005c" }}>BULL</span> <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.8em" }}>50</span></>;
-      if (score === 25) return <><span style={{ color: "#ffd24a" }}>OUTER BULL</span> <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.8em" }}>25</span></>;
-      if (score === 0)  return <span style={{ color: "rgba(255,255,255,0.25)" }}>MISS</span>;
-      return <span style={{ color: "rgba(255,255,255,0.6)" }}>{score}</span>;
-    };
+    const botLevel = PERSONA_TO_BOT_LEVEL[opponent.level] ?? "amateur";
+    const playerParticipant = bracket.participants.find(p => p.key === "player");
     return createPortal(
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(4,4,10,0.97)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
-        <div style={{ width: "100%", maxWidth: "22rem", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          {/* Header */}
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.22em", color: tierColor, textTransform: "uppercase", fontWeight: 900, marginBottom: "0.25rem" }}>
-              {run.tour_name}
-            </div>
-            <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.4rem", fontWeight: 900, color: "#fff", lineHeight: 1, textTransform: "uppercase" }}>BULL UP</div>
-            <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", marginTop: "0.25rem" }}>
-              {threw ? "Closest to the bull throws first" : `You vs ${opponent.flag} ${opponent.name}`}
-            </div>
-          </div>
-
-          {/* Scoreboard after throw */}
-          {threw && bullResult && (
-            <div style={{ borderRadius: "1rem", overflow: "hidden", border: `1px solid ${bullResult.playerFirst ? "rgba(34,197,94,0.3)" : "rgba(255,0,92,0.3)"}` }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", background: bullResult.playerFirst ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)" }}>
-                <div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.85rem", color: bullResult.playerFirst ? "#22c55e" : "rgba(255,255,255,0.55)", textTransform: "uppercase" }}>YOU</div>
-                  {bullResult.playerFirst && <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", color: "#22c55e", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900 }}>✓ THROWS FIRST</div>}
-                </div>
-                <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1.5rem" }}><ScoreLabel score={bullResult.playerScore} /></div>
-              </div>
-              <div style={{ height: 1, background: "rgba(255,255,255,0.06)" }} />
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "1rem 1.25rem", background: !bullResult.playerFirst ? "rgba(255,0,92,0.08)" : "rgba(255,255,255,0.03)" }}>
-                <div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.85rem", color: !bullResult.playerFirst ? "#ff005c" : "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>{opponent.flag} {opponent.name}</div>
-                  {!bullResult.playerFirst && <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.52rem", color: "#ff005c", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 900 }}>✓ THROWS FIRST</div>}
-                </div>
-                <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "1.5rem" }}><ScoreLabel score={bullResult.botScore} /></div>
-              </div>
-            </div>
-          )}
-
-          {/* Throw buttons */}
-          {!threw && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              {[
-                { score: 50, label: "🎯 BULL", sub: "50", bg: "rgba(255,0,92,0.1)", border: "rgba(255,0,92,0.4)", col: "#ff005c" },
-                { score: 25, label: "⭕ OUTER BULL", sub: "25", bg: "rgba(255,210,74,0.07)", border: "rgba(255,210,74,0.3)", col: "#ffd24a" },
-                { score: 0,  label: "✗ MISS", sub: "",  bg: "rgba(255,255,255,0.03)", border: "rgba(255,255,255,0.08)", col: "rgba(255,255,255,0.3)" },
-              ].map(({ score, label, sub, bg, border, col }) => (
-                <button key={score} onClick={() => handleBullThrow(score)}
-                  style={{ width: "100%", padding: "1rem", borderRadius: "0.875rem", fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.875rem", textTransform: "uppercase", letterSpacing: "0.14em", background: bg, border: `2px solid ${border}`, color: col, cursor: "pointer" }}>
-                  {label}{sub && <span style={{ color: "rgba(255,255,255,0.3)", fontWeight: 400, marginLeft: "0.5rem" }}>{sub}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Progress bar */}
-          {threw && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", color: "rgba(255,255,255,0.25)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "0.5rem" }}>Starting match…</div>
-              <div style={{ width: "100%", height: 3, borderRadius: 9999, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
-                <div style={{ height: "100%", background: tierColor, animation: "fill-bar 3s linear forwards", borderRadius: 9999 }} />
-              </div>
-            </div>
-          )}
-
-          {/* Cancel */}
-          {!threw && (
-            <div style={{ textAlign: "center" }}>
-              <button onClick={() => setBullup(false)} style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.7rem", color: "rgba(255,255,255,0.2)", background: "none", border: "none", cursor: "pointer" }}>
-                ← Back to bracket
-              </button>
-            </div>
-          )}
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999 }}>
+        <TourBullUp names={[playerParticipant?.name ?? "You", `${opponent.flag} ${opponent.name}`]} botHitAcc={BOT_LEVELS[botLevel].hitAcc}
+          subtitle={run.tour_name}
+          onDone={winner => { setBullWinner(winner); setBullup(false); setScoring(true); }} />
+        <div style={{ position: "fixed", bottom: 16, left: 0, right: 0, textAlign: "center", zIndex: 201 }}>
+          <button onClick={() => setBullup(false)} style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", background: "none", border: "none", cursor: "pointer" }}>← Back to bracket</button>
         </div>
-        <style>{`@keyframes fill-bar { from { width: 0% } to { width: 100% } }`}</style>
       </div>,
       document.body
     );
@@ -574,6 +504,7 @@ export default function TourRun() {
           legs={run.legs_per_match}
           setsToWin={run.sets_per_match ?? undefined}
           legsToWinSet={run.legs_per_set ?? undefined}
+          firstThrower={bullWinner}
           onPracticeStats={s => { pendingStatsRef.current = s; }}
           onWin={result => {
             const playerWon = result.winnerIdx === 0;
@@ -710,4 +641,17 @@ export default function TourRun() {
       />
     </div>
   );
+}
+
+/** Classic Tour bull-up: local throws through the shared rules and the shared board. */
+function TourBullUp({ names, botHitAcc, subtitle, onDone }: { names: [string, string]; botHitAcc: number; subtitle: string; onDone: (winner: 0 | 1) => void }) {
+  const [throws, setThrows] = useState<BullThrow[]>([]);
+  const state = resolveBullUp(0, throws);
+  useEffect(() => {
+    if (state.winner !== null || state.nextThrower !== 1) return;
+    const t = setTimeout(() => setThrows(prev => [...prev, botBullThrow(botHitAcc, Math.random)]), 700);
+    return () => clearTimeout(t);
+  }, [throws.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <BullUpBoard names={names} state={state} isHuman={idx => idx === 0} subtitle={state.rounds.length > 1 ? undefined : subtitle}
+    onThrow={(_, t) => setThrows(prev => [...prev, t])} onContinue={() => state.winner !== null && onDone(state.winner)} />;
 }

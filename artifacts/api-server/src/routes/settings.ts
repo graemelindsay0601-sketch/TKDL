@@ -48,6 +48,7 @@ router.get("/settings", async (req, res): Promise<void> => {
 // So "admin test mode" here really does mean "only Graeme, signed in as
 // himself, sees it," verified server-side off his own session.
 router.get("/feature-status/:name", async (req, res): Promise<void> => {
+  res.set("Cache-Control", "no-store");
   const isAdmin = (req.session as any).isAdmin ?? false;
   const status = await getFeatureStatus(paramStr(req.params.name), isAdmin);
   res.json(status);

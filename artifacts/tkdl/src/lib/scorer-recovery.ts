@@ -10,8 +10,10 @@ export type X01RecoveryState = {
   scores: [number, number]; legWins: [number, number]; setWins: [number, number];
   legHistory: (0 | 1)[]; started: [boolean, boolean]; turn: 0 | 1; legStarter: 0 | 1;
   visitDarts: Dart[];
-  history: { turn: 0 | 1; score: number; left: number; darts: Dart[]; boardMarkNotes?: { icon: string; color: string; text: string }[] }[];
+  history: { turn: 0 | 1; score: number; left: number; darts: Dart[]; boardMarkNotes?: { icon: string; color: string; text: string }[]; leg?: number; openedBefore?: boolean }[];
   p1Stats: X01StatsAccumulator; p2Stats: X01StatsAccumulator;
+  /** A6.5 (optional, absent in older snapshots): leg counters and the canonical dart log. */
+  legNo?: number; legInSet?: number; dartLog?: Dart[];
 };
 
 export type CricketMarks = [[number, number, number, number, number, number, number], [number, number, number, number, number, number, number]];
@@ -33,11 +35,18 @@ export type TeamCricketRecoveryState = {
   playerIdx: [number, number]; visitDarts: Dart[]; lastHit: string;
 };
 
+/**
+ * version 2 (A6.5): for X01 and Cricket, starterIdx is the bull-up winner and the
+ * players are NOT swapped (the scorer starts with that player). Version 1
+ * snapshots stored a swapped player order; they are only restorable when no swap
+ * happened (starterIdx 0) or for engines that still use the swap.
+ */
 export type ScorerRecoveryState =
-  | { version: 1; starterIdx: 0 | 1; engine: "X01"; state: X01RecoveryState }
-  | { version: 1; starterIdx: 0 | 1; engine: "Cricket"; state: CricketRecoveryState }
-  | { version: 1; starterIdx: 0 | 1; engine: "TeamX01"; state: TeamX01RecoveryState }
-  | { version: 1; starterIdx: 0 | 1; engine: "TeamCricket"; state: TeamCricketRecoveryState };
+  | { version: 1 | 2; starterIdx: 0 | 1; engine: "X01"; state: X01RecoveryState }
+  | { version: 1 | 2; starterIdx: 0 | 1; engine: "Cricket"; state: CricketRecoveryState }
+  | { version: 1 | 2; starterIdx: 0 | 1; engine: "TeamX01"; state: TeamX01RecoveryState }
+  | { version: 1 | 2; starterIdx: 0 | 1; engine: "TeamCricket"; state: TeamCricketRecoveryState };
+export const SCORER_RECOVERY_VERSION = 2 as const;
 
 const pair = (value: unknown): value is [unknown, unknown] => Array.isArray(value) && value.length === 2;
 const numericPair = (value: unknown): value is [number, number] => pair(value) && value.every(Number.isFinite);
@@ -71,7 +80,9 @@ const cricketUndoHistory = (value: unknown) => Array.isArray(value) && value.eve
 export function isScorerRecoveryState(value: unknown): value is ScorerRecoveryState {
   if (!value || typeof value !== "object") return false;
   const snapshot = value as { version?: unknown; starterIdx?: unknown; engine?: unknown; state?: any };
-  if (snapshot.version !== 1 || !turn(snapshot.starterIdx) || !snapshot.state || typeof snapshot.state !== "object") return false;
+  if ((snapshot.version !== 1 && snapshot.version !== 2) || !turn(snapshot.starterIdx) || !snapshot.state || typeof snapshot.state !== "object") return false;
+  // A v1 X01/Cricket snapshot taken after a P2 bull-up win stored swapped players; refuse rather than mis-assign.
+  if (snapshot.version === 1 && snapshot.starterIdx === 1 && (snapshot.engine === "X01" || snapshot.engine === "Cricket")) return false;
   const state = snapshot.state;
   if (snapshot.engine === "X01") {
     return numericPair(state.scores) && numericPair(state.legWins) && numericPair(state.setWins)

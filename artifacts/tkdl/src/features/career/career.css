@@ -1,0 +1,112 @@
+/* TKDL Career (A6). Scoped `career-*` classes on top of pdc-card surfaces and the TKDL palette. */
+.career-root { --career-pink: #ff005c; --career-gold: #ffd24a; --career-green: #4ade80; --career-blue: #38bdf8; --career-purple: #c084fc; }
+.career-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  min-height: 2.5rem; padding: 0.45rem 0.85rem; border-radius: 0.65rem;
+  font-family: Oswald, sans-serif; font-weight: 900; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.88);
+  cursor: pointer; white-space: nowrap; transition: background 150ms, border-color 150ms, opacity 150ms;
+}
+.career-btn:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+.career-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.career-btn-primary { background: linear-gradient(135deg, #ff005c, #cc0048); border-color: transparent; color: #fff; }
+.career-btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, #ff1a6e, #d6004c); }
+.career-btn-gold { background: #ffd24a; border-color: transparent; color: #0b0b12; }
+.career-btn-danger { background: rgba(255,0,92,0.12); border-color: rgba(255,0,92,0.45); color: #ff6b9d; }
+.career-btn-ghost { background: transparent; }
+.career-btn:focus-visible, .career-chip:focus-visible, .career-nav-link:focus-visible, .career-row-link:focus-visible {
+  outline: 2px solid #ff005c; outline-offset: 2px;
+}
+.career-chip {
+  min-height: 2.25rem; padding: 0.35rem 0.75rem; border-radius: 999px; flex-shrink: 0;
+  font-family: Oswald, sans-serif; font-weight: 700; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6); cursor: pointer;
+}
+.career-chip[data-active="true"], .career-chip[aria-pressed="true"] { background: #ff005c; border-color: #ff005c; color: #fff; }
+.career-nav-link {
+  display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 0.8rem; border-radius: 0.6rem; flex-shrink: 0;
+  font-family: Oswald, sans-serif; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(255,255,255,0.55); border: 1px solid transparent;
+}
+.career-nav-link { white-space: nowrap; }
+@media (max-width: 420px) { .career-nav-link { padding: 0 0.35rem; letter-spacing: 0.05em; font-size: 0.68rem; } }
+.career-nav-link[aria-current] { color: #fff; background: rgba(255,0,92,0.14); border-color: rgba(255,0,92,0.4); }
+.career-subnav-link {
+  display: inline-flex; align-items: center; justify-content: center; flex: 1 0 auto; white-space: nowrap; min-height: 2.25rem; padding: 0 0.45rem; border-radius: 0.5rem; flex-shrink: 0;
+  font-family: Oswald, sans-serif; font-weight: 700; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.5);
+}
+.career-subnav-link[aria-current="page"] { color: #fff; box-shadow: inset 0 -2px 0 #ff005c; }
+.career-subnav-link:focus-visible { outline: 2px solid #ff005c; outline-offset: 2px; }
+.career-subnav-link:hover, .career-nav-link:hover { color: #fff; }
+.career-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }
+.career-table { width: 100%; border-collapse: collapse; }
+.career-table th { font-family: Oswald, sans-serif; font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.4); text-align: left; padding: 0.5rem 0.6rem; font-weight: 700; }
+.career-table td { padding: 0.55rem 0.6rem; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; color: rgba(255,255,255,0.85); }
+.career-table tr[data-me="true"] td { background: rgba(255,0,92,0.1); color: #fff; }
+.career-table-fixed { table-layout: fixed; }
+.career-cut td { padding: 0 0.6rem !important; border-top: 1px dashed rgba(255,210,74,0.55) !important; height: 1.1rem; line-height: 1; }
+.career-cut-label { font-family: Oswald, sans-serif; font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,210,74,0.8); }
+/* The Palace: WORLD tier — darker, restrained gold. */
+.career-palace { background: radial-gradient(120% 80% at 50% 0%, rgba(255,210,74,0.09), transparent 60%), #07060a; border: 1px solid rgba(255,210,74,0.28); border-radius: 1rem; }
+.career-palace .pdc-card { background: rgba(10,9,14,0.92); border-color: rgba(255,210,74,0.16); }
+@media (prefers-reduced-motion: reduce) { .career-root * { transition: none !important; animation: none !important; } }
+
+/* ── TKDL brand layer (scoped to Career) ─────────────────────────────────────
+   Lifts Career surfaces off near-black onto TKDL's navy glass, with the club's
+   red (#ff005c) / blue (#0066ff) glow pairing used by .section-card and the
+   ambient blobs, and the red→blue stripe from the TKDL crest. */
+.career-root {
+  --career-surface-hi: rgba(34,34,58,0.92);
+  --career-surface-lo: rgba(18,18,34,0.95);
+  --career-line: rgba(255,255,255,0.1);
+}
+.career-root .pdc-card {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255,0,60,0.08), transparent 42%),
+    radial-gradient(circle at 0% 100%, rgba(0,102,255,0.09), transparent 42%),
+    linear-gradient(145deg, var(--career-surface-hi), var(--career-surface-lo));
+  border-color: var(--career-line);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.career-root .pdc-card:hover { border-color: rgba(255,255,255,0.16); }
+.career-section-head {
+  position: relative;
+  border-color: var(--career-line) !important;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--section-accent, #ff005c) 14%, transparent), rgba(255,255,255,0.02) 55%, transparent);
+}
+.career-section-head::before {
+  content: ""; position: absolute; left: 0; top: 0.55rem; bottom: 0.55rem; width: 3px; border-radius: 0 3px 3px 0;
+  background: var(--section-accent, #ff005c);
+}
+.career-stat { position: relative; overflow: hidden; }
+.career-stat::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+  background: linear-gradient(90deg, #ff005c, #0066ff); opacity: 0.75;
+}
+.career-hero { position: relative; overflow: hidden; }
+.career-root .pdc-card.career-hero {
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255,0,60,0.22), transparent 50%),
+    radial-gradient(120% 140% at 100% 100%, rgba(0,102,255,0.24), transparent 55%),
+    linear-gradient(135deg, rgba(40,28,64,0.95), rgba(16,22,48,0.96));
+  border-color: rgba(255,255,255,0.14);
+}
+.career-hero::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px;
+  background: linear-gradient(90deg, #ff005c 0%, #ff005c 45%, #0066ff 55%, #0066ff 100%);
+}
+.career-root .pdc-card.career-nav { background: linear-gradient(90deg, rgba(30,30,54,0.95), rgba(22,26,52,0.95)); }
+.career-nav-link { color: rgba(255,255,255,0.72); }
+.career-nav-link:hover { color: #fff; background: rgba(255,255,255,0.06); }
+.career-nav-link[aria-current="page"] { background: linear-gradient(135deg, #ff005c, #d1004b); border-color: transparent; box-shadow: 0 6px 18px rgba(255,0,92,0.3); }
+.career-btn:not(.career-btn-primary):not(.career-btn-gold):not(.career-btn-danger):not(.career-btn-ghost) { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); }
+.career-btn-primary { box-shadow: 0 6px 18px rgba(255,0,92,0.28); }
+.career-btn-gold { box-shadow: 0 6px 18px rgba(255,210,74,0.22); }
+.career-chip { color: rgba(255,255,255,0.72); background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); }
+.career-chip[data-active="true"], .career-chip[aria-pressed="true"] { background: #0066ff; border-color: #0066ff; }
+.career-table th { color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.03); }
+.career-table td { border-top-color: rgba(255,255,255,0.07); }
+.career-table tr[data-me="true"] td { background: linear-gradient(90deg, rgba(255,0,92,0.2), rgba(0,102,255,0.12)); }
+/* Palace keeps its black-and-gold World Championship identity. */
+.career-root .career-palace .pdc-card { background: linear-gradient(145deg, rgba(22,18,14,0.94), rgba(12,10,8,0.96)); border-color: rgba(255,210,74,0.2); }

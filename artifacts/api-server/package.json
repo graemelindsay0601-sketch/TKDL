@@ -9,6 +9,11 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --test src/lib/__tests__/*.test.ts src/broadcast/__tests__/*.test.ts",
+    "career:world": "node scripts/career-world.ts",
+    "career:balance": "node scripts/career-balance.ts",
+    "career:calendar": "node scripts/career-calendar.ts",
+    "career:finance": "node scripts/career-finance.ts",
+    "career:sporting": "node scripts/career-sporting.ts",
     "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs"
   },
   "dependencies": {
@@ -33,6 +38,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@types/bcrypt": "^6.0.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/connect-pg-simple": "^7.0.3",

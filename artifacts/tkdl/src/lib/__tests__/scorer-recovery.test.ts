@@ -7,7 +7,7 @@ const emptyStats = { darts: 0, score: 0, s100s: 0, s140s: 0, s170s: 0, s180s: 0,
 
 test("accepts a complete X01 checkpoint and matches only its engine", () => {
   const checkpoint = {
-    version: 1,
+    version: 2,
     starterIdx: 1,
     engine: "X01",
     state: {
@@ -19,6 +19,9 @@ test("accepts a complete X01 checkpoint and matches only its engine", () => {
   if (!isScorerRecoveryState(checkpoint)) return;
   assert.equal(recoveryMatchesEngine(checkpoint, "X01"), true);
   assert.equal(recoveryMatchesEngine(checkpoint, "TeamX01"), false);
+  // A6.5: a v1 X01 snapshot taken after a P2 bull-up win stored swapped seats; it is refused, never mis-assigned.
+  assert.equal(isScorerRecoveryState({ ...checkpoint, version: 1 }), false);
+  assert.equal(isScorerRecoveryState({ ...checkpoint, version: 1, starterIdx: 0 }), true);
 });
 
 test("accepts team Cricket state with a partial visit", () => {
