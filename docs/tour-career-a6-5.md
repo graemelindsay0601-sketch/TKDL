@@ -276,7 +276,7 @@ Also screenshotted:
 
 ### Amateur → Q-School grind
 
-See §7, which has the figures and the sponsor bug it surfaced.
+See §7, which has the figures, the root cause (schedule + home-country bug) and the sponsor bug.
 
 ---
 
@@ -318,81 +318,85 @@ Playtest checklist:
 
 ## 7. Amateur → Q-School grind validation
 
-`scripts/career-a65-grind.ts`: a deterministic, DEV-only validation run.
+`scripts/career-a65-grind.ts`: a deterministic, DEV-only run.
 
-- **Setup**: one new Career (current event DB, adult, home Ayrshire, **no fixture funding**), played from S1 W1 to S2 W7.
-- **Every human match is played through the real live-session boundary**: open, bull-up, dart log, server verification, A3. The human's darts come from the shared planner with a fixed skill profile.
-- **Entry policy**:
-  - Q-School First Stage whenever it is enterable.
-  - Otherwise any open event costing nothing, or ≤ 20% of available cash.
-  - From S1 W40, the Q-School cost is held back.
-  - Accept the first sponsor offer.
+- **Setup**: a new Career, adult (started at 24), home Ayrshire, the **normal £250 start**. No grants, adjustments, coins or debt.
+- **Every human match is real**: it goes through the live session (bull-up, dart log, server verification, A3). The human's darts come from the shared planner with a fixed skill profile.
+- **Money and results are read back from the A4 ledger and A3 results.** The harness asserts at every step that the authoritative balance is ≥ 0 and matches the ledger.
 
-**Real Q-School First Stage cost** (A4 preview, UK & Ireland, Wolverhampton): **£570** from
-Ayrshire or Leinster (£300 series fee + £60 travel + 3 nights £210), and £300 from the Midlands.
+### Root cause (cost and scheduling, not prize money)
 
-### Results (after the sponsor fix below)
+1. **The harness schedule was irrational.** The first version entered anything costing ≤ 20% of cash, at any distance. An Ayrshire player has 28 local grassroots nights a season (about £4 each) but 55 away nights costing **£64 for a £21 average top prize**. The harness took many of them, so £1,300 of travel ate £990 of grassroots prize money. A4 prices this correctly: chasing tiny pots across the country should lose money.
+2. **A3 home-country bug, reachable once A6.5 let players choose a home.** `A3_PLACEHOLDER_STATUS.human` looked up the home country by *region name* ("Leinster") using the locality *key* ("leinster"). It never matched, so every home outside Ayrshire became GBR. An Irish, Dutch, German, Belgian, Australian or Canadian Career had **zero local events**, and British pub nights were priced as "domestic". Fixed with a key lookup (`calendar/providers.ts`) and tested. GB homes and pre-A6.5 saves (default Ayrshire) are unchanged.
 
-| Profile (planner avg) | Seed | Matches | Win % | Earnings | Expenses | Sponsor | Cash at S2 W1 | Q-School | Tour Card |
-|---|---|---|---|---|---|---|---|---|---|
-| Competent (50) | 1 | 123 | 67.5% | £380 | £835 | £425 | **£280** | cannot afford | no |
-| Competent (50) | 2 | 92 | 72.8% | £420 | £955 | £500 | **£290** | cannot afford | no |
-| Competent (50) | 3 | 144 | 73.6% | £840 | £1,545 | £700 | **£360** | cannot afford | no |
-| Strong (56) | 1 | 210 | 85.2% | £1,415 | £2,475 | £1,050 | £770 | entered | no |
-| Strong (56) | 2 | 228 | 84.6% | £1,690 | £2,863 | £1,025 | £693 | entered | no |
-| Strong (56) | 3 | 219 | 83.1% | £1,490 | £2,815 | £1,100 | £605 | entered | no |
-| Dominant (62) | 1 | 346 | 90.5% | £6,855 | £5,760 | £1,475 | £3,530 | entered | no |
-| Dominant (62) | 2 | 263 | 91.3% | £1,835 | £3,070 | £1,300 | £1,005 | entered | no |
+**A4 travel bands, checked against A3 geography:**
 
-Every run started on £250. Q-School Order of Merit cards in these worlds: 10–12 (line at 7–8 points).
+| Band | When | Cost |
+|---|---|---|
+| LOCAL | county catchment or a named nearby venue | £0 |
+| DOMESTIC | same country | £60 round trip; a hotel only from 2-day events |
+| UK_IRELAND | across the GB/Ireland border | £90 + £80/night |
+| EUROPE | | £180 + £90/night + 1 extra night |
+| LONG_HAUL | | £900 + £120/night + 2 extra nights |
 
-### Bug found and fixed (smallest evidence-based change)
+Local darts is free to reach. Professional and international travel was not changed.
 
-The first competent run (avg 50, seed 2) signed **Vantage Darts (ELITE)** in week 4 and
-received **£58,000** in sponsorship as an amateur.
+**Grassroots prizes: no change.** The candidate £60/£30/£15/£15 Friday Night profile was **discarded**. It wasn't needed once the schedule was sensible, so the shipped A4 values are untouched.
 
-- **Cause**: A4's sponsor facts (`bestFinishByCircuit`) counted *qualifier* results as circuit finishes. Reaching the final of the amateur **Open Championship Qualifier**, which sits on the `MAJOR` circuit, satisfied "top 2 at a Major".
-- **Fix**: `humanBestFinishByCircuit` (`career/finance/engine.ts`) ignores `QUALIFIER` events, except on the Q-School circuit, where the qualifier *is* the event (one sponsor rule deliberately counts Q-School finishes).
-- **Test**: `career-a65-live.test.ts`, "sponsor facts (grind fix)".
-- **Effect**: the same seed now signs a local sponsor and reaches S2 on £290. Contracts already signed are not touched.
+### Schedule ("sensible amateur", no knowledge of results)
 
-### Finding not adjusted in A6.5: competent amateurs cannot fund Q-School
+The harness uses only what the A4 preview shows (the player's cost after sponsor cover, the travel band, the top prize) and the current balance:
 
-With the bug fixed:
+- Q-School First Stage whenever it is enterable.
+- Free events: enter.
+- Local events: enter if the cost is ≤ 20% of available cash.
+- Travelled events: enter only if the **top prize is at least 2× the player's cost** and the cost is ≤ 20% of cash.
+- Hold back the Q-School cost once cash covers it, or from S1 W40.
+- Accept the first sponsor offer.
 
-- A **competent** amateur (winning 67–74% of matches) reaches Season 2 on **£280–£360**, against a **£570** First Stage. They cannot enter Q-School, and their cash stays roughly flat (net season result about £0).
-- A **strong** amateur (83–85%) can just afford it.
-- Only a **dominant** player builds a buffer.
+Skipped events are counted by reason. Other policies remain available: `--policy=loose` (the original rule) and `--policy=farm` (grassroots only, as an exploit probe).
 
-**Cause.** Grassroots events return far less than they collect. A Friday Night 501 takes
-24 × £5 = **£120** in entry fees but pays **£35** (£25 / £10), about 29% of the pot. Even a
-player who reaches a final 1 time in 5 roughly breaks even, while travel to County and Regional
-events costs more than they return at that level.
+**Q-School First Stage cost** (A4 preview, UK & Ireland, Wolverhampton, from Ayrshire): **£570**. That is a £300 series fee + £60 travel + 3 nights (£210).
 
-**Why it wasn't changed here.** Fixing this means retuning the A4 prize tables. Those values
-feed the A5 ranking money, and A4's own rule (see `finance/config.ts`) says shipped finance
-versions are immutable: a retune must ship as **`FINANCE_VERSION 2` with explicit per-save
-pinning**, and the version is part of the ledger's stable IDs. That is a versioned A4 change,
-not a "smallest adjustment", so A6.5 records the evidence and does not touch the economy.
+### Results (original prize values)
 
-**Proposed for the next finance version.** Grassroots and county prize tables pay out the entry
-pot. For example, a 24-player £5 night would pay £60 / £30 / £15 / £15. Re-run this script to
-confirm that competent profiles reach the First Stage within one season.
+| Profile | Seed | Match win % | Titles | Entered (local / travelled) | Fees | Travel | Hotel | Prizes | Sponsor | Affordable from | Cash before → after Q-School entry |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Competent (46) | 1 | 62.2% | 5 | 42 (37 / 3) | £537.50 | £195 | £210 | £405 | £307.50 | **S1 W37** | £590 → **£20** |
+| Competent (46) | 2 | 55.4% | 7 | 65 (68 / 2)¹ | £476.25 | £90 | £0 | £435 | £247.50 | not within 2 seasons | — (balance £380–£470) |
+| Competent (46) | 3 | 66.7% | 10 | 45 (39 / 4) | £600 | £255 | £210 | £555 | £397.50 | **S1 W27** | £747.50 → **£177.50** |
+| Strong (56) | 1 | 78.9% | 18 | 49 | £650 | £480 | £350 | £1,015 | £675 | S1 W13 | £1,185 → £615 |
+| Strong (56) | 2 | 80.0% | 16 | 45 | £560 | £360 | £210 | £735 | £600 | S1 W21 | £1,035 → £465 |
+| Strong (56) | 3 | 85.7% | 25 | 50 | £747.50 | £540 | £630 | £2,030 | £850 | S1 W13 | £1,763 → £1,193 |
+
+¹ Entry counts include events later withdrawn or refunded. Sponsor coverage of travel and hotels was £30–£45 for the competent profiles.
+
+**Balance progression, competent seed 1:**
+S1 W8 £277 → W16 £262 → W24 £502 → W32 £555 → W40 £582 → W48 £590 → Q-School S2 W1 (£570 committed) → £20.
+
+**Verdict: §25 passes.**
+
+- Competent amateurs (62–67% match wins) can afford the First Stage late in season 1 and enter it in season 2, with little or no buffer.
+- A weaker competent player (55%) doesn't get there within two seasons but stays comfortably solvent, so remaining a local amateur is viable.
+- Strong players get there early.
+- Away pub nights still lose money: 300–630 of them were skipped per run as "not worth the trip". The opportunity checks found a free event in most stretches and only 0–8 weeks with no affordable event.
+- **Integrity**: the minimum authoritative balance was ≥ £20 in every run. Zero ADJUSTMENT entries, no coins, no grants, no guaranteed sponsor or wins.
+
+**The earlier "−£80" was a harness reporting bug, not real debt.** Every A4 posting moves the balance with a guarded `UPDATE … WHERE balance_pence + amount >= 0`, refusing otherwise, and `career_saves` has `CHECK (balance_pence >= 0)`. The harness had sorted rows *within* a transaction (which share one `created_at`) by random UUID. It now reports at transaction boundaries and asserts the invariant on every step.
+
+### Sponsor bug found and fixed (earlier run)
+
+A first competent run signed **Vantage Darts (ELITE)** as an amateur and received £58,000. The cause was that A4's sponsor facts counted *qualifier* results as circuit finishes, so reaching the amateur Open Championship Qualifier final counted as "top 2 at a Major". `humanBestFinishByCircuit` now ignores qualifiers, except on the Q-School circuit, where the qualifier is the event. This is tested.
 
 ```bash
-node --experimental-strip-types scripts/career-a65-grind.ts --avg=50 --seeds=3   # competent
+node --experimental-strip-types scripts/career-a65-grind.ts --avg=46 --seeds=3   # competent
 node --experimental-strip-types scripts/career-a65-grind.ts --avg=56 --seeds=3   # strong
-node --experimental-strip-types scripts/career-a65-grind.ts --avg=62 --seeds=3   # dominant
+node --experimental-strip-types scripts/career-a65-grind.ts --avg=46 --policy=loose  # the irrational schedule
 ```
-
-The script's `qSchoolCost.firstStageSeries` field adds up the standalone estimate of each of the
-three days, so it over-counts. Use the A4 preview figure above (£570).
-
----
 
 ## 8. Known limitations
 
-- **Economy**: competent (non-dominant) amateurs cannot fund the Q-School First Stage after one season (§7). This needs an A4 `FINANCE_VERSION 2` retune; it is not changed in A6.5.
+- **Travel model**: DOMESTIC is one flat band, so Ayrshire→Inverness costs the same as Ayrshire→Brighton. A finer regional band is an A9 refinement, not needed for §25.
 - Career live play covers **X01 501, straight/double in, double out, singles knockout** only. Other Career formats remain `UNSUPPORTED_FORMAT` and cannot be entered.
 - **Bot visit presentation**: the preserved Classic Tour planner samples a visit total and splits it into darts, so some bot visits read like `T20, D13, Miss`. The rules and verification are unaffected. Changing it would change Classic Tour difficulty, so it was left.
 - The `GameScorer` sets/legs props keep their best-of semantics and misleading names.
@@ -406,4 +410,3 @@ three days, so it over-counts. Use the A4 preview figure above (£570).
 - Age-related performance curves or decline (deliberately absent).
 - Live play for 301/701, master/treble-out, groups/leagues, pairs and non-X01 Career events.
 - Online/multi-device live sessions beyond the single-session lock.
-- A4 finance version 2 (grassroots/county payouts), §7.

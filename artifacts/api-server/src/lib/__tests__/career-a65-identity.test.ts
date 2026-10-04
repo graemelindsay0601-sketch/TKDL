@@ -86,3 +86,18 @@ test("junior cohort (v2 worlds only) adds 16-17-year-old NPCs on separate keys; 
   const intake = generateJuniorCohort(HARNESS_SEED, 1, 2, JUNIOR_COHORT.annualIntake, [...v1, ...juniors], "intake:2");
   assert.ok(intake.every(n => n.age === 16));
 });
+
+test("home region (A6.5): the chosen locality key sets the home country, so non-GB Careers have local events", async () => {
+  const { A3_PLACEHOLDER_STATUS } = await import("../../career/calendar/providers.ts");
+  const { travelBand } = await import("../../career/finance/travel.ts");
+  const home = (homeLocality?: string) => A3_PLACEHOLDER_STATUS.human({ settings_snapshot: homeLocality ? { homeLocality } : {}, has_tour_card: false } as never);
+  assert.deepEqual([home().country, home().locality], ["GBR", "ayrshire"], "legacy default unchanged");
+  assert.equal(home("north-east").country, "GBR");
+  assert.deepEqual([home("leinster").country, home("leinster").zone], ["IRL", "UK_IRELAND"]);
+  assert.equal(home("utrecht").country, "NLD");
+  assert.equal(home("ontario").country, "CAN");
+  // Same-county Irish venue is LOCAL for a Leinster player; a British pub night is a cross-border trip.
+  const h = home("leinster");
+  assert.equal(travelBand(h, { locality_key: "leinster", venue_key: "x", country: "IRL", zone: "UK_IRELAND" }), "LOCAL");
+  assert.equal(travelBand(h, { locality_key: "ayrshire", venue_key: "x", country: "GBR", zone: "UK_IRELAND" }), "UK_IRELAND");
+});

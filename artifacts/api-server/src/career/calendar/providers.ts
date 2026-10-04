@@ -1,5 +1,5 @@
 import type { Npc, Tier } from "../world/types.ts";
-import { zoneOf, localityByRegion, type Zone } from "./geography.ts";
+import { zoneOf, localityByRegion, localityByKey, type Zone } from "./geography.ts";
 import type { CareerExecutor } from "../database.ts";
 import type { DenialReason } from "./eligibility.ts";
 import type { InstanceRow, RootRow } from "./engine.ts";
@@ -47,7 +47,10 @@ export const A3_PLACEHOLDER_STATUS: SportingStatusProvider = {
   id: "A3_PLACEHOLDER_PROFESSIONAL_STATUS",
   human(root) {
     const home = (root.settings_snapshot?.homeLocality as string | undefined) ?? "ayrshire";
-    const country = home === "ayrshire" ? "GBR" : (localityByRegion(home)?.country ?? "GBR");
+    // A6.5 fix: `homeLocality` is a locality KEY ("leinster"); the region-name lookup ("Leinster") never
+    // matched, so every chosen home outside Ayrshire was treated as GBR (no local events for IRL/NLD/DEU…).
+    // Unreachable before A6.5 made the home region selectable; GBR homes are unaffected.
+    const country = home === "ayrshire" ? "GBR" : ((localityByKey(home) ?? localityByRegion(home))?.country ?? "GBR");
     return { country, zone: zoneOf(country), locality: home, professionalStatus: root.has_tour_card ? "PROFESSIONAL" : "AMATEUR", tourCard: root.has_tour_card };
   },
   npcTourCard: npc => npc.professionalStatus === "PROFESSIONAL",
