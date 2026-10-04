@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useQualification, useWithdrawEvent, errorMessage } from "../api";
-import { circuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES } from "../model";
-import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
+import { circuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason } from "../model";
+import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
 import { MatchBoundaryNotice } from "./match-boundary";
@@ -38,7 +38,8 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
       <section className="pdc-card overflow-hidden relative" style={{ borderColor: `${tier.accent}${tier.emphasis >= 4 ? "66" : "33"}` }}>
         <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: `radial-gradient(80% 140% at 100% 0%, ${tier.accent}${tier.emphasis >= 4 ? "26" : "12"}, transparent 60%)` }} />
         <div className="relative p-4 md:p-5 space-y-2">
-          <div className="flex flex-wrap items-center gap-2"><TierBadge tier={e.presentation.tier} /><StatusBadge label={life.label} tone={life.tone} />
+          <div className="flex flex-wrap items-center gap-2"><TierBadge tier={e.presentation.tier} />{isJuniorEvent(e) && <JuniorBadge />}<StatusBadge label={life.label} tone={life.tone} />
+            {ageReason(e) && <StatusBadge label={ageReason(e)!} tone="muted" />}
             {e.qSchool && <StatusBadge label={`Q-School ${e.qSchool.stage === "FIRST" ? "First" : "Final"} Stage · Day ${e.qSchool.day}`} tone="gold" />}</div>
           <h1 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: `clamp(1.5rem, ${4 + tier.emphasis * 0.4}vw, ${2 + tier.emphasis * 0.18}rem)`, color: palace ? "#ffe79a" : "#fff" }}>{e.name}</h1>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>

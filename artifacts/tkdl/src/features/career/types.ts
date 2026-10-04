@@ -20,6 +20,9 @@ export type HumanView = {
   relationship: "AVAILABLE" | "QUALIFIED" | "ENTERED" | "CONFIRMED" | "PLAYING" | "COMPLETED" | "WITHDRAWN" | "MISSED" | "NOT_ELIGIBLE";
   eligible: boolean; eligibilityReasons: DenialReason[]; canEnter: boolean; denials: DenialReason[]; conflictsWith: string[];
   entryStatus: string | null; result: { finishingPosition: number; stageReached: string; champion: boolean } | null;
+  /** A6.5: age bounds for this event (authored AGE rules + circuit policy) and the human's age on its start date. */
+  age?: { minAge: number | null; maxAgeExclusive: number | null; policyMin: number | null; junior: boolean; ageOnEventDate: number | null;
+    eligibleFrom: { season: number; week: number; date: string } | null } | null;
 };
 export type EventFinancePreview = {
   affordable: boolean; currency: "GBP"; travelBand: string; nights: number; entryFeePence: number; entryFeeBasis: string;
@@ -37,7 +40,7 @@ export type CareerEvent = {
   dates: { startWeek: number; endWeek: number; startDay: number; endDay: number; startDayOfWeek: number; grouping: string };
   registration: { opensWeek: number; closesWeek: number };
   venue: { key: string; name: string; city: string; country: string; region: string; zone: string; localityKey: string | null };
-  format: EventFormat; capability: { executable: boolean; code?: string; reasons?: string[] };
+  format: EventFormat; capability: { executable: boolean; code?: string; reasons?: string[]; engine?: string; liveScorer?: string };
   field: { size: number; minimum: number; entrants: number; policy: string };
   series: { key: string; day: number } | null; qSchool: { pathway: string; stage: "FIRST" | "FINAL"; day: number } | null;
   seedingPolicy: { list: string | null; seeds: number };
@@ -136,3 +139,27 @@ export type RouteFact = { type: string; met: boolean; reasons?: string[]; parts?
 export type QualificationEvent = { eventId: string; name: string; definitionKey: string; circuit: string; classification: string; startWeek: number; status: string;
   eligible: boolean; reasons: string[]; routes: RouteFact; seedingList: string | null; seeds: number };
 export type QualificationResponse = { season: number; tourCard: boolean | null; professionalStatus: string; rankings: Record<string, number>; events: QualificationEvent[] };
+
+// ---------------------------------------------------------------- A6.5 identity / live matches
+export type CareerProfile =
+  | { status: "PROFILE_INCOMPLETE"; dateOfBirth: null; careerStartDate: string | null; homeLocality: string | null; displayName: string | null; minimumStartAge: number }
+  | { status: "COMPLETE"; dateOfBirth: string; careerStartDate: string; homeLocality: string | null; displayName: string | null; careerDate: string;
+      age: number; ageAtCareerStart: number; minimumStartAge: number; junior: boolean; juniorMaxAgeExclusive: number;
+      qSchool: { minimumAge: number; eligibleNow: boolean; eligibleFrom: { season: number; week: number; date: string } | null } };
+export type LiveDart = { segment: number; multiplier: 1 | 2 | 3; value: number; label?: string };
+export type LiveFormat =
+  | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "LEGS"; bestOfLegs: number }
+  | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "SETS"; bestOfSets: number; bestOfLegsPerSet: number };
+export type LiveSession = {
+  sessionId: string; sessionVersion: number; matchId: string; eventId: string;
+  status: "BULL_UP" | "IN_PLAY" | "COMPLETED" | "SUPERSEDED"; revision: number;
+  player: { name: string }; opponent: { key: string; name: string };
+  format: LiveFormat; bestOf: number; firstThrowMethod: string;
+  bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string };
+  bullUp: { required: boolean; firstOrder: 0 | 1; throws: ("INNER" | "OUTER" | "MISS")[]; winner: 0 | 1 | null; nextThrower: 0 | 1 | null };
+  firstThrower: 0 | 1 | null; darts: LiveDart[]; settledDarts: number;
+  progress: { legs: [number, number]; sets: [number, number]; totalLegs: [number, number]; setNo: number; legNo: number; complete: boolean } | null;
+  result: null | { humanWon: boolean; legs: [number, number]; sets: [number, number] | null; eventStatus: string; eventCompleted: boolean; nextHumanMatchIds: string[];
+    facts: { human: { average: number; darts: number }; opponent: { average: number; darts: number } } };
+  duplicate?: boolean;
+};

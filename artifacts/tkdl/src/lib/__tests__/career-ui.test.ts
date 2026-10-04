@@ -74,7 +74,7 @@ test("Career Home: unaffordable next event says Cannot afford and offers no Ente
   assert.ok(!/>\s*Enter/.test(html), "no Enter button");
 });
 
-test("Career Home, ranked professional with sponsor and a pending match: real figures and the not-connected boundary", () => {
+test("Career Home, ranked professional with sponsor and a pending match: real figures and the live Play match action (A6.5)", () => {
   const s = save({ currentWeek: 12, professionalRanking: 42, hasTourCard: true });
   const live = event({ name: "Pro Circuit Championship 9", status: "IN_PROGRESS", dates: { startWeek: 12, startDay: 79 }, human: human({ relationship: "PLAYING", canEnter: false }) });
   const seed = homeSeed(s, [live], sporting("RANKED_PRO"), finance({ balancePence: 1469000, sponsor: { contractId: "c", sponsorKey: "ochre", displayName: "Ochre Darts Co.", tier: "REGIONAL", endSeason: 1, endWeek: 52 } }));
@@ -84,8 +84,10 @@ test("Career Home, ranked professional with sponsor and a pending match: real fi
   const html = render(h(M.HomePage, { ctx: ctx(s, overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] })) }), seed);
   const t = text(html);
   assert.match(html, /aria-label="Down 3"/);
-  for (const x of ["42nd", "Career high 20th", "£14,690", "Active", "Ochre Darts Co.", "Your match is waiting", "You vs Arno Auenberg", "Play match — not connected yet", "Live Career match play is not connected yet"]) assert.ok(t.includes(x), x);
-  assert.match(html, /<button[^>]*disabled[^>]*>(?:(?!<\/button>).)*Play match — not connected yet/s, "Play match is a disabled control, not a fake result");
+  for (const x of ["42nd", "Career high 20th", "£14,690", "Active", "Ochre Darts Co.", "Your match is waiting", "You vs Arno Auenberg", "Play match", "checked by the server"]) assert.ok(t.includes(x), x);
+  // A6.5: a real link into the live session route (GameScorer); never a client-reported result and no stale "not connected" copy.
+  assert.match(html, new RegExp(`href="/career/${SAVE_ID}/matches/m1/play"`), "Play match opens the live Career session");
+  assert.ok(!t.includes("not connected yet"), "no stale A6 boundary copy");
 });
 
 test("retired Career Home is read-only: no next-event hero, no Enter, no Continue", () => {

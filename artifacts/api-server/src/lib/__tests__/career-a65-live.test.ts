@@ -367,3 +367,20 @@ async function playOutOffline(session: any, human: BotSkill, seed: string): Prom
     for (const d of plan) { const r = throwDart(s, d); s = r.state; darts.push(d); if (s.complete || !["SCORED", "UNOPENED", "OPENED"].includes(r.outcome)) break; }
   }
 }
+
+test("sponsor facts (grind fix): an amateur qualifier final is not a Major finish; Q-School finishes still count", async () => {
+  const { humanBestFinishByCircuit } = await import("../../career/finance/engine.ts");
+  const id = (await call("GET", "/saves")).body.slots[1].career.id;
+  const inst = async (key: string) => (await q(sql`SELECT id, season, definition_key, circuit, classification FROM career_event_instances WHERE career_save_id = ${id} AND definition_key LIKE ${key} ORDER BY start_day LIMIT 1`))[0];
+  const qual = await inst("open-championship-qualifier");
+  const qs = await inst("q-school-first-%");
+  assert.deepEqual([qual.circuit, qual.classification, qs.circuit, qs.classification], ["MAJOR", "QUALIFIER", "Q_SCHOOL", "QUALIFIER"]);
+  // Test fixture rows (last test in the file): the human reached the final (2nd) of both events.
+  for (const e of [qual, qs]) await db.execute(sql`INSERT INTO career_event_entries (career_save_id, event_id, participant_key, participant_kind, source, status, entered_season, entered_week)
+    VALUES (${id}, ${e.id}, 'HUMAN', 'HUMAN', 'HUMAN_ENTRY', 'CONFIRMED', ${e.season}, 1) ON CONFLICT DO NOTHING`);
+  for (const e of [qual, qs]) await db.execute(sql`INSERT INTO career_event_results (career_save_id, event_id, participant_key, participant_kind, season, definition_key, finishing_position, stage_reached, is_champion, matches_played, wins, losses, legs_for, legs_against, metadata)
+    VALUES (${id}, ${e.id}, 'HUMAN', 'HUMAN', ${e.season}, ${e.definition_key}, 2, 'FINAL', false, 5, 4, 1, 20, 12, '{"testFixture":true}'::jsonb) ON CONFLICT DO NOTHING`);
+  const best = await db.transaction(tx => humanBestFinishByCircuit(tx, id));
+  assert.equal(best.MAJOR, undefined, "a qualifier final does not satisfy circuitFinish MAJOR <= 2 (ELITE sponsor)");
+  assert.equal(best.Q_SCHOOL, 2, "Q-School qualifier results remain circuit finishes");
+});

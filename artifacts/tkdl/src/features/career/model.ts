@@ -50,7 +50,19 @@ const DENIALS: Record<string, string> = {
   REQUIRES_DEFENDING_CHAMPION: "Defending champion only", REGISTRATION_NOT_OPEN: "Registration not open", REGISTRATION_CLOSED: "Registration closed",
   SCHEDULE_CONFLICT: "Clashes with your schedule", ALREADY_ENTERED: "Already entered", NOT_ENTERED: "Not entered", UNSUPPORTED_FORMAT: "Format not yet playable",
   CAREER_NOT_ACTIVE: "Career retired", PARTICIPANT_RETIRED: "Retired", FIELD_LOCKED: "Field locked", EVENT_FINISHED: "Event finished", INSUFFICIENT_FUNDS: "Cannot afford",
+  BELOW_MINIMUM_AGE: "Below minimum age", ABOVE_MAXIMUM_AGE: "Junior event (age limit)", PROFILE_INCOMPLETE: "Set your date of birth",
 };
+/** Structured age reason, e.g. "Minimum age 16 · eligible from Season 2, wk 3". */
+export function ageReason(e: Pick<CareerEvent, "human">): string | null {
+  const a = e.human?.age;
+  if (!a || !e.human) return null;
+  const reasons = [...e.human.eligibilityReasons, ...e.human.denials];
+  if (reasons.includes("BELOW_MINIMUM_AGE") && a.minAge !== null)
+    return `Minimum age ${a.minAge}${a.eligibleFrom ? ` · eligible from Season ${a.eligibleFrom.season}, wk ${a.eligibleFrom.week}` : ""}`;
+  if (reasons.includes("ABOVE_MAXIMUM_AGE") && a.maxAgeExclusive !== null) return `Junior event · under ${a.maxAgeExclusive} only`;
+  return null;
+}
+export const isJuniorEvent = (e: Pick<CareerEvent, "family" | "human">) => e.family === "junior-development-circuit" || !!e.human?.age?.junior;
 export const denialLabel = (d: string) => DENIALS[d] ?? titleCase(d);
 
 // ---------------------------------------------------------------- event status (from server facts only)
@@ -74,11 +86,11 @@ export function eventStatus(e: CareerEvent, opts: { awaitingMatch?: boolean } = 
   if (!h) return { key: "AVAILABLE", label: statusWord(e.status), tone: "neutral" };
   if (h.denials.includes("INSUFFICIENT_FUNDS") && h.eligible) return { key: "CANNOT_AFFORD", label: "Cannot afford", tone: "danger", detail: costDetail(e) };
   if (h.denials.includes("SCHEDULE_CONFLICT") && h.eligible) return { key: "CONFLICT", label: "Schedule conflict", tone: "warning" };
-  if (!h.eligible) return { key: "NOT_QUALIFIED", label: denialLabel(h.eligibilityReasons[0] ?? "NOT_ELIGIBLE"), tone: "muted" };
+  if (!h.eligible) return { key: "NOT_QUALIFIED", label: ageReason(e) ?? denialLabel(h.eligibilityReasons[0] ?? "NOT_ELIGIBLE"), tone: "muted" };
   if (h.denials.includes("REGISTRATION_NOT_OPEN")) return { key: "NOT_OPEN", label: `Entries open wk ${e.registration.opensWeek}`, tone: "neutral" };
   if (h.denials.includes("REGISTRATION_CLOSED") || h.denials.includes("FIELD_LOCKED")) return { key: "CLOSED", label: "Entries closed", tone: "muted" };
   if (h.canEnter) return h.relationship === "QUALIFIED" ? { key: "QUALIFIED", label: "Qualified — enter now", tone: "gold" } : { key: "AVAILABLE", label: "Open for entry", tone: "info" };
-  return { key: "NOT_QUALIFIED", label: denialLabel(h.denials[0] ?? "NOT_ELIGIBLE"), tone: "muted" };
+  return { key: "NOT_QUALIFIED", label: ageReason(e) ?? denialLabel(h.denials[0] ?? "NOT_ELIGIBLE"), tone: "muted" };
 }
 const costDetail = (e: CareerEvent) => e.finance ? `Costs ${formatPence(e.finance.estimatedPlayerCostPence)} · available ${formatPence(e.finance.availablePence)}` : undefined;
 const statusWord = (s: string) => titleCase(s);
@@ -322,7 +334,34 @@ export function matchesStatusFilter(e: CareerEvent, filter: string): boolean {
 }
 
 /** Human match play is not connected to the TKDL scorer yet (integration checkpoint). The UI must never pretend otherwise. */
+/**
+ * A6.5: live Career match play is connected — supported formats launch the real
+ * TKDL scorer (GameScorer X01) through a server-authoritative session. Formats the
+ * Career engine cannot run keep an honest reason instead of a Play button.
+ */
 export const MATCH_PLAY_STATUS = {
-  connected: false,
-  reason: "Live Career match play is not connected yet. The TKDL scorer will launch from here once the Career result hand-off is integrated.",
+  connected: true,
+  reason: "Play the match on the TKDL scorer. Your darts are checked by the server and the result goes straight into the tournament.",
+  unsupportedReason: "This event's format cannot be played live yet, so the match cannot be started.",
 } as const;
+
+// ---------------------------------------------------------------- A6.5 identity (display only; the server validates)
+export const MINIMUM_CAREER_START_AGE = 15;
+/** Whole years between an ISO date of birth and an ISO date (29 Feb birthdays count on 1 Mar in non-leap years). */
+export function ageOnDate(dob: string, on: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/; const a = m.exec(dob); const b = m.exec(on);
+  if (!a || !b) return null;
+  let age = Number(b[1]) - Number(a[1]);
+  if (Number(b[2]) < Number(a[2]) || (b[2] === a[2] && Number(b[3]) < Number(a[3]))) age -= 1;
+  return age;
+}
+/** New Careers start on 1 January of the year they are created (Career time is persisted from there). */
+export const careerStartDateForToday = (now = new Date()) => `${now.getUTCFullYear()}-01-01`;
+export const HOME_REGIONS: { key: string; label: string }[] = [
+  ["ayrshire", "Ayrshire, Scotland"], ["highlands", "Highlands, Scotland"], ["north-east", "North East England"], ["midlands", "Midlands, England"],
+  ["south-wales", "South Wales"], ["south-coast", "South Coast, England"], ["munster", "Munster, Ireland"], ["connacht", "Connacht, Ireland"],
+  ["leinster", "Leinster, Ireland"], ["utrecht", "Utrecht, Netherlands"], ["limburg", "Limburg, Netherlands"], ["friesland", "Friesland, Netherlands"],
+  ["hessen", "Hessen, Germany"], ["saxony", "Saxony, Germany"], ["bremen", "Bremen, Germany"], ["flanders", "Flanders, Belgium"],
+  ["wallonia", "Wallonia, Belgium"], ["victoria", "Victoria, Australia"], ["queensland", "Queensland, Australia"],
+  ["western-australia", "Western Australia"], ["ontario", "Ontario, Canada"], ["alberta", "Alberta, Canada"], ["nova-scotia", "Nova Scotia, Canada"],
+].map(([key, label]) => ({ key, label }));

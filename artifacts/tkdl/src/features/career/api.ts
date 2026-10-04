@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetchJson, ApiRequestError } from "@/lib/api-fetch";
 import type {
   AdvanceResult, CalendarResponse, CareerSave, CareerSaveList, EventDetail, FinanceSummary, HistoryRow, LedgerEntry, Milestone, QSchoolView,
-  QualificationResponse, RankingExplain, RankingHistory, RankingListMeta, RankingTable, SponsorsResponse, SportingSummary, TourCardView,
+  QualificationResponse, CareerProfile, LiveSession, LiveDart, RankingExplain, RankingHistory, RankingListMeta, RankingTable, SponsorsResponse, SportingSummary, TourCardView,
 } from "./types";
 
 /**
@@ -74,7 +74,7 @@ export const careerRequests = {
     send<AdvanceResult>("POST", `/saves/${saveId}/calendar/advance`, { operationKey, expectedSeason: args.season, expectedWeek: args.week, target: args.target }),
   /** Idempotent composed initialize: A2 world, A3 calendar, A4 finance, A5 sporting state. */
   initialize: (saveId: string) => send<unknown>("POST", `/saves/${saveId}/initialize`, {}),
-  create: async (body: { slot: number; careerName?: string; difficulty?: string }) => {
+  create: async (body: { slot: number; careerName?: string; difficulty?: string; dateOfBirth?: string; homeLocality?: string }) => {
     const save = await send<CareerSave>("POST", "/saves", body);
     await careerRequests.initialize(save.id);
     return save;
@@ -125,3 +125,24 @@ export function newOperationKey() {
 }
 export const errorMessage = (e: unknown) => e instanceof ApiRequestError ? e.message : e instanceof Error ? e.message : "Something went wrong";
 export const errorStatus = (e: unknown) => e instanceof ApiRequestError ? e.status : null;
+
+// ---------------------------------------------------------------- A6.5 identity + live matches
+export const useCareerProfile = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "profile"), queryFn: () => get<CareerProfile>(`/saves/${saveId}/profile`), staleTime: STALE });
+export const useSetCareerProfile = (saveId: string) => {
+  const client = useQueryClient();
+  return useMutation({ mutationFn: (body: { dateOfBirth: string; homeLocality?: string }) => apiFetchJson<CareerProfile>(`${BASE}/saves/${saveId}/profile`, {
+    method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); } });
+};
+/** Existing session for a match, or null (404 = none yet). Never creates one. */
+export const useLiveSession = (saveId: string, matchId: string | null | undefined) => useQuery({
+  queryKey: careerKey(saveId, "live", matchId ?? "none"), enabled: !!matchId, staleTime: 2_000, retry: false,
+  queryFn: async () => { try { return await get<LiveSession>(`/saves/${saveId}/matches/${matchId}/session`); } catch (e) { if (errorStatus(e) === 404) return null; throw e; } },
+});
+export const liveApi = {
+  open: (saveId: string, matchId: string) => send<LiveSession>("POST", `/saves/${saveId}/matches/${matchId}/session`, {}),
+  read: (saveId: string, matchId: string) => get<LiveSession>(`/saves/${saveId}/matches/${matchId}/session`),
+  bull: (saveId: string, matchId: string, body: { throw: "INNER" | "OUTER" | "MISS"; expectedRevision: number }) => send<LiveSession>("POST", `/saves/${saveId}/matches/${matchId}/session/bull`, body),
+  darts: (saveId: string, matchId: string, body: { darts: LiveDart[]; expectedRevision: number }) => apiFetchJson<LiveSession>(`${BASE}/saves/${saveId}/matches/${matchId}/session/darts`, {
+    method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+};

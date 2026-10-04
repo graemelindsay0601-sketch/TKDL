@@ -2,7 +2,7 @@ import { type ReactNode, useState, useId } from "react";
 import { Link } from "wouter";
 import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-react";
 import type { CareerEvent } from "./types";
-import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, movementLabel, formatPence } from "./model";
+import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, movementLabel, formatPence, isJuniorEvent } from "./model";
 import { errorMessage } from "./api";
 
 /** Shared Career primitives. Built on TKDL's pdc-card surfaces, Oswald labels and palette. */
@@ -114,6 +114,11 @@ export function TierBadge({ tier }: { tier: string }) {
   return <span className="px-1.5 rounded font-bold uppercase" style={{ ...OSWALD, fontSize: "0.55rem", letterSpacing: "0.08em", color: t.accent, background: `${t.accent}18`, border: `1px solid ${t.accent}33` }}>{t.label}</span>;
 }
 
+/** A6.5 Junior Development Circuit marker (under-18 events). */
+export function JuniorBadge() {
+  return <span className="px-1.5 rounded font-bold uppercase" style={{ ...OSWALD, fontSize: "0.55rem", letterSpacing: "0.08em", color: "#7ee0a1", background: "#7ee0a118", border: "1px solid #7ee0a133" }} title="Junior event: under 18 only">Junior · U18</span>;
+}
+
 /** Compact event row/card used by Home, Calendar and the Palace. Tier controls emphasis only. */
 export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter, entering, compact }: {
   event: CareerEvent; saveId: string; awaitingMatch?: boolean; retired?: boolean; onEnter?: (id: string) => void; entering?: boolean; compact?: boolean;
@@ -132,6 +137,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
         <div className="font-black uppercase leading-tight line-clamp-2 break-words" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>
           <span>{circuitLabel(event.circuit)}</span>
+          {isJuniorEvent(event) && <JuniorBadge />}
           <span aria-hidden>·</span><span className="truncate">{event.venue.city}</span>
           {event.finance && event.finance.topPrizePence > 0 && <><span aria-hidden>·</span><span>Top prize {formatPence(event.finance.topPrizePence, { compact: true })}</span></>}
           <StatusBadge label={status.label} tone={status.tone} />

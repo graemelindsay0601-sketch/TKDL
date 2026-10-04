@@ -4,6 +4,7 @@ import { useHistory, useMilestones, useRankingHistory, useSporting, useTourCard 
 import { careerChapter, circuitLabel, milestoneLabel, ordinal, sourceLabel, stageLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
+import { AgeLine } from "./home";
 
 const BIG = new Set(["MAJOR", "WORLD_CHAMPIONSHIP", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL"]);
 
@@ -35,6 +36,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
             <NextObjective ctx={ctx} />
           </div>
         )}
+        <div className="mt-2"><AgeLine saveId={id} /></div>
       </section>
       {/* A7 extension point: narrative/news renders here later. A6 renders nothing in its place. */}
       <JourneyStoryExtension />

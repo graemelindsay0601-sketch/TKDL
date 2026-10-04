@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { CalendarDays, Flag as FlagIcon, Medal, MapPin, Swords, TrendingUp, Trophy } from "lucide-react";
-import { useCalendar, useEnterEvent, useFinance, useHistory, useSporting, errorMessage } from "../api";
+import { useCalendar, useCareerProfile, useEnterEvent, useFinance, useHistory, useSporting, errorMessage } from "../api";
 import { careerChapter, circuitLabel, eventDateLabel, eventStatus, formatLabel, formatPence, milestoneLabel, ordinal, primaryAction, pickNextEvent, stageLabel, tierStyle, sourceLabel, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerEventCard, CareerLoading, CareerSection, Label, Movement, OSWALD, StatTile, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
@@ -46,6 +46,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
         : <div className="pdc-card"><CareerEmptyState title="No event you can enter in the next eight weeks" icon={<CalendarDays className="w-6 h-6" />}>Use Continue to move the calendar on, or browse the <Link href={`/career/${id}/calendar`} className="underline">full calendar</Link>.</CareerEmptyState></div>}
 
       {/* CURRENT STATUS */}
+      <AgeLine saveId={id} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {sporting.data ? (() => {
           const w = sporting.data.worldRanking;
@@ -178,4 +179,14 @@ function Fact({ label, value, sub, tone }: { label: string; value: string; sub?:
     <dd className="font-black tabular-nums" style={{ ...OSWALD, color: tone ?? "#fff", fontSize: "1rem" }}>{value}</dd>
     {sub && <dd className="text-xs truncate" style={{ color: "rgba(255,255,255,0.62)" }}>{sub}</dd>}
   </div>;
+}
+
+/** A6.5: age derived from Career time (never the real clock). */
+export function AgeLine({ saveId }: { saveId: string }) {
+  const p = useCareerProfile(saveId).data;
+  if (p?.status !== "COMPLETE") return null;
+  const parts = [`Age ${p.age}`, `Career started at ${p.ageAtCareerStart}`];
+  if (p.junior) parts.push(`Junior events until you turn ${p.juniorMaxAgeExclusive}`);
+  if (!p.qSchool.eligibleNow && p.qSchool.eligibleFrom) parts.push(`Q-School from ${p.qSchool.eligibleFrom.date}`);
+  return <p className="text-xs px-1" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)", letterSpacing: "0.05em" }}>{parts.join(" · ")}</p>;
 }

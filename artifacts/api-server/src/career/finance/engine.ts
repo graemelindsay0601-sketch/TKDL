@@ -87,13 +87,25 @@ export async function reservedPence(tx: CareerExecutor, saveId: string) {
 }
 
 // ------------------------------------------------------------------ sporting facts (A3 facts + A3/A5 status provider)
+/**
+ * Best human finishing position per circuit, for sponsor `circuitFinish` requirements.
+ * A6.5 fix (found by the grind validation): a QUALIFIER is an entry route into a circuit's
+ * event, not a finish in that circuit. Reaching the final of the amateur Open Championship
+ * Qualifier (circuit MAJOR) must not count as "top 2 at a Major", which unlocked the ELITE
+ * sponsor (£50,000 signing bonus) for amateurs. Q-School is the exception: its qualifier
+ * events ARE the circuit.
+ */
+export async function humanBestFinishByCircuit(tx: CareerExecutor, saveId: string): Promise<Record<string, number>> {
+  return Object.fromEntries((await tx.execute(sql`SELECT i.circuit, MIN(r.finishing_position)::int AS best FROM career_event_results r
+    JOIN career_event_instances i ON i.career_save_id = r.career_save_id AND i.id = r.event_id WHERE r.career_save_id = ${saveId} AND r.participant_key = ${HUMAN}
+      AND (i.classification <> 'QUALIFIER' OR i.circuit = 'Q_SCHOOL') GROUP BY 1`)).rows.map(r => [String(r.circuit), Number(r.best)]));
+}
 export function defaultFactsProvider(calendarProviders: CalendarProviders): SponsorFactsProvider {
   return {
     id: "A4_DEFAULT_A3_RESULTS",
     async facts(tx, root) {
       const titles = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_results WHERE career_save_id = ${root.id} AND participant_key = ${HUMAN} AND is_champion`)).rows[0].n);
-      const best = Object.fromEntries((await tx.execute(sql`SELECT i.circuit, MIN(r.finishing_position)::int AS best FROM career_event_results r
-        JOIN career_event_instances i ON i.career_save_id = r.career_save_id AND i.id = r.event_id WHERE r.career_save_id = ${root.id} AND r.participant_key = ${HUMAN} GROUP BY 1`)).rows.map(r => [String(r.circuit), Number(r.best)]));
+      const best = await humanBestFinishByCircuit(tx, root.id);
       const qualifications = (await tx.execute(sql`SELECT DISTINCT target_key FROM career_qualification_entitlements WHERE career_save_id = ${root.id} AND recipient_key = ${HUMAN}`)).rows.map(r => String(r.target_key));
       const status = calendarProviders.sportingStatus.human(root);
       const ranking = calendarProviders.sportingStatus.rankings(HUMAN)["pro-world"];

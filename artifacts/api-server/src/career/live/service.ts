@@ -121,7 +121,7 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
     async open(actor: CareerActor, saveId: string, matchId: string) {
       return database.transaction(async tx => {
         const { root, match, session } = await load(tx, actor, saveId, matchId);
-        if (session) return presentLoaded(tx, root.id, session, match);
+        if (session) return presentLoaded(tx, root.id, match.status === "AWAITING_HUMAN" ? await botBullTurns(tx, root.id, session) : session, match);
         if (match.status !== "AWAITING_HUMAN") throw new CareerError(409, "Match is not awaiting the human player");
         const humanSide = match.a_key === HUMAN ? 0 : match.b_key === HUMAN ? 1 : -1;
         if (humanSide < 0) throw new CareerError(409, "Match does not involve the human player");
@@ -151,7 +151,7 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
             ${JSON.stringify(format)}::jsonb, ${method}, ${JSON.stringify(botConfig)}::jsonb, ${randomBytes(16).toString("hex")}, ${humanSide === 0 ? 0 : 1}, ${firstThrower})
           ON CONFLICT (career_save_id, match_id) DO NOTHING RETURNING *`)).rows[0] as SessionRow | undefined;
         const created = row ?? (await tx.execute(sql`SELECT * FROM career_match_sessions WHERE career_save_id = ${root.id} AND match_id = ${match.id}`)).rows[0] as SessionRow;
-        return presentLoaded(tx, root.id, created, match);
+        return presentLoaded(tx, root.id, await botBullTurns(tx, root.id, created), match);
       });
     },
 
@@ -240,6 +240,21 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
       });
     },
   };
+
+  /** When the opponent is due to throw at the bull (it throws first in some rounds), it throws now, server-side. */
+  async function botBullTurns(tx: CareerExecutor, saveId: string, session: SessionRow): Promise<SessionRow> {
+    if (session.status !== "BULL_UP") return session;
+    const throws = [...session.bull_throws];
+    let state = resolveBullUp(session.bull_first_order, throws);
+    while (state.winner === null && state.nextThrower === 1) {
+      throws.push(botBullThrow(session.bot_config.hitAcc, seededRandom(session.bot_seed, "bull", throws.length)));
+      state = resolveBullUp(session.bull_first_order, throws);
+    }
+    if (throws.length === session.bull_throws.length) return session;
+    return (await tx.execute(sql`UPDATE career_match_sessions SET bull_throws = ${JSON.stringify(throws)}::jsonb, revision = revision + 1, updated_at = NOW(),
+        status = ${state.winner === null ? "BULL_UP" : "IN_PLAY"}, first_thrower = ${state.winner}
+      WHERE career_save_id = ${saveId} AND id = ${session.id} AND revision = ${session.revision} RETURNING *`)).rows[0] as SessionRow;
+  }
 
   async function higherSeedFirst(tx: CareerExecutor, saveId: string, eventId: string, opponentKey: string): Promise<0 | 1> {
     const seeds = new Map((await tx.execute(sql`SELECT participant_key, draw_seed FROM career_event_entries WHERE career_save_id = ${saveId} AND event_id = ${eventId}

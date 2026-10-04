@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords } from "lucide-react";
-import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, errorMessage, errorStatus } from "./api";
-import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel } from "./model";
+import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, errorMessage, errorStatus } from "./api";
+import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 
@@ -25,6 +25,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
     <div className="career-root space-y-3 pb-10">
       <CareerHeader save={save.data} overview={overview} retired={retired} />
       <CareerNav saveId={saveId} />
+      {!retired && <ProfileIncompleteBanner saveId={saveId} />}
       {retired && (
         <div role="status" className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}>
           <Lock className="w-4 h-4 shrink-0" aria-hidden /> This Career is retired. Its history stays readable; nothing can be entered, advanced or signed.
@@ -33,6 +34,43 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
       {header.error && !overview ? (errorStatus(header.error) === 409 && !retired ? <InitializeCareer saveId={saveId} /> : <CareerError error={header.error} onRetry={() => header.refetch()} />)
         : header.isLoading ? <CareerLoading label="Loading Career world" /> : children({ save: save.data, overview, retired })}
     </div>
+  );
+}
+
+/**
+ * A6.5: saves created before Career identity existed have no date of birth
+ * (PROFILE_INCOMPLETE). Browsing stays open; entering events, advancing time and
+ * starting matches are blocked server-side until the DOB is set once.
+ */
+function ProfileIncompleteBanner({ saveId }: { saveId: string }) {
+  const profile = useCareerProfile(saveId);
+  const set = useSetCareerProfile(saveId);
+  const [dob, setDob] = useState("");
+  const [home, setHome] = useState("");
+  if (profile.data?.status !== "PROFILE_INCOMPLETE") return null;
+  const start = profile.data.careerStartDate ?? `${new Date().getUTCFullYear()}-01-01`;
+  const startAge = dob ? ageOnDate(dob, start) : null;
+  const tooYoung = startAge !== null && startAge < MINIMUM_CAREER_START_AGE;
+  return (
+    <section role="region" aria-label="Complete your Career profile" className="rounded-xl p-4 space-y-3" style={{ background: "rgba(255,210,74,0.07)", border: "1px solid rgba(255,210,74,0.45)" }}>
+      <div><Label color="#ffd24a">Profile incomplete</Label>
+        <p className="text-sm mt-1" style={{ color: "#fff" }}>This Career was created before ages existed. Set your date of birth to keep playing — entering events, continuing the calendar and starting matches wait until you do. It can only be set once.</p></div>
+      <form className="flex flex-col sm:flex-row sm:items-end gap-2" onSubmit={e => { e.preventDefault(); if (dob && !tooYoung) set.mutate({ dateOfBirth: dob, ...(home ? { homeLocality: home } : {}) }); }}>
+        <label className="flex flex-col gap-1"><Label>Date of birth</Label>
+          <input type="date" required value={dob} max={start} onChange={e => setDob(e.target.value)} aria-invalid={tooYoung || undefined}
+            className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" /></label>
+        {!profile.data.homeLocality && <label className="flex flex-col gap-1"><Label>Home region</Label>
+          <select value={home} onChange={e => setHome(e.target.value)} className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
+            <option value="">Keep default (Ayrshire)</option>{HOME_REGIONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+          </select></label>}
+        <button type="submit" className="career-btn career-btn-gold" disabled={!dob || tooYoung || set.isPending}>{set.isPending ? "Saving…" : "Save date of birth"}</button>
+      </form>
+      <p className="text-xs" style={{ color: tooYoung ? "#ff8fb4" : "rgba(255,255,255,0.62)" }} role="status">
+        {startAge === null ? `This Career's time began on ${start}; you must have been at least ${MINIMUM_CAREER_START_AGE} then.`
+          : tooYoung ? `You would have been ${startAge} when this Career began — the minimum is ${MINIMUM_CAREER_START_AGE}.` : `You started this Career aged ${startAge}.`}
+      </p>
+      {set.error && <p role="alert" className="text-sm" style={{ color: "#ff8fb4" }}>{errorMessage(set.error)}</p>}
+    </section>
   );
 }
 
@@ -67,24 +105,33 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
               {save.careerName ?? "My Career"}
             </h1>
             <div className="text-xs mt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em" }}>
-              {weekLabel(save.currentSeason, save.currentWeek)}{overview ? ` · ${overview.grouping.name}` : ""}
+              {weekLabel(save.currentSeason, save.currentWeek)}{overview ? ` · ${overview.grouping.name}` : ""}<HeaderAge saveId={save.id} />
             </div>
           </div>
         </div>
-        {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingCount={pending.length} />}
+        {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} />}
       </div>
       <SeasonProgress week={save.currentWeek} groupings={overview?.groupings} current={overview?.grouping.key} />
     </header>
   );
 }
 
+function HeaderAge({ saveId }: { saveId: string }) {
+  const p = useCareerProfile(saveId).data;
+  if (p?.status !== "COMPLETE") return null;
+  return <>{` · Age ${p.age}`}{p.junior ? " · Junior" : ""}</>;
+}
+
 /** Time only moves through A3's retry-safe advance. A pending human match blocks it (honestly). */
-function AdvanceControl({ save, pendingEventId, pendingCount }: { save: CareerSave; pendingEventId: string | null; pendingCount: number }) {
+function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount }: { save: CareerSave; pendingEventId: string | null; pendingMatchId: string | null; pendingCount: number }) {
   const advance = useAdvance(save.id);
   const [message, setMessage] = useState<string | null>(null);
+  const live = useLiveSession(save.id, pendingMatchId);
+  const resumable = !!live.data && (live.data.status === "BULL_UP" || live.data.status === "IN_PLAY");
   if (pendingEventId) return (
-    <Link href={`/career/${save.id}/events/${pendingEventId}`} className="career-btn career-btn-gold w-full sm:w-auto" aria-label={`${pendingCount > 1 ? `${pendingCount} matches are` : "Your match is"} waiting — open event`}>
-      <Swords className="w-4 h-4" aria-hidden /> {pendingCount > 1 ? `${pendingCount} matches waiting` : "Your match"}
+    <Link href={pendingMatchId ? `/career/${save.id}/matches/${pendingMatchId}/play` : `/career/${save.id}/events/${pendingEventId}`}
+      className="career-btn career-btn-gold w-full sm:w-auto" aria-label={resumable ? "Resume your match" : `${pendingCount > 1 ? `${pendingCount} matches are` : "Your match is"} waiting — play it now`}>
+      <Swords className="w-4 h-4" aria-hidden /> {resumable ? "Resume match" : pendingCount > 1 ? `Play match (${pendingCount} waiting)` : "Play your match"}
     </Link>
   );
   return (

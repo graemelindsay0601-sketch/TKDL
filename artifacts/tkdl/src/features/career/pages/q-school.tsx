@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Award, GraduationCap, ListOrdered, Target } from "lucide-react";
-import { useCalendar, useQSchool, useEnterEvent, errorMessage } from "../api";
+import { useCalendar, useQSchool, useEnterEvent, useCareerProfile, errorMessage } from "../api";
 import { cardLineText, ordinal, pathwayLabel, qSchoolState, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerEventCard, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
@@ -19,6 +19,8 @@ export function QSchoolPage({ ctx }: { ctx: ShellContext }) {
   const active = pathway ?? defaultPathway;
   const view = q.data?.pathways.find(p => p.pathway === active);
   const pathwayEvents = (events.data?.events ?? []).filter(e => e.qSchool?.pathway === active);
+  const profile = useCareerProfile(save.id).data;
+  const ageGate = profile?.status === "COMPLETE" && !profile.qSchool.eligibleNow ? profile.qSchool : null;
 
   return (
     <div className="space-y-3">
@@ -30,6 +32,8 @@ export function QSchoolPage({ ctx }: { ctx: ShellContext }) {
             <Label color="#ffd24a">The road to a Tour Card</Label>
             <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.4rem, 4.5vw, 2rem)", color: "#fff" }}>Q-School · Season {season}</h2>
             <p className="text-xs mt-1.5 max-w-xl" style={{ color: "rgba(255,255,255,0.7)" }}>Two separate pathways. First Stage finishes earn a Final Stage place; each Final Stage day winner earns a Tour Card, and the rest go down the Order of Merit.</p>
+            {ageGate && <p role="note" className="text-sm mt-2 font-semibold" style={{ color: "#ffd24a" }}>
+              Minimum age {ageGate.minimumAge}. {ageGate.eligibleFrom ? `You are eligible from ${ageGate.eligibleFrom.date} (Season ${ageGate.eligibleFrom.season}, week ${ageGate.eligibleFrom.week}).` : ""} Junior events are the place to build form until then.</p>}
           </div>
           <label className="flex items-center gap-2"><Label>Season</Label>
             <select value={season} onChange={e => setSeason(Number(e.target.value))} className="rounded-lg px-2 py-1.5 bg-black/40 border border-white/15 text-sm">

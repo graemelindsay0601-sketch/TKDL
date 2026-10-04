@@ -126,7 +126,8 @@ test("Home picks the pending match first, then my entered event, then the best o
   assert.equal(pickNextEvent([], overview), null);
   // A pending match is offered as PLAY_MATCH, never as a fabricated result.
   assert.equal(primaryAction(pend, { awaitingMatch: true }).kind, "PLAY_MATCH");
-  assert.equal(MATCH_PLAY_STATUS.connected, false);
+  // A6.5: the match-play boundary is connected to the real GameScorer (server-verified).
+  assert.equal(MATCH_PLAY_STATUS.connected, true);
 });
 
 test("retired Career is read-only in every action", () => {

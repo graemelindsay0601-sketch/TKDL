@@ -11,6 +11,7 @@ import { PalacePage } from "./pages/palace";
 import { JourneyPage } from "./pages/journey";
 import { FinancesPage } from "./pages/finances";
 import { HistoryPage } from "./pages/history";
+import { LiveMatchPage } from "./pages/live-match";
 
 /**
  * TKDL Career (A6). Stable URLs under /career (not /tour/career: /tour/:runId is the
@@ -19,6 +20,7 @@ import { HistoryPage } from "./pages/history";
  *   /career/:saveId                          Home
  *   /career/:saveId/calendar                 Calendar
  *   /career/:saveId/events/:eventId          Event / Tournament
+ *   /career/:saveId/matches/:matchId/play    Live match (A6.5: GameScorer, server-verified)
  *   /career/:saveId/rankings                 Rankings
  *   /career/:saveId/q-school                 Q-School
  *   /career/:saveId/world-championship       The Palace
@@ -42,6 +44,7 @@ function CareerSaveRoutes() {
       {ctx => (
         <Switch>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/matches/:matchId/play">{(p: { matchId: string }) => <LiveMatchPage key={p.matchId} ctx={ctx} matchId={p.matchId} />}</Route>
           <Route path="/career/:saveId/events/:eventId">{(p: { eventId: string }) => <EventPage ctx={ctx} eventId={p.eventId} />}</Route>
           <Route path="/career/:saveId/rankings"><RankingsPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/q-school"><QSchoolPage ctx={ctx} /></Route>
