@@ -31,7 +31,7 @@ export function CareerSection({ title, icon, action, children, accent = "#ff005c
 export function StatusBadge({ label, tone = "neutral", icon }: { label: string; tone?: Tone; icon?: ReactNode }) {
   const c = TONES[tone];
   return (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-black uppercase whitespace-nowrap"
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-black uppercase max-w-full"
       style={{ ...OSWALD, fontSize: "0.6rem", letterSpacing: "0.08em", color: c, background: tone === "muted" ? "rgba(255,255,255,0.05)" : `${c}1a`, border: `1px solid ${tone === "muted" ? "rgba(255,255,255,0.1)" : `${c}40`}` }}>
       {icon}{label}
     </span>
@@ -123,13 +123,13 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
   const action = primaryAction(event, { awaitingMatch, retired });
   const href = `/career/${saveId}/events/${event.id}`;
   return (
-    <div className="relative flex items-stretch gap-3 px-3 py-2.5 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.05)", background: tier.emphasis >= 4 ? tier.surface : undefined }}>
+    <div className="relative flex flex-wrap sm:flex-nowrap items-stretch gap-x-3 gap-y-2 px-3 py-2.5 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.05)", background: tier.emphasis >= 4 ? tier.surface : undefined }}>
       <div className="absolute left-0 top-0 bottom-0" style={{ width: 2 + Math.min(tier.emphasis, 3), background: tier.accent, opacity: 0.4 + tier.emphasis * 0.1 }} aria-hidden />
       <div className="pl-1.5 w-14 shrink-0 flex flex-col justify-center">
         <span className="font-black tabular-nums" style={{ ...OSWALD, fontSize: "0.8rem", color: "#fff" }}>{eventDateLabel(event)}</span>
       </div>
       <Link href={href} className="flex-1 min-w-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
-        <div className="font-black uppercase leading-tight truncate" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
+        <div className="font-black uppercase leading-tight line-clamp-2 break-words" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
           <span>{circuitLabel(event.circuit)}</span>
           <span aria-hidden>·</span><span className="truncate">{event.venue.city}</span>
@@ -137,9 +137,9 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
           <StatusBadge label={status.label} tone={status.tone} />
         </div>
       </Link>
-      <div className="shrink-0 flex items-center">
+      <div className={`shrink-0 flex items-center ${action.kind === "ENTER" && onEnter ? "w-full sm:w-auto pl-[4.25rem] sm:pl-0" : ""}`}>
         {action.kind === "ENTER" && onEnter ? (
-          <button className="career-btn career-btn-primary" onClick={() => onEnter(event.id)} disabled={entering} aria-label={`Enter ${event.name}`}>
+          <button className="career-btn career-btn-primary w-full sm:w-auto" onClick={() => onEnter(event.id)} disabled={entering} aria-label={`Enter ${event.name}`}>
             {entering ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden /> : null}{action.label}
           </button>
         ) : (
@@ -153,9 +153,9 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
 }
 
 /** Accessible segmented tabs (roving buttons with aria-pressed; content rendered by caller). */
-export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; label: string }) {
+export function Segmented<T extends string>({ value, options, onChange, label, wrap }: { value: T; options: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; label: string; wrap?: boolean }) {
   return (
-    <div role="group" aria-label={label} className="flex gap-1 overflow-x-auto no-scrollbar">
+    <div role="group" aria-label={label} className={wrap ? "flex flex-wrap gap-1" : "flex gap-1 overflow-x-auto no-scrollbar"}>
       {options.map(o => (
         <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)} className="career-chip" data-active={value === o.value}>
           {o.label}{o.count !== undefined && <span className="opacity-60 ml-1">{o.count}</span>}

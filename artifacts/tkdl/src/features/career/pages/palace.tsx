@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { Crown, Star } from "lucide-react";
 import { useCalendar, useEvent, useHistory, useMilestones, useQualification } from "../api";
-import { formatLabel, milestoneLabel, routeLines, TONES } from "../model";
+import { formatLabel, formatPence, milestoneLabel, routeLines, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerEventCard, CareerLoading, CareerSection, Label, OSWALD, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
 import { EventView } from "./event";
@@ -38,8 +38,8 @@ export function PalacePage({ ctx }: { ctx: ShellContext }) {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Dates</Label><div style={{ ...OSWALD, color: "#fff" }}>Weeks {wc.dates.startWeek}–{wc.dates.endWeek} · {wc.venue.name}</div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{formatLabel(wc.format)} · field of {wc.field.size}</div></div>
-            <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Prize</Label><div style={{ ...OSWALD, color: "#fff" }}>{wc.finance?.topPrizePence ? `Champion: £${(wc.finance.topPrizePence / 100).toLocaleString("en-GB")}` : "—"}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{wc.finance?.rankingEligible ? "Ranking money (World Ranking)" : "Non-ranking"}</div></div>
+            <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Prize</Label><div style={{ ...OSWALD, color: "#fff" }}>{wc.finance?.topPrizePence ? `Champion: ${formatPence(wc.finance.topPrizePence)}` : "—"}</div>
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{!wc.capability.executable ? "Defined as World Ranking money, but nothing is awarded while the format is unsupported" : wc.finance?.rankingEligible ? "Ranking money (World Ranking)" : "Non-ranking"}</div></div>
             <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Engine status</Label>
               <StatusBadge label={wc.capability.executable ? "Playable" : "Set-play format not supported yet"} tone={wc.capability.executable ? "success" : "muted"} />
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>{wc.capability.executable ? "" : wc.status === "CANCELLED" ? "Recorded as cancelled this season. No field, draw or result was invented." : "It will be cancelled when it starts; qualification is still recorded as a fact."}</div></div>
@@ -50,7 +50,8 @@ export function PalacePage({ ctx }: { ctx: ShellContext }) {
                 <div className="px-4 py-3 space-y-2">
                   <StatusBadge label={qual.data.events[0].eligible ? "Qualified on current facts" : "Not qualified yet"} tone={qual.data.events[0].eligible ? "gold" : "muted"} />
                   <ul className="space-y-1 text-sm">{routeLines(qual.data.events[0].routes).map((l, i) => <li key={i} className="flex gap-2"><span aria-hidden style={{ color: l.met ? TONES.success : TONES.muted }}>{l.met ? "✓" : "✗"}</span><span style={{ color: "rgba(255,255,255,0.85)" }}>{l.text}</span></li>)}</ul>
-                </div>) : <CareerError error={qual.error} onRetry={() => qual.refetch()} />}
+                </div>) : qual.error ? <CareerError error={qual.error} onRetry={() => qual.refetch()} />
+                : <CareerEmptyState title="No qualification facts">The World Championship is not among this season's upcoming events.</CareerEmptyState>}
               {wcMilestones.map((m, i) => <p key={i} className="px-4 pb-3 text-xs" style={{ color: "#ffd24a" }}>{milestoneLabel(m).title} · S{m.season} W{m.week}</p>)}
             </CareerSection>
             <CareerSection title="Previous champions" icon={<Crown className="w-3.5 h-3.5" />} accent="#ffd24a">

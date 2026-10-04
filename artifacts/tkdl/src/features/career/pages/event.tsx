@@ -52,14 +52,14 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
 
       {life.key === "UNSUPPORTED" && (
         <div role="status" className="pdc-card px-4 py-3 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
-          <strong style={OSWALD}>Not playable yet.</strong> The Career engine currently runs 501 double-out single-stage knockouts only. This event's format ({formatLabel(e.format)}) is
+          <strong style={OSWALD}>Not playable yet.</strong> The Career engine currently runs 501 double-out legs-format knockouts only. This event's format ({formatLabel(e.format)}) is
           {e.status === "CANCELLED" ? " recorded as cancelled — no field, draw or results exist, and none have been invented." : " kept in the calendar and will be cancelled when it starts; it cannot be entered."}
         </div>
       )}
       {awaiting && <MatchBoundaryNotice saveId={save.id} eventId={e.id} />}
-      <EntryActions ctx={ctx} detail={detail} />
+      {!awaiting && <EntryActions ctx={ctx} detail={detail} />}
 
-      <Segmented<Tab> label="Event sections" value={tab} onChange={setTab} options={tabs} />
+      <Segmented<Tab> label="Event sections" value={tab} onChange={setTab} options={tabs} wrap />
       {tab === "OVERVIEW" && <Overview detail={detail} saveId={save.id} />}
       {tab === "DRAW" && <Draw detail={detail} />}
       {tab === "SCHEDULE" && <Schedule detail={detail} />}
@@ -133,7 +133,7 @@ function Overview({ detail, saveId }: { detail: EventDetail; saveId: string }) {
     </div>
   );
 }
-const F = ({ label, value }: { label: string; value: string }) => <div className="min-w-0"><dt><Label>{label}</Label></dt><dd className="truncate" style={{ color: "#fff" }}>{value}</dd></div>;
+const F = ({ label, value }: { label: string; value: string }) => <div className="min-w-0"><dt><Label>{label}</Label></dt><dd className="break-words" style={{ color: "#fff" }}>{value}</dd></div>;
 
 /** Persisted A3 draw, one round at a time (works on phones; no client-side recomputation). */
 function Draw({ detail }: { detail: EventDetail }) {
@@ -144,7 +144,7 @@ function Draw({ detail }: { detail: EventDetail }) {
   const list = detail.draw.matches.filter(m => m.round === round);
   return (
     <CareerSection title={`Draw · ${roundName(round, rounds)}`} icon={<Swords className="w-3.5 h-3.5" />}>
-      <div className="px-3 pt-2"><Segmented label="Round" value={String(round)} onChange={v => setRound(Number(v))}
+      <div className="px-3 pt-2"><Segmented label="Round" wrap value={String(round)} onChange={v => setRound(Number(v))}
         options={Array.from({ length: rounds }, (_, i) => ({ value: String(i + 1), label: roundName(i + 1, rounds) }))} /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 p-3">
         {list.map(m => <MatchCard key={m.id} m={m} seeds={seeds} />)}
@@ -221,6 +221,7 @@ function Players({ detail }: { detail: EventDetail }) {
   );
 }
 function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
+  const e = detail.event;
   const fin = useEventFinance(saveId, detail.event.id);
   const p = detail.event.finance;
   const award = (fin.data?.actuals as { prizeAward?: { finishingPosition: number; cashAwardPence: number; rankingEligiblePence: number } | null } | null)?.prizeAward ?? null;
@@ -230,7 +231,7 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
       {fin.isLoading ? <CareerLoading /> : fin.error ? <CareerError error={fin.error} onRetry={() => fin.refetch()} /> : (
         <dl className="px-4 py-3 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-sm">
           <F label="Winner's prize" value={p?.topPrizePence ? formatPence(p.topPrizePence) : "None"} />
-          <F label="Ranking money" value={p?.rankingEligible ? "Yes — counts for rankings" : "No — cash only"} />
+          <F label="Ranking money" value={!e.capability.executable ? "None while unsupported" : p?.rankingEligible ? "Yes — counts for rankings" : "No — cash only"} />
           {award ? <><F label="Your prize" value={formatPence(award.cashAwardPence)} /><F label="Your ranking money" value={formatPence(award.rankingEligiblePence)} /></>
             : <F label="Your prize" value={detail.results.some(r => r.participantKey === "HUMAN") ? "£0" : "—"} />}
           {actuals ? <>
@@ -251,6 +252,7 @@ function RankingTab({ saveId, detail, retired }: { saveId: string; detail: Event
   return (
     <CareerSection title="Ranking & qualification" icon={<Trophy className="w-3.5 h-3.5" />} accent="#c084fc">
       <div className="px-4 py-3 space-y-2 text-sm">
+        {!e.capability.executable && <div style={{ color: "rgba(255,255,255,0.75)" }}>This format cannot run in the Career engine yet, so it is cancelled when it starts and awards no ranking money. Qualifying for it is still recorded as a factual milestone.</div>}
         <div style={{ color: "rgba(255,255,255,0.75)" }}>{e.rankingCategory ? `${titleCase(e.rankingCategory)} — ranking-eligible prize money feeds the matching ranking lists.` : "Not a ranking event — prize money (if any) does not count towards rankings."}</div>
         {e.seedingPolicy.list && <div style={{ color: "rgba(255,255,255,0.75)" }}>Seeded from the {listLabel(e.seedingPolicy.list)} ({e.seedingPolicy.seeds} seeds) at the time of the draw.</div>}
         {retired ? null : qual.isLoading ? <CareerLoading /> : ev ? (

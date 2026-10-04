@@ -30,7 +30,7 @@ export type EventFinancePreview = {
   commitment: { status: string; entryFeePaidPence: number; entryFeeCoveredPence: number; tripId: string | null } | null;
 };
 export type EventFormat = { gameType: string; startingScore?: number; matchContext: string; structure: string; stages: { key: string; kind: string; bestOfByRound?: number[] }[];
-  days: number; sideSize: number; inRule?: string; outRule?: string; setPlay?: unknown };
+  days: number; sideSize: number; inRule?: string; outRule?: string; scoringUnit?: "LEGS" | "SETS"; legsPerSet?: number | null; setPlay?: unknown };
 export type CareerEvent = {
   id: string; instanceKey: string; season: number; name: string; definitionKey: string; family: string; circuit: string; classification: string;
   rankingCategory: string | null; presentation: { tier: PresentationTier; featured: boolean; calendarPriority: number; brandingFamily?: string };

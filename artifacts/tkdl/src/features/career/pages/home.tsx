@@ -14,7 +14,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
   const id = save.id;
   const sporting = useSporting(id);
   const finance = useFinance(id);
-  const upcoming = useCalendar(id, { scope: "WORLD", fromWeek: save.currentWeek, toWeek: Math.min(52, save.currentWeek + 8) });
+  const upcoming = useCalendar(id, { scope: "WORLD", fromWeek: save.currentWeek, toWeek: Math.min(52, save.currentWeek + 8) }, !retired);
   const history = useHistory(id, { participant: "HUMAN" });
   const enter = useEnterEvent(id);
   const [enterMsg, setEnterMsg] = useState<string | null>(null);
@@ -27,8 +27,20 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <div className="space-y-3">
-      {/* NEXT ACTION */}
-      {upcoming.isLoading ? <div className="pdc-card"><CareerLoading label="Finding your next event" /></div>
+      {/* NEXT ACTION (a retired Career has none: it is a read-only record) */}
+      {retired ? (
+        <section className="pdc-card p-4 md:p-5 space-y-2" aria-label="Retired Career">
+          <Label>Career record</Label>
+          <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.3rem, 4.5vw, 1.9rem)", color: "#fff" }}>
+            Retired{save.retiredAt ? ` ${new Date(save.retiredAt).toLocaleDateString("en-GB", { dateStyle: "medium" })}` : ""}
+          </h2>
+          <p className="text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>Final position in the calendar: season {save.currentSeason}, week {save.currentWeek}. Results, rankings, money and milestones below are the permanent record.</p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Link href={`/career/${id}/history`} className="career-btn career-btn-primary">History &amp; trophy room</Link>
+            <Link href={`/career/${id}/journey`} className="career-btn career-btn-ghost">Journey</Link>
+          </div>
+        </section>
+      ) : upcoming.isLoading ? <div className="pdc-card"><CareerLoading label="Finding your next event" /></div>
         : upcoming.error ? <CareerError error={upcoming.error} onRetry={() => upcoming.refetch()} />
         : next ? <NextEventCard event={next.event} reason={next.reason} saveId={id} awaiting={pendingIds.has(next.event.id)} retired={retired} onEnter={onEnter} entering={enter.isPending} message={enterMsg} />
         : <div className="pdc-card"><CareerEmptyState title="No event you can enter in the next eight weeks" icon={<CalendarDays className="w-6 h-6" />}>Use Continue to move the calendar on, or browse the <Link href={`/career/${id}/calendar`} className="underline">full calendar</Link>.</CareerEmptyState></div>}
@@ -56,7 +68,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       {finance.error && <CareerError error={finance.error} onRetry={() => finance.refetch()} />}
 
       {/* UPCOMING CAREER */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      {!retired && <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CareerSection title="Your schedule" icon={<CalendarDays className="w-3.5 h-3.5" />} action={<Link href={`/career/${id}/calendar`} className="career-btn career-btn-ghost">Calendar</Link>}>
           {mine.length ? mine.map(e => <CareerEventCard key={e.id} event={e} saveId={id} awaitingMatch={pendingIds.has(e.id)} retired={retired} compact />)
             : <CareerEmptyState title="Nothing entered">Events you enter appear here with their costs and status.</CareerEmptyState>}
@@ -65,7 +77,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           {open.length ? open.map(e => <CareerEventCard key={e.id} event={e} saveId={id} retired={retired} onEnter={retired ? undefined : onEnter} entering={enter.isPending} compact />)
             : <CareerEmptyState title="No open entries">Nothing you can enter in the next eight weeks right now.</CareerEmptyState>}
         </CareerSection>
-      </div>
+      </div>}
 
       {/* WORLD / CAREER CONTEXT */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
@@ -100,10 +112,11 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
     const s = sporting.data!;
     const chapter = careerChapter(s, ctx.save);
     const facts: string[] = [];
-    if (s.tourCard.current) facts.push(`Tour Card review at the end of season ${s.tourCard.current.reviewSeason}: World Ranking top ${s.tourCard.current.retention.maxPosition} keeps it.`);
-    else facts.push("No Tour Card: Q-School (weeks 2–4) and the season-end Challenger ranking award cards.");
+    if (ctx.retired) { /* no objectives for a finished Career */ }
+    else if (s.tourCard.current) facts.push(`Tour Card review at the end of season ${s.tourCard.current.reviewSeason}: World Ranking top ${s.tourCard.current.retention.maxPosition} keeps it.`);
+    else facts.push("No Tour Card: Q-School and the season-end Challenger ranking are the routes to one.");
     const gap = s.worldRanking.cutLines.filter(c => !c.inside && c.valueAtCutPence !== null).sort((a, b) => b.cutPosition - a.cutPosition)[0];
-    if (gap && s.worldRanking.standing) facts.push(`${formatPence(gap.gapPence)} of ranking money behind the World top ${gap.cutPosition}.`);
+    if (gap && s.worldRanking.standing && !ctx.retired) facts.push(`${formatPence(gap.gapPence)} of ranking money behind the World top ${gap.cutPosition}.`);
     return (
       <div className="px-4 py-3 space-y-2.5">
         <StatusBadge label={chapter.label} tone={chapter.tone} />
@@ -128,7 +141,7 @@ function NextEventCard({ event, reason, saveId, awaiting, retired, onEnter, ente
     <section className="pdc-card overflow-hidden relative" aria-label="Next event" style={{ borderColor: `${tier.accent}55` }}>
       <div className="absolute inset-0 pointer-events-none" style={{ background: `radial-gradient(90% 120% at 100% 0%, ${tier.accent}22, transparent 60%)` }} aria-hidden />
       <div className="relative p-4 md:p-5 space-y-3">
-        <div className="flex items-center gap-2 flex-wrap"><Label color={tier.accent}>Next · {reason}</Label><TierBadge tier={event.presentation.tier} /><StatusBadge label={status.label} tone={status.tone} /></div>
+        <div className="flex items-center gap-2 flex-wrap"><Label color={tier.accent}>Next · {reason}</Label><TierBadge tier={event.presentation.tier} />{!awaiting && <StatusBadge label={status.label} tone={status.tone} />}</div>
         <div>
           <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.4rem, 5vw, 2.2rem)", color: "#fff" }}>{event.name}</h2>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>

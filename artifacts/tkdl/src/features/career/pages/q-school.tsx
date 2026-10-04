@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Award, GraduationCap, ListOrdered, Target } from "lucide-react";
 import { useCalendar, useQSchool, useEnterEvent, errorMessage } from "../api";
-import { ordinal, pathwayLabel, qSchoolState, TONES } from "../model";
+import { cardLineText, ordinal, pathwayLabel, qSchoolState, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerEventCard, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { QSchoolPathwayView } from "../types";
@@ -24,8 +24,8 @@ export function QSchoolPage({ ctx }: { ctx: ShellContext }) {
     <div className="space-y-3">
       <section className="pdc-card p-4 md:p-5 relative overflow-hidden" style={{ borderColor: "rgba(255,210,74,0.3)" }}>
         <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: "radial-gradient(70% 120% at 100% 0%, rgba(255,210,74,0.12), transparent 60%)" }} />
-        <div className="relative flex items-start gap-3 flex-wrap">
-          <GraduationCap className="w-6 h-6 shrink-0" style={{ color: "#ffd24a" }} aria-hidden />
+        <div className="relative flex flex-col sm:flex-row sm:items-start gap-3">
+          <GraduationCap className="w-6 h-6 shrink-0 hidden sm:block" style={{ color: "#ffd24a" }} aria-hidden />
           <div className="flex-1 min-w-0">
             <Label color="#ffd24a">The road to a Tour Card</Label>
             <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.4rem, 4.5vw, 2rem)", color: "#fff" }}>Q-School · Season {season}</h2>
@@ -38,7 +38,7 @@ export function QSchoolPage({ ctx }: { ctx: ShellContext }) {
       </section>
       {q.isLoading ? <div className="pdc-card"><CareerLoading label="Loading Q-School" /></div> : q.error || !q.data ? <CareerError error={q.error} onRetry={() => q.refetch()} /> : (
         <>
-          <div className="pdc-card px-3 py-2.5"><Segmented label="Pathway" value={active} onChange={setPathway} options={q.data.pathways.map(p => ({ value: p.pathway, label: `${pathwayLabel(p.pathway)}${qSchoolState(p).stage !== "NOT_ENTERED" ? " ●" : ""}` }))} /></div>
+          <div className="pdc-card px-3 py-2.5"><Segmented label="Pathway" value={active} onChange={setPathway} options={q.data.pathways.map(p => ({ value: p.pathway, label: `${pathwayLabel(p.pathway)}${qSchoolState(p).stage !== "NOT_ENTERED" ? " · yours" : ""}` }))} /></div>
           {view && <PathwayView view={view} />}
           <CareerSection title={`${pathwayLabel(active)} events`} icon={<Target className="w-3.5 h-3.5" />} accent="#ffd24a">
             {events.isLoading ? <CareerLoading /> : pathwayEvents.length ? pathwayEvents.map(e => <CareerEventCard key={e.id} event={e} saveId={save.id} retired={retired || season !== save.currentSeason}
@@ -57,6 +57,8 @@ function PathwayView({ view }: { view: QSchoolPathwayView }) {
   const state = qSchoolState(view);
   const mine = view.participant.orderOfMerit;
   const remaining = view.finalStage.days - view.finalStage.completed;
+  const carded = state.stage === "CARD_WON_DIRECT" || state.stage === "CARD_WON_OOM" || view.participant.wonDay.length > 0;
+  const line = cardLineText(mine, view.cardLine.orderOfMeritCards, carded);
   const pointsGap = mine && view.cardLine.valueAtLinePoints !== null && !mine.insideCardLine ? Math.max(0, view.cardLine.valueAtLinePoints - mine.points) : null;
   return (
     <>
@@ -69,20 +71,22 @@ function PathwayView({ view }: { view: QSchoolPathwayView }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CareerSection title="Your Q-School" icon={<GraduationCap className="w-3.5 h-3.5" />} accent="#ffd24a">
           <dl className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div><dt><Label>Status</Label></dt><dd><StatusBadge label={state.label} tone={state.tone} /></dd></div>
+            <div className="col-span-2"><dt><Label>Status</Label></dt><dd><StatusBadge label={state.label} tone={state.tone} /></dd></div>
             <div><dt><Label>First Stage</Label></dt><dd style={{ color: "#fff" }}>{view.participant.firstStage.length ? view.participant.firstStage.map(f => `D${f.day}: ${ordinal(f.position)}`).join(" · ") : "—"}</dd></div>
             <div><dt><Label>Final Stage place</Label></dt><dd style={{ color: "#fff" }}>{view.participant.finalStageEntry ? (view.participant.finalStageEntry.route === "PROVIDER" ? "Exempt" : "Earned at First Stage") : "No"}</dd></div>
             <div><dt><Label>Final Stage days</Label></dt><dd style={{ color: "#fff" }}>{view.finalStage.completed}/{view.finalStage.days} played</dd></div>
             <div><dt><Label>Order of Merit</Label></dt><dd style={{ color: "#fff" }}>{mine ? `${ordinal(mine.position)} · ${mine.points} pts` : "—"}</dd></div>
-            <div><dt><Label>Card line</Label></dt><dd style={{ color: mine?.insideCardLine ? TONES.success : "#fff" }}>{mine?.contenderPosition ? (mine.insideCardLine ? `Inside (${ordinal(mine.contenderPosition)} of ${view.cardLine.orderOfMeritCards})` : `Outside (${ordinal(mine.contenderPosition)})`) : "—"}</dd></div>
+            <div><dt><Label>Card line</Label></dt><dd style={{ color: TONES[line.tone] === TONES.muted ? "#fff" : TONES[line.tone] }}>{line.text}</dd></div>
           </dl>
         </CareerSection>
         <CareerSection title="What you need" icon={<Target className="w-3.5 h-3.5" />} accent="#4ade80">
           <ul className="px-4 py-3 space-y-1.5 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
             <li>• {view.cardLine.orderOfMeritCards} Order of Merit cards{view.allocation ? ` were awarded` : " this year (plus a card for each Final Stage day winner)"}.</li>
             {!view.allocation && <li>• {remaining} Final Stage day{remaining === 1 ? "" : "s"} still to play.</li>}
-            {mine && !view.allocation && (mine.insideCardLine ? <li>• You are currently inside the card line.</li>
-              : <li>• {pointsGap !== null ? `${pointsGap} point${pointsGap === 1 ? "" : "s"} behind the current card line` : "Outside the current card line"} (points: champion 6, runner-up 5, semi 4, quarter 3, last 16 2, last 32 1).</li>)}
+            {view.finalStage.dayWinners.length > 0 && <li>• Final Stage day winners so far: {view.finalStage.dayWinners.filter(d => d.winner).length} of {view.finalStage.days} days decided{view.participant.wonDay.length ? ` — you won day ${view.participant.wonDay.join(", ")}` : ""}.</li>}
+            {view.cardLine.valueAtLinePoints !== null && !view.allocation && <li>• The last Order of Merit card place currently sits on {view.cardLine.valueAtLinePoints} point{view.cardLine.valueAtLinePoints === 1 ? "" : "s"}.</li>}
+            {mine && !view.allocation && !carded && (mine.insideCardLine ? <li>• You are currently inside the card line.</li>
+              : <li>• {pointsGap !== null ? `${pointsGap} point${pointsGap === 1 ? "" : "s"} behind the current card line` : "Outside the current card line"}.</li>)}
             {!mine && !view.participant.finalStageEntry && <li>• No Final Stage place in this pathway this season.</li>}
           </ul>
         </CareerSection>

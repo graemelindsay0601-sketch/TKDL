@@ -28,14 +28,25 @@
   font-family: Oswald, sans-serif; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
   color: rgba(255,255,255,0.55); border: 1px solid transparent;
 }
-.career-nav-link[aria-current="page"] { color: #fff; background: rgba(255,0,92,0.14); border-color: rgba(255,0,92,0.4); }
+.career-nav-link { white-space: nowrap; }
+@media (max-width: 420px) { .career-nav-link { padding: 0 0.35rem; letter-spacing: 0.05em; font-size: 0.68rem; } }
+.career-nav-link[aria-current] { color: #fff; background: rgba(255,0,92,0.14); border-color: rgba(255,0,92,0.4); }
+.career-subnav-link {
+  display: inline-flex; align-items: center; justify-content: center; flex: 1 0 auto; white-space: nowrap; min-height: 2.25rem; padding: 0 0.45rem; border-radius: 0.5rem; flex-shrink: 0;
+  font-family: Oswald, sans-serif; font-weight: 700; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.5);
+}
+.career-subnav-link[aria-current="page"] { color: #fff; box-shadow: inset 0 -2px 0 #ff005c; }
+.career-subnav-link:focus-visible { outline: 2px solid #ff005c; outline-offset: 2px; }
+.career-subnav-link:hover, .career-nav-link:hover { color: #fff; }
 .career-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 .no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }
 .career-table { width: 100%; border-collapse: collapse; }
 .career-table th { font-family: Oswald, sans-serif; font-size: 0.58rem; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.4); text-align: left; padding: 0.5rem 0.6rem; font-weight: 700; }
 .career-table td { padding: 0.55rem 0.6rem; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.8rem; color: rgba(255,255,255,0.85); }
 .career-table tr[data-me="true"] td { background: rgba(255,0,92,0.1); color: #fff; }
-.career-cut td { padding: 0 !important; border-top: 1px dashed rgba(255,210,74,0.55) !important; }
+.career-table-fixed { table-layout: fixed; }
+.career-cut td { padding: 0 0.6rem !important; border-top: 1px dashed rgba(255,210,74,0.55) !important; height: 1.1rem; line-height: 1; }
+.career-cut-label { font-family: Oswald, sans-serif; font-size: 0.55rem; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,210,74,0.8); }
 /* The Palace: WORLD tier — darker, restrained gold. */
 .career-palace { background: radial-gradient(120% 80% at 50% 0%, rgba(255,210,74,0.09), transparent 60%), #07060a; border: 1px solid rgba(255,210,74,0.28); border-radius: 1rem; }
 .career-palace .pdc-card { background: rgba(10,9,14,0.92); border-color: rgba(255,210,74,0.16); }

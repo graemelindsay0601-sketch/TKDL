@@ -129,6 +129,14 @@ export const ordinal = (n: number) => { const s = ["th", "st", "nd", "rd"], v = 
 export function cutAfter(position: number, cutLines: number[]) { return cutLines.includes(position); }
 
 // ---------------------------------------------------------------- Q-School
+/** Card-line position text. A5 reports contenderPosition 0 for players who already hold a card (not contenders). */
+export function cardLineText(mine: { contenderPosition: number | null; insideCardLine: boolean } | null, cards: number, alreadyCarded: boolean): { text: string; tone: Tone } {
+  if (!mine) return { text: "—", tone: "muted" };
+  if (alreadyCarded || mine.contenderPosition === 0) return { text: "Not a contender — card already won", tone: "success" };
+  if (mine.contenderPosition === null) return { text: "—", tone: "muted" };
+  return mine.insideCardLine ? { text: `Inside (${ordinal(mine.contenderPosition)} of ${cards} OoM places)`, tone: "success" }
+    : { text: `Outside (${ordinal(mine.contenderPosition)}; ${cards} OoM places)`, tone: "warning" };
+}
 export type QSchoolStateView = { stage: "NOT_ENTERED" | "FIRST_STAGE" | "FINAL_STAGE" | "CARD_WON_DIRECT" | "CARD_WON_OOM" | "NO_CARD"; label: string; tone: Tone };
 export function qSchoolState(p: QSchoolPathwayView, participant = "HUMAN"): QSchoolStateView {
   const award = p.allocation?.awards.find(a => a.participantKey === participant);
@@ -241,6 +249,10 @@ export const CAREER_NAV: { layer: "HOME" | "MY_CAREER" | "DARTS_WORLD"; label: s
   { layer: "DARTS_WORLD", label: "Darts World", items: [{ key: "calendar", label: "Calendar", path: "/calendar" }, { key: "rankings", label: "Rankings", path: "/rankings" },
     { key: "q-school", label: "Q-School", path: "/q-school" }, { key: "world-championship", label: "The Palace", path: "/world-championship" }] },
 ];
+/** The layer (Home / My Career / Darts World) that owns a nav key. */
+export function navLayerOf(key: string) {
+  return CAREER_NAV.find(s => s.items.some(i => i.key === key)) ?? CAREER_NAV[0];
+}
 export function activeNavKey(location: string): string {
   const m = /^\/career\/[^/]+(\/[^/]+)?/.exec(location);
   const seg = m?.[1] ?? "";
@@ -266,7 +278,8 @@ export function formatLabel(f: CareerEvent["format"] | undefined | null): string
   if (!f) return "";
   const game = f.gameType === "X01" ? `${f.startingScore ?? 501}` : titleCase(f.gameType);
   const legs = f.stages[0]?.bestOfByRound ?? [];
-  const unit = f.setPlay ? "sets" : "legs";
+  // A3 stores the scoring unit explicitly (LEGS | SETS); sets formats are not executable yet.
+  const unit = f.scoringUnit === "SETS" || f.setPlay ? "sets" : "legs";
   const range = legs.length ? (Math.min(...legs) === Math.max(...legs) ? `best of ${legs[0]} ${unit}` : `best of ${Math.min(...legs)}–${Math.max(...legs)} ${unit}`) : "";
   const structure = f.structure === "KNOCKOUT" ? "knockout" : titleCase(f.structure);
   return [game, structure, range, f.sideSize > 1 ? "pairs" : ""].filter(Boolean).join(" · ");

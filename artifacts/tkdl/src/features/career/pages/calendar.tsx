@@ -49,7 +49,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
               {Array.from({ length: save.currentSeason }, (_, i) => save.currentSeason - i).map(s => <option key={s} value={s}>Season {s}</option>)}
             </select></label>
         </div>
-        <Segmented<View> label="Calendar view" value={view} onChange={setView} options={[
+        <Segmented<View> label="Calendar view" value={view} onChange={setView} wrap options={[
           { value: "MY_SCHEDULE", label: "My schedule" }, { value: "UPCOMING", label: isCurrent ? "Next 12 weeks" : "First 12 weeks" },
           { value: "SEASON", label: "Whole season" }, { value: "FEATURED", label: "Featured" }]} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">

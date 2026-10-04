@@ -18,7 +18,13 @@ export function RankingsPage({ ctx }: { ctx: ShellContext }) {
   const meta = lists.data.find(l => l.key === key);
   return (
     <div className="space-y-3">
-      <div className="pdc-card px-3 py-2.5"><Segmented label="Ranking list" value={key ?? ""} onChange={setListKey} options={lists.data.map(l => ({ value: l.key, label: l.name }))} /></div>
+      <div className="pdc-card px-3 py-2.5">
+        <label className="sm:hidden flex flex-col gap-1"><Label>Ranking list</Label>
+          <select value={key ?? ""} onChange={e => setListKey(e.target.value)} className="rounded-lg px-3 py-2.5 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
+            {lists.data.map(l => <option key={l.key} value={l.key}>{l.name}{l.human.standing ? ` — you are ${ordinal(l.human.standing.position)}` : ""}</option>)}
+          </select></label>
+        <div className="hidden sm:block"><Segmented label="Ranking list" value={key ?? ""} onChange={setListKey} options={lists.data.map(l => ({ value: l.key, label: l.name }))} /></div>
+      </div>
       {meta ? <ListView key={meta.key} saveId={ctx.save.id} meta={meta} /> : <div className="pdc-card"><CareerEmptyState title="No ranking lists" /></div>}
     </div>
   );
@@ -50,7 +56,11 @@ function ListView({ saveId, meta }: { saveId: string; meta: RankingListMeta }) {
       </div>
 
       <CareerSection title={meta.name} icon={<BarChart3 className="w-3.5 h-3.5" />} accent="#c084fc"
-        action={<Segmented label="Table view" value={view} onChange={v => { setView(v); setOffset(0); }} options={[...(me ? [{ value: "AROUND" as const, label: "Around me" }] : []), { value: "TOP", label: "Top 32" }, { value: "PAGE", label: "Full table" }]} />}>
+        action={meta.published ? <span className="text-xs whitespace-nowrap" style={{ color: "rgba(255,255,255,0.45)" }}>S{meta.published.season} W{meta.published.week}</span> : undefined}>
+        <div className="px-3 pt-2.5 pb-1 flex flex-wrap items-center justify-between gap-2">
+          <Segmented label="Table view" value={view} onChange={v => { setView(v); setOffset(0); }} options={[...(me ? [{ value: "AROUND" as const, label: "Around me" }] : []), { value: "TOP", label: "Top 32" }, { value: "PAGE", label: "Full table" }]} />
+          {meta.cutLines.length > 0 && <span className="text-xs inline-flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.5)" }}><span aria-hidden className="inline-block w-5 border-t border-dashed" style={{ borderColor: "rgba(255,210,74,0.7)" }} />Cut lines: top {meta.cutLines.join(", ")}</span>}
+        </div>
         {!meta.published ? <CareerEmptyState title="Not published yet">The first {meta.name} is published after the first week in which ranking money is won.</CareerEmptyState>
           : table.isLoading ? <CareerLoading /> : table.error || !table.data ? <CareerError error={table.error} onRetry={() => table.refetch()} />
           : table.data.rows.length === 0 ? <CareerEmptyState title="Nobody ranked">This list currently has no ranked players.</CareerEmptyState>
@@ -98,17 +108,16 @@ function ListView({ saveId, meta }: { saveId: string; meta: RankingListMeta }) {
 /** Table on wide screens; the same rows read as compact two-line rows on phones. Cut lines come from A5 list metadata. */
 export function RankingTable({ rows, cutLines }: { rows: RankingRow[]; cutLines: number[] }) {
   return (
-    <table className="career-table" aria-label="Ranking table">
-      <thead><tr><th scope="col" style={{ width: "3.2rem" }}>Pos</th><th scope="col" style={{ width: "3rem" }}>+/−</th><th scope="col">Player</th><th scope="col" style={{ textAlign: "right" }}>Money</th></tr></thead>
+    <table className="career-table career-table-fixed" aria-label="Ranking table">
+      <thead><tr><th scope="col" style={{ width: "2.9rem" }}>Pos</th><th scope="col" style={{ width: "2.9rem" }}><span aria-hidden>+/−</span><span className="sr-only">Movement</span></th><th scope="col">Player</th><th scope="col" style={{ textAlign: "right", width: "4.8rem" }}>Money</th></tr></thead>
       <tbody>
         {rows.map((r, i) => (
           <Fragment key={r.participantKey}>
-            {i > 0 && cutLines.includes(rows[i - 1].position) && <tr className="career-cut" aria-hidden><td colSpan={4} /></tr>}
+            {i > 0 && cutLines.includes(rows[i - 1].position) && <tr className="career-cut"><td colSpan={4}><span className="career-cut-label">Top {rows[i - 1].position} cut</span></td></tr>}
             <tr data-me={r.participantKey === "HUMAN"} aria-current={r.participantKey === "HUMAN" ? "true" : undefined}>
               <td className="font-black tabular-nums" style={OSWALD}>{r.position}</td>
               <td><Movement movement={r.movement} isNew={r.isNew} /></td>
-              <td className="min-w-0"><span className="inline-flex items-center gap-1.5 max-w-full"><Flag code={r.nationality} /><span className="truncate font-bold" style={OSWALD}>{r.participantKey === "HUMAN" ? "You" : r.name}</span></span>
-                {cutLines.includes(r.position) && <span className="sr-only">Cut line: top {r.position}</span>}</td>
+              <td><span className="flex items-center gap-1.5 min-w-0"><Flag code={r.nationality} /><span className="truncate font-bold" style={OSWALD} title={r.name ?? undefined}>{r.participantKey === "HUMAN" ? "You" : r.name}</span></span></td>
               <td className="tabular-nums" style={{ textAlign: "right", ...OSWALD }}>{formatPence(r.valuePence, { compact: true })}</td>
             </tr>
           </Fragment>

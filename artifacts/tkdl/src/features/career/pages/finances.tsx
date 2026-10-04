@@ -37,7 +37,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
           {sponsors.isLoading ? <CareerLoading /> : sponsors.error || !sponsors.data ? <CareerError error={sponsors.error} onRetry={() => sponsors.refetch()} />
             : sponsors.data.active ? (
               <div className="px-4 py-3 space-y-2">
-                <div className="flex items-center gap-2 flex-wrap"><span className="font-black uppercase" style={{ ...OSWALD, fontSize: "1.2rem", color: sponsors.data.active.terms.presentation?.colour ?? "#fff" }}>{sponsors.data.active.terms.displayName}</span>
+                <div className="flex items-center gap-2 flex-wrap"><span aria-hidden className="inline-block w-3 h-3 rounded-sm" style={{ background: sponsors.data.active.terms.presentation?.colour ?? "#fff", border: "1px solid rgba(255,255,255,0.3)" }} /><span className="font-black uppercase" style={{ ...OSWALD, fontSize: "1.2rem", color: "#fff" }}>{sponsors.data.active.terms.displayName}</span>
                   <StatusBadge label={titleCase(sponsors.data.active.tier)} tone="success" /></div>
                 <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>S{sponsors.data.active.start.season} W{sponsors.data.active.start.week} → S{sponsors.data.active.end.season} W{sponsors.data.active.end.week} · paid {formatPence(sponsors.data.active.totals.paidPence)} · covered {formatPence(sponsors.data.active.totals.coveredPence)}</div>
                 <Terms terms={sponsors.data.active.terms} />
@@ -65,7 +65,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
         {schedule.isLoading ? <CareerLoading /> : commitments.length ? (
           <ul>{commitments.map(e => (
             <li key={e.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-3 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-              <Link href={`/career/${save.id}/events/${e.id}`} className="flex-1 min-w-0 truncate career-row-link rounded" style={{ ...OSWALD, color: "#fff" }}>{e.name}</Link>
+              <Link href={`/career/${save.id}/events/${e.id}`} className="flex-1 min-w-0 truncate career-row-link rounded py-1.5" style={{ ...OSWALD, color: "#fff" }}>{e.name}</Link>
               <span className="text-xs hidden sm:inline" style={{ color: "rgba(255,255,255,0.5)" }}>Wk {e.dates.startWeek} · {circuitLabel(e.circuit)}</span>
               <StatusBadge label={e.finance!.commitment!.status === "TRAVEL_COMMITTED" ? "Travel paid" : "Travel reserved"} tone="info" />
               <span className="w-20 text-right tabular-nums" style={OSWALD}>{formatPence(e.finance!.estimatedTravelPence + e.finance!.estimatedAccommodationPence)}</span>
@@ -76,6 +76,15 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
 
       <Ledger saveId={save.id} />
 
+      {sponsors.data && sponsors.data.history.offers.length > 0 && (
+        <CareerSection title="Past offers" icon={<Briefcase className="w-3.5 h-3.5" />}>
+          <ul>{sponsors.data.history.offers.slice(0, 10).map(o => (
+            <li key={o.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-2 text-sm flex-wrap" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+              <span className="font-bold" style={{ ...OSWALD, color: "#fff" }}>{o.terms.displayName}</span><StatusBadge label={titleCase(o.tier)} tone="muted" />
+              <StatusBadge label={o.statusReason === "LAPSED" ? "Lapsed" : titleCase(o.status)} tone="muted" />
+              <span className="ml-auto text-xs tabular-nums" style={{ color: "rgba(255,255,255,0.55)" }}>Offered S{o.offered.season} W{o.offered.week} · valid to S{o.expires.season} W{o.expires.week}</span></li>))}</ul>
+        </CareerSection>
+      )}
       {sponsors.data && sponsors.data.history.contracts.length > 0 && (
         <CareerSection title="Sponsor history" icon={<Handshake className="w-3.5 h-3.5" />}>
           <ul>{sponsors.data.history.contracts.map(c => (
@@ -107,8 +116,8 @@ function Ledger({ saveId }: { saveId: string }) {
   const cats = LEDGER_FILTERS.find(f => f.key === filter)?.categories ?? null;
   const rows = (ledger.data?.entries ?? []).filter(e => !cats || (cats as readonly string[]).includes(e.category));
   return (
-    <CareerSection title="Transactions" icon={<Receipt className="w-3.5 h-3.5" />} accent="#c084fc"
-      action={<Segmented label="Transaction filter" value={filter} onChange={setFilter} options={LEDGER_FILTERS.map(f => ({ value: f.key, label: f.label }))} />}>
+    <CareerSection title="Transactions" icon={<Receipt className="w-3.5 h-3.5" />} accent="#c084fc">
+      <div className="px-3 pt-2.5 pb-1"><Segmented label="Transaction filter" wrap value={filter} onChange={setFilter} options={LEDGER_FILTERS.map(f => ({ value: f.key, label: f.label }))} /></div>
       {ledger.isLoading ? <CareerLoading /> : ledger.error ? <CareerError error={ledger.error} onRetry={() => ledger.refetch()} /> : rows.length === 0 ? <CareerEmptyState title="No transactions on this page" /> : (
         <ul>{rows.map(e => (
           <li key={e.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>

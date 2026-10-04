@@ -56,40 +56,64 @@ export const useMilestones = (saveId: string, limit = 50) => useQuery({ queryKey
   queryFn: () => get<{ participantKey: string; milestones: Milestone[] }>(`/saves/${saveId}/milestones${qs({ limit })}`) });
 
 // ---------------------------------------------------------------- mutations (each maps 1:1 to a real backend action)
+/**
+ * Every Career write the UI can perform, as plain request functions (unit-tested
+ * against a mocked fetch). There is intentionally NO function for reporting a human
+ * match result: A3 keeps that boundary server-side (see pages/match-boundary.tsx).
+ */
+export type EntryResult = { entered: boolean; created: boolean; denials: string[] };
+export type WithdrawResult = { withdrawn: boolean; postLock?: boolean; denials: string[] };
+export type AdvanceTarget = { kind: "NEXT_MEANINGFUL" } | { kind: "WEEKS"; weeks: number };
+export const careerRequests = {
+  enter: (saveId: string, eventId: string) => send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`),
+  withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),
+  acceptOffer: (saveId: string, offerId: string) => send<{ contractId: string }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`),
+  declineOffer: (saveId: string, offerId: string) => send<unknown>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/decline`),
+  /** A3 advance: retry-safe via a client-generated operation key; expected position guards against stale screens. */
+  advance: (saveId: string, args: { season: number; week: number; target: AdvanceTarget }, operationKey = newOperationKey()) =>
+    send<AdvanceResult>("POST", `/saves/${saveId}/calendar/advance`, { operationKey, expectedSeason: args.season, expectedWeek: args.week, target: args.target }),
+  /** Idempotent composed initialize: A2 world, A3 calendar, A4 finance, A5 sporting state. */
+  initialize: (saveId: string) => send<unknown>("POST", `/saves/${saveId}/initialize`, {}),
+  create: async (body: { slot: number; careerName?: string; difficulty?: string }) => {
+    const save = await send<CareerSave>("POST", "/saves", body);
+    await careerRequests.initialize(save.id);
+    return save;
+  },
+  /** A1 restart returns a NEW save id in the same slot; the client must adopt it. */
+  restart: async (saveId: string) => {
+    const save = await send<CareerSave>("POST", `/saves/${saveId}/restart`, {});
+    await careerRequests.initialize(save.id);
+    return save;
+  },
+  retire: (saveId: string) => send<CareerSave>("POST", `/saves/${saveId}/retire`, {}),
+  /** A1 delete answers 204 No Content; any other outcome (HTTP error or network failure) rejects. */
+  remove: async (saveId: string) => {
+    const response = await fetch(`${BASE}/saves/${saveId}`, { method: "DELETE", credentials: "same-origin" });
+    if (response.status === 204 || response.ok) return null;
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new ApiRequestError(body?.error ?? `Request failed (${response.status})`, response.status, `${BASE}/saves/${saveId}`);
+  },
+};
+
 function useSaveMutation<TArgs, TOut>(saveId: string, fn: (args: TArgs) => Promise<TOut>) {
   const client = useQueryClient();
   return useMutation({ mutationFn: fn, onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); await client.invalidateQueries({ queryKey: ["career", "saves"] }); } });
 }
-export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) =>
-  send<{ entered: boolean; created: boolean; denials: string[] }>("POST", `/saves/${saveId}/events/${eventId}/entry`));
-export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) =>
-  send<{ withdrawn: boolean; postLock?: boolean; denials: string[] }>("DELETE", `/saves/${saveId}/events/${eventId}/entry`));
-export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => send<{ contractId: string }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`));
-export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => send<unknown>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/decline`));
-/** A3 advance: retry-safe via a client-generated operation key; expected position guards against stale screens. */
-export const useAdvance = (saveId: string) => useSaveMutation(saveId, (args: { season: number; week: number; target: { kind: "NEXT_MEANINGFUL" } | { kind: "WEEKS"; weeks: number } }) =>
-  send<AdvanceResult>("POST", `/saves/${saveId}/calendar/advance`, { operationKey: newOperationKey(), expectedSeason: args.season, expectedWeek: args.week, target: args.target }));
+export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.enter(saveId, eventId));
+export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.withdraw(saveId, eventId));
+export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.acceptOffer(saveId, offerId));
+export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));
+export const useAdvance = (saveId: string) => useSaveMutation(saveId, (args: { season: number; week: number; target: AdvanceTarget }) => careerRequests.advance(saveId, args));
 
 export function useSaveLifecycle() {
   const client = useQueryClient();
   const settle = { onSettled: () => client.invalidateQueries({ queryKey: ["career"] }) };
   return {
-    create: useMutation({ ...settle, mutationFn: async (body: { slot: number; careerName?: string; difficulty?: string }) => {
-      const save = await send<CareerSave>("POST", "/saves", body);
-      await send("POST", `/saves/${save.id}/initialize`, {}); // A2 world, A3 calendar, A4 finance, A5 sporting state
-      return save;
-    } }),
-    initialize: useMutation({ ...settle, mutationFn: (saveId: string) => send<unknown>("POST", `/saves/${saveId}/initialize`, {}) }),
-    restart: useMutation({ ...settle, mutationFn: async (saveId: string) => {
-      const save = await send<CareerSave>("POST", `/saves/${saveId}/restart`, {});
-      await send("POST", `/saves/${save.id}/initialize`, {});
-      return save;
-    } }),
-    retire: useMutation({ ...settle, mutationFn: (saveId: string) => send<CareerSave>("POST", `/saves/${saveId}/retire`, {}) }),
-    remove: useMutation({ ...settle, mutationFn: (saveId: string) => apiFetchJson<unknown>(`${BASE}/saves/${saveId}`, { method: "DELETE", credentials: "same-origin" }).catch(e => {
-      // 204 No Content has no JSON body; apiFetchJson rejects on parse — treat any non-HTTP error as success only for 204.
-      if (e instanceof ApiRequestError) throw e; return null;
-    }) }),
+    create: useMutation({ ...settle, mutationFn: careerRequests.create }),
+    initialize: useMutation({ ...settle, mutationFn: careerRequests.initialize }),
+    restart: useMutation({ ...settle, mutationFn: careerRequests.restart }),
+    retire: useMutation({ ...settle, mutationFn: careerRequests.retire }),
+    remove: useMutation({ ...settle, mutationFn: careerRequests.remove }),
   };
 }
 

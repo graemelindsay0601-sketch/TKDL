@@ -15,7 +15,7 @@ const MAJOR = new Set(["MAJOR", "WORLD_CHAMPIONSHIP"]);
  * are shown (Rivalries/Records wait for A7). The Trophy Room is Career-only and is
  * entirely separate from the Classic Tour's 305 trophies.
  */
-export function HistoryPage({ ctx }: { ctx: ShellContext }) {
+export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContext; initialTab?: Tab }) {
   const id = ctx.save.id;
   const history = useHistory(id, { participant: "HUMAN" });
   const milestones = useMilestones(id, 200);
@@ -23,7 +23,7 @@ export function HistoryPage({ ctx }: { ctx: ShellContext }) {
   const sporting = useSporting(id);
   const cards = useTourCard(id);
   const world = useRankingHistory(id, "pro-world", "HUMAN", 1);
-  const [tab, setTab] = useState<Tab>("OVERVIEW");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const rows = history.data ?? [];
   const titles = rows.filter(r => r.champion);
   const finals = rows.filter(r => r.stageReached === "FINAL");
@@ -38,7 +38,7 @@ export function HistoryPage({ ctx }: { ctx: ShellContext }) {
   if (history.error) return <CareerError error={history.error} onRetry={() => history.refetch()} />;
   return (
     <div className="space-y-3">
-      <div className="pdc-card px-3 py-2.5"><Segmented<Tab> label="History sections" value={tab} onChange={setTab} options={[
+      <div className="pdc-card px-3 py-2.5"><Segmented<Tab> label="History sections" value={tab} onChange={setTab} wrap options={[
         { value: "OVERVIEW", label: "Overview" }, { value: "TIMELINE", label: "Timeline" }, { value: "SEASONS", label: "Seasons" }, { value: "TITLES", label: "Titles & finals", count: titles.length + finals.length },
         { value: "MAJORS", label: "Majors", count: majors.length }, { value: "RANKING", label: "Ranking" }, { value: "TROPHIES", label: "Trophy room", count: titles.length }]} /></div>
 
