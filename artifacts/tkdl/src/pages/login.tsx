@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/context/auth";
 import { Target, X } from "lucide-react";
-import { CareerBetaAccess } from "@/components/career-beta-access";
 
 export default function Login() {
   const { login } = useAuth();
@@ -120,7 +119,6 @@ export default function Login() {
               ) : "Sign In"}
             </button>
           </form>
-          <CareerBetaAccess />
         </div>
       </div>
     </div>

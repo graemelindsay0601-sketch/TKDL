@@ -378,6 +378,13 @@ export async function initializeFeatureFlags() {
       ON CONFLICT (feature_name) DO NOTHING
     `);
 
+    // Career starts Hidden. Never overwrite an administrator's staged choice.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.TOUR_CAREER_2}, false, false, 'Career 2.0 BETA - persistent Career saves and live matches')
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
     logger.info("Feature flags initialized successfully");
   } catch (error) {
     logger.error({ error }, "Failed to initialize feature flags");

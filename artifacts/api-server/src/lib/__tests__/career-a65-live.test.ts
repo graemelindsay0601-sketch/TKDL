@@ -20,6 +20,7 @@ import { createCareerLiveMatchService } from "../../career/live/service.ts";
 import { createCareerLiveRouter } from "../../career/live/router.ts";
 import { createCareerIdentityService, createCareerIdentityRouter } from "../../career/identity/service.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
+import { createCareerAdminRouter, CAREER_RESET_CONFIRMATION } from "../../career/admin-router.ts";
 import { EVENT_CATALOGUE_V2 } from "../../career/calendar/catalogue.ts";
 import { replay, throwDart, type X01Format, type Dart } from "../../shared/darts-rules/x01.ts";
 import { planBotX01Visit, type BotSkill } from "../../shared/darts-rules/bot.ts";
@@ -49,7 +50,7 @@ before(async () => {
   app.use(express.json({ limit: "2mb" }));
   app.use((req, _res, next) => {
     const player = Number(req.header("x-test-player") ?? 0);
-    (req as unknown as { session: unknown }).session = player ? { playerId: player } : {};
+    (req as unknown as { session: unknown }).session = player ? { playerId: player, isAdmin: req.header("x-test-admin") === "true" } : {};
     (req as unknown as { log: unknown }).log = { error: (e: unknown) => console.error(e) };
     next();
   });
@@ -62,6 +63,7 @@ before(async () => {
   router.use(createCareerCalendarRouter(career.calendar, available));
   router.use(createCareerRouter(saves));
   app.use("/api/career", router);
+  app.use("/api", createCareerAdminRouter(db));
   server = app.listen(0);
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/career`;
 });
@@ -383,4 +385,40 @@ test("sponsor facts (grind fix): an amateur qualifier final is not a Major finis
   const best = await db.transaction(tx => humanBestFinishByCircuit(tx, id));
   assert.equal(best.MAJOR, undefined, "a qualifier final does not satisfy circuitFinish MAJOR <= 2 (ELITE sponsor)");
   assert.equal(best.Q_SCHOOL, 2, "Q-School qualifier results remain circuit finishes");
+});
+
+test("A6.6 admin reset cascades populated Career data only, requires confirmation and works while Hidden", async () => {
+  const tables = (await pg.query<{ table_name: string }>(`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`)).rows;
+  const owned = (await pg.query<{ table_name: string }>(`SELECT table_name FROM information_schema.columns WHERE table_schema='public' AND column_name='career_save_id'`)).rows.map(t => t.table_name);
+  const careerTables = ['career_saves', ...owned];
+  const catalogues = tables.filter(t => t.table_name.startsWith('career_') && !careerTables.includes(t.table_name)).map(t => t.table_name);
+  const count = async (table: string) => Number((await pg.query<{ n: number }>(`SELECT count(*)::int n FROM "${table}"`)).rows[0].n);
+  assert.ok(await count('career_match_sessions') > 0);
+  assert.ok(await count('career_world_players') > 0);
+  const saveCount = await count('career_saves');
+  assert.ok(saveCount > 0);
+  // Representative non-Career rows linked to the same player must survive.
+  // Reuse the populated real Career FK graph from the A6.5 tests above.
+  const unrelated = ['users', 'matches', 'player_currency', 'achievements', 'master501_progress', 'master501_runs', 'tour_trophies', 'player_tour_runs'];
+  for (const table of unrelated) await pg.exec(`CREATE TABLE ${table}(id integer PRIMARY KEY, player_id integer REFERENCES players(id), value text); INSERT INTO ${table} VALUES (1,1,'keep exactly');`);
+  await pg.exec(`UPDATE feature_flags SET enabled=false,admin_test_mode=false WHERE feature_name='tour_career_2'`);
+  const preserved = ['players', 'feature_flags', ...unrelated, ...catalogues];
+  const snapshot = async () => Promise.all(preserved.map(async t => [t, (await pg.query(`SELECT * FROM "${t}" ORDER BY 1`)).rows]));
+  const before = await snapshot();
+  const reset = async (player: number, admin: boolean, confirmation?: string) => fetch(`${base.replace('/career', '')}/admin/career/reset`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-test-player': String(player), 'x-test-admin': String(admin) },
+    body: JSON.stringify({ confirmation }),
+  });
+  assert.equal((await reset(0, false, CAREER_RESET_CONFIRMATION)).status, 403);
+  assert.equal((await reset(1, false, CAREER_RESET_CONFIRMATION)).status, 403);
+  assert.equal((await reset(1, true)).status, 400);
+  assert.equal((await reset(1, true, 'yes')).status, 400);
+  assert.equal(await count('career_saves'), saveCount);
+  const response = await reset(1, true, CAREER_RESET_CONFIRMATION);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { deletedSaves: saveCount });
+  for (const table of careerTables) assert.equal(await count(table), 0, `${table} should cascade with saves`);
+  assert.deepEqual(await snapshot(), before);
+  const again = await reset(1, true, CAREER_RESET_CONFIRMATION);
+  assert.deepEqual(await again.json(), { deletedSaves: 0 });
 });

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useCareerSaves } from "@/features/career/api";
+import { useQuery } from "@tanstack/react-query";
 import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
@@ -27,7 +27,7 @@ const practiceNav = [
   { href: "/practice",     label: "Practice",     icon: Dumbbell        },
 ];
 const tourModeNav = [
-  { href: "/career",       label: "Career",       icon: Briefcase       },
+  { href: "/career",       label: "Career BETA",  icon: Briefcase       },
   { href: "/tour",         label: "Classic Tour", icon: Star            },
 ];
 const master501Nav = [
@@ -256,7 +256,17 @@ export function Layout({ children }: { children: ReactNode }) {
   const isStandalone = typeof window !== "undefined" && (window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
   const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
   const canOfferInstall = !isStandalone && (installPrompt !== null || isIos);
-  const careerAvailable = useCareerSaves(!!authUser).isSuccess;
+  const careerStatus = useQuery({
+    queryKey: ["feature-status", "tour_career_2", authUser?.playerId, authUser?.isAdmin],
+    enabled: !!authUser,
+    queryFn: async () => {
+      const response = await fetch("/api/feature-status/tour_career_2", { credentials: "include", cache: "no-store" });
+      if (!response.ok) throw new Error("Could not load Career availability");
+      return response.json() as Promise<{ available: boolean }>;
+    },
+    staleTime: 30_000,
+  });
+  const careerAvailable = !!authUser && careerStatus.data?.available === true;
   const matchInProgressRoute = /^\/(play|practice|master501|card-clash|boss-battle|board-curse)(\/|$)/.test(location) || /^\/tour\/[^/]+/.test(location);
 
   useEffect(() => {

@@ -5,7 +5,6 @@ import { useCareerSaves, useSaveLifecycle, errorMessage, errorStatus } from "../
 import { slotLines, ageOnDate, careerStartDateForToday, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, ConfirmButton, Label, OSWALD, StatusBadge } from "../components";
 import type { CareerSave } from "../types";
-import { CareerBetaAccess } from "@/components/career-beta-access";
 
 /**
  * Career entry: the three A1 slots plus the retired archive. Lifecycle actions are
@@ -21,7 +20,6 @@ export function SavesPage() {
 
   return (
     <div className="career-root space-y-4 pb-10">
-      <CareerBetaAccess />
       <header className="pdc-card px-4 py-4 md:px-6 md:py-5">
         <div className="flex items-center gap-2 mb-1"><Crown className="w-3.5 h-3.5" style={{ color: "#ff005c" }} aria-hidden /><Label color="#ff005c">TKDL Career</Label></div>
         <h1 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.6rem, 5vw, 2.4rem)", color: "#fff" }}>Your Career saves</h1>

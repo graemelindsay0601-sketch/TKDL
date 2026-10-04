@@ -8,7 +8,7 @@ import achievementsRouter  from "./achievements";
 import statsRouter         from "./stats";
 import adminRouter         from "./admin";
 import authRouter          from "./auth";
-import { createCareerBetaRouter } from "../beta/career-fixture.ts";
+import { createCareerAdminRouter } from "../career/admin-router.ts";
 import { db } from "@workspace/db";
 import settingsRouter      from "./settings";
 import gameTypesRouter     from "./game-types";
@@ -70,7 +70,6 @@ router.use((req, res, next) => {
 });
 
 router.use(healthRouter);
-router.use(createCareerBetaRouter(db));
 router.use(authRouter);
 router.use(playersRouter);
 router.use(matchesRouter);
@@ -86,6 +85,7 @@ router.use(gameTypesRouter);
 router.use(practiceRouter);
 router.use(tourRouter);
 router.use("/career", careerRouter);
+router.use(createCareerAdminRouter(db));
 router.use(master501Router);
 router.use(storageRouter);
 router.use(communityRouter);

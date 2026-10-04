@@ -5,7 +5,6 @@ import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSessio
 import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
-import { CareerBetaAccess } from "@/components/career-beta-access";
 
 export type ShellContext = { save: CareerSave; overview: CalendarOverview | null; retired: boolean };
 
@@ -24,7 +23,6 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
   const overview = header.data?.overview ?? null;
   return (
     <div className="career-root space-y-3 pb-10">
-      <CareerBetaAccess />
       <CareerHeader save={save.data} overview={overview} retired={retired} />
       <CareerNav saveId={saveId} />
       {!retired && <ProfileIncompleteBanner saveId={saveId} />}
