@@ -11,6 +11,7 @@ import { venueByKey } from "./geography.ts";
 import { canonicalJson } from "./generation.ts";
 import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
 import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
+import { settleLifeCommitments } from "../life/commitments.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
   insertBookings, exclusiveConflicts, insertEntitlements, lastDayOfWeek, refreshCapabilities, type InstanceRow, type RootRow, type MatchRow,
@@ -64,6 +65,8 @@ async function loadHumanContext(tx: CareerExecutor, root: RootRow, season: numbe
     WHERE e.career_save_id = ${root.id} AND e.participant_key = ${HUMAN} AND i.season = ${season}`)).rows.map(r => [String(r.event_id), { status: String(r.status), source: String(r.source) }]));
   const bookings = new Map<number, string>();
   for (const row of (await tx.execute(sql`SELECT day, event_id FROM career_participant_bookings WHERE career_save_id = ${root.id} AND season = ${season} AND participant_key = ${HUMAN}`)).rows) bookings.set(Number(row.day), String(row.event_id));
+  for (const row of (await tx.execute(sql`SELECT day,id FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season} AND status='ACCEPTED'`)).rows)
+    bookings.set(Number(row.day),`life:${row.id}`);
   const results = new Map((await tx.execute(sql`SELECT r.event_id, r.finishing_position, r.stage_reached, r.is_champion FROM career_event_results r WHERE r.career_save_id = ${root.id} AND r.participant_key = ${HUMAN} AND r.season = ${season}`)).rows.map(r => [String(r.event_id), r]));
   const ctx = await loadFactsContext(tx, root.id, season, events.map(e => e.snapshot.eligibility), [HUMAN]);
   const groups = new Map<string, string>();
@@ -131,7 +134,8 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   else relationship = entitlement ? "QUALIFIED" : "AVAILABLE";
   return {
     relationship, eligible: rule.eligible, eligibilityReasons: rule.reasons, age: ageInfo,
-    canEnter: denials.length === 0, denials: [...new Set(denials)], conflictsWith: [...conflicts],
+    canEnter: denials.length === 0, denials: [...new Set(denials)], conflictsWith: [...conflicts].filter(id=>!id.startsWith("life:")),
+    commercialConflicts: [...conflicts].filter(id=>id.startsWith("life:")).map(()=>"Accepted off-board commitment"),
     entryStatus: entry?.status ?? null, result: result ? { finishingPosition: Number(result.finishing_position), stageReached: String(result.stage_reached), champion: Boolean(result.is_champion) } : null,
   };
 }
@@ -284,6 +288,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await tx.execute(sql`UPDATE career_seasons SET played_week = ${w} WHERE career_save_id = ${saveId} AND season = ${s} AND played_week = ${w - 1}`);
       // A5: ranking publication / Q-School allocation / season review for the completed week (same transaction).
       await providers.sporting?.afterWeek(tx, root, s, w);
+      await settleLifeCommitments(tx,root,s,w);
       return { season: s, week: w, summary, blocked: false };
     });
     if (played.blocked) return { ...played, advancedTo: null };

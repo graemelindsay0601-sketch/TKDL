@@ -15,6 +15,7 @@ import { event, eventDetail, finance, human, overview, pathway, rankingMeta, row
 import { FOCUSES, type GoalsView } from "../../../../api-server/src/career/goals/types.ts";
 import { recognitionModel } from "../../../../api-server/src/career/recognition/model.ts";
 import type { RecognitionView } from "../../../../api-server/src/career/recognition/types.ts";
+import type { LifeView, Story } from "../../../../api-server/src/career/life/types.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 let vite: ViteDevServer;
@@ -23,11 +24,11 @@ let M: Record<string, any> = {};
 before(async () => {
   vite = await createServer({ root: ROOT, configFile: path.join(ROOT, "vite.config.ts"), logLevel: "error", appType: "custom", optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false, ws: false } });
   const load = (p: string) => vite.ssrLoadModule(p);
-   const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships, goals, recognition] = await Promise.all([
+   const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships, goals, recognition, life] = await Promise.all([
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
-     load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+     load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
 });
 after(async () => { await vite?.close(); });
 
@@ -40,6 +41,54 @@ function render(el: ReactElement, seed: [unknown[], unknown][], at = `/career/${
 }
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 const ctx = (s = save(), ov = overview()) => ({ save: s, overview: ov, retired: s.status === "RETIRED" });
+const lifeFixture=():LifeView=>({careerSaveId:SAVE_ID,retired:false,profile:{
+  persona:{label:"Reserved",primary:"RESERVED",secondary:null,description:"Actual choices; no sporting modifier."},
+  awareness:"Major darts star",reception:"Positive",draw:"Strong",
+  commercial:{demand:"Strong sporting demand",activity:"Choosing quiet off-board life",description:"Optional work; not a prize reward."}},
+  news:[],threads:[],moments:[],opportunities:[],history:[],commitments:[],relationshipTones:[],
+  merchandise:{demand:"Strong sporting demand",incomePence:0,agreement:null,royaltyPence:null,offerRoyaltyPence:7500,canOptIn:true,canStop:false},
+  commercialIncomePence:0,notes:["Persona and sporting recognition remain separate."]});
+test("A7.5 profile preserves reserved sporting fame and separates awareness/reception/draw/commercial activity",()=>{
+  const d=lifeFixture(),html=render(h(M.LifePage,{ctx:ctx()}),[[key("life"),d]]),t=text(html);
+  for(const label of ["Reserved","Major darts star","Positive","Strong","Choosing quiet off-board life","Narrative relationship tone"])assert.ok(t.includes(label),label);
+  assert.doesNotMatch(t,/Follower count|Spend reputation|Upgrade ability/);
+  assert.match(html,/News &amp; Story Threads/);
+});
+test("A7.5 actual moment choices render four contextual answers, never sliders or editable numerical rewards",()=>{
+  const d=lifeFixture();d.moments=[{id:"moment",storyId:"moment",title:"The Palace",kind:"DIALOGUE",prompt:"What would you say?",steps:["Actual world draw"],thread:"palace",statementFamily:"palace",
+    choices:[{id:"PROFESSIONAL",text:"Take it match by match."},{id:"RESERVED",text:"Let the darts do the talking."},{id:"CONFIDENT",text:"I can compete here."},{id:"FIERY",text:"I am here to make this difficult."}]}];
+  const html=render(h(M.LifePage,{ctx:ctx()}),[[key("life"),d]]),t=text(html);
+  for(const c of d.moments[0].choices)assert.ok(t.includes(c.text));
+  assert.doesNotMatch(html,/<input|type="range"/);assert.match(t,/Actual world draw/);
+});
+test("A7.5 opportunities preview the agreed fee/day, honest conflicts, optional decline and royalty terms",()=>{
+  const d=lifeFixture();d.opportunities=[{id:"opp",family:"EXHIBITION",title:"Darts exhibition",description:"One agreed full-day commitment",season:1,day:22,feePence:7500,contractId:null,compatibility:"Reserved presentation welcomed",conflicts:["County Final"],canAccept:false}];
+  const html=render(h(M.LifePage,{ctx:ctx(),initialTab:"Opportunities"}),[[key("life"),d]]),t=text(html);
+  assert.match(t,/day 22.*£75/);assert.match(t,/Calendar conflict: County Final/);assert.match(t,/Decline/);
+  assert.match(html,/disabled=""[^>]*>Accept commitment/);assert.match(t,/Royalty terms: £75/);
+  assert.match(t,/never prize earnings or a separate wallet|no past royalties are invented/);
+});
+test("A7.5 retired history stays readable without new decision/acceptance/merchandise actions",()=>{
+  const d=lifeFixture();d.retired=true;d.merchandise.canOptIn=false;d.merchandise.canStop=false;
+  d.history=[{id:"old",kind:"DIALOGUE",choice:"RESERVED",season:1,week:4,data:{}}];
+  const t=text(render(h(M.LifePage,{ctx:ctx(save({status:"RETIRED"})),initialTab:"History"}),[[key("life"),d]]));
+  assert.match(t,/Retired Career/);assert.match(t,/S1 W4.*reserved/);assert.doesNotMatch(t,/Accept commitment|Stop future merchandise royalties/);
+});
+test("A7.5 public world news and thread callbacks retain factual sources and real earlier statement links",()=>{
+  const d=lifeFixture(),story:Story={id:"story",kind:"world-title",scope:"WORLD",significance:"NEWS",title:"Public opponent wins",body:"A recorded major result.",season:2,week:5,day:29,date:null,eventId:"event",
+    thread:"world:npc",sourceIds:["result:event:npc"],callbacks:[{text:"You previously said: let the darts do the talking.",sourceIds:["decision:actual"]}]};
+  d.news=[story];d.threads=[{id:story.thread,title:"A public darts Career",stories:[story]}];
+  for(const initialTab of ["News","Story Threads"]) {
+    const t=text(render(h(M.StoriesPage,{ctx:ctx(),initialTab}),[[key("life"),d]]));
+    assert.match(t,/Public opponent wins/);assert.match(t,/You previously said/);assert.match(t,/decision:actual/);assert.match(t,/result:event:npc/);
+  }
+});
+test("A7.5 public NPC identity exposes only presentation and sporting standing, with separate recognition link",()=>{
+  const data={careerSaveId:SAVE_ID,id:"npc",name:"Public Opponent",retired:false,personality:{primary:"FIERY",secondary:"INTENSE"},standing:"Professional contender",publicDraw:"Strong",notes:"No hidden sporting attributes."};
+  const html=render(h(M.NpcLifePage,{ctx:ctx(),npcId:"npc"}),[[key("life","npc","npc"),data]]);
+  assert.match(text(html),/Public Opponent.*Professional contender.*fiery \/ intense/);assert.match(html,/recognition\/npcs\/npc/);
+  assert.doesNotMatch(html,/currentAbility|potential|bankAccount|followerCount/);
+});
 const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[], sp = sporting("UNRANKED_AMATEUR"), fin = finance()): [unknown[], unknown][] => [
   [key("sporting"), sp], [key("finance"), fin], [key("history", { participant: "HUMAN" }), []],
   [key("calendar", { scope: "WORLD", fromWeek: s.currentWeek, toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],

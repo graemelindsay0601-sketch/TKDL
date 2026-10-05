@@ -14,6 +14,7 @@ import { HistoryPage } from "./pages/history";
 import { RelationshipsPage } from "./pages/relationships";
 import { GoalsPage } from "./pages/goals";
 import { RecognitionPage } from "./pages/recognition";
+import { LifePage, StoriesPage, NpcLifePage } from "./pages/life";
 import { LiveMatchPage } from "./pages/live-match";
 
 /**
@@ -57,6 +58,9 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/history"><HistoryPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/relationships"><RelationshipsPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/goals"><GoalsPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/life/npcs/:npcId">{(p:{npcId:string})=><NpcLifePage ctx={ctx} npcId={p.npcId}/>}</Route>
+          <Route path="/career/:saveId/life"><LifePage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/stories"><StoriesPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/recognition/npcs/:npcId">{(p:{npcId:string})=><RecognitionPage ctx={ctx} npcId={p.npcId}/>}</Route>
           <Route path="/career/:saveId/recognition"><RecognitionPage ctx={ctx} /></Route>
           <Route><HomePage ctx={ctx} /></Route>

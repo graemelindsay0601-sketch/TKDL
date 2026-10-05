@@ -30,6 +30,10 @@ export const careerKey = (saveId: string, ...rest: unknown[]) => ["career", save
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
 export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });
+export const useCareerLife = (saveId:string) => useQuery({queryKey:careerKey(saveId,"life"),queryFn:()=>get<import("../../../../api-server/src/career/life/types").LifeView>(`/saves/${saveId}/life`),staleTime:STALE});
+export const useNpcLife = (saveId:string,npcId:string) => useQuery({queryKey:careerKey(saveId,"life","npc",npcId),queryFn:()=>get<import("../../../../api-server/src/career/life/types").NpcLifeView>(`/saves/${saveId}/life/npcs/${npcId}`),staleTime:STALE});
+export const useLifeChoice = (saveId:string) => useSaveMutation(saveId,(input:{kind:"moments"|"opportunities";id:string;choice:string})=>send("POST",`/saves/${saveId}/life/${input.kind}/${input.id}`,{choice:input.choice}));
+export const useMerchandiseChoice = (saveId:string) => useSaveMutation(saveId,(choice:string)=>send("POST",`/saves/${saveId}/life/merchandise`,{choice}));
 export const useNpcRecognition = (saveId: string, npcId?: string) => useQuery({ queryKey: careerKey(saveId, "recognition", "npc", npcId ?? ""), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition/npcs/${npcId}`), enabled:!!npcId, staleTime: STALE });
 export const useCareerGoals = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "goals"), queryFn: () => get<GoalsView>(`/saves/${saveId}/goals`), staleTime: STALE });
 export const useCareerFocus = (saveId: string) => useSaveMutation(saveId, (focus: Focus) => send<{focus:Focus}>("POST",`/saves/${saveId}/focus`,{focus}));

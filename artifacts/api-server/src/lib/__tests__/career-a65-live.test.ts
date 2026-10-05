@@ -7,6 +7,10 @@ import { createCareerGoalsRouter } from "../../career/goals/router.ts";
 import { createCareerGoals } from "../../db/migrations/create_career_goals.ts";
 import { createCareerRecognitionService } from "../../career/recognition/service.ts";
 import { createCareerRecognitionRouter } from "../../career/recognition/router.ts";
+import { createCareerLifeService } from "../../career/life/service.ts";
+import { createCareerLifeRouter } from "../../career/life/router.ts";
+import { createCareerLife } from "../../db/migrations/create_career_life.ts";
+import { settleLifeCommitments } from "../../career/life/commitments.ts";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -57,6 +61,7 @@ before(async () => {
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSporting(db);
+  await createCareerLife(db);await createCareerLife(db);
   const preMigration=await saves.create(1,{slot:3,careerName:"Pre A7.3"});
   const oldRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
   await createCareerGoals(db); await createCareerGoals(db);
@@ -79,6 +84,7 @@ before(async () => {
   router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db)));
   router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
   router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
+  router.use(createCareerLifeRouter(createCareerLifeService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
   router.use(createCareerLiveRouter(live, available));
   router.use(createCareerSportingRouter(career, available));
@@ -623,6 +629,143 @@ test("A7.4 live HTTP: existing/retired history, all-authority read-only invarian
     await db.execute(sql`UPDATE feature_flags SET enabled=true,admin_test_mode=false WHERE feature_name='tour_career_2'`);
     await saves.delete(2,fresh.id);
   }
+});
+
+test("A7.5 actual HTTP: existing/retired/fresh context, choices, atomic replay, dates, A4 fees/royalties and gameplay isolation",async()=>{
+  const roots=await q(sql`SELECT * FROM career_saves WHERE player_id=1 ORDER BY slot_number`);
+  const retired=roots.find(r=>r.status==="RETIRED")!,root=roots.find(r=>r.status==="ACTIVE")!,id=String(root.id);
+  // Labelled sporting-authority fixture, not a simulated multi-season title run:
+  // use an owned authored amateur event and its real calendar date to exercise
+  // current dialogue + merchandise eligibility. All invariants are captured AFTER setup.
+  const achievement=(await q(sql`SELECT * FROM career_event_instances WHERE career_save_id=${id}
+    AND circuit='NATIONAL_AMATEUR' AND classification<>'QUALIFIER' ORDER BY start_day LIMIT 1`))[0];
+  assert.ok(achievement);
+  const states=["SCHEDULED","REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS"];
+  for(const state of states.slice(states.indexOf(String(achievement.status))+1))
+    await db.execute(sql`UPDATE career_event_instances SET status=${state} WHERE career_save_id=${id} AND id=${achievement.id}`);
+  await db.execute(sql`UPDATE career_event_instances SET status='COMPLETED',champion_participant_key='HUMAN' WHERE career_save_id=${id} AND id=${achievement.id}`);
+  await db.execute(sql`INSERT INTO career_event_entries (career_save_id,event_id,participant_key,participant_kind,source,status,entered_season,entered_week)
+    VALUES (${id},${achievement.id},'HUMAN','HUMAN','HUMAN_ENTRY','CONFIRMED',${achievement.season},1) ON CONFLICT DO NOTHING`);
+  await db.execute(sql`INSERT INTO career_event_results (career_save_id,event_id,participant_key,participant_kind,season,definition_key,finishing_position,stage_reached,is_champion,matches_played,wins,losses,legs_for,legs_against,metadata)
+    VALUES (${id},${achievement.id},'HUMAN','HUMAN',${achievement.season},${achievement.definition_key},1,'CHAMPION',true,5,5,0,25,0,'{"testFixture":"A75 commercial/source boundary"}'::jsonb) ON CONFLICT DO NOTHING`);
+  const clockWeek=Math.ceil(Number(achievement.end_day)/7);
+  await db.execute(sql`UPDATE career_saves SET current_week=${clockWeek} WHERE id=${id}`);
+  root.current_week=clockWeek;
+  const life=()=>call("GET",`/saves/${id}/life`),recognition=()=>call("GET",`/saves/${id}/recognition`);
+  const inactive=await call("GET",`/saves/${retired.id}/life`);
+  assert.equal(inactive.status,200,JSON.stringify(inactive.body));assert.deepEqual(inactive.body.moments,[]);assert.deepEqual(inactive.body.opportunities,[]);
+  assert.ok(inactive.body.news.some((st:any)=>st.scope==="HUMAN"));
+  const first=await life();assert.equal(first.status,200,JSON.stringify(first.body));
+  assert.deepEqual((await life()).body,first.body);assert.ok(first.body.news.some((st:any)=>st.scope==="WORLD"));
+  assert.equal(first.body.profile.persona.primary,null,"existing history fabricates no choices");
+  assert.deepEqual(first.body.history,[]);assert.ok(first.body.opportunities.length>0,"existing sporting evidence enables off-board life without reset");
+  const beforeRecognition=(await recognition()).body;
+  const authority=async()=>({
+    root:(await q(sql`SELECT settings_snapshot,world_seed,professional_ranking,has_tour_card,current_season,current_week FROM career_saves WHERE id=${id}`))[0],
+    tables:await Promise.all(["career_world_players","career_event_instances","career_tournament_matches","career_event_results","career_match_sessions",
+      "career_ranking_snapshots","career_ranking_snapshot_rows","career_tour_cards","career_qschool_results","career_qualification_entitlements","career_sponsor_contracts"]
+      .map(table=>q(sql`SELECT MD5(string_agg(to_jsonb(t)::text,'|' ORDER BY to_jsonb(t)::text)) digest FROM ${sql.identifier(table)} t WHERE career_save_id=${id}`))),
+  });
+  const beforeAuthority=await authority(),beforeLedger=await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`);
+  assert.equal(first.body.moments.length,1);assert.equal(first.body.moments[0].kind,"DIALOGUE");
+  {
+    const m=first.body.moments[0],value=m.kind==="ATMOSPHERE"?"ACKNOWLEDGE":m.choices.find((c:any)=>c.id==="RESERVED").id;
+    assert.equal((await call("POST",`/saves/${id}/life/moments/${m.id}`,{choice:"ABILITY_BOOST"})).status,400);
+    assert.equal((await call("POST",`/saves/${id}/life/moments/${m.id}`,{choice:value,persona:100,money:500000})).status,400);
+    const race=await Promise.all([call("POST",`/saves/${id}/life/moments/${m.id}`,{choice:value}),call("POST",`/saves/${id}/life/moments/${m.id}`,{choice:value})]);
+    assert.ok(race.every(r=>r.status===200));assert.equal(race.filter(r=>r.body.replayed===false).length,1);
+    assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_life_decisions WHERE career_save_id=${id} AND id=${m.id}`))[0].n,1);
+    assert.equal((await call("POST",`/saves/${id}/life/moments/${m.id}`,{choice:"FIERY"})).status,409);
+  }
+  assert.deepEqual((await recognition()).body,beforeRecognition,"persona/acknowledgement cannot award sporting recognition");
+  assert.deepEqual(await authority(),beforeAuthority,"dialogue has no scoring, human age, NPC ability/potential/form, RNG, draw, ranking, qualification, Card, prize or difficulty effect");
+  assert.deepEqual(await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`),beforeLedger,"dialogue grants no money");
+  const offer=(await life()).body.opportunities.find((o:any)=>o.canAccept&&o.feePence>0);
+  assert.ok(offer,"a genuine payable opportunity is present");
+  assert.equal((await call("POST",`/saves/${id}/life/opportunities/${offer.id}`,{choice:"ACCEPT",feePence:999999})).status,400);
+  assert.equal((await call("POST",`/saves/${id}/life/opportunities/${randomUUID()}`,{choice:"ACCEPT"})).status,409);
+  const accepted=await Promise.all([call("POST",`/saves/${id}/life/opportunities/${offer.id}`,{choice:"ACCEPT"}),call("POST",`/saves/${id}/life/opportunities/${offer.id}`,{choice:"ACCEPT"})]);
+  assert.ok(accepted.every(r=>r.status===200));assert.equal(accepted.filter(r=>!r.body.replayed).length,1);
+  assert.deepEqual(await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`),beforeLedger,"acceptance is not attendance/payment");
+  const conflict=(await life()).body.opportunities.find((o:any)=>o.id!==offer.id&&o.day===offer.day);
+  if(conflict) {
+    assert.equal(conflict.canAccept,false);assert.ok(conflict.conflicts.length>0);
+    assert.equal((await call("POST",`/saves/${id}/life/opportunities/${conflict.id}`,{choice:"ACCEPT"})).status,409);
+    assert.equal((await call("POST",`/saves/${id}/life/opportunities/${conflict.id}`,{choice:"DECLINE"})).status,200);
+    assert.equal((await call("POST",`/saves/${id}/life/opportunities/${conflict.id}`,{choice:"DECLINE"})).body.replayed,true);
+  }
+  assert.deepEqual(await authority(),beforeAuthority,"off-board booking changes no tournament, sponsor contract or sporting rule");
+  // Labelled accepted-date fixture on an existing authored tournament date:
+  // verify the real A3 entry path rejects the reservation without shifting that event.
+  const blockedEvent=(await q(sql`SELECT id,start_day FROM career_event_instances WHERE career_save_id=${id}
+    AND season=${offer.season} AND start_day>=${(Number(root.current_week)-1)*7+1} AND start_day<>${offer.day}
+    AND status NOT IN ('COMPLETED','CANCELLED') ORDER BY start_day LIMIT 1`))[0];
+  assert.ok(blockedEvent);
+  const reservation=randomUUID();
+  await db.execute(sql`INSERT INTO career_life_commitments (career_save_id,id,family,title,season,day,fee_pence,status)
+    VALUES (${id},${reservation},'CHARITY','A75 accepted-date fixture',${offer.season},${blockedEvent.start_day},0,'ACCEPTED')`);
+  const clash=await call("POST",`/saves/${id}/events/${blockedEvent.id}/entry`,{});
+  assert.equal(clash.status,200);assert.equal(clash.body.entered,false);
+  assert.ok(clash.body.denials?.includes("SCHEDULE_CONFLICT"),JSON.stringify(clash.body));
+  await db.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${id} AND id=${reservation}`);
+  assert.deepEqual(await authority(),beforeAuthority,"A3 rejects commercial-date conflict without event mutation");
+  assert.deepEqual((await recognition()).body,beforeRecognition);
+  const npc=String((await q(sql`SELECT id FROM career_world_players WHERE career_save_id=${id} LIMIT 1`))[0].id);
+  const publicNpc=await call("GET",`/saves/${id}/life/npcs/${npc}`);
+  assert.equal(publicNpc.status,200);assert.deepEqual((await call("GET",`/saves/${id}/life/npcs/${npc}`)).body,publicNpc.body);
+  assert.doesNotMatch(JSON.stringify(publicNpc.body),/"(?:potential|currentAbility|form|development|world_seed|wallet|score)"/);
+  assert.equal((await call("GET",`/saves/${id}/life`,undefined,0)).status,401);
+  assert.equal((await call("GET",`/saves/${id}/life`,undefined,2)).status,404);
+  assert.equal((await call("POST",`/saves/${id}/life/opportunities/${offer.id}`,{choice:"ACCEPT"},2)).status,404);
+  assert.equal((await call("GET",`/saves/${id}/life/npcs/${randomUUID()}`)).status,404);
+  assert.equal((await call("GET","/saves/not-an-id/life")).status,400);
+  await db.execute(sql`UPDATE feature_flags SET enabled=false,admin_test_mode=true WHERE feature_name='tour_career_2'`);
+  try {
+    assert.equal((await life()).status,404);
+    assert.equal((await call("POST",`/saves/${id}/life/opportunities/${offer.id}`,{choice:"ACCEPT"})).status,404);
+    const admin=await fetch(`${base}/saves/${id}/life`,{headers:{"x-test-player":"1","x-test-admin":"true"}});
+    assert.equal(admin.status,200);assert.equal(admin.headers.get("cache-control"),"no-store");
+  } finally {await db.execute(sql`UPDATE feature_flags SET enabled=true,admin_test_mode=false WHERE feature_name='tour_career_2'`);}
+  // Exercise the exact root-locked settlement invoked by A3 afterWeek, twice.
+  const financeBefore=(await call("GET",`/saves/${id}/finance`)).body;
+  await db.transaction(async tx=>{await tx.execute(sql`SELECT id FROM career_saves WHERE id=${id} FOR UPDATE`);await settleLifeCommitments(tx,{id,world_seed:String(root.world_seed)},offer.season,Math.ceil(offer.day/7));});
+  await db.transaction(async tx=>{await tx.execute(sql`SELECT id FROM career_saves WHERE id=${id} FOR UPDATE`);await settleLifeCommitments(tx,{id,world_seed:String(root.world_seed)},offer.season,Math.ceil(offer.day/7));});
+  const paid=await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} AND category='COMMERCIAL_APPEARANCE'`);
+  assert.equal(paid.length,1);assert.equal(Number(paid[0].amount_pence),offer.feePence);assert.equal(paid[0].headline,"SPONSOR");
+  assert.deepEqual(await authority(),beforeAuthority,"commercial payment changes only A4 money + life state");
+  const afterFees=(await call("GET",`/saves/${id}/finance`)).body;
+  assert.equal(afterFees.careerEarningsPence,financeBefore.careerEarningsPence);assert.equal(afterFees.balancePence-financeBefore.balancePence,offer.feePence);
+  // Merchandise is offered only after sufficiently strong actual sporting recognition.
+  assert.equal((await life()).body.merchandise.canOptIn,true);
+  {
+    assert.equal((await call("POST",`/saves/${id}/life/merchandise`,{choice:"SIGNED_ITEMS",royaltyPence:999999})).status,400);
+    assert.equal((await call("POST",`/saves/${id}/life/merchandise`,{choice:"SIGNED_ITEMS"})).status,200);
+    assert.equal((await call("POST",`/saves/${id}/life/merchandise`,{choice:"SIGNED_ITEMS"})).body.replayed,true);
+    const period=Math.min(52,Math.ceil((Number(root.current_week)+4)/4)*4);
+    await db.transaction(async tx=>{await tx.execute(sql`SELECT id FROM career_saves WHERE id=${id} FOR UPDATE`);
+      await settleLifeCommitments(tx,{id,world_seed:String(root.world_seed)},Number(root.current_season),period);
+      await settleLifeCommitments(tx,{id,world_seed:String(root.world_seed)},Number(root.current_season),period);});
+    const royalties=await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} AND category='MERCHANDISE_ROYALTY'`);
+    assert.equal(royalties.length,1);assert.equal(royalties[0].headline,"SPONSOR");
+    assert.equal((await call("POST",`/saves/${id}/life/merchandise`,{choice:"STOP"})).status,200);
+    assert.deepEqual(await authority(),beforeAuthority);
+    assert.equal((await call("GET",`/saves/${id}/finance`)).body.careerEarningsPence,financeBefore.careerEarningsPence);
+  }
+  const slot=Number((await q(sql`SELECT n slot FROM generate_series(1,3) n WHERE NOT EXISTS
+    (SELECT 1 FROM career_saves s WHERE s.player_id=2 AND s.slot_number=n AND s.status='ACTIVE') ORDER BY n LIMIT 1`))[0].slot);
+  const fresh=await saves.create(2,{slot,careerName:"A75 uninitialized"});
+  const cold=await call("GET",`/saves/${fresh.id}/life`,undefined,2);assert.equal(cold.status,200);
+  assert.deepEqual(cold.body.history,[]);assert.deepEqual(cold.body.moments,[]);assert.deepEqual(cold.body.opportunities,[]);
+  const foreignNpc=randomUUID();
+  await db.execute(sql`INSERT INTO career_world_players SELECT
+    (jsonb_populate_record(NULL::career_world_players,to_jsonb(n)||jsonb_build_object('career_save_id',${fresh.id}::text,'id',${foreignNpc}::text,'world_key','a75-foreign-only'))).*
+    FROM career_world_players n WHERE career_save_id=${id} LIMIT 1`);
+  assert.equal((await call("GET",`/saves/${id}/life/npcs/${foreignNpc}`)).status,404,"foreign-only public NPC cannot bind to this save");
+  assert.equal((await call("POST",`/saves/${fresh.id}/life/opportunities/${offer.id}`,{choice:"ACCEPT"},2)).status,409);
+  await saves.delete(2,fresh.id);
+  const ending=await saves.retire(1,id);const final=await call("GET",`/saves/${ending.id}/life`);
+  assert.equal(final.status,200);assert.deepEqual(final.body.opportunities,[]);assert.deepEqual(final.body.moments,[]);
+  assert.ok(final.body.history.length>=1);assert.equal((await call("POST",`/saves/${id}/life/opportunities/${randomUUID()}`,{choice:"ACCEPT"})).status,409);
 });
 
 test("A6.6 admin reset cascades populated Career data only, requires confirmation and works while Hidden", async () => {

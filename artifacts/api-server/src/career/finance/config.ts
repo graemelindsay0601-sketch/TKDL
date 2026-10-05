@@ -13,6 +13,7 @@ export const WEEKS = 52;
 export const LEDGER_CATEGORIES = [
   "CAREER_START", "ENTRY_FEE", "TRAVEL", "ACCOMMODATION", "PRIZE",
   "SPONSOR_SIGNING_BONUS", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS",
+  "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY",
   "REFUND", "ADJUSTMENT",
 ] as const;
 export type LedgerCategory = typeof LEDGER_CATEGORIES[number];
@@ -22,6 +23,7 @@ export type Headline = typeof HEADLINES[number];
 export const HEADLINE_OF: Record<Exclude<LedgerCategory, "ADJUSTMENT" | "REFUND">, Headline> = {
   CAREER_START: "START", ENTRY_FEE: "EXPENSE", TRAVEL: "EXPENSE", ACCOMMODATION: "EXPENSE", PRIZE: "EARNINGS",
   SPONSOR_SIGNING_BONUS: "SPONSOR", SPONSOR_EVENT_PAYMENT: "SPONSOR", SPONSOR_PERFORMANCE_BONUS: "SPONSOR",
+  COMMERCIAL_APPEARANCE: "SPONSOR", MERCHANDISE_ROYALTY: "SPONSOR",
 };
 
 // ------------------------------------------------------------------ entry fees

@@ -20,7 +20,7 @@ export function RecognitionPage({ctx,npcId}: {ctx:ShellContext;npcId?:string}) {
 }
 export function RecognitionDetails({data,saveId}: {data:RecognitionView;saveId:string}) {
   return <div className="p-4 pt-0 space-y-4">
-    {data.subject.kind==="NPC" && <h2 className="text-lg font-bold">{data.subject.name}</h2>}
+    {data.subject.kind==="NPC" && <><h2 className="text-lg font-bold">{data.subject.name}</h2><Link className="underline text-sm" href={`/career/${saveId}/life/npcs/${data.subject.id}`}>Public presentation & identity</Link></>}
     <div><h2 className="text-xl font-bold">{data.standing.label}</h2><p className="text-sm text-white/70 mt-1">{data.standing.description}</p></div>
     {data.subject.retired && <p className="text-sm text-white/70">Retired {data.subject.kind==="NPC" ? "player" : "Career"}: earned recognition remains readable. This screen creates no further progression.</p>}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{data.contexts.map(c=><section key={c.context} className="rounded-xl border border-white/15 p-3" aria-label={`${c.label} recognition`}>

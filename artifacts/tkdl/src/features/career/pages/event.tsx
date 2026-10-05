@@ -101,6 +101,7 @@ function EntryActions({ ctx, detail }: { ctx: ShellContext; detail: EventDetail 
         <div className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}><Label>Entry</Label><div>{[...new Set(h.denials)].map(denialLabel).join(" · ")}</div>
           {h.denials.includes("INSUFFICIENT_FUNDS") && f && <div className="text-xs mt-1" style={{ color: TONES.danger }}>Estimated cost {formatPence(f.estimatedPlayerCostPence)} · available {formatPence(f.availablePence)}</div>}</div>
       )}
+      {!!h.commercialConflicts?.length&&<p className="text-sm">An accepted off-board commitment reserves this date. <Link className="underline" href={`/career/${ctx.save.id}/life`}>View Career Life</Link></p>}
       {msg && <p role="status" className="text-sm" style={{ color: "#fff" }}>{msg}</p>}
     </div>
   );

@@ -167,7 +167,7 @@ export function financeHeadlines(f: FinanceSummary): Headline[] {
   return [
     { key: "BALANCE", label: "Balance", pence: f.balancePence, hint: f.reservedForTravelPence > 0 ? `${formatPence(f.availablePence)} available after reserved travel` : "Spendable Career cash" },
     { key: "EARNINGS", label: "Career Earnings", pence: f.careerEarningsPence, hint: "Prize money only" },
-    { key: "SPONSOR", label: "Sponsor Earnings", pence: f.sponsorEarningsPence, hint: "Signing, event and performance payments" },
+    { key: "SPONSOR", label: "Sponsor Earnings", pence: f.sponsorEarningsPence, hint: "Sponsor / commercial fees and merchandise royalties; not prizes" },
     { key: "EXPENSES", label: "Career Expenses", pence: f.careerExpensesPence, hint: f.sponsorCoveredExpensesPence > 0 ? `${formatPence(f.sponsorCoveredExpensesPence)} more covered by sponsors` : "Fees, travel and accommodation you paid" },
   ];
 }
@@ -175,7 +175,7 @@ const LEDGER: Record<string, string> = { CAREER_START: "Starting funds", ENTRY_F
   SPONSOR_SIGNING_BONUS: "Sponsor signing bonus", SPONSOR_EVENT_PAYMENT: "Sponsor event payment", SPONSOR_PERFORMANCE_BONUS: "Sponsor performance bonus", REFUND: "Refund", ADJUSTMENT: "Adjustment" };
 export const ledgerLabel = (c: string) => LEDGER[c] ?? titleCase(c);
 export const LEDGER_FILTERS = [{ key: "ALL", label: "All", categories: null }, { key: "PRIZE", label: "Prize", categories: ["PRIZE"] },
-  { key: "SPONSOR", label: "Sponsor", categories: ["SPONSOR_SIGNING_BONUS", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS"] },
+  { key: "SPONSOR", label: "Sponsor / Commercial", categories: ["SPONSOR_SIGNING_BONUS", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS", "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY"] },
   { key: "COSTS", label: "Costs", categories: ["ENTRY_FEE", "TRAVEL", "ACCOMMODATION"] }, { key: "REFUND", label: "Refunds", categories: ["REFUND"] }] as const;
 
 // ---------------------------------------------------------------- milestones (A5 facts, neutral labels; no prose)
@@ -257,9 +257,9 @@ export const TONES: Record<Tone, string> = { neutral: "#cbd5e1", info: "#38bdf8"
 export type NavItem = { key: string; label: string; path: string };
 export const CAREER_NAV: { layer: "HOME" | "MY_CAREER" | "DARTS_WORLD"; label: string; items: NavItem[] }[] = [
   { layer: "HOME", label: "Home", items: [{ key: "home", label: "Home", path: "" }] },
-  { layer: "MY_CAREER", label: "My Career", items: [{ key: "journey", label: "Journey", path: "/journey" }, { key: "history", label: "History", path: "/history" }, { key: "relationships", label: "Relationships", path: "/relationships" }, { key: "goals", label: "Focus & Goals", path: "/goals" }, { key: "recognition", label: "Recognition", path: "/recognition" }, { key: "finances", label: "Finances", path: "/finances" }] },
+  { layer: "MY_CAREER", label: "My Career", items: [{ key: "journey", label: "Journey", path: "/journey" }, { key: "history", label: "History", path: "/history" }, { key: "relationships", label: "Relationships", path: "/relationships" }, { key: "goals", label: "Focus & Goals", path: "/goals" }, { key: "recognition", label: "Recognition", path: "/recognition" }, { key: "life", label: "Career Life", path: "/life" }, { key: "finances", label: "Finances", path: "/finances" }] },
   { layer: "DARTS_WORLD", label: "Darts World", items: [{ key: "calendar", label: "Calendar", path: "/calendar" }, { key: "rankings", label: "Rankings", path: "/rankings" },
-    { key: "q-school", label: "Q-School", path: "/q-school" }, { key: "world-championship", label: "The Palace", path: "/world-championship" }] },
+    { key: "q-school", label: "Q-School", path: "/q-school" }, { key: "world-championship", label: "The Palace", path: "/world-championship" }, { key: "stories", label: "News & Stories", path: "/stories" }] },
 ];
 /** The layer (Home / My Career / Darts World) that owns a nav key. */
 export function navLayerOf(key: string) {

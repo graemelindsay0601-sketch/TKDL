@@ -18,7 +18,7 @@ export type CareerSaveList = { slots: { slotNumber: number; career: CareerSave |
 export type DenialReason = string;
 export type HumanView = {
   relationship: "AVAILABLE" | "QUALIFIED" | "ENTERED" | "CONFIRMED" | "PLAYING" | "COMPLETED" | "WITHDRAWN" | "MISSED" | "NOT_ELIGIBLE";
-  eligible: boolean; eligibilityReasons: DenialReason[]; canEnter: boolean; denials: DenialReason[]; conflictsWith: string[];
+  eligible: boolean; eligibilityReasons: DenialReason[]; canEnter: boolean; denials: DenialReason[]; conflictsWith: string[]; commercialConflicts?:string[];
   entryStatus: string | null; result: { finishingPosition: number; stageReached: string; champion: boolean } | null;
   /** A6.5: age bounds for this event (authored AGE rules + circuit policy) and the human's age on its start date. */
   age?: { minAge: number | null; maxAgeExclusive: number | null; policyMin: number | null; junior: boolean; ageOnEventDate: number | null;

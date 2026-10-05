@@ -51,12 +51,12 @@ export async function createCareerFinance(database: CareerDatabase): Promise<voi
     await tx.execute(sql`ALTER TABLE career_finance_entries ALTER COLUMN category SET NOT NULL, ALTER COLUMN headline SET NOT NULL, ALTER COLUMN operation_key SET NOT NULL`);
     await tx.execute(sql`ALTER TABLE career_finance_entries DROP CONSTRAINT IF EXISTS career_finance_entries_category_check`);
     await tx.execute(sql`ALTER TABLE career_finance_entries ADD CONSTRAINT career_finance_entries_category_check CHECK (
-      category IN ('CAREER_START','ENTRY_FEE','TRAVEL','ACCOMMODATION','PRIZE','SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','REFUND','ADJUSTMENT')
+      category IN ('CAREER_START','ENTRY_FEE','TRAVEL','ACCOMMODATION','PRIZE','SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY','REFUND','ADJUSTMENT')
       AND headline IN ('START','EARNINGS','SPONSOR','EXPENSE')
       AND (category <> 'CAREER_START' OR (headline = 'START' AND amount_pence >= 0))
       AND (category NOT IN ('ENTRY_FEE','TRAVEL','ACCOMMODATION') OR (headline = 'EXPENSE' AND amount_pence <= 0))
       AND (category <> 'PRIZE' OR (headline = 'EARNINGS' AND amount_pence > 0))
-      AND (category NOT IN ('SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS') OR (headline = 'SPONSOR' AND amount_pence > 0))
+      AND (category NOT IN ('SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY') OR (headline = 'SPONSOR' AND amount_pence > 0))
       AND (category <> 'REFUND' OR (headline = 'EXPENSE' AND amount_pence > 0 AND reverses_entry_id IS NOT NULL))
       AND (category <> 'ADJUSTMENT' OR reverses_entry_id IS NOT NULL OR operation_key LIKE 'legacy:%' OR operation_key LIKE 'adjustment:%')
       AND sponsor_covered_pence >= 0 AND (gross_amount_pence IS NULL OR gross_amount_pence >= 0)
