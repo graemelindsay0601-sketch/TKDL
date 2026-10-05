@@ -1,30 +1,31 @@
 import { useMemo, useState } from "react";
 import { Award, CalendarRange, Crown, History as HistoryIcon, TrendingUp, Trophy } from "lucide-react";
-import { useFinance, useHistory, useMilestones, useRankingHistory, useSporting, useTourCard } from "../api";
+import { useFinance, useCareerFacts, useMilestones, useRankingHistory, useSporting, useTourCard } from "../api";
 import { circuitLabel, formatPence, milestoneLabel, ordinal, stageLabel, tierStyle } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile } from "../components";
 import type { ShellContext } from "../shell";
 import type { HistoryRow } from "../types";
+import { FactsOverview, FactsTimeline, PerformancePanel, RecordsPanel, WorldHistoryPanel } from "./facts-panels";
 import { ResultList } from "./journey";
 
-type Tab = "OVERVIEW" | "TIMELINE" | "SEASONS" | "TITLES" | "MAJORS" | "RANKING" | "TROPHIES";
+type Tab = "OVERVIEW" | "TIMELINE" | "SEASONS" | "TITLES" | "MAJORS" | "RANKING" | "TROPHIES" | "PLAYING" | "RECORDS" | "WORLD";
 const MAJOR = new Set(["MAJOR", "WORLD_CHAMPIONSHIP"]);
 
 /**
  * Screen 9 — My Career / History & Trophy Room. Only sections backed by real data
- * are shown (Rivalries/Records wait for A7). The Trophy Room is Career-only and is
+ * are shown, composed from authoritative Career evidence. The Trophy Room is Career-only and is
  * entirely separate from the Classic Tour's 305 trophies.
  */
 export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContext; initialTab?: Tab }) {
   const id = ctx.save.id;
-  const history = useHistory(id, { participant: "HUMAN" });
+  const history = useCareerFacts(id);
   const milestones = useMilestones(id, 200);
   const finance = useFinance(id);
   const sporting = useSporting(id);
   const cards = useTourCard(id);
   const world = useRankingHistory(id, "pro-world", "HUMAN", 1);
   const [tab, setTab] = useState<Tab>(initialTab);
-  const rows = history.data ?? [];
+  const rows: HistoryRow[] = (history.data?.results ?? []).map(r => ({ ...r, week: r.week ?? 1, presentationTier: r.presentationTier as HistoryRow["presentationTier"] }));
   const titles = rows.filter(r => r.champion);
   const finals = rows.filter(r => r.stageReached === "FINAL");
   const majors = rows.filter(r => MAJOR.has(r.circuit));
@@ -39,13 +40,13 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
   return (
     <div className="space-y-3">
       <div className="pdc-card px-3 py-2.5"><Segmented<Tab> label="History sections" value={tab} onChange={setTab} wrap options={[
-        { value: "OVERVIEW", label: "Overview" }, { value: "TIMELINE", label: "Timeline" }, { value: "SEASONS", label: "Seasons" }, { value: "TITLES", label: "Titles & finals", count: titles.length + finals.length },
+        { value: "OVERVIEW", label: "Overview" }, { value: "PLAYING", label: "Playing stats" }, { value: "RECORDS", label: "Records" }, { value: "WORLD", label: "World history" }, { value: "TIMELINE", label: "Timeline" }, { value: "SEASONS", label: "Seasons" }, { value: "TITLES", label: "Titles & finals", count: titles.length + finals.length },
         { value: "MAJORS", label: "Majors", count: majors.length }, { value: "RANKING", label: "Ranking" }, { value: "TROPHIES", label: "Trophy room", count: titles.length }]} /></div>
 
       {tab === "OVERVIEW" && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
           <StatTile label="Seasons" value={ctx.save.currentSeason} sub={ctx.retired ? "Retired" : `Now week ${ctx.save.currentWeek}`} />
-          <StatTile label="Events played" value={rows.length} sub={rows.length >= 200 ? "Showing the latest 200" : undefined} />
+          <StatTile label="Events played" value={rows.length} sub="All completed event results" />
           <StatTile label="Titles" value={titles.length} tone={titles.length ? "gold" : "neutral"} sub={`${finals.length} other final${finals.length === 1 ? "" : "s"}`} />
           <StatTile label="Highest World Rank" value={sporting.data?.worldRanking.careerHighPosition ? ordinal(sporting.data.worldRanking.careerHighPosition) : "—"} />
           <StatTile label="Career Earnings" value={finance.data ? formatPence(finance.data.careerEarningsPence) : "…"} sub="Prize money" />
@@ -54,16 +55,11 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
           <StatTile label="Milestones" value={milestones.data?.milestones.length ?? "…"} />
         </div>
       )}
-      {tab === "TIMELINE" && (
-        <CareerSection title="Timeline" icon={<HistoryIcon className="w-3.5 h-3.5" />}>
-          {milestones.isLoading ? <CareerLoading /> : milestones.data?.milestones.length ? (
-            <ol className="px-4 py-2">{milestones.data.milestones.map((m, i) => { const l = milestoneLabel(m); return (
-              <li key={m.id ?? i} className="flex gap-3 py-1.5 border-b last:border-b-0 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                <span className="w-16 shrink-0 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>S{m.season} W{m.week}</span><span style={{ color: "#fff" }}>{l.title}</span>
-                {l.detail && <span className="truncate" style={{ color: "rgba(255,255,255,0.62)" }}>{l.detail}</span>}</li>); })}</ol>
-          ) : <CareerEmptyState title="Nothing on the timeline yet" />}
-        </CareerSection>
-      )}
+      {tab === "OVERVIEW" && history.data && <FactsOverview facts={history.data} />}
+      {tab === "TIMELINE" && history.data && <FactsTimeline facts={history.data} />}
+      {tab === "PLAYING" && history.data && <PerformancePanel facts={history.data} />}
+      {tab === "RECORDS" && history.data && <RecordsPanel facts={history.data} />}
+      {tab === "WORLD" && history.data && <WorldHistoryPanel facts={history.data} />}
       {tab === "SEASONS" && (
         <CareerSection title="Season by season" icon={<CalendarRange className="w-3.5 h-3.5" />}>
           {seasons.length ? (
@@ -111,7 +107,7 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
                 </div>); })}
             </div>
           ) : <CareerEmptyState title="The cabinet is empty" icon={<Trophy className="w-6 h-6" />}>Win an event and its trophy appears here.</CareerEmptyState>}
-          <div className="px-4 pb-3"><Label color="rgba(255,255,255,0.3)">Rivalries and records arrive with the Career story phase</Label></div>
+          <div className="px-4 pb-3"><Label color="rgba(255,255,255,0.3)">Career records are available in the Records tab</Label></div>
         </CareerSection>
       )}
     </div>

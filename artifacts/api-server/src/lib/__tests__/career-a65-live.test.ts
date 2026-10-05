@@ -1,3 +1,5 @@
+import { createCareerFactsService } from "../../career/facts/service.ts";
+import { createCareerFactsRouter } from "../../career/facts/router.ts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
@@ -56,6 +58,7 @@ before(async () => {
   });
   const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
   const router = express.Router();
+  router.use(createCareerFactsRouter(createCareerFactsService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
   router.use(createCareerLiveRouter(live, available));
   router.use(createCareerSportingRouter(career, available));
@@ -219,7 +222,13 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   const bad = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: tampered, expectedRevision: mid.revision });
   assert.equal(bad.status, 409, "altered opponent dart refused"); assert.match(bad.body.error, /Opponent|log rejected/);
   assert.equal((await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: mid.darts, expectedRevision: mid.revision - 1 })).status, 409, "stale revision refused");
+  const beforeFacts = (await call("GET", `/saves/${id}/facts`)).body;
+  assert.equal(beforeFacts.records.firstMatch, null);
   const done = await playOut(id, matchId, mid, STRONG, "h1b");
+  const afterFacts = (await call("GET", `/saves/${id}/facts`)).body;
+  assert.equal(afterFacts.records.firstMatch.id, `match:${matchId}`);
+  assert.equal(afterFacts.records.firstWin.id, `match:${matchId}`);
+  assert.equal(afterFacts.performance.recordedMatches, 1);
   assert.equal(done.session.result.humanWon, true);
   const match = (await q(sql`SELECT status, winner_key, result_source, legs_a, legs_b, first_throw_detail, summary FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0];
   assert.deepEqual([match.status, match.winner_key, match.result_source], ["COMPLETED", "HUMAN", "HUMAN_LIVE"]);
@@ -228,6 +237,7 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   // Duplicate final submission returns the original result; a different log is refused; no second result.
   const dup = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: done.darts, expectedRevision: 0 });
   assert.deepEqual([dup.status, dup.body.duplicate], [200, true]);
+  assert.deepEqual((await call("GET", `/saves/${id}/facts`)).body, afterFacts, "duplicate result leaves records and totals unchanged");
   assert.equal((await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: done.darts.slice(0, -1), expectedRevision: 0 })).status, 409, "a different log after completion is refused");
   // Keep playing the event's later human matches until the event finishes for the human.
   let next: string[] = done.session.result.nextHumanMatchIds ?? [];
@@ -385,6 +395,35 @@ test("sponsor facts (grind fix): an amateur qualifier final is not a Major finis
   const best = await db.transaction(tx => humanBestFinishByCircuit(tx, id));
   assert.equal(best.MAJOR, undefined, "a qualifier final does not satisfy circuitFinish MAJOR <= 2 (ELITE sponsor)");
   assert.equal(best.Q_SCHOOL, 2, "Q-School qualifier results remain circuit finishes");
+});
+
+test("A7.1 factual read model: actual live evidence, isolation, age, lifecycle and source agreement", async () => {
+  const facts = createCareerFactsService(db);
+  const ids = (await q(sql`SELECT id FROM career_saves WHERE player_id=1 ORDER BY slot_number`)).map(r=>String(r.id));
+  const first = await facts.read({playerId:1},ids[0]);
+  const repeated = await facts.read({playerId:1},ids[0]);
+  assert.deepEqual(repeated,first,"retries/resume never add facts");
+  const counted = (await q(sql`SELECT count(*)::int n FROM career_tournament_matches WHERE career_save_id=${ids[0]} AND status='COMPLETED' AND (a_key='HUMAN' OR b_key='HUMAN')`))[0].n;
+  assert.equal(first.statistics.matchesPlayed,counted);
+  assert.ok(first.performance.recordedMatches>0);
+  const source = (await q(sql`SELECT result FROM career_match_sessions WHERE career_save_id=${ids[0]} AND status='COMPLETED'`)).map(r=>r.result.facts.human);
+  const points = source.reduce((n,r)=>n+r.points,0), darts=source.reduce((n,r)=>n+r.darts,0);
+  assert.equal(first.performance.threeDartAverage,Math.round(points/darts*300)/100);
+  assert.equal((await call('GET',`/saves/${ids[0]}/facts`,undefined,2)).status,404);
+  assert.equal((await call('GET',`/saves/${ids[0]}/facts`,undefined,0)).status,401);
+  const results = await q(sql`SELECT r.event_id,r.metadata FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id WHERE r.career_save_id=${ids[0]} AND r.participant_key='HUMAN' AND i.status='COMPLETED'`);
+  assert.equal(first.statistics.eventsEntered,results.length);
+  for (const r of results) assert.equal(first.results.find(f=>f.eventId===r.event_id)?.age,r.metadata.humanAge);
+  const other = await saves.create(2,{slot:1,careerName:'Independent',dateOfBirth:dobForAge(30)});
+  const empty = await facts.read({playerId:2},other.id);
+  assert.equal(empty.statistics.matchesPlayed,0); assert.equal(empty.performance.maximums,null); assert.equal(empty.timeline.length,1); assert.equal(empty.world.champions.length,0);
+  await assert.rejects(()=>facts.read({playerId:1},other.id));
+  const retired = await saves.retire(1,ids[0]);
+  assert.deepEqual(await facts.read({playerId:1},retired.id),first,'retirement preserves historical facts');
+  const restarted = await saves.restart(2,other.id);
+  assert.equal((await facts.read({playerId:2},restarted.id)).statistics.matchesPlayed,0);
+  await saves.delete(2,restarted.id);
+  await assert.rejects(()=>facts.read({playerId:2},other.id));
 });
 
 test("A6.6 admin reset cascades populated Career data only, requires confirmation and works while Hidden", async () => {

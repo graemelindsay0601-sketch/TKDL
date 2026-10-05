@@ -40,6 +40,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
       </section>
       {/* A7 extension point: narrative/news renders here later. A6 renders nothing in its place. */}
       <JourneyStoryExtension />
+      <Link className="career-row-link block pdc-card p-3 text-sm" href={`/career/${id}/history`}>Career facts, playing statistics, records and full history →</Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CareerSection title="Milestones" icon={<MilestoneIcon className="w-3.5 h-3.5" />} accent="#4ade80">

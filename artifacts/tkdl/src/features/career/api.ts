@@ -1,3 +1,4 @@
+import type { CareerFacts } from "../../../../api-server/src/career/facts/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetchJson, ApiRequestError } from "@/lib/api-fetch";
 import type {
@@ -22,6 +23,8 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
 };
 const STALE = 10_000;
 export const careerKey = (saveId: string, ...rest: unknown[]) => ["career", saveId, ...rest] as const;
+
+export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 
 // ---------------------------------------------------------------- reads
 export const useCareerSaves = (enabled = true) => useQuery({ queryKey: ["career", "saves"], queryFn: () => get<CareerSaveList>("/saves"), enabled, staleTime: STALE, retry: false });
