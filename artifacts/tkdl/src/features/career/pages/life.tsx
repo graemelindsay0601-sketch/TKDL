@@ -69,6 +69,7 @@ function Profile({data:d}:{data:LifeView}) {
     ].map(([label,value])=><div className="rounded-xl border border-white/15 p-3" key={label}><h3 className="text-xs text-white/60">{label}</h3><p className="font-bold">{value}</p></div>)}</div>
     <p className="text-sm text-white/70">{d.profile.persona.description} {d.profile.commercial.description}</p>
     <p className="text-sm">Actual commercial income: {formatPence(d.commercialIncomePence)} — part of A4 Sponsor/Commercial earnings, never prize earnings or a separate wallet.</p>
+    {!!d.signatureProducts?.length&&<section><h3 className="font-bold">Factual signature products</h3>{d.signatureProducts.map(p=><p key={p.id}>{p.name} · S{p.launchSeason} · {p.state.toLowerCase()}</p>)}</section>}
     <h3 className="font-bold">Narrative relationship tone</h3>{d.relationshipTones.length?<ul>{d.relationshipTones.map(r=><li className="text-sm py-1" key={r.opponentId}>{r.name}: {r.tone.toLowerCase()} · sporting labels remain {r.sportingLabels.join(", ")||"unchanged"}</li>)}</ul>:
       <p className="text-sm text-white/60">No interaction-based tone yet. Sporting rivalry does not imply hatred.</p>}
   </section>;

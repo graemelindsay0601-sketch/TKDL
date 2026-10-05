@@ -1,0 +1,11 @@
+import ts from "typescript";
+import path from "node:path";
+const configFileName=path.resolve("artifacts/tkdl/tsconfig.json");
+const file=ts.readConfigFile(configFileName,ts.sys.readFile);
+const parsed=ts.parseJsonConfigFileContent(file.config,ts.sys,path.dirname(configFileName),undefined,configFileName);
+const files=parsed.fileNames.filter(p=>p.includes("/features/career/"));
+const program=ts.createProgram(files,{...parsed.options,incremental:false,tsBuildInfoFile:undefined});
+const diagnostics=ts.getPreEmitDiagnostics(program).filter(d=>!d.file||d.file.fileName.includes("/features/career/"));
+console.log(ts.formatDiagnosticsWithColorAndContext(diagnostics,{getCanonicalFileName:p=>p,getCurrentDirectory:ts.sys.getCurrentDirectory,getNewLine:()=>"\n"}));
+console.log(`Career frontend diagnostics: ${diagnostics.length}`);
+process.exitCode=diagnostics.length?1:0;

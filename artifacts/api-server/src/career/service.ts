@@ -86,7 +86,7 @@ async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateC
     try { validateDateOfBirth(dateOfBirth, startDate); } catch (error) { throw new CareerError(409, (error as Error).message); }
   }
   if (homeLocality && !LOCALITIES.some(l => l.key === homeLocality)) throw new CareerError(409, "Unknown home locality");
-  const snapshot = { ...defaults, difficulty: input.difficulty, ...(homeLocality ? { homeLocality } : {}) };
+  const snapshot = { ...defaults, difficulty: input.difficulty, competitionCategory:input.competitionCategory??"OPEN", ...(homeLocality ? { homeLocality } : {}) };
   const result = await tx.execute(sql`
     INSERT INTO career_saves (
       id, player_id, slot_number, career_name, status, difficulty, current_season, current_week,
@@ -164,6 +164,7 @@ export function createCareerService(database: CareerDatabase,options:{onRetired?
         await tx.execute(sql`DELETE FROM career_saves WHERE id = ${old.id} AND player_id = ${playerId}`);
         return present(await insertCareer(tx, playerId, {
           slot: old.slot_number, difficulty: old.difficulty, careerName: old.career_name ?? undefined,
+          competitionCategory:old.settings_snapshot?.competitionCategory==="WOMEN"?"WOMEN":"OPEN",
         }, identity ? { dateOfBirth: identity.dob as string | null, careerStartDate: String(identity.start), homeLocality: (identity.home_locality as string | null) ?? null,
           displayName: (identity.display_name as string | null) ?? null } : null));
       });

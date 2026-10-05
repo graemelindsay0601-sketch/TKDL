@@ -174,7 +174,11 @@ test("milestones are neutral labels from A5 facts (no prose)", () => {
 
 test("three-layer navigation and stable routes", () => {
   assert.deepEqual(CAREER_NAV.map(s => s.layer), ["HOME", "MY_CAREER", "DARTS_WORLD"]);
-  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 13);
+  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 17);
+  assert.equal(activeNavKey("/career/abc/world/players"),"world");
+  assert.equal(activeNavKey("/career/abc/map"),"map");
+  assert.equal(activeNavKey("/career/abc/guide"),"guide");
+  assert.equal(activeNavKey("/career/abc/presentation"),"presentation");
   assert.equal(activeNavKey("/career/abc/recognition/npcs/example"), "recognition");
   assert.equal(activeNavKey("/career/abc/goals"), "goals");
   assert.equal(activeNavKey("/career/abc/relationships"), "relationships");

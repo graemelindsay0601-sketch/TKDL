@@ -23,6 +23,12 @@ export const COUNTRIES: Record<string, { name: string; zone: Zone }> = {
   USA: { name: "United States", zone: "REST_OF_WORLD" },
   NZL: { name: "New Zealand", zone: "REST_OF_WORLD" },
   JPN: { name: "Japan", zone: "REST_OF_WORLD" },
+  FRA: { name: "France", zone: "EUROPE" },
+  SWE: { name: "Sweden", zone: "EUROPE" },
+  FIN: { name: "Finland", zone: "EUROPE" },
+  EST: { name: "Estonia", zone: "EUROPE" },
+  SGP: { name: "Singapore", zone: "REST_OF_WORLD" },
+  ZAF: { name: "South Africa", zone: "REST_OF_WORLD" },
 };
 export const zoneOf = (country: string): Zone => COUNTRIES[country]?.zone ?? "REST_OF_WORLD";
 
@@ -30,7 +36,7 @@ export const zoneOf = (country: string): Zone => COUNTRIES[country]?.zone ?? "RE
  * Localities host grassroots/county play. Keys match A2 NPC homeRegion values
  * (plus Ayrshire/Scotland, the default human home). Weight drives rotation density.
  */
-export const LOCALITIES = [
+export const LOCALITIES_V1 = [
   { key: "ayrshire", region: "Ayrshire", country: "GBR", city: "Kilbirnie", weight: 3 },
   { key: "highlands", region: "Highlands", country: "GBR", city: "Inverness", weight: 2 },
   { key: "north-east", region: "North East", country: "GBR", city: "Newcastle", weight: 3 },
@@ -55,6 +61,22 @@ export const LOCALITIES = [
   { key: "alberta", region: "Alberta", country: "CAN", city: "Calgary", weight: 0.5 },
   { key: "nova-scotia", region: "Nova Scotia", country: "CAN", city: "Halifax", weight: 0.5 },
 ] as const;
+/** Additive geography. v1/v2 generation explicitly uses the original list. */
+export const LOCALITIES = [
+  ...LOCALITIES_V1,
+  { key: "glasgow-clyde", region: "Greater Glasgow/Clyde", country: "GBR", city: "Glasgow", weight: 3 },
+  { key: "central-scotland", region: "Central Scotland", country: "GBR", city: "Stirling", weight: 2 },
+  { key: "edinburgh-lothians", region: "Edinburgh/Lothians", country: "GBR", city: "Edinburgh", weight: 2 },
+  { key: "borders", region: "Borders", country: "GBR", city: "Galashiels", weight: 1 },
+  { key: "north-east-scotland", region: "North-East Scotland", country: "GBR", city: "Aberdeen", weight: 2 },
+  { key: "tayside", region: "Tayside", country: "GBR", city: "Dundee", weight: 1 },
+  { key: "northern-ireland", region: "Northern Ireland", country: "GBR", city: "Belfast", weight: 1.5 },
+  { key: "ile-de-france", region: "Île-de-France", country: "FRA", city: "Paris", weight: 1 },
+  { key: "stockholm", region: "Stockholm", country: "SWE", city: "Stockholm", weight: 1 },
+  { key: "kanto", region: "Kanto", country: "JPN", city: "Tokyo", weight: 0.8 },
+  { key: "new-york", region: "New York", country: "USA", city: "New York", weight: 0.8 },
+  { key: "auckland", region: "Auckland", country: "NZL", city: "Auckland", weight: 0.8 },
+] as const;
 /**
  * County catchments: residence areas for county events. A2 regions are sparse
  * (about ten amateurs each), so neighbouring areas share a county pathway.
@@ -69,6 +91,13 @@ export const COUNTY_CATCHMENTS: Record<string, string[]> = {
   flanders: ["flanders", "wallonia"], wallonia: ["flanders", "wallonia"],
   victoria: ["victoria", "queensland", "western-australia"], queensland: ["victoria", "queensland", "western-australia"], "western-australia": ["victoria", "queensland", "western-australia"],
   ontario: ["ontario", "alberta", "nova-scotia"], alberta: ["ontario", "alberta", "nova-scotia"], "nova-scotia": ["ontario", "alberta", "nova-scotia"],
+  "glasgow-clyde": ["glasgow-clyde", "ayrshire", "central-scotland"],
+  "central-scotland": ["central-scotland", "glasgow-clyde", "edinburgh-lothians", "tayside"],
+  "edinburgh-lothians": ["edinburgh-lothians", "central-scotland", "borders"],
+  borders: ["borders", "edinburgh-lothians"],
+  "north-east-scotland": ["north-east-scotland", "highlands", "tayside"],
+  tayside: ["tayside", "north-east-scotland", "central-scotland"],
+  "northern-ireland": ["northern-ireland"],
 };
 export type LocalityKey = typeof LOCALITIES[number]["key"];
 export const localityByRegion = (region: string) => LOCALITIES.find(l => l.region === region);
@@ -111,6 +140,36 @@ export const VENUES: readonly Venue[] = [
   V("waitemata-centre-auckland", "Waitemata Centre", "Auckland", "NZL", "Auckland", "ARENA"),
   V("bayfront-dome-tokyo", "Bayfront Dome", "Tokyo", "JPN", "Kanto", "ARENA"),
   V("desert-pavilion-las-vegas", "Desert Pavilion", "Las Vegas", "USA", "Nevada", "ARENA"),
+  V("foundry-glasgow", "The Foundry — Glasgow", "Glasgow", "GBR", "Greater Glasgow/Clyde", "HALL"),
+  V("clyde-arena", "Clyde Arena", "Glasgow", "GBR", "Greater Glasgow/Clyde", "ARENA"),
+  V("kelvin-assembly", "Kelvin Assembly Hall", "Glasgow", "GBR", "Greater Glasgow/Clyde", "HALL"),
+  V("ayr-pavilion", "Ayr Pavilion", "Ayr", "GBR", "Ayrshire", "HALL"),
+  V("burns-hall", "Burns Hall", "Kilmarnock", "GBR", "Ayrshire", "HALL"),
+  V("forth-exchange", "Forth Exchange", "Edinburgh", "GBR", "Edinburgh/Lothians", "HALL"),
+  V("caledonia-hall", "Caledonia Hall", "Edinburgh", "GBR", "Edinburgh/Lothians", "ARENA"),
+  V("granite-centre", "Granite Centre", "Aberdeen", "GBR", "North-East Scotland", "HALL"),
+  V("tay-assembly", "Tay Assembly Rooms", "Dundee", "GBR", "Tayside", "HALL"),
+  V("highland-events", "Highland Events Hall", "Inverness", "GBR", "Highlands", "HALL"),
+  V("stirling-civic", "Stirling Civic Hall", "Stirling", "GBR", "Central Scotland", "HALL"),
+  V("borders-pavilion", "Borders Pavilion", "Galashiels", "GBR", "Borders", "HALL"),
+  V("lagan-exchange", "Lagan Exchange", "Belfast", "GBR", "Northern Ireland", "HALL"),
+  V("lee-assembly", "Lee Assembly Hall", "Cork", "IRL", "Munster", "HALL"),
+  V("western-rooms", "Western Assembly Rooms", "Galway", "IRL", "Connacht", "HALL"),
+  V("solent-centre", "Solent Sports Centre", "Southampton", "GBR", "South Coast", "HALL"),
+  V("severn-studio", "Severn Studio", "Bristol", "GBR", "South West", "HALL"),
+  V("capital-floor-hall", "Capital Floor Hall", "London", "GBR", "London", "HALL"),
+  V("seine-forum", "Seine Forum", "Paris", "FRA", "Île-de-France", "ARENA"),
+  V("rhone-theatre", "Rhône Theatre", "Lyon", "FRA", "Auvergne-Rhône-Alpes", "HALL"),
+  V("northern-waterfront", "Northern Waterfront", "Stockholm", "SWE", "Stockholm", "ARENA"),
+  V("baltic-exchange", "Baltic Exchange Hall", "Tallinn", "EST", "Harju", "HALL"),
+  V("aurora-centre", "Aurora Centre", "Helsinki", "FIN", "Uusimaa", "ARENA"),
+  V("castile-pavilion", "Castile Pavilion", "Madrid", "ESP", "Madrid", "HALL"),
+  V("canal-conference", "Canal Conference Hall", "Utrecht", "NLD", "Utrecht", "HALL"),
+  V("garden-city-arena", "Garden City Arena", "Singapore", "SGP", "Singapore", "ARENA"),
+  V("cape-horizon", "Cape Horizon Arena", "Cape Town", "ZAF", "Western Cape", "ARENA"),
+  V("southern-cross-hall", "Southern Cross Hall", "Melbourne", "AUS", "Victoria", "HALL"),
+  V("pacific-assembly", "Pacific Assembly Hall", "Brisbane", "AUS", "Queensland", "HALL"),
+  V("prairie-forum", "Prairie Forum", "Calgary", "CAN", "Alberta", "HALL"),
 ];
 
 /** Grassroots/county clubs are generated per locality with stable keys. */

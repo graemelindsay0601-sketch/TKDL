@@ -5,7 +5,8 @@ import { CAREER_FEATURE, type CareerDifficulty } from "../config.ts";
 import { CareerError } from "../service.ts";
 import { careerIdSchema } from "../validation.ts";
 import { CAREER_WORLD_CONFIG, CAREER_DEVELOPMENT_CONFIG, CAREER_DIFFICULTY_CONFIG, CAREER_SIMULATION_CONFIG, SIMULATION_VERSION } from "./config.ts";
-import { assertGenerationVersion, generateInitialWorld, generateJuniorCohort, JUNIOR_COHORT } from "./generation.ts";
+import { assertGenerationVersion, generateInitialWorld, generateJuniorCohort, generateWomenCohort, JUNIOR_COHORT } from "./generation.ts";
+import { geographicalIdentities } from "./geographical-identities.ts";
 import { loadNpcs, persistNpcs, presentNpc } from "./repository.ts";
 import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./types.ts";
 import { simulateNpcMatch } from "./simulation.ts";
@@ -112,7 +113,10 @@ export function createCareerWorldService(database: CareerDatabase) {
         // A6.5: event database v2 carries the Junior Development Circuit, which needs junior opponents.
         if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 2)
           players.push(...generateJuniorCohort(root.world_seed, root.world_generation_version, 1, JUNIOR_COHORT.initial, players, "initial"));
-        await persistNpcs(tx, saveId, players);
+        if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 3)
+          players.push(...generateWomenCohort(root.world_seed, root.world_generation_version, 1, 80, players));
+        await persistNpcs(tx, saveId, Number((root as Root & {player_database_version?:number}).player_database_version ?? 1) >= 2 ?
+          geographicalIdentities(root.world_seed, players) : players);
         await tx.execute(sql`INSERT INTO career_world_state (career_save_id, generation_version, simulation_version, season, period, elapsed_year, config_snapshot)
           VALUES (${saveId}, ${root.world_generation_version}, ${SIMULATION_VERSION}, ${root.current_season}, 0, 0, ${JSON.stringify(configSnapshot())}::jsonb)`);
         return { initialized: true, created: true };
@@ -164,6 +168,15 @@ export function createCareerWorldService(database: CareerDatabase) {
         if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 2) {
           const intake = generateJuniorCohort(root.world_seed, root.world_generation_version, world.season + 1, JUNIOR_COHORT.annualIntake, evolved.players, `intake:${world.season + 1}`);
           evolved.players.push(...intake); evolved.entrants.push(...intake.map(npc => npc.id));
+        }
+        if (Number((root as Root & {event_database_version?:number}).event_database_version ?? 1) >= 3) {
+          const intake = generateWomenCohort(root.world_seed, root.world_generation_version, world.season + 1, 20, evolved.players);
+          evolved.players.push(...intake); evolved.entrants.push(...intake.map(p => p.id));
+        }
+        if (Number((root as Root & {player_database_version?:number}).player_database_version ?? 1) >= 2) {
+          const ids = new Set(evolved.entrants), old = evolved.players.filter(p => !ids.has(p.id));
+          const replacements = new Map(geographicalIdentities(root.world_seed, evolved.players.filter(p => ids.has(p.id)), old).map(p => [p.id, p]));
+          evolved.players = evolved.players.map(p => replacements.get(p.id) ?? p);
         }
         await persistNpcs(tx, saveId, evolved.players);
         const summary = { completedSeason: world.season, nextSeason: world.season + 1, retired: evolved.retired, entrants: evolved.entrants };

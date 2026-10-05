@@ -10,11 +10,14 @@ import type { CalendarProviders } from "../calendar/providers.ts";
 import { FINANCE_VERSION, SPONSOR_DATABASE_VERSION } from "./config.ts";
 import { summary, recentEntries, presentEntry, post, type LedgerRow } from "./ledger.ts";
 import {
-  createFinanceHooks, defaultFactsProvider, ensureFinanceState, evaluateOffers, acceptOffer, declineOffer, reservedPence, activeContract,
+  createFinanceHooks, defaultFactsProvider, ensureFinanceState, evaluateOffers, acceptOffer, declineOffer, reservedPence, activeContracts,
   type SponsorFactsProvider,
 } from "./engine.ts";
+import { relationship, conflicts, portfolioLimit } from "./portfolio.ts";
+import type { SponsorTerms } from "./sponsors.catalogue.ts";
 
 const offerRefSchema = z.object({ offerId: z.string().uuid() }).strict();
+const acceptOfferSchema = offerRefSchema.extend({replaceContractIds:z.array(z.string().uuid()).max(5).refine(ids=>new Set(ids).size===ids.length).optional()});
 const ledgerQuerySchema = z.object({ limit: z.number().int().min(1).max(200).default(50), beforeCreatedAt: z.string().datetime({ offset: true }).optional(), beforeId: z.string().uuid().optional() }).strict();
 const milestoneSchema = z.object({ triggerKey: z.string().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/) }).strict();
 const reversalSchema = z.object({ entryId: z.string().uuid(), operationKey: z.string().min(8).max(120), reason: z.string().min(3).max(200) }).strict();
@@ -63,11 +66,12 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const root = await open(tx, actor, saveId, false);
         const s = await summary(tx, root.id);
         const reserved = await reservedPence(tx, root.id);
-        const contract = await activeContract(tx, root.id);
+        const portfolio = await activeContracts(tx, root.id),contract=portfolio[0];
         const offers = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND status = 'AVAILABLE'`)).rows[0].n);
         return { ...s, reservedForTravelPence: reserved, availablePence: s.balancePence - reserved, financeVersion: FINANCE_VERSION,
           sponsor: contract ? { contractId: contract.id, sponsorKey: contract.sponsor_key, displayName: contract.terms.displayName, tier: contract.tier, endSeason: contract.end_season, endWeek: contract.end_week } : null,
-          availableOffers: offers };
+          activeContracts:portfolio.map(c=>({contractId:c.id,sponsorKey:c.sponsor_key,displayName:c.terms.displayName,tier:c.tier,
+            ...relationship(c.terms),endSeason:c.end_season,endWeek:c.end_week})), availableOffers: offers };
       });
     },
 
@@ -114,27 +118,29 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
     async sponsors(actor: CareerActor, saveId: string) {
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId, false);
+        const active=await activeContracts(tx,root.id), sporting=await facts!.facts(tx,root);
         const contracts = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} ORDER BY signed_at DESC, id LIMIT 50`)).rows;
         const offers = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 50`)).rows;
         const earnings = new Map((await tx.execute(sql`SELECT contract_id, COALESCE(SUM(amount_pence) FILTER (WHERE headline = 'SPONSOR'), 0)::bigint AS paid,
             COALESCE(SUM(sponsor_covered_pence), 0)::bigint AS covered FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id IS NOT NULL GROUP BY 1`)).rows
           .map(r => [String(r.contract_id), { paidPence: Number(r.paid), coveredPence: Number(r.covered) }]));
-        const presentContract = (c: Record<string, unknown>) => ({ id: c.id, sponsorKey: c.sponsor_key, tier: c.tier, terms: c.terms, status: c.status, endReason: c.end_reason,
+        const presentContract = (c: Record<string, unknown>) => ({ id: c.id, sponsorKey: c.sponsor_key, tier: c.tier, terms: c.terms, ...relationship(c.terms as SponsorTerms),status: c.status, endReason: c.end_reason,
           start: { season: c.start_season, week: c.start_week }, end: { season: c.end_season, week: c.end_week }, signedAt: c.signed_at, endedAt: c.ended_at,
           totals: earnings.get(String(c.id)) ?? { paidPence: 0, coveredPence: 0 } });
-        const presentOffer = (o: Record<string, unknown>) => ({ id: o.id, sponsorKey: o.sponsor_key, tier: o.tier, kind: o.kind, terms: o.terms, source: o.source, status: o.status,
+        const presentOffer = (o: Record<string, unknown>) => ({ id: o.id, sponsorKey: o.sponsor_key, tier: o.tier, kind: o.kind, terms: o.terms, ...relationship(o.terms as SponsorTerms),
+          conflictingContractIds:conflicts(o.terms as SponsorTerms,active),portfolioFull:active.length>=portfolioLimit(sporting),source: o.source, status: o.status,
           statusReason: o.status_reason, offered: { season: o.offered_season, week: o.offered_week }, expires: { season: o.expires_season, week: o.expires_week } });
-        return { active: contracts.filter(c => c.status === "ACTIVE").map(presentContract)[0] ?? null,
+        return { active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),portfolioLimit:portfolioLimit(sporting),
           offers: offers.filter(o => o.status === "AVAILABLE").map(presentOffer),
           history: { contracts: contracts.filter(c => c.status !== "ACTIVE").map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
       });
     },
 
     async acceptOffer(actor: CareerActor, saveId: string, body: unknown) {
-      const { offerId } = offerRefSchema.parse(body);
+      const { offerId,replaceContractIds } = acceptOfferSchema.parse(body);
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId);
-        const out = await acceptOffer(tx, root, offerId, now(root).season, now(root).week);
+        const out = await acceptOffer(tx, root, offerId, now(root).season, now(root).week,{replaceContractIds,facts:await facts!.facts(tx,root)});
         return { contractId: out.contract.id, sponsorKey: out.contract.sponsor_key, created: out.created, status: out.contract.status };
       });
     },

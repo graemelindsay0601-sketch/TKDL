@@ -122,6 +122,9 @@ export function createCareerLifeService(database:CareerDatabase) {
       WHERE career_save_id=${saveId} AND category IN ('COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY') GROUP BY category`)).rows;
     const merch=(await tx.execute(sql`SELECT category,active,royalty_pence FROM career_life_merchandise WHERE career_save_id=${saveId}`)).rows[0];
     const offers=opportunities(s);
+    const products=(await tx.execute(sql`SELECT p.*,c.status AS contract_status FROM career_signature_products p
+      JOIN career_sponsor_contracts c ON c.career_save_id=p.career_save_id AND c.id=p.contract_id WHERE p.career_save_id=${saveId}
+      ORDER BY p.launch_season,p.id`)).rows;
     const booked=(await tx.execute(sql`SELECT day,event_id FROM career_participant_bookings WHERE career_save_id=${saveId}
       AND participant_key='HUMAN' AND season=${s.season}`)).rows;
     for(const o of offers) {
@@ -135,6 +138,8 @@ export function createCareerLifeService(database:CareerDatabase) {
         agreement:merch?`${String(merch.category).toLowerCase().replaceAll("_"," ")} · ${merch.active?"active":"stopped"}`:null,
         canOptIn:s.active&&s.ready&&!merch&&s.recognition.contexts.some(c=>LEVELS.indexOf(c.level)>=2),canStop:s.active&&merch?.active===true},
       commercialIncomePence:entries.reduce((sum,r)=>sum+Number(r.total),0),
+      signatureProducts:products.map(p=>({id:String(p.id),name:String(p.product_name),manufacturer:String(p.manufacturer),
+        launchSeason:Number(p.launch_season),state:s.active&&p.contract_status==="ACTIVE"?"ACTIVE":"LEGACY"})),
       notes:["Sporting recognition, persona, public response and commercial demand are distinct.",
         "Optional work never changes scoring, ability, form, RNG, draws, rankings, qualification or Tour Cards.",
         "Declining media or charity brings no sporting penalty or morality judgement. Accepted dates are real commitments.",

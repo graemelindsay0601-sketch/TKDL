@@ -47,5 +47,6 @@ export type LifeView = {
   relationshipTones:{opponentId:string;name:string;tone:Tone;sportingLabels:string[]}[];
   merchandise:{demand:string;incomePence:number;agreement:string|null;royaltyPence:number|null;offerRoyaltyPence:number;canOptIn:boolean;canStop:boolean};
   commercialIncomePence:number;notes:string[];
+  signatureProducts?:{id:string;name:string;manufacturer:string;launchSeason:number;state:"ACTIVE"|"LEGACY"}[];
 };
 export type NpcLifeView = {careerSaveId:string;id:string;name:string;retired:boolean;personality:{primary:string;secondary:string|null};standing:string;publicDraw:string;notes:string};

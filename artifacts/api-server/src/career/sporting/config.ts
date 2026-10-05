@@ -11,7 +11,7 @@ import { WEEKS_PER_SEASON } from "../calendar/config.ts";
 export const RANKING_RULES_VERSION = 1;
 export const TOUR_CARD_RULES_VERSION = 1;
 export const Q_SCHOOL_RULES_VERSION = 1;
-export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1], tourCard: [1], qSchool: [1] } as const;
+export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2], tourCard: [1], qSchool: [1] } as const;
 
 /** Linear Career clock: (season, week) -> publication index. Week 52 of season S = S*52. */
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS_PER_SEASON + week;
@@ -52,7 +52,14 @@ export const RANKING_LISTS_V1: readonly RankingListDefinition[] = Object.freeze(
   { key: "amateur", name: "Amateur Circuit Ranking", scope: "AMATEUR", categories: ["AMATEUR_LOCAL", "AMATEUR_COUNTY", "AMATEUR_REGIONAL", "AMATEUR_NATIONAL"],
     window: { kind: "ROLLING", weeks: WEEKS_PER_SEASON }, cutLines: [16, 32], milestoneThresholds: [1] },
 ]);
+export const RANKING_LISTS_V2: readonly RankingListDefinition[] = Object.freeze([
+  ...RANKING_LISTS_V1,
+  {key:"open-world",name:"Open World Ranking",scope:"AMATEUR",categories:["AMATEUR_NATIONAL"],window:{kind:"ROLLING",weeks:52},cutLines:[16,32],milestoneThresholds:[1]},
+  {key:"women",name:"Women's Order of Merit",scope:"AMATEUR",categories:["WOMENS"],window:{kind:"ROLLING",weeks:52},cutLines:[8,16,32],milestoneThresholds:[1]},
+  {key:"youth",name:"Youth Order of Merit",scope:"AMATEUR",categories:["YOUTH"],window:{kind:"SEASON"},cutLines:[8,16],milestoneThresholds:[1]},
+]);
 export function rankingListsFor(version: number): readonly RankingListDefinition[] {
+  if(version===2)return RANKING_LISTS_V2;
   if (version !== RANKING_RULES_VERSION) throw new Error(`Unsupported Career ranking rules version ${version}; migration required`);
   return RANKING_LISTS_V1;
 }

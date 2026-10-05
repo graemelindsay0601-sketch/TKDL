@@ -20,6 +20,8 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
   const accept = useAcceptOffer(save.id);
   const decline = useDeclineOffer(save.id);
   const [msg, setMsg] = useState<string | null>(null);
+  const [replace,setReplace]=useState<Record<string,string[]>>({});
+  const active=sponsors.data?.activeContracts??(sponsors.data?.active?[sponsors.data.active]:[]);
   const commitments = (schedule.data?.events ?? []).filter(e => e.finance?.commitment && ["ENTERED", "TRAVEL_COMMITTED"].includes(e.finance.commitment.status) && e.status !== "COMPLETED");
 
   return (
@@ -33,14 +35,14 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <CareerSection title="Current sponsor" icon={<Handshake className="w-3.5 h-3.5" />} accent="#4ade80">
+        <CareerSection title="Sponsor portfolio" icon={<Handshake className="w-3.5 h-3.5" />} accent="#4ade80">
           {sponsors.isLoading ? <CareerLoading /> : sponsors.error || !sponsors.data ? <CareerError error={sponsors.error} onRetry={() => sponsors.refetch()} />
-            : sponsors.data.active ? (
-              <div className="px-4 py-3 space-y-2">
-                <div className="flex items-center gap-2 flex-wrap"><span aria-hidden className="inline-block w-3 h-3 rounded-sm" style={{ background: sponsors.data.active.terms.presentation?.colour ?? "#fff", border: "1px solid rgba(255,255,255,0.3)" }} /><span className="font-black uppercase" style={{ ...OSWALD, fontSize: "1.2rem", color: "#fff" }}>{sponsors.data.active.terms.displayName}</span>
-                  <StatusBadge label={titleCase(sponsors.data.active.tier)} tone="success" /></div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>S{sponsors.data.active.start.season} W{sponsors.data.active.start.week} → S{sponsors.data.active.end.season} W{sponsors.data.active.end.week} · paid {formatPence(sponsors.data.active.totals.paidPence)} · covered {formatPence(sponsors.data.active.totals.coveredPence)}</div>
-                <Terms terms={sponsors.data.active.terms} />
+            : active.length ? (
+              <div className="px-4 py-3 space-y-3"><p>{active.length} / {sponsors.data.portfolioLimit??2} relationships · coverage never stacks</p>
+                {active.map(c=><div key={c.id} className="space-y-2">
+                  <div className="font-black uppercase" style={{...OSWALD,color:"#fff"}}>{c.terms.displayName} · {titleCase(c.slot??c.tier)}</div>
+                  <div className="text-xs">S{c.start.season} W{c.start.week} → S{c.end.season} W{c.end.week} · paid {formatPence(c.totals.paidPence)} · covered {formatPence(c.totals.coveredPence)}</div>
+                  <Terms terms={c.terms}/></div>)}
               </div>
             ) : <CareerEmptyState title="Self-funded" icon={<Wallet className="w-6 h-6" />}>No sponsor yet. Offers arrive from real results — titles, finishes, qualifications and later your ranking.</CareerEmptyState>}
         </CareerSection>
@@ -51,9 +53,15 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
                 <StatusBadge label={titleCase(o.tier)} tone="gold" />{o.kind === "RENEWAL" && <StatusBadge label="Renewal" tone="info" />}
                 <span className="text-xs ml-auto" style={{ color: "rgba(255,255,255,0.62)" }}>Expires S{o.expires.season} W{o.expires.week}</span></div>
               <Terms terms={o.terms} />
+              {!retired&&active.length>0&&<fieldset className="space-y-1 text-xs"><legend>Optional explicit replacement — otherwise existing compatible deals stay active</legend>
+                {active.map(c=><label className="block" key={c.id}><input type="checkbox" checked={(replace[o.id]??[]).includes(c.id)}
+                  onChange={e=>setReplace({...replace,[o.id]:e.target.checked?[...(replace[o.id]??[]),c.id]:(replace[o.id]??[]).filter(id=>id!==c.id)})}/>
+                  {" "}{c.terms.displayName}{o.conflictingContractIds?.includes(c.id)?" — must replace for this offer":""}</label>)}
+                {o.portfolioFull&&<p>Portfolio full: select a deal to replace.</p>}</fieldset>}
               {!retired && <div className="flex flex-wrap gap-2">
-                <ConfirmButton label="Accept" confirmLabel="Sign contract" busy={accept.isPending} description={sponsors.data?.active ? `Signing replaces your current contract with ${sponsors.data.active.terms.displayName}.` : `Sign with ${o.terms.displayName}. The signing bonus is paid immediately.`}
-                  onConfirm={() => accept.mutate(o.id, { onSuccess: () => setMsg(`Signed with ${o.terms.displayName}.`), onError: e => setMsg(errorMessage(e)) })} />
+                <ConfirmButton label="Accept" confirmLabel="Sign contract" busy={accept.isPending}
+                  description={`Sign with ${o.terms.displayName}. ${replace[o.id]?.length?`Terminate only: ${active.filter(c=>replace[o.id].includes(c.id)).map(c=>c.terms.displayName).join(", ")}.`:"Keep all existing deals."}`}
+                  onConfirm={() => accept.mutate({offerId:o.id,replaceContractIds:replace[o.id]??[]}, { onSuccess: () => setMsg(`Signed with ${o.terms.displayName}.`), onError: e => setMsg(errorMessage(e)) })} />
                 <button className="career-btn career-btn-ghost" disabled={decline.isPending} onClick={() => decline.mutate(o.id, { onSuccess: () => setMsg("Offer declined."), onError: e => setMsg(errorMessage(e)) })}>Decline</button>
               </div>}
             </div>

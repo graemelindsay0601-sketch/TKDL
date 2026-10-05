@@ -87,3 +87,11 @@ export function generateJuniorCohort(seed: string, version: number, season: numb
   const ages = tag === "initial" ? JUNIOR_COHORT.initialAges : JUNIOR_COHORT.intakeAges;
   return Array.from({ length: count }, (_, i) => generateNpc(seed, version, `junior:${tag}:${i}`, "GRASSROOTS", season, names, true, ages));
 }
+/** Dedicated eligibility category, not a separate simulation universe or bank. */
+export function generateWomenCohort(seed: string, version: number, season: number, count: number, existing: readonly Npc[]): Npc[] {
+  const names = new Set(existing.map(p => `${p.firstName} ${p.surname}`));
+  return Array.from({ length: count }, (_, i) => {
+    const tier: Tier = season === 1 ? i < 8 ? "ELITE" : i < 24 ? "PROFESSIONAL" : i < 60 ? "AMATEUR" : "GRASSROOTS" : "GRASSROOTS";
+    return generateNpc(seed, version, `women:${season}:${i}`, tier, season, names, season > 1);
+  });
+}

@@ -9,6 +9,7 @@ import { zoneOf, ZONES, type Zone } from "./geography.ts";
 export type Rule =
   | { all: Rule[] } | { any: Rule[] } | { not: Rule }
   | { type: "OPEN" }
+  | { type: "WOMEN" }
   | { type: "COUNTRY"; countries: string[] }
   | { type: "ZONE"; zones: Zone[] }
   | { type: "LOCALITY"; localities: string[] }
@@ -25,6 +26,7 @@ export type Rule =
 
 const leaf = z.discriminatedUnion("type", [
   z.object({ type: z.literal("OPEN") }).strict(),
+  z.object({ type: z.literal("WOMEN") }).strict(),
   z.object({ type: z.literal("COUNTRY"), countries: z.array(z.string().min(2).max(3)).min(1) }).strict(),
   z.object({ type: z.literal("ZONE"), zones: z.array(z.enum(ZONES)).min(1) }).strict(),
   z.object({ type: z.literal("LOCALITY"), localities: z.array(z.string().min(1)).min(1) }).strict(),
@@ -52,6 +54,7 @@ export const DENIAL_REASONS = [
   "REGISTRATION_NOT_OPEN", "REGISTRATION_CLOSED", "SCHEDULE_CONFLICT", "ALREADY_ENTERED", "NOT_ENTERED",
   "UNSUPPORTED_FORMAT", "CAREER_NOT_ACTIVE", "PARTICIPANT_RETIRED", "FIELD_LOCKED", "EVENT_FINISHED", "INSUFFICIENT_FUNDS",
   "BELOW_MINIMUM_AGE", "ABOVE_MAXIMUM_AGE", "PROFILE_INCOMPLETE",
+  "REQUIRES_WOMENS_CATEGORY",
 ] as const;
 export type DenialReason = typeof DENIAL_REASONS[number];
 
@@ -72,6 +75,7 @@ export type ParticipantFacts = {
   defendingChampion: boolean;
   /** A6.5: age on the event's start date; null = unknown (save without a DOB). Absent = not supplied. */
   age?: number | null;
+  womenEligible?: boolean;
 };
 
 export type RuleOutcome = { eligible: boolean; reasons: DenialReason[] };
@@ -91,6 +95,7 @@ export function evaluateRule(rule: Rule, facts: ParticipantFacts): RuleOutcome {
   if ("not" in rule) return evaluateRule(rule.not, facts).eligible ? deny("NOT_ELIGIBLE") : ok;
   switch (rule.type) {
     case "OPEN": return ok;
+    case "WOMEN": return facts.womenEligible === true ? ok : deny("REQUIRES_WOMENS_CATEGORY");
     case "COUNTRY": return rule.countries.includes(facts.country) ? ok : deny("OUTSIDE_REGION");
     case "ZONE": return rule.zones.includes(facts.zone) ? ok : deny("OUTSIDE_REGION");
     case "LOCALITY": return facts.locality && rule.localities.includes(facts.locality) ? ok : deny("OUTSIDE_REGION");
@@ -121,6 +126,7 @@ const unique = <T>(values: T[]) => [...new Set(values)];
 /** Static rule helpers for authored definitions. */
 export const R = {
   open: (): Rule => ({ type: "OPEN" }),
+  women: (): Rule => ({ type: "WOMEN" }),
   all: (...all: Rule[]): Rule => ({ all }),
   any: (...any: Rule[]): Rule => ({ any }),
   not: (rule: Rule): Rule => ({ not: rule }),

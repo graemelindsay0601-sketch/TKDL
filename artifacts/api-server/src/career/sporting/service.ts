@@ -62,7 +62,8 @@ export function createCareerSportingService(database: CareerDatabase, options: {
   };
   const latestSnapshot = async (tx: CareerExecutor, saveId: string, list: string) =>
     (await tx.execute(sql`SELECT * FROM career_ranking_snapshots WHERE career_save_id = ${saveId} AND list_key = ${list} ORDER BY sequence DESC LIMIT 1`)).rows[0] ?? null;
-  const requireList = (key: string) => { const list = rankingList(key); if (!list) throw new CareerError(404, "Ranking list not found"); return list; };
+  const rulesVersion=(root:RootRow)=>Number(root.event_database_version)>=3?2:1;
+  const requireList = (key: string,root:RootRow) => { const list = rankingList(key,rulesVersion(root)); if (!list) throw new CareerError(404, "Ranking list not found"); return list; };
   const presentRow = (r: Record<string, unknown>, who?: { name: string; nationality: string | null }) => ({ position: Number(r.position), participantKey: String(r.participant_key),
     kind: String(r.participant_kind), name: who?.name ?? null, nationality: who?.nationality ?? null, valuePence: Number(r.value_pence),
     previousPosition: r.previous_position === null ? null : Number(r.previous_position), movement: r.movement === null ? null : Number(r.movement), isNew: Boolean(r.is_new),
@@ -146,12 +147,16 @@ export function createCareerSportingService(database: CareerDatabase, options: {
       case "TOUR_CARD": case "NON_TOUR_CARD": return { ...base, tourCard: facts.tourCard };
       case "QUALIFICATION": return { ...base, targetKey: rule.targetKey, held: facts.entitlementTargets.has(rule.targetKey), qualifierRoutes: qualifiers.get(rule.targetKey) ?? [] };
       case "PRO_STATUS": return { ...base, required: rule.status, professionalStatus: facts.professionalStatus };
+      case "WOMEN":return {...base,declaredEligibility:facts.womenEligible===true};
+      case "AGE":return {...base,age:facts.age??null,minAge:rule.minAge??null,maxAgeExclusive:rule.maxAgeExclusive??null};
+      case "EVENT_RESULT":return {...base,definitionKey:rule.definitionKey,maxPosition:rule.maxPosition,season:rule.season,
+        finishingPosition:facts.results[rule.season].get(rule.definitionKey)??null};
       default: return base;
     }
   }
 
   return {
-    calendar, finance, providers: () => composed!,
+    calendar, finance, factsProvider:facts,providers: () => composed!,
     versions: { rankingRulesVersion: RANKING_RULES_VERSION, tourCardRulesVersion: TOUR_CARD_RULES_VERSION, qSchoolRulesVersion: Q_SCHOOL_RULES_VERSION },
 
     /** A1 save -> A2 world -> A3 calendar -> A4 finance -> A5 state + founding cards (idempotent). */
@@ -166,7 +171,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId);
         const lists = [];
-        for (const list of rankingListsFor(RANKING_RULES_VERSION)) {
+        for (const list of rankingListsFor(rulesVersion(root))) {
           const s = await participantStanding(tx, root.id, list.key, HUMAN);
           lists.push({ key: list.key, name: list.name, scope: list.scope, published: s.published, position: s.standing?.position ?? null, valuePence: s.standing?.valuePence ?? 0,
             movement: s.standing?.movement ?? null, isNew: s.standing?.isNew ?? false, careerHighPosition: s.careerHighPosition });
@@ -176,7 +181,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const card = await cardView(tx, root, HUMAN);
         return { season: Number(root.current_season), week: Number(root.current_week), professionalStatus: card.holdsCard ? "PROFESSIONAL" : "AMATEUR",
           tourCard: { holdsCard: card.holdsCard, current: card.current }, worldRanking: await participantStanding(tx, root.id, "pro-world", HUMAN), rankings: lists,
-          recentMilestones: recent, versions: { ranking: RANKING_RULES_VERSION, tourCard: TOUR_CARD_RULES_VERSION, qSchool: Q_SCHOOL_RULES_VERSION } };
+          recentMilestones: recent, versions: { ranking: rulesVersion(root), tourCard: TOUR_CARD_RULES_VERSION, qSchool: Q_SCHOOL_RULES_VERSION } };
       });
     },
 
@@ -184,7 +189,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId);
         const out = [];
-        for (const list of rankingListsFor(RANKING_RULES_VERSION)) {
+        for (const list of rankingListsFor(rulesVersion(root))) {
           const snap = await latestSnapshot(tx, root.id, list.key);
           out.push({ key: list.key, name: list.name, scope: list.scope, categories: list.categories, window: list.window, cutLines: list.cutLines,
             published: snap ? { season: snap.season, week: snap.week, sequence: snap.sequence, participantCount: snap.participant_count, reason: snap.reason } : null,
@@ -197,9 +202,9 @@ export function createCareerSportingService(database: CareerDatabase, options: {
     /** Current table slice: TOP N, AROUND a participant, or a PAGE (offset/limit). */
     async rankingTable(actor: CareerActor, saveId: string, listKey: string, query: unknown = {}) {
       const q = tableQuerySchema.parse(query);
-      const list = requireList(listKey);
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId);
+        const list = requireList(listKey,root);
         const snap = await latestSnapshot(tx, root.id, list.key);
         if (!snap) return { list: list.key, name: list.name, published: null, rows: [], participant: null };
         const target = (await tx.execute(sql`SELECT position FROM career_ranking_snapshot_rows WHERE career_save_id = ${root.id} AND snapshot_id = ${snap.id} AND participant_key = ${q.participant}`)).rows[0];
@@ -216,9 +221,9 @@ export function createCareerSportingService(database: CareerDatabase, options: {
 
     async rankingHistory(actor: CareerActor, saveId: string, listKey: string, query: unknown = {}) {
       const q = historyQuerySchema.parse(query);
-      const list = requireList(listKey);
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId);
+        const list = requireList(listKey,root);
         const rows = (await tx.execute(sql`SELECT r.*, s.season AS s_season, s.week AS s_week, s.sequence FROM career_ranking_snapshot_rows r
           JOIN career_ranking_snapshots s ON s.career_save_id = r.career_save_id AND s.id = r.snapshot_id
           WHERE r.career_save_id = ${root.id} AND r.list_key = ${list.key} AND r.participant_key = ${q.participant} ORDER BY r.publication_index DESC LIMIT ${q.limit}`)).rows;
@@ -233,9 +238,9 @@ export function createCareerSportingService(database: CareerDatabase, options: {
     /** Why does this participant have this value? Counting contributions at the latest publication, plus expired ones. */
     async rankingExplain(actor: CareerActor, saveId: string, listKey: string, participant: string = HUMAN) {
       participantSchema.parse(participant);
-      const list = requireList(listKey);
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId);
+        const list = requireList(listKey,root);
         const snap = await latestSnapshot(tx, root.id, list.key);
         const P = snap ? Number(snap.publication_index) : timeIndex(Number(root.current_season), Number(root.current_week));
         const rows = (await tx.execute(sql`SELECT c.*, i.name, i.definition_key, i.circuit FROM career_ranking_contributions c JOIN career_event_instances i ON i.career_save_id = c.career_save_id AND i.id = c.event_id
@@ -278,7 +283,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const human = humanParticipant(root, providers);
         const ctx = await loadFactsContext(tx, root.id, events[0]?.season ?? season, events.map(e => e.snapshot.eligibility), [HUMAN]);
         const snaps = new Map<string, Record<string, unknown>>();
-        for (const list of rankingListsFor(RANKING_RULES_VERSION)) { const s = await latestSnapshot(tx, root.id, list.key); if (s) snaps.set(list.key, s); }
+        for (const list of rankingListsFor(rulesVersion(root))) { const s = await latestSnapshot(tx, root.id, list.key); if (s) snaps.set(list.key, s); }
         const values = new Map((await tx.execute(sql`SELECT list_key, current_value_pence FROM career_ranking_participants WHERE career_save_id = ${root.id} AND participant_key = ${HUMAN}
           AND current_position IS NOT NULL`)).rows.map(r => [String(r.list_key), Number(r.current_value_pence)]));
         const cutCache = new Map<string, number | null>();

@@ -62,5 +62,6 @@ export function presentNpc(npc: Npc) {
     homeRegion: npc.homeRegion, dominantHand: npc.dominantHand, age: npc.age, stage: npc.stage, tier: npc.tier,
     professionalStatus: npc.professionalStatus, detailTier: npc.detailTier, status: npc.status,
     createdSeason: npc.createdSeason, retiredSeason: npc.retiredSeason,
+    womenEligible: npc.worldKey.startsWith("women:"),
     form: npc.form > D.formLabelThreshold ? "HOT" : npc.form < -D.formLabelThreshold ? "COLD" : "NORMAL" };
 }

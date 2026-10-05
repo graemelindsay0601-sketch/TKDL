@@ -18,6 +18,10 @@ import { FOCUSES, type GoalsView } from "../../../../api-server/src/career/goals
 import { recognitionModel } from "../../../../api-server/src/career/recognition/model.ts";
 import type { RecognitionView } from "../../../../api-server/src/career/recognition/types.ts";
 import type { LifeView, Story } from "../../../../api-server/src/career/life/types.ts";
+import {ORGANISATIONS,CIRCUIT_CONTENT,COUNTRY_CONTENT,REGIONS,CITIES,VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,GUIDE,ALMANAC,SEASON_RHYTHM,PRESTIGE_CLASSES,venueContent} from "../../../../api-server/src/career/content/world.ts";
+import {BRANDS} from "../../../../api-server/src/career/content/brands.ts";
+import {identity} from "../../../../api-server/src/career/content/events.ts";
+import {catalogueFor} from "../../../../api-server/src/career/calendar/catalogue.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 let vite: ViteDevServer;
@@ -30,7 +34,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
 });
 after(async () => { await vite?.close(); });
 
@@ -424,4 +428,40 @@ test("A7.6 retirement summary is archived, readable and has no progression contr
 test("A7.6 old seasons label reconstruction and do not manufacture awards",()=>{
   const r=projectReview(legacyEvidence(),1),t=text(render(h(M.SeasonReviewPanel,{review:r,saveId:SAVE_ID}),[]));
   assert.match(t,/reconstructed/);assert.match(t,/Older reconstructed seasons do not invent award winners/);
+});
+const worldFixture=()=>({version:1,eventDatabaseVersion:3,playerDatabaseVersion:2,organisations:ORGANISATIONS,circuits:CIRCUIT_CONTENT,
+  countries:COUNTRY_CONTENT,regions:REGIONS,cities:CITIES,venues:VENUE_CONTENT,venueFamilies:VENUE_FAMILIES,trophies:TROPHIES,brands:BRANDS,
+  seasonRhythm:SEASON_RHYTHM,prestigeClasses:PRESTIGE_CLASSES,guide:GUIDE,almanac:ALMANAC,eventFamilies:catalogueFor(3).map(d=>({id:d.key,name:d.name,...d.content}))});
+test("A8.1 world directory shows real authored identities and paths without invented champions",()=>{
+  const t=text(render(h(M.WorldPage,{ctx:ctx()}),[[key("world-content"),worldFixture()]]));
+  assert.match(t,/World Darts Union/);assert.match(t,/Vault Darts/);assert.match(t,/Sovereign Trophy/);assert.match(t,/Factual trophy cabinet/);
+  assert.doesNotMatch(t,/Historical World Champion:|ability bonus/);
+});
+test("A8.1 guide preserves optional amateur, women's and youth pathways, not XP gates",()=>{
+  const t=text(render(h(M.WorldPage,{ctx:ctx(),guide:true}),[[key("world-content"),worldFixture()]]));
+  assert.match(t,/Turning professional is an opportunity/);assert.match(t,/Declared women's-category eligibility/);
+  assert.match(t,/Foundation events are under 18/);assert.match(t,/never XP/);
+});
+test("A8.1 map keeps an inaccessible Palace visible with factual denial and approximate city anchor",()=>{
+  const d=identity(catalogueFor(3).find(d=>d.key==="world-darts-championship")!);
+  const e={id:"palace",name:"The Palace World Championship",dates:{startWeek:50},venue:venueContent("the-palace-london"),fieldDescriptor:"World Championship Field",
+    content:d,opportunity:{state:"NOT_QUALIFIED",reasons:["REQUIRES_RANKING"],canEnter:false}};
+  const t=text(render(h(M.WorldMapPage,{ctx:ctx()}),[[key("world-map"),{events:[e]}]]));
+  assert.match(t,/The Palace World Championship/);assert.match(t,/Not Qualified/);assert.match(t,/Requires Ranking/);assert.match(t,/city approximation/);
+  assert.doesNotMatch(t,/Enter this event|Buy access/);
+});
+test("A8.1 retired identity/products render read-only, with contract-controlled placement",()=>{
+  const p={identity:{nickname:"The Quiet One",shirtTemplate:"CLASSIC",primaryColour:"#334455",secondaryColour:"#FFFFFF",accentColour:"#C8A050",competitionCategory:"WOMEN"},
+    canEdit:false,editWindow:"Season opening week",placements:[{contractId:"equipment",brandName:"Ironflight",position:"UPPER_CHEST",slot:"EQUIPMENT_PARTNER"}],
+    products:[{id:"signature",name:"Actual Signature Darts",launchSeason:3,state:"LEGACY"}],productCandidates:[]};
+  const html=render(h(M.PresentationPage,{ctx:ctx(save({status:"RETIRED"}))}),[[key("presentation"),p]]),t=text(html);
+  assert.match(t,/Contract-controlled shirt placement/);assert.match(t,/Actual Signature Darts/);assert.match(t,/LEGACY/);assert.doesNotMatch(t,/Launch Signature/);
+  assert.match(html,/<button[^>]*disabled=""[^>]*>Save presentation/);
+});
+test("A8.1 empty trophy cabinet invents nothing; repeated genuine wins stay distinct",()=>{
+  const empty=text(render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:0,titles:[],nextOffset:null}]]));
+  assert.match(empty,/No titles invented/);
+  const award={canonicalEventId:"double-crown",name:"The Double Crown",classification:"RANKING",trophy:{name:"Double Crown Trophy"}};
+  const full=text(render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:2,nextOffset:null,titles:[{...award,eventId:"a",season:2},{...award,eventId:"b",season:3}]}]]));
+  assert.equal((full.match(/Double Crown Trophy/g)??[]).length,2);assert.match(full,/S2/);assert.match(full,/S3/);
 });

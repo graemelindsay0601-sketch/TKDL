@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import {createCareerContent} from "./create_career_content.ts";
 import type { CareerDatabase } from "../../career/database.ts";
 
 /**
@@ -130,7 +131,9 @@ export async function createCareerFinance(database: CareerDatabase): Promise<voi
           AND (end_season > start_season OR (end_season = start_season AND end_week >= start_week)))
       )
     `);
-    await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_sponsor_contracts_one_active ON career_sponsor_contracts (career_save_id) WHERE status = 'ACTIVE'`);
+    // A8.1: root-locked A4 acceptance validates portfolio slots and exclusivity.
+    // Never recreate the old one-active index on restart of a populated portfolio.
+    await tx.execute(sql`DROP INDEX IF EXISTS career_sponsor_contracts_one_active`);
     await tx.execute(sql`
       CREATE OR REPLACE FUNCTION career_sponsor_contract_guard() RETURNS trigger AS $$
       BEGIN
@@ -254,5 +257,6 @@ export async function createCareerFinance(database: CareerDatabase): Promise<voi
       await tx.execute(sql`DROP TRIGGER IF EXISTS ${sql.raw(`${table}_immutable`)} ON ${sql.raw(table)}`);
       await tx.execute(sql`CREATE TRIGGER ${sql.raw(`${table}_immutable`)} BEFORE UPDATE ON ${sql.raw(table)} FOR EACH ROW EXECUTE FUNCTION career_reject_prize_update()`);
     }
+    await createCareerContent(tx);
   });
 }

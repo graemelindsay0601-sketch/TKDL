@@ -176,7 +176,7 @@ export async function loadFactsContext(tx: CareerExecutor, saveId: string, seaso
 }
 
 export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; country: string; zone: string; locality: string | null; professionalStatus: "AMATEUR" | "PROFESSIONAL"; tourCard: boolean | null; rankings: Record<string, number>;
-  age?: number | null; identity?: CareerIdentity | null },
+  age?: number | null; identity?: CareerIdentity | null; womenEligible?: boolean },
   ctx: FactsContext, event: InstanceRow, invited = false): ParticipantFacts {
   // A6.5: the human's age is taken on THIS event's start date (Career-world time).
   const age = participant.identity !== undefined ? careerAge(participant.identity, event.season, event.start_day) : participant.age;
@@ -185,12 +185,13 @@ export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; coun
     results: { SAME: ctx.results.SAME.get(participant.key) ?? new Map(), PREVIOUS: ctx.results.PREVIOUS.get(participant.key) ?? new Map() },
     defendingChampion: ctx.champions.get(`${event.definition_key}:${event.ordinal}`)?.has(participant.key) ?? false };
 }
-export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age,
+export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age, womenEligible: npc.worldKey.startsWith("women:"),
   professionalStatus: providers.sportingStatus.npcProfessionalStatus?.(npc) ?? npc.professionalStatus, tourCard: providers.sportingStatus.npcTourCard(npc), rankings: providers.sportingStatus.rankings(npc.id) });
 export const humanParticipant = (root: RootRow, providers: CalendarProviders) => {
   const profile = providers.sportingStatus.human(root);
   return { key: HUMAN, kind: "HUMAN" as const, country: profile.country, zone: profile.zone, locality: profile.locality,
-    professionalStatus: profile.professionalStatus, tourCard: profile.tourCard, rankings: providers.sportingStatus.rankings(HUMAN), identity: rootIdentity(root) };
+    professionalStatus: profile.professionalStatus, tourCard: profile.tourCard, rankings: providers.sportingStatus.rankings(HUMAN), identity: rootIdentity(root),
+    womenEligible: root.settings_snapshot?.competitionCategory === "WOMEN" };
 };
 export const evaluate = (event: InstanceRow, facts: ParticipantFacts): RuleOutcome => evaluateRule(event.snapshot.eligibility, facts);
 

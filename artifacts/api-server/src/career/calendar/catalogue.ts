@@ -5,6 +5,8 @@ import { knockout501, setsKnockout501, groupKnockout501, league501, x01Variant, 
 import { R, Q_SCHOOL_PATHWAYS, type Rule, type QSchoolPathway } from "./eligibility.ts";
 import { AGE_POLICY } from "../identity/age.ts";
 import { COUNTRIES, LOCALITIES, type Zone } from "./geography.ts";
+import { expandWorldCatalogue } from "../content/events.ts";
+import type { EventContent } from "../content/world.ts";
 
 /**
  * EVENT DATABASE v1 — authored definitions/templates. Definitions are content;
@@ -65,6 +67,7 @@ export type EventDefinition = {
   /** Legacy Classic Tour concept this was adapted from (metadata only; Tour untouched). */
   legacyConcept: string | null;
   schedule: Schedule;
+  content?: EventContent;
 };
 
 const tw = (g: number, a: number, p: number, e: number): Record<Tier, number> => ({ GRASSROOTS: g, AMATEUR: a, PROFESSIONAL: p, ELITE: e });
@@ -418,10 +421,12 @@ const doubleCrown = (() => {
 export const EVENT_CATALOGUE_V2: readonly EventDefinition[] = Object.freeze([
   ...EVENT_CATALOGUE_V1.filter(d => d.key !== "double-start-grand-prix"), doubleCrown, ...junior,
 ].map(d => ({ ...d, eventDatabaseVersion: 2 })));
+export const EVENT_CATALOGUE_V3 = expandWorldCatalogue(EVENT_CATALOGUE_V2);
 
 export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === EVENT_DATABASE_VERSION) return EVENT_CATALOGUE_V1;
   if (version === 2) return EVENT_CATALOGUE_V2;
+  if (version === 3) return EVENT_CATALOGUE_V3;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** Referenced so a missing locality list fails at module load, not mid-season. */

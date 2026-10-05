@@ -8,6 +8,7 @@ export const createCareerSchema = z.object({
   /** A6.5 Career identity (save-scoped). Without a DOB the save is PROFILE_INCOMPLETE. */
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   homeLocality: z.string().min(1).max(80).optional(),
+  competitionCategory: z.enum(["OPEN","WOMEN"]).optional(),
 }).strict();
 
 export const careerIdSchema = z.string().uuid();

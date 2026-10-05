@@ -93,10 +93,12 @@ export type SponsorTerms = {
   renewalRequirement: unknown; retentionRequirement: unknown; presentation: { colour: string };
 };
 export type SponsorContract = { id: string; sponsorKey: string; tier: string; terms: SponsorTerms; status: string; endReason: string | null;
+  slot?:string;groups?:string[];
   start: { season: number; week: number }; end: { season: number; week: number }; totals: { paidPence: number; coveredPence: number } };
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
+  slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean;
   offered: { season: number; week: number }; expires: { season: number; week: number } };
-export type SponsorsResponse = { active: SponsorContract | null; offers: SponsorOffer[]; history: { contracts: SponsorContract[]; offers: SponsorOffer[] } };
+export type SponsorsResponse = { active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; history: { contracts: SponsorContract[]; offers: SponsorOffer[] } };
 
 // ---------------------------------------------------------------- A5 sporting
 export type CutGap = { cutPosition: number; valueAtCutPence: number | null; inside: boolean; placesOutside: number | null; gapPence: number | null };

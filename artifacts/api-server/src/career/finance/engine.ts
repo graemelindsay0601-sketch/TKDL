@@ -12,6 +12,7 @@ import {
 import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
 import { sponsorCatalogue, evaluateRequirement, tierRank, type CostType, type SponsorTerms, type SportingFacts, type SponsorTier } from "./sponsors.catalogue.ts";
+import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 
 const HUMAN = "HUMAN";
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS + week;
@@ -34,13 +35,19 @@ export function profileFor(event: Pick<InstanceRow, "definition_key" | "classifi
 // ------------------------------------------------------------------ state / contract / coverage
 export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
-    VALUES (${saveId}, ${FINANCE_VERSION}, ${SPONSOR_DATABASE_VERSION}) ON CONFLICT (career_save_id) DO NOTHING`);
+    SELECT ${saveId}, ${FINANCE_VERSION}, CASE WHEN event_database_version >= 3 THEN 2 ELSE 1 END FROM career_saves WHERE id=${saveId}
+    ON CONFLICT (career_save_id) DO NOTHING`);
   const row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
-  if (Number(row.finance_version) !== FINANCE_VERSION || Number(row.sponsor_database_version) !== SPONSOR_DATABASE_VERSION) throw new CareerError(409, "Career finance requires a version migration");
+  if (Number(row.finance_version) !== FINANCE_VERSION || ![1,2].includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
 }
 export type ContractRow = { id: string; offer_id: string; sponsor_key: string; tier: SponsorTier; terms: SponsorTerms; start_season: number; start_week: number; end_season: number; end_week: number; status: string };
-export const activeContract = async (tx: CareerExecutor, saveId: string) =>
-  (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${saveId} AND status = 'ACTIVE'`)).rows[0] as ContractRow | undefined;
+export async function activeContracts(tx: CareerExecutor, saveId: string): Promise<ContractRow[]> {
+  const rows = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${saveId} AND status = 'ACTIVE' ORDER BY id`)).rows as ContractRow[];
+  const order = ["PRIMARY_COMMERCIAL", "EQUIPMENT_PARTNER", "APPAREL_PARTNER", "SECONDARY_COMMERCIAL", "LOCAL_REGIONAL_PARTNER"];
+  return rows.sort((a,b)=>order.indexOf(relationship(a.terms).slot)-order.indexOf(relationship(b.terms).slot)||a.id.localeCompare(b.id));
+}
+/** Compatibility/display representative only, never the financial portfolio. */
+export const activeContract = async (tx: CareerExecutor, saveId: string) => (await activeContracts(tx,saveId))[0];
 
 type CoverageUsage = Map<number, number>;
 async function coverageUsage(tx: CareerExecutor, saveId: string, contract: ContractRow | undefined, season: number): Promise<CoverageUsage> {
@@ -62,10 +69,27 @@ export function applyCoverage(contract: ContractRow | undefined, usage: Coverage
   usage.set(index, (usage.get(index) ?? 0) + covered);
   return { covered, rule: index };
 }
+export type CoveragePortfolio = { contracts: ContractRow[]; usage: Map<string,CoverageUsage> };
+async function loadCoveragePortfolio(tx:CareerExecutor,saveId:string,season:number):Promise<CoveragePortfolio> {
+  const contracts=await activeContracts(tx,saveId);
+  return {contracts,usage:new Map(await Promise.all(contracts.map(async c=>[c.id,await coverageUsage(tx,saveId,c,season)] as const)))};
+}
+function clonePortfolio(p:ContractRow|CoveragePortfolio|undefined) {
+  return p && "contracts" in p ? {...p,usage:new Map([...p.usage].map(([id,u])=>[id,new Map(u)]))} : p;
+}
+/** Non-stacking best legitimate coverage, deterministic ties; one A4 attribution per cost. */
+export function portfolioCoverage(p:ContractRow|CoveragePortfolio|undefined,usage:CoverageUsage,type:CostType,circuit:string,gross:number) {
+  if (!p || !("contracts" in p)) return {...applyCoverage(p,usage,type,circuit,gross),contractId:p?.id??null};
+  const choices=p.contracts.map(c=>({c,result:applyCoverage(c,new Map(p.usage.get(c.id)),type,circuit,gross)}))
+    .sort((a,b)=>b.result.covered-a.result.covered||a.c.id.localeCompare(b.c.id));
+  const best=choices[0]; if(!best||best.result.covered===0)return {covered:0,rule:null,contractId:null};
+  const actual=applyCoverage(best.c,p.usage.get(best.c.id)!,type,circuit,gross);
+  return {...actual,contractId:best.c.id};
+}
 
 // ------------------------------------------------------------------ estimates
 const primaryOf = (siblings: readonly InstanceRow[]) => [...siblings].sort((a, b) => (a.series_day ?? 0) - (b.series_day ?? 0) || a.start_day - b.start_day)[0];
-export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contract: ContractRow | undefined, usage: CoverageUsage) {
+export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contract: ContractRow | CoveragePortfolio | undefined, usage: CoverageUsage) {
   const primary = primaryOf(siblings);
   const profile = profileFor(primary);
   const feeGross = profile.fee.basis === "PER_SERIES" ? profile.fee.entryFeePence : profile.fee.entryFeePence * siblings.length;
@@ -73,9 +97,10 @@ export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contr
   const band = travelBand(home, primary);
   const trip = tripCost(band, end - start + 1);
   const scratch = new Map(usage);
-  const fee = applyCoverage(contract, scratch, "ENTRY_FEE", primary.circuit, feeGross);
-  const travel = applyCoverage(contract, scratch, "TRAVEL", primary.circuit, trip.travelPence);
-  const accommodation = applyCoverage(contract, scratch, "ACCOMMODATION", primary.circuit, trip.accommodationPence);
+  const copy=clonePortfolio(contract);
+  const fee = portfolioCoverage(copy, scratch, "ENTRY_FEE", primary.circuit, feeGross);
+  const travel = portfolioCoverage(copy, scratch, "TRAVEL", primary.circuit, trip.travelPence);
+  const accommodation = portfolioCoverage(copy, scratch, "ACCOMMODATION", primary.circuit, trip.accommodationPence);
   const tripPlayer = trip.travelPence - travel.covered + trip.accommodationPence - accommodation.covered;
   return { primary, profile, band, nights: trip.nights, entryFeeGrossPence: feeGross, entryFeeCoveredPence: fee.covered, entryFeePlayerPence: feeGross - fee.covered,
     travelGrossPence: trip.travelPence, travelCoveredPence: travel.covered, accommodationGrossPence: trip.accommodationPence, accommodationCoveredPence: accommodation.covered,
@@ -141,23 +166,28 @@ async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: stri
  * re-evaluation of the same trigger a no-op.
  */
 export async function evaluateOffers(tx: CareerExecutor, root: RootRow, facts: SportingFacts, triggerKey: string, season: number, week: number) {
-  const active = await activeContract(tx, root.id);
+  const active = await activeContracts(tx, root.id);
+  const version=(await tx.execute(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${root.id}`)).rows[0];
   const offers = (await tx.execute(sql`SELECT sponsor_key, status, offered_season FROM career_sponsor_offers WHERE career_save_id = ${root.id}`)).rows;
-  const blocked = new Set(offers.filter(o => o.status === "AVAILABLE" || ((o.status === "DECLINED" || o.status === "EXPIRED") && Number(o.offered_season) === season)).map(o => String(o.sponsor_key)));
-  const candidates = sponsorCatalogue(SPONSOR_DATABASE_VERSION)
+  const blocked = new Set(offers.filter(o => o.status === "AVAILABLE" || (["DECLINED","EXPIRED","ACCEPTED"].includes(String(o.status)) && Number(o.offered_season) === season)).map(o => String(o.sponsor_key)));
+  const candidates = sponsorCatalogue(Number(version?.sponsor_database_version??1))
     .filter(d => evaluateRequirement(d.offerRequirement, facts) === true)
-    .filter(d => !active || (tierRank(d.terms.tier) > tierRank(active.tier) && d.key !== active.sponsor_key))
+    .filter(d => !active.some(c=>c.sponsor_key===d.key))
+    .filter(d => !d.terms.geographicPreference || d.terms.geographicPreference===root.settings_snapshot?.homeLocality)
+    .filter(d => {const replacing=conflicts(d.terms,active);return replacing.length>0 || active.length<portfolioLimit(facts);})
     .filter(d => !blocked.has(d.key))
     .sort((a, b) => tierRank(b.terms.tier) - tierRank(a.terms.tier) || (a.key < b.key ? -1 : 1))
     .slice(0, MAX_OFFERS_PER_EVALUATION);
   const created: string[] = [];
   for (const d of candidates) {
-    if (await insertOffer(tx, root, `offer:${triggerKey}:${d.key}`, "NEW", structuredClone(d.terms), { trigger: triggerKey, facts }, season, week)) created.push(d.key);
+    if (await insertOffer(tx, root, `offer:${triggerKey}:${d.key}`, "NEW", structuredClone(d.terms),
+      { trigger: triggerKey, facts, requiresReplacement: conflicts(d.terms,active) }, season, week)) created.push(d.key);
   }
   return created;
 }
 
-export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: string, season: number, week: number) {
+export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: string, season: number, week: number,
+  options:{replaceContractIds?:string[];facts?:SportingFacts}={}) {
   const offer = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND id = ${offerId}`)).rows[0] as OfferRow | undefined;
   if (!offer) throw new CareerError(404, "Sponsor offer not found");
   if (offer.status === "ACCEPTED") {
@@ -169,8 +199,21 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
     await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'EXPIRED', status_reason = 'EXPIRED_BEFORE_ACCEPT', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId}`);
     throw new CareerError(409, "Sponsor offer has expired");
   }
-  const previous = await activeContract(tx, root.id);
-  if (previous) await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${previous.id}`);
+  const previous = await activeContracts(tx, root.id), replacements=new Set(options.replaceContractIds??[]);
+  if ([...replacements].some(id=>!previous.some(c=>c.id===id)))throw new CareerError(409,"Replacement must name an active owned contract");
+  const remaining=previous.filter(c=>!replacements.has(c.id)), incompatible=conflicts(offer.terms,remaining);
+  if(incompatible.length)throw new CareerError(409,`Sponsor exclusivity/slot conflict; explicitly replace: ${incompatible.join(", ")}`);
+  const facts=options.facts??{careerStarted:true,
+    titles:Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_results WHERE career_save_id=${root.id} AND participant_key=${HUMAN} AND is_champion`)).rows[0].n),
+    professionalStatus:root.has_tour_card?"PROFESSIONAL" as const:"AMATEUR" as const,
+    tourCard:root.has_tour_card??null,worldRanking:null,bestFinishByCircuit:{},qualifications:[]};
+  const definition=sponsorCatalogue(offer.terms.sponsorDatabaseVersion).find(d=>d.key===offer.sponsor_key);
+  if(!definition||evaluateRequirement(offer.kind==="RENEWAL"?offer.terms.renewalRequirement:definition.offerRequirement,facts)!==true)
+    throw new CareerError(409,"Current sporting facts no longer meet this sponsor offer");
+  if(offer.terms.geographicPreference&&offer.terms.geographicPreference!==root.settings_snapshot?.homeLocality)
+    throw new CareerError(409,"This local sponsor requires the matching home locality");
+  if(remaining.length>=portfolioLimit(facts))throw new CareerError(409,"Sponsor portfolio is full for current sporting stature; explicitly replace an owned contract");
+  for(const id of replacements)await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'EXPLICITLY_REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${id}`);
   const end = contractEnd(offer.terms, season);
   const contractId = stableUuid(root.world_seed, SPONSOR_DATABASE_VERSION, "sponsor-contract", offer.id);
   await tx.execute(sql`INSERT INTO career_sponsor_contracts (career_save_id, id, offer_id, sponsor_key, sponsor_database_version, tier, terms, start_season, start_week, end_season, end_week, status)
@@ -199,10 +242,11 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
   const now = timeIndex(season, week);
   await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'EXPIRED', status_reason = 'LAPSED', resolved_at = NOW()
     WHERE career_save_id = ${root.id} AND status = 'AVAILABLE' AND ((expires_season - 1) * 52 + expires_week) < ${now}`);
-  const active = await activeContract(tx, root.id);
+  const portfolio = await activeContracts(tx, root.id);
   let known: SportingFacts | null = null;
   const getFacts = async () => known ??= await facts();
-  if (active && timeIndex(active.end_season, active.end_week) < now) {
+  for (const active of portfolio) {
+  if (timeIndex(active.end_season, active.end_week) < now) {
     const renew = evaluateRequirement(active.terms.renewalRequirement, await getFacts());
     if (renew === true) {
       await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'COMPLETED', end_reason = 'TERM_COMPLETED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${active.id}`);
@@ -213,6 +257,7 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
     }
   } else if (active && week === 1 && active.terms.retentionRequirement && evaluateRequirement(active.terms.retentionRequirement, await getFacts()) === false) {
     await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'RETENTION_REQUIREMENT_NOT_MET', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${active.id}`);
+  }
   }
   if (week === 1) await evaluateOffers(tx, root, await getFacts(), `season:${season}`, season, week);
   await syncSponsorCache(tx, root.id);
@@ -225,8 +270,8 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
     event.series_key ? (await tx.execute(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${event.season} AND series_key = ${event.series_key}`)).rows as InstanceRow[] : [event];
 
   async function preview(tx: CareerExecutor, root: RootRow, units: InstanceRow[][]) {
-    const contract = await activeContract(tx, root.id);
-    const usage = await coverageUsage(tx, root.id, contract, Number(root.current_season));
+    const contract = await loadCoveragePortfolio(tx, root.id, Number(root.current_season));
+    const usage:CoverageUsage = new Map();
     const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${root.id}`)).rows[0].balance_pence);
     const available = balance - await reservedPence(tx, root.id);
     return { available, balance, contract, estimates: units.map(u => estimateUnit(home(root), u, contract, usage)) };
@@ -248,13 +293,12 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       const attempts = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id = ${root.id} AND event_id = ${e.primary.id} AND category = 'ENTRY_FEE'`)).rows[0].n);
       const existing = (await tx.execute(sql`SELECT status FROM career_event_finance WHERE career_save_id = ${root.id} AND event_id = ${e.primary.id}`)).rows[0];
       if (existing && existing.status !== "WITHDRAWN") return; // idempotent: already entered and charged
-      const contract = await activeContract(tx, root.id);
-      const usage = await coverageUsage(tx, root.id, contract, season);
-      const cover = applyCoverage(contract, usage, "ENTRY_FEE", e.primary.circuit, e.entryFeeGrossPence);
+      const contract = await loadCoveragePortfolio(tx, root.id, season);
+      const cover = portfolioCoverage(contract, new Map(), "ENTRY_FEE", e.primary.circuit, e.entryFeeGrossPence);
       if (e.entryFeeGrossPence > 0) {
         await post(tx, root, { operationKey: `entry:${e.primary.id}:a${attempts + 1}`, category: "ENTRY_FEE", amountPence: -(e.entryFeeGrossPence - cover.covered),
           reason: `Entry fee — ${e.primary.name}`, season, week, eventId: e.primary.id, grossAmountPence: e.entryFeeGrossPence, sponsorCoveredPence: cover.covered,
-          contractId: cover.covered > 0 ? contract!.id : null, detail: { feeProfile: e.profile.fee.key, basis: e.profile.fee.basis, ...(cover.rule !== null ? { coverageRule: cover.rule } : {}) } });
+          contractId: cover.covered > 0 ? cover.contractId : null, detail: { feeProfile: e.profile.fee.key, basis: e.profile.fee.basis, ...(cover.rule !== null ? { coverageRule: cover.rule } : {}) } });
       }
       const snapshot = { profile: e.profile, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence },
         seriesEventIds: siblings.map(s => s.id) };
@@ -296,15 +340,14 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       for (const e of pending) if (e.start_day >= firstDay && e.start_day <= lastDay && travelBand(h, e) === "LOCAL") {
         await tx.execute(sql`UPDATE career_event_finance SET status = 'TRAVEL_COMMITTED', estimated_trip_pence = 0, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${e.id}`);
       }
-      const contract = await activeContract(tx, root.id);
-      const usage = await coverageUsage(tx, root.id, contract, season);
       for (const trip of groupTrips(h, pending)) {
         if (trip.start < firstDay || trip.start > lastDay) continue; // commits in the week its first event starts
         const first = trip.events[0];
         const tripKey = `s${season}:${first.id}`;
         const tripId = stableUuid(root.world_seed, FINANCE_VERSION, "trip", tripKey);
-        const travel = applyCoverage(contract, usage, "TRAVEL", first.circuit, trip.travelPence);
-        const stay = applyCoverage(contract, usage, "ACCOMMODATION", first.circuit, trip.accommodationPence);
+        const contract=await loadCoveragePortfolio(tx,root.id,season);
+        const travel = portfolioCoverage(contract, new Map(), "TRAVEL", first.circuit, trip.travelPence);
+        const stay = portfolioCoverage(contract, new Map(), "ACCOMMODATION", first.circuit, trip.accommodationPence);
         const playerCost = trip.travelPence - travel.covered + trip.accommodationPence - stay.covered;
         const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${root.id}`)).rows[0].balance_pence);
         if (playerCost > balance) {
@@ -323,10 +366,10 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
             ${trip.travelPence}, ${travel.covered}, ${trip.accommodationPence}, ${stay.covered}, ${season}, ${week}) ON CONFLICT DO NOTHING`);
         if (trip.travelPence > 0) await post(tx, root, { operationKey: `travel:${tripKey}`, category: "TRAVEL", amountPence: -(trip.travelPence - travel.covered),
           reason: `Travel (${trip.band}) — ${trip.destination}`, season, week, eventId: first.id, tripId, grossAmountPence: trip.travelPence, sponsorCoveredPence: travel.covered,
-          contractId: travel.covered > 0 ? contract!.id : null, detail: { band: trip.band, events: trip.events.map(e => e.id), ...(travel.rule !== null ? { coverageRule: travel.rule } : {}) } });
+          contractId: travel.covered > 0 ? travel.contractId : null, detail: { band: trip.band, events: trip.events.map(e => e.id), ...(travel.rule !== null ? { coverageRule: travel.rule } : {}) } });
         if (trip.accommodationPence > 0) await post(tx, root, { operationKey: `accommodation:${tripKey}`, category: "ACCOMMODATION", amountPence: -(trip.accommodationPence - stay.covered),
           reason: `Accommodation (${trip.nights} nights) — ${trip.destination}`, season, week, eventId: first.id, tripId, grossAmountPence: trip.accommodationPence, sponsorCoveredPence: stay.covered,
-          contractId: stay.covered > 0 ? contract!.id : null, detail: { band: trip.band, nights: trip.nights, ...(stay.rule !== null ? { coverageRule: stay.rule } : {}) } });
+          contractId: stay.covered > 0 ? stay.contractId : null, detail: { band: trip.band, nights: trip.nights, ...(stay.rule !== null ? { coverageRule: stay.rule } : {}) } });
         for (const e of trip.events) await tx.execute(sql`UPDATE career_event_finance SET status = 'TRAVEL_COMMITTED', trip_id = ${tripId}, estimated_trip_pence = 0, updated_at = NOW()
           WHERE career_save_id = ${root.id} AND event_id = ${e.id}`);
       }
@@ -359,8 +402,8 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         VALUES (${root.id}, ${event.id}, ${HUMAN}, ${event.season}, ${mine.finishing_position}, ${cash}, ${ranking}, ${event.classification}, ${ledgerId}) ON CONFLICT DO NOTHING`);
       await tx.execute(sql`UPDATE career_event_finance SET status = 'COMPLETED', estimated_trip_pence = 0, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status IN ('ENTERED','TRAVEL_COMMITTED')`);
       const played = (await tx.execute(sql`SELECT status FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0];
-      const contract = await activeContract(tx, root.id);
-      if (contract && played && played.status !== "WITHDRAWN") {
+      const portfolio = await activeContracts(tx, root.id);
+      if (played && played.status !== "WITHDRAWN") for (const contract of portfolio) {
         const pay = contract.terms.eventPayment;
         if (pay && pay.circuits.includes(event.circuit)) {
           const paid = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id = ${contract.id}

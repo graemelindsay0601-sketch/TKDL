@@ -1,4 +1,5 @@
 import { SPONSOR_DATABASE_VERSION } from "./config.ts";
+import { BRANDS, type RelationshipSlot } from "../content/brands.ts";
 
 /**
  * SPONSOR DATABASE v1 — fictional brands only (no gambling, no real darts
@@ -59,6 +60,10 @@ export type SponsorTerms = {
   /** Evaluated at season reviews; only a KNOWN failure terminates (unknown authority never punishes). */
   retentionRequirement: Requirement | null;
   presentation: { brandingFamily: string; logoAssetKey: string; colour: string };
+  relationshipSlot?: RelationshipSlot;
+  exclusivityGroups?: string[];
+  geographicPreference?: string | null;
+  signatureProductSupport?: ("SIGNATURE_DARTS" | "SIGNATURE_RANGE")[];
 };
 export type SponsorDefinition = { key: string; offerRequirement: Requirement; terms: SponsorTerms };
 
@@ -132,7 +137,27 @@ export const SPONSOR_CATALOGUE_V1: readonly SponsorDefinition[] = Object.freeze(
     presentation: { brandingFamily: "vantage-darts", logoAssetKey: "sponsor:vantage-darts", colour: "#5B2A86" } }),
 ]);
 
+/** New content uses existing A4 money/coverage types and conservative existing tier bands. */
+export const SPONSOR_CATALOGUE_V2: readonly SponsorDefinition[] = Object.freeze(BRANDS.map(b => {
+  const original = SPONSOR_CATALOGUE_V1.find(d => d.key === b.id);
+  const template = original ?? SPONSOR_CATALOGUE_V1.find(d => d.terms.tier === b.commercialTier)!;
+  const requirement: Requirement = original?.offerRequirement ?? (b.commercialTier === "LOCAL" ? { fact: "titles", min: 1 } :
+    b.commercialTier === "REGIONAL" ? { fact: "titles", min: 3 } : b.commercialTier === "PROFESSIONAL" ?
+      { any: [{ fact: "tourCard" }, { fact: "titles", min: 10 }] } : { any: [{ fact: "worldRanking", maxPosition: 16 },
+        {fact:"circuitFinish",circuits:["MAJOR","WORLD_CHAMPIONSHIP"],maxPosition:2}] });
+  const terms: SponsorTerms = { ...structuredClone(template.terms), sponsorKey: b.id, displayName: b.name,
+    sponsorDatabaseVersion: 2, relationshipSlot: b.slot, exclusivityGroups: b.exclusivityGroups,
+    geographicPreference: b.locationId, signatureProductSupport: b.signatureProductSupport,
+    presentation: { ...template.terms.presentation, brandingFamily: b.id, logoAssetKey: `sponsor:${b.id}` } };
+  if (!original) {
+    terms.renewalRequirement = requirement; terms.retentionRequirement = null;
+    if (["LOGISTICS", "AUTOMOTIVE"].includes(b.sector)) terms.coverage = [{ costTypes: ["TRAVEL", "ACCOMMODATION"], percent: 50,
+      perEventCapPence: 20000, seasonCapPence: 150000, circuits: null }];
+  }
+  return { key: b.id, offerRequirement: requirement, terms };
+}));
 export function sponsorCatalogue(version: number) {
-  if (version !== SPONSOR_DATABASE_VERSION) throw new Error(`Unsupported sponsor database version ${version}`);
-  return SPONSOR_CATALOGUE_V1;
+  if (version === SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V1;
+  if (version === 2) return SPONSOR_CATALOGUE_V2;
+  throw new Error(`Unsupported sponsor database version ${version}`);
 }

@@ -259,7 +259,8 @@ export const CAREER_NAV: { layer: "HOME" | "MY_CAREER" | "DARTS_WORLD"; label: s
   { layer: "HOME", label: "Home", items: [{ key: "home", label: "Home", path: "" }] },
   { layer: "MY_CAREER", label: "My Career", items: [{ key: "journey", label: "Journey", path: "/journey" }, { key: "history", label: "History", path: "/history" }, { key: "relationships", label: "Relationships", path: "/relationships" }, { key: "goals", label: "Focus & Goals", path: "/goals" }, { key: "recognition", label: "Recognition", path: "/recognition" }, { key: "life", label: "Career Life", path: "/life" }, { key: "finances", label: "Finances", path: "/finances" }] },
   { layer: "DARTS_WORLD", label: "Darts World", items: [{ key: "calendar", label: "Calendar", path: "/calendar" }, { key: "rankings", label: "Rankings", path: "/rankings" },
-    { key: "q-school", label: "Q-School", path: "/q-school" }, { key: "world-championship", label: "The Palace", path: "/world-championship" }, { key: "stories", label: "News & Stories", path: "/stories" }] },
+    { key: "q-school", label: "Q-School", path: "/q-school" }, { key: "world-championship", label: "The Palace", path: "/world-championship" }, { key: "stories", label: "News & Stories", path: "/stories" },
+    {key:"world",label:"Almanac",path:"/world"},{key:"map",label:"World locations",path:"/map"},{key:"guide",label:"Career Guide",path:"/guide"},{key:"presentation",label:"Player identity",path:"/presentation"}] },
 ];
 /** The layer (Home / My Career / Darts World) that owns a nav key. */
 export function navLayerOf(key: string) {
@@ -364,4 +365,7 @@ export const HOME_REGIONS: { key: string; label: string }[] = [
   ["hessen", "Hessen, Germany"], ["saxony", "Saxony, Germany"], ["bremen", "Bremen, Germany"], ["flanders", "Flanders, Belgium"],
   ["wallonia", "Wallonia, Belgium"], ["victoria", "Victoria, Australia"], ["queensland", "Queensland, Australia"],
   ["western-australia", "Western Australia"], ["ontario", "Ontario, Canada"], ["alberta", "Alberta, Canada"], ["nova-scotia", "Nova Scotia, Canada"],
+  ["glasgow-clyde","Greater Glasgow/Clyde, Scotland"],["central-scotland","Central Scotland"],["edinburgh-lothians","Edinburgh/Lothians, Scotland"],
+  ["borders","Borders, Scotland"],["north-east-scotland","North-East Scotland"],["tayside","Tayside, Scotland"],["northern-ireland","Northern Ireland"],
+  ["ile-de-france","Île-de-France, France"],["stockholm","Stockholm, Sweden"],["kanto","Kanto, Japan"],["new-york","New York, USA"],["auckland","Auckland, New Zealand"],
 ].map(([key, label]) => ({ key, label }));

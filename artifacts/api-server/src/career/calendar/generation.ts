@@ -4,7 +4,8 @@ import { catalogueFor, type EventDefinition, type ScheduleSlot } from "./catalog
 import { CALENDAR_GENERATION_VERSION, DAYS_PER_WEEK, WEEKS_PER_SEASON, groupingForWeek } from "./config.ts";
 import { assessCapability, eventFormatSchema, type Capability } from "./formats.ts";
 import { ruleSchema, type Rule } from "./eligibility.ts";
-import { LOCALITIES, venueByKey, localVenue, zoneOf, COUNTRIES, COUNTY_CATCHMENTS } from "./geography.ts";
+import { LOCALITIES, LOCALITIES_V1, venueByKey, localVenue, zoneOf, COUNTRIES, COUNTY_CATCHMENTS } from "./geography.ts";
+import { venueContent } from "../content/world.ts";
 
 /** Everything a season instance needs to stay historically truthful. */
 export type InstanceSnapshot = Omit<EventDefinition, "schedule" | "eligibility"> & {
@@ -44,14 +45,16 @@ function placements(definition: EventDefinition, seed: string, season: number): 
   const schedule = definition.schedule;
   if (schedule.kind === "FIXED") {
     return schedule.slots.map((slot: ScheduleSlot, index) => {
-      const venue = venueByKey(slot.venue);
+      const rotation = definition.content?.venueRotation;
+      const venue = venueByKey(rotation?.length ? rotation[(season - 1 + index) % rotation.length] : slot.venue);
       return { slotKey: `s${index + 1}`, week: slot.week, day: slot.day, endWeek: slot.endWeek ?? slot.week, endDay: slot.endDay ?? slot.day,
-        venueKey: venue.key, label: slot.label ?? null, country: slot.country ?? venue.country, localityKey: null };
+        venueKey: venue.key, label: slot.label ?? null, country: slot.country ?? venue.country,
+        localityKey: definition.eventDatabaseVersion >= 3 ? LOCALITIES.find(l => l.country === venue.country && l.region === venue.region)?.key ?? null : null };
     });
   }
   // Controlled deterministic rotation: stochastic rounding of locality density + seeded week choice.
   const out: Placement[] = [];
-  for (const locality of LOCALITIES) {
+  for (const locality of definition.eventDatabaseVersion >= 3 ? LOCALITIES : LOCALITIES_V1) {
     if (schedule.countries && !schedule.countries.includes(locality.country)) continue;
     const rng = scopedRandom(seed, CALENDAR_GENERATION_VERSION, "calendar-rotation", season, definition.key, locality.key);
     const expected = locality.weight * schedule.perWeight;
@@ -101,6 +104,7 @@ export function generateSeason(seed: string, eventDatabaseVersion: number, seaso
       const capability = assessCapability(format);
       const snapshot: InstanceSnapshot = { ...structuredClone(rest), eligibility, capability,
         resolvedFrom: { definitionKey: definition.key, eventDatabaseVersion, definitionHash: hash, calendarGenerationVersion: CALENDAR_GENERATION_VERSION } };
+      if (snapshot.content) snapshot.content.venue = venueContent(venue.key);
       drafts.push({
         id: stableUuid(seed, CALENDAR_GENERATION_VERSION, "event-instance", eventDatabaseVersion, season, instanceKey),
         instanceKey, season, ordinal: index + 1, definitionKey: definition.key, eventDatabaseVersion,

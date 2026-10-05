@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { opportunity } from "../content/opportunities.ts";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
@@ -166,7 +167,8 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
     dates: { startWeek: event.start_week, endWeek: event.end_week, startDay: event.start_day, endDay: event.end_day,
       startDayOfWeek: ((event.start_day - 1) % 7) + 1, grouping: groupingForWeek(event.start_week).key },
     registration: { opensWeek: event.registration_opens_week, closesWeek: event.registration_closes_week },
-    venue: { key: venue.key, name: venue.name, city: event.city, country: event.country, region: event.region, zone: event.zone, localityKey: event.locality_key },
+    venue: { key: venue.key, name: s.content?.venue?.displayName??venue.name, city: event.city, country: event.country, region: event.region, zone: event.zone, localityKey: event.locality_key },
+    content:s.content??null,opportunity:opportunity({status:event.status,classification:event.classification,human:human??null}),
     format: s.format, capability: s.capability,
     field: { size: event.field_size, minimum: event.minimum_entrants, entrants: event.entrant_count, policy: s.fieldPolicy },
     series: event.series_key ? { key: event.series_key, day: event.series_day } : null, qSchool: s.qSchool,
@@ -616,7 +618,7 @@ function withFinance<T extends ReturnType<typeof presentEvent>>(dto: T, preview:
   if (!preview) return { ...dto, finance: null };
   const human = dto.human && dto.human.canEnter && !preview.affordable
     ? { ...dto.human, canEnter: false, denials: [...dto.human.denials, "INSUFFICIENT_FUNDS" as DenialReason] } : dto.human;
-  return { ...dto, human, finance: preview };
+  return { ...dto, human, opportunity:opportunity({...dto,human}),finance: preview };
 }
 const stageNameFor = (round: number, rounds: number) => { const remaining = 2 ** (rounds - round + 1); return remaining === 2 ? "FINAL" : remaining === 4 ? "SEMI_FINAL" : remaining === 8 ? "QUARTER_FINAL" : `LAST_${remaining}`; };
 export type CareerCalendarService = ReturnType<typeof createCareerCalendarService>;

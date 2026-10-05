@@ -115,7 +115,9 @@ const q = async (query: ReturnType<typeof sql>) => (await db.execute(query)).row
 async function newCareer(slot: number, body: Record<string, unknown>) {
   const created = await call("POST", "/saves", { slot, careerName: `A65 ${slot}`, ...body });
   assert.equal(created.status, 201, JSON.stringify(created.body));
-  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED} WHERE id = ${created.body.id}`);
+  // Reproduce the published A1–A7.6 universe, not the changed v3 sporting calendar.
+  // A8.1 v3/v2 creation and content behavior have their own service/HTTP tests.
+  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=2,player_database_version=1 WHERE id = ${created.body.id}`);
   assert.equal((await call("POST", `/saves/${created.body.id}/initialize`, {})).status, 200);
   return created.body.id as string;
 }

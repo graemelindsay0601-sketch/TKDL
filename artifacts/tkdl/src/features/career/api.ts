@@ -57,6 +57,13 @@ export const useFinance = (saveId: string) => useQuery({ queryKey: careerKey(sav
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });
 export const useSponsors = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "sponsors"), queryFn: () => get<SponsorsResponse>(`/saves/${saveId}/sponsors`), staleTime: STALE });
+export const useWorldContent=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"world-content"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldContent>(`/saves/${saveId}/world-content`),staleTime:STALE});
+export const useWorldMap=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"world-map"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").MapContent>(`/saves/${saveId}/world-map`),staleTime:STALE});
+export const useWorldPlayers=(saveId:string,offset=0)=>useQuery({queryKey:careerKey(saveId,"world-players",offset),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldPlayersContent>(`/saves/${saveId}/world-players?offset=${offset}&limit=50`),staleTime:STALE});
+export const useTrophyCabinet=(saveId:string,offset=0)=>useQuery({queryKey:careerKey(saveId,"trophy-cabinet",offset),queryFn:()=>get<import("../../../../api-server/src/career/content/service").TrophyContent>(`/saves/${saveId}/trophy-cabinet?offset=${offset}&limit=50`),staleTime:STALE});
+export const usePresentation=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"presentation"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").PresentationContent>(`/saves/${saveId}/presentation`),staleTime:STALE});
+export const useEditPresentation=(saveId:string)=>useSaveMutation(saveId,(body:Record<string,unknown>)=>send("POST",`/saves/${saveId}/presentation`,body));
+export const useLaunchSignature=(saveId:string)=>useSaveMutation(saveId,(body:{contractId:string;productType:"SIGNATURE_DARTS"|"SIGNATURE_RANGE"})=>send("POST",`/saves/${saveId}/signature-products`,body));
 export const useRankingLists = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "ranking-lists"), queryFn: () => get<RankingListMeta[]>(`/saves/${saveId}/rankings`), staleTime: STALE });
 export type TableQuery = { view: "TOP" | "AROUND" | "PAGE"; limit?: number; offset?: number; participant?: string; radius?: number };
 export const useRankingTable = (saveId: string, list: string, q: TableQuery, enabled = true) => useQuery({ queryKey: careerKey(saveId, "ranking", list, q), enabled, staleTime: STALE,
@@ -85,7 +92,7 @@ export type AdvanceTarget = { kind: "NEXT_MEANINGFUL" } | { kind: "WEEKS"; weeks
 export const careerRequests = {
   enter: (saveId: string, eventId: string) => send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`),
   withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),
-  acceptOffer: (saveId: string, offerId: string) => send<{ contractId: string }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`),
+  acceptOffer: (saveId: string, offerId: string,replaceContractIds?:string[]) => send<{ contractId: string }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`,replaceContractIds?.length?{replaceContractIds}:undefined),
   declineOffer: (saveId: string, offerId: string) => send<unknown>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/decline`),
   /** A3 advance: retry-safe via a client-generated operation key; expected position guards against stale screens. */
   advance: (saveId: string, args: { season: number; week: number; target: AdvanceTarget }, operationKey = newOperationKey()) =>
@@ -119,7 +126,7 @@ function useSaveMutation<TArgs, TOut>(saveId: string, fn: (args: TArgs) => Promi
 }
 export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.enter(saveId, eventId));
 export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.withdraw(saveId, eventId));
-export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.acceptOffer(saveId, offerId));
+export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (input: string|{offerId:string;replaceContractIds:string[]}) => typeof input==="string"?careerRequests.acceptOffer(saveId,input):careerRequests.acceptOffer(saveId,input.offerId,input.replaceContractIds));
 export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));
 export const useAdvance = (saveId: string) => useSaveMutation(saveId, (args: { season: number; week: number; target: AdvanceTarget }) => careerRequests.advance(saveId, args));
 

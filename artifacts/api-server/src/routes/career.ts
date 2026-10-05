@@ -23,6 +23,7 @@ import { createCareerLifeRouter } from "../career/life/router.ts";
 import { createCareerLegacyService } from "../career/legacy/service.ts";
 import { createCareerLegacyRouter } from "../career/legacy/router.ts";
 import { captureRetirement } from "../career/legacy/persistence.ts";
+import {createCareerContentService,createCareerContentRouter} from "../career/content/service.ts";
 
 const saves = createCareerService(db,{onRetired:captureRetirement});
 // A5 composes the Career: A3 calendar with A4 finance hooks and A5 sporting status/seeding/hooks,
@@ -32,6 +33,7 @@ const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
 // A6.5: live Career matches through the real scorer; results enter via A3's human-result boundary.
 const live = createCareerLiveMatchService(db, sporting.calendar);
 const router = Router();
+router.use(createCareerContentRouter(createCareerContentService(db,sporting)));
 router.use(createCareerFactsRouter(createCareerFactsService(db)));
 router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db)));
 router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
