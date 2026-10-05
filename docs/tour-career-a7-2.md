@@ -134,7 +134,7 @@ Verification in the temporary development workspace:
 
 - Relationships model + A7.1 facts unit tests: 9 passed.
 - Relationships SQL/HTTP fixture tests: 4 passed.
-- Existing full-migration A6.5 live suite (with A7.2 assertions): 9 passed.
+- Existing full-migration A6.5 live suite (with A7.2 assertions): 10 passed.
 - Focused existing A2 generation/RNG/retirement checks: 3 passed (no long balance simulation).
 - Affected frontend screen/API/navigation suites: 58 passed.
 - Library declaration build/typecheck and API production bundle: passed.
@@ -161,6 +161,30 @@ to omit the development metadata plugin (which otherwise corrupts existing
 generic JSX during SSR transformation). Restored only the relevant locked
 workspace dependencies; no dependency/lockfile edits. Temporary focused-check
 configurations are not part of the committed product.
+
+Total: **84 focused tests passed**. Manual browser interaction and deployment
+verification were not performed; the checklist above is for follow-up use.
+
+## Files changed
+
+```text
+artifacts/api-server/src/career/relationships/model.ts
+artifacts/api-server/src/career/relationships/router.ts
+artifacts/api-server/src/career/relationships/service.ts
+artifacts/api-server/src/career/relationships/types.ts
+artifacts/api-server/src/lib/__tests__/career-a65-live.test.ts
+artifacts/api-server/src/lib/__tests__/career-relationships-http.test.ts
+artifacts/api-server/src/lib/__tests__/career-relationships.test.ts
+artifacts/api-server/src/routes/career.ts
+artifacts/tkdl/src/features/career/api.ts
+artifacts/tkdl/src/features/career/index.tsx
+artifacts/tkdl/src/features/career/model.ts
+artifacts/tkdl/src/features/career/pages/relationships.tsx
+artifacts/tkdl/src/lib/__tests__/career-a6-model.test.ts
+artifacts/tkdl/src/lib/__tests__/career-model.test.ts
+artifacts/tkdl/src/lib/__tests__/career-ui.test.ts
+docs/tour-career-a7-2.md
+```
 
 Manual browser checklist (not a claim that these interactions were performed):
 open Relationships in an existing Career; expand an opponent; follow the event
