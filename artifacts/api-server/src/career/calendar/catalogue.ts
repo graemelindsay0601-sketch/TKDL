@@ -436,7 +436,11 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 2) return EVENT_CATALOGUE_V2;
   if (version === 3) return EVENT_CATALOGUE_V3;
   if (version === 4) return EVENT_CATALOGUE_V4;
+  if (version === 5) return EVENT_CATALOGUE_V5;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
+/** A9: same authored world; first Q-School policy is applied by season generation. */
+export const EVENT_CATALOGUE_V5: readonly EventDefinition[] = Object.freeze(
+  EVENT_CATALOGUE_V4.map(d=>({...d,eventDatabaseVersion:5})));
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

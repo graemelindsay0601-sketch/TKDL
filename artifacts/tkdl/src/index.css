@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/viewport.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -121,8 +122,7 @@
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: 0;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
   }

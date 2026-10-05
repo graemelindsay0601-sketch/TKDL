@@ -204,9 +204,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     });
   }
   useEffect(() => {
-    const onScroll = () => setShowBackTop(window.scrollY > 480);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const owner = document.querySelector("main");
+    const onScroll = () => setShowBackTop((owner?.scrollTop ?? window.scrollY) > 480);
+    const target = owner ?? window;
+    target.addEventListener("scroll", onScroll, { passive: true });
+    return () => target.removeEventListener("scroll", onScroll);
   }, []);
 
   // Deep-link from the Coach tab's "Start This Drill" button (account.tsx) —
@@ -940,7 +942,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       {rulesGame && <RulesModal game={rulesGame} onClose={() => setRulesGame(null)} />}
     </div>
     {showBackTop && (
-      <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      <button onClick={() => (document.querySelector("main") ?? window).scrollTo({ top: 0, behavior: "smooth" })}
         className="fixed bottom-24 right-5 z-30 w-11 h-11 rounded-full flex items-center justify-center"
         style={{ background: "rgba(20,14,32,0.92)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", cursor: "pointer", boxShadow: "0 10px 28px -10px rgba(0,0,0,0.6)" }}
         title="Back to top">

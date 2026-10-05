@@ -81,6 +81,9 @@ export function generateSeason(seed: string, eventDatabaseVersion: number, seaso
   if (!Number.isSafeInteger(season) || season < 1) throw new Error("Invalid season");
   const drafts: EventInstanceDraft[] = [];
   for (const definition of catalogueFor(eventDatabaseVersion)) {
+    // New v5 careers establish themselves after the initial Q-School window.
+    // Do not move the clock, invent results, or rewrite any v1–v4 edition.
+    if(eventDatabaseVersion>=5 && season===1 && definition.circuit==="Q_SCHOOL")continue;
     const hash = definitionHash(definition);
     const { schedule: _schedule, eligibility: rawEligibility, ...rest } = definition;
     placements(definition, seed, season).forEach((placement, index) => {

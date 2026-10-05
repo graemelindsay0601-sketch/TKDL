@@ -187,8 +187,8 @@
 .career-gameplay .career-primary-nav { background:#0c1420; }.career-gameplay .career-context-nav { display:none; }
 @media (min-width:1100px) { .career-root { padding-bottom:24px; }.career-primary-nav { position:sticky; top:0; z-index:20; } }
 @media (max-width:1099px) {
-  .career-primary-nav { position:fixed; bottom:0; left:0; right:0; z-index:35; border-radius:0; padding:6px 5px calc(6px + env(safe-area-inset-bottom)); }
-  .career-primary-nav .career-nav-link { font-size:.76rem; }
+  .career-primary-nav { position:fixed; bottom:0; left:var(--tkdl-safe-left,0px); right:var(--tkdl-safe-right,0px); z-index:35; border-radius:0; padding:6px 5px calc(6px + env(safe-area-inset-bottom)); }
+  .career-primary-nav .career-nav-link { font-size:clamp(.625rem,2.85vw,.76rem); padding-left:3px; padding-right:3px; overflow-wrap:normal; }
   .career-primary-nav .career-nav-link { flex-direction:column; gap:4px; }.career-destination-icon { margin-right:0; }
   .career-map-layout { grid-template-columns:160px minmax(0,1fr); }.career-map-inspector { grid-column:1/-1; }
 }

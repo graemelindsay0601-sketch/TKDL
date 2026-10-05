@@ -159,5 +159,49 @@ export const SPONSOR_CATALOGUE_V2: readonly SponsorDefinition[] = Object.freeze(
 export function sponsorCatalogue(version: number) {
   if (version === SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V1;
   if (version === 2) return SPONSOR_CATALOGUE_V2;
+  if (version === 3) return SPONSOR_CATALOGUE_V3;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
+/**
+ * A9 economics. v1/v2 offers/contracts remain immutable. New-save offers pin v3;
+ * accepted terms are still snapshotted by A4, with best-applicable coverage.
+ */
+export const SPONSOR_CATALOGUE_V3:readonly SponsorDefinition[] = Object.freeze(SPONSOR_CATALOGUE_V2.map(d=>{
+  const terms=structuredClone(d.terms),brand=BRANDS.find(b=>b.id===d.key)!;
+  terms.sponsorDatabaseVersion=3;
+  const rule=(types:CostType[],percent:number,cap:number,seasonCap:number,circuits:string[]|null):CoverageRule=>
+    ({costTypes:types,percent,perEventCapPence:cap,seasonCapPence:seasonCap,circuits});
+  if(terms.tier==="REGIONAL") {
+    terms.signingBonusPence=d.key==="redpoint-darts"?50000:35000;
+    if(terms.eventPayment)terms.eventPayment.amountPence=d.key==="redpoint-darts"?2500:2000;
+    terms.coverage=d.key==="redpoint-darts"?
+      [rule(["ENTRY_FEE"],60,10000,100000,DEVELOPMENT),rule(["TRAVEL","ACCOMMODATION"],30,10000,100000,DEVELOPMENT)]:
+      [rule(["ENTRY_FEE"],75,5000,60000,[...AMATEUR,...DEVELOPMENT]),
+        ...(d.key==="ochre-darts"?[rule(["TRAVEL"],25,6000,35000,null)]:[])];
+  } else if(terms.tier==="PROFESSIONAL"&&d.key!=="northline-darts") {
+    terms.signingBonusPence=200000;
+    if(terms.eventPayment)terms.eventPayment.amountPence=7500;
+    terms.coverage=[rule(["ENTRY_FEE"],75,15000,400000,PRO),
+      ...(d.key==="ironflight"?[rule(["TRAVEL","ACCOMMODATION"],40,40000,800000,null)]:[])];
+  }
+  if(["REGIONAL","PROFESSIONAL"].includes(terms.tier)&&d.key!=="northline-darts"&&["LOGISTICS","AUTOMOTIVE"].includes(brand.sector)) {
+    const pro=terms.tier==="PROFESSIONAL";
+    terms.signingBonusPence=pro?100000:20000;
+    if(terms.eventPayment)terms.eventPayment.amountPence=pro?2500:1000;
+    terms.coverage=[rule(["TRAVEL","ACCOMMODATION"],pro?70:60,20000,pro?300000:75000,null)];
+  } else if(["REGIONAL","PROFESSIONAL"].includes(terms.tier)&&brand.sector==="APPAREL") {
+    const pro=terms.tier==="PROFESSIONAL";
+    terms.signingBonusPence=pro?150000:25000;
+    if(terms.eventPayment)terms.eventPayment.amountPence=pro?5000:1500;
+    terms.coverage=[rule(["ENTRY_FEE"],25,5000,75000,null)];
+  }
+  // Measured compatible portfolios (and genuinely local trips) still turn a
+  // £75 attendance stipend into guaranteed profit. Use A4's existing factual
+  // performance-bonus authority instead: no new payment/negotiation system.
+  if(terms.tier==="PROFESSIONAL"&&d.key!=="northline-darts"&&terms.eventPayment) {
+    terms.performanceBonuses.push({key:"competitive-appearance",maxPosition:32,
+      amountPence:terms.eventPayment.amountPence,circuits:["PRO_CIRCUIT","EUROPEAN_SERIES"],classifications:["RANKING"]});
+    terms.eventPayment=null;
+  }
+  return {key:d.key,offerRequirement:structuredClone(d.offerRequirement),terms};
+}));

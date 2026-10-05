@@ -35,10 +35,10 @@ export function profileFor(event: Pick<InstanceRow, "definition_key" | "classifi
 // ------------------------------------------------------------------ state / contract / coverage
 export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
-    SELECT ${saveId}, ${FINANCE_VERSION}, CASE WHEN event_database_version >= 3 THEN 2 ELSE 1 END FROM career_saves WHERE id=${saveId}
+    SELECT ${saveId}, ${FINANCE_VERSION}, CASE WHEN event_database_version >= 5 THEN 3 WHEN event_database_version >= 3 THEN 2 ELSE 1 END FROM career_saves WHERE id=${saveId}
     ON CONFLICT (career_save_id) DO NOTHING`);
   const row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
-  if (Number(row.finance_version) !== FINANCE_VERSION || ![1,2].includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
+  if (Number(row.finance_version) !== FINANCE_VERSION || ![1,2,3].includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
 }
 export type ContractRow = { id: string; offer_id: string; sponsor_key: string; tier: SponsorTier; terms: SponsorTerms; start_season: number; start_week: number; end_season: number; end_week: number; status: string };
 export async function activeContracts(tx: CareerExecutor, saveId: string): Promise<ContractRow[]> {
@@ -265,7 +265,8 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
 
 // ------------------------------------------------------------------ hooks (A3 → A4)
 export function createFinanceHooks(calendarProviders: () => CalendarProviders, factsProvider: () => SponsorFactsProvider): CalendarFinanceHooks {
-  const home = (root: RootRow): Home => { const h = calendarProviders().sportingStatus.human(root); return { locality: h.locality, country: h.country, zone: h.zone }; };
+  const home = (root: RootRow): Home => { const h = calendarProviders().sportingStatus.human(root); return { locality: h.locality, country: h.country, zone: h.zone,
+    travelVersion:root.event_database_version>=5&&root.settings_snapshot.travelVersion===2?2:1 }; };
   const siblingsOf = async (tx: CareerExecutor, root: RootRow, event: InstanceRow) =>
     event.series_key ? (await tx.execute(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${event.season} AND series_key = ${event.series_key}`)).rows as InstanceRow[] : [event];
 
@@ -300,7 +301,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
           reason: `Entry fee — ${e.primary.name}`, season, week, eventId: e.primary.id, grossAmountPence: e.entryFeeGrossPence, sponsorCoveredPence: cover.covered,
           contractId: cover.covered > 0 ? cover.contractId : null, detail: { feeProfile: e.profile.fee.key, basis: e.profile.fee.basis, ...(cover.rule !== null ? { coverageRule: cover.rule } : {}) } });
       }
-      const snapshot = { profile: e.profile, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence },
+      const snapshot = { profile: e.profile, travelVersion:home(root).travelVersion, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence },
         seriesEventIds: siblings.map(s => s.id) };
       for (const target of siblings) {
         const isPrimary = target.id === e.primary.id;

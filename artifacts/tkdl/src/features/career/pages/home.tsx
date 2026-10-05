@@ -25,6 +25,7 @@ export function HomePage({ctx}:{ctx:ShellContext}) {
       <p>{profile.data?.status==="COMPLETE"?`Age ${profile.data.age} · `:""}Career: Season {save.currentSeason} · {retired?"Retired record":s.data?.tourCard.holdsCard?"Tour Card active":"Open / amateur career"} · {formatPence(f.data?.balancePence??save.balancePence)} · {f.data?.sponsor?.displayName??"Self-funded"}</p>
     </section>
     <ContextHelp saveId={id} topic="home"/>
+    {(save.eventDatabaseVersion??0)>=5&&save.currentSeason===1&&!retired&&<p className="career-help">Establishment season: choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional.</p>}
     <section className="career-surface surface-focus" aria-label="Next Up">
       <h2>Next Up</h2>
       {retired?<><h3>Your permanent Career record</h3><p>Retired. Results, relationships, sponsors, reviews and honours remain readable.</p><Link className="career-btn career-btn-primary" href={`/career/${id}/my-career/history`}>Explore your history</Link></>:

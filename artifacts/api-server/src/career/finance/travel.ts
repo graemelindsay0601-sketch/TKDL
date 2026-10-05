@@ -1,4 +1,4 @@
-import { COUNTY_CATCHMENTS } from "../calendar/geography.ts";
+import { COUNTY_CATCHMENTS, LOCALITIES, VENUES } from "../calendar/geography.ts";
 import { NEARBY_VENUES, TRAVEL_PROFILE, TRIP_MAX_GAP_DAYS, type TravelBand } from "./config.ts";
 
 /**
@@ -6,17 +6,36 @@ import { NEARBY_VENUES, TRAVEL_PROFILE, TRIP_MAX_GAP_DAYS, type TravelBand } fro
  * home (locality/country/zone from the A3 sporting-status provider) and the
  * event's venue/locality/country/zone. Nationality is never an input.
  */
-export type Home = { locality: string; country: string; zone: string };
+export type Home = { locality: string; country: string; zone: string; travelVersion?:number };
 export type EventPlace = { id: string; start_day: number; end_day: number; locality_key: string | null; venue_key: string; country: string; zone: string; city: string; circuit: string; series_key: string | null };
 
 export function travelBand(home: Home, event: Pick<EventPlace, "locality_key" | "venue_key" | "country" | "zone">): TravelBand {
-  const catchment = COUNTY_CATCHMENTS[home.locality] ?? [home.locality];
-  if ((event.locality_key && catchment.includes(event.locality_key)) || (NEARBY_VENUES[home.locality] ?? []).includes(event.venue_key)) return "LOCAL";
+  // County sporting catchments are NOT travel catchments: old Ayrshire/Highlands
+  // and country-wide Australian/Canadian fields must not imply free travel.
+  if(home.travelVersion===2) {
+    const locality=LOCALITIES.find(l=>l.key===home.locality);
+    const venue=VENUES.find(v=>v.key===event.venue_key);
+    if(event.country===home.country && (event.locality_key===home.locality ||
+      (venue && locality && venue.region===locality.region) ||
+      (NEARBY_VENUES_V2[home.locality]??[]).includes(event.venue_key)))return "LOCAL";
+  } else {
+    const catchment = COUNTY_CATCHMENTS[home.locality] ?? [home.locality];
+    if ((event.locality_key && catchment.includes(event.locality_key)) || (NEARBY_VENUES[home.locality] ?? []).includes(event.venue_key)) return "LOCAL";
+  }
   if (event.country === home.country) return "DOMESTIC";
   if (event.zone === "UK_IRELAND" && home.zone === "UK_IRELAND") return "UK_IRELAND";
   if (event.zone === "EUROPE" || (home.zone === "EUROPE" && event.zone === "UK_IRELAND")) return "EUROPE";
   return "LONG_HAUL";
 }
+/** Canonical exceptions only; same-region authored and generated venues are automatic. */
+export const NEARBY_VENUES_V2:Record<string,readonly string[]> = {
+  ayrshire:["glasgow-hall","foundry-glasgow","clyde-arena","kelvin-assembly"],
+  "glasgow-clyde":["glasgow-hall","ayr-pavilion","burns-hall"],
+  "edinburgh-lothians":["castle-exchange-edinburgh"],
+  "central-scotland":["stirling-civic"],
+  "north-east":["northern-forum-newcastle"], midlands:["midlands-oche"],
+  "south-wales":["riverside-hall-cardiff"], leinster:["harbour-rooms-dublin"],
+};
 
 export const destinationOf = (band: TravelBand, event: Pick<EventPlace, "country" | "city">) => band === "LOCAL" ? "HOME" : band === "DOMESTIC" ? `${event.country}:${event.city}` : event.country;
 

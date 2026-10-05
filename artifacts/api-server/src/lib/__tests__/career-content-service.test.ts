@@ -194,3 +194,31 @@ test("retired identity and products remain readable but immutable; no NPC bank a
   await status(content.editGuidance(actor,saveId,{mode:"FULL"}));
   assert.equal((await rows(sql`SELECT to_regclass('career_npc_accounts') AS accounts`))[0].accounts,null);
 });
+test("A9 new root pins v5/travel2/sponsor3; focused A3/A2 boundary fixture opens first annual Q-School",async()=>{
+  const fresh=await saves.create(2,{slot:1,dateOfBirth:"1990-01-01",homeLocality:"ayrshire"}),a={playerId:2};
+  const real=createCareerSportingService(db);
+  await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${fresh.id}`);
+  await real.initialize(a,fresh.id);await real.initialize(a,fresh.id);
+  const pin=(await rows(sql`SELECT s.*,f.sponsor_database_version FROM career_saves s JOIN career_finance_state f ON f.career_save_id=s.id WHERE s.id=${fresh.id}`))[0];
+  assert.equal(pin.event_database_version,5);assert.equal(pin.sponsor_database_version,3);
+  assert.equal((pin.settings_snapshot as {travelVersion:number}).travelVersion,2);
+  assert.equal(pin.current_season,1);assert.equal(pin.current_week,1);assert.equal(pin.balance_pence,25000);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id=${fresh.id} AND category='CAREER_START'`))[0].n,1);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_event_instances WHERE career_save_id=${fresh.id} AND circuit='Q_SCHOOL'`))[0].n,0);
+  const before=await real.calendar.calendar(a,fresh.id,{scope:"WORLD"});
+  assert.ok(before.events.some(e=>e.circuit==="REGIONAL"));assert.ok(before.events.some(e=>e.circuit==="VAULT"));
+  // TEST-ONLY terminal-world/boundary fixture. Do not simulate 600+ NPC events
+  // just to verify one annual transition. Production never performs these edits.
+  await db.execute(sql`UPDATE career_event_instances SET status='CANCELLED' WHERE career_save_id=${fresh.id} AND season=1`);
+  await db.execute(sql`UPDATE career_saves SET current_week=52 WHERE id=${fresh.id}`);
+  await db.execute(sql`UPDATE career_seasons SET played_week=51,developed_week=51 WHERE career_save_id=${fresh.id} AND season=1`);
+  await db.execute(sql`UPDATE career_world_state SET period=51,elapsed_year=${51/52} WHERE career_save_id=${fresh.id}`);
+  const advanced=await real.calendar.advance(a,fresh.id,{operationKey:"a9-boundary-fixture",expectedSeason:1,expectedWeek:52,target:{kind:"WEEKS",weeks:1}});
+  const now=(await rows(sql`SELECT current_season,current_week,balance_pence,has_tour_card FROM career_saves WHERE id=${fresh.id}`))[0];
+  assert.equal(now.current_season,2);assert.equal(now.current_week,1);assert.equal(now.balance_pence,25000);assert.equal(now.has_tour_card,false);
+  const annual=await real.calendar.calendar(a,fresh.id,{scope:"WORLD",season:2});
+  assert.ok(annual.events.some(e=>e.circuit==="Q_SCHOOL"&&e.status==="REGISTRATION_OPEN"));
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_event_entries WHERE career_save_id=${fresh.id} AND participant_key='HUMAN'`))[0].n,0);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_periods WHERE career_save_id=${fresh.id} AND season=1 AND kind='PERIOD' AND sequence=52`))[0].n,1);
+  assert.ok(advanced);
+});

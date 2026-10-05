@@ -86,7 +86,8 @@ async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateC
     try { validateDateOfBirth(dateOfBirth, startDate); } catch (error) { throw new CareerError(409, (error as Error).message); }
   }
   if (homeLocality && !LOCALITIES.some(l => l.key === homeLocality)) throw new CareerError(409, "Unknown home locality");
-  const snapshot = { ...defaults, difficulty: input.difficulty, competitionCategory:input.competitionCategory??"OPEN", ...(homeLocality ? { homeLocality } : {}) };
+  const snapshot = { ...defaults, difficulty: input.difficulty, competitionCategory:input.competitionCategory??"OPEN",
+    careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2, ...(homeLocality ? { homeLocality } : {}) };
   const result = await tx.execute(sql`
     INSERT INTO career_saves (
       id, player_id, slot_number, career_name, status, difficulty, current_season, current_week,

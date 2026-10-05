@@ -565,7 +565,7 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="flex h-dvh text-foreground overflow-hidden" style={{ position: "relative" }}>
+    <div className="tkdl-app-shell flex text-foreground overflow-hidden" style={{ position: "relative" }}>
       <div className="ambient-blob-red" />
       <div className="ambient-blob-blue" />
 
@@ -577,7 +577,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* Sidebar — hidden off-screen on tablet/mobile, permanent on desktop (≥1024px) */}
       <aside className={`
-        sidebar-rail ${collapsed ? "collapsed" : ""}
+        tkdl-drawer sidebar-rail ${collapsed ? "collapsed" : ""}
         fixed lg:relative inset-y-0 left-0 z-50
         w-64 lg:w-56 flex flex-col shrink-0
         transition-transform duration-300 ease-in-out
@@ -607,7 +607,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
+      <div className="tkdl-app-column flex flex-col flex-1 overflow-hidden min-w-0">
         {/* Top bar — visible on tablet/mobile (<1024px) */}
         <header className="lg:hidden flex items-center justify-between px-4 shrink-0"
           style={{ height: "3.25rem", background: "rgba(4,4,10,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", zIndex: 20 }}>
@@ -629,8 +629,8 @@ export function Layout({ children }: { children: ReactNode }) {
           ) : <div style={{ width: "2.5rem" }} />}
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-20 lg:pb-10" style={{ position: "relative", zIndex: 1 }}>
-          <div className="max-w-5xl mx-auto p-4 md:p-6 lg:p-8">
+        <main className="tkdl-main flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 1 }}>
+          <div className="tkdl-content-frame max-w-5xl mx-auto p-4 md:p-6 lg:p-8">
             {children}
           </div>
         </main>
@@ -652,7 +652,7 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
 
       {/* Bottom nav — tablet/mobile only (<1024px) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex" hidden={location.startsWith("/career/")}
+      <nav className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex" hidden={location.startsWith("/career/")}
         style={{ display:location.startsWith("/career/")?"none":undefined,background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));

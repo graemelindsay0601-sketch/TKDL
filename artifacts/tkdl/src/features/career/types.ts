@@ -11,6 +11,7 @@ export type CareerSave = {
   currentSeason: number; currentWeek: number; createdAt: string; updatedAt: string; retiredAt: string | null;
   balancePence: number; currency: "GBP"; standing: string; professionalRanking: number | null;
   professionalRankingMoneyPence: number; sponsor: string | null; hasTourCard: boolean;
+  eventDatabaseVersion?:number;
 };
 export type CareerSaveList = { slots: { slotNumber: number; career: CareerSave | null }[]; archived: CareerSave[] };
 

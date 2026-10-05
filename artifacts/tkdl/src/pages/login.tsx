@@ -25,7 +25,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4"
+    <div className="tkdl-standalone-screen flex items-center justify-center p-4"
       style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(255,0,92,0.15) 0%, transparent 60%), #030308" }}>
 
       <div className="w-full max-w-sm">

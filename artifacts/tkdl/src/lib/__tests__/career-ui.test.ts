@@ -30,7 +30,11 @@ let vite: ViteDevServer;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let M: Record<string, any> = {};
 before(async () => {
-  vite = await createServer({ root: ROOT, configFile: path.join(ROOT, "vite.config.ts"), logLevel: "error", appType: "custom", optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false, ws: false } });
+  vite = await createServer({ root: ROOT, configFile: path.join(ROOT, "vite.config.ts"), logLevel: "error", appType: "custom",
+    plugins:process.env.A9_BROWSER_DIR?[{name:"a9-test-only-auth",enforce:"pre",transform(_code,id){
+      if(id.endsWith("/src/context/auth.tsx"))return `export function useAuth(){return {user:{id:1,playerId:1,username:"fixture",playerName:"Fixture Player",isAdmin:false,coins:250,avatar:null},loading:false,login:async()=>({ok:true}),logout:async()=>{},refresh:async()=>{}}} export function useCurrentPlayer(){return {playerId:1,playerName:"Fixture Player"}} export function AuthProvider({children}){return children}`;
+    }}]:[],
+    optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false, ws: false } });
   const load = (p: string) => vite.ssrLoadModule(p);
    const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships, goals, recognition, life] = await Promise.all([
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
@@ -38,6 +42,14 @@ before(async () => {
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
    M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
+  if(process.env.A9_BROWSER_DIR){
+    Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
+    M.ordinary={};
+    for(const [name,page] of [["hub","dashboard"],["standings","leaderboard"],["practice","practice"],["account","account"],["classic","tour"],["login","login"]]){
+      M.ordinary[name]=(await load(`/src/pages/${page}.tsx`)).default;
+    }
+    M.TooltipProvider=(await load("/src/components/ui/tooltip.tsx")).TooltipProvider;
+  }
 });
 after(async () => { await vite?.close(); });
 
@@ -46,10 +58,20 @@ function render(el: ReactElement, seed: [unknown[], unknown][], at = `/career/${
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, refetchOnMount: false, staleTime: Infinity } } });
   for (const [k, v] of seed) client.setQueryData(k, v);
   for (const [k, e] of errors) client.getQueryCache().build(client, { queryKey: k }).setState({ status: "error", error: e as Error, fetchStatus: "idle" });
-  return renderToStaticMarkup(h(QueryClientProvider, { client }, h(M.Router, { ssrPath: at.split("?")[0],ssrSearch:at.includes("?")?at.slice(at.indexOf("?")):"" }, el)));
+  try{return renderToStaticMarkup(h(QueryClientProvider, { client }, h(M.Router, { ssrPath: at.split("?")[0],ssrSearch:at.includes("?")?at.slice(at.indexOf("?")):"" }, el)));}
+  finally{client.clear();}
 }
 /** Optional browser evidence uses only seeded TEST fixtures and actual components. */
 function browserScene(name:string,html:string) {
+  if(process.env.A9_BROWSER_DIR){
+    const out=process.env.A9_BROWSER_DIR;mkdirSync(out,{recursive:true});
+    const assets=process.env.A83_CSS_DIR??"/tmp/tkdl-a9-styles/assets";
+    const css=readdirSync(assets).filter(f=>f.endsWith(".css")).map(f=>readFileSync(path.join(assets,f),"utf8")).join("\n")+
+      readFileSync(path.join(ROOT,"src/features/career/career.css"),"utf8");
+    const markup=render(h(M.TooltipProvider,null,name==="login"?h("div",{style:{height:"100%"},dangerouslySetInnerHTML:{__html:html}}):
+      h(M.Layout,null,h("div",{dangerouslySetInnerHTML:{__html:html}}))),[],name==="login"?"/login":["hub","standings","practice","account","classic"].includes(name)?name==="hub"?"/":name==="standings"?"/leaderboard":`/${name}`:`/career/${SAVE_ID}/${name}`);
+    writeFileSync(path.join(out,`${name}.html`),`<!doctype html><html class="dark"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>A9 fixture: ${name}</title><style>${css}</style><body><div id="root">${markup}</div></body></html>`);
+  }
   if(!process.env.A83_BROWSER_DIR)return;
   const out=process.env.A83_BROWSER_DIR;mkdirSync(out,{recursive:true});
   const assets=process.env.A83_CSS_DIR??path.join(ROOT,"dist/public/assets");
@@ -590,4 +612,30 @@ test("A8.3 long histories render twenty records at a time without discarding tot
 test("A8.3 Q-School session evidence is not portrayed as a championship trophy",()=>{
   const html=render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:1,nextOffset:null,titles:[{eventId:"session",canonicalEventId:"q-school",circuit:"Q_SCHOOL",name:"Q-School day",classification:"QUALIFIER",season:1,trophy:{name:"Session Cup",designKey:"handled-silver"}}]}]]);
   assert.match(text(html),/Session win — not a tournament title or automatic Tour Card/);assert.doesNotMatch(html,/aria-label="Session Cup"/);
+});
+test("A9 establishment copy is new-save-only; Career Calendar fixture remains bounded",()=>{
+  const seed:[unknown[],unknown][]=[[key("calendar",{scope:"WORLD",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
+    [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy"),{pendingReview:null}]];
+  const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5}))}),seed);
+  assert.match(text(html),/Establishment season/);assert.match(text(html),/Turning professional is optional/);
+  assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Establishment season/);
+  if(process.env.A9_BROWSER_DIR){
+    const q={scope:"WORLD",season:1,fromWeek:1,toWeek:9,circuit:undefined};
+    const markup=render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.CalendarPage,{ctx:ctx()})),
+      [[key("calendar",q),{overview:overview(),events:Array.from({length:14},(_,i)=>event({id:`calendar-${i}`,name:`Local fixture event ${i+1}`}))}]]);
+    assert.match(text(markup),/Calendar/);browserScene("calendar",markup);
+  }
+});
+test("A9 browser fixtures include actual ordinary TKDL pages and long standings",()=>{
+  if(!process.env.A9_BROWSER_DIR)return;
+  const standings=Array.from({length:35},(_,i)=>({position:i+1,positionChange:0,playerId:i+1,playerName:`Fixture Player ${i+1}`,wins:8,losses:4,
+    gamesPlayed:12,points:200-i,elo:1100-i,tier:"CLUB",winRate:66.7,currentStreak:1,status:"ACTIVE"}));
+  const seed:[unknown[],unknown][]=[[["/api/leaderboard"],standings],[["app-settings"],{coins_enabled:false,live_scorer_enabled:false}]];
+  const prior=Object.getOwnPropertyDescriptor(globalThis,"window");
+  Object.defineProperty(globalThis,"window",{configurable:true,value:{location:{search:""},innerWidth:390,
+    matchMedia:()=>({matches:false,addListener(){},removeListener(){},addEventListener(){},removeEventListener(){}})}});
+  try{for(const [name,Component] of Object.entries(M.ordinary)){
+    const html=render(h(M.TooltipProvider,null,h(Component as never)),seed,name==="hub"?"/":name==="standings"?"/leaderboard":`/${name}`);
+    assert.ok(text(html).length>50,`${name}: actual screen content`);browserScene(name,html);
+  }}finally{if(prior)Object.defineProperty(globalThis,"window",prior);else Reflect.deleteProperty(globalThis,"window");}
 });
