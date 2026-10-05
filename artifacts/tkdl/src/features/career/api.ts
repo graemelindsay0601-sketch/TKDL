@@ -1,5 +1,6 @@
 import type { CareerFacts } from "../../../../api-server/src/career/facts/types";
 import type { CareerRelationships } from "../../../../api-server/src/career/relationships/types";
+import type { RecognitionView } from "../../../../api-server/src/career/recognition/types";
 import type { Focus, GoalDefinition, GoalsView } from "../../../../api-server/src/career/goals/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetchJson, ApiRequestError } from "@/lib/api-fetch";
@@ -28,6 +29,8 @@ export const careerKey = (saveId: string, ...rest: unknown[]) => ["career", save
 
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
+export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });
+export const useNpcRecognition = (saveId: string, npcId?: string) => useQuery({ queryKey: careerKey(saveId, "recognition", "npc", npcId ?? ""), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition/npcs/${npcId}`), enabled:!!npcId, staleTime: STALE });
 export const useCareerGoals = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "goals"), queryFn: () => get<GoalsView>(`/saves/${saveId}/goals`), staleTime: STALE });
 export const useCareerFocus = (saveId: string) => useSaveMutation(saveId, (focus: Focus) => send<{focus:Focus}>("POST",`/saves/${saveId}/focus`,{focus}));
 export const useCreateCareerGoal = (saveId: string) => useSaveMutation(saveId, (body: {requestKey:string;definition:GoalDefinition}) => send<{id:string;created:boolean}>("POST",`/saves/${saveId}/goals`,body));

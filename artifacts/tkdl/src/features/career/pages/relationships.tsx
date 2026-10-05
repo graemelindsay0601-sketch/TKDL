@@ -40,6 +40,7 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
           {!world.length && <CareerEmptyState title="No players in this view" />}
           <ul className="space-y-2">{world.slice(0,limit).map(p=><li key={p.id} className="border-b border-white/10 pb-2 text-sm">
             <Flag code={p.nationality} /> {p.name}<span className="block text-xs text-white/60">{identity(p)} · {p.createdSeason===1 ? "Starting generation" : `Entered in season ${p.createdSeason}`}</span>
+            <Link className="underline text-xs" href={`/career/${ctx.save.id}/recognition/npcs/${p.id}`}>Public sporting recognition</Link>
           </li>)}</ul>
           {world.length>limit && <button className="career-btn career-btn-ghost" onClick={()=>setLimit(limit+30)}>Show more ({world.length-limit} remaining)</button>}
         </div>;
@@ -56,6 +57,7 @@ export function OpponentPanel({ opponent:o, saveId }: { opponent:OpponentRelatio
     </summary>
     <div className="pt-3 space-y-2 text-sm">
       <p>{identity(o.player)}</p>
+      <Link className="underline text-xs" href={`/career/${saveId}/recognition/npcs/${o.player.id}`}>Public sporting recognition</Link>
       <p>First: {when(o.firstMeeting)}<br />Latest: {when(o.latestMeeting)}</p>
       <p>{o.eventCount} events · {o.seasonCount} seasons · {o.finals} finals · {o.majorMeetings} major/world meetings · {o.qualificationMeetings} qualification meetings</p>
       <ul className="text-xs text-white/70">{o.evidence.map(e=><li key={e}>{e}</li>)}</ul>

@@ -173,7 +173,8 @@ test("milestones render as neutral factual labels (no prose)", () => {
 
 test("navigation: three layers, every screen reachable, events belong to Calendar", () => {
   assert.deepEqual(CAREER_NAV.map(l => l.label), ["Home", "My Career", "Darts World"]);
-  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 10);
+  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 11);
+  assert.equal(navLayerOf(activeNavKey("/career/abc/recognition/npcs/example")).label, "My Career");
   assert.equal(navLayerOf(activeNavKey("/career/abc/goals")).label, "My Career");
   assert.equal(navLayerOf(activeNavKey("/career/abc/relationships")).label, "My Career");
   assert.equal(activeNavKey("/career/abc/events/xyz"), "calendar");

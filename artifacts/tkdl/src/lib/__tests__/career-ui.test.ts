@@ -13,6 +13,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createServer, type ViteDevServer } from "vite";
 import { event, eventDetail, finance, human, overview, pathway, rankingMeta, row, save, SAVE_ID, sporting } from "./career-fixtures.ts";
 import { FOCUSES, type GoalsView } from "../../../../api-server/src/career/goals/types.ts";
+import { recognitionModel } from "../../../../api-server/src/career/recognition/model.ts";
+import type { RecognitionView } from "../../../../api-server/src/career/recognition/types.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 let vite: ViteDevServer;
@@ -21,11 +23,11 @@ let M: Record<string, any> = {};
 before(async () => {
   vite = await createServer({ root: ROOT, configFile: path.join(ROOT, "vite.config.ts"), logLevel: "error", appType: "custom", optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false, ws: false } });
   const load = (p: string) => vite.ssrLoadModule(p);
-  const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships, goals] = await Promise.all([
+   const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships, goals, recognition] = await Promise.all([
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
-    load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx")]);
-  M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+     load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx")]);
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
 });
 after(async () => { await vite?.close(); });
 
@@ -46,6 +48,48 @@ const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[]
 const goalsFixture=():GoalsView=>({careerSaveId:SAVE_ID,focus:"OPEN_SCHEDULE",focusOptions:Object.entries(FOCUSES).map(([value,d])=>({value:value as GoalsView["focus"],...d})),
   activeLimit:5,retired:false,goals:[],options:[{definition:{type:"WIN_TITLE"},label:"Win a Career title"}],
   context:{currentRank:null,holdsCard:false,earningsPence:0},opportunities:[]});
+const recognitionFixture=(elite=false):RecognitionView=>({careerSaveId:SAVE_ID,subject:{kind:"HUMAN",id:"HUMAN",name:"Your Career",retired:false},relationships:[],
+  ...recognitionModel({appearances:[],qualifications:[],cards:[],rankings:[],results:elite ? Array.from({length:4},(_,i)=>({
+    fact:{id:`title-${i}`,source:"A3 event result",label:`National amateur title ${i+1}`,season:1,day:7,week:1,date:"2026-01-07",age:20,eventId:`event-${i}`},
+    circuit:"NATIONAL_AMATEUR",classification:"RANKING",tier:"STANDARD",international:false,champion:true,stageReached:"CHAMPION"})) : []})});
+test("A7.4 Recognition: elite amateur standing, independent contexts, factual evidence/history and no meters/scores",()=>{
+  const data=recognitionFixture(true),html=render(h(M.RecognitionPage,{ctx:ctx()}),[[key("recognition"),data]]),t=text(html);
+  for(const s of ["Elite amateur","Local","Amateur","Professional","Major / Stage","International","Why you're recognised","National amateur title","2026-01-07","Age 20","A3 event result","Recent recognition milestones"])assert.ok(t.includes(s),s);
+  assert.match(t,/turning professional is optional/);assert.match(t,/Focus and personal goals do not grant recognition/);
+  assert.ok(html.includes(`/career/${SAVE_ID}/events/event-0`));
+  assert.doesNotMatch(html,/<progress|role="progressbar"|\d+\/100/);
+  assert.doesNotMatch(t,/reputation points|XP|potential|current ability|level up|fame currency/i);
+});
+test("A7.4 empty and retired Recognition remain meaningful, readable and without mutation controls",()=>{
+  const data=recognitionFixture(),empty=text(render(h(M.RecognitionPage,{ctx:ctx()}),[[key("recognition"),data]]));
+  assert.match(empty,/Building a sporting record/);assert.match(empty,/No qualifying sporting evidence/);assert.match(empty,/No dated recognition milestones/);
+  data.subject.retired=true;
+  const retired=text(render(h(M.RecognitionPage,{ctx:ctx(save({status:"RETIRED"}))}),[[key("recognition"),data]]));
+  assert.match(retired,/Retired Career/);assert.match(retired,/creates no further progression/);assert.doesNotMatch(retired,/Enter event|Select goal|Spend|Upgrade/);
+});
+test("A7.4 Hub summary limits badges to strongest contexts and history renders only sourced milestone dates",()=>{
+  const data=recognitionFixture(true),summary=render(h(M.RecognitionSummary,{saveId:SAVE_ID}),[[key("recognition"),data]]);
+  assert.match(text(summary),/Career standing.*Elite amateur/);assert.ok(summary.includes(`/career/${SAVE_ID}/recognition`));
+  assert.doesNotMatch(text(summary),/Professional ·|Major \/ Stage ·|International ·/);
+  const history=text(render(h(M.RecognitionTimeline,{saveId:SAVE_ID}),[[key("recognition"),data]]));
+  assert.match(history,/Recognition threshold history/);assert.match(history,/Amateur recognition — Elite/);assert.match(history,/2026-01-07/);
+  const home=text(render(h(M.HomePage,{ctx:ctx()}),[...homeSeed(save(),[]),[key("recognition"),data]]));
+  assert.match(home,/Career standing.*Elite amateur/);
+});
+test("A7.4 on-demand NPC Recognition and relationship links expose public sporting evidence only",()=>{
+  const data=recognitionFixture(true);data.subject={kind:"NPC",id:"public-npc",name:"Public Opponent",retired:true};
+  const html=render(h(M.RecognitionPage,{ctx:ctx(),npcId:"public-npc"}),[[key("recognition","npc","public-npc"),data]]);
+  assert.match(text(html),/Public opponent recognition/);assert.match(text(html),/Public Opponent/);assert.match(text(html),/Retired player/);
+  assert.ok(html.includes(`/career/${SAVE_ID}/relationships`));assert.doesNotMatch(text(html),/potential|ability|development score/i);
+});
+test("A7.4 loading/error and week-precision milestones never imply an exact sporting date",()=>{
+  assert.match(text(render(h(M.RecognitionPage,{ctx:ctx()}),[])),/Reading sporting recognition/);
+  assert.match(text(render(h(M.RecognitionPage,{ctx:ctx()}),[],undefined,[[key("recognition"),new Error("Recognition unavailable")]])),/Recognition unavailable/);
+  const data=recognitionFixture(true);
+  data.milestones[0]={...data.milestones[0],precision:"WEEK",week:3,day:null,date:null,age:null};
+  const t=text(render(h(M.RecognitionTimeline,{saveId:SAVE_ID}),[[key("recognition"),data]]));
+  assert.match(t,/S1 · W3/);assert.doesNotMatch(t,/2026-01-07|Age 20/);
+});
 test("A7.3 optional focus/goals render guidance, an unrestricted calendar link, contextual choices and empty state",()=>{
   const data=goalsFixture();
   const html=render(h(M.GoalsPage,{ctx:ctx()}),[[key("goals"),data]]);

@@ -5,6 +5,8 @@ import { createCareerRelationshipsRouter } from "../../career/relationships/rout
 import { createCareerGoalsService } from "../../career/goals/service.ts";
 import { createCareerGoalsRouter } from "../../career/goals/router.ts";
 import { createCareerGoals } from "../../db/migrations/create_career_goals.ts";
+import { createCareerRecognitionService } from "../../career/recognition/service.ts";
+import { createCareerRecognitionRouter } from "../../career/recognition/router.ts";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -76,6 +78,7 @@ before(async () => {
   router.use(createCareerFactsRouter(createCareerFactsService(db)));
   router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db)));
   router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
+  router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
   router.use(createCareerLiveRouter(live, available));
   router.use(createCareerSportingRouter(career, available));
@@ -227,6 +230,7 @@ test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, 
     rankings:await q(sql`SELECT * FROM career_ranking_snapshots WHERE career_save_id=${id} ORDER BY id`),
   });
   const before=await invariant();
+  const recognitionBeforeFocus=(await call("GET",`/saves/${id}/recognition`)).body;
   for (const focus of initial.body.focusOptions) {
     assert.equal((await call("POST",`/saves/${id}/focus`,{focus:focus.value})).status,200);
     const first=await read(),second=await read();
@@ -235,6 +239,7 @@ test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, 
     assert.ok(first.body.opportunities.every((e:any)=>typeof e.canEnter==="boolean" && Array.isArray(e.denials)));
   }
   assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"RPG_CLASS"})).status,400);
+  assert.deepEqual((await call("GET",`/saves/${id}/recognition`)).body,recognitionBeforeFocus,"changing every Career Focus grants no recognition");
   assert.equal((await call("GET",`/saves/${id}/goals`,undefined,0)).status,401);
   assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"OPEN_SCHEDULE"},2)).status,404);
   assert.equal((await call("POST","/saves/bad-id/focus",{focus:"OPEN_SCHEDULE"})).status,400);
@@ -247,6 +252,7 @@ test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, 
   const create=await call("POST",`/saves/${id}/goals`,{requestKey,definition});
   assert.equal(create.status,200,JSON.stringify(create.body));assert.equal(create.body.created,true);
   assert.deepEqual((await call("POST",`/saves/${id}/goals`,{requestKey,definition})).body,{id:create.body.id,created:false});
+  assert.deepEqual((await call("GET",`/saves/${id}/recognition`)).body,recognitionBeforeFocus,"active/duplicate goal selection grants no recognition");
   assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey,definition:{type:"REACH_FINAL"}})).status,409);
   assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition})).body.id,create.body.id);
   assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"WIN_TITLE",completed:true}})).status,400);
@@ -335,12 +341,15 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   assert.equal(afterFacts.performance.recordedMatches, 1);
   assert.equal(done.session.result.humanWon, true);
   const ledgerBeforeGoals=await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`);
+  const recognitionBeforeGoalCompletion=await call("GET",`/saves/${id}/recognition`);
+  assert.equal(recognitionBeforeGoalCompletion.status,200,JSON.stringify(recognitionBeforeGoalCompletion.body));
   const goalsAfterMatch=(await call("GET",`/saves/${id}/goals`)).body;
   const achieved=goalsAfterMatch.goals.find((g:any)=>g.id===opponentGoal.body.id);
   assert.equal(achieved.status,"COMPLETED");assert.equal(achieved.completion.id,`match:${matchId}`);
   assert.equal(achieved.completion.age,15);assert.ok(achieved.completion.date);
   assert.deepEqual((await call("GET",`/saves/${id}/goals`)).body.goals,goalsAfterMatch.goals,"completion is idempotent");
   assert.deepEqual(await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`),ledgerBeforeGoals,"goal completion awards no money");
+  assert.deepEqual((await call("GET",`/saves/${id}/recognition`)).body,recognitionBeforeGoalCompletion.body,"a completed goal adds no recognition beyond its underlying played fact");
   const match = (await q(sql`SELECT status, winner_key, result_source, legs_a, legs_b, first_throw_detail, summary FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0];
   assert.deepEqual([match.status, match.winner_key, match.result_source], ["COMPLETED", "HUMAN", "HUMAN_LIVE"]);
   assert.equal(match.first_throw_detail.method, "LIVE_BULL_UP");
@@ -556,6 +565,64 @@ test("A7.1 factual read model: actual live evidence, isolation, age, lifecycle a
   assert.equal((await facts.read({playerId:2},restarted.id)).statistics.matchesPlayed,0);
   await saves.delete(2,restarted.id);
   await assert.rejects(()=>facts.read({playerId:2},other.id));
+});
+
+test("A7.4 live HTTP: existing/retired history, all-authority read-only invariants, NPC evidence, isolation and gates",async()=>{
+  const id=String((await q(sql`SELECT id FROM career_saves WHERE player_id=1 ORDER BY slot_number LIMIT 1`))[0].id);
+  const read=()=>call("GET",`/saves/${id}/recognition`);
+  const owned=(await q(sql`SELECT DISTINCT table_name FROM information_schema.columns WHERE table_schema='public' AND column_name='career_save_id' ORDER BY table_name`)).map(r=>String(r.table_name));
+  const invariant=async()=>{
+    const root=await q(sql`SELECT * FROM career_saves WHERE id=${id}`);
+    const tables:Record<string,unknown>={};
+    for(const table of owned) tables[table]=await q(sql`SELECT MD5(string_agg(to_jsonb(t)::text,'|' ORDER BY to_jsonb(t)::text)) AS digest FROM ${sql.identifier(table)} t WHERE career_save_id=${id}`);
+    return {root,tables};
+  };
+  const before=await invariant(),first=await read();
+  assert.equal(first.status,200,JSON.stringify(first.body));assert.equal(first.body.subject.retired,true,"retired Career retains standing");
+  assert.equal(first.body.contexts.length,5);assert.ok(first.body.contexts.some((c:any)=>c.evidence.length>0),"existing played history needs no reset");
+  assert.deepEqual((await read()).body,first.body,"read is deterministic and idempotent");
+  assert.deepEqual(await invariant(),before,"no changes to saves, live/scoring, RNG/draws, NPC abilities, rankings, prizes, sponsors, qualification, Tour Cards, goals or difficulty");
+  const actual=await createCareerFactsService(db).read({playerId:1},id);
+  const titles=new Set(actual.results.map(r=>r.id));
+  for(const c of first.body.contexts) for(const f of c.evidence)
+    if(f.id.startsWith("result:")) assert.ok(titles.has(f.id),"result evidence is owned A7.1 fact");
+  assert.doesNotMatch(JSON.stringify(first.body),/"(?:score|weight|thresholds|currentAbility|potential|form|momentum|world_seed|reputationPoints)"/);
+  const winner=String((await q(sql`SELECT participant_key FROM career_event_results WHERE career_save_id=${id} AND participant_key<>'HUMAN' AND is_champion=true LIMIT 1`))[0].participant_key);
+  const publicNpc=await call("GET",`/saves/${id}/recognition/npcs/${winner}`);
+  assert.equal(publicNpc.status,200,JSON.stringify(publicNpc.body));assert.equal(publicNpc.body.subject.kind,"NPC");
+  assert.ok(publicNpc.body.contexts.some((c:any)=>c.evidence.some((f:any)=>f.id.startsWith("result:"))));
+  assert.deepEqual((await call("GET",`/saves/${id}/recognition/npcs/${winner}`)).body,publicNpc.body);
+  assert.doesNotMatch(JSON.stringify(publicNpc.body),/"(?:currentAbility|startingAbility|potential|development|form|momentum|config|score)"/);
+  assert.deepEqual(await invariant(),before,"NPC recognition is on-demand/read-only, not a weekly reputation write");
+  assert.equal((await call("GET",`/saves/${id}/recognition`,undefined,0)).status,401);
+  assert.equal((await call("GET",`/saves/${id}/recognition`,undefined,2)).status,404);
+  assert.equal((await call("GET","/saves/not-an-id/recognition")).status,400);
+  assert.equal((await call("GET",`/saves/${id}/recognition/npcs/not-an-id`)).status,400);
+  assert.equal((await call("GET",`/saves/${id}/recognition/npcs/${winner}`,undefined,2)).status,404);
+  assert.equal((await call("POST",`/saves/${id}/recognition`,{reputation:"ELITE"})).status,404,"no browser recognition mutation");
+  const slot=Number((await q(sql`SELECT n AS slot FROM generate_series(1,3) n WHERE NOT EXISTS
+    (SELECT 1 FROM career_saves s WHERE s.player_id=2 AND s.slot_number=n AND s.status='ACTIVE') ORDER BY n LIMIT 1`))[0].slot);
+  const fresh=await saves.create(2,{slot,careerName:"A7.4 fresh / legacy-compatible"});
+  try {
+    const low=await call("GET",`/saves/${fresh.id}/recognition`,undefined,2);
+    assert.equal(low.status,200,JSON.stringify(low.body));assert.ok(low.body.contexts.every((c:any)=>c.level==="UNKNOWN"));
+    assert.deepEqual(low.body.milestones,[],"profile-incomplete/pre-initialization saves remain readable");
+    const foreign="99999999-9999-4999-8999-999999999999";
+    await db.execute(sql`INSERT INTO career_world_players SELECT
+      (jsonb_populate_record(NULL::career_world_players,to_jsonb(n)||jsonb_build_object('career_save_id',${fresh.id}::text,'id',${foreign}::text,'world_key','a74-foreign-only'))).*
+      FROM career_world_players n WHERE career_save_id=${id} LIMIT 1`);
+    assert.equal((await call("GET",`/saves/${id}/recognition/npcs/${foreign}`)).status,404,"foreign-only public NPC cannot bind to this save");
+    assert.deepEqual((await read()).body,first.body,"another save's identity/achievements cannot change recognition");
+    await db.execute(sql`UPDATE feature_flags SET enabled=false,admin_test_mode=true WHERE feature_name='tour_career_2'`);
+    assert.equal((await read()).status,404);
+    const admin=await fetch(`${base}/saves/${id}/recognition`,{headers:{"x-test-player":"1","x-test-admin":"true"}});
+    assert.equal(admin.status,200);assert.equal(admin.headers.get("cache-control"),"no-store");
+    await db.execute(sql`UPDATE feature_flags SET admin_test_mode=false WHERE feature_name='tour_career_2'`);
+    assert.equal((await call("GET",`/saves/${id}/recognition/npcs/${winner}`)).status,404,"hidden gate also protects NPC route");
+  } finally {
+    await db.execute(sql`UPDATE feature_flags SET enabled=true,admin_test_mode=false WHERE feature_name='tour_career_2'`);
+    await saves.delete(2,fresh.id);
+  }
 });
 
 test("A6.6 admin reset cascades populated Career data only, requires confirmation and works while Hidden", async () => {

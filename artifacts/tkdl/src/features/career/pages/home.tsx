@@ -8,6 +8,7 @@ import type { ShellContext } from "../shell";
 import type { CareerEvent } from "../types";
 import { MatchBoundaryNotice } from "./match-boundary";
 import { GoalsSummary } from "./goals";
+import { RecognitionSummary } from "./recognition";
 
 /** Screen 1 — Career Home: next action → current status → upcoming Career → world context. */
 export function HomePage({ ctx }: { ctx: ShellContext }) {
@@ -49,6 +50,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       {/* CURRENT STATUS */}
       <AgeLine saveId={id} />
       <GoalsSummary saveId={id} />
+      <RecognitionSummary saveId={id} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {sporting.data ? (() => {
           const w = sporting.data.worldRanking;

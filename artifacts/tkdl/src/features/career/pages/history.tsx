@@ -7,6 +7,7 @@ import type { ShellContext } from "../shell";
 import type { HistoryRow } from "../types";
 import { FactsOverview, FactsTimeline, PerformancePanel, RecordsPanel, WorldHistoryPanel } from "./facts-panels";
 import { ResultList } from "./journey";
+import { RecognitionTimeline } from "./recognition";
 
 type Tab = "OVERVIEW" | "TIMELINE" | "SEASONS" | "TITLES" | "MAJORS" | "RANKING" | "TROPHIES" | "PLAYING" | "RECORDS" | "WORLD";
 const MAJOR = new Set(["MAJOR", "WORLD_CHAMPIONSHIP"]);
@@ -56,7 +57,7 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
         </div>
       )}
       {tab === "OVERVIEW" && history.data && <FactsOverview facts={history.data} />}
-      {tab === "TIMELINE" && history.data && <FactsTimeline facts={history.data} />}
+      {tab === "TIMELINE" && history.data && <><FactsTimeline facts={history.data} /><RecognitionTimeline saveId={id}/></>}
       {tab === "PLAYING" && history.data && <PerformancePanel facts={history.data} />}
       {tab === "RECORDS" && history.data && <RecordsPanel facts={history.data} />}
       {tab === "WORLD" && history.data && <WorldHistoryPanel facts={history.data} />}

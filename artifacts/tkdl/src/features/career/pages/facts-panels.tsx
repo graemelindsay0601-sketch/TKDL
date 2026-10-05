@@ -29,7 +29,7 @@ export function PerformancePanel({ facts }: { facts: CareerFacts }) {
     <p className="p-3 text-xs text-muted-foreground">Checkout attempts and checkout percentage are unavailable: the dart log records hits, not the intended target. No aiming intent is inferred.</p>
   </CareerSection>;
 }
-function FactLine({ fact, saveId }: { fact: Fact; saveId: string }) {
+export function FactLine({ fact, saveId }: { fact: Fact; saveId: string }) {
   return <li className="border-b border-white/10 py-2 text-sm">
     <div className="text-xs text-muted-foreground">S{fact.season}{fact.week ? ` · W${fact.week}` : ' · week not recorded'}{fact.date ? ` · ${fact.date}` : ''}{fact.age != null ? ` · Age ${fact.age}` : ''}</div>
     {fact.eventId ? <Link className="career-row-link" href={`/career/${saveId}/events/${fact.eventId}`}>{fact.label}</Link> : <span>{fact.label}</span>}
