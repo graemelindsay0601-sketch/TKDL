@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import {CareerEventIdentity} from "../identity";
+import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useQualification, useWithdrawEvent, errorMessage } from "../api";
@@ -33,7 +35,9 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
   const [tab, setTab] = useState<Tab>("OVERVIEW");
 
   return (
-    <div className="space-y-3">
+    <CareerEventIdentity eventKey={e.definitionKey} circuit={e.circuit} level={e.presentation.tier}><div className="space-y-3">
+      <ContextHelp saveId={save.id} topic="event"/>
+      {(e.circuit==="Q_SCHOOL"||["WORLD","MAJOR"].includes(e.presentation.tier))&&<ContextHelp saveId={save.id} topic={e.circuit==="Q_SCHOOL"?"q-school":e.presentation.tier==="WORLD"?"palace":"major"}/>}
       {!palace && <Link href={`/career/${save.id}/calendar`} className="career-btn career-btn-ghost"><ArrowLeft className="w-4 h-4" aria-hidden /> Calendar</Link>}
       <section className="pdc-card overflow-hidden relative" style={{ borderColor: `${tier.accent}${tier.emphasis >= 4 ? "66" : "33"}` }}>
         <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: `radial-gradient(80% 140% at 100% 0%, ${tier.accent}${tier.emphasis >= 4 ? "26" : "12"}, transparent 60%)` }} />
@@ -69,7 +73,7 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
       {tab === "PLAYERS" && <Players detail={detail} />}
       {tab === "PRIZE" && <Prize saveId={save.id} detail={detail} />}
       {tab === "RANKING" && <RankingTab saveId={save.id} detail={detail} retired={retired} />}
-    </div>
+    </div></CareerEventIdentity>
   );
 }
 

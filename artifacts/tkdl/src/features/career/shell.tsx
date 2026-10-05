@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords } from "lucide-react";
-import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, useLegacy, errorMessage, errorStatus } from "./api";
+import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -14,6 +14,7 @@ export type ShellContext = { save: CareerSave; overview: CalendarOverview | null
  * receive the shared save + calendar overview so screens don't refetch them.
  */
 export function CareerShell({ saveId, children }: { saveId: string; children: (ctx: ShellContext) => ReactNode }) {
+  const [location]=useLocation();
   const save = useCareerSave(saveId);
   const week = save.data?.currentWeek ?? 1;
   const header = useCalendar(saveId, { scope: "WORLD", fromWeek: week, toWeek: week }, !!save.data);
@@ -22,9 +23,10 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
   const retired = save.data.status === "RETIRED";
   const overview = header.data?.overview ?? null;
   return (
-    <div className="career-root space-y-3 pb-10">
+    <div className={`career-root space-y-3 pb-10 ${/\/(tournaments|matches)\//.test(location)?"career-gameplay":""}`}>
+      <a href="#career-content" className="career-skip">Skip to Career content</a>
       <CareerHeader save={save.data} overview={overview} retired={retired} />
-      <CareerNav saveId={saveId} />
+      {!location.includes("/play")&&<CareerNav saveId={saveId} />}
       {!retired && <ProfileIncompleteBanner saveId={saveId} />}
       {retired && (
         <div role="status" className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}>
@@ -32,7 +34,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
         </div>
       )}
       {header.error && !overview ? (errorStatus(header.error) === 409 && !retired ? <InitializeCareer saveId={saveId} /> : <CareerError error={header.error} onRetry={() => header.refetch()} />)
-        : header.isLoading ? <CareerLoading label="Loading Career world" /> : children({ save: save.data, overview, retired })}
+        : header.isLoading ? <CareerLoading label="Loading Career world" /> : <main id="career-content" tabIndex={-1}>{children({ save: save.data, overview, retired })}</main>}
     </div>
   );
 }
@@ -111,7 +113,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
         </div>
         {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} />}
       </div>
-      <SeasonProgress week={save.currentWeek} groupings={overview?.groupings} current={overview?.grouping.key} />
+      <div className="career-header-tools"><WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link></div>
     </header>
   );
 }
@@ -119,17 +121,20 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
 function HeaderAge({ saveId }: { saveId: string }) {
   const p = useCareerProfile(saveId).data;
   if (p?.status !== "COMPLETE") return null;
-  return <>{` · Age ${p.age}`}{p.junior ? " · Junior" : ""}</>;
+  return <>{` · ${p.careerDate} · Age ${p.age}`}{p.junior ? " · Junior" : ""}</>;
 }
 
 /** Time only moves through A3's retry-safe advance. A pending human match blocks it (honestly). */
 function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount }: { save: CareerSave; pendingEventId: string | null; pendingMatchId: string | null; pendingCount: number }) {
   const advance = useAdvance(save.id);
   const legacy=useLegacy(save.id);
+  const tournament=useActiveTournament(save.id);
+  const active=tournament.data?.tournaments.find(t=>!t.terminal);
   const [message, setMessage] = useState<string | null>(null);
   const live = useLiveSession(save.id, pendingMatchId);
   const resumable = !!live.data && (live.data.status === "BULL_UP" || live.data.status === "IN_PLAY");
-  if(legacy.data?.pendingReview)return <Link className="career-btn career-btn-gold" href={`/career/${save.id}/history`}>Season complete — review before Season {save.currentSeason}</Link>;
+  if(legacy.data?.pendingReview)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/my-career/history`}>Continue Season Review — before Season {save.currentSeason}</Link>;
+  if(active)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/tournaments/${active.eventId}`}>Return to Tournament</Link>;
   if (pendingEventId) return (
     <Link href={pendingMatchId ? `/career/${save.id}/matches/${pendingMatchId}/play` : `/career/${save.id}/events/${pendingEventId}`}
       className="career-btn career-btn-gold w-full sm:w-auto" aria-label={resumable ? "Resume your match" : `${pendingCount > 1 ? `${pendingCount} matches are` : "Your match is"} waiting — play it now`}>
@@ -138,12 +143,13 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount }: 
   );
   return (
     <div className="flex flex-col items-stretch sm:items-end gap-1">
-      <button className="career-btn career-btn-primary" title="Play simulated weeks until your next important date" disabled={advance.isPending}
+      <button className="career-btn career-btn-primary" title="Play simulated weeks until your next important date" disabled={advance.isPending||legacy.isLoading||tournament.isLoading||!!legacy.error||!!tournament.error}
         onClick={() => { setMessage(null); advance.mutate({ season: save.currentSeason, week: save.currentWeek, target: { kind: "NEXT_MEANINGFUL" } },
           { onSuccess: r => setMessage(`${advanceStopLabel(r.stop.reason)} — ${weekLabel(r.to.season, r.to.week)}`), onError: e => setMessage(errorMessage(e)) }); }}>
         {advance.isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
-        {advance.isPending ? "Playing…" : "Continue"}
+        {advance.isPending ? "Playing…" : "Continue Career"}
       </button>
+      {(legacy.error||tournament.error)&&<CareerError error={legacy.error||tournament.error} onRetry={()=>{void legacy.refetch();void tournament.refetch();}}/>}
       {message && <span role="status" className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.7)" }}>{message}</span>}
     </div>
   );
@@ -160,15 +166,15 @@ export function CareerNav({ saveId }: { saveId: string }) {
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
   return (
-    <nav aria-label="Career" className="pdc-card career-nav px-2 py-1.5 space-y-1">
-      <div className="grid grid-cols-3 gap-1">
+    <nav aria-label="Career" className="career-navigation">
+      <div className="career-primary-nav">
         {CAREER_NAV.map(section => (
-          <Link key={section.layer} href={`/career/${saveId}${section.items[0].path}`} className="career-nav-link justify-center"
-            aria-current={layer.layer === section.layer ? (section.items.length === 1 ? "page" : "true") : undefined}>{section.label}</Link>
+          <Link key={section.layer} href={`/career/${saveId}${section.path}`} className="career-nav-link justify-center"
+            aria-current={layer.layer === section.layer ? (section.items.length === 1 ? "page" : "true") : undefined}><span className="career-destination-icon" aria-hidden>{section.icon}</span><span>{section.label}</span></Link>
         ))}
       </div>
       {layer.items.length > 1 && (
-        <div className="flex gap-1 career-scroll-x no-scrollbar border-t pt-1" style={{ borderColor: "rgba(255,255,255,0.06)" }} aria-label={`${layer.label} pages`} role="group">
+        <div className="career-context-nav" aria-label={`${layer.label} pages`} role="group">
           {layer.items.map(item => (
             <Link key={item.key} href={`/career/${saveId}${item.path}`} className="career-subnav-link" aria-current={active === item.key ? "page" : undefined}>{item.label}</Link>
           ))}
@@ -176,4 +182,23 @@ export function CareerNav({ saveId }: { saveId: string }) {
       )}
     </nav>
   );
+}
+
+function WorldSearch({saveId}:{saveId:string}) {
+  const [search,setSearch]=useState(""),[,navigate]=useLocation();
+  return <form className="career-search" role="search" onSubmit={e=>{e.preventDefault();navigate(`/career/${saveId}/world/search?q=${encodeURIComponent(search)}`);}}>
+    <label htmlFor={`world-search-${saveId}`}>Search the darts world</label><input id={`world-search-${saveId}`} type="search" maxLength={80} placeholder="Players, events, venues" value={search} onChange={e=>setSearch(e.target.value)}/><button className="career-btn career-btn-ghost">Search</button></form>;
+}
+export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:boolean}) {
+  const t=useActiveTournament(saveId),legacy=useLegacy(saveId),finance=useFinance(saveId),life=useCareerLife(saveId),sporting=useSporting(saveId);
+  const active=t.data?.tournaments.find(x=>!x.terminal),base=`/career/${saveId}`;
+  const actions=!retired?[...(active?[{title:`Return to ${active.name}`,path:`${base}/tournaments/${active.eventId}`}]:[]),
+    ...(legacy.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
+    ...(finance.data?.availableOffers?[{title:"Sponsor decision available",path:`${base}/finances`}]:[])]:[];
+  return <details className="career-attention"><summary>Attention · {actions.length} action{actions.length===1?"":"s"}</summary><div className="career-attention-panel">
+    <h3>Action Required</h3>{actions.length?actions.map(a=><Link key={a.path} href={a.path}>{a.title}</Link>):<p>No pending action reported.</p>}
+    <h3>Career Update</h3>{sporting.data?.recentMilestones.slice(0,2).map((m,i)=><Link key={i} href={`${base}/journey`}>{String(m.kind).replace(/_/g," ")} · Season {m.season}</Link>)}
+    <h3>World News</h3>{life.data?.news.slice(0,Math.min(3,5-actions.length)).map(n=><Link key={n.id} href={`${base}/stories`}>{n.title}</Link>)}<Link href={`${base}/world`}>Explore Darts World</Link>
+    {(t.error||legacy.error||finance.error||life.error)&&<p>Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
+  </div></details>;
 }

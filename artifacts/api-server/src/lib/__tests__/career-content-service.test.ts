@@ -137,6 +137,36 @@ test("ownership/feature gates, edit window and retired behavior are enforced by 
   await db.execute(sql`UPDATE feature_flags SET enabled=false WHERE feature_name='tour_career_2'`);
   await status(content.read(actor,saveId),404);await db.execute(sql`UPDATE feature_flags SET enabled=true`);
 });
+test("A8.3 directory search, status and ID filters are bounded, literal, owned and public-only",async()=>{
+  const one=(await content.players(actor,saveId,{limit:1})).players[0];
+  const matched=await content.players(actor,saveId,{search:one.name,id:one.id,limit:1,status:"ACTIVE"});
+  assert.equal(matched.total,1);assert.equal(matched.players[0].id,one.id);
+  assert.deepEqual(matched.players[0].shirt,one.shirt);
+  assert.equal((await content.players(actor,saveId,{search:"%_SQL_NOT_A_WILDCARD"})).total,0);
+  assert.equal((await content.players(actor,saveId,{status:"RETIRED"})).total,0);
+  await assert.rejects(content.players(actor,saveId,{limit:101}));
+  await assert.rejects(content.players(actor,saveId,{search:"a".repeat(81)}));
+  await status(content.players({playerId:2},saveId,{search:one.name}),404);
+  const json=JSON.stringify(matched);
+  assert.doesNotMatch(json,/currentAbility|potential|hidden|bankAccount|rngState/);
+});
+test("A8.3 guidance persists without affecting sporting/financial/world truth",async()=>{
+  const snapshot=async()=>calendarHashOf(await rows(sql`SELECT jsonb_build_object('events',(SELECT jsonb_agg(e ORDER BY e.id) FROM career_event_instances e WHERE e.career_save_id=${saveId}),
+    'players',(SELECT jsonb_agg(p ORDER BY p.id) FROM career_world_players p WHERE p.career_save_id=${saveId}),
+    'money',(SELECT jsonb_agg(f ORDER BY f.id) FROM career_finance_entries f WHERE f.career_save_id=${saveId})) AS evidence`));
+  const before=await snapshot(),settings=(await rows(sql`SELECT settings_snapshot FROM career_saves WHERE id=${saveId}`))[0].settings_snapshot as Record<string,unknown>;
+  assert.equal((await content.guidance(actor,saveId)).mode,"STANDARD");
+  await content.editGuidance(actor,saveId,{mode:"FULL",dismiss:"home"});
+  await content.editGuidance(actor,saveId,{dismiss:"home"});
+  assert.deepEqual((await content.guidance(actor,saveId)).dismissed,["home"]);
+  await content.editGuidance(actor,saveId,{mode:"MINIMAL"});
+  assert.equal((await content.guidance(actor,saveId)).mode,"MINIMAL");
+  const afterSettings=(await rows(sql`SELECT settings_snapshot FROM career_saves WHERE id=${saveId}`))[0].settings_snapshot as Record<string,unknown>;
+  for(const k of Object.keys(settings))assert.deepEqual(afterSettings[k],settings[k]);
+  assert.equal(await snapshot(),before);
+  await status(content.editGuidance({playerId:2},saveId,{mode:"FULL"}),404);
+  await assert.rejects(content.editGuidance(actor,saveId,{difficulty:"EASY"}));
+});
 test("HTTP accepts explicit replacement data and validates content, auth and no-store",async()=>{
   const app=express();app.use(express.json());app.use((req,_res,next)=>{(req as any).session=req.headers["x-test-player"]?{playerId:Number(req.headers["x-test-player"])}:{};next();});
   app.use(createCareerContentRouter(content));app.use(createCareerFinanceRouter(sporting.finance,async()=>true));
@@ -145,6 +175,9 @@ test("HTTP accepts explicit replacement data and validates content, auth and no-
   try{
     assert.equal((await fetch(`${base}/saves/${saveId}/world-content`)).status,401);
     const get=await fetch(`${base}/saves/${saveId}/presentation`,{headers:{"x-test-player":"1"}});assert.equal(get.status,200);assert.equal(get.headers.get("cache-control"),"no-store");
+    assert.equal((await fetch(`${base}/saves/${saveId}/guidance`)).status,401);
+    const guide=await fetch(`${base}/saves/${saveId}/guidance`,{headers:{"x-test-player":"1"}});assert.equal(guide.status,200);assert.equal(guide.headers.get("cache-control"),"no-store");
+    const changed=await fetch(`${base}/saves/${saveId}/guidance`,{method:"PUT",headers:{"content-type":"application/json","x-test-player":"1"},body:JSON.stringify({mode:"STANDARD"})});assert.equal(changed.status,200);
     const malformed=await fetch(`${base}/saves/${saveId}/presentation`,{method:"POST",headers:{"content-type":"application/json","x-test-player":"1"},body:JSON.stringify({ability:100})});assert.equal(malformed.status,400);
     const newOffer=await offer("northline-darts");
     const conflict=await fetch(`${base}/saves/${saveId}/sponsors/offers/${newOffer}/accept`,{method:"POST",headers:{"content-type":"application/json","x-test-player":"1"},body:"{}"});assert.equal(conflict.status,409);
@@ -157,5 +190,7 @@ test("retired identity and products remain readable but immutable; no NPC bank a
   await saves.retire(1,saveId);
   const p=await content.presentation(actor,saveId);assert.equal(p.canEdit,false);assert.equal(p.products[0].state,"LEGACY");
   await status(content.editPresentation(actor,saveId,{nickname:"After retirement"}));
+  assert.equal((await content.guidance(actor,saveId)).canEdit,false);
+  await status(content.editGuidance(actor,saveId,{mode:"FULL"}));
   assert.equal((await rows(sql`SELECT to_regclass('career_npc_accounts') AS accounts`))[0].accounts,null);
 });

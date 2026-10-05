@@ -7,36 +7,36 @@ import { CareerEmptyState, CareerError, CareerEventCard, CareerLoading, Label, O
 import type { ShellContext } from "../shell";
 import type { CareerEvent, PresentationTier } from "../types";
 
-type View = "MY_SCHEDULE" | "UPCOMING" | "SEASON" | "FEATURED";
+type View = "MY_SCHEDULE" | "UPCOMING" | "SEASON";
 const CIRCUITS = ["GRASSROOTS", "COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "CHALLENGER", "VAULT", "Q_SCHOOL", "PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL", "MAJOR", "WORLD_CHAMPIONSHIP", "SPECIAL"];
 
 /** Screen 2 — Calendar: My Schedule first, then bounded world views, grouped by season swing. */
 export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const { save, retired } = ctx;
-  const [view, setView] = useState<View>("MY_SCHEDULE");
+  const [view, setView] = useState<View>("UPCOMING");
+  const [page,setPage]=useState(0);
   const [circuit, setCircuit] = useState("");
   const [tier, setTier] = useState("");
   const [status, setStatus] = useState("ALL");
   const [season, setSeason] = useState(save.currentSeason);
   const isCurrent = season === save.currentSeason;
-  const query: CalendarQuery = view === "MY_SCHEDULE" ? { scope: "MY_SCHEDULE", season }
-    : view === "FEATURED" ? { scope: "FEATURED", season, fromWeek: isCurrent ? save.currentWeek : undefined }
-    : view === "UPCOMING" ? { scope: "WORLD", season, fromWeek: isCurrent ? save.currentWeek : 1, toWeek: Math.min(52, (isCurrent ? save.currentWeek : 1) + 11), circuit: circuit || undefined }
+  const query: CalendarQuery = view === "MY_SCHEDULE" ? { scope: "WORLD", season }
+    : view === "UPCOMING" ? { scope: "WORLD", season, fromWeek: isCurrent ? Math.max(1,save.currentWeek-2) : 1, toWeek: Math.min(52, (isCurrent ? save.currentWeek : 1) + 8), circuit: circuit || undefined }
     : { scope: "WORLD", season, circuit: circuit || undefined };
   const cal = useCalendar(save.id, query);
   const enter = useEnterEvent(save.id);
   const [msg, setMsg] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const pending = new Set(cal.data?.overview.pendingHumanMatches.map(p => p.eventId) ?? []);
-  const events = useMemo(() => (cal.data?.events ?? []).filter(e => (!tier || e.presentation.tier === tier) && (!circuit || e.circuit === circuit) && matchesStatusFilter(e, status)), [cal.data, tier, circuit, status]);
+  const events = useMemo(() => (cal.data?.events ?? []).filter(e => (view!=="MY_SCHEDULE"||e.human?.entryStatus||e.human?.relationship==="QUALIFIED")&&(!tier || e.presentation.tier === tier) && (!circuit || e.circuit === circuit) && matchesStatusFilter(e, status)), [cal.data, tier, circuit, status,view]);
   const groups = useMemo(() => {
     const out: { key: string; name: string; events: CareerEvent[] }[] = [];
     for (const g of cal.data?.overview.groupings ?? []) {
-      const list = events.filter(e => e.dates.startWeek >= g.fromWeek && e.dates.startWeek <= g.toWeek);
+      const list = events.slice(page*30,(page+1)*30).filter(e => e.dates.startWeek >= g.fromWeek && e.dates.startWeek <= g.toWeek);
       if (list.length) out.push({ key: g.key, name: `${g.name} · weeks ${g.fromWeek}–${g.toWeek}`, events: list });
     }
     return out;
-  }, [cal.data, events]);
+  }, [cal.data, events,page]);
   const onEnter = (id: string) => { setMsg(null); enter.mutate(id, { onSuccess: r => setMsg(r.entered ? "Entry confirmed." : `Entry refused: ${r.denials.map(denialLabel).join(", ")}`), onError: e => setMsg(errorMessage(e)) }); };
 
   return (
@@ -45,20 +45,23 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h2 className="flex items-center gap-2"><CalendarDays className="w-4 h-4" style={{ color: "#ff005c" }} aria-hidden /><Label color="#fff">Calendar · Season {season}</Label></h2>
           <label className="flex items-center gap-2 text-xs"><Label>Season</Label>
-            <select value={season} onChange={e => setSeason(Number(e.target.value))} className="rounded-lg px-2 py-1.5 bg-black/40 border border-white/15 text-sm">
+            <select value={season} onChange={e => {setSeason(Number(e.target.value));setPage(0);}} className="rounded-lg px-2 py-1.5 bg-black/40 border border-white/15 text-sm">
               {Array.from({ length: save.currentSeason }, (_, i) => save.currentSeason - i).map(s => <option key={s} value={s}>Season {s}</option>)}
             </select></label>
         </div>
-        <Segmented<View> label="Calendar view" value={view} onChange={setView} wrap options={[
-          { value: "MY_SCHEDULE", label: "My schedule" }, { value: "UPCOMING", label: isCurrent ? "Next 12 weeks" : "First 12 weeks" },
-          { value: "SEASON", label: "Whole season" }, { value: "FEATURED", label: "Featured" }]} />
+        <Segmented<View> label="Calendar view" value={view} onChange={v=>{setView(v);setPage(0);}} wrap options={[
+          { value: "UPCOMING", label: "Timeline" },{ value: "SEASON", label: "Season" },{ value: "MY_SCHEDULE", label: "My Entries" }]} />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <Select label="Circuit" value={circuit} onChange={setCircuit} options={[["", "All circuits"], ...CIRCUITS.map(c => [c, circuitLabel(c)] as [string, string])]} />
-          <Select label="Event level" value={tier} onChange={setTier} options={[["", "All levels"], ...(Object.keys(TIER_STYLES) as PresentationTier[]).map(t => [t, TIER_STYLES[t].label] as [string, string])]} />
-          <Select label="Status" value={status} onChange={setStatus} options={CALENDAR_STATUS_FILTERS.map(f => [f.key, f.label] as [string, string])} />
+          <Select label="Circuit" value={circuit} onChange={v=>{setCircuit(v);setPage(0);}} options={[["", "All circuits"], ...CIRCUITS.map(c => [c, circuitLabel(c)] as [string, string])]} />
+          <Select label="Event level" value={tier} onChange={v=>{setTier(v);setPage(0);}} options={[["", "All levels"], ...(Object.keys(TIER_STYLES) as PresentationTier[]).map(t => [t, TIER_STYLES[t].label] as [string, string])]} />
+          <Select label="Status" value={status} onChange={v=>{setStatus(v);setPage(0);}} options={CALENDAR_STATUS_FILTERS.map(f => [f.key, f.label] as [string, string])} />
         </div>
         {msg && <p role="status" className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{msg}</p>}
       </div>
+      {view==="SEASON"&&<section className="career-surface career-season-overview" aria-label="52-week season rhythm">
+        {(cal.data?.overview.groupings??[]).map(g=><div key={g.key}><strong>{g.name}</strong><p>Weeks {g.fromWeek}–{g.toWeek}</p><p>{events.filter(e=>e.dates.startWeek>=g.fromWeek&&e.dates.startWeek<=g.toWeek).length} events</p></div>)}
+        <div className="career-weeks">{Array.from({length:52},(_,i)=><span key={i} aria-current={isCurrent&&save.currentWeek===i+1?"date":undefined}>W{i+1}</span>)}</div>
+      </section>}
 
       {cal.isLoading ? <div className="pdc-card"><CareerLoading label="Loading calendar" /></div>
         : cal.error ? <CareerError error={cal.error} onRetry={() => cal.refetch()} />
@@ -79,6 +82,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
             ))}
           </section>
         ))}
+      <div className="career-pagination"><button className="career-btn" disabled={!page} onClick={()=>setPage(page-1)}>Previous events</button><span>Page {page+1} · {events.length} events</span><button className="career-btn" disabled={(page+1)*30>=events.length} onClick={()=>setPage(page+1)}>Next events</button></div>
     </div>
   );
 }
@@ -92,6 +96,8 @@ function QuickFacts({ event, saveId }: { event: CareerEvent; saveId: string }) {
       <Info label="Venue" value={`${event.venue.name}, ${event.venue.city}`} />
       <Info label="Field" value={`${event.field.entrants || "—"} / ${event.field.size}`} />
       <Info label="Entries" value={`Weeks ${event.registration.opensWeek}–${event.registration.closesWeek}`} />
+       {f&&<Info label="Commitment (est.)" value={formatPence(f.entryFeePence+f.estimatedTravelPence+f.estimatedAccommodationPence)}/>}
+       {f&&<Info label="Sponsor coverage" value={formatPence(f.sponsorCoverage.entryFeePence+f.sponsorCoverage.travelPence+f.sponsorCoverage.accommodationPence)}/>}
       {f && <Info label="You pay (est.)" value={formatPence(f.estimatedPlayerCostPence)} />}
       {f && <Info label="Top prize" value={f.topPrizePence ? formatPence(f.topPrizePence) : "None"} />}
       <Info label="Ranking" value={event.rankingCategory ? (f?.rankingEligible ? "Ranking money" : "Non-ranking") : "Non-ranking"} />

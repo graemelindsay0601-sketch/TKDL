@@ -245,32 +245,45 @@ export type TierStyle = { accent: string; label: string; emphasis: 0 | 1 | 2 | 3
 export const TIER_STYLES: Record<PresentationTier, TierStyle> = {
   LOCAL:     { accent: "#94a3b8", label: "Local",     emphasis: 0, surface: "rgba(148,163,184,0.05)" },
   STANDARD:  { accent: "#38bdf8", label: "Standard",  emphasis: 1, surface: "rgba(56,189,248,0.05)" },
-  FEATURED:  { accent: "#4ade80", label: "Featured",  emphasis: 2, surface: "rgba(74,222,128,0.06)" },
-  TELEVISED: { accent: "#c084fc", label: "Televised", emphasis: 3, surface: "rgba(192,132,252,0.07)" },
-  MAJOR:     { accent: "#ff005c", label: "Major",     emphasis: 4, surface: "rgba(255,0,92,0.07)" },
+  FEATURED:  { accent: "#80b6fa", label: "Featured",  emphasis: 2, surface: "rgba(128,182,250,0.06)" },
+  TELEVISED: { accent: "#aabfd6", label: "Televised", emphasis: 3, surface: "rgba(170,191,214,0.07)" },
+  MAJOR:     { accent: "#c8d5df", label: "Major",     emphasis: 4, surface: "rgba(200,213,223,0.07)" },
   WORLD:     { accent: "#ffd24a", label: "World",     emphasis: 5, surface: "rgba(255,210,74,0.08)" },
 };
 export const tierStyle = (t: PresentationTier | string | undefined) => TIER_STYLES[(t as PresentationTier)] ?? TIER_STYLES.STANDARD;
-export const TONES: Record<Tone, string> = { neutral: "#cbd5e1", info: "#38bdf8", success: "#4ade80", warning: "#fb923c", danger: "#ff005c", gold: "#ffd24a", muted: "rgba(255,255,255,0.45)" };
+export const TONES: Record<Tone, string> = { neutral: "#cbd5e1", info: "#80b6fa", success: "#8bddad", warning: "#f5be72", danger: "#fb8a92", gold: "#e9c77a", muted: "rgba(255,255,255,0.65)" };
 
-// ---------------------------------------------------------------- navigation (three layers)
+// ---------------------------------------------------------------- A8.3: five destinations, contextual sections
 export type NavItem = { key: string; label: string; path: string };
-export const CAREER_NAV: { layer: "HOME" | "MY_CAREER" | "DARTS_WORLD"; label: string; items: NavItem[] }[] = [
-  { layer: "HOME", label: "Home", items: [{ key: "home", label: "Home", path: "" }] },
-  { layer: "MY_CAREER", label: "My Career", items: [{ key: "journey", label: "Journey", path: "/journey" }, { key: "history", label: "History", path: "/history" }, { key: "relationships", label: "Relationships", path: "/relationships" }, { key: "goals", label: "Focus & Goals", path: "/goals" }, { key: "recognition", label: "Recognition", path: "/recognition" }, { key: "life", label: "Career Life", path: "/life" }, { key: "finances", label: "Finances", path: "/finances" }] },
-  { layer: "DARTS_WORLD", label: "Darts World", items: [{ key: "calendar", label: "Calendar", path: "/calendar" }, { key: "rankings", label: "Rankings", path: "/rankings" },
-    { key: "q-school", label: "Q-School", path: "/q-school" }, { key: "world-championship", label: "The Palace", path: "/world-championship" }, { key: "stories", label: "News & Stories", path: "/stories" },
-    {key:"world",label:"Almanac",path:"/world"},{key:"map",label:"World locations",path:"/map"},{key:"guide",label:"Career Guide",path:"/guide"},{key:"presentation",label:"Player identity",path:"/presentation"}] },
+export const CAREER_NAV = [
+  { layer: "HOME", label: "Home", path:"", icon:"⌂", items: [{ key: "home", label: "Home", path: "" }] },
+  { layer: "MAP", label: "Map", path:"/map", icon:"◎", items:[{key:"map",label:"Map",path:"/map"}] },
+  { layer: "CALENDAR", label: "Calendar", path:"/calendar", icon:"▦", items:[{key:"calendar",label:"Calendar",path:"/calendar"}] },
+  { layer: "DARTS_WORLD", label: "Darts World", path:"/world", icon:"◉", items:[
+    {key:"rankings",label:"Rankings",path:"/rankings"},{key:"players",label:"Players",path:"/world/players"},
+    {key:"world-events",label:"Events & Circuits",path:"/world/events"},{key:"venues",label:"Venues",path:"/world/venues"},
+    {key:"world-history",label:"History",path:"/world/history"}]},
+  { layer: "MY_CAREER", label: "My Career", path:"/my-career", icon:"♙", items:[
+    {key:"overview",label:"Overview",path:"/my-career"},{key:"performance",label:"Performance",path:"/my-career/performance"},
+    {key:"achievements",label:"Achievements",path:"/my-career/achievements"},{key:"career-life",label:"Career Life",path:"/my-career/life"},
+    {key:"history",label:"History",path:"/my-career/history"}]},
 ];
 /** The layer (Home / My Career / Darts World) that owns a nav key. */
 export function navLayerOf(key: string) {
   return CAREER_NAV.find(s => s.items.some(i => i.key === key)) ?? CAREER_NAV[0];
 }
 export function activeNavKey(location: string): string {
-  const m = /^\/career\/[^/]+(\/[^/]+)?/.exec(location);
-  const seg = m?.[1] ?? "";
-  if (seg === "/events") return "calendar";
-  return CAREER_NAV.flatMap(s => s.items).find(i => i.path === seg)?.key ?? "home";
+  const seg=location.replace(/^\/career\/[^/]+/,"").split("?")[0];
+  const exact=CAREER_NAV.flatMap(s=>s.items).filter(i=>i.path&&seg.startsWith(i.path)).sort((a,b)=>b.path.length-a.path.length)[0];
+  if(exact)return exact.key;
+  if(/^\/(events|tournaments|matches)/.test(seg))return "calendar";
+  if(/^\/(q-school|world-championship|guide|world)/.test(seg))return "world-events";
+  if(/^\/(life|stories|recognition|finances|goals|presentation)/.test(seg))return "career-life";
+  if(seg.startsWith("/relationships"))return "performance";
+  if(seg.startsWith("/history/npcs"))return "players";
+  if(seg.startsWith("/history"))return "history";
+  if(seg.startsWith("/journey"))return "overview";
+  return "home";
 }
 
 // ---------------------------------------------------------------- saves

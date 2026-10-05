@@ -4,6 +4,7 @@ import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-rea
 import type { CareerEvent } from "./types";
 import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, movementLabel, formatPence, isJuniorEvent } from "./model";
 import { errorMessage } from "./api";
+import {CareerEventIdentity} from "./identity";
 
 /** Shared Career primitives. Built on TKDL's pdc-card surfaces, Oswald labels and palette. */
 export const OSWALD = { fontFamily: "Oswald, sans-serif" } as const;
@@ -12,7 +13,7 @@ export function Label({ children, color = "rgba(255,255,255,0.55)", className = 
   return <span className={`uppercase font-black ${className}`} style={{ ...OSWALD, fontSize: "0.62rem", letterSpacing: "0.16em", color }}>{children}</span>;
 }
 
-export function CareerSection({ title, icon, action, children, accent = "#ff005c", id }: { title: string; icon?: ReactNode; action?: ReactNode; children: ReactNode; accent?: string; id?: string }) {
+export function CareerSection({ title, icon, action, children, accent = "#52657d", id }: { title: string; icon?: ReactNode; action?: ReactNode; children: ReactNode; accent?: string; id?: string }) {
   const headingId = useId();
   return (
     <section className="pdc-card career-section overflow-hidden" aria-labelledby={headingId} id={id} style={{ ["--section-accent" as string]: accent }}>
@@ -51,8 +52,8 @@ export function StatTile({ label, value, sub, tone = "neutral", to }: { label: s
 
 export function CareerLoading({ label = "Loading" }: { label?: string }) {
   return (
-    <div role="status" aria-live="polite" className="flex items-center justify-center gap-2 py-8 text-sm" style={{ color: "rgba(255,255,255,0.62)" }}>
-      <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> {label}…
+    <div role="status" aria-live="polite" className="career-loading career-surface" style={{ color: "rgba(255,255,255,0.72)" }}>
+      <p>{label}…</p><div className="career-skeleton" aria-hidden/><div className="career-skeleton" aria-hidden/><div className="career-skeleton" aria-hidden/>
     </div>
   );
 }
@@ -79,6 +80,11 @@ export function QueryState<T>({ query, label, children }: { query: { isLoading: 
   if (query.isLoading) return <CareerLoading label={label} />;
   if (query.error || query.data === undefined) return <CareerError error={query.error ?? new Error("No data")} onRetry={() => query.refetch()} />;
   return <>{children(query.data)}</>;
+}
+/** Bounded DOM, with every record still reachable; aggregate facts stay untouched. */
+export function BoundedList<T>({rows,children,size=20}:{rows:T[];children:(row:T,index:number)=>ReactNode;size?:number}) {
+  const [page,setPage]=useState(0),p=Math.min(page,Math.max(0,Math.ceil(rows.length/size)-1));
+  return <>{rows.slice(p*size,(p+1)*size).map((r,i)=>children(r,p*size+i))}{rows.length>size&&<div className="career-pagination"><button disabled={!p} onClick={()=>setPage(p-1)}>Previous records</button><span>Page {p+1} · {rows.length} records</span><button disabled={(p+1)*size>=rows.length} onClick={()=>setPage(p+1)}>Next records</button></div>}</>;
 }
 
 export function SeasonProgress({ week, groupings, current }: { week: number; groupings?: { key: string; name: string; fromWeek: number; toWeek: number }[]; current?: string }) {
@@ -128,6 +134,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
   const action = primaryAction(event, { awaitingMatch, retired });
   const href = `/career/${saveId}/events/${event.id}`;
   return (
+    <CareerEventIdentity eventKey={event.definitionKey} circuit={event.circuit} level={event.presentation.tier}>
     <div className="relative flex flex-wrap sm:flex-nowrap items-stretch gap-x-3 gap-y-2 px-3 py-2.5 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.05)", background: tier.emphasis >= 4 ? tier.surface : undefined }}>
       <div className="absolute left-0 top-0 bottom-0" style={{ width: 2 + Math.min(tier.emphasis, 3), background: tier.accent, opacity: 0.4 + tier.emphasis * 0.1 }} aria-hidden />
       <div className="pl-1.5 w-14 shrink-0 flex flex-col justify-center">
@@ -154,7 +161,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
           </Link>
         )}
       </div>
-    </div>
+    </div></CareerEventIdentity>
   );
 }
 

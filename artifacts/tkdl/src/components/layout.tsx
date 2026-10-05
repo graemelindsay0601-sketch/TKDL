@@ -652,8 +652,8 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
 
       {/* Bottom nav — tablet/mobile only (<1024px) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"
-        style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex" hidden={location.startsWith("/career/")}
+        style={{ display:location.startsWith("/career/")?"none":undefined,background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           const col = item.color;

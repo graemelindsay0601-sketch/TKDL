@@ -107,6 +107,99 @@
 .career-chip[data-active="true"], .career-chip[aria-pressed="true"] { background: #0066ff; border-color: #0066ff; }
 .career-table th { color: rgba(255,255,255,0.55); background: rgba(255,255,255,0.03); }
 .career-table td { border-top-color: rgba(255,255,255,0.07); }
+
+/* A8.3. Scoped to Career: four reusable surfaces, no global Classic Tour restyle. */
+.career-root {
+  --career-base:#0b111b; --career-standard:#151e2c; --career-context:#101925;
+  --career-focus:#202a3a; --career-prestige:#23251e; --career-line:#3a4657;
+  --career-action:#ff005c; --career-info:#80b6fa; --career-positive:#8bddad;
+  --career-caution:#f5be72; --career-problem:#fb8a92; --career-gold:#e9c77a;
+  color:#e7edf5; font-family:system-ui,sans-serif; padding-bottom:calc(82px + env(safe-area-inset-bottom));
+}
+.career-root h2,.career-root h3,.career-root h4 { font-family:Oswald,system-ui,sans-serif; letter-spacing:.025em; }
+.career-root,.career-root *,.career-root *::before,.career-root *::after { box-sizing:border-box; }
+.career-root .career-section,.career-root .career-stat { background:var(--career-standard); border:1px solid var(--career-line); border-radius:10px; box-shadow:none; }
+.career-root .career-section::before,.career-root .career-section::after,.career-root .career-stat::before,.career-root .career-stat::after { display:none; }
+.career-world-detail>h3 { font-size:1.55rem; }.career-world-detail>h4 { margin:18px 0 8px; color:#b6cde3; }
+.career-root h2 { font-size:1.25rem; }.career-root h3 { font-size:1.15rem; }
+.career-root a:not(.career-btn):hover { color:#fff; text-decoration:underline; }
+.career-root button,.career-root input,.career-root select,.career-root summary { min-height:44px; }
+.career-root input,.career-root select { background:#0b1522; border:1px solid #59667a; border-radius:6px; padding:8px; color:#edf4fc; max-width:100%; }
+.career-root input[type="checkbox"],.career-root input[type="color"] { min-height:24px; }
+.career-root :focus-visible { outline:3px solid #9acaff; outline-offset:3px; }
+.career-surface { background:var(--career-standard); border:1px solid var(--career-line); border-radius:10px; padding:16px; }
+.surface-focus { background:var(--career-focus); border-left:3px solid var(--career-action); padding:20px; }
+.surface-focus h2 { color:#ff92b9; margin-bottom:10px; }.surface-focus h3 { font-size:1.65rem; margin-bottom:8px; }
+.surface-context { background:var(--career-context); }.surface-prestige { background:var(--career-prestige); border-color:#7c7355; }
+.career-surface p { line-height:1.55; margin:6px 0; }
+.career-primary-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; background:#111925; padding:5px; border:1px solid var(--career-line); border-radius:10px; }
+.career-primary-nav .career-nav-link { min-height:48px; font-size:.9rem; white-space:normal; text-align:center; }
+.career-destination-icon { font-size:1.15rem; line-height:1; margin-right:7px; }
+.career-primary-nav [aria-current] { color:white; background:#9f1749; border-color:#e98aac; box-shadow:none; }
+.career-context-nav { display:flex; gap:5px; overflow-x:auto; margin-top:8px; padding:4px 0; }
+.career-context-nav a { min-height:44px; flex-shrink:0; display:flex; align-items:center; padding:6px 12px; border-radius:6px; color:#c9d5e3; }
+.career-context-nav a[aria-current] { background:#263951; border-bottom:2px solid #a0c9ef; color:white; }
+.career-header-tools { display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:.8rem; }
+.career-search { display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0; flex:1; }
+.career-search input { min-width:80px; flex:1; }.career-header-tools .career-search label { position:absolute; width:1px; height:1px; overflow:hidden; }
+.career-attention { position:relative; }.career-attention summary { cursor:pointer; display:flex; align-items:center; }
+.career-attention-panel { position:absolute; right:0; top:48px; z-index:40; background:#172333; border:1px solid #536479; padding:16px; border-radius:8px; width:min(340px,80vw); box-shadow:0 12px 28px #0008; }
+.career-attention-panel a { display:block; padding:8px 0; font-size:.82rem; }.career-attention-panel h3 { color:#98bfef; margin-top:8px; }
+.career-skip { position:absolute; left:-9999px; }.career-skip:focus { position:fixed; top:12px; left:12px; z-index:100; background:#22374c; padding:12px; }
+.career-player { display:flex; align-items:center; gap:16px; padding:12px; min-width:0; }
+.career-player strong { font:700 1.2rem Oswald,system-ui,sans-serif; }.career-player p { font-size:.82rem; color:#c5d2e1; }
+.career-player-compact { gap:10px; padding:2px; }.career-player-compact strong { font-size:1rem; }
+.career-ranking-shirt .career-shirt-compact { width:26px; }
+.career-root .career-btn-danger { background:#742f37; border-color:#d67a83; color:#ffccd0; }
+.career-shirt { flex-shrink:0; display:block; width:84px; height:auto; }
+.career-shirt-compact { width:48px; }.career-shirt-featured { width:140px; }.career-shirt-profile { width:180px; max-width:40vw; }
+.career-badges { display:flex; flex-wrap:wrap; gap:4px; }.career-badges span { padding:2px 5px; border:1px solid #65758b; font-size:.65rem; border-radius:4px; }
+.career-status-strip { display:flex; gap:20px; align-items:center; justify-content:space-between; flex-wrap:wrap; font-size:.8rem; }
+.career-position-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.career-home>section>h2 { margin:8px 0; }.career-planning-costs { display:flex; gap:20px; flex-wrap:wrap; font-size:.85rem; margin-top:12px; }
+.career-event-identity { border-left:3px solid var(--identity-accent); min-width:0; }
+.career-event-identity .career-event-identity { border-left:0; }
+.career-event-identity>div.relative>div.absolute { background:var(--identity-accent)!important; opacity:1!important; }
+.identity-palace { background:linear-gradient(110deg,#bfa36412,transparent 70%); }
+.identity-crown { background:linear-gradient(110deg,#8ab4ee12,transparent 70%); }
+.identity-vault { background:linear-gradient(110deg,#b59af312,transparent 70%); }
+.career-trophy-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; padding:16px; }
+.career-trophy-svg { height:160px; max-width:150px; margin:0 auto; }
+.career-trophy-grid h3 { text-align:center; }.career-trophy-grid details { margin-top:12px; }
+.career-discovery-links { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }
+.career-directory-row { display:block; padding:12px; border-bottom:1px solid #344459; }
+.career-pagination { display:flex; gap:14px; align-items:center; justify-content:center; flex-wrap:wrap; padding:12px; font-size:.85rem; }
+.career-pagination button { padding:8px 12px; border:1px solid #607088; border-radius:6px; }.career-pagination button:disabled { opacity:.45; }
+.career-player-filters { display:flex; flex-wrap:wrap; gap:14px; }
+.career-season-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+.career-weeks { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:4px; }.career-weeks span { padding:5px; color:#bfcfe0; background:#0b1522; font-size:.65rem; }.career-weeks [aria-current] { background:#a02352; color:white; }
+.career-map-layout { display:grid; grid-template-columns:190px minmax(0,1fr) 250px; gap:12px; align-items:start; }
+.career-map-filters label { display:block; margin:12px 0; font-size:.8rem; }.career-map-filters select { width:100%; }
+.career-map-canvas { padding:8px; overflow:hidden; background:#0e1b29; }.career-map-canvas svg { width:100%; min-height:330px; display:block; touch-action:none; cursor:grab; }
+.career-map-canvas svg g[role="button"] { cursor:pointer; }.career-map-canvas svg g[role="button"]:focus circle { stroke:white; stroke-width:1px; }
+.career-map-toolbar { display:flex; gap:6px; }.career-map-inspector { font-size:.83rem; }.career-map-inspector dt { color:#a7bfda; margin-top:8px; }
+.career-map-inspector .career-btn { width:100%; white-space:normal; text-align:left; }
+.career-map-location-list button { margin:4px; }.career-map-list-row { display:block; text-align:left; padding:10px; width:100%; border-bottom:1px solid #344459; }
+.career-help { font-size:.82rem; }.career-help>div { display:flex; gap:15px; align-items:center; justify-content:space-between; }.career-help strong { color:#add4ff; }
+.career-loading { padding:20px; }.career-skeleton { height:20px; margin-top:12px; border-radius:4px; background:linear-gradient(100deg,#28384c,#364c65,#28384c); animation:career-pulse 1.5s ease-in-out infinite; }.career-skeleton:last-child { width:55%; }
+@keyframes career-pulse { 50% { opacity:.5; } }
+.career-gameplay .career-header-tools { display:none; }.career-gameplay .career-hero { padding:8px 12px; }.career-gameplay .career-hero h1 { font-size:1.15rem!important; }
+.career-gameplay .career-primary-nav { background:#0c1420; }.career-gameplay .career-context-nav { display:none; }
+@media (min-width:1100px) { .career-root { padding-bottom:24px; }.career-primary-nav { position:sticky; top:0; z-index:20; } }
+@media (max-width:1099px) {
+  .career-primary-nav { position:fixed; bottom:0; left:0; right:0; z-index:35; border-radius:0; padding:6px 5px calc(6px + env(safe-area-inset-bottom)); }
+  .career-primary-nav .career-nav-link { font-size:.76rem; }
+  .career-primary-nav .career-nav-link { flex-direction:column; gap:4px; }.career-destination-icon { margin-right:0; }
+  .career-map-layout { grid-template-columns:160px minmax(0,1fr); }.career-map-inspector { grid-column:1/-1; }
+}
+@media (max-width:600px) {
+  .career-position-grid { grid-template-columns:1fr; gap:8px; }.career-position-grid .career-stat { flex-direction:row; align-items:center; gap:10px; }.career-position-grid .career-stat>div:last-child { flex:1; }
+  .career-map-layout { grid-template-columns:1fr; }.career-map-filters { padding:10px; }.career-map-filters label { display:inline-block; width:48%; padding-right:8px; }.career-map-canvas svg { min-height:280px; }
+  .career-status-strip { gap:4px; padding:10px; }.surface-focus { padding:14px; }.surface-focus h3 { font-size:1.4rem; }
+  .career-context-nav a { padding:6px 9px; font-size:.8rem; }.career-trophy-grid { grid-template-columns:1fr; }
+  .tournament-player-pair { grid-template-columns:1fr; }.career-header-tools { gap:8px; }
+}
+@media (prefers-reduced-motion:reduce) { .career-root *, .career-root *::before,.career-root *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
 .career-table tr[data-me="true"] td { background: linear-gradient(90deg, rgba(255,0,92,0.2), rgba(0,102,255,0.12)); }
 /* Palace keeps its black-and-gold World Championship identity. */
 .career-root .career-palace .pdc-card { background: linear-gradient(145deg, rgba(22,18,14,0.94), rgba(12,10,8,0.96)); border-color: rgba(255,210,74,0.2); }

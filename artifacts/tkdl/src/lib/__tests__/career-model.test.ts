@@ -171,10 +171,9 @@ test("milestones render as neutral factual labels (no prose)", () => {
   assert.equal(milestoneLabel({ kind: "FIRST_MAJOR", list_key: null, detail: { eventName: "The Open Championship" } }).detail, "The Open Championship");
 });
 
-test("navigation: three layers, every screen reachable, events belong to Calendar", () => {
-  assert.deepEqual(CAREER_NAV.map(l => l.label), ["Home", "My Career", "Darts World"]);
-  // A8.1 added four permanent world/identity views; Tournament Mode adds no nav layer.
-  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 17);
+test("navigation: five destinations, legacy screens remain reachable, events belong to Calendar", () => {
+  assert.deepEqual(CAREER_NAV.map(l => l.label), ["Home","Map","Calendar","Darts World","My Career"]);
+  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 13);
   assert.equal(navLayerOf(activeNavKey("/career/abc/recognition/npcs/example")).label, "My Career");
   assert.equal(navLayerOf(activeNavKey("/career/abc/goals")).label, "My Career");
   assert.equal(navLayerOf(activeNavKey("/career/abc/relationships")).label, "My Career");

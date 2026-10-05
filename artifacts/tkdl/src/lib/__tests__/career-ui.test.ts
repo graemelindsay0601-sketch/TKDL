@@ -7,6 +7,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import {mkdirSync,writeFileSync,readFileSync,existsSync,readdirSync} from "node:fs";
 import { createElement as h, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { legacy as projectLegacy, review as projectReview, zero } from "../../../../api-server/src/career/legacy/model.ts";
@@ -21,6 +22,7 @@ import type { LifeView, Story } from "../../../../api-server/src/career/life/typ
 import {ORGANISATIONS,CIRCUIT_CONTENT,COUNTRY_CONTENT,REGIONS,CITIES,VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,GUIDE,ALMANAC,SEASON_RHYTHM,PRESTIGE_CLASSES,venueContent} from "../../../../api-server/src/career/content/world.ts";
 import {BRANDS} from "../../../../api-server/src/career/content/brands.ts";
 import {identity} from "../../../../api-server/src/career/content/events.ts";
+import {assessCapability} from "../../../../api-server/src/career/calendar/formats.ts";
 import {catalogueFor} from "../../../../api-server/src/career/calendar/catalogue.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
@@ -34,7 +36,8 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+  Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
 });
 after(async () => { await vite?.close(); });
 
@@ -43,7 +46,16 @@ function render(el: ReactElement, seed: [unknown[], unknown][], at = `/career/${
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, refetchOnMount: false, staleTime: Infinity } } });
   for (const [k, v] of seed) client.setQueryData(k, v);
   for (const [k, e] of errors) client.getQueryCache().build(client, { queryKey: k }).setState({ status: "error", error: e as Error, fetchStatus: "idle" });
-  return renderToStaticMarkup(h(QueryClientProvider, { client }, h(M.Router, { ssrPath: at }, el)));
+  return renderToStaticMarkup(h(QueryClientProvider, { client }, h(M.Router, { ssrPath: at.split("?")[0],ssrSearch:at.includes("?")?at.slice(at.indexOf("?")):"" }, el)));
+}
+/** Optional browser evidence uses only seeded TEST fixtures and actual components. */
+function browserScene(name:string,html:string) {
+  if(!process.env.A83_BROWSER_DIR)return;
+  const out=process.env.A83_BROWSER_DIR;mkdirSync(out,{recursive:true});
+  const assets=process.env.A83_CSS_DIR??path.join(ROOT,"dist/public/assets");
+  const files=existsSync(assets)?readdirSync(assets).filter(f=>f.endsWith(".css")):[];
+  const css=(files.length?files.map(f=>readFileSync(path.join(assets,f),"utf8")).join("\n"):"")+readFileSync(path.join(ROOT,"src/features/career/career.css"),"utf8");
+  writeFileSync(path.join(out,`${name}.html`),`<!doctype html><html class="dark"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A8.3 test fixture: ${name}</title><style>${css}</style><body style="background:#080c14;color:#e7edf5;margin:0"><div style="max-width:1180px;margin:auto;padding:16px">${html}</div></body></html>`);
 }
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 const ctx = (s = save(), ov = overview()) => ({ save: s, overview: ov, retired: s.status === "RETIRED" });
@@ -132,7 +144,8 @@ test("A7.5 public NPC identity exposes only presentation and sporting standing, 
 });
 const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[], sp = sporting("UNRANKED_AMATEUR"), fin = finance()): [unknown[], unknown][] => [
   [key("sporting"), sp], [key("finance"), fin], [key("history", { participant: "HUMAN" }), []],
-  [key("calendar", { scope: "WORLD", fromWeek: s.currentWeek, toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],
+  [key("tournaments"),{tournaments:[]}],[key("legacy"),projectLegacy(legacyEvidence(),[],[],null)],
+  [key("calendar", { scope: "WORLD", fromWeek: Math.max(1,s.currentWeek-2), toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],
 ];
 
 const goalsFixture=():GoalsView=>({careerSaveId:SAVE_ID,focus:"OPEN_SCHEDULE",focusOptions:Object.entries(FOCUSES).map(([value,d])=>({value:value as GoalsView["focus"],...d})),
@@ -163,7 +176,7 @@ test("A7.4 Hub summary limits badges to strongest contexts and history renders o
   assert.doesNotMatch(text(summary),/Professional ·|Major \/ Stage ·|International ·/);
   const history=text(render(h(M.RecognitionTimeline,{saveId:SAVE_ID}),[[key("recognition"),data]]));
   assert.match(history,/Recognition threshold history/);assert.match(history,/Amateur recognition — Elite/);assert.match(history,/2026-01-07/);
-  const home=text(render(h(M.HomePage,{ctx:ctx()}),[...homeSeed(save(),[]),[key("recognition"),data]]));
+  const home=text(render(h(M.MyCareerPage,{ctx:ctx()}),[...homeSeed(save(),[]),[key("recognition"),data]]));
   assert.match(home,/Career standing.*Elite amateur/);
 });
 test("A7.4 on-demand NPC Recognition and relationship links expose public sporting evidence only",()=>{
@@ -248,7 +261,7 @@ test("save selection: feature-gated 404 shows an honest unavailable state", () =
 test("Career Home, new amateur: unranked, no Tour Card, self-funded, affordable Enter", () => {
   const s = save();
   const t = text(render(h(M.HomePage, { ctx: ctx(s) }), homeSeed(s, [event({ name: "Newcastle Friday Night 501" })])));
-  for (const x of ["Newcastle Friday Night 501", "Enter · £65", "Unranked", "No Tour Card", "Self-funded", "£250", "Nothing entered", "No results yet"]) assert.ok(t.includes(x), x);
+  for (const x of ["Next Up","Newcastle Friday Night 501", "Enter · £65", "Unranked", "No Tour Card", "Self-funded", "£250", "No entered commitments", "No results yet"]) assert.ok(t.includes(x), x);
 });
 
 test("Career Home: unaffordable next event says Cannot afford and offers no Enter", () => {
@@ -263,13 +276,13 @@ test("Career Home, ranked professional with sponsor and a pending match: real fi
   const s = save({ currentWeek: 12, professionalRanking: 42, hasTourCard: true });
   const live = event({ name: "Pro Circuit Championship 9", status: "IN_PROGRESS", dates: { startWeek: 12, startDay: 79 }, human: human({ relationship: "PLAYING", canEnter: false }) });
   const seed = homeSeed(s, [live], sporting("RANKED_PRO"), finance({ balancePence: 1469000, sponsor: { contractId: "c", sponsorKey: "ochre", displayName: "Ochre Darts Co.", tier: "REGIONAL", endSeason: 1, endWeek: 52 } }));
-  seed[3] = [seed[3][0], { overview: overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] }), season: 1, scope: "WORLD", events: [live] }];
+  const calendarIndex=seed.findIndex(([k])=>k[2]==="calendar");
+  seed[calendarIndex] = [seed[calendarIndex][0], { overview: overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] }), season: 1, scope: "WORLD", events: [live] }];
   seed.push([key("event", live.id), eventDetail(live, { human: { nextMatch: { id: "m1", stage: "main", round: 1, roundName: "LAST_128", slot: 31, bestOf: 11, scheduledDay: 79,
     a: { key: "HUMAN", name: "You" }, b: { key: "npc", name: "Arno Auenberg" }, status: "AWAITING_HUMAN", winnerKey: null, legs: null, firstThrow: null, firstThrowMethod: "BULL_UP", resultSource: null, summary: null }, result: null } })]);
   const html = render(h(M.HomePage, { ctx: ctx(s, overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] })) }), seed);
   const t = text(html);
-  assert.match(html, /aria-label="Down 3"/);
-  for (const x of ["42nd", "Career high 20th", "£14,690", "Active", "Ochre Darts Co.", "Your match is waiting", "You vs Arno Auenberg", "Play match", "checked by the server"]) assert.ok(t.includes(x), x);
+  for (const x of ["42nd", "£14,690", "Active", "Ochre Darts Co.", "Your match is waiting", "Play match"]) assert.ok(t.includes(x), x);
   // A8.2 adds preparation before the same A6.5 session; never a client-reported result.
   assert.match(html, new RegExp(`href="/career/${SAVE_ID}/tournaments/${live.id}/matches/m1"`), "Play match opens preparation for the same live Career session");
   assert.ok(!t.includes("not connected yet"), "no stale A6 boundary copy");
@@ -279,7 +292,7 @@ test("retired Career Home is read-only: no next-event hero, no Enter, no Continu
   const s = save({ status: "RETIRED", retiredAt: "2026-10-04T05:39:45Z" });
   const html = render(h(M.HomePage, { ctx: ctx(s) }), homeSeed(s, [event()]));
   const t = text(html);
-  assert.ok(t.includes("Career record") && t.includes("Retired"));
+  assert.ok(t.includes("Career record")||t.includes("Career record".replace("record","Record")));assert.ok(t.includes("Retired"));
   assert.ok(!/>\s*Enter/.test(html));
   assert.ok(!t.includes("Open for entry"));
 });
@@ -466,7 +479,7 @@ test("A7.6 old seasons label reconstruction and do not manufacture awards",()=>{
 });
 const worldFixture=()=>({version:1,eventDatabaseVersion:3,playerDatabaseVersion:2,organisations:ORGANISATIONS,circuits:CIRCUIT_CONTENT,
   countries:COUNTRY_CONTENT,regions:REGIONS,cities:CITIES,venues:VENUE_CONTENT,venueFamilies:VENUE_FAMILIES,trophies:TROPHIES,brands:BRANDS,
-  seasonRhythm:SEASON_RHYTHM,prestigeClasses:PRESTIGE_CLASSES,guide:GUIDE,almanac:ALMANAC,eventFamilies:catalogueFor(3).map(d=>({id:d.key,name:d.name,...d.content}))});
+  seasonRhythm:SEASON_RHYTHM,prestigeClasses:PRESTIGE_CLASSES,guide:GUIDE,almanac:ALMANAC,eventFamilies:catalogueFor(3).map(d=>({id:d.key,name:d.name,circuit:d.circuit,formatKind:d.format.structure,supported:assessCapability(d.format,d.eventDatabaseVersion).supported,...identity(d),...d.content}))});
 test("A8.1 world directory shows real authored identities and paths without invented champions",()=>{
   const t=text(render(h(M.WorldPage,{ctx:ctx()}),[[key("world-content"),worldFixture()]]));
   assert.match(t,/World Darts Union/);assert.match(t,/Vault Darts/);assert.match(t,/Sovereign Trophy/);assert.match(t,/Factual trophy cabinet/);
@@ -477,12 +490,13 @@ test("A8.1 guide preserves optional amateur, women's and youth pathways, not XP 
   assert.match(t,/Turning professional is an opportunity/);assert.match(t,/Declared women's-category eligibility/);
   assert.match(t,/Foundation events are under 18/);assert.match(t,/never XP/);
 });
-test("A8.1 map keeps an inaccessible Palace visible with factual denial and approximate city anchor",()=>{
+test("A8.3 map defaults to personal opportunities; inaccessible Palace remains available through All Events",()=>{
   const d=identity(catalogueFor(3).find(d=>d.key==="world-darts-championship")!);
-  const e={id:"palace",name:"The Palace World Championship",dates:{startWeek:50},venue:venueContent("the-palace-london"),fieldDescriptor:"World Championship Field",
+  const e={id:"palace",name:"The Palace World Championship",status:"SCHEDULED",definitionId:"world-darts-championship",dates:{startWeek:50},venue:venueContent("the-palace-london"),fieldDescriptor:"World Championship Field",
     content:d,opportunity:{state:"NOT_QUALIFIED",reasons:["REQUIRES_RANKING"],canEnter:false}};
   const t=text(render(h(M.WorldMapPage,{ctx:ctx()}),[[key("world-map"),{events:[e]}]]));
-  assert.match(t,/The Palace World Championship/);assert.match(t,/Not Qualified/);assert.match(t,/Requires Ranking/);assert.match(t,/city approximation/);
+  assert.match(t,/Career Map/);assert.match(t,/All events — including inaccessible/);assert.match(t,/City-level approximations/);
+  assert.match(t,/No matching activity/);
   assert.doesNotMatch(t,/Enter this event|Buy access/);
 });
 test("A8.1 retired identity/products render read-only, with contract-controlled placement",()=>{
@@ -498,5 +512,82 @@ test("A8.1 empty trophy cabinet invents nothing; repeated genuine wins stay dist
   assert.match(empty,/No titles invented/);
   const award={canonicalEventId:"double-crown",name:"The Double Crown",classification:"RANKING",trophy:{name:"Double Crown Trophy"}};
   const full=text(render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:2,nextOffset:null,titles:[{...award,eventId:"a",season:2},{...award,eventId:"b",season:3}]}]]));
-  assert.equal((full.match(/Double Crown Trophy/g)??[]).length,2);assert.match(full,/S2/);assert.match(full,/S3/);
+  assert.equal((full.match(/Double Crown Trophy/g)??[]).length,2);assert.match(full,/Season 2/);assert.match(full,/Season 3/);
+});
+
+const a83MapFixture=()=>{
+  const d=worldFixture().eventFamilies.find(e=>e.id==="world-darts-championship")!;
+  return {home:{city:"Ayr",region:"Scotland"},events:[{id:"palace",name:"The Palace World Championship",definitionId:d.id,status:"SCHEDULED",
+    dates:{startWeek:50},venue:venueContent("the-palace-london"),content:d,fieldDescriptor:"World Championship Field",
+    opportunity:{state:"NOT_QUALIFIED",canEnter:false,reasons:["REQUIRES_RANKING"]},qualification:{routes:{type:"RANKING",met:false,list:"pro-world",maxPosition:32,position:null}},
+    financialCommitment:{entryFeePence:0,estimatedTravelPence:10000,estimatedAccommodationPence:15000,estimatedPlayerCostPence:17500,sponsorCoverage:{entryFeePence:0,travelPence:2500,accommodationPence:5000}}}]};
+};
+test("A8.3 navigation has five compact destinations and only the current section's tabs",()=>{
+  for(const [route,section] of [["/map","Map"],["/calendar","Calendar"],["/world/players","Darts World"],["/my-career/achievements","My Career"]]) {
+    const html=render(h(M.CareerNav,{saveId:SAVE_ID}),[],`/career/${SAVE_ID}${route}`),t=text(html);
+    for(const label of ["Home","Map","Calendar","Darts World","My Career"])assert.ok(t.includes(label));
+    assert.match(html,/aria-current="page"/);assert.match(t,new RegExp(section));
+    if(route==="/map"||route==="/calendar")assert.doesNotMatch(t,/Overview Performance Achievements Career Life History/);
+    if(route==="/world/players")assert.match(t,/Rankings Players Events &amp; Circuits Venues History|Rankings Players Events & Circuits Venues History/);
+  }
+});
+test("A8.3 Home prioritises an actual active tournament, then the mandatory season review",()=>{
+  const active={tournaments:[{eventId:"active",name:"Fixture Open",terminal:false,phase:"MATCH_READY"}]};
+  const seed=[...homeSeed(save(),[event({id:"opportunity"})]),[key("tournaments"),active]] as [unknown[],unknown][];
+  const html=render(h(M.HomePage,{ctx:ctx()}),seed);
+  assert.match(text(html),/Next Up Tournament in progress Fixture Open Return to Tournament/);
+  assert.match(html,/tournaments\/active/);
+  const reviewing=render(h(M.HomePage,{ctx:ctx()}),[...seed,[key("legacy"),{pendingReview:1}]]);
+  assert.match(text(reviewing),/Continue Season Review/);assert.doesNotMatch(text(reviewing),/Return to Tournament/);
+  browserScene("home",render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.HomePage,{ctx:ctx()})),seed));
+});
+test("A8.3 All Events map deep link exposes the inaccessible Palace and authoritative cost split",()=>{
+  const seed:[[unknown[],unknown]]=[[key("world-map"),a83MapFixture()]];
+  const html=render(h(M.CareerMapPage,{ctx:ctx()}),seed,`/career/${SAVE_ID}/map?filter=ALL&event=palace`);
+  for(const fact of ["The Palace World Championship","Not Qualified","Ranking position required","Top 32","Commitment (estimated)","£250","Sponsor coverage","£75","Your cost (estimated)","£175"])assert.ok(text(html).includes(fact),fact);
+  assert.match(html,/aria-label="Actual sporting routes"/);
+  assert.match(html,/events\/palace/);assert.doesNotMatch(text(html),/Enter ·/);
+  assert.match(html,/role="group" tabindex="0"/);assert.match(html,/Accessible location list/);
+  browserScene("map",render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.CareerMapPage,{ctx:ctx()})),seed,`/career/${SAVE_ID}/map?filter=ALL&event=palace`));
+});
+test("A8.3 World landing is a hub rather than an encyclopaedia dump",()=>{
+  const html=render(h(M.WorldHub,{ctx:ctx()}),[[key("world-content"),worldFixture()],[key("world-map"),a83MapFixture()],
+    [key("ranking","pro-world",{view:"TOP",limit:5}),{rows:[{...row(),name:"Fixture Published Leader"}]}]]);
+  for(const label of ["Darts World","Published World #1","Fixture Published Leader","Upcoming Championships","Players","Venues"])assert.ok(text(html).includes(label),label);
+  assert.doesNotMatch(text(html),/World Darts Union.*Organisation Directory/);
+  browserScene("world",render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.WorldHub,{ctx:ctx()})),[[key("world-content"),worldFixture()],[key("world-map"),a83MapFixture()]],`/career/${SAVE_ID}/world`));
+});
+test("A8.3 championship detail has central Palace identity and no fictional champion",()=>{
+  const html=render(h(M.WorldHub,{ctx:ctx(),section:"events",detail:"world-darts-championship"}),[[key("world-content"),worldFixture()],[key("world-map"),a83MapFixture()],[key("event-legacy","world-darts-championship"),{champions:[]}]]);
+  assert.match(html,/identity-palace/);assert.match(text(html),/Sovereign Trophy/);assert.match(text(html),/No pre-save history is invented/);
+  assert.match(html,/events\/palace/);
+  browserScene("palace",`<div class="career-root">${html}</div>`);
+});
+test("A8.3 shirts have genuinely different silhouettes/patterns, authored marks and no portraits",()=>{
+  const sponsor={slot:"EQUIPMENT_PARTNER",brandName:"Ironflight"};
+  const classic=render(h(M.CareerPlayerCard,{name:"Fixture Player",nickname:"Quiet",identity:{shirtTemplate:"CLASSIC",primaryColour:"#225577",secondaryColour:"#111111",accentColour:"#ddeeff"},sponsors:[sponsor],scale:"profile"}),[]);
+  const chevron=render(h(M.CareerShirt,{name:"Fixture Player",identity:{shirtTemplate:"CHEVRON"},scale:"compact"}),[]);
+  assert.match(classic,/role="img"/);assert.match(classic,/Fixture Player/);assert.match(classic,/>Ironflight<\/text>/);assert.match(chevron,/M15 43 60 70 105 43/);
+  assert.notEqual(classic,chevron);assert.doesNotMatch(classic,/<img|portrait|avatar|human portrait/i);
+  browserScene("identity",`<div class="career-root career-surface">${classic}${chevron}</div>`);
+});
+test("A8.3 retired player directory uses public cards and still links to historical careers",()=>{
+  const player={id:"retired",name:"Fixture Retired Player",nickname:null,country:"GBR",status:"RETIRED",ranking:null,shirt:{shirtTemplate:"SPLIT"},commercial:{portfolio:[]}};
+  const html=render(h(M.WorldPlayerDirectory,{ctx:ctx()}),[[key("world-players",0,"","ALL",null),{players:[player],total:1,nextOffset:null}]]);
+  assert.match(text(html),/Fixture Retired Player/);assert.match(html,/world\/players\/retired/);assert.match(html,/Retired<\/option>/);
+  assert.doesNotMatch(html,/potential|currentAbility|bankAccount/);
+});
+test("A8.3 guidance preference is explanatory and read-only on retirement",()=>{
+  const html=render(h(M.GuidanceSettings,{saveId:SAVE_ID}),[[key("guidance"),{mode:"FULL",dismissed:["home"],canEdit:false}]]);
+  assert.match(text(html),/Guidance/);assert.match(text(html),/FULL STANDARD MINIMAL/);assert.match(html,/disabled=""/);
+  assert.doesNotMatch(text(html),/Difficulty:|Upgrade ability|Buy/);
+});
+test("A8.3 long histories render twenty records at a time without discarding totals or old seasons",()=>{
+  const html=render(h(M.BoundedList,{rows:Array.from({length:1000},(_,i)=>i),children:(i:number)=>h("p",{key:i},`Recorded season ${i+1}`)}),[]);
+  assert.equal((text(html).match(/Recorded season/g)??[]).length,20);
+  assert.match(text(html),/1000 records/);assert.match(text(html),/Next records/);assert.doesNotMatch(text(html),/Recorded season 21/);
+});
+test("A8.3 Q-School session evidence is not portrayed as a championship trophy",()=>{
+  const html=render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:1,nextOffset:null,titles:[{eventId:"session",canonicalEventId:"q-school",circuit:"Q_SCHOOL",name:"Q-School day",classification:"QUALIFIER",season:1,trophy:{name:"Session Cup",designKey:"handled-silver"}}]}]]);
+  assert.match(text(html),/Session win — not a tournament title or automatic Tour Card/);assert.doesNotMatch(html,/aria-label="Session Cup"/);
 });

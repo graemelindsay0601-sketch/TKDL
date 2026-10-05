@@ -172,20 +172,20 @@ test("milestones are neutral labels from A5 facts (no prose)", () => {
   assert.equal(milestoneLabel({ kind: "TOUR_CARD_LOST", list_key: null, detail: {} }).tone, "danger");
 });
 
-test("three-layer navigation and stable routes", () => {
-  assert.deepEqual(CAREER_NAV.map(s => s.layer), ["HOME", "MY_CAREER", "DARTS_WORLD"]);
-  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 17);
-  assert.equal(activeNavKey("/career/abc/world/players"),"world");
+test("five-destination navigation and stable legacy routes", () => {
+  assert.deepEqual(CAREER_NAV.map(s => s.layer), ["HOME","MAP","CALENDAR","DARTS_WORLD","MY_CAREER"]);
+  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 13);
+  assert.equal(activeNavKey("/career/abc/world/players"),"players");
   assert.equal(activeNavKey("/career/abc/map"),"map");
-  assert.equal(activeNavKey("/career/abc/guide"),"guide");
-  assert.equal(activeNavKey("/career/abc/presentation"),"presentation");
-  assert.equal(activeNavKey("/career/abc/recognition/npcs/example"), "recognition");
-  assert.equal(activeNavKey("/career/abc/goals"), "goals");
-  assert.equal(activeNavKey("/career/abc/relationships"), "relationships");
+  assert.equal(activeNavKey("/career/abc/guide"),"world-events");
+  assert.equal(activeNavKey("/career/abc/presentation"),"career-life");
+  assert.equal(activeNavKey("/career/abc/recognition/npcs/example"), "career-life");
+  assert.equal(activeNavKey("/career/abc/goals"), "career-life");
+  assert.equal(activeNavKey("/career/abc/relationships"), "performance");
   assert.equal(activeNavKey("/career/abc"), "home");
   assert.equal(activeNavKey("/career/abc/rankings"), "rankings");
   assert.equal(activeNavKey("/career/abc/events/e1"), "calendar");
-  assert.equal(activeNavKey("/career/abc/world-championship"), "world-championship");
+  assert.equal(activeNavKey("/career/abc/world-championship"), "world-events");
 });
 
 test("presentation tiers escalate emphasis from LOCAL to WORLD without separate apps", () => {

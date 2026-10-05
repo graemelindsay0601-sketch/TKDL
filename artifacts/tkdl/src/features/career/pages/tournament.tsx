@@ -6,6 +6,8 @@ import {resolveBullUp} from "@/lib/darts-rules";
 import {useTournament,useActiveTournament,useTournamentAction,useTournamentPresentation,useAdvance,errorMessage,type TournamentView} from "../api";
 import {CareerLoading,CareerError,ConfirmButton,Label,OSWALD,StatusBadge} from "../components";
 import {formatPence} from "../model";
+import {CareerShirt,CareerEventIdentity,CareerTrophy} from "../identity";
+import {ContextHelp} from "../guidance";
 import type {ShellContext} from "../shell";
 import "./tournament.css";
 
@@ -55,7 +57,8 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
   const continueCalendar=()=>advance.mutate({season:ctx.save.currentSeason,week:ctx.save.currentWeek,target:{kind:"NEXT_MEANINGFUL"}},
     {onSuccess:()=>{setMessage("Calendar progressed to its next real action. No tournament result was invented.");q.refetch();},onError:e=>setMessage(errorMessage(e))});
   const reduced=v.presentation.reducedMotion;
-  return <div className={`tournament-mode tournament-level-${v.event.level} ${reduced?"tournament-reduced":""}`} data-mode={v.presentation.mode}>
+  return <CareerEventIdentity eventKey={v.event.definitionKey} circuit={v.event.circuit} level={v.event.level}><div className={`tournament-mode tournament-level-${v.event.level} ${reduced?"tournament-reduced":""}`} data-mode={v.presentation.mode}>
+    <ContextHelp saveId={id} topic="tournament"/>
     <section className="tournament-arrival pdc-card p-5 space-y-3">
       <div className="flex justify-between gap-3 items-center"><Label color="#ffd24a">{v.event.level===5?"The Palace · World Championship":v.event.level===4?"Major championship":v.event.level===3?"Stage tournament":v.event.level===2?"Featured tournament":"Floor tournament"}</Label>
         <StatusBadge label={v.phase.replace(/_/g," ")} tone={v.phase==="CHAMPION"?"gold":"neutral"}/></div>
@@ -163,15 +166,12 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
     {tab==="results"&&<section className="pdc-card p-4 space-y-3"><Label>Actual tournament results</Label>
       {v.results.length?<ul>{v.results.map(r=><li key={String(r.participant_key)} className="p-2 border-b border-white/10">{Number(r.finishing_position)} · {name(v,String(r.participant_key))} · {String(r.stage_reached).replace(/_/g," ")} · {String(r.wins)}W/{String(r.losses)}L</li>)}</ul>:<p>Final A3 placement and A4 settlement are pending. The completed fixtures below are saved facts, not fabricated final history.</p>}
       <MatchList v={v} list={v.matches.filter(m=>["COMPLETED","WALKOVER","BYE","VOID"].includes(m.status))}/><Money v={v}/></section>}
-  </div>;
+  </div></CareerEventIdentity>;
 }
 
 function PlayerCard({p}:{p:Player}) {
   return <article className="tournament-player" aria-label={`${p.name} opponent identity`}>
-    <div className="tournament-shirt" style={{background:String(p.shirt.primaryColour),borderColor:String(p.shirt.accentColour)}}>
-      <span style={{color:String(p.shirt.secondaryColour)}}>{p.nickname?String(p.nickname):p.name}</span>
-      {p.sponsors.slice(0,3).map((s,i)=><small key={i} data-slot={s.slot}>{s.brandName}</small>)}
-    </div><div><h3 style={OSWALD}>{p.name}</h3>{p.nickname&&<p>“{String(p.nickname)}”</p>}
+    <CareerShirt name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured"/><div><h3 style={OSWALD}>{p.name}</h3>{p.nickname&&<p>“{String(p.nickname)}”</p>}
       <p className="text-xs">{p.nationality||"Country not recorded"}{p.ranking?` · World #${p.ranking}`:""} · {p.titles} recorded titles</p>
       <div className="flex gap-1 flex-wrap mt-2">{p.badges.map(b=><StatusBadge key={b.label} label={b.label} tone="gold"/>)}</div></div>
   </article>;
@@ -203,10 +203,5 @@ function GroupTables({v}:{v:TournamentView}) {
     </div>)}</section>;
 }
 function SovereignTrophy() {
-  return <svg viewBox="0 0 120 190" width="100" height="158" role="img" aria-label="The Sovereign Trophy: tall silver sculpture">
-    <defs><linearGradient id="sovereign-silver"><stop stopColor="#62738b"/><stop offset=".45" stopColor="#f1f5fb"/><stop offset=".7" stopColor="#afbdd0"/><stop offset="1" stopColor="#e7edf5"/></linearGradient></defs>
-    <path fill="url(#sovereign-silver)" d="M47 13Q60 2 73 13L80 92Q77 110 66 118V147H82V162H38V147H54V118Q43 110 40 92Z"/>
-    <path fill="none" stroke="#cbb67c" strokeWidth="3" d="M47 19Q60 9 73 19M45 91Q60 103 75 91"/>
-    <path fill="#242a36" stroke="#cbb67c" d="M25 163H95V185H25Z"/><text x="60" y="176" textAnchor="middle" fill="#e3d7ac" fontSize="7">SOVEREIGN</text>
-  </svg>;
+  return <CareerTrophy name="The Sovereign Trophy" design="distinctive-tall-silver-not-a-crown"/>;
 }

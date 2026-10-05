@@ -1,4 +1,9 @@
 import { Fragment, useState } from "react";
+import {ContextHelp} from "../guidance";
+import {Link} from "wouter";
+import {usePresentation} from "../api";
+import {CareerShirt} from "../identity";
+import {npcShirt} from "../../../../../api-server/src/career/content/visual";
 import { BarChart3, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
 import { useRankingExplain, useRankingHistory, useRankingLists, useRankingTable, type TableQuery } from "../api";
 import { formatPence, ordinal } from "../model";
@@ -18,6 +23,7 @@ export function RankingsPage({ ctx }: { ctx: ShellContext }) {
   const meta = lists.data.find(l => l.key === key);
   return (
     <div className="space-y-3">
+      <ContextHelp saveId={ctx.save.id} topic="rankings"/>
       <div className="pdc-card px-3 py-2.5">
         <label className="sm:hidden flex flex-col gap-1"><Label>Ranking list</Label>
           <select value={key ?? ""} onChange={e => setListKey(e.target.value)} className="rounded-lg px-3 py-2.5 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
@@ -64,7 +70,7 @@ function ListView({ saveId, meta }: { saveId: string; meta: RankingListMeta }) {
         {!meta.published ? <CareerEmptyState title="Not published yet">The first {meta.name} is published after the first week in which ranking money is won.</CareerEmptyState>
           : table.isLoading ? <CareerLoading /> : table.error || !table.data ? <CareerError error={table.error} onRetry={() => table.refetch()} />
           : table.data.rows.length === 0 ? <CareerEmptyState title="Nobody ranked">This list currently has no ranked players.</CareerEmptyState>
-          : <RankingTable rows={table.data.rows} cutLines={meta.cutLines} />}
+          : <RankingTable rows={table.data.rows} cutLines={meta.cutLines} saveId={saveId}/>}
         {view === "PAGE" && table.data && meta.published && (
           <div className="flex items-center justify-between px-3 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <button className="career-btn career-btn-ghost" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}><ChevronLeft className="w-4 h-4" aria-hidden />Previous</button>
@@ -106,7 +112,8 @@ function ListView({ saveId, meta }: { saveId: string; meta: RankingListMeta }) {
 }
 
 /** Table on wide screens; the same rows read as compact two-line rows on phones. Cut lines come from A5 list metadata. */
-export function RankingTable({ rows, cutLines }: { rows: RankingRow[]; cutLines: number[] }) {
+export function RankingTable({ rows, cutLines,saveId }: { rows: RankingRow[]; cutLines: number[];saveId?:string }) {
+  const p=usePresentation(saveId??"",!!saveId);
   return (
     <table className="career-table career-table-fixed" aria-label="Ranking table">
       <thead><tr><th scope="col" style={{ width: "2.9rem" }}>Pos</th><th scope="col" style={{ width: "2.9rem" }}><span aria-hidden>+/−</span><span className="sr-only">Movement</span></th><th scope="col">Player</th><th scope="col" style={{ textAlign: "right", width: "4.8rem" }}>Money</th></tr></thead>
@@ -117,7 +124,7 @@ export function RankingTable({ rows, cutLines }: { rows: RankingRow[]; cutLines:
             <tr data-me={r.participantKey === "HUMAN"} aria-current={r.participantKey === "HUMAN" ? "true" : undefined}>
               <td className="font-black tabular-nums" style={OSWALD}>{r.position}</td>
               <td><Movement movement={r.movement} isNew={r.isNew} /></td>
-              <td><span className="flex items-center gap-1.5 min-w-0"><Flag code={r.nationality} /><span className="truncate font-bold" style={OSWALD} title={r.name ?? undefined}>{r.participantKey === "HUMAN" ? "You" : r.name}</span></span></td>
+              <td><span className="flex items-center gap-1.5 min-w-0 career-ranking-shirt"><CareerShirt scale="compact" name={r.name??"Player"} identity={r.participantKey==="HUMAN"?p.data?.identity:npcShirt(r.participantKey)} sponsors={r.participantKey==="HUMAN"?p.data?.placements:[]}/><Flag code={r.nationality}/>{saveId?<Link href={`/career/${saveId}/${r.participantKey==="HUMAN"?"my-career":`world/players/${r.participantKey}`}`}>{r.participantKey==="HUMAN"?"You":r.name}</Link>:<span>{r.participantKey==="HUMAN"?"You":r.name}</span>}</span></td>
               <td className="tabular-nums" style={{ textAlign: "right", ...OSWALD }}>{formatPence(r.valuePence, { compact: true })}</td>
             </tr>
           </Fragment>

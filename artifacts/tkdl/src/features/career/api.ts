@@ -18,7 +18,7 @@ import type {
  */
 const BASE = "/api/career";
 const get = <T,>(path: string) => apiFetchJson<T>(`${BASE}${path}`, { credentials: "same-origin", cache: "no-store" });
-const send = <T,>(method: "POST" | "DELETE", path: string, body?: unknown) => apiFetchJson<T>(`${BASE}${path}`, {
+const send = <T,>(method: "POST" | "DELETE" | "PUT", path: string, body?: unknown) => apiFetchJson<T>(`${BASE}${path}`, {
   method, credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body),
 });
 const qs = (params: Record<string, string | number | undefined | null>) => {
@@ -63,10 +63,13 @@ export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });
 export const useSponsors = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "sponsors"), queryFn: () => get<SponsorsResponse>(`/saves/${saveId}/sponsors`), staleTime: STALE });
 export const useWorldContent=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"world-content"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldContent>(`/saves/${saveId}/world-content`),staleTime:STALE});
-export const useWorldMap=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"world-map"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").MapContent>(`/saves/${saveId}/world-map`),staleTime:STALE});
-export const useWorldPlayers=(saveId:string,offset=0)=>useQuery({queryKey:careerKey(saveId,"world-players",offset),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldPlayersContent>(`/saves/${saveId}/world-players?offset=${offset}&limit=50`),staleTime:STALE});
+export const useWorldMap=(saveId:string,enabled=true)=>useQuery({queryKey:careerKey(saveId,"world-map"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").MapContent>(`/saves/${saveId}/world-map`),enabled,staleTime:STALE});
+export const useWorldPlayers=(saveId:string,offset=0,search="",status="ALL",id?:string)=>useQuery({queryKey:careerKey(saveId,"world-players",offset,search,status,id??null),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldPlayersContent>(`/saves/${saveId}/world-players?offset=${offset}&limit=50&search=${encodeURIComponent(search)}&status=${status}${id?`&id=${id}`:""}`),staleTime:STALE});
+export const useGuidance=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"guidance"),queryFn:()=>get<{mode:string;dismissed:string[];canEdit:boolean}>(`/saves/${saveId}/guidance`),staleTime:STALE});
+export const useEditGuidance=(saveId:string)=>useSaveMutation(saveId,(body:{mode?:string;dismiss?:string})=>send("PUT",`/saves/${saveId}/guidance`,body));
+export const saveInitialShirt=(saveId:string,identity:Record<string,unknown>)=>send("POST",`/saves/${saveId}/presentation`,identity);
 export const useTrophyCabinet=(saveId:string,offset=0)=>useQuery({queryKey:careerKey(saveId,"trophy-cabinet",offset),queryFn:()=>get<import("../../../../api-server/src/career/content/service").TrophyContent>(`/saves/${saveId}/trophy-cabinet?offset=${offset}&limit=50`),staleTime:STALE});
-export const usePresentation=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"presentation"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").PresentationContent>(`/saves/${saveId}/presentation`),staleTime:STALE});
+export const usePresentation=(saveId:string,enabled=true)=>useQuery({queryKey:careerKey(saveId,"presentation"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").PresentationContent>(`/saves/${saveId}/presentation`),enabled,staleTime:STALE});
 export const useEditPresentation=(saveId:string)=>useSaveMutation(saveId,(body:Record<string,unknown>)=>send("POST",`/saves/${saveId}/presentation`,body));
 export const useLaunchSignature=(saveId:string)=>useSaveMutation(saveId,(body:{contractId:string;productType:"SIGNATURE_DARTS"|"SIGNATURE_RANGE"})=>send("POST",`/saves/${saveId}/signature-products`,body));
 export const useRankingLists = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "ranking-lists"), queryFn: () => get<RankingListMeta[]>(`/saves/${saveId}/rankings`), staleTime: STALE });
@@ -155,7 +158,7 @@ export function newOperationKey() {
 }
 export const errorMessage = (e: unknown) => e instanceof ApiRequestError ? e.message : e instanceof Error ? e.message : "Something went wrong";
 export const errorStatus = (e: unknown) => e instanceof ApiRequestError ? e.status : null;
-export const useLegacy=(id:string)=>useQuery({queryKey:careerKey(id,"legacy"),staleTime:STALE,queryFn:()=>get<LegacyView>(`/saves/${id}/legacy`)});
+export const useLegacy=(id:string,enabled=true)=>useQuery({queryKey:careerKey(id,"legacy"),staleTime:STALE,enabled,queryFn:()=>get<LegacyView>(`/saves/${id}/legacy`)});
 export const useSeasonReview=(id:string,season:number|null)=>useQuery({queryKey:careerKey(id,"legacy-season",season),enabled:season!==null,staleTime:STALE,
   queryFn:()=>get<SeasonReview>(`/saves/${id}/legacy/seasons/${season}`)});
 export const useEventLegacy=(id:string,key:string|null)=>useQuery({queryKey:careerKey(id,"legacy-event",key),enabled:key!==null,staleTime:STALE,

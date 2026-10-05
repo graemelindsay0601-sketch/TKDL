@@ -7,6 +7,7 @@ import {CareerError} from "../service.ts";
 import {careerIdSchema} from "../validation.ts";
 import {lockRoot,type CareerActor} from "../world/service.ts";
 import {stableUuid} from "../world/random.ts";
+import {npcShirt} from "./visual.ts";
 import type {RootRow as CalendarRoot} from "../calendar/engine.ts";
 import {assessCapability} from "../calendar/formats.ts";
 type RootRow=CalendarRoot&{career_name?:string;player_database_version:number};
@@ -70,6 +71,23 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
   }
   return {
     presentation,
+    async guidance(actor:CareerActor,saveId:string) {
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId,false) as RootRow;
+        const saved=root.settings_snapshot?.guidance as {mode?:string;dismissed?:string[]}|undefined;
+        return {mode:saved?.mode??"STANDARD",dismissed:saved?.dismissed??[],canEdit:root.status==="ACTIVE"};
+      });
+    },
+    async editGuidance(actor:CareerActor,saveId:string,body:unknown) {
+      const input=z.object({mode:z.enum(["FULL","STANDARD","MINIMAL"]).optional(),dismiss:z.string().max(40).regex(/^[a-z-]+$/).optional()}).strict().parse(body);
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId) as RootRow;
+        const prior=root.settings_snapshot?.guidance as {mode?:string;dismissed?:string[]}|undefined;
+        const guidance={mode:input.mode??prior?.mode??"STANDARD",dismissed:[...new Set([...(prior?.dismissed??[]),...(input.dismiss?[input.dismiss]:[])])].slice(-32)};
+        await tx.execute(sql`UPDATE career_saves SET settings_snapshot=${JSON.stringify({...root.settings_snapshot,guidance})}::jsonb WHERE id=${saveId}`);
+        return guidance;
+      });
+    },
     async editPresentation(actor:CareerActor,saveId:string,body:unknown) {
       const input=cosmeticSchema.parse(body);
       return database.transaction(async tx=>{
@@ -139,19 +157,23 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
           seeding:e.seedingPolicy,field:e.field,capability:e.capability}))};
     },
     async players(actor:CareerActor,saveId:string,query:unknown={}) {
-      const q=z.object({offset:z.coerce.number().int().min(0).default(0),limit:z.coerce.number().int().min(1).max(100).default(50)}).strict().parse(query);
+      const q=z.object({offset:z.coerce.number().int().min(0).default(0),limit:z.coerce.number().int().min(1).max(100).default(50),
+        search:z.string().trim().max(80).default(""),status:z.enum(["ALL","ACTIVE","RETIRED"]).default("ALL"),id:z.string().uuid().optional()}).strict().parse(query);
       return database.transaction(async tx=>{
         const root=await lockRoot(tx,actor,saveId,false) as RootRow;
-        const count=Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_world_players WHERE career_save_id=${saveId}`)).rows[0].n);
+        const filter=sql`p.career_save_id=${saveId} AND (${q.id??null}::uuid IS NULL OR p.id=${q.id??null}::uuid) AND (${q.status}='ALL' OR p.status=${q.status})
+          AND (${q.search}='' OR strpos(lower(concat_ws(' ',p.first_name,p.surname,p.nickname,p.nationality)),lower(${q.search}))>0)`;
+        const count=Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_world_players p WHERE ${filter}`)).rows[0].n);
         const rows=(await tx.execute(sql`SELECT p.id,p.first_name,p.surname,p.nickname,p.nationality,p.home_region,p.status,p.world_key,
           (SELECT COUNT(*)::int FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
             WHERE r.career_save_id=p.career_save_id AND r.participant_key=p.id::text AND r.is_champion AND i.classification<>'QUALIFIER') AS titles,
           EXISTS(SELECT 1 FROM career_tour_cards c WHERE c.career_save_id=p.career_save_id AND c.participant_key=p.id::text AND c.status='ACTIVE'
             AND c.start_season<=${Number(root.current_season)} AND c.end_season>=${Number(root.current_season)}) AS tour_card,
           (SELECT current_position FROM career_ranking_participants r WHERE r.career_save_id=p.career_save_id AND r.participant_key=p.id::text AND r.list_key='pro-world') AS position
-          FROM career_world_players p WHERE p.career_save_id=${saveId} ORDER BY p.first_name,p.surname,p.id LIMIT ${q.limit} OFFSET ${q.offset}`)).rows;
+          FROM career_world_players p WHERE ${filter} ORDER BY p.first_name,p.surname,p.id LIMIT ${q.limit} OFFSET ${q.offset}`)).rows;
         return {total:count,nextOffset:q.offset+rows.length<count?q.offset+rows.length:null,players:rows.map(p=>({id:String(p.id),name:`${p.first_name} ${p.surname}`,
-          nickname:p.nickname,country:p.nationality,region:p.home_region,status:p.status,womenEligible:String(p.world_key).startsWith("women:"),
+          nickname:p.nickname,country:p.nationality,region:p.home_region,status:p.status,ranking:p.position===null?null:Number(p.position),
+          shirt:npcShirt(String(p.id)),womenEligible:String(p.world_key).startsWith("women:"),
           historyRoute:`history/npcs/${p.id}`,relationshipsRoute:"relationships",generationalAuthority:"A7.2",
           commercial:npcCommercial(root.world_seed,String(p.id),{careerStarted:true,titles:Number(p.titles),professionalStatus:p.tour_card?"PROFESSIONAL":"AMATEUR",
             tourCard:Boolean(p.tour_card),worldRanking:p.position===null?null:Number(p.position),qualifications:[],bestFinishByCircuit:{}})}))};
@@ -163,7 +185,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
         await lockRoot(tx,actor,saveId,false);
         const total=Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_results WHERE career_save_id=${saveId}
           AND participant_key='HUMAN' AND is_champion`)).rows[0].n);
-        const rows=(await tx.execute(sql`SELECT r.event_id,i.name,i.season,i.definition_key,i.event_database_version,i.classification,i.snapshot,i.venue_key
+        const rows=(await tx.execute(sql`SELECT r.event_id,i.name,i.season,i.definition_key,i.event_database_version,i.classification,i.circuit,i.snapshot,i.venue_key
           FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
           WHERE r.career_save_id=${saveId} AND r.participant_key='HUMAN' AND r.is_champion ORDER BY i.season DESC,i.end_day DESC,i.id
           LIMIT ${q.limit} OFFSET ${q.offset}`)).rows;
@@ -172,7 +194,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
           const definition=catalogueFor(Number(r.event_database_version)).find(d=>d.key===r.definition_key);
           const meta=snapshot.content??(definition?identity(definition):null),design=TROPHIES.find(t=>t.id===meta?.trophyId);
           return {eventId:String(r.event_id),canonicalEventId:meta?.canonicalEventId??String(r.definition_key),name:String(r.name),
-            season:Number(r.season),classification:String(r.classification),trophyIdentityId:meta?.trophyIdentity?.id??`trophy:${r.definition_key}`,
+            season:Number(r.season),classification:String(r.classification),circuit:String(r.circuit),trophyIdentityId:meta?.trophyIdentity?.id??`trophy:${r.definition_key}`,
             trophy:design??null,venue:venueContent(String(r.venue_key)),source:"ACTUAL_A3_CHAMPION_RESULT"};
         })};
       });
@@ -194,6 +216,8 @@ export function createCareerContentRouter(service:CareerContentService) {
   };
   const id=(req:Request)=>careerIdSchema.parse(String(req.params.id));
   router.get("/saves/:id/world-content",auth,async(req,res)=>res.json(await service.read(res.locals.careerActor,id(req))));
+  router.get("/saves/:id/guidance",auth,async(req,res)=>res.json(await service.guidance(res.locals.careerActor,id(req))));
+  router.put("/saves/:id/guidance",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.editGuidance(res.locals.careerActor,id(req),req.body)));
   router.get("/saves/:id/world-map",auth,async(req,res)=>res.json(await service.map(res.locals.careerActor,id(req),req.query)));
   router.get("/saves/:id/world-players",auth,async(req,res)=>res.json(await service.players(res.locals.careerActor,id(req),req.query)));
   router.get("/saves/:id/trophy-cabinet",auth,async(req,res)=>res.json(await service.trophies(res.locals.careerActor,id(req),req.query)));

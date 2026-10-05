@@ -17,6 +17,7 @@ import {relationship} from "../finance/portfolio.ts";
 import {venueContent,TROPHIES} from "../content/world.ts";
 import {npcCommercial,PRESENTATION_DEFAULTS} from "../content/service.ts";
 import {LOCALITIES} from "../calendar/geography.ts";
+import {npcShirt} from "../content/visual.ts";
 
 // Never imported by simulation, ranking, finance or the scorer.
 export const presentationSchema=z.object({mode:z.enum(["FULL","BALANCED","QUICK"]),reducedMotion:z.boolean()}).strict();
@@ -137,7 +138,7 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
           sponsors:human?contracts.map(c=>({brandName:c.terms.displayName,slot:relationship(c.terms).slot})):
             npcCommercial(root.world_seed,key,{...stature,careerStarted:true,tourCard:e.tour_card===true,
               professionalStatus:e.tour_card?"PROFESSIONAL":"AMATEUR",qualifications:[],bestFinishByCircuit:{}}).portfolio.map(c=>({brandName:c.brandName,slot:c.slot})),
-          shirt:human?{...PRESENTATION_DEFAULTS,...personal}:{primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"},
+          shirt:human?{...PRESENTATION_DEFAULTS,...personal}:npcShirt(key),
         };
       });
       const routes=(await tx.execute(sql`SELECT recipient_key,entitlement_type,source_kind,source_event_id,source_position,source_detail,target_key
