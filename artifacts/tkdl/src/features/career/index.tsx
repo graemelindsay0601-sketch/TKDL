@@ -18,6 +18,7 @@ import { RecognitionPage } from "./pages/recognition";
 import { LifePage, StoriesPage, NpcLifePage } from "./pages/life";
 import { LiveMatchPage } from "./pages/live-match";
 import {WorldPage,WorldMapPage,WorldPlayersPage,TrophyPage,PresentationPage} from "./pages/world";
+import {TournamentPage} from "./pages/tournament";
 
 /**
  * TKDL Career (A6). Stable URLs under /career (not /tour/career: /tour/:runId is the
@@ -50,6 +51,8 @@ function CareerSaveRoutes() {
       {ctx => (
         <Switch>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/tournaments/:eventId/matches/:matchId">{(p:{eventId:string;matchId:string})=><TournamentPage ctx={ctx} eventId={p.eventId} matchId={p.matchId}/>}</Route>
+          <Route path="/career/:saveId/tournaments/:eventId">{(p:{eventId:string})=><TournamentPage ctx={ctx} eventId={p.eventId}/>}</Route>
           <Route path="/career/:saveId/matches/:matchId/play">{(p: { matchId: string }) => <LiveMatchPage key={p.matchId} ctx={ctx} matchId={p.matchId} />}</Route>
           <Route path="/career/:saveId/events/:eventId">{(p: { eventId: string }) => <EventPage ctx={ctx} eventId={p.eventId} />}</Route>
           <Route path="/career/:saveId/rankings"><RankingsPage ctx={ctx} /></Route>

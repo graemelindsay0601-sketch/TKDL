@@ -40,12 +40,12 @@ export type EventFormat = z.infer<typeof eventFormatSchema>;
 export type UnsupportedReason =
   | "GAME_TYPE" | "STARTING_SCORE" | "IN_RULE" | "OUT_RULE" | "SET_PLAY" | "STRUCTURE" | "PAIRS";
 export type Capability =
-  | { executable: true; engine: "A2_X01_KNOCKOUT"; simulationVersion: 1; liveScorer: "GAME_SCORER_X01" }
+  | { executable: true; engine: "A2_X01_KNOCKOUT" | "A2_X01_GROUP_KNOCKOUT"; simulationVersion: 1; liveScorer: "GAME_SCORER_X01" }
   | { executable: true; engine: "A2_501_DO_KNOCKOUT"; simulationVersion: 1 }
   | { executable: false; code: "UNSUPPORTED_FORMAT"; reasons: UnsupportedReason[] };
 
 /** Bumped when the set of executable formats changes; existing future instances are re-assessed. */
-export const CAPABILITY_ENGINE_VERSION = 2;
+export const CAPABILITY_ENGINE_VERSION = 3;
 
 /**
  * A format is executable only when BOTH sides of a Career tournament can run it
@@ -56,7 +56,7 @@ export const CAPABILITY_ENGINE_VERSION = 2;
  * Everything else stays honestly UNSUPPORTED_FORMAT (301/701 variants, master/
  * treble-out, groups/leagues, pairs, non-X01 games).
  */
-export function assessCapability(format: EventFormat): Capability {
+export function assessCapability(format: EventFormat, allowGroups = false): Capability {
   eventFormatSchema.parse(format);
   const reasons: UnsupportedReason[] = [];
   if (format.gameType !== "X01") reasons.push("GAME_TYPE");
@@ -67,8 +67,11 @@ export function assessCapability(format: EventFormat): Capability {
   }
   if (format.scoringUnit === "SETS" && !(format.legsPerSet && format.legsPerSet % 2 === 1)) reasons.push("SET_PLAY");
   if (format.sideSize !== 1) reasons.push("PAIRS");
-  if (!(format.structure === "KNOCKOUT" && format.stages.length === 1 && format.stages[0].kind === "KNOCKOUT")) reasons.push("STRUCTURE");
-  return reasons.length ? { executable: false, code: "UNSUPPORTED_FORMAT", reasons } : { executable: true, engine: "A2_X01_KNOCKOUT", simulationVersion: 1, liveScorer: "GAME_SCORER_X01" };
+  const groups = allowGroups && format.structure === "GROUP_KNOCKOUT" && format.scoringUnit === "LEGS"
+    && format.stages.length === 2 && format.stages[0].kind === "GROUP" && format.stages[0].groupSize === 4
+    && format.stages[0].advancePerGroup === 2 && format.stages[1].kind === "KNOCKOUT";
+  if (!groups && !(format.structure === "KNOCKOUT" && format.stages.length === 1 && format.stages[0].kind === "KNOCKOUT")) reasons.push("STRUCTURE");
+  return reasons.length ? { executable: false, code: "UNSUPPORTED_FORMAT", reasons } : { executable: true, engine: groups ? "A2_X01_GROUP_KNOCKOUT" : "A2_X01_KNOCKOUT", simulationVersion: 1, liveScorer: "GAME_SCORER_X01" };
 }
 
 /** A3 format -> A2 match format for one match (best-of from the bracket row). */

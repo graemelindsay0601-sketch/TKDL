@@ -39,7 +39,8 @@ before(async()=>{
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
   await createCareerSaves(db);await createCareerWorld(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSporting(db);
   const save=await saves.create(1,{slot:1,dateOfBirth:"1990-01-01",homeLocality:"ayrshire"});saveId=save.id;
-  await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${saveId}`);
+  // Preserve the published A8.1 v3 universe; A8.2 v4 has its own tournament tests.
+  await db.execute(sql`UPDATE career_saves SET world_seed=${seed},event_database_version=3 WHERE id=${saveId}`);
   await sporting.initialize(actor,saveId);
   const old=await saves.create(1,{slot:2,dateOfBirth:"1990-01-01"});oldId=old.id;
   await db.execute(sql`UPDATE career_saves SET event_database_version=2,player_database_version=1,world_seed=${seed} WHERE id=${oldId}`);

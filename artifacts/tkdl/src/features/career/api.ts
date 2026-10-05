@@ -27,6 +27,11 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
 };
 const STALE = 10_000;
 export const careerKey = (saveId: string, ...rest: unknown[]) => ["career", saveId, ...rest] as const;
+export type TournamentView = import("../../../../api-server/src/career/tournament/service").TournamentView;
+export const useTournament = (saveId:string,eventId:string) => useQuery({queryKey:careerKey(saveId,"tournament",eventId),queryFn:()=>get<TournamentView>(`/saves/${saveId}/tournaments/${eventId}`),staleTime:0});
+export const useActiveTournament = (saveId:string,enabled=true) => useQuery({queryKey:careerKey(saveId,"tournaments"),queryFn:()=>get<{tournaments:{eventId:string;name:string;level:number;terminal:boolean}[]}>(`/saves/${saveId}/tournaments`),enabled,staleTime:0});
+export const useTournamentAction = (saveId:string,eventId:string) => useSaveMutation(saveId,(input:{action:"group-bull"|"concede"|"withdraw"|"dismiss";body?:unknown})=>send("POST",`/saves/${saveId}/tournaments/${eventId}/${input.action}`,input.body));
+export const useTournamentPresentation = (saveId:string) => useSaveMutation(saveId,(body:{mode:"FULL"|"BALANCED"|"QUICK";reducedMotion:boolean})=>send("POST",`/saves/${saveId}/tournaments/presentation`,body));
 
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });

@@ -12,6 +12,7 @@ import { scopedRandom } from "../world/random.ts";
 import { SIMULATION_VERSION } from "../world/config.ts";
 import { HUMAN, loadInstances, matchKeyFor, type InstanceRow, type MatchRow } from "../calendar/engine.ts";
 import { assessCapability, liveMatchFormat } from "../calendar/formats.ts";
+import { isGroupMatch } from "../calendar/groups.ts";
 import type { CareerCalendarService } from "../calendar/service.ts";
 import {
   replay, settledDartCount, validateDart, resolveBullUp, botBullThrow, isBullThrow, planBotX01Visit, seededRandom,
@@ -131,14 +132,14 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
         const event = (await loadInstances(tx, root.id, sql`id = ${match.event_id}`))[0] as InstanceRow | undefined;
         if (!event) throw new CareerError(404, "Career event not found");
         if (event.status !== "IN_PROGRESS") throw new CareerError(409, "Event is not in progress");
-        const capability = assessCapability(event.snapshot.format);
+        const capability = assessCapability(event.snapshot.format, event.event_database_version >= 4);
         if (!capability.executable) throw new CareerError(409, "This event format cannot be played live yet");
         const npc = (await loadNpcs(tx, root.id, { ids: [opponentKey] }))[0];
         if (!npc || npc.status !== "ACTIVE") throw new CareerError(409, "Opponent is unavailable");
         const rounds = Number((await tx.execute(sql`SELECT MAX(round)::int AS r FROM career_tournament_matches WHERE career_save_id = ${root.id} AND event_id = ${event.id}`)).rows[0].r);
         // A2 authority: the opponent's form for THIS match, same derivation as an NPC match.
         const matchKey = matchKeyFor(event, match.stage_key, match.round, match.slot);
-        const context = { category: event.snapshot.format.matchContext, roundImportance: Math.round(match.round / rounds * 1000) / 1000, elimination: true };
+        const context = { category: event.snapshot.format.matchContext, roundImportance: Math.round(match.round / (isGroupMatch(match) ? 3 : rounds) * 1000) / 1000, elimination: !isGroupMatch(match) };
         const performance = createPerformance(npc, context, root.difficulty, scopedRandom(root.world_seed, root.world_generation_version, "performance", SIMULATION_VERSION, matchKey, npc.id));
         const botConfig = toCareerBotConfig(performance);
         const format = liveMatchFormat(event.snapshot.format, match.best_of) as X01Format;

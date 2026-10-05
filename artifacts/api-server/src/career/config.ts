@@ -3,7 +3,7 @@ export const CAREER_VERSIONS = Object.freeze({
   careerSchemaVersion: 1,
   worldGenerationVersion: 1,
   /** A8.1: v3/v2 content for new saves only; existing roots retain their pinned versions. */
-  eventDatabaseVersion: 3,
+  eventDatabaseVersion: 4,
   playerDatabaseVersion: 2,
 });
 

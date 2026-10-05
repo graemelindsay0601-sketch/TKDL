@@ -422,11 +422,20 @@ export const EVENT_CATALOGUE_V2: readonly EventDefinition[] = Object.freeze([
   ...EVENT_CATALOGUE_V1.filter(d => d.key !== "double-start-grand-prix"), doubleCrown, ...junior,
 ].map(d => ({ ...d, eventDatabaseVersion: 2 })));
 export const EVENT_CATALOGUE_V3 = expandWorldCatalogue(EVENT_CATALOGUE_V2);
+/** A8.2: never edit v3 definitions or convert an existing edition's locked draw. */
+export const EVENT_CATALOGUE_V4: readonly EventDefinition[] = Object.freeze(EVENT_CATALOGUE_V3.map(d => ({
+  ...d, eventDatabaseVersion: 4,
+  ...(d.key === "vault-nights" ? {
+    format: groupKnockout501(9, [11, 13, 15], 4, 2, "stage", 1),
+    fieldSize: 16, minimumEntrants: 16, npcFill: [1, 1] as [number, number],
+  } : {}),
+})));
 
 export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === EVENT_DATABASE_VERSION) return EVENT_CATALOGUE_V1;
   if (version === 2) return EVENT_CATALOGUE_V2;
   if (version === 3) return EVENT_CATALOGUE_V3;
+  if (version === 4) return EVENT_CATALOGUE_V4;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** Referenced so a missing locality list fails at module load, not mid-season. */

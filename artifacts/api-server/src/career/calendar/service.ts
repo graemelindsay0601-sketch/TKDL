@@ -13,6 +13,7 @@ import { canonicalJson } from "./generation.ts";
 import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
 import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
 import { settleLifeCommitments } from "../life/commitments.ts";
+import { humanGroupBull,loadBulls,resolvedGroups } from "./group-engine.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
   insertBookings, exclusiveConflicts, insertEntitlements, lastDayOfWeek, refreshCapabilities, type InstanceRow, type RootRow, type MatchRow,
@@ -260,6 +261,14 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const season = Number(root.current_season), week = Number(root.current_week);
     const pending = (await tx.execute(sql`SELECT m.id, m.event_id FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
       WHERE m.career_save_id = ${root.id} AND m.status = 'AWAITING_HUMAN' AND i.season = ${season}`)).rows;
+    const pendingTournamentActions:{eventId:string;kind:"GROUP_BULL_UP";group:string}[]=[];
+    const groupEvents=await loadInstances(tx,root.id,sql`season=${season} AND status='IN_PROGRESS' AND snapshot->'format'->>'structure'='GROUP_KNOCKOUT'`);
+    for(const e of groupEvents) {
+      const withdrawn=new Set((await tx.execute(sql`SELECT participant_key FROM career_event_entries WHERE career_save_id=${root.id}
+        AND event_id=${e.id} AND status='WITHDRAWN'`)).rows.map(r=>String(r.participant_key)));
+      for(const g of resolvedGroups(await loadMatches(tx,root.id,e.id),await loadBulls(tx,root.id,e.id),withdrawn))
+        if(g.pending?.pair.includes(HUMAN))pendingTournamentActions.push({eventId:e.id,kind:"GROUP_BULL_UP",group:g.key});
+    }
     const events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
     const human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
     const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
@@ -274,8 +283,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       playedWeek: Number(seasonRow.played_week), developedWeek: Number(seasonRow.developed_week), eventDatabaseVersion: Number(seasonRow.event_database_version),
       instanceCount: Number(seasonRow.instance_count), developmentCadence: DEVELOPMENT_CADENCE,
       pendingHumanMatches: pending.map(r => ({ matchId: String(r.id), eventId: String(r.event_id) })),
+      pendingTournamentActions,
       currentWeekActions: reasonsFor(events.filter(e => e.start_week === week), human, windows, season, week),
-      nextMeaningful: pending.length ? { season, week, reasons: [{ type: "HUMAN_MATCH_PENDING" }] } : next,
+      nextMeaningful: pending.length||pendingTournamentActions.length ? { season, week, reasons: [{ type: pending.length?"HUMAN_MATCH_PENDING":"GROUP_BULL_UP" }] } : next,
     };
   }
 
@@ -369,6 +379,41 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
   return {
     providers,
     bind,
+    async groupBull(actor: CareerActor, saveId: string, eventId: string, body: unknown) {
+      careerIdSchema.parse(eventId);
+      const input = z.object({group:z.enum(["A","B","C","D"]),tieKey:z.string().min(1).max(512),
+        ordinal:z.number().int().positive(),expectedRevision:z.number().int().nonnegative(),
+        throw:z.enum(["INNER","OUTER","MISS"])}).strict().parse(body);
+      return database.transaction(async tx => {
+        const {root,world:state}=await requireSeason(tx,actor,saveId);
+        const event=await eventOwned(tx,root.id,eventId);
+        if(event.status!=="IN_PROGRESS" || event.snapshot.format.structure!=="GROUP_KNOCKOUT")
+          throw new CareerError(409,"Event is not awaiting a group bull playoff");
+        const withdrawn=new Set((await tx.execute(sql`SELECT participant_key FROM career_event_entries WHERE career_save_id=${root.id}
+          AND event_id=${eventId} AND status='WITHDRAWN'`)).rows.map(r=>String(r.participant_key)));
+        await humanGroupBull(tx,root,event,await loadMatches(tx,root.id,eventId),withdrawn,input.group,input.tieKey,input.ordinal,input.expectedRevision,input.throw);
+        await progressEvent(tx,root,state,event,lastDayOfWeek(Number(root.current_week)),await bind(tx,root));
+        return {recorded:true};
+      });
+    },
+    async concedeMatch(actor: CareerActor, saveId: string, eventId: string, body: unknown) {
+      careerIdSchema.parse(eventId);
+      const input=z.object({matchId:careerIdSchema,confirmation:z.literal("CONCEDE_MATCH")}).strict().parse(body);
+      return database.transaction(async tx=>{
+        const {root,world:state}=await requireSeason(tx,actor,saveId);
+        const event=await eventOwned(tx,root.id,eventId);
+        const m=(await loadMatches(tx,root.id,eventId)).find(m=>m.id===input.matchId);
+        if(!m || ![m.a_key,m.b_key].includes(HUMAN))throw new CareerError(404,"Your tournament match was not found");
+        if(m.status==="WALKOVER" && (m.summary as {action?:string}|null)?.action==="CONCEDE_MATCH")return {conceded:false};
+        if(event.status!=="IN_PROGRESS" || m.status!=="AWAITING_HUMAN")throw new CareerError(409,"Match is no longer awaiting you");
+        const winner=m.a_key===HUMAN?m.b_key:m.a_key;
+        if(!winner)throw new CareerError(409,"Opponent is not known");
+        await tx.execute(sql`UPDATE career_tournament_matches SET status='WALKOVER',winner_key=${winner},result_source='WALKOVER',
+          summary='{"action":"CONCEDE_MATCH"}'::jsonb,completed_at=NOW() WHERE career_save_id=${root.id} AND id=${m.id} AND status='AWAITING_HUMAN'`);
+        await progressEvent(tx,root,state,event,lastDayOfWeek(Number(root.current_week)),await bind(tx,root));
+        return {conceded:true};
+      });
+    },
     /** Idempotent: ensures the A2 world, then the current season calendar. */
     async initialize(actor: CareerActor, saveId: string) {
       careerIdSchema.parse(saveId);
@@ -420,7 +465,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           FROM career_event_results WHERE career_save_id = ${root.id} AND event_id = ${eventId} ORDER BY finishing_position, participant_key`)).rows;
         const rounds = matches.length ? Math.max(...matches.map(m => m.round)) : 0;
         const humanNext = matches.find(m => (m.a_key === HUMAN || m.b_key === HUMAN) && ["PENDING", "AWAITING_HUMAN"].includes(m.status)) ?? null;
-        const present = (m: MatchRow) => ({ id: m.id, stage: m.stage_key, round: m.round, roundName: rounds ? stageNameFor(m.round, rounds) : null, slot: m.slot, bestOf: m.best_of, scheduledDay: m.scheduled_day,
+        const present = (m: MatchRow) => ({ id: m.id, stage: m.stage_key, round: m.round, roundName: m.stage_key.startsWith("groups:") ? `GROUP_ROUND_${m.round}` : rounds ? stageNameFor(m.round, rounds) : null, slot: m.slot, bestOf: m.best_of, scheduledDay: m.scheduled_day,
           a: m.a_key ? { key: m.a_key, name: name.get(m.a_key) ?? null } : null, b: m.b_key ? { key: m.b_key, name: name.get(m.b_key) ?? null } : null,
           status: m.status, winnerKey: m.winner_key, legs: m.legs_a === null ? null : [m.legs_a, m.legs_b], firstThrow: m.first_throw, firstThrowMethod: m.first_throw_method,
           resultSource: m.result_source, summary: m.summary });

@@ -38,7 +38,7 @@ export function createCareerRelationshipsService(database: CareerDatabase) {
         const sets = Array.isArray(summary.sets) && summary.sets.length===2 ? summary.sets : [];
         return { id:str(r,"id"), opponentId:str(r,humanA ? "b_npc_id" : "a_npc_id"), eventId:str(r,"event_id"), name:str(r,"name"),
           season, day, date, humanAge:date && dob ? ageOn(dob,date) : null, round:Number(r.round), stage:str(r,"stage_key"), won:r.winner_key==="HUMAN",
-          final:r.round===r.final_round, major:["MAJOR","WORLD"].includes(str(r,"presentation_tier")) || ["MAJOR","WORLD_CHAMPIONSHIP"].includes(str(r,"circuit")),
+          final:!str(r,"stage_key").startsWith("groups:") && r.round===r.final_round, major:["MAJOR","WORLD"].includes(str(r,"presentation_tier")) || ["MAJOR","WORLD_CHAMPIONSHIP"].includes(str(r,"circuit")),
           qualification:r.circuit==="Q_SCHOOL" || r.classification==="QUALIFIER",
           legsHuman:nullableNumber(humanA ? r.legs_a : r.legs_b), legsNpc:nullableNumber(humanA ? r.legs_b : r.legs_a),
           setsHuman:nullableNumber(sets[humanA ? 0 : 1]), setsNpc:nullableNumber(sets[humanA ? 1 : 0]) };

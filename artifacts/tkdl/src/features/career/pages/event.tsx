@@ -57,6 +57,7 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
           {e.status === "CANCELLED" ? " recorded as cancelled — no field, draw or results exist, and none have been invented." : " kept in the calendar and will be cancelled when it starts; it cannot be entered."}
         </div>
       )}
+      <Link href={`/career/${save.id}/tournaments/${e.id}`} className="career-btn career-btn-gold"><Trophy className="w-4 h-4" aria-hidden/> Tournament Hub</Link>
       {awaiting && <MatchBoundaryNotice saveId={save.id} eventId={e.id} />}
       {!awaiting && <EntryActions ctx={ctx} detail={detail} />}
 

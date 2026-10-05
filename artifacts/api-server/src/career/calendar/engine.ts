@@ -14,6 +14,8 @@ import { npcFacts, type CalendarProviders } from "./providers.ts";
 import { geographyWeight, weightedSample, tierWeight, fillTarget } from "./selection.ts";
 import { generateKnockoutDraw, finishingPosition, stageName } from "./draw.ts";
 import { careerAge, type CareerIdentity } from "../identity/age.ts";
+import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups } from "./group-engine.ts";
+import { isGroupMatch } from "./groups.ts";
 
 export const HUMAN = "HUMAN";
 /** A6.5: identity columns joined onto the locked root by lockRoot (null when the save has no profile row). */
@@ -47,9 +49,9 @@ export type MatchRow = {
  * Cheap: only non-executable, still-open X01 instances are candidates.
  */
 export async function refreshCapabilities(tx: CareerExecutor, saveId: string) {
-  const rows = (await tx.execute(sql`SELECT id, snapshot FROM career_event_instances WHERE career_save_id = ${saveId} AND NOT executable
-    AND status IN ('SCHEDULED','REGISTRATION_OPEN') AND snapshot->'format'->>'gameType' = 'X01'`)).rows as { id: string; snapshot: InstanceSnapshot }[];
-  const flips = rows.map(r => ({ id: r.id, capability: assessCapability(r.snapshot.format) })).filter(r => r.capability.executable);
+  const rows = (await tx.execute(sql`SELECT id, snapshot,event_database_version FROM career_event_instances WHERE career_save_id = ${saveId} AND NOT executable
+    AND status IN ('SCHEDULED','REGISTRATION_OPEN') AND snapshot->'format'->>'gameType' = 'X01'`)).rows as { id: string; snapshot: InstanceSnapshot; event_database_version: number }[];
+  const flips = rows.map(r => ({ id: r.id, capability: assessCapability(r.snapshot.format, r.event_database_version >= 4) })).filter(r => r.capability.executable);
   if (!flips.length) return 0;
   await tx.execute(sql`UPDATE career_event_instances i SET executable = TRUE,
       snapshot = i.snapshot || jsonb_build_object('capability', f.capability, 'capabilityEngineVersion', ${CAPABILITY_ENGINE_VERSION}::int)
@@ -65,7 +67,7 @@ const TRANSITIONS: Record<EventStatus, EventStatus[]> = {
   REGISTRATION_CLOSED: ["DRAW_PENDING", "CANCELLED"],
   DRAW_PENDING: ["DRAWN", "CANCELLED"],
   DRAWN: ["IN_PROGRESS", "CANCELLED"],
-  IN_PROGRESS: ["COMPLETED"],
+  IN_PROGRESS: ["COMPLETED", "CANCELLED"],
   COMPLETED: [], CANCELLED: [],
 };
 export const canTransition = (from: EventStatus, to: EventStatus) => TRANSITIONS[from].includes(to);
@@ -319,16 +321,19 @@ export async function makeDraw(tx: CareerExecutor, root: RootRow, event: Instanc
   const policy = event.snapshot.seedingPolicy;
   const seeded = policy.list ? providers.seeding.order(policy.list, keys) : [];
   const draw = generateKnockoutDraw(keys, seeded, policy.seeds, scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "draw", event.season, event.instance_key));
-  const stage = event.snapshot.format.stages[0].key;
-  const rows: Record<string, unknown>[] = [];
-  for (let round = 1; round <= draw.rounds; round++) {
-    const slots = draw.size / 2 ** round;
+  const groups = event.snapshot.format.structure === "GROUP_KNOCKOUT";
+  const stage = groups ? "knockout" : event.snapshot.format.stages[0].key;
+  const rows: Record<string, unknown>[] = groups ? makeGroupRows(root, event, draw.positions.map(p => p.participantKey)) : [];
+  const rounds = groups ? 3 : draw.rounds;
+  for (let round = 1; round <= rounds; round++) {
+    const slots = (groups ? 8 : draw.size) / 2 ** round;
     for (let slot = 1; slot <= slots; slot++) {
-      const a = round === 1 ? draw.positions[(slot - 1) * 2].participantKey : null;
-      const b = round === 1 ? draw.positions[(slot - 1) * 2 + 1].participantKey : null;
-      const bye = round === 1 && (!a || !b);
+      const a = !groups && round === 1 ? draw.positions[(slot - 1) * 2].participantKey : null;
+      const b = !groups && round === 1 ? draw.positions[(slot - 1) * 2 + 1].participantKey : null;
+      const bye = !groups && round === 1 && (!a || !b);
       rows.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "tournament-match", event.id, stage, round, slot), stage_key: stage, round, slot,
-        best_of: bestOfForRound(event.snapshot.format, round, draw.rounds), scheduled_day: roundDay(event, round, draw.rounds),
+        best_of: groups ? event.snapshot.format.stages[1].bestOfByRound[round - 1] : bestOfForRound(event.snapshot.format, round, draw.rounds),
+        scheduled_day: groups ? tournamentDay(event, round + 3, 6) : roundDay(event, round, draw.rounds),
         a_key: a, b_key: b, a_npc_id: a ? npcOf.get(a) : null, b_npc_id: b ? npcOf.get(b) : null,
         status: bye ? "BYE" : "PENDING", winner_key: bye ? (a ?? b) : null, result_source: bye ? "BYE" : null,
         first_throw_method: event.snapshot.format.firstThrowMethod });
@@ -372,15 +377,15 @@ export function simulateBullUp(a: Npc, b: Npc, seed: string, matchKey: string) {
 export async function loadMatches(tx: CareerExecutor, saveId: string, eventId: string): Promise<MatchRow[]> {
   return (await tx.execute(sql`SELECT * FROM career_tournament_matches WHERE career_save_id = ${saveId} AND event_id = ${eventId} ORDER BY stage_key, round, slot`)).rows as MatchRow[];
 }
-const FINAL = new Set(["COMPLETED", "BYE", "WALKOVER"]);
+const FINAL = new Set(["COMPLETED", "BYE", "WALKOVER", "VOID"]);
 
 /** Fill next-round slots from finished matches. Pure over rows; returns the updates. */
 function propagate(matches: MatchRow[]) {
-  const byPos = new Map(matches.map(m => [`${m.round}:${m.slot}`, m]));
+  const byPos = new Map(matches.filter(m => !isGroupMatch(m)).map(m => [`${m.stage_key}:${m.round}:${m.slot}`, m]));
   const updates: MatchRow[] = [];
   for (const m of matches) {
-    if (!FINAL.has(m.status) || !m.winner_key) continue;
-    const next = byPos.get(`${m.round + 1}:${Math.ceil(m.slot / 2)}`);
+    if (isGroupMatch(m) || !FINAL.has(m.status) || !m.winner_key) continue;
+    const next = byPos.get(`${m.stage_key}:${m.round + 1}:${Math.ceil(m.slot / 2)}`);
     if (!next || FINAL.has(next.status)) continue;
     const side = m.slot % 2 === 1 ? "a" : "b";
     if (next[`${side}_key`] === m.winner_key) continue;
@@ -390,6 +395,23 @@ function propagate(matches: MatchRow[]) {
     updates.push(next);
   }
   return updates;
+}
+async function resolveEmptyPaths(tx: CareerExecutor, saveId: string, matches: MatchRow[]) {
+  let changed = false;
+  for (const m of matches.filter(m => !isGroupMatch(m) && m.round > 1 && !FINAL.has(m.status))) {
+    const feeders = matches.filter(f => f.stage_key === m.stage_key && f.round === m.round - 1
+      && [m.slot * 2 - 1,m.slot * 2].includes(f.slot));
+    if (feeders.length !== 2 || !feeders.every(f => FINAL.has(f.status)) || feeders.every(f => f.winner_key)) continue;
+    const winner = feeders.find(f => f.winner_key)?.winner_key ?? null;
+    await tx.execute(sql`UPDATE career_tournament_matches SET a_key=${feeders[0].winner_key},b_key=${feeders[1].winner_key},
+      a_npc_id=${feeders[0].winner_key === HUMAN ? null : feeders[0].winner_key},
+      b_npc_id=${feeders[1].winner_key === HUMAN ? null : feeders[1].winner_key},
+      status=${winner ? "WALKOVER" : "VOID"},winner_key=${winner},result_source='WALKOVER',
+      summary='{"reason":"WITHDRAWN_OPPONENT_PATH"}'::jsonb,completed_at=NOW()
+      WHERE career_save_id=${saveId} AND id=${m.id} AND status IN ('PENDING','AWAITING_HUMAN')`);
+    changed = true;
+  }
+  return changed;
 }
 async function saveSlotUpdates(tx: CareerExecutor, saveId: string, rows: MatchRow[]) {
   if (!rows.length) return;
@@ -417,27 +439,51 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
   let simulated = 0, completed = 0;
   let awaiting: MatchRow[] = [];
   for (let guard = 0; guard < 60 && live.length; guard++) {
+    let structureChanged = false;
     const ids = live.map(e => sql`${e.id}::uuid`);
     const all = (await tx.execute(sql`SELECT * FROM career_tournament_matches WHERE career_save_id = ${root.id} AND event_id IN (${sql.join(ids, sql`, `)}) ORDER BY stage_key, round, slot`)).rows as MatchRow[];
     const withdrawnRows = (await tx.execute(sql`SELECT event_id, participant_key FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id IN (${sql.join(ids, sql`, `)}) AND status = 'WITHDRAWN'`)).rows;
     const withdrawn = new Set(withdrawnRows.map(r => `${r.event_id}|${r.participant_key}`));
-    const slotUpdates: MatchRow[] = [], walkovers: { id: string; winner_key: string; a_key: string; b_key: string; a_npc_id: string | null; b_npc_id: string | null }[] = [];
+    const slotUpdates: MatchRow[] = [], walkovers: { id: string; winner_key: string | null; a_key: string; b_key: string; a_npc_id: string | null; b_npc_id: string | null }[] = [];
     const npcReady: { event: InstanceRow; match: MatchRow; rounds: number }[] = [];
     const finishedEvents: { event: InstanceRow; matches: MatchRow[]; rounds: number }[] = [];
     awaiting = [];
     for (const event of live) {
       const matches = all.filter(m => m.event_id === event.id);
-      const rounds = Math.max(...matches.map(m => m.round));
-      const final = matches.find(m => m.round === rounds)!;
-      if (FINAL.has(final.status)) { finishedEvents.push({ event, matches, rounds }); continue; }
+      if (!matches.length) throw new CareerError(409, "Active tournament has no official draw");
+      const officialSize = (event.snapshot as unknown as {draw?:{size:number}}).draw?.size;
+      const expected = event.snapshot.format.structure === "GROUP_KNOCKOUT" ? 31 : officialSize ? officialSize-1 : null;
+      if (expected !== null && matches.length !== expected) throw new CareerError(409,"Official draw has missing or extra fixtures; it has not been regenerated");
+      const knockout = matches.filter(m => !isGroupMatch(m));
+      const rounds = Math.max(...knockout.map(m => m.round));
+      const finals = knockout.filter(m => m.round === rounds);
+      if (finals.length !== 1) throw new CareerError(409, "Official tournament final is missing or ambiguous");
+      const final = finals[0];
+      if (final.status === "VOID") {
+        await transition(tx,event,"CANCELLED",{reason:"NO_REMAINING_PARTICIPANTS"});
+        await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id=${root.id} AND event_id=${event.id}`);
+        structureChanged = true; continue;
+      }
+      if (FINAL.has(final.status) && final.winner_key) {
+        if (matches.some(m=>!FINAL.has(m.status))) throw new CareerError(409,"Final result conflicts with unfinished tournament fixtures");
+        finishedEvents.push({ event, matches, rounds }); continue;
+      }
+      if (event.snapshot.format.structure === "GROUP_KNOCKOUT") {
+        const out = await progressGroups(tx, root, event, matches, new Set(withdrawnRows.filter(r => r.event_id === event.id).map(r => String(r.participant_key))));
+        if (out.changed) { structureChanged = true; continue; } // Reload persisted slots before simulating.
+      }
+      if (await resolveEmptyPaths(tx,root.id,matches)) { structureChanged = true; continue; }
       const updates = propagate(matches);
       const isOut = (key: string | null) => !!key && withdrawn.has(`${event.id}|${key}`);
-      const ready = matches.filter(m => (m.status === "PENDING" || m.status === "AWAITING_HUMAN") && m.a_key && m.b_key && m.scheduled_day <= uptoDay);
+      const humanPending = matches.filter(m => [m.a_key,m.b_key].includes(HUMAN) && !FINAL.has(m.status)
+        && !withdrawn.has(`${event.id}|${HUMAN}`)).sort((a,b) => Number(!isGroupMatch(a))-Number(!isGroupMatch(b)) || a.round-b.round)[0];
+      const ready = matches.filter(m => (m.status === "PENDING" || m.status === "AWAITING_HUMAN") && m.a_key && m.b_key && m.scheduled_day <= uptoDay
+        && (!humanPending || (isGroupMatch(m) === isGroupMatch(humanPending) && m.round <= humanPending.round)));
       let changed = updates.length > 0;
       for (const m of ready) {
         if (isOut(m.a_key) || isOut(m.b_key)) {
           // Auditable post-lock withdrawal: concede once the opponent is known.
-          walkovers.push({ id: m.id, winner_key: isOut(m.a_key) ? m.b_key! : m.a_key!, a_key: m.a_key!, b_key: m.b_key!, a_npc_id: m.a_npc_id, b_npc_id: m.b_npc_id });
+          walkovers.push({ id: m.id, winner_key: isOut(m.a_key) && isOut(m.b_key) ? null : isOut(m.a_key) ? m.b_key! : m.a_key!, a_key: m.a_key!, b_key: m.b_key!, a_npc_id: m.a_npc_id, b_npc_id: m.b_npc_id });
           changed = true;
         } else if (m.a_key === HUMAN || m.b_key === HUMAN) {
           if (m.status === "PENDING") { m.status = "AWAITING_HUMAN"; if (!updates.includes(m)) updates.push(m); changed = true; }
@@ -451,15 +497,15 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
     for (const done of finishedEvents) { await completeEvent(tx, root, done.event, done.matches, done.rounds, providers); completed++; }
     await saveSlotUpdates(tx, root.id, slotUpdates);
     if (walkovers.length) {
-      await tx.execute(sql`UPDATE career_tournament_matches t SET status = 'WALKOVER', winner_key = w.winner_key, result_source = 'WALKOVER', completed_at = NOW(),
+      await tx.execute(sql`UPDATE career_tournament_matches t SET status = CASE WHEN w.winner_key IS NULL THEN 'VOID' ELSE 'WALKOVER' END, winner_key = w.winner_key, result_source = 'WALKOVER', completed_at = NOW(),
           a_key = w.a_key, b_key = w.b_key, a_npc_id = w.a_npc_id, b_npc_id = w.b_npc_id
         FROM jsonb_to_recordset(${JSON.stringify(walkovers)}::jsonb) AS w(id uuid, winner_key text, a_key text, b_key text, a_npc_id uuid, b_npc_id uuid)
         WHERE t.career_save_id = ${root.id} AND t.id = w.id AND t.status IN ('PENDING','AWAITING_HUMAN')`);
     }
     const doneIds = new Set(finishedEvents.map(f => f.event.id));
-    live = live.filter(e => !doneIds.has(e.id));
+    live = live.filter(e => !doneIds.has(e.id) && e.status === "IN_PROGRESS");
     if (!npcReady.length) {
-      if (!slotUpdates.length && !walkovers.length && !finishedEvents.length) break;
+      if (!slotUpdates.length && !walkovers.length && !finishedEvents.length && !structureChanged) break;
       continue;
     }
     const npcs = new Map((await loadNpcs(tx, root.id, { ids: [...new Set(npcReady.flatMap(r => [r.match.a_key!, r.match.b_key!]))] })).map(n => [n.id, n]));
@@ -468,7 +514,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       const bull = simulateBullUp(npcs.get(m.a_key!)!, npcs.get(m.b_key!)!, root.world_seed, key);
       m.first_throw = bull.firstThrow; m.first_throw_detail = { method: bull.method, throws: bull.throws };
       return { matchKey: key, playerAId: m.a_key!, playerBId: m.b_key!,
-        context: { category: event.snapshot.format.matchContext, roundImportance: Math.round(m.round / rounds * 1000) / 1000, elimination: true },
+        context: { category: event.snapshot.format.matchContext, roundImportance: Math.round(m.round / (isGroupMatch(m) ? 3 : rounds) * 1000) / 1000, elimination: !isGroupMatch(m) },
         format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow) };
     });
     const results = await simulateMatchesInTransaction(tx, root, world, requests);
@@ -499,21 +545,23 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
   const drawn = [...new Set(matches.flatMap(m => [m.a_key, m.b_key]).filter((k): k is string => !!k))];
   const entries = (await tx.execute(sql`SELECT participant_key, participant_kind, npc_id FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id}
     AND participant_key IN (${sql.join(drawn.map(k => sql`${k}`), sql`, `)}) ORDER BY participant_key`)).rows;
-  const final = matches.find(m => m.round === rounds)!;
+  const final = matches.find(m => !isGroupMatch(m) && m.round === rounds)!;
   const champion = final.winner_key!;
   const results = entries.map(entry => {
     const key = String(entry.participant_key);
     const played = matches.filter(m => m.a_key === key || m.b_key === key);
-    const lost = played.find(m => FINAL.has(m.status) && m.winner_key !== key && m.status !== "BYE");
+    const lost = played.find(m => !isGroupMatch(m) && FINAL.has(m.status) && m.winner_key !== key && m.status !== "BYE");
+    const groupOut = event.snapshot.format.structure === "GROUP_KNOCKOUT" && !played.some(m => !isGroupMatch(m));
     const completed = played.filter(m => m.status === "COMPLETED");
     const legs = completed.reduce((acc, m) => { const mine = m.a_key === key; acc[0] += (mine ? m.legs_a : m.legs_b) ?? 0; acc[1] += (mine ? m.legs_b : m.legs_a) ?? 0; return acc; }, [0, 0]);
     const isChampion = key === champion;
-    const position = isChampion ? 1 : lost ? finishingPosition(lost.round, rounds) : finishingPosition(1, rounds);
+    const position = isChampion ? 1 : groupOut ? 9 : lost ? finishingPosition(lost.round, rounds) : finishingPosition(1, rounds);
     return { participant_key: key, participant_kind: String(entry.participant_kind), npc_id: entry.npc_id ? String(entry.npc_id) : null,
-      finishing_position: position, stage_reached: isChampion ? "CHAMPION" : lost ? stageName(lost.round, rounds) : stageName(1, rounds), is_champion: isChampion,
-      matches_played: completed.length, wins: completed.filter(m => m.winner_key === key).length, losses: played.filter(m => FINAL.has(m.status) && m.status !== "BYE" && m.winner_key !== key).length,
+      finishing_position: position, stage_reached: isChampion ? "CHAMPION" : groupOut ? "GROUP_STAGE" : lost ? stageName(lost.round, rounds) : stageName(1, rounds), is_champion: isChampion,
+      matches_played: completed.length, wins: completed.filter(m => m.winner_key === key).length, losses: completed.filter(m => m.winner_key !== key).length,
       legs_for: legs[0], legs_against: legs[1],
       metadata: { byes: played.filter(m => m.status === "BYE").length, walkovers: played.filter(m => m.status === "WALKOVER").map(m => ({ round: m.round, won: m.winner_key === key })),
+        ...(event.snapshot.format.structure==="GROUP_KNOCKOUT"?{structure:"GROUP_KNOCKOUT",groupLosses:completed.filter(m=>isGroupMatch(m)&&m.winner_key!==key).length}:{}),
         qSchool: event.snapshot.qSchool ?? null, rankingCategory: event.ranking_category, classification: event.classification, roundLost: lost?.round ?? null, rounds,
         // A6.5: the human's age on the event's start date (a persisted fact for later storytelling).
         ...(key === HUMAN ? { humanAge: careerAge(rootIdentity(root as RootRow & { identity_dob?: unknown; identity_start?: unknown }), event.season, event.start_day) } : {}) } };
@@ -590,5 +638,12 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
   summary.simulatedMatches += progress.simulated;
   summary.completed += progress.completed;
   summary.awaitingHuman.push(...progress.awaitingHuman.map(m => m.id));
+  // A real human group bull playoff also blocks the calendar; its ID is not a scoring match.
+  for (const event of live.filter(e => e.snapshot.format.structure === "GROUP_KNOCKOUT" && e.status === "IN_PROGRESS")) {
+    const withdrawn = new Set((await tx.execute(sql`SELECT participant_key FROM career_event_entries WHERE career_save_id=${root.id}
+      AND event_id=${event.id} AND status='WITHDRAWN'`)).rows.map(r => String(r.participant_key)));
+    const groups = resolvedGroups(await loadMatches(tx,root.id,event.id),await loadBulls(tx,root.id,event.id),withdrawn);
+    if (groups.some(g => g.pending?.pair.includes(HUMAN))) summary.awaitingHuman.push(`group-bull:${event.id}`);
+  }
   return summary;
 }

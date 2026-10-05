@@ -101,7 +101,7 @@ export function generateSeason(seed: string, eventDatabaseVersion: number, seaso
       if (placement.week < 1 || placement.endWeek > WEEKS_PER_SEASON || endDay < startDay) throw new Error(`Invalid event window for ${definition.key}`);
       groupingForWeek(placement.week);
       const instanceKey = `${definition.key}:${placement.slotKey}`;
-      const capability = assessCapability(format);
+      const capability = assessCapability(format, definition.eventDatabaseVersion >= 4);
       const snapshot: InstanceSnapshot = { ...structuredClone(rest), eligibility, capability,
         resolvedFrom: { definitionKey: definition.key, eventDatabaseVersion, definitionHash: hash, calendarGenerationVersion: CALENDAR_GENERATION_VERSION } };
       if (snapshot.content) snapshot.content.venue = venueContent(venue.key);

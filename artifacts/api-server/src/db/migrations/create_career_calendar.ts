@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { createCareerLife } from "./create_career_life.ts";
 import { createCareerLegacy } from "./create_career_legacy.ts";
+import { ensureCareerGroupSchema } from "./create_career_groups.ts";
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { catalogueFor } from "../../career/calendar/catalogue.ts";
 import { definitionHash } from "../../career/calendar/generation.ts";
@@ -112,7 +113,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
           (OLD.status = 'REGISTRATION_CLOSED' AND NEW.status IN ('DRAW_PENDING','CANCELLED')) OR
           (OLD.status = 'DRAW_PENDING' AND NEW.status IN ('DRAWN','CANCELLED')) OR
           (OLD.status = 'DRAWN' AND NEW.status IN ('IN_PROGRESS','CANCELLED')) OR
-          (OLD.status = 'IN_PROGRESS' AND NEW.status = 'COMPLETED')) THEN
+          (OLD.status = 'IN_PROGRESS' AND NEW.status IN ('COMPLETED','CANCELLED'))) THEN
           RAISE EXCEPTION 'Invalid Career event transition % -> %', OLD.status, NEW.status;
         END IF;
         IF NEW.snapshot->'resolvedFrom' IS DISTINCT FROM OLD.snapshot->'resolvedFrom' OR NEW.definition_key <> OLD.definition_key
@@ -288,6 +289,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
     await syncEventDefinitions(tx);
     // A6.5: server-authoritative live match sessions — additive, idempotent.
     await ensureCareerMatchSessionSchema(tx);
+    await ensureCareerGroupSchema(tx);
     // The additive commitment table is needed by A3's human date-conflict projection.
     await createCareerLife(tx);
     await createCareerLegacy(tx);

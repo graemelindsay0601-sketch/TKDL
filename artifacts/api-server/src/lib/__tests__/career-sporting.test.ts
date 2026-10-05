@@ -41,7 +41,8 @@ async function inRollback<T>(actor: { playerId: number }, saveId: string, work: 
 }
 async function newCareer(actor: { playerId: number }) {
   const save = await saves.create(actor.playerId, { slot: 1 });
-  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED} WHERE id = ${save.id}`);
+  // Original A5 fixtures retain their published catalogue/NPC universe.
+  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=1,player_database_version=1 WHERE id = ${save.id}`);
   await career.initialize(actor, save.id);
   return save;
 }
@@ -489,7 +490,7 @@ test("28-29. restart wipes A5 state; a retired Career is read-only", async () =>
   for (const t of ["career_sporting_state", "career_ranking_contributions", "career_ranking_snapshots", "career_ranking_snapshot_rows", "career_ranking_participants", "career_tour_cards",
     "career_qschool_results", "career_qschool_allocations", "career_qschool_card_awards", "career_sporting_milestones"])
     assert.equal(Number((await rows(sql`SELECT COUNT(*)::int n FROM ${sql.raw(t)} WHERE career_save_id = ${C}`))[0].n), 0, t);
-  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED} WHERE id = ${restarted.id}`);
+  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=1,player_database_version=1 WHERE id = ${restarted.id}`);
   await career.initialize(twin, restarted.id);
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_ranking_snapshots WHERE career_save_id = ${restarted.id}`))[0].n, 0, "fresh sporting world");
   assert.ok(Number((await rows(sql`SELECT COUNT(*)::int n FROM career_tour_cards WHERE career_save_id = ${restarted.id} AND source = 'FOUNDING'`))[0].n) > 0);

@@ -116,7 +116,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
         guide:GUIDE,almanac:ALMANAC,audioHooks:PRESENTATION_HOOKS,audioAssetsGenerated:false,
         eventFamilies:catalogueFor(Number(root.event_database_version)).map(d=>({id:d.key,name:d.name,family:d.family,circuit:d.circuit,
           ...identity(d),...(d.content??{}),titleSponsorId:d.content?.titleSponsorId??null,formatKind:d.format.structure,seedingPolicy:d.seedingPolicy,eligibility:d.eligibility,
-          supported:assessCapability(d.format).executable,longevity:d.content?.longevity??"RECURRING"}))};
+          supported:assessCapability(d.format,d.eventDatabaseVersion>=4).executable,longevity:d.content?.longevity??"RECURRING"}))};
     },
     async map(actor:CareerActor,saveId:string,query:unknown={}) {
       const q=z.object({scope:z.enum(["WORLD","REGION","LOCAL"]).default("WORLD"),country:z.string().max(3).optional(),

@@ -42,7 +42,7 @@ export function MatchBoundaryNotice({ saveId, eventId, compact }: { saveId: stri
       </div>
       <div className="flex flex-wrap gap-2">
         {playable && match ? (
-          <Link href={`/career/${saveId}/matches/${match.id}/play`} className="career-btn career-btn-gold">
+          <Link href={`/career/${saveId}/tournaments/${eventId}/matches/${match.id}`} className="career-btn career-btn-gold">
             {resumable ? <RotateCcw className="w-4 h-4" aria-hidden /> : <Play className="w-4 h-4" aria-hidden />} {resumable ? "Resume match" : "Play match"}
           </Link>
         ) : match && <button className="career-btn career-btn-gold" disabled aria-disabled title={reason}><Swords className="w-4 h-4" aria-hidden /> Format not playable yet</button>}

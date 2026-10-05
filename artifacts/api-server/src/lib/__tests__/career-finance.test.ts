@@ -45,7 +45,8 @@ after(async () => { await pg.close(); });
 
 async function career(player = 1, slot = 1) {
   const save = await saves.create(player, { slot });
-  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED} WHERE id = ${save.id}`);
+  // Original A4 catalogue/NPC fixtures, not a silent upgrade to the A8.2 content universe.
+  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=1,player_database_version=1 WHERE id = ${save.id}`);
   await finance.initialize({ playerId: player }, save.id);
   return save;
 }

@@ -128,7 +128,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
       </div>, document.body);
   }
 
-  if (phase === "done" && session.result) return <PostMatch saveId={saveId} session={session} onNext={id => navigate(`/career/${saveId}/matches/${id}/play`)} />;
+  if (phase === "done" && session.result) return <PostMatch saveId={saveId} session={session} onNext={id => navigate(`/career/${saveId}/tournaments/${session.eventId}/matches/${id}`)} />;
 
   const gameType = careerGameType(session.format) as unknown as GameTypeOption;
   return createPortal(
@@ -140,7 +140,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
         initialRecovery={initialRecovery} onRecoveryState={() => { /* the server log is the recovery source */ }}
         botVisitPlanner={botVisitPlanner} onDartLog={onDartLog}
         onWin={() => setPhase(p => (p === "done" ? p : "submitting"))}
-        onAbandon={() => navigate(`/career/${saveId}/events/${session.eventId}`)} />
+        onAbandon={() => navigate(`/career/${saveId}/tournaments/${session.eventId}`)} />
       {phase === "submitting" && (
         <div role="status" style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,4,10,0.85)" }}>
           <p style={{ ...OSWALD, color: "#fff", letterSpacing: "0.08em" }}>Recording the result…</p>
@@ -162,7 +162,7 @@ function Overlay({ children }: { children: React.ReactNode }) {
 function PostMatch({ saveId, session, onNext }: { saveId: string; session: LiveSession; onNext: (matchId: string) => void }) {
   const r = session.result!;
   const next = r.nextHumanMatchIds?.[0] ?? null;
-  const nextState = next ? "Your next match is ready." : r.eventCompleted ? "The event is complete." : r.humanWon ? "You are through — your next opponent is still being decided." : "You are out of this event.";
+  const nextState = next ? "Your next fixture is ready." : r.eventCompleted ? "The event is complete. View your tournament summary." : "Result saved. The Tournament Hub shows your group, bracket and next session; a group loss does not automatically eliminate you.";
   return (
     <Overlay>
       <div className="pdc-card career-hero p-5 space-y-4 w-full" style={{ maxWidth: 440 }} role="dialog" aria-label="Match result">
@@ -178,7 +178,7 @@ function PostMatch({ saveId, session, onNext }: { saveId: string; session: LiveS
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{nextState}</p>
         <div className="flex flex-wrap gap-2">
           {next && <button className="career-btn career-btn-gold" onClick={() => onNext(next)}><Swords className="w-4 h-4" aria-hidden /> Next match</button>}
-          <Link href={`/career/${saveId}/events/${session.eventId}`} className="career-btn career-btn-primary"><Trophy className="w-4 h-4" aria-hidden /> Event result</Link>
+          <Link href={`/career/${saveId}/tournaments/${session.eventId}`} className="career-btn career-btn-primary"><Trophy className="w-4 h-4" aria-hidden /> Tournament progress &amp; summary</Link>
           <Link href={`/career/${saveId}`} className="career-btn career-btn-ghost"><Home className="w-4 h-4" aria-hidden /> Career Home</Link>
           <Link href={`/career/${saveId}/calendar`} className="career-btn career-btn-ghost"><ListOrdered className="w-4 h-4" aria-hidden /> Calendar</Link>
         </div>

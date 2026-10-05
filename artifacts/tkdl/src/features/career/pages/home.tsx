@@ -10,6 +10,7 @@ import { MatchBoundaryNotice } from "./match-boundary";
 import { GoalsSummary } from "./goals";
 import { RecognitionSummary } from "./recognition";
 import { LifeSummary } from "./life";
+import {TournamentResume} from "./tournament";
 
 /** Screen 1 — Career Home: next action → current status → upcoming Career → world context. */
 export function HomePage({ ctx }: { ctx: ShellContext }) {
@@ -30,6 +31,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <div className="space-y-3">
+      {!retired&&<TournamentResume saveId={id}/>}
       {/* NEXT ACTION (a retired Career has none: it is a read-only record) */}
       {retired ? (
         <section className="pdc-card p-4 md:p-5 space-y-2" aria-label="Retired Career">

@@ -7,8 +7,8 @@ export const EVENT_DATABASE_VERSION = 1;
  * A6.5 adds event database v2 (Junior Development Circuit, The Double Crown,
  * age eligibility). New saves start on v2; v1 saves keep v1 for life.
  */
-export const CURRENT_EVENT_DATABASE_VERSION = 3;
-export const SUPPORTED_EVENT_DATABASE_VERSIONS = [1, 2, 3] as const;
+export const CURRENT_EVENT_DATABASE_VERSION = 4;
+export const SUPPORTED_EVENT_DATABASE_VERSIONS = [1, 2, 3, 4] as const;
 /** Season generation algorithm version, part of every calendar RNG scope. */
 export const CALENDAR_GENERATION_VERSION = 1;
 

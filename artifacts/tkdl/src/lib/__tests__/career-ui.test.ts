@@ -34,7 +34,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
 });
 after(async () => { await vite?.close(); });
 
@@ -47,6 +47,41 @@ function render(el: ReactElement, seed: [unknown[], unknown][], at = `/career/${
 }
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ");
 const ctx = (s = save(), ov = overview()) => ({ save: s, overview: ov, retired: s.status === "RETIRED" });
+// A8.2 presentation fixtures only; authoritative group/live/settlement tests live in the API suite.
+function tournamentFixture(champion=false) {
+  const entrant=(key:string,name:string)=>({key,name,nickname:null,nationality:"Scotland",ranking:null,titles:0,badges:[],
+    source:"HUMAN_ENTRY",status:"LOCKED",seed:null,sponsors:[],shirt:{primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"}});
+  return {saveId:SAVE_ID,event:{id:"event",name:champion?"The Palace World Championship":"Community Open",level:champion?5:1,
+    season:1,startDay:1,endDay:1,venue:null,venueFallback:{city:"London",country:"England"},drawLocked:true,fieldLocked:true,
+    format:{inRule:"STRAIGHT",scoringUnit:champion?"SETS":"LEGS",legsPerSet:5},executable:true,
+    trophy:champion?{name:"The Sovereign Trophy"}:null,qualificationOutputs:[],qSchool:null},
+    phase:champion?"CHAMPION":"MATCH_READY",presentation:{mode:"QUICK",reducedMotion:true},
+    depth:{arrival:false,drawReveal:false,walkOn:false,fullCeremony:false,animate:false,skippable:true,sportingEffects:false},
+    field:[entrant("HUMAN","Fixture Player"),entrant("npc","Fixture Opponent")],routes:[],groups:[],opponents:[],
+    matches:champion?[]:[{id:"match",stage_key:"main",round:1,slot:1,best_of:3,scheduled_day:1,a_key:"HUMAN",b_key:"npc",status:"AWAITING_HUMAN"}],
+    nextMatchId:champion?null:"match",session:null,latestMatch:null,humanResult:champion?{wins:7,losses:0,matches_played:7}:null,
+    results:[],groupBull:null,championKey:champion?"HUMAN":null,position:champion?1:null,
+    money:{paid:champion,securedPence:0,prize:champion?{cash_award_pence:200000,ranking_eligible_pence:200000}:null,ledger:[]},
+    achievements:{groupWinner:false,tournamentChampion:champion},readOnly:false};
+}
+test("A8.2 floor hub is quick, factual and offers explicit concession/withdrawal rather than browser-loss penalties",()=>{
+  const t=text(render(h(M.TournamentPage,{ctx:ctx(),eventId:"event"}),[[key("tournament","event"),tournamentFixture()]]));
+  assert.match(t,/Floor tournament/);assert.match(t,/Official draw locked/);assert.match(t,/Fixture Player vs Fixture Opponent/);
+  assert.match(t,/Prepare match/);assert.match(t,/Concede this match/);assert.match(t,/Withdraw from tournament/);
+  assert.match(t,/no sporting effects/);assert.doesNotMatch(t,/World Champion|Tournament Champion|Event arrival/);
+});
+test("A8.2 real Palace champion summary uses tall Sovereign silver trophy, settled A4 prize and recorded A3 statistics",()=>{
+  const html=render(h(M.TournamentPage,{ctx:ctx(),eventId:"event"}),[[key("tournament","event"),tournamentFixture(true)]]);
+  const t=text(html);
+  assert.match(t,/World Champion · Sovereign Trophy/);assert.match(t,/7 wins · 0 losses · 7 played matches/);
+  assert.match(t,/Prize settled: £2,000/);assert.match(t,/Ranking-eligible money: £2,000/);
+  assert.match(html,/tall silver sculpture/);assert.doesNotMatch(html,/lucide-crown/);
+});
+test("A8.2 Home resume opens the saved tournament and explicitly preserves participation",()=>{
+  const html=render(h(M.TournamentResume,{saveId:SAVE_ID}),[[key("tournaments"),{tournaments:[{eventId:"event",name:"Saved Vault Nights",level:3}]}]]);
+  assert.match(text(html),/Resume Saved Vault Nights/);assert.match(text(html),/Leaving a screen never withdraws you/);
+  assert.match(html,new RegExp(`/career/${SAVE_ID}/tournaments/event`));
+});
 const lifeFixture=():LifeView=>({careerSaveId:SAVE_ID,retired:false,profile:{
   persona:{label:"Reserved",primary:"RESERVED",secondary:null,description:"Actual choices; no sporting modifier."},
   awareness:"Major darts star",reception:"Positive",draw:"Strong",
@@ -235,8 +270,8 @@ test("Career Home, ranked professional with sponsor and a pending match: real fi
   const t = text(html);
   assert.match(html, /aria-label="Down 3"/);
   for (const x of ["42nd", "Career high 20th", "£14,690", "Active", "Ochre Darts Co.", "Your match is waiting", "You vs Arno Auenberg", "Play match", "checked by the server"]) assert.ok(t.includes(x), x);
-  // A6.5: a real link into the live session route (GameScorer); never a client-reported result and no stale "not connected" copy.
-  assert.match(html, new RegExp(`href="/career/${SAVE_ID}/matches/m1/play"`), "Play match opens the live Career session");
+  // A8.2 adds preparation before the same A6.5 session; never a client-reported result.
+  assert.match(html, new RegExp(`href="/career/${SAVE_ID}/tournaments/${live.id}/matches/m1"`), "Play match opens preparation for the same live Career session");
   assert.ok(!t.includes("not connected yet"), "no stale A6 boundary copy");
 });
 
