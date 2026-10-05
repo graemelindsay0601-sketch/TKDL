@@ -257,7 +257,7 @@ export const TONES: Record<Tone, string> = { neutral: "#cbd5e1", info: "#38bdf8"
 export type NavItem = { key: string; label: string; path: string };
 export const CAREER_NAV: { layer: "HOME" | "MY_CAREER" | "DARTS_WORLD"; label: string; items: NavItem[] }[] = [
   { layer: "HOME", label: "Home", items: [{ key: "home", label: "Home", path: "" }] },
-  { layer: "MY_CAREER", label: "My Career", items: [{ key: "journey", label: "Journey", path: "/journey" }, { key: "history", label: "History", path: "/history" }, { key: "relationships", label: "Relationships", path: "/relationships" }, { key: "finances", label: "Finances", path: "/finances" }] },
+  { layer: "MY_CAREER", label: "My Career", items: [{ key: "journey", label: "Journey", path: "/journey" }, { key: "history", label: "History", path: "/history" }, { key: "relationships", label: "Relationships", path: "/relationships" }, { key: "goals", label: "Focus & Goals", path: "/goals" }, { key: "finances", label: "Finances", path: "/finances" }] },
   { layer: "DARTS_WORLD", label: "Darts World", items: [{ key: "calendar", label: "Calendar", path: "/calendar" }, { key: "rankings", label: "Rankings", path: "/rankings" },
     { key: "q-school", label: "Q-School", path: "/q-school" }, { key: "world-championship", label: "The Palace", path: "/world-championship" }] },
 ];

@@ -2,6 +2,10 @@ import { createCareerFactsService } from "../../career/facts/service.ts";
 import { createCareerFactsRouter } from "../../career/facts/router.ts";
 import { createCareerRelationshipsService } from "../../career/relationships/service.ts";
 import { createCareerRelationshipsRouter } from "../../career/relationships/router.ts";
+import { createCareerGoalsService } from "../../career/goals/service.ts";
+import { createCareerGoalsRouter } from "../../career/goals/router.ts";
+import { createCareerGoals } from "../../db/migrations/create_career_goals.ts";
+import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
@@ -29,6 +33,7 @@ import { EVENT_CATALOGUE_V2 } from "../../career/calendar/catalogue.ts";
 import { replay, throwDart, type X01Format, type Dart } from "../../shared/darts-rules/x01.ts";
 import { planBotX01Visit, type BotSkill } from "../../shared/darts-rules/bot.ts";
 import { seededRandom } from "../../shared/darts-rules/random.ts";
+const { adoptLiveCursor, recoveryFromLog } = await import(new URL("../../../../tkdl/src/features/career/live-model.ts", import.meta.url).href);
 
 /**
  * A6.5 end-to-end: Career -> live session -> bull-up -> darts through the shared
@@ -50,6 +55,14 @@ before(async () => {
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSporting(db);
+  const preMigration=await saves.create(1,{slot:3,careerName:"Pre A7.3"});
+  const oldRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
+  await createCareerGoals(db); await createCareerGoals(db);
+  const migratedRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
+  assert.equal(migratedRoot.career_focus,"OPEN_SCHEDULE");
+  const {career_focus:_focus,...unchanged}=migratedRoot;
+  assert.deepEqual(unchanged,oldRoot,"existing save migrates additively without a sporting/version rebuild");
+  await db.execute(sql`DELETE FROM career_saves WHERE id=${preMigration.id}`);
   const app = express();
   app.use(express.json({ limit: "2mb" }));
   app.use((req, _res, next) => {
@@ -62,6 +75,7 @@ before(async () => {
   const router = express.Router();
   router.use(createCareerFactsRouter(createCareerFactsService(db)));
   router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db)));
+  router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
   router.use(createCareerLiveRouter(live, available));
   router.use(createCareerSportingRouter(career, available));
@@ -158,6 +172,9 @@ test("identity: a 15-year-old Career can be created; under 15 is rejected; DOB i
   const legacy = (await call("POST", "/saves", { slot: 3, careerName: "Legacy" })).body.id;
   await call("POST", `/saves/${legacy}/initialize`, {});
   assert.equal((await call("GET", `/saves/${legacy}/profile`)).body.status, "PROFILE_INCOMPLETE");
+  const legacyGoals=await call("GET",`/saves/${legacy}/goals`);
+  assert.equal(legacyGoals.status,200,JSON.stringify(legacyGoals.body));
+  assert.equal(legacyGoals.body.focus,"OPEN_SCHEDULE");assert.deepEqual(legacyGoals.body.goals,[]);
   const blocked = await call("POST", `/saves/${legacy}/calendar/advance`, { operationKey: "a65-legacy-1", expectedSeason: 1, expectedWeek: 1, target: { kind: "WEEKS", weeks: 1 } });
   assert.deepEqual([blocked.status, blocked.body.code], [409, "PROFILE_INCOMPLETE"]);
   const set = await call("PUT", `/saves/${legacy}/profile`, { dateOfBirth: dobForAge(40) });
@@ -194,10 +211,79 @@ test("age pathways: junior events accept a 15-year-old and refuse adults; open e
 });
 
 // ------------------------------------------------------------------ the playable loop
+test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, duplicate safety, no sporting side effects, abandon, retire and cascades", async () => {
+  const id=await newCareer(3,{dateOfBirth:dobForAge(35)});
+  const other=(await call("GET","/saves")).body.slots[1].career.id;
+  const read=()=>call("GET",`/saves/${id}/goals`);
+  const initial=await read();
+  assert.equal(initial.status,200,JSON.stringify(initial.body));
+  assert.equal(initial.body.focus,"OPEN_SCHEDULE");assert.deepEqual(initial.body.goals,[]);
+  assert.equal(initial.body.focusOptions.length,5);
+  const invariant=async()=>({
+    root:(await q(sql`SELECT balance_pence,professional_ranking,has_tour_card,world_seed,settings_snapshot FROM career_saves WHERE id=${id}`))[0],
+    world:(await q(sql`SELECT MD5(string_agg(row_to_json(n)::text,'|' ORDER BY id)) h FROM career_world_players n WHERE career_save_id=${id}`))[0],
+    events:(await q(sql`SELECT MD5(string_agg(row_to_json(e)::text,'|' ORDER BY id)) h FROM career_event_instances e WHERE career_save_id=${id}`))[0],
+    ledger:await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`),
+    rankings:await q(sql`SELECT * FROM career_ranking_snapshots WHERE career_save_id=${id} ORDER BY id`),
+  });
+  const before=await invariant();
+  for (const focus of initial.body.focusOptions) {
+    assert.equal((await call("POST",`/saves/${id}/focus`,{focus:focus.value})).status,200);
+    const first=await read(),second=await read();
+    assert.equal(first.body.focus,focus.value);
+    assert.deepEqual(first.body.opportunities,second.body.opportunities);
+    assert.ok(first.body.opportunities.every((e:any)=>typeof e.canEnter==="boolean" && Array.isArray(e.denials)));
+  }
+  assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"RPG_CLASS"})).status,400);
+  assert.equal((await call("GET",`/saves/${id}/goals`,undefined,0)).status,401);
+  assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"OPEN_SCHEDULE"},2)).status,404);
+  assert.equal((await call("POST","/saves/bad-id/focus",{focus:"OPEN_SCHEDULE"})).status,400);
+  await db.execute(sql`UPDATE feature_flags SET enabled=false,admin_test_mode=false WHERE feature_name='tour_career_2'`);
+  try {
+    assert.equal((await read()).status,404);
+    assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"OPEN_SCHEDULE"})).status,404);
+  } finally {await db.execute(sql`UPDATE feature_flags SET enabled=true WHERE feature_name='tour_career_2'`);}
+  const requestKey=randomUUID(),definition={type:"WIN_TITLE"};
+  const create=await call("POST",`/saves/${id}/goals`,{requestKey,definition});
+  assert.equal(create.status,200,JSON.stringify(create.body));assert.equal(create.body.created,true);
+  assert.deepEqual((await call("POST",`/saves/${id}/goals`,{requestKey,definition})).body,{id:create.body.id,created:false});
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey,definition:{type:"REACH_FINAL"}})).status,409);
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition})).body.id,create.body.id);
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"WIN_TITLE",completed:true}})).status,400);
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"EARNINGS",target:-100}})).status,400);
+  await db.execute(sql`INSERT INTO career_world_players SELECT (jsonb_populate_record(NULL::career_world_players,
+    to_jsonb(n)||'{"id":"88888888-8888-4888-8888-888888888888","world_key":"test:goal-other-save"}'::jsonb)).* FROM career_world_players n WHERE career_save_id=${other} LIMIT 1`);
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"BEAT_OPPONENT",opponentId:"88888888-8888-4888-8888-888888888888"}})).status,409);
+  await db.execute(sql`DELETE FROM career_world_players WHERE career_save_id=${other} AND id='88888888-8888-4888-8888-888888888888'`);
+  const outside=randomUUID(); // no owned event with this target
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"WIN_EVENT",eventId:outside}})).status,409);
+  assert.equal((await call("POST",`/saves/${other}/goals/${create.body.id}/abandon`,{})).status,404);
+  for (const type of ["REACH_FINAL","WIN_MAJOR","WIN_WORLD","WIN_AMATEUR_TITLE"]) assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type}})).status,200);
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"EARNINGS",target:100000}})).status,409);
+  assert.equal((await call("POST",`/saves/${id}/goals/${create.body.id}/abandon`,{})).body.status,"ABANDONED");
+  assert.equal((await call("POST",`/saves/${id}/goals/${create.body.id}/abandon`,{})).body.status,"ABANDONED");
+  assert.deepEqual(await invariant(),before,"Focus/goals do not change NPCs, event facts, money, rankings, eligibility settings or seeds");
+  assert.deepEqual((await call("GET",`/saves/${other}/goals`)).body.goals,[]);
+  await call("POST",`/saves/${id}/retire`,{});
+  assert.equal((await read()).body.retired,true);
+  assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"OPEN_SCHEDULE"})).status,409);
+  assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition})).status,409);
+  assert.equal((await call("DELETE",`/saves/${id}`,{})).status,204);
+  assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_personal_goals WHERE career_save_id=${id}`))[0].n,0);
+});
+
 test("full human loop (junior, legs): enter, reach the match, bull-up, play through the shared rules, server accepts once, bracket/money/rankings/milestones move", async () => {
   const id = (await call("GET", "/saves")).body.slots[0].career.id; // the 15-year-old
   const before = (await call("GET", `/saves/${id}/finance`)).body;
+  const titleGoal=await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"WIN_TITLE"}});
+  assert.equal(titleGoal.status,200,JSON.stringify(titleGoal.body));
+  const earningsGoal=await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"EARNINGS",target:100}});
+  assert.equal(earningsGoal.status,200,JSON.stringify(earningsGoal.body));
   const event = await enterFirst(id, e => e.definitionKey === "junior-development-night" && e.capability.executable);
+  const selectedGoal=await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"WIN_EVENT",eventId:event.id}});
+  assert.equal(selectedGoal.status,200,JSON.stringify(selectedGoal.body));
+  const finalGoal=await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"REACH_FINAL"}});
+  assert.equal(finalGoal.status,200,JSON.stringify(finalGoal.body));
   const matchId = await advanceToHumanMatch(id);
   const blocked = await call("POST", `/saves/${id}/calendar/advance`, { operationKey: "a65-blocked", expectedSeason: 1, expectedWeek: (await call("GET", `/saves/${id}`)).body.currentWeek, target: { kind: "WEEKS", weeks: 1 } });
   assert.equal(blocked.body.stop.reason, "HUMAN_MATCH_PENDING", "the calendar cannot advance past the pending match");
@@ -208,7 +294,22 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   assert.equal(o1.body.bullUp.required, true, "A3 format says BULL_UP, so the session requires it");
   assert.equal(o1.body.format.unit, "LEGS");
   assert.ok(!("ability" in o1.body.bot) && !JSON.stringify(o1.body).includes("potential"), "no hidden NPC ability is exposed");
+  const opponentGoal=await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition:{type:"BEAT_OPPONENT",opponentId:o1.body.opponent.key}});
+  assert.equal(opponentGoal.status,200,JSON.stringify(opponentGoal.body));
   const s = await bullUp(id, matchId, "INNER");
+  // A7.3 reported regression: same session ID, but bull-up advances revision.
+  // Exercise the exact cursor adoption used synchronously by LiveMatchPage.
+  const cursor = { revision: 0, darts: [] as Dart[] };
+  adoptLiveCursor(cursor, o1.body);
+  assert.ok(s.revision > cursor.revision);
+  assert.equal(s.sessionId, o1.body.sessionId);
+  adoptLiveCursor(cursor, s);
+  assert.equal(cursor.revision, s.revision);
+  assert.equal(recoveryFromLog(s.format, s.firstThrower, cursor.darts).starterIdx, s.firstThrower);
+  const start = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: cursor.darts, expectedRevision: cursor.revision });
+  assert.equal(start.status, 200, "fresh start uses the post-bull revision; no false session-changed/recovery condition");
+  adoptLiveCursor(cursor, start.body);
+  s.revision = cursor.revision;
   const reloaded = (await call("GET", `/saves/${id}/matches/${matchId}/session`)).body;
   assert.deepEqual([reloaded.bullUp.throws, reloaded.firstThrower], [s.bullUp.throws, s.firstThrower], "reload cannot re-roll the bull-up");
   // Mid-match recovery: a partial log is persisted server-side.
@@ -233,6 +334,13 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   assert.equal(afterFacts.records.firstWin.id, `match:${matchId}`);
   assert.equal(afterFacts.performance.recordedMatches, 1);
   assert.equal(done.session.result.humanWon, true);
+  const ledgerBeforeGoals=await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`);
+  const goalsAfterMatch=(await call("GET",`/saves/${id}/goals`)).body;
+  const achieved=goalsAfterMatch.goals.find((g:any)=>g.id===opponentGoal.body.id);
+  assert.equal(achieved.status,"COMPLETED");assert.equal(achieved.completion.id,`match:${matchId}`);
+  assert.equal(achieved.completion.age,15);assert.ok(achieved.completion.date);
+  assert.deepEqual((await call("GET",`/saves/${id}/goals`)).body.goals,goalsAfterMatch.goals,"completion is idempotent");
+  assert.deepEqual(await q(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${id} ORDER BY id`),ledgerBeforeGoals,"goal completion awards no money");
   const match = (await q(sql`SELECT status, winner_key, result_source, legs_a, legs_b, first_throw_detail, summary FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0];
   assert.deepEqual([match.status, match.winner_key, match.result_source], ["COMPLETED", "HUMAN", "HUMAN_LIVE"]);
   assert.equal(match.first_throw_detail.method, "LIVE_BULL_UP");
@@ -257,7 +365,19 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   const result = (await q(sql`SELECT finishing_position, is_champion, metadata FROM career_event_results WHERE career_save_id = ${id} AND event_id = ${event.id} AND participant_key = 'HUMAN'`))[0];
   assert.ok(result, "event completed with a permanent human result");
   assert.equal(result.metadata.humanAge, 15, "age at the event is a persisted fact");
+  const title=(await call("GET",`/saves/${id}/goals`)).body.goals.find((g:any)=>g.id===titleGoal.body.id);
+  assert.equal(title.status,result.is_champion?"COMPLETED":"ACTIVE","title progress agrees with the authoritative human event result");
+  if (result.is_champion) {
+    assert.equal(title.completion.eventId,event.id);assert.equal(title.completion.age,15);
+    assert.ok(!("wins" in title.completion) && !("losses" in title.completion),"completion stores a thin supporting Fact, not copied event counters");
+  }
   const after = (await call("GET", `/saves/${id}/finance`)).body;
+  const completedGoals=(await call("GET",`/saves/${id}/goals`)).body.goals;
+  const earning=completedGoals.find((g:any)=>g.id===earningsGoal.body.id);
+  assert.equal(earning.status,after.careerEarningsPence>=100?"COMPLETED":"ACTIVE");
+  if (after.careerEarningsPence>=100) {assert.match(earning.completion.id,/^ledger:/);assert.equal(earning.completion.age,15);}
+  assert.equal(completedGoals.find((g:any)=>g.id===selectedGoal.body.id).status,result.is_champion?"COMPLETED":"ACTIVE");
+  assert.equal(completedGoals.find((g:any)=>g.id===finalGoal.body.id).status,result.finishing_position<=2?"COMPLETED":"ACTIVE");
   const prizes = await q(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id = ${id} AND event_id = ${event.id} AND category = 'PRIZE'`);
   assert.ok(prizes[0].n <= 1, "prize paid at most once");
   if (result.finishing_position <= 2) assert.ok(after.careerEarningsPence > before.careerEarningsPence, "prize money reached A4");

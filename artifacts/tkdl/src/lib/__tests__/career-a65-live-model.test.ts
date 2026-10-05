@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { careerBotVisit, careerGameType, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint, nextBotVisitIndex } from "../../features/career/live-model.ts";
+import { adoptLiveCursor, careerBotVisit, careerGameType, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint, nextBotVisitIndex } from "../../features/career/live-model.ts";
+import { readFileSync } from "node:fs";
 import { replay, planBotX01Visit, seededRandom, type Dart, type X01Format } from "../darts-rules.ts";
 import { isScorerRecoveryState } from "../scorer-recovery.ts";
 import { ageOnDate, MATCH_PLAY_STATUS, isJuniorEvent, ageReason } from "../../features/career/model.ts";
@@ -8,6 +9,24 @@ import { ageOnDate, MATCH_PLAY_STATUS, isJuniorEvent, ageReason } from "../../fe
 const d = (segment: number, multiplier: 1 | 2 | 3 = 1): Dart => ({ segment, multiplier, value: segment * multiplier });
 const LEGS: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: 3 } as X01Format;
 const DIDO_SETS = { startingScore: 501, inRule: "DOUBLE", outRule: "DOUBLE", unit: "SETS", bestOfSets: 3, bestOfLegsPerSet: 3 } as X01Format;
+
+test("normal Career start adopts post-bull revision synchronously; scorer snapshot follows the bull-up transition", () => {
+  const cursor = { revision: 0, darts: [] as Dart[] };
+  adoptLiveCursor(cursor, { revision: 1, darts: [] });
+  adoptLiveCursor(cursor, { revision: 3, darts: [] });
+  assert.equal(cursor.revision, 3);
+  const fresh = recoveryFromLog(LEGS, 1, cursor.darts);
+  assert.ok(isScorerRecoveryState(fresh));
+  assert.equal(fresh.state.turn, 1);
+  adoptLiveCursor(cursor, { revision: 4, darts: [d(20)] });
+  assert.equal(cursor.darts.length, 1);
+  const source = readFileSync(new URL("../../features/career/pages/live-match.tsx", import.meta.url), "utf8");
+  assert.match(source, /adoptLiveCursor\(cursorRef.current, s\)/);
+  assert.match(source, /\[session\?\.sessionId, session\?\.firstThrower, format, scorerKey\]/);
+  assert.doesNotMatch(source, /revisionRef/);
+  assert.match(source, /epoch !== epochRef.current/);
+  assert.match(source, /unable to restore this match/);
+});
 
 test("GameScorer mapping: X01 config, best-of lengths pass straight through", () => {
   const gt = careerGameType(DIDO_SETS as never);

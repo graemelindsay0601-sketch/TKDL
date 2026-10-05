@@ -12,6 +12,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createServer, type ViteDevServer } from "vite";
 import { event, eventDetail, finance, human, overview, pathway, rankingMeta, row, save, SAVE_ID, sporting } from "./career-fixtures.ts";
+import { FOCUSES, type GoalsView } from "../../../../api-server/src/career/goals/types.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 let vite: ViteDevServer;
@@ -20,11 +21,11 @@ let M: Record<string, any> = {};
 before(async () => {
   vite = await createServer({ root: ROOT, configFile: path.join(ROOT, "vite.config.ts"), logLevel: "error", appType: "custom", optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false, ws: false } });
   const load = (p: string) => vite.ssrLoadModule(p);
-  const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships] = await Promise.all([
+  const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships, goals] = await Promise.all([
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
-    load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx")]);
-  M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+    load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx")]);
+  M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
 });
 after(async () => { await vite?.close(); });
 
@@ -41,6 +42,42 @@ const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[]
   [key("sporting"), sp], [key("finance"), fin], [key("history", { participant: "HUMAN" }), []],
   [key("calendar", { scope: "WORLD", fromWeek: s.currentWeek, toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],
 ];
+
+const goalsFixture=():GoalsView=>({careerSaveId:SAVE_ID,focus:"OPEN_SCHEDULE",focusOptions:Object.entries(FOCUSES).map(([value,d])=>({value:value as GoalsView["focus"],...d})),
+  activeLimit:5,retired:false,goals:[],options:[{definition:{type:"WIN_TITLE"},label:"Win a Career title"}],
+  context:{currentRank:null,holdsCard:false,earningsPence:0},opportunities:[]});
+test("A7.3 optional focus/goals render guidance, an unrestricted calendar link, contextual choices and empty state",()=>{
+  const data=goalsFixture();
+  const html=render(h(M.GoalsPage,{ctx:ctx()}),[[key("goals"),data]]);
+  const t=text(html);
+  assert.match(t,/Optional sporting ambitions, not quests/);assert.match(t,/Every eligible pathway remains available/);
+  for (const f of Object.values(FOCUSES)) assert.ok(t.includes(f.label));
+  assert.match(t,/No active goals/);assert.match(t,/No matching upcoming opportunity/);assert.match(t,/Select goal/);
+  assert.ok(html.includes(`/career/${SAVE_ID}/calendar`));assert.match(t,/no penalty/i);
+});
+test("A7.3 recommendations retain exact costs, eligibility blockers and event links; completions show evidence/date/age",()=>{
+  const data=goalsFixture();data.focus="PRIZE_MONEY";data.context.currentRank=81;
+  data.opportunities=[{id:"event-1",name:"Regional Open",season:1,startDay:7,circuit:"REGIONAL",classification:"RANKING",tier:"LOCAL",status:"REGISTRATION_OPEN",
+    eligible:true,canEnter:false,denials:["INSUFFICIENT_FUNDS"],relationship:"NONE",majorRoute:false,firstPrizePence:1000000,estimatedCostPence:10000,
+    registration:{opensWeek:1,closesWeek:1},reason:"Published first prize and estimated costs; winning and profit are not guaranteed"}];
+  data.goals=[{id:"goal-1",definition:{type:"WIN_TITLE"},label:"Win a Career title",status:"COMPLETED",created:{season:1,week:1},
+    progress:{current:1,target:1,unit:"achievement",note:null},completion:{id:"result:one",source:"A3 event result",label:"Regional Open",season:1,day:7,week:1,date:"2026-01-07",age:20,eventId:"event-1"}}];
+  const html=render(h(M.GoalsPage,{ctx:ctx()}),[[key("goals"),data]]),t=text(html);
+  assert.match(t,/INSUFFICIENT_FUNDS/);assert.match(t,/not guaranteed/);assert.match(t,/10,000/);assert.match(t,/£100 estimated Career cost/);
+  assert.match(t,/World ranking: #81/);assert.match(t,/2026-01-07/);assert.match(t,/Age 20/);assert.match(t,/A3 event result/);
+  assert.ok(html.includes(`/career/${SAVE_ID}/events/event-1`));
+  assert.doesNotMatch(t,/XP awarded|skill points|loot|level up/i);
+});
+test("A7.3 retired Careers retain readable goals/focus but no new-goal or abandon actions; Home has a compact summary",()=>{
+  const data=goalsFixture();data.retired=true;
+  data.goals=[{id:"pending",definition:{type:"WIN_TITLE"},label:"Win a Career title",status:"ACTIVE",created:{season:1,week:1},
+    progress:{current:0,target:1,unit:"achievement",note:"Career retired; no further sporting progress."},completion:null}];
+  const html=render(h(M.GoalsPage,{ctx:ctx(save({status:"RETIRED"}))}),[[key("goals"),data]]),t=text(html);
+  assert.match(t,/Retired Career/);assert.match(t,/no further sporting progress/);
+  assert.doesNotMatch(t,/Select goal|Abandon without penalty/);assert.match(html,/<select[^>]*disabled/);
+  const summary=text(render(h(M.GoalsSummary,{saveId:SAVE_ID}),[[key("goals"),data]]));
+  assert.match(summary,/Open Schedule/);assert.match(summary,/1 active goals/);assert.match(summary,/Win a Career title/);assert.match(summary,/Manage/);
+});
 
 test("A7.2 relationships render factual retired identity, H2H, cohorts, meetings, world context and no gameplay effects",()=>{
   const player={id:"fictional",name:"Fictional Opponent",nationality:"GBR",homeRegion:"Ayrshire",age:65,startingAge:20,createdSeason:1,retiredSeason:8,status:"RETIRED",worldRanking:null};

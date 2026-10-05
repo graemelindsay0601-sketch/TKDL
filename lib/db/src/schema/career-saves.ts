@@ -21,6 +21,7 @@ export const careerSavesTable = pgTable("career_saves", {
   playerDatabaseVersion: integer("player_database_version").notNull(),
   worldSeed: text("world_seed").notNull(),
   settingsSnapshot: jsonb("settings_snapshot").$type<Record<string, unknown>>().notNull(),
+  careerFocus: text("career_focus").notNull().default("OPEN_SCHEDULE"),
   balancePence: integer("balance_pence").notNull(),
   standing: text("standing").notNull(),
   professionalRanking: integer("professional_ranking"),
@@ -42,6 +43,7 @@ export const careerSavesTable = pgTable("career_saves", {
   // A4: the balance is a cache of the immutable ledger and can never go negative.
   check("career_saves_balance_nonnegative", sql`${t.balancePence} >= 0`),
   check("career_saves_ranking_check", sql`${t.professionalRanking} IS NULL OR ${t.professionalRanking} > 0`),
+  check("career_saves_focus_check",sql`${t.careerFocus} IN ('OPEN_SCHEDULE','PROFESSIONAL_PATHWAY','AMATEUR_CIRCUIT','PRIZE_MONEY','MAJOR_QUALIFICATION')`),
   check("career_saves_ranking_money_check", sql`${t.professionalRankingMoneyPence} >= 0`),
 ]);
 

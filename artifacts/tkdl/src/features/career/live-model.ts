@@ -11,6 +11,13 @@ import type { LiveSession } from "./types";
 
 export type CareerGameType = { id: number; key: string; name: string; engine: string; category: string; description: string; config: string; enabled: boolean };
 
+/** Transport cursor only, not a second session: adopt every authoritative response
+ * synchronously, including bull-up responses with an unchanged session ID. */
+export function adoptLiveCursor(cursor: { revision: number; darts: Dart[] }, session: Pick<LiveSession, "revision" | "darts">): void {
+  cursor.revision = session.revision;
+  cursor.darts = session.darts as Dart[];
+}
+
 /** X01 game definition for GameScorer from the session's authored format. */
 export function careerGameType(format: LiveSession["format"]): CareerGameType {
   return {

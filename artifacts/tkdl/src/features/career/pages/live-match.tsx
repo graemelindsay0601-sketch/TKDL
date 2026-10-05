@@ -8,7 +8,7 @@ import { resolveBullUp, type Dart, type X01Format } from "@/lib/darts-rules";
 import { useWakeLock, useZoomLock } from "@/lib/nativeParity";
 import { liveApi, errorMessage } from "../api";
 import { OSWALD, Label, StatusBadge } from "../components";
-import { careerGameType, careerBotVisit, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
+import { adoptLiveCursor, careerGameType, careerBotVisit, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
 import type { ShellContext } from "../shell";
 import type { LiveSession } from "../types";
 
@@ -35,7 +35,11 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   useWakeLock(playing);
   useZoomLock(playing);
 
+  const cursorRef = useRef<{ revision: number; darts: Dart[] }>({ revision: 0, darts: [] });
+  const epochRef = useRef(0);
   const adopt = useCallback((s: LiveSession) => {
+    adoptLiveCursor(cursorRef.current, s);
+    epochRef.current++;
     setSession(s);
     setPhase(s.status === "COMPLETED" ? "done" : s.status === "BULL_UP" ? "bull" : s.status === "IN_PLAY" ? "play" : "error");
     if (s.status === "SUPERSEDED") setError("This match is no longer waiting for you (it was withdrawn or already decided).");
@@ -43,47 +47,57 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
 
   useEffect(() => {
     let cancelled = false;
+    epochRef.current++;
+    setPhase("loading");
+    setError(null);
     liveApi.open(saveId, matchId).then(s => { if (!cancelled) adopt(s); }).catch(e => { if (!cancelled) { setError(errorMessage(e)); setPhase("error"); } });
     return () => { cancelled = true; };
   }, [saveId, matchId, adopt]);
 
   // ---------------------------------------------------------------- checkpoints (serialised)
-  const logRef = useRef<Dart[]>([]);
-  const revisionRef = useRef(0);
   const queueRef = useRef<Promise<void>>(Promise.resolve());
-  useEffect(() => { if (session) { logRef.current = session.darts as Dart[]; revisionRef.current = session.revision; } }, [session?.sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkpoint = useCallback((darts: Dart[]) => {
+    const epoch = epochRef.current;
     queueRef.current = queueRef.current.then(async () => {
+      if (epoch !== epochRef.current) return; // discard queued logs from a replaced/restored session
       try {
-        const res = await liveApi.darts(saveId, matchId, { darts: darts.map(d => ({ segment: d.segment, multiplier: d.multiplier, value: d.value, label: d.label })), expectedRevision: revisionRef.current });
-        revisionRef.current = res.revision;
+        const res = await liveApi.darts(saveId, matchId, { darts: darts.map(d => ({ segment: d.segment, multiplier: d.multiplier, value: d.value, label: d.label })), expectedRevision: cursorRef.current.revision });
+        if (epoch !== epochRef.current) return;
+        cursorRef.current.revision = res.revision;
         if (res.status === "COMPLETED") {
           setSession(res); setPhase("done");
           await client.invalidateQueries({ queryKey: ["career", saveId] });
           await client.invalidateQueries({ queryKey: ["career", "saves"] });
         }
       } catch (e) {
+        if (epoch !== epochRef.current) return;
         // Out of step with the server (e.g. another tab): reload the authoritative log and remount the scorer on it.
-        setError(`${errorMessage(e)} — reloaded the match from the server.`);
         const fresh = await liveApi.read(saveId, matchId).catch(() => null);
-        if (fresh) { logRef.current = fresh.darts as Dart[]; revisionRef.current = fresh.revision; adopt(fresh); setScorerKey(k => k + 1); }
+        if (epoch !== epochRef.current) return;
+        if (fresh) {
+          setError(`${errorMessage(e)} — reloaded the match from the server.`);
+          adopt(fresh); setScorerKey(k => k + 1);
+        } else {
+          setError(`${errorMessage(e)} — unable to restore this match. Reopen it from Career.`);
+          setPhase("error");
+        }
       }
     });
   }, [saveId, matchId, client, adopt]);
 
   const format = session?.format as X01Format | undefined;
   const onDartLog = useCallback((darts: Dart[]) => {
-    logRef.current = darts;
+    cursorRef.current.darts = darts;
     if (!session || session.firstThrower === null || !format) return;
     if (shouldCheckpoint(format, session.firstThrower, darts)) checkpoint(darts);
   }, [session, format, checkpoint]);
 
   const botVisitPlanner = useCallback((ctx2: { remaining: number; opened: boolean }) =>
-    careerBotVisit(session!, session!.firstThrower!, logRef.current, ctx2), [session]);
+    careerBotVisit(session!, session!.firstThrower!, cursorRef.current.darts, ctx2), [session]);
 
   const initialRecovery = useMemo(() => session && session.firstThrower !== null && format
-    ? recoveryFromLog(format, session.firstThrower, session.darts as Dart[]) : null, [session?.sessionId, scorerKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    ? recoveryFromLog(format, session.firstThrower, session.darts as Dart[]) : null, [session?.sessionId, session?.firstThrower, format, scorerKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------- render
   if (phase === "loading") return <Overlay><p role="status" style={{ ...OSWALD, color: "#fff", textAlign: "center" }}>Preparing your match…</p></Overlay>;
