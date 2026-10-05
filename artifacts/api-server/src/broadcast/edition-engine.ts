@@ -1116,7 +1116,8 @@ type SegmentBuildContext = {
   slotKey: string;
   commentaryVersion: number;
   banterLevel: number;
-  programmeMode: ProgrammeMode;
+  // Weekly Highlights copies published segments; it never renders fresh stories.
+  programmeMode: Exclude<ProgrammeMode, "WEEKLY_HIGHLIGHTS">;
   editorialCutoff: Date;
   phraseIdsUsedThisBuild: Set<string>;
   /** subjectKey -> negative-targeted jokes already used for it THIS Edition build — resets fresh on every call to buildEdition(), unlike the broadcast_memory-backed cross-Edition counters below. */
@@ -1396,7 +1397,8 @@ async function buildEdition(params: {
     .filter(isEditionProgramme);
 
   let runningOrder: RunningOrderEntry[];
-  let programmeMode: ProgrammeMode;
+  // createWeeklyHighlightsEpisode is separate and never calls this fresh builder.
+  let programmeMode: Exclude<ProgrammeMode, "WEEKLY_HIGHLIGHTS">;
   if (closedLeagueSeasons.length > 0) {
     programmeMode = "SEASON_REVIEW";
     const highlightsByLeague = new Map<LeagueType, BroadcastStory[]>();

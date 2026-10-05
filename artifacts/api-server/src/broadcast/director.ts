@@ -62,7 +62,7 @@ import {
   mergeStoriesByAnchorAndNarrative, classifyCarryForward,
   fullSegmentPriority, isWithinSubjectExposureCap, isWithinLeagueAirtimeCap, applyVarietyShuffle,
   type MergedStoryGroup, type CarryForwardState, type RunningOrderSlotPurpose,
-  type EditionProgramme, type ProgrammeSegment, type ProgrammeMode, type OrdinaryProgrammeMode,
+  type EditionProgramme, type ProgrammeSegment, type OrdinaryProgrammeMode,
   PROGRAMME_PACING_RULES,
   sequenceEditorialBeats,
   topicRecurrencePenalty,
@@ -125,12 +125,14 @@ const CLOSED_LEAGUE_MATTER_TYPES = new Set<StoryType>(["CHAMPION", "SEASON_RECAP
  * never a weak News Edition padded with routine material.
  *
  * Season Review has higher-level season-boundary context and is selected by
- * edition-engine before this resolver is called.
+ * edition-engine before this resolver is called. Weekly Highlights reuses
+ * published segments in a separate builder; this resolver only selects
+ * ordinary fresh-edition modes.
  */
 export function selectProgrammeMode(
   pool: readonly BroadcastStory[],
   editorialCutoff?: Date,
-): Exclude<ProgrammeMode, "SEASON_REVIEW"> {
+): OrdinaryProgrammeMode {
   const referenceTime = editorialCutoff ?? new Date(pool.reduce(
     (latest, story) => Math.max(latest, story.updatedAt.getTime(), story.detectedAt.getTime()),
     0,

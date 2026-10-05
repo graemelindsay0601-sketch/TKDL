@@ -8,6 +8,7 @@ describe("buildFanVerdictSegment", () => {
       pollId: 7,
       question: "Who starts as favourite?",
       activityAt: new Date("2026-09-28T20:00:00.000Z"),
+      reactions: [],
       options: [
         { id: 1, label: "Graeme", votes: 3 },
         { id: 2, label: "Sean", votes: 1 },
@@ -16,6 +17,8 @@ describe("buildFanVerdictSegment", () => {
     assert.equal(segment.purpose, "fan_verdict");
     assert.equal(segment.facts?.totalVotes, 4);
     assert.equal(segment.facts?.leaderLabel, "Graeme");
+    assert.deepEqual(segment.facts?.reactions, []);
+    assert.equal(segment.dialogue.length, 2);
     assert.deepEqual(segment.facts?.options, [
       { id: 1, label: "Graeme", votes: 3, percentage: 75 },
       { id: 2, label: "Sean", votes: 1, percentage: 25 },
@@ -27,6 +30,7 @@ describe("buildFanVerdictSegment", () => {
       pollId: 8,
       question: "Best finish?",
       activityAt: new Date("2026-09-28T20:00:00.000Z"),
+      reactions: [],
       options: [
         { id: 1, label: "Top", votes: 2 },
         { id: 2, label: "Bottom", votes: 2 },
@@ -34,5 +38,22 @@ describe("buildFanVerdictSegment", () => {
     });
     assert.equal(segment.facts?.isTie, true);
     assert.equal(segment.facts?.leaderLabel, "Top and Bottom");
+  });
+
+  test("quotes a supplied public reaction without changing the vote result", () => {
+    const reactions = [{ playerName: "Test fan", text: "That was a brilliant finish." }];
+    const segment = buildFanVerdictSegment({
+      pollId: 9,
+      question: "Best finish?",
+      activityAt: new Date("2026-09-28T20:00:00.000Z"),
+      options: [{ id: 1, label: "Top", votes: 2 }],
+      reactions,
+    });
+    assert.equal(segment.facts?.totalVotes, 2);
+    assert.equal(segment.facts?.leaderLabel, "Top");
+    assert.deepEqual(segment.facts?.reactions, reactions);
+    assert.equal(segment.dialogue.length, 3);
+    assert.equal(segment.dialogue[2].text,
+      'One from the comments — Test fan wrote: "That was a brilliant finish."');
   });
 });
