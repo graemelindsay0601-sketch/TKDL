@@ -20,11 +20,11 @@ let M: Record<string, any> = {};
 before(async () => {
   vite = await createServer({ root: ROOT, configFile: path.join(ROOT, "vite.config.ts"), logLevel: "error", appType: "custom", optimizeDeps: { noDiscovery: true, include: [] }, server: { middlewareMode: true, hmr: false, ws: false } });
   const load = (p: string) => vite.ssrLoadModule(p);
-  const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod] = await Promise.all([
+  const [saves, home, rankings, qschool, finances, eventPage, history, shell, api, wouter, fetchMod, relationships] = await Promise.all([
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
-    load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts")]);
-  M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+    load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx")]);
+  M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
 });
 after(async () => { await vite?.close(); });
 
@@ -41,6 +41,20 @@ const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[]
   [key("sporting"), sp], [key("finance"), fin], [key("history", { participant: "HUMAN" }), []],
   [key("calendar", { scope: "WORLD", fromWeek: s.currentWeek, toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],
 ];
+
+test("A7.2 relationships render factual retired identity, H2H, cohorts, meetings, world context and no gameplay effects",()=>{
+  const player={id:"fictional",name:"Fictional Opponent",nationality:"GBR",homeRegion:"Ayrshire",age:65,startingAge:20,createdSeason:1,retiredSeason:8,status:"RETIRED",worldRanking:null};
+  const meeting={id:"m1",opponentId:player.id,eventId:"event-one",name:"Fictional Final",season:2,day:7,date:"2027-01-06",round:4,stage:"MAIN",won:true,final:true,major:true,qualification:false,legsHuman:6,legsNpc:3,setsHuman:null,setsNpc:null,humanAge:21};
+  const opponent={player,labels:["Career Rival","Q-School Class"],evidence:["Repeated competitive meetings."],meetings:6,humanWins:4,npcWins:2,winPercentage:66.67,eventCount:6,seasonCount:2,finals:1,majorMeetings:1,qualificationMeetings:0,firstMeeting:meeting,latestMeeting:meeting,history:[meeting],cohorts:[{opponentId:player.id,kind:"Q-School Class",season:1,session:"q-school-first-uk",name:"UK first session"}]};
+  const data={careerSaveId:SAVE_ID,opponents:[opponent],world:{players:[player],active:0,retired:1,newEntrants:0,youngPlayers:0,youngAgeMaximum:23}};
+  const html=render(h(M.RelationshipsPage,{ctx:ctx(save({status:"RETIRED"}))}),[[key("relationships"),data]]);
+  const t=text(html);
+  for (const s of ["Fictional Opponent","H2H 4–2","66.67% wins","Career Rival","Q-School Class","Retired (season 8)","No current World Ranking","Legs 6–3","Fictional Final","never change scoring","Career generations"]) assert.ok(t.includes(s),s);
+  assert.ok(html.includes(`/career/${SAVE_ID}/events/event-one`));
+  assert.ok(!/Rivalry Score|Potential|Current ability/.test(t));
+  const empty=text(render(h(M.RelationshipsPage,{ctx:ctx()}),[[key("relationships"),{...data,opponents:[],world:{...data.world,players:[]}}]]));
+  assert.ok(empty.includes("No opponent history here yet"));
+});
 
 // ---------------------------------------------------------------- saves
 test("save selection: three slots, empty slot, archive and lifecycle actions", () => {

@@ -1,5 +1,7 @@
 import { createCareerFactsService } from "../../career/facts/service.ts";
 import { createCareerFactsRouter } from "../../career/facts/router.ts";
+import { createCareerRelationshipsService } from "../../career/relationships/service.ts";
+import { createCareerRelationshipsRouter } from "../../career/relationships/router.ts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
@@ -59,6 +61,7 @@ before(async () => {
   const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
   const router = express.Router();
   router.use(createCareerFactsRouter(createCareerFactsService(db)));
+  router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
   router.use(createCareerLiveRouter(live, available));
   router.use(createCareerSportingRouter(career, available));
@@ -405,6 +408,13 @@ test("A7.1 factual read model: actual live evidence, isolation, age, lifecycle a
   assert.deepEqual(repeated,first,"retries/resume never add facts");
   const counted = (await q(sql`SELECT count(*)::int n FROM career_tournament_matches WHERE career_save_id=${ids[0]} AND status='COMPLETED' AND (a_key='HUMAN' OR b_key='HUMAN')`))[0].n;
   assert.equal(first.statistics.matchesPlayed,counted);
+  const relationships=createCareerRelationshipsService(db);
+  const h2h=await relationships.read({playerId:1},ids[0]);
+  assert.equal(h2h.opponents.reduce((n,o)=>n+o.meetings,0),counted,"A7.2 agrees with authoritative matches and A7.1");
+  assert.deepEqual(await relationships.read({playerId:1},ids[0]),h2h);
+  assert.equal((await call("GET",`/saves/${ids[0]}/relationships`)).status,200);
+  assert.equal((await call("GET",`/saves/${ids[0]}/relationships`,undefined,2)).status,404);
+  assert.equal((await call("GET",`/saves/${ids[0]}/relationships`,undefined,0)).status,401);
   assert.ok(first.performance.recordedMatches>0);
   const source = (await q(sql`SELECT result FROM career_match_sessions WHERE career_save_id=${ids[0]} AND status='COMPLETED'`)).map(r=>r.result.facts.human);
   const points = source.reduce((n,r)=>n+r.points,0), darts=source.reduce((n,r)=>n+r.darts,0);
@@ -416,9 +426,11 @@ test("A7.1 factual read model: actual live evidence, isolation, age, lifecycle a
   for (const r of results) assert.equal(first.results.find(f=>f.eventId===r.event_id)?.age,r.metadata.humanAge);
   const other = await saves.create(2,{slot:1,careerName:'Independent',dateOfBirth:dobForAge(30)});
   const empty = await facts.read({playerId:2},other.id);
+  assert.equal((await relationships.read({playerId:2},other.id)).opponents.length,0,"pre-initialization existing save stays valid");
   assert.equal(empty.statistics.matchesPlayed,0); assert.equal(empty.performance.maximums,null); assert.equal(empty.timeline.length,1); assert.equal(empty.world.champions.length,0);
   await assert.rejects(()=>facts.read({playerId:1},other.id));
   const retired = await saves.retire(1,ids[0]);
+  assert.deepEqual(await relationships.read({playerId:1},retired.id),h2h,"A7.2 reads retired saves without changing history");
   assert.deepEqual(await facts.read({playerId:1},retired.id),first,'retirement preserves historical facts');
   const restarted = await saves.restart(2,other.id);
   assert.equal((await facts.read({playerId:2},restarted.id)).statistics.matchesPlayed,0);

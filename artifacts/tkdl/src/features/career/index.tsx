@@ -11,6 +11,7 @@ import { PalacePage } from "./pages/palace";
 import { JourneyPage } from "./pages/journey";
 import { FinancesPage } from "./pages/finances";
 import { HistoryPage } from "./pages/history";
+import { RelationshipsPage } from "./pages/relationships";
 import { LiveMatchPage } from "./pages/live-match";
 
 /**
@@ -52,6 +53,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/journey"><JourneyPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/finances"><FinancesPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/history"><HistoryPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/relationships"><RelationshipsPage ctx={ctx} /></Route>
           <Route><HomePage ctx={ctx} /></Route>
         </Switch>
       )}
