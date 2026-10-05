@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords } from "lucide-react";
-import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, errorMessage, errorStatus } from "./api";
+import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, useLegacy, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -125,9 +125,11 @@ function HeaderAge({ saveId }: { saveId: string }) {
 /** Time only moves through A3's retry-safe advance. A pending human match blocks it (honestly). */
 function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount }: { save: CareerSave; pendingEventId: string | null; pendingMatchId: string | null; pendingCount: number }) {
   const advance = useAdvance(save.id);
+  const legacy=useLegacy(save.id);
   const [message, setMessage] = useState<string | null>(null);
   const live = useLiveSession(save.id, pendingMatchId);
   const resumable = !!live.data && (live.data.status === "BULL_UP" || live.data.status === "IN_PLAY");
+  if(legacy.data?.pendingReview)return <Link className="career-btn career-btn-gold" href={`/career/${save.id}/history`}>Season complete — review before Season {save.currentSeason}</Link>;
   if (pendingEventId) return (
     <Link href={pendingMatchId ? `/career/${save.id}/matches/${pendingMatchId}/play` : `/career/${save.id}/events/${pendingEventId}`}
       className="career-btn career-btn-gold w-full sm:w-auto" aria-label={resumable ? "Resume your match" : `${pendingCount > 1 ? `${pendingCount} matches are` : "Your match is"} waiting — play it now`}>

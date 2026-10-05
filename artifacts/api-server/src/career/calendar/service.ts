@@ -281,6 +281,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
   async function stepWeek(actor: CareerActor, saveId: string) {
     const played = await database.transaction(async tx => {
       const { root, world: state, season } = await requireSeason(tx, actor, saveId);
+      if(await providers.history?.pending(tx,root))throw new CareerError(409,"Read the completed Season Review and begin the new season before advancing");
       const s = Number(root.current_season), w = Number(root.current_week);
       if (Number(season.played_week) >= w) return { season: s, week: w, summary: null as unknown, blocked: false };
       const summary = await playWeek(tx, root, state, s, w, await bind(tx, root));
@@ -321,6 +322,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await openRegistrations(tx, saveId, Number(root.current_season), Number(root.current_week));
       await providers.finance?.onCalendarMoved(tx, root, Number(root.current_season), Number(root.current_week));
       await providers.sporting?.onCalendarMoved(tx, root, Number(root.current_season), Number(root.current_week));
+      await providers.history?.afterSeason(tx,root,played.season);
       return { season: Number(root.current_season), week: Number(root.current_week) };
     });
     return { ...played, advancedTo: next, offSeason };
@@ -482,11 +484,36 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     async advance(actor: CareerActor, saveId: string, body: unknown) {
       const request = advanceSchema.parse(body);
       const started = await database.transaction(async tx => {
-        const { root } = await requireSeason(tx, actor, saveId);
+        const { root } = await open(tx, actor, saveId);
+        // A2 commits its off-season separately. Recover only an unfinished,
+        // demonstrably processed boundary, never backfill awards for old closed seasons.
+        if(providers.history&&Number(root.current_season)>1) {
+          const previous=Number(root.current_season)-1;
+          const unfinished=(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id=${saveId}
+            AND season=${previous} AND status='ACTIVE' AND played_week=52 AND developed_week=52`)).rows[0];
+          if(unfinished) {
+            await finalizeSeason(tx,root,previous);
+            await ensureSeason(tx,root,Number(root.current_season));
+            await openRegistrations(tx,saveId,Number(root.current_season),Number(root.current_week));
+            await providers.finance?.onCalendarMoved(tx,root,Number(root.current_season),Number(root.current_week));
+            await providers.sporting?.onCalendarMoved(tx,root,Number(root.current_season),Number(root.current_week));
+            await providers.history.afterSeason(tx,root,previous);
+          }
+        }
+        await requireSeason(tx,actor,saveId);
         const op = (await tx.execute(sql`SELECT request, result FROM career_calendar_operations WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey}`)).rows[0];
         if (op) {
           checkRetry(op.request, request);
           const stored = op.result as { stop?: { reason?: string }; to?: { season: number; week: number } } | null;
+          const pending=await providers.history?.pending(tx,root);
+          if(!stored&&pending===request.expectedSeason&&Number(root.current_season)===pending+1) {
+            const recovered={operationKey:request.operationKey,from:{season:request.expectedSeason,week:request.expectedWeek},
+              to:{season:Number(root.current_season),week:Number(root.current_week)},stop:{reason:"SEASON_REVIEW",detail:{season:pending,recovered:true}},
+              weeksPlayed:0,steps:[],recovered:true};
+            await tx.execute(sql`UPDATE career_calendar_operations SET result=${JSON.stringify(recovered)}::jsonb,completed_at=NOW()
+              WHERE career_save_id=${saveId} AND operation_key=${request.operationKey} AND completed_at IS NULL`);
+            return {stored:recovered};
+          }
           // A blocked (human-match) advance may resume only from the exact position it stopped at;
           // once the Career has moved on, retrying it returns the stored result and never moves time.
           if (stored?.stop?.reason === "HUMAN_MATCH_PENDING" && stored.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
@@ -509,6 +536,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         }
         steps.push({ season: step.season, week: step.week, summary: step.summary, offSeason: "offSeason" in step ? step.offSeason : undefined });
         const at = step.advancedTo!;
+        if(providers.history&&at.season!==step.season){stop={reason:"SEASON_REVIEW",detail:{season:step.season}};break;}
         const index = (at.season - 1) * WEEKS_PER_SEASON + at.week - 1;
         if (targetIndex !== null) { if (index >= targetIndex) { stop = { reason: "TARGET_REACHED" }; break; } continue; }
         if (at.season !== step.season) { stop = { reason: "SEASON_BOUNDARY" }; break; }

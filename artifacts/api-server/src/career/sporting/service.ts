@@ -14,6 +14,7 @@ import type { SponsorFactsProvider } from "../finance/engine.ts";
 import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, timeIndex } from "./config.ts";
 import { createSportingHooks, createSportingFactsProvider, bindSporting, ensureSporting, UNBOUND_STATUS, UNBOUND_SEEDING } from "./engine.ts";
 import { orderOfMerit, finalStageDays, PATHWAYS } from "./qschool.ts";
+import { captureSeasonReview } from "../legacy/persistence.ts";
 
 const participantSchema = z.union([z.literal(HUMAN), z.string().uuid()]);
 const tableQuerySchema = z.object({
@@ -36,7 +37,11 @@ const qualificationQuerySchema = z.object({ eventId: z.string().uuid().optional(
 export function createCareerSportingService(database: CareerDatabase, options: { facts?: SponsorFactsProvider } = {}) {
   let composed: CalendarProviders | null = null;
   const facts = options.facts ?? createSportingFactsProvider(() => composed!);
-  const finance = createCareerFinanceService(database, { facts, calendarProviders: { sportingStatus: UNBOUND_STATUS, seeding: UNBOUND_SEEDING, sporting: createSportingHooks() } });
+  const finance = createCareerFinanceService(database, { facts, calendarProviders: { sportingStatus: UNBOUND_STATUS, seeding: UNBOUND_SEEDING, sporting: createSportingHooks(),
+    history:{afterSeason:captureSeasonReview,pending:async(tx,root)=>{
+      const r=(await tx.execute(sql`SELECT season FROM career_legacy_reviews WHERE career_save_id=${root.id} AND acknowledged=false ORDER BY season LIMIT 1`)).rows[0];
+      return r?Number(r.season):null;
+    }} } });
   composed = finance.calendar.providers;
   const calendar = finance.calendar;
 

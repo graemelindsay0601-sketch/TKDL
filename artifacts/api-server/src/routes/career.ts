@@ -20,8 +20,11 @@ import { createCareerRecognitionService } from "../career/recognition/service.ts
 import { createCareerRecognitionRouter } from "../career/recognition/router.ts";
 import { createCareerLifeService } from "../career/life/service.ts";
 import { createCareerLifeRouter } from "../career/life/router.ts";
+import { createCareerLegacyService } from "../career/legacy/service.ts";
+import { createCareerLegacyRouter } from "../career/legacy/router.ts";
+import { captureRetirement } from "../career/legacy/persistence.ts";
 
-const saves = createCareerService(db);
+const saves = createCareerService(db,{onRetired:captureRetirement});
 // A5 composes the Career: A3 calendar with A4 finance hooks and A5 sporting status/seeding/hooks,
 // and A4 sponsorship reading A5 sporting facts. Every Career route uses this one composition.
 const sporting = createCareerSportingService(db);
@@ -34,6 +37,7 @@ router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db))
 router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
 router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
 router.use(createCareerLifeRouter(createCareerLifeService(db)));
+router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
 // A6.5: Career identity endpoints + PROFILE_INCOMPLETE gate (first, so it guards sporting routes).
 router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
 router.use(createCareerLiveRouter(live, available));

@@ -115,7 +115,7 @@ async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateC
   return row;
 }
 
-export function createCareerService(database: CareerDatabase) {
+export function createCareerService(database: CareerDatabase,options:{onRetired?:(tx:CareerExecutor,root:CareerRow)=>Promise<void>}={}) {
   return {
     async isAvailable(isAdmin: boolean): Promise<boolean> {
       const { rows } = await database.execute(sql`
@@ -172,12 +172,14 @@ export function createCareerService(database: CareerDatabase) {
     async retire(playerId: number, id: string) {
       return database.transaction(async tx => {
         const row = await ownedSave(tx, playerId, id, true);
-        requireActive(row);
+        if(row.status==="RETIRED")return present(row);
         const result = await tx.execute(sql`
           UPDATE career_saves SET status = 'RETIRED', retired_at = NOW(), updated_at = NOW()
           WHERE id = ${id} AND player_id = ${playerId} RETURNING *
         `);
-        return present(result.rows[0] as CareerRow);
+        const retired=result.rows[0] as CareerRow;
+        await options.onRetired?.(tx,retired);
+        return present(retired);
       });
     },
 

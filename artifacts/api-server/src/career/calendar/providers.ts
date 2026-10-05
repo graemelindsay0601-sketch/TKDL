@@ -96,7 +96,8 @@ export interface CalendarSportingHooks {
   onCalendarMoved(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
 }
 
-export type CalendarProviders = { sportingStatus: SportingStatusProvider; seeding: SeedingProvider; finance?: CalendarFinanceHooks; sporting?: CalendarSportingHooks };
+export type CalendarProviders = { sportingStatus: SportingStatusProvider; seeding: SeedingProvider; finance?: CalendarFinanceHooks; sporting?: CalendarSportingHooks;
+  history?: { afterSeason(tx:CareerExecutor,root:RootRow,season:number):Promise<void>; pending(tx:CareerExecutor,root:RootRow):Promise<number|null> } };
 export const DEFAULT_PROVIDERS: CalendarProviders = { sportingStatus: A3_PLACEHOLDER_STATUS, seeding: NO_SEEDING };
 
 export function npcFacts(npc: Npc) {

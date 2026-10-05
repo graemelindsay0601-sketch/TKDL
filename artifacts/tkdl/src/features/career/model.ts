@@ -283,7 +283,7 @@ export function slotLines(save: CareerSave): { label: string; value: string }[] 
   ];
 }
 export const advanceStopLabel = (reason: string) => ({ TARGET_REACHED: "Week played", MEANINGFUL_DATE: "Stopped at your next important date",
-  SEASON_BOUNDARY: "New season", HUMAN_MATCH_PENDING: "Your match is ready", LIMIT: "Advanced" } as Record<string, string>)[reason] ?? titleCase(reason);
+  SEASON_BOUNDARY: "New season", SEASON_REVIEW:"Season complete — review before continuing", HUMAN_MATCH_PENDING: "Your match is ready", LIMIT: "Advanced" } as Record<string, string>)[reason] ?? titleCase(reason);
 
 // ---------------------------------------------------------------- formats (describes A3's stored format; never executes it)
 export function formatLabel(f: CareerEvent["format"] | undefined | null): string {

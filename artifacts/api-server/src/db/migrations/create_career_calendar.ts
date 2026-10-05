@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { createCareerLife } from "./create_career_life.ts";
+import { createCareerLegacy } from "./create_career_legacy.ts";
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { catalogueFor } from "../../career/calendar/catalogue.ts";
 import { definitionHash } from "../../career/calendar/generation.ts";
@@ -289,6 +290,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
     await ensureCareerMatchSessionSchema(tx);
     // The additive commitment table is needed by A3's human date-conflict projection.
     await createCareerLife(tx);
+    await createCareerLegacy(tx);
   });
 }
 

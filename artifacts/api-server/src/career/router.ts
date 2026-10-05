@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { CareerError, type CareerService } from "./service.ts";
 import { emptyCareerBodySchema } from "./validation.ts";
 import { authedWriteRateLimit } from "../middleware/writeRateLimit.ts";
@@ -37,7 +37,7 @@ export function createCareerRouter(service: CareerService) {
     res.json(await service.restart(res.locals.careerPlayerId, String(req.params.id)));
   });
   router.post("/saves/:id/retire", authedWriteRateLimit, async (req, res) => {
-    emptyCareerBodySchema.parse(req.body ?? {});
+    z.object({confirmation:z.literal("RETIRE CAREER")}).strict().parse(req.body);
     res.json(await service.retire(res.locals.careerPlayerId, String(req.params.id)));
   });
   router.delete("/saves/:id", authedWriteRateLimit, async (req, res) => {

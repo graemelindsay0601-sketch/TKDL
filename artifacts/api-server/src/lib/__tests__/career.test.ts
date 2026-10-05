@@ -172,8 +172,9 @@ test("other owners and unknown resources return identical 404s, including for ad
   const initial = await stored(career.id);
   for (const user of ["a", "admin"]) {
     for (const [method, suffix] of [["GET", ""], ["POST", "/restart"], ["POST", "/retire"], ["DELETE", ""]]) {
-      const foreign = await request(method, `/saves/${career.id}${suffix}`, undefined, user);
-      const missing = await request(method, `/saves/${randomUUID()}${suffix}`, undefined, user);
+      const body=suffix==="/retire"?{confirmation:"RETIRE CAREER"}:undefined;
+      const foreign = await request(method, `/saves/${career.id}${suffix}`, body, user);
+      const missing = await request(method, `/saves/${randomUUID()}${suffix}`, body, user);
       assert.equal(foreign.status, 404);
       assert.deepEqual(foreign, missing);
     }
@@ -242,19 +243,20 @@ test("restart replaces universe, resets progression/versions, cascades children 
   }
 });
 
-test("retirement preserves the universe and ledger, rejects restart/re-retire, permits unlimited slot reuse", async () => {
+test("retirement preserves the universe and ledger, rejects restart, replays retirement and permits unlimited slot reuse", async () => {
   const ids: string[] = [];
   for (let i = 0; i < 5; i++) {
     const career = await service.create(1, { slot: 1 });
     const seed = (await stored(career.id)).world_seed;
-    const retired = await request("POST", `/saves/${career.id}/retire`, {});
+    const retired = await request("POST", `/saves/${career.id}/retire`, {confirmation:"RETIRE CAREER"});
     assert.equal(retired.status, 200);
     assert.equal(retired.body.status, "RETIRED");
     assert.ok(retired.body.retiredAt);
     assert.equal((await stored(career.id)).world_seed, seed);
     assert.equal((await request("GET", `/saves/${career.id}`)).status, 200);
     assert.equal((await request("POST", `/saves/${career.id}/restart`, {})).status, 409);
-    assert.equal((await request("POST", `/saves/${career.id}/retire`, {})).status, 409);
+    const repeated=await request("POST", `/saves/${career.id}/retire`, {confirmation:"RETIRE CAREER"});
+    assert.equal(repeated.status,200);assert.deepEqual(repeated.body,retired.body);
     ids.push(career.id);
   }
   const listed = (await request("GET")).body;

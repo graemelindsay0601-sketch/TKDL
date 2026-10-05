@@ -1,4 +1,5 @@
 import type { CareerFacts } from "../../../../api-server/src/career/facts/types";
+import type { LegacyView, SeasonReview, EventHistory, NpcHistory } from "../../../../api-server/src/career/legacy/types";
 import type { CareerRelationships } from "../../../../api-server/src/career/relationships/types";
 import type { RecognitionView } from "../../../../api-server/src/career/recognition/types";
 import type { Focus, GoalDefinition, GoalsView } from "../../../../api-server/src/career/goals/types";
@@ -102,7 +103,7 @@ export const careerRequests = {
     await careerRequests.initialize(save.id);
     return save;
   },
-  retire: (saveId: string) => send<CareerSave>("POST", `/saves/${saveId}/retire`, {}),
+  retire: (saveId: string) => send<CareerSave>("POST", `/saves/${saveId}/retire`, {confirmation:"RETIRE CAREER"}),
   /** A1 delete answers 204 No Content; any other outcome (HTTP error or network failure) rejects. */
   remove: async (saveId: string) => {
     const response = await fetch(`${BASE}/saves/${saveId}`, { method: "DELETE", credentials: "same-origin" });
@@ -142,6 +143,14 @@ export function newOperationKey() {
 }
 export const errorMessage = (e: unknown) => e instanceof ApiRequestError ? e.message : e instanceof Error ? e.message : "Something went wrong";
 export const errorStatus = (e: unknown) => e instanceof ApiRequestError ? e.status : null;
+export const useLegacy=(id:string)=>useQuery({queryKey:careerKey(id,"legacy"),staleTime:STALE,queryFn:()=>get<LegacyView>(`/saves/${id}/legacy`)});
+export const useSeasonReview=(id:string,season:number|null)=>useQuery({queryKey:careerKey(id,"legacy-season",season),enabled:season!==null,staleTime:STALE,
+  queryFn:()=>get<SeasonReview>(`/saves/${id}/legacy/seasons/${season}`)});
+export const useEventLegacy=(id:string,key:string|null)=>useQuery({queryKey:careerKey(id,"legacy-event",key),enabled:key!==null,staleTime:STALE,
+  queryFn:()=>get<EventHistory>(`/saves/${id}/legacy/events/${encodeURIComponent(key!)}`)});
+export const useNpcLegacy=(id:string,npc:string)=>useQuery({queryKey:careerKey(id,"legacy-npc",npc),staleTime:STALE,
+  queryFn:()=>get<NpcHistory>(`/saves/${id}/legacy/npcs/${npc}`)});
+export const useBeginSeason=(id:string)=>useSaveMutation(id,(season:number)=>send<{acknowledged:boolean}>("POST",`/saves/${id}/legacy/seasons/${season}/begin`,{confirmation:"BEGIN SEASON"}));
 
 // ---------------------------------------------------------------- A6.5 identity + live matches
 export const useCareerProfile = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "profile"), queryFn: () => get<CareerProfile>(`/saves/${saveId}/profile`), staleTime: STALE });

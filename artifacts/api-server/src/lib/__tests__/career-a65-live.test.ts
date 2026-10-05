@@ -11,6 +11,10 @@ import { createCareerLifeService } from "../../career/life/service.ts";
 import { createCareerLifeRouter } from "../../career/life/router.ts";
 import { createCareerLife } from "../../db/migrations/create_career_life.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
+import { createCareerLegacyService } from "../../career/legacy/service.ts";
+import { createCareerLegacyRouter } from "../../career/legacy/router.ts";
+import { captureRetirement, captureSeasonReview } from "../../career/legacy/persistence.ts";
+import { createCareerLegacy } from "../../db/migrations/create_career_legacy.ts";
 import { randomUUID } from "node:crypto";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -48,7 +52,7 @@ const { adoptLiveCursor, recoveryFromLog } = await import(new URL("../../../../t
  */
 const pg = new PGlite();
 const db = drizzle(pg);
-const saves = createCareerService(db);
+const saves = createCareerService(db,{onRetired:captureRetirement});
 const career = createCareerSportingService(db);
 const live = createCareerLiveMatchService(db, career.calendar);
 let base = "";
@@ -62,6 +66,7 @@ before(async () => {
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSporting(db);
   await createCareerLife(db);await createCareerLife(db);
+  await createCareerLegacy(db);await createCareerLegacy(db);
   const preMigration=await saves.create(1,{slot:3,careerName:"Pre A7.3"});
   const oldRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
   await createCareerGoals(db); await createCareerGoals(db);
@@ -85,6 +90,7 @@ before(async () => {
   router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
   router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
   router.use(createCareerLifeRouter(createCareerLifeService(db)));
+  router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
   router.use(createCareerLiveRouter(live, available));
   router.use(createCareerSportingRouter(career, available));
@@ -276,7 +282,7 @@ test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, 
   assert.equal((await call("POST",`/saves/${id}/goals/${create.body.id}/abandon`,{})).body.status,"ABANDONED");
   assert.deepEqual(await invariant(),before,"Focus/goals do not change NPCs, event facts, money, rankings, eligibility settings or seeds");
   assert.deepEqual((await call("GET",`/saves/${other}/goals`)).body.goals,[]);
-  await call("POST",`/saves/${id}/retire`,{});
+  await call("POST",`/saves/${id}/retire`,{confirmation:"RETIRE CAREER"});
   assert.equal((await read()).body.retired,true);
   assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"OPEN_SCHEDULE"})).status,409);
   assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition})).status,409);
@@ -768,6 +774,90 @@ test("A7.5 actual HTTP: existing/retired/fresh context, choices, atomic replay, 
   assert.ok(final.body.history.length>=1);assert.equal((await call("POST",`/saves/${id}/life/opportunities/${randomUUID()}`,{choice:"ACCEPT"})).status,409);
 });
 
+test("A7.6 live: real week-52 authority transition, stable review, begin gate, ownership and confirmed retirement",async()=>{
+  const s=await saves.create(1,{slot:1,careerName:"A76 historical fixture",dateOfBirth:dobForAge(30),homeLocality:"ayrshire"}),id=s.id;
+  await career.initialize({playerId:1},id);
+  // Explicitly labelled short transition fixture, NOT a 52-week simulation:
+  // one owned authored amateur title, cancelled remaining events and a clock/
+  // development cursor at week 51. Week 52 and off-season use real authorities.
+  const event=(await q(sql`SELECT * FROM career_event_instances WHERE career_save_id=${id} AND circuit='NATIONAL_AMATEUR' AND classification<>'QUALIFIER' ORDER BY start_day LIMIT 1`))[0];
+  assert.ok(event);
+  const states=["SCHEDULED","REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS"];
+  for(const state of states.slice(states.indexOf(String(event.status))+1))await db.execute(sql`UPDATE career_event_instances SET status=${state} WHERE career_save_id=${id} AND id=${event.id}`);
+  await db.execute(sql`UPDATE career_event_instances SET status='COMPLETED',champion_participant_key='HUMAN' WHERE career_save_id=${id} AND id=${event.id}`);
+  await db.execute(sql`INSERT INTO career_event_entries(career_save_id,event_id,participant_key,participant_kind,source,status,entered_season,entered_week)
+    VALUES(${id},${event.id},'HUMAN','HUMAN','HUMAN_ENTRY','CONFIRMED',1,1)`);
+  await db.execute(sql`INSERT INTO career_event_results(career_save_id,event_id,participant_key,participant_kind,season,definition_key,finishing_position,stage_reached,is_champion,matches_played,wins,losses,legs_for,legs_against,metadata)
+    VALUES(${id},${event.id},'HUMAN','HUMAN',1,${event.definition_key},1,'CHAMPION',true,5,5,0,25,0,'{"testFixture":"A76 scoped season-end"}'::jsonb)`);
+  await db.execute(sql`UPDATE career_event_instances SET status='CANCELLED',status_reason='A76 scoped fixture' WHERE career_save_id=${id} AND status NOT IN('COMPLETED','CANCELLED')`);
+  await db.execute(sql`UPDATE career_saves SET current_week=52 WHERE id=${id}`);
+  await db.execute(sql`UPDATE career_seasons SET played_week=51,developed_week=51 WHERE career_save_id=${id}`);
+  await db.execute(sql`UPDATE career_world_state SET period=51,elapsed_year=51.0/52 WHERE career_save_id=${id}`);
+  const operationKey="a76-transition";
+  const request={operationKey,expectedSeason:1,expectedWeek:52,target:{kind:"WEEKS",weeks:2}};
+  const history=career.providers().history!,capture=history.afterSeason;
+  history.afterSeason=async()=>{throw new Error("A76 deliberate post-off-season failure");};
+  try {
+    assert.equal((await call("POST",`/saves/${id}/calendar/advance`,request)).status,500);
+    assert.equal((await q(sql`SELECT current_season FROM career_saves WHERE id=${id}`))[0].current_season,2,"A2 already committed");
+    assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_legacy_reviews WHERE career_save_id=${id}`))[0].n,0,"failed next transaction rolled history back");
+  } finally {history.afterSeason=capture;}
+  const advanced=await call("POST",`/saves/${id}/calendar/advance`,request);
+  assert.equal(advanced.status,200,JSON.stringify(advanced.body));
+  assert.equal(advanced.body.to.season,2);assert.equal(advanced.body.to.week,1);assert.equal(advanced.body.stop.reason,"SEASON_REVIEW");
+  assert.equal(advanced.body.recovered,true,"same operation recovers the boundary without another A2 off-season");
+  const legacyPath=`/saves/${id}/legacy`,rpath=`${legacyPath}/seasons/1`;
+  const v=await call("GET",legacyPath);assert.equal(v.status,200,JSON.stringify(v.body));assert.equal(v.body.pendingReview,1);
+  const r=await call("GET",rpath);assert.equal(r.status,200);assert.equal(r.body.provenance,"CAPTURED");assert.equal(r.body.human.titles,1);
+  await assert.rejects(db.execute(sql`UPDATE career_legacy_reviews SET snapshot='{}'::jsonb WHERE career_save_id=${id}`));
+  assert.equal((await call("GET",`${legacyPath}/events/${event.definition_key}`)).status,200);
+  const publicNpc=(await q(sql`SELECT id FROM career_world_players WHERE career_save_id=${id} ORDER BY retired_season NULLS LAST,id LIMIT 1`))[0];
+  const npc=await call("GET",`${legacyPath}/npcs/${publicNpc.id}`);assert.equal(npc.status,200,JSON.stringify(npc.body));
+  assert.doesNotMatch(JSON.stringify(npc.body),/current_ability|potential|world_seed|development_config/);
+  assert.equal(r.body.identity,"Amateur Success");assert.ok(r.body.awards.some((a:any)=>a.kind==="Amateur Player of the Season"&&a.participant==="HUMAN"));
+  assert.ok(r.body.world.cardChanges.length>0,"actual A5 season-end Card outcomes captured");
+  const digest=async()=>({
+    root:(await q(sql`SELECT current_season,current_week,settings_snapshot,world_seed FROM career_saves WHERE id=${id}`))[0],
+    tables:await Promise.all(["career_world_players","career_event_instances","career_event_results","career_tour_cards","career_ranking_snapshots","career_finance_entries"]
+      .map(table=>q(sql`SELECT MD5(string_agg(to_jsonb(t)::text,'|' ORDER BY to_jsonb(t)::text)) digest FROM ${sql.identifier(table)} t WHERE career_save_id=${id}`))),
+  });
+  const before=await digest();
+  assert.deepEqual((await call("POST",`/saves/${id}/calendar/advance`,request)).body,advanced.body,"advance retry does not repeat awards or off-season");
+  assert.deepEqual((await call("GET",rpath)).body,r.body);
+  await db.transaction(async tx=>{const root=(await tx.execute(sql`SELECT * FROM career_saves WHERE id=${id}`)).rows[0];await captureSeasonReview(tx,root as unknown as Parameters<typeof captureSeasonReview>[1],1);});
+  assert.deepEqual((await call("GET",rpath)).body,r.body,"finalization replay preserves snapshot");
+  assert.equal((await call("POST",`/saves/${id}/calendar/advance`,{...request,operationKey:"a76-blocked",expectedSeason:2,expectedWeek:1})).status,409);
+  assert.equal((await call("POST",`${rpath}/begin`,{confirmation:"BEGIN SEASON",awardWinner:"HUMAN"})).status,400);
+  assert.equal((await call("POST",`${rpath}/begin`,{})).status,400);
+  assert.equal((await call("GET",legacyPath,undefined,0)).status,401);
+  assert.equal((await call("GET",rpath,undefined,2)).status,404);
+  assert.equal((await call("POST",`${rpath}/begin`,{confirmation:"BEGIN SEASON"},2)).status,404);
+  assert.equal((await call("GET",`${legacyPath}/npcs/${randomUUID()}`)).status,404);
+  assert.equal((await call("GET",`${legacyPath}/seasons/2`)).status,404,"unfinished season is not awarded/reviewed");
+  assert.equal((await call("POST",`${rpath}/begin`,{confirmation:"BEGIN SEASON"})).status,200);
+  assert.equal((await call("POST",`${rpath}/begin`,{confirmation:"BEGIN SEASON"})).status,200);
+  assert.equal((await call("GET",legacyPath)).body.pendingReview,null);
+  await assert.rejects(db.execute(sql`UPDATE career_legacy_reviews SET acknowledged=false WHERE career_save_id=${id}`));
+  assert.deepEqual(await digest(),before,"reviews, begin and retry do not alter sporting/financial authorities");
+  await db.execute(sql`UPDATE feature_flags SET enabled=false,admin_test_mode=true WHERE feature_name='tour_career_2'`);
+  try {
+    assert.equal((await call("GET",legacyPath)).status,404);
+    const admin=await fetch(`${base}${legacyPath}`,{headers:{"x-test-player":"1","x-test-admin":"true"}});
+    assert.equal(admin.status,200);assert.equal(admin.headers.get("cache-control"),"no-store");
+  } finally {await db.execute(sql`UPDATE feature_flags SET enabled=true,admin_test_mode=false WHERE feature_name='tour_career_2'`);}
+  assert.equal((await call("POST",`/saves/${id}/retire`,{})).status,400);
+  assert.equal((await call("POST",`/saves/${id}/retire`,{confirmation:"RETIRE CAREER",titles:999})).status,400);
+  const retired=await call("POST",`/saves/${id}/retire`,{confirmation:"RETIRE CAREER"});assert.equal(retired.status,200,JSON.stringify(retired.body));
+  assert.deepEqual((await call("POST",`/saves/${id}/retire`,{confirmation:"RETIRE CAREER"})).body,retired.body);
+  const final=await call("GET",legacyPath);assert.equal(final.body.retired,true);assert.ok(final.body.finalSummary.length>=8);
+  await assert.rejects(db.execute(sql`UPDATE career_legacy_retirements SET snapshot='{}'::jsonb WHERE career_save_id=${id}`));
+  assert.deepEqual((await call("GET",legacyPath)).body,final.body);assert.deepEqual((await call("GET",rpath)).body,r.body);
+  assert.equal((await call("POST",`${rpath}/begin`,{confirmation:"BEGIN SEASON"})).status,409);
+  assert.equal((await call("POST",`/saves/${id}/calendar/advance`,{...request,operationKey:"a76-retired",expectedSeason:2,expectedWeek:1})).status,409);
+  assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_legacy_retirements WHERE career_save_id=${id}`))[0].n,1);
+  assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_legacy_inductions WHERE career_save_id=${id}`))[0].n,0,"one ordinary title is not induction");
+});
+
 test("A6.6 admin reset cascades populated Career data only, requires confirmation and works while Hidden", async () => {
   const tables = (await pg.query<{ table_name: string }>(`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'`)).rows;
   const owned = (await pg.query<{ table_name: string }>(`SELECT table_name FROM information_schema.columns WHERE table_schema='public' AND column_name='career_save_id'`)).rows.map(t => t.table_name);
@@ -776,6 +866,7 @@ test("A6.6 admin reset cascades populated Career data only, requires confirmatio
   const count = async (table: string) => Number((await pg.query<{ n: number }>(`SELECT count(*)::int n FROM "${table}"`)).rows[0].n);
   assert.ok(await count('career_match_sessions') > 0);
   assert.ok(await count('career_world_players') > 0);
+  assert.ok(await count('career_legacy_reviews')>0);assert.ok(await count('career_legacy_retirements')>0);
   const saveCount = await count('career_saves');
   assert.ok(saveCount > 0);
   // Representative non-Career rows linked to the same player must survive.

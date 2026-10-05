@@ -9,6 +9,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { createElement as h, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { legacy as projectLegacy, review as projectReview, zero } from "../../../../api-server/src/career/legacy/model.ts";
+import type { Evidence } from "../../../../api-server/src/career/legacy/types.ts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createServer, type ViteDevServer } from "vite";
 import { event, eventDetail, finance, human, overview, pathway, rankingMeta, row, save, SAVE_ID, sporting } from "./career-fixtures.ts";
@@ -28,7 +30,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life, Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
 });
 after(async () => { await vite?.close(); });
 
@@ -377,6 +379,7 @@ test("every Career mutation hits the real A1–A5 endpoint with the right method
       "POST /api/career/saves/s/retire", "DELETE /api/career/saves/s"]);
     assert.deepEqual(calls[4].body, { operationKey: "ui-fixed-key", expectedSeason: 1, expectedWeek: 12, target: { kind: "NEXT_MEANINGFUL" } });
     assert.deepEqual(calls[5].body, { slot: 3, careerName: "New" });
+    assert.deepEqual(calls[9].body,{confirmation:"RETIRE CAREER"});
     assert.ok(!Object.keys(r).some(k => /result|score|record/i.test(k)), "no client path to report a human match result");
   } finally { globalThis.fetch = original; }
 });
@@ -389,4 +392,36 @@ test("Career delete rejects on HTTP errors and network failures instead of repor
     globalThis.fetch = (async () => { throw new TypeError("network down"); }) as typeof fetch;
     await assert.rejects(M.careerRequests.remove("s"), /network down/);
   } finally { globalThis.fetch = original; }
+});
+const legacyEvidence=():Evidence=>({saveId:SAVE_ID,currentSeason:2,currentWeek:1,retired:false,
+  players:[{id:"HUMAN",name:"Your Career",startingAge:30,createdSeason:1,retiredSeason:null}],
+  totals:[{...zero("HUMAN",1),appearances:3,titles:3,amateurTitles:3,nationalTitles:2,wins:10}],
+  results:[],rankings:[],cards:[],money:[{season:1,prizePence:10000,commercialPence:5000}],
+  sponsors:[],qualifications:[],decisions:[],commitments:[],merchandise:null});
+test("A7.6 Legacy is grouped, amateur-valid and explainable without a score or new sidebar",()=>{
+  const e=legacyEvidence(),r=projectReview(e,1,"CAPTURED"),d=projectLegacy(e,[r],[],null);
+  const t=text(render(h(M.LegacyPage,{ctx:ctx()}),[[key("legacy"),d]]));
+  for(const label of ["History & Legacy","Career Record","Seasons","Honours","World History","Event Legends","Records","Hall of Fame","Retirement","Open Circuit Champion","3 amateur titles"])assert.ok(t.includes(label),label);
+  assert.doesNotMatch(t,/Legacy Score|Spend legacy|Earn XP|Upgrade ability/);
+});
+test("A7.6 completed review renders money, awards, source limits and missing evidence honestly",()=>{
+  const r=projectReview(legacyEvidence(),1,"CAPTURED");
+  const t=text(render(h(M.SeasonReviewPanel,{review:r,saveId:SAVE_ID}),[]));
+  for(const label of ["Season 1 Complete","Outstanding Amateur Season","£100","£50","Amateur Player of the Season","Starting World rank: not recorded","Career Changes"])assert.ok(t.includes(label),label);
+});
+test("A7.6 season-end transition starts at review and cannot offer Begin before the deliberate sequence",()=>{
+  const r=projectReview(legacyEvidence(),1,"CAPTURED");
+  const t=text(render(h(M.Transition,{saveId:SAVE_ID,season:1}),[[key("legacy-season",1),r]]));
+  assert.match(t,/Step 1 of 4/);assert.match(t,/Next section/);assert.doesNotMatch(t,/Begin Season 2/);
+  assert.match(t,/Awards & Champions/);assert.match(t,/New Season/);
+});
+test("A7.6 retirement summary is archived, readable and has no progression control",()=>{
+  const e={...legacyEvidence(),retired:true};e.players[0].retiredSeason=2;
+  const d=projectLegacy(e,[projectReview(e,1,"CAPTURED")],[],null);
+  const t=text(render(h(M.LegacyPage,{ctx:ctx(save({status:"RETIRED"})),initialTab:"Retirement"}),[[key("legacy"),d]]));
+  assert.match(t,/Final Career Summary/);assert.match(t,/Read-only archive/);assert.doesNotMatch(t,/Confirm permanent retirement|Begin Season|Retire Career This/);
+});
+test("A7.6 old seasons label reconstruction and do not manufacture awards",()=>{
+  const r=projectReview(legacyEvidence(),1),t=text(render(h(M.SeasonReviewPanel,{review:r,saveId:SAVE_ID}),[]));
+  assert.match(t,/reconstructed/);assert.match(t,/Older reconstructed seasons do not invent award winners/);
 });
