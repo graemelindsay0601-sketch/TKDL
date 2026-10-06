@@ -175,7 +175,7 @@
 .career-weeks { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:4px; }.career-weeks span { padding:5px; color:#bfcfe0; background:#0b1522; font-size:.65rem; }.career-weeks [aria-current] { background:#a02352; color:white; }
 .career-map-layout { display:grid; grid-template-columns:190px minmax(0,1fr) 250px; gap:12px; align-items:start; }
 .career-map-filters label { display:block; margin:12px 0; font-size:.8rem; }.career-map-filters select { width:100%; }
-.career-map-canvas { padding:8px; overflow:hidden; background:#0e1b29; }.career-map-canvas svg { width:100%; min-height:330px; display:block; touch-action:none; cursor:grab; }
+.career-map-canvas { padding:8px; overflow:hidden; background:#0e1b29; }.career-map-canvas >svg { width:100%; min-height:330px; display:block; touch-action:none; cursor:grab; }
 .career-map-canvas svg g[role="button"] { cursor:pointer; }.career-map-canvas svg g[role="button"]:focus circle { stroke:white; stroke-width:1px; }
 .career-map-toolbar { display:flex; gap:6px; }.career-map-inspector { font-size:.83rem; }.career-map-inspector dt { color:#a7bfda; margin-top:8px; }
 .career-map-inspector .career-btn { width:100%; white-space:normal; text-align:left; }
@@ -194,7 +194,7 @@
 }
 @media (max-width:600px) {
   .career-position-grid { grid-template-columns:1fr; gap:8px; }.career-position-grid .career-stat { flex-direction:row; align-items:center; gap:10px; }.career-position-grid .career-stat>div:last-child { flex:1; }
-  .career-map-layout { grid-template-columns:1fr; }.career-map-filters { padding:10px; }.career-map-filters label { display:inline-block; width:48%; padding-right:8px; }.career-map-canvas svg { min-height:280px; }
+  .career-map-layout { grid-template-columns:1fr; }.career-map-filters { padding:10px; }.career-map-filters label { display:inline-block; width:48%; padding-right:8px; }.career-map-canvas >svg { min-height:280px; }
   .career-status-strip { gap:4px; padding:10px; }.surface-focus { padding:14px; }.surface-focus h3 { font-size:1.4rem; }
   .career-context-nav a { padding:6px 9px; font-size:.8rem; }.career-trophy-grid { grid-template-columns:1fr; }
   .tournament-player-pair { grid-template-columns:1fr; }.career-header-tools { gap:8px; }
@@ -203,3 +203,83 @@
 .career-table tr[data-me="true"] td { background: linear-gradient(90deg, rgba(255,0,92,0.2), rgba(0,102,255,0.12)); }
 /* Palace keeps its black-and-gold World Championship identity. */
 .career-root .career-palace .pdc-card { background: linear-gradient(145deg, rgba(22,18,14,0.94), rgba(12,10,8,0.96)); border-color: rgba(255,210,74,0.2); }
+
+/* Premium Career presentation. Navigation stays in-flow on phones: TKDL
+   already has its own app-level bottom bar. No second fixed navigation. */
+.career-root { --career-line:rgba(155,185,215,.14); padding-bottom:24px; }
+.career-root .career-hero { border-radius:20px; box-shadow:0 18px 45px #0003,inset 0 1px 0 #ffffff0d; }
+.career-root .career-navigation { padding:6px; border:1px solid var(--career-line); border-radius:18px; background:linear-gradient(135deg,#182333f5,#101927f5); box-shadow:0 10px 30px #0002; }
+.career-root .career-primary-nav { position:static; inset:auto; z-index:auto; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; padding:0; border:0; border-radius:12px; background:transparent; }
+.career-root .career-primary-nav .career-nav-link { min-width:0; min-height:56px; padding:8px 6px; flex-direction:row; gap:7px; border-radius:12px; font-family:inherit; font-size:.8rem; font-weight:600; letter-spacing:0; text-transform:none; white-space:normal; text-align:center; color:#aabacd; transition:background .15s,color .15s; }
+.career-root .career-primary-nav .career-nav-link:hover { color:#f3f7fc; background:#ffffff08; }
+.career-root .career-primary-nav [aria-current] { background:linear-gradient(135deg,#b32659,#7e2149); color:#fff; border-color:#e77aa050; box-shadow:0 4px 15px #9e164c25,inset 0 1px 0 #ffffff15; }
+.career-root .career-destination-icon { display:flex; margin:0; flex-shrink:0; }
+.career-root .career-context-nav { gap:6px; margin-top:6px; padding:8px 2px 2px; border-top:1px solid #ffffff0a; scrollbar-width:thin; }
+.career-root .career-context-nav a { border-radius:9px; border:1px solid transparent; font-family:inherit; letter-spacing:0; text-transform:none; font-size:.76rem; }
+.career-root .career-context-nav a[aria-current] { background:#8bb9e414; border-color:#8bb9e438; color:#d1e9ff; box-shadow:none; }
+.career-root .career-header-tools { margin-top:14px; padding-top:12px; border-top:1px solid #ffffff0c; }
+.career-root .career-search input { border-radius:10px; border:1px solid #8ba5c326; background:#09131f66; min-height:40px; padding:8px 12px; }
+.career-root .career-attention summary { gap:7px; min-height:44px; color:#c5d4e5; }
+.career-inbox-count { display:grid; place-items:center; min-width:20px; height:20px; border-radius:50%; background:#ae2759; color:white; font-size:.68rem; }
+.career-root .career-attention-panel { border-radius:15px; background:#142132; border-color:#8ba5c330; box-shadow:0 20px 45px #0006; }
+.career-eyebrow { display:block; color:#8eaac3; font-size:.63rem; font-weight:700; text-transform:uppercase; letter-spacing:.16em; }
+.career-atlas-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:12px 2px; }
+.career-atlas-heading h2 { display:flex; align-items:center; gap:10px; font:600 clamp(1.5rem,4vw,2rem) Oswald,system-ui,sans-serif; letter-spacing:.02em; color:#edf5ff; margin:5px 0; }
+.career-atlas-heading h2 svg { color:#8fcbbb; }
+.career-atlas-heading p { color:#9eafc2; font-size:.82rem; max-width:42ch; }
+.career-atlas-total { flex-shrink:0; text-align:right; color:#e3f0fa; font:600 1.8rem Oswald,system-ui,sans-serif; }
+.career-atlas-total small { display:block; color:#93a8be; font:400 .65rem system-ui,sans-serif; }
+.career-root .career-map-layout { grid-template-columns:170px minmax(0,1fr) 245px; gap:14px; }
+.career-root .career-map-layout>.career-surface { border-radius:16px; border:1px solid #91adc32b; background:linear-gradient(145deg,#182838,#101d2b); box-shadow:0 12px 28px #0002; min-width:0; }
+.career-root .career-map-filters { padding:16px; }
+.career-map-filters summary { font-weight:600; font-size:.85rem; color:#e2edf7; }
+.career-root .career-map-filters label { color:#acbfd2; line-height:1.7; }
+.career-map-filters select,.career-map-inspector select { min-height:42px; border-radius:8px; margin-top:4px; border:1px solid #8aa7c033; background:#0c1926; color:#dceaf6; padding:6px 8px; max-width:100%; }
+.career-root .career-map-check { display:flex; align-items:center; gap:8px; min-height:44px; }
+.career-map-check input { accent-color:#85d9b7; }
+.career-map-legend { display:grid; gap:10px; padding:14px 0; border-top:1px solid #ffffff0c; font-size:.68rem; color:#b5c9d9; }
+.career-map-legend span { display:flex; align-items:center; gap:7px; }
+.career-map-legend i { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.legend-available { background:#83dbad; }.legend-discovery { background:#83b6ed; }
+.career-map-note { color:#8ca2b7; font-size:.65rem; line-height:1.7; }
+.career-root .career-map-layout>.career-map-canvas { padding:0; background:radial-gradient(ellipse at 45% 35%,#153348,#081823 75%); }
+.career-map-toolbar { display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #91adc31a; }
+.career-map-toolbar>span { display:flex; align-items:center; gap:7px; color:#bfd3e4; font-size:.72rem; }
+.career-map-toolbar>div { display:flex; gap:5px; }
+.career-map-toolbar .career-btn { min-width:44px; min-height:44px; padding:0; border-radius:10px; background:#ffffff06; border-color:#91adc32b; }
+.career-root .career-map-canvas >svg { height:390px; min-height:0; width:100%; font-family:system-ui,sans-serif; }
+.career-map-canvas svg:active { cursor:grabbing; }
+.career-map-canvas [data-selected="true"] .career-map-pin-halo { fill:#ffd98a; fill-opacity:.4; }
+.career-map-canvas [data-map-marker]:focus-visible { outline:none; }
+.career-map-canvas [data-map-marker]:focus-visible .career-map-pin-halo { stroke:#fff; stroke-width:1px; }
+.career-map-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:10px 14px; border-top:1px solid #91adc31a; font-size:.62rem; color:#9ab3c7; }
+.career-map-footer span { display:flex; align-items:center; gap:5px; }
+.career-root .career-map-location-list { padding:10px 14px; border-top:1px solid #91adc31a; color:#c4d9e8; font-size:.72rem; }
+.career-map-location-list .career-btn { margin-top:8px; min-height:44px; }
+.career-root .career-map-inspector { padding:18px; min-height:220px; }
+.career-map-inspector>.career-eyebrow { margin-bottom:16px; }
+.career-map-inspector h3 { font:600 1.25rem Oswald,system-ui,sans-serif; color:#f0f6fc; margin-bottom:8px; }
+.career-map-inspector p { color:#adbed1; line-height:1.65; margin-bottom:10px; }
+.career-map-inspector dl { padding:12px 0; margin:12px 0; border-block:1px solid #ffffff10; }
+.career-map-inspector dd { color:#edf7ff; font-weight:600; margin-top:4px; }
+.career-map-inspector .career-btn { margin-top:14px; min-height:44px; }
+.career-map-empty { text-align:center; padding:20px 0; }
+.career-map-empty>svg { margin:0 auto 16px; color:#7097b0; }
+.career-map-empty small { color:#839eb5; font-size:.7rem; }
+.career-root .career-map-list-row { min-height:48px; border-color:#ffffff0d; color:#c9dbec; font-size:.8rem; }
+@media(max-width:1099px) {
+  .career-root .career-map-layout { grid-template-columns:150px minmax(0,1fr); }
+  .career-root .career-map-inspector { grid-column:1/-1; }
+}
+@media(max-width:600px) {
+  .career-root .career-primary-nav .career-nav-link { flex-direction:column; gap:6px; min-height:66px; font-size:.66rem; line-height:1.2; }
+  .career-root .career-navigation { padding:5px; border-radius:14px; }
+  .career-root .career-map-layout { grid-template-columns:minmax(0,1fr); }
+  .career-root .career-map-filters { padding:13px; }
+  .career-root .career-map-filters label { display:inline-block; width:50%; padding-right:10px; margin:8px 0; }
+  .career-root .career-map-filters .career-map-check { display:flex; width:100%; }
+  .career-map-legend { display:flex; flex-wrap:wrap; gap:15px; padding:10px 0; }
+  .career-root .career-map-canvas >svg { height:300px; }
+  .career-atlas-heading { align-items:flex-start; gap:8px; }
+  .career-atlas-total { font-size:1.5rem; }
+}
