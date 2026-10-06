@@ -9,6 +9,7 @@ import connectPg from "connect-pg-simple";
 import router, { initializeCardClashSchema } from "./routes";
 import { logger } from "./lib/logger";
 import { getStartupStatus } from "./lib/startup-state";
+import { diagnosticOnly, diagnosticApiGate, createReadOnlyDiagnosticStore } from "./lib/diagnostic-startup";
 import { ensureSchemaMigrationLedger, loadCompletedSchemaMigrations, markSchemaMigrationComplete } from "./lib/deployment-bootstrap";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
@@ -178,10 +179,14 @@ app.use(
 // needed for scoring and standings are safe to use.
 app.get("/api/startup", (_req, res) => {
   const status = getStartupStatus();
-  res.status(status.phase === "failed" ? 500 : 200).json(status);
+  res.status(status.phase === "failed" ? 500 : 200).json({...status, diagnosticOnly});
 });
 
 app.use("/api", (req, res, next) => {
+  if (diagnosticOnly) {
+    diagnosticApiGate(req, res, next);
+    return;
+  }
   if (req.path === "/startup") return next();
   const status = getStartupStatus();
   if (status.ready) return next();
@@ -271,8 +276,9 @@ if (!process.env.SESSION_SECRET) {
 }
 
 const PgSession = connectPg(session);
+const SessionStore = diagnosticOnly ? createReadOnlyDiagnosticStore(PgSession) : PgSession;
 app.use(session({
-  store: new PgSession({
+  store: new SessionStore({
     // Reuse the application's min:0 pool rather than creating a second
     // independent pg.Pool just for sessions. This keeps one connection
     // budget and lets every idle connection drain together on the free tier.
@@ -327,6 +333,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Repair legacy sessions that only have userId — backfill playerId + isAdmin
 app.use(async (req, res, next) => {
+  if (diagnosticOnly) return next();
   const s = req.session as any;
   if (s?.userId && (s.playerId == null || s.isAdmin == null)) {
     try {

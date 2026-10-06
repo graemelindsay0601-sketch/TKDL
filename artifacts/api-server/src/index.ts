@@ -4,6 +4,7 @@ import { ensureCurrentBroadcastEdition } from "./broadcast/edition-engine";
 import { deploymentBootstrapKey, ensureBootstrapLedger, isBootstrapComplete, markBootstrapComplete } from "./lib/deployment-bootstrap";
 import { markStartupFailed, markStartupReady, setStartupPhase } from "./lib/startup-state";
 import { getFeatureFlag, FEATURES } from "./services/feature-flags-service";
+import { diagnosticOnly } from "./lib/diagnostic-startup";
 
 const rawPort = process.env["PORT"];
 
@@ -54,6 +55,13 @@ if (Number.isNaN(port) || port <= 0) {
 let runtimeStarted = false;
 
 async function initializeApplication() {
+  if (diagnosticOnly) {
+    // No ledger access, schema/seed pass, runtime job or retry is started.
+    // app.ts limits readiness to health and the admin diagnostic in this mode.
+    markStartupReady();
+    logger.warn("Read-only diagnostic mode ready; application startup writers disabled");
+    return;
+  }
   try {
     setStartupPhase("database", "Waking the TKDL database");
     const versionKey = deploymentBootstrapKey();
