@@ -512,6 +512,48 @@ test("A8.1 guide preserves optional amateur, women's and youth pathways, not XP 
   assert.match(t,/Turning professional is an opportunity/);assert.match(t,/Declared women's-category eligibility/);
   assert.match(t,/Foundation events are under 18/);assert.match(t,/never XP/);
 });
+test("Premium ordinary reads cache briefly; deferred summaries stay disabled and live freshness is unchanged",()=>{
+  const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
+  function Probe() {
+    M.useCareerLife(SAVE_ID,false);M.useFinance(SAVE_ID,false);M.useSporting(SAVE_ID,false);
+    M.useCareerSave(SAVE_ID);M.useWorldMap(SAVE_ID);
+    M.useActiveTournament(SAVE_ID,false);M.useTournament(SAVE_ID,"fixture-event");M.useLiveSession(SAVE_ID,"fixture-match");
+    return h("p",null,"TEST query policy");
+  }
+  try {
+    renderToStaticMarkup(h(QueryClientProvider,{client},h(Probe)));
+    for(const part of ["life","finance","sporting"]) {
+      const options=client.getQueryCache().find({queryKey:key(part),exact:true})!.options as {enabled?:boolean;staleTime?:number};
+      assert.equal(options.enabled,false,`${part} is deferred`);
+      assert.equal(options.staleTime,30_000);
+    }
+    for(const part of ["save","world-map"])assert.equal((client.getQueryCache().find({queryKey:key(part),exact:true})!.options as {staleTime?:number}).staleTime,30_000);
+    assert.equal((client.getQueryCache().find({queryKey:key("tournament","fixture-event"),exact:true})!.options as {staleTime?:number}).staleTime,0);
+    const live=client.getQueryCache().getAll().find(q=>q.queryKey.includes("fixture-match"));
+    assert.equal((live!.options as {staleTime?:number}).staleTime,2_000);
+  } finally {client.clear();}
+});
+
+test("Premium cache still invalidates the whole save and save list after a mocked mutation",async()=>{
+  const client=new QueryClient(),original=globalThis.fetch;
+  const own=[key("save"),key("world-map"),key("finance"),key("sporting"),key("life")];
+  const other=["career","other-test-save","world-map"];
+  for(const k of [...own,["career","saves"],other])client.setQueryData(k,{test:true});
+  let action:any;
+  function Probe(){action=M.useEnterEvent(SAVE_ID);return h("p",null,"TEST mutation");}
+  globalThis.fetch=async(input,options)=>{
+    assert.ok(String(input).includes(`/saves/${SAVE_ID}/events/fixture-event/`));
+    assert.equal(options?.method,"POST");
+    return new Response(JSON.stringify({test:true}),{status:200,headers:{"Content-Type":"application/json"}});
+  };
+  try {
+    renderToStaticMarkup(h(QueryClientProvider,{client},h(Probe)));
+    await action.mutateAsync("fixture-event");
+    for(const k of [...own,["career","saves"]])assert.equal(client.getQueryState(k)?.isInvalidated,true);
+    assert.equal(client.getQueryState(other)?.isInvalidated,false);
+  } finally {globalThis.fetch=original;client.clear();}
+});
+
 test("A8.3 map defaults to personal opportunities; inaccessible Palace remains available through All Events",()=>{
   const d=identity(catalogueFor(3).find(d=>d.key==="world-darts-championship")!);
   const e={id:"palace",name:"The Palace World Championship",status:"SCHEDULED",definitionId:"world-darts-championship",dates:{startWeek:50},venue:venueContent("the-palace-london"),fieldDescriptor:"World Championship Field",

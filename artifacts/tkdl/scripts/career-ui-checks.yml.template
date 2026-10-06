@@ -1,0 +1,36 @@
+name: Career UI checks (no deployment)
+
+on:
+  pull_request:
+    paths:
+      - "artifacts/tkdl/**"
+      - ".github/workflows/career-ui-checks.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  career-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Focused Career UI typecheck
+        run: pnpm exec tsc -p artifacts/tkdl/tsconfig.career-ui.json --noEmit
+      - name: Career UI regression tests
+        run: node --test artifacts/tkdl/src/lib/__tests__/career-ui.test.ts
+        env:
+          NODE_ENV: production
+      - name: Production frontend build
+        run: pnpm --filter @workspace/tkdl run build
+        env:
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096

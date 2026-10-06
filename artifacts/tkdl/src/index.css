@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Geography contains no utility classes; don't scan its large path data. */
+@source not "./features/career/pages/world-land.svg";
 @import "./styles/viewport.css";
 @plugin "@tailwindcss/typography";
 

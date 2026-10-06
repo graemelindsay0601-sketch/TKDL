@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, FastForward, Loader2, Lock, Swords } from "lucide-react";
+import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell } from "lucide-react";
 import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
@@ -165,13 +165,14 @@ export function CareerNav({ saveId }: { saveId: string }) {
   const [location] = useLocation();
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
+  const icons:Record<string,typeof House> = {HOME:House,MAP:Map,CALENDAR:CalendarDays,DARTS_WORLD:Globe2,MY_CAREER:UserRound};
   return (
     <nav aria-label="Career" className="career-navigation">
       <div className="career-primary-nav">
-        {CAREER_NAV.map(section => (
+        {CAREER_NAV.map(section => {const Icon=icons[section.layer]??Globe2;return (
           <Link key={section.layer} href={`/career/${saveId}${section.path}`} className="career-nav-link justify-center"
-            aria-current={layer.layer === section.layer ? (section.items.length === 1 ? "page" : "true") : undefined}><span className="career-destination-icon" aria-hidden>{section.icon}</span><span>{section.label}</span></Link>
-        ))}
+            aria-current={layer.layer === section.layer ? (section.items.length === 1 ? "page" : "true") : undefined}><span className="career-destination-icon" aria-hidden><Icon size={18}/></span><span>{section.label}</span></Link>
+        );})}
       </div>
       {layer.items.length > 1 && (
         <div className="career-context-nav" aria-label={`${layer.label} pages`} role="group">
@@ -190,15 +191,17 @@ function WorldSearch({saveId}:{saveId:string}) {
     <label htmlFor={`world-search-${saveId}`}>Search the darts world</label><input id={`world-search-${saveId}`} type="search" maxLength={80} placeholder="Players, events, venues" value={search} onChange={e=>setSearch(e.target.value)}/><button className="career-btn career-btn-ghost">Search</button></form>;
 }
 export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:boolean}) {
-  const t=useActiveTournament(saveId),legacy=useLegacy(saveId),finance=useFinance(saveId),life=useCareerLife(saveId),sporting=useSporting(saveId);
+  const [open,setOpen]=useState(false);
+  const t=useActiveTournament(saveId),legacy=useLegacy(saveId),finance=useFinance(saveId,open),life=useCareerLife(saveId,open),sporting=useSporting(saveId,open);
   const active=t.data?.tournaments.find(x=>!x.terminal),base=`/career/${saveId}`;
   const actions=!retired?[...(active?[{title:`Return to ${active.name}`,path:`${base}/tournaments/${active.eventId}`}]:[]),
     ...(legacy.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
     ...(finance.data?.availableOffers?[{title:"Sponsor decision available",path:`${base}/finances`}]:[])]:[];
-  return <details className="career-attention"><summary>Attention · {actions.length} action{actions.length===1?"":"s"}</summary><div className="career-attention-panel">
-    <h3>Action Required</h3>{actions.length?actions.map(a=><Link key={a.path} href={a.path}>{a.title}</Link>):<p>No pending action reported.</p>}
+  return <details className="career-attention" onToggle={event=>setOpen(event.currentTarget.open)}><summary><Bell size={15} aria-hidden/><span>Attention</span>{actions.length>0&&<span className="career-inbox-count" title="Known actions — open to check all updates">{actions.length}</span>}</summary><div className="career-attention-panel">
+    {open&&(finance.isLoading||life.isLoading||sporting.isLoading)&&<p role="status">Loading Career updates…</p>}
+    <h3>Action Required</h3>{actions.length?actions.map(a=><Link key={a.path} href={a.path}>{a.title}</Link>):<p>{finance.isLoading?"Checking pending decisions…":"No pending action reported."}</p>}
     <h3>Career Update</h3>{sporting.data?.recentMilestones.slice(0,2).map((m,i)=><Link key={i} href={`${base}/journey`}>{String(m.kind).replace(/_/g," ")} · Season {m.season}</Link>)}
     <h3>World News</h3>{life.data?.news.slice(0,Math.min(3,5-actions.length)).map(n=><Link key={n.id} href={`${base}/stories`}>{n.title}</Link>)}<Link href={`${base}/world`}>Explore Darts World</Link>
-    {(t.error||legacy.error||finance.error||life.error)&&<p>Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
+    {(t.error||legacy.error||finance.error||life.error||sporting.error)&&<p>Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
   </div></details>;
 }

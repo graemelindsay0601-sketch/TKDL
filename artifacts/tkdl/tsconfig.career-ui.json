@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [],
+  "files": [
+    "src/features/career/shell.tsx",
+    "src/features/career/api.ts",
+    "src/features/career/pages/map.tsx",
+    "node_modules/vite/client.d.ts",
+    "../api-server/node_modules/@types/express-session/index.d.ts",
+    "../api-server/node_modules/pino-http/index.d.ts"
+  ],
+  "compilerOptions": {
+    "incremental": false,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {"@/*": ["src/*"]}
+  }
+}

@@ -13,7 +13,8 @@ import type {
 /**
  * Thin client over the real A1–A5 Career API (mounted at /api/career). Every
  * Career response is Cache-Control: no-store server-side; React Query only
- * de-duplicates concurrent reads and shares one copy per key across components.
+ * de-duplicates concurrent reads and caches ordinary reads for 30 seconds in
+ * this browser. Live match/tournament queries keep their shorter freshness.
  * Mutations invalidate the whole save so every screen re-reads authoritative state.
  */
 const BASE = "/api/career";
@@ -25,7 +26,7 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
   const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "") as [string, string | number][];
   return entries.length ? `?${entries.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`).join("&")}` : "";
 };
-const STALE = 10_000;
+const STALE = 30_000;
 export const careerKey = (saveId: string, ...rest: unknown[]) => ["career", saveId, ...rest] as const;
 export type TournamentView = import("../../../../api-server/src/career/tournament/service").TournamentView;
 export const useTournament = (saveId:string,eventId:string) => useQuery({queryKey:careerKey(saveId,"tournament",eventId),queryFn:()=>get<TournamentView>(`/saves/${saveId}/tournaments/${eventId}`),staleTime:0});
@@ -36,7 +37,7 @@ export const useTournamentPresentation = (saveId:string) => useSaveMutation(save
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
 export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });
-export const useCareerLife = (saveId:string) => useQuery({queryKey:careerKey(saveId,"life"),queryFn:()=>get<import("../../../../api-server/src/career/life/types").LifeView>(`/saves/${saveId}/life`),staleTime:STALE});
+export const useCareerLife = (saveId:string,enabled=true) => useQuery({queryKey:careerKey(saveId,"life"),queryFn:()=>get<import("../../../../api-server/src/career/life/types").LifeView>(`/saves/${saveId}/life`),enabled,staleTime:STALE});
 export const useNpcLife = (saveId:string,npcId:string) => useQuery({queryKey:careerKey(saveId,"life","npc",npcId),queryFn:()=>get<import("../../../../api-server/src/career/life/types").NpcLifeView>(`/saves/${saveId}/life/npcs/${npcId}`),staleTime:STALE});
 export const useLifeChoice = (saveId:string) => useSaveMutation(saveId,(input:{kind:"moments"|"opportunities";id:string;choice:string})=>send("POST",`/saves/${saveId}/life/${input.kind}/${input.id}`,{choice:input.choice}));
 export const useMerchandiseChoice = (saveId:string) => useSaveMutation(saveId,(choice:string)=>send("POST",`/saves/${saveId}/life/merchandise`,{choice}));
@@ -49,7 +50,7 @@ export const useAbandonCareerGoal = (saveId: string) => useSaveMutation(saveId, 
 // ---------------------------------------------------------------- reads
 export const useCareerSaves = (enabled = true) => useQuery({ queryKey: ["career", "saves"], queryFn: () => get<CareerSaveList>("/saves"), enabled, staleTime: STALE, retry: false });
 export const useCareerSave = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "save"), queryFn: () => get<CareerSave>(`/saves/${saveId}`), staleTime: STALE });
-export const useSporting = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "sporting"), queryFn: () => get<SportingSummary>(`/saves/${saveId}/sporting`), staleTime: STALE });
+export const useSporting = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "sporting"), queryFn: () => get<SportingSummary>(`/saves/${saveId}/sporting`), enabled, staleTime: STALE });
 export type CalendarQuery = { scope?: "WORLD" | "MY_SCHEDULE" | "AVAILABLE" | "FEATURED"; season?: number; fromWeek?: number; toWeek?: number; circuit?: string; classification?: string };
 export const useCalendar = (saveId: string, q: CalendarQuery, enabled = true) => useQuery({ queryKey: careerKey(saveId, "calendar", q), enabled, staleTime: STALE,
   queryFn: () => get<CalendarResponse>(`/saves/${saveId}/calendar${qs(q)}`) });
@@ -58,7 +59,7 @@ export const useEventFinance = (saveId: string, eventId: string) => useQuery({ q
   queryFn: () => get<{ eventId: string; status: string; preview: unknown; actuals: Record<string, unknown> | null }>(`/saves/${saveId}/events/${eventId}/finance`) });
 export const useHistory = (saveId: string, q: { participant?: string; season?: number; definition?: string } = { participant: "HUMAN" }) => useQuery({ queryKey: careerKey(saveId, "history", q), staleTime: STALE,
   queryFn: () => get<HistoryRow[]>(`/saves/${saveId}/history${qs(q)}`) });
-export const useFinance = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "finance"), queryFn: () => get<FinanceSummary>(`/saves/${saveId}/finance`), staleTime: STALE });
+export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "finance"), queryFn: () => get<FinanceSummary>(`/saves/${saveId}/finance`), enabled, staleTime: STALE });
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });
 export const useSponsors = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "sponsors"), queryFn: () => get<SponsorsResponse>(`/saves/${saveId}/sponsors`), staleTime: STALE });
