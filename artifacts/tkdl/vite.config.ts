@@ -38,6 +38,9 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // Gzip size reporting is diagnostic only; its extra pass can exhaust
+    // memory after the bundles are already emitted on small build runners.
+    reportCompressedSize: false,
     rollupOptions: {
       external: [],
     },

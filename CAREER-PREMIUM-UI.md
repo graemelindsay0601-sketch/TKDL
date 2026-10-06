@@ -47,12 +47,17 @@ Render Free cold starts or establish a measured production latency improvement.
 - Local request interception verifies three deferred reads, no extra reads
   on a warm reopen after 20 seconds, and refetches after save invalidation.
   All data is fictional test data; zero production requests.
-- The full production bundle exhausted this conversation workspace's memory.
-  A full production build must pass outside this limited workspace before
-  this draft is released. The build-only workflow template is provided in
-  `artifacts/tkdl/scripts/career-ui-checks.yml.template`, but is not installed:
-  the conversation's GitHub connection lacks the OAuth `workflow` scope.
-  A repository owner can add the template as
-  `.github/workflows/career-ui-checks.yml` on this PR branch using GitHub's
-  file editor to trigger verification. It has read-only repository permissions
-  and no deployment step, production URL, database connection or production secrets.
+- The complete production frontend bundle passed with optional gzip-size
+  reporting disabled through Vite's programmatic build API. The frontend's
+  normal `build` script uses this same path, with the setting also explicit
+  in `vite.config.ts`. The earlier CLI build reached gzip reporting after
+  emitting assets, then exceeded this workspace's memory limit.
+- The API production build passed without starting the server or connecting
+  to a database. Neither build invoked Render or a production URL.
+- Browser verification of the shared app bar passes at 320, 390, 768, 1023
+  and 1024 pixels on a Career subpage: fixed and flush to the viewport bottom
+  below 1024 pixels, with the live ticker hidden until desktop widths.
+- An optional build-only GitHub workflow template is provided in
+  `artifacts/tkdl/scripts/career-ui-checks.yml.template`. It is not installed
+  because this conversation's GitHub connection lacks the OAuth `workflow`
+  scope; it is not a release requirement after the local production builds.

@@ -658,7 +658,9 @@
   border-top: 2px solid #ff005c;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.6);
 }
-@media (min-width: 768px) {
+/* The app nav remains fixed at the bottom through tablet widths (<1024px).
+   Don't let the desktop ticker cover its lower edge. */
+@media (min-width: 1024px) {
   .ticker-bar { display: flex; }
 }
 .ticker-bar.broadcast-ticker-bar {
