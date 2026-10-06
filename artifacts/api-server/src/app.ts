@@ -10,6 +10,7 @@ import router, { initializeCardClashSchema } from "./routes";
 import { logger } from "./lib/logger";
 import { getStartupStatus } from "./lib/startup-state";
 import { ensureSchemaMigrationLedger, loadCompletedSchemaMigrations, markSchemaMigrationComplete } from "./lib/deployment-bootstrap";
+import {CAREER_CONTENT_UPGRADE_A9_V1,upgradeCareerContentA9V1} from "./db/migrations/upgrade_career_content_a9_v1.ts";
 import { seedAchievements } from "./lib/achievements";
 import { maybeAutoResetLeagueSeasons, initializeSeasonResetScheduler } from "./lib/seasonReset";
 import { addLeaguesTable } from "./db/migrations/add_leagues_table";
@@ -1527,6 +1528,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerGoalsA73", () => createCareerGoals(db));
   await runMigrationStep("createCareerLifeA75", () => createCareerLife(db));
   await runMigrationStep("createCareerLegacyA76", () => createCareerLegacy(db));
+  await runMigrationStep(CAREER_CONTENT_UPGRADE_A9_V1, () => upgradeCareerContentA9V1(db));
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
   await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
   await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
