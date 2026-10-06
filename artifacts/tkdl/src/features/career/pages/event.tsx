@@ -57,8 +57,8 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
 
       {life.key === "UNSUPPORTED" && (
         <div role="status" className="pdc-card px-4 py-3 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
-          <strong style={OSWALD}>Not playable yet.</strong> The Career engine currently runs 501 double-out legs-format knockouts only. This event's format ({formatLabel(e.format)}) is
-          {e.status === "CANCELLED" ? " recorded as cancelled — no field, draw or results exist, and none have been invented." : " kept in the calendar and will be cancelled when it starts; it cannot be entered."}
+          <strong style={OSWALD}>Intentionally benched.</strong> This event's format ({formatLabel(e.format)}) is
+          {" intentionally benched — informational only, with no entry, field, draw or invented result."}
         </div>
       )}
       <Link href={`/career/${save.id}/tournaments/${e.id}`} className="career-btn career-btn-gold"><Trophy className="w-4 h-4" aria-hidden/> Tournament Hub</Link>
@@ -259,7 +259,7 @@ function RankingTab({ saveId, detail, retired }: { saveId: string; detail: Event
   return (
     <CareerSection title="Ranking & qualification" icon={<Trophy className="w-3.5 h-3.5" />} accent="#c084fc">
       <div className="px-4 py-3 space-y-2 text-sm">
-        {!e.capability.executable && <div style={{ color: "rgba(255,255,255,0.75)" }}>This format cannot run in the Career engine yet, so it is cancelled when it starts and awards no ranking money. Qualifying for it is still recorded as a factual milestone.</div>}
+        {!e.capability.executable && <div style={{ color: "rgba(255,255,255,0.75)" }}>This edition is intentionally benched and cannot be entered. It awards no ranking money or invented results.</div>}
         <div style={{ color: "rgba(255,255,255,0.75)" }}>{e.rankingCategory ? `${titleCase(e.rankingCategory)} — ranking-eligible prize money feeds the matching ranking lists.` : "Not a ranking event — prize money (if any) does not count towards rankings."}</div>
         {e.seedingPolicy.list && <div style={{ color: "rgba(255,255,255,0.75)" }}>Seeded from the {listLabel(e.seedingPolicy.list)} ({e.seedingPolicy.seeds} seeds) at the time of the draw.</div>}
         {retired ? null : qual.isLoading ? <CareerLoading /> : ev ? (

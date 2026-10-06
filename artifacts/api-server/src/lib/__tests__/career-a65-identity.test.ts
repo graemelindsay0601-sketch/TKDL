@@ -88,9 +88,9 @@ test("junior cohort (v2 worlds only) adds 16-17-year-old NPCs on separate keys; 
 });
 
 test("home region (A6.5): the chosen locality key sets the home country, so non-GB Careers have local events", async () => {
-  const { A3_PLACEHOLDER_STATUS } = await import("../../career/calendar/providers.ts");
+  const { BOOTSTRAP_STATUS } = await import("../../career/calendar/providers.ts");
   const { travelBand } = await import("../../career/finance/travel.ts");
-  const home = (homeLocality?: string) => A3_PLACEHOLDER_STATUS.human({ settings_snapshot: homeLocality ? { homeLocality } : {}, has_tour_card: false } as never);
+  const home = (homeLocality?: string) => BOOTSTRAP_STATUS.human({ settings_snapshot: homeLocality ? { homeLocality } : {}, has_tour_card: false } as never);
   assert.deepEqual([home().country, home().locality], ["GBR", "ayrshire"], "legacy default unchanged");
   assert.equal(home("north-east").country, "GBR");
   assert.deepEqual([home("leinster").country, home("leinster").zone], ["IRL", "UK_IRELAND"]);

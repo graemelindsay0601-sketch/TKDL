@@ -52,11 +52,14 @@ export async function refreshCapabilities(tx: CareerExecutor, saveId: string) {
   const rows = (await tx.execute(sql`SELECT id, snapshot,event_database_version FROM career_event_instances WHERE career_save_id = ${saveId} AND NOT executable
     AND status IN ('SCHEDULED','REGISTRATION_OPEN') AND snapshot->'format'->>'gameType' = 'X01'`)).rows as { id: string; snapshot: InstanceSnapshot; event_database_version: number }[];
   const flips = rows.map(r => ({ id: r.id, capability: assessCapability(r.snapshot.format, r.event_database_version >= 4) })).filter(r => r.capability.executable);
-  if (!flips.length) return 0;
-  await tx.execute(sql`UPDATE career_event_instances i SET executable = TRUE,
+  if (flips.length) await tx.execute(sql`UPDATE career_event_instances i SET executable = TRUE,
       snapshot = i.snapshot || jsonb_build_object('capability', f.capability, 'capabilityEngineVersion', ${CAPABILITY_ENGINE_VERSION}::int)
     FROM jsonb_to_recordset(${JSON.stringify(flips)}::jsonb) AS f(id uuid, capability jsonb)
     WHERE i.career_save_id = ${saveId} AND i.id = f.id AND NOT i.executable`);
+  // Unplayed unsupported content is informational from now, not a surprise
+  // cancellation at its start date. Completed/cancelled historical rows stay put.
+  await tx.execute(sql`UPDATE career_event_instances SET status='CANCELLED', status_reason='INTENTIONALLY_BENCHED'
+    WHERE career_save_id=${saveId} AND NOT executable AND status IN ('SCHEDULED','REGISTRATION_OPEN')`);
   return flips.length;
 }
 
@@ -105,11 +108,12 @@ export async function ensureSeason(tx: CareerExecutor, root: RootRow, season: nu
     await tx.execute(sql`INSERT INTO career_event_instances (career_save_id, id, season, instance_key, ordinal, event_database_version, definition_key, name, family,
         circuit, classification, ranking_category, presentation_tier, featured, calendar_priority, venue_key, city, country, region, zone, locality_key,
         start_week, end_week, start_day, end_day, registration_opens_week, registration_closes_week, field_size, minimum_entrants, executable,
-        series_key, series_day, status, snapshot)
+        series_key, series_day, status, status_reason, snapshot)
       SELECT ${root.id}::uuid, r.id, r.season, r.instance_key, r.ordinal, r.event_database_version, r.definition_key, r.name, r.family,
         r.circuit, r.classification, r.ranking_category, r.presentation_tier, r.featured, r.calendar_priority, r.venue_key, r.city, r.country, r.region, r.zone, r.locality_key,
         r.start_week, r.end_week, r.start_day, r.end_day, r.registration_opens_week, r.registration_closes_week, r.field_size, r.minimum_entrants, r.executable,
-        r.series_key, r.series_day, 'SCHEDULED', r.snapshot
+        r.series_key, r.series_day, CASE WHEN r.executable THEN 'SCHEDULED' ELSE 'CANCELLED' END,
+        CASE WHEN r.executable THEN NULL ELSE 'INTENTIONALLY_BENCHED' END, r.snapshot
       FROM jsonb_to_recordset(${JSON.stringify(rows.slice(i, i + 150))}::jsonb) AS r(id uuid, season integer, instance_key text, ordinal integer,
         event_database_version integer, definition_key text, name text, family text, circuit text, classification text, ranking_category text,
         presentation_tier text, featured boolean, calendar_priority integer, venue_key text, city text, country text, region text, zone text, locality_key text,
@@ -224,7 +228,8 @@ type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; np
 
 /**
  * Lock the field: human entries, series carry-over, entitlement intake,
- * invitations, then deterministic weighted open selection. Writes entries,
+ * reserved qualifying places where general filler is disabled, invitations,
+ * then deterministic weighted open selection. Writes entries,
  * bookings and consumed entitlements once; the instance then leaves
  * REGISTRATION_CLOSED so this can never run twice for the same event.
  */
@@ -271,6 +276,18 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   const rng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "field", event.season, event.instance_key);
   if (snapshot.invitationPolicy && snapshot.fieldPolicy === "SELECTION") {
     const policy = snapshot.invitationPolicy;
+    // No-general-filler selection events still have genuine qualifying places
+    // outside their invitation quota (e.g. Palace's 32 + 96). A zero filler
+    // target must not discard them, nor may invitations consume the qualifying
+    // pool first. Preserve eligibility, quotas and weights; intake qualifiers
+    // before sampling invitations. Scarce-field attendance policies are unchanged.
+    if (snapshot.npcFill[0] === 0 && snapshot.npcFill[1] === 0) {
+      const need = Math.max(0, capacity - policy.count - taken.size);
+      const pool = npcs.filter(npc => free(npc) && eligible(npc));
+      const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
+      for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc), need, rng))
+        add(npc, "SELECTION");
+    }
     const need = Math.min(capacity - taken.size, policy.count - additions.filter(a => a.source === "INVITATION").length);
     const pool = npcs.filter(npc => free(npc) && eligible(npc, true));
     for (const npc of weightedSample(pool, npc => tierWeight(policy.tierWeights, npc, tierOf), need, rng)) add(npc, "INVITATION");

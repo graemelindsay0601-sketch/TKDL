@@ -114,7 +114,7 @@ test("authenticated creation persists Day 1 defaults, server seed, versions and 
   const row = await stored(save.id);
   assert.equal(row.player_id, 1);
   assert.match(String(row.world_seed), /^[a-f0-9]{64}$/);
-  assert.deepEqual(row.settings_snapshot, CAREER_DEFAULTS);
+  assert.deepEqual(row.settings_snapshot, { ...CAREER_DEFAULTS,careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2 });
   const ledger = (await db.execute(sql`SELECT kind, amount_pence FROM career_finance_entries WHERE career_save_id = ${save.id}`)).rows;
   assert.deepEqual(ledger, [{ kind: "CAREER_START", amount_pence: 25_000 }]);
   assert.equal((await request("GET", `/saves/${save.id}`)).status, 200);
@@ -229,7 +229,7 @@ test("restart replaces universe, resets progression/versions, cascades children 
     assert.equal(fresh.standing, "Unknown Amateur");
     for (const [key, value] of Object.entries(CAREER_VERSIONS)) assert.equal(fresh[key], value);
     assert.notEqual((await stored(fresh.id)).world_seed, seed);
-    assert.deepEqual((await stored(fresh.id)).settings_snapshot, { ...CAREER_DEFAULTS, difficulty: "CHALLENGING" });
+    assert.deepEqual((await stored(fresh.id)).settings_snapshot, { ...CAREER_DEFAULTS, difficulty: "CHALLENGING",careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2 });
     assert.equal(await stored(career.id), undefined);
     assert.equal((await request("GET", `/saves/${career.id}`)).status, 404);
     assert.deepEqual((await db.execute(sql`SELECT * FROM career_test_child`)).rows, [{ career_save_id: other.id, value: "keep" }]);

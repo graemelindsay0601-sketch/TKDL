@@ -33,7 +33,7 @@ after(async () => { await pg.close(); });
 /** These A2 checks pin the v1 world (220 NPCs). A6.5 v2 saves add a junior cohort, tested in career-a65-identity.test.ts. */
 async function createV1(player: number, body: Record<string, unknown>) {
   const save = await saves.create(player, body);
-  await db.execute(sql`UPDATE career_saves SET event_database_version = 1 WHERE id = ${save.id}`);
+  await db.execute(sql`UPDATE career_saves SET event_database_version = 1,player_database_version=1 WHERE id = ${save.id}`);
   return save;
 }
 async function initialized(slot = 1, player = 1) {
@@ -98,10 +98,10 @@ test("feature gate and owner scoping protect internal world operations including
   const before = await snapshot(save.id);
   const stranger = { playerId: 2, isAdmin: true };
   for (const operation of [
-    worlds.initialize(stranger, save.id), worlds.listPlayers(stranger, save.id), worlds.simulateMatch(stranger, save.id, request),
-    worlds.advancePeriod(stranger, save.id, { season: 1, period: 1, elapsedYears: 0.1, opportunity: 1 }),
-    worlds.processOffSeason(stranger, save.id, { season: 1, opportunity: 1 }),
-  ]) await rejectsStatus(operation, 404);
+    () => worlds.initialize(stranger, save.id), () => worlds.listPlayers(stranger, save.id), () => worlds.simulateMatch(stranger, save.id, request),
+    () => worlds.advancePeriod(stranger, save.id, { season: 1, period: 1, elapsedYears: 0.1, opportunity: 1 }),
+    () => worlds.processOffSeason(stranger, save.id, { season: 1, opportunity: 1 }),
+  ]) await rejectsStatus(operation(), 404);
   await pg.exec("UPDATE feature_flags SET enabled=false, admin_test_mode=true");
   await rejectsStatus(worlds.initialize(actor, save.id), 404);
   assert.equal((await worlds.listPlayers({ ...actor, isAdmin: true }, save.id)).length, 220);

@@ -45,7 +45,7 @@ export function MatchBoundaryNotice({ saveId, eventId, compact }: { saveId: stri
           <Link href={`/career/${saveId}/tournaments/${eventId}/matches/${match.id}`} className="career-btn career-btn-gold">
             {resumable ? <RotateCcw className="w-4 h-4" aria-hidden /> : <Play className="w-4 h-4" aria-hidden />} {resumable ? "Resume match" : "Play match"}
           </Link>
-        ) : match && <button className="career-btn career-btn-gold" disabled aria-disabled title={reason}><Swords className="w-4 h-4" aria-hidden /> Format not playable yet</button>}
+        ) : match && <button className="career-btn career-btn-gold" disabled aria-disabled title={reason}><Swords className="w-4 h-4" aria-hidden /> Intentionally benched</button>}
         {!compact && <ConfirmButton label="Withdraw (concede)" confirmLabel="Withdraw from event" danger busy={withdraw.isPending}
           description="Withdrawing concedes this match as a walkover and ends your event. Late withdrawals are not refunded (A4 policy)."
           onConfirm={() => withdraw.mutate(eventId, { onSuccess: r => setMsg(r.withdrawn ? "Withdrawn. The Career calendar can continue." : `Not withdrawn: ${r.denials.join(", ")}`), onError: e => setMsg(errorMessage(e)) })} />}

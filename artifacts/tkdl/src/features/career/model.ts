@@ -73,8 +73,8 @@ export type EventStatusView = { key: EventStatusKey; label: string; tone: Tone; 
 
 export function eventStatus(e: CareerEvent, opts: { awaitingMatch?: boolean } = {}): EventStatusView {
   const h = e.human;
-  if (!e.capability.executable || e.statusReason === "UNSUPPORTED_FORMAT") return { key: "UNSUPPORTED", label: "Format not playable yet", tone: "muted",
-    detail: e.status === "CANCELLED" ? "Cancelled — this format is not supported by the Career engine yet" : "Will be cancelled when it starts: the Career engine cannot run this format yet" };
+  if (!e.capability.executable || e.statusReason === "UNSUPPORTED_FORMAT") return { key: "UNSUPPORTED", label: "Intentionally benched", tone: "muted",
+    detail: "Intentionally benched — informational content, not a playable opportunity" };
   if (e.status === "CANCELLED") return { key: "CANCELLED", label: "Cancelled", tone: "muted", detail: e.statusReason === "INSUFFICIENT_ENTRANTS" ? "Not enough entrants" : e.statusReason ?? undefined };
   if (h?.result) return h.result.champion ? { key: "CHAMPION", label: "Champion", tone: "gold" }
     : { key: "COMPLETED", label: `Finished — ${stageLabel(h.result.stageReached)}`, tone: "info" };
@@ -316,7 +316,7 @@ export const pathwayLabel = (p: string) => p === "UK_IRELAND" ? "UK & Ireland" :
 export type LifecycleKey = "UNSUPPORTED" | "CANCELLED" | "PRE_ENTRY" | "ENTERED" | "DRAW" | "ACTIVE" | "ELIMINATED" | "COMPLETED";
 export function eventLifecycle(d: { event: CareerEvent; draw: { matches: { a: { key: string } | null; b: { key: string } | null; status: string; winnerKey: string | null }[] } }): { key: LifecycleKey; label: string; tone: Tone } {
   const e = d.event;
-  if (!e.capability.executable || e.statusReason === "UNSUPPORTED_FORMAT") return { key: "UNSUPPORTED", label: "Format not playable yet", tone: "muted" };
+  if (!e.capability.executable || e.statusReason === "UNSUPPORTED_FORMAT") return { key: "UNSUPPORTED", label: "Intentionally benched", tone: "muted" };
   if (e.status === "CANCELLED") return { key: "CANCELLED", label: "Cancelled", tone: "muted" };
   const inField = d.draw.matches.some(m => m.a?.key === "HUMAN" || m.b?.key === "HUMAN");
   const lost = d.draw.matches.some(m => (m.a?.key === "HUMAN" || m.b?.key === "HUMAN") && (m.status === "COMPLETED" || m.status === "WALKOVER") && m.winnerKey !== null && m.winnerKey !== "HUMAN");

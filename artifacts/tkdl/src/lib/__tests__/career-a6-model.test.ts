@@ -95,13 +95,13 @@ test("entered / in progress / completed / champion / withdrawn", () => {
 });
 
 test("unsupported and cancelled events are never presented as playable or played", () => {
-  const wc = ev({ name: "World Darts Championship", capability: { executable: false, code: "UNSUPPORTED_FORMAT", reasons: ["SET_PLAY"] }, human: human({ canEnter: false, denials: ["UNSUPPORTED_FORMAT"] }),
-    format: { ...ev().format, scoringUnit: "SETS", legsPerSet: 5, stages: [{ key: "main", kind: "KNOCKOUT", bestOfByRound: [3, 3, 5, 5, 7, 7, 13] }] } });
+  const wc = ev({ name: "Pub Doubles", capability: { executable: false, code: "UNSUPPORTED_FORMAT", reasons: ["SIDE_SIZE"] }, human: human({ canEnter: false, denials: ["UNSUPPORTED_FORMAT"] }),
+    format: { ...ev().format, sideSize: 2, scoringUnit: "LEGS", stages: [{ key: "main", kind: "KNOCKOUT", bestOfByRound: [3, 3, 3] }] } });
   assert.equal(eventStatus(wc).key, "UNSUPPORTED");
   assert.notEqual(primaryAction(wc).kind, "ENTER");
-  assert.equal(formatLabel(wc.format), "501 · knockout · best of 3–13 sets");
-  const cancelled = { ...wc, status: "CANCELLED" as const, statusReason: "UNSUPPORTED_FORMAT" };
-  assert.match(eventStatus(cancelled).detail!, /not supported/);
+  assert.equal(formatLabel(wc.format), "501 · knockout · best of 3 legs · pairs");
+  const cancelled = { ...wc, status: "CANCELLED" as const, statusReason: "INTENTIONALLY_BENCHED" };
+  assert.match(eventStatus(cancelled).detail!, /Intentionally benched/);
   assert.deepEqual(eventLifecycle({ event: cancelled, draw: { matches: [] } }).key, "UNSUPPORTED");
   assert.equal(eventStatus(ev({ status: "CANCELLED", statusReason: "INSUFFICIENT_ENTRANTS" })).label, "Cancelled");
 });

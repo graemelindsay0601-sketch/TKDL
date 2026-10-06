@@ -18,10 +18,17 @@ const seed="a".repeat(64),season=generateSeason(seed,3,1);
 const facts:SportingFacts={careerStarted:true,titles:20,tourCard:true,professionalStatus:"PROFESSIONAL",worldRanking:8,bestFinishByCircuit:{},qualifications:[]};
 const terms=(key:string)=>sponsorCatalogue(2).find(s=>s.key===key)!.terms;
 const contract=(key:string):ContractRow=>({id:key,offer_id:key,sponsor_key:key,tier:terms(key).tier,terms:terms(key),start_season:1,start_week:1,end_season:2,end_week:52,status:"ACTIVE"});
-test("v1/v2 seasons are byte-identical to mandatory checkpoint, not a regenerated baseline",()=>{
-  const hashes=["6bba3b777e1ed7431c89c23154f1a789be8504489579ef1f73699549cacc1484","c4b9f19f7fedaaada82756a5c87fe7154fd192bf78eb7d4688e65bb1064759e2",
-    "993a953fc277faa3592b74f8d9805896028b83330972ef0e7be2f0bf4ca78c4e","8d84fafbaca3b872859f2fc5691d0a77a3f9d663a474e86764bcc47866b78f4d"];
-  assert.deepEqual([1,2].flatMap(v=>[1,2].map(s=>calendarHashOf(generateSeason(seed,v,s)))),hashes);
+test("v1/v2 immutable authored seasons are checkpoint-identical; only future execution capability may change",()=>{
+  // Derived independently from the approved 75c679a detached worktree, NOT this implementation.
+  // The old full hashes included mutable execution support and therefore cannot
+  // certify an adapter correction. Keep every other byte, including resolved
+  // definition hashes, format, eligibility, finances, identity and dates.
+  const hashes=["038dc639096e6d66e40e0fc7fbc4b486212903959e6befaae2223810a3e48387","d2add3a327c7f2ebd017b1f0e0ae3d89ba935ca7317a78d58e2c75a82a1521bd",
+    "be7d9583bc1aeeabfeeda0f642ee067dc8b0a99bf9c961797a5b5dedcf56c556","cb0276ab5459ff10260b11a5e61ba248e498ce2c376ddd724c0de65acb266d6f"];
+  assert.deepEqual([1,2].flatMap(v=>[1,2].map(s=>calendarHashOf(generateSeason(seed,v,s).map(d=>{
+    const {executable:_execution,...draft}=d;const {capability:_capability,...snapshot}=draft.snapshot;
+    return {...draft,snapshot};
+  })))),hashes);
 });
 test("original A2 population remains checkpoint-identical; new names do not touch abilities or IDs",()=>{
   const original=generateInitialWorld(seed,1);

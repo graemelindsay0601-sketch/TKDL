@@ -35,7 +35,8 @@ const rejectsWith = (promise: Promise<unknown>, pattern: RegExp) => assert.rejec
 
 async function careerFor(player: number, slot: number) {
   const save = await saves.create(player, { slot });
-  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED} WHERE id = ${save.id}`);
+  // A3's original sporting universe; current v5 is certified separately.
+  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=2,player_database_version=1 WHERE id = ${save.id}`);
   await calendar.initialize({ playerId: player }, save.id);
   return save;
 }
@@ -83,7 +84,7 @@ test("every event finishes honestly: completed with a valid champion or explicit
   assert.equal(report.retiredEntrants, 0);
   assert.equal(report.duplicateEntitlements, 0);
   const cancelled = await rows(sql`SELECT status_reason, executable, COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${world.id} AND season = 1 AND status = 'CANCELLED' GROUP BY 1, 2`);
-  for (const row of cancelled) assert.ok((row.status_reason === "UNSUPPORTED_FORMAT" && row.executable === false) || (row.status_reason === "INSUFFICIENT_ENTRANTS" && row.executable === true), JSON.stringify(row));
+  for (const row of cancelled) assert.ok((row.status_reason === "INTENTIONALLY_BENCHED" && row.executable === false) || (row.status_reason === "INSUFFICIENT_ENTRANTS" && row.executable === true), JSON.stringify(row));
   const fakes = await rows(sql`SELECT COUNT(*)::int AS n FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
     WHERE m.career_save_id = ${world.id} AND NOT i.executable`);
   assert.equal(fakes[0].n, 0, "unsupported formats never produce 501 matches");
@@ -128,7 +129,13 @@ test("knockout brackets are internally consistent from first round to champion",
 test("NPC fields are plausible by tier and genuinely international at the top", async () => {
   const report = await seasonReport(db, world.id, 1);
   const tiers = await rows(sql`SELECT i.circuit || CASE WHEN i.classification = 'QUALIFIER' THEN ':Q' ELSE '' END AS circuit, p.tier, COUNT(*)::int AS n FROM career_event_entries e JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
-    JOIN career_world_players p ON p.career_save_id = e.career_save_id AND p.id = e.npc_id WHERE e.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' GROUP BY 1, 2`);
+    JOIN LATERAL (
+      SELECT player.value->>'tier' AS tier FROM career_tournament_matches m
+      JOIN career_simulated_matches s ON s.career_save_id=m.career_save_id AND s.match_key=m.simulated_match_key
+      CROSS JOIN LATERAL jsonb_array_elements(s.input_snapshot->'players') player(value)
+      WHERE m.career_save_id=e.career_save_id AND m.event_id=e.event_id AND player.value->>'id'=e.participant_key
+      ORDER BY m.scheduled_day,m.round,m.slot LIMIT 1
+    ) p ON true WHERE e.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' GROUP BY 1, 2`);
   const share = (circuit: string, tier: string) => { const all = tiers.filter(t => t.circuit === circuit); return all.filter(t => t.tier === tier).reduce((a, t) => a + Number(t.n), 0) / Math.max(1, all.reduce((a, t) => a + Number(t.n), 0)); };
   assert.equal(share("GRASSROOTS", "ELITE"), 0, "elite players do not fill pub nights");
   assert.ok(share("PRO_CIRCUIT", "GRASSROOTS") === 0 && share("PRO_CIRCUIT", "AMATEUR") === 0, "Pro Circuit uses the professional placeholder status");

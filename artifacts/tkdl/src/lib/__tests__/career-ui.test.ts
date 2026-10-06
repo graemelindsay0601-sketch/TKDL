@@ -395,12 +395,12 @@ test("Finances: no sponsor and no offers are explicit empty states", () => {
 });
 
 // ---------------------------------------------------------------- event
-test("unsupported event (World Championship) is presented as not playable, with no Enter and no fabricated draw", () => {
-  const wc = event({ name: "World Darts Championship", presentation: { tier: "WORLD" }, circuit: "WORLD_CHAMPIONSHIP", status: "SCHEDULED", capability: { executable: false, code: "UNSUPPORTED_FORMAT", reasons: ["SET_PLAY"] },
-    format: { scoringUnit: "SETS", stages: [{ key: "main", kind: "KNOCKOUT", bestOfByRound: [3, 13] }] }, human: human({ canEnter: false, denials: ["REGISTRATION_NOT_OPEN", "UNSUPPORTED_FORMAT"] }) });
+test("unsupported pairs event is explicitly benched, with no Enter and no fabricated draw", () => {
+  const wc = event({ name: "Pub Doubles", status: "CANCELLED", capability: { executable: false, code: "UNSUPPORTED_FORMAT", reasons: ["PAIRS"] },
+    format: { sideSize: 2, scoringUnit: "LEGS", stages: [{ key: "main", kind: "KNOCKOUT", bestOfByRound: [3, 5] }] }, human: human({ canEnter: false, denials: ["UNSUPPORTED_FORMAT"] }) });
   const html = render(h(M.EventView, { ctx: ctx(), detail: eventDetail(wc) }), []);
   const t = text(html);
-  for (const x of ["Format not playable yet", "Not playable yet", "best of 3–13 sets", "Format not yet playable"]) assert.ok(t.includes(x), x);
+  for (const x of ["Intentionally benched", "no entry, field, draw or invented result"]) assert.ok(t.includes(x), x);
   assert.ok(!/>\s*Enter/.test(html));
   assert.ok(!t.includes(">Draw<") && !/aria-pressed="false"[^>]*>Draw</.test(html), "no Draw tab without a persisted draw");
 });

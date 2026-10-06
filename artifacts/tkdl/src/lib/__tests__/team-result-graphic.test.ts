@@ -8,8 +8,8 @@ describe("buildTeamResultGraphicModel", () => {
       resultKind: "uneven_team",
       winnerName: "Kyle & Jamie",
       loserName: "Graeme",
-      winnerEntityIds: [14, 15],
-      loserEntityIds: [16],
+      winnerCount: 2,
+      loserCount: 1,
       stake: 20,
     });
     assert.deepEqual(model, {
@@ -29,16 +29,16 @@ describe("buildTeamResultGraphicModel", () => {
       resultKind: "doubles_combined",
       winnerName: "Perfect Pair",
       loserName: "Checkout Crew + The Outsiders",
-      winnerEntityIds: [3],
-      loserEntityIds: [4, 5],
+      winnerCount: 1,
+      loserCount: 2,
       stake: 30,
     });
     const multi = buildTeamResultGraphicModel("shift_wars", {
       resultKind: "shift_multi",
       winnerName: "North",
       loserName: "South + East",
-      winnerEntityIds: [1],
-      loserEntityIds: [2, 3],
+      winnerCount: 1,
+      loserCount: 2,
       stake: 45,
     });
     assert.equal(combined?.formatLabel, "Combined Doubles");

@@ -98,9 +98,9 @@ test("every read the UI makes returns real Career state (new Career: unranked, n
   const finance = (await call("GET", `/saves/${id}/finance`)).body;
   assert.deepEqual([finance.balancePence, finance.careerEarningsPence, finance.sponsorEarningsPence, finance.careerExpensesPence, finance.sponsor], [25000, 0, 0, 0, null]);
   const cal = (await call("GET", `/saves/${id}/calendar?scope=WORLD&fromWeek=1&toWeek=8`)).body;
-  assert.ok(cal.overview.groupings.length === 5 && cal.events.length > 10 && cal.events.every((e: { human: unknown; finance: unknown }) => e.human && e.finance));
+  assert.ok(cal.overview.groupings.length === 6 && cal.events.length > 10 && cal.events.every((e: { human: unknown; finance: unknown }) => e.human && e.finance));
   const lists = (await call("GET", `/saves/${id}/rankings`)).body;
-  assert.deepEqual(lists.map((l: { key: string }) => l.key), ["pro-world", "pro-circuit", "european-series", "challenger", "vault", "amateur"]);
+  assert.deepEqual(lists.map((l: { key: string }) => l.key), ["pro-world", "pro-circuit", "european-series", "challenger", "vault", "amateur", "open-world", "women", "youth"]);
   assert.equal((await call("GET", `/saves/${id}/rankings/pro-world?view=AROUND&participant=HUMAN`)).body.published, null);
   assert.equal((await call("GET", `/saves/${id}/rankings/not-a-list`)).status, 404);
   const q = (await call("GET", `/saves/${id}/q-school`)).body;
@@ -133,7 +133,7 @@ test("enter and withdraw mutations: fee charged then refunded through A4, denial
   assert.ok(denied.body.denials.includes("REQUIRES_TOUR_CARD"), "server-side denial the UI shows as 'Tour Card required'");
 });
 
-test("sponsor accept / decline mutations use the real offers", async () => {
+test("sponsor decline works; acceptance rechecks current authority rather than trusting labelled offer fixtures", async () => {
   const id = (await call("GET", "/saves")).body.slots[0].career.id;
   // Create genuine offers through A4's own milestone boundary with labelled fixture facts.
   const facts: SponsorFactsProvider = { id: "TEST_FIXTURE", facts: async () => ({ careerStarted: true, titles: 1, bestFinishByCircuit: { GRASSROOTS: 1, COUNTY: 1 }, qualifications: [], professionalStatus: "AMATEUR", tourCard: false, worldRanking: null }) };
@@ -143,11 +143,11 @@ test("sponsor accept / decline mutations use the real offers", async () => {
   const declined = await call("POST", `/saves/${id}/sponsors/offers/${offers[1].id}/decline`);
   assert.equal(declined.status, 200);
   const accepted = await call("POST", `/saves/${id}/sponsors/offers/${offers[0].id}/accept`);
-  assert.equal(accepted.status, 200);
+  assert.equal(accepted.status, 409,"the real A5 facts have no title, unlike the offer-only fixture");
   const sponsors = (await call("GET", `/saves/${id}/sponsors`)).body;
-  assert.equal(sponsors.active.sponsorKey, offers[0].sponsorKey);
-  assert.ok((await call("GET", `/saves/${id}/finance`)).body.sponsorEarningsPence > 0, "signing bonus is Sponsor Earnings");
-  assert.equal((await call("GET", "/saves")).body.slots[0].career.sponsor, sponsors.active.terms.displayName);
+  assert.equal(sponsors.active,null);
+  assert.equal((await call("GET", `/saves/${id}/finance`)).body.sponsorEarningsPence,0);
+  assert.equal((await call("GET", "/saves")).body.slots[0].career.sponsor,null);
 });
 
 test("advance is retry-safe over HTTP and moves the real calendar", async () => {
@@ -172,7 +172,8 @@ test("there is no HTTP route that records a human match result (A6 boundary)", a
 
 test("retire is read-only, restart and delete follow A1 exactly", async () => {
   const id = await newCareer(2, "To retire");
-  const retired = await call("POST", `/saves/${id}/retire`, {});
+  assert.equal((await call("POST", `/saves/${id}/retire`, {})).status,400);
+  const retired = await call("POST", `/saves/${id}/retire`, {confirmation:"RETIRE CAREER"});
   assert.equal(retired.body.status, "RETIRED");
   assert.equal((await call("GET", `/saves/${id}/sporting`)).status, 200, "retired Career stays readable");
   assert.equal((await call("GET", `/saves/${id}/finance`)).status, 200);

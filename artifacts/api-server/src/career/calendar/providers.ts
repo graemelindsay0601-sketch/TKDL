@@ -7,7 +7,7 @@ import type { InstanceRow, RootRow } from "./engine.ts";
 /**
  * Provider boundaries for authority A3 does not own.
  *
- * A5 (Rankings/Tour Cards) will replace `sportingStatus` and `seeding`.
+ * Production composes A5's persisted `sportingStatus` and `seeding`.
  * A4 (Economy) will read instance `profiles` references and attach financial
  * commitment to entries. A3 ships only conservative placeholders and never
  * calculates rankings, awards Tour Cards or moves money.
@@ -39,12 +39,12 @@ export interface SeedingProvider {
 }
 
 /**
- * A3 placeholder: NPC Tour Card status mirrors A2 professionalStatus; the human
- * reads A1's has_tour_card column (never written by A3). Labelled so reports
- * and A5 can identify it. No rankings exist yet.
+ * Bootstrap/isolated-A3-test adapter ONLY. Production is bound by A5_SPORTING.
+ * Reads the human's A5-maintained cache and A2's founding labels; never awards
+ * cards, writes professional status, publishes rankings or invents positions.
  */
-export const A3_PLACEHOLDER_STATUS: SportingStatusProvider = {
-  id: "A3_PLACEHOLDER_PROFESSIONAL_STATUS",
+export const BOOTSTRAP_STATUS: SportingStatusProvider = {
+  id: "BOOTSTRAP_UNRANKED_STATUS",
   human(root) {
     const home = (root.settings_snapshot?.homeLocality as string | undefined) ?? "ayrshire";
     // A6.5 fix: `homeLocality` is a locality KEY ("leinster"); the region-name lookup ("Leinster") never
@@ -98,7 +98,7 @@ export interface CalendarSportingHooks {
 
 export type CalendarProviders = { sportingStatus: SportingStatusProvider; seeding: SeedingProvider; finance?: CalendarFinanceHooks; sporting?: CalendarSportingHooks;
   history?: { afterSeason(tx:CareerExecutor,root:RootRow,season:number):Promise<void>; pending(tx:CareerExecutor,root:RootRow):Promise<number|null> } };
-export const DEFAULT_PROVIDERS: CalendarProviders = { sportingStatus: A3_PLACEHOLDER_STATUS, seeding: NO_SEEDING };
+export const DEFAULT_PROVIDERS: CalendarProviders = { sportingStatus: BOOTSTRAP_STATUS, seeding: NO_SEEDING };
 
 export function npcFacts(npc: Npc) {
   const locality = localityByRegion(npc.homeRegion);

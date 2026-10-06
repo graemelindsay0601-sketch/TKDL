@@ -18,14 +18,16 @@ export const DAYS_PER_SEASON = WEEKS_PER_SEASON * DAYS_PER_WEEK;
 
 /** Presentation/organisation groupings only. Never progression gates. */
 export const SEASON_GROUPINGS = [
-  { key: "OPENING_SWING", name: "Opening Swing", fromWeek: 1, toWeek: 8 },
-  { key: "SPRING_CIRCUIT", name: "Spring Circuit", fromWeek: 9, toWeek: 16 },
-  { key: "SUMMER_TOUR", name: "Summer Tour", fromWeek: 17, toWeek: 32 },
-  { key: "MAJOR_SEASON", name: "Major Season", fromWeek: 33, toWeek: 44 },
-  { key: "WORLD_CHAMPIONSHIP_PERIOD", name: "World Championship Period", fromWeek: 45, toWeek: 52 },
+  { key: "OPENING_SWING", id: "opening", name: "Opening Swing", fromWeek: 1, toWeek: 6 },
+  { key: "SPRING_CIRCUIT", id: "spring", name: "Spring Circuit", fromWeek: 7, toWeek: 17 },
+  { key: "SUMMER_TOUR", id: "summer", name: "Summer Tour", fromWeek: 18, toWeek: 28 },
+  { key: "CHAMPIONSHIP_RACE", id: "race", name: "Championship Race", fromWeek: 29, toWeek: 38 },
+  { key: "MAJOR_SEASON", id: "majors", name: "Major Season", fromWeek: 39, toWeek: 46 },
+  { key: "WORLD_CHAMPIONSHIP_PERIOD", id: "worlds", name: "World Championship Period", fromWeek: 47, toWeek: 52 },
 ] as const;
 export type SeasonGroupingKey = typeof SEASON_GROUPINGS[number]["key"];
 export const groupingForWeek = (week: number) => {
+  if (!Number.isInteger(week)) throw new Error(`Week ${week} is outside the 52-week season`);
   const grouping = SEASON_GROUPINGS.find(g => week >= g.fromWeek && week <= g.toWeek);
   if (!grouping) throw new Error(`Week ${week} is outside the 52-week season`);
   return grouping;

@@ -3,7 +3,7 @@ import type { CareerExecutor } from "../database.ts";
 import { HUMAN, insertEntitlements, type RootRow } from "../calendar/engine.ts";
 import { CALENDAR_GENERATION_VERSION } from "../calendar/config.ts";
 import { zoneOf } from "../calendar/geography.ts";
-import { A3_PLACEHOLDER_STATUS } from "../calendar/providers.ts";
+import { BOOTSTRAP_STATUS } from "../calendar/providers.ts";
 import { stableUuid } from "../world/random.ts";
 import { TOUR_CARD_RULES_V1, PATHWAY_FOR_ZONE } from "./config.ts";
 import { recordMilestones, type Milestone } from "./state.ts";
@@ -148,7 +148,7 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
       AND id IN (${sql.join(npcIds.map(id => sql`${id}::uuid`), sql`, `)})`)).rows.map(r => [String(r.id), String(r.nationality)]) : []);
     for (const [participant, e] of exempt) {
       if (holdersNext.has(participant)) continue;
-      const country = e.npc ? nationality.get(e.npc)! : A3_PLACEHOLDER_STATUS.human(root).country;
+      const country = e.npc ? nationality.get(e.npc)! : BOOTSTRAP_STATUS.human(root).country;
       const pathway = PATHWAY_FOR_ZONE[zoneOf(country)];
       const idempotency = `provider:a5-q-school-exemption:${season + 1}:${participant}`;
       grants.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "entitlement", idempotency), idempotency_key: idempotency, recipient_key: participant,

@@ -41,8 +41,8 @@ export function PalacePage({ ctx }: { ctx: ShellContext }) {
             <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Prize</Label><div style={{ ...OSWALD, color: "#fff" }}>{wc.finance?.topPrizePence ? `Champion: ${formatPence(wc.finance.topPrizePence)}` : "—"}</div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{!wc.capability.executable ? "Defined as World Ranking money, but nothing is awarded while the format is unsupported" : wc.finance?.rankingEligible ? "Ranking money (World Ranking)" : "Non-ranking"}</div></div>
             <div className="pdc-card p-4 space-y-1"><Label color="#ffd24a">Engine status</Label>
-              <StatusBadge label={wc.capability.executable ? "Playable" : "Set-play format not supported yet"} tone={wc.capability.executable ? "success" : "muted"} />
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{wc.capability.executable ? "" : wc.status === "CANCELLED" ? "Recorded as cancelled this season. No field, draw or result was invented." : "It will be cancelled when it starts; qualification is still recorded as a fact."}</div></div>
+              <StatusBadge label={wc.capability.executable ? "Playable" : "Intentionally benched"} tone={wc.capability.executable ? "success" : "muted"} />
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{wc.capability.executable ? "" : "This edition is informational only. No field, draw or result is invented."}</div></div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <CareerSection title="Your qualification" icon={<Star className="w-3.5 h-3.5" />} accent="#ffd24a">
@@ -57,7 +57,7 @@ export function PalacePage({ ctx }: { ctx: ShellContext }) {
             <CareerSection title="Previous champions" icon={<Crown className="w-3.5 h-3.5" />} accent="#ffd24a">
               {past.isLoading ? <CareerLoading /> : past.data?.length ? <ul>{past.data.map(r => <li key={r.eventId} className="px-4 py-2 text-sm flex justify-between items-center"><span style={{ ...OSWALD, color: "#fff" }}>Season {r.season}</span>
                   {r.participantKey === "HUMAN" ? <span style={{ color: "#ffd24a" }}>You</span> : <Link href={`/career/${save.id}/events/${r.eventId}`} className="career-btn career-btn-ghost">View final</Link>}</li>)}</ul>
-                : <CareerEmptyState title="No World Championship has been played yet">Its set-play format is not supported by the Career engine yet, so no champion exists.</CareerEmptyState>}
+                : <CareerEmptyState title="No World Championship has been played yet">The Sovereign Trophy is awarded only after a championship is actually completed.</CareerEmptyState>}
             </CareerSection>
           </div>
           <CareerSection title="Qualifiers" icon={<Star className="w-3.5 h-3.5" />} accent="#ffd24a">
