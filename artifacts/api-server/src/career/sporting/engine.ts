@@ -3,7 +3,7 @@ import type { CareerExecutor } from "../database.ts";
 import { HUMAN, loadInstances, loadFactsContext, factsFor, npcParticipant, humanParticipant, type RootRow } from "../calendar/engine.ts";
 import { evaluateRule } from "../calendar/eligibility.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { A3_PLACEHOLDER_STATUS, type CalendarProviders, type CalendarSportingHooks, type SeedingProvider, type SportingStatusProvider } from "../calendar/providers.ts";
+import { BOOTSTRAP_STATUS, type CalendarProviders, type CalendarSportingHooks, type SeedingProvider, type SportingStatusProvider } from "../calendar/providers.ts";
 import { defaultFactsProvider, type SponsorFactsProvider } from "../finance/engine.ts";
 import type { Npc, Tier } from "../world/types.ts";
 import { QUALIFICATION_MILESTONES, timeIndex } from "./config.ts";
@@ -41,7 +41,7 @@ export function boundStatus(cardHolders: ReadonlySet<string>, positions: Readonl
   return {
     id: "A5_SPORTING_STATUS",
     human(root) {
-      const base = A3_PLACEHOLDER_STATUS.human(root);
+      const base = BOOTSTRAP_STATUS.human(root);
       const card = cardHolders.has(HUMAN);
       return { ...base, professionalStatus: card ? "PROFESSIONAL" : "AMATEUR", tourCard: card };
     },
@@ -63,7 +63,7 @@ export function boundSeeding(positions: ReadonlyMap<string, Record<string, numbe
 /** Unbound fallback (no transaction): reads only the A1 cache for the human; NPC facts unknown. A3 paths always bind. */
 export const UNBOUND_STATUS: SportingStatusProvider = {
   id: "A5_SPORTING_STATUS_UNBOUND",
-  human(root) { const base = A3_PLACEHOLDER_STATUS.human(root); return { ...base, professionalStatus: root.has_tour_card ? "PROFESSIONAL" : "AMATEUR", tourCard: root.has_tour_card }; },
+  human(root) { const base = BOOTSTRAP_STATUS.human(root); return { ...base, professionalStatus: root.has_tour_card ? "PROFESSIONAL" : "AMATEUR", tourCard: root.has_tour_card }; },
   npcTourCard: () => null,
   rankings: () => ({}),
 };
@@ -81,7 +81,8 @@ export async function bindSporting(tx: CareerExecutor, root: RootRow) {
  *  - for Majors / the World Championship starting this week, everyone who meets the
  *    event's sporting qualification rule (ranking cut, Tour Card, entitlement — never
  *    invitation) at registration close. This is a qualification fact even when A3
- *    cannot execute the event's format (A3 cancels sets/group formats as UNSUPPORTED).
+ *    cannot execute an intentionally benched format. Supported singles set play
+ *    and the fixed Vault groups-to-knockout format are executable.
  */
 async function weeklyMilestones(tx: CareerExecutor, root: RootRow, season: number, week: number, providers: CalendarProviders) {
   const confirmed = (await tx.execute(sql`SELECT e.participant_key, e.participant_kind, e.npc_id, i.id AS event_id, i.circuit, i.classification, i.definition_key, i.name

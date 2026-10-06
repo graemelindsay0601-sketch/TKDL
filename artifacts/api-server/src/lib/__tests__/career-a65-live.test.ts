@@ -110,6 +110,62 @@ async function call(method: string, path: string, body?: unknown, player = 1) {
   let parsed: any = null; try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
   return { status: res.status, body: parsed };
 }
+
+for(const [definition,score] of [["county-301-sprint",301],["county-701-open",701]] as const){
+  test(`certification live ${score}: shared human scorer, NPC bracket and normal starting budget`,async()=>{
+    const made=await call("POST","/saves",{slot:3,careerName:`Cert ${score}`,dateOfBirth:dobForAge(35)});
+    assert.equal(made.status,201,JSON.stringify(made.body));
+    const id=made.body.id;
+    await db.execute(sql`UPDATE career_saves SET world_seed=${HARNESS_SEED} WHERE id=${id}`);
+    assert.equal((await call("POST",`/saves/${id}/initialize`,{})).status,200);
+    assert.equal(Number((await q(sql`SELECT balance_pence FROM career_saves WHERE id=${id}`))[0].balance_pence),25000);
+    const event=await db.transaction(async tx=>{
+      const engine=await import("../../career/calendar/engine.ts");
+      const {lockRoot}=await import("../../career/world/service.ts");
+      const {bindSporting}=await import("../../career/sporting/engine.ts");
+      const root=await lockRoot(tx,{playerId:1},id) as Parameters<typeof bindSporting>[1];
+      const bound=await bindSporting(tx,root);
+      const providers={...career.providers(),sportingStatus:bound.sportingStatus,seeding:bound.seeding};
+      const events=await engine.loadInstances(tx,id,sql`definition_key=${definition}`);
+      const ctx=await engine.loadFactsContext(tx,id,1,events.map(e=>e.snapshot.eligibility));
+      return events.find(e=>engine.evaluate(e,engine.factsFor(engine.humanParticipant(root,providers),ctx,e)).eligible);
+    });
+    assert.ok(event,"authored home-county event is eligible");
+    // Clock-only fixture; no ranking cache, card, financial adjustment or result fixture.
+    await db.execute(sql`UPDATE career_saves SET current_week=${event.start_week} WHERE id=${id}`);
+    await db.execute(sql`UPDATE career_seasons SET played_week=${event.start_week-1},developed_week=${event.start_week-1} WHERE career_save_id=${id}`);
+    await db.execute(sql`UPDATE career_world_state SET period=${event.start_week-1},elapsed_year=${(event.start_week-1)/52} WHERE career_save_id=${id}`);
+    await db.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_OPEN' WHERE career_save_id=${id} AND id=${event.id}`);
+    await db.execute(sql`UPDATE career_event_instances SET status='CANCELLED',status_reason='CERTIFICATION_BOUNDARY_FIXTURE'
+      WHERE career_save_id=${id} AND id<>${event.id} AND status NOT IN ('COMPLETED','CANCELLED')`);
+    assert.equal((await call("POST",`/saves/${id}/events/${event.id}/entry`)).body.entered,true);
+    for(let step=0;step<12;step++){
+      if((await q(sql`SELECT status FROM career_event_instances WHERE career_save_id=${id} AND id=${event.id}`))[0].status==="COMPLETED")break;
+      const save=(await call("GET",`/saves/${id}`)).body;
+      const advanced=await call("POST",`/saves/${id}/calendar/advance`,{operationKey:`cert-${score}-${step}`,
+        expectedSeason:save.currentSeason,expectedWeek:save.currentWeek,target:{kind:"NEXT_MEANINGFUL"}});
+      assert.equal(advanced.status,200,JSON.stringify(advanced.body));
+      if(advanced.body.stop.reason!=="HUMAN_MATCH_PENDING")continue;
+      const matchId=advanced.body.stop.detail.matchIds[0];
+      const session=await bullUp(id,matchId,"INNER");
+      assert.equal(session.format.startingScore,score);assert.equal(session.format.unit,"LEGS");
+      await playOut(id,matchId,session,STRONG,`${score}-${step}`);
+    }
+    assert.equal((await q(sql`SELECT status,champion_participant_key FROM career_event_instances WHERE career_save_id=${id} AND id=${event.id}`))[0].status,"COMPLETED");
+    assert.ok((await q(sql`SELECT count(*)::int n FROM career_tournament_matches WHERE career_save_id=${id} AND event_id=${event.id} AND result_source='A2_SIMULATION'`))[0].n>0);
+    if(score===301){
+      const sponsors=await call("GET",`/saves/${id}/sponsors`);assert.equal(sponsors.status,200);
+      assert.ok(sponsors.body.offers.length>0,"actual county sporting evidence earns an offer");
+      const offer=sponsors.body.offers[0];
+      assert.equal((await call("POST",`/saves/${id}/sponsors/offers/${offer.id}/accept`)).status,200);
+      assert.equal((await call("GET",`/saves/${id}/sponsors`)).body.active.sponsorKey,offer.sponsorKey);
+    }
+    const money=(await q(sql`SELECT balance_pence,(SELECT SUM(amount_pence) FROM career_finance_entries WHERE career_save_id=${id}) ledger
+      FROM career_saves WHERE id=${id}`))[0];
+    assert.equal(Number(money.balance_pence),Number(money.ledger));
+    assert.equal((await call("DELETE",`/saves/${id}`)).status,204);
+  });
+}
 const q = async (query: ReturnType<typeof sql>) => (await db.execute(query)).rows as Record<string, any>[];
 
 async function newCareer(slot: number, body: Record<string, unknown>) {
@@ -895,4 +951,209 @@ test("A6.6 admin reset cascades populated Career data only, requires confirmatio
   assert.deepEqual(await snapshot(), before);
   const again = await reset(1, true, CAREER_RESET_CONFIRMATION);
   assert.deepEqual(await again.json(), { deletedSaves: 0 });
+});
+
+// Certification fixtures use actual immutable v5 major instances/fields/formats.
+// Prior Match Trophy results are explicit TEST fixtures. A4/A5 derive their real
+// prize amounts/ranking publications; neither the ranking cache nor bank is forged.
+// not a simulation of acquiring that rank/budget from the initial £250.
+for(const definition of ["world-darts-championship","double-crown"]) {
+  test(`certification actual v5 ${definition}: entry, full field, live sets, NPC champion and exactly-once downstream settlement`,async()=>{
+    await pg.exec(`UPDATE feature_flags SET enabled=true WHERE feature_name='tour_career_2'`);
+    const made=await call("POST","/saves",{slot:definition==="double-crown"?2:1,careerName:`Cert ${definition}`,dateOfBirth:dobForAge(35)});
+    assert.equal(made.status,201,JSON.stringify(made.body));
+    const id=made.body.id;
+    await db.execute(sql`UPDATE career_saves SET world_seed=${HARNESS_SEED} WHERE id=${id}`);
+    assert.equal((await call("POST",`/saves/${id}/initialize`,{})).status,200);
+    const e=(await q(sql`SELECT * FROM career_event_instances WHERE career_save_id=${id} AND definition_key=${definition}`))[0];
+    const past=(await q(sql`SELECT * FROM career_event_instances WHERE career_save_id=${id} AND definition_key='long-format-matchplay'`))[0];
+    const qualifierEvents=definition==="world-darts-championship"?await q(sql`SELECT * FROM career_event_instances
+      WHERE career_save_id=${id} AND definition_key='world-championship-qualifier' ORDER BY ordinal`):[];
+    assert.equal(e.event_database_version,5);assert.equal(e.snapshot.format.scoringUnit,"SETS");
+    const field=definition==="world-darts-championship"?128:32;
+    assert.equal(e.field_size,field);
+    // TEST ONLY clock/other-event boundary, funds and persisted A5 ranking fixture.
+    await db.execute(sql`UPDATE career_saves SET current_week=${e.start_week} WHERE id=${id}`);
+    await db.execute(sql`UPDATE career_seasons SET played_week=${e.start_week-1},developed_week=${e.start_week-1} WHERE career_save_id=${id}`);
+    await db.execute(sql`UPDATE career_world_state SET period=${e.start_week-1},elapsed_year=${(e.start_week-1)/52} WHERE career_save_id=${id}`);
+    await db.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_OPEN' WHERE career_save_id=${id} AND id=${e.id}`);
+    await db.execute(sql`UPDATE career_event_instances SET status='CANCELLED',status_reason='CERTIFICATION_BOUNDARY_FIXTURE'
+      WHERE career_save_id=${id} AND id NOT IN (${sql.join([e,past,...qualifierEvents].map(x=>sql`${x.id}::uuid`),sql`, `)})
+        AND status NOT IN ('COMPLETED','CANCELLED')`);
+    assert.ok(past.end_week<e.start_week);
+    const priorNpcs=await q(sql`SELECT n.id FROM career_world_players n JOIN career_tour_cards c
+      ON c.career_save_id=n.career_save_id AND c.npc_id=n.id
+      WHERE n.career_save_id=${id} AND n.status='ACTIVE' AND c.status='ACTIVE' AND n.tier IN ('PROFESSIONAL','ELITE')
+        AND n.age>=18 AND n.world_key NOT LIKE 'women:%'
+      ORDER BY n.id LIMIT 31`);
+    assert.equal(priorNpcs.length,31);
+    const priorResults=[...priorNpcs.map(n=>({participant_key:n.id,participant_kind:"NPC",npc_id:n.id})),
+      {participant_key:"HUMAN",participant_kind:"HUMAN",npc_id:null}].map((p,i)=>{
+      const position=i===0?1:2**Math.floor(Math.log2(i))+1;
+      const wins=i===0?5:4-Math.log2(position-1),losses=i===0?0:1;
+      const lengths=past.snapshot.format.stages[0].bestOfByRound.map((n:number)=>(n+1)/2);
+      return {...p,finishing_position:position,stage_reached:i===0?"CHAMPION":"PRIOR_SPORTING_FIXTURE",
+        is_champion:i===0,matches_played:wins+losses,wins,losses,
+        legs_for:lengths.slice(0,wins).reduce((a:number,b:number)=>a+b,0),
+        legs_against:losses?lengths[wins]:0,metadata:{testFixture:true}};
+    });
+    await db.transaction(async tx=>{
+      for(const status of ["REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS"])
+        await tx.execute(sql`UPDATE career_event_instances SET status=${status} WHERE career_save_id=${id} AND id=${past.id}`);
+      await tx.execute(sql`INSERT INTO career_event_entries(career_save_id,event_id,participant_key,participant_kind,npc_id,
+        source,status,entered_season,entered_week)
+        SELECT ${id}::uuid,${past.id}::uuid,r.participant_key,r.participant_kind,r.npc_id,'INVITATION','CONFIRMED',1,${past.start_week}
+        FROM jsonb_to_recordset(${JSON.stringify(priorResults)}::jsonb) r(participant_key text,participant_kind text,npc_id uuid)`);
+      await tx.execute(sql`UPDATE career_event_instances SET status='COMPLETED',status_reason=NULL,
+        entrant_count=32,champion_participant_key=${priorResults[0].participant_key},champion_npc_id=${priorResults[0].npc_id},
+        completed_at=NOW() WHERE career_save_id=${id} AND id=${past.id}`);
+      await tx.execute(sql`INSERT INTO career_event_results(career_save_id,event_id,participant_key,participant_kind,npc_id,
+        season,definition_key,finishing_position,stage_reached,is_champion,matches_played,wins,losses,legs_for,legs_against,metadata)
+        SELECT ${id}::uuid,${past.id}::uuid,r.participant_key,r.participant_kind,r.npc_id,1,${past.definition_key},r.finishing_position,
+          r.stage_reached,r.is_champion,r.matches_played,r.wins,r.losses,r.legs_for,r.legs_against,r.metadata
+        FROM jsonb_to_recordset(${JSON.stringify(priorResults)}::jsonb) r(participant_key text,participant_kind text,npc_id uuid,
+          finishing_position int,stage_reached text,is_champion boolean,matches_played int,wins int,losses int,
+          legs_for int,legs_against int,metadata jsonb)`);
+      await tx.execute(sql`UPDATE career_saves SET current_week=${past.end_week} WHERE id=${id}`);
+      const root=(await tx.execute(sql`SELECT * FROM career_saves WHERE id=${id} FOR UPDATE`)).rows[0] as any;
+      await career.providers().finance!.onEventCompleted(tx,root,past as any,priorResults as any);
+      const {recordRankingContributions,publishRankings}=await import("../../career/sporting/rankings.ts");
+      const rules=Number((await tx.execute(sql`SELECT ranking_rules_version FROM career_sporting_state WHERE career_save_id=${id}`)).rows[0].ranking_rules_version);
+      await recordRankingContributions(tx,root,rules,past as any,priorResults as any);
+      await publishRankings(tx,root,rules,1,e.start_week-1,true);
+      await tx.execute(sql`UPDATE career_saves SET current_week=${e.start_week} WHERE id=${id}`);
+    });
+    assert.equal((await q(sql`SELECT count(*)::int n FROM career_ranking_participants WHERE career_save_id=${id}
+      AND list_key='pro-world' AND current_position<=32`))[0].n,32);
+    // Controlled, eligible amateur regional fields; NOT scripted qualifiers.
+    // The real A3 draw and shared A2 simulation produce all results/grants. These
+    // routes add genuine qualifiers outside the finite founding-card invite pool.
+    for(const qualifier of qualifierEvents)await db.transaction(async tx=>{
+      const engine=await import("../../career/calendar/engine.ts");
+      const {loadNpcs}=await import("../../career/world/repository.ts");
+      const {bindSporting}=await import("../../career/sporting/engine.ts");
+      const {worldState}=await import("../../career/world/service.ts");
+      await tx.execute(sql`UPDATE career_saves SET current_week=${qualifier.end_week} WHERE id=${id}`);
+      await tx.execute(sql`UPDATE career_world_state SET period=${qualifier.end_week},elapsed_year=${qualifier.end_week/52} WHERE career_save_id=${id}`);
+      const root=(await tx.execute(sql`SELECT * FROM career_saves WHERE id=${id} FOR UPDATE`)).rows[0] as any;
+      const bound=await bindSporting(tx,root);
+      const providers={...career.providers(),sportingStatus:bound.sportingStatus,seeding:bound.seeding};
+      const ctx=await engine.loadFactsContext(tx,id,1,[qualifier.snapshot.eligibility]);
+      const candidates=(await loadNpcs(tx,id,{activeOnly:true})).filter(n=>n.age>=18
+        &&!bound.holders.has(n.id)&&(qualifier.snapshot.npcTierWeights[bound.sportingStatus.selectionTier!(n)]??0)>0
+        &&engine.evaluate(qualifier as any,engine.factsFor(engine.npcParticipant(n,providers),ctx,qualifier as any)).eligible).sort((a,b)=>a.age-b.age).slice(0,8);
+      assert.equal(candidates.length,8);
+      for(const status of ["REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING"])
+        await tx.execute(sql`UPDATE career_event_instances SET status=${status},entrant_count=8 WHERE career_save_id=${id} AND id=${qualifier.id}`);
+      await tx.execute(sql`INSERT INTO career_event_entries(career_save_id,event_id,participant_key,participant_kind,npc_id,source,status,entered_season,entered_week)
+        SELECT ${id}::uuid,${qualifier.id}::uuid,x.id::text,'NPC',x.id,'SELECTION','CONFIRMED',1,${qualifier.start_week}
+        FROM jsonb_to_recordset(${JSON.stringify(candidates.map(n=>({id:n.id})))}::jsonb) x(id uuid)`);
+      const event=(await engine.loadInstances(tx,id,sql`id=${qualifier.id}`))[0];
+      await engine.insertBookings(tx,id,1,event,candidates.map(n=>n.id));
+      await engine.makeDraw(tx,root,event,providers);
+      await tx.execute(sql`UPDATE career_event_instances SET status='IN_PROGRESS' WHERE career_save_id=${id} AND id=${qualifier.id}`);
+      event.status="IN_PROGRESS";
+      assert.equal((await engine.progressEvent(tx,root,await worldState(tx,root),event,event.end_day,providers)).completed,true);
+      await tx.execute(sql`UPDATE career_saves SET current_week=${e.start_week} WHERE id=${id}`);
+      await tx.execute(sql`UPDATE career_world_state SET period=${e.start_week-1},elapsed_year=${(e.start_week-1)/52} WHERE career_save_id=${id}`);
+    });
+    const entered=await call("POST",`/saves/${id}/events/${e.id}/entry`);
+    assert.equal(entered.body.entered,true,JSON.stringify(entered.body));
+    const matchId=await advanceToHumanMatch(id,5);
+    const entries=await q(sql`SELECT participant_key,source FROM career_event_entries WHERE career_save_id=${id} AND event_id=${e.id} AND status='CONFIRMED'`);
+    const missed=await q(sql`SELECT n.id,n.age,n.status,n.tier,n.world_key,r.current_position FROM career_world_players n
+      LEFT JOIN career_ranking_participants r ON r.career_save_id=n.career_save_id AND r.participant_key=n.id::text AND r.list_key='pro-world'
+      WHERE n.career_save_id=${id} AND n.id IN (${sql.join(priorNpcs.map(n=>sql`${n.id}::uuid`),sql`, `)})
+      AND NOT EXISTS(SELECT 1 FROM career_event_entries x WHERE x.career_save_id=n.career_save_id AND x.event_id=${e.id} AND x.npc_id=n.id AND x.status='CONFIRMED')`);
+    assert.equal(entries.length,field,JSON.stringify({sources:entries.reduce((a:Record<string,number>,x)=>({...a,[x.source]:(a[x.source]??0)+1}),{}),missed}));
+    const session=await bullUp(id,matchId,"INNER");
+    assert.equal(session.format.inRule,definition==="double-crown"?"DOUBLE":"STRAIGHT");
+    assert.equal(session.format.unit,"SETS");assert.equal(session.format.bestOfLegsPerSet,5);
+    const paused=await playOut(id,matchId,session,WEAK,definition,{stopAfterVisits:2});
+    const resumed=await call("POST",`/saves/${id}/matches/${matchId}/session`);
+    assert.deepEqual(resumed.body.darts,paused.session.darts,"refresh reloads canonical log");
+    const done=await playOut(id,matchId,resumed.body,WEAK,definition);
+    const match=(await q(sql`SELECT * FROM career_tournament_matches WHERE career_save_id=${id} AND id=${matchId}`))[0];
+    assert.ok(match.summary.sets);assert.ok(match.legs_a!==null&&match.legs_b!==null);
+    for(let i=0;i<20;i++){
+      const state=(await q(sql`SELECT status FROM career_event_instances WHERE career_save_id=${id} AND id=${e.id}`))[0];
+      if(state.status==="COMPLETED")break;
+      const root=(await call("GET",`/saves/${id}`)).body;
+      const advanced=await call("POST",`/saves/${id}/calendar/advance`,{
+        operationKey:`cert-${definition}-${i}`,expectedSeason:root.currentSeason,expectedWeek:root.currentWeek,target:{kind:"NEXT_MEANINGFUL"}});
+      assert.equal(advanced.status,200,JSON.stringify(advanced.body));
+      if(advanced.body.stop.reason==="HUMAN_MATCH_PENDING"){
+        const next=advanced.body.stop.detail.matchIds[0],s=await bullUp(id,next);
+        await playOut(id,next,s,WEAK,`${definition}-${i}`);
+      }
+    }
+    const final=(await q(sql`SELECT * FROM career_event_instances WHERE career_save_id=${id} AND id=${e.id}`))[0];
+    assert.equal(final.status,"COMPLETED");assert.ok(final.champion_participant_key);
+    assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_event_results WHERE career_save_id=${id} AND event_id=${e.id}`))[0].n,field);
+    assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_event_results WHERE career_save_id=${id} AND event_id=${e.id} AND is_champion`))[0].n,1);
+    assert.ok((await q(sql`SELECT COUNT(*)::int n FROM career_ranking_contributions WHERE career_save_id=${id} AND event_id=${e.id}`))[0].n>0);
+    const ownedTables=(await pg.query<{table_name:string}>(`SELECT table_name FROM information_schema.columns
+      WHERE table_schema='public' AND column_name='career_save_id' ORDER BY table_name`)).rows.map(r=>r.table_name);
+    const counts=async()=>Promise.all(ownedTables.map(async table=>{
+      const result=await pg.query<{n:number;digest:string}>(`SELECT count(*)::int n,
+        MD5(COALESCE(string_agg(to_jsonb(t)::text,'|' ORDER BY to_jsonb(t)::text),'')) digest
+        FROM "${table}" t WHERE career_save_id=$1`,[id]);
+      return [table,result.rows[0].n,result.rows[0].digest];
+    }));
+    const money=async()=>Number((await q(sql`SELECT balance_pence FROM career_saves WHERE id=${id}`))[0].balance_pence);
+    const before=await counts(),balance=await money();
+    const factsBefore=await call("GET",`/saves/${id}/facts`);
+    assert.equal(factsBefore.status,200);assert.equal(factsBefore.body.records.firstMatch.id,`match:${matchId}`);
+    assert.equal(Number((await q(sql`SELECT SUM(amount_pence) n FROM career_finance_entries WHERE career_save_id=${id}`))[0].n),balance);
+    const retry=await call("PUT",`/saves/${id}/matches/${matchId}/session/darts`,{darts:done.darts,expectedRevision:done.session.revision});
+    assert.equal(retry.status,200,JSON.stringify(retry.body));
+    assert.deepEqual(await counts(),before);assert.equal(await money(),balance);
+    assert.deepEqual((await call("GET",`/saves/${id}/facts`)).body.performance,factsBefore.body.performance);
+  });
+}
+
+test("certification current v5 season: all NPC events, real week-52 A5/A7 boundary and review replay",async()=>{
+  const made=await call("POST","/saves",{slot:3,careerName:"Cert full v5 NPC season",dateOfBirth:dobForAge(35)});
+  assert.equal(made.status,201,JSON.stringify(made.body));
+  const id=made.body.id;
+  await db.execute(sql`UPDATE career_saves SET world_seed=${HARNESS_SEED} WHERE id=${id}`);
+  assert.equal((await call("POST",`/saves/${id}/initialize`,{})).status,200);
+  // No clock jumps, entries, financial/ranking adjustments or manufactured results.
+  const request={operationKey:"cert-full-v5-year",expectedSeason:1,expectedWeek:1,target:{kind:"WEEKS",weeks:52}};
+  const advanced=await call("POST",`/saves/${id}/calendar/advance`,request);
+  assert.equal(advanced.status,200,JSON.stringify(advanced.body));
+  assert.deepEqual([advanced.body.to.season,advanced.body.to.week,advanced.body.stop.reason],[2,1,"SEASON_REVIEW"]);
+  const {seasonReport}=await import("../../career/calendar/harness.ts");
+  const report=await seasonReport(db,id,1);
+  assert.equal(report.champions.completed,report.champions.valid);
+  assert.equal(report.a2LinkedMatches.matches,report.a2LinkedMatches.linked);
+  assert.equal(report.npcDoubleBookings,0);assert.equal(report.invalidEntries,0);assert.equal(report.duplicateEntitlements,0);
+  assert.equal((await q(sql`SELECT count(*)::int n FROM career_event_instances WHERE career_save_id=${id} AND season=1
+    AND status NOT IN ('COMPLETED','CANCELLED')`))[0].n,0);
+  const vaults=await q(sql`SELECT id,status,entrant_count,champion_participant_key FROM career_event_instances
+    WHERE career_save_id=${id} AND season=1 AND definition_key='vault-nights'`);
+  assert.ok(vaults.length>0);
+  for(const e of vaults){
+    assert.equal(e.status,"COMPLETED");assert.equal(e.entrant_count,16);
+    const matches=await q(sql`SELECT stage_key,round,winner_key FROM career_tournament_matches WHERE career_save_id=${id} AND event_id=${e.id}`);
+    assert.equal(matches.filter(m=>m.stage_key!=="knockout").length,24);
+    assert.equal(matches.filter(m=>m.stage_key==="knockout").length,7);
+    assert.equal(matches.find(m=>m.stage_key==="knockout"&&m.round===3)?.winner_key,e.champion_participant_key);
+  }
+  const periods=await q(sql`SELECT kind,count(*)::int n FROM career_world_periods WHERE career_save_id=${id} AND season=1 GROUP BY kind`);
+  assert.equal(periods.find(p=>p.kind==="PERIOD")?.n,52);assert.equal(periods.find(p=>p.kind==="OFF_SEASON")?.n,1);
+  const review=(await call("GET",`/saves/${id}/legacy/seasons/1`)).body;
+  assert.equal(review.provenance,"CAPTURED");assert.equal(review.human.titles,0);
+  assert.ok(review.world.cardChanges.length>0,"actual current-universe A5 end-of-season outcomes");
+  console.info("CERT_V5_SEASON_EVIDENCE",JSON.stringify({
+    champions:report.champions,simulation:report.a2LinkedMatches,vaults:vaults.length,cardChanges:review.world.cardChanges.length,
+    events:await q(sql`SELECT status,status_reason,count(*)::int n FROM career_event_instances WHERE career_save_id=${id} AND season=1 GROUP BY status,status_reason ORDER BY status,status_reason`),
+    majors:await q(sql`SELECT definition_key,status,entrant_count FROM career_event_instances WHERE career_save_id=${id} AND season=1
+      AND definition_key IN ('world-darts-championship','double-crown') ORDER BY definition_key`),
+  }));
+  assert.deepEqual((await call("POST",`/saves/${id}/calendar/advance`,request)).body,advanced.body);
+  assert.deepEqual((await call("GET",`/saves/${id}/legacy/seasons/1`)).body,review);
+  assert.equal((await call("POST",`/saves/${id}/legacy/seasons/1/begin`,{confirmation:"BEGIN SEASON"})).status,200);
+  assert.equal((await call("GET",`/saves/${id}/legacy`)).body.pendingReview,null);
+  assert.deepEqual((await call("GET",`/saves/${id}/legacy/seasons/1`)).body,review);
 });

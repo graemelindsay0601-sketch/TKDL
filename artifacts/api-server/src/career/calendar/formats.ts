@@ -45,23 +45,22 @@ export type Capability =
   | { executable: false; code: "UNSUPPORTED_FORMAT"; reasons: UnsupportedReason[] };
 
 /** Bumped when the set of executable formats changes; existing future instances are re-assessed. */
-export const CAPABILITY_ENGINE_VERSION = 3;
+export const CAPABILITY_ENGINE_VERSION = 4;
 
 /**
  * A format is executable only when BOTH sides of a Career tournament can run it
  * with the same rules: the human through the shared TKDL scorer (darts-rules /
  * GameScorer X01) and every NPC match through A2's dart-level simulation.
- * A6.5 supports: X01 501, straight-in or double-in, double-out, legs or sets
- * (odd best-of legs per set), singles, single-stage knockout.
- * Everything else stays honestly UNSUPPORTED_FORMAT (301/701 variants, master/
- * treble-out, groups/leagues, pairs, non-X01 games).
+ * Shared X01 and A2 support 101..1001, straight/double-in, double-out,
+ * legs/sets and singles knockout. A8.2 adds its explicitly versioned 4x4
+ * group -> KO format. Master-out, leagues, pairs and other games remain benched.
  */
 export function assessCapability(format: EventFormat, allowGroups = false): Capability {
   eventFormatSchema.parse(format);
   const reasons: UnsupportedReason[] = [];
   if (format.gameType !== "X01") reasons.push("GAME_TYPE");
   else {
-    if (format.startingScore !== 501) reasons.push("STARTING_SCORE");
+    if (format.startingScore === null || format.startingScore < 101 || format.startingScore > 1001) reasons.push("STARTING_SCORE");
     if (format.inRule !== "STRAIGHT" && format.inRule !== "DOUBLE") reasons.push("IN_RULE");
     if (format.outRule !== "DOUBLE") reasons.push("OUT_RULE");
   }

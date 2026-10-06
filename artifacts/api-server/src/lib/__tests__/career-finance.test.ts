@@ -317,10 +317,10 @@ test("cancelled events refund entry once; unsupported events can never be charge
   });
   assert.equal((await ledger(save.id)).filter(r => r.category === "REFUND" && r.event_id === target.id).length, 1, "cancellation retry does not refund twice");
   assert.equal((await rows(sql`SELECT status FROM career_event_finance WHERE career_save_id = ${save.id} AND event_id = ${target.id}`))[0].status, "CANCELLED");
-  const unsupported = (await events(save.id)).find(e => !e.capability.executable && e.status === "REGISTRATION_OPEN")!;
+  const unsupported = (await events(save.id)).find(e => !e.capability.executable && e.status === "CANCELLED")!;
   const denied = await finance.calendar.enter(actor, save.id, { eventId: unsupported.id });
   assert.ok(denied.denials.includes("UNSUPPORTED_FORMAT"));
-  const cancelledUnsupported = await rows(sql`SELECT id FROM career_event_instances WHERE career_save_id = ${save.id} AND status_reason = 'UNSUPPORTED_FORMAT'`);
+  const cancelledUnsupported = await rows(sql`SELECT id FROM career_event_instances WHERE career_save_id = ${save.id} AND status_reason = 'INTENTIONALLY_BENCHED'`);
   assert.ok(cancelledUnsupported.length > 0);
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id = ${save.id} AND event_id IN (SELECT id FROM career_event_instances WHERE career_save_id = ${save.id} AND NOT executable)`))[0].n, 0);
   assert.equal((await finance.summary(actor, save.id)).reconciled, true);
@@ -440,11 +440,12 @@ test("coverage caps, decline, expiry, contract end with renewal or loss, replace
   const pick = (await finance.sponsors({ playerId: 2 }, r.id)).offers;
   const local = pick.find(o => o.tier === "LOCAL") ?? null;
   const regional = pick.find(o => o.tier === "REGIONAL")!;
-  if (local) await finance.acceptOffer({ playerId: 2 }, r.id, { offerId: local.id });
-  await finance.acceptOffer({ playerId: 2 }, r.id, { offerId: regional.id });
+  const localContract=local?await finance.acceptOffer({ playerId: 2 }, r.id, { offerId: local.id }):null;
+  await finance.acceptOffer({ playerId: 2 }, r.id, { offerId: regional.id,
+    ...(localContract?{replaceContractIds:[localContract.contractId]}:{}) });
   const after = await finance.sponsors({ playerId: 2 }, r.id);
   assert.equal(after.active!.sponsorKey, "ochre-darts");
-  if (local) assert.equal(after.history.contracts[0].endReason, "REPLACED");
+  if (local) assert.equal(after.history.contracts[0].endReason, "EXPLICITLY_REPLACED");
 });
 
 test("retention: only a KNOWN failed requirement terminates a professional contract", async () => {

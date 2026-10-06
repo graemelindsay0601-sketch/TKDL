@@ -209,7 +209,7 @@ test("A9 new root pins v5/travel2/sponsor3; focused A3/A2 boundary fixture opens
   assert.ok(before.events.some(e=>e.circuit==="REGIONAL"));assert.ok(before.events.some(e=>e.circuit==="VAULT"));
   // TEST-ONLY terminal-world/boundary fixture. Do not simulate 600+ NPC events
   // just to verify one annual transition. Production never performs these edits.
-  await db.execute(sql`UPDATE career_event_instances SET status='CANCELLED' WHERE career_save_id=${fresh.id} AND season=1`);
+  await db.execute(sql`UPDATE career_event_instances SET status='CANCELLED' WHERE career_save_id=${fresh.id} AND season=1 AND status NOT IN ('COMPLETED','CANCELLED')`);
   await db.execute(sql`UPDATE career_saves SET current_week=52 WHERE id=${fresh.id}`);
   await db.execute(sql`UPDATE career_seasons SET played_week=51,developed_week=51 WHERE career_save_id=${fresh.id} AND season=1`);
   await db.execute(sql`UPDATE career_world_state SET period=51,elapsed_year=${51/52} WHERE career_save_id=${fresh.id}`);

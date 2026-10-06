@@ -39,7 +39,7 @@ export type EventDefinition = {
   family: string;
   circuit: Circuit;
   classification: Classification;
-  /** A5 placeholder only. SPECIAL / QUALIFIER / INVITATIONAL never carry one. */
+  /** A5 ranking category. SPECIAL / QUALIFIER / INVITATIONAL never carry one. */
   rankingCategory: string | null;
   presentation: { tier: PresentationTier; brandingFamily: string; heroAssetKey: string; badgeAssetKey: string; featured: boolean; calendarPriority: number };
   format: EventFormat;

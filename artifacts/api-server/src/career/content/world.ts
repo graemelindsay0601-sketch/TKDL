@@ -32,14 +32,7 @@ export const CIRCUIT_CONTENT = [
   ["australasian", "Australasian Dart Tour", "iodf", "NATIONAL_AMATEUR"],
   ["continental-open", "Continental Open Series", "iodf", "NATIONAL_AMATEUR"],
 ].map(([id, name, organisationId, authorityCircuit]) => ({ id, name, organisationId, authorityCircuit }));
-export const SEASON_RHYTHM = [
-  { id: "opening", name: "Opening Swing", fromWeek: 1, toWeek: 6 },
-  { id: "spring", name: "Spring Circuit", fromWeek: 7, toWeek: 17 },
-  { id: "summer", name: "Summer Tour", fromWeek: 18, toWeek: 28 },
-  { id: "race", name: "Championship Race", fromWeek: 29, toWeek: 38 },
-  { id: "majors", name: "Major Season", fromWeek: 39, toWeek: 46 },
-  { id: "worlds", name: "World Championship Period", fromWeek: 47, toWeek: 52 },
-] as const;
+export { SEASON_GROUPINGS as SEASON_RHYTHM } from "../calendar/config.ts";
 export const PRESTIGE_CLASSES = ["GRASSROOTS", "REGIONAL", "NATIONAL", "INTERNATIONAL_OPEN", "SECONDARY_TOUR", "PROFESSIONAL_TOUR", "STAGE_SERIES", "MAJOR", "WORLD_CHAMPIONSHIP"] as const;
 export type PrestigeClass = typeof PRESTIGE_CLASSES[number];
 export type EventContent = {

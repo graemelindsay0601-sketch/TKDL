@@ -43,7 +43,8 @@ after(async () => { await pg.close(); });
 
 async function careerFor(player = 1, slot = 1, seed = HARNESS_SEED) {
   const save = await saves.create(player, { slot });
-  await db.execute(sql`UPDATE career_saves SET world_seed = ${seed} WHERE id = ${save.id}`);
+  // Preserve this original A3 regression fixture; v5 adds age-aware intake.
+  await db.execute(sql`UPDATE career_saves SET world_seed = ${seed},event_database_version=2,player_database_version=1 WHERE id = ${save.id}`);
   await calendar.initialize({ playerId: player }, save.id);
   return save;
 }
@@ -72,7 +73,7 @@ test("season generation is deterministic, 52-week bounded and hundreds of instan
   assert.deepEqual(backbone(a), backbone(b), "authored backbone is identical across seeds");
   assert.notDeepEqual(generateSeason(HARNESS_SEED, 1, 2).filter(d => d.localityKey).map(d => d.instanceKey), a.filter(d => d.localityKey).map(d => d.instanceKey), "seasons rotate too");
   assert.equal(new Set(a.map(d => d.id)).size, a.length);
-  assert.deepEqual(SEASON_GROUPINGS.map(g => [g.fromWeek, g.toWeek]), [[1, 8], [9, 16], [17, 32], [33, 44], [45, 52]]);
+  assert.deepEqual(SEASON_GROUPINGS.map(g => [g.fromWeek, g.toWeek]), [[1, 6], [7, 17], [18, 28], [29, 38], [39, 46], [47, 52]]);
 });
 
 test("static harness reports a broad, international, non-flat calendar", () => {
@@ -152,7 +153,7 @@ test("entry returns structured denials and never duplicates", async () => {
   const find = (pred: (e: (typeof view.events)[number]) => boolean) => view.events.find(pred)!;
   const pro = find(e => e.circuit === "PRO_CIRCUIT");
   assert.ok(pro.human!.denials.includes("REQUIRES_TOUR_CARD"));
-  const unsupported = find(e => !e.capability.executable && e.status === "REGISTRATION_OPEN");
+  const unsupported = find(e => !e.capability.executable && e.status === "CANCELLED");
   const denied = await calendar.enter(actor, save.id, { eventId: unsupported.id });
   assert.equal(denied.entered, false);
   assert.ok(denied.denials.includes("UNSUPPORTED_FORMAT"));
@@ -233,7 +234,7 @@ test("A6.5 capability: 501 double-out knockouts (straight/double-in, legs or set
   assert.deepEqual(assessCapability(x01Variant(501, "DOUBLE", [5], "local")), live, "double-in legs");
   assert.deepEqual(assessCapability(setsKnockout501([3, 5], 5, "major", 3, "DOUBLE")), live, "double-in set play");
   const cases: [string, ReturnType<typeof knockout501>, string][] = [
-    ["301", x01Variant(301, "STRAIGHT", [5], "local"), "STARTING_SCORE"], ["cricket", specialGame("CRICKET", [3]), "GAME_TYPE"],
+    ["3001", x01Variant(3001, "STRAIGHT", [5], "local"), "STARTING_SCORE"], ["cricket", specialGame("CRICKET", [3]), "GAME_TYPE"],
     ["master-out", { ...knockout501([3], "local"), outRule: "MASTER" }, "OUT_RULE"],
     ["groups", groupKnockout501(9, [11], 4, 2, "major", 4), "STRUCTURE"], ["league", league501(11, "stage", 16), "STRUCTURE"], ["pairs", pairs501([3]), "PAIRS"],
   ];
