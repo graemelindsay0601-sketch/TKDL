@@ -583,6 +583,7 @@ export function Layout({ children }: { children: ReactNode }) {
         transition-transform duration-300 ease-in-out
         ${drawerOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}
+        id="tkdl-navigation-drawer"
         style={{ background: "rgba(3,3,8,0.99)", borderRight: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(24px)" }}>
         <button className="absolute top-4 right-4 lg:hidden z-10 p-1 rounded-lg"
           style={{ color: "rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.05)" }}
@@ -609,24 +610,25 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <div className="tkdl-app-column flex flex-col flex-1 overflow-hidden min-w-0">
         {/* Top bar — visible on tablet/mobile (<1024px) */}
-        <header className="lg:hidden flex items-center justify-between px-4 shrink-0"
+        <header className="tkdl-mobile-header lg:hidden grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2 px-3 shrink-0"
           style={{ height: "3.25rem", background: "rgba(4,4,10,0.95)", borderBottom: "1px solid rgba(255,255,255,0.07)", zIndex: 20 }}>
-          <button onClick={() => setDrawerOpen(true)} className="p-2 rounded-lg transition-colors"
+          <button onClick={() => setDrawerOpen(true)} className="tkdl-mobile-header-action grid h-11 w-11 place-items-center rounded-xl transition-colors"
+            aria-label="Open navigation menu" aria-expanded={drawerOpen} aria-controls="tkdl-navigation-drawer" data-testid="button-open-navigation"
             style={{ color: "rgba(255,255,255,0.6)", background: "rgba(255,255,255,0.04)" }}>
             <Menu className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="tkdl-mobile-brand flex items-center justify-center gap-2" aria-label="TKDL Tour">
             <img src="/icon-192.png" alt="TKDL" style={{ width: "2rem", height: "2rem", borderRadius: "0.4rem", objectFit: "cover" }} />
             <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.3rem", fontWeight: 800, letterSpacing: "0.2em", color: "#fff", textShadow: "0 0 20px rgba(255,0,60,0.5)" }}>
               TKDL
             </span>
           </div>
           {canOfferInstall ? (
-            <button onClick={() => void offerInstall()} className="p-2 rounded-lg" title="Install TKDL" aria-label="Install TKDL"
+            <button onClick={() => void offerInstall()} className="tkdl-mobile-header-action grid h-11 w-11 place-items-center rounded-xl" title="Install TKDL" aria-label="Install TKDL"
               style={{ color: "#00e5a0", background: "rgba(0,229,160,0.07)", border: "1px solid rgba(0,229,160,0.16)" }}>
               <Download className="w-4 h-4" />
             </button>
-          ) : <div style={{ width: "2.5rem" }} />}
+          ) : <div aria-hidden className="h-11 w-11" />}
         </header>
 
         <main className="tkdl-main flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 1 }}>
@@ -653,34 +655,37 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* The shared bottom nav also stays visible on Career subpages: Career's own
           destinations now sit in the page instead of occupying the bottom edge. */}
-      <nav className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"
-        style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <nav aria-label="Primary navigation" className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex">
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           const col = item.color;
           return (
             <Link key={item.href} href={item.href}
-              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
+              className="tkdl-mobile-nav-item flex-1 flex flex-col items-center justify-center transition-colors duration-150 relative"
+              aria-current={isActive ? "page" : undefined}
+              data-testid={`link-mobile-nav-${item.href === "/" ? "hub" : item.href.slice(1).replace(/\//g, "-")}`}
               style={{ WebkitTapHighlightColor: "transparent", outline: "none" }}>
               {isActive && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: col, boxShadow: `0 0 8px ${col}` }} />
               )}
-              <item.icon className="w-5 h-5" style={{ color: isActive ? col : "rgba(255,255,255,0.5)", filter: isActive ? `drop-shadow(0 0 6px ${col})` : "none", transition: "color 0.15s, filter 0.15s" }} />
-              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: isActive ? 700 : 400, color: isActive ? col : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
+              <item.icon className="tkdl-mobile-nav-icon w-[18px] h-[18px]" aria-hidden style={{ color: isActive ? col : "rgba(255,255,255,0.5)", filter: isActive ? `drop-shadow(0 0 6px ${col})` : "none", transition: "color 0.15s, filter 0.15s" }} />
+              <span className="tkdl-mobile-nav-label" style={{ fontWeight: isActive ? 700 : 400, color: isActive ? col : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
                 {item.label}
               </span>
             </Link>
           );
         })}
         <button
-          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
+          className="tkdl-mobile-nav-item flex-1 flex flex-col items-center justify-center transition-colors duration-150 relative"
+          type="button" aria-label="Open more navigation" aria-expanded={drawerOpen} aria-controls="tkdl-navigation-drawer"
+          data-testid="button-mobile-nav-more"
           style={{ WebkitTapHighlightColor: "transparent", outline: "none", background: "none", border: "none" }}
           onClick={() => setDrawerOpen(true)}>
           {drawerOpen && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ffffff", boxShadow: "0 0 8px rgba(255,255,255,0.6)" }} />
           )}
-          <Menu className="w-5 h-5" style={{ color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", filter: drawerOpen ? "drop-shadow(0 0 6px rgba(255,255,255,0.7))" : "none", transition: "color 0.15s" }} />
-          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: drawerOpen ? 700 : 400, color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
+          <Menu className="tkdl-mobile-nav-icon w-[18px] h-[18px]" aria-hidden style={{ color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", filter: drawerOpen ? "drop-shadow(0 0 6px rgba(255,255,255,0.7))" : "none", transition: "color 0.15s" }} />
+          <span className="tkdl-mobile-nav-label" style={{ fontWeight: drawerOpen ? 700 : 400, color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
             More
           </span>
         </button>

@@ -40,10 +40,13 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const onEnter = (id: string) => { setMsg(null); enter.mutate(id, { onSuccess: r => setMsg(r.entered ? "Entry confirmed." : `Entry refused: ${r.denials.map(denialLabel).join(", ")}`), onError: e => setMsg(errorMessage(e)) }); };
 
   return (
-    <div className="space-y-3">
-      <div className="pdc-card px-3 py-3 space-y-2.5">
+    <div className="career-calendar-page space-y-3">
+      <header className="career-page-heading">
+        <div><span className="career-eyebrow">Career · Season {season}</span><h2>Calendar &amp; Planning</h2><p>See event timing, entry status and estimated costs together.</p></div>
+      </header>
+      <div className="pdc-card career-calendar-controls px-3 py-3 space-y-2.5">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h2 className="flex items-center gap-2"><CalendarDays className="w-4 h-4" style={{ color: "#ff005c" }} aria-hidden /><Label color="#fff">Calendar · Season {season}</Label></h2>
+          <h2 className="flex items-center gap-2"><CalendarDays className="w-4 h-4" style={{ color: "#ff005c" }} aria-hidden /><Label color="#fff">Schedule view</Label></h2>
           <label className="flex items-center gap-2 text-xs"><Label>Season</Label>
             <select value={season} onChange={e => {setSeason(Number(e.target.value));setPage(0);}} className="rounded-lg px-2 py-1.5 bg-black/40 border border-white/15 text-sm">
               {Array.from({ length: save.currentSeason }, (_, i) => save.currentSeason - i).map(s => <option key={s} value={s}>Season {s}</option>)}
@@ -68,8 +71,8 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
         : groups.length === 0 ? <div className="pdc-card"><CareerEmptyState title={view === "MY_SCHEDULE" ? "No events in your schedule" : "No events match these filters"}>
             {view === "MY_SCHEDULE" ? <>Browse <button className="underline" onClick={() => setView("UPCOMING")}>upcoming events</button> to enter one.</> : "Try a different circuit, level or status."}</CareerEmptyState></div>
         : groups.map(g => (
-          <section key={g.key} className="pdc-card overflow-hidden" aria-label={g.name}>
-            <div className="px-4 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}><Label color="rgba(255,255,255,0.65)">{g.name}</Label></div>
+          <section key={g.key} className="pdc-card career-calendar-group overflow-hidden" aria-label={g.name}>
+            <div className="career-calendar-group-head px-4 py-2 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}><Label color="rgba(255,255,255,0.65)">{g.name}</Label></div>
             {g.events.map(e => (
               <div key={e.id}>
                 <CareerEventCard event={e} saveId={save.id} awaitingMatch={pending.has(e.id)} retired={retired || !isCurrent} onEnter={retired || !isCurrent ? undefined : onEnter} entering={enter.isPending} />

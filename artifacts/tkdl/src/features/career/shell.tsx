@@ -24,7 +24,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
   const retired = save.data.status === "RETIRED";
   const overview = header.data?.overview ?? null;
   return (
-    <div className={`career-root space-y-3 pb-10 ${/\/(tournaments|matches)\//.test(location)?"career-gameplay":""}`}>
+    <div className={`career-root space-y-3 ${/\/(tournaments|matches)\//.test(location)?"career-gameplay":""}`}>
       <a href="#career-content" className="career-skip">Skip to Career content</a>
       <CareerHeader save={save.data} overview={overview} retired={retired} />
       {!location.includes("/play")&&<CareerNav saveId={saveId} />}
@@ -172,7 +172,12 @@ export function CareerNav({ saveId }: { saveId: string }) {
       <div className="career-primary-nav">
         {CAREER_NAV.map(section => {const Icon=icons[section.layer]??Globe2;return (
           <Link key={section.layer} href={`/career/${saveId}${section.path}`} className="career-nav-link justify-center"
-            aria-current={layer.layer === section.layer ? (section.items.length === 1 ? "page" : "true") : undefined}><span className="career-destination-icon" aria-hidden><Icon size={18}/></span><span>{section.label}</span></Link>
+            aria-label={section.label}
+            aria-current={layer.layer === section.layer ? (section.items.length === 1 ? "page" : "true") : undefined}>
+            <span className="career-destination-icon" aria-hidden><Icon size={18}/></span>
+            <span className="career-nav-label-full">{section.label}</span>
+            <span className="career-nav-label-short">{section.layer === "DARTS_WORLD" ? "World" : section.layer === "MY_CAREER" ? "Career" : section.label}</span>
+          </Link>
         );})}
       </div>
       {layer.items.length > 1 && (

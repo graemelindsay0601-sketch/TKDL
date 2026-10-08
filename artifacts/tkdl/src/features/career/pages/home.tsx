@@ -20,6 +20,9 @@ export function HomePage({ctx}:{ctx:ShellContext}) {
   const pending=q.data?.overview.pendingHumanMatches.find(m=>m.eventId===next?.event.id);
   const onEnter=(eventId:string)=>enter.mutate(eventId,{onSuccess:r=>setMessage(r.entered?"Entry confirmed.":r.denials.map(denialLabel).join(" · ")),onError:e=>setMessage(errorMessage(e))});
   return <div className="career-home space-y-3">
+    <header className="career-page-heading">
+      <div><span className="career-eyebrow">Career · Season {save.currentSeason}</span><h2>Career Home</h2><p>Your next event, current standing and season ahead.</p></div>
+    </header>
     <section className="career-status-strip career-surface surface-context" aria-label="Player status">
       <CareerPlayerCard name={profile.data?.displayName??save.careerName??"My Career"} nickname={p.data?.identity.nickname} identity={p.data?.identity} sponsors={p.data?.placements} scale="compact" rank={s.data?.worldRanking.standing?.position}/>
       <p>{profile.data?.status==="COMPLETE"?`Age ${profile.data.age} · `:""}Career: Season {save.currentSeason} · {retired?"Retired record":s.data?.tourCard.holdsCard?"Tour Card active":"Open / amateur career"} · {formatPence(f.data?.balancePence??save.balancePence)} · {f.data?.sponsor?.displayName??"Self-funded"}</p>
@@ -42,21 +45,21 @@ export function HomePage({ctx}:{ctx:ShellContext}) {
       {message&&<p role="status">{message}</p>}
     </section>
     {!retired&&t.data?.tournaments.some(x=>x.terminal)&&<TournamentResume saveId={id}/>}
-    <section aria-label="Your Position"><h2>Your Position</h2><div className="career-position-grid">
+    <section aria-label="Season snapshot"><h2>Season snapshot</h2><div className="career-position-grid">
       <StatTile label="World Rank" value={s.isLoading?"Reading…":s.error?"Unavailable":s.data?.worldRanking.standing?.position?ordinal(s.data.worldRanking.standing.position):"Unranked"} to={`/career/${id}/rankings`} sub="Published sporting position, not a level"/>
       <StatTile label="Tour Card" value={s.isLoading?"Reading…":s.error?"Unavailable":s.data?.tourCard.holdsCard?"Active":"No Tour Card"} to={`/career/${id}/q-school`} sub="Professional darts is optional"/>
       <StatTile label="Balance" value={formatPence(f.data?.balancePence??save.balancePence)} to={`/career/${id}/finances`} sub={f.data?`${formatPence(f.data.availablePence)} available`:"Career cash, separate from TKDL coins"}/>
     </div></section>
-    {!retired&&<CareerSection title="Relevant Opportunities" action={<Link href={`/career/${id}/map`}>View All</Link>}>
+    {!retired&&<CareerSection title="Open opportunities" action={<Link href={`/career/${id}/map`}>View all</Link>}>
       {opportunities.length?opportunities.map(e=><CareerEventCard key={e.id} event={e} saveId={id} compact onEnter={onEnter} entering={enter.isPending}/>):<CareerEmptyState title="No open opportunities in this window">Other open circuits and future dates remain discoverable in the Calendar.</CareerEmptyState>}
     </CareerSection>}
-    {!retired&&<CareerSection title="Short Season Timeline" action={<Link href={`/career/${id}/calendar`}>Plan your season</Link>}>
+    {!retired&&<CareerSection title="Your schedule" action={<Link href={`/career/${id}/calendar`}>Plan your season</Link>}>
       {entered.length?entered.map(e=><CareerEventCard key={e.id} event={e} saveId={id} compact/>):<p className="p-4">No entered commitments nearby. Qualified does not mean entered.</p>}
     </CareerSection>}
-    <CareerSection title="Around the World" action={<Link href={`/career/${id}/world`}>Darts World</Link>}>
+    <CareerSection title="Career news" action={<Link href={`/career/${id}/world`}>Darts World</Link>}>
       {life.data?.news.length?life.data.news.slice(0,3).map(n=><p className="p-4" key={n.id}><Link href={`/career/${id}/stories`}>{n.title}</Link></p>):<p className="p-4">No recent developments recorded. Explore the current rankings, players and championships.</p>}
     </CareerSection>
-    <CareerSection title="Recent Result" action={<Link href={`/career/${id}/my-career/performance`}>View All</Link>}>
+    <CareerSection title="Recent results" action={<Link href={`/career/${id}/my-career/performance`}>View all</Link>}>
       {history.data?.length?history.data.slice(0,3).map(r=><CareerEventIdentity key={r.eventId} eventKey={r.definitionKey} circuit={r.circuit}><p className="p-4"><Link href={`/career/${id}/events/${r.eventId}`}>{r.name}</Link> · S{r.season} · {r.champion?"Champion":r.stageReached} · {circuitLabel(r.circuit)}</p></CareerEventIdentity>):<p className="p-4">No results yet. Your first finished event will appear here.</p>}
     </CareerSection>
     {!retired&&!!f.data?.availableOffers&&<aside className="career-surface surface-context"><Link href={`/career/${id}/finances`}>Sponsor decision available — review terms and coverage</Link></aside>}
