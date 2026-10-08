@@ -655,28 +655,29 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* The shared bottom nav also stays visible on Career subpages: Career's own
           destinations now sit in the page instead of occupying the bottom edge. */}
-      <nav aria-label="Primary navigation" className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex">
+      <nav aria-label="Primary navigation" className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"
+        style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           const col = item.color;
           return (
             <Link key={item.href} href={item.href}
-              className="tkdl-mobile-nav-item flex-1 flex flex-col items-center justify-center transition-colors duration-150 relative"
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
               aria-current={isActive ? "page" : undefined}
               data-testid={`link-mobile-nav-${item.href === "/" ? "hub" : item.href.slice(1).replace(/\//g, "-")}`}
               style={{ WebkitTapHighlightColor: "transparent", outline: "none" }}>
               {isActive && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: col, boxShadow: `0 0 8px ${col}` }} />
               )}
-              <item.icon className="tkdl-mobile-nav-icon w-[18px] h-[18px]" aria-hidden style={{ color: isActive ? col : "rgba(255,255,255,0.5)", filter: isActive ? `drop-shadow(0 0 6px ${col})` : "none", transition: "color 0.15s, filter 0.15s" }} />
-              <span className="tkdl-mobile-nav-label" style={{ fontWeight: isActive ? 700 : 400, color: isActive ? col : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
+              <item.icon className="w-5 h-5" aria-hidden style={{ color: isActive ? col : "rgba(255,255,255,0.5)", filter: isActive ? `drop-shadow(0 0 6px ${col})` : "none", transition: "color 0.15s, filter 0.15s" }} />
+              <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: isActive ? 700 : 400, color: isActive ? col : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
                 {item.label}
               </span>
             </Link>
           );
         })}
         <button
-          className="tkdl-mobile-nav-item flex-1 flex flex-col items-center justify-center transition-colors duration-150 relative"
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-150 relative"
           type="button" aria-label="Open more navigation" aria-expanded={drawerOpen} aria-controls="tkdl-navigation-drawer"
           data-testid="button-mobile-nav-more"
           style={{ WebkitTapHighlightColor: "transparent", outline: "none", background: "none", border: "none" }}
@@ -684,8 +685,8 @@ export function Layout({ children }: { children: ReactNode }) {
           {drawerOpen && (
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full" style={{ background: "#ffffff", boxShadow: "0 0 8px rgba(255,255,255,0.6)" }} />
           )}
-          <Menu className="tkdl-mobile-nav-icon w-[18px] h-[18px]" aria-hidden style={{ color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", filter: drawerOpen ? "drop-shadow(0 0 6px rgba(255,255,255,0.7))" : "none", transition: "color 0.15s" }} />
-          <span className="tkdl-mobile-nav-label" style={{ fontWeight: drawerOpen ? 700 : 400, color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
+          <Menu className="w-5 h-5" aria-hidden style={{ color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", filter: drawerOpen ? "drop-shadow(0 0 6px rgba(255,255,255,0.7))" : "none", transition: "color 0.15s" }} />
+          <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.08em", fontWeight: drawerOpen ? 700 : 400, color: drawerOpen ? "#ffffff" : "rgba(255,255,255,0.5)", transition: "color 0.15s" }}>
             More
           </span>
         </button>
