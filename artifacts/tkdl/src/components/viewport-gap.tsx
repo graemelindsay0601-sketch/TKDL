@@ -30,10 +30,40 @@ export function useViewportBottomGap() {
   }, []);
 }
 
-// Open the app with ?vpdebug=1 to see the numbers the bottom nav is working with.
+const DEBUG_KEY = "tkdl-vpdebug";
+
+function readDebugFlag(): boolean {
+  try {
+    const param = new URLSearchParams(window.location.search).get("vpdebug");
+    if (param !== null) localStorage.setItem(DEBUG_KEY, param === "0" ? "0" : "1");
+    return localStorage.getItem(DEBUG_KEY) === "1";
+  } catch {
+    return new URLSearchParams(window.location.search).has("vpdebug");
+  }
+}
+
+// Shows the numbers the bottom nav is working with. Home-screen apps can't take
+// a URL parameter, so tapping the TKDL logo in the mobile header five times
+// within three seconds toggles it too (?vpdebug=1 / ?vpdebug=0 also work).
 export function ViewportDebug() {
-  const [enabled] = useState(() => new URLSearchParams(window.location.search).has("vpdebug"));
+  const [enabled, setEnabled] = useState(readDebugFlag);
   const [info, setInfo] = useState("");
+  useEffect(() => {
+    let taps: number[] = [];
+    const onClick = (event: MouseEvent) => {
+      if (!(event.target as Element | null)?.closest?.(".tkdl-mobile-brand")) return;
+      const now = Date.now();
+      taps = [...taps.filter(t => now - t < 3000), now];
+      if (taps.length < 5) return;
+      taps = [];
+      setEnabled(on => {
+        try { localStorage.setItem(DEBUG_KEY, on ? "0" : "1"); } catch { /* storage unavailable */ }
+        return !on;
+      });
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
   useEffect(() => {
     if (!enabled) return;
     const probe = document.createElement("div");
