@@ -263,6 +263,25 @@ for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
   document.addEventListener(type, event => event.preventDefault(), { passive: false });
 }
 
+// iOS home-screen apps can open (or resume) with a wrong viewport height that
+// floats the fixed bottom nav well above the home indicator until the page is
+// scrolled. Nudge the document by a pixel and back so it settles at once.
+function settleIosViewport() {
+  if (!/iP(hone|ad|od)/.test(navigator.userAgent)) return;
+  const nudge = () => {
+    const y = window.scrollY;
+    window.scrollTo(0, y + 1);
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  };
+  window.addEventListener("load", () => setTimeout(nudge, 50));
+  window.addEventListener("pageshow", () => setTimeout(nudge, 50));
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") setTimeout(nudge, 50);
+  });
+  window.addEventListener("orientationchange", () => setTimeout(nudge, 300));
+}
+settleIosViewport();
+
 async function startApp() {
   if (!import.meta.env.DEV) {
     await waitForServerReady();
