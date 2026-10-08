@@ -50,11 +50,10 @@ export function useWakeLock(active: boolean): void {
 }
 
 // ── Pinch-zoom lock ────────────────────────────────────────────────────────
-// The rest of the app leaves pinch-zoom on (handy for reading stats pages),
-// but a stray two-finger touch shouldn't zoom the dartboard out mid-throw —
-// no native scoring app allows that during play. Tightens the viewport meta
-// tag only while a match is on screen, and restores whatever it was
-// afterwards so the rest of the app is unaffected.
+// index.html and viewport.css now lock zoom app-wide (accidental zooms kept
+// breaking the fixed layout), so this is belt-and-braces for match screens:
+// it re-asserts the locked viewport meta while a match is on screen and puts
+// back whatever was there afterwards.
 export function useZoomLock(active: boolean): void {
   useEffect(() => {
     if (!active) return;

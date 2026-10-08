@@ -7,7 +7,6 @@ import { useAuth } from "@/context/auth";
 import { useSettings } from "@/hooks/use-settings";
 import { NotificationOptInPrompt } from "@/components/NotificationOptInPrompt";
 import { useToast } from "@/hooks/use-toast";
-import { useViewportBottomGap, ViewportDebug } from "@/components/viewport-gap";
 
 interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -229,7 +228,6 @@ function AccountWidget({ unreadCount = 0, collapsed = false }: { unreadCount?: n
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  useViewportBottomGap();
   const [location]                  = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
@@ -657,9 +655,8 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* The shared bottom nav also stays visible on Career subpages: Career's own
           destinations now sit in the page instead of occupying the bottom edge. */}
-      <ViewportDebug />
       <nav aria-label="Primary navigation" className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"
-        style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "max(0px, calc(env(safe-area-inset-bottom, 0px) - var(--tkdl-viewport-bottom-gap, 0px)))" }}>
+        style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           const col = item.color;

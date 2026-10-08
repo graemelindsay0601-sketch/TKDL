@@ -256,6 +256,13 @@ async function waitForServerReady(): Promise<void> {
   }
 }
 
+// Locked app screen: iOS Safari ignores user-scalable=no for pinch gestures,
+// so cancel its proprietary gesture events to stop accidental zooms that
+// break the fixed layout (see styles/viewport.css).
+for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
+  document.addEventListener(type, event => event.preventDefault(), { passive: false });
+}
+
 async function startApp() {
   if (!import.meta.env.DEV) {
     await waitForServerReady();
