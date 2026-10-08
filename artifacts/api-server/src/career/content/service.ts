@@ -1,6 +1,8 @@
 import {sql} from "drizzle-orm";
 import {z} from "zod";
 import {Router,type Request,type Response,type NextFunction} from "express";
+import type {} from "express-session";
+import type {} from "pino-http";
 import {authedWriteRateLimit} from "../../middleware/writeRateLimit.ts";
 import type {CareerDatabase} from "../database.ts";
 import {CareerError} from "../service.ts";
