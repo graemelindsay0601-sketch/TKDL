@@ -96,8 +96,8 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
       </div>
     </section>}
     {message&&<p className="pdc-card p-3" role="status">{message}</p>}
-    <nav className="tournament-tabs" aria-label="Tournament views">{(["progress","draw","field","results"] as const).map(t=>
-      <button key={t} onClick={()=>setTab(t)} aria-pressed={tab===t}>{t==="progress"?"Tournament Hub":t==="draw"?"Draw & fixtures":t==="field"?"Field & routes":"Results"}</button>)}</nav>
+    <nav className="tournament-tabs tkdl-tab-rail" aria-label="Tournament views">{(["progress","draw","field","results"] as const).map(t=>
+      <button key={t} type="button" className="tkdl-tab-trigger" onClick={()=>setTab(t)} aria-pressed={tab===t}>{t==="progress"?"Tournament Hub":t==="draw"?"Draw & fixtures":t==="field"?"Field & routes":"Results"}</button>)}</nav>
     {tab==="progress"&&<>
       {terminal?<section className="pdc-card p-5 space-y-3" aria-label="Tournament summary">
         {v.phase==="CHAMPION"?<>{!v.event.qSchool&&<div className="tournament-trophy" aria-hidden>{v.event.level===5?<SovereignTrophy/>:<Trophy size={56}/>}</div>}

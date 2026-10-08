@@ -26,8 +26,12 @@ export function LifePage({ctx,initialTab="Profile"}:{ctx:ShellContext;initialTab
   };
   const merchandise=async(value:string)=>{setMessage(null);try{await merch.mutateAsync(value);setMessage("Merchandise decision recorded.");}catch(e){setMessage(errorMessage(e));}};
   return <div className="space-y-3"><CareerSection title="Career Life & Public Profile">
-    <div className="p-4 flex flex-wrap gap-2" role="tablist" aria-label="Career Life areas">{["Profile","Opportunities","History"].map(t=><button className="career-btn career-btn-ghost" role="tab" aria-selected={tab===t} key={t} onClick={()=>setTab(t)}>{t}</button>)}
-      <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/stories`}>News & Story Threads</Link></div>
+    <div className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="tkdl-tab-rail" role="tablist" aria-label="Career Life areas">
+        {["Profile","Opportunities","History"].map(t=><button type="button" className="tkdl-tab-trigger career-btn career-btn-ghost" role="tab" aria-selected={tab===t} key={t} onClick={()=>setTab(t)}>{t}</button>)}
+      </div>
+      <Link className="career-btn career-btn-ghost shrink-0" href={`/career/${ctx.save.id}/stories`}>News & Story Threads</Link>
+    </div>
     {message&&<p role="status" className="px-4 text-sm">{message}</p>}
     <QueryState query={query} label="Reading Career Life">{d=><div className="p-4 pt-0 space-y-4">
       {d.retired&&<p>Retired Career — history remains readable; no new progression or opportunities.</p>}

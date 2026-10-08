@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell } from "lucide-react";
+import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
@@ -197,11 +198,42 @@ export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:b
   const actions=!retired?[...(active?[{title:`Return to ${active.name}`,path:`${base}/tournaments/${active.eventId}`}]:[]),
     ...(legacy.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
     ...(finance.data?.availableOffers?[{title:"Sponsor decision available",path:`${base}/finances`}]:[])]:[];
-  return <details className="career-attention" onToggle={event=>setOpen(event.currentTarget.open)}><summary><Bell size={15} aria-hidden/><span>Attention</span>{actions.length>0&&<span className="career-inbox-count" title="Known actions — open to check all updates">{actions.length}</span>}</summary><div className="career-attention-panel">
-    {open&&(finance.isLoading||life.isLoading||sporting.isLoading)&&<p role="status">Loading Career updates…</p>}
-    <h3>Action Required</h3>{actions.length?actions.map(a=><Link key={a.path} href={a.path}>{a.title}</Link>):<p>{finance.isLoading?"Checking pending decisions…":"No pending action reported."}</p>}
-    <h3>Career Update</h3>{sporting.data?.recentMilestones.slice(0,2).map((m,i)=><Link key={i} href={`${base}/journey`}>{String(m.kind).replace(/_/g," ")} · Season {m.season}</Link>)}
-    <h3>World News</h3>{life.data?.news.slice(0,Math.min(3,5-actions.length)).map(n=><Link key={n.id} href={`${base}/stories`}>{n.title}</Link>)}<Link href={`${base}/world`}>Explore Darts World</Link>
-    {(t.error||legacy.error||finance.error||life.error||sporting.error)&&<p>Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
-  </div></details>;
+  const panelId=`career-attention-panel-${saveId}`;
+  const milestones=sporting.data?.recentMilestones.slice(0,2)??[];
+  const news=life.data?.news.slice(0,Math.min(3,5-actions.length))??[];
+  return <Popover open={open} onOpenChange={setOpen}>
+    <PopoverTrigger asChild>
+      <button type="button" className="career-attention-trigger" data-testid="button-career-attention" aria-expanded={open} aria-controls={panelId}>
+        <Bell size={17} aria-hidden/><span>Attention</span>{actions.length>0&&<span className="career-inbox-count" title="Known actions — open to check all updates">{actions.length}</span>}
+      </button>
+    </PopoverTrigger>
+    <PopoverContent id={panelId} className="career-attention-panel" side="bottom" align="end" sideOffset={10} collisionPadding={12} aria-labelledby={`${panelId}-title`}>
+      <header className="career-attention-panel-header">
+        <div><span className="career-eyebrow">Career updates</span><h2 id={`${panelId}-title`}>Attention</h2><p>Your next steps and recent activity.</p></div>
+        <div className="career-attention-panel-tools">
+          {actions.length>0&&<span className="career-attention-total" data-testid="text-career-attention-count">{actions.length} action{actions.length===1?"":"s"}</span>}
+          <button type="button" className="career-attention-close" data-testid="button-close-career-attention" aria-label="Close Career attention" onClick={()=>setOpen(false)}><X size={17} aria-hidden/></button>
+        </div>
+      </header>
+      <div className="career-attention-content">
+        {(finance.isLoading||life.isLoading||sporting.isLoading)&&<p role="status" data-testid="status-career-attention-loading">Loading Career updates…</p>}
+        <section className="career-attention-group" aria-labelledby={`${panelId}-actions`}>
+          <h3 id={`${panelId}-actions`}>Action required</h3>
+          {actions.length?actions.map((a,i)=><Link key={a.path} data-testid={`link-career-action-${i}`} href={a.path}>{a.title}</Link>):<p>{finance.isLoading?"Checking pending decisions…":"No pending action reported."}</p>}
+        </section>
+        <section className="career-attention-group" aria-labelledby={`${panelId}-career`}>
+          <h3 id={`${panelId}-career`}>Career updates</h3>
+          {milestones.map((m,i)=><Link key={`${m.kind}-${m.season}-${i}`} data-testid={`link-career-milestone-${i}`} href={`${base}/journey`}>{String(m.kind).replace(/_/g," ")} · Season {m.season}</Link>)}
+          {sporting.data&&!milestones.length&&<p>No recent Career milestones.</p>}
+        </section>
+        <section className="career-attention-group" aria-labelledby={`${panelId}-world`}>
+          <h3 id={`${panelId}-world`}>World news</h3>
+          {news.map(n=><Link key={n.id} data-testid={`link-career-story-${n.id}`} href={`${base}/stories`}>{n.title}</Link>)}
+          {life.data&&!news.length&&<p>No recent Darts World stories.</p>}
+          <Link data-testid="link-explore-darts-world" href={`${base}/world`}>Explore Darts World</Link>
+        </section>
+        {(t.error||legacy.error||finance.error||life.error||sporting.error)&&<p className="career-attention-error" role="status">Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
+      </div>
+    </PopoverContent>
+  </Popover>;
 }

@@ -280,7 +280,7 @@ export default function Broadcast() {
     <div className="ls-grid">
       <section className="ls-standings ls-panel" aria-label="League standings">
         <div className="ls-panel-heading"><div className="ls-eyebrow">01 / THE STANDINGS</div><span>{String(page + 1).padStart(2,"0")} / {String(Math.max(1, Math.ceil((league?.rows.length ?? 0) / 7))).padStart(2,"0")}</span></div>
-        <nav className="ls-tabs" aria-label="Competition">{leagues.map(l => <button key={l.key} className={league?.key === l.key ? "active" : ""} onClick={() => selectLeague(l.key)}>{l.label}</button>)}</nav>
+        <nav className="ls-tabs tkdl-tab-rail" aria-label="Competition">{leagues.map(l => <button key={l.key} type="button" className={`tkdl-tab-trigger ${league?.key === l.key ? "active" : ""}`} aria-pressed={league?.key === l.key} onClick={() => selectLeague(l.key)}>{l.label}</button>)}</nav>
         <div className="ls-table" key={`${league?.key}-${page}`}>
           <div className="ls-table-head"><span>POS</span><span>{league?.key === "singles" ? "PLAYER" : "TEAM"}</span><span>W</span><span>L</span><span>PTS</span></div>
           {!loaded && <div className="ls-empty">Connecting to the league…</div>}

@@ -1136,3 +1136,75 @@ svg[class*="w-16"], svg[class*="h-16"] {
 .sm-cta-ready-pink  { animation: sm-cta-pulse-pink 2.2s ease-in-out infinite; }
 .sm-cta-ready-green { animation: sm-cta-pulse-green 2.2s ease-in-out infinite; }
 .sm-cta-ready-blue  { animation: sm-cta-pulse-blue 2.2s ease-in-out infinite; }
+
+/* Shared app tabs: one touch-friendly treatment for Career and the wider app. */
+.tkdl-tab-rail {
+  --tkdl-tab-accent: var(--tournament-accent, #ff005c);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 0, 92, 0.38) rgba(255, 255, 255, 0.035);
+  padding: 5px;
+  border: 1px solid rgba(150, 177, 204, 0.18);
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(20, 32, 47, 0.96), rgba(9, 17, 28, 0.96));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.045), 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+.tkdl-tab-rail--wrap { flex-wrap: wrap; overflow: visible; }
+.tkdl-tab-rail--amber { --tkdl-tab-accent: #ff8a00; }
+.tkdl-tab-rail > .tkdl-tab-trigger {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: max-content;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: rgba(201, 216, 232, 0.74);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: none;
+  transition: color 150ms ease, background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.tkdl-tab-rail > .tkdl-tab-trigger:hover:not(:disabled) {
+  color: #f6f9fd;
+  background: rgba(255, 255, 255, 0.055);
+}
+.tkdl-tab-rail > .tkdl-tab-trigger:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--tkdl-tab-accent) 78%, white);
+  outline-offset: 2px;
+}
+.tkdl-tab-rail > .tkdl-tab-trigger[aria-selected="true"],
+.tkdl-tab-rail > .tkdl-tab-trigger[aria-pressed="true"],
+.tkdl-tab-rail > .tkdl-tab-trigger.active,
+.tkdl-tab-rail > .tkdl-tab-trigger.is-active,
+.tkdl-tab-rail > .tkdl-tab-trigger[data-state="active"] {
+  border-color: color-mix(in srgb, var(--tkdl-tab-accent) 48%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--tkdl-tab-accent) 25%, transparent),
+    color-mix(in srgb, var(--tkdl-tab-accent) 11%, transparent)
+  );
+  color: #fff;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.12), 0 5px 16px color-mix(in srgb, var(--tkdl-tab-accent) 15%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tkdl-tab-rail > .tkdl-tab-trigger { transition: none; }
+}

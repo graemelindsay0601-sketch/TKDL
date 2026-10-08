@@ -156,10 +156,10 @@ export default function MatchCentre() {
       )}
 
       <section className="mc-controls">
-        <div className="mc-tabs">
+        <div className="mc-tabs tkdl-tab-rail">
           {(["all", "singles", "team", "doubles", "shift_wars"] as const).map(key => {
             const label = key === "all" ? "All Results" : MODE_INFO[key].label;
-            return <button key={key} className={mode === key ? "active" : ""} onClick={() => setMode(key)}>
+            return <button key={key} type="button" className={`tkdl-tab-trigger ${mode === key ? "active" : ""}`} aria-pressed={mode === key} onClick={() => setMode(key)}>
               {label}<span>{feed?.counts[key] ?? 0}</span>
             </button>;
           })}

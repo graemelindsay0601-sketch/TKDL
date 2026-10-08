@@ -12,8 +12,8 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
   const query=useLegacy(ctx.save.id),[tab,setTab]=useState(initialTab),[season,setSeason]=useState<number|null>(null),[event,setEvent]=useState<string|null>(null);
   const seasonQuery=useSeasonReview(ctx.save.id,season),eventQuery=useEventLegacy(ctx.save.id,event);
   return <div className="space-y-3"><CareerSection title="History & Legacy">
-    <div className="p-4 flex flex-wrap gap-2" role="tablist" aria-label="History & Legacy areas">{tabs.map(t=>
-      <button key={t} role="tab" aria-selected={tab===t} className="career-btn career-btn-ghost" onClick={()=>setTab(t)}>{t}</button>)}</div>
+    <div className="p-4 pb-3"><div className="tkdl-tab-rail" role="tablist" aria-label="History & Legacy areas">{tabs.map(t=>
+      <button type="button" key={t} role="tab" aria-selected={tab===t} className="tkdl-tab-trigger career-btn career-btn-ghost" onClick={()=>setTab(t)}>{t}</button>)}</div></div>
     <QueryState query={query} label="Reading permanent Career history">{d=><div className="p-4 pt-0 space-y-4">
       {d.pendingReview!==null&&<Transition saveId={ctx.save.id} season={d.pendingReview}/>}
       {tab==="Career Record"&&<>

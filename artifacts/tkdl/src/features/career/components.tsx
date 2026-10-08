@@ -168,9 +168,9 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
 /** Accessible segmented tabs (roving buttons with aria-pressed; content rendered by caller). */
 export function Segmented<T extends string>({ value, options, onChange, label, wrap }: { value: T; options: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; label: string; wrap?: boolean }) {
   return (
-    <div role="group" aria-label={label} className={wrap ? "flex flex-wrap gap-1" : "flex gap-1 overflow-x-auto no-scrollbar"}>
+    <div role="group" aria-label={label} className={`tkdl-tab-rail${wrap ? " tkdl-tab-rail--wrap" : ""}`}>
       {options.map(o => (
-        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)} className="career-chip" data-active={value === o.value}>
+        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)} className="tkdl-tab-trigger career-chip" data-active={value === o.value}>
           {o.label}{o.count !== undefined && <span className="opacity-60 ml-1">{o.count}</span>}
         </button>
       ))}

@@ -285,9 +285,9 @@ export default function BoardCursePage() {
             Every curse this mode can throw at you. Numbers shown are one example roll — the real bite is re-rolled fresh each time.
           </div>
         </div>
-        <div className="bc-tabs mb-6">
+        <div className="bc-tabs tkdl-tab-rail tkdl-tab-rail--amber mb-6">
           {(["X01", "CRICKET"] as CurseGameMode[]).map(m => (
-            <button key={m} className={`bc-tab ${screen.gameMode === m ? "active" : ""}`} onClick={() => setScreen({ kind: "compendium", gameMode: m })}>
+            <button key={m} type="button" className={`bc-tab tkdl-tab-trigger ${screen.gameMode === m ? "active" : ""}`} aria-pressed={screen.gameMode === m} onClick={() => setScreen({ kind: "compendium", gameMode: m })}>
               {m === "X01" ? "501" : "Cricket"}
             </button>
           ))}
@@ -317,9 +317,9 @@ export default function BoardCursePage() {
           <div style={{ fontSize: "1.4rem", fontWeight: 900, color: "#fff" }}><Crown className="inline w-5 h-5 mr-1.5" style={{ color: "#ffd24a" }} />Board Curse Leaderboard</div>
           <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", marginTop: "4px" }}>Solo — across everyone</div>
         </div>
-        <div className="bc-tabs mb-6">
+        <div className="bc-tabs tkdl-tab-rail tkdl-tab-rail--amber mb-6">
           {(["X01", "CRICKET"] as CurseGameMode[]).map(m => (
-            <button key={m} className={`bc-tab ${screen.gameMode === m ? "active" : ""}`} onClick={() => { setScreen({ kind: "leaderboard", gameMode: m }); loadLeaderboard(m); }}>
+            <button key={m} type="button" className={`bc-tab tkdl-tab-trigger ${screen.gameMode === m ? "active" : ""}`} aria-pressed={screen.gameMode === m} onClick={() => { setScreen({ kind: "leaderboard", gameMode: m }); loadLeaderboard(m); }}>
               {m === "X01" ? "501" : "Cricket"}
             </button>
           ))}
@@ -456,9 +456,9 @@ export default function BoardCursePage() {
           <div className="bc-panel-heading"><span>Configure The Encounter</span><small>02</small></div>
       <div className="bc-field">
         <span className="bc-field-label">Game</span>
-        <div className="bc-tabs">
+        <div className="bc-tabs tkdl-tab-rail tkdl-tab-rail--amber">
           {(["X01", "CRICKET"] as CurseGameMode[]).map(m => (
-            <button key={m} className={`bc-tab ${gameMode === m ? "active" : ""}`} onClick={() => setGameMode(m)}>
+            <button key={m} type="button" className={`bc-tab tkdl-tab-trigger ${gameMode === m ? "active" : ""}`} aria-pressed={gameMode === m} onClick={() => setGameMode(m)}>
               {m === "X01" ? "501" : "Cricket"}
             </button>
           ))}
