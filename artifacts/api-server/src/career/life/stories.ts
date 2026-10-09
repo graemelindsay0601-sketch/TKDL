@@ -81,6 +81,12 @@ export function storyEngine(s:LifeSources):Story[] {
     const significant=s.facts.records.firstTourCard?.id===f.id||s.facts.records.regainedTourCards.some(c=>c.id===f.id)||/lost/i.test(f.label);
     add("card-status",f,f.label,"card","card",significant?"MAJOR":"NEWS");
   }
+  for(const f of s.facts.timeline.filter(f=>f.id.startsWith("sponsor-event:"))) {
+    const eventType=f.source.replace("A4 sponsor journey event: ","");
+    const important=["SIGNED","SPONSOR_ACCEPTED_REQUEST","OFFER_RECEIVED"].includes(eventType);
+    add(`sponsor-${eventType.toLowerCase().replaceAll("_","-")}`,f,f.label,"commercial",
+      `commercial:${f.label.split(" — ")[0]}`,important?"MOMENT":"NEWS");
+  }
   for(const f of s.facts.timeline.filter(f=>f.id.startsWith("qualification:"))) {
     const milestone=s.recognition.contexts.find(c=>["MAJOR_STAGE","INTERNATIONAL"].includes(c.context)&&c.evidence.some(e=>e.id===f.id));
     add("qualification",f,f.label,"qualification","breakthrough",milestone?"MOMENT":"NEWS");

@@ -26,6 +26,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
   const [replace,setReplace]=useState<Record<string,string[]>>({});
   const [signingReveal, setSigningReveal] = useState<SponsorSigningReveal | null>(null);
   const active=sponsors.data?.activeContracts??(sponsors.data?.active?[sponsors.data.active]:[]);
+  const sponsorInterests = (sponsors.data?.journeys ?? []).filter(journey => journey.status === "INTEREST");
   const commitments = (schedule.data?.events ?? []).filter(e => e.finance?.commitment && ["ENTERED", "TRAVEL_COMMITTED"].includes(e.finance.commitment.status) && e.status !== "COMPLETED");
 
   return (
@@ -38,6 +39,24 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
+      {sponsorInterests.length > 0 && (
+        <CareerSection title="Brands watching your progress" icon={<Handshake className="w-3.5 h-3.5" />} accent="#38bdf8">
+          <ul>{sponsorInterests.map(journey => {
+            const event = journey.source.event as Record<string, unknown> | undefined;
+            const eventName = typeof event?.eventName === "string" ? event.eventName : "a completed event";
+            const position = Number(event?.finishingPosition);
+            const finish = event?.isChampion === true ? "won" :
+              Number.isInteger(position) && position > 0 ? `finished ${position}${ordinalSuffix(position)}` : "recorded a result";
+            return <li key={journey.id} className="px-4 py-3 border-b last:border-b-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+              <span className="font-black uppercase" style={{ ...OSWALD, color: "#fff" }}>{journey.displayName}</span>
+              <StatusBadge label={titleCase(journey.tier)} tone="info" />
+              <span className="w-full text-xs" style={{ color: "rgba(255,255,255,0.72)" }}>
+                {eventName} · You {finish}. Exploratory interest only — there is no offer or payment yet.
+              </span>
+            </li>;
+          })}</ul>
+        </CareerSection>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CareerSection title="Sponsor portfolio" icon={<Handshake className="w-3.5 h-3.5" />} accent="#4ade80">
@@ -143,6 +162,12 @@ function Terms({ terms }: { terms: SponsorTerms }) {
   for (const c of terms.coverage) lines.push(`Covers ${c.percent}% of ${c.costTypes.map(t => ledgerLabel(t).toLowerCase()).join(" + ")}${c.perEventCapPence ? `, up to ${formatPence(c.perEventCapPence)} per event` : ""}${c.seasonCapPence ? `, ${formatPence(c.seasonCapPence)} per season` : ""}${c.circuits ? ` (${c.circuits.map(circuitLabel).join(", ")})` : ""}`);
   for (const b of terms.performanceBonuses) lines.push(`Bonus ${formatPence(b.amountPence)} for ${b.maxPosition === 1 ? "a title" : `top ${b.maxPosition}`}${b.circuits ? ` (${b.circuits.map(circuitLabel).join(", ")})` : ""}`);
   return <ul className="space-y-0.5 text-xs" style={{ color: "rgba(255,255,255,0.72)" }}>{lines.map(l => <li key={l}>• {l}</li>)}</ul>;
+}
+
+function ordinalSuffix(value: number) {
+  const mod100 = value % 100;
+  if (mod100 >= 11 && mod100 <= 13) return "th";
+  return value % 10 === 1 ? "st" : value % 10 === 2 ? "nd" : value % 10 === 3 ? "rd" : "th";
 }
 
 function Ledger({ saveId }: { saveId: string }) {

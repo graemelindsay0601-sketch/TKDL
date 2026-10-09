@@ -24,8 +24,12 @@ export function SponsorSigningReveal({ deal, onDismiss }: { deal: SponsorSigning
         <div className="career-sponsor-signing__eyebrow">Partnership signed · {titleCase(deal.tier)} partner</div>
         <h2>{deal.displayName}</h2>
         <p className="career-sponsor-signing__term">Active from Season {deal.start.season}, Week {deal.start.week} · through Season {deal.end.season}, Week {deal.end.week}</p>
+        <p className="career-sponsor-signing__term">
+          {deal.playerName}{deal.category ? ` · ${titleCase(deal.category)}` : ""}
+          {deal.representative?.displayName ? ` · Represented by ${deal.representative.displayName}${deal.representative.role ? `, ${deal.representative.role}` : ""}` : ""}
+        </p>
         <div className="career-sponsor-signing__facts">
-          <div><span>Signing payment</span><strong>{formatPence(terms.signingBonusPence)}</strong></div>
+          <div><span>Signing payment</span><strong>{terms.signingBonusPence > 0 ? formatPence(terms.signingBonusPence) : "No signing payment"}</strong></div>
           {terms.eventPayment && <div><span>Per event played</span><strong>{formatPence(terms.eventPayment.amountPence)}</strong></div>}
           {terms.coverage.map((item, index) => (
             <div key={`${item.costTypes.join("-")}-${index}`}>

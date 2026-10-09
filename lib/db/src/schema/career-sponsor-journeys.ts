@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, unique, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { careerSavesTable } from "./career-saves";
 import { careerSponsorContractsTable, careerSponsorOffersTable } from "./career-finance";
 
@@ -15,8 +15,8 @@ export const careerSponsorJourneysTable = pgTable("career_sponsor_journeys", {
   operationKey: text("operation_key").notNull(),
   sponsorKey: text("sponsor_key").notNull(),
   sponsorDatabaseVersion: integer("sponsor_database_version").notNull(),
-  openingOfferId: uuid("opening_offer_id").notNull(),
-  currentOfferId: uuid("current_offer_id").notNull(),
+  openingOfferId: uuid("opening_offer_id"),
+  currentOfferId: uuid("current_offer_id"),
   signedContractId: uuid("signed_contract_id"),
   status: text("status").notNull(),
   revision: integer("revision").notNull().default(0),
@@ -45,6 +45,8 @@ export const careerSponsorJourneyEventsTable = pgTable("career_sponsor_journey_e
   eventKey: text("event_key").notNull(),
   eventType: text("event_type").notNull(),
   offerId: uuid("offer_id"),
+  season: integer("season"),
+  week: integer("week"),
   details: jsonb("details").notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
@@ -71,7 +73,8 @@ export const careerSponsorNegotiationsTable = pgTable("career_sponsor_negotiatio
 }, t => [
   primaryKey({ columns: [t.careerSaveId, t.id] }),
   unique("career_sponsor_negotiations_request_unique").on(t.careerSaveId, t.requestKey),
-  unique("career_sponsor_negotiations_round_unique").on(t.careerSaveId, t.journeyId, t.round),
+  uniqueIndex("career_sponsor_negotiations_round_unique_idx")
+    .on(t.careerSaveId, t.journeyId, t.round).where(sql`outcome <> 'EXPIRED'`),
   foreignKey({ columns: [t.careerSaveId, t.journeyId], foreignColumns: [careerSponsorJourneysTable.careerSaveId, careerSponsorJourneysTable.id] }).onDelete("cascade"),
   foreignKey({ columns: [t.careerSaveId, t.sourceOfferId], foreignColumns: [careerSponsorOffersTable.careerSaveId, careerSponsorOffersTable.id] }).onDelete("cascade"),
   foreignKey({ columns: [t.careerSaveId, t.responseOfferId], foreignColumns: [careerSponsorOffersTable.careerSaveId, careerSponsorOffersTable.id] }).onDelete("cascade"),

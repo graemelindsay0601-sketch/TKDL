@@ -71,13 +71,44 @@ export function createCareerFactsService(database: CareerDatabase) {
           (num(previous,'ended_season')*52+num(previous,'ended_week')) < (num(r,'awarded_season')*52+num(r,'awarded_week')) ? [cardFacts[i]] : [];
       });
       const sponsors = await query(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id=${saveId}`);
+      const sponsorEvents = await query(sql`SELECT e.id, e.event_type, e.season, e.week, e.details,
+          COALESCE(j.source->>'displayName', j.source->'sponsor'->>'displayName',
+            j.source->'formalOffer'->'sponsor'->>'displayName', j.sponsor_key) AS sponsor_name,
+          COALESCE(e.details->'source'->>'eventName', e.details->'source'->'event'->>'eventName',
+            j.source->'event'->>'eventName', j.source->'formalOffer'->>'eventName') AS source_event_name,
+          COALESCE(e.details->'source'->>'eventId', e.details->'source'->'event'->>'eventId',
+            j.source->'event'->>'eventId', j.source->'formalOffer'->>'eventId') AS source_event_id,
+          j.signed_contract_id
+        FROM career_sponsor_journey_events e JOIN career_sponsor_journeys j
+          ON j.career_save_id=e.career_save_id AND j.id=e.journey_id
+        WHERE e.career_save_id=${saveId} AND e.season IS NOT NULL AND e.week IS NOT NULL
+          AND e.event_type IN ('INTEREST','OFFER_RECEIVED','SPONSOR_ACCEPTED_REQUEST','SPONSOR_REJECTED',
+            'SPONSOR_WITHDREW','PLAYER_DECLINED','PLAYER_WALKED_AWAY','SIGNED','OFFER_EXPIRED')
+        ORDER BY e.season,e.week,e.ordinal,e.id LIMIT 500`);
+      const signedJourneyContractIds = new Set(sponsorEvents.filter(r => r.event_type === "SIGNED")
+        .map(r => String(r.signed_contract_id ?? "")).filter(Boolean));
+      const sponsorJourneyFacts = sponsorEvents.map(r => {
+        const details = object(r.details);
+        const sponsorName = text(r, 'sponsor_name');
+        const summary = typeof details.summary === "string" ? details.summary
+          : typeof details.message === "string" ? details.message : "";
+        const eventName = text(r, "source_event_name");
+        const context = eventName ? ` after ${eventName}` : "";
+        const eventType = text(r, "event_type");
+        const labelText = summary ? `${sponsorName} — ${summary}${context}` : `${sponsorName} — ${label(eventType)}${context}`;
+        return fact(`sponsor-event:${eventType}:${text(r,'id')}`, `A4 sponsor journey event: ${eventType}`,
+          labelText, num(r,'season'), (num(r,'week')-1)*7+1,
+          text(r,'source_event_id') || undefined);
+      });
       const entitlements = await query(sql`SELECT q.*, i.end_day AS source_day, i.season AS source_season FROM career_qualification_entitlements q
         LEFT JOIN career_event_instances i ON i.career_save_id=q.career_save_id AND i.id=q.source_event_id WHERE q.career_save_id=${saveId} AND q.recipient_key='HUMAN'`);
       const timeline: Fact[] = [fact('career-start','A1 profile','Career started',1,1), ...matchFacts, ...results,
         ...milestones.map(r=>fact(`milestone:${text(r,'id')}`,'A5 sporting milestone',label(text(r,'kind')),num(r,'season'),weekDay(r),undefined,object(r.detail).humanAge)),
         ...cardFacts,
         ...cards.filter(r=>r.ended_season!==null).map(r=>fact(`card-end:${text(r,'id')}`,'A5 Tour Card',`Tour Card ${label(text(r,'status'))}`,num(r,'ended_season'),weekDay(r,'ended_week'))),
-        ...sponsors.map(r=>fact(`sponsor:${text(r,'id')}`,'A4 sponsor contract',`Sponsor signed: ${text(r,'sponsor_key')} (${label(text(r,'tier'))})`,num(r,'start_season'),weekDay(r,'start_week'))),
+        ...sponsors.filter(r=>!signedJourneyContractIds.has(text(r,'id')))
+          .map(r=>fact(`sponsor:${text(r,'id')}`,'A4 sponsor contract',`Sponsor signed: ${text(r,'sponsor_key')} (${label(text(r,'tier'))})`,num(r,'start_season'),weekDay(r,'start_week'))),
+        ...sponsorJourneyFacts,
         ...entitlements.map(r=>fact(`qualification:${text(r,'id')}`,'A3 qualification',`Qualified: ${text(r,'target_key')} — ${label(text(r,'entitlement_type'))}`,num(r,'awarded_season'),r.source_day != null && r.source_season===r.awarded_season ? num(r,'source_day') : null,text(r,'source_event_id') || undefined))
       ].sort(chronological);
       // Existing A5 milestones cover Q-School/ranking progress; snapshots expose

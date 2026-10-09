@@ -5,17 +5,18 @@ import type { CareerExecutor } from "../database.ts";
 import type { RootRow } from "../calendar/engine.ts";
 import { stableUuid } from "../world/random.ts";
 import { SPONSOR_DATABASE_VERSION } from "./config.ts";
-import { createSponsorOfferRevision, declineOffer, withdrawOffer } from "./engine.ts";
+import { createSponsorOfferRevision, declineOffer, timeIndex, withdrawOffer } from "./engine.ts";
 import { appendSponsorJourneyEvent } from "./sponsor-journey.ts";
 import { parseSponsorTerms, type SponsorTerms, type SponsorTier } from "./sponsors.catalogue.ts";
 
 const penceSchema = z.number().int().min(0).max(2_000_000_000);
+const positivePenceSchema = z.number().int().min(1).max(2_000_000_000);
 const negotiationChangeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("SIGNING_BONUS"), amountPence: penceSchema }).strict(),
   z.object({ kind: z.literal("EVENT_PAYMENT"), amountPence: penceSchema }).strict(),
-  z.object({ kind: z.literal("COVERAGE_PERCENT"), index: z.number().int().min(0).max(31), percent: z.number().int().min(0).max(100) }).strict(),
+  z.object({ kind: z.literal("COVERAGE_PERCENT"), index: z.number().int().min(0).max(31), percent: z.number().int().min(1).max(100) }).strict(),
   z.object({ kind: z.literal("DURATION"), seasons: z.number().int().min(1).max(5) }).strict(),
-  z.object({ kind: z.literal("PERFORMANCE_BONUS"), key: z.string().min(1).max(80), amountPence: penceSchema }).strict(),
+  z.object({ kind: z.literal("PERFORMANCE_BONUS"), key: z.string().min(1).max(80), amountPence: positivePenceSchema }).strict(),
 ]);
 export const sponsorNegotiationSchema = z.object({
   requestKey: z.string().min(8).max(80).regex(/^[A-Za-z0-9:_-]+$/),
@@ -27,7 +28,7 @@ const MAX_ROUNDS = 2;
 type NegotiationChange = z.infer<typeof negotiationChangeSchema>;
 type SponsorNegotiationInput = z.infer<typeof sponsorNegotiationSchema>;
 type SponsorNegotiationResult = {
-  outcome: "ACCEPTED" | "COUNTERED" | "REJECTED" | "WITHDRAWN";
+  outcome: "ACCEPTED" | "COUNTERED" | "REJECTED" | "WITHDRAWN" | "EXPIRED";
   round: number;
   maxRounds: number;
   revision: number;
@@ -58,13 +59,44 @@ export async function negotiateSponsorOffer(
   const journey = (await tx.execute(sql`SELECT * FROM career_sponsor_journeys
     WHERE career_save_id = ${root.id} AND current_offer_id = ${offerId} FOR UPDATE`)).rows[0];
   if (!journey) throw new CareerError(409, "This offer does not have an active negotiation journey");
+  const rawOffer = (await tx.execute(sql`SELECT * FROM career_sponsor_offers
+    WHERE career_save_id = ${root.id} AND id = ${offerId} FOR UPDATE`)).rows[0] as Record<string, unknown> | undefined;
+  if (!rawOffer) throw new CareerError(404, "Sponsor offer not found");
+  const expired = rawOffer.status === "EXPIRED"
+    || String(journey.status) === "EXPIRED"
+    || timeIndex(Number(rawOffer.expires_season), Number(rawOffer.expires_week))
+      < timeIndex(Number(root.current_season), Number(root.current_week));
+  if (expired) {
+    if (rawOffer.status === "AVAILABLE") {
+      await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'EXPIRED', status_reason = 'EXPIRED_BEFORE_NEGOTIATION', resolved_at = NOW()
+        WHERE career_save_id = ${root.id} AND id = ${offerId} AND status = 'AVAILABLE'`);
+    }
+    if (["OFFERED", "NEGOTIATING"].includes(String(journey.status))) {
+      await tx.execute(sql`UPDATE career_sponsor_journeys SET status = 'EXPIRED', updated_at = NOW()
+        WHERE career_save_id = ${root.id} AND id = ${journey.id}`);
+    }
+    await appendSponsorJourneyEvent(tx, root, {
+      journeyId: String(journey.id), eventKey: `expired:${offerId}`, eventType: "OFFER_EXPIRED", offerId,
+      season: Number(root.current_season), week: Number(root.current_week),
+      details: { headline: "Offer expired", summary: "The response window closed before a new negotiation could be made." },
+    });
+    const recordedRound = Math.min(MAX_ROUNDS, Math.max(1, Number(journey.negotiation_rounds) + 1));
+    const result: SponsorNegotiationResult = {
+      outcome: "EXPIRED", round: recordedRound, maxRounds: MAX_ROUNDS,
+      revision: Number(journey.revision), offerId: null,
+      message: "This sponsor offer has expired. No counter or contract was created.",
+    };
+    await tx.execute(sql`INSERT INTO career_sponsor_negotiations
+      (career_save_id, id, journey_id, request_key, round, source_offer_id, response_offer_id, request, outcome, response)
+      VALUES (${root.id}, ${stableUuid(root.world_seed, SPONSOR_DATABASE_VERSION, "sponsor-negotiation", input.requestKey)},
+        ${journey.id}, ${input.requestKey}, ${recordedRound}, ${offerId}, NULL,
+        ${JSON.stringify(request)}::jsonb, 'EXPIRED', ${JSON.stringify(result)}::jsonb)`);
+    return result;
+  }
   if (!["OFFERED", "NEGOTIATING"].includes(String(journey.status))) throw new CareerError(409, "This sponsor journey is no longer open");
   if (Number(journey.revision) !== input.expectedRevision) throw new CareerError(409, "This offer changed; reload it before negotiating");
   const round = Number(journey.negotiation_rounds) + 1;
   if (round > MAX_ROUNDS) throw new CareerError(409, "The sponsor has reached its negotiation limit");
-
-  const rawOffer = (await tx.execute(sql`SELECT * FROM career_sponsor_offers
-    WHERE career_save_id = ${root.id} AND id = ${offerId} FOR UPDATE`)).rows[0] as Record<string, unknown> | undefined;
   if (!rawOffer || rawOffer.status !== "AVAILABLE") throw new CareerError(409, "This sponsor offer is no longer available");
   const originalTerms = parseSponsorTerms(rawOffer.terms);
   const proposedTerms = applyChange(originalTerms, input.change);
@@ -154,6 +186,7 @@ function applyChange(terms: SponsorTerms, change: NegotiationChange, override?: 
     case "EVENT_PAYMENT":
       if (!copy.eventPayment) throw new CareerError(400, "This offer has no event payment to negotiate");
       copy.eventPayment.amountPence = override ?? change.amountPence;
+      if (copy.eventPayment.amountPence === 0) copy.eventPayment = null;
       break;
     case "COVERAGE_PERCENT":
       if (!copy.coverage[change.index]) throw new CareerError(400, "That cost-coverage term is not part of this offer");
@@ -165,7 +198,9 @@ function applyChange(terms: SponsorTerms, change: NegotiationChange, override?: 
     case "PERFORMANCE_BONUS": {
       const bonus = copy.performanceBonuses.find(item => item.key === change.key);
       if (!bonus) throw new CareerError(400, "That performance bonus is not part of this offer");
-      bonus.amountPence = override ?? change.amountPence;
+      const amountPence = override ?? change.amountPence;
+      if (amountPence === 0) copy.performanceBonuses = copy.performanceBonuses.filter(item => item.key !== change.key);
+      else bonus.amountPence = amountPence;
       break;
     }
   }

@@ -13,7 +13,7 @@ import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
 import {sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
-import { createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
+import { createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
 
 const HUMAN = "HUMAN";
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS + week;
@@ -144,8 +144,9 @@ export function defaultFactsProvider(calendarProviders: CalendarProviders): Spon
 
 // ------------------------------------------------------------------ sponsor offers / contracts
 type OfferRow = { id: string; sponsor_key: string; tier: SponsorTier; kind: string; terms: SponsorTerms; status: string; expires_season: number; expires_week: number; offered_season: number; offered_week: number };
-function contractEnd(terms: SponsorTerms, season: number) {
-  return terms.duration.kind === "REMAINDER_OF_SEASON" ? { season, week: WEEKS } : { season: season + terms.duration.seasons - 1, week: WEEKS };
+function contractEnd(terms: SponsorTerms, season: number, week: number) {
+  if (terms.duration.kind === "REMAINDER_OF_SEASON") return { season, week: WEEKS };
+  return fromIndex(timeIndex(season, week) + terms.duration.seasons * WEEKS - 1);
 }
 async function syncSponsorCache(tx: CareerExecutor, saveId: string) {
   const active = await activeContract(tx, saveId);
@@ -180,7 +181,8 @@ export async function evaluateOffers(
   const version=(await tx.execute(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${root.id}`)).rows[0];
   const offers = (await tx.execute(sql`SELECT sponsor_key, status, offered_season FROM career_sponsor_offers WHERE career_save_id = ${root.id}`)).rows;
   const blocked = new Set(offers.filter(o => o.status === "AVAILABLE" || (["DECLINED","EXPIRED","ACCEPTED","COUNTERED","WITHDRAWN"].includes(String(o.status)) && Number(o.offered_season) === season)).map(o => String(o.sponsor_key)));
-  const candidates = sponsorCatalogue(Number(version?.sponsor_database_version??1))
+  const catalogue = sponsorCatalogue(Number(version?.sponsor_database_version??1));
+  const candidates = catalogue
     .filter(d => evaluateRequirement(d.offerRequirement, facts) === true)
     .filter(d => !active.some(c=>c.sponsor_key===d.key))
     .filter(d => !d.terms.geographicPreference || d.terms.geographicPreference===root.settings_snapshot?.homeLocality)
@@ -194,10 +196,45 @@ export async function evaluateOffers(
     if (await insertOffer(tx, root, operationKey, "NEW", structuredClone(d.terms),
       { trigger: triggerKey, facts, requiresReplacement: conflicts(d.terms,active), ...(approachSource ? { approachSource } : {}) }, season, week)) {
       created.push(d.key);
-      if (approachSource) {
-        const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
-        if (offerId) await createSponsorJourney(tx, root, { offerId: String(offerId), operationKey: `journey:${offerId}`, terms: structuredClone(d.terms), source: approachSource });
+      const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
+      if (offerId) {
+        const journeySource: SponsorApproachSource = approachSource ?? {
+          kind: "SPORTING_ELIGIBILITY", triggerKey, season, week, facts: structuredClone(facts),
+          offerRequirement: structuredClone(d.offerRequirement),
+        };
+        await createSponsorJourney(tx, root, { offerId: String(offerId), operationKey: `journey:${offerId}`, terms: structuredClone(d.terms), source: journeySource });
       }
+    }
+  }
+
+  // A real completed result can draw exploratory interest without granting an
+  // offer. Keep it separate from A4 eligibility and create at most one per
+  // result; replaying a result that already produced an approach is a no-op.
+  if (approachSource?.kind === "RESULT" && created.length === 0) {
+    const sourceAlreadyRecorded = (await tx.execute(sql`SELECT 1 FROM career_sponsor_journey_events
+      WHERE career_save_id = ${root.id} AND details->'source'->>'eventId' = ${approachSource.eventId} LIMIT 1`)).rows.length > 0;
+    if (!sourceAlreadyRecorded) {
+      const existingInterests = new Set((await tx.execute(sql`SELECT sponsor_key FROM career_sponsor_journeys
+        WHERE career_save_id = ${root.id} AND status = 'INTEREST'`)).rows.map(row => String(row.sponsor_key)));
+      const interestBands: Record<SponsorTier, { circuits: readonly string[]; maxPosition: number }> = {
+        LOCAL: { circuits: ["GRASSROOTS", "COUNTY", "REGIONAL"], maxPosition: 8 },
+        REGIONAL: { circuits: ["REGIONAL", "NATIONAL_AMATEUR", "CHALLENGER", "VAULT"], maxPosition: 16 },
+        PROFESSIONAL: { circuits: ["PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES"], maxPosition: 16 },
+        ELITE: { circuits: ["MAJOR", "WORLD_CHAMPIONSHIP"], maxPosition: 8 },
+      } as const;
+      const prospect = catalogue
+        .filter(d => evaluateRequirement(d.offerRequirement, facts) === false)
+        .filter(d => !existingInterests.has(d.key) && !blocked.has(d.key) && !active.some(contract => contract.sponsor_key === d.key))
+        .filter(d => !d.terms.geographicPreference || d.terms.geographicPreference === root.settings_snapshot?.homeLocality)
+        .filter(d => conflicts(d.terms, active).length > 0 || active.length < portfolioLimit(facts))
+        .filter(d => {
+          const band = interestBands[d.terms.tier];
+          return band.circuits.includes(approachSource.circuit)
+            && approachSource.finishingPosition <= band.maxPosition
+            && approachSource.classification?.toUpperCase() !== "QUALIFIER";
+        })
+        .sort((a, b) => tierRank(b.terms.tier) - tierRank(a.terms.tier) || (a.key < b.key ? -1 : 1))[0];
+      if (prospect) await createSponsorInterest(tx, root, { terms: structuredClone(prospect.terms), source: approachSource });
     }
   }
   return created;
@@ -249,12 +286,12 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   if (!offer) throw new CareerError(404, "Sponsor offer not found");
   if (offer.status === "ACCEPTED") {
     const existing = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND offer_id = ${offerId}`)).rows[0] as ContractRow;
-    return { contract: existing, created: false };
+    return { contract: existing, created: false, expired: false as const };
   }
   if (offer.status !== "AVAILABLE") throw new CareerError(409, `Sponsor offer is ${offer.status.toLowerCase()}`);
   if (timeIndex(offer.expires_season, offer.expires_week) < timeIndex(season, week)) {
     await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'EXPIRED', status_reason = 'EXPIRED_BEFORE_ACCEPT', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId}`);
-    throw new CareerError(409, "Sponsor offer has expired");
+    return { contract: null, created: false, expired: true as const };
   }
   const previous = await activeContracts(tx, root.id), replacements=new Set(options.replaceContractIds??[]);
   if ([...replacements].some(id=>!previous.some(c=>c.id===id)))throw new CareerError(409,"Replacement must name an active owned contract");
@@ -271,7 +308,7 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
     throw new CareerError(409,"This local sponsor requires the matching home locality");
   if(remaining.length>=portfolioLimit(facts))throw new CareerError(409,"Sponsor portfolio is full for current sporting stature; explicitly replace an owned contract");
   for(const id of replacements)await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'EXPLICITLY_REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${id}`);
-  const end = contractEnd(offer.terms, season);
+  const end = contractEnd(offer.terms, season, week);
   const contractId = stableUuid(root.world_seed, SPONSOR_DATABASE_VERSION, "sponsor-contract", offer.id);
   await tx.execute(sql`INSERT INTO career_sponsor_contracts (career_save_id, id, offer_id, sponsor_key, sponsor_database_version, tier, terms, start_season, start_week, end_season, end_week, status)
     VALUES (${root.id}, ${contractId}, ${offer.id}, ${offer.sponsor_key}, ${offer.terms.sponsorDatabaseVersion}, ${offer.tier}, ${JSON.stringify(offer.terms)}::jsonb, ${season}, ${week}, ${end.season}, ${end.week}, 'ACTIVE')`);
@@ -282,7 +319,7 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
       reason: `${offer.terms.displayName} signing bonus`, season, week, contractId, detail: { sponsorKey: offer.sponsor_key, offerId } });
   }
   await syncSponsorCache(tx, root.id);
-  return { contract: (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND id = ${contractId}`)).rows[0] as ContractRow, created: true };
+  return { contract: (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND id = ${contractId}`)).rows[0] as ContractRow, created: true, expired: false as const };
 }
 
 export async function declineOffer(tx: CareerExecutor, root: RootRow, offerId: string, reason = "PLAYER_DECLINED") {
@@ -309,7 +346,7 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
   const now = timeIndex(season, week);
   await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'EXPIRED', status_reason = 'LAPSED', resolved_at = NOW()
     WHERE career_save_id = ${root.id} AND status = 'AVAILABLE' AND ((expires_season - 1) * 52 + expires_week) < ${now}`);
-  await syncExpiredSponsorJourneys(tx, root);
+  await syncExpiredSponsorJourneys(tx, root, season, week);
   const portfolio = await activeContracts(tx, root.id);
   let known: SportingFacts | null = null;
   const getFacts = async () => known ??= await facts();
@@ -480,20 +517,20 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       const portfolio = await activeContracts(tx, root.id);
       if (played && played.status !== "WITHDRAWN") for (const contract of portfolio) {
         const pay = contract.terms.eventPayment;
-        if (pay && pay.circuits.includes(event.circuit)) {
+        if (pay && pay.amountPence > 0 && pay.circuits.includes(event.circuit)) {
           const paid = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id = ${contract.id}
             AND category = 'SPONSOR_EVENT_PAYMENT' AND season = ${season}`)).rows[0].n);
           if (paid < pay.maxEventsPerSeason) await post(tx, root, { operationKey: `sponsor-event:${contract.id}:${event.id}`, category: "SPONSOR_EVENT_PAYMENT", amountPence: pay.amountPence,
             reason: `${contract.terms.displayName} event payment — ${event.name}`, season, week, eventId: event.id, contractId: contract.id });
         }
         for (const bonus of contract.terms.performanceBonuses) {
-          if (mine.finishing_position > bonus.maxPosition || !bonus.classifications.includes(event.classification) || (bonus.circuits && !bonus.circuits.includes(event.circuit))) continue;
+          if (bonus.amountPence <= 0 || mine.finishing_position > bonus.maxPosition || !bonus.classifications.includes(event.classification) || (bonus.circuits && !bonus.circuits.includes(event.circuit))) continue;
           await post(tx, root, { operationKey: `sponsor-bonus:${contract.id}:${event.id}:${bonus.key}`, category: "SPONSOR_PERFORMANCE_BONUS", amountPence: bonus.amountPence,
             reason: `${contract.terms.displayName} ${bonus.key} bonus — ${event.name}`, season, week, eventId: event.id, contractId: contract.id, detail: { bonusKey: bonus.key, finishingPosition: mine.finishing_position } });
         }
       }
       await evaluateOffers(tx, root, await factsProvider().facts(tx, root), `event:${event.id}`, season, week, {
-        kind: "RESULT", eventId: event.id, eventName: event.name, circuit: event.circuit, season, week,
+        kind: "RESULT", eventId: event.id, eventName: event.name, circuit: event.circuit, classification: event.classification, season, week,
         finishingPosition: mine.finishing_position, isChampion: mine.is_champion,
       });
     },

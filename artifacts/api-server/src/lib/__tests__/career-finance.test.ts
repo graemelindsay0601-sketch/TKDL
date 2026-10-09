@@ -10,10 +10,12 @@ import {createCareerSponsorshipFoundation} from "../../db/migrations/create_care
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
+import { createCareerSponsorJourneysSPB3 } from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
 import { post } from "../../career/finance/ledger.ts";
 import { advanceSponsorLifecycle, applyCoverage, evaluateOffers, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
+import type { SponsorApproachSource } from "../../career/finance/sponsor-journey.ts";
 import { groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
 import { evaluateRequirement, SPONSOR_CATALOGUE_V1, type SportingFacts } from "../../career/finance/sponsors.catalogue.ts";
 import { PRIZE_PROFILES, prizeForPosition, FEE_PROFILES } from "../../career/finance/config.ts";
@@ -37,7 +39,8 @@ before(async () => {
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db);
-  await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); // idempotent re-run
+  await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db);
+  await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); // idempotent re-run
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -62,13 +65,15 @@ async function events(saveId: string, query: Record<string, unknown> = {}) { ret
 async function withRoot<T>(saveId: string, work: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], root: RootRow) => Promise<T>) {
   return db.transaction(async tx => work(tx, await lockRoot(tx, actor, saveId) as RootRow));
 }
-async function createResultApproaches(saveId: string, resultKey: string) {
+async function createResultApproaches(saveId: string, resultKey: string, overrides: Partial<Extract<SponsorApproachSource, { kind: "RESULT" }>> = {}) {
   const root = await saves.read(1, saveId);
+  const source: Extract<SponsorApproachSource, { kind: "RESULT" }> = {
+    kind: "RESULT", eventId: resultKey, eventName: "Ayrshire Open", circuit: "GRASSROOTS",
+    season: root.currentSeason, week: root.currentWeek, finishingPosition: 1, isChampion: false,
+    ...overrides,
+  };
   return withRoot(saveId, (tx, locked) => evaluateOffers(tx, locked, structuredClone(fixture), `event:${resultKey}`,
-    root.currentSeason, root.currentWeek, {
-      kind: "RESULT", eventId: resultKey, eventName: "Ayrshire Open", circuit: "GRASSROOTS",
-      season: root.currentSeason, week: root.currentWeek, finishingPosition: 1, isChampion: false,
-    }));
+    root.currentSeason, root.currentWeek, source));
 }
 /** Test-only funding/draining through the ledger authority itself (not exposed over HTTP). */
 async function adjust(saveId: string, key: string, amountPence: number) {
@@ -408,18 +413,41 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   assert.equal(s.balancePence, 25000 + 13500 + 2500 - 250);
 });
 
-test("SP-B persists result-led offers, counters through A4, replays idempotently and signs actual terms once", async () => {
+test("SP-B3 persists result-earned interest and promotes it only when A4 later creates an offer", async () => {
   const save = await career();
+  Object.assign(fixture, { titles: 0, bestFinishByCircuit: { GRASSROOTS: 8 } });
+  assert.deepEqual(await createResultApproaches(save.id, "interest-result-001", { finishingPosition: 8 }), [],
+    "a real top-eight result can draw interest without meeting either local offer threshold");
+  const firstView = await finance.sponsors(actor, save.id);
+  assert.equal(firstView.offers.length, 0);
+  const interest = firstView.journeys.find(j => j.sponsorKey === "forge-workwear")!;
+  assert.equal(interest.status, "INTEREST");
+  assert.equal(interest.timeline.length, 1);
+  assert.equal(interest.timeline[0].type, "INTEREST");
+  assert.equal(interest.timeline[0].season, 1);
+  assert.equal(interest.timeline[0].week, 1);
+  const interestSummary = (interest.timeline[0].details as Record<string, unknown>).summary;
+  assert.match(String(interestSummary), /Ayrshire Open/);
+  assert.match(String(interestSummary), /not a formal offer/);
+  assert.deepEqual((await ledger(save.id)).filter(row => String(row.category).startsWith("SPONSOR_")), [],
+    "interest creates no offer, contract or payment");
+  assert.deepEqual(await createResultApproaches(save.id, "interest-result-001", { finishingPosition: 8 }), [],
+    "replaying the same completed result is idempotent");
+  assert.equal((await finance.sponsors(actor, save.id)).journeys.find(j => j.sponsorKey === "forge-workwear")!.timeline.length, 1);
+
+  await db.execute(sql`UPDATE career_saves SET current_week = 2 WHERE id = ${save.id}`);
   Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
-  assert.deepEqual((await finance.sponsors(actor, save.id)).offers, [], "initialization itself creates no commercial approach");
-  assert.deepEqual(await createResultApproaches(save.id, "result-led-journey"), ["forge-workwear", "lochside-joinery"]);
+  assert.deepEqual(await createResultApproaches(save.id, "formal-offer-result-002", { finishingPosition: 1, isChampion: true }),
+    ["forge-workwear", "lochside-joinery"]);
   const initial = (await finance.sponsors(actor, save.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
   const initialId = String(initial.id);
   const initialJourney = initial.journey as unknown as { status: string; timeline: Array<{ type: string; details: Record<string, unknown> }> };
   assert.equal(initialJourney.status, "OFFERED");
   assert.equal(initialJourney.timeline[0].type, "INTEREST");
+  assert.deepEqual(initialJourney.timeline.map(event => event.type), ["INTEREST", "APPROACH", "OFFER_RECEIVED"]);
+  assert.deepEqual(initialJourney.timeline.map(event => event.details.source && (event.details.source as Record<string, unknown>).eventId),
+    ["interest-result-001", "formal-offer-result-002", "formal-offer-result-002"]);
   assert.equal(initialJourney.timeline.at(-1)?.type, "OFFER_RECEIVED");
-  assert.match(String(initialJourney.timeline[0].details.summary), /Ayrshire Open/);
   const approach = initialJourney.timeline.find(event => event.type === "APPROACH")!;
   const contact = approach.details.contact as { name: string; role: string; representativeId: string | null };
   assert.equal(contact.name, initial.terms.representative?.displayName ?? `${initial.terms.displayName} partnership team`);
@@ -453,12 +481,21 @@ test("SP-B persists result-led offers, counters through A4, replays idempotently
   assert.deepEqual([acceptedRequest.outcome, acceptedRequest.round, acceptedRequest.revision], ["ACCEPTED", 2, 2]);
   assert.ok(acceptedRequest.offerId);
   const finalOffer = (await finance.sponsors(actor, save.id)).offers.find(o => o.id === acceptedRequest.offerId)!;
+  await rejectsStatus(finance.negotiateOffer(actor, save.id, String(finalOffer.id), {
+    requestKey: "spb-counter-over-limit-003", expectedRevision: 2,
+    change: { kind: "SIGNING_BONUS", amountPence: 22_000 },
+  }), 409);
   assert.equal(finalOffer.journey?.negotiationRounds, 2);
   const finalOfferId = String(finalOffer.id);
   const signed = await finance.acceptOffer(actor, save.id, { offerId: finalOfferId });
   assert.equal(signed.created, true);
   assert.equal(signed.signingReveal?.terms.signingBonusPence, 16_000);
   assert.equal(signed.signingReveal?.contractId, signed.contractId);
+  assert.ok(String(signed.signingReveal?.playerName).length > 0);
+  assert.ok(signed.signingReveal?.category);
+  assert.ok(signed.signingReveal?.representative?.displayName);
+  assert.equal(signed.signingReveal?.terms.displayName, finalOffer.terms.displayName);
+  assert.ok(signed.signingReveal?.terms.duration);
   const secondOpen = await finance.acceptOffer(actor, save.id, { offerId: finalOfferId });
   assert.equal(secondOpen.created, false);
   assert.equal(secondOpen.signingReveal, null, "a replay does not show a second signing event");
@@ -502,9 +539,139 @@ test("SP-B negotiation rejects extreme asks, records sponsor rejection, and pres
   const walkedSave = await career(1, 3);
   await createResultApproaches(walkedSave.id, "walk-away-result");
   const walkedOffer = (await finance.sponsors(actor, walkedSave.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
-  await finance.declineOffer(actor, walkedSave.id, { offerId: String(walkedOffer.id) });
+  const walkedCounter = await finance.negotiateOffer(actor, walkedSave.id, String(walkedOffer.id), {
+    requestKey: "spb-walk-away-counter-01", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 20_000 },
+  });
+  assert.equal(walkedCounter.outcome, "COUNTERED");
+  await finance.declineOffer(actor, walkedSave.id, { offerId: walkedCounter.offerId! });
   assert.equal((await rows(sql`SELECT status FROM career_sponsor_journeys WHERE career_save_id = ${walkedSave.id} AND sponsor_key = 'forge-workwear'`))[0].status, "WALKED_AWAY");
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_journey_events WHERE career_save_id = ${walkedSave.id} AND event_type = 'PLAYER_WALKED_AWAY'`))[0].n, 1);
   assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_contracts WHERE career_save_id = ${walkedSave.id}`))[0].n, 0);
+});
+
+test("SP-B3 expiry is committed before errors and expired negotiation results replay safely", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+
+  const lateSigning = await career(1, 1);
+  await finance.evaluateOffers(actor, lateSigning.id, { triggerKey: "late-signing" });
+  const lateSigningOffer = (await finance.sponsors(actor, lateSigning.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  await db.execute(sql`UPDATE career_saves SET current_week = 6 WHERE id = ${lateSigning.id}`);
+  await rejectsStatus(finance.acceptOffer(actor, lateSigning.id, { offerId: String(lateSigningOffer.id) }), 409);
+  assert.deepEqual((await rows(sql`SELECT o.status, j.status AS journey_status
+    FROM career_sponsor_offers o JOIN career_sponsor_journeys j
+      ON j.career_save_id=o.career_save_id AND j.current_offer_id=o.id
+    WHERE o.career_save_id=${lateSigning.id} AND o.id=${lateSigningOffer.id}`))[0],
+    { status: "EXPIRED", journey_status: "EXPIRED" },
+    "the late-accept error must not roll the expired state back");
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_contracts WHERE career_save_id=${lateSigning.id}`))[0].n, 0);
+  assert.equal((await ledger(lateSigning.id)).some(row => String(row.category).startsWith("SPONSOR_")), false);
+
+  const lateNegotiation = await career(1, 2);
+  await finance.evaluateOffers(actor, lateNegotiation.id, { triggerKey: "late-negotiation" });
+  const lateNegotiationOffer = (await finance.sponsors(actor, lateNegotiation.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  await db.execute(sql`UPDATE career_saves SET current_week = 6 WHERE id = ${lateNegotiation.id}`);
+  const request = {
+    requestKey: "expired-negotiation-001", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 20_000 } as const,
+  };
+  const expired = await finance.negotiateOffer(actor, lateNegotiation.id, String(lateNegotiationOffer.id), request);
+  assert.equal(expired.outcome, "EXPIRED");
+  assert.equal(expired.offerId, null);
+  assert.equal((await finance.negotiateOffer(actor, lateNegotiation.id, String(lateNegotiationOffer.id), request)).replayed, true);
+  await rejectsStatus(finance.negotiateOffer(actor, lateNegotiation.id, String(lateNegotiationOffer.id), {
+    ...request, change: { kind: "SIGNING_BONUS", amountPence: 21_000 },
+  }), 409);
+  assert.deepEqual((await rows(sql`SELECT o.status, j.status AS journey_status,
+      (SELECT COUNT(*)::int FROM career_sponsor_offers x WHERE x.career_save_id=o.career_save_id
+        AND x.sponsor_key=o.sponsor_key AND x.status='AVAILABLE') AS available,
+      (SELECT COUNT(*)::int FROM career_sponsor_negotiations n WHERE n.career_save_id=o.career_save_id AND n.outcome='EXPIRED') AS expiry_requests
+    FROM career_sponsor_offers o JOIN career_sponsor_journeys j
+      ON j.career_save_id=o.career_save_id AND j.current_offer_id=o.id
+    WHERE o.career_save_id=${lateNegotiation.id} AND o.id=${lateNegotiationOffer.id}`))[0],
+    { status: "EXPIRED", journey_status: "EXPIRED", available: 0, expiry_requests: 1 });
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_journey_events
+    WHERE career_save_id=${lateNegotiation.id} AND event_type='OFFER_EXPIRED'`))[0].n, 1);
+});
+
+test("SP-B3 serializes concurrent negotiation/signing and idempotent retries", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  const retrySave = await career(1, 1);
+  await finance.evaluateOffers(actor, retrySave.id, { triggerKey: "concurrent-retry" });
+  const retryOffer = (await finance.sponsors(actor, retrySave.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  const request = {
+    requestKey: "concurrent-negotiation-key", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 20_000 } as const,
+  };
+  const retries = await Promise.all([
+    finance.negotiateOffer(actor, retrySave.id, String(retryOffer.id), request),
+    finance.negotiateOffer(actor, retrySave.id, String(retryOffer.id), request),
+  ]);
+  assert.equal(retries.filter(result => result.replayed).length, 1);
+  assert.equal(retries[0].outcome, retries[1].outcome);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_negotiations WHERE career_save_id=${retrySave.id}`))[0].n, 1);
+
+  const raceSave = await career(1, 2);
+  await finance.evaluateOffers(actor, raceSave.id, { triggerKey: "sign-negotiate-race" });
+  const raceOffer = (await finance.sponsors(actor, raceSave.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  const race = await Promise.allSettled([
+    finance.negotiateOffer(actor, raceSave.id, String(raceOffer.id), {
+      requestKey: "sign-negotiate-race-key", expectedRevision: 0,
+      change: { kind: "SIGNING_BONUS", amountPence: 20_000 },
+    }),
+    finance.acceptOffer(actor, raceSave.id, { offerId: String(raceOffer.id) }),
+  ]);
+  assert.equal(race.filter(result => result.status === "fulfilled").length, 1,
+    "root locking permits only one of signing or negotiating to transition the offer");
+  assert.ok(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_contracts WHERE career_save_id=${raceSave.id}`))[0].n) <= 1);
+  assert.ok(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${raceSave.id}
+    AND category='SPONSOR_SIGNING_BONUS'`))[0].n) <= 1);
+});
+
+test("SP-B3 season-length agreements signed mid-season receive their full promised duration", async () => {
+  Object.assign(fixture, { titles: 3, bestFinishByCircuit: {} });
+  const save = await career();
+  await finance.evaluateOffers(actor, save.id, { triggerKey: "three-titles-for-season-agreement" });
+  const offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.sponsorKey === "ochre-darts")!;
+  assert.deepEqual(offer.terms.duration, { kind: "SEASONS", seasons: 1 });
+  await db.execute(sql`UPDATE career_saves SET current_week = 20 WHERE id = ${save.id}`);
+  await db.execute(sql`UPDATE career_sponsor_offers SET offered_week = 20, expires_week = 24
+    WHERE career_save_id = ${save.id} AND id = ${offer.id}`);
+  const signed = await finance.acceptOffer(actor, save.id, { offerId: String(offer.id) });
+  assert.deepEqual([signed.signingReveal?.start, signed.signingReveal?.end],
+    [{ season: 1, week: 20 }, { season: 2, week: 19 }]);
+});
+
+test("SP-B3 zero-value terms are either rejected or removed explicitly, never posted as £0 ledger rows", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  const save = await career();
+  await finance.evaluateOffers(actor, save.id, { triggerKey: "zero-value-term-review" });
+  const offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.sponsorKey === "forge-workwear")!;
+  await assert.rejects(finance.negotiateOffer(actor, save.id, String(offer.id), {
+    requestKey: "zero-coverage-rejected", expectedRevision: 0,
+    change: { kind: "COVERAGE_PERCENT", index: 0, percent: 0 },
+  }));
+  await assert.rejects(finance.negotiateOffer(actor, save.id, String(offer.id), {
+    requestKey: "zero-performance-rejected", expectedRevision: 0,
+    change: { kind: "PERFORMANCE_BONUS", key: "top-64", amountPence: 0 },
+  }));
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_negotiations WHERE career_save_id=${save.id}`))[0].n, 0);
+
+  const noEventPayment = await finance.negotiateOffer(actor, save.id, String(offer.id), {
+    requestKey: "remove-event-payment", expectedRevision: 0,
+    change: { kind: "EVENT_PAYMENT", amountPence: 0 },
+  });
+  assert.equal(noEventPayment.outcome, "ACCEPTED");
+  const revised = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.id === noEventPayment.offerId)!;
+  assert.equal(revised.terms.eventPayment, null, "zero means the payment is removed, not an active £0 term");
+  await finance.acceptOffer(actor, save.id, { offerId: String(revised.id) });
+  const event = (await events(save.id, { scope: "AVAILABLE" })).find(e => e.definitionKey === "friday-night-501" && e.finance.travelBand === "LOCAL")!;
+  await finance.calendar.enter(actor, save.id, { eventId: event.id });
+  await playThrough(save.id, event.dates.startWeek + 1, true, "no-event-payment");
+  const eventPaymentRows = (await ledger(save.id)).filter(row => row.category === "SPONSOR_EVENT_PAYMENT");
+  assert.equal(eventPaymentRows.length, 0);
+  assert.equal((await ledger(save.id)).some(row => Number(row.amount_pence) === 0), false);
+  assert.equal((await finance.summary(actor, save.id)).reconciled, true);
 });
 
 test("coverage caps, decline, expiry, contract end with renewal or loss, replacement and history", async () => {
@@ -518,8 +685,20 @@ test("coverage caps, decline, expiry, contract end with renewal or loss, replace
   const offers = (await finance.sponsors(actor, save.id)).offers;
   assert.deepEqual(offers.map(o => o.sponsorKey).sort(), ["forge-workwear", "lochside-joinery"]);
   const lochside = offers.find(o => o.sponsorKey === "lochside-joinery")!;
+  const directJourney = (await finance.sponsors(actor, save.id)).journeys.find(j => j.sponsorKey === "lochside-joinery")!;
+  assert.equal(directJourney.status, "OFFERED");
+  assert.deepEqual(directJourney.timeline.map(event => event.type), ["OFFER_RECEIVED"],
+    "a direct formal offer is not given a fabricated earlier interest/approach history");
   assert.deepEqual(await finance.declineOffer(actor, save.id, { offerId: lochside.id }), { declined: true, created: true });
+  assert.deepEqual(await finance.declineOffer(actor, save.id, { offerId: lochside.id }), { declined: true, created: false });
+  assert.equal((await finance.sponsors(actor, save.id)).journeys.find(j => j.sponsorKey === "lochside-joinery")!.status, "DECLINED");
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_journey_events
+    WHERE career_save_id = ${save.id} AND event_type = 'PLAYER_DECLINED'`))[0].n, 1);
   await rejectsStatus(finance.acceptOffer(actor, save.id, { offerId: lochside.id }), 409);
+  await rejectsStatus(finance.negotiateOffer(actor, save.id, String(lochside.id), {
+    requestKey: "declined-offer-negotiation", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 20_000 },
+  }), 409);
   assert.deepEqual((await finance.evaluateOffers(actor, save.id, { triggerKey: "local-form-again" })).created, [], "declined sponsor is not re-offered this season");
   // Forge expires after four weeks without acceptance.
   await withRoot(save.id, (tx, root) => advanceSponsorLifecycle(tx, root, async () => structuredClone(fixture), 1, 6));

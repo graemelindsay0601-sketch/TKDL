@@ -150,6 +150,7 @@ export function SponsorOfferCard({
                 <li key={`${event.type}-${event.createdAt}`} data-kind={event.type}>
                   <i aria-hidden="true" />
                   <span>{String(event.details.headline ?? journeyEventLabel(event.type))}</span>
+                  <small>{event.season !== null && event.week !== null ? `S${event.season} W${event.week}` : event.createdAt.slice(0, 10)}</small>
                   {event.type === "SPONSOR_COUNTERED" && <em>Revised terms</em>}
                 </li>
               ))}
@@ -309,7 +310,7 @@ export function SponsorOfferCard({
               onConfirm={onAccept}
             />
             <button className="career-btn career-btn-ghost career-sponsor-offer__decline" disabled={declineBusy} onClick={onDecline}>
-              Decline offer
+              {journey?.status === "NEGOTIATING" ? "Walk away from talks" : "Decline offer"}
             </button>
           </footer>
         )}
@@ -338,8 +339,8 @@ function isHexColour(value: string) {
 }
 
 function approachIntroduction(events: SponsorJourneyEvent[]) {
-  const approach = events.find(event => event.type === "APPROACH");
-  return typeof approach?.details.introduction === "string" ? approach.details.introduction : null;
+  const contact = events.find(event => event.type === "APPROACH") ?? events.find(event => event.type === "OFFER_RECEIVED");
+  return typeof contact?.details.introduction === "string" ? contact.details.introduction : null;
 }
 
 function whatThisMeans(terms: SponsorOffer["terms"]) {
@@ -393,6 +394,7 @@ function journeyEventLabel(type: SponsorJourneyEvent["type"]) {
     case "SPONSOR_ACCEPTED_REQUEST": return "Sponsor agreed to your request";
     case "SPONSOR_REJECTED": return "Sponsor closed the discussion";
     case "SPONSOR_WITHDREW": return "Sponsor withdrew the offer";
+    case "PLAYER_DECLINED": return "You declined the offer";
     case "PLAYER_WALKED_AWAY": return "You walked away";
     case "SIGNED": return "Partnership signed";
     case "OFFER_EXPIRED": return "Offer expired";

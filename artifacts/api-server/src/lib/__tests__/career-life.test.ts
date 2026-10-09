@@ -8,7 +8,7 @@ import { storyEngine, storyThreads, currentMoments, newsSelection } from "../../
 import { publicProfile, relationshipTones } from "../../career/life/profile.ts";
 import { opportunities, OPPORTUNITY_FAMILIES } from "../../career/life/opportunities.ts";
 import type { LifeSources, Decision } from "../../career/life/types.ts";
-import type { EventFact, CareerFacts } from "../../career/facts/types.ts";
+import type { EventFact, CareerFacts, Fact } from "../../career/facts/types.ts";
 
 const result=(id:string,circuit="GRASSROOTS",tier="LOCAL",season=1,day=7):EventFact=>({
   id:`result:${id}:HUMAN`,eventId:id,source:"A3 event result",label:id,name:id,definitionKey:"repeat-event",season,day,week:Math.ceil(day/7),date:null,age:20,
@@ -53,6 +53,18 @@ test("human news beats same-week world headlines; significant public NPC world s
   s.worldResults=Array.from({length:80},(_,i)=>({...result(`world-${i}`,"MAJOR","MAJOR"),participantKey:`npc-${i}`,participantName:`Public ${i}`}));
   const news=newsSelection(storyEngine(s));assert.equal(news[0].scope,"HUMAN");assert.ok(news.some(st=>st.scope==="WORLD"));
   assert.ok(news.length<=40);assert.ok(news.filter(st=>st.scope==="WORLD").length<=12);
+});
+test("SP-B3 A4 sponsor events enter Career stories once with a stable source link",()=>{
+  const s=source();
+  const offer:Fact={id:"sponsor-event:OFFER_RECEIVED:offer-event-one",source:"A4 sponsor journey event: OFFER_RECEIVED",
+    label:"Vantage Darts — A formal offer is ready.",season:1,day:8,week:2,date:null,age:20,eventId:"offer-one"};
+  s.facts.timeline=[offer,structuredClone(offer)];
+  const stories=storyEngine(s),sponsorStories=stories.filter(st=>st.kind==="sponsor-offer-received");
+  assert.equal(sponsorStories.length,1);
+  assert.equal(sponsorStories[0].scope,"HUMAN");
+  assert.ok(sponsorStories[0].sourceIds.includes(offer.id));
+  assert.deepEqual(newsSelection(stories).filter(st=>st.kind==="sponsor-offer-received").map(st=>st.id),[sponsorStories[0].id]);
+  assert.deepEqual(storyEngine(s),stories);
 });
 test("trivial anonymous grassroots NPC results do not flood world news",()=>{
   const s=source();s.worldResults=Array.from({length:200},(_,i)=>({...result(`trivial-${i}`),participantKey:`npc-${i}`,participantName:"Opponent"}));

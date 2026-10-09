@@ -100,14 +100,20 @@ export type SponsorContract = { id: string; sponsorKey: string; tier: string; te
   start: { season: number; week: number }; end: { season: number; week: number }; totals: { paidPence: number; coveredPence: number } };
 export type SponsorJourneyEvent = {
   type: "INTEREST" | "APPROACH" | "OFFER_RECEIVED" | "PLAYER_COUNTERED" | "SPONSOR_COUNTERED" | "SPONSOR_ACCEPTED_REQUEST"
-    | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED";
+    | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED";
   offerId: string | null;
   details: Record<string, unknown>;
+  season: number | null;
+  week: number | null;
   createdAt: string;
 };
 export type SponsorJourney = {
   id: string;
-  status: "OFFERED" | "NEGOTIATING" | "SIGNED" | "WALKED_AWAY" | "REJECTED" | "WITHDRAWN" | "EXPIRED";
+  sponsorKey: string;
+  displayName: string;
+  tier: string;
+  category: string | null;
+  status: "INTEREST" | "OFFERED" | "NEGOTIATING" | "SIGNED" | "DECLINED" | "WALKED_AWAY" | "REJECTED" | "WITHDRAWN" | "EXPIRED";
   revision: number;
   negotiationRounds: number;
   maxRounds: number;
@@ -123,7 +129,7 @@ export type SponsorNegotiationChange =
   | { kind: "DURATION"; seasons: number }
   | { kind: "PERFORMANCE_BONUS"; key: string; amountPence: number };
 export type SponsorNegotiationResult = {
-  outcome: "ACCEPTED" | "COUNTERED" | "REJECTED" | "WITHDRAWN";
+  outcome: "ACCEPTED" | "COUNTERED" | "REJECTED" | "WITHDRAWN" | "EXPIRED";
   round: number;
   maxRounds: number;
   revision: number;
@@ -132,7 +138,9 @@ export type SponsorNegotiationResult = {
   replayed?: boolean;
 };
 export type SponsorSigningReveal = {
-  contractId: string; sponsorKey: string; displayName: string; tier: string;
+  contractId: string; playerName: string; sponsorKey: string; displayName: string; tier: string;
+  category: string | null;
+  representative: { id?: string; displayName?: string; role?: string } | null;
   terms: SponsorTerms; start: { season: number; week: number }; end: { season: number; week: number };
 };
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
