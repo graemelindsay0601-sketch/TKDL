@@ -1,0 +1,546 @@
+.career-sponsor-offers__stack {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0.8rem;
+}
+
+.career-sponsor-offer {
+  --sponsor-accent: #d8b669;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 15px;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(58, 81, 105, 0.16), transparent 48%),
+    linear-gradient(155deg, #101a28 0%, #09121d 62%, #0b1420 100%);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: #f6f4ee;
+}
+
+.career-sponsor-offer::before {
+  position: absolute;
+  z-index: 4;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 11px;
+  content: "";
+  pointer-events: none;
+}
+
+.career-sponsor-offer__hero {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 17px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background:
+    radial-gradient(ellipse at 88% 12%, color-mix(in srgb, var(--sponsor-accent) 23%, transparent), transparent 43%),
+    linear-gradient(122deg, rgba(22, 35, 51, 0.97), rgba(9, 17, 27, 0.98) 68%);
+}
+
+.career-sponsor-offer__hero::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0 0 0 42%;
+  background:
+    linear-gradient(135deg, transparent 39%, rgba(255, 255, 255, 0.035) 39.2%, transparent 39.8%),
+    linear-gradient(45deg, transparent 56%, color-mix(in srgb, var(--sponsor-accent) 12%, transparent) 56.3%, transparent 56.8%),
+    repeating-linear-gradient(115deg, transparent 0 24px, rgba(255, 255, 255, 0.018) 25px 26px, transparent 27px 48px);
+  content: "";
+  pointer-events: none;
+}
+
+.career-sponsor-offer__topline,
+.career-sponsor-offer__identity,
+.career-sponsor-offer__headline-terms {
+  position: relative;
+  z-index: 1;
+}
+
+.career-sponsor-offer__topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 15px;
+}
+
+.career-sponsor-offer__eyebrow,
+.career-sponsor-offer__expiry,
+.career-sponsor-offer__tier,
+.career-sponsor-offer__headline-terms span,
+.career-sponsor-offer__detail-value {
+  font-size: 0.61rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.career-sponsor-offer__eyebrow {
+  color: color-mix(in srgb, var(--sponsor-accent) 75%, #f4e9cf);
+}
+
+.career-sponsor-offer__expiry {
+  color: rgba(230, 234, 239, 0.62);
+  text-align: right;
+}
+
+.career-sponsor-offer__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.career-sponsor-offer__emblem {
+  position: relative;
+  display: grid;
+  flex: 0 0 51px;
+  width: 51px;
+  height: 51px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--sponsor-accent) 75%, rgba(255, 255, 255, 0.28));
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--sponsor-accent) 30%, transparent), transparent 62%),
+    rgba(5, 12, 20, 0.78);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.035), inset 0 0 18px color-mix(in srgb, var(--sponsor-accent) 12%, transparent);
+  color: #fff7e9;
+  font-family: Oswald, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.career-sponsor-offer__emblem::before,
+.career-sponsor-offer__emblem::after {
+  position: absolute;
+  inset: 5px;
+  border: 1px solid color-mix(in srgb, var(--sponsor-accent) 34%, transparent);
+  content: "";
+  pointer-events: none;
+}
+
+.career-sponsor-offer__emblem::after {
+  inset: 10px;
+  opacity: 0.55;
+}
+
+.career-sponsor-offer__emblem[data-mark="0"] {
+  clip-path: polygon(50% 0, 92% 21%, 92% 70%, 50% 100%, 8% 70%, 8% 21%);
+}
+
+.career-sponsor-offer__emblem[data-mark="0"]::before,
+.career-sponsor-offer__emblem[data-mark="0"]::after {
+  clip-path: polygon(50% 0, 92% 21%, 92% 70%, 50% 100%, 8% 70%, 8% 21%);
+}
+
+.career-sponsor-offer__emblem[data-mark="1"] {
+  border-radius: 50%;
+}
+
+.career-sponsor-offer__emblem[data-mark="1"]::before,
+.career-sponsor-offer__emblem[data-mark="1"]::after {
+  border-radius: 50%;
+}
+
+.career-sponsor-offer__emblem[data-mark="2"] {
+  transform: rotate(45deg) scale(0.82);
+}
+
+.career-sponsor-offer__emblem[data-mark="2"] > span {
+  transform: rotate(-45deg) scale(1.15);
+}
+
+.career-sponsor-offer__brand-copy {
+  min-width: 0;
+}
+
+.career-sponsor-offer__tier {
+  display: block;
+  margin-bottom: 3px;
+  color: rgba(239, 228, 202, 0.7);
+}
+
+.career-sponsor-offer__brand-copy h3 {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: #fff;
+  font-family: Oswald, sans-serif;
+  font-size: clamp(1.2rem, 2.2vw, 1.65rem);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.08;
+  text-transform: uppercase;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.38);
+}
+
+.career-sponsor-offer__kind {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 7px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--sponsor-accent) 58%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--sponsor-accent) 11%, transparent);
+  color: #f4e9cf;
+  font-size: 0.59rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.career-sponsor-offer__kind.is-renewal {
+  border-color: rgba(111, 188, 222, 0.42);
+  background: rgba(38, 114, 151, 0.17);
+  color: #b8e8fa;
+}
+
+.career-sponsor-offer__headline-terms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0;
+  margin-top: 17px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.career-sponsor-offer__signing,
+.career-sponsor-offer__hero-detail {
+  min-width: 0;
+  padding: 1px 12px 1px 0;
+}
+
+.career-sponsor-offer__hero-detail {
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.career-sponsor-offer__headline-terms span {
+  display: block;
+  color: rgba(222, 229, 235, 0.65);
+}
+
+.career-sponsor-offer__signing strong,
+.career-sponsor-offer__hero-detail strong {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 3px;
+  color: #fff;
+  font-family: Oswald, sans-serif;
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.18;
+}
+
+.career-sponsor-offer__signing strong {
+  color: #f0d28c;
+  font-size: 1.55rem;
+  letter-spacing: -0.02em;
+}
+
+.career-sponsor-offer__watermark {
+  position: absolute;
+  right: 4%;
+  bottom: 45px;
+  color: var(--sponsor-accent);
+  font-family: Oswald, sans-serif;
+  font-size: clamp(5rem, 15vw, 9rem);
+  font-weight: 700;
+  letter-spacing: -0.09em;
+  line-height: 0.8;
+  opacity: 0.055;
+  pointer-events: none;
+}
+
+.career-sponsor-offer__rule {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, var(--sponsor-accent) 25%, var(--sponsor-accent) 78%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--sponsor-accent) 40%, transparent);
+}
+
+.career-sponsor-offer__body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 13px;
+  padding: 14px 17px 16px;
+}
+
+.career-sponsor-offer__subsection + .career-sponsor-offer__subsection {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.075);
+}
+
+.career-sponsor-offer__section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.career-sponsor-offer__index {
+  color: color-mix(in srgb, var(--sponsor-accent) 78%, #fff2d1);
+  font-family: Oswald, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.career-sponsor-offer__section-heading h4 {
+  margin: 0;
+  color: #f5f3ee;
+  font-family: Oswald, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.career-sponsor-offer__coverage-list {
+  display: grid;
+  gap: 6px;
+}
+
+.career-sponsor-offer__coverage-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.career-sponsor-offer__coverage-symbol {
+  display: grid;
+  flex: 0 0 19px;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--sponsor-accent) 48%, transparent);
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--sponsor-accent) 72%, #f0e6d2);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.career-sponsor-offer__coverage-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.career-sponsor-offer__coverage-copy strong,
+.career-sponsor-offer__detail-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #f4f2ec;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.career-sponsor-offer__coverage-copy small,
+.career-sponsor-offer__detail-row small,
+.career-sponsor-offer__bonus small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(220, 228, 235, 0.58);
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
+.career-sponsor-offer__coverage-rate {
+  color: #e9d28d;
+  font-family: Oswald, sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.career-sponsor-offer__detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-left: 2px solid var(--sponsor-accent);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.career-sponsor-offer__detail-row > div {
+  min-width: 0;
+}
+
+.career-sponsor-offer__detail-value {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--sponsor-accent) 74%, #f7edd8);
+}
+
+.career-sponsor-offer__bonus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 7px;
+}
+
+.career-sponsor-offer__bonus {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(232, 204, 138, 0.17);
+  border-radius: 7px;
+  background: linear-gradient(145deg, rgba(209, 166, 89, 0.09), rgba(255, 255, 255, 0.025));
+}
+
+.career-sponsor-offer__bonus span {
+  display: block;
+  color: rgba(239, 235, 224, 0.68);
+  font-size: 0.64rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.career-sponsor-offer__bonus strong {
+  display: block;
+  margin-top: 3px;
+  color: #f0d28c;
+  font-family: Oswald, sans-serif;
+  font-size: 1.1rem;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.career-sponsor-offer__replace {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 11px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  background: rgba(2, 8, 14, 0.3);
+}
+
+.career-sponsor-offer__replace legend {
+  padding: 0 5px;
+  color: #e8d59c;
+  font-family: Oswald, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.career-sponsor-offer__replace > p {
+  margin: 0 0 8px;
+  color: rgba(225, 231, 235, 0.63);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.career-sponsor-offer__replace-list {
+  display: grid;
+  gap: 4px;
+}
+
+.career-sponsor-offer__replace-list label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #eeece6;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.career-sponsor-offer__replace-list input {
+  flex: 0 0 auto;
+  accent-color: #e3c77f;
+}
+
+.career-sponsor-offer__replace-list em {
+  margin-left: auto;
+  color: #f0c87a;
+  font-size: 0.61rem;
+  font-style: normal;
+  text-align: right;
+}
+
+.career-sponsor-offer__portfolio-note {
+  margin-top: 8px !important;
+  color: #f0c87a !important;
+}
+
+.career-sponsor-offer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.career-sponsor-offer__actions > .career-btn:first-child,
+.career-sponsor-offer__actions > div[role="alertdialog"] button:first-child {
+  border: 1px solid rgba(245, 218, 156, 0.83);
+  background: linear-gradient(135deg, #f0d99d, #d1ad62);
+  box-shadow: 0 5px 15px rgba(177, 132, 58, 0.18);
+  color: #17202a;
+  font-weight: 800;
+}
+
+.career-sponsor-offer__actions > .career-btn:first-child:hover:not(:disabled),
+.career-sponsor-offer__actions > div[role="alertdialog"] button:first-child:hover:not(:disabled) {
+  background: linear-gradient(135deg, #f8e7b8, #dfbd75);
+}
+
+.career-sponsor-offer__actions .career-sponsor-offer__decline {
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(240, 242, 244, 0.85);
+}
+
+.career-sponsor-offer__actions button:focus-visible,
+.career-sponsor-offer__replace-list input:focus-visible {
+  outline: 2px solid #f4dc9e;
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .career-sponsor-offers__stack {
+    padding: 0.6rem;
+  }
+
+  .career-sponsor-offer__hero {
+    padding: 14px 14px 12px;
+  }
+
+  .career-sponsor-offer__body {
+    padding: 12px 14px 14px;
+  }
+
+  .career-sponsor-offer__headline-terms {
+    grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+  }
+
+  .career-sponsor-offer__hero-detail {
+    padding-left: 8px;
+  }
+
+  .career-sponsor-offer__signing,
+  .career-sponsor-offer__hero-detail {
+    padding-right: 7px;
+  }
+
+  .career-sponsor-offer__brand-copy h3 {
+    font-size: clamp(1.1rem, 5.3vw, 1.4rem);
+  }
+
+  .career-sponsor-offer__expiry {
+    font-size: 0.55rem;
+  }
+}

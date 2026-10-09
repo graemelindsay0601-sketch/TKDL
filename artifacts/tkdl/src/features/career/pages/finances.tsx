@@ -3,9 +3,10 @@ import { Link } from "wouter";
 import { Briefcase, Handshake, Receipt, Wallet } from "lucide-react";
 import { useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useSponsors, errorMessage } from "../api";
 import { LEDGER_FILTERS, circuitLabel, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
-import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
+import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { SponsorTerms } from "../types";
+import { SponsorOfferCard } from "./sponsor-offer-card";
 
 /**
  * Screen 8 — Finances & Sponsorship, directly over A4. Four separate headlines
@@ -47,25 +48,38 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
             ) : <CareerEmptyState title="Self-funded" icon={<Wallet className="w-6 h-6" />}>No sponsor yet. Offers arrive from real results — titles, finishes, qualifications and later your ranking.</CareerEmptyState>}
         </CareerSection>
         <CareerSection title="Sponsor offers" icon={<Briefcase className="w-3.5 h-3.5" />} accent="#ffd24a">
-          {sponsors.data?.offers.length ? sponsors.data.offers.map(o => (
-            <div key={o.id} className="px-4 py-3 border-b last:border-b-0 space-y-2" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-              <div className="flex items-center gap-2 flex-wrap"><span className="font-black uppercase" style={{ ...OSWALD, color: "#fff" }}>{o.terms.displayName}</span>
-                <StatusBadge label={titleCase(o.tier)} tone="gold" />{o.kind === "RENEWAL" && <StatusBadge label="Renewal" tone="info" />}
-                <span className="text-xs ml-auto" style={{ color: "rgba(255,255,255,0.62)" }}>Expires S{o.expires.season} W{o.expires.week}</span></div>
-              <Terms terms={o.terms} />
-              {!retired&&active.length>0&&<fieldset className="space-y-1 text-xs"><legend>Optional explicit replacement — otherwise existing compatible deals stay active</legend>
-                {active.map(c=><label className="block" key={c.id}><input type="checkbox" checked={(replace[o.id]??[]).includes(c.id)}
-                  onChange={e=>setReplace({...replace,[o.id]:e.target.checked?[...(replace[o.id]??[]),c.id]:(replace[o.id]??[]).filter(id=>id!==c.id)})}/>
-                  {" "}{c.terms.displayName}{o.conflictingContractIds?.includes(c.id)?" — must replace for this offer":""}</label>)}
-                {o.portfolioFull&&<p>Portfolio full: select a deal to replace.</p>}</fieldset>}
-              {!retired && <div className="flex flex-wrap gap-2">
-                <ConfirmButton label="Accept" confirmLabel="Sign contract" busy={accept.isPending}
-                  description={`Sign with ${o.terms.displayName}. ${replace[o.id]?.length?`Terminate only: ${active.filter(c=>replace[o.id].includes(c.id)).map(c=>c.terms.displayName).join(", ")}.`:"Keep all existing deals."}`}
-                  onConfirm={() => accept.mutate({offerId:o.id,replaceContractIds:replace[o.id]??[]}, { onSuccess: () => setMsg(`Signed with ${o.terms.displayName}.`), onError: e => setMsg(errorMessage(e)) })} />
-                <button className="career-btn career-btn-ghost" disabled={decline.isPending} onClick={() => decline.mutate(o.id, { onSuccess: () => setMsg("Offer declined."), onError: e => setMsg(errorMessage(e)) })}>Decline</button>
-              </div>}
+          {sponsors.data?.offers.length ? (
+            <div className="career-sponsor-offers__stack">
+              {sponsors.data.offers.map(o => (
+                <SponsorOfferCard
+                  key={o.id}
+                  offer={o}
+                  activeContracts={active}
+                  retired={retired}
+                  replacementIds={replace[o.id] ?? []}
+                  acceptBusy={accept.isPending}
+                  declineBusy={decline.isPending}
+                  onReplacementChange={(contractId, checked) => setReplace(previous => ({
+                    ...previous,
+                    [o.id]: checked
+                      ? [...new Set([...(previous[o.id] ?? []), contractId])]
+                      : (previous[o.id] ?? []).filter(id => id !== contractId),
+                  }))}
+                  onAccept={() => accept.mutate(
+                    { offerId: o.id, replaceContractIds: replace[o.id] ?? [] },
+                    {
+                      onSuccess: () => setMsg(`Signed with ${o.terms.displayName}.`),
+                      onError: error => setMsg(errorMessage(error)),
+                    },
+                  )}
+                  onDecline={() => decline.mutate(o.id, {
+                    onSuccess: () => setMsg("Offer declined."),
+                    onError: error => setMsg(errorMessage(error)),
+                  })}
+                />
+              ))}
             </div>
-          )) : sponsors.isLoading ? <CareerLoading /> : <CareerEmptyState title="No offers right now" />}
+          ) : sponsors.isLoading ? <CareerLoading /> : <CareerEmptyState title="No offers right now" />}
         </CareerSection>
       </div>
 
