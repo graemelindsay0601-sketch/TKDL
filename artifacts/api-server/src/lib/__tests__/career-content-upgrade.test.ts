@@ -7,6 +7,7 @@ import {drizzle} from "drizzle-orm/pglite";
 import type {CareerDatabase} from "../../career/database.ts";
 import {createCareerSaves} from "../../db/migrations/create_career_saves.ts";
 import {createCareerWorld} from "../../db/migrations/create_career_world.ts";
+import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import {createCareerCalendar} from "../../db/migrations/create_career_calendar.ts";
 import {createCareerFinance} from "../../db/migrations/create_career_finance.ts";
 import {createCareerSporting} from "../../db/migrations/create_career_sporting.ts";
@@ -19,7 +20,7 @@ import {createCareerSportingService} from "../../career/sporting/service.ts";
 
 const oldKeys=["createCareerSavesA1","createCareerWorldA2","createCareerCalendarA3",
   "createCareerFinanceA4","createCareerSportingA5","createCareerGoalsA73","createCareerLifeA75","createCareerLegacyA76"];
-const chain=[createCareerSaves,createCareerWorld,createCareerCalendar,createCareerFinance,
+const chain=[createCareerSaves,createCareerWorld,createCareerSponsorshipFoundation,createCareerCalendar,createCareerFinance,
   createCareerSporting,createCareerGoals,createCareerLife,createCareerLegacy];
 const actor={playerId:1,isAdmin:false};
 const dialect=new PgDialect();

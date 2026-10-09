@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
+import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerService } from "../../career/service.ts";
@@ -34,7 +35,7 @@ before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db);
+  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db);
   await createCareerFinance(db); await createCareerFinance(db); // idempotent re-run
 });
 beforeEach(async () => {

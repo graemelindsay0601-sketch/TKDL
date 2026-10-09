@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
+import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerWorldService } from "../../career/world/service.ts";
 import { loadNpcs } from "../../career/world/repository.ts";
@@ -26,6 +27,7 @@ before(async () => {
     CREATE TABLE outside_career (id INTEGER PRIMARY KEY, data JSONB); INSERT INTO outside_career VALUES (1,'{"tour":11,"coins":250,"practice":7}'::jsonb)`);
   await createCareerSaves(db);
   await createCareerWorld(db);
+  await createCareerSponsorshipFoundation(db);
 });
 beforeEach(async () => { await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled=true, admin_test_mode=false"); });
 after(async () => { await pg.close(); });

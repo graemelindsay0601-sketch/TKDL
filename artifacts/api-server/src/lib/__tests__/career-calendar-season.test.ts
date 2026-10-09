@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
+import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerCalendarService } from "../../career/calendar/service.ts";
@@ -45,7 +46,7 @@ before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2), (3);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db);
+  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db);
   world = await careerFor(1, 1);
   seasonResult = await calendar.advance(actor, world.id, { operationKey: "full-npc-season", expectedSeason: 1, expectedWeek: 1, target: { kind: "WEEKS", weeks: 52 } }) as typeof seasonResult;
 });

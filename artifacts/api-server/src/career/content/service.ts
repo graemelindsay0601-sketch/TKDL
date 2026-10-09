@@ -21,6 +21,7 @@ import {catalogueFor} from "../calendar/catalogue.ts";
 import {LOCALITIES,localVenue} from "../calendar/geography.ts";
 import {identity} from "./events.ts";
 import {BRANDS,brandById} from "./brands.ts";
+import {parseNpcSponsorSnapshot} from "../sponsorship/npc-foundation.ts";
 import {COUNTRY_CONTENT,REGIONS,CITIES,VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,ORGANISATIONS,CIRCUIT_CONTENT,
   SEASON_RHYTHM,PRESTIGE_CLASSES,GUIDE,ALMANAC,PRESENTATION_HOOKS,WORLD_CONTENT_VERSION,venueContent} from "./world.ts";
 
@@ -180,10 +181,29 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
             AND c.start_season<=${Number(root.current_season)} AND c.end_season>=${Number(root.current_season)}) AS tour_card,
           (SELECT current_position FROM career_ranking_participants r WHERE r.career_save_id=p.career_save_id AND r.participant_key=p.id::text AND r.list_key='pro-world') AS position
           FROM career_world_players p WHERE ${filter} ORDER BY p.first_name,p.surname,p.id LIMIT ${q.limit} OFFSET ${q.offset}`)).rows;
+        const foundation=(await tx.execute(sql`SELECT content_version,generation_version FROM career_sponsor_world_state WHERE career_save_id=${saveId}`)).rows[0];
+        const npcIds=rows.map(p=>String(p.id));
+        const sponsorRows=npcIds.length?(await tx.execute(sql`SELECT id,npc_id,sponsor_key,category,representative_id,status,
+          start_season,start_week,end_season,end_week,sponsor_snapshot FROM career_npc_sponsor_relationships
+          WHERE career_save_id=${saveId} AND npc_id IN (${sql.join(npcIds.map(id=>sql`${id}::uuid`),sql`, `)})
+          ORDER BY npc_id,start_season,start_week,id`)).rows:[];
+        const sponsorHistory=new Map<string,Record<string,unknown>[]>();
+        for(const row of sponsorRows){
+          const npcId=String(row.npc_id),snapshot=parseNpcSponsorSnapshot(row.sponsor_snapshot);
+          const history=sponsorHistory.get(npcId)??[];
+          history.push({id:String(row.id),sponsorKey:String(row.sponsor_key),category:String(row.category),
+            representativeId:row.representative_id===null?null:String(row.representative_id),status:String(row.status),
+            start:{season:Number(row.start_season),week:Number(row.start_week)},
+            end:row.end_season===null?null:{season:Number(row.end_season),week:Number(row.end_week)},sponsor:snapshot});
+          sponsorHistory.set(npcId,history);
+        }
         return {total:count,nextOffset:q.offset+rows.length<count?q.offset+rows.length:null,players:rows.map(p=>({id:String(p.id),name:`${p.first_name} ${p.surname}`,
           nickname:p.nickname,country:p.nationality,region:p.home_region,status:p.status,ranking:p.position===null?null:Number(p.position),
           shirt:npcShirt(String(p.id)),womenEligible:String(p.world_key).startsWith("women:"),
           historyRoute:`history/npcs/${p.id}`,relationshipsRoute:"relationships",generationalAuthority:"A7.2",
+          sponsorshipFoundation:foundation?{source:"PERSISTED_SP_A",contentVersion:Number(foundation.content_version),
+            generationVersion:Number(foundation.generation_version),relationships:sponsorHistory.get(String(p.id))??[]}:
+            {source:"LEGACY_CONTENT_ONLY",contentVersion:null,generationVersion:null,relationships:[]},
           commercial:npcCommercial(root.world_seed,String(p.id),{careerStarted:true,titles:Number(p.titles),professionalStatus:p.tour_card?"PROFESSIONAL":"AMATEUR",
             tourCard:Boolean(p.tour_card),worldRanking:p.position===null?null:Number(p.position),qualifications:[],bestFinishByCircuit:{}})}))};
       });

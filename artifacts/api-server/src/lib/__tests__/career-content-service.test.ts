@@ -6,6 +6,7 @@ import {sql} from "drizzle-orm";
 import express from "express";
 import {createCareerSaves} from "../../db/migrations/create_career_saves.ts";
 import {createCareerWorld} from "../../db/migrations/create_career_world.ts";
+import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import {createCareerCalendar} from "../../db/migrations/create_career_calendar.ts";
 import {createCareerFinance} from "../../db/migrations/create_career_finance.ts";
 import {createCareerSporting} from "../../db/migrations/create_career_sporting.ts";
@@ -37,7 +38,7 @@ before(async()=>{
   await pg.exec(`CREATE TABLE players(id integer PRIMARY KEY);INSERT INTO players VALUES(1),(2);
     CREATE TABLE feature_flags(feature_name text UNIQUE,enabled boolean,admin_test_mode boolean,description text);
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
-  await createCareerSaves(db);await createCareerWorld(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSporting(db);
+  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSporting(db);
   const save=await saves.create(1,{slot:1,dateOfBirth:"1990-01-01",homeLocality:"ayrshire"});saveId=save.id;
   // Preserve the published A8.1 v3 universe; A8.2 v4 has its own tournament tests.
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed},event_database_version=3 WHERE id=${saveId}`);
@@ -139,6 +140,8 @@ test("ownership/feature gates, edit window and retired behavior are enforced by 
 });
 test("A8.3 directory search, status and ID filters are bounded, literal, owned and public-only",async()=>{
   const one=(await content.players(actor,saveId,{limit:1})).players[0];
+  assert.equal(one.sponsorshipFoundation.source,"PERSISTED_SP_A");
+  assert.ok(Array.isArray(one.sponsorshipFoundation.relationships));
   const matched=await content.players(actor,saveId,{search:one.name,id:one.id,limit:1,status:"ACTIVE"});
   assert.equal(matched.total,1);assert.equal(matched.players[0].id,one.id);
   assert.deepEqual(matched.players[0].shirt,one.shirt);

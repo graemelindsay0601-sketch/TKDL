@@ -11,7 +11,7 @@ import {
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
-import { sponsorCatalogue, evaluateRequirement, tierRank, type CostType, type SponsorTerms, type SportingFacts, type SponsorTier } from "./sponsors.catalogue.ts";
+import {sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 
 const HUMAN = "HUMAN";
@@ -42,9 +42,10 @@ export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
 }
 export type ContractRow = { id: string; offer_id: string; sponsor_key: string; tier: SponsorTier; terms: SponsorTerms; start_season: number; start_week: number; end_season: number; end_week: number; status: string };
 export async function activeContracts(tx: CareerExecutor, saveId: string): Promise<ContractRow[]> {
-  const rows = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${saveId} AND status = 'ACTIVE' ORDER BY id`)).rows as ContractRow[];
+  const rows = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${saveId} AND status = 'ACTIVE' ORDER BY id`)).rows as (Omit<ContractRow,"terms">&{terms:unknown})[];
+  const validated=rows.map(row=>({...row,terms:parseSponsorTerms(row.terms)}));
   const order = ["PRIMARY_COMMERCIAL", "EQUIPMENT_PARTNER", "APPAREL_PARTNER", "SECONDARY_COMMERCIAL", "LOCAL_REGIONAL_PARTNER"];
-  return rows.sort((a,b)=>order.indexOf(relationship(a.terms).slot)-order.indexOf(relationship(b.terms).slot)||a.id.localeCompare(b.id));
+  return validated.sort((a,b)=>order.indexOf(relationship(a.terms).slot)-order.indexOf(relationship(b.terms).slot)||a.id.localeCompare(b.id));
 }
 /** Compatibility/display representative only, never the financial portfolio. */
 export const activeContract = async (tx: CareerExecutor, saveId: string) => (await activeContracts(tx,saveId))[0];
@@ -188,7 +189,8 @@ export async function evaluateOffers(tx: CareerExecutor, root: RootRow, facts: S
 
 export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: string, season: number, week: number,
   options:{replaceContractIds?:string[];facts?:SportingFacts}={}) {
-  const offer = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND id = ${offerId}`)).rows[0] as OfferRow | undefined;
+  const rawOffer = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND id = ${offerId}`)).rows[0] as (Omit<OfferRow,"terms">&{terms:unknown}) | undefined;
+  const offer:OfferRow|undefined=rawOffer?{...rawOffer,terms:parseSponsorTerms(rawOffer.terms)}:undefined;
   if (!offer) throw new CareerError(404, "Sponsor offer not found");
   if (offer.status === "ACCEPTED") {
     const existing = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND offer_id = ${offerId}`)).rows[0] as ContractRow;

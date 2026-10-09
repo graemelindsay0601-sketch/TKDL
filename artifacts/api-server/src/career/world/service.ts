@@ -13,6 +13,7 @@ import { simulateNpcMatch } from "./simulation.ts";
 import { stableUuid } from "./random.ts";
 import { formAfterMatch } from "./form.ts";
 import { developNpc, evolveOffSeason } from "./development.ts";
+import {persistInitialNpcSponsorRelationships} from "../sponsorship/npc-foundation.ts";
 
 export type CareerActor = { playerId: number; isAdmin?: boolean };
 export type Root = { id: string; world_seed: string; world_generation_version: number; difficulty: CareerDifficulty; current_season: number };
@@ -115,8 +116,11 @@ export function createCareerWorldService(database: CareerDatabase) {
           players.push(...generateJuniorCohort(root.world_seed, root.world_generation_version, 1, JUNIOR_COHORT.initial, players, "initial"));
         if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 3)
           players.push(...generateWomenCohort(root.world_seed, root.world_generation_version, 1, 80, players));
-        await persistNpcs(tx, saveId, Number((root as Root & {player_database_version?:number}).player_database_version ?? 1) >= 2 ?
-          geographicalIdentities(root.world_seed, players) : players);
+        const persistedPlayers=Number((root as Root & {player_database_version?:number}).player_database_version ?? 1) >= 2 ?
+          geographicalIdentities(root.world_seed, players) : players;
+        await persistNpcs(tx, saveId, persistedPlayers);
+        await persistInitialNpcSponsorRelationships(tx,{saveId,seed:root.world_seed,generationVersion:root.world_generation_version,
+          npcIds:persistedPlayers.map(player=>player.id)});
         await tx.execute(sql`INSERT INTO career_world_state (career_save_id, generation_version, simulation_version, season, period, elapsed_year, config_snapshot)
           VALUES (${saveId}, ${root.world_generation_version}, ${SIMULATION_VERSION}, ${root.current_season}, 0, 0, ${JSON.stringify(configSnapshot())}::jsonb)`);
         return { initialized: true, created: true };

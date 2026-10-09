@@ -7,6 +7,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
+import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerCalendar, syncEventDefinitions } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerCalendarService } from "../../career/calendar/service.ts";
@@ -36,6 +37,7 @@ before(async () => {
     CREATE TABLE tour_trophies (id INTEGER PRIMARY KEY, event_id INTEGER); INSERT INTO tour_trophies SELECT g, 1 + (g - 1) / 5 FROM generate_series(1, 305) g;`);
   await createCareerSaves(db);
   await createCareerWorld(db);
+  await createCareerSponsorshipFoundation(db);
   await createCareerCalendar(db);
 });
 beforeEach(async () => { await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled=true, admin_test_mode=false"); });
