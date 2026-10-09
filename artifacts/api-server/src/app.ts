@@ -27,6 +27,7 @@ import { ensureAdminAuditTable } from "./lib/adminAudit";
 import { seedTourSystem } from "./lib/tourSeed";
 import { createCareerSaves } from "./db/migrations/create_career_saves";
 import { createCareerWorld } from "./db/migrations/create_career_world";
+import { createShadowObservations, SHADOW_OBSERVATIONS_SB21A } from "./db/migrations/create_shadow_observations_sb21a";
 import { createCareerCalendar } from "./db/migrations/create_career_calendar";
 import { createCareerFinance } from "./db/migrations/create_career_finance";
 import { createCareerSporting } from "./db/migrations/create_career_sporting";
@@ -1528,6 +1529,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerGoalsA73", () => createCareerGoals(db));
   await runMigrationStep("createCareerLifeA75", () => createCareerLife(db));
   await runMigrationStep("createCareerLegacyA76", () => createCareerLegacy(db));
+  await runMigrationStep(SHADOW_OBSERVATIONS_SB21A, () => createShadowObservations(db));
   await runMigrationStep(CAREER_CONTENT_UPGRADE_A9_V1, () => upgradeCareerContentA9V1(db));
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
   await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);

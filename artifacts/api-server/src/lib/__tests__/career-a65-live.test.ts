@@ -16,6 +16,7 @@ import { createCareerLegacyRouter } from "../../career/legacy/router.ts";
 import { captureRetirement, captureSeasonReview } from "../../career/legacy/persistence.ts";
 import { createCareerLegacy } from "../../db/migrations/create_career_legacy.ts";
 import { randomUUID } from "node:crypto";
+import { createShadowObservations } from "../../db/migrations/create_shadow_observations_sb21a.ts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
@@ -65,6 +66,7 @@ before(async () => {
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSporting(db);
+  await createShadowObservations(db);
   await createCareerLife(db);await createCareerLife(db);
   await createCareerLegacy(db);await createCareerLegacy(db);
   const preMigration=await saves.create(1,{slot:3,careerName:"Pre A7.3"});
@@ -221,6 +223,12 @@ async function playOut(id: string, matchId: string, session: any, human: BotSkil
     for (const d of plan) { const r = throwDart(s, d); s = r.state; darts.push(d); if (!["SCORED", "UNOPENED", "OPENED"].includes(r.outcome)) break; }
     const res = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts, expectedRevision: revision });
     assert.equal(res.status, 200, JSON.stringify(res.body).slice(0, 300));
+    const projected = await q(sql`SELECT o.provenance,o.player_id,o.training_eligible,o.evidence
+      FROM shadow_observations o JOIN shadow_activities a ON a.id=o.activity_id
+      WHERE a.source_namespace='CAREER_LIVE' AND a.source_id=${`${id}/${session.sessionId}`} ORDER BY o.source_ordinal`);
+    assert.equal(projected.length,darts.length,"each committed Career checkpoint has exactly one active observation per dart");
+    assert.deepEqual(projected.map(o=>o.evidence.physicalHit),darts.map(d=>({segment:d.segment,multiplier:d.multiplier,value:d.value})));
+    assert.ok(projected.every(o=>o.provenance==='HUMAN' ? o.player_id===1&&o.training_eligible : o.provenance==='NPC'&&o.player_id===null&&!o.training_eligible));
     revision = res.body.revision;
     if (res.body.status === "COMPLETED") return { session: res.body, darts };
     if (opts.stopAfterVisits && ++visits >= opts.stopAfterVisits) return { session: res.body, darts };
@@ -390,6 +398,13 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   assert.deepEqual([reloaded.bullUp.throws, reloaded.firstThrower], [s.bullUp.throws, s.firstThrower], "reload cannot re-roll the bull-up");
   // Mid-match recovery: a partial log is persisted server-side.
   const partial = await playOut(id, matchId, s, STRONG, "h1", { stopAfterVisits: 3 });
+  const projectionBeforeAccess = await q(sql`SELECT * FROM shadow_observations ORDER BY id`);
+  assert.equal((await call("GET", `/saves/${id}/matches/${matchId}/session`, undefined, 0)).status,401);
+  assert.equal((await call("GET", `/saves/${id}/matches/${matchId}/session`, undefined, 2)).status,404);
+  assert.equal((await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, {darts:partial.darts,expectedRevision:partial.session.revision},2)).status,404);
+  assert.equal((await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, {darts:partial.darts,expectedRevision:partial.session.revision,playerId:2})).status,400);
+  assert.equal((await call("GET", "/shadow/observations", undefined, 0)).status,401);
+  assert.deepEqual(await q(sql`SELECT * FROM shadow_observations ORDER BY id`),projectionBeforeAccess);
   const mid = (await call("GET", `/saves/${id}/matches/${matchId}/session`)).body;
   const canon = (ds: Dart[]) => ds.map(d => [d.segment, d.multiplier, d.value]);
   assert.deepEqual(canon(mid.darts), canon(partial.darts));
@@ -402,6 +417,16 @@ test("full human loop (junior, legs): enter, reach the match, bull-up, play thro
   const bad = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: tampered, expectedRevision: mid.revision });
   assert.equal(bad.status, 409, "altered opponent dart refused"); assert.match(bad.body.error, /Opponent|log rejected/);
   assert.equal((await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: mid.darts, expectedRevision: mid.revision - 1 })).status, 409, "stale revision refused");
+  // A legitimate source correction must retract active evidence, then restore it
+  // exactly once when the human re-enters the dart through the normal API.
+  const undone = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, {darts:mid.darts.slice(0,-1),expectedRevision:mid.revision});
+  assert.equal(undone.status,200,JSON.stringify(undone.body));
+  const activeCount = async()=>Number((await q(sql`SELECT count(*)::int n FROM shadow_observations o JOIN shadow_activities a ON a.id=o.activity_id WHERE a.source_id=${`${id}/${s.sessionId}`}`))[0].n);
+  assert.equal(await activeCount(),mid.darts.length-1);
+  const restored = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, {darts:mid.darts,expectedRevision:undone.body.revision});
+  assert.equal(restored.status,200,JSON.stringify(restored.body));
+  assert.equal(await activeCount(),mid.darts.length);
+  Object.assign(mid,restored.body);
   const beforeFacts = (await call("GET", `/saves/${id}/facts`)).body;
   assert.equal(beforeFacts.records.firstMatch, null);
   const done = await playOut(id, matchId, mid, STRONG, "h1b");

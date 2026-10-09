@@ -34,3 +34,4 @@ export * from "./career-calendar";
 export * from "./career-finance";
 export * from "./career-sporting";
 export * from "./career-goals";
+export * from "./shadow-observations";

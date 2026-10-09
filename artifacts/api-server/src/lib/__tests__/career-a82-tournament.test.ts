@@ -5,6 +5,7 @@ import {PGlite} from "@electric-sql/pglite";
 import {drizzle} from "drizzle-orm/pglite";
 import {sql} from "drizzle-orm";
 import {createCareerSaves} from "../../db/migrations/create_career_saves.ts";
+import {createShadowObservations} from "../../db/migrations/create_shadow_observations_sb21a.ts";
 import {createCareerWorld} from "../../db/migrations/create_career_world.ts";
 import {createCareerCalendar} from "../../db/migrations/create_career_calendar.ts";
 import {createCareerFinance} from "../../db/migrations/create_career_finance.ts";
@@ -46,6 +47,7 @@ before(async()=>{
     CREATE TABLE feature_flags(feature_name text UNIQUE,enabled boolean,admin_test_mode boolean,description text);
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
   await createCareerSaves(db);await createCareerWorld(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSporting(db);
+  await createShadowObservations(db);
   const app=express();app.use(express.json());app.use((req,_res,next)=>{
     (req as unknown as {session:unknown}).session={playerId:Number(req.header("x-test-player")??0)};
     (req as unknown as {log:unknown}).log={error:()=>{}};next();

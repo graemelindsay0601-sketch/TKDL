@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { ingestCareerLive } from "../../shadow/career-live-adapter.ts";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
@@ -236,6 +237,7 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
             status = ${result ? "COMPLETED" : "IN_PLAY"}, result = ${result ? JSON.stringify(result) : null}::jsonb, completed_at = ${result ? sql`NOW()` : sql`NULL`}
           WHERE career_save_id = ${root.id} AND id = ${session.id} AND revision = ${session.revision} RETURNING *`)).rows[0] as SessionRow | undefined;
         if (!updated) throw new CareerError(409, "Session changed; reload it");
+        await ingestCareerLive(tx, root.id, updated.id);
         const fresh = result ? (await tx.execute(sql`SELECT * FROM career_tournament_matches WHERE career_save_id = ${root.id} AND id = ${match.id}`)).rows[0] as MatchRow : match;
         return presentLoaded(tx, root.id, updated, fresh);
       });
