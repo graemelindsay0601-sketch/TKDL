@@ -18,7 +18,7 @@ import {activeContracts} from "../finance/engine.ts";
 import {relationship,conflicts,portfolioLimit} from "../finance/portfolio.ts";
 import {evaluateRequirement,sponsorCatalogue,type SportingFacts} from "../finance/sponsors.catalogue.ts";
 import {catalogueFor} from "../calendar/catalogue.ts";
-import {LOCALITIES} from "../calendar/geography.ts";
+import {LOCALITIES,localVenue} from "../calendar/geography.ts";
 import {identity} from "./events.ts";
 import {BRANDS,brandById} from "./brands.ts";
 import {COUNTRY_CONTENT,REGIONS,CITIES,VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,ORGANISATIONS,CIRCUIT_CONTENT,
@@ -36,6 +36,10 @@ export const cosmeticSchema=z.object({
 export const signatureSchema=z.object({contractId:z.string().uuid(),productType:z.enum(["SIGNATURE_DARTS","SIGNATURE_RANGE"])}).strict();
 export const PRESENTATION_DEFAULTS={nickname:null,shirtTemplate:"CLASSIC",primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"};
 const placements:Record<string,string>={EQUIPMENT_PARTNER:"UPPER_CHEST",APPAREL_PARTNER:"SHOULDER",PRIMARY_COMMERCIAL:"CENTRAL_CHEST",SECONDARY_COMMERCIAL:"SLEEVE",LOCAL_REGIONAL_PARTNER:"SIDE_PANEL"};
+function worldLocalities() {
+  return LOCALITIES.map(({key,region,country,city})=>({key,region,country,city,
+    venues:(["CLUB","COUNTY"] as const).map(kind=>venueContent(localVenue(key,kind).key))}));
+}
 
 /** NPC relationships are transparent content metadata. No contract payments or fabricated history. */
 export function npcCommercial(seed:string,id:string,facts:SportingFacts) {
@@ -73,6 +77,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
     });
   }
   return {
+    localities:worldLocalities,
     presentation,
     async guidance(actor:CareerActor,saveId:string) {
       return database.transaction(async tx=>{
@@ -206,6 +211,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
 }
 export type CareerContentService=ReturnType<typeof createCareerContentService>;
 export type WorldContent=Awaited<ReturnType<CareerContentService["read"]>>;
+export type WorldLocalitiesContent=ReturnType<CareerContentService["localities"]>;
 export type MapContent=Awaited<ReturnType<CareerContentService["map"]>>;
 export type PresentationContent=Awaited<ReturnType<CareerContentService["presentation"]>>;
 export type WorldPlayersContent=Awaited<ReturnType<CareerContentService["players"]>>;
@@ -219,6 +225,7 @@ export function createCareerContentRouter(service:CareerContentService) {
   };
   const id=(req:Request)=>careerIdSchema.parse(String(req.params.id));
   router.get("/saves/:id/world-content",auth,async(req,res)=>res.json(await service.read(res.locals.careerActor,id(req))));
+  router.get("/saves/:id/world-localities",auth,(req,res)=>{id(req);res.json(service.localities());});
   router.get("/saves/:id/guidance",auth,async(req,res)=>res.json(await service.guidance(res.locals.careerActor,id(req))));
   router.put("/saves/:id/guidance",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.editGuidance(res.locals.careerActor,id(req),req.body)));
   router.get("/saves/:id/world-map",auth,async(req,res)=>res.json(await service.map(res.locals.careerActor,id(req),req.query)));

@@ -1,16 +1,17 @@
 import {useState,useEffect} from "react";
 import {Link,useSearch} from "wouter";
-import {useWorldContent,useWorldMap,useWorldPlayers,useRankingTable,useLegacy,useEventLegacy,useCareerLife} from "../api";
+import {useWorldContent,useWorldLocalities,useWorldMap,useWorldPlayers,useRankingTable,useLegacy,useEventLegacy,useCareerLife} from "../api";
 import {CareerLoading,CareerError,CareerSection} from "../components";
 import {CareerEventIdentity,CareerPlayerCard,CareerTrophy} from "../identity";
 import {mapState} from "../presentation";
 import {titleCase} from "../model";
 import {NpcLegacyPage,LegacyPage} from "./legacy";
 import type {ShellContext} from "../shell";
+import {CareerVenueAtlas} from "./venue-atlas";
 
 export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;section?:"landing"|"events"|"venues"|"history"|"search";detail?:string}) {
   const querySearch=new URLSearchParams(useSearch()).get("q")??"";
-  const world=useWorldContent(ctx.save.id),map=useWorldMap(ctx.save.id,["landing","events","venues"].includes(section)),[search,setSearch]=useState(querySearch),[page,setPage]=useState(0);
+  const world=useWorldContent(ctx.save.id),localities=useWorldLocalities(ctx.save.id,section==="venues"),map=useWorldMap(ctx.save.id,["landing","events","venues"].includes(section)),[search,setSearch]=useState(querySearch),[page,setPage]=useState(0);
   useEffect(()=>{setSearch(querySearch);setPage(0);},[querySearch]);
   const rankings=useRankingTable(ctx.save.id,"pro-world",{view:"TOP",limit:5},section==="landing"),legacy=useLegacy(ctx.save.id,section==="landing"||section==="events"&&!!detail),life=useCareerLife(ctx.save.id);
   const history=useEventLegacy(ctx.save.id,section==="events"&&detail?detail:null);
@@ -18,11 +19,17 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
   if(world.error||!world.data)return <CareerError error={world.error} onRetry={()=>world.refetch()}/>;
   const d=world.data,base=`/career/${ctx.save.id}`,match=(s:string)=>s.toLowerCase().includes(search.toLowerCase());
   const families=d.eventFamilies.filter(f=>match(`${f.name} ${f.circuit}`)),venues=d.venues.filter(v=>match(`${v.displayName} ${v.city} ${v.countryId}`));
-  const selected=d.eventFamilies.find(f=>f.id===detail),venue=d.venues.find(v=>v.id===detail);
+  const selected=d.eventFamilies.find(f=>f.id===detail);
   const winnerName=(id:string)=>id==="HUMAN"?ctx.save.careerName??"You":legacy.data?.players.find(p=>p.id===id)?.name??"Recorded champion";
   const latestWorld=legacy.data?.world.at(-1)?.champions.find(c=>c.tier==="WORLD");
-  return <div className="space-y-3"><h2>{section==="landing"?"Darts World":section==="search"?"Search the darts world":section==="events"?"Events & Circuits":section==="venues"?"Venues":"World History"}</h2>
-    {["search","events","venues"].includes(section)&&<label className="career-surface career-search">Search <input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Names, cities, circuits"/></label>}
+  if(section==="venues") {
+    if(localities.isLoading)return <CareerLoading label="Opening venue atlas"/>;
+    if(localities.error||!localities.data)return <CareerError error={localities.error} onRetry={()=>localities.refetch()}/>;
+    return <CareerVenueAtlas ctx={ctx} data={{venues:d.venues,countries:d.countries}} localities={localities.data}
+      events={map.data?.events??[]} detailId={detail} eventsLoading={map.isLoading} eventsError={map.error} onRetry={()=>map.refetch()}/>;
+  }
+  return <div className="space-y-3"><h2>{section==="landing"?"Darts World":section==="search"?"Search the darts world":section==="events"?"Events & Circuits":"World History"}</h2>
+    {["search","events"].includes(section)&&<label className="career-surface career-search">Search <input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Names, cities, circuits"/></label>}
     {section==="landing"&&<>
       <div className="career-position-grid"><CareerSection title="Published World #1"><p className="p-4">{rankings.isLoading?"Reading published standings…":rankings.error?"Published leader unavailable":rankings.data?.rows[0]?.name??"No published leader yet"}</p><Link href={`${base}/rankings`}>Explore rankings & races</Link></CareerSection>
         <CareerSection title="World Championship"><p className="p-4">{legacy.isLoading?"Reading recorded champions…":legacy.error?"Recorded champions unavailable":latestWorld?`Last recorded season champion: ${winnerName(latestWorld.participant)}`:"No completed World Championship season recorded."}</p><Link href={`${base}/world/events/world-darts-championship`}>The Palace World Championship</Link></CareerSection></div>
@@ -43,7 +50,6 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
       {families.slice(page*20,(page+1)*20).map(f=><CareerEventIdentity key={f.id} eventKey={f.id} circuit={f.circuit}><Link className="career-directory-row" href={`${base}/world/events/${f.id}`}><strong>{f.name}</strong> · {titleCase(f.eventClass)}</Link></CareerEventIdentity>)}
       <Pagination page={page} total={families.length} setPage={setPage}/>
     </>)}
-    {section==="venues"&&(venue?<section className="career-surface"><h3>{venue.displayName}</h3><p>{venue.city}, {venue.countryId} · {titleCase(venue.venueType)}</p><p>{venue.capacityBand} · {venue.atmosphereTags.join(" · ")}</p><h4>Associated events this season</h4>{map.data?.events.filter(e=>e.venue.id===venue.id).slice(0,20).map(e=><p key={e.id}><Link href={`${base}/events/${e.id}`}>{e.name} · Week {e.dates.startWeek} · {mapState(e)}</Link></p>)}<Link href={`${base}/world/history`}>Explore recorded championship history</Link></section>:<>{venues.slice(page*20,(page+1)*20).map(v=><Link className="career-directory-row career-surface" key={v.id} href={`${base}/world/venues/${v.id}`}><strong>{v.displayName}</strong> · {v.city}, {v.countryId}</Link>)}<Pagination page={page} total={venues.length} setPage={setPage}/></>)}
     {section==="history"&&<LegacyPage ctx={ctx} initialTab="World History"/>}
   </div>;
 }

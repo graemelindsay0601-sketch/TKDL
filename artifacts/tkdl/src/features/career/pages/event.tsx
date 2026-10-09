@@ -9,6 +9,7 @@ import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmBut
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
 import { MatchBoundaryNotice } from "./match-boundary";
+import { CareerVenueArtwork } from "./venue-atlas";
 
 type Tab = "OVERVIEW" | "DRAW" | "SCHEDULE" | "MY_MATCHES" | "PLAYERS" | "PRIZE" | "RANKING";
 
@@ -54,6 +55,15 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
           </div>
         </div>
       </section>
+      <section className="career-venue-event-scene" aria-label={`${e.venue.name} venue identity`}>
+        <CareerVenueArtwork family={e.venue.venueType} className="career-venue-event-scene__art" />
+        <div className="career-venue-event-scene__shade" aria-hidden="true"/>
+        <div className="career-venue-event-scene__copy">
+          <span>VENUE · {e.venue.venueType.replaceAll("-", " ")}</span>
+          <strong>{e.venue.name}</strong>
+          <small>{e.venue.city} · {e.venue.region}</small>
+        </div>
+      </section>
 
       {life.key === "UNSUPPORTED" && (
         <div role="status" className="pdc-card px-4 py-3 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
@@ -65,7 +75,7 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
       {awaiting && <MatchBoundaryNotice saveId={save.id} eventId={e.id} />}
       {!awaiting && <EntryActions ctx={ctx} detail={detail} />}
 
-      <Segmented<Tab> label="Event sections" value={tab} onChange={setTab} options={tabs} wrap />
+      <Segmented label="Event sections" value={tab} onChange={value => setTab(value as Tab)} options={tabs} wrap />
       {tab === "OVERVIEW" && <Overview detail={detail} saveId={save.id} />}
       {tab === "DRAW" && <Draw detail={detail} />}
       {tab === "SCHEDULE" && <Schedule detail={detail} />}

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { opportunity } from "../content/opportunities.ts";
+import { venueContent } from "../content/world.ts";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
@@ -160,7 +161,7 @@ function qualificationKeys(rule: Rule): string[] {
 }
 
 function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) {
-  const s = event.snapshot, venue = venueByKey(event.venue_key);
+  const s = event.snapshot, venue = venueByKey(event.venue_key), venueIdentity = venueContent(event.venue_key);
   return {
     id: event.id, instanceKey: event.instance_key, season: event.season, name: event.name, definitionKey: event.definition_key, family: event.family,
     eventDatabaseVersion: event.event_database_version, circuit: event.circuit, classification: event.classification, rankingCategory: event.ranking_category,
@@ -168,7 +169,8 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
     dates: { startWeek: event.start_week, endWeek: event.end_week, startDay: event.start_day, endDay: event.end_day,
       startDayOfWeek: ((event.start_day - 1) % 7) + 1, grouping: groupingForWeek(event.start_week).key },
     registration: { opensWeek: event.registration_opens_week, closesWeek: event.registration_closes_week },
-    venue: { key: venue.key, name: s.content?.venue?.displayName??venue.name, city: event.city, country: event.country, region: event.region, zone: event.zone, localityKey: event.locality_key },
+    venue: { key: venue.key, name: s.content?.venue?.displayName??venue.name, city: event.city, country: event.country, region: event.region, zone: event.zone, localityKey: event.locality_key,
+      venueType: venueIdentity.venueType, capacityBand: venueIdentity.capacityBand },
     content:s.content??null,opportunity:opportunity({status:event.status,classification:event.classification,human:human??null}),
     format: s.format, capability: s.capability,
     field: { size: event.field_size, minimum: event.minimum_entrants, entrants: event.entrant_count, policy: s.fieldPolicy },

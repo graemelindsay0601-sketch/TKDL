@@ -47,7 +47,7 @@ export function event(over: DeepPartial<CareerEvent> = {}): CareerEvent {
     presentation: { tier: "LOCAL", featured: false, calendarPriority: 10 },
     dates: { startWeek: 2, endWeek: 2, startDay: 12, endDay: 12, startDayOfWeek: 5, grouping: "OPENING_SWING" },
     registration: { opensWeek: 1, closesWeek: 2 },
-    venue: { key: "v", name: "Social Club", city: "Newcastle", country: "GBR", region: "NE", zone: "UK_IRELAND", localityKey: null },
+    venue: { key: "v", name: "Social Club", city: "Newcastle", country: "GBR", region: "NE", zone: "UK_IRELAND", localityKey: null, venueType: "social-club", capacityBand: "CLUB" },
     format: { gameType: "X01", startingScore: 501, matchContext: "floor", structure: "KNOCKOUT", stages: [{ key: "main", kind: "KNOCKOUT", bestOfByRound: [5, 7] }], days: 1, sideSize: 1, scoringUnit: "LEGS" },
     capability: { executable: true }, field: { size: 32, minimum: 8, entrants: 0, policy: "OPEN" }, series: null, qSchool: null, seedingPolicy: { list: null, seeds: 0 },
     status: "REGISTRATION_OPEN", statusReason: null, champion: null, human: human(),

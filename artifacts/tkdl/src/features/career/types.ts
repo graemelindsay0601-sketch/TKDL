@@ -40,7 +40,8 @@ export type CareerEvent = {
   rankingCategory: string | null; presentation: { tier: PresentationTier; featured: boolean; calendarPriority: number; brandingFamily?: string };
   dates: { startWeek: number; endWeek: number; startDay: number; endDay: number; startDayOfWeek: number; grouping: string };
   registration: { opensWeek: number; closesWeek: number };
-  venue: { key: string; name: string; city: string; country: string; region: string; zone: string; localityKey: string | null };
+  venue: { key: string; name: string; city: string; country: string; region: string; zone: string; localityKey: string | null;
+    venueType: string; capacityBand: "CLUB" | "HALL" | "ARENA" };
   format: EventFormat; capability: { executable: boolean; code?: string; reasons?: string[]; engine?: string; liveScorer?: string };
   field: { size: number; minimum: number; entrants: number; policy: string };
   series: { key: string; day: number } | null; qSchool: { pathway: string; stage: "FIRST" | "FINAL"; day: number } | null;
