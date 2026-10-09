@@ -105,7 +105,7 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
   const [dob, setDob] = useState("");
   const [home, setHome] = useState("ayrshire");
   const [step,setStep]=useState(0),[nickname,setNickname]=useState("");
-  const [shirt,setShirt]=useState<ShirtIdentity>({shirtTemplate:"CLASSIC",kitDesignId:"kit-50-01",primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"});
+  const [shirt,setShirt]=useState<ShirtIdentity>({shirtTemplate:"CLASSIC",kitDesignId:"kit-50-01",kitTintEnabled:false,primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"});
   const start = careerStartDateForToday();
   const startAge = dob ? ageOnDate(dob, start) : null;
   const tooYoung = startAge !== null && startAge < MINIMUM_CAREER_START_AGE;

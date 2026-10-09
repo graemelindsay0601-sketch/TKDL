@@ -67,3 +67,25 @@ export const CAREER_KIT_DESIGNS: CareerKitDesign[] = designRows.map(([name, coll
 });
 
 export const CAREER_KIT_BY_ID = new Map(CAREER_KIT_DESIGNS.map(design => [design.id, design]));
+
+export const CAREER_KIT_COLLECTIONS = ["Precision", "Rivalry", "Heritage", "Energy", "After Dark"] as const;
+export type CareerKitCollection = (typeof CAREER_KIT_COLLECTIONS)[number];
+
+export const CAREER_KIT_COLORWAYS = [
+  { name: "Midnight", primary: "#17243b" },
+  { name: "Scarlet", primary: "#a92c43" },
+  { name: "Cobalt", primary: "#315eae" },
+  { name: "Emerald", primary: "#267457" },
+  { name: "Violet", primary: "#705090" },
+  { name: "Copper", primary: "#a75b38" },
+  { name: "Glacier", primary: "#6ca4bd" },
+  { name: "Champagne", primary: "#ae8642" },
+] as const;
+
+export function filterCareerKitDesigns(collection: "All shirts" | CareerKitCollection, search: string) {
+  const query = search.trim().toLowerCase();
+  return CAREER_KIT_DESIGNS.filter(design =>
+    (collection === "All shirts" || design.collection === collection) &&
+    (!query || `${design.name} ${design.cut} ${design.collection} ${design.detail}`.toLowerCase().includes(query)),
+  );
+}

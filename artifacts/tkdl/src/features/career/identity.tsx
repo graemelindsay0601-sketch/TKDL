@@ -2,7 +2,7 @@ import {useId,type CSSProperties,type ReactNode} from "react";
 import {eventIdentity} from "./presentation";
 import {CAREER_KIT_BY_ID} from "./kit-catalog";
 
-export type ShirtIdentity={shirtTemplate?:string;kitDesignId?:string;primaryColour?:string;secondaryColour?:string;accentColour?:string};
+export type ShirtIdentity={shirtTemplate?:string;kitDesignId?:string;kitTintEnabled?:boolean;primaryColour?:string;secondaryColour?:string;accentColour?:string};
 export type ShirtPartner={brandName:string;slot:string};
 const colour=(v:string|undefined,fallback:string)=>/^#[0-9a-f]{6}$/i.test(v??"")?v!:fallback;
 export function CareerShirt({identity={},sponsors=[],name="Player",scale="standard"}:{identity?:ShirtIdentity;sponsors?:ShirtPartner[];name?:string;scale?:"compact"|"standard"|"featured"|"profile"}) {
@@ -13,8 +13,9 @@ export function CareerShirt({identity={},sponsors=[],name="Player",scale="standa
     const image=`${import.meta.env.BASE_URL}assets/career-kit-library/${kit.image}`;
     const partnerSlots:Record<string,[number,number]>={EQUIPMENT_PARTNER:[50,34],APPAREL_PARTNER:[69,21],PRIMARY_COMMERCIAL:[50,54],SECONDARY_COMMERCIAL:[19,37],LOCAL_REGIONAL_PARTNER:[78,64]};
     const wash={"--career-kit-mask":`url("${image}")`,"--career-kit-primary":p} as CSSProperties;
+    const tintEnabled=identity.kitTintEnabled!==false&&Boolean(identity.primaryColour);
     return <span className={`career-shirt career-shirt-${scale} career-shirt--library`} role="img" aria-label={`${name}'s ${kit.name} shirt${sponsors.length?`; partners: ${sponsors.map(x=>x.brandName).join(", ")}`:""}`}>
-      <img className="career-shirt__artwork" src={image} alt="" aria-hidden="true"/><span className="career-shirt__wash" style={wash} aria-hidden="true"/>
+      <img className="career-shirt__artwork" src={image} alt="" aria-hidden="true"/>{tintEnabled&&<span className="career-shirt__wash" style={wash} aria-hidden="true"/>}
       {sponsors.slice(0,5).map((partner,index)=>{const pos=partnerSlots[partner.slot]??[50,72];return <span className="career-shirt__partner" key={`${partner.slot}:${partner.brandName}:${index}`} style={{left:`${pos[0]}%`,top:`${pos[1]}%`}}>{partner.brandName.slice(0,15).toUpperCase()}</span>;})}
     </span>;
   }

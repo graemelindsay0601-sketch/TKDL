@@ -171,7 +171,7 @@
 .career-shirt-compact { width:48px; }.career-shirt-featured { width:140px; }.career-shirt-profile { width:180px; max-width:40vw; }
 .career-shirt--library { position:relative; aspect-ratio:1; overflow:visible; }
 .career-shirt__artwork { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
-.career-shirt__wash { position:absolute; inset:0; background:var(--career-kit-primary); opacity:.24; mix-blend-mode:color; mask-image:var(--career-kit-mask); mask-mode:alpha; mask-repeat:no-repeat; mask-position:center; mask-size:contain; -webkit-mask-image:var(--career-kit-mask); -webkit-mask-repeat:no-repeat; -webkit-mask-position:center; -webkit-mask-size:contain; pointer-events:none; }
+.career-shirt__wash { position:absolute; inset:0; background:var(--career-kit-primary); opacity:.88; mix-blend-mode:color; mask-image:var(--career-kit-mask); mask-mode:alpha; mask-repeat:no-repeat; mask-position:center; mask-size:contain; -webkit-mask-image:var(--career-kit-mask); -webkit-mask-repeat:no-repeat; -webkit-mask-position:center; -webkit-mask-size:contain; pointer-events:none; }
 .career-shirt__partner { position:absolute; z-index:2; max-width:35%; overflow:hidden; padding:1px 3px; border:1px solid #ffffff65; border-radius:2px; color:#fff; background:#07101dcc; font:700 clamp(3px,.55em,7px) system-ui,sans-serif; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; transform:translate(-50%,-50%); }
 .career-badges { display:flex; flex-wrap:wrap; gap:4px; }.career-badges span { padding:2px 5px; border:1px solid #65758b; font-size:.65rem; border-radius:4px; }
 .career-status-strip { display:flex; gap:20px; align-items:center; justify-content:space-between; flex-wrap:wrap; font-size:.8rem; }

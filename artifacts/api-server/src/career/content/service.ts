@@ -28,6 +28,7 @@ export const cosmeticSchema=z.object({
   nickname:z.string().trim().max(32).regex(/^[\p{L}\p{N} .'-]*$/u).nullable().optional(),
   shirtTemplate:z.enum(["CLASSIC","CHEVRON","SPLIT"]).optional(),
   kitDesignId:z.string().regex(/^kit-50-(?:0[1-9]|[1-4][0-9]|50)$/).optional(),
+  kitTintEnabled:z.boolean().optional(),
   primaryColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   secondaryColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   accentColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
