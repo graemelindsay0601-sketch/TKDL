@@ -15,6 +15,8 @@ import {
 } from "./engine.ts";
 import { relationship, conflicts, portfolioLimit } from "./portfolio.ts";
 import {parseSponsorTerms} from "./sponsors.catalogue.ts";
+import { appendSponsorJourneyEvent } from "./sponsor-journey.ts";
+import { negotiateSponsorOffer } from "./sponsor-negotiation.ts";
 
 const offerRefSchema = z.object({ offerId: z.string().uuid() }).strict();
 const acceptOfferSchema = offerRefSchema.extend({replaceContractIds:z.array(z.string().uuid()).max(5).refine(ids=>new Set(ids).size===ids.length).optional()});
@@ -51,13 +53,10 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
     hooks,
     versions: { financeVersion: FINANCE_VERSION, sponsorDatabaseVersion: SPONSOR_DATABASE_VERSION },
 
-    /** A3 initialize + A4 finance state + the CAREER_START sponsor evaluation (idempotent). */
+    /** Initialize A3 and the A4 ledger baseline without generating sponsor approaches. */
     async initialize(actor: CareerActor, saveId: string) {
       const result = await calendar.initialize(actor, saveId);
-      await database.transaction(async tx => {
-        const root = await open(tx, actor, saveId);
-        await evaluateOffers(tx, root, await facts!.facts(tx, root), "career-start", now(root).season, now(root).week);
-      });
+      await database.transaction(async tx => { await open(tx, actor, saveId); });
       return result;
     },
 
@@ -121,6 +120,25 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const active=await activeContracts(tx,root.id), sporting=await facts!.facts(tx,root);
         const contracts = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} ORDER BY signed_at DESC, id LIMIT 50`)).rows;
         const offers = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 50`)).rows;
+        const journeys = (await tx.execute(sql`SELECT * FROM career_sponsor_journeys WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 100`)).rows;
+        const journeyIds = journeys.map(j => String(j.id));
+        const journeyEvents = journeyIds.length ? (await tx.execute(sql`SELECT * FROM career_sponsor_journey_events
+          WHERE career_save_id = ${root.id} AND journey_id IN (${sql.join(journeyIds.map(id => sql`${id}`), sql`, `)})
+          ORDER BY journey_id, ordinal`)).rows : [];
+        const eventsByJourney = new Map<string, typeof journeyEvents>();
+        for (const event of journeyEvents) {
+          const key = String(event.journey_id), current = eventsByJourney.get(key) ?? [];
+          current.push(event); eventsByJourney.set(key, current);
+        }
+        const journeyView = (j: Record<string, unknown>) => ({
+          id: j.id, status: j.status, revision: Number(j.revision), negotiationRounds: Number(j.negotiation_rounds), maxRounds: 2,
+          representative: j.representative, brandPersonality: j.brand_personality, source: j.source,
+          timeline: (eventsByJourney.get(String(j.id)) ?? []).map(event => ({
+            type: event.event_type, offerId: event.offer_id, details: event.details,
+            createdAt: new Date(String(event.created_at)).toISOString(),
+          })),
+        });
+        const journeyByOffer = new Map(journeys.map(j => [String(j.current_offer_id), journeyView(j as Record<string, unknown>)]));
         const earnings = new Map((await tx.execute(sql`SELECT contract_id, COALESCE(SUM(amount_pence) FILTER (WHERE headline = 'SPONSOR'), 0)::bigint AS paid,
             COALESCE(SUM(sponsor_covered_pence), 0)::bigint AS covered FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id IS NOT NULL GROUP BY 1`)).rows
           .map(r => [String(r.contract_id), { paidPence: Number(r.paid), coveredPence: Number(r.covered) }]));
@@ -133,11 +151,13 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const presentOffer = (o: Record<string, unknown>) => {
           const terms=parseSponsorTerms(o.terms);
           return { id: o.id, sponsorKey: o.sponsor_key, tier: o.tier, kind: o.kind, terms, ...relationship(terms),
+            journey: journeyByOffer.get(String(o.id)) ?? null,
             conflictingContractIds:conflicts(terms,active),portfolioFull:active.length>=portfolioLimit(sporting),source: o.source, status: o.status,
             statusReason: o.status_reason, offered: { season: o.offered_season, week: o.offered_week }, expires: { season: o.expires_season, week: o.expires_week } };
         };
         return { active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),portfolioLimit:portfolioLimit(sporting),
           offers: offers.filter(o => o.status === "AVAILABLE").map(presentOffer),
+          journeys: journeys.map(j => journeyView(j as Record<string, unknown>)),
           history: { contracts: contracts.filter(c => c.status !== "ACTIVE").map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
       });
     },
@@ -147,13 +167,48 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId);
         const out = await acceptOffer(tx, root, offerId, now(root).season, now(root).week,{replaceContractIds,facts:await facts!.facts(tx,root)});
-        return { contractId: out.contract.id, sponsorKey: out.contract.sponsor_key, created: out.created, status: out.contract.status };
+        if (out.created) {
+          const journey = (await tx.execute(sql`SELECT id FROM career_sponsor_journeys
+            WHERE career_save_id = ${root.id} AND current_offer_id = ${offerId} AND status IN ('OFFERED','NEGOTIATING')`)).rows[0];
+          if (journey) {
+            await tx.execute(sql`UPDATE career_sponsor_journeys SET status = 'SIGNED', signed_contract_id = ${out.contract.id}, updated_at = NOW()
+              WHERE career_save_id = ${root.id} AND id = ${journey.id}`);
+            await appendSponsorJourneyEvent(tx, root, {
+              journeyId: String(journey.id), eventKey: `signed:${out.contract.id}`, eventType: "SIGNED", offerId,
+              details: { headline: "Partnership signed", summary: `${out.contract.terms.displayName} is now an active A4 contract.` },
+            });
+          }
+        }
+        const signingReveal = out.created ? {
+          contractId: out.contract.id, sponsorKey: out.contract.sponsor_key, displayName: out.contract.terms.displayName,
+          tier: out.contract.tier, terms: out.contract.terms, start: { season: out.contract.start_season, week: out.contract.start_week },
+          end: { season: out.contract.end_season, week: out.contract.end_week },
+        } : null;
+        return { contractId: out.contract.id, sponsorKey: out.contract.sponsor_key, created: out.created, status: out.contract.status, signingReveal };
       });
     },
 
     async declineOffer(actor: CareerActor, saveId: string, body: unknown) {
       const { offerId } = offerRefSchema.parse(body);
-      return database.transaction(async tx => declineOffer(tx, await open(tx, actor, saveId), offerId));
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId);
+        const result = await declineOffer(tx, root, offerId, "PLAYER_WALKED_AWAY");
+        const journey = (await tx.execute(sql`SELECT id, status FROM career_sponsor_journeys
+          WHERE career_save_id = ${root.id} AND current_offer_id = ${offerId}`)).rows[0];
+        if (journey && journey.status !== "WALKED_AWAY") {
+          await tx.execute(sql`UPDATE career_sponsor_journeys SET status = 'WALKED_AWAY', updated_at = NOW()
+            WHERE career_save_id = ${root.id} AND id = ${journey.id}`);
+          await appendSponsorJourneyEvent(tx, root, {
+            journeyId: String(journey.id), eventKey: `walked-away:${offerId}`, eventType: "PLAYER_WALKED_AWAY", offerId,
+            details: { headline: "You walked away", summary: "The offer was declined without changing your existing contracts." },
+          });
+        }
+        return result;
+      });
+    },
+
+    async negotiateOffer(actor: CareerActor, saveId: string, offerId: string, body: unknown) {
+      return database.transaction(async tx => negotiateSponsorOffer(tx, await open(tx, actor, saveId), offerId, body));
     },
 
     /** Internal milestone boundary (A5/A7 or server flows supply factual triggers). Idempotent per triggerKey. */

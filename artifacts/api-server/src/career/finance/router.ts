@@ -34,6 +34,9 @@ export function createCareerFinanceRouter(service: CareerFinanceService, isAvail
   router.post("/saves/:id/sponsors/offers/:offerId/accept", authedWriteRateLimit, async (req, res) => {
     res.json(await service.acceptOffer(res.locals.careerActor, id(req), { ...(req.body??{}),offerId: String(req.params.offerId) }));
   });
+  router.post("/saves/:id/sponsors/offers/:offerId/negotiate", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.negotiateOffer(res.locals.careerActor, id(req), String(req.params.offerId), req.body ?? {}));
+  });
   router.post("/saves/:id/sponsors/offers/:offerId/decline", authedWriteRateLimit, async (req, res) => {
     res.json(await service.declineOffer(res.locals.careerActor, id(req), { offerId: String(req.params.offerId) }));
   });

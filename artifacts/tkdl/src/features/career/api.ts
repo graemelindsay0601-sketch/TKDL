@@ -8,6 +8,7 @@ import { apiFetchJson, ApiRequestError } from "@/lib/api-fetch";
 import type {
   AdvanceResult, CalendarResponse, CareerSave, CareerSaveList, EventDetail, FinanceSummary, HistoryRow, LedgerEntry, Milestone, QSchoolView,
   QualificationResponse, CareerProfile, LiveSession, LiveDart, RankingExplain, RankingHistory, RankingListMeta, RankingTable, SponsorsResponse, SportingSummary, TourCardView,
+  SponsorNegotiationChange, SponsorNegotiationResult, SponsorSigningReveal,
 } from "./types";
 
 /**
@@ -102,8 +103,10 @@ export type AdvanceTarget = { kind: "NEXT_MEANINGFUL" } | { kind: "WEEKS"; weeks
 export const careerRequests = {
   enter: (saveId: string, eventId: string) => send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`),
   withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),
-  acceptOffer: (saveId: string, offerId: string,replaceContractIds?:string[]) => send<{ contractId: string }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`,replaceContractIds?.length?{replaceContractIds}:undefined),
+  acceptOffer: (saveId: string, offerId: string,replaceContractIds?:string[]) => send<{ contractId: string; sponsorKey: string; created: boolean; status: string; signingReveal: SponsorSigningReveal|null }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`,replaceContractIds?.length?{replaceContractIds}:undefined),
   declineOffer: (saveId: string, offerId: string) => send<unknown>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/decline`),
+  negotiateOffer: (saveId: string, offerId: string, input: { requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) =>
+    send<SponsorNegotiationResult>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/negotiate`, input),
   /** A3 advance: retry-safe via a client-generated operation key; expected position guards against stale screens. */
   advance: (saveId: string, args: { season: number; week: number; target: AdvanceTarget }, operationKey = newOperationKey()) =>
     send<AdvanceResult>("POST", `/saves/${saveId}/calendar/advance`, { operationKey, expectedSeason: args.season, expectedWeek: args.week, target: args.target }),
@@ -138,6 +141,8 @@ export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (eventI
 export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.withdraw(saveId, eventId));
 export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (input: string|{offerId:string;replaceContractIds:string[]}) => typeof input==="string"?careerRequests.acceptOffer(saveId,input):careerRequests.acceptOffer(saveId,input.offerId,input.replaceContractIds));
 export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));
+export const useNegotiateOffer = (saveId: string) => useSaveMutation(saveId, (input: { offerId: string; requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) =>
+  careerRequests.negotiateOffer(saveId, input.offerId, input));
 export const useAdvance = (saveId: string) => useSaveMutation(saveId, (args: { season: number; week: number; target: AdvanceTarget }) => careerRequests.advance(saveId, args));
 
 export function useSaveLifecycle() {

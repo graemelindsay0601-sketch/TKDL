@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { Briefcase, Handshake, Receipt, Wallet } from "lucide-react";
-import { useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useSponsors, errorMessage } from "../api";
+import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useNegotiateOffer, useSponsors, errorMessage } from "../api";
 import { LEDGER_FILTERS, circuitLabel, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
-import type { SponsorTerms } from "../types";
+import type { SponsorNegotiationChange, SponsorSigningReveal, SponsorTerms } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
+import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 
 /**
  * Screen 8 — Finances & Sponsorship, directly over A4. Four separate headlines
@@ -20,8 +21,10 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
   const schedule = useCalendar(save.id, { scope: "MY_SCHEDULE", season: save.currentSeason });
   const accept = useAcceptOffer(save.id);
   const decline = useDeclineOffer(save.id);
+  const negotiate = useNegotiateOffer(save.id);
   const [msg, setMsg] = useState<string | null>(null);
   const [replace,setReplace]=useState<Record<string,string[]>>({});
+  const [signingReveal, setSigningReveal] = useState<SponsorSigningReveal | null>(null);
   const active=sponsors.data?.activeContracts??(sponsors.data?.active?[sponsors.data.active]:[]);
   const commitments = (schedule.data?.events ?? []).filter(e => e.finance?.commitment && ["ENTERED", "TRAVEL_COMMITTED"].includes(e.finance.commitment.status) && e.status !== "COMPLETED");
 
@@ -34,6 +37,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       )}
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
+      {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CareerSection title="Sponsor portfolio" icon={<Handshake className="w-3.5 h-3.5" />} accent="#4ade80">
@@ -68,7 +72,10 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
                   onAccept={() => accept.mutate(
                     { offerId: o.id, replaceContractIds: replace[o.id] ?? [] },
                     {
-                      onSuccess: () => setMsg(`Signed with ${o.terms.displayName}.`),
+                      onSuccess: result => {
+                        setMsg(result.created ? `Signed with ${o.terms.displayName}.` : `${o.terms.displayName} is already signed.`);
+                        if (result.signingReveal) setSigningReveal(result.signingReveal);
+                      },
                       onError: error => setMsg(errorMessage(error)),
                     },
                   )}
@@ -76,6 +83,14 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
                     onSuccess: () => setMsg("Offer declined."),
                     onError: error => setMsg(errorMessage(error)),
                   })}
+                  onNegotiate={(change: SponsorNegotiationChange) => negotiate.mutate(
+                    { offerId: o.id, requestKey: newOperationKey(), expectedRevision: o.journey?.revision ?? 0, change },
+                    {
+                      onSuccess: result => setMsg(result.message),
+                      onError: error => setMsg(errorMessage(error)),
+                    },
+                  )}
+                  negotiateBusy={negotiate.isPending}
                 />
               ))}
             </div>

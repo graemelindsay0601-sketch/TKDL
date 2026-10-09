@@ -24,8 +24,8 @@ type CareerRow = {
 };
 
 export class CareerError extends Error {
-  readonly status: 404 | 409;
-  constructor(status: 404 | 409, message: string) {
+  readonly status: 400 | 404 | 409;
+  constructor(status: 400 | 404 | 409, message: string) {
     super(message);
     this.name = "CareerError";
     this.status = status;

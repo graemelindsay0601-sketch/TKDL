@@ -13,6 +13,7 @@ import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
 import {sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
+import { createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
 
 const HUMAN = "HUMAN";
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS + week;
@@ -166,11 +167,19 @@ async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: stri
  * tier first, key order, at most MAX_OFFERS_PER_EVALUATION. Operation keys make
  * re-evaluation of the same trigger a no-op.
  */
-export async function evaluateOffers(tx: CareerExecutor, root: RootRow, facts: SportingFacts, triggerKey: string, season: number, week: number) {
+export async function evaluateOffers(
+  tx: CareerExecutor,
+  root: RootRow,
+  facts: SportingFacts,
+  triggerKey: string,
+  season: number,
+  week: number,
+  approachSource?: SponsorApproachSource,
+) {
   const active = await activeContracts(tx, root.id);
   const version=(await tx.execute(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${root.id}`)).rows[0];
   const offers = (await tx.execute(sql`SELECT sponsor_key, status, offered_season FROM career_sponsor_offers WHERE career_save_id = ${root.id}`)).rows;
-  const blocked = new Set(offers.filter(o => o.status === "AVAILABLE" || (["DECLINED","EXPIRED","ACCEPTED"].includes(String(o.status)) && Number(o.offered_season) === season)).map(o => String(o.sponsor_key)));
+  const blocked = new Set(offers.filter(o => o.status === "AVAILABLE" || (["DECLINED","EXPIRED","ACCEPTED","COUNTERED","WITHDRAWN"].includes(String(o.status)) && Number(o.offered_season) === season)).map(o => String(o.sponsor_key)));
   const candidates = sponsorCatalogue(Number(version?.sponsor_database_version??1))
     .filter(d => evaluateRequirement(d.offerRequirement, facts) === true)
     .filter(d => !active.some(c=>c.sponsor_key===d.key))
@@ -181,10 +190,56 @@ export async function evaluateOffers(tx: CareerExecutor, root: RootRow, facts: S
     .slice(0, MAX_OFFERS_PER_EVALUATION);
   const created: string[] = [];
   for (const d of candidates) {
-    if (await insertOffer(tx, root, `offer:${triggerKey}:${d.key}`, "NEW", structuredClone(d.terms),
-      { trigger: triggerKey, facts, requiresReplacement: conflicts(d.terms,active) }, season, week)) created.push(d.key);
+    const operationKey = `offer:${triggerKey}:${d.key}`;
+    if (await insertOffer(tx, root, operationKey, "NEW", structuredClone(d.terms),
+      { trigger: triggerKey, facts, requiresReplacement: conflicts(d.terms,active), ...(approachSource ? { approachSource } : {}) }, season, week)) {
+      created.push(d.key);
+      if (approachSource) {
+        const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
+        if (offerId) await createSponsorJourney(tx, root, { offerId: String(offerId), operationKey: `journey:${offerId}`, terms: structuredClone(d.terms), source: approachSource });
+      }
+    }
   }
   return created;
+}
+
+/** Insert a negotiated revision through A4's authoritative offer table. */
+export async function createSponsorOfferRevision(
+  tx: CareerExecutor,
+  root: RootRow,
+  input: { currentOfferId: string; operationKey: string; terms: SponsorTerms; source: Record<string, unknown>; season: number; week: number },
+) {
+  const existing = (await tx.execute(sql`SELECT id, status FROM career_sponsor_offers
+    WHERE career_save_id = ${root.id} AND operation_key = ${input.operationKey}`)).rows[0];
+  if (existing) {
+    if (existing.status !== "AVAILABLE") throw new CareerError(409, "This negotiated offer revision is no longer available");
+    return String(existing.id);
+  }
+  const current = (await tx.execute(sql`SELECT * FROM career_sponsor_offers
+    WHERE career_save_id = ${root.id} AND id = ${input.currentOfferId} FOR UPDATE`)).rows[0];
+  if (!current) throw new CareerError(404, "Sponsor offer not found");
+  if (current.status !== "AVAILABLE") throw new CareerError(409, "This sponsor offer is no longer available");
+  if (current.sponsor_key !== input.terms.sponsorKey || Number(current.sponsor_database_version) !== input.terms.sponsorDatabaseVersion) {
+    throw new CareerError(409, "Negotiated terms do not match the sponsor offer");
+  }
+  if (timeIndex(Number(current.expires_season), Number(current.expires_week)) < timeIndex(input.season, input.week)) {
+    throw new CareerError(409, "Sponsor offer has expired");
+  }
+  const offerId = stableUuid(root.world_seed, Number(current.sponsor_database_version), "sponsor-offer", input.operationKey);
+  await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'COUNTERED', status_reason = 'NEGOTIATED_REVISION', resolved_at = NOW()
+    WHERE career_save_id = ${root.id} AND id = ${input.currentOfferId} AND status = 'AVAILABLE'`);
+  const inserted = await tx.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
+     offered_season, offered_week, expires_season, expires_week, status)
+    VALUES (${root.id}, ${offerId}, ${input.operationKey}, ${input.terms.sponsorKey}, ${input.terms.sponsorDatabaseVersion},
+      ${input.terms.tier}, ${current.kind}, ${JSON.stringify(input.terms)}::jsonb, ${JSON.stringify(input.source)}::jsonb,
+      ${input.season}, ${input.week}, ${current.expires_season}, ${current.expires_week}, 'AVAILABLE')
+    ON CONFLICT DO NOTHING RETURNING id`);
+  if (inserted.rows.length) return String(inserted.rows[0].id);
+  const duplicate = (await tx.execute(sql`SELECT id, status FROM career_sponsor_offers
+    WHERE career_save_id = ${root.id} AND operation_key = ${input.operationKey}`)).rows[0];
+  if (duplicate?.status === "AVAILABLE") return String(duplicate.id);
+  throw new CareerError(409, "Could not create the negotiated sponsor offer");
 }
 
 export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: string, season: number, week: number,
@@ -230,13 +285,23 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   return { contract: (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND id = ${contractId}`)).rows[0] as ContractRow, created: true };
 }
 
-export async function declineOffer(tx: CareerExecutor, root: RootRow, offerId: string) {
+export async function declineOffer(tx: CareerExecutor, root: RootRow, offerId: string, reason = "PLAYER_DECLINED") {
   const offer = (await tx.execute(sql`SELECT status FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND id = ${offerId}`)).rows[0];
   if (!offer) throw new CareerError(404, "Sponsor offer not found");
   if (offer.status === "DECLINED") return { declined: true, created: false };
   if (offer.status !== "AVAILABLE") throw new CareerError(409, `Sponsor offer is ${String(offer.status).toLowerCase()}`);
-  await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'DECLINED', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId}`);
+  await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'DECLINED', status_reason = ${reason}, resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId}`);
   return { declined: true, created: true };
+}
+
+export async function withdrawOffer(tx: CareerExecutor, root: RootRow, offerId: string, reason: string) {
+  const offer = (await tx.execute(sql`SELECT status FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND id = ${offerId}`)).rows[0];
+  if (!offer) throw new CareerError(404, "Sponsor offer not found");
+  if (offer.status === "WITHDRAWN") return { withdrawn: true, created: false };
+  if (offer.status !== "AVAILABLE") throw new CareerError(409, `Sponsor offer is ${String(offer.status).toLowerCase()}`);
+  await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'WITHDRAWN', status_reason = ${reason}, resolved_at = NOW()
+    WHERE career_save_id = ${root.id} AND id = ${offerId} AND status = 'AVAILABLE'`);
+  return { withdrawn: true, created: true };
 }
 
 /** Offer expiry, contract end (renewal / loss) and season-start review. Idempotent per (season, week). */
@@ -244,6 +309,7 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
   const now = timeIndex(season, week);
   await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'EXPIRED', status_reason = 'LAPSED', resolved_at = NOW()
     WHERE career_save_id = ${root.id} AND status = 'AVAILABLE' AND ((expires_season - 1) * 52 + expires_week) < ${now}`);
+  await syncExpiredSponsorJourneys(tx, root);
   const portfolio = await activeContracts(tx, root.id);
   let known: SportingFacts | null = null;
   const getFacts = async () => known ??= await facts();
@@ -252,7 +318,14 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
     const renew = evaluateRequirement(active.terms.renewalRequirement, await getFacts());
     if (renew === true) {
       await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'COMPLETED', end_reason = 'TERM_COMPLETED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${active.id}`);
-      await insertOffer(tx, root, `renewal:${active.id}`, "RENEWAL", structuredClone(active.terms), { trigger: `renewal:${active.id}`, previousContractId: active.id }, season, week);
+      const operationKey = `renewal:${active.id}`;
+      if (await insertOffer(tx, root, operationKey, "RENEWAL", structuredClone(active.terms), { trigger: operationKey, previousContractId: active.id }, season, week)) {
+        const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
+        if (offerId) await createSponsorJourney(tx, root, {
+          offerId: String(offerId), operationKey: `journey:${offerId}`, terms: structuredClone(active.terms),
+          source: { kind: "RENEWAL", previousContractId: active.id, season, week },
+        });
+      }
     } else {
       await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'EXPIRED', end_reason = ${renew === false ? "RENEWAL_REQUIREMENT_NOT_MET" : "RENEWAL_AUTHORITY_UNKNOWN"}, ended_at = NOW()
         WHERE career_save_id = ${root.id} AND id = ${active.id}`);
@@ -261,7 +334,6 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
     await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'RETENTION_REQUIREMENT_NOT_MET', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${active.id}`);
   }
   }
-  if (week === 1) await evaluateOffers(tx, root, await getFacts(), `season:${season}`, season, week);
   await syncSponsorCache(tx, root.id);
 }
 
@@ -420,7 +492,10 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
             reason: `${contract.terms.displayName} ${bonus.key} bonus — ${event.name}`, season, week, eventId: event.id, contractId: contract.id, detail: { bonusKey: bonus.key, finishingPosition: mine.finishing_position } });
         }
       }
-      await evaluateOffers(tx, root, await factsProvider().facts(tx, root), `event:${event.id}`, season, week);
+      await evaluateOffers(tx, root, await factsProvider().facts(tx, root), `event:${event.id}`, season, week, {
+        kind: "RESULT", eventId: event.id, eventName: event.name, circuit: event.circuit, season, week,
+        finishingPosition: mine.finishing_position, isChampion: mine.is_champion,
+      });
     },
 
     async onCalendarMoved(tx, root, season, week) {

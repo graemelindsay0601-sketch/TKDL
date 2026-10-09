@@ -32,6 +32,7 @@ export * from "./career-saves";
 export * from "./career-world";
 export * from "./career-calendar";
 export * from "./career-finance";
+export * from "./career-sponsor-journeys";
 export * from "./career-sponsorship";
 export * from "./career-sporting";
 export * from "./career-goals";

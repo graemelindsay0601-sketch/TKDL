@@ -9,6 +9,7 @@ import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
+import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
 import { post } from "../../career/finance/ledger.ts";
@@ -36,7 +37,7 @@ before(async () => {
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db);
-  await createCareerFinance(db); await createCareerFinance(db); // idempotent re-run
+  await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); // idempotent re-run
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -60,6 +61,14 @@ const rejectsWith = (p: Promise<unknown>, pattern: RegExp) => assert.rejects(p, 
 async function events(saveId: string, query: Record<string, unknown> = {}) { return (await finance.calendar.calendar(actor, saveId, query)).events as Ev[]; }
 async function withRoot<T>(saveId: string, work: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], root: RootRow) => Promise<T>) {
   return db.transaction(async tx => work(tx, await lockRoot(tx, actor, saveId) as RootRow));
+}
+async function createResultApproaches(saveId: string, resultKey: string) {
+  const root = await saves.read(1, saveId);
+  return withRoot(saveId, (tx, locked) => evaluateOffers(tx, locked, structuredClone(fixture), `event:${resultKey}`,
+    root.currentSeason, root.currentWeek, {
+      kind: "RESULT", eventId: resultKey, eventName: "Ayrshire Open", circuit: "GRASSROOTS",
+      season: root.currentSeason, week: root.currentWeek, finishingPosition: 1, isChampion: false,
+    }));
 }
 /** Test-only funding/draining through the ledger authority itself (not exposed over HTTP). */
 async function adjust(saveId: string, key: string, amountPence: number) {
@@ -397,6 +406,105 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   const s = await finance.summary(actor, save.id);
   assert.deepEqual([s.sponsorEarningsPence, s.careerEarningsPence, s.careerExpensesPence, s.sponsorCoveredExpensesPence, s.reconciled], [13500, 2500, 250, 250, true]);
   assert.equal(s.balancePence, 25000 + 13500 + 2500 - 250);
+});
+
+test("SP-B persists result-led offers, counters through A4, replays idempotently and signs actual terms once", async () => {
+  const save = await career();
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  assert.deepEqual((await finance.sponsors(actor, save.id)).offers, [], "initialization itself creates no commercial approach");
+  assert.deepEqual(await createResultApproaches(save.id, "result-led-journey"), ["forge-workwear", "lochside-joinery"]);
+  const initial = (await finance.sponsors(actor, save.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  const initialId = String(initial.id);
+  const initialJourney = initial.journey as unknown as { status: string; timeline: Array<{ type: string; details: Record<string, unknown> }> };
+  assert.equal(initialJourney.status, "OFFERED");
+  assert.equal(initialJourney.timeline[0].type, "INTEREST");
+  assert.equal(initialJourney.timeline.at(-1)?.type, "OFFER_RECEIVED");
+  assert.match(String(initialJourney.timeline[0].details.summary), /Ayrshire Open/);
+  const approach = initialJourney.timeline.find(event => event.type === "APPROACH")!;
+  const contact = approach.details.contact as { name: string; role: string; representativeId: string | null };
+  assert.equal(contact.name, initial.terms.representative?.displayName ?? `${initial.terms.displayName} partnership team`);
+  assert.match(String(approach.details.introduction), /Ayrshire Open/);
+
+  const firstRequest = {
+    requestKey: "spb-counter-round-one-001", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 20_000 } as const,
+  };
+  const counter = await finance.negotiateOffer(actor, save.id, initialId, firstRequest);
+  assert.deepEqual([counter.outcome, counter.round, counter.revision], ["COUNTERED", 1, 1]);
+  assert.ok(counter.offerId);
+  const revised = (await finance.sponsors(actor, save.id)).offers.find(o => o.id === counter.offerId)!;
+  assert.equal(revised.journey?.status, "NEGOTIATING");
+  assert.equal(revised.terms.signingBonusPence, 15_000, "counter is bounded between original and requested terms");
+  const replay = await finance.negotiateOffer(actor, save.id, initialId, firstRequest);
+  assert.equal(replay.replayed, true);
+  assert.equal(replay.offerId, counter.offerId);
+  await rejectsStatus(finance.negotiateOffer(actor, save.id, initialId, {
+    ...firstRequest, change: { kind: "SIGNING_BONUS", amountPence: 21_000 },
+  }), 409);
+  await rejectsStatus(finance.negotiateOffer(actor, save.id, initialId, {
+    requestKey: "spb-stale-revision-001", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 16_000 },
+  }), 409);
+
+  const acceptedRequest = await finance.negotiateOffer(actor, save.id, String(revised.id), {
+    requestKey: "spb-accept-round-two-01", expectedRevision: 1,
+    change: { kind: "SIGNING_BONUS", amountPence: 16_000 },
+  });
+  assert.deepEqual([acceptedRequest.outcome, acceptedRequest.round, acceptedRequest.revision], ["ACCEPTED", 2, 2]);
+  assert.ok(acceptedRequest.offerId);
+  const finalOffer = (await finance.sponsors(actor, save.id)).offers.find(o => o.id === acceptedRequest.offerId)!;
+  assert.equal(finalOffer.journey?.negotiationRounds, 2);
+  const finalOfferId = String(finalOffer.id);
+  const signed = await finance.acceptOffer(actor, save.id, { offerId: finalOfferId });
+  assert.equal(signed.created, true);
+  assert.equal(signed.signingReveal?.terms.signingBonusPence, 16_000);
+  assert.equal(signed.signingReveal?.contractId, signed.contractId);
+  const secondOpen = await finance.acceptOffer(actor, save.id, { offerId: finalOfferId });
+  assert.equal(secondOpen.created, false);
+  assert.equal(secondOpen.signingReveal, null, "a replay does not show a second signing event");
+  assert.deepEqual((await ledger(save.id)).filter(row => row.category === "SPONSOR_SIGNING_BONUS").map(row => Number(row.amount_pence)), [16_000]);
+  const journey = (await rows(sql`SELECT status, signed_contract_id FROM career_sponsor_journeys WHERE career_save_id = ${save.id} AND sponsor_key = 'forge-workwear'`))[0];
+  assert.deepEqual([journey.status, journey.signed_contract_id], ["SIGNED", signed.contractId]);
+  assert.deepEqual((await rows(sql`SELECT status FROM career_sponsor_offers WHERE career_save_id = ${save.id} AND id = ${initialId}`))[0].status, "COUNTERED");
+});
+
+test("SP-B negotiation rejects extreme asks, records sponsor rejection, and preserves walk-away state", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+
+  const withdrawnSave = await career();
+  await createResultApproaches(withdrawnSave.id, "extreme-ask-result");
+  const withdrawnOffer = (await finance.sponsors(actor, withdrawnSave.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  const withdrawn = await finance.negotiateOffer(actor, withdrawnSave.id, String(withdrawnOffer.id), {
+    requestKey: "spb-extreme-ask-000001", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 100_000 },
+  });
+  assert.equal(withdrawn.outcome, "WITHDRAWN");
+  assert.deepEqual((await rows(sql`SELECT o.status, j.status AS journey_status FROM career_sponsor_offers o
+    JOIN career_sponsor_journeys j ON j.career_save_id = o.career_save_id AND j.current_offer_id = o.id
+    WHERE o.career_save_id = ${withdrawnSave.id} AND o.id = ${withdrawnOffer.id}`))[0], { status: "WITHDRAWN", journey_status: "WITHDRAWN" });
+
+  const rejectedSave = await career(1, 2);
+  await createResultApproaches(rejectedSave.id, "rejected-ask-result");
+  const rejectedOffer = (await finance.sponsors(actor, rejectedSave.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  const first = await finance.negotiateOffer(actor, rejectedSave.id, String(rejectedOffer.id), {
+    requestKey: "spb-rejected-counter-001", expectedRevision: 0,
+    change: { kind: "SIGNING_BONUS", amountPence: 20_000 },
+  });
+  assert.equal(first.outcome, "COUNTERED");
+  const second = await finance.negotiateOffer(actor, rejectedSave.id, first.offerId!, {
+    requestKey: "spb-rejected-final-0001", expectedRevision: 1,
+    change: { kind: "SIGNING_BONUS", amountPence: 40_000 },
+  });
+  assert.equal(second.outcome, "REJECTED");
+  assert.equal((await rows(sql`SELECT status FROM career_sponsor_journeys WHERE career_save_id = ${rejectedSave.id} AND sponsor_key = 'forge-workwear'`))[0].status, "REJECTED");
+  assert.equal((await rows(sql`SELECT status_reason FROM career_sponsor_offers WHERE career_save_id = ${rejectedSave.id} AND id = ${first.offerId}`))[0].status_reason, "SPONSOR_REJECTED_NEGOTIATION");
+
+  const walkedSave = await career(1, 3);
+  await createResultApproaches(walkedSave.id, "walk-away-result");
+  const walkedOffer = (await finance.sponsors(actor, walkedSave.id)).offers.find(o => o.sponsorKey === "forge-workwear")!;
+  await finance.declineOffer(actor, walkedSave.id, { offerId: String(walkedOffer.id) });
+  assert.equal((await rows(sql`SELECT status FROM career_sponsor_journeys WHERE career_save_id = ${walkedSave.id} AND sponsor_key = 'forge-workwear'`))[0].status, "WALKED_AWAY");
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_contracts WHERE career_save_id = ${walkedSave.id}`))[0].n, 0);
 });
 
 test("coverage caps, decline, expiry, contract end with renewal or loss, replacement and history", async () => {
