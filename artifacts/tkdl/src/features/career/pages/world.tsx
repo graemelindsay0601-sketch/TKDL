@@ -5,7 +5,8 @@ import {CareerError,CareerLoading,CareerSection,BoundedList} from "../components
 import {titleCase,formatPence} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
-import {CareerShirt,CareerTrophy,CareerEventIdentity} from "../identity";
+import {CareerShirt,CareerTrophy,CareerEventIdentity,type ShirtIdentity} from "../identity";
+import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
 import {CareerMapPage} from "./map";
 
@@ -79,13 +80,12 @@ export function PresentationPage({ctx}:{ctx:ShellContext}) {
       {message&&<p role="status">{message}</p>}</div></CareerSection></div>;
 }
 function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) {
-  const edit=useEditPresentation(saveId),[identity,setIdentity]=useState(data.identity),[message,setMessage]=useState("");
+  type EditableIdentity=ShirtIdentity&{nickname?:string|null;competitionCategory?:unknown};
+  const edit=useEditPresentation(saveId),[identity,setIdentity]=useState<EditableIdentity>(data.identity),[message,setMessage]=useState("");
   const set=(key:string,value:string)=>setIdentity({...identity,[key]:value});
   return <CareerSection title="Presentation identity"><form className="p-4 space-y-3" onSubmit={e=>{e.preventDefault();edit.mutate(identity,{onSuccess:()=>setMessage("Presentation saved."),onError:e=>setMessage(errorMessage(e))});}}>
-    <CareerShirt name="Your Career player" identity={identity} sponsors={data.placements} scale="profile"/>
+    <CareerKitCustomizer identity={identity} sponsors={data.placements} playerName="Your Career player" disabled={!data.canEdit} onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
     <label className="block">Nickname <input maxLength={32} value={identity.nickname??""} onChange={e=>set("nickname",e.target.value)} disabled={!data.canEdit}/></label>
-    <label className="block">Shirt <select value={identity.shirtTemplate} onChange={e=>set("shirtTemplate",e.target.value)} disabled={!data.canEdit}>{["CLASSIC","CHEVRON","SPLIT"].map(t=><option key={t}>{t}</option>)}</select></label>
-    {(["primaryColour","secondaryColour","accentColour"] as const).map(k=><label className="block" key={k}>{titleCase(k)} <input type="color" value={identity[k]} onChange={e=>set(k,e.target.value)} disabled={!data.canEdit}/></label>)}
     <label className="block">Competition category <select value={String(identity.competitionCategory)} onChange={e=>set("competitionCategory",e.target.value)} disabled={!data.canEdit}>
       <option value="OPEN">Open / mixed pathways</option><option value="WOMEN">Declared women's-category eligibility + open / mixed pathways</option></select></label>
     <p>{data.editWindow}. All other eligibility rules still apply.</p><button className="career-btn" disabled={!data.canEdit||edit.isPending}>Save presentation</button>{message&&<p role="status">{message}</p>}

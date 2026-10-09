@@ -1,12 +1,23 @@
 import {useId,type CSSProperties,type ReactNode} from "react";
 import {eventIdentity} from "./presentation";
+import {CAREER_KIT_BY_ID} from "./kit-catalog";
 
-export type ShirtIdentity={shirtTemplate?:string;primaryColour?:string;secondaryColour?:string;accentColour?:string};
+export type ShirtIdentity={shirtTemplate?:string;kitDesignId?:string;primaryColour?:string;secondaryColour?:string;accentColour?:string};
 export type ShirtPartner={brandName:string;slot:string};
 const colour=(v:string|undefined,fallback:string)=>/^#[0-9a-f]{6}$/i.test(v??"")?v!:fallback;
 export function CareerShirt({identity={},sponsors=[],name="Player",scale="standard"}:{identity?:ShirtIdentity;sponsors?:ShirtPartner[];name?:string;scale?:"compact"|"standard"|"featured"|"profile"}) {
   const clip=useId().replace(/:/g,""),p=colour(identity.primaryColour,"#20334A"),s=colour(identity.secondaryColour,"#FFFFFF"),a=colour(identity.accentColour,"#C8A050");
   const torso="M32 20 53 12 67 12 88 20 112 39 98 62 85 53 85 126 35 126 35 53 22 62 8 39Z";
+  const kit=identity.kitDesignId?CAREER_KIT_BY_ID.get(identity.kitDesignId):undefined;
+  if(kit) {
+    const image=`${import.meta.env.BASE_URL}assets/career-kit-library/${kit.image}`;
+    const partnerSlots:Record<string,[number,number]>={EQUIPMENT_PARTNER:[50,34],APPAREL_PARTNER:[69,21],PRIMARY_COMMERCIAL:[50,54],SECONDARY_COMMERCIAL:[19,37],LOCAL_REGIONAL_PARTNER:[78,64]};
+    const wash={"--career-kit-mask":`url("${image}")`,"--career-kit-primary":p} as CSSProperties;
+    return <span className={`career-shirt career-shirt-${scale} career-shirt--library`} role="img" aria-label={`${name}'s ${kit.name} shirt${sponsors.length?`; partners: ${sponsors.map(x=>x.brandName).join(", ")}`:""}`}>
+      <img className="career-shirt__artwork" src={image} alt="" aria-hidden="true"/><span className="career-shirt__wash" style={wash} aria-hidden="true"/>
+      {sponsors.slice(0,5).map((partner,index)=>{const pos=partnerSlots[partner.slot]??[50,72];return <span className="career-shirt__partner" key={`${partner.slot}:${partner.brandName}:${index}`} style={{left:`${pos[0]}%`,top:`${pos[1]}%`}}>{partner.brandName.slice(0,15).toUpperCase()}</span>;})}
+    </span>;
+  }
   const slots:Record<string,[number,number]>={EQUIPMENT_PARTNER:[60,45],APPAREL_PARTNER:[77,30],PRIMARY_COMMERCIAL:[60,68],SECONDARY_COMMERCIAL:[23,44],LOCAL_REGIONAL_PARTNER:[60,95]};
   return <svg viewBox="0 0 120 140" className={`career-shirt career-shirt-${scale}`} role="img" aria-label={`${name}'s ${identity.shirtTemplate??"CLASSIC"} shirt${sponsors.length?`; partners: ${sponsors.map(x=>x.brandName).join(", ")}`:""}`}>
     <defs><clipPath id={clip}><path d={torso}/></clipPath></defs><path d={torso} fill={p} stroke="#ffffff50" strokeWidth="1.5"/>

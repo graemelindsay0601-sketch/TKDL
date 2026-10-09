@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Archive, Crown, Plus, Star } from "lucide-react";
 import { useCareerSaves, useSaveLifecycle, saveInitialShirt, errorMessage, errorStatus } from "../api";
 import {CareerShirt,type ShirtIdentity} from "../identity";
+import {CareerKitCustomizer} from "../kit-customizer";
 import { slotLines, ageOnDate, careerStartDateForToday, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, ConfirmButton, Label, OSWALD, StatusBadge } from "../components";
 import type { CareerSave } from "../types";
@@ -104,7 +105,7 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
   const [dob, setDob] = useState("");
   const [home, setHome] = useState("ayrshire");
   const [step,setStep]=useState(0),[nickname,setNickname]=useState("");
-  const [shirt,setShirt]=useState<ShirtIdentity>({shirtTemplate:"CLASSIC",primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"});
+  const [shirt,setShirt]=useState<ShirtIdentity>({shirtTemplate:"CLASSIC",kitDesignId:"kit-50-01",primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"});
   const start = careerStartDateForToday();
   const startAge = dob ? ageOnDate(dob, start) : null;
   const tooYoung = startAge !== null && startAge < MINIMUM_CAREER_START_AGE;
@@ -140,8 +141,7 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
           </label>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Difficulty only tunes simulated opponents. Sporting rules are identical on every setting.</p>
           </div>
-          {step===1&&<><CareerShirt name={name||"Your player"} identity={shirt}/><label>Shirt template <select value={shirt.shirtTemplate} onChange={e=>setShirt({...shirt,shirtTemplate:e.target.value})}>{["CLASSIC","CHEVRON","SPLIT"].map(t=><option key={t}>{t}</option>)}</select></label>
-            {(["primaryColour","secondaryColour","accentColour"] as const).map(k=><label key={k}>{k.replace("Colour"," colour")} <input type="color" value={shirt[k]} onChange={e=>setShirt({...shirt,[k]:e.target.value})}/></label>)}
+          {step===1&&<><CareerKitCustomizer identity={shirt} playerName={name||"Your player"} onChange={patch=>setShirt(current=>({...current,...patch}))}/>
             <label>Nickname (optional) <input maxLength={32} value={nickname} onChange={e=>setNickname(e.target.value)}/></label><p>Appearance only. No ability, seeding, sponsorship or results effect.</p></>}
           {step===2&&<><h3>Confirm Career</h3><p>{name||"My Career"} · Born {dob} · {HOME_REGIONS.find(r=>r.key===home)?.label} · {difficulty}</p><CareerShirt name={name||"Your player"} identity={shirt}/><p>{nickname||"No nickname"} · DOB is permanent once created. Shirt colours can be edited during the supported opening-week window.</p></>}
           <div className="flex gap-2">{step>0&&<button type="button" className="career-btn" onClick={()=>setStep(step-1)} disabled={busy}>Back</button>}<button type="submit" className="career-btn career-btn-primary flex-1" disabled={busy || !dob || tooYoung}>{busy ? "Creating world…" : step===2?"Start Career":step===0?"Choose shirt":"Review Career"}</button>
