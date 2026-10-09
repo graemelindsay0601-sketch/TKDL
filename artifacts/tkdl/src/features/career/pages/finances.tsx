@@ -46,6 +46,12 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
       {sponsors.data?.commercial && <CommercialOverview commercial={sponsors.data.commercial} />}
+      {sponsors.data?.guaranteeConfiguration?.status === "AWAITING_BALANCE_APPROVAL" && (
+        <div role="status" className="pdc-card px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.78)", borderColor: "rgba(255,210,74,0.28)" }}>
+          <strong style={{ color: "#ffd24a" }}>New sponsor guarantees are awaiting balance approval.</strong>{" "}
+          The current catalogue has no guaranteed-payment amounts, so new offers will not promise unapproved cash. Existing signed terms and ledger entries remain unchanged.
+        </div>
+      )}
       {sponsorInterests.length > 0 && (
         <CareerSection title="Brands watching your progress" icon={<Handshake className="w-3.5 h-3.5" />} accent="#38bdf8">
           <ul>{sponsorInterests.map(journey => {

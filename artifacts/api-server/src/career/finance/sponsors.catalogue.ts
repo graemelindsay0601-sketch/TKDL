@@ -3,6 +3,11 @@ import { SPONSOR_DATABASE_VERSION } from "./config.ts";
 import {BRANDS,SPONSOR_CATEGORIES,type Brand,type RelationshipSlot,type SponsorCategory} from "../content/brands.ts";
 import {representativeById} from "../content/sponsor-representatives.ts";
 
+/** Latest supported catalogue for new Career saves; older saves stay pinned to their snapshot version. */
+export const CURRENT_SPONSOR_DATABASE_VERSION = 3;
+/** New recurring/guaranteed cash is intentionally unavailable until its balance is approved. */
+export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "AWAITING_BALANCE_APPROVAL" as const;
+
 /**
  * SPONSOR DATABASE v1 — fictional brands only (no gambling, no real darts
  * manufacturers, no near-copies). Terms are data; offers/contracts snapshot them.
@@ -263,7 +268,7 @@ export const SPONSOR_CATALOGUE_V2: readonly SponsorDefinition[] = Object.freeze(
 export function sponsorCatalogue(version: number) {
   if (version === SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V1;
   if (version === 2) return SPONSOR_CATALOGUE_V2;
-  if (version === 3) return SPONSOR_CATALOGUE_V3;
+  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V3;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
 /**
@@ -311,7 +316,7 @@ export const SPONSOR_CATALOGUE_V3:readonly SponsorDefinition[] = Object.freeze(S
 }));
 
 export function validateSponsorCatalogues():void {
-  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3]] as const){
+  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[CURRENT_SPONSOR_DATABASE_VERSION,SPONSOR_CATALOGUE_V3]] as const){
     const keys=new Set<string>();
     for(const definition of catalogue){
       if(keys.has(definition.key))throw new Error(`Duplicate sponsor definition in v${version}: ${definition.key}`);
@@ -320,6 +325,11 @@ export function validateSponsorCatalogues():void {
       parseSponsorTerms(definition.terms);
       if(definition.terms.sponsorDatabaseVersion!==version)throw new Error(`Sponsor terms version mismatch: ${definition.key}`);
       if(definition.terms.sponsorKey!==definition.key)throw new Error(`Sponsor key mismatch: ${definition.key}`);
+      if (version === CURRENT_SPONSOR_DATABASE_VERSION &&
+        SPONSOR_GUARANTEE_CONFIGURATION_STATUS === "AWAITING_BALANCE_APPROVAL" &&
+        (definition.terms.contractFoundation?.guaranteedPayments.length ?? 0) > 0) {
+        throw new Error(`Sponsor guarantees in v${version} require balance approval before they can be offered: ${definition.key}`);
+      }
       if(definition.terms.representative&&definition.terms.representative.sponsorId!==definition.key)
         throw new Error(`Sponsor representative owner mismatch: ${definition.key}`);
     }

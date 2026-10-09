@@ -178,7 +178,8 @@ export type SponsorSigningReveal = {
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
   slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean; journey?:SponsorJourney|null;
   offered: { season: number; week: number }; expires: { season: number; week: number } };
-export type SponsorsResponse = { active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
+export type SponsorsResponse = { guaranteeConfiguration?: { status: "AWAITING_BALANCE_APPROVAL"; catalogueVersion: number };
+  active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
   commercial?: SponsorCommercialOverview; history: { contracts: SponsorContract[]; offers: SponsorOffer[] } };
 
 // ---------------------------------------------------------------- A5 sporting

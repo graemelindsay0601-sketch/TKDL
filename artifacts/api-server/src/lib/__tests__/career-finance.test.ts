@@ -19,7 +19,10 @@ import { activeContracts, advanceSponsorLifecycle, applyCoverage, evaluateOffers
 import { scheduleContractGuarantees } from "../../career/finance/sponsor-guarantees.ts";
 import type { SponsorApproachSource } from "../../career/finance/sponsor-journey.ts";
 import { groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
-import { evaluateRequirement, SPONSOR_CATALOGUE_V1, type SportingFacts } from "../../career/finance/sponsors.catalogue.ts";
+import {
+  CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, evaluateRequirement,
+  SPONSOR_CATALOGUE_V1, sponsorCatalogue, type SportingFacts,
+} from "../../career/finance/sponsors.catalogue.ts";
 import { PRIZE_PROFILES, prizeForPosition, FEE_PROFILES } from "../../career/finance/config.ts";
 import { lockRoot } from "../../career/world/service.ts";
 import type { RootRow } from "../../career/calendar/engine.ts";
@@ -55,6 +58,11 @@ async function career(player = 1, slot = 1) {
   const save = await saves.create(player, { slot });
   // Original A4 catalogue/NPC fixtures, not a silent upgrade to the A8.2 content universe.
   await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=1,player_database_version=1 WHERE id = ${save.id}`);
+  await finance.initialize({ playerId: player }, save.id);
+  return save;
+}
+async function careerWithCurrentCatalogue(player = 1, slot = 1) {
+  const save = await saves.create(player, { slot });
   await finance.initialize({ playerId: player }, save.id);
   return save;
 }
@@ -101,6 +109,26 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 }
 
 // ------------------------------------------------------------------ ledger authority
+test("SP-C2 keeps the current sponsor catalogue explicitly versioned and guarantee offers fail closed pending balance approval", async () => {
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 3);
+  assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
+  assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "AWAITING_BALANCE_APPROVAL");
+  for (const version of [1, 2, CURRENT_SPONSOR_DATABASE_VERSION]) {
+    assert.ok(sponsorCatalogue(version).every(definition =>
+      (definition.terms.contractFoundation?.guaranteedPayments.length ?? 0) === 0),
+    `catalogue v${version} must not offer an unapproved guarantee`);
+  }
+
+  const save = await careerWithCurrentCatalogue();
+  const financeState = (await rows(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id = ${save.id}`))[0];
+  assert.equal(Number(financeState.sponsor_database_version), CURRENT_SPONSOR_DATABASE_VERSION,
+    "a new save must pin the current catalogue version");
+  assert.deepEqual((await finance.sponsors(actor, save.id)).guaranteeConfiguration, {
+    status: "AWAITING_BALANCE_APPROVAL",
+    catalogueVersion: CURRENT_SPONSOR_DATABASE_VERSION,
+  });
+});
+
 test("SP-C schedules per-season and monthly guarantees at deterministic Career weeks and excludes earlier mid-season periods", () => {
   const contract = {
     id: "contract-fixture", sponsor_key: "forge-workwear",
@@ -507,6 +535,101 @@ test("SP-C ledger payments are idempotent, journey-atomic, paid only on due week
   assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_journey_events
     WHERE career_save_id = ${save.id} AND event_type = 'FINANCIAL_PAYMENT'`))[0].n, 9,
   "each committed guarantee has one persistent Career sponsor-timeline entry");
+  assert.equal((await finance.summary(actor, save.id)).reconciled, true);
+});
+
+test("SP-C2 pays approved-snapshot guarantees on every real multi-week advance without duplicating signing cash", async () => {
+  Object.assign(fixture, { titles: 1 });
+  const save = await careerWithCurrentCatalogue();
+  const definition = sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).find(item => item.key === "forge-workwear")!;
+  const terms = structuredClone(definition.terms);
+  terms.contractFoundation!.guaranteedPayments = [
+    { amountPence: 500, cadence: "ON_SIGNING", installments: 1 },
+    { amountPence: 5200, cadence: "PER_SEASON", installments: 4 },
+    { amountPence: 1200, cadence: "MONTHLY", installments: 12 },
+  ];
+  const offer = (await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
+     offered_season, offered_week, expires_season, expires_week, status)
+    VALUES (${save.id}, gen_random_uuid(), 'spc2:multiweek-guarantee-offer', ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},
+      ${terms.tier}, 'NEW', ${JSON.stringify(terms)}::jsonb, '{"fixture":"test"}'::jsonb, 1, 1, 1, 52, 'AVAILABLE')
+    RETURNING id`)).rows[0];
+  const accepted = await finance.acceptOffer(actor, save.id, { offerId: String(offer.id) });
+  assert.equal(accepted.created, true);
+
+  const signingAndWeekOne = (await ledger(save.id)).filter(row => Number(row.season) === 1 && Number(row.week) === 1);
+  assert.deepEqual(signingAndWeekOne
+    .filter(row => ["SPONSOR_SIGNING_BONUS", "SPONSOR_GUARANTEED_PAYMENT"].includes(String(row.category)))
+    .map(row => [row.category, Number(row.amount_pence)]).sort((a, b) => String(a[0]).localeCompare(String(b[0])) || Number(a[1]) - Number(b[1])),
+  [
+    ["SPONSOR_GUARANTEED_PAYMENT", 100],
+    ["SPONSOR_GUARANTEED_PAYMENT", 500],
+    ["SPONSOR_GUARANTEED_PAYMENT", 1300],
+    ["SPONSOR_SIGNING_BONUS", 10000],
+  ], "the contractual signing bonus and signing/recurring guarantees have separate A4 ledger identities");
+
+  const request = {
+    operationKey: "spc2:advance-through-week-fourteen",
+    expectedSeason: 1,
+    expectedWeek: 1,
+    target: { kind: "WEEKS", weeks: 14 },
+  };
+  const advanced = await finance.calendar.advance(actor, save.id, request) as {
+    to: { season: number; week: number }; weeksPlayed: number;
+  };
+  assert.deepEqual([advanced.to.season, advanced.to.week, advanced.weeksPlayed], [1, 15, 14]);
+  const retry = await finance.calendar.advance(actor, save.id, request) as { to: { season: number; week: number } };
+  assert.deepEqual(retry.to, advanced.to);
+
+  const guarantees = (await ledger(save.id)).filter(row => row.category === "SPONSOR_GUARANTEED_PAYMENT");
+  assert.equal(guarantees.length, 7, "week 1 plus every due monthly/quarterly instalment through week 14 posts exactly once");
+  assert.deepEqual(guarantees.map(row => [Number(row.season), Number(row.week)]),
+    [[1, 1], [1, 1], [1, 1], [1, 5], [1, 9], [1, 14], [1, 14]]);
+  assert.equal(new Set(guarantees.map(row => row.operation_key)).size, guarantees.length);
+
+  const sponsorView = await finance.sponsors(actor, save.id);
+  assert.deepEqual(sponsorView.commercial?.cashReceivedPence,
+    { total: 13500, signing: 10000, guarantees: 3500, eventPayments: 0, performanceBonuses: 0 });
+  assert.equal(sponsorView.commercial?.remainingGuaranteesPence, 3400);
+  assert.equal(sponsorView.commercial?.pastDueGuaranteesPence, 0);
+  assert.equal((await finance.summary(actor, save.id)).reconciled, true);
+});
+
+test("SP-C2 rolls back a due guarantee and date together when the calendar's payment hook fails", async () => {
+  Object.assign(fixture, { titles: 1 });
+  const save = await careerWithCurrentCatalogue();
+  const definition = sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).find(item => item.key === "forge-workwear")!;
+  const terms = structuredClone(definition.terms);
+  terms.contractFoundation!.guaranteedPayments = [
+    { amountPence: 5200, cadence: "PER_SEASON", installments: 52 },
+  ];
+  const offer = (await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
+     offered_season, offered_week, expires_season, expires_week, status)
+    VALUES (${save.id}, gen_random_uuid(), 'spc2:rollback-guarantee-offer', ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},
+      ${terms.tier}, 'NEW', ${JSON.stringify(terms)}::jsonb, '{"fixture":"test"}'::jsonb, 1, 1, 1, 52, 'AVAILABLE')
+    RETURNING id`)).rows[0];
+  await finance.acceptOffer(actor, save.id, { offerId: String(offer.id) });
+
+  const body = { operationKey: "spc2:rollback-calendar-payment", expectedSeason: 1, expectedWeek: 1, target: { kind: "WEEKS", weeks: 1 } };
+  const originalHook = finance.hooks.onCalendarMoved;
+  finance.hooks.onCalendarMoved = async (tx, root, season, week) => {
+    await originalHook(tx, root, season, week);
+    throw new Error("injected calendar finance failure");
+  };
+  try {
+    await assert.rejects(finance.calendar.advance(actor, save.id, body), /injected calendar finance failure/);
+  } finally {
+    finance.hooks.onCalendarMoved = originalHook;
+  }
+
+  assert.equal((await saves.read(1, save.id)).currentWeek, 1, "failed weekly transaction must not move the Career date");
+  assert.equal((await ledger(save.id)).filter(row => row.category === "SPONSOR_GUARANTEED_PAYMENT" && Number(row.week) === 2).length, 0,
+    "a rolled-back date transition cannot leave its scheduled cash behind");
+  const retry = await finance.calendar.advance(actor, save.id, body) as { to: { week: number }; weeksPlayed: number };
+  assert.deepEqual([retry.to.week, retry.weeksPlayed], [2, 1]);
+  const posted = (await ledger(save.id)).filter(row => row.category === "SPONSOR_GUARANTEED_PAYMENT" && Number(row.week) === 2);
+  assert.equal(posted.length, 1, "retry posts the now-due instalment exactly once");
   assert.equal((await finance.summary(actor, save.id)).reconciled, true);
 });
 

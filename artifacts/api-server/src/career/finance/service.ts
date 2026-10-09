@@ -9,7 +9,7 @@ import { loadInstances, type RootRow } from "../calendar/engine.ts";
 import type { CalendarProviders } from "../calendar/providers.ts";
 import { BRANDS } from "../content/brands.ts";
 import { representativeForSponsor } from "../content/sponsor-representatives.ts";
-import { FINANCE_VERSION, SPONSOR_DATABASE_VERSION } from "./config.ts";
+import { FINANCE_VERSION } from "./config.ts";
 import { summary, recentEntries, presentEntry, post, type LedgerRow } from "./ledger.ts";
 import {
   createFinanceHooks, defaultFactsProvider, ensureFinanceState, evaluateOffers, acceptOffer, declineOffer, reservedPence, activeContracts,
@@ -17,7 +17,9 @@ import {
 } from "./engine.ts";
 import { projectGuaranteePaymentStatus, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
 import { relationship, conflicts, portfolioLimit } from "./portfolio.ts";
-import {parseSponsorTerms} from "./sponsors.catalogue.ts";
+import {
+  CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, parseSponsorTerms,
+} from "./sponsors.catalogue.ts";
 import { appendSponsorJourneyEvent, syncExpiredSponsorJourneys } from "./sponsor-journey.ts";
 import { negotiateSponsorOffer } from "./sponsor-negotiation.ts";
 
@@ -55,7 +57,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
   return {
     calendar,
     hooks,
-    versions: { financeVersion: FINANCE_VERSION, sponsorDatabaseVersion: SPONSOR_DATABASE_VERSION },
+    versions: { financeVersion: FINANCE_VERSION, sponsorDatabaseVersion: CURRENT_SPONSOR_DATABASE_VERSION },
 
     /** Initialize A3 and the A4 ledger baseline without generating sponsor approaches. */
     async initialize(actor: CareerActor, saveId: string) {
@@ -218,7 +220,12 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             amountPence: bonus.amountPence, maxPosition: bonus.maxPosition,
             classifications: bonus.classifications, circuits: bonus.circuits ?? null,
           })));
-        return { active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),portfolioLimit:portfolioLimit(sporting),
+        return {
+          guaranteeConfiguration: {
+            status: SPONSOR_GUARANTEE_CONFIGURATION_STATUS,
+            catalogueVersion: CURRENT_SPONSOR_DATABASE_VERSION,
+          },
+          active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),portfolioLimit:portfolioLimit(sporting),
           commercial: {
             season: current.season,
             week: current.week,

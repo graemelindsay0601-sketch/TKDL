@@ -6,12 +6,12 @@ import type { InstanceRow, RootRow } from "../calendar/engine.ts";
 import type { CalendarProviders, CalendarFinanceHooks } from "../calendar/providers.ts";
 import type { DenialReason } from "../calendar/eligibility.ts";
 import {
-  FINANCE_VERSION, SPONSOR_DATABASE_VERSION, FEE_PROFILES, FEE_OVERRIDES, PRIZE_PROFILES, PRIZE_OVERRIDES, REFUND_POLICIES,
+  FINANCE_VERSION, FEE_PROFILES, FEE_OVERRIDES, PRIZE_PROFILES, PRIZE_OVERRIDES, REFUND_POLICIES,
   OFFER_LIFETIME_WEEKS, MAX_OFFERS_PER_EVALUATION, WEEKS, prizeForPosition, type FeeProfile, type PrizeProfile, type RefundPolicy,
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
-import {sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
+import {CURRENT_SPONSOR_DATABASE_VERSION,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
 import { guaranteeScheduleIssue, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
@@ -37,10 +37,10 @@ export function profileFor(event: Pick<InstanceRow, "definition_key" | "classifi
 // ------------------------------------------------------------------ state / contract / coverage
 export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
-    SELECT ${saveId}, ${FINANCE_VERSION}, CASE WHEN event_database_version >= 5 THEN 3 WHEN event_database_version >= 3 THEN 2 ELSE 1 END FROM career_saves WHERE id=${saveId}
+    SELECT ${saveId}, ${FINANCE_VERSION}, CASE WHEN event_database_version >= 5 THEN ${CURRENT_SPONSOR_DATABASE_VERSION} WHEN event_database_version >= 3 THEN 2 ELSE 1 END FROM career_saves WHERE id=${saveId}
     ON CONFLICT (career_save_id) DO NOTHING`);
   const row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
-  if (Number(row.finance_version) !== FINANCE_VERSION || ![1,2,3].includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
+  if (Number(row.finance_version) !== FINANCE_VERSION || ![1,2,CURRENT_SPONSOR_DATABASE_VERSION].includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
 }
 export type ContractRow = { id: string; offer_id: string; sponsor_key: string; tier: SponsorTier; terms: SponsorTerms; start_season: number; start_week: number; end_season: number; end_week: number; status: string };
 export async function activeContracts(tx: CareerExecutor, saveId: string): Promise<ContractRow[]> {
@@ -254,7 +254,7 @@ async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: stri
   const expires = fromIndex(timeIndex(season, week) + OFFER_LIFETIME_WEEKS);
   const result = await tx.execute(sql`INSERT INTO career_sponsor_offers (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
       offered_season, offered_week, expires_season, expires_week, status)
-    VALUES (${root.id}, ${stableUuid(root.world_seed, SPONSOR_DATABASE_VERSION, "sponsor-offer", operationKey)}, ${operationKey}, ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},
+    VALUES (${root.id}, ${stableUuid(root.world_seed, terms.sponsorDatabaseVersion, "sponsor-offer", operationKey)}, ${operationKey}, ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},
       ${terms.tier}, ${kind}, ${JSON.stringify(terms)}::jsonb, ${JSON.stringify(source)}::jsonb, ${season}, ${week}, ${expires.season}, ${expires.week}, 'AVAILABLE')
     ON CONFLICT DO NOTHING RETURNING id`);
   return result.rows.length > 0;
@@ -416,7 +416,7 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   await postDueGuaranteedPayments(tx, root, previous.filter(contract => replacements.has(contract.id)), season, week);
   for(const id of replacements)await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'EXPLICITLY_REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${id}`);
   const end = contractEnd(offer.terms, season, week);
-  const contractId = stableUuid(root.world_seed, SPONSOR_DATABASE_VERSION, "sponsor-contract", offer.id);
+  const contractId = stableUuid(root.world_seed, offer.terms.sponsorDatabaseVersion, "sponsor-contract", offer.id);
   await tx.execute(sql`INSERT INTO career_sponsor_contracts (career_save_id, id, offer_id, sponsor_key, sponsor_database_version, tier, terms, start_season, start_week, end_season, end_week, status)
     VALUES (${root.id}, ${contractId}, ${offer.id}, ${offer.sponsor_key}, ${offer.terms.sponsorDatabaseVersion}, ${offer.tier}, ${JSON.stringify(offer.terms)}::jsonb, ${season}, ${week}, ${end.season}, ${end.week}, 'ACTIVE')`);
   await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'ACCEPTED', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId} AND status = 'AVAILABLE'`);
