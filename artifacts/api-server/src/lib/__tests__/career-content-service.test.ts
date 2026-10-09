@@ -7,6 +7,7 @@ import express from "express";
 import {createCareerSaves} from "../../db/migrations/create_career_saves.ts";
 import {createCareerWorld} from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
+import {createCareerFinanceSPC} from "../../db/migrations/create_career_finance_spc.ts";
 import {createCareerCalendar} from "../../db/migrations/create_career_calendar.ts";
 import {createCareerFinance} from "../../db/migrations/create_career_finance.ts";
 import {createCareerSponsorJourneysSPB} from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
@@ -40,7 +41,7 @@ before(async()=>{
   await pg.exec(`CREATE TABLE players(id integer PRIMARY KEY);INSERT INTO players VALUES(1),(2);
     CREATE TABLE feature_flags(feature_name text UNIQUE,enabled boolean,admin_test_mode boolean,description text);
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
-  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerSporting(db);
+  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSporting(db);
   const save=await saves.create(1,{slot:1,dateOfBirth:"1990-01-01",homeLocality:"ayrshire"});saveId=save.id;
   // Preserve the published A8.1 v3 universe; A8.2 v4 has its own tournament tests.
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed},event_database_version=3 WHERE id=${saveId}`);
@@ -108,7 +109,7 @@ test("competitor conflicts and foreign replacements fail atomically; explicit re
   replacement=(await sporting.finance.acceptOffer(actor,saveId,{offerId:id,replaceContractIds:[equipment]})).contractId;
   const active=await activeContracts(db,saveId);assert.equal(active.length,2);assert.ok(active.some(c=>c.id===local));assert.ok(active.some(c=>c.id===replacement));
   assert.equal((await rows(sql`SELECT end_reason FROM career_sponsor_contracts WHERE career_save_id=${saveId} AND id=${equipment}`))[0].end_reason,"EXPLICITLY_REPLACED");
-  await createCareerFinance(db);assert.equal((await activeContracts(db,saveId)).length,2);
+  await createCareerFinance(db);await createCareerFinanceSPC(db);assert.equal((await activeContracts(db,saveId)).length,2);
 });
 test("all active contracts complete/review together; rollback protects fixture and old terms",async()=>{
   class Rollback extends Error{}

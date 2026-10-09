@@ -1,10 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { formatGuaranteeInstalmentSplit } from "../../features/career/pages/sponsor-guarantee-presentation.ts";
 import {
   formatPence, movementLabel, ordinal, eventStatus, primaryAction, pickNextEvent, qSchoolState, financeHeadlines, careerChapter, routeLines, slotLines,
   activeNavKey, CAREER_NAV, formatLabel, eventLifecycle, milestoneLabel, matchesStatusFilter, MATCH_PLAY_STATUS, tierStyle, denialLabel,
 } from "../../features/career/model.ts";
 import type { CareerEvent, CareerSave, FinanceSummary, QSchoolPathwayView, SportingSummary, HumanView } from "../../features/career/types.ts";
+
+test("guarantee copy presents total contract amounts with deterministic whole-pence instalments", () => {
+  assert.equal(formatGuaranteeInstalmentSplit(30000, 4), "£75 each");
+  assert.equal(formatGuaranteeInstalmentSplit(30001, 4), "£75.01 for the first instalment, then £75 for the remaining 3 instalments");
+});
 
 // ---------------------------------------------------------------- fixtures (shape of real A3/A4/A5 DTOs)
 const human = (o: Partial<HumanView> = {}): HumanView => ({ relationship: "AVAILABLE", eligible: true, eligibilityReasons: [], canEnter: true, denials: [], conflictsWith: [], entryStatus: null, result: null, ...o });
@@ -198,7 +204,11 @@ test("no RPG mechanics, coins or gambling vocabulary in the Career UI model", as
   const { readFileSync, readdirSync } = await import("node:fs");
   const dir = new URL("../../features/career/", import.meta.url);
   const files = [...readdirSync(dir).filter(f => /\.(ts|tsx)$/.test(f)).map(f => new URL(f, dir)), ...readdirSync(new URL("pages/", dir)).map(f => new URL(`pages/${f}`, dir))];
-  const source = files.map(f => readFileSync(f, "utf8")).join("\n");
+  // "Energy" is a harmless shirt-library collection name, not a player mechanic.
+  const source = files.map(f => {
+    const content = readFileSync(f, "utf8");
+    return f.pathname.endsWith("/kit-catalog.ts") ? content.replace(/["']Energy["']/g, "") : content;
+  }).join("\n");
   assert.ok(!/\b(xp|skill points?|stamina|loot|energy|gems?|bet(ting)?|casino|wager)\b/i.test(source.replace(/expected|experience/gi, "")));
   assert.ok(!/\/api\/(coins|currency|card-clash|tour\/)|player_currency|CoinBalance|useCoins/i.test(source), "no TKDL coins, currency or Classic Tour API in Career UI");
   assert.ok(!/Math\.random/.test(source), "nothing is invented client-side");

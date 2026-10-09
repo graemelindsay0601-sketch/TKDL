@@ -72,6 +72,7 @@ export const sponsorContractFoundationSchema=z.object({
   schemaVersion:z.literal(1),
   category:categorySchema,
   guaranteedPayments:z.array(z.object({
+    // One-off total for ON_SIGNING, or the total recurring guarantee per Career season.
     amountPence:penceSchema,
     cadence:z.enum(["ON_SIGNING","MONTHLY","PER_SEASON"]),
     installments:z.number().int().min(1).max(120),

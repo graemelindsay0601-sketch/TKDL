@@ -2,6 +2,7 @@ import { BadgeCheck, X } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { SponsorSigningReveal } from "../types";
 import { circuitLabel, formatPence, ledgerLabel, titleCase } from "../model";
+import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
 import "./sponsor-offers.css";
 
 export function SponsorSigningReveal({ deal, onDismiss }: { deal: SponsorSigningReveal; onDismiss: () => void }) {
@@ -31,6 +32,13 @@ export function SponsorSigningReveal({ deal, onDismiss }: { deal: SponsorSigning
         <div className="career-sponsor-signing__facts">
           <div><span>Signing payment</span><strong>{terms.signingBonusPence > 0 ? formatPence(terms.signingBonusPence) : "No signing payment"}</strong></div>
           {terms.eventPayment && <div><span>Per event played</span><strong>{formatPence(terms.eventPayment.amountPence)}</strong></div>}
+          {(terms.contractFoundation?.guaranteedPayments ?? []).map((payment, index) => (
+            <div key={`guarantee-${index}`}>
+              <span>{payment.cadence === "ON_SIGNING" ? "Guaranteed at signing" : `Guaranteed ${payment.cadence === "MONTHLY" ? "monthly" : "per season"} · ${payment.installments} instalments`}</span>
+              <strong>{payment.cadence === "ON_SIGNING" ? formatGuaranteeAmountPence(payment.amountPence)
+                : `${formatGuaranteeAmountPence(payment.amountPence)} total per Career season · ${formatGuaranteeInstalmentSplit(payment.amountPence, payment.installments)}`}</strong>
+            </div>
+          ))}
           {terms.coverage.map((item, index) => (
             <div key={`${item.costTypes.join("-")}-${index}`}>
               <span>{item.percent}% {item.costTypes.map(ledgerLabel).join(" / ")} support</span>
@@ -38,10 +46,10 @@ export function SponsorSigningReveal({ deal, onDismiss }: { deal: SponsorSigning
             </div>
           ))}
           {terms.performanceBonuses.map(bonus => (
-            <div key={bonus.key}><span>{bonus.maxPosition === 1 ? "Winner bonus" : `Top ${bonus.maxPosition} bonus`}</span><strong>{formatPence(bonus.amountPence)}</strong></div>
+            <div key={bonus.key}><span>{bonus.maxPosition === 1 ? "Potential winner bonus" : `Potential top ${bonus.maxPosition} bonus`}</span><strong>{formatPence(bonus.amountPence)} · conditional</strong></div>
           ))}
         </div>
-        <small>These are the accepted A4 contract terms; payments and coverage follow the listed event and cost conditions.</small>
+        <small>These are the accepted A4 terms. Only due payments count as cash; cost support is not cash, and result bonuses stay conditional until earned.</small>
       </div>
       <button className="career-sponsor-signing__close" type="button" aria-label="Close signing confirmation" onClick={onDismiss}><X /></button>
     </section>

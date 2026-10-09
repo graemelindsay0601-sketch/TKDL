@@ -8,6 +8,7 @@ import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
+import {createCareerFinanceSPC} from "../../db/migrations/create_career_finance_spc.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
@@ -89,7 +90,7 @@ before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2), (3), (4);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db);
+  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db);
   await createCareerSporting(db); await createCareerSporting(db); // idempotent re-run
   A = (await newCareer(human)).id;
   // Test-only funding through the A4 ledger authority (Q-School/Pro Circuit fees and travel are real A4 costs).

@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from "react";
 import { ConfirmButton } from "../components";
 import { circuitLabel, formatPence, ledgerLabel, titleCase } from "../model";
 import type { SponsorContract, SponsorJourneyEvent, SponsorNegotiationChange, SponsorOffer } from "../types";
+import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
 import "./sponsor-offers.css";
 
 type SponsorOfferCardProps = {
@@ -352,6 +353,17 @@ function whatThisMeans(terms: SponsorOffer["terms"]) {
   if (terms.signingBonusPence > 0) {
     items.push(`A one-off ${formatPence(terms.signingBonusPence)} signing payment is credited when the contract is signed.`);
   }
+  const guarantees = terms.contractFoundation?.guaranteedPayments ?? [];
+  for (const guarantee of guarantees) {
+    if (guarantee.cadence === "ON_SIGNING") {
+      items.push(`Guaranteed ${formatGuaranteeAmountPence(guarantee.amountPence)} cash is due once when this contract is signed.`);
+      continue;
+    }
+    const weeks = Array.from({ length: guarantee.installments }, (_, index) =>
+      Math.floor(index * 52 / guarantee.installments) + 1);
+    const cadence = guarantee.cadence === "MONTHLY" ? "monthly" : "scheduled";
+    items.push(`Guaranteed ${formatGuaranteeAmountPence(guarantee.amountPence)} total per Career season, split into ${guarantee.installments} ${cadence} instalments (${formatGuaranteeInstalmentSplit(guarantee.amountPence, guarantee.installments)}; Career Weeks ${weeks.join(", ")}). Each instalment is paid only when due; future instalments are not advance cash.`);
+  }
   if (terms.eventPayment) {
     const circuits = terms.eventPayment.circuits.length > 0
       ? ` at ${terms.eventPayment.circuits.map(circuitLabel).join(", ")}`
@@ -373,9 +385,11 @@ function whatThisMeans(terms: SponsorOffer["terms"]) {
       bonus.circuits?.length ? bonus.circuits.map(circuitLabel).join(", ") : null,
       bonus.classifications.length ? bonus.classifications.map(value => titleCase(value)).join(", ") : null,
     ].filter(Boolean);
-    items.push(`A ${formatPence(bonus.amountPence)} performance bonus applies for ${finish}${scope.length ? ` at ${scope.join(" · ")}` : ""}.`);
+    items.push(`A potential ${formatPence(bonus.amountPence)} performance bonus is earned for ${finish}${scope.length ? ` at ${scope.join(" · ")}` : ""}; it is conditional, not guaranteed cash.`);
   }
-  items.push("Only the payments and cost support listed in this offer are included; it has no annual retainer.");
+  items.push(guarantees.length
+    ? "Cost coverage is support toward eligible expenses, not cash. Only the signed terms above are included."
+    : "No guaranteed retainer is included. Cost coverage, if listed, supports eligible expenses and is not cash.");
   return items;
 }
 
@@ -398,5 +412,6 @@ function journeyEventLabel(type: SponsorJourneyEvent["type"]) {
     case "PLAYER_WALKED_AWAY": return "You walked away";
     case "SIGNED": return "Partnership signed";
     case "OFFER_EXPIRED": return "Offer expired";
+    case "FINANCIAL_PAYMENT": return "Sponsor payment posted";
   }
 }

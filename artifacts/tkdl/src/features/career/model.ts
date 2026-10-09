@@ -167,15 +167,15 @@ export function financeHeadlines(f: FinanceSummary): Headline[] {
   return [
     { key: "BALANCE", label: "Balance", pence: f.balancePence, hint: f.reservedForTravelPence > 0 ? `${formatPence(f.availablePence)} available after reserved travel` : "Spendable Career cash" },
     { key: "EARNINGS", label: "Career Earnings", pence: f.careerEarningsPence, hint: "Prize money only" },
-    { key: "SPONSOR", label: "Sponsor Earnings", pence: f.sponsorEarningsPence, hint: "Sponsor / commercial fees and merchandise royalties; not prizes" },
+    { key: "SPONSOR", label: "Sponsor Earnings", pence: f.sponsorEarningsPence, hint: "Sponsor cash actually posted; not future guarantees, cost cover or prizes" },
     { key: "EXPENSES", label: "Career Expenses", pence: f.careerExpensesPence, hint: f.sponsorCoveredExpensesPence > 0 ? `${formatPence(f.sponsorCoveredExpensesPence)} more covered by sponsors` : "Fees, travel and accommodation you paid" },
   ];
 }
 const LEDGER: Record<string, string> = { CAREER_START: "Starting funds", ENTRY_FEE: "Entry fee", TRAVEL: "Travel", ACCOMMODATION: "Accommodation", PRIZE: "Prize money",
-  SPONSOR_SIGNING_BONUS: "Sponsor signing bonus", SPONSOR_EVENT_PAYMENT: "Sponsor event payment", SPONSOR_PERFORMANCE_BONUS: "Sponsor performance bonus", REFUND: "Refund", ADJUSTMENT: "Adjustment" };
+  SPONSOR_SIGNING_BONUS: "Sponsor signing bonus", SPONSOR_GUARANTEED_PAYMENT: "Sponsor guaranteed payment", SPONSOR_EVENT_PAYMENT: "Sponsor event payment", SPONSOR_PERFORMANCE_BONUS: "Sponsor performance bonus", REFUND: "Refund", ADJUSTMENT: "Adjustment" };
 export const ledgerLabel = (c: string) => LEDGER[c] ?? titleCase(c);
 export const LEDGER_FILTERS = [{ key: "ALL", label: "All", categories: null }, { key: "PRIZE", label: "Prize", categories: ["PRIZE"] },
-  { key: "SPONSOR", label: "Sponsor / Commercial", categories: ["SPONSOR_SIGNING_BONUS", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS", "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY"] },
+  { key: "SPONSOR", label: "Sponsor / Commercial", categories: ["SPONSOR_SIGNING_BONUS", "SPONSOR_GUARANTEED_PAYMENT", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS", "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY"] },
   { key: "COSTS", label: "Costs", categories: ["ENTRY_FEE", "TRAVEL", "ACCOMMODATION"] }, { key: "REFUND", label: "Refunds", categories: ["REFUND"] }] as const;
 
 // ---------------------------------------------------------------- milestones (A5 facts, neutral labels; no prose)

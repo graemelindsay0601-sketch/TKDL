@@ -13,7 +13,8 @@ import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
 import {sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
-import { createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
+import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
+import { guaranteeScheduleIssue, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
 
 const HUMAN = "HUMAN";
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS + week;
@@ -50,6 +51,103 @@ export async function activeContracts(tx: CareerExecutor, saveId: string): Promi
 }
 /** Compatibility/display representative only, never the financial portfolio. */
 export const activeContract = async (tx: CareerExecutor, saveId: string) => (await activeContracts(tx,saveId))[0];
+
+async function appendSponsorPaymentTimeline(
+  tx: CareerExecutor,
+  root: RootRow,
+  contract: ContractRow,
+  input: { ledgerEntryId: string; operationKey: string; headline: string; amountPence: number; category: string; season: number; week: number; details?: Record<string, unknown> },
+) {
+  const journey = (await tx.execute(sql`SELECT id FROM career_sponsor_journeys
+    WHERE career_save_id = ${root.id} AND (signed_contract_id = ${contract.id} OR current_offer_id = ${contract.offer_id})
+    ORDER BY CASE WHEN signed_contract_id = ${contract.id} THEN 0 ELSE 1 END, created_at DESC LIMIT 1`)).rows[0];
+  if (!journey) return;
+  await appendSponsorJourneyEvent(tx, root, {
+    journeyId: String(journey.id),
+    eventKey: `financial-payment:${input.ledgerEntryId}`,
+    eventType: "FINANCIAL_PAYMENT",
+    offerId: contract.offer_id,
+    season: input.season,
+    week: input.week,
+    details: {
+      headline: input.headline,
+      summary: `${input.headline} — ${formatSponsorMoney(input.amountPence)}.`,
+      amountPence: input.amountPence,
+      currency: "GBP",
+      category: input.category,
+      ledgerEntryId: input.ledgerEntryId,
+      operationKey: input.operationKey,
+      sponsorKey: contract.sponsor_key,
+      contractId: contract.id,
+      ...input.details,
+    },
+  });
+}
+
+function formatSponsorMoney(amountPence: number) {
+  return `£${(amountPence / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Pay only accepted guarantee instalments due on this exact Career date.
+ * The immutable A4 ledger operation key is the retry authority; the sponsor
+ * timeline entry is created in the same transaction and only after a new
+ * ledger row was posted.
+ */
+export async function postDueGuaranteedPayments(
+  tx: CareerExecutor,
+  root: RootRow,
+  contracts: ContractRow[],
+  season: number,
+  week: number,
+) {
+  let postedCount = 0;
+  for (const contract of contracts) {
+    const { payments } = scheduleContractGuarantees(contract);
+    for (const payment of payments) {
+      if (payment.season !== season || payment.week !== week) continue;
+      const signing = payment.cadence === "ON_SIGNING";
+      const headline = signing
+        ? `${contract.terms.displayName} guaranteed signing payment`
+        : `${contract.terms.displayName} guaranteed payment ${payment.installment}/${payment.installments}`;
+      const posted = await post(tx, root, {
+        operationKey: payment.operationKey,
+        category: "SPONSOR_GUARANTEED_PAYMENT",
+        amountPence: payment.amountPence,
+        reason: headline,
+        season: payment.season,
+        week: payment.week,
+        contractId: contract.id,
+        detail: {
+          sponsorKey: contract.sponsor_key,
+          cadence: payment.cadence,
+          termIndex: payment.termIndex,
+          installment: payment.installment,
+          installments: payment.installments,
+          scheduledSeason: payment.season,
+          scheduledWeek: payment.week,
+        },
+      });
+      if (!posted.created) continue;
+      postedCount += 1;
+      await appendSponsorPaymentTimeline(tx, root, contract, {
+        ledgerEntryId: posted.row.id,
+        operationKey: payment.operationKey,
+        headline,
+        amountPence: payment.amountPence,
+        category: "SPONSOR_GUARANTEED_PAYMENT",
+        season: payment.season,
+        week: payment.week,
+        details: {
+          cadence: payment.cadence,
+          installment: payment.installment,
+          installments: payment.installments,
+        },
+      });
+    }
+  }
+  return postedCount;
+}
 
 type CoverageUsage = Map<number, number>;
 async function coverageUsage(tx: CareerExecutor, saveId: string, contract: ContractRow | undefined, season: number): Promise<CoverageUsage> {
@@ -293,6 +391,13 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
     await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'EXPIRED', status_reason = 'EXPIRED_BEFORE_ACCEPT', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId}`);
     return { contract: null, created: false, expired: true as const };
   }
+  const unsupportedGuarantees = (offer.terms.contractFoundation?.guaranteedPayments ?? [])
+    .map((payment, index) => ({ index, reason: guaranteeScheduleIssue(payment.cadence, payment.installments, payment.amountPence) }))
+    .filter((item): item is { index: number; reason: string } => item.reason !== null);
+  if (unsupportedGuarantees.length) {
+    const first = unsupportedGuarantees[0];
+    throw new CareerError(409, `Guaranteed payment ${first.index + 1} cannot be scheduled: ${first.reason}`);
+  }
   const previous = await activeContracts(tx, root.id), replacements=new Set(options.replaceContractIds??[]);
   if ([...replacements].some(id=>!previous.some(c=>c.id===id)))throw new CareerError(409,"Replacement must name an active owned contract");
   const remaining=previous.filter(c=>!replacements.has(c.id)), incompatible=conflicts(offer.terms,remaining);
@@ -307,6 +412,8 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   if(offer.terms.geographicPreference&&offer.terms.geographicPreference!==root.settings_snapshot?.homeLocality)
     throw new CareerError(409,"This local sponsor requires the matching home locality");
   if(remaining.length>=portfolioLimit(facts))throw new CareerError(409,"Sponsor portfolio is full for current sporting stature; explicitly replace an owned contract");
+  // Close earned obligations for the current week before an explicit replacement ends them.
+  await postDueGuaranteedPayments(tx, root, previous.filter(contract => replacements.has(contract.id)), season, week);
   for(const id of replacements)await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'EXPLICITLY_REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${id}`);
   const end = contractEnd(offer.terms, season, week);
   const contractId = stableUuid(root.world_seed, SPONSOR_DATABASE_VERSION, "sponsor-contract", offer.id);
@@ -441,6 +548,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
 
     async beforeWeek(tx, root, season, week) {
       await ensureFinanceState(tx, root.id);
+      await postDueGuaranteedPayments(tx, root, await activeContracts(tx, root.id), season, week);
       // Entered human events (still entered in A3) not yet travel-committed.
       const pending = (await tx.execute(sql`SELECT i.* FROM career_event_finance f JOIN career_event_instances i ON i.career_save_id = f.career_save_id AND i.id = f.event_id
         JOIN career_event_entries e ON e.career_save_id = f.career_save_id AND e.event_id = f.event_id AND e.participant_key = ${HUMAN} AND e.status <> 'WITHDRAWN'
@@ -520,13 +628,37 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         if (pay && pay.amountPence > 0 && pay.circuits.includes(event.circuit)) {
           const paid = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id = ${contract.id}
             AND category = 'SPONSOR_EVENT_PAYMENT' AND season = ${season}`)).rows[0].n);
-          if (paid < pay.maxEventsPerSeason) await post(tx, root, { operationKey: `sponsor-event:${contract.id}:${event.id}`, category: "SPONSOR_EVENT_PAYMENT", amountPence: pay.amountPence,
-            reason: `${contract.terms.displayName} event payment — ${event.name}`, season, week, eventId: event.id, contractId: contract.id });
+          if (paid < pay.maxEventsPerSeason) {
+            const operationKey = `sponsor-event:${contract.id}:${event.id}`;
+            const payment = await post(tx, root, { operationKey, category: "SPONSOR_EVENT_PAYMENT", amountPence: pay.amountPence,
+              reason: `${contract.terms.displayName} event payment — ${event.name}`, season, week, eventId: event.id, contractId: contract.id });
+            if (payment.created) await appendSponsorPaymentTimeline(tx, root, contract, {
+              ledgerEntryId: payment.row.id,
+              operationKey,
+              headline: `${contract.terms.displayName} event payment posted`,
+              amountPence: pay.amountPence,
+              category: "SPONSOR_EVENT_PAYMENT",
+              season,
+              week,
+              details: { eventId: event.id, eventName: event.name },
+            });
+          }
         }
         for (const bonus of contract.terms.performanceBonuses) {
           if (bonus.amountPence <= 0 || mine.finishing_position > bonus.maxPosition || !bonus.classifications.includes(event.classification) || (bonus.circuits && !bonus.circuits.includes(event.circuit))) continue;
-          await post(tx, root, { operationKey: `sponsor-bonus:${contract.id}:${event.id}:${bonus.key}`, category: "SPONSOR_PERFORMANCE_BONUS", amountPence: bonus.amountPence,
+          const operationKey = `sponsor-bonus:${contract.id}:${event.id}:${bonus.key}`;
+          const paid = await post(tx, root, { operationKey, category: "SPONSOR_PERFORMANCE_BONUS", amountPence: bonus.amountPence,
             reason: `${contract.terms.displayName} ${bonus.key} bonus — ${event.name}`, season, week, eventId: event.id, contractId: contract.id, detail: { bonusKey: bonus.key, finishingPosition: mine.finishing_position } });
+          if (paid.created) await appendSponsorPaymentTimeline(tx, root, contract, {
+            ledgerEntryId: paid.row.id,
+            operationKey,
+            headline: `${contract.terms.displayName} performance bonus earned`,
+            amountPence: bonus.amountPence,
+            category: "SPONSOR_PERFORMANCE_BONUS",
+            season,
+            week,
+            details: { bonusKey: bonus.key, eventId: event.id, eventName: event.name, finishingPosition: mine.finishing_position },
+          });
         }
       }
       await evaluateOffers(tx, root, await factsProvider().facts(tx, root), `event:${event.id}`, season, week, {
@@ -537,6 +669,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
 
     async onCalendarMoved(tx, root, season, week) {
       await ensureFinanceState(tx, root.id);
+      await postDueGuaranteedPayments(tx, root, await activeContracts(tx, root.id), season, week);
       await advanceSponsorLifecycle(tx, root, () => factsProvider().facts(tx, root), season, week);
     },
 

@@ -65,7 +65,7 @@ export async function post(tx: CareerExecutor, root: { id: string; world_seed: s
  * Four headlines, each a pure aggregate over the immutable ledger:
  *   balance          = SUM(all amounts)
  *   careerEarnings   = SUM(EARNINGS)   (prize money)
- *   sponsorEarnings  = SUM(SPONSOR)    (signing bonuses, event payments, performance bonuses)
+ *   sponsorEarnings  = SUM(SPONSOR)    (signing bonuses, scheduled guarantees, event payments, performance bonuses)
  *   careerExpenses   = −SUM(EXPENSE)   (player-paid fees/travel/accommodation net of refunds)
  * Identity: start + careerEarnings + sponsorEarnings − careerExpenses = balance.
  */

@@ -13,8 +13,9 @@ import { FINANCE_VERSION, SPONSOR_DATABASE_VERSION } from "./config.ts";
 import { summary, recentEntries, presentEntry, post, type LedgerRow } from "./ledger.ts";
 import {
   createFinanceHooks, defaultFactsProvider, ensureFinanceState, evaluateOffers, acceptOffer, declineOffer, reservedPence, activeContracts,
-  type SponsorFactsProvider,
+  postDueGuaranteedPayments, type SponsorFactsProvider,
 } from "./engine.ts";
+import { projectGuaranteePaymentStatus, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
 import { relationship, conflicts, portfolioLimit } from "./portfolio.ts";
 import {parseSponsorTerms} from "./sponsors.catalogue.ts";
 import { appendSponsorJourneyEvent, syncExpiredSponsorJourneys } from "./sponsor-journey.ts";
@@ -25,6 +26,7 @@ const acceptOfferSchema = offerRefSchema.extend({replaceContractIds:z.array(z.st
 const ledgerQuerySchema = z.object({ limit: z.number().int().min(1).max(200).default(50), beforeCreatedAt: z.string().datetime({ offset: true }).optional(), beforeId: z.string().uuid().optional() }).strict();
 const milestoneSchema = z.object({ triggerKey: z.string().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/) }).strict();
 const reversalSchema = z.object({ entryId: z.string().uuid(), operationKey: z.string().min(8).max(120), reason: z.string().min(3).max(200) }).strict();
+const formatPence = (pence: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 
 /**
  * A4 Career finance & sponsorship service.
@@ -154,11 +156,34 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const earnings = new Map((await tx.execute(sql`SELECT contract_id, COALESCE(SUM(amount_pence) FILTER (WHERE headline = 'SPONSOR'), 0)::bigint AS paid,
             COALESCE(SUM(sponsor_covered_pence), 0)::bigint AS covered FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id IS NOT NULL GROUP BY 1`)).rows
           .map(r => [String(r.contract_id), { paidPence: Number(r.paid), coveredPence: Number(r.covered) }]));
+        const current = now(root);
+        const paidGuaranteeKeys = new Set((await tx.execute(sql`SELECT operation_key FROM career_finance_entries
+          WHERE career_save_id = ${root.id} AND category = 'SPONSOR_GUARANTEED_PAYMENT'`)).rows.map(row => String(row.operation_key)));
+        const schedules = new Map(active.map(contract => {
+          const { payments, unsupported } = scheduleContractGuarantees(contract);
+          return [String(contract.id), {
+            payments: payments.map(payment => projectGuaranteePaymentStatus(payment, paidGuaranteeKeys, current.season, current.week)),
+            unsupported,
+          }] as const;
+        }));
         const presentContract = (c: Record<string, unknown>) => {
           const terms=parseSponsorTerms(c.terms);
           return { id: c.id, sponsorKey: c.sponsor_key, tier: c.tier, terms, ...relationship(terms),status: c.status, endReason: c.end_reason,
             start: { season: c.start_season, week: c.start_week }, end: { season: c.end_season, week: c.end_week }, signedAt: c.signed_at, endedAt: c.ended_at,
-            totals: earnings.get(String(c.id)) ?? { paidPence: 0, coveredPence: 0 } };
+            totals: earnings.get(String(c.id)) ?? { paidPence: 0, coveredPence: 0 },
+            commercial: schedules.get(String(c.id)) ? {
+              remainingGuaranteesPence: schedules.get(String(c.id))!.payments
+                .filter(payment => payment.status === "DUE" || payment.status === "SCHEDULED")
+                .reduce((sum, payment) => sum + payment.amountPence, 0),
+              pastDueGuaranteesPence: schedules.get(String(c.id))!.payments
+                .filter(payment => payment.status === "PAST_DUE")
+                .reduce((sum, payment) => sum + payment.amountPence, 0),
+              upcomingGuarantees: schedules.get(String(c.id))!.payments
+                .filter(payment => payment.status === "DUE" || payment.status === "SCHEDULED").slice(0, 6),
+              pastDueGuarantees: schedules.get(String(c.id))!.payments
+                .filter(payment => payment.status === "PAST_DUE").slice(0, 6),
+              unsupportedGuarantees: schedules.get(String(c.id))!.unsupported,
+            } : undefined };
         };
         const presentOffer = (o: Record<string, unknown>) => {
           const terms=parseSponsorTerms(o.terms);
@@ -167,7 +192,55 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             conflictingContractIds:conflicts(terms,active),portfolioFull:active.length>=portfolioLimit(sporting),source: o.source, status: o.status,
             statusReason: o.status_reason, offered: { season: o.offered_season, week: o.offered_week }, expires: { season: o.expires_season, week: o.expires_week } };
         };
+        const commercialPayments = [...schedules.values()].flatMap(schedule => schedule.payments);
+        const upcomingGuarantees = commercialPayments
+          .filter(payment => payment.status === "DUE" || payment.status === "SCHEDULED")
+          .sort((a, b) => a.season - b.season || a.week - b.week || a.sponsorKey.localeCompare(b.sponsorKey))
+          .slice(0, 12);
+        const pastDueGuarantees = commercialPayments
+          .filter(payment => payment.status === "PAST_DUE")
+          .sort((a, b) => a.season - b.season || a.week - b.week)
+          .slice(0, 12);
+        const unsupportedGuarantees = [...schedules.values()].flatMap(schedule => schedule.unsupported);
+        const sponsorCash = (await tx.execute(sql`SELECT
+          COALESCE(SUM(amount_pence) FILTER (WHERE headline = 'SPONSOR'), 0)::bigint AS total,
+          COALESCE(SUM(amount_pence) FILTER (WHERE category = 'SPONSOR_SIGNING_BONUS'), 0)::bigint AS signing,
+          COALESCE(SUM(amount_pence) FILTER (WHERE category = 'SPONSOR_GUARANTEED_PAYMENT'), 0)::bigint AS guarantees,
+          COALESCE(SUM(amount_pence) FILTER (WHERE category = 'SPONSOR_EVENT_PAYMENT'), 0)::bigint AS event_payments,
+          COALESCE(SUM(amount_pence) FILTER (WHERE category = 'SPONSOR_PERFORMANCE_BONUS'), 0)::bigint AS performance_bonuses,
+          COALESCE(SUM(sponsor_covered_pence), 0)::bigint AS costs_covered
+          FROM career_finance_entries WHERE career_save_id = ${root.id} AND season = ${current.season}`)).rows[0] ?? {};
+        const potentialBonuses = active.flatMap(contract => contract.terms.performanceBonuses
+          .filter(bonus => bonus.amountPence > 0)
+          .map(bonus => ({
+            contractId: contract.id, sponsorKey: contract.sponsor_key,
+            displayName: contract.terms.displayName, bonusKey: bonus.key,
+            amountPence: bonus.amountPence, maxPosition: bonus.maxPosition,
+            classifications: bonus.classifications, circuits: bonus.circuits ?? null,
+          })));
         return { active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),portfolioLimit:portfolioLimit(sporting),
+          commercial: {
+            season: current.season,
+            week: current.week,
+            cashReceivedPence: {
+              total: Number(sponsorCash.total ?? 0),
+              signing: Number(sponsorCash.signing ?? 0),
+              guarantees: Number(sponsorCash.guarantees ?? 0),
+              eventPayments: Number(sponsorCash.event_payments ?? 0),
+              performanceBonuses: Number(sponsorCash.performance_bonuses ?? 0),
+            },
+            costsCoveredPence: Number(sponsorCash.costs_covered ?? 0),
+            remainingGuaranteesPence: commercialPayments
+              .filter(payment => payment.status === "DUE" || payment.status === "SCHEDULED")
+              .reduce((sum, payment) => sum + payment.amountPence, 0),
+            upcomingGuarantees,
+            pastDueGuarantees,
+            pastDueGuaranteesPence: commercialPayments
+              .filter(payment => payment.status === "PAST_DUE")
+              .reduce((sum, payment) => sum + payment.amountPence, 0),
+            unsupportedGuarantees,
+            potentialBonuses,
+          },
           offers: offers.filter(o => o.status === "AVAILABLE").map(presentOffer),
           journeys: journeys.map(j => journeyView(j as Record<string, unknown>)),
           history: { contracts: contracts.filter(c => c.status !== "ACTIVE").map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
@@ -194,9 +267,15 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             await appendSponsorJourneyEvent(tx, root, {
               journeyId: String(journey.id), eventKey: `signed:${contract.id}`, eventType: "SIGNED", offerId,
               season: now(root).season, week: now(root).week,
-              details: { headline: "Partnership signed", summary: `${contract.terms.displayName} is now an active A4 contract.` },
+              details: {
+                headline: "Partnership signed",
+                summary: `${contract.terms.displayName} is now an active A4 contract.${contract.terms.signingBonusPence > 0 ? ` ${formatPence(contract.terms.signingBonusPence)} signing cash was posted.` : ""}`,
+                signingPaymentPence: contract.terms.signingBonusPence,
+                signingPaymentCategory: "SPONSOR_SIGNING_BONUS",
+              },
             });
           }
+          await postDueGuaranteedPayments(tx, root, [contract], now(root).season, now(root).week);
         }
         const identity = (await tx.execute(sql`SELECT COALESCE(p.display_name, s.career_name, 'You') AS player_name
           FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${root.id}`)).rows[0];

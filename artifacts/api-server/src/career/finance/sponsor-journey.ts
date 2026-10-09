@@ -14,7 +14,7 @@ export type SponsorApproachSource =
 export type SponsorJourneyEventType =
   | "INTEREST" | "APPROACH" | "OFFER_RECEIVED" | "PLAYER_COUNTERED" | "SPONSOR_COUNTERED"
   | "SPONSOR_ACCEPTED_REQUEST" | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW"
-  | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED";
+  | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT";
 
 export async function appendSponsorJourneyEvent(
   tx: CareerExecutor,

@@ -11,10 +11,12 @@ import { createCareerCalendar } from "../../db/migrations/create_career_calendar
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
 import { createCareerSponsorJourneysSPB3 } from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
+import { createCareerFinanceSPC } from "../../db/migrations/create_career_finance_spc.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
 import { post } from "../../career/finance/ledger.ts";
-import { advanceSponsorLifecycle, applyCoverage, evaluateOffers, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
+import { activeContracts, advanceSponsorLifecycle, applyCoverage, evaluateOffers, postDueGuaranteedPayments, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
+import { scheduleContractGuarantees } from "../../career/finance/sponsor-guarantees.ts";
 import type { SponsorApproachSource } from "../../career/finance/sponsor-journey.ts";
 import { groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
 import { evaluateRequirement, SPONSOR_CATALOGUE_V1, type SportingFacts } from "../../career/finance/sponsors.catalogue.ts";
@@ -41,6 +43,7 @@ before(async () => {
   await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db);
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db);
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); // idempotent re-run
+  await createCareerFinanceSPC(db); await createCareerFinanceSPC(db); // additive A4/SP-B3 migration is idempotent
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -98,6 +101,45 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 }
 
 // ------------------------------------------------------------------ ledger authority
+test("SP-C schedules per-season and monthly guarantees at deterministic Career weeks and excludes earlier mid-season periods", () => {
+  const contract = {
+    id: "contract-fixture", sponsor_key: "forge-workwear",
+    terms: {
+      displayName: "Fixture Partner",
+      contractFoundation: { guaranteedPayments: [
+        { amountPence: 3001, cadence: "PER_SEASON", installments: 4 },
+        { amountPence: 1201, cadence: "MONTHLY", installments: 12 },
+        { amountPence: 500, cadence: "ON_SIGNING", installments: 1 },
+      ] },
+    },
+    start_season: 1, start_week: 20, end_season: 2, end_week: 19,
+  } as unknown as ContractRow;
+  const { payments, unsupported } = scheduleContractGuarantees(contract);
+  assert.deepEqual(unsupported, []);
+  assert.deepEqual(payments.filter(payment => payment.cadence === "PER_SEASON").map(payment => [payment.season, payment.week, payment.installment, payment.amountPence]),
+    [[1, 27, 3, 750], [1, 40, 4, 750], [2, 1, 1, 751], [2, 14, 2, 750]]);
+  assert.deepEqual(payments.filter(payment => payment.cadence === "MONTHLY" && payment.season === 1).map(payment => [payment.week, payment.amountPence]),
+    [[22, 100], [27, 100], [31, 100], [35, 100], [40, 100], [44, 100], [48, 100]]);
+  assert.deepEqual(payments.filter(payment => payment.cadence === "ON_SIGNING").map(payment => [payment.season, payment.week]), [[1, 20]]);
+
+  const fullSeason = scheduleContractGuarantees({
+    ...contract, id: "contract-full-season", start_week: 1, end_season: 1, end_week: 52,
+  } as unknown as ContractRow);
+  assert.deepEqual(fullSeason.payments.filter(payment => payment.cadence === "PER_SEASON").map(payment => payment.amountPence), [751, 750, 750, 750]);
+  assert.deepEqual(fullSeason.payments.filter(payment => payment.cadence === "MONTHLY").map(payment => payment.amountPence),
+    [101, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100]);
+  assert.deepEqual(fullSeason.payments.filter(payment => payment.cadence === "ON_SIGNING").map(payment => payment.amountPence), [500]);
+
+  const tooSmall = scheduleContractGuarantees({
+    ...contract, id: "contract-too-small",
+    terms: { ...contract.terms, contractFoundation: { guaranteedPayments: [
+      { amountPence: 3, cadence: "PER_SEASON", installments: 4 },
+    ] } },
+  } as unknown as ContractRow);
+  assert.equal(tooSmall.payments.length, 0);
+  assert.equal(tooSmall.unsupported.length, 1);
+});
+
 test("A1 start balance is the ledger's CAREER_START; headlines reconcile; no duplicate start on restart", async () => {
   const save = await career();
   const start = await ledger(save.id);
@@ -411,6 +453,61 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   const s = await finance.summary(actor, save.id);
   assert.deepEqual([s.sponsorEarningsPence, s.careerEarningsPence, s.careerExpensesPence, s.sponsorCoveredExpensesPence, s.reconciled], [13500, 2500, 250, 250, true]);
   assert.equal(s.balancePence, 25000 + 13500 + 2500 - 250);
+  const commercial = (await finance.sponsors(actor, save.id)).commercial!;
+  assert.deepEqual(commercial.cashReceivedPence, { total: 13500, signing: 10000, guarantees: 0, eventPayments: 1000, performanceBonuses: 2500 });
+  assert.equal(commercial.costsCoveredPence, 250);
+  assert.equal(commercial.remainingGuaranteesPence, 0);
+  assert.equal(commercial.potentialBonuses.length, 1, "potential bonuses remain separate from cash received");
+});
+
+test("SP-C ledger payments are idempotent, journey-atomic, paid only on due weeks, and roll back together", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  const save = await career();
+  await finance.evaluateOffers(actor, save.id, { triggerKey: "guarantee-ledger-fixture" });
+  const offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.sponsorKey === "forge-workwear")!;
+  const accepted = await finance.acceptOffer(actor, save.id, { offerId: offer.id });
+  const [baseContract] = await activeContracts(db, save.id);
+  const contract = {
+    ...baseContract,
+    terms: {
+      ...baseContract.terms,
+      contractFoundation: {
+        ...baseContract.terms.contractFoundation!,
+        guaranteedPayments: [
+          { amountPence: 500, cadence: "ON_SIGNING", installments: 1 },
+          { amountPence: 3000, cadence: "PER_SEASON", installments: 4 },
+          { amountPence: 750, cadence: "MONTHLY", installments: 12 },
+        ],
+      },
+    },
+  } as ContractRow;
+  assert.equal(accepted.created, true);
+
+  await withRoot(save.id, async (tx, root) => {
+    assert.equal(await postDueGuaranteedPayments(tx, root, [contract], 1, 1), 3);
+    assert.equal(await postDueGuaranteedPayments(tx, root, [contract], 1, 1), 0, "same due date retries do not duplicate");
+  });
+  for (const [week, dueCount] of [[14, 2], [27, 2], [40, 2]] as const) {
+    await db.execute(sql`UPDATE career_saves SET current_week = ${week} WHERE id = ${save.id}`);
+    await withRoot(save.id, async (tx, root) => {
+      assert.equal(await postDueGuaranteedPayments(tx, root, [contract], 1, week), dueCount);
+      assert.equal(await postDueGuaranteedPayments(tx, root, [contract], 1, week), 0);
+    });
+  }
+  await db.execute(sql`UPDATE career_saves SET current_week = 48 WHERE id = ${save.id}`);
+  await assert.rejects(withRoot(save.id, async (tx, root) => {
+    assert.equal(await postDueGuaranteedPayments(tx, root, [contract], 1, 48), 1);
+    throw new Error("injected rollback after guarantee and timeline");
+  }), /injected rollback/);
+
+  const guaranteeRows = (await ledger(save.id)).filter(row => row.category === "SPONSOR_GUARANTEED_PAYMENT");
+  assert.equal(guaranteeRows.length, 9, "three at Week 1; two at each of Weeks 14, 27 and 40; rolled-back Week 48 is absent");
+  assert.deepEqual(guaranteeRows.filter(row => row.week === 1).map(row => Number(row.amount_pence)).sort((a, b) => a - b), [63, 500, 750]);
+  assert.equal(guaranteeRows.some(row => row.week === 48), false, "rolled-back payment is absent");
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_journey_events
+    WHERE career_save_id = ${save.id} AND event_type = 'FINANCIAL_PAYMENT'`))[0].n, 9,
+  "each committed guarantee has one persistent Career sponsor-timeline entry");
+  assert.equal((await finance.summary(actor, save.id)).reconciled, true);
 });
 
 test("SP-B3 persists result-earned interest and promotes it only when A4 later creates an offer", async () => {

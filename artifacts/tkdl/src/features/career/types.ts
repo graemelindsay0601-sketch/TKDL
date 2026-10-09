@@ -93,14 +93,46 @@ export type SponsorTerms = {
   signingBonusPence: number; eventPayment: { amountPence: number; circuits: string[]; maxEventsPerSeason: number } | null;
   coverage: { costTypes: string[]; percent: number; perEventCapPence: number | null; seasonCapPence: number | null; circuits: string[] | null }[];
   performanceBonuses: { key: string; maxPosition: number; amountPence: number; circuits: string[] | null; classifications: string[] }[];
+  contractFoundation?: {
+    guaranteedPayments: {
+      /** One-off total at signing, or recurring total per Career season, split across instalments. */
+      amountPence: number; cadence: "ON_SIGNING" | "MONTHLY" | "PER_SEASON"; installments: number
+    }[];
+  };
   renewalRequirement: unknown; retentionRequirement: unknown; presentation: { colour: string };
+};
+export type SponsorGuaranteePayment = {
+  operationKey: string; contractId: string; sponsorKey: string; displayName: string; amountPence: number;
+  cadence: "ON_SIGNING" | "MONTHLY" | "PER_SEASON"; termIndex: number; installment: number; installments: number;
+  season: number; week: number; status: "PAID" | "DUE" | "SCHEDULED" | "PAST_DUE";
+};
+export type SponsorUnsupportedGuarantee = {
+  contractId: string; sponsorKey: string; displayName: string; termIndex: number; amountPence: number;
+  cadence: "ON_SIGNING" | "MONTHLY" | "PER_SEASON"; installments: number; reason: string;
+};
+export type SponsorPotentialBonus = {
+  contractId: string; sponsorKey: string; displayName: string; bonusKey: string; amountPence: number;
+  maxPosition: number; classifications: string[]; circuits: string[] | null;
+};
+export type SponsorCommercialOverview = {
+  season: number; week: number;
+  cashReceivedPence: { total: number; signing: number; guarantees: number; eventPayments: number; performanceBonuses: number };
+  costsCoveredPence: number;
+  remainingGuaranteesPence: number;
+  upcomingGuarantees: SponsorGuaranteePayment[];
+  pastDueGuarantees: SponsorGuaranteePayment[];
+  pastDueGuaranteesPence: number;
+  unsupportedGuarantees: SponsorUnsupportedGuarantee[];
+  potentialBonuses: SponsorPotentialBonus[];
 };
 export type SponsorContract = { id: string; sponsorKey: string; tier: string; terms: SponsorTerms; status: string; endReason: string | null;
   slot?:string;groups?:string[];
-  start: { season: number; week: number }; end: { season: number; week: number }; totals: { paidPence: number; coveredPence: number } };
+  start: { season: number; week: number }; end: { season: number; week: number }; totals: { paidPence: number; coveredPence: number };
+  commercial?: { remainingGuaranteesPence: number; pastDueGuaranteesPence: number; upcomingGuarantees: SponsorGuaranteePayment[];
+    pastDueGuarantees: SponsorGuaranteePayment[]; unsupportedGuarantees: SponsorUnsupportedGuarantee[] } };
 export type SponsorJourneyEvent = {
   type: "INTEREST" | "APPROACH" | "OFFER_RECEIVED" | "PLAYER_COUNTERED" | "SPONSOR_COUNTERED" | "SPONSOR_ACCEPTED_REQUEST"
-    | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED";
+    | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT";
   offerId: string | null;
   details: Record<string, unknown>;
   season: number | null;
@@ -146,7 +178,8 @@ export type SponsorSigningReveal = {
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
   slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean; journey?:SponsorJourney|null;
   offered: { season: number; week: number }; expires: { season: number; week: number } };
-export type SponsorsResponse = { active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[]; history: { contracts: SponsorContract[]; offers: SponsorOffer[] } };
+export type SponsorsResponse = { active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
+  commercial?: SponsorCommercialOverview; history: { contracts: SponsorContract[]; offers: SponsorOffer[] } };
 
 // ---------------------------------------------------------------- A5 sporting
 export type CutGap = { cutPosition: number; valueAtCutPence: number | null; inside: boolean; placesOutside: number | null; gapPence: number | null };
