@@ -26,6 +26,7 @@ import {lockRoot} from "../../career/world/service.ts";
 import {calendarHashOf} from "../../career/calendar/generation.ts";
 import {stableUuid} from "../../career/world/random.ts";
 import {createCareerLegacyService} from "../../career/legacy/service.ts";
+import {settleLifeCommitments} from "../../career/life/commitments.ts";
 import type {RootRow} from "../../career/calendar/engine.ts";
 const pg=new PGlite(),db=drizzle(pg),saves=createCareerService(db),actor={playerId:1},seed="a".repeat(64);
 const facts:SportingFacts={careerStarted:true,titles:20,professionalStatus:"PROFESSIONAL",tourCard:true,worldRanking:8,qualifications:[],bestFinishByCircuit:{VAULT:1}};
@@ -128,10 +129,28 @@ test("signature launches are factual, immutable, retry-safe metadata, never mone
   const draft=await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"});
   assert.equal(draft.status,"DRAFT");assert.equal((await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"})).id,draft.id);
   const money=calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`));
-  await content.approveProduct(actor,saveId,draft.id);await content.launchProduct(actor,saveId,draft.id);
-  assert.equal((await content.launchProduct(actor,saveId,draft.id)).status,"LAUNCHED");
+  await content.approveProduct(actor,saveId,draft.id);const launched=await content.launchProduct(actor,saveId,draft.id);
+  assert.equal(launched.status,"LAUNCHED");assert.equal((await content.launchProduct(actor,saveId,draft.id)).id,launched.id);
   assert.equal((await content.presentation(actor,saveId)).products[0].state,"ACTIVE");
   assert.equal(calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`)),money);
+  const eligible=await rows(sql`SELECT p.id,p.manufacturer,p.product_type,d.status,c.status AS contract_status,
+    c.terms->'contractFoundation'->'productRights'->'productTypes' AS rights
+    FROM career_signature_products p JOIN career_signature_product_drafts d ON d.career_save_id=p.career_save_id AND d.product_id=p.id
+    JOIN career_sponsor_contracts c ON c.career_save_id=p.career_save_id AND c.sponsor_key=p.manufacturer
+    WHERE p.career_save_id=${saveId} AND p.id=${launched.id}`);
+  assert.equal(eligible.length,1,JSON.stringify(eligible));
+  const settleWeek=async()=>db.transaction(async tx=>{
+    const root=await lockRoot(tx,actor,saveId,true) as RootRow;
+    await settleLifeCommitments(tx,root,Number(root.current_season),Number(root.current_week));
+  });
+  await settleWeek();
+  const sales=await rows(sql`SELECT * FROM career_signature_product_sales WHERE career_save_id=${saveId} AND product_id=${launched.id}`);
+  assert.equal(sales.length,1);
+  const royaltyEntries=await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} AND category='MERCHANDISE_ROYALTY'`);
+  assert.equal(royaltyEntries.length,1);assert.equal(Number(royaltyEntries[0].amount_pence),Number(sales[0].royalty_pence));
+  await settleWeek();
+  assert.equal((await rows(sql`SELECT * FROM career_signature_product_sales WHERE career_save_id=${saveId} AND product_id=${launched.id}`)).length,1);
+  assert.equal((await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} AND category='MERCHANDISE_ROYALTY'`)).length,1);
   await assert.rejects(db.execute(sql`UPDATE career_signature_products SET product_name='fake' WHERE career_save_id=${saveId}`));
 });
 test("ownership/feature gates, edit window and retired behavior are enforced by services",async()=>{
