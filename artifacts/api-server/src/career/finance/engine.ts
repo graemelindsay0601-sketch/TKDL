@@ -15,7 +15,7 @@ import {CURRENT_SPONSOR_DATABASE_VERSION,sponsorCatalogue,evaluateRequirement,ti
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
 import { guaranteeScheduleIssue, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
-import { materializeSponsorActivities } from "./sponsor-activities.ts";
+import { cancelInactiveSponsorActivities, materializeSponsorActivities } from "./sponsor-activities.ts";
 
 const HUMAN = "HUMAN";
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS + week;
@@ -420,6 +420,7 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   if(remaining.length>=portfolioLimit(facts))throw new CareerError(409,"Sponsor portfolio is full for current sporting stature; explicitly replace an owned contract");
   // Close earned obligations for the current week before an explicit replacement ends them.
   await postDueGuaranteedPayments(tx, root, previous.filter(contract => replacements.has(contract.id)), season, week);
+  if(replacements.size)await cancelInactiveSponsorActivities(tx,{saveId:root.id,season,week,contractIds:[...replacements]});
   for(const id of replacements)await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'EXPLICITLY_REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${id}`);
   const end = contractEnd(offer.terms, season, week);
   const contractId = stableUuid(root.world_seed, offer.terms.sponsorDatabaseVersion, "sponsor-contract", offer.id);
@@ -693,6 +694,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
           AND terms->>'activitySpecVersion'='1'
           AND (season<${season} OR (season=${season} AND available_to_week<${week}))`);
+      await cancelInactiveSponsorActivities(tx,{saveId:root.id,season,week});
     },
 
     async previews(tx, root, season, events) {

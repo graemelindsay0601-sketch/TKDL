@@ -94,3 +94,48 @@ export async function materializeSponsorActivities(
   }
   return {commitments,opportunities};
 }
+
+/**
+ * Close only unresolved activities after their signed contract is no longer
+ * active. Completed rows remain as history; confirmed bookings are released.
+ * A replacement can pass explicit IDs before changing contract state, while
+ * calendar advancement discovers contracts that have expired or ended.
+ */
+export async function cancelInactiveSponsorActivities(
+  tx:CareerExecutor,
+  input:{saveId:string;season:number;week:number;contractIds?:string[]},
+){
+  const explicitIds=input.contractIds;
+  const commitmentSelector=explicitIds
+    ? sql`c.contract_id IN (${sql.join(explicitIds.map(id=>sql`${id}`),sql`, `)})`
+    : sql`(k.status <> 'ACTIVE' OR k.end_season < ${input.season}
+        OR (k.end_season = ${input.season} AND k.end_week < ${input.week}))`;
+  const opportunitySelector=explicitIds
+    ? sql`o.contract_id IN (${sql.join(explicitIds.map(id=>sql`${id}`),sql`, `)})`
+    : sql`(k.status <> 'ACTIVE' OR k.end_season < ${input.season}
+        OR (k.end_season = ${input.season} AND k.end_week < ${input.week}))`;
+  await tx.execute(sql`
+    WITH cancelled AS (
+      UPDATE career_sponsor_commitments c SET status='CANCELLED', updated_at=NOW(),
+        resolution_evidence=c.resolution_evidence || jsonb_build_object('reason','CONTRACT_INACTIVE')
+      FROM career_sponsor_contracts k
+      WHERE c.career_save_id=${input.saveId} AND k.career_save_id=c.career_save_id AND k.id=c.contract_id
+        AND c.status IN ('PLANNED','AVAILABLE','CONFIRMED') AND ${commitmentSelector}
+      RETURNING c.career_save_id,c.id
+    )
+    DELETE FROM career_sponsor_week_bookings b USING cancelled x
+    WHERE b.career_save_id=x.career_save_id AND b.activity_id=x.id AND b.status='CONFIRMED'
+  `);
+  await tx.execute(sql`
+    WITH cancelled AS (
+      UPDATE career_sponsor_opportunities o SET status='CANCELLED', updated_at=NOW(),
+        terms=o.terms || jsonb_build_object('cancellationReason','CONTRACT_INACTIVE')
+      FROM career_sponsor_contracts k
+      WHERE o.career_save_id=${input.saveId} AND k.career_save_id=o.career_save_id AND k.id=o.contract_id
+        AND o.status IN ('AVAILABLE','ACCEPTED','CONFIRMED') AND ${opportunitySelector}
+      RETURNING o.career_save_id,o.id
+    )
+    DELETE FROM career_sponsor_week_bookings b USING cancelled x
+    WHERE b.career_save_id=x.career_save_id AND b.activity_id=x.id AND b.status='CONFIRMED'
+  `);
+}

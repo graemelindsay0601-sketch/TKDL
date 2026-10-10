@@ -194,7 +194,10 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         }));
         const presentContract = (c: Record<string, unknown>) => {
           const terms=parseSponsorTerms(c.terms);
+          const brand=BRANDS.find(candidate=>candidate.id===String(c.sponsor_key));
           return { id: c.id, sponsorKey: c.sponsor_key, tier: c.tier, terms, ...relationship(terms),status: c.status, endReason: c.end_reason,
+            category:terms.category??terms.contractFoundation?.category??brand?.category??null,
+            representative:terms.representative??(brand?.representativeId?representativeForSponsor(brand.id)??null:null),
             start: { season: c.start_season, week: c.start_week }, end: { season: c.end_season, week: c.end_week }, signedAt: c.signed_at, endedAt: c.ended_at,
             totals: earnings.get(String(c.id)) ?? { paidPence: 0, coveredPence: 0 },
             commercial: schedules.get(String(c.id)) ? {
@@ -307,6 +310,10 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
           return {id:activityId,status:"DECLINED"};
         }
         if(action.action==="ACCEPT"){
+          const activeNow=(await tx.execute(sql`SELECT 1 FROM career_sponsor_contracts WHERE career_save_id=${root.id} AND id=${row.contract_id} AND status='ACTIVE'
+            AND (start_season < ${currentSeason} OR (start_season=${currentSeason} AND start_week<=${currentWeek}))
+            AND (end_season > ${currentSeason} OR (end_season=${currentSeason} AND end_week>=${currentWeek}))`)).rows.length>0;
+          if(!activeNow)throw new CareerError(409,"The sponsor contract is no longer active");
           if(current==="ACCEPTED")return {id:activityId,status:"ACCEPTED"};
           if(isCommitment||current!=="AVAILABLE")throw new CareerError(409,"This opportunity cannot be accepted");
           await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='ACCEPTED',updated_at=NOW() WHERE career_save_id=${root.id} AND id=${activityId}`);
@@ -315,13 +322,13 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         if(action.action==="SCHEDULE"){
           const from=Number(row.available_from_week),to=isCommitment?Number(row.due_week):Number(row.available_to_week);
           if(season!==currentSeason||action.week<currentWeek||action.week<from||action.week>to)throw new CareerError(409,"Choose a current or future week inside this activity's valid window");
-          if(current==="CONFIRMED"&&Number(row.scheduled_week)===action.week)return {id:activityId,status:"CONFIRMED",scheduledWeek:action.week};
-          if(isCommitment?!["AVAILABLE","PLANNED","CONFIRMED"].includes(current):!["ACCEPTED","CONFIRMED"].includes(current))
+          if(isCommitment?!["AVAILABLE","CONFIRMED"].includes(current):!["ACCEPTED","CONFIRMED"].includes(current))
             throw new CareerError(409,"This sponsor activity is not ready to schedule");
           const active=(await tx.execute(sql`SELECT 1 FROM career_sponsor_contracts WHERE career_save_id=${root.id} AND id=${row.contract_id} AND status='ACTIVE'
             AND (start_season < ${season} OR (start_season=${season} AND start_week<=${action.week}))
             AND (end_season > ${season} OR (end_season=${season} AND end_week>=${action.week}))`)).rows.length>0;
           if(!active)throw new CareerError(409,"The sponsor contract is not active in that week");
+          if(current==="CONFIRMED"&&Number(row.scheduled_week)===action.week)return {id:activityId,status:"CONFIRMED",scheduledWeek:action.week};
           const conflict=(await tx.execute(sql`SELECT 1 WHERE
             EXISTS(SELECT 1 FROM career_event_instances i JOIN career_event_entries e ON e.career_save_id=i.career_save_id AND e.event_id=i.id
               WHERE i.career_save_id=${root.id} AND i.season=${season} AND i.start_week<=${action.week} AND i.end_week>=${action.week}
@@ -345,6 +352,10 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         if(current==="COMPLETED")return {id:activityId,status:"COMPLETED",season:currentSeason,week:Number(row.scheduled_week)};
         if(season!==currentSeason||Number(row.scheduled_week)!==currentWeek||current!=="CONFIRMED")
           throw new CareerError(409,"Sponsor activity can only be completed during its confirmed Career week");
+        const activeAtCompletion=(await tx.execute(sql`SELECT 1 FROM career_sponsor_contracts WHERE career_save_id=${root.id} AND id=${row.contract_id} AND status='ACTIVE'
+          AND (start_season < ${season} OR (start_season=${season} AND start_week<=${currentWeek}))
+          AND (end_season > ${season} OR (end_season=${season} AND end_week>=${currentWeek}))`)).rows.length>0;
+        if(!activeAtCompletion)throw new CareerError(409,"The sponsor contract is no longer active");
         if(isCommitment)await tx.execute(sql`UPDATE career_sponsor_commitments SET status='COMPLETED',
           resolution_evidence=jsonb_build_object('season',${currentSeason}::int,'week',${currentWeek}::int,'action','PLAYER_CONFIRMED'),updated_at=NOW()
           WHERE career_save_id=${root.id} AND id=${activityId} AND status='CONFIRMED'`);

@@ -128,6 +128,7 @@ export type SponsorCommercialOverview = {
   potentialBonuses: SponsorPotentialBonus[];
 };
 export type SponsorContract = { id: string; sponsorKey: string; tier: string; terms: SponsorTerms; status: string; endReason: string | null;
+  category?: string | null; representative?: {id?:string;displayName?:string;role?:string} | null;
   slot?:string;groups?:string[];
   start: { season: number; week: number }; end: { season: number; week: number }; totals: { paidPence: number; coveredPence: number };
   commercial?: { remainingGuaranteesPence: number; pastDueGuaranteesPence: number; upcomingGuarantees: SponsorGuaranteePayment[];

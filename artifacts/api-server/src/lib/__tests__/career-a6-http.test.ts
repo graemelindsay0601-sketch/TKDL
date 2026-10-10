@@ -11,6 +11,7 @@ import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import {createCareerFinanceSPC} from "../../db/migrations/create_career_finance_spc.ts";
 import {createCareerSponsorHQSPD} from "../../db/migrations/create_career_sponsor_hq_spd.ts";
+import {cancelInactiveSponsorActivities} from "../../career/finance/sponsor-activities.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
@@ -228,6 +229,13 @@ test("SP-D HTTP lifecycle is persistent, idempotent and enforces one portfolio b
   assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"COMPLETE"})).status,200);
   assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"COMPLETE"})).status,200,"completion retry is idempotent");
   assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${optional}`,{action:"DECLINE"})).status,200);
+  const planned="00000000-0000-4000-8000-00000000d011";
+  await db.execute(sql`INSERT INTO career_sponsor_commitments
+    (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,commitment_type,required,cadence,season,available_from_week,window_weeks,due_week,status,scheduling_requirements,operation_key)
+    VALUES(${saveId},${planned},${contract},'spd-test','future-media',1,'MEDIA_APPEARANCE',true,'PER_SEASON',${season},${nextWeek},3,${Math.min(52,nextWeek+2)},'PLANNED',
+      '{"activitySpecVersion":1,"extraCompensationPence":0}'::jsonb,'spd-http-planned')`);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${planned}`,{action:"SCHEDULE",week:nextWeek})).status,409,
+    "a required activity must become AVAILABLE before it can be confirmed");
   const optionalComplete="00000000-0000-4000-8000-00000000d007";
   await db.execute(sql`INSERT INTO career_sponsor_opportunities
     (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,opportunity_type,season,available_from_week,available_to_week,status,terms,operation_key)
@@ -252,4 +260,36 @@ test("SP-D HTTP lifecycle is persistent, idempotent and enforces one portfolio b
     (SELECT status FROM career_sponsor_opportunities WHERE career_save_id=${saveId} AND id=${optional}) AS optional_status,
     (SELECT COUNT(*)::int FROM career_sponsor_week_bookings WHERE career_save_id=${saveId} AND season=${season} AND week=${raceWeek}) AS bookings`)).rows[0]!;
   assert.deepEqual([state.required_status,state.optional_status,Number(state.bookings)],["COMPLETED","DECLINED",1]);
+  const confirmedId=race[0]!.status===200?required2:required3;
+  await db.execute(sql`UPDATE career_sponsor_contracts SET status='TERMINATED',end_reason='EXPLICITLY_REPLACED',ended_at=NOW()
+    WHERE career_save_id=${saveId} AND id=${contract}`);
+  await db.transaction(tx=>cancelInactiveSponsorActivities(tx,{saveId,season,week:nextWeek,contractIds:[contract]}));
+  const replaced=(await db.execute(sql`SELECT c.status,
+    (SELECT COUNT(*)::int FROM career_sponsor_week_bookings b WHERE b.career_save_id=c.career_save_id AND b.activity_id=c.id) AS bookings
+    FROM career_sponsor_commitments c WHERE c.career_save_id=${saveId} AND c.id=${confirmedId}`)).rows[0]!;
+  assert.deepEqual([replaced.status,Number(replaced.bookings)],["CANCELLED",0],"replacement releases a confirmed future slot");
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${confirmedId}`,{action:"COMPLETE"})).status,409,
+    "a replaced agreement cannot complete a pending duty");
+
+  const offer2="00000000-0000-4000-8000-00000000d008",contract2="00000000-0000-4000-8000-00000000d009";
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+    VALUES(${saveId},${offer2},'spd-expiry-offer','spd-test-two',3,'LOCAL','NEW','{}'::jsonb,'{}'::jsonb,${season},${nextWeek},${season},52,'ACCEPTED',NOW())`);
+  await db.execute(sql`INSERT INTO career_sponsor_contracts
+    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status)
+    VALUES(${saveId},${contract2},${offer2},'spd-test-two',3,'LOCAL','{}'::jsonb,${season},${nextWeek},${season},52,'ACTIVE')`);
+  const rebookId="00000000-0000-4000-8000-00000000d00a";
+  await db.execute(sql`INSERT INTO career_sponsor_commitments
+    (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,commitment_type,required,cadence,season,available_from_week,window_weeks,due_week,status,scheduling_requirements,operation_key)
+    VALUES(${saveId},${rebookId},${contract2},'spd-test-two','community',1,'COMMUNITY_SESSION',true,'PER_SEASON',${season},${raceWeek},2,${Math.min(52,raceWeek+1)},'AVAILABLE',
+      '{"activitySpecVersion":1,"extraCompensationPence":0}'::jsonb,'spd-http-rebook')`);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${rebookId}`,{action:"SCHEDULE",week:raceWeek})).status,200,
+    "another active sponsor can reuse the released portfolio week");
+  await db.execute(sql`UPDATE career_sponsor_contracts SET status='EXPIRED',end_reason='CONTRACT_EXPIRED',ended_at=NOW()
+    WHERE career_save_id=${saveId} AND id=${contract2}`);
+  await db.transaction(tx=>cancelInactiveSponsorActivities(tx,{saveId,season,week:raceWeek,}));
+  const expired=(await db.execute(sql`SELECT c.status,
+    (SELECT COUNT(*)::int FROM career_sponsor_week_bookings b WHERE b.career_save_id=c.career_save_id AND b.activity_id=c.id) AS bookings
+    FROM career_sponsor_commitments c WHERE c.career_save_id=${saveId} AND c.id=${rebookId}`)).rows[0]!;
+  assert.deepEqual([expired.status,Number(expired.bookings)],["CANCELLED",0],"expiry cancels pending activities and releases their week");
 });
