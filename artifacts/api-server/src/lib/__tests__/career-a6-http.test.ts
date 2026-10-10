@@ -23,6 +23,7 @@ import { createCareerRouter } from "../../career/router.ts";
 import { createCareerCalendarRouter } from "../../career/calendar/router.ts";
 import { createCareerFinanceRouter } from "../../career/finance/router.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
+import { sponsorCatalogue } from "../../career/finance/sponsors.catalogue.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerSportingRouter } from "../../career/sporting/router.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
@@ -295,13 +296,54 @@ test("SP-D HTTP lifecycle is persistent, idempotent and enforces one portfolio b
   assert.deepEqual([expired.status,Number(expired.bookings)],["CANCELLED",0],"expiry cancels pending activities and releases their week");
 });
 
-test("SP-E2B Sponsor HQ HTTP reads enforce ownership and create no notices",async()=>{
+test("SP-E2B Sponsor HQ HTTP reads and actions enforce ownership, idempotency and persistence",async()=>{
   const saveId=await newCareer(3,"E2B read-only");
   assert.equal((await call("GET",`/saves/${saveId}/sponsors`,undefined,0)).status,401);
   assert.equal((await call("GET",`/saves/${saveId}/sponsors`,undefined,2)).status,404);
+  const releasePath=`/saves/${saveId}/sponsors/releases`;
+  const releaseBody={contractId:"00000000-0000-4000-8000-00000000e299",operationKey:"e2b-http-invalid",releaseType:"IMMEDIATE_NO_COST"};
+  assert.equal((await call("POST",releasePath,releaseBody,0)).status,401);
+  assert.equal((await call("POST",releasePath,releaseBody,2)).status,404,"another player cannot request release against this save");
+  assert.notEqual((await call("POST",releasePath,{operationKey:"missing-contract"})).status,200,"invalid request is rejected");
+  assert.equal((await call("POST",`${releasePath}/00000000-0000-4000-8000-00000000e298/accept`,{},0)).status,401);
+  assert.equal((await call("POST",`${releasePath}/00000000-0000-4000-8000-00000000e298/accept`,{})).status,404,"stale release case is not accepted");
+  const noticePath=`/saves/${saveId}/sponsors/compliance/00000000-0000-4000-8000-00000000e297/acknowledge`;
+  assert.equal((await call("POST",noticePath,{},0)).status,401);
+  assert.equal((await call("POST",noticePath,{})).status,404,"stale notice cannot be acknowledged");
+  const offer="00000000-0000-4000-8000-00000000e291",contract="00000000-0000-4000-8000-00000000e292";
+  const activity="00000000-0000-4000-8000-00000000e293",notice="00000000-0000-4000-8000-00000000e294";
+  const timing=(await db.execute(sql`SELECT current_season,current_week FROM career_saves WHERE id=${saveId}`)).rows[0]!;
+  const season=Number(timing.current_season),week=Number(timing.current_week);
+  const sponsor=sponsorCatalogue(4)[0]!;
+  const terms={...sponsor.terms,contractFoundation:{...sponsor.terms.contractFoundation,
+    releaseClause:{playerNoticeWeeks:0,sponsorNoticeWeeks:null,buyoutPence:0}}};
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+    VALUES(${saveId},${offer},'e2b-http-offer',${sponsor.key},${Number(terms.sponsorDatabaseVersion)},${String(sponsor.terms.tier)},'NEW',${JSON.stringify(terms)}::jsonb,'{}'::jsonb,
+      ${season},${week},${season},52,'ACCEPTED',NOW())`);
+  await db.execute(sql`INSERT INTO career_sponsor_contracts
+    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status)
+    VALUES(${saveId},${contract},${offer},${sponsor.key},${Number(terms.sponsorDatabaseVersion)},${String(sponsor.terms.tier)},${JSON.stringify(terms)}::jsonb,${season},${week},${season},52,'ACTIVE')`);
+  await db.execute(sql`INSERT INTO career_sponsor_commitments
+    (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,commitment_type,required,cadence,season,
+     available_from_week,window_weeks,due_week,status,scheduling_requirements,operation_key)
+    VALUES(${saveId},${activity},${contract},${sponsor.key},'notice-test',1,'COMMUNITY_SESSION',true,'PER_SEASON',
+      ${season},${week},2,${Math.min(52,week+1)},'MISSED','{"activitySpecVersion":1,"extraCompensationPence":0}'::jsonb,'e2b-http-notice')`);
+  await db.execute(sql`INSERT INTO career_sponsor_compliance_notices
+    (career_save_id,id,contract_id,activity_id,status,notice_type,details)
+    VALUES(${saveId},${notice},${contract},${activity},'OPEN','MISSED_REQUIRED_ACTIVITY','{}'::jsonb)`);
+  const acknowledged=await call("POST",`/saves/${saveId}/sponsors/compliance/${notice}/acknowledge`,{});
+  assert.deepEqual([acknowledged.status,acknowledged.body.status],[200,"ACKNOWLEDGED"]);
+  assert.equal((await call("POST",`/saves/${saveId}/sponsors/compliance/${notice}/acknowledge`,{})).body.status,"ACKNOWLEDGED");
+  const request=await call("POST",releasePath,{contractId:contract,operationKey:"e2b-http-release",releaseType:"IMMEDIATE_NO_COST"});
+  assert.equal(request.status,200,JSON.stringify(request.body));
+  assert.equal(request.body.status,"OFFERED");
+  const acceptance=await call("POST",`${releasePath}/${request.body.id}/accept`,{});
+  assert.deepEqual([acceptance.status,acceptance.body.status],[200,"ACCEPTED"]);
+  assert.equal((await call("POST",`${releasePath}/${request.body.id}/accept`,{})).body.status,"ACCEPTED");
   const response=await call("GET",`/saves/${saveId}/sponsors`);
   assert.equal(response.status,200);
   assert.equal(response.cache,"no-store");
   const result=(await db.execute(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_compliance_notices WHERE career_save_id=${saveId}`)).rows[0]!;
-  assert.equal(Number(result.n),0);
+  assert.equal(Number(result.n),1,"the explicitly inserted notice persists after acknowledgement");
 });
