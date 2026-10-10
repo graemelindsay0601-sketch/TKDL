@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
-import { errorMessage, useSponsors, useUpdateSponsorActivity } from "../api";
+import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNegotiateOffer, useSponsors, useUpdateSponsorActivity } from "../api";
 import { CareerError, CareerLoading, CareerSection, OSWALD } from "../components";
 import type { ShellContext } from "../shell";
+import type { SponsorNegotiationChange, SponsorSigningReveal } from "../types";
+import { SponsorOfferCard } from "./sponsor-offer-card";
+import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 
 const money=(pence:number|undefined|null)=>new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format((pence??0)/100);
 const label=(value:string)=>value.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
@@ -10,6 +13,9 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
   const {save}=ctx, query=useSponsors(save.id), update=useUpdateSponsorActivity(save.id);
   const [weeks,setWeeks]=useState<Record<string,number>>({});
   const [notice,setNotice]=useState("");
+  const [replace,setReplace]=useState<Record<string,string[]>>({});
+  const [signingReveal,setSigningReveal]=useState<SponsorSigningReveal|null>(null);
+  const accept=useAcceptOffer(save.id), decline=useDeclineOffer(save.id), negotiate=useNegotiateOffer(save.id);
   const activities=useMemo(()=>[
     ...(query.data?.sponsorHQ?.commitments??[]).map(item=>({...item,required:true as const,from:item.availableFromWeek,to:item.dueWeek})),
     ...(query.data?.sponsorHQ?.opportunities??[]).map(item=>({...item,sponsorName:item.sponsorKey,required:false as const,from:item.availableFromWeek,to:item.availableToWeek})),
@@ -17,14 +23,19 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
   if(query.isLoading)return <CareerLoading label="Loading Sponsor HQ"/>;
   if(query.error||!query.data)return <CareerError error={query.error} onRetry={()=>query.refetch()}/>;
   const portfolio=query.data.activeContracts??(query.data.active?[query.data.active]:[]);
-  const journeys=query.data.journeys??[];
   const history=query.data.history?.contracts??[];
+  const decisionOffers=(query.data.offers??[]).filter(offer=>
+    (offer.kind==="RENEWAL"&&(portfolio.some(contract=>contract.sponsorKey===offer.sponsorKey)||
+      history.some(contract=>contract.id===offer.source?.previousContractId)))||
+    (offer.conflictingContractIds??[]).some(id=>portfolio.some(contract=>contract.id===id)));
+  const journeys=query.data.journeys??[];
   const commercial=query.data.commercial;
   async function act(id:string,action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE",week?:number){
     try{await update.mutateAsync({activityId:id,action,week});setNotice("Sponsor activity updated.");}
     catch(error){setNotice(errorMessage(error));}
   }
   return <div className="space-y-5">
+    {signingReveal&&<SponsorSigningRevealCard deal={signingReveal} onDismiss={()=>setSigningReveal(null)}/>}
     <CareerSection title="Sponsor headquarters">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><p className="mb-1 text-xs uppercase tracking-[.18em] text-amber-200">Commercial career</p>
@@ -71,6 +82,57 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </div>
         </article>;
       })}</div>}
+    </CareerSection>
+
+    <CareerSection title="Contract decisions">
+      <div className="px-4 py-3">
+        <p className="text-xs text-white/55">Expiry is calculated from your current Career week to each signed end week. Renewal status below reflects persisted offers only; no offer is assumed from an approaching end date.</p>
+        {portfolio.length===0
+          ? <div className="mt-3 rounded-lg border border-dashed border-white/15 p-4">
+              <h3 className="text-base text-white" style={OSWALD}>No active contracts to review</h3>
+              <p className="mt-1 text-sm text-white/55">When a partnership is signed, its expiry and any persisted renewal or rival proposal will appear here.</p>
+            </div>
+          : <div className="mt-3 grid gap-2 lg:grid-cols-2">{portfolio.map(contract=>{
+              const remaining=contractWeeksRemaining(save.currentSeason,save.currentWeek,contract.end.season,contract.end.week);
+              const renewal=(query.data?.offers??[]).find(offer=>offer.kind==="RENEWAL"&&offer.sponsorKey===contract.sponsorKey);
+              const rivals=decisionOffers.filter(offer=>offer.kind!=="RENEWAL"&&(offer.conflictingContractIds??[]).includes(contract.id));
+              return <article key={contract.id} className="rounded-lg border border-white/10 bg-black/20 p-3" data-testid={`contract-decision-${contract.id}`}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div><p className="text-[10px] uppercase tracking-[.15em] text-white/45">{label(contract.tier)} · {label(contract.status)}</p>
+                    <h3 className="mt-1 text-lg text-white" style={OSWALD}>{contract.terms.displayName}</h3>
+                    <p className="mt-1 text-xs text-white/55">Signed S{contract.start.season} W{contract.start.week} · ends S{contract.end.season} W{contract.end.week}</p>
+                  </div>
+                  <div className={`sponsor-expiry-countdown${remaining<=4?" is-near":""}`} aria-label={remaining===0?"Contract end week has passed":`${remaining} contract weeks remaining`}>
+                    <span>{remaining===0?"END WEEK PASSED":"WEEKS TO END"}</span><strong>{remaining}</strong>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded border border-white/[.07] bg-white/[.025] px-2.5 py-2">
+                    <p className="text-[9px] uppercase tracking-widest text-white/40">Renewal status</p>
+                    <p className="mt-1 text-xs text-white">{renewal?`Offer ${label(renewal.status)} · expires S${renewal.expires.season} W${renewal.expires.week}`:"No persisted renewal offer available"}</p>
+                  </div>
+                  <div className="rounded border border-white/[.07] bg-white/[.025] px-2.5 py-2">
+                    <p className="text-[9px] uppercase tracking-widest text-white/40">Rival status</p>
+                    <p className="mt-1 text-xs text-white">{rivals.length?`${rivals.length} persisted rival ${rivals.length===1?"offer":"offers"} identify this contract as a conflict`:"No persisted rival offer identifies this contract as a conflict"}</p>
+                  </div>
+                </div>
+              </article>;
+            })}</div>}
+      </div>
+      {decisionOffers.length===0
+        ?<p className="border-t border-white/[.07] px-4 py-3 text-sm text-white/55">No available renewal or rival proposals are recorded for your active agreements.</p>
+        :<div className="career-sponsor-offers__stack border-t border-white/[.07]">
+          {decisionOffers.map(offer=><SponsorOfferCard key={`decision-${offer.id}`} offer={offer} activeContracts={portfolio} retired={ctx.retired}
+            replacementIds={replace[offer.id]??[]} replacementDisabled
+            onReplacementChange={(contractId,checked)=>setReplace(previous=>({...previous,[offer.id]:checked?[...new Set([...(previous[offer.id]??[]),contractId])]:(previous[offer.id]??[]).filter(id=>id!==contractId)}))}
+            onAccept={()=>accept.mutate({offerId:offer.id,replaceContractIds:replace[offer.id]??[]},{onSuccess:result=>{
+              setNotice(result.created?`Signed with ${offer.terms.displayName}.`:`${offer.terms.displayName} is already signed.`);
+              if(result.signingReveal)setSigningReveal(result.signingReveal);
+            },onError:error=>setNotice(errorMessage(error))})}
+            onDecline={()=>decline.mutate(offer.id,{onSuccess:()=>setNotice("Offer declined."),onError:error=>setNotice(errorMessage(error))})}
+            onNegotiate={(change:SponsorNegotiationChange)=>negotiate.mutate({offerId:offer.id,requestKey:newOperationKey(),expectedRevision:offer.journey?.revision??0,change},{onSuccess:result=>setNotice(result.message),onError:error=>setNotice(errorMessage(error))})}
+            acceptBusy={accept.isPending} declineBusy={decline.isPending} negotiateBusy={negotiate.isPending}/>)}
+        </div>}
     </CareerSection>
 
     <CareerSection title="Contractual commitments and opportunities">
@@ -127,4 +189,10 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
     </CareerSection>
     {notice&&<p role="status" className="pdc-card p-3 text-sm text-white">{notice}</p>}
   </div>;
+}
+
+function contractWeeksRemaining(currentSeason:number,currentWeek:number,endSeason:number,endWeek:number){
+  const current=(currentSeason-1)*52+currentWeek;
+  const end=(endSeason-1)*52+endWeek;
+  return Math.max(0,end-current+1);
 }

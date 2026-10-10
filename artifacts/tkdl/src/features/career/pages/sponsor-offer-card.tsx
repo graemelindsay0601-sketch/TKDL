@@ -10,6 +10,7 @@ type SponsorOfferCardProps = {
   activeContracts: SponsorContract[];
   retired: boolean;
   replacementIds: string[];
+  replacementDisabled?: boolean;
   onReplacementChange: (contractId: string, checked: boolean) => void;
   onAccept: () => void;
   onDecline: () => void;
@@ -24,6 +25,7 @@ export function SponsorOfferCard({
   activeContracts,
   retired,
   replacementIds,
+  replacementDisabled = false,
   onReplacementChange,
   onAccept,
   onDecline,
@@ -54,6 +56,9 @@ export function SponsorOfferCard({
   const selected = negotiableTerms.find(term => term.value === selectedTerm) ?? negotiableTerms[0];
   const journey = offer.journey ?? null;
   const canNegotiate = !retired && journey && ["OFFERED", "NEGOTIATING"].includes(journey.status) && journey.negotiationRounds < journey.maxRounds;
+  const activeConflicts = activeContracts.filter(contract => offer.conflictingContractIds?.includes(contract.id));
+  const replacementRequired = offer.portfolioFull || activeConflicts.length > 0;
+  const acceptBlockedByReplacement = replacementDisabled && replacementRequired;
   const changeTerm = (value: string) => {
     setSelectedTerm(value);
     const next = negotiableTerms.find(term => term.value === value);
@@ -123,6 +128,8 @@ export function SponsorOfferCard({
       </header>
 
       <div className="career-sponsor-offer__body">
+        <DecisionBrief offer={offer} activeContracts={activeContracts} />
+
         {journey && (
           <section className="career-sponsor-offer__journey" aria-label="Sponsor approach and negotiation">
             <div className="career-sponsor-offer__journey-heading">
@@ -287,6 +294,7 @@ export function SponsorOfferCard({
                     <input
                       type="checkbox"
                       checked={replacementIds.includes(contract.id)}
+                      disabled={replacementDisabled}
                       onChange={event => onReplacementChange(contract.id, event.target.checked)}
                     />
                     <span>{contract.terms.displayName}</span>
@@ -295,7 +303,8 @@ export function SponsorOfferCard({
                 );
               })}
             </div>
-            {offer.portfolioFull && <p className="career-sponsor-offer__portfolio-note">Your portfolio is full; select a contract to replace.</p>}
+            {offer.portfolioFull && <p className="career-sponsor-offer__portfolio-note">{replacementDisabled?"Your portfolio is full; this offer cannot be signed without replacing a contract.":"Your portfolio is full; select a contract to replace."}</p>}
+            {replacementDisabled && <p className="career-sponsor-offer__portfolio-note">No supported immediate, zero-cost release clause is recorded for these active contracts. Replacement is unavailable; existing agreements remain in force.</p>}
           </fieldset>
         )}
 
@@ -305,6 +314,7 @@ export function SponsorOfferCard({
               label="Accept offer"
               confirmLabel="Sign contract"
               busy={acceptBusy}
+              disabled={acceptBlockedByReplacement}
               description={`Accept the ${terms.displayName} offer${replacementIds.length > 0
                 ? `. Terminate only: ${activeContracts.filter(contract => replacementIds.includes(contract.id)).map(contract => contract.terms.displayName).join(", ")}.`
                 : ". Keep all existing compatible deals."}`}
@@ -317,6 +327,128 @@ export function SponsorOfferCard({
         )}
       </div>
     </article>
+  );
+}
+
+function DecisionBrief({ offer, activeContracts }: { offer: SponsorOffer; activeContracts: SponsorContract[] }) {
+  const { terms } = offer;
+  const related = activeContracts.filter(contract =>
+    contract.sponsorKey === offer.sponsorKey || offer.conflictingContractIds?.includes(contract.id),
+  );
+  const duration = terms.duration.kind === "SEASONS"
+    ? `${terms.duration.seasons} season${terms.duration.seasons === 1 ? "" : "s"} from signing`
+    : "Remainder of this season from signing";
+  const guarantees = terms.contractFoundation?.guaranteedPayments ?? [];
+  const activities = terms.contractFoundation?.activitySpecification;
+  const slot = offer.slot ?? related.find(contract => contract.sponsorKey === offer.sponsorKey)?.slot;
+  const groups = [...new Set(related.flatMap(contract => contract.groups ?? []))];
+
+  return (
+    <section className="career-sponsor-offer__decision" aria-label="Active deal and proposal comparison">
+      <div className="career-sponsor-offer__decision-head">
+        <div>
+          <span className="career-sponsor-offer__eyebrow">SP-E1 · DECISION DESK</span>
+          <h4>Keep the current deal or sign this proposal</h4>
+        </div>
+        <div className="career-sponsor-offer__decision-meta">
+          <b>{offer.kind==="RENEWAL"?"RENEWAL":offer.source?.offerClass==="RIVAL"?"RIVAL APPROACH":"NEW PARTNER"}</b>
+          <span>Offered S{offer.offered.season} W{offer.offered.week} · expires S{offer.expires.season} W{offer.expires.week}</span>
+        </div>
+      </div>
+
+      <div className="career-sponsor-offer__decision-grid">
+        <article className="career-sponsor-offer__decision-side is-current">
+          <div className="career-sponsor-offer__decision-sidehead">
+            <span>Current portfolio</span>
+            <strong>{related.length ? `${related.length} related ${related.length === 1 ? "deal" : "deals"}` : "No matching active deal"}</strong>
+          </div>
+          {related.length ? related.map(contract => (
+            <div className="career-sponsor-offer__active-deal" key={contract.id}>
+              <div className="career-sponsor-offer__deal-title">
+                <strong>{contract.terms.displayName}</strong>
+                <span>{contract.sponsorKey === offer.sponsorKey
+                  ? offer.kind === "RENEWAL" ? "Renewal incumbent" : "Same sponsor"
+                  : offer.conflictingContractIds?.includes(contract.id) ? "Conflicting deal" : "Active portfolio"}
+                  {" · "}{titleCase(contract.status)}{contract.endReason ? ` · ${titleCase(contract.endReason)}` : ""}
+                </span>
+              </div>
+              <p>Term · S{contract.start.season} W{contract.start.week} to S{contract.end.season} W{contract.end.week}</p>
+              <div className="career-sponsor-offer__deal-ledger">
+                <span>Cash received <b>{formatPence(contract.totals.paidPence)}</b></span>
+                <span>Costs covered <b>{formatPence(contract.totals.coveredPence)}</b></span>
+                {contract.commercial && <span>Guarantees remaining <b>{formatPence(contract.commercial.remainingGuaranteesPence)}</b></span>}
+              </div>
+              <p>{contract.slot ? `Slot · ${titleCase(contract.slot)}` : `Tier · ${titleCase(contract.tier)}`}
+                {contract.groups?.length ? ` · Groups · ${contract.groups.map(titleCase).join(", ")}` : ""}
+              </p>
+            </div>
+          )) : (
+            <p className="career-sponsor-offer__decision-empty">
+              {activeContracts.length
+                ? "Your active deals are not identified as a renewal or conflict for this proposal."
+                : "There is no active sponsor agreement to replace."}
+            </p>
+          )}
+          {activeContracts.length > related.length && (
+            <p className="career-sponsor-offer__compatibility">
+              {activeContracts.length - related.length} other active {activeContracts.length - related.length === 1 ? "deal remains" : "deals remain"} outside this direct comparison.
+            </p>
+          )}
+        </article>
+
+        <article className="career-sponsor-offer__decision-side is-proposed">
+          <div className="career-sponsor-offer__decision-sidehead">
+            <span>{offer.kind === "RENEWAL" ? "Renewal proposal" : "Proposed partnership"}</span>
+            <strong>{terms.displayName}</strong>
+          </div>
+          <p>Term · {duration}</p>
+          <div className="career-sponsor-offer__proposal-facts">
+            <div><span>At signing</span><b>{terms.signingBonusPence > 0 ? formatPence(terms.signingBonusPence) : "None stated"}</b></div>
+            <div><span>Guaranteed cash</span><b>{guarantees.length ? `${guarantees.length} scheduled term${guarantees.length === 1 ? "" : "s"}` : "None stated"}</b></div>
+            <div><span>Performance rewards</span><b>{terms.performanceBonuses.length ? `${terms.performanceBonuses.length} conditional term${terms.performanceBonuses.length === 1 ? "" : "s"}` : "None stated"}</b></div>
+            <div><span>Cost coverage</span><b>{terms.coverage.length ? `${terms.coverage.length} coverage term${terms.coverage.length === 1 ? "" : "s"}` : "None stated"}</b></div>
+          </div>
+          {guarantees.length > 0 && (
+            <ul className="career-sponsor-offer__decision-terms">
+              {guarantees.map((payment, index) => (
+                <li key={`${payment.cadence}-${index}`}>
+                  Guaranteed {formatGuaranteeAmountPence(payment.amountPence)}
+                  {payment.cadence === "ON_SIGNING"
+                    ? " once on signing"
+                    : ` per Career season · ${payment.installments} ${payment.cadence === "MONTHLY" ? "monthly" : "scheduled"} instalments`}
+                </li>
+              ))}
+            </ul>
+          )}
+          {terms.eventPayment && (
+            <p className="career-sponsor-offer__decision-terms">
+              Appearance pay · {formatPence(terms.eventPayment.amountPence)} per eligible event, up to {terms.eventPayment.maxEventsPerSeason} per season.
+            </p>
+          )}
+          {terms.coverage.map((coverage, index) => (
+            <p className="career-sponsor-offer__decision-terms" key={`${coverage.costTypes.join("-")}-${index}`}>
+              Coverage · {coverage.percent}% of {coverage.costTypes.map(ledgerLabel).join(", ").toLowerCase()}
+              {coverage.perEventCapPence != null ? ` · ${formatPence(coverage.perEventCapPence)} per-event cap` : ""}
+              {coverage.seasonCapPence != null ? ` · ${formatPence(coverage.seasonCapPence)} season cap` : ""}
+            </p>
+          ))}
+          <div className="career-sponsor-offer__decision-guardrails">
+            <span>Proposal status</span>
+            <b>{titleCase(offer.status)}{offer.statusReason ? ` · ${titleCase(offer.statusReason)}` : ""}</b>
+            <span>Slot / exclusivity group</span>
+            <b>{slot ? titleCase(slot) : "Not specified"}{groups.length ? ` · ${groups.map(titleCase).join(", ")}` : ""}</b>
+            <span>Contract-ending authority</span>
+            <b>Early-ending terms are not stated in this offer data. Acceptance only replaces deals you select below.</b>
+          </div>
+          <p className="career-sponsor-offer__obligations">
+            Obligations · {(activities?.required.length ?? 0) + (activities?.optional.length ?? 0) === 0
+              ? "No activity duties listed"
+              : `${activities?.required.length ?? 0} required and ${activities?.optional.length ?? 0} optional activity clauses`}
+            {" · "}Bonuses remain conditional; cost coverage is not cash.
+          </p>
+        </article>
+      </div>
+    </section>
   );
 }
 
@@ -428,5 +560,6 @@ function journeyEventLabel(type: SponsorJourneyEvent["type"]) {
     case "OFFER_EXPIRED": return "Offer expired";
     case "ACTIVITY_UPDATE": return "Sponsor activity update";
     case "FINANCIAL_PAYMENT": return "Sponsor payment posted";
+    case "CONTRACT_CONCLUDED": return "Partnership concluded";
   }
 }

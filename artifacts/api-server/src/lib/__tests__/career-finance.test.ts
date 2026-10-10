@@ -13,6 +13,7 @@ import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_caree
 import { createCareerSponsorJourneysSPB3 } from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
 import { createCareerFinanceSPC } from "../../db/migrations/create_career_finance_spc.ts";
 import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
+import { addContractConcludedSponsorEventSPE1 } from "../../db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
 import { materializeSponsorActivities } from "../../career/finance/sponsor-activities.ts";
@@ -50,6 +51,7 @@ before(async () => {
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); // idempotent re-run
   await createCareerFinanceSPC(db); await createCareerFinanceSPC(db); // additive A4/SP-B3 migration is idempotent
   await createCareerSponsorHQSPD(db); await createCareerSponsorHQSPD(db);
+  await addContractConcludedSponsorEventSPE1(db); await addContractConcludedSponsorEventSPE1(db);
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -974,7 +976,9 @@ test("coverage caps, decline, expiry, contract end with renewal or loss, replace
   assert.equal((await finance.sponsors(actor, save.id)).offers.length, 0);
   const forge = offers.find(o => o.sponsorKey === "forge-workwear")!;
   await rejectsStatus(finance.acceptOffer(actor, save.id, { offerId: forge.id }), 409);
-  // New season: renewal requirement met → COMPLETED + renewal offer; unmet → EXPIRED (sponsor lost).
+  // Renewal enters the final-four-week window while the current deal remains
+  // active. A missed window falls back to an end-of-term decision without
+  // shortening the offer's response time.
   for (const [titles, expected] of [[1, "COMPLETED"], [0, "EXPIRED"]] as const) {
     const s = await career(1, titles ? 2 : 3);
     Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
@@ -982,15 +986,40 @@ test("coverage caps, decline, expiry, contract end with renewal or loss, replace
     const o = (await finance.sponsors(actor, s.id)).offers.find(x => x.sponsorKey === "forge-workwear")!;
     await finance.acceptOffer(actor, s.id, { offerId: o.id });
     Object.assign(fixture, { titles });
+    await withRoot(s.id, (tx, root) => advanceSponsorLifecycle(tx, root, async () => structuredClone(fixture), 1, 48));
+    let view = await finance.sponsors(actor, s.id);
+    assert.equal(view.active!.sponsorKey, "forge-workwear", "renewal review does not end the current contract");
+    assert.equal(view.offers.some(x => x.kind === "RENEWAL"), expected === "COMPLETED");
+    const renewal = view.offers.find(x => x.kind === "RENEWAL");
+    if(renewal){
+      await withRoot(s.id,(tx,root)=>advanceSponsorLifecycle(tx,root,async()=>structuredClone(fixture),1,48));
+      view=await finance.sponsors(actor,s.id);
+      assert.equal(view.offers.filter(x=>x.kind==="RENEWAL").length,1,"repeated calendar advancement does not duplicate the renewal");
+      assert.equal(view.offers.find(x=>x.kind==="RENEWAL")!.id,renewal.id,"renewal identity is stable across retries");
+    }
+    if (renewal) assert.equal(renewal.terms.signingBonusPence, 0, "a renewal does not duplicate one-time signing cash");
     await withRoot(s.id, (tx, root) => advanceSponsorLifecycle(tx, root, async () => structuredClone(fixture), 2, 1));
-    const view = await finance.sponsors(actor, s.id);
-    assert.equal(view.active, null);
+    view = await finance.sponsors(actor, s.id);
     assert.equal(view.history.contracts[0].status, expected);
     assert.equal(view.offers.some(x => x.kind === "RENEWAL"), expected === "COMPLETED");
-    assert.equal((await saves.read(1, s.id)).sponsor, null);
+    assert.equal(view.journeys.some(j => j.timeline.some(event => event.type === "CONTRACT_CONCLUDED")), true);
+    if(expected==="COMPLETED"){
+      const renewalAfterExpiry=view.offers.find(x=>x.kind==="RENEWAL")!;
+      assert.equal((renewalAfterExpiry.source as Record<string,unknown>|undefined)?.previousContractId,view.history.contracts[0].id,"renewal keeps explicit contract lineage");
+      const beforePayments=(await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${s.id} AND category='SPONSOR_SIGNING_BONUS'`))[0].n;
+      await finance.acceptOffer(actor,s.id,{offerId:renewalAfterExpiry.id});
+      const renewed=await finance.sponsors(actor,s.id);
+      assert.equal(renewed.active?.sponsorKey,"forge-workwear");
+      assert.equal(renewed.history.contracts[0].status,"COMPLETED");
+      assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${s.id} AND category='SPONSOR_SIGNING_BONUS'`))[0].n,beforePayments,"renewal does not repeat signing cash");
+    }else{
+      assert.equal(view.active,null);
+      assert.equal((await saves.read(1, s.id)).sponsor, null);
+    }
     await rejectsWith(db.execute(sql`UPDATE career_sponsor_contracts SET status = 'ACTIVE' WHERE career_save_id = ${s.id}`), /history/);
   }
-  // Replacement: a higher-tier offer can replace the active contract; the old one stays in history.
+  // A conflicting offer cannot terminate an agreement whose signed snapshot
+  // has no immediate, zero-cost release authority.
   const r = await career(2, 1);
   Object.assign(fixture, { titles: 3, bestFinishByCircuit: { GRASSROOTS: 1, REGIONAL: 2 } });
   await finance.evaluateOffers({ playerId: 2 }, r.id, { triggerKey: "regional-final" });
@@ -998,11 +1027,12 @@ test("coverage caps, decline, expiry, contract end with renewal or loss, replace
   const local = pick.find(o => o.tier === "LOCAL") ?? null;
   const regional = pick.find(o => o.tier === "REGIONAL")!;
   const localContract=local?await finance.acceptOffer({ playerId: 2 }, r.id, { offerId: local.id }):null;
-  await finance.acceptOffer({ playerId: 2 }, r.id, { offerId: regional.id,
-    ...(localContract?{replaceContractIds:[localContract.contractId]}:{}) });
-  const after = await finance.sponsors({ playerId: 2 }, r.id);
-  assert.equal(after.active!.sponsorKey, "ochre-darts");
-  if (local) assert.equal(after.history.contracts[0].endReason, "EXPLICITLY_REPLACED");
+  if(localContract){
+    await assert.rejects(finance.acceptOffer({playerId:2},r.id,{offerId:regional.id,replaceContractIds:[localContract.contractId]}),/no supported immediate, no-cost release/);
+    const after=await finance.sponsors({playerId:2},r.id);
+    assert.equal(after.active!.sponsorKey,local!.sponsorKey);
+    assert.equal(after.history.contracts.length,0,"rejected rival switch leaves the existing contract untouched");
+  }
 });
 
 test("retention: only a KNOWN failed requirement terminates a professional contract", async () => {

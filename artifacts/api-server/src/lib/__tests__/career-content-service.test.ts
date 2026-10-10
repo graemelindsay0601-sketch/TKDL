@@ -102,14 +102,13 @@ test("two compatible contracts sign and retries neither terminate nor repay eith
   const sponsors=await sporting.finance.sponsors(actor,saveId);assert.equal(sponsors.activeContracts.length,2);
   assert.ok(sponsors.activeContracts.some(c=>c.slot==="EQUIPMENT_PARTNER"));assert.ok(sponsors.activeContracts.some(c=>c.slot==="LOCAL_REGIONAL_PARTNER"));
 });
-test("competitor conflicts and foreign replacements fail atomically; explicit replacement keeps other deals",async()=>{
+test("competitor conflicts and unsupported early releases fail atomically",async()=>{
   const id=await offer("redpoint-darts"),before=calendarHashOf(await rows(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id=${saveId} ORDER BY id`));
   await status(sporting.finance.acceptOffer(actor,saveId,{offerId:id}));
   await status(sporting.finance.acceptOffer(actor,saveId,{offerId:id,replaceContractIds:[stableUuid(seed,1,"foreign")]}));
   assert.equal(calendarHashOf(await rows(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id=${saveId} ORDER BY id`)),before);
-  replacement=(await sporting.finance.acceptOffer(actor,saveId,{offerId:id,replaceContractIds:[equipment]})).contractId;
-  const active=await activeContracts(db,saveId);assert.equal(active.length,2);assert.ok(active.some(c=>c.id===local));assert.ok(active.some(c=>c.id===replacement));
-  assert.equal((await rows(sql`SELECT end_reason FROM career_sponsor_contracts WHERE career_save_id=${saveId} AND id=${equipment}`))[0].end_reason,"EXPLICITLY_REPLACED");
+  await status(sporting.finance.acceptOffer(actor,saveId,{offerId:id,replaceContractIds:[equipment]}),409);
+  const active=await activeContracts(db,saveId);assert.equal(active.length,2);assert.ok(active.some(c=>c.id===local));assert.ok(active.some(c=>c.id===equipment));
   await createCareerFinance(db);await createCareerFinanceSPC(db);assert.equal((await activeContracts(db,saveId)).length,2);
 });
 test("all active contracts complete/review together; rollback protects fixture and old terms",async()=>{
@@ -124,12 +123,12 @@ test("all active contracts complete/review together; rollback protects fixture a
   assert.equal((await activeContracts(db,saveId)).length,2);
 });
 test("signature launches are factual, immutable, retry-safe metadata, never money or ability",async()=>{
-  await status(content.launchSignature(actor,saveId,{contractId:local,productType:"SIGNATURE_DARTS"}));
-  await status(content.launchSignature(actor,saveId,{contractId:replacement,productType:"SIGNATURE_DARTS"}));
+  await status(content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"}));
+  await status(content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"}));
   await db.execute(sql`INSERT INTO career_life_merchandise (career_save_id,category,royalty_pence,signed_season,signed_week) VALUES (${saveId},'SIGNED_ITEMS',2500,1,1)`);
   const money=calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`));
-  const p=await content.launchSignature(actor,saveId,{contractId:replacement,productType:"SIGNATURE_DARTS"});
-  assert.equal(p.created,true);assert.equal((await content.launchSignature(actor,saveId,{contractId:replacement,productType:"SIGNATURE_DARTS"})).created,false);
+  const p=await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"});
+  assert.equal(p.created,true);assert.equal((await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"})).created,false);
   assert.equal((await content.presentation(actor,saveId)).products[0].state,"ACTIVE");
   assert.equal(calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`)),money);
   await assert.rejects(db.execute(sql`UPDATE career_signature_products SET product_name='fake' WHERE career_save_id=${saveId}`));
@@ -189,8 +188,8 @@ test("HTTP accepts explicit replacement data and validates content, auth and no-
     const newOffer=await offer("northline-darts");
     const conflict=await fetch(`${base}/saves/${saveId}/sponsors/offers/${newOffer}/accept`,{method:"POST",headers:{"content-type":"application/json","x-test-player":"1"},body:"{}"});assert.equal(conflict.status,409);
     const accepted=await fetch(`${base}/saves/${saveId}/sponsors/offers/${newOffer}/accept`,{method:"POST",headers:{"content-type":"application/json","x-test-player":"1"},
-      body:JSON.stringify({replaceContractIds:[replacement]})});assert.equal(accepted.status,200);
-    assert.equal((await content.presentation(actor,saveId)).products[0].state,"LEGACY");
+      body:JSON.stringify({replaceContractIds:[equipment]})});assert.equal(accepted.status,409);
+    assert.equal((await content.presentation(actor,saveId)).products[0].state,"ACTIVE");
   }finally{await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
 });
 test("retired identity and products remain readable but immutable; no NPC bank account is invented",async()=>{

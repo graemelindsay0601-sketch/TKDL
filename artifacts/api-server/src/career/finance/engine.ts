@@ -259,8 +259,19 @@ async function syncSponsorCache(tx: CareerExecutor, saveId: string) {
   const active = await activeContract(tx, saveId);
   await tx.execute(sql`UPDATE career_saves SET sponsor = ${active ? active.terms.displayName : null} WHERE id = ${saveId}`);
 }
-async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: string, kind: "NEW" | "RENEWAL", terms: SponsorTerms, source: Record<string, unknown>, season: number, week: number) {
-  const expires = fromIndex(timeIndex(season, week) + OFFER_LIFETIME_WEEKS);
+async function recordContractConclusion(tx:CareerExecutor,root:RootRow,contractId:string,status:"COMPLETED"|"EXPIRED"|"TERMINATED",reason:string,season:number,week:number){
+  const journey=(await tx.execute(sql`SELECT id FROM career_sponsor_journeys
+    WHERE career_save_id=${root.id} AND signed_contract_id=${contractId} ORDER BY created_at DESC LIMIT 1`)).rows[0];
+  if(!journey)return;
+  await appendSponsorJourneyEvent(tx,root,{
+    journeyId:String(journey.id),eventKey:`contract-concluded:${contractId}`,
+    eventType:"CONTRACT_CONCLUDED",season,week,
+    details:{contractId,status,reason,headline:status==="COMPLETED"?"Partnership term completed":"Partnership concluded",
+      summary:status==="COMPLETED"?"The agreed partnership term has ended. Completed history and earnings remain recorded.":`The agreement ended (${reason.toLowerCase().replaceAll("_"," ")}). Completed history and earnings remain recorded.`},
+  });
+}
+async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: string, kind: "NEW" | "RENEWAL", terms: SponsorTerms, source: Record<string, unknown>, season: number, week: number, expiry?: {season:number;week:number}) {
+  const expires = expiry ?? fromIndex(timeIndex(season, week) + OFFER_LIFETIME_WEEKS);
   const result = await tx.execute(sql`INSERT INTO career_sponsor_offers (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
       offered_season, offered_week, expires_season, expires_week, status)
     VALUES (${root.id}, ${stableUuid(root.world_seed, terms.sponsorDatabaseVersion, "sponsor-offer", operationKey)}, ${operationKey}, ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},
@@ -300,8 +311,11 @@ export async function evaluateOffers(
   const created: string[] = [];
   for (const d of candidates) {
     const operationKey = `offer:${triggerKey}:${d.key}`;
+    const affected = conflicts(d.terms, active);
+    const isRival = affected.length > 0 || active.length >= portfolioLimit(facts);
     if (await insertOffer(tx, root, operationKey, "NEW", structuredClone(d.terms),
-      { trigger: triggerKey, facts, requiresReplacement: conflicts(d.terms,active), ...(approachSource ? { approachSource } : {}) }, season, week)) {
+      { trigger: triggerKey, facts, offerClass:isRival?"RIVAL":"NEW", competingContractIds:affected,
+        ...(approachSource ? { approachSource } : {}) }, season, week)) {
       created.push(d.key);
       const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
       if (offerId) {
@@ -409,6 +423,11 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   }
   const previous = await activeContracts(tx, root.id), replacements=new Set(options.replaceContractIds??[]);
   if ([...replacements].some(id=>!previous.some(c=>c.id===id)))throw new CareerError(409,"Replacement must name an active owned contract");
+  for(const contract of previous.filter(candidate=>replacements.has(candidate.id))){
+    const release=contract.terms.contractFoundation?.releaseClause;
+    if(release?.playerNoticeWeeks!==0||release?.buyoutPence!==0)
+      throw new CareerError(409,"This active contract has no supported immediate, no-cost release. The rival offer cannot replace it.");
+  }
   const remaining=previous.filter(c=>!replacements.has(c.id)), incompatible=conflicts(offer.terms,remaining);
   if(incompatible.length)throw new CareerError(409,`Sponsor exclusivity/slot conflict; explicitly replace: ${incompatible.join(", ")}`);
   const facts=options.facts??{careerStarted:true,
@@ -429,7 +448,10 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   // Close earned obligations for the current week before an explicit replacement ends them.
   await postDueGuaranteedPayments(tx, root, previous.filter(contract => replacements.has(contract.id)), season, week);
   if(replacements.size)await cancelInactiveSponsorActivities(tx,{saveId:root.id,season,week,contractIds:[...replacements]});
-  for(const id of replacements)await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'EXPLICITLY_REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${id}`);
+  for(const id of replacements){
+    await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'EXPLICITLY_REPLACED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${id}`);
+    await recordContractConclusion(tx,root,id,"TERMINATED","EXPLICITLY_REPLACED",season,week);
+  }
   const end = contractEnd(offer.terms, season, week);
   const contractId = stableUuid(root.world_seed, offer.terms.sponsorDatabaseVersion, "sponsor-contract", offer.id);
   await tx.execute(sql`INSERT INTO career_sponsor_contracts (career_save_id, id, offer_id, sponsor_key, sponsor_database_version, tier, terms, start_season, start_week, end_season, end_week, status)
@@ -478,24 +500,61 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
   let known: SportingFacts | null = null;
   const getFacts = async () => known ??= await facts();
   for (const active of portfolio) {
+  const endIndex = timeIndex(active.end_season, active.end_week);
+  const weeksToEnd = endIndex - now;
+  // A renewal is presented during the final four Career weeks, not only after
+  // the existing agreement has already ended. Its response window extends
+  // through four weeks after expiry so the player can review and sign without
+  // cutting the current term short.
+  if (weeksToEnd >= 0 && weeksToEnd <= 4
+      && evaluateRequirement(active.terms.renewalRequirement, await getFacts()) === true) {
+    const operationKey = `renewal:${active.id}`;
+    const expiry = fromIndex(endIndex + OFFER_LIFETIME_WEEKS);
+    const renewalTerms = structuredClone(active.terms);
+    renewalTerms.signingBonusPence = 0; // one-time signing cash is not repeated on renewal
+    if (await insertOffer(tx, root, operationKey, "RENEWAL", renewalTerms,
+      { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4,
+        eligibilityEvidence:{requirement:active.terms.renewalRequirement,evaluatedAt:{season,week},eligible:true} }, season, week, expiry)) {
+      const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers
+        WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
+      if (offerId) await createSponsorJourney(tx, root, {
+        offerId: String(offerId), operationKey: `journey:${offerId}`, terms: renewalTerms,
+        source: { kind: "RENEWAL", previousContractId: active.id, season, week },
+      });
+    }
+  }
   if (timeIndex(active.end_season, active.end_week) < now) {
     const renew = evaluateRequirement(active.terms.renewalRequirement, await getFacts());
     if (renew === true) {
       await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'COMPLETED', end_reason = 'TERM_COMPLETED', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${active.id}`);
+      await recordContractConclusion(tx,root,active.id,"COMPLETED","TERM_COMPLETED",season,week);
+      // Calendar catch-up or imported saves can reach the end without visiting
+      // each of the four notice weeks. Preserve the decision loop in that case,
+      // but never shorten the response window below the normal offer lifetime.
       const operationKey = `renewal:${active.id}`;
-      if (await insertOffer(tx, root, operationKey, "RENEWAL", structuredClone(active.terms), { trigger: operationKey, previousContractId: active.id }, season, week)) {
-        const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
+      const renewalTerms = structuredClone(active.terms);
+      renewalTerms.signingBonusPence = 0;
+      if (await insertOffer(tx, root, operationKey, "RENEWAL", renewalTerms,
+        { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4, lateNotice: true,
+          eligibilityEvidence:{requirement:active.terms.renewalRequirement,evaluatedAt:{season,week},eligible:true} }, season, week,
+        fromIndex(endIndex + OFFER_LIFETIME_WEEKS))) {
+        const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers
+          WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
         if (offerId) await createSponsorJourney(tx, root, {
-          offerId: String(offerId), operationKey: `journey:${offerId}`, terms: structuredClone(active.terms),
+          offerId: String(offerId), operationKey: `journey:${offerId}`, terms: renewalTerms,
           source: { kind: "RENEWAL", previousContractId: active.id, season, week },
         });
       }
+      await cancelInactiveSponsorActivities(tx,{saveId:root.id,season,week,contractIds:[active.id]});
     } else {
       await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'EXPIRED', end_reason = ${renew === false ? "RENEWAL_REQUIREMENT_NOT_MET" : "RENEWAL_AUTHORITY_UNKNOWN"}, ended_at = NOW()
         WHERE career_save_id = ${root.id} AND id = ${active.id}`);
+      await recordContractConclusion(tx,root,active.id,"EXPIRED",renew === false ? "RENEWAL_REQUIREMENT_NOT_MET" : "RENEWAL_AUTHORITY_UNKNOWN",season,week);
+      await cancelInactiveSponsorActivities(tx,{saveId:root.id,season,week,contractIds:[active.id]});
     }
   } else if (active && week === 1 && active.terms.retentionRequirement && evaluateRequirement(active.terms.retentionRequirement, await getFacts()) === false) {
     await tx.execute(sql`UPDATE career_sponsor_contracts SET status = 'TERMINATED', end_reason = 'RETENTION_REQUIREMENT_NOT_MET', ended_at = NOW() WHERE career_save_id = ${root.id} AND id = ${active.id}`);
+    await recordContractConclusion(tx,root,active.id,"TERMINATED","RETENTION_REQUIREMENT_NOT_MET",season,week);
   }
   }
   await syncSponsorCache(tx, root.id);

@@ -140,7 +140,7 @@ export type SponsorContract = { id: string; sponsorKey: string; tier: string; te
     pastDueGuarantees: SponsorGuaranteePayment[]; unsupportedGuarantees: SponsorUnsupportedGuarantee[] } };
 export type SponsorJourneyEvent = {
   type: "INTEREST" | "APPROACH" | "OFFER_RECEIVED" | "PLAYER_COUNTERED" | "SPONSOR_COUNTERED" | "SPONSOR_ACCEPTED_REQUEST"
-     | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT" | "ACTIVITY_UPDATE";
+     | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT" | "ACTIVITY_UPDATE" | "CONTRACT_CONCLUDED";
   offerId: string | null;
   details: Record<string, unknown>;
   season: number | null;
@@ -184,7 +184,7 @@ export type SponsorSigningReveal = {
   terms: SponsorTerms; start: { season: number; week: number }; end: { season: number; week: number };
 };
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
-  slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean; journey?:SponsorJourney|null;
+  slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean;source?:Record<string,unknown>; journey?:SponsorJourney|null;
   offered: { season: number; week: number }; expires: { season: number; week: number } };
 export type SponsorsResponse = { guaranteeConfiguration?: { status: "AWAITING_BALANCE_APPROVAL"; catalogueVersion: number };
   active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
