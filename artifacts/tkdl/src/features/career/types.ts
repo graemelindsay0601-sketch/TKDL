@@ -59,7 +59,9 @@ export type CalendarOverview = {
   currentWeekActions: { type: string; eventId: string; name: string }[];
   nextMeaningful: { season: number; week: number; reasons: { type: string; eventId?: string; name?: string }[] };
 };
-export type CalendarResponse = { overview: CalendarOverview; season: number; scope: string; events: CareerEvent[] };
+export type CalendarSponsorActivity = {id:string;contract_id:string;sponsor_key:string;kind:string;season:number;available_from_week:number|null;
+  to_week:number|null;scheduled_week:number|null;status:string;required:boolean};
+export type CalendarResponse = { overview: CalendarOverview; season: number; scope: string; events: CareerEvent[]; sponsorActivities?:CalendarSponsorActivity[] };
 export type CareerMatch = {
   id: string; stage: string; round: number; roundName: string | null; slot: number; bestOf: number; scheduledDay: number;
   a: { key: string; name: string | null } | null; b: { key: string; name: string | null } | null;
@@ -180,6 +182,10 @@ export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind:
   offered: { season: number; week: number }; expires: { season: number; week: number } };
 export type SponsorsResponse = { guaranteeConfiguration?: { status: "AWAITING_BALANCE_APPROVAL"; catalogueVersion: number };
   active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
+  sponsorHQ?: {commitments:{id:string;contractId:string;sponsorKey:string;sponsorName:string;clauseId:string;occurrence:number;kind:string;required:boolean;cadence:string;season:number;
+    availableFromWeek:number;windowWeeks:number;dueWeek:number;scheduledWeek:number|null;status:string}[];
+    opportunities:{id:string;contractId:string;sponsorKey:string;clauseId:string;occurrence:number;kind:string;season:number;availableFromWeek:number;
+      availableToWeek:number;scheduledWeek:number|null;status:string}[]};
   commercial?: SponsorCommercialOverview; history: { contracts: SponsorContract[]; offers: SponsorOffer[] } };
 
 // ---------------------------------------------------------------- A5 sporting

@@ -11,10 +11,11 @@ import {
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
-import {CURRENT_SPONSOR_DATABASE_VERSION,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
+import {CURRENT_SPONSOR_DATABASE_VERSION,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,validateSponsorActivitySpecification,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
 import { guaranteeScheduleIssue, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
+import { materializeSponsorActivities } from "./sponsor-activities.ts";
 
 const HUMAN = "HUMAN";
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS + week;
@@ -411,6 +412,11 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
     throw new CareerError(409,"Current sporting facts no longer meet this sponsor offer");
   if(offer.terms.geographicPreference&&offer.terms.geographicPreference!==root.settings_snapshot?.homeLocality)
     throw new CareerError(409,"This local sponsor requires the matching home locality");
+  const activitySpec=offer.terms.contractFoundation?.activitySpecification;
+  if(activitySpec){
+    try{validateSponsorActivitySpecification(activitySpec,offer.tier,offer.terms.contractFoundation!.category);}
+    catch(error){throw new CareerError(409,error instanceof Error?error.message:"Invalid sponsor activity clauses");}
+  }
   if(remaining.length>=portfolioLimit(facts))throw new CareerError(409,"Sponsor portfolio is full for current sporting stature; explicitly replace an owned contract");
   // Close earned obligations for the current week before an explicit replacement ends them.
   await postDueGuaranteedPayments(tx, root, previous.filter(contract => replacements.has(contract.id)), season, week);
@@ -419,6 +425,11 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   const contractId = stableUuid(root.world_seed, offer.terms.sponsorDatabaseVersion, "sponsor-contract", offer.id);
   await tx.execute(sql`INSERT INTO career_sponsor_contracts (career_save_id, id, offer_id, sponsor_key, sponsor_database_version, tier, terms, start_season, start_week, end_season, end_week, status)
     VALUES (${root.id}, ${contractId}, ${offer.id}, ${offer.sponsor_key}, ${offer.terms.sponsorDatabaseVersion}, ${offer.tier}, ${JSON.stringify(offer.terms)}::jsonb, ${season}, ${week}, ${end.season}, ${end.week}, 'ACTIVE')`);
+  if(activitySpec){
+    try{await materializeSponsorActivities(tx,{saveId:root.id,contractId,sponsorKey:offer.sponsor_key,worldSeed:root.world_seed,
+      season,week,endSeason:end.season,endWeek:end.week,specification:activitySpec});}
+    catch(error){throw new CareerError(409,error instanceof Error?error.message:"Sponsor activities cannot be scheduled in this contract window");}
+  }
   await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'ACCEPTED', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId} AND status = 'AVAILABLE'`);
   // Other open offers stay open; a lower/equal-tier one can still be accepted to switch.
   if (offer.terms.signingBonusPence > 0) {
@@ -671,6 +682,17 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       await ensureFinanceState(tx, root.id);
       await postDueGuaranteedPayments(tx, root, await activeContracts(tx, root.id), season, week);
       await advanceSponsorLifecycle(tx, root, () => factsProvider().facts(tx, root), season, week);
+      await tx.execute(sql`UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
+        WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'
+          AND season=${season} AND available_from_week<=${week} AND due_week>=${week}`);
+      await tx.execute(sql`UPDATE career_sponsor_commitments SET status='MISSED',updated_at=NOW()
+        WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
+          AND scheduling_requirements->>'activitySpecVersion'='1'
+          AND (season<${season} OR (season=${season} AND due_week<${week}))`);
+      await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='EXPIRED',updated_at=NOW()
+        WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
+          AND terms->>'activitySpecVersion'='1'
+          AND (season<${season} OR (season=${season} AND available_to_week<${week}))`);
     },
 
     async previews(tx, root, season, events) {

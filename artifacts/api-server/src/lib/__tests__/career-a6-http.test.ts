@@ -10,6 +10,7 @@ import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import {createCareerFinanceSPC} from "../../db/migrations/create_career_finance_spc.ts";
+import {createCareerSponsorHQSPD} from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
@@ -40,13 +41,13 @@ before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSporting(db);
+  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSponsorHQSPD(db); await createCareerSporting(db);
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
     const player = Number(req.header("x-test-player") ?? 0);
     (req as unknown as { session: unknown }).session = player ? { playerId: player } : {};
-    (req as unknown as { log: unknown }).log = { error: () => {} };
+    (req as unknown as { log: unknown }).log = { error: (...args: unknown[]) => console.error(...args) };
     next();
   });
   const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
@@ -67,11 +68,11 @@ async function call(method: string, path: string, body?: unknown, player = 1) {
   let parsed: any = null; try { parsed = text ? JSON.parse(text) : null; } catch { parsed = text; }
   return { status: res.status, body: parsed, cache: res.headers.get("cache-control") };
 }
-async function newCareer(slot: number, name = "HTTP Career") {
-  const created = await call("POST", "/saves", { slot, careerName: name });
+async function newCareer(slot: number, name = "HTTP Career", player = 1) {
+  const created = await call("POST", "/saves", { slot, careerName: name },player);
   assert.equal(created.status, 201);
   await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED} WHERE id = ${created.body.id}`);
-  const init = await call("POST", `/saves/${created.body.id}/initialize`, {});
+  const init = await call("POST", `/saves/${created.body.id}/initialize`, {},player);
   assert.equal(init.status, 200);
   return created.body.id as string;
 }
@@ -192,4 +193,63 @@ test("retire is read-only, restart and delete follow A1 exactly", async () => {
   assert.equal((await call("GET", "/saves")).body.slots[0].career.id, restarted.body.id);
   assert.equal((await call("DELETE", `/saves/${id}`, {})).status, 204);
   assert.equal((await call("GET", `/saves/${id}`)).status, 404);
+});
+
+test("SP-D HTTP lifecycle is persistent, idempotent and enforces one portfolio booking per week", async () => {
+  const slots=(await call("GET","/saves")).body.slots as {slotNumber:number;career:{id:string;status:string}|null}[];
+  const saveId=slots.find(slot=>slot.career?.status==="ACTIVE")?.career?.id
+    ?? await newCareer(slots.find(slot=>slot.career===null)?.slotNumber??1,"SP-D HTTP lifecycle");
+  const save=(await db.execute(sql`SELECT current_season,current_week FROM career_saves WHERE id=${saveId}`)).rows[0]!;
+  const season=Number(save.current_season),week=Number(save.current_week),nextWeek=Math.min(52,week+1);
+  const offer="00000000-0000-4000-8000-00000000d001",contract="00000000-0000-4000-8000-00000000d002";
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+    VALUES(${saveId},${offer},'spd-http-offer','spd-test',3,'LOCAL','NEW','{}'::jsonb,'{}'::jsonb,${season},${week},${season},52,'ACCEPTED',NOW())`);
+  await db.execute(sql`INSERT INTO career_sponsor_contracts
+    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status)
+    VALUES(${saveId},${contract},${offer},'spd-test',3,'LOCAL','{}'::jsonb,${season},${week},${season},52,'ACTIVE')`);
+  const required="00000000-0000-4000-8000-00000000d003",optional="00000000-0000-4000-8000-00000000d004";
+  const otherSlots=(await call("GET","/saves",undefined,2)).body.slots as {slotNumber:number;career:{id:string}|null}[];
+  const otherSaveId=await newCareer(otherSlots.find(slot=>slot.career===null)?.slotNumber??1,"SP-D cross-save",2);
+  await db.execute(sql`INSERT INTO career_sponsor_commitments
+    (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,commitment_type,required,cadence,season,available_from_week,window_weeks,due_week,status,scheduling_requirements,operation_key)
+    VALUES(${saveId},${required},${contract},'spd-test','community',1,'COMMUNITY_SESSION',true,'PER_SEASON',${season},${week},4,${Math.min(52,week+3)},'AVAILABLE',
+      '{"activitySpecVersion":1,"extraCompensationPence":0}'::jsonb,'spd-http-required')`);
+  await db.execute(sql`INSERT INTO career_sponsor_opportunities
+    (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,opportunity_type,season,available_from_week,available_to_week,status,terms,operation_key)
+    VALUES(${saveId},${optional},${contract},'spd-test','invite',1,'COMMUNITY',${season},${week},${Math.min(52,week+3)},'AVAILABLE',
+      '{"activitySpecVersion":1,"compensationPence":0}'::jsonb,'spd-http-optional')`);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"SCHEDULE",week},0)).status,401);
+  assert.equal((await call("PUT",`/saves/${otherSaveId}/sponsors/activities/${required}`,{action:"SCHEDULE",week},2)).status,404,
+    "an activity ID from another save is not accepted");
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"COMPLETE"})).status,409);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"SCHEDULE",week})).status,200);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"SCHEDULE",week})).status,200,"same schedule retry is idempotent");
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"COMPLETE"})).status,200);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${required}`,{action:"COMPLETE"})).status,200,"completion retry is idempotent");
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${optional}`,{action:"DECLINE"})).status,200);
+  const optionalComplete="00000000-0000-4000-8000-00000000d007";
+  await db.execute(sql`INSERT INTO career_sponsor_opportunities
+    (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,opportunity_type,season,available_from_week,available_to_week,status,terms,operation_key)
+    VALUES(${saveId},${optionalComplete},${contract},'spd-test','invite-two',1,'COMMUNITY',${season},${week},${Math.min(52,week+3)},'AVAILABLE',
+      '{"activitySpecVersion":1,"compensationPence":0}'::jsonb,'spd-http-optional-complete')`);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${optionalComplete}`,{action:"ACCEPT"})).status,200);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${optionalComplete}`,{action:"SCHEDULE",week:nextWeek})).status,200);
+  await db.execute(sql`UPDATE career_saves SET current_week=${nextWeek} WHERE id=${saveId}`);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${optionalComplete}`,{action:"COMPLETE"})).status,200);
+  assert.equal((await call("PUT",`/saves/${saveId}/sponsors/activities/${optionalComplete}`,{action:"COMPLETE"})).status,200);
+  const required2="00000000-0000-4000-8000-00000000d005",required3="00000000-0000-4000-8000-00000000d006";
+  for(const [id,clause,key] of [[required2,"media-two","spd-http-two"],[required3,"media-three","spd-http-three"]] as const)
+    await db.execute(sql`INSERT INTO career_sponsor_commitments
+      (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,commitment_type,required,cadence,season,available_from_week,window_weeks,due_week,status,scheduling_requirements,operation_key)
+      VALUES(${saveId},${id},${contract},'spd-test',${clause},1,'MEDIA_APPEARANCE',true,'PER_SEASON',${season},${nextWeek},3,${Math.min(52,nextWeek+2)},'AVAILABLE',
+        '{"activitySpecVersion":1,"extraCompensationPence":0}'::jsonb,${key})`);
+  const raceWeek=Math.min(52,week+2);
+  const race=await Promise.all([required2,required3].map(id=>call("PUT",`/saves/${saveId}/sponsors/activities/${id}`,{action:"SCHEDULE",week:raceWeek})));
+  assert.deepEqual(race.map(result=>result.status).sort(),[200,409],"concurrent requests cannot book two sponsor activities in one week");
+  const state=(await db.execute(sql`SELECT
+    (SELECT status FROM career_sponsor_commitments WHERE career_save_id=${saveId} AND id=${required}) AS required_status,
+    (SELECT status FROM career_sponsor_opportunities WHERE career_save_id=${saveId} AND id=${optional}) AS optional_status,
+    (SELECT COUNT(*)::int FROM career_sponsor_week_bookings WHERE career_save_id=${saveId} AND season=${season} AND week=${raceWeek}) AS bookings`)).rows[0]!;
+  assert.deepEqual([state.required_status,state.optional_status,Number(state.bookings)],["COMPLETED","DECLINED",1]);
 });

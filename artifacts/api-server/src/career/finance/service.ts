@@ -28,6 +28,12 @@ const acceptOfferSchema = offerRefSchema.extend({replaceContractIds:z.array(z.st
 const ledgerQuerySchema = z.object({ limit: z.number().int().min(1).max(200).default(50), beforeCreatedAt: z.string().datetime({ offset: true }).optional(), beforeId: z.string().uuid().optional() }).strict();
 const milestoneSchema = z.object({ triggerKey: z.string().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/) }).strict();
 const reversalSchema = z.object({ entryId: z.string().uuid(), operationKey: z.string().min(8).max(120), reason: z.string().min(3).max(200) }).strict();
+const sponsorActivityActionSchema=z.discriminatedUnion("action",[
+  z.object({action:z.literal("ACCEPT")}).strict(),
+  z.object({action:z.literal("DECLINE")}).strict(),
+  z.object({action:z.literal("SCHEDULE"),week:z.number().int().min(1).max(52)}).strict(),
+  z.object({action:z.literal("COMPLETE")}).strict(),
+]);
 const formatPence = (pence: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 
 /**
@@ -127,6 +133,25 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const contracts = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} ORDER BY signed_at DESC, id LIMIT 50`)).rows;
         const offers = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 50`)).rows;
         const journeys = (await tx.execute(sql`SELECT * FROM career_sponsor_journeys WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 100`)).rows;
+        const current = now(root);
+        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
+          WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'
+            AND season=${root.current_season} AND available_from_week<=${root.current_week} AND due_week>=${root.current_week}`);
+        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='MISSED',updated_at=NOW()
+          WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
+            AND scheduling_requirements->>'activitySpecVersion'='1'
+            AND (season < ${root.current_season} OR (season=${root.current_season} AND due_week < ${root.current_week}))`);
+        await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='EXPIRED',updated_at=NOW()
+          WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
+            AND terms->>'activitySpecVersion'='1'
+            AND (season < ${root.current_season} OR (season=${root.current_season} AND available_to_week < ${root.current_week}))`);
+        const commitments = (await tx.execute(sql`SELECT c.*,s.terms->>'displayName' AS sponsor_name
+          FROM career_sponsor_commitments c LEFT JOIN career_sponsor_contracts s
+            ON s.career_save_id=c.career_save_id AND s.id=c.contract_id
+          WHERE c.career_save_id=${root.id}
+          ORDER BY c.season,COALESCE(c.scheduled_week,c.due_week),c.created_at,c.id`)).rows;
+        const opportunities = (await tx.execute(sql`SELECT * FROM career_sponsor_opportunities
+          WHERE career_save_id=${root.id} ORDER BY season,available_from_week,created_at,id`)).rows;
         const journeyIds = journeys.map(j => String(j.id));
         const journeyEvents = journeyIds.length ? (await tx.execute(sql`SELECT * FROM career_sponsor_journey_events
           WHERE career_save_id = ${root.id} AND journey_id IN (${sql.join(journeyIds.map(id => sql`${id}`), sql`, `)})
@@ -158,7 +183,6 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const earnings = new Map((await tx.execute(sql`SELECT contract_id, COALESCE(SUM(amount_pence) FILTER (WHERE headline = 'SPONSOR'), 0)::bigint AS paid,
             COALESCE(SUM(sponsor_covered_pence), 0)::bigint AS covered FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id IS NOT NULL GROUP BY 1`)).rows
           .map(r => [String(r.contract_id), { paidPence: Number(r.paid), coveredPence: Number(r.covered) }]));
-        const current = now(root);
         const paidGuaranteeKeys = new Set((await tx.execute(sql`SELECT operation_key FROM career_finance_entries
           WHERE career_save_id = ${root.id} AND category = 'SPONSOR_GUARANTEED_PAYMENT'`)).rows.map(row => String(row.operation_key)));
         const schedules = new Map(active.map(contract => {
@@ -250,7 +274,85 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
           },
           offers: offers.filter(o => o.status === "AVAILABLE").map(presentOffer),
           journeys: journeys.map(j => journeyView(j as Record<string, unknown>)),
+          sponsorHQ: {
+            commitments:commitments.map(c=>({id:String(c.id),contractId:String(c.contract_id),sponsorKey:String(c.sponsor_key),
+              sponsorName:String(c.sponsor_name??c.sponsor_key),clauseId:String(c.clause_id),occurrence:Number(c.occurrence),
+              kind:String(c.commitment_type),required:Boolean(c.required),cadence:String(c.cadence),season:Number(c.season),
+              availableFromWeek:Number(c.available_from_week),windowWeeks:Number(c.window_weeks),dueWeek:Number(c.due_week),
+              scheduledWeek:c.scheduled_week==null?null:Number(c.scheduled_week),status:String(c.status)})),
+            opportunities:opportunities.map(o=>({id:String(o.id),contractId:String(o.contract_id),sponsorKey:String(o.sponsor_key),
+              clauseId:String(o.clause_id),occurrence:Number(o.occurrence),kind:String(o.opportunity_type),season:Number(o.season),
+              availableFromWeek:Number(o.available_from_week),availableToWeek:Number(o.available_to_week),
+              scheduledWeek:o.scheduled_week==null?null:Number(o.scheduled_week),status:String(o.status)})),
+          },
           history: { contracts: contracts.filter(c => c.status !== "ACTIVE").map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
+      });
+    },
+
+    async updateSponsorActivity(actor:CareerActor,saveId:string,activityId:string,body:unknown){
+      const action=sponsorActivityActionSchema.parse(body);
+      return database.transaction(async tx=>{
+        const root=await open(tx,actor,saveId);
+        const commitment=(await tx.execute(sql`SELECT c.*,s.current_season,s.current_week FROM career_sponsor_commitments c
+          JOIN career_saves s ON s.id=c.career_save_id WHERE c.career_save_id=${root.id} AND c.id=${activityId} FOR UPDATE`)).rows[0];
+        const opportunity=commitment?null:(await tx.execute(sql`SELECT o.*,s.current_season,s.current_week FROM career_sponsor_opportunities o
+          JOIN career_saves s ON s.id=o.career_save_id WHERE o.career_save_id=${root.id} AND o.id=${activityId} FOR UPDATE`)).rows[0];
+        const row=commitment??opportunity;
+        if(!row)throw new CareerError(404,"Sponsor activity not found");
+        const isCommitment=!!commitment,season=Number(row.season),currentSeason=Number(row.current_season),currentWeek=Number(row.current_week),current=String(row.status);
+        if(action.action==="DECLINE"){
+          if(current==="DECLINED")return {id:activityId,status:"DECLINED"};
+          if(isCommitment||!["AVAILABLE","ACCEPTED"].includes(current))throw new CareerError(409,"Only an optional opportunity can be declined");
+          await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='DECLINED',updated_at=NOW() WHERE career_save_id=${root.id} AND id=${activityId}`);
+          return {id:activityId,status:"DECLINED"};
+        }
+        if(action.action==="ACCEPT"){
+          if(current==="ACCEPTED")return {id:activityId,status:"ACCEPTED"};
+          if(isCommitment||current!=="AVAILABLE")throw new CareerError(409,"This opportunity cannot be accepted");
+          await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='ACCEPTED',updated_at=NOW() WHERE career_save_id=${root.id} AND id=${activityId}`);
+          return {id:activityId,status:"ACCEPTED"};
+        }
+        if(action.action==="SCHEDULE"){
+          const from=Number(row.available_from_week),to=isCommitment?Number(row.due_week):Number(row.available_to_week);
+          if(season!==currentSeason||action.week<currentWeek||action.week<from||action.week>to)throw new CareerError(409,"Choose a current or future week inside this activity's valid window");
+          if(current==="CONFIRMED"&&Number(row.scheduled_week)===action.week)return {id:activityId,status:"CONFIRMED",scheduledWeek:action.week};
+          if(isCommitment?!["AVAILABLE","PLANNED","CONFIRMED"].includes(current):!["ACCEPTED","CONFIRMED"].includes(current))
+            throw new CareerError(409,"This sponsor activity is not ready to schedule");
+          const active=(await tx.execute(sql`SELECT 1 FROM career_sponsor_contracts WHERE career_save_id=${root.id} AND id=${row.contract_id} AND status='ACTIVE'
+            AND (start_season < ${season} OR (start_season=${season} AND start_week<=${action.week}))
+            AND (end_season > ${season} OR (end_season=${season} AND end_week>=${action.week}))`)).rows.length>0;
+          if(!active)throw new CareerError(409,"The sponsor contract is not active in that week");
+          const conflict=(await tx.execute(sql`SELECT 1 WHERE
+            EXISTS(SELECT 1 FROM career_event_instances i JOIN career_event_entries e ON e.career_save_id=i.career_save_id AND e.event_id=i.id
+              WHERE i.career_save_id=${root.id} AND i.season=${season} AND i.start_week<=${action.week} AND i.end_week>=${action.week}
+                AND e.participant_key='HUMAN' AND e.status<>'WITHDRAWN')
+            OR EXISTS(SELECT 1 FROM career_life_commitments l WHERE l.career_save_id=${root.id} AND l.season=${season} AND l.status='ACCEPTED'
+              AND ((l.day-1)/7+1)=${action.week})
+            OR EXISTS(SELECT 1 FROM career_trips t WHERE t.career_save_id=${root.id} AND t.season=${season}
+              AND t.start_day<=${action.week}*7 AND t.end_day>=(${action.week}-1)*7+1)`)).rows.length>0;
+          if(conflict)throw new CareerError(409,"That week conflicts with a tournament or travel commitment");
+          if(current==="CONFIRMED")await tx.execute(sql`DELETE FROM career_sponsor_week_bookings WHERE career_save_id=${root.id} AND activity_id=${activityId}`);
+          const booking=(await tx.execute(sql`INSERT INTO career_sponsor_week_bookings(career_save_id,season,week,activity_id,activity_kind,status)
+            VALUES(${root.id},${season},${action.week},${activityId},${isCommitment?"COMMITMENT":"OPPORTUNITY"},'CONFIRMED')
+            ON CONFLICT (career_save_id,season,week) DO NOTHING RETURNING activity_id`)).rows[0];
+          if(!booking)throw new CareerError(409,"Another sponsor activity is already scheduled that week");
+          if(isCommitment)await tx.execute(sql`UPDATE career_sponsor_commitments SET status='CONFIRMED',scheduled_week=${action.week},updated_at=NOW()
+            WHERE career_save_id=${root.id} AND id=${activityId}`);
+          else await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='CONFIRMED',scheduled_week=${action.week},updated_at=NOW()
+            WHERE career_save_id=${root.id} AND id=${activityId}`);
+          return {id:activityId,status:"CONFIRMED",scheduledWeek:action.week};
+        }
+        if(current==="COMPLETED")return {id:activityId,status:"COMPLETED",season:currentSeason,week:Number(row.scheduled_week)};
+        if(season!==currentSeason||Number(row.scheduled_week)!==currentWeek||current!=="CONFIRMED")
+          throw new CareerError(409,"Sponsor activity can only be completed during its confirmed Career week");
+        if(isCommitment)await tx.execute(sql`UPDATE career_sponsor_commitments SET status='COMPLETED',
+          resolution_evidence=jsonb_build_object('season',${currentSeason}::int,'week',${currentWeek}::int,'action','PLAYER_CONFIRMED'),updated_at=NOW()
+          WHERE career_save_id=${root.id} AND id=${activityId} AND status='CONFIRMED'`);
+        else await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='COMPLETED',
+          terms=terms||jsonb_build_object('completedSeason',${currentSeason}::int,'completedWeek',${currentWeek}::int),updated_at=NOW()
+          WHERE career_save_id=${root.id} AND id=${activityId} AND status='CONFIRMED'`);
+        await tx.execute(sql`UPDATE career_sponsor_week_bookings SET status='COMPLETED' WHERE career_save_id=${root.id} AND activity_id=${activityId}`);
+        return {id:activityId,status:"COMPLETED",season:currentSeason,week:currentWeek};
       });
     },
 

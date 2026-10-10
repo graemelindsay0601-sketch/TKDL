@@ -12,8 +12,10 @@ import { createCareerFinance } from "../../db/migrations/create_career_finance.t
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
 import { createCareerSponsorJourneysSPB3 } from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
 import { createCareerFinanceSPC } from "../../db/migrations/create_career_finance_spc.ts";
+import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
+import { materializeSponsorActivities } from "../../career/finance/sponsor-activities.ts";
 import { post } from "../../career/finance/ledger.ts";
 import { activeContracts, advanceSponsorLifecycle, applyCoverage, evaluateOffers, postDueGuaranteedPayments, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
 import { scheduleContractGuarantees } from "../../career/finance/sponsor-guarantees.ts";
@@ -47,6 +49,7 @@ before(async () => {
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db);
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); // idempotent re-run
   await createCareerFinanceSPC(db); await createCareerFinanceSPC(db); // additive A4/SP-B3 migration is idempotent
+  await createCareerSponsorHQSPD(db); await createCareerSponsorHQSPD(db);
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -71,6 +74,29 @@ const rejectsStatus = (p: Promise<unknown>, status: number) => assert.rejects(p,
 const rejectsWith = (p: Promise<unknown>, pattern: RegExp) => assert.rejects(p, (error: unknown) => {
   for (let e = error as { message?: string; cause?: unknown } | undefined, d = 0; e && d < 5; e = e.cause as typeof e, d++) if (pattern.test(String(e.message))) return true;
   return false;
+});
+test("SP-D materializes only explicit signed clauses, repeatably, without adding compensation",async()=>{
+  const save=await career(),offer="00000000-0000-4000-8000-000000000101",contract="00000000-0000-4000-8000-000000000102";
+  const root=(await db.execute(sql`SELECT current_season,current_week FROM career_saves WHERE id=${save.id}`)).rows[0]!;
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+    VALUES(${save.id},${offer},'spd-fixture-offer','fixture-local',3,'LOCAL','NEW','{}'::jsonb,'{}'::jsonb,1,1,1,52,'ACCEPTED',NOW())`);
+  await db.execute(sql`INSERT INTO career_sponsor_contracts
+    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status)
+    VALUES(${save.id},${contract},${offer},'fixture-local',3,'LOCAL','{}'::jsonb,1,1,1,52,'ACTIVE')`);
+  const specification={version:1 as const,required:[{id:"community-duty",type:"COMMUNITY_APPEARANCE" as const,maxPerSeason:1,windowWeeks:4,firstWindowWeek:8,extraCompensationPence:0 as const}],
+    optional:[{id:"community-invite",type:"COMMUNITY_APPEARANCE" as const,maxPerSeason:2,windowWeeks:2,firstWindowWeek:12,compensationPence:0 as const}]};
+  const args={saveId:save.id,contractId:contract,sponsorKey:"fixture-local",worldSeed:HARNESS_SEED,season:Number(root.current_season),week:Number(root.current_week),endSeason:1,endWeek:52,specification};
+  const beforeMigration=(await rows(sql`SELECT sponsor_database_version,terms FROM career_sponsor_contracts WHERE career_save_id=${save.id} AND id=${contract}`))[0]!;
+  await createCareerSponsorHQSPD(db);
+  const afterMigration=(await rows(sql`SELECT sponsor_database_version,terms FROM career_sponsor_contracts WHERE career_save_id=${save.id} AND id=${contract}`))[0]!;
+  assert.deepEqual(afterMigration,beforeMigration,"re-running the additive migration leaves the existing v3 contract unchanged");
+  assert.deepEqual(await db.transaction(tx=>materializeSponsorActivities(tx,{...args,specification:undefined})),{commitments:0,opportunities:0});
+  await db.transaction(tx=>materializeSponsorActivities(tx,args)); await db.transaction(tx=>materializeSponsorActivities(tx,args));
+  assert.deepEqual((await rows(sql`SELECT COUNT(*)::int n FROM career_sponsor_commitments WHERE career_save_id=${save.id}`))[0]!.n,1);
+  assert.deepEqual((await rows(sql`SELECT COUNT(*)::int n FROM career_sponsor_opportunities WHERE career_save_id=${save.id}`))[0]!.n,2);
+  assert.equal(Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${save.id}`))[0]!.balance_pence),25000);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_sponsor_week_bookings WHERE career_save_id=${save.id}`))[0]!.n,0);
 });
 async function events(saveId: string, query: Record<string, unknown> = {}) { return (await finance.calendar.calendar(actor, saveId, query)).events as Ev[]; }
 async function withRoot<T>(saveId: string, work: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], root: RootRow) => Promise<T>) {

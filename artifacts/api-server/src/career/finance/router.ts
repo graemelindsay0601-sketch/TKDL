@@ -40,6 +40,9 @@ export function createCareerFinanceRouter(service: CareerFinanceService, isAvail
   router.post("/saves/:id/sponsors/offers/:offerId/decline", authedWriteRateLimit, async (req, res) => {
     res.json(await service.declineOffer(res.locals.careerActor, id(req), { offerId: String(req.params.offerId) }));
   });
+  router.put("/saves/:id/sponsors/activities/:activityId", authedWriteRateLimit, async (req,res)=>{
+    res.json(await service.updateSponsorActivity(res.locals.careerActor,id(req),String(req.params.activityId),req.body??{}));
+  });
   router.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof ZodError) res.status(400).json({ error: "Invalid Career request", issues: error.issues });
     else if (error instanceof CareerError) res.status(error.status).json({ error: error.message, ...("code" in error ? { code: (error as { code: string }).code } : {}) });

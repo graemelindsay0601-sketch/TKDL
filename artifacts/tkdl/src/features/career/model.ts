@@ -266,7 +266,7 @@ export const CAREER_NAV = [
   { layer: "MY_CAREER", label: "My Career", path:"/my-career", icon:"♙", items:[
     {key:"overview",label:"Overview",path:"/my-career"},{key:"performance",label:"Performance",path:"/my-career/performance"},
     {key:"achievements",label:"Achievements",path:"/my-career/achievements"},{key:"career-life",label:"Career Life",path:"/my-career/life"},
-    {key:"history",label:"History",path:"/my-career/history"}]},
+    {key:"history",label:"History",path:"/my-career/history"},{key:"sponsors",label:"Sponsor HQ",path:"/sponsors"}]},
 ];
 /** The layer (Home / My Career / Darts World) that owns a nav key. */
 export function navLayerOf(key: string) {

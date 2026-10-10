@@ -71,6 +71,82 @@ export type EventPayment = { amountPence: number; circuits: string[]; maxEventsP
 export type PerformanceBonus = { key: string; maxPosition: number; amountPence: number; circuits: string[] | null; classifications: string[] };
 export const SPONSOR_CONTRACT_STATES=["DRAFT","OFFERED","NEGOTIATING","SIGNED","ACTIVE","COMPLETED","EXPIRED","DECLINED","WITHDRAWN","TERMINATED"] as const;
 export type SponsorContractState=typeof SPONSOR_CONTRACT_STATES[number];
+export const SPONSOR_ACTIVITY_SPEC_VERSION = 1 as const;
+export const REQUIRED_SPONSOR_ACTIVITY_TYPES = ["MEDIA_APPEARANCE","COMMUNITY_APPEARANCE","PROMOTIONAL_APPEARANCE","PRODUCT_APPEARANCE"] as const;
+export const OPTIONAL_SPONSOR_ACTIVITY_TYPES = ["SPONSOR_MEDIA_APPEARANCE","PROMOTIONAL_EVENT","COMMUNITY_APPEARANCE","PRODUCT_LAUNCH"] as const;
+const sponsorActivitySpecSchema = z.object({
+  version:z.literal(SPONSOR_ACTIVITY_SPEC_VERSION),
+  required:z.array(z.object({
+    id:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    type:z.enum(REQUIRED_SPONSOR_ACTIVITY_TYPES),
+    maxPerSeason:z.number().int().min(1).max(2),
+    windowWeeks:z.number().int().min(3).max(4),
+    firstWindowWeek:z.number().int().min(1).max(52),
+    extraCompensationPence:z.literal(0),
+  }).strict()).max(8),
+  optional:z.array(z.object({
+    id:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    type:z.enum(OPTIONAL_SPONSOR_ACTIVITY_TYPES),
+    maxPerSeason:z.number().int().min(1).max(2),
+    windowWeeks:z.number().int().min(2).max(5),
+    firstWindowWeek:z.number().int().min(1).max(52),
+    compensationPence:z.literal(0),
+  }).strict()).max(8),
+}).strict();
+export type SponsorActivitySpecification=z.infer<typeof sponsorActivitySpecSchema>;
+const REQUIRED_PER_SEASON:Record<(typeof REQUIRED_SPONSOR_ACTIVITY_TYPES)[number],number>={
+  MEDIA_APPEARANCE:1,COMMUNITY_APPEARANCE:1,PROMOTIONAL_APPEARANCE:2,PRODUCT_APPEARANCE:1,
+};
+const REQUIRED_WINDOW:Record<(typeof REQUIRED_SPONSOR_ACTIVITY_TYPES)[number],number>={
+  MEDIA_APPEARANCE:3,COMMUNITY_APPEARANCE:4,PROMOTIONAL_APPEARANCE:3,PRODUCT_APPEARANCE:4,
+};
+const REQUIRED_TIER_LIMIT:Record<SponsorTier,number>={LOCAL:1,REGIONAL:2,PROFESSIONAL:3,ELITE:4};
+const CATEGORY_ACTIVITY_TYPES:Record<SponsorCategory,readonly string[]>={
+  EQUIPMENT_PARTNER:["PRODUCT_APPEARANCE","PROMOTIONAL_APPEARANCE"],
+  APPAREL_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
+  TRAVEL_PARTNER:["PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
+  LOCAL_PARTNER:["COMMUNITY_APPEARANCE"],
+  MAIN_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
+  SECONDARY_PARTNER:["MEDIA_APPEARANCE","COMMUNITY_APPEARANCE"],
+};
+const OPTIONAL_CATEGORY_TYPES:Record<SponsorCategory,readonly string[]>={
+  EQUIPMENT_PARTNER:["PRODUCT_LAUNCH","PROMOTIONAL_EVENT"],
+  APPAREL_PARTNER:["SPONSOR_MEDIA_APPEARANCE","PROMOTIONAL_EVENT"],
+  TRAVEL_PARTNER:["PROMOTIONAL_EVENT","COMMUNITY_APPEARANCE"],
+  LOCAL_PARTNER:["COMMUNITY_APPEARANCE"],
+  MAIN_PARTNER:["SPONSOR_MEDIA_APPEARANCE","PROMOTIONAL_EVENT","COMMUNITY_APPEARANCE"],
+  SECONDARY_PARTNER:["SPONSOR_MEDIA_APPEARANCE","COMMUNITY_APPEARANCE"],
+};
+const REQUIRED_TIER_TYPES:Record<SponsorTier,readonly string[]>={
+  LOCAL:["COMMUNITY_APPEARANCE"],
+  REGIONAL:["COMMUNITY_APPEARANCE","MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
+  PROFESSIONAL:REQUIRED_SPONSOR_ACTIVITY_TYPES,
+  ELITE:REQUIRED_SPONSOR_ACTIVITY_TYPES,
+};
+/** Validate authored v4 clause data; tier/category maxima never create duties themselves. */
+export function validateSponsorActivitySpecification(spec:SponsorActivitySpecification,tier:SponsorTier,category:SponsorCategory):SponsorActivitySpecification{
+  const ids=[...spec.required,...spec.optional].map(clause=>clause.id);
+  if(new Set(ids).size!==ids.length)throw new Error("Sponsor activity clause IDs must be unique");
+  const requiredByType=new Map<string,number>();
+  for(const clause of spec.required){
+    if(clause.windowWeeks!==REQUIRED_WINDOW[clause.type])throw new Error(`Invalid availability window for ${clause.type}`);
+    if(!CATEGORY_ACTIVITY_TYPES[category].includes(clause.type)||!REQUIRED_TIER_TYPES[tier].includes(clause.type))
+      throw new Error(`${clause.type} is not supported for ${tier} ${category}`);
+    requiredByType.set(clause.type,(requiredByType.get(clause.type)??0)+clause.maxPerSeason);
+  }
+  const totalRequired=[...requiredByType.values()].reduce((a,b)=>a+b,0);
+  if(totalRequired>REQUIRED_TIER_LIMIT[tier])throw new Error(`${tier} contracts may define at most ${REQUIRED_TIER_LIMIT[tier]} required activities per season`);
+  for(const [type,count] of requiredByType)if(count>REQUIRED_PER_SEASON[type as keyof typeof REQUIRED_PER_SEASON])
+    throw new Error(`${type} exceeds its per-season limit`);
+  const optionalCaps:Record<string,number>={SPONSOR_MEDIA_APPEARANCE:2,PROMOTIONAL_EVENT:2,COMMUNITY_APPEARANCE:2,PRODUCT_LAUNCH:1};
+  for(const clause of spec.optional){
+    if(!OPTIONAL_CATEGORY_TYPES[category].includes(clause.type))throw new Error(`${clause.type} is not supported for ${category}`);
+    const validWindow=clause.type==="PRODUCT_LAUNCH"?clause.windowWeeks>=3&&clause.windowWeeks<=5:clause.windowWeeks>=2&&clause.windowWeeks<=4;
+    if(!validWindow)throw new Error(`Invalid optional availability window for ${clause.type}`);
+    if(clause.maxPerSeason>optionalCaps[clause.type])throw new Error(`${clause.type} exceeds its per-season limit`);
+  }
+  return spec;
+}
 const penceSchema=z.number().int().min(0).max(2_000_000_000);
 const categorySchema=z.enum(SPONSOR_CATEGORIES);
 export const sponsorContractFoundationSchema=z.object({
@@ -89,6 +165,8 @@ export const sponsorContractFoundationSchema=z.object({
     cadence:z.enum(["PER_EVENT","PER_SEASON","ON_REQUEST"]),
     count:z.number().int().min(1).max(100).nullable(),
   }).strict()).max(32),
+  /** Opt-in v4 terms only; existing v1-v3 snapshots omit this field. */
+  activitySpecification:sponsorActivitySpecSchema.optional(),
   optionalOpportunities:z.array(z.object({
     id:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     kind:z.enum(["EXHIBITION","MEDIA","COMMUNITY","PRODUCT_TESTING"]),

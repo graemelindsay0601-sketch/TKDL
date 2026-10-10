@@ -312,6 +312,15 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
         </section>
       )}
 
+      {(calendar.data?.sponsorActivities?.length??0)>0&&<section className="pdc-card space-y-3 p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-3"><div><p className="cc-eyebrow">PARTNERSHIPS</p><h3 className="text-lg font-bold text-white">Sponsor commitments</h3></div>
+          <Link href={`/career/${save.id}/sponsors`} className="text-xs font-semibold text-amber-200">Open Sponsor HQ →</Link></div>
+        <div className="grid gap-2 md:grid-cols-2">{calendar.data!.sponsorActivities!.map(a=><article key={a.id} className="rounded-lg border border-white/10 bg-black/20 p-3">
+          <div className="flex justify-between gap-2"><b className="text-sm text-white">{a.required?"Required":"Optional"} · {a.kind.replaceAll("_"," ")}</b><span className="text-[10px] uppercase text-amber-200">{a.status}</span></div>
+          <p className="mt-1 text-xs text-white/55">{a.sponsor_key} · S{a.season} · {a.scheduled_week?`Scheduled W${a.scheduled_week}`:`Available W${a.available_from_week}–${a.to_week}`}</p>
+        </article>)}</div>
+      </section>}
+
       <div className="cc-content-grid">
         <section className="cc-agenda" aria-label="Event schedule">
           <div className="cc-agenda-header">

@@ -64,6 +64,8 @@ export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey:
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });
 export const useSponsors = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "sponsors"), queryFn: () => get<SponsorsResponse>(`/saves/${saveId}/sponsors`), staleTime: STALE });
+export const updateSponsorActivity = (saveId:string,activityId:string,action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE",week?:number) =>
+  send("PUT",`/saves/${saveId}/sponsors/activities/${activityId}`,{action,...(week===undefined?{}:{week})});
 export const useWorldContent=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"world-content"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldContent>(`/saves/${saveId}/world-content`),staleTime:STALE});
 export const useWorldLocalities=(saveId:string,enabled=true)=>useQuery({queryKey:careerKey(saveId,"world-localities"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldLocalitiesContent>(`/saves/${saveId}/world-localities`),enabled,staleTime:STALE});
 export const useWorldMap=(saveId:string,enabled=true)=>useQuery({queryKey:careerKey(saveId,"world-map"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").MapContent>(`/saves/${saveId}/world-map`),enabled,staleTime:STALE});
@@ -143,6 +145,8 @@ export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (input
 export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));
 export const useNegotiateOffer = (saveId: string) => useSaveMutation(saveId, (input: { offerId: string; requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) =>
   careerRequests.negotiateOffer(saveId, input.offerId, input));
+export const useUpdateSponsorActivity=(saveId:string)=>useSaveMutation(saveId,(input:{activityId:string;action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE";week?:number})=>
+  updateSponsorActivity(saveId,input.activityId,input.action,input.week));
 export const useAdvance = (saveId: string) => useSaveMutation(saveId, (args: { season: number; week: number; target: AdvanceTarget }) => careerRequests.advance(saveId, args));
 
 export function useSaveLifecycle() {

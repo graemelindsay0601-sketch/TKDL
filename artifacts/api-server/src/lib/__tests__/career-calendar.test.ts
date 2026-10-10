@@ -9,6 +9,8 @@ import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerCalendar, syncEventDefinitions } from "../../db/migrations/create_career_calendar.ts";
+import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
+import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerCalendarService } from "../../career/calendar/service.ts";
 import { generateSeason, calendarHashOf, definitionHash } from "../../career/calendar/generation.ts";
@@ -39,6 +41,8 @@ before(async () => {
   await createCareerWorld(db);
   await createCareerSponsorshipFoundation(db);
   await createCareerCalendar(db);
+  await createCareerFinance(db);
+  await createCareerSponsorHQSPD(db);
 });
 beforeEach(async () => { await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled=true, admin_test_mode=false"); });
 after(async () => { await pg.close(); });

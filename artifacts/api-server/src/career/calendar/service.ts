@@ -432,6 +432,18 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       const q = calendarQuerySchema.parse(query);
       return database.transaction(async tx => {
         const { root, season: seasonRow } = await requireSeason(tx, actor, saveId, false);
+        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
+          WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'
+            AND season=${root.current_season} AND available_from_week<=${root.current_week} AND due_week>=${root.current_week}`);
+        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='MISSED',
+          resolution_evidence=COALESCE(resolution_evidence,'{}'::jsonb)||jsonb_build_object('reason','DEADLINE_PASSED','season',season,'week',due_week),
+          updated_at=NOW() WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
+          AND scheduling_requirements->>'activitySpecVersion'='1'
+          AND (season < ${root.current_season} OR (season=${root.current_season} AND due_week < ${root.current_week}))`);
+        await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='EXPIRED',updated_at=NOW()
+          WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
+          AND terms->>'activitySpecVersion'='1'
+          AND (season < ${root.current_season} OR (season=${root.current_season} AND available_to_week < ${root.current_week}))`);
         const season = q.season ?? Number(root.current_season);
         const filters = [sql`season = ${season}`];
         if (q.fromWeek) filters.push(sql`end_week >= ${q.fromWeek}`);
@@ -447,7 +459,18 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         let rows = events.map(event => withFinance(presentEvent(event, humanView(event, human, windows)), previews?.get(event.id)));
         if (q.scope === "MY_SCHEDULE") rows = rows.filter(r => r.human && ["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED", "WITHDRAWN"].includes(r.human.relationship));
         if (q.scope === "AVAILABLE") rows = rows.filter(r => r.human?.canEnter);
-        return { overview: await overview(tx, root, seasonRow), season, scope: q.scope, events: rows };
+        const sponsorCommitments=(await tx.execute(sql`SELECT id,contract_id,sponsor_key,commitment_type AS kind,season,available_from_week,
+          due_week AS to_week,scheduled_week,status,true AS required FROM career_sponsor_commitments
+          WHERE career_save_id=${root.id} AND season=${season} AND status NOT IN ('COMPLETED','MISSED','CANCELLED')
+          AND COALESCE(scheduled_week,due_week,available_from_week) BETWEEN ${q.fromWeek??1} AND ${q.toWeek??52}
+          ORDER BY COALESCE(scheduled_week,due_week,available_from_week),id`)).rows;
+        const sponsorOpportunities=(await tx.execute(sql`SELECT id,contract_id,sponsor_key,opportunity_type AS kind,season,
+          available_from_week,available_to_week AS to_week,scheduled_week,status,false AS required FROM career_sponsor_opportunities
+          WHERE career_save_id=${root.id} AND season=${season} AND status NOT IN ('COMPLETED','DECLINED','EXPIRED','CANCELLED')
+          AND COALESCE(scheduled_week,available_from_week) BETWEEN ${q.fromWeek??1} AND ${q.toWeek??52}
+          ORDER BY COALESCE(scheduled_week,available_from_week),id`)).rows;
+        return { overview: await overview(tx, root, seasonRow), season, scope: q.scope, events: rows,
+          sponsorActivities:[...sponsorCommitments,...sponsorOpportunities] };
       });
     },
 
