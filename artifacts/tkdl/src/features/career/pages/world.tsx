@@ -76,7 +76,7 @@ export function PresentationPage({ctx}:{ctx:ShellContext}) {
     <CareerSection title="Signature product history"><div className="p-4"><BoundedList rows={p.data.products}>{s=><p key={s.id}>{s.name} · S{s.launchSeason} · {s.state}</p>}</BoundedList>
       <p>Drafts require an active equipment contract with explicit signed product rights. Review, approve and launch them in Sponsor HQ; A4 records royalties.</p>
       {!ctx.retired&&p.data.productCandidates.map(c=><div key={c.contractId}>{c.types.map(type=><button className="career-btn m-1" key={type} disabled={launch.isPending}
-        onClick={()=>launch.mutate({contractId:c.contractId,productType:type},{onSuccess:()=>setMessage("Product draft created. Review it in Equipment Studio before approval and launch."),onError:e=>setMessage(errorMessage(e))})}>Create {titleCase(type)} draft with {c.manufacturer}</button>)}</div>)}
+        onClick={()=>launch.mutate({contractId:c.contractId,productType:type},{onSuccess:()=>setMessage("Product draft created. Review it in the Equipment Studio before approval and launch."),onError:e=>setMessage(errorMessage(e))})}>Create {titleCase(type)} draft with {c.manufacturer}</button>)}</div>)}
       {message&&<p role="status">{message}</p>}</div></CareerSection></div>;
 }
 function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) {
