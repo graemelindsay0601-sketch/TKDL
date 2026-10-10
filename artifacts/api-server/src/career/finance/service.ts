@@ -155,33 +155,11 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const offers = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 50`)).rows;
         const journeys = (await tx.execute(sql`SELECT * FROM career_sponsor_journeys WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 100`)).rows;
         const current = now(root);
-        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
-          WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'
-            AND season=${root.current_season} AND available_from_week<=${root.current_week} AND due_week>=${root.current_week}`);
-        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='MISSED',updated_at=NOW()
-          WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
-            AND scheduling_requirements->>'activitySpecVersion'='1'
-            AND (season < ${root.current_season} OR (season=${root.current_season} AND due_week < ${root.current_week}))`);
-        await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='EXPIRED',updated_at=NOW()
-          WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
-            AND terms->>'activitySpecVersion'='1'
-            AND (season < ${root.current_season} OR (season=${root.current_season} AND available_to_week < ${root.current_week}))`);
         const commitments = (await tx.execute(sql`SELECT c.*,s.terms->>'displayName' AS sponsor_name,s.terms AS contract_terms
           FROM career_sponsor_commitments c LEFT JOIN career_sponsor_contracts s
             ON s.career_save_id=c.career_save_id AND s.id=c.contract_id
           WHERE c.career_save_id=${root.id}
           ORDER BY c.season,COALESCE(c.scheduled_week,c.due_week),c.created_at,c.id`)).rows;
-        for (const c of commitments) {
-          if (c.status !== "MISSED" || !c.required) continue;
-          const signedTerms=parseSponsorTerms(c.contract_terms);
-          if (!signedTerms.contractFoundation?.terminationConditions.includes("MATERIAL_BREACH")) continue;
-          const noticeId=stableUuid(root.world_seed,2,"SP-E2","missed-commitment-notice",String(c.id));
-          await tx.execute(sql`INSERT INTO career_sponsor_compliance_notices
-            (career_save_id,id,contract_id,activity_id,status,notice_type,details)
-            VALUES(${root.id},${noticeId},${c.contract_id},${c.id},'OPEN','MISSED_REQUIRED_ACTIVITY',
-              ${JSON.stringify({season:Number(c.season),dueWeek:Number(c.due_week),activityType:String(c.commitment_type),contractTerm:"MATERIAL_BREACH"})}::jsonb)
-            ON CONFLICT(career_save_id,activity_id) DO NOTHING`);
-        }
         const notices=(await tx.execute(sql`SELECT * FROM career_sponsor_compliance_notices
           WHERE career_save_id=${root.id} ORDER BY created_at DESC,id LIMIT 100`)).rows;
         const releaseCases=(await tx.execute(sql`SELECT r.*,s.terms->>'displayName' AS sponsor_name
@@ -366,10 +344,9 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         if(input.releaseType==="MUTUAL"){
           if(!(terms.contractFoundation?.terminationConditions??[]).includes("MUTUAL_AGREEMENT"))
             throw new CareerError(409,"Mutual release is not authorised by this signed agreement");
-          const missed=(await tx.execute(sql`SELECT 1 FROM career_sponsor_commitments
-            WHERE career_save_id=${root.id} AND contract_id=${input.contractId} AND required=true AND status='MISSED' LIMIT 1`)).rows.length>0;
-          decision=missed?"DECLINED":"APPROVED";
-          status=decision==="APPROVED"?"OFFERED":"DECLINED";
+          // A mutual clause permits a request; it does not itself authorize the
+          // sponsor's consent. Keep the case pending until a real decision exists.
+          status="REQUESTED";
         }
         const id=stableUuid(root.world_seed,2,"SP-E2","release-case",input.operationKey);
         const result=(await tx.execute(sql`INSERT INTO career_sponsor_release_cases

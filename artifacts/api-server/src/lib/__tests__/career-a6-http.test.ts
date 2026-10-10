@@ -17,6 +17,7 @@ import { createCareerFinance } from "../../db/migrations/create_career_finance.t
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
 import { createCareerSponsorJourneysSPB3 } from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
 import { createCareerSporting } from "../../db/migrations/create_career_sporting.ts";
+import { createCareerSponsorContractActionsSPE2 } from "../../db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerRouter } from "../../career/router.ts";
 import { createCareerCalendarRouter } from "../../career/calendar/router.ts";
@@ -42,7 +43,7 @@ before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSponsorHQSPD(db); await createCareerSporting(db);
+  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSponsorHQSPD(db); await createCareerSponsorContractActionsSPE2(db); await createCareerSporting(db);
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
@@ -292,4 +293,15 @@ test("SP-D HTTP lifecycle is persistent, idempotent and enforces one portfolio b
     (SELECT COUNT(*)::int FROM career_sponsor_week_bookings b WHERE b.career_save_id=c.career_save_id AND b.activity_id=c.id) AS bookings
     FROM career_sponsor_commitments c WHERE c.career_save_id=${saveId} AND c.id=${rebookId}`)).rows[0]!;
   assert.deepEqual([expired.status,Number(expired.bookings)],["CANCELLED",0],"expiry cancels pending activities and releases their week");
+});
+
+test("SP-E2B Sponsor HQ HTTP reads enforce ownership and create no notices",async()=>{
+  const saveId=await newCareer(3,"E2B read-only");
+  assert.equal((await call("GET",`/saves/${saveId}/sponsors`,undefined,0)).status,401);
+  assert.equal((await call("GET",`/saves/${saveId}/sponsors`,undefined,2)).status,404);
+  const response=await call("GET",`/saves/${saveId}/sponsors`);
+  assert.equal(response.status,200);
+  assert.equal(response.cache,"no-store");
+  const result=(await db.execute(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_compliance_notices WHERE career_save_id=${saveId}`)).rows[0]!;
+  assert.equal(Number(result.n),0);
 });
