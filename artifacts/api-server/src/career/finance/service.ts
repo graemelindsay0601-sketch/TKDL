@@ -9,6 +9,7 @@ import { loadInstances, type RootRow } from "../calendar/engine.ts";
 import type { CalendarProviders } from "../calendar/providers.ts";
 import { BRANDS } from "../content/brands.ts";
 import { representativeForSponsor } from "../content/sponsor-representatives.ts";
+import { getNpcSponsorMarket } from "../sponsorship/npc-market.ts";
 import { FINANCE_VERSION } from "./config.ts";
 import { summary, recentEntries, presentEntry, post, type LedgerRow } from "./ledger.ts";
 import {
@@ -313,6 +314,13 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
                sponsorDecision:r.sponsor_decision==null?null:String(r.sponsor_decision),terms:r.terms_snapshot,createdAt:r.created_at})),
           },
           history: { contracts: contracts.filter(c => !["ACTIVE","SCHEDULED"].includes(String(c.status))).map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
+      });
+    },
+
+    async sponsorMarket(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId, false);
+        return getNpcSponsorMarket(tx, root.id);
       });
     },
 

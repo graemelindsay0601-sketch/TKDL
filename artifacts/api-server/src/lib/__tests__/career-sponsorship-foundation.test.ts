@@ -6,11 +6,13 @@ import {sql} from "drizzle-orm";
 import {createCareerSaves} from "../../db/migrations/create_career_saves.ts";
 import {createCareerWorld} from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
+import {createCareerNpcSponsorMarketSPF} from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
 import {createCareerService} from "../../career/service.ts";
 import {createCareerWorldService} from "../../career/world/service.ts";
 import {BRANDS,SPONSOR_CATEGORIES} from "../../career/content/brands.ts";
 import {SPONSOR_REPRESENTATIVES} from "../../career/content/sponsor-representatives.ts";
 import {NPC_SPONSOR_CONTENT_VERSION,initialNpcSponsorRelationships,parseNpcSponsorSnapshot} from "../../career/sponsorship/npc-foundation.ts";
+import {getNpcSponsorMarket} from "../../career/sponsorship/npc-market.ts";
 import {parseSponsorTerms,sponsorCatalogue,sponsorContractFoundationSchema} from "../../career/finance/sponsors.catalogue.ts";
 
 const pg=new PGlite(),db=drizzle(pg),saves=createCareerService(db),world=createCareerWorldService(db),actor={playerId:1};
@@ -26,6 +28,7 @@ before(async()=>{
   await createCareerSaves(db);
   await createCareerWorld(db);
   await createCareerSponsorshipFoundation(db);
+  await createCareerNpcSponsorMarketSPF(db);
   saveId=(await saves.create(actor.playerId,{slot:1,dateOfBirth:"1990-01-01"})).id;
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${saveId}`);
   await world.initialize(actor,saveId);
@@ -72,6 +75,27 @@ test("a fresh world gets deterministic save-scoped NPC relationships without cha
     assert.equal(record.status,"ACTIVE");
     assert.equal(record.end_season,null);
   }
+  const market=await db.transaction(tx=>getNpcSponsorMarket(tx,saveId));
+  assert.equal(market?.relationships.length,expected.length);
+  assert.equal(market?.events.length,expected.length);
+  assert.ok(market?.events.every(event=>event.eventType==="SIGNED"&&event.npcName.length>2&&event.sponsorName.length>2));
+  assert.ok(market?.events.every(event=>event.sourceEventId===null));
+  assert.equal(new Set(market?.events.map(event=>event.id)).size,expected.length);
+  const brandPlayers=market?.brandRosters.flatMap(brand=>brand.players)??[];
+  assert.equal(brandPlayers.length,expected.length,"brand roster is built from persisted NPC relationships");
+  assert.equal(market?.npcCommercialProfiles.length,new Set(expected.map(row=>row.npcId)).size);
+  assert.ok(expected.every(row=>brandPlayers.some(player=>player.npcId===row.npcId)));
+  const retried=await db.transaction(tx=>getNpcSponsorMarket(tx,saveId));
+  assert.equal(retried?.events.length,expected.length);
+  const additionalId="00000000-0000-4000-8000-000000000001";
+  await db.execute(sql`INSERT INTO career_npc_sponsor_relationships
+      (career_save_id,id,npc_id,sponsor_key,category,representative_id,status,start_season,start_week,end_season,end_week,sponsor_snapshot)
+    SELECT career_save_id,${additionalId},npc_id,sponsor_key,category,representative_id,'ACTIVE',start_season,start_week,NULL,NULL,sponsor_snapshot
+    FROM career_npc_sponsor_relationships WHERE career_save_id=${saveId} AND id=${expected[0]!.id}`);
+  const multiBrand=await db.transaction(tx=>getNpcSponsorMarket(tx,saveId));
+  assert.equal(multiBrand?.npcCommercialProfiles.find(profile=>profile.npcId===expected[0]!.npcId)?.sponsors.length,2,
+    "same-category sponsor relationships remain representable; the market does not invent category exclusivity");
+  await db.execute(sql`DELETE FROM career_npc_sponsor_relationships WHERE career_save_id=${saveId} AND id=${additionalId}`);
   const after=(await rows(sql`SELECT balance_pence,(SELECT COUNT(*)::int FROM career_finance_entries WHERE career_save_id=${saveId}) AS ledger_count
     FROM career_saves WHERE id=${saveId}`))[0];
   assert.deepEqual(after,before);
@@ -82,6 +106,7 @@ test("world retries and repeated migration preserve the initial snapshot; other 
     WHERE career_save_id=${saveId} ORDER BY id`);
   assert.deepEqual(await world.initialize(actor,saveId),{initialized:true,created:false});
   await createCareerSponsorshipFoundation(db);
+  await createCareerNpcSponsorMarketSPF(db);
   const after=await rows(sql`SELECT id,sponsor_key,sponsor_snapshot FROM career_npc_sponsor_relationships
     WHERE career_save_id=${saveId} ORDER BY id`);
   assert.deepEqual(after,before);

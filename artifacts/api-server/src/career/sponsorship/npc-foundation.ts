@@ -23,6 +23,17 @@ export const npcSponsorSnapshotSchema=z.object({
 export type SponsorSnapshot=z.infer<typeof npcSponsorSnapshotSchema>;
 export const parseNpcSponsorSnapshot=(value:unknown)=>npcSponsorSnapshotSchema.parse(value);
 
+export function npcSponsorSnapshotForBrand(brand:typeof BRANDS[number]):SponsorSnapshot{
+  if(!brand.representativeId)throw new Error(`Missing representative for sponsor ${brand.id}`);
+  const representative=representativeById(brand.representativeId);
+  if(!representative)throw new Error(`Missing representative content for ${brand.id}`);
+  return npcSponsorSnapshotSchema.parse({
+    contentVersion:NPC_SPONSOR_CONTENT_VERSION,sponsorId:brand.id,displayName:brand.name,shortName:brand.shortName,
+    category:brand.category,commercialTier:brand.commercialTier,themeKey:brand.themeKey,
+    presentation:brand.presentation,representative,
+  });
+}
+
 function hashBucket(value:string,modulus:number):number{
   return Number.parseInt(value.replaceAll("-","").slice(0,8),16)%modulus;
 }
@@ -37,13 +48,9 @@ export function initialNpcSponsorRelationships(seed:string,generationVersion:num
     const choice=stableUuid(seed,generationVersion,"npc-sponsor-choice",npcId);
     const brand=candidates[hashBucket(choice,candidates.length)];
     if(!brand)return [];
-    const representative=representativeById(brand.representativeId!);
-    if(!representative)throw new Error(`Missing representative content for ${brand.id}`);
-    const sponsorSnapshot:SponsorSnapshot=npcSponsorSnapshotSchema.parse({
-      contentVersion:NPC_SPONSOR_CONTENT_VERSION,sponsorId:brand.id,displayName:brand.name,shortName:brand.shortName,
-      category:brand.category,commercialTier:brand.commercialTier,themeKey:brand.themeKey,
-      presentation:brand.presentation,representative,
-    });
+     const representative=representativeById(brand.representativeId!);
+     if(!representative)throw new Error(`Missing representative content for ${brand.id}`);
+     const sponsorSnapshot=npcSponsorSnapshotForBrand(brand);
     return [{
       id:stableUuid(seed,generationVersion,"npc-sponsor-relationship",npcId,brand.id),
       npcId,sponsorKey:brand.id,category:brand.category,representativeId:representative.id,
@@ -82,6 +89,18 @@ export async function persistInitialNpcSponsorRelationships(
         id text,npc_id text,sponsor_key text,category text,representative_id text,status text,start_season integer,start_week integer,
         end_season integer,end_week integer,sponsor_snapshot jsonb
       ) ON CONFLICT(career_save_id,id) DO NOTHING`);
+    for(const relationship of relationships){
+      await tx.execute(sql`INSERT INTO career_npc_sponsor_market_events
+        (career_save_id,id,relationship_id,npc_id,sponsor_key,event_type,season,week,operation_key,details)
+        SELECT ${input.saveId},${stableUuid(input.seed,input.generationVersion,"npc-sponsor-story",`relationship-start:${relationship.id}`)},
+          ${relationship.id},p.id,${relationship.sponsorKey},'SIGNED',1,1,${`relationship-start:${relationship.id}`},
+          jsonb_build_object('npcName',concat_ws(' ',p.first_name,p.surname),
+            'sponsorName',${relationship.sponsorSnapshot.displayName}::text,
+            'title',concat_ws(' ',${relationship.sponsorSnapshot.displayName}::text,'enters the tour market'),
+            'summary','A seeded NPC sponsorship relationship was recorded when this Career world was created.')
+        FROM career_world_players p WHERE p.career_save_id=${input.saveId} AND p.id=${relationship.npcId}
+        ON CONFLICT(career_save_id,operation_key) DO NOTHING`);
+    }
   }
   await tx.execute(sql`INSERT INTO career_sponsor_world_state(career_save_id,content_version,generation_version,npc_count,relationship_count)
     VALUES(${input.saveId},${NPC_SPONSOR_CONTENT_VERSION},${input.generationVersion},${input.npcIds.length},${relationships.length})`);

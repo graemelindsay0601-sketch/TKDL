@@ -64,6 +64,20 @@ export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey:
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });
 export const useSponsors = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "sponsors"), queryFn: () => get<SponsorsResponse>(`/saves/${saveId}/sponsors`), staleTime: STALE });
+export type SponsorMarketRelationship = {id:string;npcId:string;npcName:string;sponsorKey:string;sponsorName:string;category:string;tier:string;
+  status:string;startSeason:number;startWeek:number;endSeason:number|null;endWeek:number|null};
+export type SponsorMarketEvent = {id:string;eventType:string;npcId:string;npcName:string;sponsorKey:string;sponsorName:string;season:number;week:number;
+  title:string;summary:string;relationshipId:string;sourceEventId:string|null};
+export type SponsorMarketResponse = {
+  period: { season: number; week: number };
+  relationships: SponsorMarketRelationship[];
+  events: SponsorMarketEvent[];
+  brandRosters:Array<{sponsorKey:string;sponsorName:string;category:string;tier:string;
+    players:Array<{npcId:string;npcName:string;category:string;tier:string}>}>;
+  npcCommercialProfiles:Array<{npcId:string;npcName:string;sponsors:SponsorMarketRelationship[];history:SponsorMarketEvent[]}>;
+};
+export const useSponsorMarket = (saveId: string) => useQuery({ queryKey: careerKey(saveId,"sponsor-market"),
+  queryFn: () => get<SponsorMarketResponse>(`/saves/${saveId}/sponsors/market`), staleTime: STALE });
 export const updateSponsorActivity = (saveId:string,activityId:string,action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE",week?:number) =>
   send("PUT",`/saves/${saveId}/sponsors/activities/${activityId}`,{action,...(week===undefined?{}:{week})});
 export const useWorldContent=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"world-content"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldContent>(`/saves/${saveId}/world-content`),staleTime:STALE});
