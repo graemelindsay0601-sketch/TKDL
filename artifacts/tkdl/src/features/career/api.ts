@@ -91,6 +91,12 @@ export const useTrophyCabinet=(saveId:string,offset=0)=>useQuery({queryKey:caree
 export const usePresentation=(saveId:string,enabled=true)=>useQuery({queryKey:careerKey(saveId,"presentation"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").PresentationContent>(`/saves/${saveId}/presentation`),enabled,staleTime:STALE});
 export const useEditPresentation=(saveId:string)=>useSaveMutation(saveId,(body:Record<string,unknown>)=>send("POST",`/saves/${saveId}/presentation`,body));
 export const useLaunchSignature=(saveId:string)=>useSaveMutation(saveId,(body:{contractId:string;productType:"SIGNATURE_DARTS"|"SIGNATURE_RANGE"})=>send("POST",`/saves/${saveId}/signature-products`,body));
+export const useEquipmentStudio=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"equipment-studio"),queryFn:()=>get<any>(`/saves/${saveId}/equipment-studio`),staleTime:STALE});
+export const useSaveEquipmentLoadout=(saveId:string)=>useSaveMutation(saveId,(body:unknown)=>send("PUT",`/saves/${saveId}/equipment-loadout`,body));
+export const useCreateProductDraft=(saveId:string)=>useSaveMutation(saveId,(body:unknown)=>send("POST",`/saves/${saveId}/signature-product-drafts`,body));
+export const useApproveProductDraft=(saveId:string)=>useSaveMutation(saveId,(draftId:string)=>send("POST",`/saves/${saveId}/signature-product-drafts/${draftId}/approve`));
+export const useLaunchProductDraft=(saveId:string)=>useSaveMutation(saveId,(draftId:string)=>send("POST",`/saves/${saveId}/signature-product-drafts/${draftId}/launch`));
+export const useRetireProductDraft=(saveId:string)=>useSaveMutation(saveId,(draftId:string)=>send("POST",`/saves/${saveId}/signature-product-drafts/${draftId}/retire`));
 export const useRankingLists = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "ranking-lists"), queryFn: () => get<RankingListMeta[]>(`/saves/${saveId}/rankings`), staleTime: STALE });
 export type TableQuery = { view: "TOP" | "AROUND" | "PAGE"; limit?: number; offset?: number; participant?: string; radius?: number };
 export const useRankingTable = (saveId: string, list: string, q: TableQuery, enabled = true) => useQuery({ queryKey: careerKey(saveId, "ranking", list, q), enabled, staleTime: STALE,

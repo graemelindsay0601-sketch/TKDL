@@ -6,6 +6,7 @@ import type {} from "pino-http";
 import {authedWriteRateLimit} from "../../middleware/writeRateLimit.ts";
 import type {CareerDatabase} from "../database.ts";
 import {CareerError} from "../service.ts";
+import {PRODUCT_ECONOMY} from "./product-economy.ts";
 import {careerIdSchema} from "../validation.ts";
 import {lockRoot,type CareerActor} from "../world/service.ts";
 import {stableUuid} from "../world/random.ts";
@@ -36,6 +37,24 @@ export const cosmeticSchema=z.object({
   competitionCategory:z.enum(["OPEN","WOMEN"]).optional(),
 }).strict();
 export const signatureSchema=z.object({contractId:z.string().uuid(),productType:z.enum(["SIGNATURE_DARTS","SIGNATURE_RANGE"])}).strict();
+const equipmentLoadoutSchema=z.object({
+  dartWeight:z.number().min(18).max(30),barrel:z.enum(["STRAIGHT","TORPEDO","SCALLOPED","TAPERED"]),
+  stem:z.enum(["SHORT","INTERMEDIATE","MEDIUM"]),flight:z.enum(["STANDARD","SLIM","KITE","NO2"]),
+  flightPattern:z.enum(["SOLID","CHEVRON","GRID","RINGS"]),flightColour:z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  apparelColour:z.string().regex(/^#[0-9a-fA-F]{6}$/),
+}).strict();
+const productDraftSchema=z.object({
+  contractId:z.string().uuid(),productType:z.enum(["SIGNATURE_DARTS","SIGNATURE_RANGE"]),
+  name:z.string().trim().min(3).max(80),design:z.object({
+    flightPattern:z.enum(["SOLID","CHEVRON","GRID","RINGS"]),
+    colours:z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/)).length(2),
+    limitedEdition:z.boolean(),editionSize:z.number().int().min(25).max(500).nullable(),
+  }).strict(),
+}).strict().superRefine((value,ctx)=>{
+  if(value.design.limitedEdition===(value.design.editionSize===null))
+    ctx.addIssue({code:"custom",path:["design","editionSize"],message:"Limited editions need a run size; open releases must not have one."});
+});
+const productPricePence=PRODUCT_ECONOMY.pricePence;
 export const PRESENTATION_DEFAULTS={nickname:null,shirtTemplate:"CLASSIC",primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"};
 const placements:Record<string,string>={EQUIPMENT_PARTNER:"UPPER_CHEST",APPAREL_PARTNER:"SHOULDER",PRIMARY_COMMERCIAL:"CENTRAL_CHEST",SECONDARY_COMMERCIAL:"SLEEVE",LOCAL_REGIONAL_PARTNER:"SIDE_PANEL"};
 function worldLocalities() {
@@ -63,7 +82,6 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
       const products=(await tx.execute(sql`SELECT p.*,c.status AS contract_status FROM career_signature_products p
         JOIN career_sponsor_contracts c ON c.career_save_id=p.career_save_id AND c.id=p.contract_id
         WHERE p.career_save_id=${saveId} ORDER BY launch_season,id`)).rows;
-      const merch=(await tx.execute(sql`SELECT category,active FROM career_life_merchandise WHERE career_save_id=${saveId}`)).rows[0];
       return {careerSaveId:saveId,retired:root.status==="RETIRED",season:Number(root.current_season),week:Number(root.current_week),
         identity:{...PRESENTATION_DEFAULTS,...(root.settings_snapshot?.presentationIdentity as object??{}),competitionCategory:root.settings_snapshot?.competitionCategory??"OPEN"},
         canEdit:root.status==="ACTIVE"&&Number(root.current_week)===1,
@@ -74,7 +92,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
           type:String(p.product_type),launchSeason:Number(p.launch_season),contractId:String(p.contract_id),state:p.contract_status==="ACTIVE"&&root.status==="ACTIVE"?"ACTIVE":"LEGACY",
           abilityEffects:false,paymentAuthority:"A4",publicIdentityAuthority:"A7.5"})),
         productCandidates:contracts.filter(c=>relationship(c.terms).slot==="EQUIPMENT_PARTNER").map(c=>({contractId:c.id,manufacturer:c.sponsor_key,
-          types:brandById(c.sponsor_key)?.signatureProductSupport??[],hasCommercialAgreement:merch?.active===true})),
+          types:c.terms.contractFoundation?.productRights?.productTypes??[]})).filter(c=>c.types.length>0),
       };
     });
   }
@@ -110,30 +128,134 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
         return {updated:true,identity:settings.presentationIdentity,competitionCategory:settings.competitionCategory??"OPEN"};
       });
     },
+    async equipmentStudio(actor:CareerActor,saveId:string) {
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId,false) as RootRow;
+        const loadout=(await tx.execute(sql`SELECT loadout FROM career_equipment_loadouts WHERE career_save_id=${saveId}`)).rows[0];
+        const drafts=(await tx.execute(sql`SELECT d.*,c.status AS contract_status,c.sponsor_key FROM career_signature_product_drafts d
+          JOIN career_sponsor_contracts c ON c.career_save_id=d.career_save_id AND c.id=d.contract_id
+          WHERE d.career_save_id=${saveId} ORDER BY d.created_at DESC LIMIT 30`)).rows;
+        const events=(await tx.execute(sql`SELECT id,draft_id,event_type,season,week,details FROM career_signature_product_events
+          WHERE career_save_id=${saveId} ORDER BY created_at DESC LIMIT 100`)).rows;
+        const products=(await tx.execute(sql`SELECT p.id,p.product_name,p.product_type,p.manufacturer,p.launch_season,d.status AS product_status,
+          holder.id AS rights_contract_id,COALESCE(SUM(s.units),0)::int units,
+          COALESCE(SUM(s.gross_pence),0)::bigint gross_pence,COALESCE(SUM(s.royalty_pence),0)::bigint royalty_pence
+          FROM career_signature_products p LEFT JOIN career_signature_product_drafts d ON d.career_save_id=p.career_save_id AND d.product_id=p.id
+          LEFT JOIN LATERAL (SELECT c.id FROM career_sponsor_contracts c WHERE c.career_save_id=p.career_save_id AND c.sponsor_key=p.manufacturer
+            AND c.status='ACTIVE' AND c.terms->'contractFoundation'->'productRights'->'productTypes' ? p.product_type
+            ORDER BY c.start_season DESC,c.start_week DESC,c.id LIMIT 1) holder ON true
+          LEFT JOIN career_signature_product_sales s ON s.career_save_id=p.career_save_id AND s.product_id=p.id
+          WHERE p.career_save_id=${saveId} GROUP BY p.id,d.status,holder.id`)).rows;
+        const active=await activeContracts(tx,saveId);
+        const contracts=active.filter(c=>relationship(c.terms).slot==="EQUIPMENT_PARTNER");
+        const apparelEndorsements=active.filter(c=>relationship(c.terms).slot==="APPAREL_PARTNER").map(c=>({brand:c.terms.displayName}));
+        return {season:Number(root.current_season),week:Number(root.current_week),loadout:loadout?.loadout??null,
+          contracts:contracts.map(c=>({id:c.id,brand:c.terms.displayName,rights:c.terms.contractFoundation?.productRights?.productTypes??[]})),
+          apparelEndorsements,drafts:drafts.map(d=>({id:String(d.id),brand:String(d.sponsor_key),type:String(d.product_type),
+            name:String(d.product_name),status:String(d.status),contractActive:d.contract_status==="ACTIVE"})),
+          events:events.map(e=>({id:String(e.id),draftId:String(e.draft_id),type:String(e.event_type),details:e.details})),
+          products:products.map(p=>({id:String(p.id),name:String(p.product_name),type:String(p.product_type),brand:String(p.manufacturer),
+            status:p.product_status??(p.rights_contract_id?"ACTIVE":"LEGACY"),units:Number(p.units),grossPence:Number(p.gross_pence),royaltyPence:Number(p.royalty_pence)})),
+          pricingPence:productPricePence,royaltyPercent:8,salesCapPerProductWeek:100,cosmeticOnly:true};
+      });
+    },
+    async saveEquipmentLoadout(actor:CareerActor,saveId:string,body:unknown) {
+      const loadout=equipmentLoadoutSchema.parse(body);
+      await database.transaction(async tx=>{
+        await lockRoot(tx,actor,saveId);
+        await tx.execute(sql`INSERT INTO career_equipment_loadouts(career_save_id,loadout,updated_at)
+          VALUES(${saveId},${JSON.stringify(loadout)}::jsonb,now()) ON CONFLICT(career_save_id)
+          DO UPDATE SET loadout=EXCLUDED.loadout,updated_at=now()`);
+      });
+      return {saved:true,loadout};
+    },
+    async createProductDraft(actor:CareerActor,saveId:string,body:unknown) {
+      const input=productDraftSchema.parse(body);
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId) as RootRow;
+        const contract=(await activeContracts(tx,saveId)).find(c=>c.id===input.contractId);
+        if(!contract||relationship(contract.terms).slot!=="EQUIPMENT_PARTNER"||
+          !(contract.terms.contractFoundation?.productRights?.productTypes??[]).includes(input.productType))
+          throw new CareerError(409,"An active equipment contract with this explicit signed product right is required");
+        const id=stableUuid(root.world_seed,5,"spg-product-draft",input.contractId,input.productType,input.name,Number(root.current_season),Number(root.current_week));
+        await tx.execute(sql`INSERT INTO career_signature_product_drafts(career_save_id,id,contract_id,product_type,product_name,design,status,season,week)
+          VALUES(${saveId},${id},${input.contractId},${input.productType},${input.name},${JSON.stringify(input.design)}::jsonb,'DRAFT',${Number(root.current_season)},${Number(root.current_week)})
+          ON CONFLICT(career_save_id,id) DO NOTHING`);
+        await tx.execute(sql`INSERT INTO career_signature_product_events(career_save_id,id,draft_id,event_type,season,week,details)
+          VALUES(${saveId},${stableUuid(root.world_seed,5,"spg-event",id,"CREATED")},${id},'CREATED',${Number(root.current_season)},${Number(root.current_week)},
+            ${JSON.stringify({contractId:input.contractId,productType:input.productType})}::jsonb) ON CONFLICT DO NOTHING`);
+        return {id,status:"DRAFT"};
+      });
+    },
+    async approveProduct(actor:CareerActor,saveId:string,draftId:string) {
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId) as RootRow;
+        const prior=(await tx.execute(sql`SELECT status FROM career_signature_product_drafts WHERE career_save_id=${saveId} AND id=${draftId} FOR UPDATE`)).rows[0];
+        if(prior?.status==="APPROVED")return {id:draftId,status:"APPROVED"};
+        const result=await tx.execute(sql`UPDATE career_signature_product_drafts d SET status='APPROVED',updated_at=now()
+          WHERE d.career_save_id=${saveId} AND d.id=${draftId} AND d.status='DRAFT'
+          AND EXISTS(SELECT 1 FROM career_sponsor_contracts c WHERE c.career_save_id=d.career_save_id AND c.id=d.contract_id
+            AND c.status='ACTIVE' AND c.terms->'contractFoundation'->'productRights'->'productTypes' ? d.product_type) RETURNING d.id`);
+        if(!result.rows.length)throw new CareerError(409,"Draft is not eligible under an active signed product right");
+        await tx.execute(sql`INSERT INTO career_signature_product_events(career_save_id,id,draft_id,event_type,season,week)
+          VALUES(${saveId},${stableUuid(root.world_seed,5,"spg-event",draftId,"APPROVED")},${draftId},'APPROVED',${Number(root.current_season)},${Number(root.current_week)}) ON CONFLICT DO NOTHING`);
+        return {id:draftId,status:"APPROVED"};
+      });
+    },
+    async launchProduct(actor:CareerActor,saveId:string,draftId:string) {
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId) as RootRow;
+        const d=(await tx.execute(sql`SELECT d.*,c.status contract_status,c.sponsor_key,c.terms FROM career_signature_product_drafts d
+          JOIN career_sponsor_contracts c ON c.career_save_id=d.career_save_id AND c.id=d.contract_id
+          WHERE d.career_save_id=${saveId} AND d.id=${draftId} FOR UPDATE OF d`)).rows[0];
+        if(d?.status==="LAUNCHED"&&d.product_id)return {id:String(d.product_id),status:"LAUNCHED"};
+        if(!d||d.status!=="APPROVED"||d.contract_status!=="ACTIVE"||!((d.terms as any)?.contractFoundation?.productRights?.productTypes??[]).includes(d.product_type))
+          throw new CareerError(409,"Only an approved draft with current signed rights can launch");
+        const id=stableUuid(root.world_seed,5,"spg-product",draftId);
+        await tx.execute(sql`INSERT INTO career_signature_products(career_save_id,id,participant_key,product_type,manufacturer,product_name,contract_id,launch_season,evidence)
+          VALUES(${saveId},${id},'HUMAN',${d.product_type},${d.sponsor_key},${d.product_name},${d.contract_id},${Number(root.current_season)},
+            ${JSON.stringify({spgVersion:1,draftId,design:d.design,rightsSnapshot:(d.terms as any).contractFoundation.productRights,royaltyPercent:8})}::jsonb)
+          ON CONFLICT(career_save_id,id) DO NOTHING`);
+        await tx.execute(sql`UPDATE career_signature_product_drafts SET status='LAUNCHED',product_id=${id},updated_at=now()
+          WHERE career_save_id=${saveId} AND id=${draftId} AND status='APPROVED'`);
+        await tx.execute(sql`INSERT INTO career_signature_product_events(career_save_id,id,draft_id,event_type,season,week,details)
+          VALUES(${saveId},${stableUuid(root.world_seed,5,"spg-event",draftId,"LAUNCHED")},${draftId},'LAUNCHED',${Number(root.current_season)},${Number(root.current_week)},${JSON.stringify({productId:id})}::jsonb) ON CONFLICT DO NOTHING`);
+        return {id,status:"LAUNCHED"};
+      });
+    },
+    async retireProduct(actor:CareerActor,saveId:string,draftId:string) {
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId) as RootRow;
+        const result=await tx.execute(sql`UPDATE career_signature_product_drafts SET status='RETIRED',updated_at=now()
+          WHERE career_save_id=${saveId} AND id=${draftId} AND status='LAUNCHED' RETURNING id`);
+        if(!result.rows.length) {
+          const prior=(await tx.execute(sql`SELECT status FROM career_signature_product_drafts WHERE career_save_id=${saveId} AND id=${draftId}`)).rows[0];
+          if(prior?.status==="RETIRED")return {id:draftId,status:"RETIRED"};
+          throw new CareerError(409,"Only a launched product can be retired");
+        }
+        await tx.execute(sql`INSERT INTO career_signature_product_events(career_save_id,id,draft_id,event_type,season,week)
+          VALUES(${saveId},${stableUuid(root.world_seed,5,"spg-event",draftId,"RETIRED")},${draftId},'RETIRED',${Number(root.current_season)},${Number(root.current_week)}) ON CONFLICT DO NOTHING`);
+        return {id:draftId,status:"RETIRED"};
+      });
+    },
     async launchSignature(actor:CareerActor,saveId:string,body:unknown) {
       const input=signatureSchema.parse(body);
       return database.transaction(async tx=>{
         const root=await lockRoot(tx,actor,saveId) as RootRow;
         const contract=(await activeContracts(tx,saveId)).find(c=>c.id===input.contractId);
         if(!contract||relationship(contract.terms).slot!=="EQUIPMENT_PARTNER"||
-          !brandById(contract.sponsor_key)?.signatureProductSupport.includes(input.productType))throw new CareerError(409,"A compatible active equipment contract is required");
-        const existing=(await tx.execute(sql`SELECT id FROM career_signature_products WHERE career_save_id=${saveId}
-          AND contract_id=${input.contractId} AND product_type=${input.productType}`)).rows[0];
-        if(existing)return {id:String(existing.id),created:false};
-        const merch=(await tx.execute(sql`SELECT category,active FROM career_life_merchandise WHERE career_save_id=${saveId}`)).rows[0];
-        const facts=await sporting.factsProvider.facts(tx,root);
-        const commercialIncome=Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence),0)::bigint AS n FROM career_finance_entries
-          WHERE career_save_id=${saveId} AND category IN ('MERCHANDISE_ROYALTY','COMMERCIAL_APPEARANCE')`)).rows[0].n);
-        const sportingDemand=facts.titles>=10||(facts.worldRanking!==null&&facts.worldRanking<=16);
-        const rangeDemand=(facts.titles>=20||(facts.worldRanking!==null&&facts.worldRanking<=16))&&commercialIncome>=100000;
-        if(!merch?.active||!sportingDemand||(input.productType==="SIGNATURE_RANGE"&&!rangeDemand))
-          throw new CareerError(409,"Signature products require established sporting achievement and an active A7.5 merchandise agreement; a range also needs £1,000 recorded A4 commercial income");
-        const id=stableUuid(root.world_seed,1,"signature-product",contract.id,input.productType);
-        const name=`${String(root.career_name??"Career Player").slice(0,80)} — ${contract.terms.displayName} ${input.productType==="SIGNATURE_DARTS"?"Signature Darts":"Signature Range"}`;
-        await tx.execute(sql`INSERT INTO career_signature_products (career_save_id,id,participant_key,product_type,manufacturer,product_name,contract_id,launch_season,evidence)
-          VALUES (${saveId},${id},'HUMAN',${input.productType},${contract.sponsor_key},${name},${contract.id},${Number(root.current_season)},
-          ${JSON.stringify({facts,merchandiseCategory:merch.category,commercialIncomePence:commercialIncome,contentVersion:WORLD_CONTENT_VERSION})}::jsonb)`);
-        return {id,created:true};
+          !(contract.terms.contractFoundation?.productRights?.productTypes??[]).includes(input.productType))
+          throw new CareerError(409,"An active equipment agreement with the explicit signed product right is required");
+        const id=stableUuid(root.world_seed,5,"spg-compat-draft",contract.id,input.productType,Number(root.current_season),Number(root.current_week));
+        const name=`${String(root.career_name??"Career Player").slice(0,48)} — ${contract.terms.displayName} ${input.productType==="SIGNATURE_DARTS"?"Signature Darts":"Signature Range"}`;
+        const design={flightPattern:"SOLID",colours:["#f4c542","#101820"],limitedEdition:false,editionSize:null};
+        await tx.execute(sql`INSERT INTO career_signature_product_drafts(career_save_id,id,contract_id,product_type,product_name,design,status,season,week)
+          VALUES(${saveId},${id},${contract.id},${input.productType},${name},${JSON.stringify(design)}::jsonb,'DRAFT',
+            ${Number(root.current_season)},${Number(root.current_week)}) ON CONFLICT(career_save_id,id) DO NOTHING`);
+        await tx.execute(sql`INSERT INTO career_signature_product_events(career_save_id,id,draft_id,event_type,season,week,details)
+          VALUES(${saveId},${stableUuid(root.world_seed,5,"spg-event",id,"CREATED")},${id},'CREATED',${Number(root.current_season)},${Number(root.current_week)},
+            ${JSON.stringify({productType:input.productType,contractId:contract.id})}::jsonb) ON CONFLICT DO NOTHING`);
+        return {id,created:true,status:"DRAFT"};
       });
     },
     async read(actor:CareerActor,saveId:string) {
@@ -255,6 +377,18 @@ export function createCareerContentRouter(service:CareerContentService) {
   router.get("/saves/:id/presentation",auth,async(req,res)=>res.json(await service.presentation(res.locals.careerActor,id(req))));
   router.post("/saves/:id/presentation",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.editPresentation(res.locals.careerActor,id(req),req.body)));
   router.post("/saves/:id/signature-products",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.launchSignature(res.locals.careerActor,id(req),req.body)));
+  router.get("/saves/:id/equipment-studio",auth,async(req,res)=>res.json(await service.equipmentStudio(res.locals.careerActor,id(req))));
+  router.put("/saves/:id/equipment-loadout",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.saveEquipmentLoadout(res.locals.careerActor,id(req),req.body)));
+  router.post("/saves/:id/signature-product-drafts",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.createProductDraft(res.locals.careerActor,id(req),req.body)));
+  router.post("/saves/:id/signature-product-drafts/:draftId/approve",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.approveProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
+  router.post("/saves/:id/signature-product-drafts/:draftId/launch",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.launchProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
+  router.post("/saves/:id/signature-product-drafts/:draftId/retire",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.retireProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
+  router.get("/saves/:id/equipment-studio",auth,async(req,res)=>res.json(await service.equipmentStudio(res.locals.careerActor,id(req))));
+  router.put("/saves/:id/equipment-loadout",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.saveEquipmentLoadout(res.locals.careerActor,id(req),req.body)));
+  router.post("/saves/:id/signature-product-drafts",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.createProductDraft(res.locals.careerActor,id(req),req.body)));
+  router.post("/saves/:id/signature-product-drafts/:draftId/approve",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.approveProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
+  router.post("/saves/:id/signature-product-drafts/:draftId/launch",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.launchProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
+  router.post("/saves/:id/signature-product-drafts/:draftId/retire",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.retireProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
   router.use((err:unknown,req:Request,res:Response,_next:NextFunction)=>{
     if(err instanceof CareerError)res.status(err.status).json({error:err.message});
     else if(err instanceof z.ZodError)res.status(400).json({error:"Invalid Career content request"});

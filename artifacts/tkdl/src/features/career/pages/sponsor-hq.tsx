@@ -4,6 +4,7 @@ import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNego
 import { CareerError, CareerLoading, CareerSection, OSWALD } from "../components";
 import type { ShellContext } from "../shell";
 import type { SponsorNegotiationChange, SponsorSigningReveal } from "../types";
+import { EquipmentStudio } from "./equipment-studio";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 
@@ -252,6 +253,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </article>)}
         </div>}
     </CareerSection>
+    <CareerSection title="Equipment & signature products"><EquipmentStudio ctx={ctx}/></CareerSection>
     {notice&&<p role="status" className="pdc-card p-3 text-sm text-white">{notice}</p>}
   </div>;
 }

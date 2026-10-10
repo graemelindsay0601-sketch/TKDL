@@ -13,6 +13,8 @@ import {createCareerCalendar} from "../../db/migrations/create_career_calendar.t
 import {createCareerFinance} from "../../db/migrations/create_career_finance.ts";
 import {createCareerSponsorJourneysSPB} from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
 import {createCareerSponsorJourneysSPB3} from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
+import {createCareerNpcSponsorMarketSPF} from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
+import {createCareerSponsorContractActionsSPE2} from "../../db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import {createCareerSporting} from "../../db/migrations/create_career_sporting.ts";
 import {createCareerService} from "../../career/service.ts";
 import {createCareerSportingService} from "../../career/sporting/service.ts";
@@ -35,14 +37,14 @@ async function offer(brandId:string) {
   const terms=sponsorCatalogue(2).find(d=>d.key===brandId)!.terms,id=stableUuid(seed,1,"test-offer",brandId);
   await db.execute(sql`INSERT INTO career_sponsor_offers (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,
     offered_season,offered_week,expires_season,expires_week,status)
-    VALUES (${saveId},${id},${`test:${brandId}`},${brandId},2,${terms.tier},'NEW',${JSON.stringify(terms)}::jsonb,'{}'::jsonb,1,1,1,52,'AVAILABLE') ON CONFLICT DO NOTHING`);
+     VALUES (${saveId},${id},${`test:${brandId}`},${brandId},2,${terms.tier},'NEW',${JSON.stringify(terms)}::jsonb,'{}'::jsonb,1,1,1,52,'AVAILABLE') ON CONFLICT DO NOTHING`);
   return id;
 }
 before(async()=>{
   await pg.exec(`CREATE TABLE players(id integer PRIMARY KEY);INSERT INTO players VALUES(1),(2);
     CREATE TABLE feature_flags(feature_name text UNIQUE,enabled boolean,admin_test_mode boolean,description text);
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
-  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSponsorHQSPD(db);await createCareerSporting(db);
+  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSponsorHQSPD(db);await createCareerNpcSponsorMarketSPF(db);await createCareerSponsorContractActionsSPE2(db);await createCareerSporting(db);
   const save=await saves.create(1,{slot:1,dateOfBirth:"1990-01-01",homeLocality:"ayrshire"});saveId=save.id;
   // Preserve the published A8.1 v3 universe; A8.2 v4 has its own tournament tests.
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed},event_database_version=3 WHERE id=${saveId}`);
@@ -123,12 +125,11 @@ test("all active contracts complete/review together; rollback protects fixture a
   assert.equal((await activeContracts(db,saveId)).length,2);
 });
 test("signature launches are factual, immutable, retry-safe metadata, never money or ability",async()=>{
-  await status(content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"}));
-  await status(content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"}));
-  await db.execute(sql`INSERT INTO career_life_merchandise (career_save_id,category,royalty_pence,signed_season,signed_week) VALUES (${saveId},'SIGNED_ITEMS',2500,1,1)`);
+  const draft=await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"});
+  assert.equal(draft.status,"DRAFT");assert.equal((await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"})).id,draft.id);
   const money=calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`));
-  const p=await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"});
-  assert.equal(p.created,true);assert.equal((await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"})).created,false);
+  await content.approveProduct(actor,saveId,draft.id);await content.launchProduct(actor,saveId,draft.id);
+  assert.equal((await content.launchProduct(actor,saveId,draft.id)).status,"LAUNCHED");
   assert.equal((await content.presentation(actor,saveId)).products[0].state,"ACTIVE");
   assert.equal(calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`)),money);
   await assert.rejects(db.execute(sql`UPDATE career_signature_products SET product_name='fake' WHERE career_save_id=${saveId}`));

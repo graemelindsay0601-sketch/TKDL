@@ -74,9 +74,9 @@ export function PresentationPage({ctx}:{ctx:ShellContext}) {
     <IdentityEditor key={JSON.stringify(p.data.identity)} saveId={ctx.save.id} data={p.data}/>
     <CareerSection title="Contract-controlled shirt placement"><div className="p-4">{p.data.placements.map(s=><p key={s.contractId}>{s.brandName}: {titleCase(s.position)} ({titleCase(s.slot)})</p>)}{!p.data.placements.length&&<p>No active partners.</p>}</div></CareerSection>
     <CareerSection title="Signature product history"><div className="p-4"><BoundedList rows={p.data.products}>{s=><p key={s.id}>{s.name} · S{s.launchSeason} · {s.state}</p>}</BoundedList>
-      <p>Launch requires an active equipment deal, established sporting achievement and an active A7.5 merchandise agreement. A range also requires {formatPence(100000)} recorded commercial income. A4 owns payments.</p>
-      {!ctx.retired&&p.data.productCandidates.map(c=><div key={c.contractId}>{c.types.map(type=><button className="career-btn m-1" key={type} disabled={launch.isPending||!c.hasCommercialAgreement}
-        onClick={()=>launch.mutate({contractId:c.contractId,productType:type},{onSuccess:()=>setMessage("Signature product recorded."),onError:e=>setMessage(errorMessage(e))})}>Launch {titleCase(type)} with {c.manufacturer}</button>)}</div>)}
+      <p>Drafts require an active equipment contract with explicit signed product rights. Review, approve and launch them in Sponsor HQ; A4 records royalties.</p>
+      {!ctx.retired&&p.data.productCandidates.map(c=><div key={c.contractId}>{c.types.map(type=><button className="career-btn m-1" key={type} disabled={launch.isPending}
+        onClick={()=>launch.mutate({contractId:c.contractId,productType:type},{onSuccess:()=>setMessage("Product draft created. Review it in Equipment Studio before approval and launch."),onError:e=>setMessage(errorMessage(e))})}>Create {titleCase(type)} draft with {c.manufacturer}</button>)}</div>)}
       {message&&<p role="status">{message}</p>}</div></CareerSection></div>;
 }
 function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) {
