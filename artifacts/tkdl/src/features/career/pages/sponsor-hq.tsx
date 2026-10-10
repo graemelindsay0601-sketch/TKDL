@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNegotiateOffer, useSponsors, useUpdateSponsorActivity } from "../api";
+import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNegotiateOffer, useSponsors, useUpdateSponsorActivity,
+  useRequestSponsorRelease, useAcceptSponsorRelease, useAcknowledgeSponsorNotice } from "../api";
 import { CareerError, CareerLoading, CareerSection, OSWALD } from "../components";
 import type { ShellContext } from "../shell";
 import type { SponsorNegotiationChange, SponsorSigningReveal } from "../types";
@@ -16,6 +17,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
   const [replace,setReplace]=useState<Record<string,string[]>>({});
   const [signingReveal,setSigningReveal]=useState<SponsorSigningReveal|null>(null);
   const accept=useAcceptOffer(save.id), decline=useDeclineOffer(save.id), negotiate=useNegotiateOffer(save.id);
+  const requestRelease=useRequestSponsorRelease(save.id), acceptRelease=useAcceptSponsorRelease(save.id), acknowledgeNotice=useAcknowledgeSponsorNotice(save.id);
   const activities=useMemo(()=>[
     ...(query.data?.sponsorHQ?.commitments??[]).map(item=>({...item,required:true as const,from:item.availableFromWeek,to:item.dueWeek})),
     ...(query.data?.sponsorHQ?.opportunities??[]).map(item=>({...item,sponsorName:item.sponsorKey,required:false as const,from:item.availableFromWeek,to:item.availableToWeek})),
@@ -33,6 +35,15 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
   async function act(id:string,action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE",week?:number){
     try{await update.mutateAsync({activityId:id,action,week});setNotice("Sponsor activity updated.");}
     catch(error){setNotice(errorMessage(error));}
+  }
+  function requestContractRelease(contractId:string,releaseType:"IMMEDIATE_NO_COST"|"MUTUAL"|"PRICED_BUYOUT"){
+    requestRelease.mutate({contractId,releaseType,operationKey:newOperationKey()},{onSuccess:result=>{
+      setNotice(result.status==="DECLINED"?"The sponsor declined the mutual-release request.":result.status==="OFFERED"?"Release terms are ready for your confirmation.":"Release request recorded.");
+    },onError:error=>setNotice(errorMessage(error))});
+  }
+  function confirmRelease(caseId:string){
+    if(!window.confirm("Accept this release and end the sponsor agreement now? This cannot be undone."))return;
+    acceptRelease.mutate(caseId,{onSuccess:()=>setNotice("Sponsor agreement released and recorded in your Career history."),onError:error=>setNotice(errorMessage(error))});
   }
   return <div className="space-y-5">
     {signingReveal&&<SponsorSigningRevealCard deal={signingReveal} onDismiss={()=>setSigningReveal(null)}/>}
@@ -142,6 +153,51 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
             onNegotiate={(change:SponsorNegotiationChange)=>negotiate.mutate({offerId:offer.id,requestKey:newOperationKey(),expectedRevision:offer.journey?.revision??0,change},{onSuccess:result=>setNotice(result.message),onError:error=>setNotice(errorMessage(error))})}
             acceptBusy={accept.isPending} declineBusy={decline.isPending} negotiateBusy={negotiate.isPending}/>)}
         </div>}
+    </CareerSection>
+
+    <CareerSection title="Compliance and contract releases">
+      <p className="mb-3 text-sm text-white/55">Notices appear only when a required activity was genuinely missed and the signed agreement explicitly includes a material-breach term. Releases are limited to signed clauses; no existing agreement is changed.</p>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="rounded-lg border border-white/10 bg-black/20 p-3" aria-label="Compliance notices">
+          <h3 className="text-sm text-white" style={OSWALD}>Compliance notices</h3>
+          {(query.data.sponsorHQ?.notices??[]).length===0?<p className="mt-2 text-xs text-white/55">No contract-authorised compliance notices are recorded.</p>:
+            <div className="mt-2 space-y-2">{query.data.sponsorHQ!.notices!.map(item=><article key={item.id} className="rounded border border-amber-200/20 bg-amber-300/[.04] p-3">
+              <p className="text-xs text-amber-100">Missed required activity · {label(String(item.status))}</p>
+              <p className="mt-1 text-[11px] text-white/55">Career season {String(item.details.season??"—")}, due week {String(item.details.dueWeek??"—")}. No penalty or termination has been applied.</p>
+              {item.status==="OPEN"&&<button className="career-button-secondary mt-2" disabled={acknowledgeNotice.isPending}
+                onClick={()=>acknowledgeNotice.mutate(item.id,{onSuccess:()=>setNotice("Notice acknowledged."),onError:error=>setNotice(errorMessage(error))})}>Acknowledge</button>}
+            </article>)}</div>}
+        </section>
+        <section className="rounded-lg border border-white/10 bg-black/20 p-3" aria-label="Contract release decisions">
+          <h3 className="text-sm text-white" style={OSWALD}>Release options and history</h3>
+          {portfolio.length===0?<p className="mt-2 text-xs text-white/55">No active agreements to review.</p>:
+            <div className="mt-2 space-y-2">{portfolio.map(contract=>{
+              const clause=contract.terms.contractFoundation?.releaseClause;
+              const conditions=contract.terms.contractFoundation?.terminationConditions??[];
+              const mayRelease=clause?.playerNoticeWeeks===0&&clause?.buyoutPence===0;
+              const mayBuyout=(clause?.buyoutPence??0)>0;
+              const mayMutuallyRelease=conditions.includes("MUTUAL_AGREEMENT");
+              const sameSponsorRenewal=(query.data.pendingContracts??[]).some(pending=>pending.sponsorKey===contract.sponsorKey);
+              return <article key={contract.id} className="rounded border border-white/[.08] p-3">
+                <p className="text-xs text-white">{contract.terms.displayName} · {sameSponsorRenewal?"Scheduled renewal protects this agreement": "No scheduled renewal"}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {mayRelease&&<button className="career-button-secondary" disabled={sameSponsorRenewal||requestRelease.isPending}
+                    onClick={()=>requestContractRelease(contract.id,"IMMEDIATE_NO_COST")}>Request immediate release</button>}
+                  {mayBuyout&&<button className="career-button-secondary" disabled={sameSponsorRenewal||requestRelease.isPending}
+                    onClick={()=>requestContractRelease(contract.id,"PRICED_BUYOUT")}>Request buyout · {money(clause!.buyoutPence)}</button>}
+                  {mayMutuallyRelease&&<button className="career-button-secondary" disabled={sameSponsorRenewal||requestRelease.isPending}
+                    onClick={()=>requestContractRelease(contract.id,"MUTUAL")}>Request mutual release</button>}
+                  {!mayRelease&&!mayBuyout&&!mayMutuallyRelease&&<span className="text-xs text-white/45">No player release route is authorised by this contract.</span>}
+                </div>
+              </article>;
+            })}</div>}
+          {(query.data.sponsorHQ?.releases??[]).map(item=><article key={item.id} className="mt-2 rounded border border-white/[.08] p-3">
+            <p className="text-xs text-white">{item.sponsorName} · {label(item.type)} · {label(item.status)}{item.amountPence?` · ${money(item.amountPence)}`:""}</p>
+            {item.status==="OFFERED"&&<button className="career-button-primary mt-2" disabled={acceptRelease.isPending}
+              onClick={()=>confirmRelease(item.id)}>Confirm and end agreement</button>}
+          </article>)}
+        </section>
+      </div>
     </CareerSection>
 
     <CareerSection title="Contractual commitments and opportunities">

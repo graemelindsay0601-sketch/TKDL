@@ -105,6 +105,8 @@ export type SponsorTerms = {
       required:{id:string;type:string;maxPerSeason:number;windowWeeks:number;firstWindowWeek:number;extraCompensationPence:0}[];
       optional:{id:string;type:string;maxPerSeason:number;windowWeeks:number;firstWindowWeek:number;compensationPence:0}[];
     };
+    releaseClause?:{playerNoticeWeeks:number|null;sponsorNoticeWeeks:number|null;buyoutPence:number|null};
+    terminationConditions?:("TERM_COMPLETION"|"MUTUAL_AGREEMENT"|"MATERIAL_BREACH"|"INELIGIBILITY")[];
   };
   renewalRequirement: unknown; retentionRequirement: unknown; presentation: { colour: string };
 };
@@ -192,7 +194,9 @@ export type SponsorsResponse = { guaranteeConfiguration?: { status: "AWAITING_BA
   sponsorHQ?: {commitments:{id:string;contractId:string;sponsorKey:string;sponsorName:string;clauseId:string;occurrence:number;kind:string;required:boolean;cadence:string;season:number;
     availableFromWeek:number;windowWeeks:number;dueWeek:number;scheduledWeek:number|null;status:string}[];
     opportunities:{id:string;contractId:string;sponsorKey:string;clauseId:string;occurrence:number;kind:string;season:number;availableFromWeek:number;
-      availableToWeek:number;scheduledWeek:number|null;status:string}[]};
+      availableToWeek:number;scheduledWeek:number|null;status:string}[];
+    notices?:{id:string;contractId:string;activityId:string;status:string;type:string;details:Record<string,unknown>;createdAt:string}[];
+    releases?:{id:string;contractId:string;sponsorName:string;type:string;status:string;amountPence:number;sponsorDecision:string|null;terms:Record<string,unknown>;createdAt:string}[]};
   commercial?: SponsorCommercialOverview; history: { contracts: SponsorContract[]; offers: SponsorOffer[] } };
 
 // ---------------------------------------------------------------- A5 sporting

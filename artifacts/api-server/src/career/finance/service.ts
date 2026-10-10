@@ -22,6 +22,8 @@ import {
 } from "./sponsors.catalogue.ts";
 import { appendSponsorJourneyEvent, syncExpiredSponsorJourneys } from "./sponsor-journey.ts";
 import { negotiateSponsorOffer } from "./sponsor-negotiation.ts";
+import { stableUuid } from "../world/random.ts";
+import { cancelInactiveSponsorActivities } from "./sponsor-activities.ts";
 
 const offerRefSchema = z.object({ offerId: z.string().uuid() }).strict();
 const acceptOfferSchema = offerRefSchema.extend({replaceContractIds:z.array(z.string().uuid()).max(5).refine(ids=>new Set(ids).size===ids.length).optional()});
@@ -49,6 +51,10 @@ const sponsorActivityActionSchema=z.discriminatedUnion("action",[
   z.object({action:z.literal("SCHEDULE"),week:z.number().int().min(1).max(52)}).strict(),
   z.object({action:z.literal("COMPLETE")}).strict(),
 ]);
+const sponsorReleaseRequestSchema=z.object({
+  contractId:z.string().uuid(), operationKey:z.string().min(8).max(180),
+  releaseType:z.enum(["IMMEDIATE_NO_COST","MUTUAL","PRICED_BUYOUT"]),
+}).strict();
 const formatPence = (pence: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 
 /**
@@ -160,11 +166,28 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
           WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
             AND terms->>'activitySpecVersion'='1'
             AND (season < ${root.current_season} OR (season=${root.current_season} AND available_to_week < ${root.current_week}))`);
-        const commitments = (await tx.execute(sql`SELECT c.*,s.terms->>'displayName' AS sponsor_name
+        const commitments = (await tx.execute(sql`SELECT c.*,s.terms->>'displayName' AS sponsor_name,s.terms AS contract_terms
           FROM career_sponsor_commitments c LEFT JOIN career_sponsor_contracts s
             ON s.career_save_id=c.career_save_id AND s.id=c.contract_id
           WHERE c.career_save_id=${root.id}
           ORDER BY c.season,COALESCE(c.scheduled_week,c.due_week),c.created_at,c.id`)).rows;
+        for (const c of commitments) {
+          if (c.status !== "MISSED" || !c.required) continue;
+          const signedTerms=parseSponsorTerms(c.contract_terms);
+          if (!signedTerms.contractFoundation?.terminationConditions.includes("MATERIAL_BREACH")) continue;
+          const noticeId=stableUuid(root.world_seed,2,"SP-E2","missed-commitment-notice",String(c.id));
+          await tx.execute(sql`INSERT INTO career_sponsor_compliance_notices
+            (career_save_id,id,contract_id,activity_id,status,notice_type,details)
+            VALUES(${root.id},${noticeId},${c.contract_id},${c.id},'OPEN','MISSED_REQUIRED_ACTIVITY',
+              ${JSON.stringify({season:Number(c.season),dueWeek:Number(c.due_week),activityType:String(c.commitment_type),contractTerm:"MATERIAL_BREACH"})}::jsonb)
+            ON CONFLICT(career_save_id,activity_id) DO NOTHING`);
+        }
+        const notices=(await tx.execute(sql`SELECT * FROM career_sponsor_compliance_notices
+          WHERE career_save_id=${root.id} ORDER BY created_at DESC,id LIMIT 100`)).rows;
+        const releaseCases=(await tx.execute(sql`SELECT r.*,s.terms->>'displayName' AS sponsor_name
+          FROM career_sponsor_release_cases r JOIN career_sponsor_contracts s
+            ON s.career_save_id=r.career_save_id AND s.id=r.contract_id
+          WHERE r.career_save_id=${root.id} ORDER BY r.created_at DESC,r.id LIMIT 100`)).rows;
         const opportunities = (await tx.execute(sql`SELECT * FROM career_sponsor_opportunities
           WHERE career_save_id=${root.id} ORDER BY season,available_from_week,created_at,id`)).rows;
         const journeyIds = journeys.map(j => String(j.id));
@@ -304,9 +327,99 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             opportunities:opportunities.map(o=>({id:String(o.id),contractId:String(o.contract_id),sponsorKey:String(o.sponsor_key),
               clauseId:String(o.clause_id),occurrence:Number(o.occurrence),kind:String(o.opportunity_type),season:Number(o.season),
               availableFromWeek:Number(o.available_from_week),availableToWeek:Number(o.available_to_week),
-              scheduledWeek:o.scheduled_week==null?null:Number(o.scheduled_week),status:String(o.status)})),
+               scheduledWeek:o.scheduled_week==null?null:Number(o.scheduled_week),status:String(o.status)})),
+             notices:notices.map(n=>({id:String(n.id),contractId:String(n.contract_id),activityId:String(n.activity_id),
+               status:String(n.status),type:String(n.notice_type),details:n.details,createdAt:n.created_at})),
+             releases:releaseCases.map(r=>({id:String(r.id),contractId:String(r.contract_id),sponsorName:String(r.sponsor_name),
+               type:String(r.release_type),status:String(r.status),amountPence:Number(r.amount_pence),
+               sponsorDecision:r.sponsor_decision==null?null:String(r.sponsor_decision),terms:r.terms_snapshot,createdAt:r.created_at})),
           },
           history: { contracts: contracts.filter(c => !["ACTIVE","SCHEDULED"].includes(String(c.status))).map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
+      });
+    },
+
+    async requestSponsorRelease(actor:CareerActor,saveId:string,body:unknown){
+      const input=sponsorReleaseRequestSchema.parse(body);
+      return database.transaction(async tx=>{
+        const root=await open(tx,actor,saveId);
+        const existing=(await tx.execute(sql`SELECT * FROM career_sponsor_release_cases
+          WHERE career_save_id=${root.id} AND operation_key=${input.operationKey} FOR UPDATE`)).rows[0];
+        if(existing){
+          if(String(existing.contract_id)!==input.contractId||String(existing.release_type)!==input.releaseType)
+            throw new CareerError(409,"This operation key was already used for a different release request");
+          return {id:String(existing.id),status:String(existing.status),releaseType:String(existing.release_type),amountPence:Number(existing.amount_pence),sponsorDecision:existing.sponsor_decision??null};
+        }
+        const c=(await tx.execute(sql`SELECT * FROM career_sponsor_contracts
+          WHERE career_save_id=${root.id} AND id=${input.contractId} FOR UPDATE`)).rows[0];
+        if(!c||c.status!=="ACTIVE")throw new CareerError(409,"Only an active sponsor agreement can be released");
+        const scheduled=(await tx.execute(sql`SELECT 1 FROM career_sponsor_contracts
+          WHERE career_save_id=${root.id} AND sponsor_key=${c.sponsor_key} AND status='SCHEDULED' LIMIT 1`)).rows.length>0;
+        if(scheduled)throw new CareerError(409,"This agreement has an accepted scheduled renewal; resolve the renewal before requesting release");
+        const terms=parseSponsorTerms(c.terms), clause=terms.contractFoundation?.releaseClause;
+        let amount=0,status="OFFERED",decision:string|null=null;
+        if(input.releaseType==="IMMEDIATE_NO_COST"&&!(clause?.playerNoticeWeeks===0&&clause.buyoutPence===0))
+          throw new CareerError(409,"This signed agreement does not permit immediate no-cost release");
+        if(input.releaseType==="PRICED_BUYOUT"){
+          if(!clause||clause.buyoutPence===null||clause.buyoutPence<=0)throw new CareerError(409,"This signed agreement has no priced buyout");
+          amount=clause.buyoutPence;
+        }
+        if(input.releaseType==="MUTUAL"){
+          if(!(terms.contractFoundation?.terminationConditions??[]).includes("MUTUAL_AGREEMENT"))
+            throw new CareerError(409,"Mutual release is not authorised by this signed agreement");
+          const missed=(await tx.execute(sql`SELECT 1 FROM career_sponsor_commitments
+            WHERE career_save_id=${root.id} AND contract_id=${input.contractId} AND required=true AND status='MISSED' LIMIT 1`)).rows.length>0;
+          decision=missed?"DECLINED":"APPROVED";
+          status=decision==="APPROVED"?"OFFERED":"DECLINED";
+        }
+        const id=stableUuid(root.world_seed,2,"SP-E2","release-case",input.operationKey);
+        const result=(await tx.execute(sql`INSERT INTO career_sponsor_release_cases
+          (career_save_id,id,contract_id,operation_key,release_type,status,amount_pence,sponsor_decision,terms_snapshot)
+          VALUES(${root.id},${id},${input.contractId},${input.operationKey},${input.releaseType},${status},${amount},${decision},
+            ${JSON.stringify({releaseClause:clause??null,terminationConditions:terms.contractFoundation?.terminationConditions??[]})}::jsonb)
+          RETURNING id,status,release_type,amount_pence,sponsor_decision`)).rows[0]!;
+        return {id:String(result.id),status:String(result.status),releaseType:String(result.release_type),amountPence:Number(result.amount_pence),sponsorDecision:result.sponsor_decision??null};
+      });
+    },
+
+    async acknowledgeSponsorNotice(actor:CareerActor,saveId:string,noticeId:string){
+      return database.transaction(async tx=>{
+        const root=await open(tx,actor,saveId);
+        const notice=(await tx.execute(sql`SELECT status FROM career_sponsor_compliance_notices
+          WHERE career_save_id=${root.id} AND id=${noticeId} FOR UPDATE`)).rows[0];
+        if(!notice)throw new CareerError(404,"Sponsor compliance notice not found");
+        if(notice.status==="OPEN")await tx.execute(sql`UPDATE career_sponsor_compliance_notices SET status='ACKNOWLEDGED',updated_at=NOW()
+          WHERE career_save_id=${root.id} AND id=${noticeId} AND status='OPEN'`);
+        return {id:noticeId,status:notice.status==="OPEN"?"ACKNOWLEDGED":String(notice.status)};
+      });
+    },
+
+    async acceptSponsorRelease(actor:CareerActor,saveId:string,caseId:string){
+      return database.transaction(async tx=>{
+        const root=await open(tx,actor,saveId);
+        const r=(await tx.execute(sql`SELECT r.*,c.sponsor_key,c.terms,c.status AS contract_status
+          FROM career_sponsor_release_cases r JOIN career_sponsor_contracts c
+            ON c.career_save_id=r.career_save_id AND c.id=r.contract_id
+          WHERE r.career_save_id=${root.id} AND r.id=${caseId} FOR UPDATE OF r,c`)).rows[0];
+        if(!r)throw new CareerError(404,"Release decision not found");
+        if(r.status==="ACCEPTED")return {id:caseId,status:"ACCEPTED",amountPence:Number(r.amount_pence)};
+        if(r.status!=="OFFERED"||r.contract_status!=="ACTIVE")throw new CareerError(409,"This release is not available to accept");
+        const scheduled=(await tx.execute(sql`SELECT 1 FROM career_sponsor_contracts
+          WHERE career_save_id=${root.id} AND sponsor_key=${r.sponsor_key} AND status='SCHEDULED' LIMIT 1`)).rows.length>0;
+        if(scheduled)throw new CareerError(409,"An accepted scheduled renewal must be resolved first");
+        const terms=parseSponsorTerms(r.terms),clause=terms.contractFoundation?.releaseClause;
+        if(r.release_type==="IMMEDIATE_NO_COST"&&!(clause?.playerNoticeWeeks===0&&clause.buyoutPence===0))throw new CareerError(409,"The signed release clause no longer authorises this action");
+        if(r.release_type==="PRICED_BUYOUT"&&(!clause||clause.buyoutPence!==Number(r.amount_pence)||clause.buyoutPence<=0))throw new CareerError(409,"The signed buyout does not match this offer");
+        if(r.release_type==="MUTUAL"&&(!(terms.contractFoundation?.terminationConditions??[]).includes("MUTUAL_AGREEMENT")||r.sponsor_decision!=="APPROVED"))throw new CareerError(409,"There is no approved mutual release");
+        const season=now(root).season,week=now(root).week,amount=Number(r.amount_pence);
+        if(amount>0)await post(tx,root,{operationKey:`sponsor-release:${caseId}`,category:"SPONSOR_RELEASE_SETTLEMENT",
+          amountPence:-amount,headline:"EXPENSE",contractId:String(r.contract_id),season,week,
+          reason:"Contractual sponsor release settlement",detail:{releaseCaseId:caseId,releaseType:r.release_type}});
+        await tx.execute(sql`UPDATE career_sponsor_contracts SET status='TERMINATED',end_reason='PLAYER_RELEASE',ended_at=NOW()
+          WHERE career_save_id=${root.id} AND id=${r.contract_id} AND status='ACTIVE'`);
+        await cancelInactiveSponsorActivities(tx,{saveId:root.id,season,week,contractIds:[String(r.contract_id)]});
+        await tx.execute(sql`UPDATE career_sponsor_release_cases SET status='ACCEPTED',updated_at=NOW()
+          WHERE career_save_id=${root.id} AND id=${caseId}`);
+        return {id:caseId,status:"ACCEPTED",amountPence:amount};
       });
     },
 

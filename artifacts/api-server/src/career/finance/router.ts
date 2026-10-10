@@ -43,6 +43,15 @@ export function createCareerFinanceRouter(service: CareerFinanceService, isAvail
   router.put("/saves/:id/sponsors/activities/:activityId", authedWriteRateLimit, async (req,res)=>{
     res.json(await service.updateSponsorActivity(res.locals.careerActor,id(req),String(req.params.activityId),req.body??{}));
   });
+  router.post("/saves/:id/sponsors/releases", authedWriteRateLimit, async (req,res)=>{
+    res.json(await service.requestSponsorRelease(res.locals.careerActor,id(req),req.body??{}));
+  });
+  router.post("/saves/:id/sponsors/releases/:caseId/accept", authedWriteRateLimit, async (req,res)=>{
+    res.json(await service.acceptSponsorRelease(res.locals.careerActor,id(req),String(req.params.caseId)));
+  });
+  router.post("/saves/:id/sponsors/compliance/:noticeId/acknowledge", authedWriteRateLimit, async (req,res)=>{
+    res.json(await service.acknowledgeSponsorNotice(res.locals.careerActor,id(req),String(req.params.noticeId)));
+  });
   router.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof ZodError) res.status(400).json({ error: "Invalid Career request", issues: error.issues });
     else if (error instanceof CareerError) res.status(error.status).json({ error: error.message, ...("code" in error ? { code: (error as { code: string }).code } : {}) });

@@ -147,6 +147,12 @@ export const useNegotiateOffer = (saveId: string) => useSaveMutation(saveId, (in
   careerRequests.negotiateOffer(saveId, input.offerId, input));
 export const useUpdateSponsorActivity=(saveId:string)=>useSaveMutation(saveId,(input:{activityId:string;action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE";week?:number})=>
   updateSponsorActivity(saveId,input.activityId,input.action,input.week));
+export const useRequestSponsorRelease=(saveId:string)=>useSaveMutation(saveId,(input:{contractId:string;operationKey:string;releaseType:"IMMEDIATE_NO_COST"|"MUTUAL"|"PRICED_BUYOUT"})=>
+  send<{id:string;status:string;releaseType:string;amountPence:number;sponsorDecision:string|null}>("POST",`/saves/${saveId}/sponsors/releases`,input));
+export const useAcceptSponsorRelease=(saveId:string)=>useSaveMutation(saveId,(caseId:string)=>
+  send<{id:string;status:string;amountPence:number}>("POST",`/saves/${saveId}/sponsors/releases/${caseId}/accept`));
+export const useAcknowledgeSponsorNotice=(saveId:string)=>useSaveMutation(saveId,(noticeId:string)=>
+  send<{id:string;status:string}>("POST",`/saves/${saveId}/sponsors/compliance/${noticeId}/acknowledge`));
 export const useAdvance = (saveId: string) => useSaveMutation(saveId, (args: { season: number; week: number; target: AdvanceTarget }) => careerRequests.advance(saveId, args));
 
 export function useSaveLifecycle() {

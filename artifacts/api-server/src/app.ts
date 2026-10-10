@@ -37,6 +37,7 @@ import { createCareerFinanceSPC } from "./db/migrations/create_career_finance_sp
 import { createCareerSponsorHQSPD } from "./db/migrations/create_career_sponsor_hq_spd.ts";
 import { addContractConcludedSponsorEventSPE1 } from "./db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
 import { addScheduledSponsorRenewalsSPE1B } from "./db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
+import { createCareerSponsorContractActionsSPE2 } from "./db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import { createCareerSporting } from "./db/migrations/create_career_sporting";
 import { createCareerGoals } from "./db/migrations/create_career_goals";
 import { createCareerLife } from "./db/migrations/create_career_life";
@@ -1539,6 +1540,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerSponsorHQSPD", () => createCareerSponsorHQSPD(db));
   await runMigrationStep("addContractConcludedSponsorEventSPE1", () => addContractConcludedSponsorEventSPE1(db));
   await runMigrationStep("addScheduledSponsorRenewalsSPE1B", () => addScheduledSponsorRenewalsSPE1B(db));
+  await runMigrationStep("createCareerSponsorContractActionsSPE2", () => createCareerSponsorContractActionsSPE2(db));
   await runMigrationStep("createCareerSportingA5", () => createCareerSporting(db));
   await runMigrationStep("createCareerGoalsA73", () => createCareerGoals(db));
   await runMigrationStep("createCareerLifeA75", () => createCareerLife(db));

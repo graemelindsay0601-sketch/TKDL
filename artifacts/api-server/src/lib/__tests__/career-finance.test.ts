@@ -15,6 +15,7 @@ import { createCareerFinanceSPC } from "../../db/migrations/create_career_financ
 import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import { addContractConcludedSponsorEventSPE1 } from "../../db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
 import { addScheduledSponsorRenewalsSPE1B } from "../../db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
+import { createCareerSponsorContractActionsSPE2 } from "../../db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
 import { materializeSponsorActivities } from "../../career/finance/sponsor-activities.ts";
@@ -54,6 +55,7 @@ before(async () => {
   await createCareerSponsorHQSPD(db); await createCareerSponsorHQSPD(db);
   await addContractConcludedSponsorEventSPE1(db); await addContractConcludedSponsorEventSPE1(db);
   await addScheduledSponsorRenewalsSPE1B(db); await addScheduledSponsorRenewalsSPE1B(db);
+  await createCareerSponsorContractActionsSPE2(db); await createCareerSponsorContractActionsSPE2(db);
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -1176,4 +1178,48 @@ test("SP-E1B also accepts during the old agreement's final week",async()=>{
   assert.equal(current.active?.id,original.contractId);
   assert.equal(current.pendingContracts?.[0]?.start.week,1);
   assert.equal(current.pendingContracts?.[0]?.start.season,2);
+});
+
+test("SP-E2 migration is additive and idempotent",async()=>{
+  await createCareerSponsorContractActionsSPE2(db);
+  const tables=await rows(sql`SELECT table_name FROM information_schema.tables
+    WHERE table_schema='public' AND table_name IN ('career_sponsor_compliance_notices','career_sponsor_release_cases')
+    ORDER BY table_name`);
+  assert.deepEqual(tables.map(row=>row.table_name),["career_sponsor_compliance_notices","career_sponsor_release_cases"]);
+  const constraint=await rows(sql`SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
+    WHERE conrelid='career_finance_entries'::regclass AND conname='career_finance_entries_category_check'`);
+  assert.match(String(constraint[0]?.definition??""),/SPONSOR_RELEASE_SETTLEMENT/);
+});
+
+test("SP-E2 no-cost release is clause-gated, replay-safe, and preserves the ledger",async()=>{
+  const save=await careerWithCurrentCatalogue();
+  Object.assign(fixture,{titles:1,bestFinishByCircuit:{GRASSROOTS:1}});
+  await finance.evaluateOffers(actor,save.id,{triggerKey:"spe2-release-test"});
+  const offer=(await finance.sponsors(actor,save.id)).offers.find(item=>item.sponsorKey==="forge-workwear");
+  assert.ok(offer,"fixture sponsor offer exists");
+  const original=(await rows(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id=${save.id} AND id=${offer.id}`))[0]!;
+  const row=original;
+  const terms=row.terms as Record<string,any>;
+  terms.contractFoundation={...(terms.contractFoundation??{}),releaseClause:{playerNoticeWeeks:0,sponsorNoticeWeeks:null,buyoutPence:0}};
+  await finance.declineOffer(actor,save.id,{offerId:offer.id});
+  const customOffer="00000000-0000-4000-8000-00000000e202";
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status)
+    VALUES(${save.id},${customOffer},'spe2-custom-release-offer',${row.sponsor_key},${Number(row.sponsor_database_version)},
+      ${String(row.tier)},${String(row.kind)},${JSON.stringify(terms)}::jsonb,${JSON.stringify(row.source)}::jsonb,
+      ${Number(row.offered_season)},${Number(row.offered_week)},${Number(row.expires_season)},${Number(row.expires_week)},'AVAILABLE')`);
+  const signed=await finance.acceptOffer(actor,save.id,{offerId:customOffer});
+  const request={contractId:signed.contractId,operationKey:"spe2-release-request-1",releaseType:"IMMEDIATE_NO_COST" as const};
+  const first=await finance.requestSponsorRelease(actor,save.id,request);
+  const replay=await finance.requestSponsorRelease(actor,save.id,request);
+  assert.equal(replay.id,first.id);
+  assert.equal(replay.status,"OFFERED");
+  const released=await finance.acceptSponsorRelease(actor,save.id,first.id);
+  assert.equal(released.status,"ACCEPTED");
+  const contract=(await rows(sql`SELECT status,end_reason FROM career_sponsor_contracts WHERE career_save_id=${save.id} AND id=${signed.contractId}`))[0]!;
+  assert.equal(contract.status,"TERMINATED");
+  assert.equal(contract.end_reason,"PLAYER_RELEASE");
+  const charge=await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${save.id}
+    AND category='SPONSOR_RELEASE_SETTLEMENT'`);
+  assert.equal(Number(charge[0]!.n),0);
 });
