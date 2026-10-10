@@ -7,6 +7,7 @@ import "./sponsor-offers.css";
 
 export function SponsorSigningReveal({ deal, onDismiss }: { deal: SponsorSigningReveal; onDismiss: () => void }) {
   const terms = deal.terms;
+  const activities=terms.contractFoundation?.activitySpecification;
   const treatment = deal.tier === "LOCAL" ? "local" : deal.tier === "ELITE" ? "elite" : "professional";
   const accent = /^#[\da-f]{6}$/i.test(terms.presentation.colour) ? terms.presentation.colour : "#d8b669";
   return (
@@ -49,12 +50,24 @@ export function SponsorSigningReveal({ deal, onDismiss }: { deal: SponsorSigning
             <div key={bonus.key}><span>{bonus.maxPosition === 1 ? "Potential winner bonus" : `Potential top ${bonus.maxPosition} bonus`}</span><strong>{formatPence(bonus.amountPence)} · conditional</strong></div>
           ))}
         </div>
-        <small>These are the accepted A4 terms. Only due payments count as cash; cost support is not cash, and result bonuses stay conditional until earned.</small>
+        {activities && (activities.required.length+activities.optional.length)>0 && (
+          <div className="career-sponsor-signing__facts" aria-label="Signed sponsor activities">
+            {activities.required.map(item=>(
+              <div key={item.id}><span>Required · {activityLabel(item.type)}</span><strong>Up to {item.maxPerSeason}/season · no extra fee</strong></div>
+            ))}
+            {activities.optional.map(item=>(
+              <div key={item.id}><span>Optional · {activityLabel(item.type)}</span><strong>Unpaid · decline freely</strong></div>
+            ))}
+          </div>
+        )}
+        <small>These are the accepted A4 terms. Required activities are included with no extra fee; optional opportunities are unpaid. No automatic activity breach penalties apply. Only due payments count as cash; cost support is not cash, and result bonuses stay conditional until earned.</small>
       </div>
       <button className="career-sponsor-signing__close" type="button" aria-label="Close signing confirmation" onClick={onDismiss}><X /></button>
     </section>
   );
 }
+
+function activityLabel(type:string){return type.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,char=>char.toUpperCase());}
 
 function getMonogram(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);

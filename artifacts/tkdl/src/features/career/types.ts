@@ -100,6 +100,11 @@ export type SponsorTerms = {
       /** One-off total at signing, or recurring total per Career season, split across instalments. */
       amountPence: number; cadence: "ON_SIGNING" | "MONTHLY" | "PER_SEASON"; installments: number
     }[];
+    activitySpecification?: {
+      version:number;
+      required:{id:string;type:string;maxPerSeason:number;windowWeeks:number;firstWindowWeek:number;extraCompensationPence:0}[];
+      optional:{id:string;type:string;maxPerSeason:number;windowWeeks:number;firstWindowWeek:number;compensationPence:0}[];
+    };
   };
   renewalRequirement: unknown; retentionRequirement: unknown; presentation: { colour: string };
 };
@@ -135,7 +140,7 @@ export type SponsorContract = { id: string; sponsorKey: string; tier: string; te
     pastDueGuarantees: SponsorGuaranteePayment[]; unsupportedGuarantees: SponsorUnsupportedGuarantee[] } };
 export type SponsorJourneyEvent = {
   type: "INTEREST" | "APPROACH" | "OFFER_RECEIVED" | "PLAYER_COUNTERED" | "SPONSOR_COUNTERED" | "SPONSOR_ACCEPTED_REQUEST"
-    | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT";
+     | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT" | "ACTIVITY_UPDATE";
   offerId: string | null;
   details: Record<string, unknown>;
   season: number | null;

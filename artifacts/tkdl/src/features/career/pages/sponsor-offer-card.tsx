@@ -387,10 +387,24 @@ function whatThisMeans(terms: SponsorOffer["terms"]) {
     ].filter(Boolean);
     items.push(`A potential ${formatPence(bonus.amountPence)} performance bonus is earned for ${finish}${scope.length ? ` at ${scope.join(" · ")}` : ""}; it is conditional, not guaranteed cash.`);
   }
+  const activities=terms.contractFoundation?.activitySpecification;
+  for(const clause of activities?.required??[]){
+    items.push(`Required: ${sponsorActivityLabel(clause.type)} — up to ${clause.maxPerSeason} per Career season, available Career Weeks ${clause.firstWindowWeek}–${Math.min(52,clause.firstWindowWeek+clause.windowWeeks-1)}. Included in the contract; no extra appearance fee.`);
+  }
+  for(const clause of activities?.optional??[]){
+    items.push(`Optional: ${sponsorActivityLabel(clause.type)} — up to ${clause.maxPerSeason} per Career season, available Career Weeks ${clause.firstWindowWeek}–${Math.min(52,clause.firstWindowWeek+clause.windowWeeks-1)}. Unpaid and consequence-free to decline.`);
+  }
+  if((activities?.required.length??0)+(activities?.optional.length??0)>0){
+    items.push("No automatic breach penalties are applied to sponsor activities in this release.");
+  }
   items.push(guarantees.length
     ? "Cost coverage is support toward eligible expenses, not cash. Only the signed terms above are included."
     : "No guaranteed retainer is included. Cost coverage, if listed, supports eligible expenses and is not cash.");
   return items;
+}
+
+function sponsorActivityLabel(type:string){
+  return type.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,char=>char.toUpperCase());
 }
 
 function latestSummary(events: SponsorJourneyEvent[]) {
@@ -412,6 +426,7 @@ function journeyEventLabel(type: SponsorJourneyEvent["type"]) {
     case "PLAYER_WALKED_AWAY": return "You walked away";
     case "SIGNED": return "Partnership signed";
     case "OFFER_EXPIRED": return "Offer expired";
+    case "ACTIVITY_UPDATE": return "Sponsor activity update";
     case "FINANCIAL_PAYMENT": return "Sponsor payment posted";
   }
 }

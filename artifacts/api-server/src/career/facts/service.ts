@@ -83,7 +83,7 @@ export function createCareerFactsService(database: CareerDatabase) {
           ON j.career_save_id=e.career_save_id AND j.id=e.journey_id
         WHERE e.career_save_id=${saveId} AND e.season IS NOT NULL AND e.week IS NOT NULL
           AND e.event_type IN ('INTEREST','OFFER_RECEIVED','SPONSOR_ACCEPTED_REQUEST','SPONSOR_REJECTED',
-            'SPONSOR_WITHDREW','PLAYER_DECLINED','PLAYER_WALKED_AWAY','SIGNED','OFFER_EXPIRED')
+            'SPONSOR_WITHDREW','PLAYER_DECLINED','PLAYER_WALKED_AWAY','SIGNED','OFFER_EXPIRED','ACTIVITY_UPDATE')
         ORDER BY e.season,e.week,e.ordinal,e.id LIMIT 500`);
       const signedJourneyContractIds = new Set(sponsorEvents.filter(r => r.event_type === "SIGNED")
         .map(r => String(r.signed_contract_id ?? "")).filter(Boolean));

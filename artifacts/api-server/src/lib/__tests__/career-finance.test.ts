@@ -60,8 +60,11 @@ after(async () => { await pg.close(); });
 async function career(player = 1, slot = 1) {
   const save = await saves.create(player, { slot });
   // Original A4 catalogue/NPC fixtures, not a silent upgrade to the A8.2 content universe.
-  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=1,player_database_version=1 WHERE id = ${save.id}`);
+  await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=1,player_database_version=1,
+    settings_snapshot=settings_snapshot-'sponsorDatabaseVersionAtCreation' WHERE id = ${save.id}`);
   await finance.initialize({ playerId: player }, save.id);
+  assert.equal(Number((await rows(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${save.id}`))[0]!.sponsor_database_version),1,
+    "the legacy finance fixture must retain its v1 catalogue pin");
   return save;
 }
 async function careerWithCurrentCatalogue(player = 1, slot = 1) {
@@ -97,6 +100,19 @@ test("SP-D materializes only explicit signed clauses, repeatably, without adding
   assert.deepEqual((await rows(sql`SELECT COUNT(*)::int n FROM career_sponsor_opportunities WHERE career_save_id=${save.id}`))[0]!.n,2);
   assert.equal(Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${save.id}`))[0]!.balance_pence),25000);
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_sponsor_week_bookings WHERE career_save_id=${save.id}`))[0]!.n,0);
+
+  const lateSave=await career(1,2),lateOffer="00000000-0000-4000-8000-000000000201",lateContract="00000000-0000-4000-8000-000000000202";
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+    VALUES(${lateSave.id},${lateOffer},'spd-late-offer','fixture-local',3,'LOCAL','NEW','{}'::jsonb,'{}'::jsonb,1,1,1,52,'ACCEPTED',NOW())`);
+  await db.execute(sql`INSERT INTO career_sponsor_contracts
+    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status)
+    VALUES(${lateSave.id},${lateContract},${lateOffer},'fixture-local',3,'LOCAL','{}'::jsonb,1,1,1,52,'ACTIVE')`);
+  await db.transaction(tx=>materializeSponsorActivities(tx,{...args,saveId:lateSave.id,contractId:lateContract,week:10,
+    specification:{version:1,required:[{id:"late-duty",type:"COMMUNITY_APPEARANCE",maxPerSeason:1,windowWeeks:4,firstWindowWeek:8,extraCompensationPence:0}],optional:[]}}));
+  const lateWindow=(await rows(sql`SELECT available_from_week,due_week FROM career_sponsor_commitments WHERE career_save_id=${lateSave.id} AND contract_id=${lateContract}`))[0]!;
+  assert.deepEqual([Number(lateWindow.available_from_week),Number(lateWindow.due_week)],[11,11],
+    "late signing shortens the remaining window; it must not push the authored deadline");
 });
 async function events(saveId: string, query: Record<string, unknown> = {}) { return (await finance.calendar.calendar(actor, saveId, query)).events as Ev[]; }
 async function withRoot<T>(saveId: string, work: (tx: Parameters<Parameters<typeof db.transaction>[0]>[0], root: RootRow) => Promise<T>) {
@@ -135,11 +151,11 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 }
 
 // ------------------------------------------------------------------ ledger authority
-test("SP-C2 keeps the current sponsor catalogue explicitly versioned and guarantee offers fail closed pending balance approval", async () => {
-  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 3);
+test("SP-D3 keeps v1-v3 intact and pins v4 activities only for new Career saves", async () => {
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 4);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
   assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "AWAITING_BALANCE_APPROVAL");
-  for (const version of [1, 2, CURRENT_SPONSOR_DATABASE_VERSION]) {
+  for (const version of [1, 2, 3, CURRENT_SPONSOR_DATABASE_VERSION]) {
     assert.ok(sponsorCatalogue(version).every(definition =>
       (definition.terms.contractFoundation?.guaranteedPayments.length ?? 0) === 0),
     `catalogue v${version} must not offer an unapproved guarantee`);
@@ -153,6 +169,13 @@ test("SP-C2 keeps the current sponsor catalogue explicitly versioned and guarant
     status: "AWAITING_BALANCE_APPROVAL",
     catalogueVersion: CURRENT_SPONSOR_DATABASE_VERSION,
   });
+  assert.equal(((await rows(sql`SELECT settings_snapshot FROM career_saves WHERE id=${save.id}`))[0]!.settings_snapshot as Record<string,unknown>).sponsorDatabaseVersionAtCreation,4);
+  const legacy=await careerWithCurrentCatalogue(1,2);
+  await db.execute(sql`UPDATE career_saves SET settings_snapshot=settings_snapshot-'sponsorDatabaseVersionAtCreation' WHERE id=${legacy.id}`);
+  await db.execute(sql`DELETE FROM career_finance_state WHERE career_save_id=${legacy.id}`);
+  await finance.initialize(actor,legacy.id);
+  assert.equal(Number((await rows(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${legacy.id}`))[0]!.sponsor_database_version),3,
+    "an old save missing its finance row must retain its historical v3 catalogue pin");
 });
 
 test("SP-C schedules per-season and monthly guarantees at deterministic Career weeks and excludes earlier mid-season periods", () => {

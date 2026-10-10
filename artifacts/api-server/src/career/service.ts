@@ -7,6 +7,7 @@ import { careerIdSchema, createCareerSchema } from "./validation.ts";
 import type { CreateCareerInput } from "./validation.ts";
 import { careerStartDateFor, validateDateOfBirth } from "./identity/age.ts";
 import { LOCALITIES } from "./calendar/geography.ts";
+import { CURRENT_SPONSOR_DATABASE_VERSION } from "./finance/sponsors.catalogue.ts";
 
 /** A6.5 Career profile schema version (career_profiles.profile_version). */
 export const PROFILE_VERSION = 1;
@@ -87,7 +88,9 @@ async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateC
   }
   if (homeLocality && !LOCALITIES.some(l => l.key === homeLocality)) throw new CareerError(409, "Unknown home locality");
   const snapshot = { ...defaults, difficulty: input.difficulty, competitionCategory:input.competitionCategory??"OPEN",
-    careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2, ...(homeLocality ? { homeLocality } : {}) };
+    careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2,
+    sponsorDatabaseVersionAtCreation:CURRENT_SPONSOR_DATABASE_VERSION,
+    ...(homeLocality ? { homeLocality } : {}) };
   const result = await tx.execute(sql`
     INSERT INTO career_saves (
       id, player_id, slot_number, career_name, status, difficulty, current_season, current_week,

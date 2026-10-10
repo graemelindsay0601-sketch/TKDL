@@ -11,7 +11,7 @@ import {
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
 import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
-import {CURRENT_SPONSOR_DATABASE_VERSION,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,validateSponsorActivitySpecification,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
+import {CURRENT_SPONSOR_DATABASE_VERSION,SUPPORTED_SPONSOR_DATABASE_VERSIONS,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,validateSponsorActivitySpecification,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
 import { guaranteeScheduleIssue, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
@@ -38,10 +38,18 @@ export function profileFor(event: Pick<InstanceRow, "definition_key" | "classifi
 // ------------------------------------------------------------------ state / contract / coverage
 export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
-    SELECT ${saveId}, ${FINANCE_VERSION}, CASE WHEN event_database_version >= 5 THEN ${CURRENT_SPONSOR_DATABASE_VERSION} WHEN event_database_version >= 3 THEN 2 ELSE 1 END FROM career_saves WHERE id=${saveId}
+    SELECT ${saveId}, ${FINANCE_VERSION},
+      CASE
+        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-4]$'
+          THEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation')::integer
+        WHEN event_database_version >= 5 THEN 3
+        WHEN event_database_version >= 3 THEN 2
+        ELSE 1
+      END
+    FROM career_saves WHERE id=${saveId}
     ON CONFLICT (career_save_id) DO NOTHING`);
   const row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
-  if (Number(row.finance_version) !== FINANCE_VERSION || ![1,2,CURRENT_SPONSOR_DATABASE_VERSION].includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
+  if (Number(row.finance_version) !== FINANCE_VERSION || !(SUPPORTED_SPONSOR_DATABASE_VERSIONS as readonly number[]).includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
 }
 export type ContractRow = { id: string; offer_id: string; sponsor_key: string; tier: SponsorTier; terms: SponsorTerms; start_season: number; start_week: number; end_season: number; end_week: number; status: string };
 export async function activeContracts(tx: CareerExecutor, saveId: string): Promise<ContractRow[]> {

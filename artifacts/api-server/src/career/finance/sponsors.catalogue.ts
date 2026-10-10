@@ -4,7 +4,8 @@ import {BRANDS,SPONSOR_CATEGORIES,type Brand,type RelationshipSlot,type SponsorC
 import {representativeById} from "../content/sponsor-representatives.ts";
 
 /** Latest supported catalogue for new Career saves; older saves stay pinned to their snapshot version. */
-export const CURRENT_SPONSOR_DATABASE_VERSION = 3;
+export const CURRENT_SPONSOR_DATABASE_VERSION = 4;
+export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4] as const);
 /** New recurring/guaranteed cash is intentionally unavailable until its balance is approved. */
 export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "AWAITING_BALANCE_APPROVAL" as const;
 
@@ -215,7 +216,7 @@ const sponsorTermsSchema=z.object({
   sponsorKey:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   displayName:z.string().trim().min(2).max(80),
   tier:z.enum(SPONSOR_TIERS),
-  sponsorDatabaseVersion:z.number().int().min(1).max(3),
+  sponsorDatabaseVersion:z.number().int().min(1).max(4),
   duration:z.union([z.object({kind:z.literal("REMAINDER_OF_SEASON")}).strict(),
     z.object({kind:z.literal("SEASONS"),seasons:z.number().int().min(1).max(5)}).strict()]),
   signingBonusPence:penceSchema,
@@ -346,7 +347,8 @@ export const SPONSOR_CATALOGUE_V2: readonly SponsorDefinition[] = Object.freeze(
 export function sponsorCatalogue(version: number) {
   if (version === SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V1;
   if (version === 2) return SPONSOR_CATALOGUE_V2;
-  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V3;
+  if (version === 3) return SPONSOR_CATALOGUE_V3;
+  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V4;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
 /**
@@ -393,8 +395,49 @@ export const SPONSOR_CATALOGUE_V3:readonly SponsorDefinition[] = Object.freeze(S
   return {key:d.key,offerRequirement:structuredClone(d.offerRequirement),terms};
 }));
 
+const requiredTypeForCategory:Record<SponsorCategory,readonly (typeof REQUIRED_SPONSOR_ACTIVITY_TYPES[number])[]>={
+  EQUIPMENT_PARTNER:["PRODUCT_APPEARANCE","PROMOTIONAL_APPEARANCE"],
+  APPAREL_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
+  TRAVEL_PARTNER:["PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
+  LOCAL_PARTNER:["COMMUNITY_APPEARANCE"],
+  MAIN_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
+  SECONDARY_PARTNER:["MEDIA_APPEARANCE","COMMUNITY_APPEARANCE"],
+};
+const optionalTypeForCategory:Record<SponsorCategory, (typeof OPTIONAL_SPONSOR_ACTIVITY_TYPES[number])>={
+  EQUIPMENT_PARTNER:"PRODUCT_LAUNCH",APPAREL_PARTNER:"SPONSOR_MEDIA_APPEARANCE",
+  TRAVEL_PARTNER:"PROMOTIONAL_EVENT",LOCAL_PARTNER:"COMMUNITY_APPEARANCE",
+  MAIN_PARTNER:"SPONSOR_MEDIA_APPEARANCE",SECONDARY_PARTNER:"COMMUNITY_APPEARANCE",
+};
+function v4ActivitySpecification(definition:SponsorDefinition):SponsorActivitySpecification{
+  const category=definition.terms.contractFoundation!.category;
+  const tier=definition.terms.tier;
+  const candidates=requiredTypeForCategory[category].filter(type=>REQUIRED_TIER_TYPES[tier].includes(type));
+  const requiredCount=tier==="LOCAL"?0:tier==="ELITE"?2:1;
+  const required=candidates.slice(0,requiredCount).map((type,index)=>({
+    id:`required-${type.toLowerCase().replaceAll("_","-")}-${index+1}`,
+    type,maxPerSeason:1 as const,windowWeeks:REQUIRED_WINDOW[type],
+    firstWindowWeek:index===0?8:24,extraCompensationPence:0 as const,
+  }));
+  const type=optionalTypeForCategory[category];
+  const optional=[{
+    id:`optional-${type.toLowerCase().replaceAll("_","-")}`,
+    type,maxPerSeason:1 as const,windowWeeks:3,
+    firstWindowWeek:16,compensationPence:0 as const,
+  }];
+  return validateSponsorActivitySpecification({version:SPONSOR_ACTIVITY_SPEC_VERSION,required,optional},tier,category);
+}
+
+/** SP-D3: immutable v4 clauses. Historic v1-v3 definitions and snapshots stay untouched. */
+export const SPONSOR_CATALOGUE_V4:readonly SponsorDefinition[]=Object.freeze(SPONSOR_CATALOGUE_V3.map(definition=>{
+  const terms=structuredClone(definition.terms);
+  const foundation=terms.contractFoundation!;
+  terms.sponsorDatabaseVersion=4;
+  foundation.activitySpecification=v4ActivitySpecification(definition);
+  return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
+}));
+
 export function validateSponsorCatalogues():void {
-  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[CURRENT_SPONSOR_DATABASE_VERSION,SPONSOR_CATALOGUE_V3]] as const){
+  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4]] as const){
     const keys=new Set<string>();
     for(const definition of catalogue){
       if(keys.has(definition.key))throw new Error(`Duplicate sponsor definition in v${version}: ${definition.key}`);
@@ -403,7 +446,14 @@ export function validateSponsorCatalogues():void {
       parseSponsorTerms(definition.terms);
       if(definition.terms.sponsorDatabaseVersion!==version)throw new Error(`Sponsor terms version mismatch: ${definition.key}`);
       if(definition.terms.sponsorKey!==definition.key)throw new Error(`Sponsor key mismatch: ${definition.key}`);
-      if (version === CURRENT_SPONSOR_DATABASE_VERSION &&
+      if(version===4){
+        if(definition.terms.contractFoundation?.guaranteedPayments.length!==0)
+          throw new Error(`Sponsor guarantees in v4 are not approved: ${definition.key}`);
+        if(!definition.terms.contractFoundation?.activitySpecification)
+          throw new Error(`Sponsor activities are missing from v4: ${definition.key}`);
+        validateSponsorActivitySpecification(definition.terms.contractFoundation.activitySpecification,definition.terms.tier,definition.terms.contractFoundation.category);
+      }
+      if (version === 3 &&
         SPONSOR_GUARANTEE_CONFIGURATION_STATUS === "AWAITING_BALANCE_APPROVAL" &&
         (definition.terms.contractFoundation?.guaranteedPayments.length ?? 0) > 0) {
         throw new Error(`Sponsor guarantees in v${version} require balance approval before they can be offered: ${definition.key}`);

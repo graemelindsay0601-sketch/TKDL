@@ -48,23 +48,26 @@ export async function materializeSponsorActivities(
   if(!spec)return {commitments:0,opportunities:0};
   let commitments=0,opportunities=0;
   for(let season=input.season;season<=input.endSeason;season++){
-    const requiredWindows:number[][]=[];
+    const requiredTasks:{clause:typeof spec.required[number];occurrence:number;from:number;to:number;weeks:number[]}[]=[];
     for(const clause of spec.required)for(let occurrence=1;occurrence<=clause.maxPerSeason;occurrence++){
-      const from=Math.max(clause.firstWindowWeek+(occurrence-1)*clause.windowWeeks,season===input.season?input.week+1:1);
-      const to=Math.min(season===input.endSeason?input.endWeek:52,from+clause.windowWeeks-1);
-      requiredWindows.push(to>=from?await freeWeeks(tx,input.saveId,season,from,to):[]);
+      const authoredFrom=clause.firstWindowWeek+(occurrence-1)*clause.windowWeeks;
+      const authoredTo=Math.min(52,authoredFrom+clause.windowWeeks-1);
+      const agreementEnd=season===input.endSeason?input.endWeek:52;
+      const from=Math.max(authoredFrom,season===input.season?input.week+1:1);
+      const to=Math.min(authoredTo,agreementEnd);
+      // A contract signed after an authored window creates no retroactive duty.
+      // Never move the deadline to make a late-signed activity appear feasible.
+      if(authoredFrom>agreementEnd||from>to)continue;
+      requiredTasks.push({clause,occurrence,from,to,weeks:await freeWeeks(tx,input.saveId,season,from,to)});
     }
+    const requiredWindows=requiredTasks.map(task=>task.weeks);
     const existing=(await tx.execute(sql`SELECT available_from_week,due_week FROM career_sponsor_commitments
       WHERE career_save_id=${input.saveId} AND season=${season} AND contract_id<>${input.contractId}
         AND status IN ('PLANNED','AVAILABLE')`)).rows;
     for(const row of existing)requiredWindows.push(await freeWeeks(tx,input.saveId,season,Number(row.available_from_week),Number(row.due_week)));
     if(requiredWindows.some(weeks=>weeks.length===0)||!canPlaceAll(requiredWindows))
       throw new Error(`Required sponsor activities have no complete, non-overlapping schedule in season ${season}`);
-    for(const clause of spec.required)for(let occurrence=1;occurrence<=clause.maxPerSeason;occurrence++){
-      let from=clause.firstWindowWeek+(occurrence-1)*clause.windowWeeks;
-      if(season===input.season)from=Math.max(from,input.week+1);
-      const to=Math.min(season===input.endSeason?input.endWeek:52,from+clause.windowWeeks-1);
-      if(from>to)throw new Error(`Required sponsor activity ${clause.id} has no valid completion week in season ${season}`);
+    for(const {clause,occurrence,from,to} of requiredTasks){
       const id=stableUuid(input.worldSeed,1,"sponsor-commitment",input.contractId,clause.id,season,occurrence);
       const operationKey=`spd:${input.contractId}:${clause.id}:${season}:${occurrence}`;
       const initialStatus=season===input.season&&from<=input.week?"AVAILABLE":"PLANNED";
@@ -78,9 +81,12 @@ export async function materializeSponsorActivities(
       commitments++;
     }
     for(const clause of spec.optional)for(let occurrence=1;occurrence<=clause.maxPerSeason;occurrence++){
-      let from=clause.firstWindowWeek+(occurrence-1)*clause.windowWeeks;
-      if(season===input.season)from=Math.max(from,input.week+1);
-      const to=Math.min(season===input.endSeason?input.endWeek:52,from+clause.windowWeeks-1);
+      const authoredFrom=clause.firstWindowWeek+(occurrence-1)*clause.windowWeeks;
+      const authoredTo=Math.min(52,authoredFrom+clause.windowWeeks-1);
+      const agreementEnd=season===input.endSeason?input.endWeek:52;
+      const from=Math.max(authoredFrom,season===input.season?input.week+1:1);
+      const to=Math.min(authoredTo,agreementEnd);
+      if(authoredFrom>agreementEnd)continue;
       if(from>to||!(await freeWeeks(tx,input.saveId,season,from,to)).length)continue;
       const id=stableUuid(input.worldSeed,1,"sponsor-opportunity",input.contractId,clause.id,season,occurrence);
       const operationKey=`spd:opportunity:${input.contractId}:${clause.id}:${season}:${occurrence}`;

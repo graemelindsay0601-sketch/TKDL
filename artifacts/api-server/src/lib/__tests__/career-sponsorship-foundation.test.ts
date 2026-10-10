@@ -39,11 +39,14 @@ test("sponsor content and all versioned contract terms validate, with stable fic
   assert.equal(SPONSOR_REPRESENTATIVES.length,16);
   assert.equal(new Set(SPONSOR_REPRESENTATIVES.map(rep=>rep.id)).size,SPONSOR_REPRESENTATIVES.length);
   for(const rep of SPONSOR_REPRESENTATIVES)assert.equal(BRANDS.find(brand=>brand.id===rep.sponsorId)?.representativeId,rep.id);
-  for(const version of [1,2,3])for(const definition of sponsorCatalogue(version))parseSponsorTerms(definition.terms);
-  const current=sponsorCatalogue(3)[0].terms.contractFoundation!;
+  for(const version of [1,2,3,4])for(const definition of sponsorCatalogue(version))parseSponsorTerms(definition.terms);
+  for(const version of [1,2,3])assert.ok(sponsorCatalogue(version).every(definition=>!definition.terms.contractFoundation?.activitySpecification));
+  const current=sponsorCatalogue(4)[0].terms.contractFoundation!;
   assert.equal(current.schemaVersion,1);
   assert.deepEqual(current.guaranteedPayments,[]);
   assert.deepEqual(current.commitments,[]);
+  assert.ok(current.activitySpecification);
+  assert.ok(current.activitySpecification!.optional.every(clause=>clause.compensationPence===0));
   assert.doesNotThrow(()=>sponsorContractFoundationSchema.parse(current));
   assert.throws(()=>parseSponsorTerms({...sponsorCatalogue(3)[0].terms,signingBonusPence:-1}));
 });

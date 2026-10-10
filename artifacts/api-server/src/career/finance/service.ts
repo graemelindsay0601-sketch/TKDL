@@ -25,6 +25,21 @@ import { negotiateSponsorOffer } from "./sponsor-negotiation.ts";
 
 const offerRefSchema = z.object({ offerId: z.string().uuid() }).strict();
 const acceptOfferSchema = offerRefSchema.extend({replaceContractIds:z.array(z.string().uuid()).max(5).refine(ids=>new Set(ids).size===ids.length).optional()});
+
+async function recordSponsorActivityUpdate(tx:CareerExecutor,root:RootRow,row:Record<string,unknown>,status:string,season:number,week:number){
+  const contractId=String(row.contract_id??"");
+  if(!contractId)return;
+  const journey=(await tx.execute(sql`SELECT id FROM career_sponsor_journeys
+    WHERE career_save_id=${root.id} AND signed_contract_id=${contractId} ORDER BY created_at DESC LIMIT 1`)).rows[0];
+  if(!journey)return;
+  const activityId=String(row.id??"");
+  const kind=String(row.commitment_type??row.opportunity_type??"sponsor activity").replaceAll("_"," ").toLowerCase();
+  await appendSponsorJourneyEvent(tx,root,{
+    journeyId:String(journey.id),eventKey:`activity:${activityId}:${status}:${week}`,
+    eventType:"ACTIVITY_UPDATE",season,week,
+    details:{activityId,status,summary:`${kind} ${status.toLowerCase()} in Career Week ${week}.`},
+  });
+}
 const ledgerQuerySchema = z.object({ limit: z.number().int().min(1).max(200).default(50), beforeCreatedAt: z.string().datetime({ offset: true }).optional(), beforeId: z.string().uuid().optional() }).strict();
 const milestoneSchema = z.object({ triggerKey: z.string().min(1).max(120).regex(/^[A-Za-z0-9:_-]+$/) }).strict();
 const reversalSchema = z.object({ entryId: z.string().uuid(), operationKey: z.string().min(8).max(120), reason: z.string().min(3).max(200) }).strict();
@@ -307,6 +322,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
           if(current==="DECLINED")return {id:activityId,status:"DECLINED"};
           if(isCommitment||!["AVAILABLE","ACCEPTED"].includes(current))throw new CareerError(409,"Only an optional opportunity can be declined");
           await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='DECLINED',updated_at=NOW() WHERE career_save_id=${root.id} AND id=${activityId}`);
+          await recordSponsorActivityUpdate(tx,root,row as Record<string,unknown>,"DECLINED",season,currentWeek);
           return {id:activityId,status:"DECLINED"};
         }
         if(action.action==="ACCEPT"){
@@ -317,6 +333,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
           if(current==="ACCEPTED")return {id:activityId,status:"ACCEPTED"};
           if(isCommitment||current!=="AVAILABLE")throw new CareerError(409,"This opportunity cannot be accepted");
           await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='ACCEPTED',updated_at=NOW() WHERE career_save_id=${root.id} AND id=${activityId}`);
+          await recordSponsorActivityUpdate(tx,root,row as Record<string,unknown>,"ACCEPTED",season,currentWeek);
           return {id:activityId,status:"ACCEPTED"};
         }
         if(action.action==="SCHEDULE"){
@@ -347,6 +364,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             WHERE career_save_id=${root.id} AND id=${activityId}`);
           else await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='CONFIRMED',scheduled_week=${action.week},updated_at=NOW()
             WHERE career_save_id=${root.id} AND id=${activityId}`);
+          await recordSponsorActivityUpdate(tx,root,row as Record<string,unknown>,"CONFIRMED",season,action.week);
           return {id:activityId,status:"CONFIRMED",scheduledWeek:action.week};
         }
         if(current==="COMPLETED")return {id:activityId,status:"COMPLETED",season:currentSeason,week:Number(row.scheduled_week)};
@@ -363,6 +381,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
           terms=terms||jsonb_build_object('completedSeason',${currentSeason}::int,'completedWeek',${currentWeek}::int),updated_at=NOW()
           WHERE career_save_id=${root.id} AND id=${activityId} AND status='CONFIRMED'`);
         await tx.execute(sql`UPDATE career_sponsor_week_bookings SET status='COMPLETED' WHERE career_save_id=${root.id} AND activity_id=${activityId}`);
+        await recordSponsorActivityUpdate(tx,root,row as Record<string,unknown>,"COMPLETED",currentSeason,currentWeek);
         return {id:activityId,status:"COMPLETED",season:currentSeason,week:currentWeek};
       });
     },
