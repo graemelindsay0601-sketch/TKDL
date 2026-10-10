@@ -210,7 +210,9 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const presentContract = (c: Record<string, unknown>) => {
           const terms=parseSponsorTerms(c.terms);
           const brand=BRANDS.find(candidate=>candidate.id===String(c.sponsor_key));
+          const sourceOffer=offers.find(o=>String(o.id)===String(c.offer_id));
           return { id: c.id, sponsorKey: c.sponsor_key, tier: c.tier, terms, ...relationship(terms),status: c.status, endReason: c.end_reason,
+            renewal:sourceOffer?.kind==="RENEWAL",
             category:terms.category??terms.contractFoundation?.category??brand?.category??null,
             representative:terms.representative??(brand?.representativeId?representativeForSponsor(brand.id)??null:null),
             start: { season: c.start_season, week: c.start_week }, end: { season: c.end_season, week: c.end_week }, signedAt: c.signed_at, endedAt: c.ended_at,
@@ -267,7 +269,8 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             status: SPONSOR_GUARANTEE_CONFIGURATION_STATUS,
             catalogueVersion: CURRENT_SPONSOR_DATABASE_VERSION,
           },
-          active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),portfolioLimit:portfolioLimit(sporting),
+          active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),
+          pendingContracts:contracts.filter(c=>c.status==="SCHEDULED").map(presentContract),portfolioLimit:portfolioLimit(sporting),
           commercial: {
             season: current.season,
             week: current.week,
@@ -303,7 +306,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
               availableFromWeek:Number(o.available_from_week),availableToWeek:Number(o.available_to_week),
               scheduledWeek:o.scheduled_week==null?null:Number(o.scheduled_week),status:String(o.status)})),
           },
-          history: { contracts: contracts.filter(c => c.status !== "ACTIVE").map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
+          history: { contracts: contracts.filter(c => !["ACTIVE","SCHEDULED"].includes(String(c.status))).map(presentContract), offers: offers.filter(o => o.status !== "AVAILABLE").map(presentOffer) } };
       });
     },
 
@@ -407,8 +410,10 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
               journeyId: String(journey.id), eventKey: `signed:${contract.id}`, eventType: "SIGNED", offerId,
               season: now(root).season, week: now(root).week,
               details: {
-                headline: "Partnership signed",
-                summary: `${contract.terms.displayName} is now an active A4 contract.${contract.terms.signingBonusPence > 0 ? ` ${formatPence(contract.terms.signingBonusPence)} signing cash was posted.` : ""}`,
+                headline: contract.status==="SCHEDULED"?"Renewal accepted":"Partnership signed",
+                summary: contract.status==="SCHEDULED"
+                  ? `The ${contract.terms.displayName} renewal is accepted and starts Season ${contract.start_season}, Week ${contract.start_week}.`
+                  : `${contract.terms.displayName} is now an active A4 contract.${contract.terms.signingBonusPence > 0 ? ` ${formatPence(contract.terms.signingBonusPence)} signing cash was posted.` : ""}`,
                 signingPaymentPence: contract.terms.signingBonusPence,
                 signingPaymentCategory: "SPONSOR_SIGNING_BONUS",
               },

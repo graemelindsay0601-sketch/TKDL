@@ -98,7 +98,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
               const rivals=decisionOffers.filter(offer=>offer.kind!=="RENEWAL"&&(offer.conflictingContractIds??[]).includes(contract.id));
               return <article key={contract.id} className="rounded-lg border border-white/10 bg-black/20 p-3" data-testid={`contract-decision-${contract.id}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div><p className="text-[10px] uppercase tracking-[.15em] text-white/45">{label(contract.tier)} · {label(contract.status)}</p>
+                  <div><p className="text-[10px] uppercase tracking-[.15em] text-white/45">{contract.renewal?"Renewal active · new term begun":`${label(contract.tier)} · ${label(contract.status)}`}</p>
                     <h3 className="mt-1 text-lg text-white" style={OSWALD}>{contract.terms.displayName}</h3>
                     <p className="mt-1 text-xs text-white/55">Signed S{contract.start.season} W{contract.start.week} · ends S{contract.end.season} W{contract.end.week}</p>
                   </div>
@@ -119,6 +119,13 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
               </article>;
             })}</div>}
       </div>
+      {(query.data?.pendingContracts??[]).map(contract=><article key={contract.id}
+        className="mx-4 mb-3 rounded-lg border border-amber-300/25 bg-amber-300/[.06] p-3" data-testid={`pending-renewal-${contract.id}`}>
+        <p className="text-[10px] uppercase tracking-[.15em] text-amber-200">Renewal accepted · starts next term</p>
+        <h3 className="mt-1 text-lg text-white" style={OSWALD}>{contract.terms.displayName}</h3>
+        <p className="mt-1 text-xs text-white/65">Starts Season {contract.start.season}, Week {contract.start.week} · ends Season {contract.end.season}, Week {contract.end.week}</p>
+        <p className="mt-1 text-xs text-white/45">Your current agreement remains active until its scheduled end. No renewal income or activities are active yet.</p>
+      </article>)}
       {decisionOffers.length===0
         ?<p className="border-t border-white/[.07] px-4 py-3 text-sm text-white/55">No available renewal or rival proposals are recorded for your active agreements.</p>
         :<div className="career-sponsor-offers__stack border-t border-white/[.07]">
@@ -126,8 +133,10 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
             replacementIds={replace[offer.id]??[]} replacementDisabled
             onReplacementChange={(contractId,checked)=>setReplace(previous=>({...previous,[offer.id]:checked?[...new Set([...(previous[offer.id]??[]),contractId])]:(previous[offer.id]??[]).filter(id=>id!==contractId)}))}
             onAccept={()=>accept.mutate({offerId:offer.id,replaceContractIds:replace[offer.id]??[]},{onSuccess:result=>{
-              setNotice(result.created?`Signed with ${offer.terms.displayName}.`:`${offer.terms.displayName} is already signed.`);
-              if(result.signingReveal)setSigningReveal(result.signingReveal);
+              setNotice(result.status==="SCHEDULED"
+                ?`Renewal accepted — starts Season ${result.signingReveal?.start.season??""}, Week ${result.signingReveal?.start.week??""}.`
+                :result.created?`Signed with ${offer.terms.displayName}.`:`${offer.terms.displayName} is already signed.`);
+              if(result.signingReveal&&result.status!=="SCHEDULED")setSigningReveal(result.signingReveal);
             },onError:error=>setNotice(errorMessage(error))})}
             onDecline={()=>decline.mutate(offer.id,{onSuccess:()=>setNotice("Offer declined."),onError:error=>setNotice(errorMessage(error))})}
             onNegotiate={(change:SponsorNegotiationChange)=>negotiate.mutate({offerId:offer.id,requestKey:newOperationKey(),expectedRevision:offer.journey?.revision??0,change},{onSuccess:result=>setNotice(result.message),onError:error=>setNotice(errorMessage(error))})}

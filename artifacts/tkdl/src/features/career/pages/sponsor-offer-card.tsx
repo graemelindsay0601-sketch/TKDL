@@ -561,5 +561,6 @@ function journeyEventLabel(type: SponsorJourneyEvent["type"]) {
     case "ACTIVITY_UPDATE": return "Sponsor activity update";
     case "FINANCIAL_PAYMENT": return "Sponsor payment posted";
     case "CONTRACT_CONCLUDED": return "Partnership concluded";
+    case "CONTRACT_ACTIVATED": return "Renewal term began";
   }
 }

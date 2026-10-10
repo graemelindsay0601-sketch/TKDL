@@ -14,6 +14,7 @@ import { createCareerSponsorJourneysSPB3 } from "../../db/migrations/create_care
 import { createCareerFinanceSPC } from "../../db/migrations/create_career_finance_spc.ts";
 import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import { addContractConcludedSponsorEventSPE1 } from "../../db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
+import { addScheduledSponsorRenewalsSPE1B } from "../../db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
 import { materializeSponsorActivities } from "../../career/finance/sponsor-activities.ts";
@@ -52,6 +53,7 @@ before(async () => {
   await createCareerFinanceSPC(db); await createCareerFinanceSPC(db); // additive A4/SP-B3 migration is idempotent
   await createCareerSponsorHQSPD(db); await createCareerSponsorHQSPD(db);
   await addContractConcludedSponsorEventSPE1(db); await addContractConcludedSponsorEventSPE1(db);
+  await addScheduledSponsorRenewalsSPE1B(db); await addScheduledSponsorRenewalsSPE1B(db);
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -1098,4 +1100,80 @@ test("default facts come from A3 results only; Career money is isolated from TKD
   assert.ok(!/(bet|casino|wager|gambl)/i.test(JSON.stringify(SPONSOR_CATALOGUE_V1)), "no gambling sponsors");
   const migration = readFileSync(new URL("../../db/migrations/create_career_finance.ts", import.meta.url), "utf8");
   assert.ok(!/tour_|player_currency/.test(migration));
+});
+
+test("SP-E1B accepts a renewal before expiry and activates it once through Career calendar",async()=>{
+  const save=await careerWithCurrentCatalogue();
+  Object.assign(fixture,{titles:1,bestFinishByCircuit:{GRASSROOTS:1}});
+  await finance.evaluateOffers(actor,save.id,{triggerKey:"spe1b-start"});
+  const initial=(await finance.sponsors(actor,save.id)).offers.find(o=>o.sponsorKey==="forge-workwear")!;
+  const original=await finance.acceptOffer(actor,save.id,{offerId:initial.id});
+  await playThrough(save.id,49,true,"spe1b-to-notice");
+  const view=await finance.sponsors(actor,save.id);
+  const renewal=view.offers.find(o=>o.kind==="RENEWAL")!;
+  assert.ok(renewal,"eligible renewal is presented before week 49");
+  const originalId=original.contractId;
+  const concurrent=await Promise.all([
+    finance.acceptOffer(actor,save.id,{offerId:renewal.id}),
+    finance.acceptOffer(actor,save.id,{offerId:renewal.id}),
+  ]);
+  assert.equal(concurrent.filter(result=>result.created).length,1,"concurrent accept requests create a single scheduled renewal");
+  const accepted=concurrent[0]!;
+  assert.equal(accepted.status,"SCHEDULED");
+  const again=await finance.acceptOffer(actor,save.id,{offerId:renewal.id});
+  assert.equal(again.created,false);
+  let state=await finance.sponsors(actor,save.id);
+  assert.equal(state.active?.id,originalId,"current agreement remains active during notice");
+  assert.equal(state.pendingContracts?.length,1);
+  const next=state.pendingContracts![0]!;
+  assert.deepEqual(next.start,{season:2,week:1});
+  assert.equal(state.history.contracts.some(c=>c.id===next.id),false);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_sponsor_commitments WHERE career_save_id=${save.id} AND contract_id=${next.id}`))[0].n,0);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id=${save.id} AND contract_id=${next.id}`))[0].n,0);
+  const rivalId="00000000-0000-4000-8000-0000000001b1";
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status)
+    VALUES(${save.id},${rivalId},'spe1b-rival','forge-rival',${renewal.terms.sponsorDatabaseVersion},'PROFESSIONAL','NEW',
+      ${JSON.stringify(renewal.terms)}::jsonb,'{}'::jsonb,1,49,1,52,'AVAILABLE')`);
+  await rejectsStatus(finance.acceptOffer(actor,save.id,{offerId:rivalId,replaceContractIds:[originalId]}),409);
+  state=await finance.sponsors(actor,save.id);
+  assert.equal(state.active?.id,originalId,"a conflicting rival cannot terminate the still-active agreement");
+  assert.equal(state.pendingContracts?.[0]?.id,next.id,"a rival cannot displace an accepted future renewal");
+  for(let i=0;i<8;i++){
+    const root=await saves.read(1,save.id);
+    if(root.currentSeason>1)break;
+    const r=await finance.calendar.advance(actor,save.id,{operationKey:`spe1b-expiry-${i}`,expectedSeason:root.currentSeason,expectedWeek:root.currentWeek,target:{kind:"WEEKS",weeks:1}}) as {stop:{reason:string;detail?:{matchIds:string[]}}};
+    if(r.stop.reason==="HUMAN_MATCH_PENDING")for(const matchId of r.stop.detail!.matchIds){
+      const match=(await rows(sql`SELECT best_of FROM career_tournament_matches WHERE career_save_id=${save.id} AND id=${matchId}`))[0]!;
+      const target=(Number(match.best_of)+1)/2;
+      await finance.calendar.recordHumanMatchResult(actor,save.id,{matchId,humanLegs:target,opponentLegs:0,humanThrewFirst:true});
+    }
+  }
+  state=await finance.sponsors(actor,save.id);
+  assert.equal(state.active?.id,next.id,"calendar activates the accepted renewal at its predetermined start");
+  assert.equal(state.active?.status,"ACTIVE");
+  assert.equal(state.pendingContracts?.length,0);
+  assert.equal(state.history.contracts.find(c=>c.id===originalId)?.status,"COMPLETED");
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id=${save.id} AND contract_id=${next.id} AND category='SPONSOR_SIGNING_BONUS'`))[0].n,0);
+  const acceptedAgain=await finance.acceptOffer(actor,save.id,{offerId:renewal.id});
+  assert.equal(acceptedAgain.created,false);
+  assert.equal((await activeContracts(db,save.id)).filter(c=>c.id===next.id).length,1);
+});
+
+test("SP-E1B also accepts during the old agreement's final week",async()=>{
+  const save=await careerWithCurrentCatalogue();
+  Object.assign(fixture,{titles:1,bestFinishByCircuit:{GRASSROOTS:1}});
+  await finance.evaluateOffers(actor,save.id,{triggerKey:"spe1b-last-week"});
+  const first=(await finance.sponsors(actor,save.id)).offers.find(o=>o.sponsorKey==="forge-workwear")!;
+  const original=await finance.acceptOffer(actor,save.id,{offerId:first.id});
+  await playThrough(save.id,52,true,"spe1b-last-week-advance");
+  const root=await saves.read(1,save.id);
+  assert.equal(root.currentWeek,52);
+  const renewal=(await finance.sponsors(actor,save.id)).offers.find(o=>o.kind==="RENEWAL")!;
+  const accepted=await finance.acceptOffer(actor,save.id,{offerId:renewal.id});
+  assert.equal(accepted.status,"SCHEDULED");
+  const current=await finance.sponsors(actor,save.id);
+  assert.equal(current.active?.id,original.contractId);
+  assert.equal(current.pendingContracts?.[0]?.start.week,1);
+  assert.equal(current.pendingContracts?.[0]?.start.season,2);
 });

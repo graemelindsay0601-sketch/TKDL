@@ -133,6 +133,7 @@ export type SponsorCommercialOverview = {
   potentialBonuses: SponsorPotentialBonus[];
 };
 export type SponsorContract = { id: string; sponsorKey: string; tier: string; terms: SponsorTerms; status: string; endReason: string | null;
+  renewal?: boolean;
   category?: string | null; representative?: {id?:string;displayName?:string;role?:string} | null;
   slot?:string;groups?:string[];
   start: { season: number; week: number }; end: { season: number; week: number }; totals: { paidPence: number; coveredPence: number };
@@ -140,7 +141,7 @@ export type SponsorContract = { id: string; sponsorKey: string; tier: string; te
     pastDueGuarantees: SponsorGuaranteePayment[]; unsupportedGuarantees: SponsorUnsupportedGuarantee[] } };
 export type SponsorJourneyEvent = {
   type: "INTEREST" | "APPROACH" | "OFFER_RECEIVED" | "PLAYER_COUNTERED" | "SPONSOR_COUNTERED" | "SPONSOR_ACCEPTED_REQUEST"
-     | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT" | "ACTIVITY_UPDATE" | "CONTRACT_CONCLUDED";
+      | "SPONSOR_REJECTED" | "SPONSOR_WITHDREW" | "PLAYER_DECLINED" | "PLAYER_WALKED_AWAY" | "SIGNED" | "OFFER_EXPIRED" | "FINANCIAL_PAYMENT" | "ACTIVITY_UPDATE" | "CONTRACT_CONCLUDED" | "CONTRACT_ACTIVATED";
   offerId: string | null;
   details: Record<string, unknown>;
   season: number | null;
@@ -187,7 +188,7 @@ export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind:
   slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean;source?:Record<string,unknown>; journey?:SponsorJourney|null;
   offered: { season: number; week: number }; expires: { season: number; week: number } };
 export type SponsorsResponse = { guaranteeConfiguration?: { status: "AWAITING_BALANCE_APPROVAL"; catalogueVersion: number };
-  active: SponsorContract | null; activeContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
+   active: SponsorContract | null; activeContracts?:SponsorContract[];pendingContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
   sponsorHQ?: {commitments:{id:string;contractId:string;sponsorKey:string;sponsorName:string;clauseId:string;occurrence:number;kind:string;required:boolean;cadence:string;season:number;
     availableFromWeek:number;windowWeeks:number;dueWeek:number;scheduledWeek:number|null;status:string}[];
     opportunities:{id:string;contractId:string;sponsorKey:string;clauseId:string;occurrence:number;kind:string;season:number;availableFromWeek:number;
