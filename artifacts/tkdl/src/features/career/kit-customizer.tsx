@@ -34,7 +34,9 @@ export function CareerKitCustomizer({
   const filtered = useMemo(() => filterCareerKitDesigns(collection, search, makerBrandId || undefined), [collection, search, makerBrandId]);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  const tintEnabled = identity.kitTintEnabled !== false && Boolean(identity.primaryColour);
+  // Original artwork is the default. Only an explicit colourway choice (kitTintEnabled: true) tints the fabric:
+  // every save carries a template primaryColour and NPC palettes have one too, which must not wash premium art.
+  const tintEnabled = identity.kitTintEnabled === true && Boolean(identity.primaryColour);
   const matchingColourway = tintEnabled && CAREER_KIT_COLORWAYS.some(colourway => colourway.primary === identity.primaryColour);
   const customTintSelected = tintEnabled && !matchingColourway;
   const selectColourway = (primaryColour: string) => onChange({ kitTintEnabled: true, primaryColour });

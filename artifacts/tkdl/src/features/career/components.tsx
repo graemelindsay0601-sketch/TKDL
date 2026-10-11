@@ -1,3 +1,4 @@
+import { PLATES, atmosphereFromCalendarEvent, resolveAtmosphere } from "./atmosphere";
 import { type ReactNode, useState, useId } from "react";
 import { Link } from "wouter";
 import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-react";
@@ -137,9 +138,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
     <CareerEventIdentity eventKey={event.definitionKey} circuit={event.circuit} level={event.presentation.tier}>
     <div className="relative flex flex-wrap sm:flex-nowrap items-stretch gap-x-3 gap-y-2 px-3 py-2.5 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.05)", background: tier.emphasis >= 4 ? tier.surface : undefined }}>
       <div className="absolute left-0 top-0 bottom-0" style={{ width: 2 + Math.min(tier.emphasis, 3), background: tier.accent, opacity: 0.4 + tier.emphasis * 0.1 }} aria-hidden />
-      <div className="pl-1.5 w-14 shrink-0 flex flex-col justify-center">
-        <span className="font-black tabular-nums" style={{ ...OSWALD, fontSize: "0.8rem", color: "#fff" }}>{eventDateLabel(event)}</span>
-      </div>
+      <EventVenueTile event={event} />
       <Link href={href} className="flex-1 min-w-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
         <div className="font-black uppercase leading-tight line-clamp-2 break-words" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>
@@ -163,6 +162,16 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
       </div>
     </div></CareerEventIdentity>
   );
+}
+
+/** The event's real venue plate (F1 manifest) as a small tile carrying the date. Decorative image; the date is text. */
+function EventVenueTile({ event }: { event: CareerEvent }) {
+  const plate = PLATES[resolveAtmosphere(atmosphereFromCalendarEvent(event)).plate] ?? PLATES.neutral;
+  return <div className="career-event-tile ml-1.5 shrink-0">
+    <img src={plate.src} alt="" aria-hidden="true" loading="lazy" decoding="async" style={{ objectPosition: `${plate.focal.x * 100}% ${plate.focal.y * 100}%` }}
+      onError={e => { e.currentTarget.style.display = "none"; }} />
+    <span className="tabular-nums" style={OSWALD}>{eventDateLabel(event)}</span>
+  </div>;
 }
 
 /** Accessible segmented tabs (roving buttons with aria-pressed; content rendered by caller). */

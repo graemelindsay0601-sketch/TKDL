@@ -6,6 +6,8 @@ import {stableNpcWardrobeKitDesignId,type NpcWardrobeTier} from "./apparel/npc-w
 import {PremiumTrophy,TROPHY_ART,type TrophySize} from "./trophies";
 
 export type ShirtIdentity={shirtTemplate?:string;kitDesignId?:string;kitTintEnabled?:boolean;primaryColour?:string;secondaryColour?:string;accentColour?:string};
+/** Premium artwork for each original shirt template (classic polo, chevron, split). */
+const TEMPLATE_PREMIUM_KIT:Record<string,string>={CLASSIC:"kit-50-01",CHEVRON:"kit-50-49",SPLIT:"kit-50-16"};
 export type ShirtPartner={brandName:string;slot:string;brandId?:string;theme?:"light"|"dark"|"mono"};
 const colour=(v:string|undefined,fallback:string)=>/^#[0-9a-f]{6}$/i.test(v??"")?v!:fallback;
 export function CareerShirt({identity={},sponsors=[],name="Player",scale="standard",playerId,wardrobeTier="PROFESSIONAL"}:{identity?:ShirtIdentity;sponsors?:ShirtPartner[];name?:string;scale?:"compact"|"standard"|"featured"|"profile";playerId?:string;wardrobeTier?:NpcWardrobeTier}) {
@@ -13,7 +15,9 @@ export function CareerShirt({identity={},sponsors=[],name="Player",scale="standa
   // NPC wardrobe = f(stable NPC id) only. Screens pass different (stature-derived) partner lists, so letting
   // them steer the pool would give one NPC different shirts on different screens and as their ranking moves.
   // Current partners are still printed as logos; maker-range shirts are never assigned without a saved choice.
-  const resolvedKitId=identity.kitDesignId??(playerId?stableNpcWardrobeKitDesignId(playerId,{tier:wardrobeTier}):undefined);
+  // Players whose save predates the Kit Studio (no kitDesignId) wear the premium shirt matching their chosen
+  // template instead of the old flat vector. Display only: nothing is written to the save.
+  const resolvedKitId=identity.kitDesignId??(playerId?stableNpcWardrobeKitDesignId(playerId,{tier:wardrobeTier}):TEMPLATE_PREMIUM_KIT[identity.shirtTemplate??"CLASSIC"]??TEMPLATE_PREMIUM_KIT.CLASSIC);
   const kit=resolvedKitId?CAREER_KIT_BY_ID.get(resolvedKitId):undefined;
   if(kit) {
     return <PremiumCareerShirt identity={{...identity,kitDesignId:resolvedKitId}} sponsors={sponsors} name={name} scale={scale}/>;

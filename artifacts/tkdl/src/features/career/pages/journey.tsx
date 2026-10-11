@@ -1,6 +1,8 @@
 import { Link } from "wouter";
 import { BadgeCheck, Compass, CreditCard, Flag as FlagIcon, Milestone as MilestoneIcon, TrendingUp, Trophy } from "lucide-react";
-import { useHistory, useMilestones, useRankingHistory, useSporting, useTourCard } from "../api";
+import { useHistory, useMilestones, usePresentation, useRankingHistory, useSporting, useTourCard } from "../api";
+import { CareerShirt } from "../identity";
+import { CareerPageHero } from "../page-hero";
 import { careerChapter, circuitLabel, milestoneLabel, ordinal, sourceLabel, stageLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
@@ -20,6 +22,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
   const cards = useTourCard(id);
   const history = useHistory(id, { participant: "HUMAN" });
   const world = useRankingHistory(id, "pro-world", "HUMAN", 1);
+  const presentation = usePresentation(id);
   const chapter = sporting.data ? careerChapter(sporting.data, ctx.save) : null;
   const finals = (history.data ?? []).filter(r => r.champion || r.stageReached === "FINAL");
   const appearances = (history.data ?? []).filter(r => BIG.has(r.circuit)).slice(0, 8);
@@ -27,17 +30,19 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <div className="space-y-3">
-      <section className="pdc-card p-4 md:p-5">
-        <Label color="#ff005c">Where you are</Label>
-        {sporting.isLoading ? <CareerLoading /> : sporting.error ? <CareerError error={sporting.error} onRetry={() => sporting.refetch()} /> : chapter && (
-          <div className="flex flex-wrap items-end gap-3 mt-1">
-            <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.4rem, 4.5vw, 2rem)", color: "#fff" }}>{chapter.label}</h2>
-            <StatusBadge label={`Season ${ctx.save.currentSeason} · week ${ctx.save.currentWeek}`} tone="neutral" />
-            <NextObjective ctx={ctx} />
-          </div>
-        )}
-        <div className="mt-2"><AgeLine saveId={id} /></div>
-      </section>
+      {sporting.isLoading ? <CareerLoading label="Reading your Career chapter" /> : sporting.error ? <CareerError error={sporting.error} onRetry={() => sporting.refetch()} /> : chapter && (
+        <CareerPageHero kicker={`Career journey · Season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title={chapter.label} accent="#4ade80"
+          archival={ctx.retired}
+          stage={cards.data?.history.some(c => c.status === "ACTIVE") ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "community-hall" }, eventClass: "REGIONAL" }}
+          subtitle={<><NextObjective ctx={ctx} /><AgeLine saveId={id} /></>}
+          portrait={presentation.data ? <CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName ?? "Player"} scale="featured" /> : undefined}
+          stats={[
+            { label: "Titles", tone: "gold", value: (history.data ?? []).filter(r => r.champion).length },
+            { label: "Finals", value: finals.length },
+            { label: "Big-stage appearances", value: (history.data ?? []).filter(r => BIG.has(r.circuit)).length },
+            { label: "World career high", value: world.data?.careerHigh ? ordinal(world.data.careerHigh.position) : "—" },
+          ]} />
+      )}
       {/* A7 extension point: narrative/news renders here later. A6 renders nothing in its place. */}
       <JourneyStoryExtension />
       <Link className="career-row-link block pdc-card p-3 text-sm" href={`/career/${id}/history`}>Career facts, playing statistics, records and full history →</Link>
