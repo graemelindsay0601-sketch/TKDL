@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Award, GraduationCap, ListOrdered, Target } from "lucide-react";
 import { useCalendar, useQSchool, useEnterEvent, useCareerProfile, errorMessage } from "../api";
-import { cardLineText, ordinal, pathwayLabel, qSchoolState, TONES } from "../model";
+import { cardLineText, denialLabel, ordinal, pathwayLabel, qSchoolState, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerEventCard, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
+import { CareerPageHero } from "../page-hero";
 import type { QSchoolPathwayView } from "../types";
 
 /** Screen 5 — Q-School: two separate pathways, real stages, Order of Merit, card line and the allocation result. */
@@ -24,29 +25,29 @@ export function QSchoolPage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <div className="space-y-3">
-      <section className="pdc-card p-4 md:p-5 relative overflow-hidden" style={{ borderColor: "rgba(255,210,74,0.3)" }}>
-        <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: "radial-gradient(70% 120% at 100% 0%, rgba(255,210,74,0.12), transparent 60%)" }} />
-        <div className="relative flex flex-col sm:flex-row sm:items-start gap-3">
-          <GraduationCap className="w-6 h-6 shrink-0 hidden sm:block" style={{ color: "#ffd24a" }} aria-hidden />
-          <div className="flex-1 min-w-0">
-            <Label color="#ffd24a">The road to a Tour Card</Label>
-            <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.4rem, 4.5vw, 2rem)", color: "#fff" }}>Q-School · Season {season}</h2>
-            <p className="text-xs mt-1.5 max-w-xl" style={{ color: "rgba(255,255,255,0.7)" }}>Two separate pathways. First Stage finishes earn a Final Stage place; each Final Stage day winner earns a Tour Card, and the rest go down the Order of Merit.</p>
-            {ageGate && <p role="note" className="text-sm mt-2 font-semibold" style={{ color: "#ffd24a" }}>
-              Minimum age {ageGate.minimumAge}. {ageGate.eligibleFrom ? `You are eligible from ${ageGate.eligibleFrom.date} (Season ${ageGate.eligibleFrom.season}, week ${ageGate.eligibleFrom.week}).` : ""} Junior events are the place to build form until then.</p>}
-          </div>
-          <label className="flex items-center gap-2"><Label>Season</Label>
-            <select value={season} onChange={e => setSeason(Number(e.target.value))} className="rounded-lg px-2 py-1.5 bg-black/40 border border-white/15 text-sm">
-              {Array.from({ length: save.currentSeason }, (_, i) => save.currentSeason - i).map(s => <option key={s} value={s}>Season {s}</option>)}</select></label>
-        </div>
-      </section>
+      <CareerPageHero kicker="The road to a Tour Card" title={`Q-School · Season ${season}`} accent="#ffd24a" archival={retired}
+        stage={{ venue: { venueType: "professional-floor" }, circuit: "Q_SCHOOL", classification: "QUALIFIER" }}
+        watermark="Q-SCHOOL"
+        subtitle={<>Two separate pathways. First Stage finishes earn a Final Stage place; each Final Stage day winner earns a Tour Card, and the rest go down the Order of Merit.
+          {ageGate && <p role="note" className="career-qschool__age">Minimum age {ageGate.minimumAge}. {ageGate.eligibleFrom ? `You are eligible from ${ageGate.eligibleFrom.date} (Season ${ageGate.eligibleFrom.season}, week ${ageGate.eligibleFrom.week}).` : ""} Junior events are the place to build form until then.</p>}</>}
+        stats={view ? [
+          { label: `${pathwayLabel(view.pathway)} · your status`, value: qSchoolState(view).label, tone: qSchoolState(view).tone === "gold" ? "gold" : "neutral" },
+          { label: "Final Stage days", value: `${view.finalStage.completed} / ${view.finalStage.days}`, sub: "completed" },
+          { label: "Order of Merit", value: view.participant.orderOfMerit ? ordinal(view.participant.orderOfMerit.position) : "—",
+            sub: view.participant.orderOfMerit ? (view.participant.orderOfMerit.insideCardLine ? "Inside the card line" : "Outside the card line") : undefined },
+          { label: "Order of Merit cards", value: view.cardLine.orderOfMeritCards },
+        ] : []}>
+        <label className="career-qschool__season"><span>Season</span>
+          <select value={season} onChange={e => setSeason(Number(e.target.value))}>
+            {Array.from({ length: save.currentSeason }, (_, i) => save.currentSeason - i).map(s => <option key={s} value={s}>Season {s}</option>)}</select></label>
+      </CareerPageHero>
       {q.isLoading ? <div className="pdc-card"><CareerLoading label="Loading Q-School" /></div> : q.error || !q.data ? <CareerError error={q.error} onRetry={() => q.refetch()} /> : (
         <>
           <div className="pdc-card px-3 py-2.5"><Segmented label="Pathway" value={active} onChange={setPathway} options={q.data.pathways.map(p => ({ value: p.pathway, label: `${pathwayLabel(p.pathway)}${qSchoolState(p).stage !== "NOT_ENTERED" ? " · yours" : ""}` }))} /></div>
           {view && <PathwayView view={view} />}
           <CareerSection title={`${pathwayLabel(active)} events`} icon={<Target className="w-3.5 h-3.5" />} accent="#ffd24a">
             {events.isLoading ? <CareerLoading /> : pathwayEvents.length ? pathwayEvents.map(e => <CareerEventCard key={e.id} event={e} saveId={save.id} retired={retired || season !== save.currentSeason}
-              onEnter={retired || season !== save.currentSeason ? undefined : id => enter.mutate(id, { onSuccess: r => setMsg(r.entered ? "Entered — the whole stage series is booked." : `Refused: ${r.denials.join(", ")}`), onError: x => setMsg(errorMessage(x)) })} entering={enter.isPending} compact />)
+              onEnter={retired || season !== save.currentSeason ? undefined : id => enter.mutate(id, { onSuccess: r => setMsg(r.entered ? "Entered — the whole stage series is booked." : `Not entered: ${r.denials.map(denialLabel).join(", ")}`), onError: x => setMsg(errorMessage(x)) })} entering={enter.isPending} compact />)
               : <CareerEmptyState title="No Q-School events found" />}
             {msg && <p role="status" className="px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
           </CareerSection>

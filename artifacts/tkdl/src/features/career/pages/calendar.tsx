@@ -7,7 +7,7 @@ import {
 import { useCalendar, useEnterEvent, errorMessage, type CalendarQuery } from "../api";
 import {
   CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, denialLabel, eventDateLabel,
-  eventStatus, formatLabel, formatPence, matchesStatusFilter, primaryAction,
+  eventStatus, formatLabel, formatPence, matchesStatusFilter, primaryAction, titleCase,
 } from "../model";
 import {
   CareerEmptyState, CareerError, CareerLoading, Label, OSWALD, SeasonProgress, Segmented,
@@ -15,6 +15,9 @@ import {
 import type { ShellContext } from "../shell";
 import type { CareerEvent, PresentationTier } from "../types";
 import "../career-calendar-premium.css";
+import { CareerStageBackdrop, PLATES, atmosphereFromCalendarEvent, resolveAtmosphere, spectacleFor } from "../atmosphere";
+
+const HERO_STAGE = resolveAtmosphere({ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" });
 
 type View = "MY_SCHEDULE" | "UPCOMING" | "SEASON";
 const CIRCUITS = ["GRASSROOTS", "COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "CHALLENGER", "VAULT", "Q_SCHOOL", "PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL", "MAJOR", "WORLD_CHAMPIONSHIP", "SPECIAL"];
@@ -25,9 +28,18 @@ function EventStatus({ event, awaitingMatch = false }: { event: CareerEvent; awa
   return <span className={`cc-status cc-status--${status.tone}`}>{status.label}</span>;
 }
 
+/** The event's real venue plate (F1 manifest); majors and the World Championship keep a trophy badge. Decorative. */
+function eventPlate(event: CareerEvent) {
+  return PLATES[resolveAtmosphere(atmosphereFromCalendarEvent(event)).plate] ?? PLATES.neutral;
+}
 function EventMark({ event }: { event: CareerEvent }) {
-  const Icon = event.presentation.tier === "WORLD" || event.presentation.tier === "MAJOR" ? Trophy : Activity;
-  return <span className="cc-event-mark" aria-hidden="true"><Icon size={17} /></span>;
+  const big = event.presentation.tier === "WORLD" || event.presentation.tier === "MAJOR";
+  const plate = eventPlate(event);
+  return <span className="cc-event-mark cc-event-mark--venue" aria-hidden="true">
+    <img src={plate.src} alt="" loading="lazy" decoding="async" style={{ objectPosition: `${plate.focal.x * 100}% ${plate.focal.y * 100}%` }}
+      onError={e => { e.currentTarget.style.display = "none"; }} />
+    {big ? <Trophy size={13} /> : null}
+  </span>;
 }
 
 function Select({
@@ -124,6 +136,8 @@ function SelectedEvent({
         <span className="cc-kicker">EVENT DOSSIER</span>
         <span className="cc-detail-priority">{event.presentation.featured ? "FEATURED STOP" : TIER_STYLES[event.presentation.tier].label}</span>
       </div>
+      <div className="cc-detail-banner" aria-hidden="true"><img src={eventPlate(event).src} alt="" loading="lazy" decoding="async"
+        style={{ objectPosition: `${eventPlate(event).focal.x * 100}% ${eventPlate(event).focal.y * 100}%` }} /></div>
       <div className="cc-detail-heading">
         <EventMark event={event} />
         <div><span className="cc-detail-circuit">{circuitLabel(event.circuit)}</span><h2>{event.name}</h2></div>
@@ -146,7 +160,7 @@ function SelectedEvent({
           <div><small>Entry window</small><strong>Weeks {event.registration.opensWeek}–{event.registration.closesWeek}</strong></div>
           <div><small>Field</small><strong>{event.field.entrants ?? "—"} / {event.field.size}</strong><em>entrants / capacity</em></div>
           <div><small>Eligibility</small><strong>{event.human?.eligible ? "Eligible" : event.human ? "Not eligible" : "Details unavailable"}</strong></div>
-          <div><small>Entry status</small><strong>{event.human?.entryStatus ?? event.human?.relationship ?? "Not entered"}</strong></div>
+          <div><small>Entry status</small><strong>{titleCase(String(event.human?.entryStatus ?? event.human?.relationship ?? "Not entered").replaceAll("_", " "))}</strong></div>
         </div>
       </section>
       <section className="cc-format-card">
@@ -242,7 +256,8 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <div className="career-calendar-page cc-root">
-      <header className="cc-hero">
+      <header className="cc-hero cc-hero--stage">
+        <CareerStageBackdrop atmosphere={HERO_STAGE} spectacle={{ ...spectacleFor("ARRIVAL", HERO_STAGE.level), spotlight: false }} animate={false} eager className="cc-hero-stage" />
         <div className="cc-hero-copy">
           <span className="cc-eyebrow"><CalendarDays size={14} /> CAREER / SEASON PLANNER</span>
           <h2>Calendar <em>&amp;</em> Planning</h2>

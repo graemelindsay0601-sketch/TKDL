@@ -1,18 +1,22 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
-import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNegotiateOffer, useSponsors, useUpdateSponsorActivity,
+import { Briefcase, CalendarCheck, FileSignature, History as HistoryIcon, ShieldCheck } from "lucide-react";
+import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNegotiateOffer, usePresentation, useSponsors, useUpdateSponsorActivity,
   useRequestSponsorRelease, useAcceptSponsorRelease, useAcknowledgeSponsorNotice } from "../api";
 import { CareerError, CareerLoading, CareerSection, OSWALD } from "../components";
 import type { ShellContext } from "../shell";
 import type { SponsorNegotiationChange, SponsorSigningReveal } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
+import { CareerShirt } from "../identity";
+import { CareerPageHero } from "../page-hero";
+import "./sponsor-hq.css";
 
 const money=(pence:number|undefined|null)=>new Intl.NumberFormat("en-GB",{style:"currency",currency:"GBP"}).format((pence??0)/100);
 const label=(value:string)=>value.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 
 export function SponsorHQPage({ctx}:{ctx:ShellContext}){
-  const {save}=ctx, query=useSponsors(save.id), update=useUpdateSponsorActivity(save.id);
+  const {save}=ctx, query=useSponsors(save.id), update=useUpdateSponsorActivity(save.id), presentation=usePresentation(save.id);
   const [weeks,setWeeks]=useState<Record<string,number>>({});
   const [notice,setNotice]=useState("");
   const [replace,setReplace]=useState<Record<string,string[]>>({});
@@ -33,6 +37,9 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
     (offer.conflictingContractIds??[]).some(id=>portfolio.some(contract=>contract.id===id)));
   const journeys=query.data.journeys??[];
   const commercial=query.data.commercial;
+  // Sponsor keys are internal identifiers; show the signed brand name wherever one is known.
+  const brandNames=new Map<string,string>([...history,...portfolio].map(contract=>[contract.sponsorKey,contract.terms.displayName]));
+  const brand=(key:string|undefined|null,fallback?:string|null)=>(key&&brandNames.get(key))??fallback??key??"Sponsor";
   async function act(id:string,action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE",week?:number){
     try{await update.mutateAsync({activityId:id,action,week});setNotice("Sponsor activity updated.");}
     catch(error){setNotice(errorMessage(error));}
@@ -48,64 +55,53 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
   }
   return <div className="sponsor-hq space-y-5">
     {signingReveal&&<SponsorSigningRevealCard deal={signingReveal} onDismiss={()=>setSigningReveal(null)}/>}
-    <header className="sponsor-hq__masthead">
-      <div className="sponsor-hq__masthead-copy">
-        <p className="sponsor-hq__kicker">Career mode <span aria-hidden="true">/</span> Commercial office</p>
-        <h1 style={OSWALD}>The partner<br className="sm:hidden" /> portfolio.</h1>
-        <p className="sponsor-hq__intro">Your sporting record, represented off the oche. Signed terms, people and history in one place.</p>
-        <nav className="sponsor-hq__jump-nav" aria-label="Sponsor headquarters sections">
-          <a href="#sponsor-portfolio">Portfolio</a>
-          <a href="#sponsor-decisions">Offers &amp; renewals</a>
-          <a href="#sponsor-activities">Activities</a>
-          <a href="#sponsor-history">History</a>
-        </nav>
-        <nav className="sponsor-hq__cross-nav" aria-label="Commercial career tools">
-          <Link href={`/career/${save.id}/finances`}>Finances &amp; ledger</Link>
-          <Link href={`/career/${save.id}/presentation`}>Equipment &amp; products</Link>
-          <Link href={`/career/${save.id}/world/players`}>Player commercial market</Link>
-          <Link href={`/career/${save.id}/history`}>Commercial legacy</Link>
-        </nav>
-      </div>
-      <div className="sponsor-hq__season-card">
-        <span className="sponsor-hq__season-label">On the tour</span>
-        <strong>Season {commercial?.season??save.currentSeason}<span> / </span>Week {commercial?.week??save.currentWeek}</strong>
-        <i aria-hidden="true" />
-        <small>{portfolio.length} active {portfolio.length===1?"partner":"partners"}</small>
-      </div>
-      <span className="sponsor-hq__watermark" aria-hidden="true">SP</span>
-    </header>
+    <CareerPageHero kicker="Commercial office" title="The partner portfolio"
+      stage={{ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" }} accent="#d8b669"
+      watermark={`S${commercial?.season??save.currentSeason} · W${commercial?.week??save.currentWeek}`}
+      subtitle={<p>Your sporting record, represented off the oche. Signed terms, people and history in one place.</p>}
+      portrait={presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={save.careerName??"Player"} scale="featured"/>:undefined}
+      stats={[
+        {label:"Active partners",value:portfolio.length,sub:`Season ${commercial?.season??save.currentSeason} · Week ${commercial?.week??save.currentWeek}`,tone:portfolio.length?"gold":"neutral"},
+        {label:"Sponsor cash this season",value:money(commercial?.cashReceivedPence?.total),sub:"Received",tone:"good"},
+        {label:"Costs covered by partners",value:money(commercial?.costsCoveredPence),sub:"Separate from cash"},
+        {label:"Scheduled guarantees",value:money(commercial?.remainingGuaranteesPence),sub:"Still to be paid"},
+      ]}>
+      <nav className="sponsor-hq__jump-nav" aria-label="Sponsor headquarters sections">
+        <a href="#sponsor-portfolio">Portfolio</a>
+        <a href="#sponsor-decisions">Offers &amp; renewals</a>
+        <a href="#sponsor-activities">Activities</a>
+        <a href="#sponsor-history">History</a>
+      </nav>
+      <nav className="sponsor-hq__cross-nav" aria-label="Commercial career tools">
+        <Link href={`/career/${save.id}/finances`}>Finances &amp; ledger</Link>
+        <Link href={`/career/${save.id}/presentation`}>Equipment &amp; products</Link>
+        <Link href={`/career/${save.id}/world/players`}>Player commercial market</Link>
+        <Link href={`/career/${save.id}/history`}>Commercial legacy</Link>
+      </nav>
+    </CareerPageHero>
 
-    <section aria-label="Sponsor finances" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      {[
-        ["Sponsor cash received this season",money(commercial?.cashReceivedPence?.total)],
-        ["Costs covered by partners",money(commercial?.costsCoveredPence)],
-        ["Scheduled guarantees",money(commercial?.remainingGuaranteesPence)],
-      ].map(([title,value],index)=><article key={title} className="sponsor-hq__ledger pdc-card border border-white/10 p-4" data-ledger={index}>
-        <p className="text-[10px] uppercase tracking-[.16em] text-white/50">{title}</p><p className="mt-1 text-2xl text-white" style={OSWALD}>{value}</p>
-      </article>)}
-    </section>
-
-    <CareerSection title="Active sponsor portfolio" id="sponsor-portfolio">
+    <CareerSection title="Active sponsor portfolio" id="sponsor-portfolio" icon={<Briefcase size={15}/>} accent="#d8b669">
       {portfolio.length===0?<div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5">
         <h3 className="text-base text-white" style={OSWALD}>The first partnership is still ahead</h3>
         <p className="mt-1 text-sm text-white/55">When a sponsor agreement is signed, its brand, representative, contract term and commercial terms will appear here. Older contracts with no explicit activity clauses have no duties.</p>
-      </div>:<div className="sponsor-hq__portfolio grid gap-3 lg:grid-cols-2">{portfolio.map(contract=>{
+      </div>:<div className="sponsor-hq__portfolio sponsor-hq__grid">{portfolio.map(contract=>{
         const representative=contract.representative;
         const category=contract.category??"Partnership";
         const accent=contract.terms.presentation.colour;
         const validAccent=/^#[\da-f]{6}$/i.test(accent)?accent:"#d8b669";
         return <article key={contract.id} className="sponsor-hq__partner" style={{"--partner-accent":validAccent} as CSSProperties}>
           <div className="sponsor-hq__partner-topline">
-            <span>{label(contract.tier)} partner <i aria-hidden="true">/</i> {label(category)}</span>
+            <span>{label(contract.tier)} partner{label(category).toLowerCase()!==`${label(contract.tier)} partner`.toLowerCase()&&<> <i aria-hidden="true">/</i> {label(category)}</>}</span>
             <span className="sponsor-hq__partner-status">{label(contract.status)}</span>
           </div>
           <div className="sponsor-hq__partner-heading">
             <span className="sponsor-hq__partner-monogram" aria-hidden="true">{contract.terms.displayName.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()}</span>
             <div>
               <h3 style={OSWALD}>{contract.terms.displayName}</h3>
-              <p>{contract.sponsorKey} · Season {contract.start.season}, week {contract.start.week} — season {contract.end.season}, week {contract.end.week}</p>
+              <p>Season {contract.start.season}, week {contract.start.week} — season {contract.end.season}, week {contract.end.week}</p>
             </div>
           </div>
+          <TermBar contract={contract} season={save.currentSeason} week={save.currentWeek}/>
           <div className="sponsor-hq__partner-record">
             <div><span>Representative</span><strong>{representative?.displayName??"Partnership team"}</strong><small>{representative?.role??"Commercial contact"}</small></div>
             <div><span>Cash received</span><strong>{money(contract.totals.paidPence)}</strong><small>Paid to date</small></div>
@@ -115,15 +111,15 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       })}</div>}
     </CareerSection>
 
-    <CareerSection title="Contract decisions" id="sponsor-decisions">
+    <CareerSection title="Contract decisions" id="sponsor-decisions" icon={<FileSignature size={15}/>} accent="#69b8ec">
       <div className="px-4 py-3">
-        <p className="text-xs text-white/55">Expiry is calculated from your current Career week to each signed end week. Renewal status below reflects persisted offers only; no offer is assumed from an approaching end date.</p>
+        <details className="career-note"><summary>How expiry and renewals are shown</summary><p>Expiry is calculated from your current Career week to each signed end week. Renewal status below reflects persisted offers only; no offer is assumed from an approaching end date.</p></details>
         {portfolio.length===0
           ? <div className="mt-3 rounded-lg border border-dashed border-white/15 p-4">
               <h3 className="text-base text-white" style={OSWALD}>No active contracts to review</h3>
               <p className="mt-1 text-sm text-white/55">When a partnership is signed, its expiry and any persisted renewal or rival proposal will appear here.</p>
             </div>
-          : <div className="mt-3 grid gap-2 lg:grid-cols-2">{portfolio.map(contract=>{
+          : <div className="mt-3 sponsor-hq__grid">{portfolio.map(contract=>{
               const remaining=contractWeeksRemaining(save.currentSeason,save.currentWeek,contract.end.season,contract.end.week);
               const renewal=(query.data?.offers??[]).find(offer=>offer.kind==="RENEWAL"&&offer.sponsorKey===contract.sponsorKey);
               const rivals=decisionOffers.filter(offer=>offer.kind!=="RENEWAL"&&(offer.conflictingContractIds??[]).includes(contract.id));
@@ -175,8 +171,9 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         </div>}
     </CareerSection>
 
-    <CareerSection title="Compliance and contract releases">
-      <p className="mb-3 text-sm text-white/55">Notices appear only when a required activity was genuinely missed and the signed agreement explicitly includes a material-breach term. Releases are limited to signed clauses; no existing agreement is changed.</p>
+    <CareerSection title="Compliance and contract releases" icon={<ShieldCheck size={15}/>} accent="#5ee39b">
+      <div className="sponsor-hq__body">
+      <details className="career-note mb-3"><summary>When notices and releases apply</summary><p>Notices appear only when a required activity was genuinely missed and the signed agreement explicitly includes a material-breach term. Releases are limited to signed clauses; no existing agreement is changed.</p></details>
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="rounded-lg border border-white/10 bg-black/20 p-3" aria-label="Compliance notices">
           <h3 className="text-sm text-white" style={OSWALD}>Compliance notices</h3>
@@ -218,24 +215,26 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </article>)}
         </section>
       </div>
+      </div>
     </CareerSection>
 
-    <CareerSection title="Contractual commitments and opportunities" id="sponsor-activities">
-      <p className="mb-3 text-sm text-white/55">Required duties are included in the agreement. Optional activities are unpaid and declining them has no penalty.</p>
+    <CareerSection title="Contractual commitments and opportunities" id="sponsor-activities" icon={<CalendarCheck size={15}/>} accent="#eb8b59">
+      <div className="sponsor-hq__body">
+      <details className="career-note mb-3"><summary>Duties and optional activities</summary><p>Required duties are included in the agreement. Optional activities are unpaid and declining them has no penalty.</p></details>
       {activities.length===0?<div className="rounded-lg border border-dashed border-white/15 p-5">
         <h3 className="text-base text-white" style={OSWALD}>No sponsor activities due</h3>
         <p className="mt-1 text-sm text-white/55">{portfolio.length?"Your signed contracts have no configured duties or opportunities.":"Existing v1–v3 contracts stay obligation-free; no duties are backfilled."}</p>
-      </div>:<div className="grid gap-3 lg:grid-cols-2">{activities.map(item=>{
+      </div>:<div className="sponsor-hq__grid">{activities.map(item=>{
         const week=weeks[item.id]??Math.max(item.from,save.currentWeek);
         const canSchedule=item.required?["AVAILABLE","CONFIRMED"].includes(item.status):["ACCEPTED","CONFIRMED"].includes(item.status);
         const firstWeek=Math.max(item.from,save.currentWeek),weekChoices=firstWeek<=item.to?Array.from({length:item.to-firstWeek+1},(_,i)=>firstWeek+i):[];
         const canDecline=!item.required&&["AVAILABLE","ACCEPTED"].includes(item.status);
         const canAccept=!item.required&&item.status==="AVAILABLE";
         const canComplete=item.status==="CONFIRMED"&&item.scheduledWeek===save.currentWeek;
-        return <article key={item.id} className="pdc-card space-y-3 p-4">
+        return <article key={item.id} className="pdc-card sponsor-hq__activity space-y-3 p-4" data-required={item.required}>
           <div className="flex items-start justify-between gap-3"><div><p className="cc-eyebrow">{item.required?"REQUIRED CONTRACT DUTY":"OPTIONAL OPPORTUNITY"}</p>
             <h3 className="text-lg text-white" style={OSWALD}>{label(item.kind)}</h3>
-            <p className="text-xs text-white/60">{item.sponsorName??item.sponsorKey} · Season {item.season} · Weeks {item.from}–{item.to}</p></div>
+            <p className="text-xs text-white/60">{brand(item.sponsorKey,item.sponsorName)} · Season {item.season} · Weeks {item.from}–{item.to}</p></div>
             <span className="rounded border border-white/15 px-2 py-1 text-[10px] uppercase text-amber-200">{label(item.status)}</span></div>
           {item.status==="CONFIRMED"&&<p className="text-xs text-emerald-200">Booked for Career week {item.scheduledWeek}; completion is available only during that week.</p>}
           {(canAccept||canDecline||canSchedule||canComplete)&&<div className="flex flex-wrap items-center gap-2">
@@ -250,9 +249,10 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </div>}
         </article>;
       })}</div>}
+      </div>
     </CareerSection>
 
-    <CareerSection title="Representative communications and sponsor history" id="sponsor-history">
+    <CareerSection title="Representative communications and sponsor history" id="sponsor-history" icon={<HistoryIcon size={15}/>} accent="#a98bff">
       {journeys.length===0&&history.length===0?<p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/55">Sponsor conversations and signed partnership history will appear here as they happen.</p>:
         <div className="grid gap-3 lg:grid-cols-2">
           {journeys.map(journey=><article key={journey.id} className="pdc-card p-4">
@@ -273,6 +273,17 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         </div>}
     </CareerSection>
     {notice&&<p role="status" className="pdc-card p-3 text-sm text-white">{notice}</p>}
+  </div>;
+}
+
+/** Signed term elapsed, from the contract's own start and end weeks. Decorative summary of data already shown. */
+function TermBar({contract,season,week}:{contract:{start:{season:number;week:number};end:{season:number;week:number}};season:number;week:number}){
+  const abs=(s:number,w:number)=>(s-1)*52+w;
+  const total=Math.max(1,abs(contract.end.season,contract.end.week)-abs(contract.start.season,contract.start.week)+1);
+  const done=Math.min(total,Math.max(0,abs(season,week)-abs(contract.start.season,contract.start.week)+1));
+  return <div className="sponsor-hq__term" aria-label={`Contract term: week ${done} of ${total}`}>
+    <div className="sponsor-hq__term-head"><span>Contract term</span><strong>Week {done} <small>of {total}</small></strong></div>
+    <div className="sponsor-hq__term-track"><i style={{width:`${(done/total)*100}%`}}/></div>
   </div>;
 }
 

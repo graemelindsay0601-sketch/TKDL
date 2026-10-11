@@ -38,3 +38,15 @@ Tests: `career-kit-quality.test.ts` checks:
 - all 250 IDs are stable;
 - every kit is a raster garment of production size;
 - tint applies only on an explicit choice.
+
+## Batches 2–4 — Career screens
+
+All screens use the shared `CareerPageHero`. It is built on the F1 venue plates, with the screen's accent, an outlined watermark, the player's premium shirt and a stat ribbon of real data. Long rules text moved into collapsible `career-note` callouts. Raw codes are shown in plain language (`denialLabel`, `titleCase`).
+
+| Batch | Main | Screens |
+|---|---|---|
+| 2 | `d15e409` | Home, Rankings (podium chips, ~3.5 MB → ~106 KB images via 256px shirt thumbnails), Finances, Journey |
+| 3 | `f8b7cd0` | Darts World front page and directory, Goals, Achievements (silverware vs. titles without silverware, from E2 `resolveAward`), Relationships |
+| 4 | (this batch) | Q-School hero and plain-language refusals. Calendar: venue plate on every agenda row (trophy badge for majors/World), dossier venue banner, staged header, readable entry status. Sponsor HQ: hero with ledger stats and the sponsored shirt, contract-term bars, brand names instead of internal keys. |
+
+Unchanged: gameplay, settlement, rankings, eligibility, finance authorities, save identities and all 250 kit IDs. No schema changes.
