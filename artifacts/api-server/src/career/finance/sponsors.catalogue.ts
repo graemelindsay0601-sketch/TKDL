@@ -4,10 +4,10 @@ import {BRANDS,SPONSOR_CATEGORIES,type Brand,type RelationshipSlot,type SponsorC
 import {representativeById} from "../content/sponsor-representatives.ts";
 
 /** Latest supported catalogue for new Career saves; older saves stay pinned to their snapshot version. */
-export const CURRENT_SPONSOR_DATABASE_VERSION = 4;
-export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4] as const);
-/** New recurring/guaranteed cash is intentionally unavailable until its balance is approved. */
-export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "AWAITING_BALANCE_APPROVAL" as const;
+export const CURRENT_SPONSOR_DATABASE_VERSION = 5;
+export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5] as const);
+/** Annual GBP guarantee schedule approved for new v5 sponsor offers. */
+export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "APPROVED" as const;
 
 /**
  * SPONSOR DATABASE v1 — fictional brands only (no gambling, no real darts
@@ -216,7 +216,7 @@ const sponsorTermsSchema=z.object({
   sponsorKey:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   displayName:z.string().trim().min(2).max(80),
   tier:z.enum(SPONSOR_TIERS),
-  sponsorDatabaseVersion:z.number().int().min(1).max(4),
+  sponsorDatabaseVersion:z.number().int().min(1).max(5),
   duration:z.union([z.object({kind:z.literal("REMAINDER_OF_SEASON")}).strict(),
     z.object({kind:z.literal("SEASONS"),seasons:z.number().int().min(1).max(5)}).strict()]),
   signingBonusPence:penceSchema,
@@ -348,7 +348,8 @@ export function sponsorCatalogue(version: number) {
   if (version === SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V1;
   if (version === 2) return SPONSOR_CATALOGUE_V2;
   if (version === 3) return SPONSOR_CATALOGUE_V3;
-  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V4;
+  if (version === 4) return SPONSOR_CATALOGUE_V4;
+  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V5;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
 /**
@@ -436,8 +437,26 @@ export const SPONSOR_CATALOGUE_V4:readonly SponsorDefinition[]=Object.freeze(SPO
   return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
 }));
 
+/** SP-Economy: additive v5 terms; existing contract and offer snapshots remain immutable. */
+const ANNUAL_GUARANTEE_PENCE: Readonly<Record<SponsorTier, number>> = Object.freeze({
+  LOCAL: 25_000,
+  REGIONAL: 125_000,
+  PROFESSIONAL: 800_000,
+  ELITE: 2_000_000,
+});
+export const SPONSOR_CATALOGUE_V5:readonly SponsorDefinition[]=Object.freeze(SPONSOR_CATALOGUE_V4.map(definition=>{
+  const terms=structuredClone(definition.terms);
+  terms.sponsorDatabaseVersion=5;
+  terms.contractFoundation!.guaranteedPayments=[{
+    amountPence:ANNUAL_GUARANTEE_PENCE[terms.tier],
+    cadence:"PER_SEASON",
+    installments:4,
+  }];
+  return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
+}));
+
 export function validateSponsorCatalogues():void {
-  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4]] as const){
+  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5]] as const){
     const keys=new Set<string>();
     for(const definition of catalogue){
       if(keys.has(definition.key))throw new Error(`Duplicate sponsor definition in v${version}: ${definition.key}`);
@@ -446,17 +465,16 @@ export function validateSponsorCatalogues():void {
       parseSponsorTerms(definition.terms);
       if(definition.terms.sponsorDatabaseVersion!==version)throw new Error(`Sponsor terms version mismatch: ${definition.key}`);
       if(definition.terms.sponsorKey!==definition.key)throw new Error(`Sponsor key mismatch: ${definition.key}`);
-      if(version===4){
-        if(definition.terms.contractFoundation?.guaranteedPayments.length!==0)
-          throw new Error(`Sponsor guarantees in v4 are not approved: ${definition.key}`);
+      if(version===4||version===5){
+        const guarantees=definition.terms.contractFoundation?.guaranteedPayments??[];
+        if(version===4&&guarantees.length!==0)
+          throw new Error(`Sponsor guarantees in v4 must remain unchanged: ${definition.key}`);
+        if(version===5&&(guarantees.length!==1||guarantees[0].cadence!=="PER_SEASON"||
+          guarantees[0].installments!==4||guarantees[0].amountPence!==ANNUAL_GUARANTEE_PENCE[definition.terms.tier]))
+          throw new Error(`Sponsor guarantee does not match the approved v5 tier schedule: ${definition.key}`);
         if(!definition.terms.contractFoundation?.activitySpecification)
           throw new Error(`Sponsor activities are missing from v4: ${definition.key}`);
         validateSponsorActivitySpecification(definition.terms.contractFoundation.activitySpecification,definition.terms.tier,definition.terms.contractFoundation.category);
-      }
-      if (version === 3 &&
-        SPONSOR_GUARANTEE_CONFIGURATION_STATUS === "AWAITING_BALANCE_APPROVAL" &&
-        (definition.terms.contractFoundation?.guaranteedPayments.length ?? 0) > 0) {
-        throw new Error(`Sponsor guarantees in v${version} require balance approval before they can be offered: ${definition.key}`);
       }
       if(definition.terms.representative&&definition.terms.representative.sponsorId!==definition.key)
         throw new Error(`Sponsor representative owner mismatch: ${definition.key}`);

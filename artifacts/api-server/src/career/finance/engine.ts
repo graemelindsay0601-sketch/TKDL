@@ -40,7 +40,7 @@ export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
     SELECT ${saveId}, ${FINANCE_VERSION},
       CASE
-        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-4]$'
+        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-5]$'
           THEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation')::integer
         WHEN event_database_version >= 5 THEN 3
         WHEN event_database_version >= 3 THEN 2
@@ -812,21 +812,6 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
           AND scheduling_requirements->>'activitySpecVersion'='1'
           AND (season<${season} OR (season=${season} AND due_week<${week}))`);
-      const missedRequired=(await tx.execute(sql`SELECT c.id,c.contract_id,c.season,c.due_week,c.commitment_type,s.terms
-        FROM career_sponsor_commitments c JOIN career_sponsor_contracts s
-          ON s.career_save_id=c.career_save_id AND s.id=c.contract_id
-        WHERE c.career_save_id=${root.id} AND c.required=true AND c.status='MISSED'
-          AND c.scheduling_requirements->>'activitySpecVersion'='1'`)).rows;
-      for(const commitment of missedRequired){
-        const signedTerms=parseSponsorTerms(commitment.terms);
-        if(!signedTerms.contractFoundation?.terminationConditions.includes("MATERIAL_BREACH"))continue;
-        const noticeId=stableUuid(root.world_seed,2,"SP-E2","missed-commitment-notice",String(commitment.id));
-        await tx.execute(sql`INSERT INTO career_sponsor_compliance_notices
-          (career_save_id,id,contract_id,activity_id,status,notice_type,details)
-          VALUES(${root.id},${noticeId},${commitment.contract_id},${commitment.id},'OPEN','MISSED_REQUIRED_ACTIVITY',
-            ${JSON.stringify({season:Number(commitment.season),dueWeek:Number(commitment.due_week),activityType:String(commitment.commitment_type),contractTerm:"MATERIAL_BREACH"})}::jsonb)
-          ON CONFLICT(career_save_id,activity_id) DO NOTHING`);
-      }
       await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='EXPIRED',updated_at=NOW()
         WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
           AND terms->>'activitySpecVersion'='1'

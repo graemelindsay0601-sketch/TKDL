@@ -189,7 +189,7 @@ export type SponsorSigningReveal = {
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
   slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean;source?:Record<string,unknown>; journey?:SponsorJourney|null;
   offered: { season: number; week: number }; expires: { season: number; week: number } };
-export type SponsorsResponse = { guaranteeConfiguration?: { status: "AWAITING_BALANCE_APPROVAL"; catalogueVersion: number };
+export type SponsorsResponse = { guaranteeConfiguration?: { status: "APPROVED"; catalogueVersion: number };
    active: SponsorContract | null; activeContracts?:SponsorContract[];pendingContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];
   sponsorHQ?: {commitments:{id:string;contractId:string;sponsorKey:string;sponsorName:string;clauseId:string;occurrence:number;kind:string;required:boolean;cadence:string;season:number;
     availableFromWeek:number;windowWeeks:number;dueWeek:number;scheduledWeek:number|null;status:string}[];

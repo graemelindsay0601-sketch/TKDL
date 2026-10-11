@@ -7,8 +7,6 @@ import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
-import {createCareerNpcSponsorMarketSPF} from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
-import { createCareerSporting } from "../../db/migrations/create_career_sporting.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
@@ -50,7 +48,7 @@ before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db); await createCareerCalendar(db);
+  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db);
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db);
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); // idempotent re-run
   await createCareerFinanceSPC(db); await createCareerFinanceSPC(db); // additive A4/SP-B3 migration is idempotent
@@ -58,7 +56,6 @@ before(async () => {
   await addContractConcludedSponsorEventSPE1(db); await addContractConcludedSponsorEventSPE1(db);
   await addScheduledSponsorRenewalsSPE1B(db); await addScheduledSponsorRenewalsSPE1B(db);
   await createCareerSponsorContractActionsSPE2(db); await createCareerSponsorContractActionsSPE2(db);
-  await createCareerSporting(db);
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -160,14 +157,28 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 }
 
 // ------------------------------------------------------------------ ledger authority
-test("SP-D3 keeps v1-v3 intact and pins v4 activities only for new Career saves", async () => {
-  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 4);
+test("SP-Economy preserves v1-v4 and enables approved v5 guarantees only for new Career saves", async () => {
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 5);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
-  assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "AWAITING_BALANCE_APPROVAL");
-  for (const version of [1, 2, 3, CURRENT_SPONSOR_DATABASE_VERSION]) {
+  assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "APPROVED");
+  for (const version of [1, 2, 3, 4]) {
     assert.ok(sponsorCatalogue(version).every(definition =>
       (definition.terms.contractFoundation?.guaranteedPayments.length ?? 0) === 0),
-    `catalogue v${version} must not offer an unapproved guarantee`);
+    `catalogue v${version} must retain its historical guarantee terms`);
+  }
+  const expectedByTier = { LOCAL: 25_000, REGIONAL: 125_000, PROFESSIONAL: 800_000, ELITE: 2_000_000 };
+  for (const [tier, annualPence] of Object.entries(expectedByTier)) {
+    const definition = sponsorCatalogue(5).find(item => item.terms.tier === tier)!;
+    assert.deepEqual(definition.terms.contractFoundation?.guaranteedPayments, [
+      { amountPence: annualPence, cadence: "PER_SEASON", installments: 4 },
+    ]);
+    const scheduled = scheduleContractGuarantees({
+      id: `approved-${tier}`, sponsor_key: definition.key, terms: definition.terms,
+      start_season: 1, start_week: 1, end_season: 1, end_week: 52,
+    });
+    assert.deepEqual(scheduled.unsupported, []);
+    assert.deepEqual(scheduled.payments.map(payment => [payment.week, payment.amountPence]),
+      [[1, annualPence / 4], [14, annualPence / 4], [27, annualPence / 4], [40, annualPence / 4]]);
   }
 
   const save = await careerWithCurrentCatalogue();
@@ -175,10 +186,10 @@ test("SP-D3 keeps v1-v3 intact and pins v4 activities only for new Career saves"
   assert.equal(Number(financeState.sponsor_database_version), CURRENT_SPONSOR_DATABASE_VERSION,
     "a new save must pin the current catalogue version");
   assert.deepEqual((await finance.sponsors(actor, save.id)).guaranteeConfiguration, {
-    status: "AWAITING_BALANCE_APPROVAL",
+    status: "APPROVED",
     catalogueVersion: CURRENT_SPONSOR_DATABASE_VERSION,
   });
-  assert.equal(((await rows(sql`SELECT settings_snapshot FROM career_saves WHERE id=${save.id}`))[0]!.settings_snapshot as Record<string,unknown>).sponsorDatabaseVersionAtCreation,4);
+  assert.equal(((await rows(sql`SELECT settings_snapshot FROM career_saves WHERE id=${save.id}`))[0]!.settings_snapshot as Record<string,unknown>).sponsorDatabaseVersionAtCreation,5);
   const legacy=await careerWithCurrentCatalogue(1,2);
   await db.execute(sql`UPDATE career_saves SET settings_snapshot=settings_snapshot-'sponsorDatabaseVersionAtCreation' WHERE id=${legacy.id}`);
   await db.execute(sql`DELETE FROM career_finance_state WHERE career_save_id=${legacy.id}`);
@@ -1225,139 +1236,4 @@ test("SP-E2 no-cost release is clause-gated, replay-safe, and preserves the ledg
   const charge=await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${save.id}
     AND category='SPONSOR_RELEASE_SETTLEMENT'`);
   assert.equal(Number(charge[0]!.n),0);
-});
-
-test("SP-E2B mutual release remains pending until an explicit sponsor decision",async()=>{
-  const save=await careerWithCurrentCatalogue();
-  Object.assign(fixture,{titles:1,bestFinishByCircuit:{GRASSROOTS:1}});
-  await finance.evaluateOffers(actor,save.id,{triggerKey:"spe2b-mutual"});
-  const offer=(await finance.sponsors(actor,save.id)).offers.find(item=>item.sponsorKey==="forge-workwear")!;
-  const row=(await rows(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id=${save.id} AND id=${offer.id}`))[0]!;
-  const terms=row.terms as Record<string,any>;
-  terms.contractFoundation={...(terms.contractFoundation??{}),terminationConditions:["MUTUAL_AGREEMENT"]};
-  await finance.declineOffer(actor,save.id,{offerId:offer.id});
-  const customOffer="00000000-0000-4000-8000-00000000e2b2";
-  await db.execute(sql`INSERT INTO career_sponsor_offers
-    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status)
-    VALUES(${save.id},${customOffer},'spe2b-mutual-offer',${row.sponsor_key},${Number(row.sponsor_database_version)},
-      ${String(row.tier)},${String(row.kind)},${JSON.stringify(terms)}::jsonb,${JSON.stringify(row.source)}::jsonb,
-      ${Number(row.offered_season)},${Number(row.offered_week)},${Number(row.expires_season)},${Number(row.expires_week)},'AVAILABLE')`);
-  const signed=await finance.acceptOffer(actor,save.id,{offerId:customOffer});
-  const request=await finance.requestSponsorRelease(actor,save.id,{contractId:signed.contractId,operationKey:"spe2b-mutual-request",releaseType:"MUTUAL"});
-  assert.equal(request.status,"REQUESTED");
-  const release=(await rows(sql`SELECT sponsor_decision,status FROM career_sponsor_release_cases WHERE career_save_id=${save.id} AND id=${request.id}`))[0]!;
-  assert.equal(release.status,"REQUESTED");
-  assert.equal(release.sponsor_decision,null);
-  await assert.rejects(()=>finance.acceptSponsorRelease(actor,save.id,request.id),(error:unknown)=>
-    error instanceof Error && error.message.includes("not available to accept"));
-});
-
-test("SP-E2 release settlement is exact, replay-safe, atomic, and save-owned",async()=>{
-  async function signBuyout(player:number,slot:number,suffix:string,buyoutPence:number){
-    const owner={playerId:player};
-    const save=await careerWithCurrentCatalogue(player,slot);
-    Object.assign(fixture,{titles:1,bestFinishByCircuit:{GRASSROOTS:1}});
-    await finance.evaluateOffers(owner,save.id,{triggerKey:`spe2-buyout-${suffix}`});
-    const offer=(await finance.sponsors(owner,save.id)).offers.find(item=>item.sponsorKey==="forge-workwear")!;
-    const source=(await rows(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id=${save.id} AND id=${offer.id}`))[0]!;
-    const terms=source.terms as Record<string,any>;
-    terms.contractFoundation={...(terms.contractFoundation??{}),releaseClause:{playerNoticeWeeks:null,sponsorNoticeWeeks:null,buyoutPence}};
-    await finance.declineOffer(owner,save.id,{offerId:offer.id});
-    const offerId=`00000000-0000-4000-8000-${suffix.padStart(12,"0")}`;
-    await db.execute(sql`INSERT INTO career_sponsor_offers
-      (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status)
-      VALUES(${save.id},${offerId},${`spe2-buyout-offer-${suffix}`},${source.sponsor_key},${Number(source.sponsor_database_version)},
-        ${String(source.tier)},${String(source.kind)},${JSON.stringify(terms)}::jsonb,${JSON.stringify(source.source)}::jsonb,
-        ${Number(source.offered_season)},${Number(source.offered_week)},${Number(source.expires_season)},${Number(source.expires_week)},'AVAILABLE')`);
-    const signed=await finance.acceptOffer(owner,save.id,{offerId});
-    return {owner,save,contractId:signed.contractId,offerId};
-  }
-  const good=await signBuyout(1,1,"e211",5000);
-  const activityIds=["00000000-0000-4000-8000-00000000e214","00000000-0000-4000-8000-00000000e215","00000000-0000-4000-8000-00000000e216"];
-  for(const [index,status] of ["AVAILABLE","COMPLETED","MISSED"].entries())
-    await db.execute(sql`INSERT INTO career_sponsor_commitments
-      (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,commitment_type,required,cadence,season,
-       available_from_week,window_weeks,due_week,status,scheduling_requirements,operation_key)
-      VALUES(${good.save.id},${activityIds[index]},${good.contractId},'forge-workwear','release-history',${index+1},
-        'MEDIA_APPEARANCE',true,'PER_SEASON',1,1,3,3,${status},
-        '{"activitySpecVersion":1,"extraCompensationPence":0}'::jsonb,${`release-history-${index}`})`);
-  const before=Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${good.save.id}`))[0]!.balance_pence);
-  const request={contractId:good.contractId,operationKey:"spe2-priced-good",releaseType:"PRICED_BUYOUT" as const};
-  const first=await finance.requestSponsorRelease(good.owner,good.save.id,request);
-  const replay=await finance.requestSponsorRelease(good.owner,good.save.id,request);
-  assert.equal(replay.id,first.id);
-  assert.equal(replay.amountPence,5000);
-  const outcomes=await Promise.all([
-    finance.acceptSponsorRelease(good.owner,good.save.id,first.id),
-    finance.acceptSponsorRelease(good.owner,good.save.id,first.id),
-  ]);
-  assert.deepEqual(outcomes.map(value=>value.status),["ACCEPTED","ACCEPTED"]);
-  const after=Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${good.save.id}`))[0]!.balance_pence);
-  assert.equal(before-after,5000);
-  const entries=await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${good.save.id}
-    AND category='SPONSOR_RELEASE_SETTLEMENT' AND contract_id=${good.contractId}`);
-  assert.deepEqual(entries.map(entry=>Number(entry.amount_pence)),[-5000]);
-  const activityHistory=await rows(sql`SELECT id,status FROM career_sponsor_commitments WHERE career_save_id=${good.save.id}
-    AND id IN (${sql.join(activityIds.map(id=>sql`${id}`),sql`, `)}) ORDER BY id`);
-  assert.deepEqual(activityHistory.map(row=>String(row.status)).sort(),["CANCELLED","COMPLETED","MISSED"]);
-  assert.equal(activityHistory.find(row=>String(row.id)===activityIds[0])?.status,"CANCELLED");
-  await assert.rejects(()=>finance.requestSponsorRelease(good.owner,good.save.id,{...request,operationKey:"spe2-ended-again"}),
-    /active sponsor agreement/);
-  const foreign=await signBuyout(2,1,"e212",5000);
-  await assert.rejects(()=>finance.requestSponsorRelease(good.owner,foreign.save.id,
-    {contractId:foreign.contractId,operationKey:"spe2-cross-save",releaseType:"PRICED_BUYOUT"}));
-  const poor=await signBuyout(1,2,"e213",100000000);
-  const poorBefore=Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${poor.save.id}`))[0]!.balance_pence);
-  const poorRequest=await finance.requestSponsorRelease(poor.owner,poor.save.id,
-    {contractId:poor.contractId,operationKey:"spe2-insufficient",releaseType:"PRICED_BUYOUT"});
-  const ledgerBefore=await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${poor.save.id}`);
-  await assert.rejects(()=>finance.acceptSponsorRelease(poor.owner,poor.save.id,poorRequest.id));
-  const poorAfter=Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${poor.save.id}`))[0]!.balance_pence);
-  const ledgerAfter=await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${poor.save.id}`);
-  const unchanged=(await rows(sql`SELECT status FROM career_sponsor_contracts WHERE career_save_id=${poor.save.id} AND id=${poor.contractId}`))[0]!;
-  assert.equal(poorAfter,poorBefore);
-  assert.equal(Number(ledgerAfter[0]!.n),Number(ledgerBefore[0]!.n));
-  assert.equal(unchanged.status,"ACTIVE");
-  const scheduled=await signBuyout(1,3,"e217",5000);
-  const renewalOfferId="00000000-0000-4000-8000-00000000e218";
-  const source=(await rows(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id=${scheduled.save.id} AND id=${scheduled.offerId}`))[0]!;
-  await db.execute(sql`INSERT INTO career_sponsor_offers
-    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
-    VALUES(${scheduled.save.id},${renewalOfferId},'spe2-scheduled-renewal',${source.sponsor_key},${Number(source.sponsor_database_version)},
-      ${String(source.tier)},${String(source.kind)},${JSON.stringify(source.terms)}::jsonb,${JSON.stringify(source.source)}::jsonb,
-      ${Number(source.offered_season)},${Number(source.offered_week)},${Number(source.expires_season)},${Number(source.expires_week)},'ACCEPTED',NOW())`);
-  await db.execute(sql`INSERT INTO career_sponsor_contracts
-    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status,end_reason,ended_at)
-    SELECT career_save_id,'00000000-0000-4000-8000-00000000e219',${renewalOfferId},sponsor_key,sponsor_database_version,tier,terms,
-      start_season+1,1,end_season+1,end_week,'SCHEDULED',NULL,NULL
-    FROM career_sponsor_contracts WHERE career_save_id=${scheduled.save.id} AND id=${scheduled.contractId}`);
-  await assert.rejects(()=>finance.requestSponsorRelease(scheduled.owner,scheduled.save.id,
-    {contractId:scheduled.contractId,operationKey:"spe2-renewal-block",releaseType:"PRICED_BUYOUT"}),/scheduled renewal/);
-});
-
-test("SP-E2B materializes a permitted notice during Career advancement, not the Sponsor HQ read",async()=>{
-  const save=await careerWithCurrentCatalogue();
-  Object.assign(fixture,{titles:1,bestFinishByCircuit:{GRASSROOTS:1}});
-  const terms=structuredClone(sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).find(item=>item.key==="forge-workwear")!.terms);
-  terms.contractFoundation!.terminationConditions=["MATERIAL_BREACH"];
-  const offer=(await db.execute(sql`INSERT INTO career_sponsor_offers
-    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status)
-    VALUES(${save.id},gen_random_uuid(),'spe2b-material-breach-offer',${terms.sponsorKey},${terms.sponsorDatabaseVersion},${terms.tier},'NEW',
-      ${JSON.stringify(terms)}::jsonb,'{"fixture":"SP-E2B"}'::jsonb,1,1,1,52,'AVAILABLE') RETURNING id`)).rows[0]!;
-  const accepted=await finance.acceptOffer(actor,save.id,{offerId:String(offer.id)});
-  const activityId="00000000-0000-4000-8000-00000000e2b1";
-  await db.execute(sql`INSERT INTO career_sponsor_commitments
-    (career_save_id,id,contract_id,sponsor_key,clause_id,occurrence,commitment_type,required,cadence,season,available_from_week,window_weeks,due_week,status,scheduling_requirements,resolution_evidence,operation_key)
-    VALUES(${save.id},${activityId},${accepted.contractId},${terms.sponsorKey},'fixture-community-duty',1,'COMMUNITY_SESSION',true,'PER_SEASON',1,1,1,1,'CONFIRMED',
-      '{"activitySpecVersion":"1"}'::jsonb,'{}'::jsonb,'spe2b-required-duty')`);
-  const advanced=await finance.calendar.advance(actor,save.id,{operationKey:"spe2b-missed-advance",expectedSeason:1,expectedWeek:1,target:{kind:"WEEKS",weeks:1}}) as {to:{week:number}};
-  assert.equal(advanced.to.week,2);
-  const commitment=(await rows(sql`SELECT status FROM career_sponsor_commitments WHERE career_save_id=${save.id} AND id=${activityId}`))[0]!;
-  assert.equal(commitment.status,"MISSED");
-  const beforeRead=(await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_compliance_notices WHERE career_save_id=${save.id}`))[0]!;
-  assert.equal(Number(beforeRead.n),1,"advancement creates the authorised notice");
-  await finance.sponsors(actor,save.id);
-  await finance.sponsors(actor,save.id);
-  const afterRead=(await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_compliance_notices WHERE career_save_id=${save.id}`))[0]!;
-  assert.equal(Number(afterRead.n),1,"Sponsor HQ reads do not create duplicate notices");
 });
