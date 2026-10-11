@@ -44,6 +44,9 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
   const relationshipsQuery = useCareerRelationships(ctx.save.id);
   const careerLifeQuery = useCareerLife(ctx.save.id);
   const player = playerQuery.data?.players.find(candidate => candidate.id === npcId);
+  const country = typeof player?.country === "string" ? player.country : null;
+  const region = typeof player?.region === "string" ? player.region : null;
+  const nickname = typeof player?.nickname === "string" ? player.nickname : null;
   const identity = relationshipsQuery.data?.world.players.find(candidate => candidate.id === npcId);
   const persistedSponsors = sponsorRecords(player?.sponsorshipFoundation?.relationships);
   const confirmedProfile = !!player;
@@ -61,16 +64,15 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
           <div className="player-eyebrow">Saved Darts World identity</div>
           <h1 className="player-name">{player.name}</h1>
           <div className="player-facts">
-            <span className="player-fact">{player.status === "RETIRED" ? "Retired" : "Active"}</span>
-            <span className="player-fact">{player.country}</span>
-            {player.region && <span className="player-fact">{player.region}</span>}
+            <span className="player-fact">{player.status === "RETIRED" ? "Retired" : player.status === "ACTIVE" ? "Active" : "Status unavailable"}</span>
+            {country && <span className="player-fact">{country}</span>}
+            {region && <span className="player-fact">{region}</span>}
             <span className="player-fact">{player.ranking === null ? "No current World Ranking" : `World #${player.ranking}`}</span>
             {identity && <span className="player-fact">{identity.age} years old</span>}
           </div>
           <div className="player-link-list">
             {identity && <span className="player-fact">{identity.status === "RETIRED" && identity.retiredSeason !== null ? `Retired after Season ${identity.retiredSeason}` : `Entered Season ${identity.createdSeason}`}</span>}
-            {player.nickname && <span className="player-fact">“{player.nickname}”</span>}
-            {player.tourCard && <span className="player-fact">Active Tour Card</span>}
+            {nickname && <span className="player-fact">“{nickname}”</span>}
           </div>
         </header>
 
