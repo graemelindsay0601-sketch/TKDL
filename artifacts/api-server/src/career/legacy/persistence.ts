@@ -68,9 +68,13 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
       COALESCE(SUM(amount_pence) FILTER(WHERE headline='SPONSOR'),0)::bigint commercial
     FROM career_finance_entries WHERE career_save_id=${id} AND season IS NOT NULL GROUP BY season ORDER BY season`)).rows.map(r=>({
       season:n(r,"season"),prizePence:n(r,"prize"),commercialPence:n(r,"commercial")}));
-  const sponsors=(await tx.execute(sql`SELECT id,sponsor_key,start_season,end_season,status FROM career_sponsor_contracts
-    WHERE career_save_id=${id} ORDER BY start_season,start_week,id`)).rows.map(r=>({
-      id:String(r.id),name:String(r.sponsor_key),startSeason:n(r,"start_season"),endSeason:n(r,"end_season"),status:String(r.status)}));
+  const sponsors=(await tx.execute(sql`SELECT c.id,c.sponsor_key,c.start_season,c.end_season,c.status,
+      COALESCE(o.kind='RENEWAL',false) AS renewal
+    FROM career_sponsor_contracts c LEFT JOIN career_sponsor_offers o
+      ON o.career_save_id=c.career_save_id AND o.id=c.offer_id
+    WHERE c.career_save_id=${id} ORDER BY c.start_season,c.start_week,c.id`)).rows.map(r=>({
+      id:String(r.id),name:String(r.sponsor_key),startSeason:n(r,"start_season"),endSeason:n(r,"end_season"),
+      status:String(r.status),renewal:r.renewal===true}));
   const qualifications=(await tx.execute(sql`SELECT id,recipient_key,awarded_season,target_key FROM career_qualification_entitlements
     WHERE career_save_id=${id} ORDER BY awarded_season,id`)).rows.map(r=>({
       id:String(r.id),participant:String(r.recipient_key),season:n(r,"awarded_season"),target:String(r.target_key)}));
@@ -78,6 +82,16 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
     WHERE career_save_id=${id} ORDER BY season,week,id`)).rows.map(r=>({id:String(r.id),season:n(r,"season"),kind:String(r.kind),thread:r.thread?String(r.thread):null}));
   const commitments=(await tx.execute(sql`SELECT id,season,title,status FROM career_life_commitments
     WHERE career_save_id=${id} ORDER BY season,day,id`)).rows.map(r=>({id:String(r.id),season:n(r,"season"),title:String(r.title),status:String(r.status)}));
+  const sponsorActivities=(await tx.execute(sql`
+    SELECT id,contract_id,sponsor_key,commitment_type AS kind,status,required,season,scheduled_week
+      FROM career_sponsor_commitments WHERE career_save_id=${id}
+    UNION ALL
+    SELECT id,contract_id,sponsor_key,opportunity_type AS kind,status,false AS required,season,scheduled_week
+      FROM career_sponsor_opportunities WHERE career_save_id=${id}
+    ORDER BY season,scheduled_week NULLS LAST,id
+  `)).rows.map(r=>({id:String(r.id),contractId:String(r.contract_id),sponsorKey:String(r.sponsor_key),
+    kind:String(r.kind),status:String(r.status),required:r.required===true,season:n(r,"season"),
+    scheduledWeek:r.scheduled_week==null?null:n(r,"scheduled_week")}));
   const merch=(await tx.execute(sql`SELECT category,signed_season,active FROM career_life_merchandise WHERE career_save_id=${id}`)).rows[0];
   const productRows=(await tx.execute(sql`SELECT p.id,p.product_name,p.manufacturer,p.product_type,p.launch_season,d.status,
       COALESCE(SUM(s.units),0)::int units,COALESCE(SUM(s.gross_pence),0)::bigint gross,
@@ -102,7 +116,7 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
       grossPence:n(s,"gross"),royaltyPence:n(s,"royalty")})),
   }));
   return {saveId:id,currentSeason:Number(root.current_season),currentWeek:Number(root.current_week),retired:root.status==="RETIRED",
-    players,totals,results,rankings,cards,money,sponsors,qualifications,decisions,commitments,
+    players,totals,results,rankings,cards,money,sponsors,qualifications,decisions,commitments,sponsorActivities,
     productArchive,
     ages:profile?.dob&&profile?.start?[...new Set(totals.filter(t=>t.id==="HUMAN").map(t=>t.season))].map(season=>({
       participant:"HUMAN",season,atStart:ageOn(String(profile.dob),careerDate(String(profile.start),season,1))})):[],

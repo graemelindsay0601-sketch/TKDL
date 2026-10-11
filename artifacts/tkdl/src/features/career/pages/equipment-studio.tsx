@@ -1,6 +1,7 @@
 import {useState} from "react";
 import {errorMessage,useEquipmentStudio,useSaveEquipmentLoadout,useCreateProductDraft,useApproveProductDraft,useLaunchProductDraft,useRetireProductDraft} from "../api";
 import type {ShellContext} from "../shell";
+import {EquipmentProductArt} from "../components/equipment-product-art";
 
 const styles="rounded-xl border border-white/10 bg-slate-950/70 p-4";
 const button="rounded-lg border border-amber-300/40 px-3 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-300/10 disabled:opacity-40";
@@ -16,10 +17,17 @@ export function EquipmentStudio({ctx}:{ctx:ShellContext}) {
   const [loadout,setLoadout]=useState({dartWeight:22,barrel:"STRAIGHT",stem:"SHORT",flight:"STANDARD",flightPattern:"CHEVRON",flightColour:"#e11d48",apparelColour:"#10253e"});
   const [contractId,setContractId]=useState(""),[productType,setProductType]=useState<"SIGNATURE_DARTS"|"SIGNATURE_RANGE">("SIGNATURE_DARTS"),
     [name,setName]=useState(""),[limitedEdition,setLimitedEdition]=useState(false),[editionSize,setEditionSize]=useState(100);
+  const [launchReveal,setLaunchReveal]=useState<{name:string;brand:string;type:string}|null>(null);
   if(query.isLoading)return <section className={styles}>Loading equipment studio…</section>;
-  if(query.isError)return <section className={styles} role="alert">{errorMessage(query.error)}</section>;
+  if(query.isError)return <section className={styles} role="alert">
+    <p>{errorMessage(query.error)}</p><button className={`${button} mt-3`} type="button" onClick={()=>void query.refetch()}>Retry Equipment Studio</button>
+  </section>;
   const data=query.data;
   const run=async(fn:()=>Promise<unknown>,success:string)=>{try{await fn();setMessage(success);}catch(e){setMessage(errorMessage(e));}};
+  const launchProduct=async(d:{id:string;name:string;brand:string;type:string})=>{
+    try{await launch.mutateAsync(d.id);setLaunchReveal({name:d.name,brand:d.brand,type:d.type});setMessage(`${d.name} is now in your commercial history.`);}
+    catch(e){setMessage(errorMessage(e));}
+  };
   return <section className="space-y-4" aria-label="Equipment studio">
     <header className="rounded-2xl border border-amber-300/20 bg-gradient-to-br from-slate-900 via-slate-950 to-amber-950/30 p-5">
       <p className="text-xs font-bold uppercase tracking-[.2em] text-amber-300">Career · SP-G</p>
@@ -28,9 +36,23 @@ export function EquipmentStudio({ctx}:{ctx:ShellContext}) {
       <p className="mt-2 text-xs text-white/45">Equipment is cosmetic only. It never changes darts ability, scoring, or match physics.</p>
     </header>
     {message&&<p role="status" className={styles}>{message}</p>}
+    {launchReveal&&<section className="overflow-hidden rounded-2xl border border-amber-300/30 bg-gradient-to-r from-amber-950/50 via-slate-950 to-slate-900 p-4 sm:p-6" aria-label="Product launch reveal">
+      <p className="text-[10px] font-bold uppercase tracking-[.22em] text-amber-200">Signature launch · Season {ctx.save.currentSeason}, Week {ctx.save.currentWeek}</p>
+      <div className="mt-3 grid items-center gap-4 sm:grid-cols-[1fr_1.4fr]">
+        <EquipmentProductArt name={launchReveal.name} type={launchReveal.type} brand={launchReveal.brand} accent="#fbbf24"/>
+        <div><h3 className="text-2xl font-black text-white">{launchReveal.name}</h3>
+          <p className="mt-1 text-sm text-white/65">{launchReveal.brand} · Now listed in the Career product portfolio</p>
+          <p className="mt-3 text-xs text-white/50">Sales are simulated only in future Career weeks. Any royalty is settled separately through the A4 ledger.</p></div>
+      </div>
+    </section>}
     <div className="grid gap-4 lg:grid-cols-2">
       <div className={styles}>
         <h3 className="text-lg font-bold text-white">Your loadout</h3>
+        <div className="my-3 grid grid-cols-2 gap-2">
+          <EquipmentProductArt name="Personal setup" type="SIGNATURE_DARTS" accent={loadout.flightColour}
+            barrel={loadout.barrel} stem={loadout.stem} flight={loadout.flight} pattern={loadout.flightPattern}/>
+          <EquipmentProductArt name="Flight design" type="SIGNATURE_RANGE" accent={loadout.apparelColour}/>
+        </div>
         <div className="mt-3 grid grid-cols-2 gap-3">
           <label className={label}>Weight (g)<input className={select} type="number" min="18" max="30" step=".5" value={loadout.dartWeight} onChange={e=>setLoadout({...loadout,dartWeight:Number(e.target.value)})}/></label>
           <label className={label}>Barrel<select className={select} value={loadout.barrel} onChange={e=>setLoadout({...loadout,barrel:e.target.value})}>{["STRAIGHT","TORPEDO","SCALLOPED","TAPERED"].map(x=><option key={x}>{x}</option>)}</select></label>
@@ -61,9 +83,10 @@ export function EquipmentStudio({ctx}:{ctx:ShellContext}) {
     <div className={styles}>
       <h3 className="text-lg font-bold text-white">Drafts & approvals</h3>
       <div className="mt-3 grid gap-2 md:grid-cols-2">{data.drafts.map((d:any)=><article key={d.id} className="rounded-lg border border-white/10 p-3">
+        <EquipmentProductArt name={d.name} type={d.type} brand={d.brand}/>
         <div className="flex items-start justify-between gap-2"><div><strong className="text-white">{d.name}</strong><p className="text-xs text-white/50">{d.brand} · {d.type.replaceAll("_"," ")} · {d.status}</p></div><span className={d.contractActive?"text-emerald-300":"text-white/40"}>{d.contractActive?"Rights active":"Legacy agreement"}</span></div>
         <div className="mt-2 flex flex-wrap gap-2">{d.status==="DRAFT"&&<button className={button} disabled={!d.contractActive||approve.isPending} onClick={()=>void run(()=>approve.mutateAsync(d.id),"Product approved.")}>Approve</button>}
-          {d.status==="APPROVED"&&<button className={button} disabled={!d.contractActive||launch.isPending} onClick={()=>void run(()=>launch.mutateAsync(d.id),"Product launched.")}>Launch</button>}
+          {d.status==="APPROVED"&&<button className={button} disabled={!d.contractActive||launch.isPending} onClick={()=>void launchProduct(d)}>Launch</button>}
           {d.status==="LAUNCHED"&&<button className={button} disabled={retire.isPending} onClick={()=>void run(()=>retire.mutateAsync(d.id),"Product retired.")}>Retire</button>}</div>
       </article>)}</div>
       {!data.drafts.length&&<p className="mt-2 text-sm text-white/50">No product drafts yet.</p>}
@@ -72,6 +95,7 @@ export function EquipmentStudio({ctx}:{ctx:ShellContext}) {
       <h3 className="text-lg font-bold text-white">Portfolio & commercial performance</h3>
       <p className="mt-1 text-xs text-white/50">Darts £69.99 · ranges/flights £24.99 · deterministic weekly demand capped at 100 units per product. Royalty: 8% of recorded gross sales through A4.</p>
       <div className="mt-3 grid gap-2 md:grid-cols-2">{data.products.map((p:any)=><article key={p.id} className="rounded-lg border border-white/10 p-3">
+        <EquipmentProductArt name={p.name} type={p.type} brand={p.brand}/>
         <div className="flex justify-between"><strong className="text-white">{p.name}</strong><span className="text-xs text-amber-300">{p.state}</span></div>
         <p className="mt-1 text-xs text-white/50">{p.brand} · Season {p.season} · {p.units} units</p>
         <p className="mt-2 text-sm text-white/75">Gross {money(p.grossPence)} · A4 royalties {money(p.royaltyPence)}</p>

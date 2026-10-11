@@ -10,10 +10,12 @@ export type Evidence = {
   players:Player[]; totals:Totals[]; results:Result[]; rankings:Ranking[]; cards:Card[];
   ages?:{participant:string;season:number;atStart:number}[];
   money:{season:number; prizePence:number; commercialPence:number}[];
-  sponsors:{id:string; name:string; startSeason:number; endSeason:number; status:string}[];
+  sponsors:{id:string; name:string; startSeason:number; endSeason:number; status:string; renewal?:boolean}[];
   qualifications:{id:string; participant:string; season:number; target:string}[];
   decisions:{id:string; season:number; kind:string; thread:string|null}[];
   commitments:{id:string; season:number; title:string; status:string}[];
+  sponsorActivities?:{id:string;contractId:string;sponsorKey:string;kind:string;status:string;required:boolean;
+    season:number;scheduledWeek:number|null}[];
   merchandise:{category:string; signedSeason:number; active:boolean}|null;
   productArchive:{id:string;name:string;manufacturer:string;type:string;launchSeason:number;state:string;unitsSold:number;
     grossPence:number;royaltyPence:number;salesBySeason:{season:number;units:number;grossPence:number;royaltyPence:number}[]}[];
@@ -28,9 +30,11 @@ export type SeasonReview = {
   prizePence:number; commercialPence:number; bestMajor:Result|null; worldResult:Result|null;
   cardStatus:string; changes:string[]; definingRival:{id:string; name:string; meetings:number; wins:number; losses:number}|null;
   biggestMoment:Result|null; publicLife:{decisions:number; completedWork:number; threads:string[]; profile?:PublicProfile};
-  sponsors:{id:string; name:string; startSeason:number; endSeason:number; status:string}[];
+  sponsors:{id:string; name:string; startSeason:number; endSeason:number; status:string; renewal?:boolean}[];
   awards:Award[];
   productSales?:{id:string;name:string;manufacturer:string;type:string;units:number;grossPence:number;royaltyPence:number}[];
+  sponsorActivities?:{id:string;contractId:string;sponsorKey:string;kind:string;status:string;required:boolean;
+    scheduledWeek:number|null}[];
   world:{numberOne:{id:string; name:string; snapshot:string; week:number}|null; champions:Result[]; leadingAmateur:Award|null; retirements:Player[]; newEntrants:Player[]; cardChanges:Card[]};
   records:RecordRow[]; recordEvents:RecordEvent[]; notes:string[];
 };

@@ -73,7 +73,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
     </section>
 
     <nav aria-label="Sponsor HQ sections" className="sticky top-2 z-20 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/95 p-2 shadow-xl backdrop-blur">
-      {[["sponsor-overview","Overview"],["commercial-standing","Standing"],["representative-inbox","Inbox"],["commercial-landscape","Market"],["sponsor-portfolio","Partners"],["contract-decisions","Offers"],["contract-compliance","Compliance"],["sponsor-activities","Activities"],["sponsor-history","History"],["equipment-studio","Equipment"]].map(([id,title])=>
+      {[["sponsor-overview","Overview"],["commercial-standing","Standing"],["representative-inbox","Inbox"],["commercial-landscape","Market"],["sponsor-portfolio","Partners"],["relationship-history","Relationships"],["contract-decisions","Offers"],["contract-compliance","Compliance"],["sponsor-activities","Activities"],["sponsor-history","History"],["equipment-studio","Equipment"]].map(([id,title])=>
         <a key={id} href={`#${id}`} className="shrink-0 rounded-lg px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/65 transition hover:bg-amber-200/10 hover:text-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-200">{title}</a>)}
     </nav>
 
@@ -214,6 +214,24 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </div>
         </article>;
       })}</div>}
+    </CareerSection>
+
+    <CareerSection id="relationship-history" title="Sponsor relationship history">
+      {history.length===0?<div className="p-4"><p className="text-sm text-white/55">Signed partnerships and renewals will appear here from saved contract records.</p></div>
+        :<ol className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">{history.map(contract=>{
+          const brandHistory=history.filter(item=>item.sponsorKey===contract.sponsorKey);
+          return <li key={contract.id} className="relative overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-950 p-3">
+            <div className="absolute inset-y-0 left-0 w-1 bg-amber-300/70"/>
+            <div className="flex items-start justify-between gap-2 pl-2">
+              <div><p className="text-[9px] uppercase tracking-[.17em] text-amber-200/70">{contract.renewal?"Renewal":"Partnership"} · {label(contract.tier)}</p>
+                <h3 className="mt-1 text-base text-white" style={OSWALD}>{contract.terms.displayName}</h3></div>
+              <span className="rounded-full border border-white/10 px-2 py-1 text-[9px] uppercase text-white/65">{label(contract.status)}</span>
+            </div>
+            <p className="mt-2 pl-2 text-xs text-white/60">S{contract.start.season} W{contract.start.week} – S{contract.end.season} W{contract.end.week}</p>
+            <p className="mt-1 pl-2 text-xs text-white/60">{brandHistory.length} recorded agreement{brandHistory.length===1?"":"s"} with this brand · received {money(contract.totals.paidPence)}</p>
+            {contract.endReason&&<p className="mt-2 border-t border-white/10 pt-2 pl-2 text-xs text-white/50">Recorded outcome: {label(contract.endReason)}</p>}
+          </li>;
+        })}</ol>}
     </CareerSection>
 
     <CareerSection id="contract-decisions" title="Contract decisions">

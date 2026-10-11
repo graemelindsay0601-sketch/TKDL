@@ -128,10 +128,12 @@ export function review(e:Evidence,season:number,provenance:SeasonReview["provena
       champions,leadingAmateur:awards.find(a=>a.kind==="Amateur Player of the Season")??null,
       retirements:e.players.filter(p=>p.retiredSeason===season),newEntrants:e.players.filter(p=>p.createdSeason===season+1),cardChanges:cardChanges.map(c=>c.endedSeason!==null&&c.endedSeason>season?
         {...c,status:"ACTIVE",endedSeason:null,endedWeek:null}:c)},records:records(e,season),recordEvents:provenance==="CAPTURED"?recordEvents(e,season):[],
-     productSales:e.productArchive.filter(p=>p.launchSeason<=season).map(p=>{
+     productSales:(e.productArchive??[]).filter(p=>p.launchSeason<=season).map(p=>{
        const sales=p.salesBySeason.find(s=>s.season===season);
        return {id:p.id,name:p.name,manufacturer:p.manufacturer,type:p.type,units:sales?.units??0,grossPence:sales?.grossPence??0,royaltyPence:sales?.royaltyPence??0};
      }),
+      sponsorActivities:(e.sponsorActivities??[]).filter(a=>a.season===season).map(({id,contractId,sponsorKey,kind,status,required,scheduledWeek})=>
+        ({id,contractId,sponsorKey,kind,status,required,scheduledWeek})),
      notes:["Rankings are the previous season's last and this season's last published snapshots, not invented January/December ranks.",
       provenance==="RECONSTRUCTED"?"Reconstructed from retained authorities; missing historical context is not invented.":"Captured after the existing season-transition authorities completed.",
       "No NPC cash/scoring comparison; no Legacy Score, XP or gameplay effect."]};

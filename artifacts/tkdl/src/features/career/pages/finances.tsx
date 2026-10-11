@@ -47,10 +47,18 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
       {sponsors.data?.commercial && <CommercialOverview commercial={sponsors.data.commercial} />}
       {sponsors.data?.guaranteeConfiguration?.status === "AWAITING_BALANCE_APPROVAL" && (
-        <div role="status" className="pdc-card px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.78)", borderColor: "rgba(255,210,74,0.28)" }}>
-          <strong style={{ color: "#ffd24a" }}>New sponsor guarantees are awaiting balance approval.</strong>{" "}
-          The current catalogue has no guaranteed-payment amounts, so new offers will not promise unapproved cash. Existing signed terms and ledger entries remain unchanged.
-        </div>
+        <section aria-labelledby="guarantee-proposal-title" className="pdc-card px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.78)", borderColor: "rgba(255,210,74,0.28)" }}>
+          <h2 id="guarantee-proposal-title" className="font-bold" style={{ color: "#ffd24a" }}>Recurring guarantee proposal · not approved or active</h2>
+          <p className="mt-1">Illustrative recommendation for future offers only: one A4 guaranteed-payment instalment at Career week 1, per signed contract and season. These proposed figures need owner approval before they become contract terms.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[["Local","£18.75"],["Regional","£50"],["Professional","£250"],["Elite","£12,500"]].map(([tier,amount])=>
+              <div key={tier} className="rounded-md border border-amber-100/10 bg-black/20 p-2">
+                <p className="text-[9px] uppercase tracking-wider text-white/45">{tier}</p>
+                <p className="mt-1 text-sm font-bold text-white">{amount}<span className="text-[10px] font-normal text-white/50"> / season</span></p>
+              </div>)}
+          </div>
+          <p className="mt-2 text-[10px] text-white/50">Owner decision required before these figures can enter any offer or signed terms. No payout is scheduled; existing v1–v4 agreements, offers and A4 entries are unchanged.</p>
+        </section>
       )}
       {sponsorInterests.length > 0 && (
         <CareerSection title="Brands watching your progress" icon={<Handshake className="w-3.5 h-3.5" />} accent="#38bdf8">

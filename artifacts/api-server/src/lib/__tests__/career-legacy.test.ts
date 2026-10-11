@@ -10,7 +10,7 @@ const result=(extra:Partial<Result>={}):Result=>({id:"result:event:HUMAN",key:"p
   position:1,champion:true,final:true,circuit:"WORLD_CHAMPIONSHIP",tier:"WORLD",classification:"MAIN",...extra});
 const evidence=(extra:Partial<Evidence>={}):Evidence=>({saveId:"save-a",currentSeason:2,currentWeek:1,retired:false,
   players:[player("HUMAN"),player("npc")],totals:[],results:[],rankings:[],cards:[],money:[],sponsors:[],qualifications:[],decisions:[],
-  commitments:[],merchandise:null,...extra});
+   commitments:[],merchandise:null,productArchive:[],...extra});
 test("season scope, deterministic identity/story, actual money and published endpoints",()=>{
   const e=evidence({totals:[total("HUMAN",1,{titles:1,worlds:1,majorTitles:1}),total("HUMAN",2,{titles:8})],results:[result()],
     money:[{season:1,prizePence:500,commercialPence:100},{season:2,prizePence:9000,commercialPence:0}],
@@ -19,6 +19,18 @@ test("season scope, deterministic identity/story, actual money and published end
   assert.deepEqual(review(e,1,"CAPTURED"),r);assert.equal(r.identity,"World Champion");
   assert.equal(r.human.titles,1);assert.equal(r.prizePence,500);assert.equal(r.commercialPence,100);assert.equal(r.rankingMovement,56);
   assert.equal(r.finalRank?.week,50);assert.equal(r.worldResult?.id,"result:event:HUMAN");
+});
+test("captured season review includes only persisted sponsor activity outcomes from that season",()=>{
+  const e=evidence({sponsorActivities:[
+    {id:"required-1",contractId:"contract-a",sponsorKey:"apex",kind:"COMMUNITY_SESSION",status:"COMPLETED",required:true,season:1,scheduledWeek:18},
+    {id:"optional-1",contractId:"contract-a",sponsorKey:"apex",kind:"PRODUCT_LAUNCH",status:"DECLINED",required:false,season:1,scheduledWeek:null},
+    {id:"future-1",contractId:"contract-a",sponsorKey:"apex",kind:"MEDIA",status:"AVAILABLE",required:false,season:2,scheduledWeek:null},
+  ]});
+  const snapshot=review(e,1,"CAPTURED");
+  assert.deepEqual(snapshot.sponsorActivities,[
+    {id:"required-1",contractId:"contract-a",sponsorKey:"apex",kind:"COMMUNITY_SESSION",status:"COMPLETED",required:true,scheduledWeek:18},
+    {id:"optional-1",contractId:"contract-a",sponsorKey:"apex",kind:"PRODUCT_LAUNCH",status:"DECLINED",required:false,scheduledWeek:null},
+  ]);
 });
 test("amateur-only achievement is valid and pro status is not its identity",()=>{
   const e=evidence({totals:[total("HUMAN",1,{amateurTitles:3,nationalTitles:2,titles:3})]});

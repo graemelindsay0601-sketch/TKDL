@@ -106,6 +106,13 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
       {r.productSales.map(p=><p className="mt-1 text-sm" key={p.id}>{p.name}: {p.units} units · gross {formatPence(p.grossPence)} · A4 royalty {formatPence(p.royaltyPence)}</p>)}
       <p className="mt-2 text-xs text-white/55">This review is a saved season snapshot. Product gross is not added to player income; settled royalty appears in Sponsor/Commercial only through A4.</p>
     </section>}
+    {!!r.sponsorActivities?.length&&<section className="rounded-lg border border-sky-200/15 bg-slate-950/40 p-3">
+      <h3 className="font-bold">Sponsor commitments & opportunities · season {r.season}</h3>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{r.sponsorActivities.map(a=><li className="rounded-md border border-white/10 p-2 text-sm" key={a.id}>
+        <strong>{a.sponsorKey}</strong> · {a.kind.replaceAll("_"," ").toLowerCase()}
+        <p className="text-xs text-white/55">{a.required?"Contractual commitment":"Optional opportunity"} · {a.status.toLowerCase().replaceAll("_"," ")}{a.scheduledWeek?` · Week ${a.scheduledWeek}`:" · not scheduled"}</p>
+      </li>)}</ul>
+    </section>}
     <p>{r.cardStatus}</p><p>Starting World rank: {r.startingRank?`#${r.startingRank.position} (previous season, week ${r.startingRank.week})`:"not recorded"} · Final published: {r.finalRank?`#${r.finalRank.position} (week ${r.finalRank.week})`:"not recorded"}</p>
     {r.bestMajor&&<p>Best major: {r.bestMajor.name} · position {r.bestMajor.position}</p>}
     {r.worldResult&&<p>World Championship: {r.worldResult.name} · position {r.worldResult.position}</p>}
@@ -117,7 +124,12 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
     <h3 className="font-bold">Career Changes</h3>{r.changes.map(c=><p key={c}>{c}</p>)}
     {r.world.cardChanges.map(c=><p key={c.id}>Card change: {c.participantName??"Recorded participant"} · {c.source} · {c.status}</p>)}
     {r.world.retirements.map(p=><p key={p.id}>Retirement: {p.name}</p>)}
-    {r.sponsors.map(s=><p key={s.id}>Sponsor: {s.name} · {s.status}</p>)}
+    {!!r.sponsors.length&&<section className="rounded-lg border border-amber-200/15 bg-slate-950/40 p-3">
+      <h3 className="font-bold">Partnerships in season {r.season}</h3>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{r.sponsors.map(s=><li key={s.id} className="rounded-md border border-white/10 p-2 text-sm">
+        <strong>{s.name}</strong><p className="text-xs text-white/55">{s.renewal?"Renewal term":"Agreement"} · {s.status} · S{s.startSeason}–S{s.endSeason}</p>
+      </li>)}</ul>
+    </section>}
     <p>{r.publicLife.decisions} remembered Career Life decisions · {r.publicLife.completedWork} completed off-board commitments.</p>
     {r.publicLife.profile&&<p>Public profile at transition: {r.publicLife.profile.persona.label} · {r.publicLife.profile.awareness} · {r.publicLife.profile.reception}</p>}
     <Link className="underline" href={`/career/${saveId}/stories`}>Established Career Story Threads</Link>
