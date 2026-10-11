@@ -1,0 +1,16 @@
+services:
+  tkdl-postgres:
+    image: postgres:16-alpine
+    container_name: tkdl-development-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tkdl_dev
+      POSTGRES_USER: tkdl_dev
+      POSTGRES_PASSWORD: ${TKDL_DB_PASSWORD:?Run the local preview command to generate .env.local first}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - tkdl-local-postgres:/var/lib/postgresql/data
+
+volumes:
+  tkdl-local-postgres:

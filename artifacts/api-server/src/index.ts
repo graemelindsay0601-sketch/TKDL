@@ -4,6 +4,13 @@ import { ensureCurrentBroadcastEdition } from "./broadcast/edition-engine";
 import { deploymentBootstrapKey, ensureBootstrapLedger, isBootstrapComplete, markBootstrapComplete } from "./lib/deployment-bootstrap";
 import { markStartupFailed, markStartupReady, setStartupPhase } from "./lib/startup-state";
 import { getFeatureFlag, FEATURES } from "./services/feature-flags-service";
+import { assertSafeDevelopmentDatabase } from "./lib/local-db-guard";
+
+assertSafeDevelopmentDatabase({
+  nodeEnv: process.env.NODE_ENV,
+  environment: process.env.TKDL_ENVIRONMENT,
+  databaseUrl: process.env.DATABASE_URL,
+});
 
 const rawPort = process.env["PORT"];
 
@@ -77,8 +84,12 @@ async function initializeApplication() {
 
     if (!runtimeStarted) {
       runtimeStarted = true;
-      startBroadcastScheduler();
-      void initRuntimeApp().catch(err => logger.error({ err }, "Deferred runtime startup failed"));
+      if (process.env.TKDL_DISABLE_BACKGROUND_JOBS === "1") {
+        logger.info("Local TKDL preview: background schedulers and runtime jobs are disabled");
+      } else {
+        startBroadcastScheduler();
+        void initRuntimeApp().catch(err => logger.error({ err }, "Deferred runtime startup failed"));
+      }
     }
   } catch (err) {
     logger.error({ err }, "TKDL initialization failed; retrying in 10 seconds");

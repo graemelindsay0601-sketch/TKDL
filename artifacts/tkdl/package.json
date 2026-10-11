@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0",
+    "dev": "node scripts/start-local-preview.mjs",
     "build": "node ./build.mjs",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",

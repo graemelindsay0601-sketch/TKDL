@@ -50,6 +50,13 @@ export default defineConfig({
     strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
+    proxy: {
+      "/api": {
+        target: `http://127.0.0.1:${process.env.TKDL_API_PORT ?? "18081"}`,
+        changeOrigin: false,
+        ws: true,
+      },
+    },
     fs: {
       strict: true,
     },
