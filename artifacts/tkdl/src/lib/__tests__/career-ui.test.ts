@@ -100,7 +100,7 @@ function tournamentFixture(champion=false) {
 }
 test("A8.2 floor hub is quick, factual and offers explicit concession/withdrawal rather than browser-loss penalties",()=>{
   const t=text(render(h(M.TournamentPage,{ctx:ctx(),eventId:"event"}),[[key("tournament","event"),tournamentFixture()]]));
-  assert.match(t,/Floor tournament/);assert.match(t,/Official draw locked/);assert.match(t,/Fixture Player vs Fixture Opponent/);
+  assert.match(t,/Grassroots Club & community darts/);assert.match(t,/Official draw locked/);assert.match(t,/Fixture Player vs Fixture Opponent/);
   assert.match(t,/Prepare match/);assert.match(t,/Concede this match/);assert.match(t,/Withdraw from tournament/);
   assert.match(t,/no sporting effects/);assert.doesNotMatch(t,/World Champion|Tournament Champion|Event arrival/);
 });
@@ -604,6 +604,23 @@ test("A8.3 Home prioritises an actual active tournament, then the mandatory seas
   const reviewing=render(h(M.HomePage,{ctx:ctx()}),[...seed,[key("legacy"),{pendingReview:1}]]);
   assert.match(text(reviewing),/Continue Season Review/);assert.doesNotMatch(text(reviewing),/Return to Tournament/);
   browserScene("home",render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.HomePage,{ctx:ctx()})),seed));
+});
+test("Career Home presents verified progression, eligibility and personal focus",()=>{
+  const s=save();
+  const route={eventId:"regional-route",name:"Regional Championship",definitionKey:"regional-championship",circuit:"REGIONAL",
+    classification:"RANKING",startWeek:s.currentWeek+1,status:"SCHEDULED",eligible:false,reasons:["REQUIRES_RANKING"],
+    routes:{type:"RANKING",met:false,list:"pro-world",maxPosition:32,position:null},seedingList:null,seeds:0};
+  const seed:[unknown[],unknown][]=[
+    ...homeSeed(s,[event({id:"open-entry",name:"Open Entry",human:human({eligible:true,canEnter:true})})]),
+    [key("qualification",{fromWeek:s.currentWeek,weeks:12}),{season:s.currentSeason,tourCard:null,professionalStatus:"AMATEUR",rankings:{},events:[route]}],
+    [key("milestones",12),{participantKey:"HUMAN",milestones:[{id:"ranking-entry",kind:"FIRST_RANKING_ENTRY",list_key:"pro-world",season:1,week:4,detail:{position:25}}]}],
+    [key("goals"),goalsFixture()],
+  ];
+  const html=render(h(M.HomePage,{ctx:ctx(s)}),seed);
+  const t=text(html);
+  for(const label of ["Your next decision","The route ahead","Regional Championship","Top 32","Entry windows","Open Entry","Focus & goals","Latest sporting evidence","First ranking entry","no rewards or progression shortcuts"]) assert.ok(t.includes(label),label);
+  assert.ok(html.includes(`/career/${SAVE_ID}/calendar`));
+  assert.ok(html.includes(`/career/${SAVE_ID}/rankings`));
 });
 test("A8.3 All Events map deep link exposes the inaccessible Palace and authoritative cost split",()=>{
   const seed:[[unknown[],unknown]]=[[key("world-map"),a83MapFixture()]];

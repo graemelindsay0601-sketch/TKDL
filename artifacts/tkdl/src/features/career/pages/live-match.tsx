@@ -6,7 +6,10 @@ import { ArrowLeft, Home, ListOrdered, Swords, Trophy } from "lucide-react";
 import { GameScorer, BullUpBoard, type GameTypeOption } from "@/components/game-scorer";
 import { resolveBullUp, type Dart, type X01Format } from "@/lib/darts-rules";
 import { useWakeLock, useZoomLock } from "@/lib/nativeParity";
-import { liveApi, errorMessage } from "../api";
+import { liveApi, errorMessage, useTournament } from "../api";
+import { MatchContextStrip, ResultBanner } from "../tournament/components";
+import { resultMoment } from "../tournament/model";
+import { formatPence } from "../model";
 import { OSWALD, Label, StatusBadge } from "../components";
 import { adoptLiveCursor, careerGameType, careerBotVisit, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
 import type { ShellContext } from "../shell";
@@ -115,6 +118,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
     const state = resolveBullUp(session.bullUp.firstOrder, session.bullUp.throws);
     return createPortal(
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e", overflowY: "auto" }}>
+        <MatchContextStrip saveId={saveId} eventId={session.eventId} matchId={session.matchId} />
         <BullUpBoard names={[session.player.name, session.opponent.name]} state={state} isHuman={idx => idx === 0} busy={busy} error={error}
           subtitle={state.rounds.length > 1 ? undefined : "Nearest the bull throws first"}
           onThrow={async (_, t) => {
@@ -158,11 +162,15 @@ function Overlay({ children }: { children: React.ReactNode }) {
   return createPortal(<div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(4,4,10,0.96)" }}>{children}</div>, document.body);
 }
 
-/** Concise Career result transition: opponent, score, win/loss, what happens next. No narrative (A7). */
+/** Career result transition: score, significance from the saved tournament state, what happens next. No narrative (A7). */
 function PostMatch({ saveId, session, onNext }: { saveId: string; session: LiveSession; onNext: (matchId: string) => void }) {
   const r = session.result!;
   const next = r.nextHumanMatchIds?.[0] ?? null;
   const nextState = next ? "Your next fixture is ready." : r.eventCompleted ? "The event is complete. View your tournament summary." : "Result saved. The Tournament Hub shows your group, bracket and next session; a group loss does not automatically eliminate you.";
+  const t = useTournament(saveId, session.eventId);
+  const saved = t.data?.matches.find(m => m.id === session.matchId) ?? null;
+  const moment = t.data && saved ? resultMoment(t.data, saved) : null;
+  const prize = t.data ? (t.data.money.paid ? Number(t.data.money.prize?.cash_award_pence ?? 0) : t.data.money.securedPence) : null;
   return (
     <Overlay>
       <div className="pdc-card career-hero p-5 space-y-4 w-full" style={{ maxWidth: 440 }} role="dialog" aria-label="Match result">
@@ -171,10 +179,12 @@ function PostMatch({ saveId, session, onNext }: { saveId: string; session: LiveS
         <div className="font-black uppercase leading-tight" style={{ ...OSWALD, color: "#fff", fontSize: "1.4rem" }}>
           {session.player.name} {scoreLine(session)} {session.opponent.name}
         </div>
+        {moment && <ResultBanner moment={moment} />}
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div><dt><Label>Your average</Label></dt><dd style={{ color: "#fff" }}>{r.facts?.human.average.toFixed(2)}</dd></div>
           <div><dt><Label>Opponent average</Label></dt><dd style={{ color: "#fff" }}>{r.facts?.opponent.average.toFixed(2)}</dd></div>
         </dl>
+        {prize !== null && prize > 0 && <p className="text-sm" style={{ color: "#ffd24a" }}>{t.data?.money.paid ? "Prize settled" : "Prize secured so far"}: {formatPence(prize)}</p>}
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{nextState}</p>
         <div className="flex flex-wrap gap-2">
           {next && <button className="career-btn career-btn-gold" onClick={() => onNext(next)}><Swords className="w-4 h-4" aria-hidden /> Next match</button>}
