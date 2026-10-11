@@ -234,8 +234,9 @@ test("A7.3 recommendations retain exact costs, eligibility blockers and event li
   data.goals=[{id:"goal-1",definition:{type:"WIN_TITLE"},label:"Win a Career title",status:"COMPLETED",created:{season:1,week:1},
     progress:{current:1,target:1,unit:"achievement",note:null},completion:{id:"result:one",source:"A3 event result",label:"Regional Open",season:1,day:7,week:1,date:"2026-01-07",age:20,eventId:"event-1"}}];
   const html=render(h(M.GoalsPage,{ctx:ctx()}),[[key("goals"),data]]),t=text(html);
-  assert.match(t,/INSUFFICIENT_FUNDS/);assert.match(t,/not guaranteed/);assert.match(t,/10,000/);assert.match(t,/£100 estimated Career cost/);
-  assert.match(t,/World ranking: #81/);assert.match(t,/2026-01-07/);assert.match(t,/Age 20/);assert.match(t,/A3 event result/);
+  // Eligibility blockers are shown in plain language, never as raw server codes.
+  assert.match(t,/Cannot afford/);assert.doesNotMatch(t,/INSUFFICIENT_FUNDS/);assert.match(t,/not guaranteed/);assert.match(t,/10,000/);assert.match(t,/£100 estimated Career cost/);
+  assert.match(t,/World ranking #81/);assert.match(t,/2026-01-07/);assert.match(t,/Age 20/);assert.match(t,/A3 event result/);
   assert.ok(html.includes(`/career/${SAVE_ID}/events/event-1`));
   assert.doesNotMatch(t,/XP awarded|skill points|loot|level up/i);
 });

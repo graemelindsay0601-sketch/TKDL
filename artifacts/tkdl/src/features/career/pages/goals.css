@@ -1,0 +1,40 @@
+/* Focus & goals — visual completion */
+.career-goals__message { margin:0; padding:10px 14px; border-radius:12px; border:1px solid #ffffff1c; background:#ffffff08; color:#e6eef5; font-size:.84rem; }
+.career-goals__grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.career-goals__focus, .career-goals__pick { padding:14px 16px; display:grid; gap:10px; }
+.career-goals__focus p, .career-goals__pick > p { margin:0; color:#c3d0dc; font-size:.82rem; line-height:1.5; }
+.career-goals label { display:grid; gap:6px; }
+.career-goals label > span { font:700 .62rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#ffffff99; }
+.career-goals select { width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ffffff2a; background:#070b12; color:#fff; font-weight:600; }
+.career-goals__pick form { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:end; }
+.career-goals__opps { list-style:none; margin:0; padding:6px 0; }
+.career-goals__opps > li { display:flex; align-items:center; gap:12px; padding:10px 16px; border-bottom:1px solid #ffffff0d; }
+.career-goals__opps > li:last-child { border-bottom:0; }
+.career-goals__opps .career-event-tile { width:5rem; min-height:3.3rem; }
+.career-goals__opp-body { flex:1; min-width:0; display:grid; gap:3px; }
+.career-goals__opp-body a { font:700 .95rem Oswald,sans-serif; letter-spacing:.02em; color:#fff; text-decoration:none; }
+.career-goals__opp-body a:hover { color:#ff8fb4; }
+.career-goals__reason { color:#ffd27a; font-size:.74rem; }
+.career-goals__money { color:#a9bccd; font-size:.72rem; }
+.career-goals__opp-status { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; max-width:40%; }
+.career-goals__fine { margin:0; padding:8px 16px 14px; color:#8fa3b6; font-size:.72rem; }
+.career-goals__cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; padding:14px; }
+.career-goal-card { display:grid; gap:8px; padding:14px; border-radius:14px; border:1px solid #ffffff1c; background:linear-gradient(180deg,#172435,#0f1824); }
+.career-goal-card.is-completed { border-color:#ffd24a55; background:linear-gradient(180deg,#2a2412,#141109); }
+.career-goal-card.is-abandoned { opacity:.72; }
+.career-goal-card header { display:flex; justify-content:space-between; gap:10px; align-items:start; }
+.career-goal-card h5 { margin:0; font:700 1rem/1.2 Oswald,sans-serif; letter-spacing:.02em; color:#fff; }
+.career-goal-card header span { font:700 .58rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff99; white-space:nowrap; }
+.career-goal-card__meta { margin:0; color:#91a5b9; font-size:.72rem; }
+.career-goal-card__progress > div { height:8px; border-radius:999px; background:#ffffff12; overflow:hidden; }
+.career-goal-card__progress i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#2fbf71,#9ef0bd); box-shadow:0 0 10px #4ade8088; }
+.career-goal-card__progress p { margin:6px 0 0; color:#e6eef5; font:600 .82rem Oswald,sans-serif; }
+.career-goal-card__done { margin:0; color:#ffd27a; font-size:.78rem; }
+.career-goal-card footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; }
+.career-goal-card footer a { color:#9fd0ff; font-size:.76rem; font-weight:700; }
+@media (max-width:760px) {
+  .career-goals__grid { grid-template-columns:1fr; }
+  .career-goals__opps > li { flex-wrap:wrap; }
+  .career-goals__opp-status { max-width:none; justify-content:flex-start; padding-left:calc(5rem + 12px); }
+  .career-goals__pick form { grid-template-columns:1fr; }
+}
