@@ -62,7 +62,7 @@ export function SponsorSigningReveal({ deal, onDismiss }: { deal: SponsorSigning
             ))}
           </div>
         )}
-        <small>These are the accepted A4 terms. Required activities are included with no extra fee; optional opportunities are unpaid. No automatic activity breach penalties apply. Only due payments count as cash; cost support is not cash, and result bonuses stay conditional until earned.</small>
+        <small>These are the terms you accepted. Required activities are included with no extra fee; optional opportunities are unpaid. No automatic activity breach penalties apply. Only due payments count as cash; cost support is not cash, and result bonuses stay conditional until earned.</small>
       </div>
       <button className="career-sponsor-signing__close" type="button" aria-label="Close signing confirmation" onClick={onDismiss}><X /></button>
     </section>

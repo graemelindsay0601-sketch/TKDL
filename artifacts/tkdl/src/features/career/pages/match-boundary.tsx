@@ -47,7 +47,7 @@ export function MatchBoundaryNotice({ saveId, eventId, compact }: { saveId: stri
           </Link>
         ) : match && <button className="career-btn career-btn-gold" disabled aria-disabled title={reason}><Swords className="w-4 h-4" aria-hidden /> Intentionally benched</button>}
         {!compact && <ConfirmButton label="Withdraw (concede)" confirmLabel="Withdraw from event" danger busy={withdraw.isPending}
-          description="Withdrawing concedes this match as a walkover and ends your event. Late withdrawals are not refunded (A4 policy)."
+          description="Withdrawing concedes this match as a walkover and ends your event. Late withdrawals are not refunded."
           onConfirm={() => withdraw.mutate(eventId, { onSuccess: r => setMsg(r.withdrawn ? "Withdrawn. The Career calendar can continue." : `Not withdrawn: ${r.denials.join(", ")}`), onError: e => setMsg(errorMessage(e)) })} />}
       </div>
       {msg && <p role="status" className="text-sm" style={{ color: "#fff" }}>{msg}</p>}

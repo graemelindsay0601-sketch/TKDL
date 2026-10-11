@@ -108,7 +108,7 @@ function EntryActions({ ctx, detail }: { ctx: ShellContext; detail: EventDetail 
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge label={h.entryStatus === "CONFIRMED" ? "In the field" : "Entered"} tone="success" />
           <ConfirmButton label={locked ? "Withdraw (concede)" : "Withdraw"} confirmLabel="Withdraw" danger busy={withdraw.isPending}
-            description={locked ? "The field is locked: withdrawing concedes your remaining matches as walkovers. Late withdrawals are not refunded." : "Withdraw before entries close. The refund depends on this event's refund policy (A4)."}
+            description={locked ? "The field is locked: withdrawing concedes your remaining matches as walkovers. Late withdrawals are not refunded." : "Withdraw before entries close. The refund depends on this event's refund policy."}
             onConfirm={() => withdraw.mutate(e.id, { onSuccess: r => setMsg(r.withdrawn ? "Withdrawn." : `Not withdrawn: ${r.denials.map(denialLabel).join(", ")}`), onError: x => setMsg(errorMessage(x)) })} />
         </div>
       ) : (
@@ -257,7 +257,7 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
           </> : p ? <><F label="Entry fee (est.)" value={formatPence(p.entryFeePence)} /><F label="Travel + stay (est.)" value={formatPence(p.estimatedTravelPence + p.estimatedAccommodationPence)} /></> : null}
         </dl>
       )}
-      <p className="px-4 pb-3 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Prize bands by finishing position are set by the event's prize profile; amounts shown are the authoritative A4 figures.</p>
+      <p className="px-4 pb-3 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Prize bands by finishing position are set by the event's prize profile; amounts shown are the official figures.</p>
     </CareerSection>
   );
 }

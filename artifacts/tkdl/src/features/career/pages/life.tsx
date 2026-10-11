@@ -85,7 +85,7 @@ function Profile({data:d}:{data:LifeView}) {
       ["Commercial demand",d.profile.commercial.demand],["Commercial activity",d.profile.commercial.activity],
     ].map(([label,value])=><div className="career-life-stat" key={label}><h3>{label}</h3><p>{value}</p></div>)}</div>
     <p className="text-sm text-white/75">{d.profile.commercial.description}</p>
-    <details className="career-note"><summary>Commercial income</summary><p>Actual commercial income: {formatPence(d.commercialIncomePence)} — part of A4 Sponsor/Commercial earnings, never prize earnings or a separate wallet.</p></details>
+    <details className="career-note"><summary>Commercial income</summary><p>Actual commercial income: {formatPence(d.commercialIncomePence)} — part of your sponsor and commercial earnings, never prize earnings or a separate wallet.</p></details>
     {!!d.signatureProducts?.length&&<section><h3 className="font-bold">Factual signature products</h3>{d.signatureProducts.map(p=><p key={p.id}>{p.name} · S{p.launchSeason} · {p.state.toLowerCase()}</p>)}</section>}
     <h3 className="font-bold">Narrative relationship tone</h3>{d.relationshipTones.length?<ul className="career-life-tones">{d.relationshipTones.map(r=><li key={r.opponentId}>{r.name}: {r.tone.toLowerCase()} · sporting labels remain {r.sportingLabels.join(", ")||"unchanged"}</li>)}</ul>:
       <p className="text-sm text-white/60">No interaction-based tone yet. Sporting rivalry does not imply hatred.</p>}

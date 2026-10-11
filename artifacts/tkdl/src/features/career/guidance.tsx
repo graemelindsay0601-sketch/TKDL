@@ -4,7 +4,7 @@ const HELP:Record<string,[string,string]>={
   home:["Build a darts career your way","Local, open and Vault darts can be a lifelong career. Professional darts is an opportunity, not a compulsory objective. Next Up shows the current decision."],
   event:["Plan before committing","Qualified is not the same as entered. Check the deadline, clashes, commitment, sponsor coverage and your cost. The server decides eligibility."],
   tournament:["Your tournament, safely saved","Leaving the screen pauses play; it never withdraws you. Resume uses the verified dart log. Concession loses a match; tournament withdrawal ends participation."],
-  sponsors:["Your commercial choices","Coverage comes from active A4 contracts. Shirt marks are cosmetic; signing a deal never improves darts or bot performance."],
+  sponsors:["Your commercial choices","Coverage comes from your active sponsor contracts. Shirt marks are cosmetic; signing a deal never improves darts or bot performance."],
   rankings:["Sporting routes, not levels","Ranking values and cut lines come from published standings. Only sporting rules decide access; no ability boosts or invented qualification probabilities."],
   review:["Review your season","The recorded season closes before the next one begins. Read the actual results and decisions; a poor season is not a failed career."],
   "q-school":["Q-School is a real sporting route","First Stage and Final Stage are separate. Winning a session is not automatically a Tour Card. Read the confirmed allocation and Order of Merit."],

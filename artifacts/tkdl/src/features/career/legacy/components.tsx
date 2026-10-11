@@ -7,7 +7,7 @@ import { CareerEventIdentity, CareerPlayerCard } from "../identity";
 import { AwardPresentation, awardLabel, resolveAward, trophyArt } from "../trophies";
 import { CareerPageHero } from "../page-hero";
 import { CareerStageBackdrop, PLATES, resolveAtmosphere, spectacleFor } from "../atmosphere";
-import { formatPence, ordinal } from "../model";
+import { formatPence, ordinal, publicText } from "../model";
 import type { ShellContext } from "../shell";
 import { usePlayerLegacy, type Chapter, type Moment, type PlayerLegacy, type SeasonRow } from "./api";
 import "./player-legacy.css";
@@ -131,7 +131,7 @@ export function TrophyCabinet({ ctx }: { ctx: ShellContext }) {
     <div className="pl-stack">
       <CareerPageHero kicker="Trophy cabinet" title={`${cabinet.data.total} ${cabinet.data.total === 1 ? "title" : "titles"} won`} accent="#ffd24a"
         archival={ctx.retired} stage={{ venue: { venueType: "historic-theatre" }, eventClass: "MAJOR" }}
-        subtitle="Every piece below is an actual A3 champion result. Repeat wins stay separate; events that award no trophy never get one."
+        subtitle="Every piece below is a title you actually won. Repeat wins stay separate; events that award no trophy never get one."
         stats={[
           { label: "Majors & World", value: major.length, tone: "gold" },
           { label: "Silverware", value: major.length + other.length },
@@ -331,7 +331,7 @@ export function Documentary({ v, saveId, preview, initialStep = -1 }: { v: Playe
         {step < last - 1 && <button type="button" className="career-btn career-btn-ghost" onClick={() => nav("skip")}><SkipForward size={16} aria-hidden /> Skip to the final record</button>}
         {step === last && <button type="button" className="career-btn career-btn-ghost" onClick={() => nav("replay")}><RotateCcw size={16} aria-hidden /> Replay</button>}
       </footer>
-      <p className="pl-doc__source pl-small pl-dim">{v.source}</p>
+      <p className="pl-doc__source pl-small pl-dim">{publicText(v.source)}</p>
     </section>
   );
 }

@@ -42,7 +42,7 @@ export function EquipmentStudio({ctx}:{ctx:ShellContext}) {
         <EquipmentProductArt name={launchReveal.name} type={launchReveal.type} brand={launchReveal.brand} accent="#fbbf24"/>
         <div><h3 className="text-2xl font-black text-white">{launchReveal.name}</h3>
           <p className="mt-1 text-sm text-white/65">{launchReveal.brand} · Now listed in the Career product portfolio</p>
-          <p className="mt-3 text-xs text-white/50">Sales are simulated only in future Career weeks. Any royalty is settled separately through the A4 ledger.</p></div>
+          <p className="mt-3 text-xs text-white/50">Sales are simulated only in future Career weeks. Any royalty is settled separately through your Career ledger.</p></div>
       </div>
     </section>}
     <div className="grid gap-4 lg:grid-cols-2">
@@ -93,12 +93,12 @@ export function EquipmentStudio({ctx}:{ctx:ShellContext}) {
     </div>
     <div className={styles}>
       <h3 className="text-lg font-bold text-white">Portfolio & commercial performance</h3>
-      <p className="mt-1 text-xs text-white/50">Darts £69.99 · ranges/flights £24.99 · deterministic weekly demand capped at 100 units per product. Royalty: 8% of recorded gross sales through A4.</p>
+      <p className="mt-1 text-xs text-white/50">Darts £69.99 · ranges/flights £24.99 · deterministic weekly demand capped at 100 units per product. Royalty: 8% of recorded gross sales, paid through your Career ledger.</p>
       <div className="mt-3 grid gap-2 md:grid-cols-2">{data.products.map((p:any)=><article key={p.id} className="rounded-lg border border-white/10 p-3">
         <EquipmentProductArt name={p.name} type={p.type} brand={p.brand}/>
         <div className="flex justify-between"><strong className="text-white">{p.name}</strong><span className="text-xs text-amber-300">{p.state}</span></div>
         <p className="mt-1 text-xs text-white/50">{p.brand} · Season {p.season} · {p.units} units</p>
-        <p className="mt-2 text-sm text-white/75">Gross {money(p.grossPence)} · A4 royalties {money(p.royaltyPence)}</p>
+        <p className="mt-2 text-sm text-white/75">Gross {money(p.grossPence)} · Royalties {money(p.royaltyPence)}</p>
       </article>)}</div>
       {!data.products.length&&<p className="mt-2 text-sm text-white/50">No launched products; commercial history will populate after Career weeks progress.</p>}
     </div>

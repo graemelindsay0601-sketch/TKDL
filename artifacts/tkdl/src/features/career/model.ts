@@ -34,6 +34,32 @@ const CIRCUITS: Record<string, string> = {
   MAJOR: "Major", WORLD_CHAMPIONSHIP: "World Championship", SPECIAL: "Special",
 };
 export const circuitLabel = (c: string) => CIRCUITS[c] ?? titleCase(c);
+/**
+ * Player-facing wording for text the server writes with internal authority labels ("A3 event result",
+ * "A4 sponsor journey event: OFFER_RECEIVED", "78000 pence"). Display only; the stored text is unchanged.
+ */
+const PUBLIC_PHRASES: [RegExp, string | ((...m: string[]) => string)][] = [
+  [/\bA5 owns\b/g, "The ranking system decides"],
+  [/\bA4 alone moves integer-pence Career money\.?/g, "All Career money moves through your Career ledger."],
+  [/\bA3 results · A5 rankings & cards · A4 money & sponsors · A7\.2 meetings · A7\.6[^\n]*/g, "Built from your results, rankings, Tour Cards, money, sponsors and meetings."],
+  [/\bA5['’]s existing ranking engine\b/g, "the same ranking engine"],
+  [/;?\s*A7\.1 remains the live-match\/scoring authority\.?/g, "."],
+  [/\bA4 sponsor journey event:\s*/g, "Sponsor update: "],
+  [/\bA3 played match \/ A7\.2 attendance\b/g, "Played match"],
+  [/\bA7\.4 derived threshold from public sporting facts\b/g, "Earned from public sporting results"],
+  [/\bA1 profile\b/g, "Career profile"],
+  [/\s*\(A\d+(?:\.\d+)?(?: policy)?\)/g, ""],
+  [/\b(\d+) pence\b/g, (_m, n) => formatPence(Number(n))],
+  [/\bA\d+(?:\.\d+)?(?:['’]s)?(?:\s*\/\s*A\d+(?:\.\d+)?)*\s+/g, ""],
+  [/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/g, m => titleCase(m)],
+];
+export function publicText(text: string | null | undefined): string {
+  if (!text) return "";
+  let s = text;
+  for (const [re, to] of PUBLIC_PHRASES) s = s.replace(re, to as never);
+  s = s.replace(/\s+\./g, ".").replace(/\.\.+/g, ".").replace(/\s{2,}/g, " ").trim();
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
 /** Event families are shared templates ("{city} Friday Night 501"); each edition fills the token in. Family-level screens show the name without it. */
 export const familyName = (name: string) => name.replace(/\s*[—–-]\s*\{\w+\}/g, "").replace(/\s*\{\w+\}\s*/g, " ").replace(/\s+/g, " ").trim();
 export const titleCase = (s: string) => s.toLowerCase().split(/[_\s-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");

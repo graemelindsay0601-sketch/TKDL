@@ -31,3 +31,36 @@
 .career-archive__npc small { font-size:.64rem; color:#ffffff80; }
 .career-archive section.border { border-radius:12px; background:#0b121c; }
 .career-archive .career-note { margin-top:8px; }
+.career-archive__chips { display:flex; flex-wrap:wrap; gap:8px; }
+.career-archive__season { display:grid; gap:2px; text-align:left; min-width:150px; padding:10px 14px; border-radius:12px; border:1px solid #ffffff17; background:#0d1520; color:#fff; }
+.career-archive__season b { font:800 1.1rem Oswald,sans-serif; color:#e8c66a; }
+.career-archive__season span { font-size:.8rem; } .career-archive__season small { font-size:.62rem; color:#ffffff80; }
+.career-archive__season.is-active, .career-archive__season:hover { border-color:#e8c66a88; background:#e8c66a12; }
+.career-archive__empty-state { display:flex; gap:12px; align-items:flex-start; padding:16px; border-radius:12px; border:1px dashed #ffffff24; background:radial-gradient(80% 120% at 0 0,#e8c66a0d,transparent 60%),#0b111a; }
+.career-archive__empty-state > span { display:grid; place-items:center; flex:0 0 38px; height:38px; border-radius:10px; color:#e8c66a; background:#e8c66a14; border:1px solid #e8c66a40; }
+.career-archive__empty-state strong { display:block; font:700 .9rem Oswald,sans-serif; text-transform:uppercase; letter-spacing:.03em; color:#fff; }
+.career-archive__empty-state p { margin:3px 0 0; font-size:.78rem; line-height:1.5; color:#ffffff99; }
+.career-archive__world-season { padding:14px; border-radius:14px; border:1px solid #ffffff14; background:linear-gradient(160deg,#141c2a,#0a1019); margin-bottom:10px; }
+.career-archive__world-season > header { display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; padding-bottom:10px; border-bottom:1px solid #ffffff10; }
+.career-archive__world-season > header span { font:800 .7rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#e8c66a; }
+.career-archive__world-season > header strong { font:700 1rem Oswald,sans-serif; color:#fff; } .career-archive__world-season > header small { color:#ffffff80; }
+.career-archive__names { display:flex; flex-wrap:wrap; gap:6px; } .career-archive__names span { padding:4px 10px; border-radius:999px; background:#ffffff0a; border:1px solid #ffffff14; font-size:.74rem; }
+.career-archive__select { display:grid; gap:6px; max-width:420px; margin:10px 0; font:700 .6rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#ffffff99; }
+.career-archive__select select { min-height:42px; padding:8px 12px; border-radius:10px; border:1px solid #ffffff26; background:#070b12; color:#fff; font:600 .85rem Inter,system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.career-archive__defending { display:flex; gap:12px; align-items:center; padding:14px; margin-bottom:12px; border-radius:12px; border:1px solid #e8c66a55; background:radial-gradient(80% 140% at 0 0,#e8c66a1c,transparent 60%),#0d1520; color:#e8c66a; }
+.career-archive__defending small { display:block; font:700 .6rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#ffffff99; } .career-archive__defending strong { color:#fff; font:700 1.05rem Oswald,sans-serif; }
+.career-archive__records { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr)); gap:10px; }
+.career-archive__record { display:grid; gap:2px; padding:14px; border-radius:12px; border:1px solid #ffffff14; border-top:2px solid #e8c66a88; background:linear-gradient(160deg,#141c2a,#0a1019); }
+.career-archive__record small { font:700 .6rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff8c; }
+.career-archive__record strong { font:800 1.6rem/1.1 Oswald,sans-serif; color:#ffd27a; } .career-archive__record span { color:#fff; font-weight:600; font-size:.84rem; }
+.career-archive__record em { font-style:normal; font-size:.68rem; color:#ffffff80; }
+.career-archive__comparisons { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.career-archive__comparisons li { display:flex; gap:8px; align-items:center; padding:9px 12px; border-radius:10px; background:#ffffff07; font-size:.84rem; } .career-archive__comparisons svg { color:#e8c66a; flex:none; }
+.career-archive__inductee, .career-archive__award { padding:14px; border-radius:12px; border:1px solid #e8c66a40; background:radial-gradient(80% 140% at 100% 0,#e8c66a14,transparent 60%),#0d1520; }
+.career-archive__inductee header, .career-archive__award header { display:flex; gap:10px; align-items:center; color:#e8c66a; margin-bottom:8px; }
+.career-archive__inductee strong, .career-archive__award strong { display:block; color:#fff; font:700 1rem Oswald,sans-serif; text-transform:uppercase; }
+.career-archive__inductee small, .career-archive__award small { font-size:.7rem; color:#ffffff99; }
+.career-archive__inductee ul { margin:0 0 10px; padding-left:18px; font-size:.8rem; color:#d5dde6; } .career-archive__award p { margin:0; font-size:.8rem; color:#d5dde6; }
+.career-archive__summary { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.career-archive__summary li { padding:10px 14px; border-radius:10px; border:1px solid #ffffff12; border-left:3px solid #e8c66a; background:#0d1520; font-size:.86rem; }
+.career-archive__legend h3 { margin-top:4px; }

@@ -5,6 +5,7 @@ import type { RecognitionView } from "../../../../api-server/src/career/recognit
 import type { Focus, GoalDefinition, GoalsView } from "../../../../api-server/src/career/goals/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetchJson, ApiRequestError } from "@/lib/api-fetch";
+import { publicText } from "./model";
 import type {
   AdvanceResult, CalendarResponse, CareerSave, CareerSaveList, EventDetail, FinanceSummary, HistoryRow, LedgerEntry, Milestone, QSchoolView,
   QualificationResponse, CareerProfile, LiveSession, LiveDart, RankingExplain, RankingHistory, RankingListMeta, RankingTable, SponsorsResponse, SportingSummary, TourCardView,
@@ -38,7 +39,12 @@ export const useTournamentPresentation = (saveId:string) => useSaveMutation(save
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
 export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });
-export const useCareerLife = (saveId:string,enabled=true) => useQuery({queryKey:careerKey(saveId,"life"),queryFn:()=>get<import("../../../../api-server/src/career/life/types").LifeView>(`/saves/${saveId}/life`),enabled,staleTime:STALE});
+type LifeViewT=import("../../../../api-server/src/career/life/types").LifeView;
+type StoryT=import("../../../../api-server/src/career/life/types").Story;
+/** Story text is shown with player-facing wording (no internal authority labels); sources and ids are untouched. */
+const publicStory=(s:StoryT):StoryT=>({...s,title:publicText(s.title),body:publicText(s.body),callbacks:s.callbacks.map(c=>({...c,text:publicText(c.text)}))});
+const publicLife=(d:LifeViewT):LifeViewT=>({...d,news:d.news.map(publicStory),threads:d.threads.map(t=>({...t,title:publicText(t.title),stories:t.stories.map(publicStory)}))});
+export const useCareerLife = (saveId:string,enabled=true) => useQuery({queryKey:careerKey(saveId,"life"),queryFn:()=>get<LifeViewT>(`/saves/${saveId}/life`),select:publicLife,enabled,staleTime:STALE});
 export const useNpcLife = (saveId:string,npcId:string) => useQuery({queryKey:careerKey(saveId,"life","npc",npcId),queryFn:()=>get<import("../../../../api-server/src/career/life/types").NpcLifeView>(`/saves/${saveId}/life/npcs/${npcId}`),staleTime:STALE});
 export const useLifeChoice = (saveId:string) => useSaveMutation(saveId,(input:{kind:"moments"|"opportunities";id:string;choice:string})=>send("POST",`/saves/${saveId}/life/${input.kind}/${input.id}`,{choice:input.choice}));
 export const useMerchandiseChoice = (saveId:string) => useSaveMutation(saveId,(choice:string)=>send("POST",`/saves/${saveId}/life/merchandise`,{choice}));

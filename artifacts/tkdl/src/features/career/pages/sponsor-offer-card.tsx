@@ -208,7 +208,7 @@ export function SponsorOfferCard({
                     {negotiateBusy ? "Sending…" : "Send proposal"}
                   </button>
                 </div>
-                <small>Only terms already in this A4 offer can change. The sponsor can agree, counter, reject, or withdraw; at most two rounds.</small>
+                <small>Only terms already in this offer can change. The sponsor can agree, counter, reject, or withdraw; at most two rounds.</small>
               </div>
             )}
           </section>

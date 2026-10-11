@@ -1,12 +1,13 @@
 import { ArrowUpToLine, CalendarRange, CheckCircle2, ChevronUp, ChevronsUp, Crosshair, Flame, Gauge, GitBranch, Medal, Percent, Scale, Sparkles, Star, Swords, Target, Trophy, Zap } from "lucide-react";
 import { Link } from "wouter";
 import { CareerEmptyState, CareerSection, StatTile } from "../components";
+import { circuitLabel, publicText } from "../model";
 import type { CareerFacts, Fact } from "../../../../../api-server/src/career/facts/types";
 
 const value = (n: number | null | undefined) => n == null ? "Unavailable" : n;
 export function FactsOverview({ facts }: { facts: CareerFacts }) {
   const s = facts.statistics;
-  return <><p className="text-xs text-muted-foreground">Complete Career totals from A3 completed matches and event results. Byes and walkovers are not played matches. Events entered counts completed events with a human result.</p>
+  return <><p className="text-xs text-muted-foreground">Complete Career totals from completed matches and event results. Byes and walkovers are not played matches. Events entered counts completed events with a human result.</p>
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
       <StatTile icon={<Swords size={16}/>} label="Matches played" value={s.matchesPlayed} /><StatTile icon={<Scale size={16}/>} label="Won / lost" value={`${s.wins} / ${s.losses}`} />
       <StatTile icon={<Percent size={16}/>} label="Win percentage" value={s.winPercentage == null ? '—' : `${s.winPercentage}%`} />
@@ -33,8 +34,8 @@ export function PerformancePanel({ facts }: { facts: CareerFacts }) {
 export function FactLine({ fact, saveId }: { fact: Fact; saveId: string }) {
   return <li className="career-fact text-sm">
     <div className="career-fact__when">S{fact.season}{fact.week ? ` · W${fact.week}` : ' · week not recorded'}{fact.date ? ` · ${fact.date}` : ''}{fact.age != null ? ` · Age ${fact.age}` : ''}</div>
-    {fact.eventId ? <Link className="career-row-link" href={`/career/${saveId}/events/${fact.eventId}`}>{fact.label}</Link> : <span>{fact.label}</span>}
-    <span className="career-fact__source">{fact.source}</span>
+    {fact.eventId ? <Link className="career-row-link" href={`/career/${saveId}/events/${fact.eventId}`}>{publicText(fact.label)}</Link> : <span>{publicText(fact.label)}</span>}
+    <span className="career-fact__source">{publicText(fact.source)}</span>
   </li>;
 }
 export function FactsTimeline({ facts }: { facts: CareerFacts }) {
@@ -51,6 +52,6 @@ export function RecordsPanel({ facts }: { facts: CareerFacts }) {
 }
 export function WorldHistoryPanel({ facts }: { facts: CareerFacts }) {
   return <div className="space-y-3"><CareerSection title="Event champions in this Career">
-    {facts.world.champions.length ? <ul className="p-3">{[...facts.world.champions].reverse().map(f=><FactLine key={f.id} fact={{...f,label:`${f.name}: ${f.participantName} (${f.circuit})`}} saveId={facts.careerSaveId}/>)}</ul> : <CareerEmptyState title="No completed events yet"/>}
+    {facts.world.champions.length ? <ul className="p-3">{[...facts.world.champions].reverse().map(f=><FactLine key={f.id} fact={{...f,label:`${f.name}: ${f.participantName} (${circuitLabel(f.circuit)})`}} saveId={facts.careerSaveId}/>)}</ul> : <CareerEmptyState title="No completed events yet"/>}
     </CareerSection><CareerSection title="Historical World Ranking leaders">{facts.world.rankingLeaders.length ? <ul className="p-3">{[...facts.world.rankingLeaders].reverse().map(f=><FactLine key={f.id} fact={{...f,label:`World #1: ${f.participantName}`}} saveId={facts.careerSaveId}/>)}</ul> : <CareerEmptyState title="No published World Ranking leaders yet"/>}</CareerSection></div>;
 }

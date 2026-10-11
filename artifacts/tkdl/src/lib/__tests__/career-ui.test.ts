@@ -181,7 +181,8 @@ const recognitionFixture=(elite=false):RecognitionView=>({careerSaveId:SAVE_ID,s
     circuit:"NATIONAL_AMATEUR",classification:"RANKING",tier:"STANDARD",international:false,champion:true,stageReached:"CHAMPION"})) : []})});
 test("A7.4 Recognition: elite amateur standing, independent contexts, factual evidence/history and no meters/scores",()=>{
   const data=recognitionFixture(true),html=render(h(M.RecognitionPage,{ctx:ctx()}),[[key("recognition"),data]]),t=text(html);
-  for(const s of ["Elite amateur","Local","Amateur","Professional","Major / Stage","International","Why you're recognised","National amateur title","2026-01-07","Age 20","A3 event result","Recent recognition milestones"])assert.ok(t.includes(s),s);
+  for(const s of ["Elite amateur","Local","Amateur","Professional","Major / Stage","International","Why you're recognised","National amateur title","2026-01-07","Age 20","Event result","Recent recognition milestones"])assert.ok(t.includes(s),s);
+  assert.doesNotMatch(t,/\bA[1-9](\.\d)?\b/,"internal authority labels are not shown to players");
   assert.match(t,/turning professional is optional/);assert.match(t,/Focus and personal goals do not grant recognition/);
   assert.ok(html.includes(`/career/${SAVE_ID}/events/event-0`));
   assert.doesNotMatch(html,/<progress|role="progressbar"|\d+\/100/);
