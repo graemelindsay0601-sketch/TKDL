@@ -149,6 +149,7 @@ function Retirement({data:d,saveId}:{data:LegacyView;saveId:string}) {
   const lifecycle=useSaveLifecycle(),[message,setMessage]=useState<string|null>(null);
   return <section className="space-y-3"><h2 className="font-bold">{d.retired?"Final Career Summary":"Retire Career"}</h2>
     {d.finalSummary.map(s=><p key={s}>{s}</p>)}
+    {d.retired&&<Link className="career-btn career-btn-gold" href={`/career/${saveId}/my-career/remembered`}>Watch A Career Remembered</Link>}
     {d.retired?<p>Read-only archive. This Career remains browsable.</p>:<ConfirmButton label="Retire Career" confirmLabel="Confirm permanent retirement" danger busy={lifecycle.retire.isPending}
       description="This freezes this Career permanently and preserves its complete history. It does not affect your TKDL account, coins, leagues or other Career saves."
       onConfirm={()=>lifecycle.retire.mutate(saveId,{onError:e=>setMessage(errorMessage(e))})}/>}

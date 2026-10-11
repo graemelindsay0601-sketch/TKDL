@@ -58,6 +58,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/my-career/achievements"><MyCareerPage ctx={ctx} section="achievements"/></Route>
           <Route path="/career/:saveId/my-career/life"><MyCareerPage ctx={ctx} section="life"/></Route>
           <Route path="/career/:saveId/my-career/history"><MyCareerPage ctx={ctx} section="history"/></Route>
+          <Route path="/career/:saveId/my-career/remembered"><MyCareerPage ctx={ctx} section="remembered"/></Route>
           <Route path="/career/:saveId/my-career"><MyCareerPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/sponsors"><SponsorHQPage ctx={ctx}/></Route>

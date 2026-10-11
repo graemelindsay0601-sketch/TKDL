@@ -6,6 +6,7 @@ import { lockRoot, type CareerActor } from "../world/service.ts";
 import { careerIdSchema } from "../validation.ts";
 import { eventHistory, loadEvidence, npcHistory, projectLegacy, readReviews } from "./persistence.ts";
 import type { LegacyView } from "./types.ts";
+import { playerLegacy } from "./player.ts";
 import { createCareerRelationshipsService } from "../relationships/service.ts";
 const rootSchema=z.object({id:z.string().uuid(),current_season:z.number().int().positive(),current_week:z.number().int().min(1).max(52),
   status:z.enum(["ACTIVE","RETIRED"]),player_id:z.number().int().positive(),career_name:z.string().nullable()});
@@ -36,6 +37,14 @@ export function createCareerLegacyService(database:CareerDatabase) {
       const relationships=await createCareerRelationshipsService({execute:q=>tx.execute(q),transaction:w=>w(tx)}).read(actor,id);
       return {...npcHistory(e,npcId,await readReviews(tx,e),v.hallOfFame),
         meetings:relationships.opponents.find(o=>o.player.id===npcId)?.history.map(m=>({season:m.season,name:m.name,won:m.won}))??[]};
+    }),
+    /** Workstream D: the human player's profile, timeline and documentary from the same owned evidence. */
+    player:(actor:CareerActor,id:string)=>database.transaction(async tx=>{
+      const root=await ownedRoot(tx,actor,id),e=await loadEvidence(tx,root);
+      const relationships=await createCareerRelationshipsService({execute:q=>tx.execute(q),transaction:w=>w(tx)}).read(actor,id);
+      const rivals=relationships.opponents.map(o=>({id:o.player.id,name:o.player.name,meetings:o.meetings,humanWins:o.humanWins,npcWins:o.npcWins,
+        labels:o.labels,firstSeason:o.firstMeeting?.season??null,lastSeason:o.latestMeeting?.season??null}));
+      return playerLegacy(e,await readReviews(tx,e),rivals);
     }),
     begin:(actor:CareerActor,id:string,season:number,body:unknown)=>database.transaction(async tx=>{
       z.number().int().positive().parse(season);z.object({confirmation:z.literal("BEGIN SEASON")}).strict().parse(body);
