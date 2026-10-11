@@ -6,11 +6,10 @@
  * recognition, life, legacy, identity, live, sporting, finance, calendar, saves)
  * over in-memory or on-disk PostgreSQL (PGlite), with a fixed signed-in player.
  *
- * Schema: the exact Career migration sequence of src/app.ts initSchemaAndData().
- * --repair-missing applies the proposed fixes for the two startup-schema release blockers
- * (F2 register): P0-1 runs createCareerSPHCommercial + createCareerNpcSponsorMarketSPF, which
- * app.ts no longer calls; P0-2 re-applies the SP-E2 ledger constraint after the A9 upgrade,
- * which otherwise narrows it. Default is production-faithful (neither applied).
+ * Schema: the Career migration steps of src/app.ts initSchemaAndData(), read from the source
+ * in order (scripts/career-startup-steps.ts), including the G1 startup repairs (P0-1 SP-F/SP-H
+ * tables, P0-2 ledger constraint re-applied after A9). The legacy save is seeded before the A9
+ * upgrade step and the remaining steps run afterwards, as on an upgraded production database.
  *
  * Seeded saves (real service calls; LABELLED HARNESS FIXTURES are one funding
  * adjustment through the A4 ledger and human match results decided by a fixed
@@ -21,7 +20,7 @@
  *   slot 3  "Legacy Career"   pinned to event database v2 BEFORE the A9 upgrade migration runs
  *   archive "Retired Career"  a club title, then retired (A Career Remembered)
  *
- *   node scripts/career-certification-server.ts [--port=8790] [--dist=../tkdl/dist/public] [--data=DIR] [--repair-missing] [--quick]
+ *   node scripts/career-certification-server.ts [--port=8790] [--dist=../tkdl/dist/public] [--data=DIR] [--quick]
  * GET /__cert/state returns the seeded save ids (dev only).
  */
 import express from "express";
@@ -30,25 +29,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
-import { createCareerSaves } from "../src/db/migrations/create_career_saves.ts";
-import { createCareerWorld } from "../src/db/migrations/create_career_world.ts";
-import { createCareerSponsorshipFoundation } from "../src/db/migrations/create_career_sponsorship_foundation.ts";
-import { createCareerCalendar } from "../src/db/migrations/create_career_calendar.ts";
-import { createCareerFinance } from "../src/db/migrations/create_career_finance.ts";
-import { createCareerSponsorJourneysSPB } from "../src/db/migrations/create_career_sponsor_journeys_spb.ts";
-import { createCareerSponsorJourneysSPB3 } from "../src/db/migrations/create_career_sponsor_journeys_spb3.ts";
-import { createCareerFinanceSPC } from "../src/db/migrations/create_career_finance_spc.ts";
-import { createCareerSponsorHQSPD } from "../src/db/migrations/create_career_sponsor_hq_spd.ts";
-import { addContractConcludedSponsorEventSPE1 } from "../src/db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
-import { addScheduledSponsorRenewalsSPE1B } from "../src/db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
-import { createCareerSponsorContractActionsSPE2 } from "../src/db/migrations/create_career_sponsor_contract_actions_spe2.ts";
-import { createCareerSporting } from "../src/db/migrations/create_career_sporting.ts";
-import { createCareerGoals } from "../src/db/migrations/create_career_goals.ts";
-import { createCareerLife } from "../src/db/migrations/create_career_life.ts";
-import { createCareerLegacy } from "../src/db/migrations/create_career_legacy.ts";
-import { upgradeCareerContentA9V1 } from "../src/db/migrations/upgrade_career_content_a9_v1.ts";
-import { createCareerSPHCommercial } from "../src/db/migrations/create_career_sph_commercial.ts";
-import { createCareerNpcSponsorMarketSPF } from "../src/db/migrations/create_career_npc_sponsor_market_spf.ts";
+import { careerStartupSteps, runCareerStartupSteps } from "./career-startup-steps.ts";
 import { createCareerService } from "../src/career/service.ts";
 import { createCareerRouter } from "../src/career/router.ts";
 import { createCareerCalendarRouter } from "../src/career/calendar/router.ts";
@@ -75,6 +56,8 @@ import { createCareerContentService, createCareerContentRouter } from "../src/ca
 import { createCareerTournamentService, createCareerTournamentRouter } from "../src/career/tournament/service.ts";
 import { lockRoot } from "../src/career/world/service.ts";
 import { post } from "../src/career/finance/ledger.ts";
+import { acceptOffer } from "../src/career/finance/engine.ts";
+import { createSportingFactsProvider } from "../src/career/sporting/engine.ts";
 import { HARNESS_SEED } from "../src/career/world/harness.ts";
 import type { RootRow } from "../src/career/calendar/engine.ts";
 
@@ -83,7 +66,7 @@ const flag = (k: string) => process.argv.includes(`--${k}`);
 const port = Number(arg("port") ?? 8790);
 const dist = path.resolve(arg("dist") ?? path.resolve(import.meta.dirname, "../../tkdl/dist/public"));
 const dataDir = arg("data") ?? null;
-const repair = flag("repair-missing"), quick = flag("quick");
+const quick = flag("quick");
 const statePath = dataDir ? path.join(dataDir, "..", `${path.basename(dataDir)}.state.json`) : null;
 const reuse = !!(dataDir && existsSync(dataDir) && statePath && existsSync(statePath));
 const pg = dataDir ? new PGlite(dataDir) : new PGlite();
@@ -91,23 +74,23 @@ const db = drizzle(pg);
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 // ---------------------------------------------------------------- schema: app.ts order
+const STEPS = careerStartupSteps();
+const A9 = STEPS.findIndex(st => st.fn === "upgradeCareerContentA9V1");
+if (A9 < 0) throw new Error("A9 upgrade step not found in app.ts");
+const migrated = new Set<string>();
 async function baseSchema() {
   await pg.exec(`CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1) ON CONFLICT DO NOTHING;
     CREATE TABLE IF NOT EXISTS feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'certification harness') ON CONFLICT DO NOTHING`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db);
-  await createCareerCalendar(db); await createCareerFinance(db);
-  if (repair) await createCareerSPHCommercial(db);
-  await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSponsorHQSPD(db);
-  if (repair) await createCareerNpcSponsorMarketSPF(db);
-  await addContractConcludedSponsorEventSPE1(db); await addScheduledSponsorRenewalsSPE1B(db); await createCareerSponsorContractActionsSPE2(db);
-  await createCareerSporting(db); await createCareerGoals(db); await createCareerLife(db); await createCareerLegacy(db);
+  await runCareerStartupSteps(db, STEPS.slice(0, A9), migrated);
 }
 
 // ---------------------------------------------------------------- production composition (routes/career.ts)
 const saves = createCareerService(db, { onRetired: captureRetirement });
 const sporting = createCareerSportingService(db);
 const live = createCareerLiveMatchService(db, sporting.calendar);
+/** The same A5 facts provider the finance service passes to acceptOffer (sporting/service.ts). */
+const sponsorFacts = createSportingFactsProvider(() => sporting.finance.calendar.providers);
 const actor = { playerId: 1 };
 const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
 
@@ -155,24 +138,21 @@ const LOCAL_WINS = new Set(["friday-night-501", "sunday-league-sprint", "county-
 const seasonPolicy: Policy = m => m.def.startsWith("q-school-first") ? true : m.def.startsWith("q-school-final") ? m.day === 1 : LOCAL_WINS.has(m.def) ? true : m.round <= 1;
 
 // ---------------------------------------------------------------- seed
-type State = { season: string; fresh: string; legacy: string; retired: string; repair: boolean; sponsorLog: string[] };
+type State = { season: string; fresh: string; legacy: string; retired: string; steps: string[]; sponsorLog: string[] };
 const sponsorLog: string[] = [];
 let state: State;
 if (reuse) {
   state = JSON.parse(readFileSync(statePath!, "utf8"));
   log("Reusing seeded data", dataDir);
 } else {
-  log(`Schema (production order${repair ? " + missing SPF/SPH" : ""})`);
+  log(`Schema: app.ts Career steps before A9 (${STEPS.slice(0, A9).map(st => st.key).join(", ")})`);
   await baseSchema();
   log("Legacy save on event database v2 (before A9 upgrade)");
   const legacy = await newSave(3, "Legacy Career", "1988-03-02", "ayrshire", 2);
   await fund(legacy, 150000);
   await playTo(legacy, 1, 6, m => m.round <= 2, async () => enterIfOpen(legacy, ["friday-night-501", "sunday-league-sprint"]));
-  log("A9 content upgrade migration");
-  await upgradeCareerContentA9V1(db);
-  // P0-2 proposed fix: the A9 upgrade re-runs the A4 finance migration, narrowing the ledger category
-  // constraint back below SP-C/SP-E2. Re-applying SP-E2 (idempotent) restores it.
-  if (repair) await createCareerSponsorContractActionsSPE2(db);
+  log(`app.ts steps from A9: ${STEPS.slice(A9).map(st => st.key).join(", ")}`);
+  await runCareerStartupSteps(db, STEPS.slice(A9), migrated);
   log("Retired save");
   const retired = await newSave(1, "Retired Career", "1979-11-20", "north-east");
   await fund(retired, 150000);
@@ -183,18 +163,39 @@ if (reuse) {
   await fund(season, 400000);
   const enterSeason = async () => enterIfOpen(season, [...LOCAL_WINS, "q-school-first-uk_ireland-d1", "q-school-final-uk_ireland-d1", "pro-circuit-championship", "challenger-event"]);
   await playTo(season, 1, 9, seasonPolicy, enterSeason);
-  // Accept the first offer the server will actually allow; refusals are real service responses and are recorded.
-  const offers = await sporting.finance.sponsors(actor, season) as { offers: { id: string; sponsorKey?: string; sponsor_key?: string }[] };
-  for (const o of offers.offers) {
-    try { await sporting.finance.acceptOffer(actor, season, { offerId: String(o.id) }); sponsorLog.push(`accepted ${o.id}`); break; }
-    catch (e) { sponsorLog.push(`refused ${o.id}: ${(e as Error).message}`); }
+  // Try every listed offer, in a rolled-back transaction each, and record the listed signability next to
+  // the real signing result (P1-2: the two must agree). Then sign one for real, preferring an offer with
+  // guaranteed payments so the guarantee schedule is exercised by the season run.
+  type ListedOffer = { id: string; sponsorKey: string; acceptance?: { signable: boolean; code: string | null } | null;
+    terms: { contractFoundation?: { guaranteedPayments?: unknown[] } } };
+  const listedOffers = (await sporting.finance.sponsors(actor, season) as unknown as { offers: ListedOffer[] }).offers;
+  const PROBE = new Error("certification probe rollback");
+  for (const o of listedOffers) {
+    const listed = o.acceptance?.signable ? "signable" : `unsignable:${o.acceptance?.code}`;
+    let result = "accepted";
+    try {
+      await db.transaction(async tx => {
+        const root = await lockRoot(tx, actor, season) as RootRow;
+        await acceptOffer(tx, root, o.id, Number(root.current_season), Number(root.current_week), { facts: await sponsorFacts.facts(tx, root) });
+        throw PROBE;
+      });
+    }
+    catch (e) { if (e !== PROBE) result = `refused: ${(e as Error).message}`; }
+    sponsorLog.push(`probe ${o.sponsorKey} listed=${listed} signing=${result}`);
+  }
+  const preferred = [...listedOffers].filter(o => o.acceptance?.signable)
+    .sort((a, b) => Number((b.terms.contractFoundation?.guaranteedPayments ?? []).length > 0) - Number((a.terms.contractFoundation?.guaranteedPayments ?? []).length > 0));
+  for (const o of preferred) {
+    try { await sporting.finance.acceptOffer(actor, season, { offerId: String(o.id) }); sponsorLog.push(`accepted ${o.sponsorKey} ${o.id}`); break; }
+    catch (e) { sponsorLog.push(`refused ${o.sponsorKey} ${o.id}: ${(e as Error).message}`); }
   }
   log("Sponsor offers", sponsorLog);
   if (quick) await playTo(season, 1, 20, seasonPolicy, enterSeason);
-  else await playTo(season, 2, 3, seasonPolicy, enterSeason);
+  // Full run: past the season boundary and past week 8 of season 2, when a one-season agreement signed in week 9 concludes.
+  else await playTo(season, 2, 10, seasonPolicy, enterSeason);
   log("New save");
   const fresh = await newSave(2, "New Career", "2001-08-09", "north-east");
-  state = { season, fresh, legacy, retired, repair, sponsorLog };
+  state = { season, fresh, legacy, retired, steps: STEPS.map(st => st.key), sponsorLog };
   if (statePath) writeFileSync(statePath, JSON.stringify(state, null, 2));
   log("Seeded", state);
 }
@@ -229,4 +230,4 @@ app.use("/api", (req, res) => { res.status(404).json({ error: `Not served by the
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => { console.error("UNHANDLED", err.message); res.status(500).json({ error: err.message }); });
 app.use(express.static(dist));
 app.get(/.*/, (_req, res) => { res.sendFile(path.join(dist, "index.html")); });
-app.listen(port, () => log(`Career certification harness on http://localhost:${port}/career${repair ? " [repair-missing]" : ""}`));
+app.listen(port, () => log(`Career certification harness on http://localhost:${port}/career`));
