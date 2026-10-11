@@ -52,7 +52,7 @@ function majorView(over: Record<string, unknown> = {}): Any {
     presentation: { mode: "FULL", reducedMotion: false },
     depth: { arrival: true, drawReveal: true, walkOn: true, fullCeremony: true, animate: true, skippable: true, sportingEffects: false },
     phase: "MATCH_READY",
-    field: [entrant("HUMAN", "Fixture Player", { ranking: 21, titles: 2, seed: 4 }), entrant("npc1", "Arno Auenberg"),
+    field: [entrant("HUMAN", "Fixture Player", { ranking: 21, titles: 2, seed: 4, shirt: { primaryColour: "#20334A", secondaryColour: "#FFFFFF", accentColour: "#C8A050", kitDesignId: "kit-50-07" } }), entrant("npc1", "Arno Auenberg"),
       entrant("npc2", "Bram Visser"), entrant("npc3", "Callan Thistledown", { ranking: 3, titles: 9, nickname: "The Thistle", seed: 1, badges: [{ label: "Defending champion", source: "x" }] }),
       entrant("npc4", "Dario Ferro"), entrant("npc5", "Elias Brandt"), entrant("npc6", "Finn Okafor"), entrant("npc7", "Gus Laine")],
     routes: [], matches, groups: [],
@@ -261,4 +261,54 @@ test("entry screen explains what makes the event worth entering from A3/A4 previ
   assert.match(text(render(h(M.EventView, { ctx: ctx(), detail: eventDetail(covered) }))), /Fully covered by your sponsor/);
   const done = event({ status: "COMPLETED" });
   assert.doesNotMatch(text(render(h(M.EventView, { ctx: ctx(), detail: eventDetail(done) }))), /Winner's prize/, "no entry pitch for a finished event");
+});
+
+test("Palace champion: Sovereign Trophy, World Champion label, first title record and settled prize", () => {
+  const v = majorView({ phase: "CHAMPION", position: 1, championKey: "HUMAN", nextMatchId: null, humanResult: { wins: 7, losses: 0, matches_played: 7 },
+    event: { ...majorView().event, level: 5, name: "World Darts Championship", circuit: "WORLD_CHAMPIONSHIP", classification: "WORLD",
+      format: { inRule: "STRAIGHT", scoringUnit: "SETS", legsPerSet: 5 }, trophy: null,
+      venue: { displayName: "Alexandra Grand Hall", nickname: "The Palace", city: "London", venueType: "palace", capacityBand: "ARENA", stageConfiguration: "FEATURE_BOARD", atmosphereTags: ["historic-facade"] },
+      content: { eventClass: "WORLD_CHAMPIONSHIP", fieldDescription: "The world's best.", trophyId: "sovereign" } },
+    history: { ...majorView().history, palace: { firstAppearance: true, appearanceNumber: 1, formerWorldChampion: false }, previousAppearances: [] },
+    achievements: { groupWinner: false, tournamentChampion: true },
+    money: { ...majorView().money, paid: true, prize: { cash_award_pence: 6_000_000, ranking_eligible_pence: 6_000_000, finishing_position: 1 } } });
+  v.matches[4] = { ...v.matches[4], ...won("HUMAN", 6, 2, "HUMAN_LIVE") };
+  v.matches[6] = { ...v.matches[6], a_key: "HUMAN", b_key: "npc5", ...won("HUMAN", 7, 4, "HUMAN_LIVE") };
+  v.latestMatch = v.matches[6];
+  const html = render(h(M.TournamentPage, { ctx: ctx(), eventId: "major" }), [[key("tournament", "major"), v]]);
+  scene("complete-palace-champion", html);
+  const t = text(html);
+  for (const x of ["World Championship", "The Palace", "World Champion · Sovereign Trophy", "World Champion", "First title at this event", "World Championship debut",
+    "Prize settled: £60,000", "Set play · 5 legs per set"]) assert.ok(t.includes(x), x);
+  assert.match(html, /tall silver sculpture, not a crown/);
+  assert.doesNotMatch(t, /Best ever finish/, "a debut cannot also be a best-ever finish");
+  assert.match(t, /Matches 7–0/, "A3 recorded wins/losses take precedence");
+  assert.match(html, /tb-tier-world/);
+});
+
+test("title defended only when the previous edition was won by the player", () => {
+  const base = { phase: "CHAMPION", position: 1, championKey: "HUMAN", achievements: { groupWinner: false, tournamentChampion: true } };
+  const prev = { id: "old", name: "Fixture Masters", season: 1, start_day: 205, finishing_position: 1, is_champion: true };
+  const defended = majorView({ ...base, history: { ...majorView().history, previousAppearances: [prev], recentChampions: [{ id: "old", season: 1, champion_name: "Fixture Player" }] } });
+  assert.match(text(render(h(M.CompletionSummary, { v: defended }))), /Title defended/);
+  const gap = majorView({ ...base, history: { ...majorView().history, previousAppearances: [prev], recentChampions: [{ id: "newer", season: 2, champion_name: "Elias Brandt" }] } });
+  const t = text(render(h(M.CompletionSummary, { v: gap })));
+  assert.match(t, /Title number 2 at this event/); assert.doesNotMatch(t, /Title defended/);
+});
+
+test("bull-up context strip names the real event, tier, stage and format", () => {
+  const v = majorView();
+  const t = text(render(h(M.MatchContextStrip, { saveId: SAVE_ID, eventId: "major", matchId: v.matches[4].id }), [[key("tournament", "major"), v]]));
+  for (const x of ["Major", "Fixture Masters", "Semi-final", "best of 11 legs"]) assert.ok(t.includes(x), x);
+  assert.equal(render(h(M.MatchContextStrip, { saveId: SAVE_ID, eventId: "major", matchId: "unknown" }), [[key("tournament", "major"), v]]), "", "nothing invented for an unknown match");
+});
+
+test("grassroots hub scene", () => {
+  const v = majorView({ event: { ...majorView().event, level: 1, name: "Social Club Friday 501", circuit: "GRASSROOTS", classification: "RANKING",
+    venue: { displayName: "Kilbirnie Social Club", nickname: null, city: "Kilbirnie", venueType: "social-club", capacityBand: "CLUB", stageConfiguration: "MULTI_BOARD_FLOOR", atmosphereTags: ["live-crowd"] },
+    content: { eventClass: "GRASSROOTS", fieldDescription: "Local players from the area.", trophyId: "wood-silver-shield" }, trophy: { id: "wood-silver-shield", name: "Wood & Silver Shield", designKey: "wood-silver" } },
+    depth: { arrival: false, drawReveal: false, walkOn: false, fullCeremony: false, animate: false, skippable: true, sportingEffects: false }, opponents: [] });
+  const html = render(h(M.TournamentPage, { ctx: ctx(), eventId: "major" }), [[key("tournament", "major"), v]]);
+  scene("hub-grassroots", html);
+  assert.match(html, /tb-tier-grassroots/); assert.match(text(html), /Wood & Silver Shield/);
 });

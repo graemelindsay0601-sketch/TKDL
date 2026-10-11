@@ -7,7 +7,7 @@ import { GameScorer, BullUpBoard, type GameTypeOption } from "@/components/game-
 import { resolveBullUp, type Dart, type X01Format } from "@/lib/darts-rules";
 import { useWakeLock, useZoomLock } from "@/lib/nativeParity";
 import { liveApi, errorMessage, useTournament } from "../api";
-import { ResultBanner } from "../tournament/components";
+import { MatchContextStrip, ResultBanner } from "../tournament/components";
 import { resultMoment } from "../tournament/model";
 import { formatPence } from "../model";
 import { OSWALD, Label, StatusBadge } from "../components";
@@ -118,6 +118,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
     const state = resolveBullUp(session.bullUp.firstOrder, session.bullUp.throws);
     return createPortal(
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e", overflowY: "auto" }}>
+        <MatchContextStrip saveId={saveId} eventId={session.eventId} matchId={session.matchId} />
         <BullUpBoard names={[session.player.name, session.opponent.name]} state={state} isHuman={idx => idx === 0} busy={busy} error={error}
           subtitle={state.rounds.length > 1 ? undefined : "Nearest the bull throws first"}
           onThrow={async (_, t) => {

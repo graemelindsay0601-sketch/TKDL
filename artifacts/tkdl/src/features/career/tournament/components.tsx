@@ -1,5 +1,6 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { Link } from "wouter";
+import { useTournament } from "../api";
 import { CalendarDays, Coins, Crown, MapPin, Medal, Shield, Swords, Target, TrendingUp, Trophy, Users } from "lucide-react";
 import { Label, OSWALD, StatusBadge } from "../components";
 import { formatPence } from "../model";
@@ -293,8 +294,13 @@ export function CompletionSummary({ v, children }: { v: TView; children?: ReactN
   const records: string[] = [];
   if (v.history) {
     if (!v.history.previousAppearances.length && v.humanResult) records.push("Debut appearance at this event");
-    if (v.position && prior && v.position < prior) records.push(`Best ever finish here (previously ${ordinalFinish(prior)})`);
+    if (v.history.previousAppearances.length && v.position && prior && v.position < prior) records.push(`Best ever finish here (previously ${ordinalFinish(prior)})`);
     if (v.history.palace?.firstAppearance) records.push("World Championship debut");
+    if (champion && !v.event.qSchool) {
+      const priorTitles = v.history.previousAppearances.filter(p => p.is_champion === true);
+      const last = v.history.previousAppearances[0];
+      records.push(last?.is_champion === true && String(v.history.recentChampions[0]?.id) === String(last.id) ? "Title defended" : priorTitles.length ? `Title number ${priorTitles.length + 1} at this event` : "First title at this event");
+    }
   }
   if (v.achievements.groupWinner) records.push("Group winner");
   return (
@@ -310,7 +316,7 @@ export function CompletionSummary({ v, children }: { v: TView; children?: ReactN
         </div>
       </div>
       <dl className="tb-complete__stats">
-        <div><dt>Matches</dt><dd>{run.won}–{run.matches - run.won}</dd></div>
+        <div><dt>Matches</dt><dd>{v.humanResult ? `${Number(v.humanResult.wins)}–${Number(v.humanResult.losses)}` : `${run.won}–${run.matches - run.won}`}</dd></div>
         <div><dt>Legs</dt><dd>{run.legsFor}–{run.legsAgainst}</dd></div>
         <div><dt>Prize</dt><dd>{formatPence(v.money.paid ? Number(v.money.prize?.cash_award_pence ?? 0) : v.money.securedPence)}</dd></div>
         <div><dt>Ranking money</dt><dd>{v.money.prize ? formatPence(Number(v.money.prize.ranking_eligible_pence)) : "—"}</dd></div>
@@ -344,6 +350,23 @@ export function EntryCase({ e }: { e: CareerEvent }) {
       <ul className="tb-entry__points">{points.map(p => <li key={p.label}>{p.icon}<span className="tb-entry__label">{p.label}</span><strong>{p.value}</strong></li>)}</ul>
       {f && cost !== null && cost > f.availablePence && <p className="tb-small" style={{ color: "#fb8a92" }}>Estimated cost is more than your available balance.</p>}
     </section>
+  );
+}
+
+/** Event identity above the real bull-up: event, tier, stage and format. Display only. */
+export function MatchContextStrip({ saveId, eventId, matchId }: { saveId: string; eventId: string; matchId: string }) {
+  const q = useTournament(saveId, eventId);
+  const v = q.data;
+  const m = v?.matches.find(x => x.id === matchId);
+  if (!v || !m) return null;
+  const tier = tierProfile(v.event.level, v.event.content?.eventClass);
+  return (
+    <div className={`tb-strip tb-tier-${tier.key.toLowerCase()}`} role="note" aria-label="Match context">
+      <span className="tb-chip">{tier.label}</span>
+      <strong style={OSWALD}>{v.event.name}</strong>
+      <span>{stageOf(m, knockoutRounds(v.matches))}</span>
+      <span className="tb-dim">{formatLine(v.event.format, m.best_of)}</span>
+    </div>
   );
 }
 

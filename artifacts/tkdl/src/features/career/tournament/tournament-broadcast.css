@@ -168,3 +168,8 @@
 @media (prefers-reduced-motion:reduce){.tb-walkon *{animation:none!important}}
 .tournament-reduced .tb-walkon *,.tournament-mode[data-mode=QUICK] .tb-walkon *{animation:none!important}
 .tb-hub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tb-hub-grid:empty{display:none}@media(max-width:820px){.tb-hub-grid{grid-template-columns:1fr}}
+
+/* bull-up context strip */
+.tb-strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 12px;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));
+  background:linear-gradient(180deg,#0d1220,#06040e);border-bottom:2px solid var(--tb-accent);font-size:.82rem;color:#fff;text-align:center}
+.tb-strip strong{text-transform:uppercase;letter-spacing:.04em}
