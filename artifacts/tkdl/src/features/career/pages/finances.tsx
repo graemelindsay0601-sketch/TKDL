@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Briefcase, Handshake, Receipt, Wallet } from "lucide-react";
+import { Briefcase, CalendarClock, Coins, Handshake, Receipt, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useNegotiateOffer, useSponsors, errorMessage } from "../api";
 import { LEDGER_FILTERS, circuitLabel, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
@@ -142,8 +142,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
 
       {sponsorActivity.length > 0 && (
         <CareerSection title="Sponsor activity & payment history" icon={<Receipt className="w-3.5 h-3.5" />} accent="#ffd24a">
-          <ul>
-            {sponsorActivity.map(({ journey, event, index }) => {
+          {(() => { const row = ({ journey, event, index }: typeof sponsorActivity[number]) => {
               const amount = typeof event.details.amountPence === "number" ? event.details.amountPence
                 : typeof event.details.signingPaymentPence === "number" ? event.details.signingPaymentPence : null;
               const category = typeof event.details.category === "string" ? event.details.category
@@ -151,17 +150,20 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
               const summary = typeof event.details.summary === "string" ? event.details.summary
                 : typeof event.details.headline === "string" ? event.details.headline : journeyEventText(event.type);
               return (
-                <li key={`${journey.id}:${event.createdAt}:${event.type}:${index}`} className="px-4 py-2.5 border-b last:border-b-0 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold truncate" style={{ color: "#fff", ...OSWALD }}>{journey.displayName} · {journeyEventText(event.type)}</div>
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.65)" }}>{summary}{category ? ` · ${ledgerLabel(category)}` : ""}</div>
+                <li key={`${journey.id}:${event.createdAt}:${event.type}:${index}`} className="career-money-row">
+                  <span className="career-money-row__week">{event.season ? <>S{event.season}<b>W{event.week ?? "—"}</b></> : "—"}</span>
+                  <div className="min-w-0">
+                    <strong>{journey.displayName} · {journeyEventText(event.type)}</strong>
+                    <small>{summary}{category ? ` · ${ledgerLabel(category)}` : ""}</small>
                   </div>
-                  <span className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.58)" }}>{event.season ? `S${event.season} W${event.week ?? "—"}` : ""}</span>
-                  {amount !== null && amount > 0 && <span className="shrink-0 font-black tabular-nums" style={{ ...OSWALD, color: "#ffd24a" }}>{formatPence(amount)}</span>}
+                  {amount !== null && amount > 0 ? <span className="career-money-row__amount is-in">{formatPence(amount)}</span> : <span />}
                 </li>
               );
-            })}
-          </ul>
+            };
+            const recent = sponsorActivity.slice(0, 8), earlier = sponsorActivity.slice(8);
+            return <><ul className="career-money-list">{recent.map(row)}</ul>
+              {earlier.length > 0 && <details className="career-money-more"><summary>Show {earlier.length} earlier {earlier.length === 1 ? "entry" : "entries"}</summary><ul className="career-money-list">{earlier.map(row)}</ul></details>}</>;
+          })()}
         </CareerSection>
       )}
 
@@ -232,15 +234,17 @@ function CommercialOverview({ commercial }: { commercial: SponsorCommercialOverv
   return (
     <CareerSection title={`Commercial position · Season ${commercial.season}, Week ${commercial.week}`} icon={<Handshake className="w-3.5 h-3.5" />} accent="#ffd24a">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 p-3">
-        <StatTile label="Cash received this season" value={formatPence(cash.total)} sub="Only posted sponsor cash is included" tone="gold" />
-        <StatTile label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Applied to eligible costs; not cash" tone="neutral" />
-        <StatTile label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Future payments; not in your balance yet" tone="neutral" />
-        <StatTile label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Not guaranteed and not counted as cash" tone="neutral" />
+        <StatTile icon={<Coins size={16}/>} label="Cash received this season" value={formatPence(cash.total)} sub="Only posted sponsor cash is included" tone="gold" />
+        <StatTile icon={<ShieldCheck size={16}/>} label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Applied to eligible costs; not cash" tone="neutral" />
+        <StatTile icon={<CalendarClock size={16}/>} label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Future payments; not in your balance yet" tone="neutral" />
+        <StatTile icon={<Sparkles size={16}/>} label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Not guaranteed and not counted as cash" tone="neutral" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
         <div className="px-4 py-3 border-b lg:border-b-0 lg:border-r" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
           <h3 className="text-xs font-black uppercase mb-2" style={{ ...OSWALD, color: "#fff" }}>Cash actually received · Season {commercial.season}</h3>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+          {cash.total > 0 && <div className="career-cash-bar" aria-hidden="true">{([["signing", cash.signing], ["guarantees", cash.guarantees], ["events", cash.eventPayments], ["bonuses", cash.performanceBonuses]] as const)
+            .filter(([, v]) => v > 0).map(([k, v]) => <i key={k} data-part={k} style={{ flexGrow: v }} />)}</div>}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs career-cash-legend">
             <span>Signing payments</span><span className="text-right tabular-nums">{formatPence(cash.signing)}</span>
             <span>Guaranteed instalments paid</span><span className="text-right tabular-nums">{formatPence(cash.guarantees)}</span>
             <span>Eligible event payments</span><span className="text-right tabular-nums">{formatPence(cash.eventPayments)}</span>
@@ -309,11 +313,12 @@ function Ledger({ saveId }: { saveId: string }) {
     <CareerSection title="Transactions" icon={<Receipt className="w-3.5 h-3.5" />} accent="#c084fc">
       <div className="px-3 pt-2.5 pb-1"><Segmented label="Transaction filter" wrap value={filter} onChange={setFilter} options={LEDGER_FILTERS.map(f => ({ value: f.key, label: f.label }))} /></div>
       {ledger.isLoading ? <CareerLoading /> : ledger.error ? <CareerError error={ledger.error} onRetry={() => ledger.refetch()} /> : rows.length === 0 ? <CareerEmptyState title="No transactions on this page" /> : (
-        <ul>{rows.map(e => (
-          <li key={e.id} className="px-4 py-2 border-b last:border-b-0 flex items-center gap-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-            <div className="flex-1 min-w-0"><div className="text-sm truncate" style={{ color: "#fff" }}>{e.reason ?? ledgerLabel(e.category)}</div>
-              <div className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{ledgerLabel(e.category)}{e.season ? ` · S${e.season} W${e.week}` : ""}{e.sponsorCoveredPence ? ` · ${formatPence(e.sponsorCoveredPence)} sponsor-covered` : ""}</div></div>
-            <span className="tabular-nums font-black" style={{ ...OSWALD, color: e.amountPence >= 0 ? TONES.success : "rgba(255,255,255,0.85)" }}>{formatPence(e.amountPence, { signed: true })}</span>
+        <ul className="career-money-list">{rows.map(e => (
+          <li key={e.id} className="career-money-row">
+            <span className="career-money-row__week">{e.season ? <>S{e.season}<b>W{e.week}</b></> : "—"}</span>
+            <div className="min-w-0"><strong>{e.reason ?? ledgerLabel(e.category)}</strong>
+              <small>{ledgerLabel(e.category)}{e.sponsorCoveredPence ? ` · ${formatPence(e.sponsorCoveredPence)} sponsor-covered` : ""}</small></div>
+            <span className={`career-money-row__amount ${e.amountPence >= 0 ? "is-in" : "is-out"}`}>{formatPence(e.amountPence, { signed: true })}</span>
           </li>))}</ul>
       )}
       <div className="flex justify-between px-3 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>

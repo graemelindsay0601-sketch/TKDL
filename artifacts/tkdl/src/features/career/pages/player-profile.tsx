@@ -5,6 +5,8 @@ import { CareerSection } from "../components";
 import type { ShellContext } from "../shell";
 import { CareerShirt, type ShirtIdentity } from "../identity";
 import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "../atmosphere";
+import { CareerPageHero } from "../page-hero";
+import { country } from "../model";
 import "./player-profile.css";
 
 type ProfileProps = { ctx: ShellContext; npcId: string };
@@ -176,7 +178,32 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
   </CareerSection>;
 }
 
-export function RivalryProfile({ ctx, npcId }: ProfileProps) {
+/** Standalone head-to-head route (/world/rivalries/:npcId): opponent hero over the shared H2H record. */
+export function RivalryPage({ ctx, npcId }: ProfileProps) {
+  const relationships = useCareerRelationships(ctx.save.id);
+  const relationship = relationships.data?.opponents.find(opponent => opponent.player.id === npcId);
+  const base = saveRoot(ctx);
+  const p = relationship?.player;
+  return <div className="tkdl-player-profile space-y-3">
+    {relationship && p && <CareerPageHero kicker="Head-to-head" title={p.name} accent="#ff7a93" stage={{ venue: { venueType: "studio" }, eventClass: "PROFESSIONAL_TOUR" }}
+      watermark={`${relationship.humanWins}–${relationship.npcWins}`}
+      subtitle={<p>{[country(p.nationality)?.name ?? p.nationality, `Age ${p.age}`, p.worldRanking ? `World #${p.worldRanking}` : "Unranked", p.status === "RETIRED" ? "Retired" : null].filter(Boolean).join(" · ")}</p>}
+      portrait={<CareerShirt playerId={p.id} name={p.name} scale="featured" />}
+      actions={<Link className="career-btn" href={`${base}/world/players/${encodeURIComponent(p.id)}/profile`}>Full player profile</Link>}
+      stats={[
+        { label: "Meetings", value: relationship.meetings, sub: `${relationship.eventCount} events · ${relationship.seasonCount} ${relationship.seasonCount === 1 ? "season" : "seasons"}` },
+        { label: "Your wins", value: relationship.humanWins, tone: "good" },
+        { label: "Their wins", value: relationship.npcWins, tone: relationship.npcWins > relationship.humanWins ? "bad" : "neutral" },
+        { label: "Win rate", value: relationship.winPercentage === null ? "—" : `${relationship.winPercentage}%`, sub: `${relationship.finals} ${relationship.finals === 1 ? "final" : "finals"} · ${relationship.majorMeetings} major/world`, tone: "gold" },
+      ]} />}
+    <section className="player-panel">
+      <h2><Swords size={17} className="inline-block mr-2 align-[-3px]" aria-hidden />Played record</h2>
+      <RivalryProfile ctx={ctx} npcId={npcId} compact={!!relationship} />
+    </section>
+  </div>;
+}
+
+export function RivalryProfile({ ctx, npcId, compact = false }: ProfileProps & { compact?: boolean }) {
   const relationships = useCareerRelationships(ctx.save.id);
   const relationship = relationships.data?.opponents.find(opponent => opponent.player.id === npcId);
   const base = saveRoot(ctx);
@@ -187,13 +214,13 @@ export function RivalryProfile({ ctx, npcId }: ProfileProps) {
 
   return <div>
     {relationship.labels.length ? <div className="player-tag-list mb-3">{relationship.labels.map(label => <span className="player-tag" key={label}>{label}</span>)}</div> : <p>No relationship label is recorded.</p>}
-    <div className="player-metric-grid">
+    {!compact && <><div className="player-metric-grid">
       <Metric label="Meetings" value={relationship.meetings} />
       <Metric label="Wins" value={relationship.humanWins} />
       <Metric label="Opponent wins" value={relationship.npcWins} />
       <Metric label="Win rate" value={relationship.winPercentage === null ? "Not available" : `${relationship.winPercentage}%`} />
     </div>
-    <p>{relationship.eventCount} events · {relationship.seasonCount} seasons · {relationship.finals} finals · {relationship.majorMeetings} major/world meetings · {relationship.qualificationMeetings} qualification meetings</p>
+    <p>{relationship.eventCount} events · {relationship.seasonCount} seasons · {relationship.finals} finals · {relationship.majorMeetings} major/world meetings · {relationship.qualificationMeetings} qualification meetings</p></>}
     {!!relationship.evidence.length && <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-stone-600">{relationship.evidence.map(item => <li key={item}>{item}</li>)}</ul>}
     <h3>Played meetings</h3>
     {relationship.history.length ? <div className="player-row-list">

@@ -47,6 +47,9 @@ All screens use the shared `CareerPageHero`. It is built on the F1 venue plates,
 |---|---|---|
 | 2 | `d15e409` | Home, Rankings (podium chips, ~3.5 MB → ~106 KB images via 256px shirt thumbnails), Finances, Journey |
 | 3 | `f8b7cd0` | Darts World front page and directory, Goals, Achievements (silverware vs. titles without silverware, from E2 `resolveAward`), Relationships |
-| 4 | (this batch) | Q-School hero and plain-language refusals. Calendar: venue plate on every agenda row (trophy badge for majors/World), dossier venue banner, staged header, readable entry status. Sponsor HQ: hero with ledger stats and the sponsored shirt, contract-term bars, brand names instead of internal keys. |
+| 4 | `f66f5f4` | Q-School hero and plain-language refusals. Calendar: venue plate on every agenda row (trophy badge for majors/World), dossier venue banner, staged header, readable entry status. Sponsor HQ: hero with ledger stats and the sponsored shirt, contract-term bars, brand names instead of internal keys. |
+| 5 | (this batch) | Full sweep of 39 Career routes at 390/1440. Fixed defects: raw `{city}`/`{region}` template names on World → Events; illegible standalone news article; missing opponent heading on the rivalry route; raw sponsor key in the archive; profile shirt collapsing to 0px on My Career; honours shelf contradicting E2 awards. New treatment: premium Career navigation (accents, medallion icons, dartboard glyph, venue plate on the active tab, section-tab icons); Events & Circuits directory and championship detail; Career archive / World history; My Career Performance & Career Life; Career Life, Stories, Recognition; Guide; Finances body; shared stat tiles. |
+
+Sweep result after batch 5: no horizontal overflow, no page errors and no raw template tokens or internal codes in visible text on any of the 39 routes.
 
 Unchanged: gameplay, settlement, rankings, eligibility, finance authorities, save identities and all 250 kit IDs. No schema changes.

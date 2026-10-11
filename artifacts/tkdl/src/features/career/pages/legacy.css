@@ -1,0 +1,33 @@
+/* Career archive (History & Legacy): readable record rows instead of running text. */
+.career-archive h2 { margin:0; font:800 1.15rem/1.2 Oswald,sans-serif; text-transform:uppercase; letter-spacing:.02em; color:#fff; }
+.career-archive h3 { margin:14px 0 8px; font:700 .72rem Oswald,sans-serif; letter-spacing:.18em; text-transform:uppercase; color:#e8c66a; }
+.career-archive__headline { color:#f4ead4 !important; }
+.career-archive__facts { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); gap:10px; margin:12px 0 0; }
+.career-archive__facts > div { padding:12px 14px; border-radius:12px; border:1px solid #ffffff14; background:linear-gradient(160deg,#141d2b,#0b111a); }
+.career-archive__facts dt { font:700 .58rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#ffffff85; }
+.career-archive__facts dd { margin:4px 0 0; font:800 1.4rem/1.1 Oswald,sans-serif; color:#fff; }
+.career-archive__facts small { display:block; margin-top:3px; font-size:.7rem; color:#ffffff99; }
+.career-archive__eras { list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:8px; }
+.career-archive__eras li { display:grid; padding:8px 12px; border-radius:10px; border:1px solid #e8c66a40; background:#e8c66a0d; }
+.career-archive__eras span { font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; color:#ffffff8c; }
+.career-archive__eras strong { color:#f4ead4; font-size:.86rem; }
+.career-archive__cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:14px; }
+.career-archive__row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; padding:8px 0; border-top:1px solid #ffffff0f; }
+.career-archive__row:first-of-type { border-top:0; }
+.career-archive__row strong { min-width:0; color:#eef2f6; font-size:.84rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.career-archive__row em { font-style:normal; font-size:.66rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#ffffff8c; }
+.career-archive__row em.is-gold { color:#ffd27a; }
+.career-archive__chip { padding:3px 8px; border-radius:7px; background:#ffffff0d; border:1px solid #ffffff1a; font:700 .66rem Oswald,sans-serif; letter-spacing:.06em; color:#e8c66a; white-space:nowrap; }
+.career-archive__empty { margin:0; padding:12px; border:1px dashed #ffffff21; border-radius:10px; font-size:.78rem; color:#ffffff8c; }
+.career-archive__links { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.career-archive__search { width:100%; max-width:420px; min-height:42px; padding:8px 14px; border-radius:999px; border:1px solid #ffffff26; background:#070b12; color:#fff; }
+.career-archive__hint { margin:6px 0 10px; font-size:.7rem; color:#ffffff80; }
+.career-archive__npc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr)); gap:8px; }
+.career-archive__npc { display:flex; align-items:center; gap:8px; padding:6px 10px 6px 6px; border-radius:12px; border:1px solid #ffffff14; background:#0d1520; color:#fff; text-decoration:none; min-width:0; }
+.career-archive__npc:hover { border-color:#e8c66a66; }
+.career-archive__npc .career-shirt, .career-archive__npc .career-premium-shirt { width:44px !important; flex:0 0 44px; }
+.career-archive__npc span { display:grid; min-width:0; }
+.career-archive__npc strong { font-size:.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.career-archive__npc small { font-size:.64rem; color:#ffffff80; }
+.career-archive section.border { border-radius:12px; background:#0b121c; }
+.career-archive .career-note { margin-top:8px; }

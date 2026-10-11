@@ -1,13 +1,15 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X } from "lucide-react";
+import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
+  Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
-import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "./atmosphere";
+import { CareerStageBackdrop, PLATES, resolveAtmosphere, spectacleFor } from "./atmosphere";
+import type { PlateKey } from "./atmosphere/model";
 
 export type ShellContext = { save: CareerSave; overview: CalendarOverview | null; retired: boolean };
 
@@ -170,18 +172,36 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount }: 
  * so it fits a 390px phone without hidden overflow and without a second bottom bar
  * (TKDL's global mobile bar stays the app-level navigation).
  */
+/** Small dartboard glyph for the Darts World destination (decorative, matches lucide stroke style). */
+function DartboardIcon({ size = 18 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.4"/>
+    <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg>;
+}
+/** Per-destination identity: accent, icon and the venue plate shown behind the active tab. Decorative only. */
+const DESTINATIONS: Record<string, { icon: LucideIcon | typeof DartboardIcon; accent: string; plate: PlateKey }> = {
+  HOME: { icon: House, accent: "#ff3d7f", plate: "pub-club" },
+  MAP: { icon: Map, accent: "#4fc3f7", plate: "conference" },
+  CALENDAR: { icon: CalendarDays, accent: "#ffb547", plate: "professional-floor" },
+  DARTS_WORLD: { icon: DartboardIcon, accent: "#5ee39b", plate: "small-arena" },
+  MY_CAREER: { icon: UserRound, accent: "#c99bff", plate: "historic-theatre" },
+};
+const SUB_ICONS: Record<string, LucideIcon> = {
+  rankings: ListOrdered, players: Users, "world-events": Trophy, venues: Landmark, "world-history": ScrollText,
+  overview: LayoutGrid, performance: Activity, achievements: Medal, "career-life": Sparkles, history: BookOpen, sponsors: Briefcase,
+};
 export function CareerNav({ saveId }: { saveId: string }) {
   const [location] = useLocation();
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
-  const icons:Record<string,typeof House> = {HOME:House,MAP:Map,CALENDAR:CalendarDays,DARTS_WORLD:Globe2,MY_CAREER:UserRound};
   return (
-    <nav aria-label="Career" className="career-navigation">
+    <nav aria-label="Career" className="career-navigation career-navigation--premium" style={{ ["--dest-accent" as string]: DESTINATIONS[layer.layer]?.accent ?? "#ff3d7f" }}>
       <div className="career-primary-nav">
-        {CAREER_NAV.map(section => {const Icon=icons[section.layer]??Globe2;return (
+        {CAREER_NAV.map(section => {const d=DESTINATIONS[section.layer]??DESTINATIONS.HOME,Icon=d.icon,plate=PLATES[d.plate]??PLATES.neutral,current=layer.layer === section.layer;return (
           <Link key={section.layer} href={`/career/${saveId}${section.path}`} className="career-nav-link justify-center"
-            aria-label={section.label}
-            aria-current={layer.layer === section.layer ? (section.items.length === 1 ? "page" : "true") : undefined}>
+            aria-label={section.label} style={{ ["--tab-accent" as string]: d.accent }}
+            aria-current={current ? (section.items.length === 1 ? "page" : "true") : undefined}>
+            {current && <img className="career-nav-plate" src={plate.src} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={e => { e.currentTarget.style.display = "none"; }} />}
             <span className="career-destination-icon" aria-hidden><Icon size={18}/></span>
             <span className="career-nav-label-full">{section.label}</span>
             <span className="career-nav-label-short">{section.layer === "DARTS_WORLD" ? "World" : section.layer === "MY_CAREER" ? "Career" : section.label}</span>
@@ -190,9 +210,9 @@ export function CareerNav({ saveId }: { saveId: string }) {
       </div>
       {layer.items.length > 1 && (
         <div className="career-context-nav" aria-label={`${layer.label} pages`} role="group">
-          {layer.items.map(item => (
-            <Link key={item.key} href={`/career/${saveId}${item.path}`} className="career-subnav-link" aria-current={active === item.key ? "page" : undefined}>{item.label}</Link>
-          ))}
+          {layer.items.map(item => {const Sub=SUB_ICONS[item.key];return (
+            <Link key={item.key} href={`/career/${saveId}${item.path}`} className="career-subnav-link" aria-current={active === item.key ? "page" : undefined}>{Sub && <Sub size={14} aria-hidden className="career-subnav-icon"/>}{item.label}</Link>
+          );})}
         </div>
       )}
     </nav>

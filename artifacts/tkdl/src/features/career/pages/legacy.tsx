@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useLegacy, useSeasonReview, useEventLegacy, useNpcLegacy, useBeginSeason, useSaveLifecycle, errorMessage } from "../api";
+import { useLegacy, useSeasonReview, useEventLegacy, useNpcLegacy, useBeginSeason, useSaveLifecycle, usePresentation, errorMessage } from "../api";
 import { CareerSection, QueryState, ConfirmButton, BoundedList } from "../components";
-import { formatPence } from "../model";
+import { formatPence, titleCase } from "../model";
+import { CareerPageHero } from "../page-hero";
+import { CareerShirt } from "../identity";
+import "./legacy.css";
 import { HistoryPage } from "./history";
 import type { ShellContext } from "../shell";
 import type { Award, LegacyView, SeasonReview, RecordRow } from "../../../../../api-server/src/career/legacy/types";
@@ -11,45 +14,57 @@ const tabs=["Career Record","Seasons","Honours","World History","Event Legends",
 export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;initialTab?:string}) {
   const query=useLegacy(ctx.save.id),[tab,setTab]=useState(initialTab),[season,setSeason]=useState<number|null>(null),[event,setEvent]=useState<string|null>(null);
   const seasonQuery=useSeasonReview(ctx.save.id,season),eventQuery=useEventLegacy(ctx.save.id,event);
-  return <div className="space-y-3"><QueryState query={query} label="Building your Career legacy">{d=><header className="relative overflow-hidden rounded-2xl border border-amber-200/15 bg-[radial-gradient(ellipse_at_80%_0%,rgba(251,191,36,.15),transparent_40%),linear-gradient(115deg,#152033,#090f19_70%,#101820)] p-5 sm:p-7">
-      <div className="relative z-10">
-        <p className="text-[10px] font-bold uppercase tracking-[.22em] text-amber-200">The record you build · Season {ctx.save.currentSeason}</p>
-        <h1 className="mt-2 text-3xl text-white sm:text-4xl">Career archive</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/65">{d.descriptors.join(" · ")||"Every result, partnership and turning point recorded across your darts career."}</p>
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            ["Main-event titles",String(d.overview.titles)],
-            ["Finals",String(d.overview.finals)],
-            ["Major / World titles",String(d.overview.majorTitles)],
-            ["Highest World rank",d.bestRanking?`#${d.bestRanking.position}`:"—"],
-          ].map(([label,value])=><div key={label} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-            <span className="block text-[9px] uppercase tracking-[.14em] text-white/45">{label}</span><strong className="mt-1 block text-xl text-white">{value}</strong>
-          </div>)}
-        </div>
-        <nav aria-label="Career commercial and legacy navigation" className="mt-4 flex flex-wrap gap-2">
-          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/sponsors`}>Sponsor HQ</Link>
-          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/finances`}>Finances & ledger</Link>
-          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/presentation`}>Equipment & signature products</Link>
-        </nav>
-      </div>
-    </header>}</QueryState><CareerSection title="History & Legacy">
+  const presentation=usePresentation(ctx.save.id);
+  const world=initialTab==="World History";
+  return <div className="space-y-3 career-archive"><QueryState query={query} label="Building your Career legacy">{d=><CareerPageHero
+      kicker={world?"Darts World · Champions & records":`The record you build · Season ${ctx.save.currentSeason}`} title={world?"World history":"Career archive"}
+      stage={{venue:{venueType:world?"exhibition":"historic-theatre"},eventClass:"MAJOR"}} accent="#e8c66a" archival={ctx.retired}
+      watermark={world?`S${ctx.save.currentSeason}`:`${d.overview.titles}`}
+      subtitle={<p>{d.descriptors.join(" · ")||"Every result, partnership and turning point recorded across your darts career."}</p>}
+      portrait={!world&&presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>:undefined}
+      stats={world?[
+        {label:"Completed seasons",value:d.completedSeasons.length,tone:"gold"},
+        {label:"Recorded players",value:d.players.filter(p=>p.id!=="HUMAN").length},
+        {label:"Retired players",value:d.players.filter(p=>p.id!=="HUMAN"&&p.retiredSeason).length},
+        {label:"Hall of Fame",value:d.hallOfFame.length},
+      ]:[
+        {label:"Main-event titles",value:d.overview.titles,tone:"gold"},
+        {label:"Finals",value:d.overview.finals},
+        {label:"Major / World titles",value:d.overview.majorTitles},
+        {label:"Highest World rank",value:d.bestRanking?`#${d.bestRanking.position}`:"—"},
+      ]}
+      actions={<nav aria-label="Career commercial and legacy navigation" className="flex flex-wrap gap-2">
+        <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/sponsors`}>Sponsor HQ</Link>
+        <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/finances`}>Finances & ledger</Link>
+        <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/presentation`}>Equipment & signature products</Link>
+      </nav>}/>}</QueryState><CareerSection title="History & Legacy" accent="#e8c66a">
     <div className="p-4 pb-3"><div className="tkdl-tab-rail" role="tablist" aria-label="History & Legacy areas">{tabs.map(t=>
       <button type="button" key={t} role="tab" aria-selected={tab===t} className="tkdl-tab-trigger career-btn career-btn-ghost" onClick={()=>setTab(t)}>{t}</button>)}</div></div>
     <QueryState query={query} label="Reading permanent Career history">{d=><div className="p-4 pt-0 space-y-4">
       {d.pendingReview!==null&&<Transition saveId={ctx.save.id} season={d.pendingReview}/>}
       {tab==="Career Record"&&<>
-        <h2 className="font-bold">{d.descriptors.join(" · ")||"A darts Career in progress"}</h2>
-        <p>{d.completedSeasons.length} completed seasons · {d.overview.titles} main-event titles · {d.overview.finals} finals · {d.overview.majorTitles} majors/Worlds · {d.overview.worlds} Worlds</p>
-        <p>{d.overview.amateurTitles} amateur titles · {d.overview.proTitles} pro titles · highest recorded World ranking {d.bestRanking?`#${d.bestRanking.position}`:"not recorded"}</p>
-        <p>Prize income {formatPence(d.prizePence)} · Sponsor/Commercial {formatPence(d.commercialPence)}</p>
-        <h3 className="font-bold">Career eras</h3>{d.eras.map(e=><p key={e.from}>Seasons {e.from}–{e.to}: {e.label}</p>)}
-        <h3 className="font-bold">Championship history</h3><BoundedList rows={d.championships}>{r=><p key={r.id}>Season {r.season}: {r.name} · {r.champion?"champion":`position ${r.position}`}</p>}</BoundedList>
-        <h3 className="font-bold">Commercial Career</h3><BoundedList rows={d.sponsors}>{s=><p key={s.id}>{s.name}: signed term seasons {s.startSeason}–{s.endSeason} · {s.status}</p>}</BoundedList>
-        <BoundedList rows={d.commercial}>{c=><p key={c.id}>Season {c.season}: {c.title} · {c.status}</p>}</BoundedList>
-        {d.merchandise&&<p>Merchandise: {d.merchandise.category} · {d.merchandise.active?"active":"stopped"}</p>}
-        <div className="flex flex-wrap gap-3"><Link className="underline" href={`/career/${ctx.save.id}/relationships`}>Sporting H2H & Rivalries</Link>
-          <Link className="underline" href={`/career/${ctx.save.id}/life`}>Public profile, tone & commercial decisions</Link>
-          <Link className="underline" href={d.storiesLink}>Career Story Threads</Link></div>
+        <h2 className="career-archive__headline">{d.descriptors.join(" · ")||"A darts Career in progress"}</h2>
+        <dl className="career-archive__facts">
+          <div><dt>Completed seasons</dt><dd>{d.completedSeasons.length}</dd><small>{d.overview.worlds} Worlds · {d.overview.majorTitles} majors/Worlds</small></div>
+          <div><dt>Titles by level</dt><dd>{d.overview.titles}</dd><small>{d.overview.amateurTitles} amateur titles · {d.overview.proTitles} pro titles</small></div>
+          <div><dt>Prize income</dt><dd>{formatPence(d.prizePence)}</dd><small>Ranking & non-ranking prize money</small></div>
+          <div><dt>Sponsor / commercial</dt><dd>{formatPence(d.commercialPence)}</dd><small>Highest World ranking {d.bestRanking?`#${d.bestRanking.position}`:"not recorded"}</small></div>
+        </dl>
+        {d.eras.length>0&&<><h3>Career eras</h3><ol className="career-archive__eras">{d.eras.map(e=><li key={e.from}><span>Seasons {e.from}–{e.to}</span><strong>{e.label}</strong></li>)}</ol></>}
+        <div className="career-archive__cols">
+          <section><h3>Championship history</h3>{d.championships.length?<BoundedList rows={d.championships}>{r=><div className="career-archive__row" key={r.id}>
+            <span className="career-archive__chip">S{r.season}</span><strong>{r.name}</strong>{r.champion?<em className="is-gold">Champion</em>:<em>Position {r.position}</em>}</div>}</BoundedList>
+            :<p className="career-archive__empty">Championship history is written when each season is completed. This season's titles are in the record below.</p>}</section>
+          <section><h3>Commercial Career</h3>{d.sponsors.length||d.commercial.length?<>
+            <BoundedList rows={d.sponsors}>{s=><div className="career-archive__row" key={s.id}><span className="career-archive__chip">S{s.startSeason}{s.endSeason!==s.startSeason?`–${s.endSeason}`:""}</span>
+              <strong>{sponsorName(s.name)}</strong><em>Signed term · {titleCase(s.status)}</em></div>}</BoundedList>
+            <BoundedList rows={d.commercial}>{c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip">S{c.season}</span><strong>{c.title}</strong><em>{titleCase(c.status)}</em></div>}</BoundedList>
+            {d.merchandise&&<div className="career-archive__row"><span className="career-archive__chip">Merch</span><strong>{d.merchandise.category}</strong><em>{d.merchandise.active?"Active":"Stopped"}</em></div>}
+          </>:<p className="career-archive__empty">No sponsor agreements or commercial work recorded yet.</p>}</section>
+        </div>
+        <div className="career-archive__links"><Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/relationships`}>Sporting H2H & Rivalries</Link>
+          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/life`}>Public profile, tone & commercial decisions</Link>
+          <Link className="career-btn career-btn-ghost" href={d.storiesLink}>Career Story Threads</Link></div>
       </>}
       {tab==="Seasons"&&<><h2 className="font-bold">Season History</h2>{!d.reviews.length&&<p>No completed season yet. A partial retirement season is not a completed campaign.</p>}
         <BoundedList rows={d.reviews}>{r=><button key={r.season} className="career-btn career-btn-ghost mr-2 mb-2" onClick={()=>setSeason(r.season)}>Season {r.season} · {r.identity} · {r.provenance.toLowerCase()}</button>}</BoundedList>
@@ -83,19 +98,22 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
           {h.participant!=="HUMAN"&&<Link className="underline" href={`/career/${ctx.save.id}/history/npcs/${h.participant}`}>View historical Career</Link>}</section>}</BoundedList>
         <p>No Legacy Score, currency or gameplay effect. Professional status is not mandatory.</p></>}
       {tab==="Retirement"&&<Retirement data={d} saveId={ctx.save.id}/>}
-      <div className="text-xs text-white/60 space-y-1">{d.notes.map(n=><p key={n}>{n}</p>)}</div>
+      {d.notes.length>0&&<details className="career-note"><summary>How this archive is recorded</summary>{d.notes.map(n=><p key={n}>{n}</p>)}</details>}
     </div>}</QueryState></CareerSection>
     {tab==="Career Record"&&<HistoryPage ctx={ctx}/>}
   </div>;
 }
+/** Archive sponsor rows carry the sponsor key ("lochside-joinery"); show it as a name. */
+const sponsorName=(name:string)=>/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)?titleCase(name):name;
 const playerName=(d:LegacyView,id:string)=>d.players.find(p=>p.id===id)?.name??"Recorded participant";
 function NpcSearch({data,saveId}:{data:LegacyView;saveId:string}) {
   const [search,setSearch]=useState("");
-  return <section><h3 className="font-bold">Public NPC history, including retired players</h3>
-    <input className="bg-black border border-white/20 rounded p-2" aria-label="Search historical players" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search a public name"/>
-    <p className="text-xs">Showing up to 30 matches; use a name to find older retired players.</p>
-    {data.players.filter(p=>p.id!=="HUMAN"&&p.name.toLowerCase().includes(search.toLowerCase())).slice(0,30).map(p=>
-      <Link className="block underline" key={p.id} href={`/career/${saveId}/history/npcs/${p.id}`}>{p.name}{p.retiredSeason?` · retired season ${p.retiredSeason}`:""}</Link>)}</section>;
+  const rows=data.players.filter(p=>p.id!=="HUMAN"&&p.name.toLowerCase().includes(search.toLowerCase())).slice(0,30);
+  return <section className="career-archive__npcs"><h3>Public NPC history, including retired players</h3>
+    <input className="career-archive__search" aria-label="Search historical players" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search a public name"/>
+    <p className="career-archive__hint">Showing up to 30 matches; use a name to find older retired players.</p>
+    <div className="career-archive__npc-grid">{rows.map(p=><Link key={p.id} className="career-archive__npc" href={`/career/${saveId}/history/npcs/${p.id}`}>
+      <CareerShirt playerId={p.id} name={p.name} scale="compact"/><span><strong>{p.name}</strong><small>{p.retiredSeason?`Retired season ${p.retiredSeason}`:"Active"}</small></span></Link>)}</div></section>;
 }
 function Awards({rows}:{rows:Award[]}) {
   return <div className="space-y-3">{!rows.length&&<p>No recorded awards. Older reconstructed seasons do not invent award winners.</p>}<BoundedList rows={rows}>{a=>

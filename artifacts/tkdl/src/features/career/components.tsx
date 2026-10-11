@@ -40,9 +40,10 @@ export function StatusBadge({ label, tone = "neutral", icon }: { label: string; 
   );
 }
 
-export function StatTile({ label, value, sub, tone = "neutral", to }: { label: string; value: ReactNode; sub?: ReactNode; tone?: Tone; to?: string }) {
+export function StatTile({ label, value, sub, tone = "neutral", to, icon }: { label: string; value: ReactNode; sub?: ReactNode; tone?: Tone; to?: string; icon?: ReactNode }) {
   const body = (
-    <div className="pdc-card career-stat h-full px-3 py-2.5 flex flex-col gap-1 min-w-0">
+    <div className="pdc-card career-stat h-full px-3 py-2.5 flex flex-col gap-1 min-w-0" data-tone={tone}>
+      {icon && <span className="career-stat__icon" aria-hidden="true">{icon}</span>}
       <Label>{label}</Label>
       <div className="font-black tabular-nums leading-none truncate" style={{ ...OSWALD, fontSize: "clamp(1.15rem, 3.6vw, 1.55rem)", color: TONES[tone] === TONES.neutral ? "#fff" : TONES[tone] }}>{value}</div>
       {sub && <div className="text-xs leading-snug" style={{ color: "rgba(255,255,255,0.62)" }}>{sub}</div>}

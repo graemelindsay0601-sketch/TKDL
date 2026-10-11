@@ -38,7 +38,7 @@ export function CareerPageHero({ kicker, title, subtitle, stage, accent = "#ff00
           {portrait && <div className="career-page-hero__portrait" aria-hidden="true">{portrait}</div>}
         </div>
       </div>
-      {stats.length > 0 && <dl className="career-page-hero__stats" style={{ "--hero-cols": Math.min(stats.length, 4) } as CSSProperties}>
+      {stats.length > 0 && <dl className="career-page-hero__stats" style={{ "--hero-cols": Math.min(stats.length, 5) } as CSSProperties}>
         {stats.map(s => <div key={s.label} className={`is-${s.tone ?? "neutral"}`}><dt>{s.label}</dt><dd>{s.value}</dd>{s.sub && <small>{s.sub}</small>}</div>)}
       </dl>}
     </section>

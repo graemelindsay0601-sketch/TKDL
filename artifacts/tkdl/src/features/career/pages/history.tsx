@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Award, CalendarRange, Crown, History as HistoryIcon, TrendingUp, Trophy } from "lucide-react";
+import { Award, CalendarRange, Coins, CreditCard, Crown, Flag, History as HistoryIcon, Target, TrendingUp, Trophy } from "lucide-react";
 import { useFinance, useCareerFacts, useMilestones, useRankingHistory, useSporting, useTourCard } from "../api";
 import { circuitLabel, formatPence, milestoneLabel, ordinal, stageLabel, tierStyle } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile } from "../components";
@@ -46,14 +46,14 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
 
       {tab === "OVERVIEW" && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          <StatTile label="Seasons" value={ctx.save.currentSeason} sub={ctx.retired ? "Retired" : `Now week ${ctx.save.currentWeek}`} />
-          <StatTile label="Events played" value={rows.length} sub="All completed event results" />
-          <StatTile label="Titles" value={titles.length} tone={titles.length ? "gold" : "neutral"} sub={`${finals.length} other final${finals.length === 1 ? "" : "s"}`} />
-          <StatTile label="Highest World Rank" value={sporting.data?.worldRanking.careerHighPosition ? ordinal(sporting.data.worldRanking.careerHighPosition) : "—"} />
-          <StatTile label="Career Earnings" value={finance.data ? formatPence(finance.data.careerEarningsPence) : "…"} sub="Prize money" />
-          <StatTile label="Tour Cards" value={cards.data?.history.length ?? "…"} sub={cards.data?.holdsCard ? "Currently held" : "None held now"} />
-          <StatTile label="Major appearances" value={majors.length} />
-          <StatTile label="Milestones" value={milestones.data?.milestones.length ?? "…"} />
+          <StatTile icon={<CalendarRange size={16}/>} label="Seasons" value={ctx.save.currentSeason} sub={ctx.retired ? "Retired" : `Now week ${ctx.save.currentWeek}`} />
+          <StatTile icon={<Target size={16}/>} label="Events played" value={rows.length} sub="All completed event results" />
+          <StatTile icon={<Trophy size={16}/>} label="Titles" value={titles.length} tone={titles.length ? "gold" : "neutral"} sub={`${finals.length} other final${finals.length === 1 ? "" : "s"}`} />
+          <StatTile icon={<TrendingUp size={16}/>} label="Highest World Rank" value={sporting.data?.worldRanking.careerHighPosition ? ordinal(sporting.data.worldRanking.careerHighPosition) : "—"} />
+          <StatTile icon={<Coins size={16}/>} label="Career Earnings" value={finance.data ? formatPence(finance.data.careerEarningsPence) : "…"} sub="Prize money" />
+          <StatTile icon={<CreditCard size={16}/>} label="Tour Cards" value={cards.data?.history.length ?? "…"} sub={cards.data?.holdsCard ? "Currently held" : "None held now"} />
+          <StatTile icon={<Crown size={16}/>} label="Major appearances" value={majors.length} />
+          <StatTile icon={<Flag size={16}/>} label="Milestones" value={milestones.data?.milestones.length ?? "…"} />
         </div>
       )}
       {tab === "OVERVIEW" && history.data && <FactsOverview facts={history.data} />}

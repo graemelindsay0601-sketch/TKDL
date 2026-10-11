@@ -4,9 +4,9 @@ import { Award, BadgeCheck, Briefcase, ChevronLeft, ChevronRight, Clapperboard, 
 import { useCareerProfile, useLegacy, usePresentation, useSeasonReview, useSporting, useTrophyCabinet } from "../api";
 import { BoundedList, CareerError, CareerLoading, Label, OSWALD, QueryState, StatusBadge } from "../components";
 import { CareerEventIdentity, CareerPlayerCard } from "../identity";
-import { AwardPresentation, resolveAward } from "../trophies";
+import { AwardPresentation, awardLabel, resolveAward, trophyArt } from "../trophies";
 import { CareerPageHero } from "../page-hero";
-import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "../atmosphere";
+import { CareerStageBackdrop, PLATES, resolveAtmosphere, spectacleFor } from "../atmosphere";
 import { formatPence, ordinal } from "../model";
 import type { ShellContext } from "../shell";
 import { usePlayerLegacy, type Chapter, type Moment, type PlayerLegacy, type SeasonRow } from "./api";
@@ -87,16 +87,22 @@ const Stat = ({ label, value }: { label: string; value: ReactNode }) => <div><dt
 /** Latest titles with their real catalogue trophies; events without a trophy never get one. */
 function HonoursShelf({ saveId, legacy }: { saveId: string; legacy: PlayerLegacy }) {
   const cabinet = useTrophyCabinet(saveId, 0);
-  const shelf = (cabinet.data?.titles ?? []).filter(t => t.classification !== "QUALIFIER" && t.circuit !== "Q_SCHOOL").slice(0, 4);
+  // E2 decides what each win carries: silverware leads the shelf; result-only titles show their venue, never a stand-in trophy.
+  const shelf = (cabinet.data?.titles ?? []).filter(t => t.classification !== "QUALIFIER" && t.circuit !== "Q_SCHOOL")
+    .map(t => ({ t, award: resolveAward({ definitionKey: t.canonicalEventId, circuit: t.circuit, classification: t.classification }, { persistedTrophyId: t.trophy?.id ?? null }) }))
+    .sort((a, b) => Number(a.award.award === "RESULT_ONLY") - Number(b.award.award === "RESULT_ONLY")).slice(0, 4);
   return (
     <section className="pl-panel" aria-label="Recent honours">
       <h2 className="pl-panel__title"><Trophy size={15} aria-hidden /> Recent honours</h2>
       {cabinet.isLoading ? <CareerLoading /> : cabinet.error ? <CareerError error={cabinet.error} onRetry={() => cabinet.refetch()} /> :
-        shelf.length ? <div className="pl-shelf">{shelf.map(t => (
-          <Link key={t.eventId} href={`/career/${saveId}/events/${t.eventId}`} className="pl-shelf__item">
-            <AwardPresentation event={{ definitionKey: t.canonicalEventId, circuit: t.circuit, classification: t.classification }} persistedTrophyId={t.trophy?.id ?? null} size="sm" eventName={t.name} />
-            <strong>{t.name}</strong><small>Season {t.season}{t.trophy ? ` · ${t.trophy.name}` : " · no trophy awarded"}</small>
-          </Link>))}</div>
+        shelf.length ? <div className="pl-shelf">{shelf.map(({ t, award }) => {
+          const silver = award.award !== "RESULT_ONLY";
+          const plate = PLATES[resolveAtmosphere({ definitionKey: t.canonicalEventId, circuit: t.circuit, classification: t.classification, venue: t.venue ?? null }).plate] ?? PLATES.neutral;
+          return <Link key={t.eventId} href={`/career/${saveId}/events/${t.eventId}`} className={`pl-shelf__item${silver ? "" : " is-result"}`}>
+            {silver ? <AwardPresentation event={{ definitionKey: t.canonicalEventId, circuit: t.circuit, classification: t.classification }} persistedTrophyId={t.trophy?.id ?? null} size="sm" eventName={t.name} />
+              : <span className="pl-shelf__venue" aria-hidden="true"><img src={plate.src} alt="" loading="lazy" style={{ objectPosition: `${plate.focal.x * 100}% ${plate.focal.y * 100}%` }} /><b><Crown size={12} /> Title</b></span>}
+            <strong>{t.name}</strong><small>Season {t.season} · {silver ? (award.designId ? trophyArt(award.designId)?.name ?? awardLabel(award) : awardLabel(award)) : "Champion · no trophy awarded"}</small>
+          </Link>;})}</div>
         : <p className="pl-empty">{legacy.totals.finals ? `${legacy.totals.finals} final${legacy.totals.finals === 1 ? "" : "s"} reached — the first title is still to come.` : "No titles yet. Nothing is shown until you actually win one."}</p>}
     </section>
   );

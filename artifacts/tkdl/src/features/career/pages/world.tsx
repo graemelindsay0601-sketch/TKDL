@@ -12,6 +12,7 @@ import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
 import {CareerMapPage} from "./map";
 import {eligibleKitMakerIds} from "../apparel/brand-mark-identity";
+import {CareerPageHero} from "../page-hero";
 
 export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
   const world=useWorldContent(ctx.save.id);
@@ -19,9 +20,12 @@ export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
   if(world.error||!world.data)return <CareerError error={world.error} onRetry={()=>world.refetch()}/>;
   const d=world.data;
   return <div className="space-y-3">
-    <h1>{guide?"Career Guide":"Darts World / Almanac"}</h1>
-    <p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p>
-    {guide?<><GuidanceSettings saveId={ctx.save.id}/>{d.guide.map(g=><details className="pdc-card p-3" key={g.id}><summary>{g.title}</summary><p className="py-2">{g.body}</p></details>)}</>:<>
+    {guide?<CareerPageHero kicker="Career Guide" title="How Career works" accent="#69b8ec" stage={{venue:{venueType:"conference"},eventClass:"PROFESSIONAL_TOUR"}}
+      watermark={`${d.guide.length}`} subtitle={<p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p>}
+      stats={[{label:"Guide topics",value:d.guide.length,tone:"gold"},{label:"Organisations",value:d.organisations.length},{label:"Circuits",value:d.circuits.length},{label:"Venues",value:d.venues.length}]}/>
+    :<><h1>Darts World / Almanac</h1><p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p></>}
+    {guide?<><GuidanceSettings saveId={ctx.save.id}/>
+      <div className="career-guide-grid">{d.guide.map((g,i)=><details className="career-guide-topic" key={g.id}><summary><span aria-hidden="true">{String(i+1).padStart(2,"0")}</span>{g.title}</summary><p>{g.body}</p></details>)}</div></>:<>
       <CareerSection title="Organisations & circuits"><div className="p-4 space-y-2">{d.organisations.map(o=><p key={o.id}><strong>{o.shortName}</strong> — {o.name}: {o.role}</p>)}
         <p>{d.circuits.map(c=>c.name).join(" · ")}</p></div></CareerSection>
       <CareerSection title="Season rhythm"><div className="p-4">{d.seasonRhythm.map(s=><p key={s.id}>Weeks {s.fromWeek}–{s.toWeek}: {s.name}</p>)}</div></CareerSection>
