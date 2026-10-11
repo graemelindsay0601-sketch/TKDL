@@ -3,6 +3,8 @@ import { ArrowLeft, ArrowUpRight, Medal, Swords } from "lucide-react";
 import { useCareerLife, useCareerRelationships, useNpcLegacy, useNpcLife, useWorldPlayers } from "../api";
 import { CareerSection } from "../components";
 import type { ShellContext } from "../shell";
+import { CareerShirt, type ShirtIdentity } from "../identity";
+import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "../atmosphere";
 import "./player-profile.css";
 
 type ProfileProps = { ctx: ShellContext; npcId: string };
@@ -60,7 +62,13 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
         This player ID is not present in the saved Darts World directory. No profile is assembled from partial or guessed identity data.
       </div>}
       {player && <>
-        <header className="player-profile-head">
+        <header className="player-profile-head player-profile-head--stage">
+          {/* G1: the player's real stature — ranked professionals on the tour floor, others in a club room; retired players in archive grade. */}
+          {(() => { const stage = resolveAtmosphere({ eventClass: player.ranking !== null ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
+            return <CareerStageBackdrop atmosphere={stage} spectacle={spectacleFor("ARRIVAL", stage.level)} documentary={player.status === "RETIRED"} animate={false} eager />; })()}
+          <div className="player-profile-head__row">
+          {player.shirt && <span className="player-portrait" aria-hidden="true"><CareerShirt identity={player.shirt as ShirtIdentity} name={player.name} scale="featured" /></span>}
+          <div className="player-profile-head__text">
           <div className="player-eyebrow">Saved Darts World identity</div>
           <h1 className="player-name">{player.name}</h1>
           <div className="player-facts">
@@ -74,6 +82,7 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
             {identity && <span className="player-fact">{identity.status === "RETIRED" && identity.retiredSeason !== null ? `Retired after Season ${identity.retiredSeason}` : `Entered Season ${identity.createdSeason}`}</span>}
             {nickname && <span className="player-fact">“{nickname}”</span>}
           </div>
+        </div></div>
         </header>
 
         <div className="player-profile-grid">

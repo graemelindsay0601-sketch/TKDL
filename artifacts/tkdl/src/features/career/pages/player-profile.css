@@ -100,3 +100,15 @@
   .player-panel--wide { grid-column:span 2; }
 }
 @media (prefers-reduced-motion:reduce) { .player-loading-lines span { animation:none; } }
+
+/* G1: premium profile header — the player standing on their real stage. */
+.player-profile-head--stage{isolation:isolate;background:#07090e;min-height:clamp(220px,32vw,300px);display:flex;align-items:flex-end}
+.player-profile-head--stage>:not(.ca-backdrop){position:relative;z-index:1}
+.player-profile-head--stage:after{z-index:1}
+.player-profile-head--stage .ca-scrim{background:linear-gradient(90deg,#05070cf0 0%,#05070cb3 45%,#05070c33 80%,transparent),linear-gradient(0deg,#05070ce6,transparent 65%)}
+.player-profile-head__row{display:flex;align-items:flex-end;gap:clamp(12px,3vw,24px);width:100%;min-width:0}
+.player-profile-head__text{flex:1;min-width:0}
+.player-portrait{flex:none;display:grid;place-items:center;width:clamp(92px,16vw,140px);aspect-ratio:5/6;border-radius:18px;
+  background:radial-gradient(80% 70% at 50% 15%,#ffffff26,transparent 70%),#0a0e17d9;border:1px solid #ffffff22;box-shadow:0 16px 36px #0008}
+.player-portrait .career-shirt{width:78%!important;height:auto!important}
+@media (max-width:520px){.player-profile-head__row{flex-direction:column;align-items:flex-start}}
