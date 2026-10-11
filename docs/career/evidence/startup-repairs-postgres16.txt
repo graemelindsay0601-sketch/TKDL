@@ -1,0 +1,20 @@
+PASS  SEQUENCE                   every sponsor/Career migration called by app.ts is replayed (SP-E1/SP-E1B included)
+PASS  SEQUENCE                   app.ts includes all three repair steps, A9 before the ledger re-apply
+PASS  FRESH                      a new Career can be created
+PASS  FRESH                      a sponsor guaranteed payment posts once (retry-safe)
+PASS  UPGRADED_WITHOUT_SPF_SPH   before repair: the NPC sponsor market table is missing (P0-1 reproduced)
+PASS  UPGRADED_WITHOUT_SPF_SPH   before repair: Career creation fails (P0-1 reproduced)
+PASS  UPGRADED_WITHOUT_SPF_SPH   the current startup runs exactly the three repair steps on this database
+PASS  UPGRADED_WITHOUT_SPF_SPH   after repair: a new Career can be created
+PASS  UPGRADED_WITHOUT_SPF_SPH   after repair: a sponsor guaranteed payment posts
+PASS  UPGRADED_NARROWED_LEDGER   before repair: the guaranteed payment is rejected by the narrowed ledger constraint (P0-2 reproduced)
+PASS  UPGRADED_NARROWED_LEDGER   after repair: the ledger constraint accepts SPONSOR_GUARANTEED_PAYMENT and SPONSOR_RELEASE_SETTLEMENT
+PASS  UPGRADED_NARROWED_LEDGER   after repair: the existing save's guaranteed payment posts once
+PASS  UPGRADED_NARROWED_LEDGER   existing saves are preserved (identity, clock, seed)
+PASS  UPGRADED_NARROWED_LEDGER   a further Career can be created after the repair
+PASS  IDEMPOTENCE                full re-run 1 of every Career step succeeds
+PASS  IDEMPOTENCE                full re-run 2 of every Career step succeeds
+PASS  IDEMPOTENCE                schema fingerprint (columns, constraints, indexes) is unchanged
+PASS  IDEMPOTENCE                Career data is unchanged
+
+PostgreSQL: 18/18 checks pass

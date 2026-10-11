@@ -31,7 +31,7 @@ function careerStartupSequence() {
   const steps: [string, string, string][] = [];
   for (const m of body.matchAll(/runMigrationStep\(\s*([A-Za-z0-9_"]+)\s*,\s*\(\)\s*=>\s*([A-Za-z0-9]+)\(db\)\s*\)/g)) {
     const fn = m[2], mod = modules.get(fn);
-    if (mod && /career/i.test(mod)) steps.push([m[1], fn, mod]);
+    if (mod && /career|sponsor/i.test(mod)) steps.push([m[1], fn, mod]);
   }
   return steps;
 }
