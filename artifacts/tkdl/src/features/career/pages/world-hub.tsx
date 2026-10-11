@@ -2,6 +2,9 @@ import {useState,useEffect} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldLocalities,useWorldMap,useWorldPlayers,useRankingTable,useLegacy,useEventLegacy,useCareerLife} from "../api";
 import {CareerLoading,CareerError,CareerSection} from "../components";
+import {Newspaper,Trophy} from "lucide-react";
+import {CareerPageHero} from "../page-hero";
+import {PLATES,resolveAtmosphere} from "../atmosphere";
 import {CareerEventIdentity,CareerPlayerCard,CareerShirt} from "../identity";
 import {AwardPresentation,awardLabel,resolveAward,trophyArt} from "../trophies";
 import {mapState} from "../presentation";
@@ -29,15 +32,42 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
     return <CareerVenueAtlas ctx={ctx} data={{venues:d.venues,countries:d.countries}} localities={localities.data}
       events={map.data?.events??[]} detailId={detail} eventsLoading={map.isLoading} eventsError={map.error} onRetry={()=>map.refetch()}/>;
   }
-  return <div className="space-y-3"><h2>{section==="landing"?"Darts World":section==="search"?"Search the darts world":section==="events"?"Events & Circuits":"World History"}</h2>
+  return <div className="space-y-3">{section!=="landing"&&<h2>{section==="search"?"Search the darts world":section==="events"?"Events & Circuits":"World History"}</h2>}
     {["search","events"].includes(section)&&<label className="career-surface career-search">Search <input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Names, cities, circuits"/></label>}
-    {section==="landing"&&<>
-      <div className="career-position-grid"><CareerSection title="Published World #1"><p className="p-4">{rankings.isLoading?"Reading published standings…":rankings.error?"Published leader unavailable":rankings.data?.rows[0]?.name??"No published leader yet"}</p><Link href={`${base}/rankings`}>Explore rankings & races</Link></CareerSection>
-        <CareerSection title="World Championship"><p className="p-4">{legacy.isLoading?"Reading recorded champions…":legacy.error?"Recorded champions unavailable":latestWorld?`Last recorded season champion: ${winnerName(latestWorld.participant)}`:"No completed World Championship season recorded."}</p><Link href={`${base}/world/events/world-darts-championship`}>The Palace World Championship</Link></CareerSection></div>
-      <CareerSection title="Upcoming Championships">{map.data?.events.filter(e=>["MAJOR","WORLD_CHAMPIONSHIP"].includes(e.content.eventClass)&&!["COMPLETED","CANCELLED"].includes(e.status)).slice(0,4).map(e=><CareerEventIdentity key={e.id} eventKey={e.definitionId}><p className="p-4"><Link href={`${base}/events/${e.id}`}>{e.name}</Link> · W{e.dates.startWeek} · {mapState(e)}</p></CareerEventIdentity>)}</CareerSection>
-      <CareerSection title="Around the World">{life.data?.news.slice(0,4).map(n=><p className="p-4" key={n.id}><Link href={`${base}/stories`}>{n.title}</Link></p>)}<Link href={`${base}/world/history`}>Champions, records & Hall of Fame</Link></CareerSection>
-       <div className="career-discovery-links">{[["Newsroom","/world/news"],["Players","/world/players"],["Rivalries & H2H","/relationships"],["Events & Circuits","/world/events"],["Venues","/world/venues"],["History","/world/history"]].map(([label,path])=><Link className="career-surface" key={path} href={`${base}${path}`}>{label}</Link>)}</div>
-    </>}
+    {section==="landing"&&(()=>{
+      const champs=map.data?.events.filter(e=>["MAJOR","WORLD_CHAMPIONSHIP"].includes(e.content.eventClass)&&!["COMPLETED","CANCELLED"].includes(e.status)).slice(0,4)??[];
+      const leader=rankings.isLoading?"…":rankings.error?"Unavailable":rankings.data?.rows[0]?.name??"Not yet published";
+      const champion=legacy.isLoading?"…":legacy.error?"Unavailable":latestWorld?winnerName(latestWorld.participant):"Not yet recorded";
+      return <>
+        <CareerPageHero kicker={`The darts world · season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title="Darts World" accent="#38bdf8"
+          stage={{ venue: { venueType: "major-arena" }, eventClass: "MAJOR" }}
+          subtitle="Standings, championships, players and stories from your saved world. Every name and result here was recorded in your Career."
+          stats={[
+            { label: "Published World #1", value: leader, tone: "gold" },
+            { label: "Last World Champion", value: champion },
+            { label: "Championships ahead", value: champs.length },
+            { label: "World news", value: life.data?.news.length ?? "…" },
+          ]}
+          actions={<><Link className="career-btn career-btn-primary" href={`${base}/rankings`}>Rankings & races</Link>
+            <Link className="career-btn career-btn-ghost" href={`${base}/world/events/world-darts-championship`}>The Palace World Championship</Link></>} />
+        <CareerSection title="Upcoming Championships" icon={<Trophy aria-hidden />} accent="#ffd24a" action={<Link href={`${base}/world/events`}>All events</Link>}>
+          {map.isLoading?<CareerLoading label="Reading the championship calendar"/>:!champs.length?<p className="p-4 text-sm text-white/70">No major or World Championship edition is scheduled ahead this season.</p>:
+          <div className="career-world-champs">{champs.map(e=>{
+            const plate=PLATES[resolveAtmosphere({ eventClass: e.content.eventClass, venue: e.venue }).plate]??PLATES.neutral;
+            return <Link key={e.id} href={`${base}/events/${e.id}`} className="career-world-champ">
+              <img src={plate.src} alt="" aria-hidden="true" loading="lazy" style={{ objectPosition: `${plate.focal.x*100}% ${plate.focal.y*100}%` }}/>
+              <span className="career-world-champ__body"><small>{e.content.eventClass==="WORLD_CHAMPIONSHIP"?"World Championship":"Major"} · Week {e.dates.startWeek}</small>
+                <strong>{e.name}</strong><em>{e.venue.displayName}{e.venue.city?`, ${e.venue.city}`:""} · {mapState(e)}</em></span>
+            </Link>;})}</div>}
+        </CareerSection>
+        <CareerSection title="Around the world" icon={<Newspaper aria-hidden />} accent="#7ebbd3" action={<Link href={`${base}/world/news`}>Newsroom</Link>}>
+          {life.data?.news.length?<ul className="career-headlines">{life.data.news.slice(0,4).map(n=><li key={n.id}><Link href={`${base}/stories`}>{n.title}</Link></li>)}</ul>
+            :<p className="p-4 text-sm text-white/70">No world news has been recorded yet.</p>}
+        </CareerSection>
+        <nav className="career-world-tiles" aria-label="Explore the darts world">{([["Newsroom","/world/news","Stories from your Career","conference"],["Players","/world/players","Every saved player","professional-floor"],["Rivalries & H2H","/relationships","Your played meetings","studio"],["Events & Circuits","/world/events","Every championship","small-arena"],["Venues","/world/venues","The venue atlas","historic-theatre"],["History","/world/history","Champions & records","exhibition"]] as const).map(([label,path,sub,venue])=>{
+          const plate=PLATES[venue]??PLATES.neutral;
+          return <Link key={path} href={`${base}${path}`} className="career-world-tile"><img src={plate.src} alt="" aria-hidden="true" loading="lazy"/><span><strong>{label}</strong><small>{sub}</small></span></Link>;})}</nav>
+      </>;})()}
     {section==="search"&&<><WorldPlayerDirectory ctx={ctx} search={search}/><CareerSection title="Events / Championships">{families.slice(0,10).map(f=><Link className="career-directory-row" key={f.id} href={`${base}/world/events/${f.id}`}>{f.name}</Link>)}</CareerSection><CareerSection title="Venues">{venues.slice(0,10).map(v=><Link className="career-directory-row" key={v.id} href={`${base}/world/venues/${v.id}`}>{v.displayName}, {v.city}</Link>)}</CareerSection><p>Event and venue search shows up to ten matches; their directories provide full filtered pagination.</p></>}
     {section==="events"&&(selected?<CareerEventIdentity eventKey={selected.id} circuit={selected.circuit} level={selected.eventClass} className="career-surface career-world-detail">
       <h3>{selected.name}</h3><p>{d.organisations.find(o=>o.id===selected.organisationId)?.name} · {titleCase(selected.eventClass)} · {titleCase(selected.formatKind)}</p>
