@@ -81,3 +81,14 @@
 .career-qschool__season { display:inline-grid; gap:4px; margin-top:12px; }
 .career-qschool__season span { font:700 .6rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#ffffffa0; }
 .career-qschool__season select { padding:8px 10px; border-radius:10px; border:1px solid #ffffff2e; background:#070b12d9; color:#fff; font-weight:600; }
+/* Phones: the portrait sits above the text so the title, copy and buttons get the full width */
+@media (max-width:640px) {
+  .career-page-hero__content { flex-direction:column-reverse; align-items:stretch; gap:0; }
+  .career-page-hero__portrait { align-self:flex-end; width:78px; margin:-4px 0 4px; }
+  .career-page-hero__actions .career-btn { min-height:38px; padding:6px 12px; font-size:.74rem; }
+}
+@media (max-width:640px) {
+  .career-page-hero__stats:has(> div:nth-child(3):last-child) { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .career-page-hero__stats:has(> div:nth-child(3):last-child) > div { border-top:0; border-left:1px solid #ffffff10; }
+  .career-page-hero__stats:has(> div:nth-child(3):last-child) > div:first-child { border-left:0; }
+}

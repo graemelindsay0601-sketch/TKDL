@@ -141,7 +141,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
       <div className="absolute left-0 top-0 bottom-0" style={{ width: 2 + Math.min(tier.emphasis, 3), background: tier.accent, opacity: 0.4 + tier.emphasis * 0.1 }} aria-hidden />
       <EventVenueTile event={event} />
       <Link href={href} className="flex-1 min-w-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
-        <div className="font-black uppercase leading-tight line-clamp-2 break-words" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
+        <div className="font-black uppercase leading-tight line-clamp-3 sm:line-clamp-2 break-words" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>
           <span>{circuitLabel(event.circuit)}</span>
           {isJuniorEvent(event) && <JuniorBadge />}
