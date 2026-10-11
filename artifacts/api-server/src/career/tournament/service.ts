@@ -137,9 +137,9 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
         return {key,name:human?String(profile?.display_name??root.career_name):`${e.first_name} ${e.surname}`,nickname:human?personal.nickname??null:e.nickname??null,
           nationality:human?country:String(e.nationality??""),ranking:stature.worldRanking,
           titles:stature.titles,badges:badges.slice(0,2),source:String(e.source),status:String(e.status),seed:e.draw_seed?Number(e.draw_seed):null,
-          sponsors:human?contracts.map(c=>({brandName:c.terms.displayName,slot:relationship(c.terms).slot})):
+          sponsors:human?contracts.map(c=>({brandId:c.sponsor_key,brandName:c.terms.displayName,slot:relationship(c.terms).slot})):
             npcCommercial(root.world_seed,key,{...stature,careerStarted:true,tourCard:e.tour_card===true,
-              professionalStatus:e.tour_card?"PROFESSIONAL":"AMATEUR",qualifications:[],bestFinishByCircuit:{}}).portfolio.map(c=>({brandName:c.brandName,slot:c.slot})),
+              professionalStatus:e.tour_card?"PROFESSIONAL":"AMATEUR",qualifications:[],bestFinishByCircuit:{}}).portfolio.map(c=>({brandId:c.brandId,brandName:c.brandName,slot:c.slot})),
           shirt:human?{...PRESENTATION_DEFAULTS,...personal}:npcShirt(key),
         };
       });

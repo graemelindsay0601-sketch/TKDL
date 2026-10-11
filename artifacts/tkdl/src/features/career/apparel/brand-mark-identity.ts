@@ -79,3 +79,18 @@ export function sponsorMarkIdentity(brandId?: string, brandName?: string) {
     (brandName ? SPONSOR_LOGO_BY_NAME.get(normaliseName(brandName)) : undefined);
   return asset ? { ...asset, emblem: asset.symbol, hue: 0, monogram: asset.monogram } : null;
 }
+
+/**
+ * Stable brand ID for an active placement. The Career presentation API sends `brandId`
+ * (the contract's sponsor key) and it is authoritative; the display name is used only
+ * for older payloads that genuinely lack the ID.
+ */
+export function placementBrandId(placement: { brandId?: string | null; brandName?: string | null }) {
+  if (placement.brandId) return placement.brandId;
+  return placement.brandName ? sponsorMarkIdentity(undefined, placement.brandName)?.id ?? null : null;
+}
+
+/** Maker IDs whose kit ranges the player may select: one per active placement, by stable ID. */
+export function eligibleKitMakerIds(placements: readonly { brandId?: string | null; brandName?: string | null }[]) {
+  return [...new Set(placements.map(placementBrandId).filter((id): id is string => Boolean(id)))];
+}
