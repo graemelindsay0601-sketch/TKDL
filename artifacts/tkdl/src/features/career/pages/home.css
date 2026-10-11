@@ -1,0 +1,169 @@
+.career-home {
+  --home-ink: #edf4f8;
+  --home-muted: #9aaebe;
+  --home-line: rgba(164, 194, 216, .15);
+  --home-panel: linear-gradient(145deg, #182737, #111c29 76%);
+  display: grid;
+  gap: 16px;
+  color: var(--home-ink);
+}
+.career-home > .career-section { min-width: 0; }
+.home-heading { display:flex; justify-content:space-between; align-items:flex-end; gap:20px; padding:12px 3px 2px; }
+.home-heading h1 { margin:3px 0 0; color:#f4f7fb; font:700 clamp(2rem,4vw,3.2rem)/.98 Oswald,system-ui,sans-serif; letter-spacing:.015em; }
+.home-heading p { margin:9px 0 0; color:#9eb0c0; font-size:.86rem; }
+.home-heading-link,.home-text-link { display:inline-flex; align-items:center; gap:8px; color:#c5d9e8; font-size:.74rem; font-weight:700; text-decoration:none; }
+.home-heading-link { min-height:42px; padding:0 12px; border:1px solid var(--home-line); border-radius:11px; background:#ffffff05; }
+.home-heading-link svg,.home-text-link svg { width:15px; height:15px; }
+.home-heading-link:hover,.home-text-link:hover { color:#fff; border-color:#84c8bc66; }
+.career-home .panel { min-width:0; border:1px solid var(--home-line); border-radius:16px; background:var(--home-panel); }
+.career-home .home-player { display:flex; align-items:center; gap:20px; padding:12px 17px; }
+.home-player .career-player { flex:1; min-width:0; }
+.home-player .career-player p { margin-top:2px; }
+.home-player-facts { padding-left:21px; border-left:1px solid var(--home-line); min-width:220px; }
+.home-status-kicker,.home-season-mark span,.home-season-mark strong { display:block; font:700 .62rem Oswald,system-ui,sans-serif; letter-spacing:.13em; color:#8ea7ba; }
+.home-player-facts strong { display:block; margin-top:4px; font:600 1.17rem Oswald,system-ui,sans-serif; color:#f3f7fb; }
+.home-player-facts p { margin:4px 0 0; color:#a9bac8; font-size:.75rem; }
+.home-season-mark { display:grid; justify-items:end; gap:3px; min-width:75px; padding-left:18px; border-left:1px solid var(--home-line); }
+.home-season-mark span { color:#e2bf75; font-size:.77rem; }
+.home-season-mark i { display:block; width:32px; height:2px; background:#c9a763; }
+.home-season-mark strong { color:#91afc5; }
+.career-home-note { margin:0; padding:11px 14px; border:1px solid #8dbfac36; border-radius:11px; background:#77b39e0b; color:#bad9d0; font-size:.78rem; line-height:1.55; }
+.home-next { position:relative; overflow:hidden; padding:clamp(17px,3vw,27px); }
+.home-next::before { position:absolute; content:""; inset:0 0 auto; height:3px; background:linear-gradient(90deg,#cf275c,#d8b96f 54%,transparent); }
+.home-next-live::before { background:linear-gradient(90deg,#e1ab4d,#ea7555,transparent); }
+.home-section-kicker { display:flex; align-items:center; gap:9px; color:#d2b677; font:700 .62rem Oswald,system-ui,sans-serif; letter-spacing:.16em; }
+.live-indicator { width:7px; height:7px; border-radius:50%; background:#d9b96f; box-shadow:0 0 0 4px #d9b96f1c; }
+.home-next-heading { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; margin:12px 0 16px; }
+.home-next-heading h2 { margin:4px 0 0; color:#f3f7fb; font:600 clamp(1.5rem,3vw,2.1rem)/1.05 Oswald,system-ui,sans-serif; }
+.home-next-empty { display:flex; align-items:center; flex-wrap:wrap; gap:9px 18px; }
+.home-next-empty h3 { width:100%; margin:0; font:600 1.3rem Oswald,system-ui,sans-serif; }
+.home-next-empty p { flex:1 1 260px; margin:0; color:#adbdca; font-size:.86rem; }
+.home-active-match { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:17px; border:1px solid #d4ae6950; border-radius:13px; background:linear-gradient(110deg,#b8944d17,#ffffff04 60%); }
+.home-active-copy { display:grid; justify-items:start; gap:5px; }
+.home-active-copy>strong { color:#edf2f4; font:600 1.04rem Oswald,system-ui,sans-serif; }
+.home-active-copy p { margin:0; color:#acbdc9; font-size:.79rem; }
+.home-live-label { color:#e2c17c; font:700 .62rem Oswald,system-ui,sans-serif; letter-spacing:.14em; }
+.home-active-copy h3 { margin:5px 0 0; color:#fff; font:600 clamp(1.15rem,3vw,1.65rem) Oswald,system-ui,sans-serif; }
+.home-active-copy p { margin:4px 0 0; color:#acbdc9; font-size:.79rem; }
+.home-featured-event { overflow:hidden; border-radius:12px; border:1px solid #ffffff10; background:linear-gradient(110deg,#233548aa,#111c29); }
+.home-event-topline { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 14px 0; color:#adc0ce; font-size:.73rem; }
+.home-featured-event h3 { margin:12px 14px 2px; color:#f6f8fb; font:700 clamp(1.5rem,3.5vw,2.45rem)/1.05 Oswald,system-ui,sans-serif; }
+.home-event-sub { margin:4px 14px 10px!important; color:#a5b7c5; font-size:.77rem; text-transform:capitalize; }
+.home-featured-event > .career-event-identity { border-left:0; }
+.home-featured-event > .career-event-identity > div.relative { border:0; }
+.home-featured-event .career-btn { margin:0 14px 12px; }
+.home-cost-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid #ffffff13; background:#08131c50; }
+.home-cost-grid div { min-width:0; padding:10px 14px; }
+.home-cost-grid div+div { border-left:1px solid #ffffff13; }
+.home-cost-grid span { display:block; color:#90a7b7; font:700 .56rem Oswald,system-ui,sans-serif; letter-spacing:.12em; }
+.home-cost-grid strong { display:block; overflow:hidden; margin-top:4px; color:#e7f0f5; font:600 1rem Oswald,system-ui,sans-serif; text-overflow:ellipsis; }
+.home-action-message { margin:12px 0 0; color:#d4e6de; font-size:.8rem; }
+.home-fact-ribbon { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+.home-fact { display:flex; min-width:0; align-items:center; gap:12px; padding:14px; border:1px solid var(--home-line); border-radius:13px; background:linear-gradient(135deg,#182838,#111c28); color:inherit; text-decoration:none; transition:transform .16s ease,border-color .16s ease; }
+.home-fact:hover { transform:translateY(-2px); border-color:#a9cce04c; }
+.home-fact-icon { display:grid; width:36px; height:36px; flex:none; place-items:center; border:1px solid #9db9cb28; border-radius:11px; background:#a1c5d40b; color:#b7d2e1; }
+.home-fact-icon svg { width:17px; height:17px; }
+.home-fact-copy { display:grid; min-width:0; gap:2px; }
+.home-fact-copy small { color:#8da5b7; font:700 .59rem Oswald,system-ui,sans-serif; letter-spacing:.13em; }
+.home-fact-copy strong { overflow:hidden; color:#f2f5f8; font:600 clamp(1.1rem,2.3vw,1.45rem) Oswald,system-ui,sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.home-fact-copy>span { overflow:hidden; color:#9dafbb; font-size:.67rem; text-overflow:ellipsis; white-space:nowrap; }
+.home-fact-arrow { width:14px; height:14px; flex:none; margin-left:auto; color:#748da0; }
+.home-query-errors { display:grid; gap:8px; }
+.home-two-column { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start; gap:14px; }
+.career-home .career-section-head { min-height:48px; }
+.career-home .career-section-head h2 { font-size:.78rem; letter-spacing:.12em; }
+.home-objective { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:start; gap:12px; padding:16px; }
+.home-objective-icon { display:grid; width:37px; height:37px; place-items:center; border:1px solid #91b9ad40; border-radius:11px; color:#9acabc; background:#82bbaa10; }
+.home-objective-icon svg { width:18px; height:18px; }
+.home-objective-label { color:#9dbbad; font:700 .58rem Oswald,system-ui,sans-serif; letter-spacing:.14em; }
+.home-objective h3 { margin:4px 0; color:#f2f6f7; font:600 1.1rem Oswald,system-ui,sans-serif; }
+.home-objective p { margin:3px 0 0; color:#9eb0bd; font-size:.73rem; line-height:1.5; }
+.home-objective-link { align-self:center; display:flex; align-items:center; gap:4px; color:#bad9d0; font-size:.7rem; font-weight:700; white-space:nowrap; text-decoration:none; }
+.home-objective-link svg { width:14px; height:14px; }
+.home-route-list { display:grid; gap:5px; margin:9px 0 0; padding:0; list-style:none; }
+.home-route-list li { display:flex; align-items:flex-start; gap:7px; color:#c4d1d8; font-size:.72rem; line-height:1.4; }
+.home-route-list li>span { width:6px; height:6px; flex:none; margin-top:5px; border-radius:50%; background:#c8a763; }
+.home-route-list li[data-met="true"]>span { background:#82c6ae; }
+.home-focus { display:flex; justify-content:space-between; gap:8px; margin:0!important; padding:13px 15px 10px; color:#f0e6ce; font:600 1rem Oswald,system-ui,sans-serif; }
+.home-focus span { align-self:center; color:#ab9871; font:700 .55rem Oswald,system-ui,sans-serif; letter-spacing:.12em; }
+.home-muted { margin:0 15px!important; color:#adbdc9; font-size:.75rem; }
+.home-goals ul { display:grid; gap:0; margin:0; padding:0 15px; list-style:none; }
+.home-goals li { display:flex; align-items:center; gap:9px; min-height:38px; border-top:1px solid #ffffff0e; color:#d8e1e5; font-size:.78rem; }
+.home-goals li>span { width:6px; height:6px; border-radius:50%; background:#ceb574; }
+.home-goal-foot { margin:8px 15px 13px!important; color:#99aab7; font-size:.67rem; }
+.home-opportunity { border-bottom:1px solid #ffffff0c; }
+.home-opportunity:last-child { border-bottom:0; }
+.home-opportunity .career-event-identity { border-left:0; }
+.home-eligibility { display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:0 14px 11px 72px; color:#9eb1be; font-size:.67rem; line-height:1.4; }
+.home-eligibility>span:last-child { flex:1 1 180px; }
+.home-records .career-section,.home-latest .career-section { min-height:100%; }
+.home-result-list,.home-news { margin:0; padding:0; list-style:none; }
+.home-result-list>li { border-bottom:1px solid #ffffff0c; }
+.home-result-list>li:last-child { border-bottom:0; }
+.home-result-link { display:flex; align-items:center; gap:11px; min-height:62px; padding:8px 12px; color:inherit; text-decoration:none; }
+.home-result-season,.home-milestone-date { display:grid; flex:none; min-width:40px; color:#d5bd81; font:700 .72rem Oswald,system-ui,sans-serif; }
+.home-result-season small,.home-milestone-date small { margin-top:2px; color:#879baa; font-size:.53rem; letter-spacing:.1em; }
+.home-result-name { display:grid; flex:1; min-width:0; gap:4px; }
+.home-result-name strong { overflow:hidden; color:#e9f0f4; font:600 .86rem Oswald,system-ui,sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.home-result-name small { color:#99adbb; font-size:.66rem; }
+.home-milestones { display:grid; margin:0; padding:6px 13px; list-style:none; }
+.home-milestones li { display:grid; grid-template-columns:43px 7px minmax(0,1fr); align-items:start; gap:10px; padding:10px 0; border-bottom:1px solid #ffffff0c; }
+.home-milestones li:last-child { border-bottom:0; }
+.home-milestone-date { padding-top:2px; }
+.home-milestone-mark { width:6px; height:6px; margin-top:5px; border-radius:50%; background:#d4b66f; box-shadow:0 0 0 3px #d4b66f17; }
+.home-milestones li>span:last-child { display:grid; gap:3px; }
+.home-milestones strong { color:#e7edf0; font:600 .82rem Oswald,system-ui,sans-serif; }
+.home-milestones li>span:last-child small { color:#9baeba; font-size:.66rem; }
+.home-change-list p { display:flex; align-items:center; gap:9px; margin:0; padding:13px 14px; border-bottom:1px solid #ffffff0d; color:#d4dfe5; font-size:.78rem; }
+.home-change-list p>span { color:#d1b66f; font:700 .72rem Oswald,system-ui,sans-serif; }
+.home-change-list p>a { display:grid; width:30px; height:30px; flex:none; place-items:center; margin-left:auto; border:1px solid #ffffff13; border-radius:8px; color:#a9c3d5; }
+.home-change-list p>a svg { width:14px; height:14px; }
+.home-news li { border-bottom:1px solid #ffffff0d; }
+.home-news li:last-child { border-bottom:0; }
+.home-news a { display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:47px; padding:8px 14px; color:#d7e3e9; font-size:.79rem; text-decoration:none; }
+.home-news a svg { width:14px; height:14px; flex:none; color:#82b8c2; }
+.home-sponsor-alert { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 16px; border:1px solid #d2b56e4d; border-radius:13px; background:linear-gradient(100deg,#b99b531a,#162330); }
+.home-sponsor-alert span { display:grid; gap:3px; }
+.home-sponsor-alert strong { color:#ebd49b; font:600 .96rem Oswald,system-ui,sans-serif; }
+.home-sponsor-alert small { color:#aebcc5; font-size:.72rem; }
+.home-sponsor-alert a { display:flex; align-items:center; gap:5px; color:#e5d29c; font-size:.73rem; font-weight:700; white-space:nowrap; text-decoration:none; }
+.home-sponsor-alert svg { width:14px; height:14px; }
+.home-age-line { padding:0 4px; color:#a9bac5; font-size:.7rem; }
+@media(max-width:760px) {
+  .home-two-column { grid-template-columns:minmax(0,1fr); }
+  .home-player-facts { min-width:160px; }
+}
+@media(max-width:560px) {
+  .career-home { gap:12px; }
+  .home-heading { align-items:flex-start; }
+  .home-heading-link { width:41px; min-width:41px; padding:0; justify-content:center; font-size:0; gap:0; }
+  .home-heading-link svg:first-child { width:17px; height:17px; }
+  .home-heading-link svg:last-child { display:none; }
+  .career-home .home-player { gap:9px; flex-wrap:wrap; padding:9px 11px; }
+  .home-player .career-player { flex:1 1 100%; }
+  .home-player-facts { flex:1; min-width:0; padding:6px 0 0; border:0; border-top:1px solid var(--home-line); }
+  .home-player-facts strong { font-size:1rem; }
+  .home-player-facts p { line-height:1.4; }
+  .home-season-mark { min-width:58px; padding-left:11px; }
+  .home-next { padding:16px 13px; }
+  .home-next-heading { margin:9px 0 13px; }
+  .home-active-match { align-items:flex-start; flex-direction:column; gap:13px; padding:13px; }
+  .home-active-match .career-btn { width:100%; }
+  .home-cost-grid { grid-template-columns:1fr; }
+  .home-cost-grid div { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; }
+  .home-cost-grid div+div { border-top:1px solid #ffffff10; border-left:0; }
+  .home-cost-grid strong { margin-top:0; }
+  .home-fact-ribbon { grid-template-columns:1fr; gap:7px; }
+  .home-fact { padding:10px 12px; }
+  .home-fact-copy { grid-template-columns:1fr auto; align-items:center; gap:2px 8px; }
+  .home-fact-copy small { grid-column:1/-1; }
+  .home-fact-copy strong { font-size:1.14rem; }
+  .home-fact-copy>span { text-align:right; }
+  .home-objective { grid-template-columns:auto minmax(0,1fr); padding:13px; }
+  .home-objective-link { grid-column:2; justify-self:start; }
+  .home-eligibility { padding-left:13px; }
+  .home-result-link { gap:8px; padding:8px 9px; }
+  .home-result-name strong { max-width:40vw; }
+  .home-result-link .career-btn,.home-result-link .career-chip { max-width:105px; }
+  .home-sponsor-alert { align-items:flex-start; }
+}
