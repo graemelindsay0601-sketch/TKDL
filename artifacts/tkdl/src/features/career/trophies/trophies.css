@@ -1,7 +1,8 @@
 /* Workstream E2 — premium trophy presentation. Scoped to .ct-* classes only. */
 .ct-trophy{--ct-w:120px;position:relative;display:inline-flex;flex-direction:column;align-items:center;margin:0;width:var(--ct-w);flex:none}
 .ct-size-xs{--ct-w:44px}.ct-size-sm{--ct-w:76px}.ct-size-md{--ct-w:120px}.ct-size-lg{--ct-w:180px}.ct-size-hero{--ct-w:min(260px,62vw)}
-.ct-trophy__art{display:block;width:100%;height:auto;aspect-ratio:240/320;position:relative;z-index:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
+.ct-trophy__art{display:block;width:100%;height:auto;aspect-ratio:3/4;position:relative;z-index:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
+.ct-render .ct-trophy__art{filter:none}
 .ct-trophy__halo{position:absolute;inset:6% 4% 18%;border-radius:50%;background:radial-gradient(closest-side,rgba(233,199,122,.22),rgba(120,160,210,.08) 60%,transparent);z-index:0}
 .ct-size-xs .ct-trophy__halo{display:none}
 /* Engraving sits on the plinth plate drawn at x84–156, y280–298 of the 240×320 artwork. */

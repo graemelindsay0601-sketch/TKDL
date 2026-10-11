@@ -10,7 +10,9 @@
  * Every catalogue definition (v1–v5) has an explicit row below; the rule
  * fallback exists only for definitions added later and is reported by tests.
  */
-export const AWARD_POLICY_VERSION = 1 as const;
+/** v1: award type + catalogue trophy family. v2 (current): adds event-specific premium designs. */
+export const AWARD_POLICY_VERSION = 2 as const;
+export type AwardPolicyVersion = 1 | 2;
 
 export type AwardType = "PHYSICAL_TROPHY" | "RECOGNITION" | "RESULT_ONLY";
 export type RecognitionForm = "PLAQUE" | "MEDAL";
@@ -121,22 +123,85 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
     .map(k => [k, R("SPECIAL_LOCAL_CHAMPIONSHIP", "PLAQUE", "Featured format event: winner's plaque.")])),
 });
 
+// ---------------------------------------------------------------- v2 event-specific designs
+export type DesignAllocation = { designId: string; allocation: "UNIQUE" | "SHARED" | "HISTORIC"; group?: string };
+const U = (designId: string): DesignAllocation => ({ designId, allocation: "UNIQUE" });
+const S = (designId: string, group: string): DesignAllocation => ({ designId, allocation: "SHARED", group });
+
+/**
+ * Which premium design each physical-trophy event shows (policy v2). Significant
+ * championships have their own design; series that are one championship format
+ * share a design by name. This is presentation only and never alters the stored
+ * catalogue trophy identity (`trophyId`).
+ */
+export const EVENT_DESIGNS_V2: Readonly<Record<string, DesignAllocation>> = Object.freeze({
+  "world-darts-championship": U("sovereign"),
+  "double-crown": U("double-crown"),
+  "open-championship": U("open-masters-heritage"),
+  "grand-slam-of-champions": U("championship-cup"),
+  "long-format-matchplay": U("tall-championship"),
+  "pro-circuit-finals": U("silver-bowl"),
+  "european-championship": U("ec-continental-crest"),
+  "women-world-championship": U("wwc-crystal-flame"),
+  "women-masters": U("cut-glass"),
+  "youth-world-championship": U("ywc-star-orb"),
+  "youth-masters": U("youth-rising-star"),
+  "junior-development-championship": U("junior-star-cup"),
+  "open-finals": U("open-finals-compass"),
+  "amateur-world-masters": U("awm-globe-cup"),
+  "amateur-masters": U("amateur-masters-tankard"),
+  "national-open": U("traditional-shield"),
+  "international-amateur-open": U("crystal-column"),
+  "world-dart-series-finals": U("metal-sculpture"),
+  "champions-masters": U("dart-sculpture"),
+  "regional-champions-league": U("league-shield-ring"),
+  "county-championship": U("regional-craft"),
+  "snooker-darts-cup": U("snooker-darts-cup"),
+  "treble-out-trophy": U("treble-triangles"),
+  "noughts-and-crosses-trophy": U("noughts-crosses-block"),
+  "national-cricket": U("cricket-scoreboard"),
+  ...Object.fromEntries(["aus", "bel", "can", "deu", "gbr", "irl", "nld"].map(c => [`national-amateur-${c}`, S("silver-cup", "National amateur championships")])),
+  ...Object.fromEntries(["international-open", "northern-open", "north-american-open", "asia-pacific-open", "australasian-open", "premier-open"]
+    .map(k => [k, S("international-globe", "International open series")])),
+  "vault-championship": S("vault-geometric", "Vault championship lineage"),
+  "vault-masters": S("vault-geometric", "Vault championship lineage"),
+  "pro-circuit-championship": S("championship-plate", "Pro Circuit tour rounds"),
+  "town-open": S("wood-silver-shield", "Local & format championships"),
+  "national-halve-it": S("wood-silver-shield", "Local & format championships"),
+  "double-start-grand-prix": { designId: "silver-cup", allocation: "HISTORIC", group: "Retired v1 major (kept as recorded)" },
+});
+
 export type AwardInput = { definitionKey: string; circuit?: string; classification?: string; tier?: string };
-export type ResolvedAward = EventAward & { source: "EXPLICIT" | "RULE"; policyVersion: typeof AWARD_POLICY_VERSION };
+export type ResolvedAward = EventAward & {
+  source: "EXPLICIT" | "RULE"; policyVersion: AwardPolicyVersion;
+  /** Premium design to display (v2: event-specific; v1: the catalogue family). Null when no physical trophy. */
+  designId: string | null;
+  designSource: "EVENT_DESIGN" | "FAMILY" | "PERSISTED" | null;
+};
+export type ResolveOptions = { version?: AwardPolicyVersion; persistedTrophyId?: string | null };
 
 /**
  * Explicit mapping first. The rule fallback is conservative: qualifiers and
  * Q-School never get trophies; only WORLD/MAJOR-tier definitions get one.
  */
-export function resolveAward(e: AwardInput): ResolvedAward {
+export function resolveAward(e: AwardInput, opts: ResolveOptions = {}): ResolvedAward {
+  const version = opts.version ?? AWARD_POLICY_VERSION;
+  const withDesign = (award: EventAward, source: ResolvedAward["source"]): ResolvedAward => {
+    if (award.award !== "PHYSICAL_TROPHY") return { ...award, source, policyVersion: version, designId: null, designSource: null };
+    // A saved event whose stored family differs from today's catalogue keeps its stored identity: never reinterpreted.
+    if (opts.persistedTrophyId && opts.persistedTrophyId !== award.trophyId)
+      return { ...award, source, policyVersion: version, designId: opts.persistedTrophyId, designSource: "PERSISTED" };
+    const v2 = version >= 2 ? EVENT_DESIGNS_V2[e.definitionKey] : undefined;
+    return { ...award, source, policyVersion: version, designId: v2?.designId ?? award.trophyId, designSource: v2 ? "EVENT_DESIGN" : "FAMILY" };
+  };
   const explicit = EVENT_AWARDS[e.definitionKey];
-  if (explicit) return { ...explicit, source: "EXPLICIT", policyVersion: AWARD_POLICY_VERSION };
+  if (explicit) return withDesign(explicit, "EXPLICIT");
   const rule: EventAward = e.circuit === "Q_SCHOOL" ? N("Q_SCHOOL_SESSION", QSCHOOL)
     : e.classification === "QUALIFIER" ? N("QUALIFIER", QUAL)
     : e.tier === "WORLD" || e.circuit === "WORLD_CHAMPIONSHIP" ? T("WORLD_CHAMPIONSHIP", "sovereign", "WORLD CHAMPION")
     : e.tier === "MAJOR" ? T("MAJOR", "championship-cup")
     : N("TOUR_ROUND", "Unclassified event: result and prize only until explicitly designated.");
-  return { ...rule, source: "RULE", policyVersion: AWARD_POLICY_VERSION };
+  return withDesign(rule, "RULE");
 }
 
 /** True only when the winner is shown holding a physical trophy. */
