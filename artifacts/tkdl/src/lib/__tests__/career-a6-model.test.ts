@@ -180,7 +180,9 @@ test("milestones are neutral labels from A5 facts (no prose)", () => {
 
 test("five-destination navigation and stable legacy routes", () => {
   assert.deepEqual(CAREER_NAV.map(s => s.layer), ["HOME","MAP","CALENDAR","DARTS_WORLD","MY_CAREER"]);
-  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 13);
+  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 14); // 13 + SP-D Sponsor HQ (a98a841)
+
+  assert.equal(activeNavKey("/career/abc/sponsors"), "sponsors", "SP-D Sponsor HQ destination");
   assert.equal(activeNavKey("/career/abc/world/players"),"players");
   assert.equal(activeNavKey("/career/abc/map"),"map");
   assert.equal(activeNavKey("/career/abc/guide"),"world-events");

@@ -8,6 +8,7 @@ import type {CareerDatabase} from "../../career/database.ts";
 import {createCareerSaves} from "../../db/migrations/create_career_saves.ts";
 import {createCareerWorld} from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
+import {createCareerNpcSponsorMarketSPF} from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
 import {createCareerCalendar} from "../../db/migrations/create_career_calendar.ts";
 import {createCareerFinance} from "../../db/migrations/create_career_finance.ts";
 import {createCareerSporting} from "../../db/migrations/create_career_sporting.ts";
@@ -20,7 +21,7 @@ import {createCareerSportingService} from "../../career/sporting/service.ts";
 
 const oldKeys=["createCareerSavesA1","createCareerWorldA2","createCareerCalendarA3",
   "createCareerFinanceA4","createCareerSportingA5","createCareerGoalsA73","createCareerLifeA75","createCareerLegacyA76"];
-const chain=[createCareerSaves,createCareerWorld,createCareerSponsorshipFoundation,createCareerCalendar,createCareerFinance,
+const chain=[createCareerSaves,createCareerWorld,createCareerSponsorshipFoundation,createCareerNpcSponsorMarketSPF,createCareerCalendar,createCareerFinance,
   createCareerSporting,createCareerGoals,createCareerLife,createCareerLegacy];
 const actor={playerId:1,isAdmin:false};
 const dialect=new PgDialect();
@@ -34,7 +35,8 @@ async function prepare(pg:PGlite,db:CareerDatabase,stale=false){
   await foundation(pg);
   for(const migrate of chain)await migrate(db);
   for(const key of oldKeys)await pg.query("INSERT INTO app_schema_migrations(migration_key) VALUES($1)",[key]);
-  if(stale)await pg.exec(`DROP TABLE career_signature_products;DROP TABLE career_group_bull_playoffs;
+  if(stale)await pg.exec(`DROP TABLE career_signature_product_sales;DROP TABLE career_signature_products; -- a pre-SP-G install had neither (sales FK added by SP-G)
+    DROP TABLE career_group_bull_playoffs;
     DELETE FROM career_event_definitions WHERE event_database_version>=3;
     CREATE UNIQUE INDEX career_sponsor_contracts_one_active ON career_sponsor_contracts(career_save_id) WHERE status='ACTIVE';`);
 }
