@@ -34,6 +34,8 @@ const CIRCUITS: Record<string, string> = {
   MAJOR: "Major", WORLD_CHAMPIONSHIP: "World Championship", SPECIAL: "Special",
 };
 export const circuitLabel = (c: string) => CIRCUITS[c] ?? titleCase(c);
+/** Event families are shared templates ("{city} Friday Night 501"); each edition fills the token in. Family-level screens show the name without it. */
+export const familyName = (name: string) => name.replace(/\s*[—–-]\s*\{\w+\}/g, "").replace(/\s*\{\w+\}\s*/g, " ").replace(/\s+/g, " ").trim();
 export const titleCase = (s: string) => s.toLowerCase().split(/[_\s-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
 const COUNTRIES: Record<string, { name: string; flag: string }> = {
   GBR: { name: "United Kingdom", flag: "🇬🇧" }, IRL: { name: "Ireland", flag: "🇮🇪" }, NLD: { name: "Netherlands", flag: "🇳🇱" }, DEU: { name: "Germany", flag: "🇩🇪" },
