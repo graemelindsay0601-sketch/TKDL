@@ -269,7 +269,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
       <section className="cc-controls" aria-label="Calendar controls">
         <div className="cc-control-main">
           <div className="cc-view-heading"><span className="cc-control-icon"><CalendarDays size={16} /></span><span><strong>Tour planner</strong><small>Choose how you want to explore the season</small></span></div>
-          <Segmented<View> label="Calendar view" value={view} onChange={next => { setView(next); setPage(0); setSelectedId(null); }} wrap options={[
+          <Segmented label="Calendar view" value={view} onChange={next => { setView(next); setPage(0); setSelectedId(null); }} wrap options={[
             { value: "UPCOMING", label: "Timeline" },
             { value: "SEASON", label: "Season" },
             { value: "MY_SCHEDULE", label: "My Entries" },

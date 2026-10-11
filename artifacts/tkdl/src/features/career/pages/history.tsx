@@ -40,7 +40,7 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
   if (history.error) return <CareerError error={history.error} onRetry={() => history.refetch()} />;
   return (
     <div className="space-y-3">
-      <div className="pdc-card px-3 py-2.5"><Segmented<Tab> label="History sections" value={tab} onChange={setTab} wrap options={[
+      <div className="pdc-card px-3 py-2.5"><Segmented label="History sections" value={tab} onChange={next => setTab(next as Tab)} wrap options={[
         { value: "OVERVIEW", label: "Overview" }, { value: "PLAYING", label: "Playing stats" }, { value: "RECORDS", label: "Records" }, { value: "WORLD", label: "World history" }, { value: "TIMELINE", label: "Timeline" }, { value: "SEASONS", label: "Seasons" }, { value: "TITLES", label: "Titles & finals", count: titles.length + finals.length },
         { value: "MAJORS", label: "Majors", count: majors.length }, { value: "RANKING", label: "Ranking" }, { value: "TROPHIES", label: "Trophy room", count: titles.length }]} /></div>
 
