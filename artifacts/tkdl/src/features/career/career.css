@@ -861,3 +861,12 @@
 .career-root .career-fact__when { font:700 .62rem Oswald,sans-serif; letter-spacing:.12em; text-transform:uppercase; color:#e8c66a; }
 .career-root .career-fact > a, .career-root .career-fact > span:not(.career-fact__source) { display:block; margin-top:2px; font-weight:600; color:#eef2f6; }
 .career-root .career-fact__source { display:block; margin-top:2px; font-size:.68rem; color:#8d9bab; }
+/* Career saves: each slot on its own stage with the save's shirt */
+.career-root .career-save-card { padding:0 0 16px; overflow:hidden; }
+.career-root .career-save-card__stage { position:relative; height:132px; isolation:isolate; overflow:hidden; border-bottom:1px solid #ffffff14; }
+.career-root .career-save-card__plate { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2; filter:brightness(.6) saturate(1.1); }
+.career-root .career-save-card__stage::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(0deg,#0b111a,#0b111a40 60%,#05070c80); }
+.career-root .career-save-card__stage::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,#ff005c,transparent 70%); box-shadow:0 0 12px #ff005c; }
+.career-root .career-save-card__top { position:relative; z-index:2; display:flex; justify-content:space-between; align-items:center; padding:12px 14px; }
+.career-root .career-save-card__shirt { position:absolute; right:18px; bottom:-12px; width:92px; filter:drop-shadow(0 10px 18px #000c); }
+.career-root .career-save-card__shirt .career-premium-shirt, .career-root .career-save-card__shirt .career-shirt { width:100%; max-width:none; }

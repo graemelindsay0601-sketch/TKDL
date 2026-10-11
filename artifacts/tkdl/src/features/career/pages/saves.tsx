@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Archive, Crown, Plus, Star } from "lucide-react";
-import { useCareerSaves, useSaveLifecycle, saveInitialShirt, errorMessage, errorStatus } from "../api";
+import { Archive, Plus, Star } from "lucide-react";
+import { useCareerSaves, useSaveLifecycle, usePresentation, saveInitialShirt, errorMessage, errorStatus } from "../api";
+import { CareerPageHero } from "../page-hero";
+import { PLATES } from "../atmosphere";
+import type { PlateKey } from "../atmosphere/model";
 import {CareerShirt,type ShirtIdentity} from "../identity";
 import {CareerKitCustomizer} from "../kit-customizer";
 import { slotLines, ageOnDate, careerStartDateForToday, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "../model";
@@ -22,14 +25,15 @@ export function SavesPage() {
 
   return (
     <div className="career-root space-y-4 pb-10">
-      <header className="pdc-card px-4 py-4 md:px-6 md:py-5">
-        <div className="flex items-center gap-2 mb-1"><Crown className="w-3.5 h-3.5" style={{ color: "#ff005c" }} aria-hidden /><Label color="#ff005c">TKDL Career</Label></div>
-        <h1 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.6rem, 5vw, 2.4rem)", color: "#fff" }}>Your Career saves</h1>
-        <p className="text-sm mt-2 max-w-xl" style={{ color: "rgba(255,255,255,0.7)" }}>
-          A persistent darts career: real calendar, real rankings, Tour Cards and money. Three slots, separate from the{" "}
-          <Link href="/tour" className="underline decoration-dotted" style={{ color: "#ffd24a" }}>Classic Tour / Trophy Hunt</Link>.
-        </p>
-      </header>
+      <CareerPageHero kicker="TKDL Career" title="Your Career saves" accent="#ff005c" stage={{ venue: { venueType: "major-arena" }, eventClass: "MAJOR" }}
+        watermark="CAREER"
+        subtitle={<p>A persistent darts career: real calendar, real rankings, Tour Cards and money. Three slots, separate from the{" "}
+          <Link href="/tour" className="underline decoration-dotted" style={{ color: "#ffd24a" }}>Classic Tour / Trophy Hunt</Link>.</p>}
+        stats={saves.data ? [
+          { label: "Active Careers", value: `${saves.data.slots.filter(sl => sl.career).length} / ${saves.data.slots.length}`, tone: "gold" },
+          { label: "Free slots", value: saves.data.slots.filter(sl => !sl.career).length },
+          { label: "Retired archive", value: saves.data.archived.length },
+        ] : []} />
 
       {error && <div role="alert" className="px-4 py-2.5 rounded-xl text-sm" style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff8fb4" }}>{error}</div>}
 
@@ -76,11 +80,9 @@ export function SavesPage() {
 
 function SlotCard({ save, onContinue, onRestart, onRetire, onDelete, busy }: { save: CareerSave; onContinue: () => void; onRestart: () => void; onRetire: () => void; onDelete: () => void; busy: boolean }) {
   return (
-    <article className="pdc-card p-4 flex flex-col gap-3" aria-label={`Slot ${save.slotNumber}`}>
-      <div className="flex items-center justify-between gap-2">
-        <Label>Slot {save.slotNumber}</Label>
-        <StatusBadge label={save.status === "ACTIVE" ? "Active" : "Retired"} tone={save.status === "ACTIVE" ? "success" : "muted"} />
-      </div>
+    <article className="pdc-card career-save-card flex flex-col gap-3" aria-label={`Slot ${save.slotNumber}`}>
+      <SaveStage save={save} />
+      <div className="px-4 flex flex-col gap-3">
       <div className="font-black uppercase leading-tight truncate" style={{ ...OSWALD, fontSize: "1.2rem", color: "#fff" }}>{save.careerName ?? "My Career"}</div>
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
         {slotLines(save).map(l => (
@@ -94,8 +96,22 @@ function SlotCard({ save, onContinue, onRestart, onRetire, onDelete, busy }: { s
         <ConfirmButton label="Retire" confirmLabel="Retire Career" busy={busy} description="Retiring ends this Career. It moves to the archive, stays readable, and frees this slot. It cannot be resumed." onConfirm={onRetire} />
         <ConfirmButton label="Delete" confirmLabel="Delete permanently" danger busy={busy} description="This permanently deletes the Career and all of its history. It cannot be undone." onConfirm={onDelete} />
       </div>
+      </div>
     </article>
   );
+}
+
+/** Slot header art: a stage per slot with the save's own premium shirt (decorative; the shirt is read from the save's presentation). */
+const SLOT_STAGES: PlateKey[] = ["pub-club", "professional-floor", "small-arena"];
+function SaveStage({ save }: { save: CareerSave }) {
+  const presentation = usePresentation(save.id);
+  const plate = PLATES[SLOT_STAGES[(save.slotNumber - 1) % SLOT_STAGES.length]] ?? PLATES.neutral;
+  return <div className="career-save-card__stage">
+    <img className="career-save-card__plate" src={plate.src} alt="" aria-hidden="true" loading="lazy" />
+    <div className="career-save-card__top"><Label>Slot {save.slotNumber}</Label>
+      <StatusBadge label={save.status === "ACTIVE" ? "Active" : "Retired"} tone={save.status === "ACTIVE" ? "success" : "muted"} /></div>
+    {presentation.data && <div className="career-save-card__shirt" aria-hidden="true"><CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={save.careerName ?? "Player"} scale="standard" /></div>}
+  </div>;
 }
 
 function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: string, difficulty: string, dateOfBirth: string, homeLocality: string,shirt:ShirtIdentity,nickname:string) => void; busy: boolean }) {
