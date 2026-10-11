@@ -1,4 +1,4 @@
-import { PLATES, atmosphereFromCalendarEvent, resolveAtmosphere } from "./atmosphere";
+import { PLATES, atmosphereFromCalendarEvent, resolveAtmosphere, type AtmosphereInput } from "./atmosphere";
 import { type ReactNode, useState, useId } from "react";
 import { Link } from "wouter";
 import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-react";
@@ -164,14 +164,17 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
   );
 }
 
-/** The event's real venue plate (F1 manifest) as a small tile carrying the date. Decorative image; the date is text. */
-function EventVenueTile({ event }: { event: CareerEvent }) {
-  const plate = PLATES[resolveAtmosphere(atmosphereFromCalendarEvent(event)).plate] ?? PLATES.neutral;
-  return <div className="career-event-tile ml-1.5 shrink-0">
+/** The event's real venue plate (F1 manifest) as a small tile carrying a label. Decorative image; the label is text. */
+export function EventPlateTile({ atmosphere, label, className = "" }: { atmosphere: AtmosphereInput; label: ReactNode; className?: string }) {
+  const plate = PLATES[resolveAtmosphere(atmosphere).plate] ?? PLATES.neutral;
+  return <div className={`career-event-tile shrink-0 ${className}`}>
     <img src={plate.src} alt="" aria-hidden="true" loading="lazy" decoding="async" style={{ objectPosition: `${plate.focal.x * 100}% ${plate.focal.y * 100}%` }}
       onError={e => { e.currentTarget.style.display = "none"; }} />
-    <span className="tabular-nums" style={OSWALD}>{eventDateLabel(event)}</span>
+    <span className="tabular-nums" style={OSWALD}>{label}</span>
   </div>;
+}
+function EventVenueTile({ event }: { event: CareerEvent }) {
+  return <EventPlateTile atmosphere={atmosphereFromCalendarEvent(event)} label={eventDateLabel(event)} className="ml-1.5" />;
 }
 
 /** Accessible segmented tabs (roving buttons with aria-pressed; content rendered by caller). */

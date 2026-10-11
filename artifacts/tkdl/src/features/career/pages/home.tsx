@@ -7,7 +7,7 @@ import {
   useCareerGoals, errorMessage,
 } from "../api";
 import {
-  CareerSection, CareerEventCard, CareerEmptyState, CareerError, CareerLoading, Label, OSWALD, StatusBadge,
+  CareerSection, CareerEventCard, CareerEmptyState, CareerError, CareerLoading, EventPlateTile, Label, OSWALD, StatusBadge,
 } from "../components";
 import {
   pickNextEvent, formatPence, ordinal, circuitLabel, denialLabel, eventStatus, careerChapter,
@@ -60,6 +60,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
     <main className="career-home">
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#ff005c" archival={retired}
+        watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}
         stage={retired ? { eventClass: "NATIONAL" } : sporting.data?.tourCard.holdsCard
           ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
         subtitle={<>{chapter?.label ?? (retired ? "Retired Career" : "Reading sporting status")}
@@ -168,7 +169,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           {history.isLoading ? <CareerLoading label="Reading recorded results" /> : history.error ? <CareerError error={history.error} onRetry={() => void history.refetch()} /> :
             history.data?.length ? <ul className="home-result-list">{history.data.slice(0, 4).map(row => <li key={row.eventId}>
               <CareerEventIdentity eventKey={row.definitionKey} circuit={row.circuit}><Link href={`/career/${id}/events/${row.eventId}`} className="home-result-link">
-                <span className="home-result-season">S{row.season}<small>WK {row.week}</small></span>
+                <EventPlateTile atmosphere={{ circuit: row.circuit, classification: row.classification }} label={<>S{row.season} · WK {row.week}</>} />
                 <span className="home-result-name"><strong>{row.name}</strong><small>{circuitLabel(row.circuit)} <span aria-hidden>·</span> {row.wins}W–{row.losses}L</small></span>
                 <StatusBadge label={row.champion ? "Champion" : row.stageReached.replaceAll("_", " ")} tone={row.champion ? "gold" : "neutral"} />
               </Link></CareerEventIdentity>

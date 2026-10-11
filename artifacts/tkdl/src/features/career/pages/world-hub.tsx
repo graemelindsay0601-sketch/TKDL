@@ -2,7 +2,7 @@ import {useState,useEffect} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldLocalities,useWorldMap,useWorldPlayers,useRankingTable,useLegacy,useEventLegacy,useCareerLife} from "../api";
 import {CareerLoading,CareerError,CareerSection} from "../components";
-import {CareerEventIdentity,CareerPlayerCard} from "../identity";
+import {CareerEventIdentity,CareerPlayerCard,CareerShirt} from "../identity";
 import {AwardPresentation,awardLabel,resolveAward,trophyArt} from "../trophies";
 import {mapState} from "../presentation";
 import {titleCase} from "../model";
@@ -62,7 +62,13 @@ export function WorldPlayerDirectory({ctx,search:external,id}:{ctx:ShellContext;
   const [search,setSearch]=useState(""),[status,setStatus]=useState("ALL"),[offset,setOffset]=useState(0),q=useWorldPlayers(ctx.save.id,offset,external??search,status,id);
   return <div className="space-y-3">{!id&&external===undefined&&<div className="career-surface career-player-filters"><label>Search players <input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}}/></label><label>Career status <select value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}>{["ALL","ACTIVE","RETIRED"].map(s=><option key={s} value={s}>{titleCase(s)}</option>)}</select></label></div>}
     {q.isLoading?<CareerLoading label="Searching public player facts"/>:q.error?<CareerError error={q.error} onRetry={()=>q.refetch()}/>:q.data&&<CareerSection title={id?"Player profile":"Players"}>
-      {q.data.players.map(p=><div className="career-directory-row" key={p.id}><Link href={`/career/${ctx.save.id}/world/players/${p.id}`}><CareerPlayerCard playerId={p.id} name={p.name} nickname={p.nickname} nationality={String(p.country)} identity={p.shirt} rank={p.ranking} sponsors={p.commercial.portfolio} badges={[String(p.status)]} scale={id?"profile":"compact"}/></Link><Link className="career-link ml-3" href={`/career/${ctx.save.id}/world/players/${p.id}/profile`}>Full player profile</Link></div>)}
+      {id?q.data.players.map(p=><div className="career-directory-row" key={p.id}><Link href={`/career/${ctx.save.id}/world/players/${p.id}`}><CareerPlayerCard playerId={p.id} name={p.name} nickname={p.nickname} nationality={String(p.country)} identity={p.shirt} rank={p.ranking} sponsors={p.commercial.portfolio} badges={[String(p.status)]} scale="profile"/></Link><Link className="career-link ml-3" href={`/career/${ctx.save.id}/world/players/${p.id}/profile`}>Full player profile</Link></div>)
+        :<div className="career-player-grid">{q.data.players.map(p=><Link key={p.id} className={`career-player-tile${p.status==="RETIRED"?" is-retired":""}`} href={`/career/${ctx.save.id}/world/players/${p.id}/profile`} aria-label={`${p.name} player profile`}>
+          <span className="career-player-tile__shirt"><CareerShirt playerId={p.id} name={p.name} identity={p.shirt} sponsors={p.commercial.portfolio} scale="standard"/></span>
+          <span className="career-player-tile__rank">{p.ranking?<><small>World</small>#{p.ranking}</>:<small>Unranked</small>}</span>
+          <span className="career-player-tile__body"><strong>{p.name}</strong>{typeof p.nickname==="string"&&p.nickname&&<em>“{p.nickname}”</em>}
+            <span className="career-player-tile__meta"><span>{String(p.country)}</span><span className={`career-player-tile__status is-${String(p.status).toLowerCase()}`}>{titleCase(String(p.status))}</span></span></span>
+        </Link>)}</div>}
       {!q.data.players.length&&<p className="p-4">No matching players. Retired careers remain discoverable with the All / Retired filter.</p>}
       {!id&&<div className="career-pagination"><button disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous</button><span>{q.data.total} players</span><button disabled={q.data.nextOffset===null} onClick={()=>setOffset(q.data!.nextOffset!)}>Next</button></div>}
     </CareerSection>}

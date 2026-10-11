@@ -581,3 +581,67 @@
 .career-event-tile img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(1.05) brightness(.82); }
 .career-event-tile::after { content:""; position:absolute; inset:0; background:linear-gradient(0deg,#05070ce6,#05070c33 70%); }
 .career-event-tile span { position:relative; z-index:1; padding:4px 6px; font-weight:800; font-size:.72rem; line-height:1.1; color:#fff; letter-spacing:.02em; }
+/* ---------------------------------------------------------------- visual completion: section cards
+   Every Career section gets a broadcast header (accent rule, icon chip, Oswald title) and layered depth,
+   in its own --section-accent colour, so screens stop reading as stacked text boxes. */
+.career-root .career-section {
+  position:relative; border-radius:16px; border:1px solid #9bb4cc24;
+  background:radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--section-accent, #52657d) 12%, transparent), transparent 55%),
+    linear-gradient(180deg,#14202f 0%,#0f1824 60%,#0c141e 100%);
+  box-shadow:0 14px 34px #0006, inset 0 1px #ffffff0f;
+}
+.career-root .career-section::before { content:""; display:block; position:absolute; left:0; right:0; top:0; height:2px; z-index:1;
+  background:linear-gradient(90deg, var(--section-accent, #52657d), color-mix(in srgb, var(--section-accent, #52657d) 30%, transparent) 45%, transparent 80%);
+  box-shadow:0 0 18px color-mix(in srgb, var(--section-accent, #52657d) 60%, transparent); }
+.career-root .career-section-head { min-height:56px; padding:12px 16px; border-bottom:1px solid #ffffff10;
+  background:linear-gradient(180deg,#ffffff08,transparent); }
+.career-root .career-section-head::before { display:none; }
+.career-root .career-section-head h2 { gap:10px; }
+.career-root .career-section-head h2 > span[aria-hidden] { display:inline-grid; place-items:center; width:30px; height:30px; flex:0 0 auto; border-radius:9px;
+  background:color-mix(in srgb, var(--section-accent, #52657d) 18%, #0b121b); border:1px solid color-mix(in srgb, var(--section-accent, #52657d) 45%, transparent);
+  box-shadow:0 0 16px color-mix(in srgb, var(--section-accent, #52657d) 25%, transparent); }
+.career-root .career-section-head h2 > span[aria-hidden] svg { width:15px; height:15px; }
+.career-root .career-section-head h2 > span:not([aria-hidden]) {
+  font-family:Oswald, sans-serif!important; font-weight:700!important; font-size:.98rem!important; letter-spacing:.06em!important;
+  text-transform:uppercase; color:#f3f7fb!important; }
+.career-root .career-section-head > a, .career-root .career-section-head .home-text-link {
+  border:1px solid #ffffff1f; border-radius:999px; padding:5px 11px; color:#f4d6e1; background:#ffffff08; font-size:.72rem; font-weight:700;
+  text-decoration:none; white-space:nowrap; }
+.career-root .career-section-head > a:hover, .career-root .career-section-head .home-text-link:hover { background:#ffffff14; color:#fff; }
+/* list rows inside sections: more air, clearer hierarchy */
+.career-root .career-section ul > li, .career-root .career-section ol > li { border-color:#ffffff0d!important; }
+.career-root .career-section li strong, .career-root .career-section li .font-bold { letter-spacing:.01em; }
+/* empty states: an inset panel, not a lone grey line */
+.career-root .career-section .text-center.flex.flex-col.items-center { margin:12px; border-radius:12px; border:1px dashed #ffffff1c;
+  background:repeating-linear-gradient(135deg,#ffffff04 0 10px,transparent 10px 20px); }
+
+/* guidance tips: a styled callout instead of a plain text box */
+.career-root .career-help { position:relative; padding:14px 16px 14px 56px; border-radius:14px; border:1px solid #7fb7ff2e;
+  background:radial-gradient(90% 140% at 0% 0%,#2a5d9a33,transparent 60%),linear-gradient(180deg,#131f2e,#0e1722); }
+.career-root .career-help::before { content:"?"; position:absolute; left:16px; top:14px; width:28px; height:28px; display:grid; place-items:center;
+  border-radius:50%; font:800 .9rem Oswald,sans-serif; color:#0b1320; background:linear-gradient(180deg,#9fd0ff,#4c8fd6); box-shadow:0 0 14px #4c8fd655; }
+.career-root .career-help > strong { display:block; font:700 .95rem Oswald,sans-serif; letter-spacing:.04em; text-transform:uppercase; color:#f1f6fb; }
+.career-root .career-help > p { margin:4px 0 10px; color:#c9d6e3; font-size:.82rem; line-height:1.5; }
+.career-root .career-help > div { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.career-root .career-help > div > a { color:#9fd0ff; font-weight:700; font-size:.78rem; }
+
+/* Darts World player directory: portrait card grid */
+.career-root .career-player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:12px; padding:14px; }
+.career-root .career-player-tile { position:relative; display:flex; flex-direction:column; min-width:0; border-radius:14px; overflow:hidden; text-decoration:none; color:inherit;
+  border:1px solid #9bb4cc26; background:linear-gradient(180deg,#1b2b40 0%,#121d2b 55%,#0d1520 100%); box-shadow:0 10px 22px #0005; transition:transform .15s, border-color .15s; }
+.career-root .career-player-tile:hover { transform:translateY(-2px); border-color:#ff5d8f80; }
+.career-root .career-player-tile__shirt { position:relative; display:grid; place-items:center; padding:14px 18px 6px;
+  background:radial-gradient(70% 60% at 50% 45%,#ffffff1c,transparent 70%), radial-gradient(120% 80% at 50% 120%,#ff005c22,transparent 60%); }
+.career-root .career-player-tile__shirt .career-premium-shirt, .career-root .career-player-tile__shirt .career-shirt { width:100%; max-width:132px; filter:drop-shadow(0 10px 14px #000a); }
+.career-root .career-player-tile__rank { position:absolute; top:10px; left:10px; padding:3px 8px; border-radius:8px; background:#05070cc7; border:1px solid #ffffff26;
+  font:800 .9rem Oswald,sans-serif; color:#ffd27a; line-height:1.1; }
+.career-root .career-player-tile__rank small { display:block; font-size:.52rem; letter-spacing:.14em; text-transform:uppercase; color:#ffffff99; font-weight:600; }
+.career-root .career-player-tile__body { display:grid; gap:3px; padding:10px 12px 12px; border-top:1px solid #ffffff10; }
+.career-root .career-player-tile__body strong { font:700 1rem/1.15 Oswald,sans-serif; letter-spacing:.02em; text-transform:uppercase; color:#fff; overflow-wrap:anywhere; }
+.career-root .career-player-tile__body em { font-style:normal; color:#ffd27acc; font-size:.75rem; }
+.career-root .career-player-tile__meta { display:flex; justify-content:space-between; align-items:center; gap:6px; color:#a9bccd; font-size:.72rem; }
+.career-root .career-player-tile__status { padding:2px 7px; border-radius:999px; font:700 .58rem Oswald,sans-serif; letter-spacing:.12em; text-transform:uppercase;
+  border:1px solid #5ee39b55; color:#5ee39b; background:#5ee39b14; }
+.career-root .career-player-tile__status.is-retired { border-color:#e8d9b555; color:#e8d9b5; background:#e8d9b514; }
+.career-root .career-player-tile.is-retired .career-player-tile__shirt { filter:grayscale(.55); }
+@media (max-width:640px) { .career-root .career-player-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:10px; } }

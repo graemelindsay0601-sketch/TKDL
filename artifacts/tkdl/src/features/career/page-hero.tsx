@@ -10,12 +10,14 @@ import "./page-hero.css";
  */
 export type HeroStat = { label: string; value: ReactNode; sub?: ReactNode; tone?: "gold" | "good" | "bad" | "neutral" };
 
-export function CareerPageHero({ kicker, title, subtitle, stage, accent = "#ff005c", stats = [], portrait, actions, archival = false, children }: {
+export function CareerPageHero({ kicker, title, subtitle, stage, accent = "#ff005c", stats = [], portrait, actions, archival = false, watermark, children }: {
   kicker: string; title: ReactNode; subtitle?: ReactNode;
   /** Venue / level for the backdrop, e.g. { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" }. */
   stage: AtmosphereInput; accent?: string; stats?: HeroStat[]; portrait?: ReactNode; actions?: ReactNode;
   /** Documentary grade (retired careers, archives). */
-  archival?: boolean; children?: ReactNode;
+  archival?: boolean;
+  /** Large outlined background text, e.g. "S01 · W20" or a ranking position. Decorative. */
+  watermark?: string; children?: ReactNode;
 }) {
   const atmosphere = resolveAtmosphere(stage);
   const spectacle = { ...spectacleFor("ARRIVAL", atmosphere.level), spotlight: false };
@@ -23,6 +25,8 @@ export function CareerPageHero({ kicker, title, subtitle, stage, accent = "#ff00
     <section className={`career-page-hero${archival ? " is-archival" : ""}`} style={{ "--hero-accent": accent } as CSSProperties}>
       <div className="career-page-hero__stage">
         <CareerStageBackdrop atmosphere={atmosphere} spectacle={spectacle} documentary={archival} animate={false} eager />
+        <span className="career-page-hero__sweep" aria-hidden="true" />
+        {watermark && <span className="career-page-hero__watermark" aria-hidden="true">{watermark}</span>}
         <div className="career-page-hero__content">
           <div className="career-page-hero__text">
             <p className="career-page-hero__kicker"><i aria-hidden="true" />{kicker}</p>

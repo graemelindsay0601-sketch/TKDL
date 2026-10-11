@@ -55,7 +55,7 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
     <>
       {(() => {
         const cut = h.cutLines.filter(c => !c.inside && c.valueAtCutPence !== null).sort((a, b) => b.cutPosition - a.cutPosition)[0];
-        return <CareerPageHero kicker={`Official ranking · ${windowLabel}`} title={meta.name} accent="#c084fc"
+        return <CareerPageHero kicker={`Official ranking · ${windowLabel}`} title={meta.name} accent="#c084fc" watermark={me ? `#${me.position}` : "—"}
           stage={{ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" }}
           subtitle={meta.published ? `Published season ${meta.published.season}, week ${meta.published.week} · ${meta.published.participantCount} ranked players` : "Published after the first week in which ranking money is won"}
           portrait={me && presentation ? <CareerShirt identity={presentation.identity} sponsors={presentation.placements} name="You" scale="featured" /> : undefined}
