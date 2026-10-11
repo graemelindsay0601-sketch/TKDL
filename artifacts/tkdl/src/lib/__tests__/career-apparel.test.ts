@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CAREER_KIT_DESIGNS } from "../../features/career/kit-catalog.ts";
 import { garmentPrintZones, printZonesAreSafe } from "../../features/career/apparel/print-zones.ts";
-import { sponsorMarkIdentity } from "../../features/career/apparel/brand-mark-identity.ts";
+import { SPONSOR_LOGO_ASSETS, sponsorMarkIdentity } from "../../features/career/apparel/brand-mark-identity.ts";
 import { stableNpcKitDesignId } from "../../features/career/apparel/npc-wardrobe.ts";
 import { BRANDS } from "../../../../api-server/src/career/content/brands.ts";
 
@@ -15,16 +15,23 @@ test("premium apparel print zones fit the garment and do not collide across ever
   }
 });
 
-test("every authoritative sponsor has a distinct stable identity for vector mark rendering", () => {
+test("every authoritative sponsor maps to a bespoke, unique vector identity", () => {
   const ids = BRANDS.map(brand => brand.id);
-  assert.ok(ids.length > 50);
+  assert.equal(ids.length, 52);
   assert.equal(new Set(ids).size, ids.length);
-  assert.ok(BRANDS.every(brand => brand.name.trim().length > 1 && brand.presentation.logoAssetKey === `sponsor-mark:${brand.id}`));
+  assert.equal(SPONSOR_LOGO_ASSETS.size, ids.length);
+  assert.ok(BRANDS.every(brand => brand.name.trim().length > 1 &&
+    brand.presentation.logoAssetKey === `sponsor-mark:${brand.id}` &&
+    SPONSOR_LOGO_ASSETS.get(brand.id)?.name === brand.name));
   const signatures = BRANDS.map(brand => {
     const mark = sponsorMarkIdentity(brand.id, brand.name);
-    return `${mark.hue}:${mark.emblem}:${mark.monogram}`;
+    assert.ok(mark, `missing sponsor mark: ${brand.id}`);
+    assert.equal(mark.sector, brand.sector);
+    return `${mark.symbol}:${mark.primary}:${mark.accent}`;
   });
-  assert.equal(new Set(signatures).size, BRANDS.length, "brand marks should not collapse to duplicate combinations");
+  assert.equal(new Set(signatures).size, BRANDS.length, "each sponsor must have a distinct art-directed mark");
+  assert.ok(BRANDS.every(brand => sponsorMarkIdentity(undefined, brand.name)?.id === brand.id),
+    "existing name-only Career sponsor records must resolve to the same stable mark");
 });
 
 test("historical kit IDs and active kit IDs remain addressable", () => {

@@ -18,16 +18,17 @@ export type GarmentPrintZone = {
 };
 
 /**
- * Normalised 100×100 garment coordinates. Zones are intentionally compact,
- * avoid the collar/placket and are clipped again against the source garment's
- * alpha mask by PremiumCareerShirt.
+ * Front-view garment coordinates on the 100×100 source artwork. The two
+ * commercial slots follow the right-chest stack used on real player shirts;
+ * secondary/local marks use upper sleeve areas. The source alpha mask clips
+ * each print to the actual fabric silhouette.
  */
 const chest: Record<ApparelSlot, Omit<GarmentPrintZone, "slot">> = {
-  EQUIPMENT_PARTNER: { x: 38, y: 28, width: 19, height: 9, maxAspect: 2.1, treatment: "crest" },
-  APPAREL_PARTNER: { x: 62, y: 21, width: 13, height: 8, maxAspect: 1.55, treatment: "crest" },
-  PRIMARY_COMMERCIAL: { x: 39, y: 43, width: 22, height: 9, maxAspect: 2.45, treatment: "wide" },
-  SECONDARY_COMMERCIAL: { x: 20, y: 37, width: 13, height: 8, maxAspect: 1.55, treatment: "crest" },
-  LOCAL_REGIONAL_PARTNER: { x: 65, y: 62, width: 17, height: 8, maxAspect: 2, treatment: "wide" },
+  EQUIPMENT_PARTNER: { x: 38, y: 28, width: 14, height: 7, maxAspect: 2, treatment: "crest" },
+  APPAREL_PARTNER: { x: 65, y: 28, width: 14, height: 7, maxAspect: 2, treatment: "crest" },
+  PRIMARY_COMMERCIAL: { x: 65, y: 38, width: 20, height: 7, maxAspect: 2.85, treatment: "wide" },
+  SECONDARY_COMMERCIAL: { x: 15, y: 36, width: 13, height: 7, maxAspect: 1.85, treatment: "crest" },
+  LOCAL_REGIONAL_PARTNER: { x: 85, y: 36, width: 13, height: 7, maxAspect: 1.85, treatment: "crest" },
 };
 
 const lowerPrintCuts = /crew|jersey|collarless/i;

@@ -16,31 +16,30 @@ export function CareerSponsorMark({
   theme?: SponsorMarkTheme;
   compact?: boolean;
 }) {
-  const identity = sponsorMarkIdentity(brandId ?? brandName, brandName);
-  const hue = theme === "mono" ? 0 : identity.hue;
-  const ink = theme === "light" ? "#f7f4ed" : "#101923";
-  const accent = theme === "mono" ? ink : `hsl(${hue} 76% 57%)`;
+  const identity = sponsorMarkIdentity(brandId, brandName);
+  if (!identity) return null;
+  const ink = theme === "dark" ? "#111923" : "#f7f4ed";
+  const accent = theme === "mono" ? ink : theme === "dark" ? "#111923" : identity.primary;
+  const detail = theme === "mono" ? ink : theme === "dark" ? "#283544" : identity.accent;
+  const contrast = theme === "dark" ? "#f7f4ed" : "#101923";
   const title = `${brandName} sponsor mark`;
   return (
-    <svg className="career-sponsor-mark" viewBox={compact ? "0 0 48 48" : "0 0 220 58"}
-      role="img" aria-label={title} style={{ "--mark-ink": ink, "--mark-accent": accent } as CSSProperties}>
-      {compact ? (
-        <>
-          <circle cx="24" cy="24" r="21" fill="none" stroke="var(--mark-accent)" strokeWidth="2" />
-          <path d={identity.emblem} fill="none" stroke="var(--mark-ink)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.6" />
-          <text x="24" y="27" textAnchor="middle" dominantBaseline="middle" fill="var(--mark-accent)"
-            fontSize="9" fontWeight="900">{identity.monogram}</text>
-        </>
-      ) : (
-        <>
-          <path d={identity.emblem} transform="translate(3 3) scale(.78)" fill="none" stroke="var(--mark-accent)" strokeWidth="3.6" />
-          <path d={identity.emblem} transform="translate(3 3) scale(.78)" fill="none" stroke="var(--mark-ink)" strokeWidth="1.25" />
-          <text x="46" y="30" fill="var(--mark-ink)" fontFamily="Oswald,Arial,sans-serif"
-            fontSize="20" fontWeight="800" letterSpacing="1.1">{brandName.toUpperCase()}</text>
-          <text x="47" y="47" fill="var(--mark-accent)" fontFamily="Arial,sans-serif"
-            fontSize="7" fontWeight="700" letterSpacing="2.1">{slot.replaceAll("_", " ")}</text>
-        </>
-      )}
+    <svg className={`career-sponsor-mark career-sponsor-mark--${theme}`} viewBox={compact ? "0 0 48 48" : "0 0 260 58"}
+      role="img" aria-label={title} data-brand-id={identity.id} data-slot={slot}
+      style={{ "--mark-ink": ink, "--mark-accent": accent, "--mark-detail": detail, "--mark-contrast": contrast } as CSSProperties}>
+      {theme !== "mono" && <path d={identity.symbol} fill="none" stroke="var(--mark-contrast)"
+        strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round" />}
+      <path d={identity.symbol} fill="none" stroke="var(--mark-accent)" strokeWidth="2.7"
+        strokeLinecap="round" strokeLinejoin="round" />
+      {identity.sector === "EQUIPMENT" && <path d="M5 45h38" stroke="var(--mark-detail)" strokeWidth="1.1" />}
+      {!compact && <>
+        <path d="M57 47h188" stroke="var(--mark-accent)" strokeWidth="1.4" opacity=".75" />
+        <text x="59" y="30" fill="var(--mark-ink)" fontFamily={identity.sector === "TRADES" ? "Georgia,serif" : "Oswald,Arial,sans-serif"}
+          fontSize={brandName.length > 18 ? "11" : brandName.length > 13 ? "13" : "18"}
+          fontWeight="800" letterSpacing={identity.sector === "FINANCIAL" ? ".25" : "1"}>{brandName.toUpperCase()}</text>
+        <text x="60" y="43" fill="var(--mark-detail)" fontFamily="Arial,sans-serif"
+          fontSize="6.5" fontWeight="700" letterSpacing="2">{identity.sector.replaceAll("_", " ")}</text>
+      </>}
     </svg>
   );
 }

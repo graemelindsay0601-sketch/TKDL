@@ -5,7 +5,7 @@ import { CareerSponsorMark } from "./brand-mark";
 import { garmentPrintZones } from "./print-zones";
 import "./premium-shirt.css";
 
-type ApparelPartner = ShirtPartner & { brandId?: string };
+type ApparelPartner = ShirtPartner & { brandId?: string; theme?: "light" | "dark" | "mono" };
 
 export function PremiumCareerShirt({
   identity = {},
@@ -13,15 +13,17 @@ export function PremiumCareerShirt({
   name = "Career player",
   scale = "profile",
   debugZones = false,
+  artworkBaseUrl = import.meta.env.BASE_URL,
 }: {
   identity?: ShirtIdentity;
   sponsors?: ApparelPartner[];
   name?: string;
   scale?: "compact" | "standard" | "featured" | "profile";
   debugZones?: boolean;
+  artworkBaseUrl?: string;
 }) {
   const kit = CAREER_KIT_BY_ID.get(identity.kitDesignId ?? "") ?? CAREER_KIT_DESIGNS[0]!;
-  const artwork = `${import.meta.env.BASE_URL}assets/career-kit-library/${kit.image}`;
+  const artwork = `${artworkBaseUrl}assets/career-kit-library/${kit.image}`;
   const zones = garmentPrintZones(kit);
   const tintEnabled = identity.kitTintEnabled !== false && Boolean(identity.primaryColour);
   return (
@@ -39,7 +41,7 @@ export function PremiumCareerShirt({
             className={`career-premium-shirt__zone career-premium-shirt__zone--${zone.treatment}`}
             style={{ left: `${zone.x}%`, top: `${zone.y}%`, width: `${zone.width}%`, height: `${zone.height}%` }}>
             <CareerSponsorMark brandId={partner.brandId} brandName={partner.brandName} slot={partner.slot}
-              compact={zone.treatment === "crest"} />
+              theme={partner.theme ?? "light"} compact={zone.treatment === "crest" || scale !== "featured"} />
           </span>;
         })}
       </span>
