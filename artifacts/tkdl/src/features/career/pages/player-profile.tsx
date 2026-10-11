@@ -154,7 +154,7 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
                   <strong>{story.title}</strong>
                   <small>Season {story.season}{story.week === null ? "" : ` · Week ${story.week}`} · {story.significance.toLowerCase()}</small>
                   <p>{story.body}</p>
-                  <Link className="player-event-link" href={`${base}/stories`}>Open Career story feed <ArrowUpRight className="inline" size={13} aria-hidden /></Link>
+                  <Link className="player-event-link" href={`${base}/world/news`}>Open Career newsroom <ArrowUpRight className="inline" size={13} aria-hidden /></Link>
                 </div>)}
               </div> : <Empty text="No Career Life stories returned for this opponent." />;
             })()}

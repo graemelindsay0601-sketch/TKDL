@@ -698,3 +698,17 @@ test("A9 browser fixtures include actual ordinary TKDL pages and long standings"
     assert.ok(text(html).length>50,`${name}: actual screen content`);browserScene(name,html);
   }}finally{if(prior)Object.defineProperty(globalThis,"window",prior);else Reflect.deleteProperty(globalThis,"window");}
 });
+test("Career C/D integration keeps the world directory routes and wires news, profile, rivalry and My Career pages",()=>{
+  const routes=readFileSync(path.join(ROOT,"src/features/career/index.tsx"),"utf8");
+  const world=readFileSync(path.join(ROOT,"src/features/career/pages/world-hub.tsx"),"utf8");
+  const news=readFileSync(path.join(ROOT,"src/features/career/pages/newsroom.tsx"),"utf8");
+  assert.match(routes,/world\/news\/:storyId/);
+  assert.match(routes,/world\/news"/);
+  assert.match(routes,/world\/players\/:npcId\/profile/);
+  assert.match(routes,/world\/rivalries\/:npcId/);
+  assert.match(routes,/world\/players\/:npcId"/);
+  assert.match(routes,/my-career\/remembered/);
+  assert.match(world,/Full player profile/);
+  assert.match(world,/Rivalries & H2H/);
+  assert.match(news,/world\/news\/\$\{encodeURIComponent\(story\.id\)\}/);
+});

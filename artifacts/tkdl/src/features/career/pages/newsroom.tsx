@@ -94,8 +94,8 @@ export function NewsroomPage({ ctx }: NewsroomProps) {
             <main className="news-main-column" aria-live="polite">
               <div className="news-section-heading"><h2>Latest reports</h2><span>{filtered.length} shown</span></div>
               {filtered.length ? <div className="news-story-list">
-                {filtered.slice(0, visibleCount).map((story, index) => <button type="button" key={story.id} className={`news-story ${index === 0 ? "news-story--lead" : ""}`}
-                  aria-label={`Read story: ${story.title}`} onClick={() => setSelectedId(story.id)}>
+                {filtered.slice(0, visibleCount).map((story, index) => <Link key={story.id} href={`/career/${ctx.save.id}/world/news/${encodeURIComponent(story.id)}`} className={`news-story ${index === 0 ? "news-story--lead" : ""}`}
+                  aria-label={`Read story: ${story.title}`}>
                   <div className="news-story-tags">
                     <span className={`news-tag ${story.significance === "MAJOR" ? "news-tag--major" : story.significance === "MOMENT" ? "news-tag--moment" : ""}`}>{classification(story)}</span>
                     <span className="news-tag">{storyCategory(story)}</span>
@@ -103,7 +103,7 @@ export function NewsroomPage({ ctx }: NewsroomProps) {
                   <h3>{story.title}</h3>
                   <p>{story.body}</p>
                   <span className="news-meta">{storyStamp(story)}</span>
-                </button>)}
+                </Link>)}
               </div> : <div className="news-empty mt-3" role="status">
                 <h2>{stories.length ? "No reports match these filters" : "The record is quiet"}</h2>
                 <p>{stories.length ? "Change the category, season or search to see other recorded stories." : "Career Life has not returned any newsroom stories for this save yet. New reports appear only when the Career record supplies them."}</p>

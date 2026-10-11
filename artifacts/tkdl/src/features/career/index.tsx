@@ -23,6 +23,8 @@ import {CareerMapPage} from "./pages/map";
 import {WorldHub,WorldPlayerDirectory} from "./pages/world-hub";
 import {MyCareerPage} from "./pages/my-career";
 import {SponsorHQPage} from "./pages/sponsor-hq";
+import {NewsroomPage,StoryArticle} from "./pages/newsroom";
+import {WorldPlayerProfile,RivalryProfile} from "./pages/player-profile";
 
 /**
  * TKDL Career (A6). Stable URLs under /career (not /tour/career: /tour/:runId is the
@@ -67,6 +69,10 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/matches/:matchId/play">{(p: { matchId: string }) => <LiveMatchPage key={p.matchId} ctx={ctx} matchId={p.matchId} />}</Route>
           <Route path="/career/:saveId/events/:eventId">{(p: { eventId: string }) => <EventPage ctx={ctx} eventId={p.eventId} />}</Route>
           <Route path="/career/:saveId/rankings"><RankingsPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/world/news/:storyId">{(p:{storyId:string})=><StoryArticle ctx={ctx} storyId={p.storyId}/>}</Route>
+          <Route path="/career/:saveId/world/news"><NewsroomPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/world/players/:npcId/profile">{(p:{npcId:string})=><WorldPlayerProfile ctx={ctx} npcId={p.npcId}/>}</Route>
+          <Route path="/career/:saveId/world/rivalries/:npcId">{(p:{npcId:string})=><RivalryProfile ctx={ctx} npcId={p.npcId}/>}</Route>
           <Route path="/career/:saveId/world/players/:npcId">{(p:{npcId:string})=><WorldPlayerDirectory ctx={ctx} id={p.npcId}/>}</Route>
           <Route path="/career/:saveId/world/players"><WorldPlayerDirectory ctx={ctx}/></Route>
           <Route path="/career/:saveId/world/events/:key">{(p:{key:string})=><WorldHub ctx={ctx} section="events" detail={p.key}/>}</Route>
