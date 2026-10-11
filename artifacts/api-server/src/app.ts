@@ -31,12 +31,10 @@ import {createCareerSponsorshipFoundation} from "./db/migrations/create_career_s
 import { createShadowObservations, SHADOW_OBSERVATIONS_SB21A } from "./db/migrations/create_shadow_observations_sb21a";
 import { createCareerCalendar } from "./db/migrations/create_career_calendar";
 import { createCareerFinance } from "./db/migrations/create_career_finance";
-import { createCareerSPHCommercial } from "./db/migrations/create_career_sph_commercial.ts";
 import { createCareerSponsorJourneysSPB } from "./db/migrations/create_career_sponsor_journeys_spb";
 import { createCareerSponsorJourneysSPB3 } from "./db/migrations/create_career_sponsor_journeys_spb3.ts";
 import { createCareerFinanceSPC } from "./db/migrations/create_career_finance_spc.ts";
 import { createCareerSponsorHQSPD } from "./db/migrations/create_career_sponsor_hq_spd.ts";
-import { createCareerNpcSponsorMarketSPF } from "./db/migrations/create_career_npc_sponsor_market_spf.ts";
 import { addContractConcludedSponsorEventSPE1 } from "./db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
 import { addScheduledSponsorRenewalsSPE1B } from "./db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
 import { createCareerSponsorContractActionsSPE2 } from "./db/migrations/create_career_sponsor_contract_actions_spe2.ts";
@@ -188,6 +186,14 @@ app.use(
 // database-backed route. Render can therefore hand the browser the built SPA
 // as soon as Node opens its port, while main.tsx waits here until all routes
 // needed for scoring and standings are safe to use.
+app.get("/api/local-preview/identity", (_req, res) => {
+  if (process.env.TKDL_ENVIRONMENT !== "local-development" || process.env.NODE_ENV === "production") {
+    res.sendStatus(404);
+    return;
+  }
+  res.json({ service: "tkdl-api", environment: "local-development", port: Number(process.env.PORT) });
+});
+
 app.get("/api/startup", (_req, res) => {
   const status = getStartupStatus();
   res.status(status.phase === "failed" ? 500 : 200).json(status);
@@ -1536,12 +1542,10 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerSponsorshipFoundationSPA1", () => createCareerSponsorshipFoundation(db));
   await runMigrationStep("createCareerCalendarA3", () => createCareerCalendar(db));
   await runMigrationStep("createCareerFinanceA4", () => createCareerFinance(db));
-  await runMigrationStep("createCareerSPHCommercial", () => createCareerSPHCommercial(db));
   await runMigrationStep("createCareerSponsorJourneysSPB", () => createCareerSponsorJourneysSPB(db));
   await runMigrationStep("createCareerSponsorJourneysSPB3", () => createCareerSponsorJourneysSPB3(db));
   await runMigrationStep("createCareerFinanceSPC", () => createCareerFinanceSPC(db));
   await runMigrationStep("createCareerSponsorHQSPD", () => createCareerSponsorHQSPD(db));
-  await runMigrationStep("createCareerNpcSponsorMarketSPF", () => createCareerNpcSponsorMarketSPF(db));
   await runMigrationStep("addContractConcludedSponsorEventSPE1", () => addContractConcludedSponsorEventSPE1(db));
   await runMigrationStep("addScheduledSponsorRenewalsSPE1B", () => addScheduledSponsorRenewalsSPE1B(db));
   await runMigrationStep("createCareerSponsorContractActionsSPE2", () => createCareerSponsorContractActionsSPE2(db));

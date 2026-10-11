@@ -9,6 +9,13 @@ const apiDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const projectDir = path.resolve(apiDir, "../..");
 const envFile = path.join(projectDir, ".env.local");
 const composeFile = path.join(apiDir, "docker-compose.dev.yml");
+async function assertApiPortFree() {
+  await new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once("error", () => reject(new Error("TKDL API port 18081 is already in use. Stop the identified process manually; this launcher will not kill processes.")));
+    probe.listen(18081, "127.0.0.1", () => probe.close(resolve));
+  });
+}
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -65,6 +72,11 @@ function waitForApi(child) {
     };
     const check = async () => {
       try {
+        const identityResponse = await fetch("http://127.0.0.1:18081/api/local-preview/identity");
+        const identity = await identityResponse.json();
+        if (!identityResponse.ok || identity.service !== "tkdl-api" || identity.environment !== "local-development" || identity.port !== 18081) {
+          return fail(new Error("Port 18081 is not serving the verified TKDL local-development API."));
+        }
         const startupResponse = await fetch("http://127.0.0.1:18081/api/startup");
         const startup = await startupResponse.json();
         if (startup.phase === "failed") {
@@ -80,7 +92,10 @@ function waitForApi(child) {
         if (!contentType.includes("application/json")) {
           return fail(new Error("TKDL API /api/leaderboard did not return JSON."));
         }
-        await response.json();
+        const leaderboard = await response.json();
+        if (!Array.isArray(leaderboard) || leaderboard.some(row => !row || !Number.isInteger(row.position) || typeof row.playerName !== "string" || !Number.isInteger(row.playerId))) {
+          return fail(new Error("TKDL API /api/leaderboard returned an unexpected shape; expected an array of player standings."));
+        }
         if (finished) return;
         finished = true;
         clearInterval(timer);
@@ -99,6 +114,7 @@ function waitForApi(child) {
 }
 
 const password = await loadLocalDatabasePassword();
+await assertApiPortFree();
 const composeEnv = { ...process.env, TKDL_DB_PASSWORD: password };
 await run("docker", ["compose", "-p", "tkdl-development", "--env-file", envFile, "-f", composeFile, "up", "-d"], { cwd: apiDir, env: composeEnv });
 await waitForPostgres();
