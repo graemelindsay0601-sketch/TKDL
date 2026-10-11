@@ -13,6 +13,7 @@ const WC_KEY = "world-darts-championship";
  * Uses the real A3 instance. The current Career engine cannot execute its set-play
  * format, so the event is shown as unsupported/cancelled — never as a played tournament.
  */
+import { PLATES } from "../atmosphere";
 export function PalacePage({ ctx }: { ctx: ShellContext }) {
   const { save, retired } = ctx;
   const cal = useCalendar(save.id, { scope: "WORLD", season: save.currentSeason, circuit: "WORLD_CHAMPIONSHIP" });
@@ -25,7 +26,8 @@ export function PalacePage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <div className="career-palace p-3 sm:p-5 space-y-3">
-      <header className="text-center py-4 sm:py-6 space-y-2">
+      <header className="career-palace-hero text-center py-6 sm:py-10 space-y-2">
+        <img className="career-palace-hero__plate" src={PLATES.palace.src} alt="" aria-hidden="true" loading="eager" />
         <Crown className="w-7 h-7 mx-auto" style={{ color: "#ffd24a" }} aria-hidden />
         <Label color="#ffd24a">The pinnacle · Season {save.currentSeason}</Label>
         <h2 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: "clamp(1.9rem, 7vw, 3.4rem)", letterSpacing: "0.05em", color: "#ffe79a" }}>World Championship</h2>
