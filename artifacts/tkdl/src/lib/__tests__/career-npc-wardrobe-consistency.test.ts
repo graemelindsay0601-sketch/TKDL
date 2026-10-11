@@ -21,7 +21,7 @@ before(async () => {
 });
 after(async () => { await vite?.close(); });
 
-const kitOf = (html: string) => html.match(/career-kit-library\/([a-z0-9-]+)\.(?:webp|svg)/)?.[1] ?? null;
+const kitOf = (html: string) => html.match(/career-kit-library\/(?:thumb\/)?([a-z0-9-]+)\.(?:webp|svg)/)?.[1] ?? null;
 const shirt = (props: Record<string, unknown>) => renderToStaticMarkup(h(I.CareerShirt, { name: "NPC", ...props }));
 const npcPalette = { shirtTemplate: "SPLIT", primaryColour: "#253C36", secondaryColour: "#ECDFBD", accentColour: "#90C8AB" };
 
@@ -56,11 +56,11 @@ test("every Career screen that draws an NPC shirt passes the NPC id to the share
   assert.match(read("pages/player-profile.tsx"), /CareerShirt playerId=\{player\.id\}/);
 });
 
-test("a player save without a premium kit ID keeps its original template shirt; a saved premium kit is used as saved", () => {
+test("a player save without a premium kit ID wears the premium shirt for its template; a saved premium kit is used as saved", () => {
   const legacy = shirt({ identity: { shirtTemplate: "CHEVRON", primaryColour: "#20334A", secondaryColour: "#FFFFFF", accentColour: "#C8A050" },
     sponsors: [{ brandId: "blackforge-darts", brandName: "Blackforge Darts", slot: "EQUIPMENT_PARTNER" }] });
-  assert.equal(kitOf(legacy), null, "no premium artwork is substituted for an older save");
-  assert.match(legacy, /<svg[^>]*career-shirt/); assert.match(legacy, /CHEVRON shirt/);
+  assert.equal(kitOf(legacy), "kit-50-49", "older saves show premium artwork, never the flat vector shirt");
+  assert.equal(kitOf(shirt({ identity: {} })), "kit-50-01");
   const saved = shirt({ identity: { kitDesignId: "kit-250-151" } });
   assert.equal(kitOf(saved), "kit-250-151");
   // A saved NPC kit (if one is ever persisted) wins over the generated wardrobe.

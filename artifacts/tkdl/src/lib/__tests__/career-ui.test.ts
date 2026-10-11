@@ -651,8 +651,10 @@ test("A8.3 shirts have genuinely different silhouettes/patterns, authored marks 
   const sponsor={slot:"EQUIPMENT_PARTNER",brandName:"Ironflight"};
   const classic=render(h(M.CareerPlayerCard,{name:"Fixture Player",nickname:"Quiet",identity:{shirtTemplate:"CLASSIC",primaryColour:"#225577",secondaryColour:"#111111",accentColour:"#ddeeff"},sponsors:[sponsor],scale:"profile"}),[]);
   const chevron=render(h(M.CareerShirt,{name:"Fixture Player",identity:{shirtTemplate:"CHEVRON"},scale:"compact"}),[]);
-  assert.match(classic,/role="img"/);assert.match(classic,/Fixture Player/);assert.match(classic,/>Ironflight<\/text>/);assert.match(chevron,/M15 43 60 70 105 43/);
-  assert.notEqual(classic,chevron);assert.doesNotMatch(classic,/<img|portrait|avatar|human portrait/i);
+  // Templates without a saved kit render their premium artwork, with authored sponsor marks and no portraits.
+  assert.match(classic,/role="img"/);assert.match(classic,/Fixture Player/);assert.match(classic,/career-kit-library\/kit-50-01\.webp/);assert.match(chevron,/career-kit-library\/thumb\/kit-50-49\.webp/);
+  assert.match(classic,/career-sponsor-mark|Ironflight/);
+  assert.notEqual(classic,chevron);assert.doesNotMatch(classic,/portrait|avatar|human portrait/i);
   browserScene("identity",`<div class="career-root career-surface">${classic}${chevron}</div>`);
 });
 test("A8.3 retired player directory uses public cards and still links to historical careers",()=>{

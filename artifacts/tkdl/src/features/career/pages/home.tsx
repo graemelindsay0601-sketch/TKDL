@@ -63,7 +63,8 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
         stage={retired ? { eventClass: "NATIONAL" } : sporting.data?.tourCard.holdsCard
           ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
         subtitle={<>{chapter?.label ?? (retired ? "Retired Career" : "Reading sporting status")}
-          {sporting.data ? <> · {sporting.data.professionalStatus === "PROFESSIONAL" ? "Professional" : "Amateur"}</> : null}
+          {sporting.data && chapter?.label !== (sporting.data.professionalStatus === "PROFESSIONAL" ? "Professional" : "Amateur")
+            ? <> · {sporting.data.professionalStatus === "PROFESSIONAL" ? "Professional" : "Amateur"}</> : null}
           {profile.data?.status === "COMPLETE" ? ` · Age ${profile.data.age}` : ""}
           {typeof presentation.data?.identity.nickname === "string" && presentation.data.identity.nickname ? <> · “{presentation.data.identity.nickname}”</> : null}</>}
         portrait={presentation.data ? <CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={save.careerName ?? "Player"} scale="featured" /> : undefined}
@@ -73,7 +74,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           { label: "World rank", tone: sporting.data?.worldRanking.standing ? "gold" : "neutral",
             value: sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.worldRanking.standing?.position ? ordinal(sporting.data.worldRanking.standing.position) : "Unranked" },
           { label: "Tour Card", tone: sporting.data?.tourCard.holdsCard ? "good" : "neutral",
-            value: sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.tourCard.holdsCard ? "Active" : "None",
+            value: sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.tourCard.holdsCard ? "Active" : "No Tour Card",
             sub: sporting.data?.tourCard.current ? `Review end of S${sporting.data.tourCard.current.reviewSeason}` : "Q-School or Challenger ranking" },
           { label: "Career balance", value: finance.isLoading ? "…" : finance.error ? "Unavailable" : formatPence(finance.data?.balancePence ?? save.balancePence),
             sub: finance.data ? `${formatPence(finance.data.availablePence)} available` : undefined },
