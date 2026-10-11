@@ -671,3 +671,26 @@
 .career-root .career-world-tile strong { font:800 1rem Oswald,sans-serif; letter-spacing:.06em; text-transform:uppercase; }
 .career-root .career-world-tile small { color:#ffffffb3; font-size:.72rem; }
 @media (max-width:640px) { .career-root .career-world-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+/* Relationships: rival cards */
+.career-root .career-rivals { display:grid; gap:10px; }
+.career-root .career-rival { border-radius:14px; border:1px solid #ffffff1c; background:linear-gradient(100deg,#1a2536,#0f1722 70%); overflow:hidden; }
+.career-root .career-rival.is-ahead { border-left:3px solid #5ee39b; }
+.career-root .career-rival.is-behind { border-left:3px solid #ff7a93; }
+.career-root .career-rival.is-level { border-left:3px solid #ffd27a; }
+.career-root .career-rival > summary { list-style:none; display:grid; grid-template-columns:64px minmax(0,1fr) auto; align-items:center; gap:14px; padding:10px 14px; }
+.career-root .career-rival > summary::-webkit-details-marker { display:none; }
+.career-root .career-rival__shirt { display:block; width:64px; filter:drop-shadow(0 6px 10px #0009); }
+.career-root .career-rival__shirt > * { width:100%; max-width:none; }
+.career-root .career-rival__who { display:grid; gap:3px; min-width:0; }
+.career-root .career-rival__who strong { font:700 1rem Oswald,sans-serif; letter-spacing:.03em; text-transform:uppercase; color:#fff; }
+.career-root .career-rival__labels { display:flex; flex-wrap:wrap; gap:5px; }
+.career-root .career-rival__labels i { font-style:normal; padding:2px 8px; border-radius:999px; font:700 .58rem Oswald,sans-serif; letter-spacing:.12em; text-transform:uppercase;
+  color:#ffd27a; border:1px solid #ffd27a44; background:#ffd27a12; }
+.career-root .career-rival__labels em { font-style:normal; color:#8fa3b6; font-size:.72rem; }
+.career-root .career-rival__score { display:flex; align-items:baseline; gap:6px; font:800 1.7rem Oswald,sans-serif; color:#fff; font-variant-numeric:tabular-nums; }
+.career-root .career-rival.is-ahead .career-rival__score b:first-child { color:#5ee39b; }
+.career-root .career-rival.is-behind .career-rival__score b:last-child { color:#ff7a93; }
+.career-root .career-rival__score small { color:#ffffff66; font-size:1.1rem; }
+.career-root .career-rival[open] > div { padding:4px 16px 16px; border-top:1px solid #ffffff10; }
+@media (max-width:640px) { .career-root .career-rival > summary { grid-template-columns:48px minmax(0,1fr) auto; gap:10px; } .career-root .career-rival__shirt { width:48px; } .career-root .career-rival__score { font-size:1.3rem; } }

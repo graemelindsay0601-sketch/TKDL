@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useCareerRelationships } from "../api";
+import { Swords } from "lucide-react";
 import { CareerSection, CareerEmptyState, Flag, QueryState } from "../components";
+import { CareerShirt } from "../identity";
+import { CareerPageHero } from "../page-hero";
 import type { ShellContext } from "../shell";
 import type { Meeting, OpponentRelationship, WorldIdentity } from "../../../../../api-server/src/career/relationships/types";
 
@@ -13,8 +16,16 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
   const [filter,setFilter] = useState<string>("All opponents"), [search,setSearch] = useState("");
   const [worldFilter,setWorldFilter] = useState("ACTIVE"), [worldSearch,setWorldSearch] = useState(""), [limit,setLimit] = useState(30);
   return <div className="space-y-3">
-    <CareerSection title="Relationships & head-to-head">
-      <p className="p-4 text-sm text-white/70">Sporting history, not personality. Labels describe played results and shared cohorts; they never change scoring, draws, rankings or rewards.</p>
+    {query.data && <CareerPageHero kicker="Relationships · rivalries" title="Head-to-head" accent="#ff5d5d"
+      stage={{ venue: { venueType: "studio" }, eventClass: "STAGE_SERIES" }} archival={ctx.retired}
+      subtitle="Sporting history, not personality. Labels describe played results and shared cohorts; they never change scoring, draws, rankings or rewards."
+      stats={[
+        { label: "Opponents faced", value: query.data.opponents.length },
+        { label: "Your H2H wins", tone: "good", value: query.data.opponents.reduce((n, o) => n + o.humanWins, 0) },
+        { label: "Their wins", tone: "bad", value: query.data.opponents.reduce((n, o) => n + o.npcWins, 0) },
+        { label: "Labelled rivals", value: query.data.opponents.filter(o => o.labels.length).length, tone: "gold" },
+      ]} />}
+    <CareerSection title="Opponents" icon={<Swords aria-hidden />} accent="#ff5d5d">
       <QueryState query={query} label="Reading opponent history">{data=>{
         const opponents = data.opponents.filter(o=>(filter==="All opponents" || o.labels.some(l=>l===filter)) && o.player.name.toLowerCase().includes(search.toLowerCase()));
         const world = data.world.players.filter(p=>p.name.toLowerCase().includes(worldSearch.toLowerCase()) &&
@@ -27,7 +38,7 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
           </div>
           <p className="text-xs text-white/60">{opponents.length} of {data.opponents.length} opponents and historical cohort members. Unlabelled opponents still have factual H2H records.</p>
           {!opponents.length && <CareerEmptyState title="No opponent history here yet">Played matches build H2H. Shared played Q-School sessions or Junior events establish cohorts; a single match does not establish a rivalry.</CareerEmptyState>}
-          {opponents.map(o=><OpponentPanel key={o.player.id} opponent={o} saveId={ctx.save.id} />)}
+          <div className="career-rivals">{opponents.map(o=><OpponentPanel key={o.player.id} opponent={o} saveId={ctx.save.id} />)}</div>
           <h3 className="font-bold pt-3">Career generations</h3>
           <p className="text-sm text-white/70">{data.world.active} active · {data.world.retired} retired · {data.world.newEntrants} new entrants this season · {data.world.youngPlayers} active aged {data.world.youngAgeMaximum} or under</p>
           <p className="text-xs text-white/60">Young age is context, not a promise of future success. New entrants use the existing junior/grassroots pathways. Retired identities and sporting records remain in this save.</p>
@@ -49,11 +60,14 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
   </div>;
 }
 export function OpponentPanel({ opponent:o, saveId }: { opponent:OpponentRelationship; saveId:string }) {
-  return <details className="rounded-xl border border-white/15 p-3">
+  const lead = o.humanWins > o.npcWins ? "is-ahead" : o.humanWins < o.npcWins ? "is-behind" : "is-level";
+  return <details className={`career-rival ${lead}`}>
     <summary className="cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
-      <Flag code={o.player.nationality} /> <strong>{o.player.name}</strong>
-      <span className="block text-sm">{o.meetings} meetings · H2H {o.humanWins}–{o.npcWins}{o.winPercentage===null ? "" : ` · ${o.winPercentage}% wins`}</span>
-      <span className="block text-xs text-white/70">{o.labels.join(" · ") || "No special relationship yet"}</span>
+      <span className="career-rival__shirt" aria-hidden="true"><CareerShirt playerId={o.player.id} name={o.player.name} scale="standard" /></span>
+      <span className="career-rival__who"><span><Flag code={o.player.nationality} /> <strong>{o.player.name}</strong></span>
+        <span className="block text-sm">{o.meetings} meetings · H2H {o.humanWins}–{o.npcWins}{o.winPercentage===null ? "" : ` · ${o.winPercentage}% wins`}</span>
+        <span className="career-rival__labels">{o.labels.length ? o.labels.map(l => <i key={l}>{l}</i>) : <em>No special relationship yet</em>}</span></span>
+      <span className="career-rival__score" aria-hidden="true"><b>{o.humanWins}</b><small>–</small><b>{o.npcWins}</b></span>
     </summary>
     <div className="pt-3 space-y-2 text-sm">
       <p>{identity(o.player)}</p>
