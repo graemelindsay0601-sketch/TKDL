@@ -1,7 +1,7 @@
 import {useState} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldMap,useWorldPlayers,useTrophyCabinet,usePresentation,useEditPresentation,useLaunchSignature,errorMessage} from "../api";
-import {CareerError,CareerLoading,CareerSection,BoundedList,OSWALD} from "../components";
+import {CareerError,CareerLoading,CareerSection,BoundedList,EventPlateTile,OSWALD} from "../components";
 import {titleCase,formatPence} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
@@ -73,11 +73,11 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
   // The award's name as text (not only image alt): the E2 design's catalogue name, or the recognition form.
   const awardName=(a:ReturnType<typeof resolveAward>)=>a.designId?trophyArt(a.designId)?.name??awardLabel(a):awardLabel(a);
   return <div className="space-y-3">
-    <section className="career-cabinet-hero" aria-label="Trophy cabinet">
-      <p className="career-cabinet-hero__eyebrow">Trophy cabinet</p>
-      <h1 style={OSWALD}>{cabinet.data.total} recorded title{cabinet.data.total===1?"":"s"}</h1>
-      <p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every win is an actual A3 champion result; repeat wins stay separate.</p>
-    </section>
+    <CareerPageHero kicker="Trophy cabinet" title={`${cabinet.data.total} recorded title${cabinet.data.total===1?"":"s"}`} accent="#e9c77a"
+      stage={{venue:{venueType:"historic-theatre"},eventClass:"MAJOR"}} watermark={`${cabinet.data.total}`}
+      subtitle={<p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every win is an actual A3 champion result; repeat wins stay separate.</p>}
+      stats={[{label:"Titles",value:cabinet.data.total,tone:"gold"},{label:"With silverware",value:silverware.reduce((n,g)=>n+g.editions.length,0)},
+        {label:"Trophy designs",value:silverware.length},{label:"Result-only wins",value:plain.reduce((n,g)=>n+g.editions.length,0)}]}/>
     {silverware.length>0?<section className="career-cabinet" aria-label="Silverware">
       {silverware.map(({key,t,editions,award})=><CareerEventIdentity eventKey={key} key={key} className="career-cabinet__item">
         <div className="career-cabinet__plinth">{editions.length>1&&<span className="career-cabinet__count" aria-label={`${editions.length} wins`}>×{editions.length}</span>}
@@ -89,6 +89,7 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
     {plain.length>0&&<CareerSection title="Titles without silverware">
       <p className="px-3 pt-3 text-sm text-white/60">Weekly fixtures, qualifiers and Q-School sessions are recorded wins with result and prize only.</p>
       <ul className="career-cabinet__list">{plain.map(({key,t,editions})=><li key={key}>
+        <EventPlateTile atmosphere={{definitionKey:key,circuit:t.circuit,classification:t.classification,venue:t.venue??null}} label={`×${editions.length}`}/>
         <Link href={`/career/${ctx.save.id}/events/${editions[0].eventId}`}><strong>{t.name}</strong></Link>
         <span>{wins(editions.length)} · {t.circuit==="Q_SCHOOL"?"Session win — not a tournament title or automatic Tour Card":titleCase(t.classification)}</span></li>)}</ul>
     </CareerSection>}
