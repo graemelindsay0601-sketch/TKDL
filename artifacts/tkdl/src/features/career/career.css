@@ -574,3 +574,10 @@
 .career-header-tools .career-search{display:flex;align-items:center;gap:8px;flex:1 1 320px;min-width:0}
 .career-header-tools .career-search input{flex:1;min-width:0}
 @media (max-width:640px){.career-header-tools{gap:8px}.career-header-tools .career-search{flex-basis:100%}.career-hero__portrait{width:52px;height:60px}.career-hero__portrait .career-shirt{width:42px!important}}
+
+/* Visual completion: event cards carry their venue plate. */
+.career-event-tile { position:relative; width:4.6rem; min-height:3.4rem; border-radius:8px; overflow:hidden; display:flex; align-items:flex-end;
+  background:linear-gradient(145deg,#1b2a3c,#0d1622); border:1px solid #ffffff1a; }
+.career-event-tile img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; filter:saturate(1.05) brightness(.82); }
+.career-event-tile::after { content:""; position:absolute; inset:0; background:linear-gradient(0deg,#05070ce6,#05070c33 70%); }
+.career-event-tile span { position:relative; z-index:1; padding:4px 6px; font-weight:800; font-size:.72rem; line-height:1.1; color:#fff; letter-spacing:.02em; }

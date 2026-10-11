@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
-import { ArrowUpRight, Award, CalendarDays, CircleDollarSign, Flag, History, Medal, Target, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Award, CalendarDays, Flag, History, Medal, Target, TrendingUp } from "lucide-react";
 import {
   useCalendar, useSporting, useFinance, useHistory, useActiveTournament, usePresentation,
   useCareerProfile, useCareerLife, useLegacy, useEnterEvent, useQualification, useMilestones,
@@ -13,7 +13,9 @@ import {
   pickNextEvent, formatPence, ordinal, circuitLabel, denialLabel, eventStatus, careerChapter,
   routeLines, milestoneLabel, pathwayLabel,
 } from "../model";
-import { CareerPlayerCard, CareerEventIdentity } from "../identity";
+import { CareerShirt, CareerEventIdentity } from "../identity";
+import { CareerPageHero } from "../page-hero";
+import { CareerEventAtmosphere, atmosphereFromCalendarEvent } from "../atmosphere";
 import { ContextHelp } from "../guidance";
 import { TournamentResume } from "./tournament";
 import type { ShellContext } from "../shell";
@@ -56,42 +58,30 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <main className="career-home">
-      <header className="home-heading">
-        <div>
-          <span className="career-eyebrow">Career headquarters <span aria-hidden>·</span> Season {save.currentSeason} / Week {save.currentWeek}</span>
-          <h1>Home</h1>
-          <p>One career. Every result earned on the oche.</p>
-        </div>
-        <Link className="home-heading-link" href={`/career/${id}/calendar`}><CalendarDays aria-hidden /> Open calendar <ArrowUpRight aria-hidden /></Link>
-      </header>
-
-      <section className="home-player panel" aria-label="Career status">
-        <CareerPlayerCard
-          name={profile.data?.displayName ?? save.careerName ?? "My Career"}
-          nickname={presentation.data?.identity.nickname}
-          identity={presentation.data?.identity}
-          sponsors={presentation.data?.placements}
-          scale="compact"
-          rank={sporting.data?.worldRanking.standing?.position}
-        />
-        <div className="home-player-facts">
-          <span className="home-status-kicker">CURRENT STATUS</span>
-          <strong>{chapter?.label ?? (retired ? "Retired Career" : "Reading sporting status")}</strong>
-          <p>
-            {sporting.data?.professionalStatus === "PROFESSIONAL" ? "Professional" : sporting.data ? "Amateur" : "Status pending"}
-            {sporting.data?.tourCard.holdsCard ? " · Active Tour Card" : " · No active Tour Card"}
-            {profile.data?.status === "COMPLETE" ? ` · Age ${profile.data.age}` : ""}
-          </p>
-          <p className="home-sponsor-line">{finance.data?.sponsor?.displayName ?? "Self-funded"} <span aria-hidden>·</span> Season {save.currentSeason}</p>
-        </div>
-        <div className="home-season-mark" aria-label={`Season ${save.currentSeason}, week ${save.currentWeek}`}>
-          <span>S{String(save.currentSeason).padStart(2, "0")}</span><i aria-hidden />
-          <strong>W{String(save.currentWeek).padStart(2, "0")}</strong>
-        </div>
-      </section>
+      <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
+        title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#ff005c" archival={retired}
+        stage={retired ? { eventClass: "NATIONAL" } : sporting.data?.tourCard.holdsCard
+          ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
+        subtitle={<>{chapter?.label ?? (retired ? "Retired Career" : "Reading sporting status")}
+          {sporting.data ? <> · {sporting.data.professionalStatus === "PROFESSIONAL" ? "Professional" : "Amateur"}</> : null}
+          {profile.data?.status === "COMPLETE" ? ` · Age ${profile.data.age}` : ""}
+          {typeof presentation.data?.identity.nickname === "string" && presentation.data.identity.nickname ? <> · “{presentation.data.identity.nickname}”</> : null}</>}
+        portrait={presentation.data ? <CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={save.careerName ?? "Player"} scale="featured" /> : undefined}
+        actions={<><Link className="career-btn career-btn-primary" href={`/career/${id}/calendar`}><CalendarDays aria-hidden /> Open calendar</Link>
+          <Link className="career-btn career-btn-ghost" href={`/career/${id}/rankings`}><TrendingUp aria-hidden /> Rankings</Link></>}
+        stats={[
+          { label: "World rank", tone: sporting.data?.worldRanking.standing ? "gold" : "neutral",
+            value: sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.worldRanking.standing?.position ? ordinal(sporting.data.worldRanking.standing.position) : "Unranked" },
+          { label: "Tour Card", tone: sporting.data?.tourCard.holdsCard ? "good" : "neutral",
+            value: sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.tourCard.holdsCard ? "Active" : "None",
+            sub: sporting.data?.tourCard.current ? `Review end of S${sporting.data.tourCard.current.reviewSeason}` : "Q-School or Challenger ranking" },
+          { label: "Career balance", value: finance.isLoading ? "…" : finance.error ? "Unavailable" : formatPence(finance.data?.balancePence ?? save.balancePence),
+            sub: finance.data ? `${formatPence(finance.data.availablePence)} available` : undefined },
+          { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
+        ]} />
       <ContextHelp saveId={id} topic="home" />
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired &&
-        <p className="career-home-note">Establishment season: choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional.</p>}
+        <details className="career-note" open><summary>Establishment season</summary><p>Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional.</p></details>}
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
         <div className="home-section-kicker"><span className="live-indicator" aria-hidden /> PRIORITY DESK</div>
@@ -112,9 +102,9 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           : calendar.error ? <CareerError error={calendar.error} onRetry={() => void calendar.refetch()} />
           : next ? (
             <CareerEventIdentity eventKey={next.event.definitionKey} circuit={next.event.circuit} level={next.event.presentation.tier} className="home-featured-event">
-              <div className="home-event-topline"><StatusBadge label={next.reason} tone={pending ? "warning" : next.event.human?.canEnter ? "gold" : "neutral"} /><span>{next.event.venue.city} <span aria-hidden>·</span> Week {next.event.dates.startWeek}</span></div>
-              <h3>{next.event.name}</h3>
-              <p className="home-event-sub">{circuitLabel(next.event.circuit)} <span aria-hidden>·</span> {next.event.presentation.tier.toLowerCase()} event</p>
+              <CareerEventAtmosphere event={atmosphereFromCalendarEvent(next.event)} animate={false} headingLevel={3} className="home-next-stage">
+                <div className="home-event-topline"><StatusBadge label={next.reason} tone={pending ? "warning" : next.event.human?.canEnter ? "gold" : "neutral"} /><span>Week {next.event.dates.startWeek} <span aria-hidden>·</span> {circuitLabel(next.event.circuit)}</span></div>
+              </CareerEventAtmosphere>
               {pending
                 ? <Link className="career-btn career-btn-primary" href={`/career/${id}/tournaments/${next.event.id}/matches/${pending.matchId}`}>Prepare / Play match <ArrowUpRight aria-hidden /></Link>
                 : <CareerEventCard event={next.event} saveId={id} onEnter={onEnter} entering={enter.isPending} />}
@@ -130,11 +120,6 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
       {!retired && active === undefined && tournaments.data?.tournaments.some(t => t.terminal) && <TournamentResume saveId={id} />}
 
-      <div className="home-fact-ribbon" aria-label="Current career facts">
-        <FactLink label="WORLD RANK" value={sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.worldRanking.standing?.position ? ordinal(sporting.data.worldRanking.standing.position) : "Unranked"} detail={sporting.data?.worldRanking.standing?.movement == null ? "Published position" : `Movement ${sporting.data.worldRanking.standing.movement > 0 ? "+" : ""}${sporting.data.worldRanking.standing.movement}`} href={`/career/${id}/rankings`} icon={<TrendingUp aria-hidden />} />
-        <FactLink label="TOUR CARD" value={sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.tourCard.holdsCard ? "Active" : "No Tour Card"} detail={sporting.data?.tourCard.current ? `Review at end of S${sporting.data.tourCard.current.reviewSeason}` : "Q-School or Challenger route"} href={`/career/${id}/q-school`} icon={<Flag aria-hidden />} />
-        <FactLink label="CAREER BALANCE" value={finance.isLoading ? "…" : finance.error ? "Unavailable" : formatPence(finance.data?.balancePence ?? save.balancePence)} detail={finance.data ? `${formatPence(finance.data.availablePence)} available` : "Career cash, separate from TKDL coins"} href={`/career/${id}/finances`} icon={<CircleDollarSign aria-hidden />} />
-      </div>
       {(sporting.error || finance.error) && <div className="home-query-errors">
         {sporting.error && <CareerError error={sporting.error} onRetry={() => void sporting.refetch()} />}
         {finance.error && <CareerError error={finance.error} onRetry={() => void finance.refetch()} />}
@@ -218,12 +203,6 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
     </main>
   );
-}
-
-function FactLink({ label, value, detail, href, icon }: { label: string; value: string; detail: string; href: string; icon: ReactNode }) {
-  return <Link className="home-fact" href={href}>
-    <span className="home-fact-icon">{icon}</span><span className="home-fact-copy"><small>{label}</small><strong>{value}</strong><span>{detail}</span></span><ArrowUpRight className="home-fact-arrow" aria-hidden />
-  </Link>;
 }
 
 function RouteObjective({ loading, error, retry, events, hasCard, card, saveId }: {

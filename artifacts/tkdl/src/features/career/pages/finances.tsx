@@ -5,6 +5,7 @@ import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinan
 import { LEDGER_FILTERS, circuitLabel, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
+import { CareerPageHero } from "../page-hero";
 import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorSigningReveal, SponsorTerms } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
@@ -38,19 +39,21 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
   return (
     <div className="space-y-3">
       {fin.isLoading ? <div className="pdc-card"><CareerLoading label="Loading finances" /></div> : fin.error || !fin.data ? <CareerError error={fin.error} onRetry={() => fin.refetch()} /> : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          {financeHeadlines(fin.data).map(h => <StatTile key={h.key} label={h.label} value={formatPence(h.pence)} sub={h.hint} tone={h.key === "BALANCE" ? "gold" : "neutral"} />)}
-        </div>
+        <CareerPageHero kicker={`Career finances · season ${save.currentSeason}, week ${save.currentWeek}`} title="Finances" accent="#ffd24a"
+          stage={{ venue: { venueType: "conference" }, eventClass: "REGIONAL" }} archival={retired}
+          subtitle="Every figure is posted to your Career ledger: prize money, sponsor income and costs are kept separate."
+          stats={financeHeadlines(fin.data).map(h => ({ label: h.label, value: formatPence(h.pence), sub: h.hint, tone: h.key === "BALANCE" ? "gold" as const : "neutral" as const }))} />
       )}
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
       {sponsors.data?.commercial && <CommercialOverview commercial={sponsors.data.commercial} />}
       {sponsors.data?.guaranteeConfiguration?.status === "APPROVED" && (
-        <div role="status" className="pdc-card px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.78)", borderColor: "rgba(255,210,74,0.28)" }}>
-          <strong style={{ color: "#ffd24a" }}>Approved annual sponsor guarantees · catalogue v{sponsors.data.guaranteeConfiguration.catalogueVersion}</strong>{" "}
-          Local £250, Regional £1,250, Professional £8,000, Elite £20,000. Each signed v5 agreement pays in four instalments at Career Weeks 1, 14, 27 and 40, only while the contract is active; future payments are not advance cash. Older contracts and posted payments are unchanged.
-        </div>
+        <details className="career-note">
+          <summary>How sponsor guarantees pay</summary>
+          <p><strong style={{ color: "#ffd24a" }}>Approved annual sponsor guarantees · catalogue v{sponsors.data.guaranteeConfiguration.catalogueVersion}</strong>{" "}
+          Local £250, Regional £1,250, Professional £8,000, Elite £20,000. Each signed v5 agreement pays in four instalments at Career Weeks 1, 14, 27 and 40, only while the contract is active; future payments are not advance cash. Older contracts and posted payments are unchanged.</p>
+        </details>
       )}
       {sponsorInterests.length > 0 && (
         <CareerSection title="Brands watching your progress" icon={<Handshake className="w-3.5 h-3.5" />} accent="#38bdf8">

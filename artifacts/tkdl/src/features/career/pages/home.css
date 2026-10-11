@@ -167,3 +167,9 @@
   .home-result-link .career-btn,.home-result-link .career-chip { max-width:105px; }
   .home-sponsor-alert { align-items:flex-start; }
 }
+
+/* Visual completion: Next Up sits on the next event's real venue atmosphere. */
+.career-home .home-next-stage { border-radius:14px; margin-bottom:12px; min-height:clamp(170px, 22vw, 230px); }
+.career-home .home-next-stage .ca-content { padding:clamp(14px, 2.4vw, 22px); }
+.career-home .home-next-stage .home-event-topline { margin-top:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; color:#ffffffc7; font-size:.78rem; }
+.career-home .career-note { margin:0; }

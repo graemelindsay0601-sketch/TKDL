@@ -23,7 +23,9 @@ export function PremiumCareerShirt({
   artworkBaseUrl?: string;
 }) {
   const kit = CAREER_KIT_BY_ID.get(identity.kitDesignId ?? "") ?? CAREER_KIT_DESIGNS[0]!;
-  const artwork = `${artworkBaseUrl}assets/career-kit-library/${kit.image}`;
+  // Small sizes (ranking rows, directory and player cards) load the 256px rendition, not the 768px source.
+  const small = scale === "compact" || scale === "standard";
+  const artwork = `${artworkBaseUrl}assets/career-kit-library/${small ? "thumb/" : ""}${kit.image}`;
   const zones = garmentPrintZones(kit);
   // Original artwork is the default. Only an explicit colourway choice (kitTintEnabled: true) tints the fabric:
   // every save carries a template primaryColour and NPC palettes have one too, which must not wash premium art.
@@ -31,7 +33,7 @@ export function PremiumCareerShirt({
   return (
     <span className={`career-premium-shirt career-premium-shirt--${scale}`}
       role="img" aria-label={`${name} wearing ${kit.name}${sponsors.length ? ` with ${sponsors.length} active sponsor marks` : ""}`}>
-      <img className="career-premium-shirt__fabric" src={artwork} alt="" aria-hidden="true" />
+      <img className="career-premium-shirt__fabric" src={artwork} alt="" aria-hidden="true" loading="lazy" decoding="async" />
       {tintEnabled && <span className="career-premium-shirt__tint" style={{
         "--fabric-mask": `url("${artwork}")`, "--shirt-tint": identity.primaryColour,
       } as CSSProperties} aria-hidden="true" />}
