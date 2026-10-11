@@ -15,6 +15,8 @@ export type Evidence = {
   decisions:{id:string; season:number; kind:string; thread:string|null}[];
   commitments:{id:string; season:number; title:string; status:string}[];
   merchandise:{category:string; signedSeason:number; active:boolean}|null;
+  productArchive:{id:string;name:string;manufacturer:string;type:string;launchSeason:number;state:string;unitsSold:number;
+    grossPence:number;royaltyPence:number;salesBySeason:{season:number;units:number;grossPence:number;royaltyPence:number}[]}[];
 };
 export type Award = { kind:string; season:number; participant:string; name:string; reason:string; sources:string[] };
 export type RecordRow = { metric:string; value:number; holders:{id:string; name:string}[]; scope:string };
@@ -28,6 +30,7 @@ export type SeasonReview = {
   biggestMoment:Result|null; publicLife:{decisions:number; completedWork:number; threads:string[]; profile?:PublicProfile};
   sponsors:{id:string; name:string; startSeason:number; endSeason:number; status:string}[];
   awards:Award[];
+  productSales?:{id:string;name:string;manufacturer:string;type:string;units:number;grossPence:number;royaltyPence:number}[];
   world:{numberOne:{id:string; name:string; snapshot:string; week:number}|null; champions:Result[]; leadingAmateur:Award|null; retirements:Player[]; newEntrants:Player[]; cardChanges:Card[]};
   records:RecordRow[]; recordEvents:RecordEvent[]; notes:string[];
 };
@@ -40,6 +43,7 @@ export type LegacyView = {
   honours:Award[]; hallOfFame:Induction[]; records:RecordRow[]; comparisons:string[];
   recordEvents:RecordEvent[]; world:SeasonReview["world"][]; players:Player[]; eventKeys:{key:string; name:string}[];
   cards:Card[]; sponsors:Evidence["sponsors"]; commercial:Evidence["commitments"]; merchandise:Evidence["merchandise"];
+  productArchive:Evidence["productArchive"];
   storiesLink:string; finalSummary:string[]; pendingReview:number|null; notes:string[];
 };
 export type EventHistory={key:string;champions:Result[];defendingChampion:Result|null;

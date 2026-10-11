@@ -64,6 +64,14 @@ export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey:
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });
 export const useSponsors = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "sponsors"), queryFn: () => get<SponsorsResponse>(`/saves/${saveId}/sponsors`), staleTime: STALE });
+export type CommercialInboxMessage={id:string;source:"SPONSOR_JOURNEY"|"PRODUCT_LIFECYCLE";eventType:string;sponsorKey:string;sponsorName:string;
+  representative:string;title:string;summary:string;createdAt:string;read:boolean};
+export type CommercialInboxResponse={messages:CommercialInboxMessage[];unreadCount:number;
+  milestones:{id:string;title:string;summary:string;season:number;week:number}[];source:string};
+export const useCommercialInbox=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"commercial-inbox"),
+  queryFn:()=>get<CommercialInboxResponse>(`/saves/${saveId}/commercial-inbox`),staleTime:0});
+export const useMarkCommercialMessageRead=(saveId:string)=>useSaveMutation(saveId,(messageId:string)=>
+  send<{messageId:string;read:boolean}>("POST",`/saves/${saveId}/commercial-inbox/read`,{messageId}));
 export type SponsorMarketRelationship = {id:string;npcId:string;npcName:string;sponsorKey:string;sponsorName:string;category:string;tier:string;
   status:string;startSeason:number;startWeek:number;endSeason:number|null;endWeek:number|null};
 export type SponsorMarketEvent = {id:string;eventType:string;npcId:string;npcName:string;sponsorKey:string;sponsorName:string;season:number;week:number;

@@ -11,6 +11,7 @@ import {createCareerFinanceSPC} from "../../db/migrations/create_career_finance_
 import {createCareerSponsorHQSPD} from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import {createCareerCalendar} from "../../db/migrations/create_career_calendar.ts";
 import {createCareerFinance} from "../../db/migrations/create_career_finance.ts";
+import {createCareerSPHCommercial} from "../../db/migrations/create_career_sph_commercial.ts";
 import {createCareerSponsorJourneysSPB} from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
 import {createCareerSponsorJourneysSPB3} from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
 import {createCareerNpcSponsorMarketSPF} from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
@@ -27,6 +28,7 @@ import {calendarHashOf} from "../../career/calendar/generation.ts";
 import {stableUuid} from "../../career/world/random.ts";
 import {createCareerLegacyService} from "../../career/legacy/service.ts";
 import {settleLifeCommitments} from "../../career/life/commitments.ts";
+import {calculateProductWeek} from "../../career/content/product-economy.ts";
 import type {RootRow} from "../../career/calendar/engine.ts";
 const pg=new PGlite(),db=drizzle(pg),saves=createCareerService(db),actor={playerId:1},seed="a".repeat(64);
 const facts:SportingFacts={careerStarted:true,titles:20,professionalStatus:"PROFESSIONAL",tourCard:true,worldRanking:8,qualifications:[],bestFinishByCircuit:{VAULT:1}};
@@ -45,7 +47,8 @@ before(async()=>{
   await pg.exec(`CREATE TABLE players(id integer PRIMARY KEY);INSERT INTO players VALUES(1),(2);
     CREATE TABLE feature_flags(feature_name text UNIQUE,enabled boolean,admin_test_mode boolean,description text);
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
-  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSponsorHQSPD(db);await createCareerNpcSponsorMarketSPF(db);await createCareerSponsorContractActionsSPE2(db);await createCareerSporting(db);
+  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSPHCommercial(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSponsorHQSPD(db);await createCareerNpcSponsorMarketSPF(db);await createCareerSponsorContractActionsSPE2(db);await createCareerSporting(db);
+  await createCareerSPHCommercial(db);
   const save=await saves.create(1,{slot:1,dateOfBirth:"1990-01-01",homeLocality:"ayrshire"});saveId=save.id;
   // Preserve the published A8.1 v3 universe; A8.2 v4 has its own tournament tests.
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed},event_database_version=3 WHERE id=${saveId}`);
@@ -126,11 +129,23 @@ test("all active contracts complete/review together; rollback protects fixture a
   assert.equal((await activeContracts(db,saveId)).length,2);
 });
 test("signature launches are factual, immutable, retry-safe metadata, never money or ability",async()=>{
+  const baseDemand=calculateProductWeek("sp-h-demand-fixture","SIGNATURE_DARTS",1,1);
+  const evidencedDemand=calculateProductWeek("sp-h-demand-fixture","SIGNATURE_DARTS",1,1,null,
+    {seasonTitles:4,worldRank:10,productLaunchPromotions:1});
+  assert.equal(evidencedDemand.units,baseDemand.units+23,"season titles, published rank and an authorised completed product-launch promotion deterministically raise demand");
+  assert.equal(evidencedDemand.demandVersion,2);
   const draft=await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"});
   assert.equal(draft.status,"DRAFT");assert.equal((await content.launchSignature(actor,saveId,{contractId:equipment,productType:"SIGNATURE_DARTS"})).id,draft.id);
   const money=calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`));
   await content.approveProduct(actor,saveId,draft.id);const launched=await content.launchProduct(actor,saveId,draft.id);
   assert.equal(launched.status,"LAUNCHED");assert.equal((await content.launchProduct(actor,saveId,draft.id)).id,launched.id);
+  const inbox=await content.commercialInbox(actor,saveId),launchMessage=inbox.messages.find(m=>m.source==="PRODUCT_LIFECYCLE"&&m.eventType==="LAUNCHED");
+  assert.ok(launchMessage,"product launch produces a representative message from its persisted event");
+  assert.ok(inbox.milestones.some(m=>m.title==="First signature product launched"),"commercial achievements derive from durable lifecycle events");
+  assert.equal(launchMessage.read,false);
+  await content.markCommercialMessageRead(actor,saveId,{messageId:launchMessage.id});
+  assert.equal((await content.commercialInbox(actor,saveId)).messages.find(m=>m.id===launchMessage.id)?.read,true,"read state survives a fresh inbox query");
+  await status(content.markCommercialMessageRead({playerId:2},saveId,{messageId:launchMessage.id}),404);
   assert.equal((await content.presentation(actor,saveId)).products[0].state,"ACTIVE");
   assert.equal(calendarHashOf(await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} ORDER BY id`)),money);
   const eligible=await rows(sql`SELECT p.id,p.manufacturer,p.product_type,d.status,c.status AS contract_status,
@@ -146,8 +161,14 @@ test("signature launches are factual, immutable, retry-safe metadata, never mone
   await settleWeek();
   const sales=await rows(sql`SELECT * FROM career_signature_product_sales WHERE career_save_id=${saveId} AND product_id=${launched.id}`);
   assert.equal(sales.length,1);
+  assert.equal(Number(sales[0].demand_version),2);
+  assert.equal((sales[0].demand_evidence as {weeklyCap:number}).weeklyCap,100);
   const royaltyEntries=await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} AND category='MERCHANDISE_ROYALTY'`);
   assert.equal(royaltyEntries.length,1);assert.equal(Number(royaltyEntries[0].amount_pence),Number(sales[0].royalty_pence));
+  const legacy=await createCareerLegacyService(db).read(actor,saveId),archived=legacy.productArchive.find(p=>p.id===launched.id);
+  assert.ok(archived,"the permanent commercial archive includes launched products");
+  assert.equal(archived.unitsSold,Number(sales[0].units));
+  assert.equal(archived.royaltyPence,Number(royaltyEntries[0].amount_pence),"archive royalties reconcile with the authoritative A4 ledger");
   await settleWeek();
   assert.equal((await rows(sql`SELECT * FROM career_signature_product_sales WHERE career_save_id=${saveId} AND product_id=${launched.id}`)).length,1);
   assert.equal((await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} AND category='MERCHANDISE_ROYALTY'`)).length,1);
@@ -203,6 +224,19 @@ test("HTTP accepts explicit replacement data and validates content, auth and no-
     const get=await fetch(`${base}/saves/${saveId}/presentation`,{headers:{"x-test-player":"1"}});assert.equal(get.status,200);assert.equal(get.headers.get("cache-control"),"no-store");
     assert.equal((await fetch(`${base}/saves/${saveId}/guidance`)).status,401);
     const guide=await fetch(`${base}/saves/${saveId}/guidance`,{headers:{"x-test-player":"1"}});assert.equal(guide.status,200);assert.equal(guide.headers.get("cache-control"),"no-store");
+    const inboxResponse=await fetch(`${base}/saves/${saveId}/commercial-inbox`,{headers:{"x-test-player":"1"}});
+    assert.equal(inboxResponse.status,200);assert.equal(inboxResponse.headers.get("cache-control"),"no-store");
+    const inboxData=await inboxResponse.json() as {messages:{id:string;read:boolean}[];milestones:{title:string}[]};
+    assert.ok(inboxData.milestones.some(m=>m.title==="First signature product launched"));
+    const unread=inboxData.messages.find(m=>!m.read);
+    if(unread){
+      const readResponse=await fetch(`${base}/saves/${saveId}/commercial-inbox/read`,{method:"POST",
+        headers:{"content-type":"application/json","x-test-player":"1"},body:JSON.stringify({messageId:unread.id})});
+      assert.equal(readResponse.status,200);
+      const refreshed=await fetch(`${base}/saves/${saveId}/commercial-inbox`,{headers:{"x-test-player":"1"}});
+      const refreshedData=await refreshed.json() as {messages:{id:string;read:boolean}[]};
+      assert.equal(refreshedData.messages.find(m=>m.id===unread.id)?.read,true);
+    }
     const changed=await fetch(`${base}/saves/${saveId}/guidance`,{method:"PUT",headers:{"content-type":"application/json","x-test-player":"1"},body:JSON.stringify({mode:"STANDARD"})});assert.equal(changed.status,200);
     const malformed=await fetch(`${base}/saves/${saveId}/presentation`,{method:"POST",headers:{"content-type":"application/json","x-test-player":"1"},body:JSON.stringify({ability:100})});assert.equal(malformed.status,400);
     const newOffer=await offer("northline-darts");

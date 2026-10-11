@@ -22,6 +22,7 @@ import {catalogueFor} from "../calendar/catalogue.ts";
 import {LOCALITIES,localVenue} from "../calendar/geography.ts";
 import {identity} from "./events.ts";
 import {BRANDS,brandById} from "./brands.ts";
+import {representativeForSponsor} from "./sponsor-representatives.ts";
 import {parseNpcSponsorSnapshot} from "../sponsorship/npc-foundation.ts";
 import {COUNTRY_CONTENT,REGIONS,CITIES,VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,ORGANISATIONS,CIRCUIT_CONTENT,
   SEASON_RHYTHM,PRESTIGE_CLASSES,GUIDE,ALMANAC,PRESENTATION_HOOKS,WORLD_CONTENT_VERSION,venueContent} from "./world.ts";
@@ -157,6 +158,108 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
           products:products.map(p=>({id:String(p.id),name:String(p.product_name),type:String(p.product_type),brand:String(p.manufacturer),
             status:p.product_status??(p.rights_contract_id?"ACTIVE":"LEGACY"),units:Number(p.units),grossPence:Number(p.gross_pence),royaltyPence:Number(p.royalty_pence)})),
           pricingPence:productPricePence,royaltyPercent:8,salesCapPerProductWeek:100,cosmeticOnly:true};
+      });
+    },
+    async commercialInbox(actor:CareerActor,saveId:string) {
+      return database.transaction(async tx=>{
+        await lockRoot(tx,actor,saveId,false);
+        const journeyRows=(await tx.execute(sql`SELECT e.id,e.event_type,e.details,e.created_at,j.sponsor_key,j.representative
+          FROM career_sponsor_journey_events e JOIN career_sponsor_journeys j
+            ON j.career_save_id=e.career_save_id AND j.id=e.journey_id
+          WHERE e.career_save_id=${saveId}
+          ORDER BY e.created_at DESC,e.id DESC LIMIT 80`)).rows;
+        const productRows=(await tx.execute(sql`SELECT e.id,e.event_type,e.details,e.created_at,c.sponsor_key,d.product_name
+          FROM career_signature_product_events e JOIN career_signature_product_drafts d
+            ON d.career_save_id=e.career_save_id AND d.id=e.draft_id
+          JOIN career_sponsor_contracts c ON c.career_save_id=d.career_save_id AND c.id=d.contract_id
+          WHERE e.career_save_id=${saveId}
+          ORDER BY e.created_at DESC,e.id DESC LIMIT 40`)).rows;
+        const firstPartnership=(await tx.execute(sql`SELECT e.id,j.sponsor_key,e.season,e.week FROM career_sponsor_journey_events e
+          JOIN career_sponsor_journeys j ON j.career_save_id=e.career_save_id AND j.id=e.journey_id
+          WHERE e.career_save_id=${saveId} AND e.event_type='SIGNED' ORDER BY e.season,e.week,e.created_at,e.id LIMIT 1`)).rows[0];
+        const firstProductLaunch=(await tx.execute(sql`SELECT e.id,e.season,e.week,c.sponsor_key,d.product_name
+          FROM career_signature_product_events e JOIN career_signature_product_drafts d
+            ON d.career_save_id=e.career_save_id AND d.id=e.draft_id
+          JOIN career_sponsor_contracts c ON c.career_save_id=d.career_save_id AND c.id=d.contract_id
+          WHERE e.career_save_id=${saveId} AND e.event_type='LAUNCHED'
+          ORDER BY e.season,e.week,e.created_at,e.id LIMIT 1`)).rows[0];
+        const firstRoyalty=(await tx.execute(sql`SELECT id,season,week,amount_pence,contract_id FROM career_finance_entries
+          WHERE career_save_id=${saveId} AND category='MERCHANDISE_ROYALTY'
+          ORDER BY season,week,id LIMIT 1`)).rows[0];
+        const firstPromotion=(await tx.execute(sql`SELECT id,sponsor_key,season,scheduled_week FROM career_sponsor_opportunities
+          WHERE career_save_id=${saveId} AND opportunity_type='PRODUCT_LAUNCH' AND status='COMPLETED'
+          ORDER BY season,scheduled_week,id LIMIT 1`)).rows[0];
+        const keys=[...journeyRows.map(r=>`journey:${String(r.id)}`),...productRows.map(r=>`product:${String(r.id)}`)];
+        const readRows=keys.length?(await tx.execute(sql`SELECT message_id FROM career_commercial_message_reads
+          WHERE career_save_id=${saveId} AND message_id IN (${sql.join(keys.map(key=>sql`${key}`),sql`,`)})`)).rows:[];
+        const readSet=new Set(readRows.map(r=>String(r.message_id)));
+        const journeyCopy:Record<string,{title:string;summary:string}>={
+          INTEREST:{title:"A sponsor is watching your progress",summary:"A real Career result brought this brand into the sponsor market."},
+          APPROACH:{title:"A sponsor has made contact",summary:"A formal approach has entered your commercial history."},
+          OFFER_RECEIVED:{title:"A partnership offer arrived",summary:"A sponsor submitted an offer for you to review."},
+          PLAYER_COUNTERED:{title:"Your negotiation was sent",summary:"Your requested contract changes are recorded in this negotiation."},
+          SPONSOR_COUNTERED:{title:"A sponsor responded to your terms",summary:"The sponsor returned a revised proposal for your decision."},
+          SPONSOR_ACCEPTED_REQUEST:{title:"The sponsor accepted a change",summary:"The sponsor accepted a requested term in your negotiation."},
+          SPONSOR_REJECTED:{title:"A sponsor declined a change",summary:"The sponsor declined a requested term. Your signed contracts remain unchanged."},
+          SPONSOR_WITHDREW:{title:"A sponsor withdrew its offer",summary:"This offer is no longer available."},
+          PLAYER_WALKED_AWAY:{title:"Negotiations have ended",summary:"You chose not to continue with this proposed agreement."},
+          SIGNED:{title:"A partnership is now official",summary:"Your signed agreement is recorded in Career history."},
+          OFFER_EXPIRED:{title:"A sponsor offer expired",summary:"The offer window ended without changing any signed agreement."},
+        };
+        const productCopy:Record<string,{title:string;summary:(name:string)=>string}>={
+          CREATED:{title:"A product design is ready for review",summary:name=>`${name} was saved as a draft in Equipment Studio.`},
+          APPROVED:{title:"A product design was approved",summary:name=>`${name} passed the sponsor approval step.`},
+          LAUNCHED:{title:"A signature product launched",summary:name=>`${name} is available in the commercial portfolio.`},
+          RETIRED:{title:"A signature product was retired",summary:name=>`${name} is no longer active; its recorded sales remain in history.`},
+        };
+        const messages=[
+          ...journeyRows.map(r=>{
+            const event=String(r.event_type),copy=journeyCopy[event]??{title:"Sponsor update",summary:"A sponsorship event was added to your commercial history."};
+            const rep=r.representative as {displayName?:string;role?:string}|null;
+            const fallback=representativeForSponsor(String(r.sponsor_key));
+            return {id:`journey:${String(r.id)}`,source:"SPONSOR_JOURNEY",eventType:event,sponsorKey:String(r.sponsor_key),
+              sponsorName:BRANDS.find(b=>b.id===String(r.sponsor_key))?.name??String(r.sponsor_key),
+              representative:rep?.displayName??fallback?.displayName??"Partnership team",title:copy.title,summary:copy.summary,
+              createdAt:new Date(r.created_at as string|number|Date).toISOString(),read:readSet.has(`journey:${String(r.id)}`)};
+          }),
+          ...productRows.map(r=>{
+            const event=String(r.event_type),copy=productCopy[event]??{title:"Product portfolio update",summary:(name:string)=>`${name} has a product-history update.`};
+            const id=`product:${String(r.id)}`,name=String(r.product_name);
+            return {id,source:"PRODUCT_LIFECYCLE",eventType:event,sponsorKey:String(r.sponsor_key),
+              sponsorName:BRANDS.find(b=>b.id===String(r.sponsor_key))?.name??String(r.sponsor_key),
+              representative:representativeForSponsor(String(r.sponsor_key))?.displayName??"Partnership team",
+              title:copy.title,summary:copy.summary(name),createdAt:new Date(r.created_at as string|number|Date).toISOString(),read:readSet.has(id)};
+          }),
+        ].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,100);
+        const milestones=[
+          ...(firstPartnership?[{id:`partnership:${String(firstPartnership.id)}`,title:"First signed partnership",
+            summary:`Your first recorded agreement with ${BRANDS.find(b=>b.id===String(firstPartnership.sponsor_key))?.name??String(firstPartnership.sponsor_key)} began in Season ${firstPartnership.season}, Week ${firstPartnership.week}.`,
+            season:Number(firstPartnership.season),week:Number(firstPartnership.week)}]:[]),
+          ...(firstProductLaunch?[{id:`launch:${String(firstProductLaunch.id)}`,title:"First signature product launched",
+            summary:`${String(firstProductLaunch.product_name)} entered the saved product history in Season ${firstProductLaunch.season}, Week ${firstProductLaunch.week}.`,
+            season:Number(firstProductLaunch.season),week:Number(firstProductLaunch.week)}]:[]),
+          ...(firstRoyalty?[{id:`royalty:${String(firstRoyalty.id)}`,title:"First A4 product royalty settled",
+            summary:`A signature-product royalty was posted to the authoritative Career ledger in Season ${firstRoyalty.season}, Week ${firstRoyalty.week}.`,
+            season:Number(firstRoyalty.season),week:Number(firstRoyalty.week)}]:[]),
+          ...(firstPromotion?[{id:`promotion:${String(firstPromotion.id)}`,title:"First authorised product-launch promotion completed",
+            summary:`A signed SP-D optional launch activity for ${BRANDS.find(b=>b.id===String(firstPromotion.sponsor_key))?.name??String(firstPromotion.sponsor_key)} was completed in Season ${firstPromotion.season}, Week ${firstPromotion.scheduled_week}.`,
+            season:Number(firstPromotion.season),week:Number(firstPromotion.scheduled_week)}]:[]),
+        ];
+        return {messages,unreadCount:messages.filter(m=>!m.read).length,milestones,source:"PERSISTED_SPONSOR_AND_PRODUCT_EVENTS"};
+      });
+    },
+    async markCommercialMessageRead(actor:CareerActor,saveId:string,body:unknown) {
+      const input=z.object({messageId:z.string().min(1).max(120).regex(/^(journey|product):[0-9a-f-]{36}$/i)}).strict().parse(body);
+      return database.transaction(async tx=>{
+        await lockRoot(tx,actor,saveId);
+        const [kind,eventId]=input.messageId.split(":");
+        const exists=kind==="journey"
+          ? (await tx.execute(sql`SELECT 1 FROM career_sponsor_journey_events WHERE career_save_id=${saveId} AND id=${eventId} LIMIT 1`)).rows.length>0
+          : (await tx.execute(sql`SELECT 1 FROM career_signature_product_events WHERE career_save_id=${saveId} AND id=${eventId} LIMIT 1`)).rows.length>0;
+        if(!exists)throw new CareerError(404,"Commercial message not found");
+        await tx.execute(sql`INSERT INTO career_commercial_message_reads(career_save_id,message_id)
+          VALUES(${saveId},${input.messageId}) ON CONFLICT(career_save_id,message_id) DO NOTHING`);
+        return {messageId:input.messageId,read:true};
       });
     },
     async saveEquipmentLoadout(actor:CareerActor,saveId:string,body:unknown) {
@@ -383,6 +486,8 @@ export function createCareerContentRouter(service:CareerContentService) {
   router.post("/saves/:id/signature-product-drafts/:draftId/approve",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.approveProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
   router.post("/saves/:id/signature-product-drafts/:draftId/launch",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.launchProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
   router.post("/saves/:id/signature-product-drafts/:draftId/retire",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.retireProduct(res.locals.careerActor,id(req),String(req.params.draftId))));
+  router.get("/saves/:id/commercial-inbox",auth,async(req,res)=>res.json(await service.commercialInbox(res.locals.careerActor,id(req))));
+  router.post("/saves/:id/commercial-inbox/read",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.markCommercialMessageRead(res.locals.careerActor,id(req),req.body)));
   router.get("/saves/:id/equipment-studio",auth,async(req,res)=>res.json(await service.equipmentStudio(res.locals.careerActor,id(req))));
   router.put("/saves/:id/equipment-loadout",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.saveEquipmentLoadout(res.locals.careerActor,id(req),req.body)));
   router.post("/saves/:id/signature-product-drafts",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.createProductDraft(res.locals.careerActor,id(req),req.body)));

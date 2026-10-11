@@ -26,6 +26,20 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
         <h3 className="font-bold">Commercial Career</h3><BoundedList rows={d.sponsors}>{s=><p key={s.id}>{s.name}: signed term seasons {s.startSeason}–{s.endSeason} · {s.status}</p>}</BoundedList>
         <BoundedList rows={d.commercial}>{c=><p key={c.id}>Season {c.season}: {c.title} · {c.status}</p>}</BoundedList>
         {d.merchandise&&<p>Merchandise: {d.merchandise.category} · {d.merchandise.active?"active":"stopped"}</p>}
+        <h3 className="font-bold">Commercial legacy · signature products</h3>
+        {!d.productArchive.length?<p className="text-sm text-white/55">No signature products have launched in this Career yet.</p>
+          :<div className="grid gap-2 sm:grid-cols-2">{d.productArchive.map(product=><article key={product.id} className="rounded-xl border border-amber-200/15 bg-slate-950/50 p-3">
+            <div className="flex items-start justify-between gap-2"><div><p className="text-[10px] uppercase tracking-widest text-amber-100/65">{product.manufacturer} · {product.type.replaceAll("_"," ")}</p>
+              <h4 className="mt-1 font-semibold text-white">{product.name}</h4></div>
+              <span className="rounded-full border border-white/15 px-2 py-1 text-[9px] uppercase text-white/60">{product.state}</span>
+            </div>
+            <p className="mt-2 text-xs text-white/55">Launched season {product.launchSeason} · {product.unitsSold} units recorded</p>
+            <p className="mt-1 text-sm text-amber-100">8% royalties settled: {formatPence(product.royaltyPence)}</p>
+            <details className="mt-2 text-xs text-white/60"><summary className="cursor-pointer">Sales by season</summary>
+              <ul className="mt-1 space-y-1">{product.salesBySeason.map(s=><li key={s.season}>Season {s.season}: {s.units} units · gross {formatPence(s.grossPence)} · A4 royalty {formatPence(s.royaltyPence)}</li>)}</ul>
+              <p className="mt-1">Gross sales are product turnover, not player income. Only posted A4 royalties count as commercial cash.</p>
+            </details>
+          </article>)}</div>}
         <div className="flex flex-wrap gap-3"><Link className="underline" href={`/career/${ctx.save.id}/relationships`}>Sporting H2H & Rivalries</Link>
           <Link className="underline" href={`/career/${ctx.save.id}/life`}>Public profile, tone & commercial decisions</Link>
           <Link className="underline" href={d.storiesLink}>Career Story Threads</Link></div>
@@ -87,6 +101,11 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
   return <section className="space-y-3" aria-label={`Season ${r.season} Review`}><h2 className="text-xl font-bold">Season {r.season} Complete — {r.identity}</h2>
     <p className="text-xs">{r.provenance.toLowerCase()} · permanent history</p>{r.story.map(s=><p key={s}>{s}</p>)}
     <p>Prize {formatPence(r.prizePence)} · Sponsor/Commercial {formatPence(r.commercialPence)}</p>
+    {!!r.productSales?.length&&<section className="rounded-lg border border-amber-200/15 bg-slate-950/40 p-3">
+      <h3 className="font-bold">Commercial product results · season {r.season}</h3>
+      {r.productSales.map(p=><p className="mt-1 text-sm" key={p.id}>{p.name}: {p.units} units · gross {formatPence(p.grossPence)} · A4 royalty {formatPence(p.royaltyPence)}</p>)}
+      <p className="mt-2 text-xs text-white/55">This review is a saved season snapshot. Product gross is not added to player income; settled royalty appears in Sponsor/Commercial only through A4.</p>
+    </section>}
     <p>{r.cardStatus}</p><p>Starting World rank: {r.startingRank?`#${r.startingRank.position} (previous season, week ${r.startingRank.week})`:"not recorded"} · Final published: {r.finalRank?`#${r.finalRank.position} (week ${r.finalRank.week})`:"not recorded"}</p>
     {r.bestMajor&&<p>Best major: {r.bestMajor.name} · position {r.bestMajor.position}</p>}
     {r.worldResult&&<p>World Championship: {r.worldResult.name} · position {r.worldResult.position}</p>}

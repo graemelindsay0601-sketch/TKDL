@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { Link } from "wouter";
 import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNegotiateOffer, useSponsors, useUpdateSponsorActivity,
-  useRequestSponsorRelease, useAcceptSponsorRelease, useAcknowledgeSponsorNotice } from "../api";
+  useRequestSponsorRelease, useAcceptSponsorRelease, useAcknowledgeSponsorNotice, useCommercialInbox, useMarkCommercialMessageRead, useSponsorMarket, useCareerLife } from "../api";
 import { CareerError, CareerLoading, CareerSection, OSWALD } from "../components";
 import type { ShellContext } from "../shell";
 import type { SponsorNegotiationChange, SponsorSigningReveal } from "../types";
@@ -12,7 +13,8 @@ const money=(pence:number|undefined|null)=>new Intl.NumberFormat("en-GB",{style:
 const label=(value:string)=>value.replaceAll("_"," ").toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 
 export function SponsorHQPage({ctx}:{ctx:ShellContext}){
-  const {save}=ctx, query=useSponsors(save.id), update=useUpdateSponsorActivity(save.id);
+  const {save}=ctx, query=useSponsors(save.id), inbox=useCommercialInbox(save.id), markRead=useMarkCommercialMessageRead(save.id),
+    market=useSponsorMarket(save.id), commercialProfile=useCareerLife(save.id), update=useUpdateSponsorActivity(save.id);
   const [weeks,setWeeks]=useState<Record<string,number>>({});
   const [notice,setNotice]=useState("");
   const [replace,setReplace]=useState<Record<string,string[]>>({});
@@ -48,7 +50,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
   }
   return <div className="space-y-5">
     {signingReveal&&<SponsorSigningRevealCard deal={signingReveal} onDismiss={()=>setSigningReveal(null)}/>}
-    <CareerSection title="Sponsor headquarters">
+    <CareerSection id="sponsor-overview" title="Sponsor headquarters">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><p className="mb-1 text-xs uppercase tracking-[.18em] text-amber-200">Commercial career</p>
           <h2 className="text-2xl text-white" style={OSWALD}>Your partners, commitments and history</h2>
@@ -70,7 +72,125 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       </article>)}
     </section>
 
-    <CareerSection title="Active sponsor portfolio">
+    <nav aria-label="Sponsor HQ sections" className="sticky top-2 z-20 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/95 p-2 shadow-xl backdrop-blur">
+      {[["sponsor-overview","Overview"],["commercial-standing","Standing"],["representative-inbox","Inbox"],["commercial-landscape","Market"],["sponsor-portfolio","Partners"],["contract-decisions","Offers"],["contract-compliance","Compliance"],["sponsor-activities","Activities"],["sponsor-history","History"],["equipment-studio","Equipment"]].map(([id,title])=>
+        <a key={id} href={`#${id}`} className="shrink-0 rounded-lg px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/65 transition hover:bg-amber-200/10 hover:text-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-200">{title}</a>)}
+    </nav>
+
+    {query.data.guaranteeConfiguration?.status==="AWAITING_BALANCE_APPROVAL"&&<section id="balance-approval" className="scroll-mt-24 rounded-xl border border-amber-200/20 bg-amber-100/[.035] p-4" role="status">
+      <p className="text-[10px] uppercase tracking-[.18em] text-amber-100/60">Commercial terms · balance review</p>
+      <h3 className="mt-1 text-lg text-amber-50" style={OSWALD}>Guarantee values are not approved yet</h3>
+      <p className="mt-1 max-w-3xl text-sm leading-relaxed text-white/60">New offers do not promise unapproved guarantee payments. Existing signed contracts and ledger history are untouched; no historical terms are backfilled.</p>
+      <Link className="mt-3 inline-flex rounded-lg border border-amber-100/20 px-3 py-2 text-xs text-amber-50 hover:bg-amber-50/5" href={`/career/${save.id}/finances`}>Review the current finance proposal</Link>
+    </section>}
+
+    <CareerSection id="commercial-standing" title="Commercial standing">
+      {commercialProfile.isLoading?<p className="p-4 text-sm text-white/55" role="status">Calculating from Career records…</p>
+        :commercialProfile.error?<div className="p-4"><p className="text-sm text-rose-200">Commercial standing is temporarily unavailable.</p>
+          <button type="button" className="mt-2 text-sm text-amber-200 underline" onClick={()=>void commercialProfile.refetch()}>Try again</button></div>
+        :<div className="grid gap-3 p-4 sm:grid-cols-3">
+          {[["Market demand",commercialProfile.data?.profile.commercial.demand],["Commercial activity",commercialProfile.data?.profile.commercial.activity],
+            ["Settled Career commercial income",money(commercialProfile.data?.commercialIncomePence)]].map(([title,value])=>
+            <article key={title} className="rounded-lg border border-amber-100/10 bg-slate-950/50 p-3">
+              <p className="text-[10px] uppercase tracking-widest text-white/45">{title}</p><p className="mt-1 text-lg font-semibold text-amber-100">{value??"Not yet recorded"}</p>
+            </article>)}
+          <p className="text-xs leading-relaxed text-white/55 sm:col-span-3">{commercialProfile.data?.profile.commercial.description}
+            {" "}Standing is based on real sporting results and saved commercial history; it is presentation only, not a performance modifier.</p>
+        </div>}
+    </CareerSection>
+
+    <CareerSection id="representative-inbox" title={`Representative inbox${inbox.data?.unreadCount?` · ${inbox.data.unreadCount} unread`:""}`}>
+      {!!inbox.data?.milestones.length&&<div className="grid gap-2 border-b border-white/10 p-4 sm:grid-cols-2 xl:grid-cols-4">
+        {inbox.data.milestones.map(milestone=><article key={milestone.id} className="rounded-lg border border-amber-100/15 bg-amber-100/[.035] p-3">
+          <p className="text-[9px] uppercase tracking-[.15em] text-amber-100/55">Career milestone · S{milestone.season} W{milestone.week}</p>
+          <h3 className="mt-1 text-sm font-semibold text-amber-50">{milestone.title}</h3>
+          <p className="mt-1 text-xs leading-relaxed text-white/55">{milestone.summary}</p>
+        </article>)}</div>}
+      {inbox.isLoading?<p className="p-4 text-sm text-white/55" role="status">Loading sponsor messages…</p>
+        :inbox.error?<div className="p-4"><p className="text-sm text-rose-200">Sponsor messages could not be loaded.</p>
+          <button type="button" className="mt-2 text-sm text-amber-200 underline" onClick={()=>void inbox.refetch()}>Try again</button></div>
+        :!inbox.data?.messages.length?<div className="p-4">
+          <h3 className="text-base text-white" style={OSWALD}>Your representatives will write when something happens</h3>
+          <p className="mt-1 text-sm text-white/55">Messages come from saved sponsor negotiations and product events—no invented contract terms.</p>
+        </div>
+        :<div className="divide-y divide-white/10">{inbox.data.messages.map(message=><article key={message.id}
+          className={`flex items-start gap-3 p-4 ${message.read?"opacity-70":"bg-amber-300/[.035]"}`}>
+          <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full border border-amber-200/25 bg-amber-200/10 text-xs font-bold text-amber-100">
+            {message.sponsorName.slice(0,2).toUpperCase()}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h3 className="text-sm font-semibold text-white">{message.title}</h3>
+              {!message.read&&<span className="rounded-full bg-amber-200 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-950">New</span>}
+              <time className="ml-auto text-[10px] text-white/40">{new Date(message.createdAt).toLocaleDateString("en-GB")}</time>
+            </div>
+            <p className="mt-1 text-xs text-amber-100/75">{message.sponsorName} · {message.representative}</p>
+            <p className="mt-1 text-sm leading-relaxed text-white/65">{message.summary}</p>
+          </div>
+          {!message.read&&<button type="button" className="shrink-0 rounded-md border border-white/15 px-2.5 py-1.5 text-xs text-white/75 hover:border-amber-200/50 hover:text-white"
+            disabled={markRead.isPending} onClick={()=>markRead.mutate(message.id)}>Mark read</button>}
+        </article>)}</div>}
+    </CareerSection>
+
+    <CareerSection id="commercial-landscape" title="Commercial landscape">
+      {market.isLoading?<p className="p-4 text-sm text-white/55" role="status">Loading current brand rosters…</p>
+        :market.error?<div className="p-4"><p className="text-sm text-rose-200">The sponsor market could not be loaded.</p>
+          <button type="button" className="mt-2 text-sm text-amber-200 underline" onClick={()=>void market.refetch()}>Try again</button></div>
+        :<div className="grid gap-4 p-4 xl:grid-cols-[1.2fr_.8fr]">
+          <div><div className="flex items-end justify-between gap-2"><div>
+              <h3 className="text-base text-white" style={OSWALD}>Brand rosters</h3>
+              <p className="mt-1 text-xs text-white/50">Active NPC agreements from the saved commercial market.</p>
+            </div><span className="text-[10px] uppercase tracking-wider text-white/40">{market.data?.period.season
+              ?`Season ${market.data.period.season} · Week ${market.data.period.week}`:"Career market"}</span></div>
+            {!market.data?.brandRosters.length?<p className="mt-3 rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/50">No active NPC sponsor rosters are recorded for this Career period.</p>
+              :<div className="mt-3 grid gap-2 sm:grid-cols-2">{market.data.brandRosters.slice(0,8).map(brand=><article key={brand.sponsorKey}
+                className="rounded-lg border border-white/10 bg-black/15 p-3">
+                <div className="flex items-center justify-between gap-2"><h4 className="truncate text-sm font-semibold text-white">{brand.sponsorName}</h4>
+                  <span className="shrink-0 rounded-full border border-amber-200/20 px-2 py-0.5 text-[9px] uppercase tracking-wider text-amber-100/80">{label(brand.tier)}</span></div>
+                <p className="mt-1 text-[10px] uppercase tracking-wider text-white/40">{label(brand.category)} · {brand.players.length} players</p>
+                <p className="mt-2 line-clamp-2 text-xs text-white/60">{brand.players.slice(0,4).map(player=>player.npcName).join(" · ")}
+                  {brand.players.length>4?` · +${brand.players.length-4} more`:""}</p>
+              </article>)}</div>}
+            {!!market.data?.brandRosters.slice(8).length&&<details className="mt-2 rounded-lg border border-white/10 px-3 py-2">
+              <summary className="cursor-pointer text-xs text-amber-100/75">View all {market.data.brandRosters.length} brand rosters</summary>
+              <div className="mt-2 space-y-2">{market.data.brandRosters.slice(8).map(brand=><article key={brand.sponsorKey} className="rounded border border-white/10 p-2">
+                <p className="text-xs font-semibold text-white">{brand.sponsorName} · {label(brand.tier)}</p>
+                <p className="mt-1 text-xs text-white/55">{brand.players.map(player=>player.npcName).join(" · ")}</p>
+              </article>)}</div>
+            </details>}
+          </div>
+          <div><h3 className="text-base text-white" style={OSWALD}>Market news</h3>
+            <p className="mt-1 text-xs text-white/50">Updates are drawn from persisted SP-F NPC relationship events.</p>
+            {!market.data?.events.length?<p className="mt-3 rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/50">No sponsor market news is recorded yet.</p>
+              :<div className="mt-3 space-y-2">{market.data.events.slice(0,5).map(event=><article key={event.id} className="rounded-lg border border-white/10 bg-slate-950/60 p-3">
+                <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold text-white">{event.title}</p>
+                  <span className="shrink-0 text-[9px] text-white/40">S{event.season} · W{event.week}</span></div>
+                <p className="mt-1 text-[10px] text-amber-100/65">{event.sponsorName} · {event.npcName}</p>
+                <p className="mt-1 text-xs leading-relaxed text-white/55">{event.summary}</p>
+              </article>)}</div>}
+            {!!market.data?.events.slice(5).length&&<details className="mt-2 rounded-lg border border-white/10 px-3 py-2">
+              <summary className="cursor-pointer text-xs text-amber-100/75">View {market.data.events.length-5} earlier market updates</summary>
+              <div className="mt-2 space-y-2">{market.data.events.slice(5).map(event=><article key={event.id} className="rounded-lg border border-white/10 bg-slate-950/60 p-3">
+                <p className="text-xs font-semibold text-white">{event.title}</p><p className="mt-1 text-[10px] text-amber-100/65">{event.sponsorName} · {event.npcName} · S{event.season} W{event.week}</p>
+                <p className="mt-1 text-xs text-white/55">{event.summary}</p>
+              </article>)}</div>
+            </details>}
+          </div>
+        </div>}
+      {!!market.data?.npcCommercialProfiles.length&&<details className="mx-4 mb-4 rounded-xl border border-white/10 bg-slate-950/35 p-3">
+        <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-amber-100/80">Explore competing Career sponsor histories</summary>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{market.data.npcCommercialProfiles.slice(0,18).map(player=><article key={player.npcId} className="rounded-lg border border-white/10 p-3">
+          <h4 className="text-sm font-semibold text-white">{player.npcName}</h4>
+          {!player.sponsors.length?<p className="mt-1 text-xs text-white/45">No saved active agreement</p>
+            :<ul className="mt-2 space-y-1">{player.sponsors.map(contract=><li key={contract.id} className="text-xs text-amber-100/70">
+              {contract.sponsorName} · {label(contract.tier)} · S{contract.startSeason} W{contract.startWeek}{contract.endSeason?`–S${contract.endSeason} W${contract.endWeek}`:""}
+            </li>)}</ul>}
+          {player.history.length>0&&<p className="mt-2 border-t border-white/10 pt-2 text-[10px] text-white/45">{player.history.slice(0,2).map(event=>event.title).join(" · ")}</p>}
+        </article>)}</div>
+        <p className="mt-2 text-[10px] text-white/40">These are persistent SP-F NPC relationships and events, not generated player comparisons.</p>
+      </details>}
+    </CareerSection>
+
+    <CareerSection id="sponsor-portfolio" title="Active sponsor portfolio">
       {portfolio.length===0?<div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5">
         <h3 className="text-base text-white" style={OSWALD}>No active partnerships yet</h3>
         <p className="mt-1 text-sm text-white/55">When a sponsor agreement is signed, its brand, representative, contract term and commercial terms will appear here. Older contracts with no explicit activity clauses have no duties.</p>
@@ -96,7 +216,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       })}</div>}
     </CareerSection>
 
-    <CareerSection title="Contract decisions">
+    <CareerSection id="contract-decisions" title="Contract decisions">
       <div className="px-4 py-3">
         <p className="text-xs text-white/55">Expiry is calculated from your current Career week to each signed end week. Renewal status below reflects persisted offers only; no offer is assumed from an approaching end date.</p>
         {portfolio.length===0
@@ -156,7 +276,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         </div>}
     </CareerSection>
 
-    <CareerSection title="Compliance and contract releases">
+    <CareerSection id="contract-compliance" title="Compliance and contract releases">
       <p className="mb-3 text-sm text-white/55">Notices appear only when a required activity was genuinely missed and the signed agreement explicitly includes a material-breach term. Releases are limited to signed clauses; no existing agreement is changed.</p>
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="rounded-lg border border-white/10 bg-black/20 p-3" aria-label="Compliance notices">
@@ -201,7 +321,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       </div>
     </CareerSection>
 
-    <CareerSection title="Contractual commitments and opportunities">
+    <CareerSection id="sponsor-activities" title="Contractual commitments and opportunities">
       <p className="mb-3 text-sm text-white/55">Required duties are included in the agreement. Optional activities are unpaid and declining them has no penalty.</p>
       {activities.length===0?<div className="rounded-lg border border-dashed border-white/15 p-5">
         <h3 className="text-base text-white" style={OSWALD}>No sponsor activities due</h3>
@@ -233,7 +353,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       })}</div>}
     </CareerSection>
 
-    <CareerSection title="Representative communications and sponsor history">
+    <CareerSection id="sponsor-history" title="Representative communications and sponsor history">
       {journeys.length===0&&history.length===0?<p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/55">Sponsor conversations and signed partnership history will appear here as they happen.</p>:
         <div className="grid gap-3 lg:grid-cols-2">
           {journeys.map(journey=><article key={journey.id} className="pdc-card p-4">
@@ -253,7 +373,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </article>)}
         </div>}
     </CareerSection>
-    <CareerSection title="Equipment & signature products"><EquipmentStudio ctx={ctx}/></CareerSection>
+    <CareerSection id="equipment-studio" title="Equipment & signature products"><EquipmentStudio ctx={ctx}/></CareerSection>
     {notice&&<p role="status" className="pdc-card p-3 text-sm text-white">{notice}</p>}
   </div>;
 }

@@ -128,7 +128,11 @@ export function review(e:Evidence,season:number,provenance:SeasonReview["provena
       champions,leadingAmateur:awards.find(a=>a.kind==="Amateur Player of the Season")??null,
       retirements:e.players.filter(p=>p.retiredSeason===season),newEntrants:e.players.filter(p=>p.createdSeason===season+1),cardChanges:cardChanges.map(c=>c.endedSeason!==null&&c.endedSeason>season?
         {...c,status:"ACTIVE",endedSeason:null,endedWeek:null}:c)},records:records(e,season),recordEvents:provenance==="CAPTURED"?recordEvents(e,season):[],
-    notes:["Rankings are the previous season's last and this season's last published snapshots, not invented January/December ranks.",
+     productSales:e.productArchive.filter(p=>p.launchSeason<=season).map(p=>{
+       const sales=p.salesBySeason.find(s=>s.season===season);
+       return {id:p.id,name:p.name,manufacturer:p.manufacturer,type:p.type,units:sales?.units??0,grossPence:sales?.grossPence??0,royaltyPence:sales?.royaltyPence??0};
+     }),
+     notes:["Rankings are the previous season's last and this season's last published snapshots, not invented January/December ranks.",
       provenance==="RECONSTRUCTED"?"Reconstructed from retained authorities; missing historical context is not invented.":"Captured after the existing season-transition authorities completed.",
       "No NPC cash/scoring comparison; no Legacy Score, XP or gameplay effect."]};
 }
@@ -161,7 +165,7 @@ export function legacy(e:Evidence,reviews:SeasonReview[],inductions:Induction[],
     descriptors:ds,eras,honours:reviews.flatMap(r=>r.awards),hallOfFame:inductions,
     records:records(e),comparisons,recordEvents:reviews.flatMap(r=>r.recordEvents),world:reviews.map(r=>r.world),
     players:e.players,eventKeys:[...new Map(e.results.map(r=>[r.key,{key:r.key,name:r.name}])).values()],
-    cards:e.cards.filter(c=>c.participant==="HUMAN"),sponsors:e.sponsors,commercial:e.commitments,merchandise:e.merchandise,
+     cards:e.cards.filter(c=>c.participant==="HUMAN"),sponsors:e.sponsors,commercial:e.commitments,merchandise:e.merchandise,productArchive:e.productArchive,
     storiesLink:`/career/${e.saveId}/stories`,pendingReview,
     finalSummary:[ds.length?ds.join(" · "):"A recorded darts Career",`${reviews.length} completed seasons; ${e.retired?`retired in season ${e.currentSeason}, week ${e.currentWeek}`:"Career active"}.`,
       `${overview.wins} wins and ${overview.losses} losses in completed tournament results; ${overview.titles} main-event titles, ${overview.finals} finals.`,

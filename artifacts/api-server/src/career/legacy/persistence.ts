@@ -79,8 +79,31 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
   const commitments=(await tx.execute(sql`SELECT id,season,title,status FROM career_life_commitments
     WHERE career_save_id=${id} ORDER BY season,day,id`)).rows.map(r=>({id:String(r.id),season:n(r,"season"),title:String(r.title),status:String(r.status)}));
   const merch=(await tx.execute(sql`SELECT category,signed_season,active FROM career_life_merchandise WHERE career_save_id=${id}`)).rows[0];
+  const productRows=(await tx.execute(sql`SELECT p.id,p.product_name,p.manufacturer,p.product_type,p.launch_season,d.status,
+      COALESCE(SUM(s.units),0)::int units,COALESCE(SUM(s.gross_pence),0)::bigint gross,
+      COALESCE(SUM(s.royalty_pence),0)::bigint royalty
+    FROM career_signature_products p
+    JOIN career_signature_product_drafts d ON d.career_save_id=p.career_save_id AND d.product_id=p.id
+    LEFT JOIN career_signature_product_sales s ON s.career_save_id=p.career_save_id AND s.product_id=p.id
+    WHERE p.career_save_id=${id}
+    GROUP BY p.id,p.product_name,p.manufacturer,p.product_type,p.launch_season,d.status
+    ORDER BY p.launch_season,p.id`)).rows;
+  const productSales=(await tx.execute(sql`SELECT p.id,p.product_name,p.manufacturer,p.product_type,s.season,
+      COALESCE(SUM(s.units),0)::int units,COALESCE(SUM(s.gross_pence),0)::bigint gross,
+      COALESCE(SUM(s.royalty_pence),0)::bigint royalty
+    FROM career_signature_products p JOIN career_signature_product_sales s
+      ON s.career_save_id=p.career_save_id AND s.product_id=p.id
+    WHERE p.career_save_id=${id} GROUP BY p.id,p.product_name,p.manufacturer,p.product_type,s.season
+    ORDER BY s.season,p.id`)).rows;
+  const productArchive=productRows.map(p=>({
+    id:String(p.id),name:String(p.product_name),manufacturer:String(p.manufacturer),type:String(p.product_type),
+    launchSeason:n(p,"launch_season"),state:String(p.status),unitsSold:n(p,"units"),grossPence:n(p,"gross"),royaltyPence:n(p,"royalty"),
+    salesBySeason:productSales.filter(s=>String(s.id)===String(p.id)).map(s=>({season:n(s,"season"),units:n(s,"units"),
+      grossPence:n(s,"gross"),royaltyPence:n(s,"royalty")})),
+  }));
   return {saveId:id,currentSeason:Number(root.current_season),currentWeek:Number(root.current_week),retired:root.status==="RETIRED",
     players,totals,results,rankings,cards,money,sponsors,qualifications,decisions,commitments,
+    productArchive,
     ages:profile?.dob&&profile?.start?[...new Set(totals.filter(t=>t.id==="HUMAN").map(t=>t.season))].map(season=>({
       participant:"HUMAN",season,atStart:ageOn(String(profile.dob),careerDate(String(profile.start),season,1))})):[],
     merchandise:merch?{category:String(merch.category),signedSeason:n(merch,"signed_season"),active:merch.active===true}:null};
