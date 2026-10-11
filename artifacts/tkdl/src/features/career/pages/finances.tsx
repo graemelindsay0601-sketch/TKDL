@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Briefcase, Handshake, Receipt, Wallet } from "lucide-react";
+import { Briefcase, CalendarClock, Coins, Handshake, Receipt, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useNegotiateOffer, useSponsors, errorMessage } from "../api";
 import { LEDGER_FILTERS, circuitLabel, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
@@ -234,10 +234,10 @@ function CommercialOverview({ commercial }: { commercial: SponsorCommercialOverv
   return (
     <CareerSection title={`Commercial position · Season ${commercial.season}, Week ${commercial.week}`} icon={<Handshake className="w-3.5 h-3.5" />} accent="#ffd24a">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 p-3">
-        <StatTile label="Cash received this season" value={formatPence(cash.total)} sub="Only posted sponsor cash is included" tone="gold" />
-        <StatTile label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Applied to eligible costs; not cash" tone="neutral" />
-        <StatTile label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Future payments; not in your balance yet" tone="neutral" />
-        <StatTile label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Not guaranteed and not counted as cash" tone="neutral" />
+        <StatTile icon={<Coins size={16}/>} label="Cash received this season" value={formatPence(cash.total)} sub="Only posted sponsor cash is included" tone="gold" />
+        <StatTile icon={<ShieldCheck size={16}/>} label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Applied to eligible costs; not cash" tone="neutral" />
+        <StatTile icon={<CalendarClock size={16}/>} label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Future payments; not in your balance yet" tone="neutral" />
+        <StatTile icon={<Sparkles size={16}/>} label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Not guaranteed and not counted as cash" tone="neutral" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
         <div className="px-4 py-3 border-b lg:border-b-0 lg:border-r" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
