@@ -151,11 +151,14 @@ export type MatchStage = "FINAL" | "SEMI_FINAL" | "QUARTER_FINAL" | "EARLY" | nu
  * The same moment gets different spectacle at different levels. Unknown context
  * (legacy saves without metadata) always gets the restrained level-0/1 card.
  */
-export function spectacleFor(moment: MomentKind, level: AtmosphereLevel | null, opts: { matchStage?: MatchStage } = {}): Spectacle {
+export function spectacleFor(moment: MomentKind, level: AtmosphereLevel | null, opts: { matchStage?: MatchStage; fullCeremony?: boolean } = {}): Spectacle {
   const r = level ? rank(level) : -1;
   const light = level ? LEVEL_PROFILE[level].light : null;
   const s = (intensity: Spectacle["intensity"], scale: Spectacle["scale"], extra: Partial<Spectacle> = {}): Spectacle =>
     ({ intensity, light: intensity === 0 ? null : light, spotlight: false, celebration: "none", pyro: false, scale, ...extra });
+  const victory = (result: Spectacle): Spectacle => opts.fullCeremony === false
+    ? { ...result, intensity: Math.min(result.intensity, 2) as Spectacle["intensity"], spotlight: false, celebration: "none", pyro: false, scale: "banner" }
+    : result;
   switch (moment) {
     case "ARRIVAL": return r < 0 ? s(0, "inline") : r <= rank("NATIONAL") ? s(1, "banner") : r <= rank("STAGE") ? s(2, "banner") : s(3, "stage");
     case "MATCH_INTRO": {
@@ -166,13 +169,13 @@ export function spectacleFor(moment: MomentKind, level: AtmosphereLevel | null, 
     }
     case "QUALIFICATION": return r < 0 ? s(0, "inline") : s(r >= rank("FLOOR") ? 2 : 1, "banner");
     case "VICTORY":
-      if (r < 0) return s(1, "banner");
-      if (r <= rank("COUNTY")) return s(1, "banner");
-      if (r === rank("NATIONAL")) return s(2, "banner", { celebration: "silver-light" });
-      if (r === rank("FLOOR")) return s(2, "banner");
-      if (r === rank("STAGE")) return s(3, "stage", { spotlight: true, celebration: "silver-light" });
-      if (r === rank("MAJOR")) return s(4, "full", { spotlight: true, celebration: "gold-dense", pyro: true });
-      return s(4, "full", { spotlight: true, celebration: "palace-tickertape", pyro: true });
+      if (r < 0) return victory(s(1, "banner"));
+      if (r <= rank("COUNTY")) return victory(s(1, "banner"));
+      if (r === rank("NATIONAL")) return victory(s(2, "banner", { celebration: "silver-light" }));
+      if (r === rank("FLOOR")) return victory(s(2, "banner"));
+      if (r === rank("STAGE")) return victory(s(3, "stage", { spotlight: true, celebration: "silver-light" }));
+      if (r === rank("MAJOR")) return victory(s(4, "full", { spotlight: true, celebration: "gold-dense", pyro: true }));
+      return victory(s(4, "full", { spotlight: true, celebration: "palace-tickertape", pyro: true }));
     case "MILESTONE": return r < 0 ? s(1, "banner") : s(r >= rank("MAJOR") ? 3 : 2, "banner");
     case "DOCUMENTARY_CHAPTER": return s(r < 0 ? 1 : 2, "stage");
   }

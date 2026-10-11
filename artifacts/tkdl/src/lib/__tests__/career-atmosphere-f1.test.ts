@@ -168,7 +168,7 @@ test("accessibility: art is decorative and behind content; sections are labelled
   assert.match(out, /<section[^>]*aria-label="Major champion: The Open Masters"/);
   assert.match(out, /class="ca-backdrop[^"]*"[^>]*aria-hidden="true"/);
   for (const img of out.match(/<img[^>]*>/g) ?? []) { assert.match(img, /alt=""/); }
-  assert.match(out, /<h2 class="ca-title">The Open Masters<\/h2>/);
+  assert.match(out, /<h2\b[^>]*class="ca-title"[^>]*>The Open Masters<\/h2>/);
   assert.match(out, /ca-anim/);
   assert.doesNotMatch(html(h(mod.CareerMomentScene, { moment: "VICTORY", event: ev("open-championship"), animate: false })), /ca-anim/, "Career depth.animate=false stops motion");
   const css = readFileSync(path.join(MODULE, "atmosphere.css"), "utf8");
@@ -199,13 +199,17 @@ test("assets: every referenced file exists, renders are WebP and the payload is 
   assert.ok(statSync(path.join(VENUES, "career-palace-arena.png")).size > 0, "existing venue art left untouched");
 });
 
-test("ownership: the atmosphere module is isolated and nothing server-side depends on it", () => {
+test("ownership: atmosphere stays presentation-only and is integrated through Career screens", () => {
   for (const f of readdirSync(MODULE).filter(f => /\.tsx?$/.test(f))) {
     const imports = [...readFileSync(path.join(MODULE, f), "utf8").matchAll(/from "([^"]+)"/g)].map(m => m[1]);
     for (const i of imports) assert.ok(i === "react" || i.startsWith("./"), `${f} imports ${i}`);
   }
-  const shared = ["identity.tsx", "shell.tsx", "career.css", "index.tsx"].map(f => readFileSync(path.join(ROOT, "src/features/career", f), "utf8"));
-  for (const s of shared) assert.doesNotMatch(s, /atmosphere/, "not wired into shared Career files by F1");
+  const shell = readFileSync(path.join(ROOT, "src/features/career/shell.tsx"), "utf8");
+  const tournament = readFileSync(path.join(ROOT, "src/features/career/tournament/components.tsx"), "utf8");
+  assert.match(shell, /CareerStageBackdrop/);
+  assert.match(tournament, /fullCeremony:\s*v\.depth\.fullCeremony/);
+  const serverFiles = readdirSync(path.join(ROOT, "../api-server/src/career"), { recursive: true }).filter(f => typeof f === "string" && /\.tsx?$/.test(f));
+  for (const f of serverFiles) assert.doesNotMatch(readFileSync(path.join(ROOT, "../api-server/src/career", f), "utf8"), /features\/career\/atmosphere/);
 });
 
 // ---------------------------------------------------------------- visual evidence (optional)

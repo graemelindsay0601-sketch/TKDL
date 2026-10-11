@@ -160,7 +160,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
 
 function PlayerCard({p}:{p:Player}) {
   return <article className="tournament-player" aria-label={`${p.name} opponent identity`}>
-    <CareerShirt name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured"/><div><h3 style={OSWALD}>{p.name}</h3>{p.nickname&&<p>“{String(p.nickname)}”</p>}
+    <CareerShirt playerId={p.key === "HUMAN" ? undefined : p.key} name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured"/><div><h3 style={OSWALD}>{p.name}</h3>{p.nickname&&<p>“{String(p.nickname)}”</p>}
       <p className="text-xs">{p.nationality||"Country not recorded"}{p.ranking?` · World #${p.ranking}`:""} · {p.titles} recorded titles</p>
       <div className="flex gap-1 flex-wrap mt-2">{p.badges.map(b=><StatusBadge key={b.label} label={b.label} tone="gold"/>)}</div></div>
   </article>;

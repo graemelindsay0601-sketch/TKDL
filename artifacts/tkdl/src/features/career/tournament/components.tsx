@@ -32,7 +32,7 @@ const awardInput = (v: TView) => ({ event: { definitionKey: v.event.definitionKe
 /** F1: atmosphere for this event and moment, honouring server presentation depth and reduced motion. */
 function Stage({ v, moment, matchStage = null, className = "" }: { v: TView; moment: MomentKind; matchStage?: MatchStage; className?: string }) {
   const atmosphere = resolveAtmosphere(atmosphereFromTournament(v.event));
-  const spectacle = spectacleFor(moment, atmosphere.level, { matchStage });
+  const spectacle = spectacleFor(moment, atmosphere.level, { matchStage, fullCeremony: v.depth.fullCeremony });
   if (spectacle.intensity === 0) return null;
   return <CareerStageBackdrop atmosphere={atmosphere} spectacle={spectacle} animate={v.depth.animate && !v.presentation.reducedMotion} eager className={className} />;
 }
@@ -229,7 +229,7 @@ export function TaleOfTheTape({ v, match }: { v: TView; match: TMatch }) {
 function TapeSide({ p, side, lines }: { p: TPlayer; side: "left" | "right"; lines: string[] }) {
   return (
     <article className={`tb-tape__side is-${side}`} aria-label={`${p.name} profile`}>
-      <CareerShirt name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
+      <CareerShirt playerId={p.key === "HUMAN" ? undefined : p.key} name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
       <div className="min-w-0">
         <h3 style={OSWALD}>{p.name}</h3>
         {p.nickname && <p className="tb-nick">“{String(p.nickname)}”</p>}
@@ -268,7 +268,7 @@ function WalkOnCard({ p, order, caption }: { p: TPlayer; order: number; caption:
   return (
     <article className="tb-walkon__card" style={{ "--tb-order": order } as CSSProperties}>
       <span className="tb-walkon__caption">{caption}</span>
-      <CareerShirt name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
+      <CareerShirt playerId={p.key === "HUMAN" ? undefined : p.key} name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
       <h3 style={OSWALD}>{p.name}</h3>
       {p.nickname && <p className="tb-nick">“{String(p.nickname)}”</p>}
       <p className="tb-small tb-dim">{p.ranking ? `World #${p.ranking}` : "Unranked"}{p.seed ? ` · Seed ${p.seed}` : ""}</p>

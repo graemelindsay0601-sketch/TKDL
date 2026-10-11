@@ -1,0 +1,13 @@
+.sponsor-print-review { min-height:100vh; padding:22px; background:#07111d; color:#eff2f5; font:13px/1.4 Inter,Arial,sans-serif; }
+.sponsor-print-review>header { margin-bottom:20px; padding-bottom:15px; border-bottom:1px solid #ffffff20; }
+.sponsor-print-review>header>span { color:#e4b751; font-weight:800; letter-spacing:.16em; font-size:10px; }
+.sponsor-print-review h1 { margin:7px 0 4px; font:700 28px/1.05 Oswald,Arial,sans-serif; text-transform:uppercase; }
+.sponsor-print-review>header p { margin:0; color:#94a4b2; }
+.sponsor-print-review>section { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
+.sponsor-print-review article { min-width:0; padding:10px; border:1px solid #ffffff1a; border-radius:9px; background:linear-gradient(145deg,#122338,#0a1521); }
+.sponsor-print-review__art { display:grid; min-height:270px; place-items:center; }
+.sponsor-print-review__art .career-premium-shirt { max-width:240px; }
+.sponsor-print-review article h2 { margin:8px 0 3px; color:#f0c45a; font-size:11px; line-height:1.25; }
+.sponsor-print-review article small { color:#91a2b2; font-size:10px; }
+@media (max-width:1050px) { .sponsor-print-review>section { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:680px) { .sponsor-print-review { padding:12px; } .sponsor-print-review>section { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; } .sponsor-print-review__art { min-height:205px; } .sponsor-print-review__art .career-premium-shirt { max-width:180px; } .sponsor-print-review article { padding:7px; } }

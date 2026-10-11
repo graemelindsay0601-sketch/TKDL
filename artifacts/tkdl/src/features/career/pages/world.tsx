@@ -11,6 +11,7 @@ import "./trophy-cabinet.css";
 import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
 import {CareerMapPage} from "./map";
+import {sponsorMarkIdentity} from "../apparel/brand-mark-identity";
 
 export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
   const world=useWorldContent(ctx.save.id);
@@ -161,13 +162,12 @@ export function PresentationPage({ctx}:{ctx:ShellContext}) {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-amber-200">Eligible equipment partners</p>
               <h3 className="mt-1 text-lg text-white" style={OSWALD}>Launch a signature line</h3>
-              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/50">Launch eligibility is checked against the current contract and Career record. This action records the product; it does not invent sales or pay a royalty.</p></div>
+           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/50">Only active equipment contracts with an explicit signed product right appear here. Launching records the product; it does not invent sales or pay a royalty.</p></div>
           </div>
           {!p.data.productCandidates.length&&<p className="mt-3 text-sm text-white/50">An active equipment partnership is required before a signature-product launch can be offered.</p>}
           <div className="mt-3 grid gap-3 md:grid-cols-2">{!ctx.retired&&p.data.productCandidates.map(candidate=><article key={candidate.contractId} className="rounded-lg border border-white/10 bg-white/[.025] p-3">
             <p className="text-xs uppercase tracking-wider text-white/45">Equipment partner</p><h4 className="mt-1 text-base text-white" style={OSWALD}>{titleCase(candidate.manufacturer)}</h4>
-            {!candidate.hasCommercialAgreement&&<p className="mt-1 text-xs text-amber-100/70">An active merchandise agreement is required to launch.</p>}
-            <div className="mt-3 flex flex-wrap gap-2">{candidate.types.map(type=><button className="career-btn career-btn-primary" key={type} disabled={launch.isPending||!candidate.hasCommercialAgreement}
+             <div className="mt-3 flex flex-wrap gap-2">{candidate.types.map(type=><button className="career-btn career-btn-primary" key={type} disabled={launch.isPending}
               onClick={()=>launch.mutate({contractId:candidate.contractId,productType:type},{onSuccess:()=>{setMessage("");setLaunchReveal({manufacturer:titleCase(candidate.manufacturer),type,season:p.data.season});},onError:e=>setMessage(errorMessage(e))})}>
               Launch {titleCase(type.replaceAll("_"," "))}
             </button>)}</div>
@@ -202,7 +202,9 @@ function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) 
   const edit=useEditPresentation(saveId),[identity,setIdentity]=useState<EditableIdentity>(data.identity),[message,setMessage]=useState("");
   const set=(key:string,value:string)=>setIdentity({...identity,[key]:value});
   return <CareerSection title="Presentation identity"><form className="p-4 space-y-3" onSubmit={e=>{e.preventDefault();edit.mutate(identity,{onSuccess:()=>setMessage("Presentation saved."),onError:e=>setMessage(errorMessage(e))});}}>
-    <CareerKitCustomizer identity={identity} sponsors={data.placements} playerName="Your Career player" disabled={!data.canEdit} onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
+     <CareerKitCustomizer identity={identity} sponsors={data.placements}
+       eligibleMakerBrandIds={data.placements.map(partner=>sponsorMarkIdentity(undefined,partner.brandName)?.id).filter((id):id is string=>Boolean(id))}
+       playerName="Your Career player" disabled={!data.canEdit} onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
     <label className="block">Nickname <input maxLength={32} value={identity.nickname??""} onChange={e=>set("nickname",e.target.value)} disabled={!data.canEdit}/></label>
     <label className="block">Competition category <select value={String(identity.competitionCategory)} onChange={e=>set("competitionCategory",e.target.value)} disabled={!data.canEdit}>
       <option value="OPEN">Open / mixed pathways</option><option value="WOMEN">Declared women's-category eligibility + open / mixed pathways</option></select></label>

@@ -45,6 +45,8 @@
 .career-kit-library__pagination>div { display:flex; align-items:center; gap:8px; }
 .career-kit-library__pagination button { width:30px; height:30px; display:grid; place-items:center; border:1px solid #ffffff20; border-radius:7px; color:#dde7f0; background:#ffffff07; cursor:pointer; }
 .career-kit-library__pagination button:disabled { opacity:.4; cursor:not-allowed; }
+.career-kit-library__maker-filter { display:flex; align-items:center; gap:8px; color:#9babb9; font-size:.66rem; }
+.career-kit-library__maker-filter select { min-width:165px; max-width:100%; border:1px solid #ffffff1c; border-radius:7px; padding:7px 9px; color:#e8eef3; background:#0a1520; }
 @media (max-width:760px) { .career-kit-library { gap:11px; padding:11px; } .career-kit-library__feature { min-height:155px; gap:8px; padding:8px; } .career-kit-library__feature-art { flex-basis:108px; height:145px; } .career-kit-library__grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; } .career-kit-library__card-art { height:98px; } .career-kit-library__card-art img { padding-inline:8px; } .career-kit-library__card-copy { padding:6px; } }
 @media (max-width:420px) { .career-kit-library__header h3 { font-size:1.08rem; } .career-kit-library__header p { max-width:230px; font-size:.66rem; } .career-kit-library__feature { align-items:flex-start; flex-direction:column; } .career-kit-library__feature-art { width:100%; height:175px; flex-basis:auto; border-right:0; border-bottom:1px solid #ffffff14; } .career-kit-library__feature-info { padding:3px 4px; } .career-kit-library__grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (prefers-reduced-motion:reduce) { .career-kit-library__card { transition:none; } }
@@ -121,6 +123,13 @@
 .career-kit-library__partner-list { display:flex; flex-wrap:wrap; gap:5px; }
 .career-kit-library__partner-list>span { display:grid; gap:1px; padding:3px 6px; border:1px solid #ffffff1c; border-radius:4px; color:#e8edf3; background:#071522a8; font-size:.57rem; }
 .career-kit-library__partner-list small { color:#8ea1b3; font-size:.48rem; text-transform:uppercase; }
+.career-kit-library__feature-art>.career-premium-shirt { z-index:1; width:min(84%,205px); max-width:100%; filter:drop-shadow(0 13px 13px #0008); }
+.career-kit-library__card-art>.career-premium-shirt { position:relative; z-index:1; width:98px; max-width:100%; height:auto; color:inherit; filter:drop-shadow(0 5px 5px #0006); }
+.career-kit-library__debug { width:100%; margin-top:4px; border-top:1px solid #ffffff18; padding-top:7px; color:#9daebe; font-size:.62rem; }
+.career-kit-library__debug summary { width:max-content; cursor:pointer; color:#e5c277; font-weight:750; }
+.career-kit-library__debug>div { display:grid; place-items:center; min-height:190px; }
+.career-kit-library__debug .career-premium-shirt { width:190px; }
+.career-kit-library__debug small { display:block; color:#8598aa; line-height:1.45; }
 .career-kit-library__toolbar { align-items:stretch; flex-direction:column; gap:9px; }
 .career-kit-library__catalog-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
 .career-kit-library__catalog-heading>div { display:grid; gap:3px; }
@@ -167,10 +176,12 @@
   .career-kit-library__feature { flex-direction:column; }
   .career-kit-library__feature-art { min-height:235px; flex-basis:auto; border-right:0; border-bottom:1px solid #ffffff15; }
   .career-kit-library__feature-art>.career-shirt { width:min(69%,190px); }
+  .career-kit-library__feature-art>.career-premium-shirt { width:min(69%,190px); }
   .career-kit-library__feature-info { padding:12px; }
   .career-kit-library__colourways { grid-template-columns:repeat(5,minmax(0,1fr)); }
   .career-kit-library__grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .career-kit-library__card-art { height:118px; }
   .career-kit-library__card-art>.career-shirt { position:relative; top:auto; left:auto; width:102px; height:108px; }
+  .career-kit-library__card-art>.career-premium-shirt { width:102px; }
 }
 @media (prefers-reduced-motion:reduce) { .career-kit-library__card,.career-kit-library__colour-option { transition:none; } }

@@ -1,25 +1,21 @@
 import {useId,type CSSProperties,type ReactNode} from "react";
 import {eventIdentity} from "./presentation";
 import {CAREER_KIT_BY_ID} from "./kit-catalog";
+import {PremiumCareerShirt} from "./apparel/premium-shirt";
+import {stableNpcWardrobeKitDesignId,type NpcWardrobeTier} from "./apparel/npc-wardrobe";
 import {PremiumTrophy,TROPHY_ART,type TrophySize} from "./trophies";
 
 export type ShirtIdentity={shirtTemplate?:string;kitDesignId?:string;kitTintEnabled?:boolean;primaryColour?:string;secondaryColour?:string;accentColour?:string};
-export type ShirtPartner={brandName:string;slot:string};
+export type ShirtPartner={brandName:string;slot:string;brandId?:string;theme?:"light"|"dark"|"mono"};
 const colour=(v:string|undefined,fallback:string)=>/^#[0-9a-f]{6}$/i.test(v??"")?v!:fallback;
-export function CareerShirt({identity={},sponsors=[],name="Player",scale="standard"}:{identity?:ShirtIdentity;sponsors?:ShirtPartner[];name?:string;scale?:"compact"|"standard"|"featured"|"profile"}) {
+export function CareerShirt({identity={},sponsors=[],name="Player",scale="standard",playerId,wardrobeTier="PROFESSIONAL"}:{identity?:ShirtIdentity;sponsors?:ShirtPartner[];name?:string;scale?:"compact"|"standard"|"featured"|"profile";playerId?:string;wardrobeTier?:NpcWardrobeTier}) {
   const clip=useId().replace(/:/g,""),p=colour(identity.primaryColour,"#20334A"),s=colour(identity.secondaryColour,"#FFFFFF"),a=colour(identity.accentColour,"#C8A050");
-  const torso="M32 20 53 12 67 12 88 20 112 39 98 62 85 53 85 126 35 126 35 53 22 62 8 39Z";
-  const kit=identity.kitDesignId?CAREER_KIT_BY_ID.get(identity.kitDesignId):undefined;
+  const resolvedKitId=identity.kitDesignId??(playerId?stableNpcWardrobeKitDesignId(playerId,{tier:wardrobeTier,activeMakerBrandIds:sponsors.filter(x=>x.slot==="EQUIPMENT_PARTNER"&&x.brandId).map(x=>x.brandId!)}):undefined);
+  const kit=resolvedKitId?CAREER_KIT_BY_ID.get(resolvedKitId):undefined;
   if(kit) {
-    const image=`${import.meta.env.BASE_URL}assets/career-kit-library/${kit.image}`;
-    const partnerSlots:Record<string,[number,number]>={EQUIPMENT_PARTNER:[50,34],APPAREL_PARTNER:[69,21],PRIMARY_COMMERCIAL:[50,54],SECONDARY_COMMERCIAL:[19,37],LOCAL_REGIONAL_PARTNER:[78,64]};
-    const wash={"--career-kit-mask":`url("${image}")`,"--career-kit-primary":p} as CSSProperties;
-    const tintEnabled=identity.kitTintEnabled!==false&&Boolean(identity.primaryColour);
-    return <span className={`career-shirt career-shirt-${scale} career-shirt--library`} role="img" aria-label={`${name}'s ${kit.name} shirt${sponsors.length?`; partners: ${sponsors.map(x=>x.brandName).join(", ")}`:""}`}>
-      <img className="career-shirt__artwork" src={image} alt="" aria-hidden="true"/>{tintEnabled&&<span className="career-shirt__wash" style={wash} aria-hidden="true"/>}
-      {sponsors.slice(0,5).map((partner,index)=>{const pos=partnerSlots[partner.slot]??[50,72];return <span className="career-shirt__partner" key={`${partner.slot}:${partner.brandName}:${index}`} style={{left:`${pos[0]}%`,top:`${pos[1]}%`}}>{partner.brandName.slice(0,15).toUpperCase()}</span>;})}
-    </span>;
+    return <PremiumCareerShirt identity={{...identity,kitDesignId:resolvedKitId}} sponsors={sponsors} name={name} scale={scale}/>;
   }
+  const torso="M32 20 53 12 67 12 88 20 112 39 98 62 85 53 85 126 35 126 35 53 22 62 8 39Z";
   const slots:Record<string,[number,number]>={EQUIPMENT_PARTNER:[60,45],APPAREL_PARTNER:[77,30],PRIMARY_COMMERCIAL:[60,68],SECONDARY_COMMERCIAL:[23,44],LOCAL_REGIONAL_PARTNER:[60,95]};
   return <svg viewBox="0 0 120 140" className={`career-shirt career-shirt-${scale}`} role="img" aria-label={`${name}'s ${identity.shirtTemplate??"CLASSIC"} shirt${sponsors.length?`; partners: ${sponsors.map(x=>x.brandName).join(", ")}`:""}`}>
     <defs><clipPath id={clip}><path d={torso}/></clipPath></defs><path d={torso} fill={p} stroke="#ffffff50" strokeWidth="1.5"/>
@@ -30,8 +26,8 @@ export function CareerShirt({identity={},sponsors=[],name="Player",scale="standa
     </g><path d="M53 12Q60 30 67 12L72 16Q60 38 48 16Z" fill={a}/>
   </svg>;
 }
-export function CareerPlayerCard({name,nickname,nationality,rank,identity,sponsors,badges=[],scale="standard"}:{name:string;nickname?:unknown;nationality?:string;rank?:number|null;identity?:ShirtIdentity;sponsors?:ShirtPartner[];badges?:string[];scale?:"compact"|"standard"|"featured"|"profile"}) {
-  return <article className={`career-player career-player-${scale}`}><CareerShirt name={name} identity={identity} sponsors={sponsors} scale={scale}/><div><strong>{name}</strong>{typeof nickname==="string"&&nickname&&<p>“{nickname}”</p>}<p>{nationality}{rank?` · World #${rank}`:""}</p><div className="career-badges">{badges.slice(0,2).map(b=><span key={b}>{b}</span>)}</div></div></article>;
+export function CareerPlayerCard({name,nickname,nationality,rank,identity,sponsors,badges=[],scale="standard",playerId}:{name:string;nickname?:unknown;nationality?:string;rank?:number|null;identity?:ShirtIdentity;sponsors?:ShirtPartner[];badges?:string[];scale?:"compact"|"standard"|"featured"|"profile";playerId?:string}) {
+  return <article className={`career-player career-player-${scale}`}><CareerShirt playerId={playerId} name={name} identity={identity} sponsors={sponsors} scale={scale}/><div><strong>{name}</strong>{typeof nickname==="string"&&nickname&&<p>“{nickname}”</p>}<p>{nationality}{rank?` · World #${rank}`:""}</p><div className="career-badges">{badges.slice(0,2).map(b=><span key={b}>{b}</span>)}</div></div></article>;
 }
 export function CareerEventIdentity({eventKey,circuit,level,children,className=""}:{eventKey?:string;circuit?:string;level?:string|number;children:ReactNode;className?:string}) {
   const t=eventIdentity(eventKey,circuit,level);

@@ -1,15 +1,8 @@
 /**
  * F2 — combined E2 (trophies) + F1 (atmosphere) integration contract.
  *
- * NOT part of this branch's test suite: E2 and F1 are separate, unmerged branches.
- * scripts/f2/run-combined-certification.sh builds a throwaway worktree of
- * origin/main + E2 + F1 (never pushed), copies this file into it and runs it
- * against REAL tournament reads and trophy-cabinet rows captured from the
- * certification harness (scripts/f2/fixtures/*.json).
- *
- * `plan()` is a REFERENCE ADAPTER: the exact rules the integration owner must
- * implement where Career screens consume E2/F1. It is test code, not a product
- * presentation system.
+ * Runs on the combined G1 + E1 release-candidate branch against real tournament
+ * reads and trophy-cabinet rows captured from the certification harness.
  */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,7 +29,7 @@ before(async () => {
 after(async () => { await vite?.close(); });
 const html = (el: Parameters<typeof renderToStaticMarkup>[0]) => renderToStaticMarkup(el);
 
-/** REFERENCE ADAPTER — the integration rules, expressed once. */
+/** Fixture adapter — the tournament view contract consumed by the product screens. */
 function plan(v: View) {
   const atmosphere = A.atmosphereFromTournament(v.event);
   const award = { event: { definitionKey: v.event.definitionKey, circuit: v.event.circuit, classification: v.event.classification }, persistedTrophyId: v.event.content?.trophyId ?? null };
@@ -78,9 +71,15 @@ test("server presentation depth is respected: arrival gate and animation flag", 
   }
 });
 
-test("depth.fullCeremony=false must reduce the victory ceremony", { todo: "GAP F1-1: CareerMomentScene has no ceremony/intensity cap; integration must pass one" }, () => {
-  // When F1 adds a cap (e.g. `ceremony={v.depth.fullCeremony ? "full" : "reduced"}`), assert a reduced victory has no pyro or full-height scale.
-  assert.fail("F1 cannot yet honour depth.fullCeremony");
+test("depth.fullCeremony=false caps major victory effects while keeping the recorded win", () => {
+  const v = { ...views.won, depth: { ...views.won.depth, fullCeremony: false } };
+  const scene = html(h(A.CareerMomentScene, {
+    moment: "VICTORY", event: A.atmosphereFromTournament(v.event), fullCeremony: v.depth.fullCeremony,
+    headline: v.event.name,
+  }));
+  assert.match(scene, /data-intensity="[0-2]"/);
+  assert.doesNotMatch(scene, /ca-pyro|ca-confetti|ca-scale-full/);
+  assert.match(scene, new RegExp(v.event.name));
 });
 
 test("cabinet rows: real recorded wins resolve by actual event key; weekly/qualifier wins show no trophy", () => {

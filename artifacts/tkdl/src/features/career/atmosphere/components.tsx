@@ -73,12 +73,12 @@ export type MomentFact = { label: string; value: string };
  * A Career moment with level-appropriate spectacle. The victory variant (tournament,
  * Major, World) is derived from the event itself; callers cannot claim a bigger stage.
  */
-export function CareerMomentScene({ moment, event, headline, facts = [], matchStage = null, participants, animate = true, headingLevel = 2, className = "", children }: {
+export function CareerMomentScene({ moment, event, headline, facts = [], matchStage = null, fullCeremony, participants, animate = true, headingLevel = 2, className = "", children }: {
   moment: MomentKind; event?: AtmosphereInput | null; headline?: string | null; facts?: MomentFact[]; matchStage?: MatchStage;
-  participants?: [string, string] | null; animate?: boolean; headingLevel?: 2 | 3; className?: string; children?: ReactNode;
+  fullCeremony?: boolean; participants?: [string, string] | null; animate?: boolean; headingLevel?: 2 | 3; className?: string; children?: ReactNode;
 }) {
   const a = resolveAtmosphere(event);
-  const sp = spectacleFor(moment, a.level, { matchStage });
+  const sp = spectacleFor(moment, a.level, { matchStage, fullCeremony });
   const eyebrow = momentEyebrow(moment, a);
   const title = headline ?? event?.eventName ?? null;
   const H = `h${headingLevel}` as "h2";

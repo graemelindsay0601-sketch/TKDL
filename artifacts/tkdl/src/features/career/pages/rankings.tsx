@@ -124,7 +124,7 @@ export function RankingTable({ rows, cutLines,saveId }: { rows: RankingRow[]; cu
             <tr data-me={r.participantKey === "HUMAN"} aria-current={r.participantKey === "HUMAN" ? "true" : undefined}>
               <td className="font-black tabular-nums" style={OSWALD}>{r.position}</td>
               <td><Movement movement={r.movement} isNew={r.isNew} /></td>
-              <td><span className="flex items-center gap-1.5 min-w-0 career-ranking-shirt"><CareerShirt scale="compact" name={r.name??"Player"} identity={r.participantKey==="HUMAN"?p.data?.identity:npcShirt(r.participantKey)} sponsors={r.participantKey==="HUMAN"?p.data?.placements:[]}/><Flag code={r.nationality}/>{saveId?<Link href={`/career/${saveId}/${r.participantKey==="HUMAN"?"my-career":`world/players/${r.participantKey}`}`}>{r.participantKey==="HUMAN"?"You":r.name}</Link>:<span>{r.participantKey==="HUMAN"?"You":r.name}</span>}</span></td>
+              <td><span className="flex items-center gap-1.5 min-w-0 career-ranking-shirt"><CareerShirt playerId={r.participantKey==="HUMAN"?undefined:r.participantKey} scale="compact" name={r.name??"Player"} identity={r.participantKey==="HUMAN"?p.data?.identity:npcShirt(r.participantKey)} sponsors={r.participantKey==="HUMAN"?p.data?.placements:[]}/><Flag code={r.nationality}/>{saveId?<Link href={`/career/${saveId}/${r.participantKey==="HUMAN"?"my-career":`world/players/${r.participantKey}`}`}>{r.participantKey==="HUMAN"?"You":r.name}</Link>:<span>{r.participantKey==="HUMAN"?"You":r.name}</span>}</span></td>
               <td className="tabular-nums" style={{ textAlign: "right", ...OSWALD }}>{formatPence(r.valuePence, { compact: true })}</td>
             </tr>
           </Fragment>
