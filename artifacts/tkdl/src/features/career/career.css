@@ -740,3 +740,6 @@
 .career-champion-list li:first-child { border-top:0; }
 .career-champion-list span { font:800 .74rem Oswald,sans-serif; color:#ffd27a; min-width:30px; }
 .career-champion-list strong { color:#fff; font-size:.86rem; }
+.career-root .career-discovery-tiles { grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr)); }
+.career-root .career-discovery-tiles .career-world-tile { min-height:84px; }
+.career-root .career-discovery-tiles .career-world-tile strong { font-size:.88rem; letter-spacing:.04em; }

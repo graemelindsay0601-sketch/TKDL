@@ -5,36 +5,43 @@ import type { ShellContext } from "../shell";
 import type { Tone } from "../model";
 import type { RecognitionLevel, RecognitionView } from "../../../../../api-server/src/career/recognition/types";
 import { FactLine } from "./facts-panels";
+import { CareerPageHero, type HeroStat } from "../page-hero";
+import "./life.css";
 
 const tone = (level:RecognitionLevel):Tone => level==="ELITE" ? "gold" : level==="HIGHLY_REGARDED" ? "info" : level==="ESTABLISHED" ? "success" : level==="UNKNOWN" ? "muted" : "neutral";
 export function RecognitionPage({ctx,npcId}: {ctx:ShellContext;npcId?:string}) {
   const human=useCareerRecognition(ctx.save.id,!npcId),npc=useNpcRecognition(ctx.save.id,npcId);
   const query=npcId ? npc : human;
-  return <div className="space-y-3">
-    <CareerSection title={npcId ? "Public opponent recognition" : "Career standing & recognition"}>
-      <p className="p-4 text-sm text-white/70">Earned sporting recognition, not points to collect. Local, amateur, professional, major-stage and international standing develop independently. Focus and personal goals do not grant recognition.</p>
-      <QueryState query={query} label="Reading sporting recognition">{data=><RecognitionDetails data={data} saveId={ctx.save.id}/>}</QueryState>
+  const heroTone=(level:RecognitionLevel):HeroStat["tone"]=>level==="ELITE"?"gold":level==="HIGHLY_REGARDED"||level==="ESTABLISHED"?"good":"neutral";
+  return <div className="space-y-3 career-recognition">
+    {!npcId&&query.data&&<CareerPageHero kicker="Career standing" title={query.data.standing.label} accent="#e8c66a"
+      stage={{venue:{venueType:"hotel-ballroom"},eventClass:"MAJOR"}} archival={query.data.subject.retired}
+      subtitle={<p>{query.data.standing.description}</p>}
+      stats={query.data.contexts.map(c=>({label:c.label,value:c.levelLabel,sub:`${c.evidence.length} ${c.evidence.length===1?"fact":"facts"}`,tone:heroTone(c.level)}))}/>}
+    <CareerSection title={npcId ? "Public opponent recognition" : "Career standing & recognition"} accent="#e8c66a">
+      <details className="career-note mx-4 mt-4"><summary>What recognition is</summary><p>Earned sporting recognition, not points to collect. Local, amateur, professional, major-stage and international standing develop independently. Focus and personal goals do not grant recognition.</p></details>
+      <QueryState query={query} label="Reading sporting recognition">{data=><RecognitionDetails data={data} saveId={ctx.save.id} hideStanding={!npcId}/>}</QueryState>
     </CareerSection>
     <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/${npcId ? "relationships" : "history"}`}>{npcId ? "Back to relationships" : "Career history"}</Link>
   </div>;
 }
-export function RecognitionDetails({data,saveId}: {data:RecognitionView;saveId:string}) {
+export function RecognitionDetails({data,saveId,hideStanding=false}: {data:RecognitionView;saveId:string;hideStanding?:boolean}) {
   return <div className="p-4 pt-0 space-y-4">
     {data.subject.kind==="NPC" && <><h2 className="text-lg font-bold">{data.subject.name}</h2><Link className="underline text-sm" href={`/career/${saveId}/life/npcs/${data.subject.id}`}>Public presentation & identity</Link></>}
-    <div><h2 className="text-xl font-bold">{data.standing.label}</h2><p className="text-sm text-white/70 mt-1">{data.standing.description}</p></div>
+    {!hideStanding&&<div><h2 className="text-xl font-bold">{data.standing.label}</h2><p className="text-sm text-white/70 mt-1">{data.standing.description}</p></div>}
     {data.subject.retired && <p className="text-sm text-white/70">Retired {data.subject.kind==="NPC" ? "player" : "Career"}: earned recognition remains readable. This screen creates no further progression.</p>}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{data.contexts.map(c=><section key={c.context} className="rounded-xl border border-white/15 p-3" aria-label={`${c.label} recognition`}>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{data.contexts.map(c=><section key={c.context} className="career-recog-card" data-level={c.level} aria-label={`${c.label} recognition`}>
       <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{c.label}</h3><StatusBadge label={c.levelLabel} tone={tone(c.level)} /></div>
       <h4 className="text-xs text-white/60 mt-3">Why you're recognised</h4>
       {c.evidence.length ? <ul>{c.evidence.map(f=><FactLine key={f.id} fact={f} saveId={saveId}/>)}</ul>
         : <p className="mt-2 text-sm text-white/60">No qualifying sporting evidence recorded in this context yet.</p>}
     </section>)}</div>
-    <p className="text-xs text-white/60">{data.historyNote}</p>
+    <details className="career-note"><summary>How recognition history is dated</summary><p>{data.historyNote}</p></details>
     <MilestoneList data={data} saveId={saveId}/>
     {data.relationships.length>0 && <section><h3 className="font-bold">Notable sporting relationships</h3><ul className="space-y-2 mt-2">{data.relationships.map(r=><li key={r.opponentId} className="text-sm">
       <Link className="underline" href={`/career/${saveId}/recognition/npcs/${r.opponentId}`}>{r.name}</Link> — {r.labels.join(" · ")}
       <p className="text-xs text-white/60">{r.description}</p></li>)}</ul></section>}
-    <p className="text-xs text-white/60">Recognition never changes scoring, opponents, draws, rankings, qualification, entry costs, prize money, Tour Cards or sponsor offers.</p>
+    <p className="career-fineprint">Recognition never changes scoring, opponents, draws, rankings, qualification, entry costs, prize money, Tour Cards or sponsor offers.</p>
   </div>;
 }
 function MilestoneList({data,saveId}: {data:RecognitionView;saveId:string}) {
