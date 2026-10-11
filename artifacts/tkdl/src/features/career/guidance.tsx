@@ -19,6 +19,7 @@ export function ContextHelp({saveId,topic}:{saveId:string;topic:string}) {
 }
 export function GuidanceSettings({saveId}:{saveId:string}) {
   const q=useGuidance(saveId),edit=useEditGuidance(saveId);
-  return <section className="career-surface surface-context"><h2>Guidance</h2><p>Help frequency only. No gameplay or difficulty effect. Every topic stays readable here.</p><label>Frequency <select value={q.data?.mode??"STANDARD"} disabled={!q.data?.canEdit||edit.isPending} onChange={e=>edit.mutate({mode:e.target.value})}>{["FULL","STANDARD","MINIMAL"].map(v=><option key={v}>{v}</option>)}</select></label>
-    {Object.entries(HELP).map(([key,h])=><details key={key}><summary>{h[0]}</summary><p>{h[1]}</p></details>)}{edit.error&&<p role="alert">{errorMessage(edit.error)}</p>}</section>;
+  return <section className="career-surface surface-context career-guidance"><div className="career-guidance__head"><div><h2>Guidance</h2><p>Help frequency only. No gameplay or difficulty effect. Every topic stays readable here.</p></div>
+    <label className="career-guidance__mode">Frequency <select value={q.data?.mode??"STANDARD"} disabled={!q.data?.canEdit||edit.isPending} onChange={e=>edit.mutate({mode:e.target.value})}>{["FULL","STANDARD","MINIMAL"].map(v=><option key={v}>{v}</option>)}</select></label></div>
+    <div className="career-guide-grid">{Object.entries(HELP).map(([key,h],i)=><details className="career-guide-topic" key={key}><summary><span aria-hidden="true">{String(i+1).padStart(2,"0")}</span>{h[0]}</summary><p>{h[1]}</p></details>)}</div>{edit.error&&<p role="alert">{errorMessage(edit.error)}</p>}</section>;
 }
