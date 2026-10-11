@@ -1,0 +1,77 @@
+/* Workstream F1 — broadcast atmosphere. Scoped to .ca-*; imported only by atmosphere/components.tsx. */
+.ca-scene{--ca-accent:#9fb3cf;--ca-ink:#f4f6fa;position:relative;isolation:isolate;overflow:hidden;border-radius:18px;color:var(--ca-ink);
+  background:#07090e;border:1px solid color-mix(in srgb,var(--ca-accent) 30%,transparent);min-width:0;display:flex;flex-direction:column;container-type:inline-size}
+.ca-scene[data-level="CLUB"]{--ca-accent:#e2b072}.ca-scene[data-level="COUNTY"]{--ca-accent:#d9c29a}
+.ca-scene[data-level="NATIONAL"]{--ca-accent:#9cc7e8}.ca-scene[data-level="FLOOR"]{--ca-accent:#a9c1ff}
+.ca-scene[data-level="STAGE"]{--ca-accent:#c08cff}.ca-scene[data-level="MAJOR"]{--ca-accent:#f2c15a}
+.ca-scene[data-level="PALACE"]{--ca-accent:#f0d28c}
+
+/* Scale ladder: the same moment is shown bigger only where the event supports it. */
+.ca-scale-inline{border-radius:14px;background:linear-gradient(90deg,color-mix(in srgb,var(--ca-accent) 14%,#0b0f17),#0b0f17 70%)}
+/* Bounded heights (no aspect-ratio: its transferred minimum width would force horizontal overflow). */
+.ca-scale-banner{min-height:clamp(190px,34vw,280px)}
+.ca-scale-stage{min-height:clamp(320px,50vw,540px)}
+.ca-scale-full{min-height:clamp(460px,58vw,720px)}
+
+/* Art: absolutely behind content, never interactive. */
+.ca-backdrop{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.ca-layer{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;user-select:none}
+.ca-plate{filter:saturate(1.05) brightness(.82)}
+.ca-light,.ca-spot,.ca-pyro{mix-blend-mode:screen}
+.ca-spot{opacity:.9}
+.ca-grain{position:absolute;inset:0;mix-blend-mode:overlay;opacity:.35;background-size:256px 256px;background-repeat:repeat}
+.ca-grade{position:absolute;inset:0}
+.ca-level-club .ca-grade{background:radial-gradient(80% 70% at 50% 35%,transparent,#120a0466 70%);mix-blend-mode:multiply}
+.ca-level-county .ca-grade,.ca-level-national .ca-grade{background:linear-gradient(180deg,#0c0a0833,transparent 40%)}
+.ca-level-palace .ca-grade{background:radial-gradient(90% 70% at 50% 30%,#ffb35a1c,transparent 65%)}
+.ca-level-major .ca-grade{background:radial-gradient(90% 70% at 50% 30%,#ffd27a14,transparent 65%)}
+/* Documentary: archival grade over the plate. */
+.ca-doc .ca-plate{filter:grayscale(.75) sepia(.35) contrast(1.08) brightness(.7)}
+.ca-doc .ca-grade{background:radial-gradient(85% 85% at 50% 50%,transparent 55%,#000000b3)}
+/* Legibility scrim: text sits bottom-left on a darkened band (not presented as artwork). */
+.ca-scrim{position:absolute;inset:0;background:linear-gradient(0deg,#05070cf2 0%,#05070cc4 32%,#05070c40 62%,transparent 80%),
+  linear-gradient(90deg,#05070ca6,transparent 55%)}
+
+.ca-content{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:6px;
+  padding:clamp(14px,3.2vw,30px);min-width:0}
+.ca-scale-inline .ca-content{padding:14px 16px}
+.ca-eyebrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0;font-family:Oswald,system-ui,sans-serif;font-size:.72rem;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ca-accent)}
+.ca-chip{padding:2px 8px;border-radius:999px;border:1px solid color-mix(in srgb,var(--ca-accent) 55%,transparent);
+  background:color-mix(in srgb,var(--ca-accent) 16%,#05070c);color:#fff}
+.ca-title{margin:0;font-size:clamp(1.25rem,6.2cqi,3rem);line-height:1;font-weight:900;text-transform:uppercase;letter-spacing:.01em;
+  overflow-wrap:break-word;hyphens:auto;text-wrap:balance;text-shadow:0 2px 18px #000c}
+.ca-scale-inline .ca-title{font-size:1.15rem}
+.ca-scale-full .ca-title{font-size:clamp(1.7rem,6.6cqi,4.2rem)}
+.ca-victory-world .ca-title{color:#f6e3b0}
+.ca-venue{margin:0;font-size:.9rem;color:rgba(255,255,255,.78)}
+.ca-versus{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:2px 0;font-size:clamp(1rem,2.6vw,1.5rem);font-weight:800;min-width:0}
+.ca-versus span{overflow-wrap:anywhere}.ca-versus b{color:var(--ca-accent);font-family:Oswald,system-ui,sans-serif;font-size:.8em}
+.ca-facts{display:flex;flex-wrap:wrap;gap:6px 18px;margin:6px 0 0}
+.ca-facts div{min-width:0}.ca-facts dt{font-family:Oswald,system-ui,sans-serif;font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+.ca-facts dd{margin:0;font-size:.9rem}
+
+/* Motion: only when allowed by the user's OS setting AND the Career presentation depth (animate prop). */
+@media (prefers-reduced-motion:no-preference){
+  .ca-anim .ca-plate{animation:ca-push 2.2s cubic-bezier(.2,.7,.2,1) both}
+  .ca-anim .ca-light{animation:ca-fade 1.4s ease-out both}
+  .ca-anim .ca-spot{animation:ca-fade 1s .25s ease-out both}
+  .ca-anim .ca-confetti{animation:ca-fall 3.2s .2s cubic-bezier(.2,.6,.3,1) both}
+  .ca-anim .ca-pyro{animation:ca-flicker 2.4s .15s ease-out both}
+}
+@keyframes ca-push{from{transform:scale(1.06)}to{transform:scale(1)}}
+@keyframes ca-fade{from{opacity:0}}
+@keyframes ca-fall{from{transform:translateY(-14%);opacity:0}25%{opacity:1}to{transform:none}}
+@keyframes ca-flicker{0%{opacity:0}10%{opacity:1}20%{opacity:.7}35%{opacity:1}100%{opacity:.85}}
+
+/* Preview gallery (review only). */
+.ca-gallery{display:grid;gap:28px}
+.ca-gallery__h{margin:0 0 10px;font-family:Oswald,system-ui,sans-serif;font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:#cfd8e6}
+.ca-gallery__event{display:grid;gap:12px;margin-bottom:18px}
+.ca-gallery__moments{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px}
+.ca-gallery__moment{margin:0;display:grid;gap:6px;min-width:0}
+.ca-gallery__moment figcaption{font-size:.72rem;color:rgba(255,255,255,.6)}
+
+/* Full-scale celebrations: let the stage breathe; the text band stays dark. */
+.ca-level-palace .ca-plate{filter:saturate(1.08) brightness(1.08)}
+.ca-scale-full .ca-scrim{background:linear-gradient(0deg,#05070cf0 0%,#05070cb0 22%,#05070c26 48%,transparent 62%),linear-gradient(90deg,#05070c8c,transparent 45%)}
