@@ -31,10 +31,12 @@ import {createCareerSponsorshipFoundation} from "./db/migrations/create_career_s
 import { createShadowObservations, SHADOW_OBSERVATIONS_SB21A } from "./db/migrations/create_shadow_observations_sb21a";
 import { createCareerCalendar } from "./db/migrations/create_career_calendar";
 import { createCareerFinance } from "./db/migrations/create_career_finance";
+import { createCareerSPHCommercial } from "./db/migrations/create_career_sph_commercial.ts";
 import { createCareerSponsorJourneysSPB } from "./db/migrations/create_career_sponsor_journeys_spb";
 import { createCareerSponsorJourneysSPB3 } from "./db/migrations/create_career_sponsor_journeys_spb3.ts";
 import { createCareerFinanceSPC } from "./db/migrations/create_career_finance_spc.ts";
 import { createCareerSponsorHQSPD } from "./db/migrations/create_career_sponsor_hq_spd.ts";
+import { createCareerNpcSponsorMarketSPF } from "./db/migrations/create_career_npc_sponsor_market_spf.ts";
 import { addContractConcludedSponsorEventSPE1 } from "./db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
 import { addScheduledSponsorRenewalsSPE1B } from "./db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
 import { createCareerSponsorContractActionsSPE2 } from "./db/migrations/create_career_sponsor_contract_actions_spe2.ts";
@@ -1542,10 +1544,13 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerSponsorshipFoundationSPA1", () => createCareerSponsorshipFoundation(db));
   await runMigrationStep("createCareerCalendarA3", () => createCareerCalendar(db));
   await runMigrationStep("createCareerFinanceA4", () => createCareerFinance(db));
+  // P0-1 (restored): dropped in 5c51822; Career creation and the commercial inbox need these tables.
+  await runMigrationStep("createCareerSPHCommercial", () => createCareerSPHCommercial(db));
   await runMigrationStep("createCareerSponsorJourneysSPB", () => createCareerSponsorJourneysSPB(db));
   await runMigrationStep("createCareerSponsorJourneysSPB3", () => createCareerSponsorJourneysSPB3(db));
   await runMigrationStep("createCareerFinanceSPC", () => createCareerFinanceSPC(db));
   await runMigrationStep("createCareerSponsorHQSPD", () => createCareerSponsorHQSPD(db));
+  await runMigrationStep("createCareerNpcSponsorMarketSPF", () => createCareerNpcSponsorMarketSPF(db));
   await runMigrationStep("addContractConcludedSponsorEventSPE1", () => addContractConcludedSponsorEventSPE1(db));
   await runMigrationStep("addScheduledSponsorRenewalsSPE1B", () => addScheduledSponsorRenewalsSPE1B(db));
   await runMigrationStep("createCareerSponsorContractActionsSPE2", () => createCareerSponsorContractActionsSPE2(db));
@@ -1555,6 +1560,10 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerLegacyA76", () => createCareerLegacy(db));
   await runMigrationStep(SHADOW_OBSERVATIONS_SB21A, () => createShadowObservations(db));
   await runMigrationStep(CAREER_CONTENT_UPGRADE_A9_V1, () => upgradeCareerContentA9V1(db));
+  // P0-2: the A9 upgrade re-runs the A4 finance migration, which narrows career_finance_entries_category_check
+  // below the SP-C/SP-E2 sponsor categories. Re-apply the SP-E2 ledger constraint once (idempotent); a new key
+  // also repairs databases where A9 already ran after SP-C.
+  await runMigrationStep("reapplyCareerLedgerConstraintSPE2AfterA9", () => createCareerSponsorContractActionsSPE2(db));
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
   await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
   await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);

@@ -8,8 +8,7 @@
  * createCareerSPHCommercial and createCareerNpcSponsorMarketSPF. On a fresh
  * database, creating a Career then fails in world initialisation
  * (persistInitialNpcSponsorRelationships → relation "career_npc_sponsor_market_events"
- * does not exist). The strict assertion is marked `todo` until the integration
- * owner restores the two runMigrationStep calls; remove `todo` then.
+ * does not exist). Fixed in G1 by restoring both runMigrationStep calls.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -57,15 +56,8 @@ test("static scan finds the migration graph and the Career runtime tables", () =
   assert.ok(runtimeCareerTables().size > 40);
 });
 
-test("every Career runtime table is created by a migration production startup runs", { todo: "P0-1: restore createCareerSPHCommercial + createCareerNpcSponsorMarketSPF in app.ts" }, () => {
+test("every Career runtime table is created by a migration production startup runs", () => {
   const { tables } = reachableMigrationTables();
   const missing = [...runtimeCareerTables()].filter(([t]) => !tables.has(t)).map(([t, f]) => `${t} (used by ${f})`);
   assert.deepEqual(missing, []);
-});
-
-test("the P0-1 gap is exactly the two dropped migrations (guards against further drift)", () => {
-  const { tables } = reachableMigrationTables();
-  const missing = [...runtimeCareerTables().keys()].filter(t => !tables.has(t)).sort();
-  const dropped = new Set([...created(read(path.join(MIG, "create_career_npc_sponsor_market_spf.ts"))), ...created(read(path.join(MIG, "create_career_sph_commercial.ts")))]);
-  assert.deepEqual(missing.filter(t => !dropped.has(t)), [], "no Career table is missing beyond the two known dropped migrations");
 });

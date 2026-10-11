@@ -10,7 +10,7 @@
  * (runMigrationStep), so the narrowed constraint persists: SPONSOR_GUARANTEED_PAYMENT
  * and SPONSOR_RELEASE_SETTLEMENT inserts then fail, and the weekly calendar advance
  * (finance onCalendarMoved → postDueGuaranteedPayments) throws.
- * The strict test is `todo` until the integration owner fixes the ordering.
+ * Fixed in G1: a keyed step after A9 re-applies the SP-E2 constraint.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -55,12 +55,7 @@ test("the startup sequence is read from app.ts in order and ends with the A9 upg
   assert.ok(widest.includes("SPONSOR_GUARANTEED_PAYMENT") && widest.includes("SPONSOR_RELEASE_SETTLEMENT"));
 });
 
-test("after production startup the ledger accepts every sponsor category the runtime posts", { todo: "P0-2: A9 upgrade narrows career_finance_entries_category_check after SP-C/SP-E2" }, async () => {
+test("after production startup the ledger accepts every sponsor category the runtime posts", async () => {
   const def = await finalSchema();
   assert.deepEqual(widest.filter(c => !def.includes(`'${c}'`)), []);
-});
-
-test("the P0-2 narrowing is exactly the SP-C/SP-E2 sponsor categories (guards against further drift)", async () => {
-  const def = await finalSchema();
-  assert.deepEqual(widest.filter(c => !def.includes(`'${c}'`)).sort(), ["SPONSOR_GUARANTEED_PAYMENT", "SPONSOR_RELEASE_SETTLEMENT"]);
 });
