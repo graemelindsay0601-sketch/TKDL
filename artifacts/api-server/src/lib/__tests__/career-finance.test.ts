@@ -1264,6 +1264,8 @@ test("SP-E2B mutual release remains pending until an explicit sponsor decision",
   assert.equal(release.sponsor_decision,null);
   await assert.rejects(()=>finance.acceptSponsorRelease(actor,save.id,request.id),(error:unknown)=>
     error instanceof Error && error.message.includes("not available to accept"));
+  const contract=(await rows(sql`SELECT status FROM career_sponsor_contracts WHERE career_save_id=${save.id} AND id=${signed.contractId}`))[0]!;
+  assert.equal(contract.status,"ACTIVE","a mutual request without sponsor approval must not terminate the agreement");
 });
 
 test("SP-E2 release settlement is exact, replay-safe, atomic, and save-owned",async()=>{
