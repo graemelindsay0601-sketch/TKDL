@@ -5,6 +5,22 @@ import type { SponsorContract, SponsorJourneyEvent, SponsorNegotiationChange, Sp
 import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
 import "./sponsor-offers.css";
 
+/** Plain-language reasons for offers the signing rules refuse (codes from the server's offer assessment). */
+const UNSIGNABLE_REASON: Record<string, string> = {
+  EXPIRED: "This offer has expired.",
+  UNSUPPORTED_GUARANTEE: "This offer's guaranteed payments cannot be scheduled, so it cannot be signed.",
+  RENEWAL_LINK_INVALID: "The agreement this renewal was offered for is no longer valid.",
+  REQUIREMENT_UNMET: "Your current sporting record no longer meets this sponsor's requirements.",
+  LOCALITY_MISMATCH: "This local sponsor only signs players from its home area.",
+  INVALID_ACTIVITY_CLAUSES: "This offer's appearance clauses are not valid, so it cannot be signed.",
+  FUTURE_TERM_CONFLICT: "This offer clashes with a sponsor agreement you have already accepted for a later date.",
+  ACTIVITY_SCHEDULE_UNAVAILABLE: "Your calendar has no free weeks for the appearances this contract requires, so it cannot be signed right now.",
+};
+export const unsignableOfferReason = (offer: Pick<SponsorOffer, "acceptance">) =>
+  offer.acceptance && !offer.acceptance.signable
+    ? UNSIGNABLE_REASON[offer.acceptance.code ?? ""] ?? "This offer cannot be signed under your current agreements and calendar."
+    : null;
+
 type SponsorOfferCardProps = {
   offer: SponsorOffer;
   activeContracts: SponsorContract[];
@@ -59,6 +75,7 @@ export function SponsorOfferCard({
   const activeConflicts = activeContracts.filter(contract => offer.conflictingContractIds?.includes(contract.id));
   const replacementRequired = offer.portfolioFull || activeConflicts.length > 0;
   const acceptBlockedByReplacement = replacementDisabled && replacementRequired;
+  const unsignable = unsignableOfferReason(offer);
   const changeTerm = (value: string) => {
     setSelectedTerm(value);
     const next = negotiableTerms.find(term => term.value === value);
@@ -308,13 +325,14 @@ export function SponsorOfferCard({
           </fieldset>
         )}
 
+        {!retired && unsignable && <p className="career-sponsor-offer__portfolio-note" role="note" data-unsignable={offer.acceptance?.code ?? ""}>{unsignable}</p>}
         {!retired && (
           <footer className="career-sponsor-offer__actions">
             <ConfirmButton
               label="Accept offer"
               confirmLabel="Sign contract"
               busy={acceptBusy}
-              disabled={acceptBlockedByReplacement}
+              disabled={acceptBlockedByReplacement || !!unsignable}
               description={`Accept the ${terms.displayName} offer${replacementIds.length > 0
                 ? `. Terminate only: ${activeContracts.filter(contract => replacementIds.includes(contract.id)).map(contract => contract.terms.displayName).join(", ")}.`
                 : ". Keep all existing compatible deals."}`}

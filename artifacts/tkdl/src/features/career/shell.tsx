@@ -2,10 +2,12 @@ import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
+import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
+import { CareerShirt } from "./identity";
+import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "./atmosphere";
 
 export type ShellContext = { save: CareerSave; overview: CalendarOverview | null; retired: boolean };
 
@@ -95,10 +97,16 @@ function BackToSaves() {
 
 function CareerHeader({ save, overview, retired }: { save: CareerSave; overview: CalendarOverview | null; retired: boolean }) {
   const pending = overview?.pendingHumanMatches ?? [];
+  const presentation = usePresentation(save.id).data;
+  // G1: the header stands on the player's real stage — club room as an amateur, the professional floor with a
+  // Tour Card, archival grade once retired. Decorative only; nothing here names a venue or claims a result.
+  const stage = resolveAtmosphere({ eventClass: save.hasTourCard ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
   return (
-    <header className="pdc-card career-hero px-4 py-3 space-y-2.5">
+    <header className="pdc-card career-hero career-hero--stage px-4 py-3 space-y-2.5">
+      <CareerStageBackdrop atmosphere={stage} spectacle={spectacleFor("ARRIVAL", stage.level)} documentary={retired} animate={false} eager className="career-hero__stage" />
       <div className="flex flex-col sm:flex-row sm:items-start gap-3">
         <div className="flex items-start gap-2 flex-1 min-w-0">
+          {presentation && <span className="career-hero__portrait" aria-hidden="true"><CareerShirt identity={presentation.identity} sponsors={presentation.placements} name={save.careerName ?? "Player"} scale="compact" /></span>}
           <Link href="/career" className="p-2 -ml-2 rounded-lg hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" aria-label="Back to Career saves">
             <ArrowLeft className="w-4 h-4" style={{ color: "rgba(255,255,255,0.62)" }} />
           </Link>

@@ -1,0 +1,33 @@
+<!doctype html><html><head><meta charset="utf-8"><title>TKDL trophy render</title>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script></head>
+<body style="margin:0;background:transparent">
+<script type="module">
+import * as THREE from "three";
+import { DESIGNS, materials, plinth, studioEnvironment } from "./trophies3d.mjs";
+const q = new URLSearchParams(location.search), id = q.get("id"), OUT_W = Number(q.get("w") ?? 720), OUT_H = Number(q.get("h") ?? 960), SS = Number(q.get("ss") ?? 2);
+const W = OUT_W * SS, H = OUT_H * SS;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
+renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12; renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.transmissionResolutionScale = 1;
+const scene = new THREE.Scene(); scene.environment = studioEnvironment(renderer);
+const M = materials();
+const base = plinth(M); scene.add(base);
+const trophy = DESIGNS[id](M); scene.add(trophy);
+// soft contact shadow under the plinth (alpha only, transparent background preserved)
+const sc = document.createElement("canvas"); sc.width = sc.height = 256; const g = sc.getContext("2d"); const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+gr.addColorStop(0, "rgba(0,0,0,0.55)"); gr.addColorStop(0.55, "rgba(0,0,0,0.22)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.4), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
+shadow.rotation.x = -Math.PI / 2; shadow.position.y = -0.505; scene.add(shadow);
+// one camera for every trophy: consistent scale, slight elevation, front three-quarter on the object only
+const camera = new THREE.PerspectiveCamera(17.5, W / H, 0.1, 100); camera.position.set(0, 2.15, 11.6); camera.lookAt(0, 1.18, 0);
+renderer.render(scene, camera);
+// project the brass plate so the UI can engrave exactly on it
+const plate = base.getObjectByName("plate"); plate.geometry.computeBoundingBox(); const bb = plate.geometry.boundingBox;
+const corners = [[bb.min.x, bb.min.y], [bb.max.x, bb.max.y]].map(([x, y]) => new THREE.Vector3(x, y, bb.max.z).applyMatrix4(plate.matrixWorld).project(camera));
+const plateRect = { left: (corners[0].x + 1) / 2, right: (corners[1].x + 1) / 2, top: 1 - (corners[1].y + 1) / 2, bottom: 1 - (corners[0].y + 1) / 2 };
+// high-quality downsample to the delivery size
+const out = document.createElement("canvas"); out.width = OUT_W; out.height = OUT_H; const o = out.getContext("2d"); o.imageSmoothingEnabled = true; o.imageSmoothingQuality = "high";
+o.drawImage(renderer.domElement, 0, 0, OUT_W, OUT_H);
+window.__result = { id, webp: out.toDataURL("image/webp", Number(q.get("quality") ?? 0.9)), plateRect, size: [OUT_W, OUT_H] };
+</script></body></html>

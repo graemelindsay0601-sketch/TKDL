@@ -2,7 +2,8 @@ import {useState,useEffect} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldLocalities,useWorldMap,useWorldPlayers,useRankingTable,useLegacy,useEventLegacy,useCareerLife} from "../api";
 import {CareerLoading,CareerError,CareerSection} from "../components";
-import {CareerEventIdentity,CareerPlayerCard,CareerTrophy} from "../identity";
+import {CareerEventIdentity,CareerPlayerCard} from "../identity";
+import {AwardPresentation,awardLabel,resolveAward,trophyArt} from "../trophies";
 import {mapState} from "../presentation";
 import {titleCase} from "../model";
 import {NpcLegacyPage,LegacyPage} from "./legacy";
@@ -41,7 +42,8 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
     {section==="events"&&(selected?<CareerEventIdentity eventKey={selected.id} circuit={selected.circuit} level={selected.eventClass} className="career-surface career-world-detail">
       <h3>{selected.name}</h3><p>{d.organisations.find(o=>o.id===selected.organisationId)?.name} · {titleCase(selected.eventClass)} · {titleCase(selected.formatKind)}</p>
       <p>{selected.fieldDescription}</p><p>{selected.supported?"Executable sporting format":"This sporting format is not currently executable"}</p>
-      {(()=>{const trophy=d.trophies.find(t=>t.id===selected.trophyId);return trophy?<><CareerTrophy name={trophy.name} design={trophy.designKey}/><p>{trophy.name}</p></>:null;})()}
+      {/* G1/E2: what this event's winner receives, by its actual key (result-only events say so). */}<div className="career-world-award"><AwardPresentation event={{definitionKey:selected.id,circuit:selected.circuit}} persistedTrophyId={selected.trophyId??null} size="md" eventName={selected.name}/>
+        {(()=>{const a=resolveAward({definitionKey:selected.id,circuit:selected.circuit},{persistedTrophyId:selected.trophyId??null});return <p>{a.designId?trophyArt(a.designId)?.name??awardLabel(a):awardLabel(a)}</p>;})()}</div>
       <h4>This season’s editions & routes</h4>{map.data?.events.filter(e=>e.definitionId===selected.id).slice(0,20).map(e=><p key={e.id}><Link href={`${base}/events/${e.id}`}>Week {e.dates.startWeek} · {e.venue.displayName}, {e.venue.city} · {mapState(e)} — inspect eligibility & qualification</Link></p>)}
       <h4>Recent champions</h4>{history.data?.champions.slice(-5).reverse().map(c=><p key={c.id}>Season {c.season}: {winnerName(c.participant)}</p>)}
       {!history.data?.champions.length&&<p>No previous Career champion recorded. No pre-save history is invented.</p>}<Link href={`${base}/my-career/history`}>All Career-era editions & your history</Link>
@@ -60,7 +62,7 @@ export function WorldPlayerDirectory({ctx,search:external,id}:{ctx:ShellContext;
   const [search,setSearch]=useState(""),[status,setStatus]=useState("ALL"),[offset,setOffset]=useState(0),q=useWorldPlayers(ctx.save.id,offset,external??search,status,id);
   return <div className="space-y-3">{!id&&external===undefined&&<div className="career-surface career-player-filters"><label>Search players <input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}}/></label><label>Career status <select value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}>{["ALL","ACTIVE","RETIRED"].map(s=><option key={s} value={s}>{titleCase(s)}</option>)}</select></label></div>}
     {q.isLoading?<CareerLoading label="Searching public player facts"/>:q.error?<CareerError error={q.error} onRetry={()=>q.refetch()}/>:q.data&&<CareerSection title={id?"Player profile":"Players"}>
-      {q.data.players.map(p=><div className="career-directory-row" key={p.id}><Link href={`/career/${ctx.save.id}/world/players/${p.id}`}><CareerPlayerCard name={p.name} nickname={p.nickname} nationality={String(p.country)} identity={p.shirt} rank={p.ranking} sponsors={p.commercial.portfolio} badges={[String(p.status)]} scale={id?"profile":"compact"}/></Link><Link className="career-link ml-3" href={`/career/${ctx.save.id}/world/players/${p.id}/profile`}>Full player profile</Link></div>)}
+      {q.data.players.map(p=><div className="career-directory-row" key={p.id}><Link href={`/career/${ctx.save.id}/world/players/${p.id}`}><CareerPlayerCard playerId={p.id} name={p.name} nickname={p.nickname} nationality={String(p.country)} identity={p.shirt} rank={p.ranking} sponsors={p.commercial.portfolio} badges={[String(p.status)]} scale={id?"profile":"compact"}/></Link><Link className="career-link ml-3" href={`/career/${ctx.save.id}/world/players/${p.id}/profile`}>Full player profile</Link></div>)}
       {!q.data.players.length&&<p className="p-4">No matching players. Retired careers remain discoverable with the All / Retired filter.</p>}
       {!id&&<div className="career-pagination"><button disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous</button><span>{q.data.total} players</span><button disabled={q.data.nextOffset===null} onClick={()=>setOffset(q.data!.nextOffset!)}>Next</button></div>}
     </CareerSection>}

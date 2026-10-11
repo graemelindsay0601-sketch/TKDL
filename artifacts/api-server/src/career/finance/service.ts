@@ -14,6 +14,7 @@ import { FINANCE_VERSION } from "./config.ts";
 import { summary, recentEntries, presentEntry, post, type LedgerRow } from "./ledger.ts";
 import {
   createFinanceHooks, defaultFactsProvider, ensureFinanceState, evaluateOffers, acceptOffer, declineOffer, reservedPence, activeContracts,
+  assessOfferAcceptance, REPLACEMENT_RESOLVABLE_BLOCKS, type OfferRow,
   postDueGuaranteedPayments, type SponsorFactsProvider,
 } from "./engine.ts";
 import { projectGuaranteePaymentStatus, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
@@ -233,10 +234,18 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
               unsupportedGuarantees: schedules.get(String(c.id))!.unsupported,
             } : undefined };
         };
+        // Signability from the same rules the signing endpoint enforces (assessOfferAcceptance).
+        const acceptance = new Map<string, { signable: boolean; code: string | null; reason: string | null }>();
+        for (const o of offers.filter(row => row.status === "AVAILABLE")) {
+          const offerRow = { ...o, terms: parseSponsorTerms(o.terms) } as unknown as OfferRow;
+          const a = await assessOfferAcceptance(tx, root, offerRow, current.season, current.week, { facts: sporting, previous: active, listing: true });
+          acceptance.set(String(o.id), a.ok ? { signable: true, code: null, reason: null }
+            : { signable: REPLACEMENT_RESOLVABLE_BLOCKS.has(a.block.code), code: a.block.code, reason: a.block.message });
+        }
         const presentOffer = (o: Record<string, unknown>) => {
           const terms=parseSponsorTerms(o.terms);
           return { id: o.id, sponsorKey: o.sponsor_key, tier: o.tier, kind: o.kind, terms, ...relationship(terms),
-            journey: journeyByOffer.get(String(o.id)) ?? null,
+            journey: journeyByOffer.get(String(o.id)) ?? null, acceptance: acceptance.get(String(o.id)) ?? null,
             conflictingContractIds:conflicts(terms,active),portfolioFull:active.length>=portfolioLimit(sporting),source: o.source, status: o.status,
             statusReason: o.status_reason, offered: { season: o.offered_season, week: o.offered_week }, expires: { season: o.expires_season, week: o.expires_week } };
         };

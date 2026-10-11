@@ -6,8 +6,10 @@ import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
+import { createCareerNpcSponsorMarketSPF } from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
 import { createCareerCalendar } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
+import { createCareerSporting } from "../../db/migrations/create_career_sporting.ts";
 import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerCalendarService } from "../../career/calendar/service.ts";
@@ -48,8 +50,8 @@ before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2), (3);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
-  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerCalendar(db);
-  await createCareerFinance(db); await createCareerSponsorHQSPD(db);
+  await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db); await createCareerCalendar(db);
+  await createCareerFinance(db); await createCareerSponsorHQSPD(db); await createCareerSporting(db); // A3 weekly settlement reads A5 ranking tables via life commitments (SP-G/SP-H)
   world = await careerFor(1, 1);
   seasonResult = await calendar.advance(actor, world.id, { operationKey: "full-npc-season", expectedSeason: 1, expectedWeek: 1, target: { kind: "WEEKS", weeks: 52 } }) as typeof seasonResult;
 });

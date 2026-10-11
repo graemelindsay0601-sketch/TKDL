@@ -42,7 +42,7 @@ function majorView(over: Record<string, unknown> = {}): Any {
   ];
   return {
     saveId: SAVE_ID,
-    event: { id: "major", name: "Fixture Masters", definitionKey: "fixture-masters", season: 2, week: 30, startDay: 205, endDay: 207, status: "IN_PROGRESS",
+    event: { id: "major", name: "Fixture Masters", definitionKey: "grand-slam-of-champions", season: 2, week: 30, startDay: 205, endDay: 207, status: "IN_PROGRESS",
       circuit: "MAJOR", classification: "MAJOR", level: 4, format: { inRule: "STRAIGHT", scoringUnit: "LEGS", legsPerSet: 5 }, executable: true, fieldLocked: true, drawLocked: true,
       venue: { displayName: "Northgate Arena", nickname: null, city: "Manchester", venueType: "major-arena", capacityBand: "ARENA", stageConfiguration: "FEATURE_BOARD",
         atmosphereTags: ["live-crowd", "major-arena"] },
@@ -205,7 +205,7 @@ test("major hub: broadcast identity, tale of the tape, your path, prize ladder �
 });
 
 test("grassroots hub is modest and skips ceremonies; no invented head-to-head", () => {
-  const v = majorView({ event: { ...majorView().event, level: 1, name: "Social Club Friday 501", circuit: "GRASSROOTS", classification: "RANKING",
+  const v = majorView({ event: { ...majorView().event, level: 1, name: "Social Club Friday 501", definitionKey: "friday-night-501", circuit: "GRASSROOTS", classification: "RANKING",
     content: { eventClass: "GRASSROOTS", fieldDescription: "Local players", trophyId: "wood-silver-shield" }, trophy: null },
     depth: { arrival: false, drawReveal: false, walkOn: false, fullCeremony: false, animate: false, skippable: true, sportingEffects: false }, opponents: [] });
   const t = text(render(h(M.TournamentPage, { ctx: ctx(), eventId: "major" }), [[key("tournament", "major"), v]]));
@@ -265,7 +265,7 @@ test("entry screen explains what makes the event worth entering from A3/A4 previ
 
 test("Palace champion: Sovereign Trophy, World Champion label, first title record and settled prize", () => {
   const v = majorView({ phase: "CHAMPION", position: 1, championKey: "HUMAN", nextMatchId: null, humanResult: { wins: 7, losses: 0, matches_played: 7 },
-    event: { ...majorView().event, level: 5, name: "World Darts Championship", circuit: "WORLD_CHAMPIONSHIP", classification: "WORLD",
+    event: { ...majorView().event, level: 5, name: "World Darts Championship", definitionKey: "world-darts-championship", circuit: "WORLD_CHAMPIONSHIP", classification: "WORLD",
       format: { inRule: "STRAIGHT", scoringUnit: "SETS", legsPerSet: 5 }, trophy: null,
       venue: { displayName: "Alexandra Grand Hall", nickname: "The Palace", city: "London", venueType: "palace", capacityBand: "ARENA", stageConfiguration: "FEATURE_BOARD", atmosphereTags: ["historic-facade"] },
       content: { eventClass: "WORLD_CHAMPIONSHIP", fieldDescription: "The world's best.", trophyId: "sovereign" } },
@@ -280,7 +280,7 @@ test("Palace champion: Sovereign Trophy, World Champion label, first title recor
   const t = text(html);
   for (const x of ["World Championship", "The Palace", "World Champion · Sovereign Trophy", "World Champion", "First title at this event", "World Championship debut",
     "Prize settled: £60,000", "Set play · 5 legs per set"]) assert.ok(t.includes(x), x);
-  assert.match(html, /tall silver sculpture, not a crown/);
+  assert.match(html, /data-award="PHYSICAL_TROPHY"[^>]*data-design="sovereign"/, "E2 Sovereign: the tall silver sculpture, not a crown");
   assert.doesNotMatch(t, /Best ever finish/, "a debut cannot also be a best-ever finish");
   assert.match(t, /Matches 7–0/, "A3 recorded wins/losses take precedence");
   assert.match(html, /tb-tier-world/);
@@ -306,11 +306,12 @@ test("bull-up context strip names the real event, tier, stage and format", () =>
 });
 
 test("grassroots hub scene", () => {
-  const v = majorView({ event: { ...majorView().event, level: 1, name: "Social Club Friday 501", circuit: "GRASSROOTS", classification: "RANKING",
+  const v = majorView({ event: { ...majorView().event, level: 1, name: "Social Club Friday 501", definitionKey: "friday-night-501", circuit: "GRASSROOTS", classification: "RANKING",
     venue: { displayName: "Kilbirnie Social Club", nickname: null, city: "Kilbirnie", venueType: "social-club", capacityBand: "CLUB", stageConfiguration: "MULTI_BOARD_FLOOR", atmosphereTags: ["live-crowd"] },
     content: { eventClass: "GRASSROOTS", fieldDescription: "Local players from the area.", trophyId: "wood-silver-shield" }, trophy: { id: "wood-silver-shield", name: "Wood & Silver Shield", designKey: "wood-silver" } },
     depth: { arrival: false, drawReveal: false, walkOn: false, fullCeremony: false, animate: false, skippable: true, sportingEffects: false }, opponents: [] });
   const html = render(h(M.TournamentPage, { ctx: ctx(), eventId: "major" }), [[key("tournament", "major"), v]]);
   scene("hub-grassroots", html);
-  assert.match(html, /tb-tier-grassroots/); assert.match(text(html), /Wood & Silver Shield/);
+  // E2/P1-1: a weekly club fixture awards result and prize only; its stored catalogue trophy is not shown as silverware.
+  assert.match(html, /tb-tier-grassroots/); assert.doesNotMatch(text(html), /Wood & Silver Shield/); assert.doesNotMatch(html, /data-award="PHYSICAL_TROPHY"/);
 });

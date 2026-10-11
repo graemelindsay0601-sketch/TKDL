@@ -38,8 +38,6 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
 
   return (
     <CareerEventIdentity eventKey={e.definitionKey} circuit={e.circuit} level={e.presentation.tier}><div className="space-y-3">
-      <ContextHelp saveId={save.id} topic="event"/>
-      {(e.circuit==="Q_SCHOOL"||["WORLD","MAJOR"].includes(e.presentation.tier))&&<ContextHelp saveId={save.id} topic={e.circuit==="Q_SCHOOL"?"q-school":e.presentation.tier==="WORLD"?"palace":"major"}/>}
       {!palace && <Link href={`/career/${save.id}/calendar`} className="career-btn career-btn-ghost"><ArrowLeft className="w-4 h-4" aria-hidden /> Calendar</Link>}
       <section className="pdc-card overflow-hidden relative" style={{ borderColor: `${tier.accent}${tier.emphasis >= 4 ? "66" : "33"}` }}>
         <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: `radial-gradient(80% 140% at 100% 0%, ${tier.accent}${tier.emphasis >= 4 ? "26" : "12"}, transparent 60%)` }} />
@@ -56,6 +54,9 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
           </div>
         </div>
       </section>
+      {/* F2: guidance loads asynchronously; placed after the hero so it never pushes the event identity down (CLS). */}
+      <ContextHelp saveId={save.id} topic="event"/>
+      {(e.circuit==="Q_SCHOOL"||["WORLD","MAJOR"].includes(e.presentation.tier))&&<ContextHelp saveId={save.id} topic={e.circuit==="Q_SCHOOL"?"q-school":e.presentation.tier==="WORLD"?"palace":"major"}/>}
       <section className="career-venue-event-scene" aria-label={`${e.venue.name} venue identity`}>
         <CareerVenueArtwork family={e.venue.venueType} className="career-venue-event-scene__art" />
         <div className="career-venue-event-scene__shade" aria-hidden="true"/>

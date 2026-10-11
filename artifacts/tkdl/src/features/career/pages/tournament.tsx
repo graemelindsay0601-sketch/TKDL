@@ -57,7 +57,6 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
   const reduced=v.presentation.reducedMotion;
   const playHref=next?`/career/${id}/matches/${next.id}/play`:"";
   return <CareerEventIdentity eventKey={v.event.definitionKey} circuit={v.event.circuit} level={v.event.level}><div className={`tournament-mode tournament-level-${v.event.level} ${reduced?"tournament-reduced":""}`} data-mode={v.presentation.mode}>
-    <ContextHelp saveId={id} topic="tournament"/>
     <TournamentHero v={v}>
       <div className="flex flex-wrap items-center gap-2"><StatusBadge label={v.phase.replace(/_/g," ")} tone={v.phase==="CHAMPION"?"gold":"neutral"}/>
         <span className="text-sm text-white/70">{v.event.drawLocked?"Official draw locked. No reshuffle on reload.":v.event.fieldLocked?"Field locked; official draw pending.":"A3 will lock eligible entries and generate the official draw on the scheduled date."}</span></div>
@@ -78,6 +77,8 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
         {preferences.error&&<p role="alert">{errorMessage(preferences.error)}</p>}
       </details>
     </TournamentHero>
+    {/* F2: guidance after the hero so its late arrival never shifts the tournament identity (CLS). */}
+    <ContextHelp saveId={id} topic="tournament"/>
     {ceremony==="walkon"&&next?<WalkOn v={v} match={next} playHref={playHref} onSkip={()=>setCeremony(null)}/>:
     ceremony&&<section className="pdc-card p-5 tournament-ceremony space-y-3" role="region" aria-label={ceremony==="draw"?"Official draw reveal":"Event arrival"}>
       <Label color="#ffd24a">{ceremony==="arrival"?"Event arrival":"The official draw"}</Label>
@@ -159,7 +160,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
 
 function PlayerCard({p}:{p:Player}) {
   return <article className="tournament-player" aria-label={`${p.name} opponent identity`}>
-    <CareerShirt name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured"/><div><h3 style={OSWALD}>{p.name}</h3>{p.nickname&&<p>“{String(p.nickname)}”</p>}
+    <CareerShirt playerId={p.key === "HUMAN" ? undefined : p.key} name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured"/><div><h3 style={OSWALD}>{p.name}</h3>{p.nickname&&<p>“{String(p.nickname)}”</p>}
       <p className="text-xs">{p.nationality||"Country not recorded"}{p.ranking?` · World #${p.ranking}`:""} · {p.titles} recorded titles</p>
       <div className="flex gap-1 flex-wrap mt-2">{p.badges.map(b=><StatusBadge key={b.label} label={b.label} tone="gold"/>)}</div></div>
   </article>;

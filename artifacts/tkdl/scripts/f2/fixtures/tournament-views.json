@@ -1,0 +1,244 @@
+{
+ "won": {
+  "event": {
+   "id": "81a58815-eeee-8649-8291-d1149c2e807b",
+   "name": "Kilbirnie Friday Night 501",
+   "definitionKey": "friday-night-501",
+   "season": 1,
+   "week": 20,
+   "startDay": 5,
+   "endDay": 5,
+   "status": "COMPLETED",
+   "statusReason": null,
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "format": {
+    "days": 1,
+    "inRule": "STRAIGHT",
+    "stages": [
+     {
+      "key": "main",
+      "kind": "KNOCKOUT",
+      "bestOfByRound": [
+       5,
+       5,
+       5,
+       7
+      ]
+     }
+    ],
+    "outRule": "DOUBLE",
+    "gameType": "X01",
+    "sideSize": 1,
+    "structure": "KNOCKOUT",
+    "legsPerSet": null,
+    "scoringUnit": "LEGS",
+    "matchContext": "local",
+    "startingScore": 501,
+    "firstThrowMethod": "BULL_UP"
+   },
+   "executable": true,
+   "fieldLocked": true,
+   "drawLocked": true,
+   "venue": {
+    "id": "club-ayrshire",
+    "displayName": "Kilbirnie Social Club",
+    "nickname": null,
+    "countryId": "GBR",
+    "regionId": "region:gbr:ayrshire",
+    "cityId": "city:gbr:kilbirnie",
+    "city": "Kilbirnie",
+    "region": "Ayrshire",
+    "venueType": "pub-club",
+    "capacityBand": "CLUB",
+    "atmosphereTags": [
+     "live-crowd",
+     "pub-club"
+    ],
+    "stageConfiguration": "FEATURE_BOARD",
+    "themeKey": "venue:pub-club",
+    "mapAnchor": {
+     "latitude": 55.75,
+     "longitude": -4.69,
+     "accuracy": "APPROXIMATE_CITY"
+    },
+    "history": {
+     "authority": "A3/A7.1/A7.6",
+     "venueKey": "club-ayrshire",
+     "inventedMemories": false
+    },
+    "permanentWorldHome": false
+   },
+   "venueFallback": {
+    "city": "Kilbirnie",
+    "country": "GBR"
+   },
+   "content": {
+    "venue": {
+     "id": "club-ayrshire",
+     "city": "Kilbirnie",
+     "cityId": "city:gbr:kilbirnie",
+     "region": "Ayrshire",
+     "history": {
+      "venueKey": "club-ayrshire",
+      "authority": "A3/A7.1/A7.6",
+      "inventedMemories": false
+     },
+     "nickname": null,
+     "regionId": "region:gbr:ayrshire",
+     "themeKey": "venue:pub-club",
+     "countryId": "GBR",
+     "mapAnchor": {
+      "accuracy": "APPROXIMATE_CITY",
+      "latitude": 55.75,
+      "longitude": -4.69
+     },
+     "venueType": "pub-club",
+     "displayName": "Kilbirnie Social Club",
+     "capacityBand": "CLUB",
+     "atmosphereTags": [
+      "live-crowd",
+      "pub-club"
+     ],
+     "permanentWorldHome": false,
+     "stageConfiguration": "FEATURE_BOARD"
+    },
+    "version": 1,
+    "themeKey": "event:grassroots",
+    "trophyId": "wood-silver-shield",
+    "circuitId": "grassroots",
+    "longevity": "RECURRING",
+    "eventClass": "GRASSROOTS",
+    "organisationId": "iodf",
+    "titleSponsorId": null,
+    "trophyIdentity": {
+     "id": "trophy:friday-night-501",
+     "designId": "wood-silver-shield"
+    },
+    "canonicalEventId": "friday-night-501",
+    "fieldDescription": "Local Field"
+   },
+   "level": 1,
+   "trophy": {
+    "id": "wood-silver-shield",
+    "name": "Wood & Silver Shield",
+    "designKey": "wood-silver",
+    "themeKey": "trophy:wood-silver-shield",
+    "abilityEffects": false
+   },
+   "qualificationOutputs": [],
+   "qSchool": null
+  },
+  "depth": {
+   "arrival": false,
+   "drawReveal": false,
+   "walkOn": false,
+   "fullCeremony": false,
+   "animate": true,
+   "skippable": true,
+   "sportingEffects": false
+  },
+  "achievements": {
+   "groupWinner": false,
+   "tournamentChampion": true
+  },
+  "phase": "CHAMPION",
+  "championKey": "HUMAN"
+ },
+ "lost": {
+  "event": {
+   "id": "d99efa16-8281-844f-b15e-c07d5777ecd1",
+   "name": "Kilbirnie Friday Night 501",
+   "definitionKey": "friday-night-501",
+   "season": 1,
+   "week": 6,
+   "startDay": 5,
+   "endDay": 5,
+   "status": "COMPLETED",
+   "statusReason": null,
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "format": {
+    "days": 1,
+    "inRule": "STRAIGHT",
+    "stages": [
+     {
+      "key": "main",
+      "kind": "KNOCKOUT",
+      "bestOfByRound": [
+       5,
+       5,
+       5,
+       7
+      ]
+     }
+    ],
+    "outRule": "DOUBLE",
+    "gameType": "X01",
+    "sideSize": 1,
+    "structure": "KNOCKOUT",
+    "legsPerSet": null,
+    "scoringUnit": "LEGS",
+    "matchContext": "local",
+    "startingScore": 501,
+    "firstThrowMethod": "BULL_UP"
+   },
+   "executable": true,
+   "fieldLocked": true,
+   "drawLocked": true,
+   "venue": {
+    "id": "club-ayrshire",
+    "displayName": "Kilbirnie Social Club",
+    "nickname": null,
+    "countryId": "GBR",
+    "regionId": "region:gbr:ayrshire",
+    "cityId": "city:gbr:kilbirnie",
+    "city": "Kilbirnie",
+    "region": "Ayrshire",
+    "venueType": "pub-club",
+    "capacityBand": "CLUB",
+    "atmosphereTags": [
+     "live-crowd",
+     "pub-club"
+    ],
+    "stageConfiguration": "FEATURE_BOARD",
+    "themeKey": "venue:pub-club",
+    "mapAnchor": {
+     "latitude": 55.75,
+     "longitude": -4.69,
+     "accuracy": "APPROXIMATE_CITY"
+    },
+    "history": {
+     "authority": "A3/A7.1/A7.6",
+     "venueKey": "club-ayrshire",
+     "inventedMemories": false
+    },
+    "permanentWorldHome": false
+   },
+   "venueFallback": {
+    "city": "Kilbirnie",
+    "country": "GBR"
+   },
+   "content": null,
+   "level": 1,
+   "trophy": null,
+   "qualificationOutputs": [],
+   "qSchool": null
+  },
+  "depth": {
+   "arrival": false,
+   "drawReveal": false,
+   "walkOn": false,
+   "fullCeremony": false,
+   "animate": true,
+   "skippable": true,
+   "sportingEffects": false
+  },
+  "achievements": {
+   "groupWinner": false,
+   "tournamentChampion": false
+  },
+  "phase": "COMPLETE",
+  "championKey": "e315fb36-00b6-8b4b-bad9-52d7cdca792b"
+ }
+}

@@ -6,6 +6,7 @@ export type CareerKitDesign = {
   cut: string;
   detail: string;
   image: string;
+  makerBrandId?: string;
 };
 
 const designRows = [
@@ -61,12 +62,184 @@ const designRows = [
   ["The Final", "After Dark", "Raised buttonless collar", "Ivory, midnight and garnet blocks with champagne piping."],
 ] as const satisfies ReadonlyArray<readonly [string, string, string, string]>;
 
-export const CAREER_KIT_DESIGNS: CareerKitDesign[] = designRows.map(([name, collection, cut, detail], index) => {
+const historicalDesigns: CareerKitDesign[] = designRows.map(([name, collection, cut, detail], index) => {
   const number = String(index + 1).padStart(2, "0");
   return { name, collection, cut, detail, id: `kit-50-${number}`, number, image: `kit-50-${number}.webp` };
 });
 
+const tourRows = [
+  ["Carbon Crown", "Precision", "Zip-collar tournament polo", "Ink-knit body with a champagne crown and engineered shoulder seams."],
+  ["Redline Atelier", "Rivalry", "Point-collar tournament polo", "Deep navy base with scarlet speed panels and an ivory pinline."],
+  ["Verdant Circuit", "Heritage", "Mandarin-collar shirt", "Forest technical knit with a copper circuit motif and clean piping."],
+  ["Copper Tide", "Energy", "Split-placket polo", "Burnished copper rings cut through a midnight performance fabric."],
+  ["After Hours", "After Dark", "Crew-neck performance jersey", "Violet star geometry set into a charcoal night-stage shirt."],
+  ["Northern Chevron", "Precision", "High-stand collar jersey", "Jade and gold chevrons with a restrained ice-white seam."],
+  ["Signal Point", "Rivalry", "Quarter-zip mock collar", "Warm ochre burst lines over a tailored graphite silhouette."],
+  ["Club Standard", "Heritage", "Classic button-placket polo", "Cobalt blockwork and bright scarlet details for the local circuit."],
+  ["Rose Circuit", "Energy", "Technical crew jersey", "Magenta panels framed by pale woven lines and a dark body."],
+  ["Midnight Relay", "After Dark", "Zip-neck touring shirt", "Teal circuit traces on a black technical base with gold finishing."],
+] as const;
+
+const tourDesigns: CareerKitDesign[] = tourRows.map(([name, collection, cut, detail], index) => ({
+  id: `kit-pro-${String(index + 1).padStart(2, "0")}`,
+  number: `P${String(index + 1).padStart(2, "0")}`,
+  name,
+  collection,
+  cut,
+  detail,
+  image: `kit-pro-${String(index + 1).padStart(2, "0")}.svg`,
+}));
+
+const nextWaveRows = [
+  ["Civic Standard", "Precision", "Button-front club polo", "Midnight body, ivory shoulder yoke and scarlet seam piping."],
+  ["Harbour Lights", "Rivalry", "Resort-collar regional shirt", "Sea-glass and coral panels with a subtle woven wave."],
+  ["Royal Exchange", "Heritage", "Spread-collar professional polo", "Oxblood and black with fine champagne art-deco lines."],
+  ["Comet Run", "Energy", "Stand-collar zip jersey", "Violet body crossed by cobalt comet-tail panels."],
+  ["Ironflight Forge", "After Dark", "Mock-neck equipment jersey", "Graphite knit, brushed-steel wing and restrained red seams.", "ironflight"],
+  ["Redpoint Velocity", "Precision", "Mandarin performance polo", "Carmine, white chevrons and black negative-space wedges.", "redpoint-darts"],
+  ["Ochre Solar", "Rivalry", "Zip-collar maker polo", "Ochre gold, slate shoulders and eclipse jacquard.", "ochre-darts"],
+  ["Northline Polar", "Heritage", "High-band technical jersey", "Glacial cyan and navy split with topographic knit.", "northline-darts"],
+  ["Keystone Architect", "Energy", "Stand-collar maker shirt", "Stone grey with copper stepped geometry and ivory linework.", "keystone-darts"],
+  ["Vector Nine Apex", "After Dark", "Folded-V performance shirt", "Forest and lime angular rising panels.", "vector-nine"],
+  ["Club Green Room", "Precision", "Button polo", "Bottle green, broad cream rib collar and burgundy piping."],
+  ["County Lines", "Rivalry", "Split-collar regional shirt", "Ivory and teal panels with copper contour lines."],
+  ["Golden Hour", "Heritage", "Point-collar tour jersey", "Burnt orange and plum blocks with champagne arc."],
+  ["Tidal Shift", "Energy", "Asymmetric zip jersey", "Turquoise, ultramarine and lilac panels."],
+  ["Carbon Orchid", "After Dark", "Sculpted mock-neck shirt", "Black micro-jacquard with magenta petal geometry."],
+  ["Redline Night Tour", "Precision", "Short-zip stage jersey", "Scarlet shoulder yoke, white blade and graphite mesh."],
+  ["Ivory Comet", "Rivalry", "Wide-collar elite polo", "Pearl and navy with vivid fuchsia comet trails."],
+  ["Black Tie 180", "Heritage", "Gold-edge championship polo", "Near-black fabric with brushed-gold geometry."],
+  ["Blackforge Foundry", "Energy", "Graphite equipment polo", "Copper forge panels with engineered shoulder structure.", "blackforge-darts"],
+  ["Apex Arrow Flight", "After Dark", "High-collar maker shirt", "White and cobalt with lime arrow panels.", "apex-arrow"],
+  ["Forge Sport Apexline", "Precision", "Mandarin apparel jersey", "Black and red blocks with athletic seam lines.", "forge-sport"],
+  ["Northstar Meridian", "Rivalry", "High-collar apparel shirt", "Navy starburst, silver and ice-blue piping.", "northstar-performance"],
+  ["Baseline Tempo", "Heritage", "Split-placket performance polo", "Slate with emerald pace bands.", "baseline-athletic"],
+  ["Vela Sails", "Energy", "Open-collar apparel shirt", "Midnight teal with coral and turquoise curves.", "vela-sport"],
+  ["Vantage Crownline", "After Dark", "Sculpted signature shirt", "Black technical fabric with antique-gold woven geometry.", "vantage-darts"],
+  ["Northstar Icefield", "Precision", "Point-collar technical polo", "Ice-blue body, navy sleeves and white diagonal.", "northstar-performance"],
+  ["Harbour Smoke", "Rivalry", "Low-stand invitational shirt", "Burgundy-charcoal blocks with ivory shoulder and copper pinstripe."],
+  ["Mosaic 180", "Heritage", "Asymmetric elite jersey", "Ink-blue facets in teal, amethyst and amber."],
+  ["Sunday League", "Energy", "Classic club polo", "Cream torso, forest sleeves and burgundy side stripe."],
+  ["The Contender", "After Dark", "Stand-collar challenger shirt", "Cobalt, citrus and navy angled panels."],
+  ["Prism Fade", "Precision", "Button-collar club shirt", "Violet and teal fields with frost-blue piping."],
+  ["Copper Cathedral", "Rivalry", "High-band regional shirt", "Navy with copper arches and muted-cream linework."],
+  ["Velocity Rose", "Heritage", "Asymmetric stage jersey", "Black and crimson with sharp rose speed panels."],
+  ["Whiteout", "Energy", "Wide-collar elite shirt", "White and silver with navy sleeves and cobalt diagonal."],
+  ["Blackforge Shard", "After Dark", "Black stand-collar maker jersey", "Forged-steel facets in red and pale grey.", "blackforge-darts"],
+  ["Apex Arrowhead", "Precision", "Mandarin maker shirt", "Royal blue with lime-and-white arrowhead panels.", "apex-arrow"],
+  ["Northline Borealis", "Rivalry", "Stand-collar technical shirt", "Teal and black with arctic cyan ribbons.", "northline-darts"],
+  ["Vector Nine Gridline", "Heritage", "Point-collar maker jersey", "Navy with silver grid panels and lime blocks.", "vector-nine"],
+  ["Vela Afterglow", "Energy", "Open-collar signature shirt", "Deep plum with coral and pale-gold sail panels.", "vela-sport"],
+  ["Baseline Crosscourt", "After Dark", "Ribbed-crew apparel jersey", "Warm white, graphite and emerald blocks.", "baseline-athletic"],
+] as const;
+
+const nextWaveDesigns: CareerKitDesign[] = nextWaveRows.map(([name, collection, cut, detail, makerBrandId], index) => ({
+  id: `kit-100-${String(index + 1).padStart(2, "0")}`,
+  number: String(index + 61).padStart(3, "0"),
+  name, collection, cut, detail, ...(makerBrandId ? { makerBrandId } : {}),
+  image: `kit-100-${String(index + 1).padStart(2, "0")}.webp`,
+}));
+
+const wave250FirstRows = [
+  ["Tidal Mosaic", "Precision", "Wide-band resort collar", "Sea-glass mosaic panels sweep diagonally across a tailored teal performance knit."],
+  ["Foundry Ember", "Precision", "Raglan zip jersey", "Copper forge scales and engineered graphite shoulder panels."],
+  ["Orchid Reign", "Precision", "Mandarin collar polo", "Sculpted orchid petals in plum, fuchsia and pale lilac."],
+  ["Alpine Circuit", "Precision", "High stand-collar jersey", "Glacier-blue channels, crisp white yoke and fractured navy lower panels."],
+  ["Art Deco Break", "Precision", "Double-button polo", "Woven black, antique-gold and ivory deco fan geometry."],
+  ["Saffron Vector", "Precision", "Asymmetric mock neck", "A saffron blade crosses midnight fabric with silver edge piping."],
+  ["Coral Current", "Precision", "Open-placket performance shirt", "Layered coral and aqua wave panels over deep petrol jacquard."],
+  ["Briar & Brass", "Precision", "Club button shirt", "Forest woven fabric with botanical brass embroidery and burgundy trim."],
+  ["Celestial Flight", "Precision", "Zip-neck performance jersey", "Indigo star-map embroidery and icy constellation lines."],
+  ["Monochrome Kinetic", "Precision", "Sculpted short-sleeve jersey", "Architectural black, white and steel panels with a crimson seam."],
+  ["Glasswing Arc", "Rivalry", "Structured wing-collar polo", "Cobalt shoulders frame a glass-etched arch in aqua and silver."],
+  ["Pitlane Carbon", "Rivalry", "Race-cut half-zip jersey", "Carbon chest architecture, copper racing chevron and offset sleeve panels."],
+  ["Rookery Tartan", "Rivalry", "Button-front heritage shirt", "Pine, oxblood and cream tartan yoke with curved contrast piping."],
+  ["Magma Compass", "Rivalry", "Funnel-neck tournament jersey", "Molten compass medallion and branching copper seams over obsidian."],
+  ["Horizon Bloom", "Rivalry", "Split-collar polo", "Sunset botanical panels in coral, plum, saffron and ink."],
+  ["Ceramic Wave", "Rivalry", "Standing zip shirt", "Lapis and ivory ceramic waves with fine crackle texture."],
+  ["Crown Stitch", "Rivalry", "Double-rib polo", "Emerald shoulder lattice and champagne embroidery on tailored black."],
+  ["Orbit Signal", "Rivalry", "Crew-neck performance top", "Concentric orbit bands intersect an electric-lime panel."],
+  ["Atlas Faultline", "Rivalry", "Sculpted side-zip jersey", "Geological slate, sandstone and amber strata with fractured seams."],
+  ["Velvet Eclipse", "Rivalry", "Open pointed-collar shirt", "A violet eclipse inset glows through black textured fabric."],
+] as const;
+
+const wave250Themes = [
+  ["Prism Forge", "Rivalry", "indigo, amber and smoke-grey", "faceted crystal lattice with diagonal enamel panels"],
+  ["Wild Meridian", "Heritage", "forest, cream and rust", "botanical compass embroidery across a split yoke"],
+  ["Solar Relay", "Energy", "scarlet, gold and ink", "layered sunburst chevrons and racing seam bands"],
+  ["Blue Hour", "After Dark", "midnight, cobalt and silver", "orbital night-sky jacquard with a silver arc"],
+  ["Tidal Mosaic", "Precision", "deep teal, aqua and ivory", "large curved mosaic tiles with sculpted negative space"],
+  ["Copper Atlas", "Rivalry", "copper, charcoal and pale stone", "topographic contour lines meeting a copper compass"],
+  ["Velvet Circuit", "After Dark", "plum, black and lilac", "woven circuit traces and bold curved inset"],
+  ["Citrine Crown", "Energy", "saffron, black and champagne", "radiating crown geometry in textured panels"],
+  ["Aurora Break", "Precision", "jade, ice-blue and navy", "northern-light ribbons over a fractured yoke"],
+  ["Rose Engine", "Heritage", "burgundy, blush and graphite", "mechanical rose medallion with sweeping petal seams"],
+  ["Carbon Flight", "Rivalry", "graphite, white and electric blue", "overlapping aerodynamic feather panels"],
+  ["Saffron Tide", "Energy", "ochre, petrol and ivory", "wave-shaped color blocking with fine woven grain"],
+  ["Obsidian Bloom", "After Dark", "black, emerald and antique gold", "raised floral geometry on matte panels"],
+  ["Glacier Fault", "Precision", "ice-blue, navy and silver", "fractured glacier strata with crisp seam piping"],
+  ["Signal Bloom", "Energy", "coral, fuchsia and midnight", "oversized floral signal graphic built into fabric panels"],
+  ["Monarch Lines", "Heritage", "amethyst, gold and ink", "art-deco fan ribs with asymmetrical blocks"],
+  ["Ember Compass", "Rivalry", "burnt orange, oxblood and charcoal", "molten compass rays across a sculpted chest"],
+  ["Harbour Grid", "Precision", "teal, slate and cream", "woven harbour map grid with curved panels"],
+  ["Night Garden", "After Dark", "indigo, violet and pale mint", "layered nocturnal leaves with a luminous shoulder"],
+  ["Gold Standard", "Heritage", "black, cream and brass", "tailored pinstripe architecture and signature chevrons"],
+  ["Voltage Shard", "Energy", "cobalt, lime and graphite", "bold lightning facets and offset sleeve blocks"],
+  ["Deep Current", "Precision", "navy, aqua and white", "large undersea wave arcs and contour-knit fields"],
+  ["Ruby Tartan", "Heritage", "ruby, navy and soft gold", "overscale tartan woven yoke and contrasting side panel"],
+  ["Silver Tempest", "Rivalry", "steel, black and crimson", "storm-cloud sweep with metallic seam architecture"],
+  ["Orchid Signal", "Energy", "orchid, cyan and dark plum", "large sculpted orchid petals with diagonal panel breaks"],
+  ["Summit Mark", "Precision", "pine, sandstone and ivory", "alpine contour lines and peak-shaped shoulder construction"],
+] as const;
+
+const wave250Cuts = [
+  ["sculpted band-collar polo", "engineered shoulder yoke and asymmetric chest panels"],
+  ["short-zip stand-neck jersey", "raglan sleeve build with a bold offset zip placket"],
+  ["open-collar resort shirt", "broad collar, tailored button-free placket and curved hem"],
+  ["double-rib tournament polo", "contrast sleeve cuffs and structured waist panels"],
+  ["high mock-neck performance shirt", "split shoulder panels, sculpted side gussets and clean hem"],
+] as const;
+
+// These are true manufacturer capsules: every range has a dedicated motif and
+// an intentionally chosen manufacturer palette, each offered in five cuts.
+const wave250MakerByTheme: Record<number, string> = {
+  4: "vela-sport",
+  6: "blackforge-darts",
+  7: "apex-arrow",
+  8: "northstar-performance",
+  20: "vector-nine",
+};
+
+const generatedWave250: CareerKitDesign[] = wave250Themes.flatMap(([theme, collection, palette, artwork], themeIndex) =>
+  wave250Cuts.map(([cut, construction], cutIndex) => {
+    const index = themeIndex * wave250Cuts.length + cutIndex;
+    const number = String(index + 121).padStart(3, "0");
+    const edition = ["Arc", "Vector", "Edition", "Stage", "Classic"][cutIndex];
+    return {
+      id: `kit-250-${number}`,
+      number,
+      name: `${theme} ${edition}`,
+      collection,
+      cut,
+      detail: `${artwork} in ${palette}, with ${construction}.`,
+      image: `kit-250-${number}.webp`,
+      ...(wave250MakerByTheme[themeIndex] ? { makerBrandId: wave250MakerByTheme[themeIndex] } : {}),
+    };
+  }),
+);
+
+const wave250First: CareerKitDesign[] = wave250FirstRows.map(([name, collection, cut, detail], index) => {
+  const number = String(index + 101).padStart(3, "0");
+  return { id: `kit-250-${number}`, number, name, collection, cut, detail, image: `kit-250-${number}.webp` };
+});
+
+export const CAREER_KIT_DESIGNS: CareerKitDesign[] = [
+  ...historicalDesigns, ...tourDesigns, ...nextWaveDesigns, ...wave250First, ...generatedWave250,
+];
 export const CAREER_KIT_BY_ID = new Map(CAREER_KIT_DESIGNS.map(design => [design.id, design]));
+export function isCareerKitAvailable(design: CareerKitDesign, activePartnerBrandIds: readonly string[], currentlySelectedId?: string) {
+  return !design.makerBrandId || design.id === currentlySelectedId || activePartnerBrandIds.includes(design.makerBrandId);
+}
 
 export const CAREER_KIT_COLLECTIONS = ["Precision", "Rivalry", "Heritage", "Energy", "After Dark"] as const;
 export type CareerKitCollection = (typeof CAREER_KIT_COLLECTIONS)[number];
@@ -82,10 +255,15 @@ export const CAREER_KIT_COLORWAYS = [
   { name: "Champagne", primary: "#ae8642" },
 ] as const;
 
-export function filterCareerKitDesigns(collection: "All shirts" | CareerKitCollection, search: string) {
+export function filterCareerKitDesigns(
+  collection: "All shirts" | CareerKitCollection,
+  search: string,
+  makerBrandId?: string,
+) {
   const query = search.trim().toLowerCase();
   return CAREER_KIT_DESIGNS.filter(design =>
     (collection === "All shirts" || design.collection === collection) &&
+    (!makerBrandId || design.makerBrandId === makerBrandId) &&
     (!query || `${design.name} ${design.cut} ${design.collection} ${design.detail}`.toLowerCase().includes(query)),
   );
 }

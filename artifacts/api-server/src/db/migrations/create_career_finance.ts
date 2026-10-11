@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { constraintAlreadyAdmits } from "./career_constraint_guard.ts";
 import {createCareerContent} from "./create_career_content.ts";
 import type { CareerDatabase } from "../../career/database.ts";
 
@@ -50,18 +51,21 @@ export async function createCareerFinance(database: CareerDatabase): Promise<voi
       WHERE category IS NULL AND kind = 'CAREER_START'`);
     await tx.execute(sql`UPDATE career_finance_entries SET category = 'ADJUSTMENT', headline = 'START', operation_key = 'legacy:' || id::text WHERE category IS NULL`);
     await tx.execute(sql`ALTER TABLE career_finance_entries ALTER COLUMN category SET NOT NULL, ALTER COLUMN headline SET NOT NULL, ALTER COLUMN operation_key SET NOT NULL`);
-    await tx.execute(sql`ALTER TABLE career_finance_entries DROP CONSTRAINT IF EXISTS career_finance_entries_category_check`);
-    await tx.execute(sql`ALTER TABLE career_finance_entries ADD CONSTRAINT career_finance_entries_category_check CHECK (
-      category IN ('CAREER_START','ENTRY_FEE','TRAVEL','ACCOMMODATION','PRIZE','SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY','REFUND','ADJUSTMENT')
-      AND headline IN ('START','EARNINGS','SPONSOR','EXPENSE')
-      AND (category <> 'CAREER_START' OR (headline = 'START' AND amount_pence >= 0))
-      AND (category NOT IN ('ENTRY_FEE','TRAVEL','ACCOMMODATION') OR (headline = 'EXPENSE' AND amount_pence <= 0))
-      AND (category <> 'PRIZE' OR (headline = 'EARNINGS' AND amount_pence > 0))
-      AND (category NOT IN ('SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY') OR (headline = 'SPONSOR' AND amount_pence > 0))
-      AND (category <> 'REFUND' OR (headline = 'EXPENSE' AND amount_pence > 0 AND reverses_entry_id IS NOT NULL))
-      AND (category <> 'ADJUSTMENT' OR reverses_entry_id IS NOT NULL OR operation_key LIKE 'legacy:%' OR operation_key LIKE 'adjustment:%')
-      AND sponsor_covered_pence >= 0 AND (gross_amount_pence IS NULL OR gross_amount_pence >= 0)
-      AND (week IS NULL OR week BETWEEN 1 AND 52) AND (season IS NULL OR season > 0))`);
+    // Never narrow the ledger vocabulary that SP-C/SP-E2 widened (A9 replays this migration): F2 P0-2.
+    if (!(await constraintAlreadyAdmits(tx, "career_finance_entries_category_check", "SPONSOR_GUARANTEED_PAYMENT"))) {
+      await tx.execute(sql`ALTER TABLE career_finance_entries DROP CONSTRAINT IF EXISTS career_finance_entries_category_check`);
+      await tx.execute(sql`ALTER TABLE career_finance_entries ADD CONSTRAINT career_finance_entries_category_check CHECK (
+        category IN ('CAREER_START','ENTRY_FEE','TRAVEL','ACCOMMODATION','PRIZE','SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY','REFUND','ADJUSTMENT')
+        AND headline IN ('START','EARNINGS','SPONSOR','EXPENSE')
+        AND (category <> 'CAREER_START' OR (headline = 'START' AND amount_pence >= 0))
+        AND (category NOT IN ('ENTRY_FEE','TRAVEL','ACCOMMODATION') OR (headline = 'EXPENSE' AND amount_pence <= 0))
+        AND (category <> 'PRIZE' OR (headline = 'EARNINGS' AND amount_pence > 0))
+        AND (category NOT IN ('SPONSOR_SIGNING_BONUS','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY') OR (headline = 'SPONSOR' AND amount_pence > 0))
+        AND (category <> 'REFUND' OR (headline = 'EXPENSE' AND amount_pence > 0 AND reverses_entry_id IS NOT NULL))
+        AND (category <> 'ADJUSTMENT' OR reverses_entry_id IS NOT NULL OR operation_key LIKE 'legacy:%' OR operation_key LIKE 'adjustment:%')
+        AND sponsor_covered_pence >= 0 AND (gross_amount_pence IS NULL OR gross_amount_pence >= 0)
+        AND (week IS NULL OR week BETWEEN 1 AND 52) AND (season IS NULL OR season > 0))`);
+    }
     await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_finance_entries_operation_unique ON career_finance_entries (career_save_id, operation_key)`);
     await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_finance_entries_save_id_unique ON career_finance_entries (career_save_id, id)`);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_finance_entries_recent_idx ON career_finance_entries (career_save_id, created_at DESC, id)`);

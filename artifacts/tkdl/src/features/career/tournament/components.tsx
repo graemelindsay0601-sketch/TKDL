@@ -4,8 +4,9 @@ import { useTournament } from "../api";
 import { CalendarDays, Coins, Crown, MapPin, Medal, Shield, Swords, Target, TrendingUp, Trophy, Users } from "lucide-react";
 import { Label, OSWALD, StatusBadge } from "../components";
 import { formatPence } from "../model";
-import { CareerShirt, CareerTrophy } from "../identity";
-import { CareerVenueArtwork } from "../pages/venue-atlas";
+import { CareerShirt } from "../identity";
+import { AwardPresentation, awardLabel, resolveAward, trophyArt } from "../trophies";
+import { CareerStageBackdrop, atmosphereFromTournament, resolveAtmosphere, spectacleFor, type MatchStage, type MomentKind } from "../atmosphere";
 import type { CareerEvent } from "../types";
 import {
   bracketColumns, dossier, humanPath, involvesHuman, isFinal, isGroup, knockoutRounds, opponentIfWin, prizeLadder,
@@ -25,6 +26,18 @@ const formatLine = (f: TView["event"]["format"], bestOf?: number) => {
   return bestOf ? `${base} · best of ${bestOf} ${unit}` : base;
 };
 
+/** E2: the event's award by its actual key (never by name); the stored catalogue trophy keeps historical identity. */
+const awardInput = (v: TView) => ({ event: { definitionKey: v.event.definitionKey, circuit: v.event.circuit, classification: v.event.classification },
+  persistedTrophyId: v.event.content?.trophyId ?? null, eventName: v.event.name });
+/** F1: atmosphere for this event and moment, honouring server presentation depth and reduced motion. */
+function Stage({ v, moment, matchStage = null, className = "" }: { v: TView; moment: MomentKind; matchStage?: MatchStage; className?: string }) {
+  const atmosphere = resolveAtmosphere(atmosphereFromTournament(v.event));
+  const spectacle = spectacleFor(moment, atmosphere.level, { matchStage, fullCeremony: v.depth.fullCeremony });
+  if (spectacle.intensity === 0) return null;
+  return <CareerStageBackdrop atmosphere={atmosphere} spectacle={spectacle} animate={v.depth.animate && !v.presentation.reducedMotion} eager className={className} />;
+}
+const matchStageOf = (label: string): MatchStage => label === "Final" ? "FINAL" : label === "Semi-final" ? "SEMI_FINAL" : label === "Quarter-final" ? "QUARTER_FINAL" : "EARLY";
+
 // ---------------------------------------------------------------- hero / arrival
 /** Broadcast-style event identity built only from the real event, venue and trophy content. */
 export function TournamentHero({ v, children }: { v: TView; children?: ReactNode }) {
@@ -33,7 +46,7 @@ export function TournamentHero({ v, children }: { v: TView; children?: ReactNode
   const days = v.event.startDay === v.event.endDay ? `Day ${v.event.startDay}` : `Days ${v.event.startDay}–${v.event.endDay}`;
   return (
     <section className={`tb-hero tb-tier-${tier.key.toLowerCase()}`} aria-label={`${v.event.name} event identity`}>
-      {venue && <CareerVenueArtwork family={venue.venueType} className="tb-hero__art" />}
+      <Stage v={v} moment="ARRIVAL" className="tb-hero__stage" />
       <div className="tb-hero__shade" aria-hidden />
       <div className="tb-hero__body">
         <div className="tb-hero__kicker"><span className="tb-chip">{tier.label}</span><span>{tier.kicker}</span></div>
@@ -50,8 +63,10 @@ export function TournamentHero({ v, children }: { v: TView; children?: ReactNode
         {v.event.content?.fieldDescription && <p className="tb-hero__field">{v.event.content.fieldDescription}</p>}
         {children}
       </div>
-      {v.event.trophy && !v.event.qSchool && <div className="tb-hero__trophy" aria-hidden={false}><CareerTrophy name={v.event.trophy.name} design={v.event.trophy.designKey} />
-        <span>{v.event.trophy.name}</span></div>}
+      {(() => { const award = resolveAward(awardInput(v).event, { persistedTrophyId: awardInput(v).persistedTrophyId });
+        if (award.award === "RESULT_ONLY") return null;
+        return <div className="tb-hero__trophy"><AwardPresentation {...awardInput(v)} size="md" />
+          <span>{award.designId ? trophyArt(award.designId)?.name ?? awardLabel(award) : awardLabel(award)}</span></div>; })()}
     </section>
   );
 }
@@ -63,6 +78,7 @@ export function ArrivalCeremony({ v }: { v: TView }) {
   const atmosphere = (venue?.atmosphereTags ?? []).map(t => t.replace(/-/g, " "));
   return (
     <div className={`tb-arrival tb-tier-${tier.key.toLowerCase()}`}>
+      <Stage v={v} moment="ARRIVAL" />
       <p className="tb-arrival__eyebrow">{tier.stage}</p>
       <h2 style={OSWALD}>{venue?.nickname ?? venue?.displayName ?? v.event.name}</h2>
       {venue?.nickname && <p className="tb-dim">{venue.displayName} · {venue.city}</p>}
@@ -213,7 +229,7 @@ export function TaleOfTheTape({ v, match }: { v: TView; match: TMatch }) {
 function TapeSide({ p, side, lines }: { p: TPlayer; side: "left" | "right"; lines: string[] }) {
   return (
     <article className={`tb-tape__side is-${side}`} aria-label={`${p.name} profile`}>
-      <CareerShirt name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
+      <CareerShirt playerId={p.key === "HUMAN" ? undefined : p.key} name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
       <div className="min-w-0">
         <h3 style={OSWALD}>{p.name}</h3>
         {p.nickname && <p className="tb-nick">“{String(p.nickname)}”</p>}
@@ -234,6 +250,7 @@ export function WalkOn({ v, match, playHref, onSkip }: { v: TView; match: TMatch
   const animate = v.depth.animate && !v.presentation.reducedMotion;
   return (
     <section className={`tb-walkon tb-tier-${tier.key.toLowerCase()}${animate ? " is-animated" : ""}`} aria-label="Walk-on">
+      <Stage v={v} moment="MATCH_INTRO" matchStage={matchStageOf(stageOf(match, rounds))} />
       <p className="tb-walkon__eyebrow">{v.event.name} · {stageOf(match, rounds)}</p>
       <div className="tb-walkon__stage">
         {them && <WalkOnCard p={them} order={1} caption="Walking on first" />}
@@ -251,7 +268,7 @@ function WalkOnCard({ p, order, caption }: { p: TPlayer; order: number; caption:
   return (
     <article className="tb-walkon__card" style={{ "--tb-order": order } as CSSProperties}>
       <span className="tb-walkon__caption">{caption}</span>
-      <CareerShirt name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
+      <CareerShirt playerId={p.key === "HUMAN" ? undefined : p.key} name={p.name} identity={p.shirt} sponsors={p.sponsors} scale="featured" />
       <h3 style={OSWALD}>{p.name}</h3>
       {p.nickname && <p className="tb-nick">“{String(p.nickname)}”</p>}
       <p className="tb-small tb-dim">{p.ranking ? `World #${p.ranking}` : "Unranked"}{p.seed ? ` · Seed ${p.seed}` : ""}</p>
@@ -293,7 +310,9 @@ export function CompletionSummary({ v, children }: { v: TView; children?: ReactN
   const run = runSummary(v);
   const champion = v.phase === "CHAMPION";
   const tier = tierProfile(v.event.level, v.event.content?.eventClass);
-  const trophy = v.event.trophy ?? (v.event.level >= 5 ? { name: "The Sovereign Trophy", designKey: "distinctive-tall-silver-not-a-crown" } : null);
+  // E2: the award is resolved from the event's own key; weekly/qualifier wins are result-only.
+  const award = resolveAward(awardInput(v).event, { persistedTrophyId: awardInput(v).persistedTrophyId });
+  const trophy = award.designId ? { name: trophyArt(award.designId)?.name ?? "Championship trophy" } : null;
   const finish = v.position === 1 ? "Champion" : v.position === 2 ? "Runner-up" : v.position ? `Finished ${v.position <= 4 ? "joint " : ""}${ordinalFinish(v.position)}` : null;
   const prior = v.history?.bestFinish ?? null;
   const records: string[] = [];
@@ -310,14 +329,16 @@ export function CompletionSummary({ v, children }: { v: TView; children?: ReactN
   if (v.achievements.groupWinner) records.push("Group winner");
   return (
     <section className={`tb-complete tb-tier-${tier.key.toLowerCase()}${champion ? " is-champion" : ""}`} aria-label="Tournament summary">
+      {/* F1: victory spectacle only for the recorded champion; a loss never celebrates. */}
+      {champion && !v.event.qSchool && <Stage v={v} moment="VICTORY" />}
       <div className="tb-complete__head">
-        {champion && trophy && !v.event.qSchool && <div className="tb-complete__trophy"><CareerTrophy name={trophy.name} design={trophy.designKey} /></div>}
+        {champion && !v.event.qSchool && award.award !== "RESULT_ONLY" && <div className="tb-complete__trophy"><AwardPresentation {...awardInput(v)} size="lg" /></div>}
         <div className="min-w-0">
           <Label color="#ffd24a">{champion ? (v.event.qSchool ? "Q-School session winner" : v.event.level >= 5 ? "World Champion · Sovereign Trophy" : "Tournament Champion")
             : v.event.level >= 5 && v.position === 2 ? "World Championship Runner-up" : "Tournament summary"}</Label>
           <h2 style={OSWALD}>{champion ? `${nameOf(v, "HUMAN")} — ${v.event.name}` : v.phase === "ELIMINATED" ? "Your tournament is over" : v.phase.replace(/_/g, " ")}</h2>
           {finish && <p className="tb-complete__finish">{finish}{v.humanResult ? "" : " · settlement pending"}</p>}
-          {champion && <p className="tb-small tb-dim">{v.event.qSchool ? "Actual session finish; a Tour Card is an A5 decision" : `${trophy?.name ?? "Tournament trophy"} · actual A3 champion result`}</p>}
+          {champion && <p className="tb-small tb-dim">{v.event.qSchool ? "Actual session finish; a Tour Card is an A5 decision" : `${award.award === "RESULT_ONLY" ? "Result & prize · no trophy at this event" : award.award === "RECOGNITION" ? (award.recognition === "MEDAL" ? "Winner's medal" : "Winner's plaque") : trophy?.name ?? "Championship trophy"} · actual A3 champion result`}</p>}
         </div>
       </div>
       <dl className="tb-complete__stats">

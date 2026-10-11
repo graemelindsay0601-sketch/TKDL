@@ -3,7 +3,9 @@ import { Link } from "wouter";
 import { Award, BadgeCheck, Briefcase, ChevronLeft, ChevronRight, Clapperboard, Crown, Film, Flag, Medal, RotateCcw, SkipForward, Star, Swords, TrendingUp, Trophy, X } from "lucide-react";
 import { useCareerProfile, useLegacy, usePresentation, useSeasonReview, useSporting, useTrophyCabinet } from "../api";
 import { BoundedList, CareerError, CareerLoading, Label, OSWALD, QueryState, StatusBadge } from "../components";
-import { CareerEventIdentity, CareerPlayerCard, CareerTrophy } from "../identity";
+import { CareerEventIdentity, CareerPlayerCard } from "../identity";
+import { AwardPresentation } from "../trophies";
+import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "../atmosphere";
 import { formatPence, ordinal } from "../model";
 import type { ShellContext } from "../shell";
 import { usePlayerLegacy, type Chapter, type Moment, type PlayerLegacy, type SeasonRow } from "./api";
@@ -91,7 +93,7 @@ function HonoursShelf({ saveId, legacy }: { saveId: string; legacy: PlayerLegacy
       {cabinet.isLoading ? <CareerLoading /> : cabinet.error ? <CareerError error={cabinet.error} onRetry={() => cabinet.refetch()} /> :
         shelf.length ? <div className="pl-shelf">{shelf.map(t => (
           <Link key={t.eventId} href={`/career/${saveId}/events/${t.eventId}`} className="pl-shelf__item">
-            {t.trophy ? <CareerTrophy name={t.trophy.name} design={t.trophy.designKey} /> : <span className="pl-plaque" aria-hidden><Award size={28} /></span>}
+            <AwardPresentation event={{ definitionKey: t.canonicalEventId, circuit: t.circuit, classification: t.classification }} persistedTrophyId={t.trophy?.id ?? null} size="sm" eventName={t.name} />
             <strong>{t.name}</strong><small>Season {t.season}{t.trophy ? ` · ${t.trophy.name}` : " · no trophy awarded"}</small>
           </Link>))}</div>
         : <p className="pl-empty">{legacy.totals.finals ? `${legacy.totals.finals} final${legacy.totals.finals === 1 ? "" : "s"} reached — the first title is still to come.` : "No titles yet. Nothing is shown until you actually win one."}</p>}
@@ -159,7 +161,7 @@ function Shelf({ title, tone, empty, items, saveId }: { title: string; tone: "go
         const t = g[0];
         return (
           <CareerEventIdentity key={t.trophyIdentityId} eventKey={t.canonicalEventId} circuit={t.circuit} className="pl-cabinet__item">
-            <div className="pl-cabinet__trophy">{t.trophy ? <CareerTrophy name={t.trophy.name} design={t.trophy.designKey} /> : <span className="pl-plaque" aria-hidden><Award size={34} /></span>}
+            <div className="pl-cabinet__trophy"><AwardPresentation event={{ definitionKey: t.canonicalEventId, circuit: t.circuit, classification: t.classification }} persistedTrophyId={t.trophy?.id ?? null} size="md" eventName={t.name} />
               {g.length > 1 && <span className="pl-cabinet__count" aria-label={`${g.length} wins`}>×{g.length}</span>}</div>
             <strong>{t.name}</strong>
             <small>{t.trophy ? t.trophy.name : "No trophy awarded for this event"}</small>
@@ -254,6 +256,11 @@ export function Documentary({ v, saveId, preview, initialStep = -1 }: { v: Playe
   };
   const chapter: Chapter | null = step >= 0 && step < last ? v.chapters[step] : null;
   const exit = `/career/${saveId}/my-career`;
+  // G1/F1: archival backdrop at the level of the biggest recorded event in view (never invented).
+  const TIERS = ["LOCAL", "STANDARD", "FEATURED", "TELEVISED", "MAJOR", "WORLD"];
+  const topTier = (tiers: (string | undefined)[]) => tiers.filter((t): t is string => !!t && TIERS.includes(t)).sort((a, b) => TIERS.indexOf(b) - TIERS.indexOf(a))[0] ?? null;
+  const docTier = chapter ? topTier(chapter.moments.map(m => m.tier)) : topTier(v.titles.map(m => m.tier));
+  const docAtmosphere = resolveAtmosphere(docTier ? { presentationTier: docTier } : null);
   return (
     <section className="pl-doc" aria-label="A Career Remembered" aria-roledescription="documentary">
       <header className="pl-doc__bar">
@@ -264,6 +271,7 @@ export function Documentary({ v, saveId, preview, initialStep = -1 }: { v: Playe
         <Link href={exit} className="pl-doc__exit" aria-label="Exit documentary"><X size={18} aria-hidden /></Link>
       </header>
       <div ref={stage} className="pl-doc__stage" tabIndex={-1} onKeyDown={onKey} aria-live="polite">
+        <CareerStageBackdrop atmosphere={docAtmosphere} spectacle={spectacleFor("DOCUMENTARY_CHAPTER", docAtmosphere.level)} documentary eager className="pl-doc__backdrop" />
         {step === -1 && <div className="pl-doc__card pl-doc__title" key="title">
           <p className="pl-eyebrow">{preview ? "Your story so far" : `Retired · season ${v.retiredAt?.season}, week ${v.retiredAt?.week}`}</p>
           <h1 style={OSWALD}>A Career Remembered</h1>

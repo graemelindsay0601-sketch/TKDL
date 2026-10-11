@@ -1,6 +1,8 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import { statSync } from "node:fs";
+const PUBLIC_VENUES = path.resolve(import.meta.dirname, "../../../public/images/career-venues");
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer, type ViteDevServer } from "vite";
@@ -44,7 +46,8 @@ test("Career Venue Atlas covers all authored venues and generated locality ident
   const html = renderAtlas();
   assert.match(html, /60 world venues · 70 locality identities/);
   assert.match(html, /Find your stage/);
-  assert.match(html, /career-palace-arena\.png/);
+  assert.match(html, /career-palace-arena\.webp/);
+  assert.ok(statSync(path.join(PUBLIC_VENUES, "career-palace-arena.webp")).size < 150_000, "Palace plate stays a light WebP (was a 1.2 MB PNG)");
   assert.match(html, /career-venue-.*\.jpg/);
   assert.equal(data.venues.length, 60);
   assert.equal(localities.reduce((total, locality) => total + locality.venues.length, 0), 70);
@@ -59,7 +62,7 @@ test("venue artwork is mapped for every authored visual family", () => {
     ["historic-theatre", "career-venue-heritage-theatre.jpg"], ["modern-theatre", "career-venue-modern-theatre.jpg"],
     ["exhibition", "career-venue-exhibition.jpg"], ["small-arena", "career-venue-arena.jpg"],
     ["major-arena", "career-venue-major-arena.jpg"], ["international-arena", "career-venue-international-arena.jpg"],
-    ["palace", "career-palace-arena.png"],
+    ["palace", "career-palace-arena.webp"],
   ];
   for (const [family, file] of files) {
     const html = renderToStaticMarkup(h(Atlas.CareerVenueArtwork, { family }));

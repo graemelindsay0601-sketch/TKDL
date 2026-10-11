@@ -1,0 +1,292 @@
+{
+ "titles": [
+  {
+   "eventId": "8b2c3dbf-eca2-8131-8878-b1e149acd888",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "5c05b2a6-65f2-83b6-99da-a38fb2f52058",
+   "canonicalEventId": "county-501-open",
+   "circuit": "COUNTY",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "regional-craft"
+   }
+  },
+  {
+   "eventId": "e555ba7e-1e32-8e8b-bf4a-6ef826878f7c",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "22615f2b-6aba-8471-bed1-8c9ef5be809f",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "ae33c897-ae53-8823-8c34-b51991792b44",
+   "canonicalEventId": "town-open",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "da423dd8-48c7-8234-85db-61c9bd652083",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "a5bed8ef-4d7c-8295-8f27-617d0c169e65",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "dc2bb7c4-6074-85b6-ad09-65057eec22fd",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "17315c74-375c-8055-ba0d-610b9dff7db9",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "80344d52-6b72-8ae9-a9cf-7a51f6b0c264",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "35575cca-f520-8ba2-a53e-15cda6c411cd",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "66bc8ab3-05bc-807d-b7d5-830529ea1aa4",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "75e72851-c665-8a76-885c-5d058d4344f0",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "a22bce90-4afb-85bc-a33e-c355d80d53c5",
+   "canonicalEventId": "town-open",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "59d2f42a-62ee-8f12-ae33-aea584f2e94d",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "591d8daf-d54a-82c1-a4c6-77ff962e2fee",
+   "canonicalEventId": "county-501-open",
+   "circuit": "COUNTY",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "regional-craft"
+   }
+  },
+  {
+   "eventId": "fd134b65-6c5f-8995-997d-0c63cf211717",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "2f24f5ee-0ef9-87ca-be54-399b0130c50c",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "1cd114af-5569-8d59-9ace-d2f4e007c1ca",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "44d87316-07ef-84ce-ad24-f905a580b392",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "b486f5e4-e08b-8754-a152-82caf6cf3bbc",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "0a8faa56-d7f0-80ee-a59d-8c71a442849b",
+   "canonicalEventId": "town-open",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "9fb85f23-e87d-8ea6-acb3-ecc119df43bb",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "471306b2-6da3-832d-800b-afe67221baad",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "1456f245-1893-8cf8-b616-06baa6061877",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "0cafcbb6-6ff6-831c-a2e3-0460ff13e9fa",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "6bd5ec82-bb73-80f9-9f5d-810e30dc3d21",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "e54713c2-3588-8092-8c4a-e7d5b3ebdef0",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "a21aaeb2-6709-8995-a4ee-65822b12739b",
+   "canonicalEventId": "sunday-league-sprint",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "0cbf310b-8cba-8024-b190-93778933a2e9",
+   "canonicalEventId": "town-open",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "3f5025d5-7bb4-8ec7-9d1c-4785750e6eb9",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  },
+  {
+   "eventId": "81a58815-eeee-8649-8291-d1149c2e807b",
+   "canonicalEventId": "friday-night-501",
+   "circuit": "GRASSROOTS",
+   "classification": "RANKING",
+   "trophy": {
+    "id": "wood-silver-shield"
+   }
+  }
+ ]
+}

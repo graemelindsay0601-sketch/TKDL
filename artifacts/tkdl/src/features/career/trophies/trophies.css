@@ -1,0 +1,26 @@
+/* Workstream E2 — premium trophy presentation. Scoped to .ct-* classes only. */
+.ct-trophy{--ct-w:120px;position:relative;display:inline-flex;flex-direction:column;align-items:center;margin:0;width:var(--ct-w);flex:none}
+.ct-size-xs{--ct-w:44px}.ct-size-sm{--ct-w:76px}.ct-size-md{--ct-w:120px}.ct-size-lg{--ct-w:180px}.ct-size-hero{--ct-w:min(260px,62vw)}
+.ct-trophy__art{display:block;width:100%;height:auto;aspect-ratio:3/4;position:relative;z-index:1;filter:drop-shadow(0 6px 14px rgba(0,0,0,.45))}
+.ct-render .ct-trophy__art{filter:none}
+.ct-trophy__halo{position:absolute;inset:6% 4% 18%;border-radius:50%;background:radial-gradient(closest-side,rgba(233,199,122,.22),rgba(120,160,210,.08) 60%,transparent);z-index:0}
+.ct-size-xs .ct-trophy__halo{display:none}
+/* Engraving sits on the plinth plate drawn at x84–156, y280–298 of the 240×320 artwork. */
+.ct-trophy__plate{position:absolute;left:35%;width:30%;top:87.5%;height:5.625%;z-index:2;display:flex;align-items:center;justify-content:center;overflow:hidden;pointer-events:none}
+.ct-trophy__plate span{font-family:Oswald,sans-serif;font-weight:700;letter-spacing:.04em;line-height:1;white-space:nowrap;color:#3d2a08;text-shadow:0 1px 0 rgba(255,243,196,.6);
+  font-size:calc(var(--ct-w) * .032)}
+.ct-missing,.ct-result-only{gap:6px;padding:10px 6px;border:1px dashed rgba(255,255,255,.28);border-radius:12px;text-align:center;color:rgba(255,255,255,.72);aspect-ratio:240/320;justify-content:center}
+.ct-missing{border-color:#fb8a92;color:#fbd0d4}
+.ct-missing figcaption,.ct-result-only figcaption{font-size:.68rem;line-height:1.25}
+.ct-size-xs.ct-missing figcaption,.ct-size-xs.ct-result-only figcaption{display:none}
+.ct-missing__mark,.ct-result-only__mark{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.06)}
+.ct-award{display:inline-flex;flex-direction:column;align-items:center;gap:6px}
+.ct-sheet{display:grid;grid-template-columns:repeat(var(--ct-cols),minmax(0,1fr));gap:12px}
+.ct-sheet__cell{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;border-radius:14px;text-align:center;
+  background:radial-gradient(70% 55% at 50% 35%,#1d2738,#0c111a);border:1px solid #233046;min-width:0}
+.ct-sheet__cell strong{font-family:Oswald,sans-serif;font-size:.82rem;letter-spacing:.04em;color:#fff;text-transform:uppercase}
+.ct-sheet__cell small{font-size:.7rem;color:rgba(255,255,255,.6)}
+@media (max-width:720px){.ct-sheet{grid-template-columns:repeat(2,minmax(0,1fr))}.ct-size-hero{--ct-w:min(220px,60vw)}}
+@media (prefers-reduced-motion:no-preference){.ct-reveal .ct-trophy__art{animation:ct-rise .9s cubic-bezier(.2,.7,.2,1) both}.ct-reveal .ct-trophy__halo{animation:ct-glow 1.6s ease-out both}}
+@keyframes ct-rise{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes ct-glow{from{opacity:0}to{opacity:1}}

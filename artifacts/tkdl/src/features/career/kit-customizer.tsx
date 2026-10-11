@@ -1,7 +1,9 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { Check, ChevronLeft, ChevronRight, Search, Shirt, Sparkles, Tag } from "lucide-react";
-import { CAREER_KIT_COLORWAYS, CAREER_KIT_COLLECTIONS, CAREER_KIT_DESIGNS, filterCareerKitDesigns } from "./kit-catalog";
-import { CareerShirt, type ShirtIdentity, type ShirtPartner } from "./identity";
+import { CAREER_KIT_COLORWAYS, CAREER_KIT_COLLECTIONS, CAREER_KIT_DESIGNS, filterCareerKitDesigns, isCareerKitAvailable } from "./kit-catalog";
+import { type ShirtIdentity, type ShirtPartner } from "./identity";
+import { PremiumCareerShirt } from "./apparel/premium-shirt";
+import { SPONSOR_LOGO_ASSETS } from "./apparel/brand-mark-identity";
 import "./kit-customizer.css";
 
 const PAGE_SIZE = 12;
@@ -12,20 +14,24 @@ export function CareerKitCustomizer({
   sponsors = [],
   playerName = "Career player",
   disabled = false,
+  eligibleMakerBrandIds = [],
   onChange,
 }: {
   identity?: ShirtIdentity;
   sponsors?: ShirtPartner[];
   playerName?: string;
   disabled?: boolean;
+  eligibleMakerBrandIds?: string[];
   onChange: (patch: Partial<ShirtIdentity>) => void;
 }) {
   const [collection, setCollection] = useState<(typeof collections)[number]>("All shirts");
+  const [makerBrandId, setMakerBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [customColour, setCustomColour] = useState(identity.primaryColour ?? "#7e63ae");
   const selected = CAREER_KIT_DESIGNS.find(item => item.id === identity.kitDesignId) ?? CAREER_KIT_DESIGNS[0]!;
-  const filtered = useMemo(() => filterCareerKitDesigns(collection, search), [collection, search]);
+  const makerBrandIds = useMemo(() => [...new Set(CAREER_KIT_DESIGNS.flatMap(item => item.makerBrandId ? [item.makerBrandId] : []))], []);
+  const filtered = useMemo(() => filterCareerKitDesigns(collection, search, makerBrandId || undefined), [collection, search, makerBrandId]);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const tintEnabled = identity.kitTintEnabled !== false && Boolean(identity.primaryColour);
@@ -42,13 +48,13 @@ export function CareerKitCustomizer({
           <h3>Your look. Your career.</h3>
           <p>Choose a distinct cut and artwork, then tune its fabric colour. Your kit is cosmetic only.</p>
         </div>
-        <span className="career-kit-library__count"><strong>50</strong><small>ORIGINAL<br />DESIGNS</small></span>
+        <span className="career-kit-library__count"><strong>{CAREER_KIT_DESIGNS.length}</strong><small>ORIGINAL<br />DESIGNS</small></span>
       </header>
       <div className="career-kit-library__feature">
         <div className="career-kit-library__feature-art" aria-label={`Preview of ${selected.name}`}>
           <span className="career-kit-library__stage-mark career-kit-library__stage-mark--top">TOUR ISSUE <i /> PERFORMANCE KNIT</span>
-          <CareerShirt identity={{ ...identity, kitDesignId: selected.id }} sponsors={sponsors} name={playerName} scale="profile" />
-          <span className="career-kit-library__stage-mark career-kit-library__stage-mark--bottom">FRONT VIEW <b>{selected.number} / 50</b></span>
+          <PremiumCareerShirt identity={{ ...identity, kitDesignId: selected.id }} sponsors={sponsors} name={playerName} scale="profile" />
+          <span className="career-kit-library__stage-mark career-kit-library__stage-mark--bottom">FRONT VIEW <b>{selected.number} / {CAREER_KIT_DESIGNS.length}</b></span>
         </div>
         <div className="career-kit-library__feature-info">
           <div className="career-kit-library__selected-label"><span>SELECTED SHIRT · {selected.number}</span><b>{selected.collection}</b></div>
@@ -78,6 +84,12 @@ export function CareerKitCustomizer({
               </label>
             </div>
           </div>
+          <details className="career-kit-library__debug">
+            <summary>Inspect sponsor print zones</summary>
+            <div><PremiumCareerShirt identity={{ ...identity, kitDesignId: selected.id }} sponsors={sponsors}
+              name={`${playerName} print placement`} scale="profile" debugZones /></div>
+            <small>Dashed guides are garment-relative print-safe areas. Sponsor marks are clipped to the shirt artwork.</small>
+          </details>
           <div className="career-kit-library__partner-note">
             <span className="career-kit-library__partner-icon"><Tag size={14} aria-hidden="true" /></span>
             <div><strong>Contract partner marks</strong>
@@ -91,25 +103,33 @@ export function CareerKitCustomizer({
       <div className="career-kit-library__toolbar">
         <div className="career-kit-library__catalog-heading">
           <div><span className="career-kit-library__eyebrow"><Sparkles size={12} aria-hidden="true" /> THE KIT COLLECTION</span><strong>Find your shirt</strong></div>
-          <span>50 designs · 5 collections</span>
+          <span>{CAREER_KIT_DESIGNS.length} designs · {CAREER_KIT_COLLECTIONS.length} visual collections · maker ranges unlock with active partner rights</span>
         </div>
         <div className="career-kit-library__tabs" role="group" aria-label="Filter shirt collection">
           {collections.map(item => <button key={item} type="button" className={collection === item ? "is-active" : ""} aria-pressed={collection === item} onClick={() => { setCollection(item); setPage(0); }} disabled={disabled}>{item}</button>)}
         </div>
+        <label className="career-kit-library__maker-filter">Manufacturer range
+          <select value={makerBrandId} onChange={event => { setMakerBrandId(event.target.value); setPage(0); }} disabled={disabled}>
+            <option value="">All ranges</option>
+            {makerBrandIds.map(id => <option key={id} value={id}>{SPONSOR_LOGO_ASSETS.get(id)?.name ?? id}</option>)}
+          </select>
+        </label>
         <label className="career-kit-library__search"><Search size={14} aria-hidden="true" /><input type="search" value={search}
           onChange={event => { setSearch(event.target.value); setPage(0); }} placeholder="Search cuts, names, collections" aria-label="Search shirts" disabled={disabled} /></label>
       </div>
-      <div className="career-kit-library__grid" role="group" aria-label="Choose one of 50 shirt designs">
+      <div className="career-kit-library__grid" role="group" aria-label={`Choose one of ${CAREER_KIT_DESIGNS.length} shirt designs`}>
         {visible.map(item => (
+          (() => { const locked = !isCareerKitAvailable(item, eligibleMakerBrandIds, selected.id); return (
           <button key={item.id} type="button" className={`career-kit-library__card ${selected.id === item.id ? "is-selected" : ""}`}
-            onClick={() => onChange({ kitDesignId: item.id })} aria-pressed={selected.id === item.id} disabled={disabled}>
+            onClick={() => onChange({ kitDesignId: item.id })} aria-pressed={selected.id === item.id} disabled={disabled || locked} title={locked ? `Requires an active ${item.makerBrandId} apparel/equipment agreement` : undefined}>
             <span className="career-kit-library__card-art">
               <span className="career-kit-library__card-number">{item.number} <i /> {item.collection}</span>
-              <CareerShirt identity={{ ...identity, kitDesignId: item.id }} name={item.name} scale="profile" />
+              <PremiumCareerShirt identity={{ ...identity, kitDesignId: item.id }} sponsors={sponsors} name={item.name} scale="profile" />
               {selected.id === item.id && <i className="career-kit-library__card-check"><Check size={13} aria-hidden="true" /></i>}
             </span>
-            <span className="career-kit-library__card-copy"><strong>{item.name}</strong><small>{item.cut}</small></span>
+            <span className="career-kit-library__card-copy"><strong>{item.name}{locked ? " · Partner range" : ""}</strong><small>{item.cut}</small></span>
           </button>
+          ); })()
         ))}
         {!visible.length && <p className="career-kit-library__empty">No shirts match. Try a different search or collection.</p>}
       </div>

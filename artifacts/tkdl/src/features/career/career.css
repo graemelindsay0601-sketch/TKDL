@@ -560,3 +560,17 @@
 @media(max-width:360px) {
   .career-root .career-primary-nav .career-nav-link { font-size:.58rem; padding-inline:1px; }
 }
+
+/* G1: premium Career header — broadcast player bar on the player's real stage. */
+.career-root .career-hero--stage{isolation:isolate;min-height:132px;background:#07090e}
+.career-hero--stage>:not(.ca-backdrop){position:relative;z-index:1}
+.career-hero--stage .ca-scrim{background:linear-gradient(90deg,#05070cf2 0%,#05070cc2 34%,#05070c40 66%,transparent),linear-gradient(0deg,#05070ccc,transparent 70%)}
+.career-hero--stage .ca-plate{filter:saturate(1.05) brightness(.9)}
+.career-hero__portrait{flex:none;display:grid;place-items:center;width:64px;height:72px;border-radius:14px;margin-right:4px;
+  background:radial-gradient(80% 70% at 50% 20%,#ffffff22,transparent 70%),#0b0f18cc;border:1px solid #ffffff1f;box-shadow:0 8px 22px #0006}
+.career-hero__portrait .career-shirt{width:52px!important;height:auto!important;max-height:62px}
+.career-hero--stage h1{text-shadow:0 2px 16px #000a}
+.career-hero--stage .career-header-tools{border-top-color:#ffffff14}
+.career-header-tools .career-search{display:flex;align-items:center;gap:8px;flex:1 1 320px;min-width:0}
+.career-header-tools .career-search input{flex:1;min-width:0}
+@media (max-width:640px){.career-header-tools{gap:8px}.career-header-tools .career-search{flex-basis:100%}.career-hero__portrait{width:52px;height:60px}.career-hero__portrait .career-shirt{width:42px!important}}

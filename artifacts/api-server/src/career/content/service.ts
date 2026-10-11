@@ -30,13 +30,34 @@ import {COUNTRY_CONTENT,REGIONS,CITIES,VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,ORG
 export const cosmeticSchema=z.object({
   nickname:z.string().trim().max(32).regex(/^[\p{L}\p{N} .'-]*$/u).nullable().optional(),
   shirtTemplate:z.enum(["CLASSIC","CHEVRON","SPLIT"]).optional(),
-  kitDesignId:z.string().regex(/^kit-50-(?:0[1-9]|[1-4][0-9]|50)$/).optional(),
+  // Keep the wire validator aligned with the append-only Career Kit Studio IDs.
+  // v1–v3 IDs remain valid; new collection IDs are explicit, never inferred.
+  kitDesignId:z.string().regex(/^kit-(?:50-(?:0[1-9]|[1-4][0-9]|50)|pro-(?:0[1-9]|10)|100-(?:0[1-9]|[1-3][0-9]|40)|250-(?:10[1-9]|1[1-9][0-9]|2[0-4][0-9]|250))$/).optional(),
   kitTintEnabled:z.boolean().optional(),
   primaryColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   secondaryColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   accentColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   competitionCategory:z.enum(["OPEN","WOMEN"]).optional(),
 }).strict();
+const makerBrandByKitId:Readonly<Record<string,string>>={
+  "kit-100-05":"ironflight","kit-100-06":"redpoint-darts","kit-100-07":"ochre-darts","kit-100-08":"northline-darts",
+  "kit-100-09":"keystone-darts","kit-100-10":"vector-nine","kit-100-19":"blackforge-darts","kit-100-20":"apex-arrow",
+  "kit-100-21":"forge-sport","kit-100-22":"northstar-performance","kit-100-23":"baseline-athletic",
+  "kit-100-24":"vela-sport","kit-100-25":"vantage-darts","kit-100-26":"northstar-performance",
+  "kit-100-35":"blackforge-darts","kit-100-36":"apex-arrow","kit-100-37":"northline-darts",
+  "kit-100-38":"vector-nine","kit-100-39":"vela-sport","kit-100-40":"baseline-athletic",
+  "kit-250-141":"vela-sport","kit-250-142":"vela-sport","kit-250-143":"vela-sport","kit-250-144":"vela-sport","kit-250-145":"vela-sport",
+  "kit-250-151":"blackforge-darts","kit-250-152":"blackforge-darts","kit-250-153":"blackforge-darts","kit-250-154":"blackforge-darts","kit-250-155":"blackforge-darts",
+  "kit-250-156":"apex-arrow","kit-250-157":"apex-arrow","kit-250-158":"apex-arrow","kit-250-159":"apex-arrow","kit-250-160":"apex-arrow",
+  "kit-250-161":"northstar-performance","kit-250-162":"northstar-performance","kit-250-163":"northstar-performance","kit-250-164":"northstar-performance","kit-250-165":"northstar-performance",
+  "kit-250-221":"vector-nine","kit-250-222":"vector-nine","kit-250-223":"vector-nine","kit-250-224":"vector-nine","kit-250-225":"vector-nine",
+};
+export function canSelectCareerKit(kitDesignId:string,activeMakerIds:readonly string[],currentlySelectedId?:string) {
+  if(!/^kit-(?:50-(?:0[1-9]|[1-4][0-9]|50)|pro-(?:0[1-9]|10)|100-(?:0[1-9]|[1-3][0-9]|40)|250-(?:10[1-9]|1[1-9][0-9]|2[0-4][0-9]|250))$/.test(kitDesignId))return false;
+  if(kitDesignId===currentlySelectedId)return true;
+  const maker=makerBrandByKitId[kitDesignId];
+  return !maker||activeMakerIds.includes(maker);
+}
 export const signatureSchema=z.object({contractId:z.string().uuid(),productType:z.enum(["SIGNATURE_DARTS","SIGNATURE_RANGE"])}).strict();
 const equipmentLoadoutSchema=z.object({
   dartWeight:z.number().min(18).max(30),barrel:z.enum(["STRAIGHT","TORPEDO","SCALLOPED","TAPERED"]),
@@ -122,6 +143,13 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
       return database.transaction(async tx=>{
         const root=await lockRoot(tx,actor,saveId) as RootRow;
         if(Number(root.current_week)!==1)throw new CareerError(409,"Presentation/category edits are available in the season opening week");
+        const savedIdentity=root.settings_snapshot?.presentationIdentity as {kitDesignId?:string}|undefined;
+        if(input.kitDesignId) {
+          const contracts=await activeContracts(tx,saveId);
+          const activeMakerIds=contracts.map(contract=>contract.sponsor_key);
+          if(!canSelectCareerKit(input.kitDesignId,activeMakerIds,savedIdentity?.kitDesignId))
+            throw new CareerError(409,"This manufacturer shirt requires an active agreement with its maker.");
+        }
         const {competitionCategory,...cosmetics}=input;
         const settings={...root.settings_snapshot,...(competitionCategory?{competitionCategory}:{}),
           presentationIdentity:{...PRESENTATION_DEFAULTS,...(root.settings_snapshot?.presentationIdentity as object??{}),...cosmetics}};

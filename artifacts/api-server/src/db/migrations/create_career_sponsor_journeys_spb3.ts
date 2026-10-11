@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { constraintAlreadyAdmits } from "./career_constraint_guard.ts";
 import type { CareerDatabase } from "../../career/database.ts";
 
 /**
@@ -23,13 +24,16 @@ export async function createCareerSponsorJourneysSPB3(database: CareerDatabase):
     await tx.execute(sql`ALTER TABLE career_sponsor_journey_events
       ADD COLUMN IF NOT EXISTS season INTEGER,
       ADD COLUMN IF NOT EXISTS week INTEGER`);
-    await tx.execute(sql`ALTER TABLE career_sponsor_journey_events DROP CONSTRAINT IF EXISTS career_sponsor_journey_events_event_type_check`);
-    await tx.execute(sql`ALTER TABLE career_sponsor_journey_events ADD CONSTRAINT career_sponsor_journey_events_event_type_check
-      CHECK (event_type IN (
-        'INTEREST','APPROACH','OFFER_RECEIVED','PLAYER_COUNTERED','SPONSOR_COUNTERED',
-        'SPONSOR_ACCEPTED_REQUEST','SPONSOR_REJECTED','SPONSOR_WITHDREW','PLAYER_DECLINED',
-        'PLAYER_WALKED_AWAY','SIGNED','OFFER_EXPIRED'
-      ))`);
+    // Never narrow the event vocabulary a later SP migration widened when this one is replayed.
+    if (!(await constraintAlreadyAdmits(tx, "career_sponsor_journey_events_event_type_check", "FINANCIAL_PAYMENT"))) {
+      await tx.execute(sql`ALTER TABLE career_sponsor_journey_events DROP CONSTRAINT IF EXISTS career_sponsor_journey_events_event_type_check`);
+      await tx.execute(sql`ALTER TABLE career_sponsor_journey_events ADD CONSTRAINT career_sponsor_journey_events_event_type_check
+        CHECK (event_type IN (
+          'INTEREST','APPROACH','OFFER_RECEIVED','PLAYER_COUNTERED','SPONSOR_COUNTERED',
+          'SPONSOR_ACCEPTED_REQUEST','SPONSOR_REJECTED','SPONSOR_WITHDREW','PLAYER_DECLINED',
+          'PLAYER_WALKED_AWAY','SIGNED','OFFER_EXPIRED'
+        ))`);
+    }
     await tx.execute(sql`ALTER TABLE career_sponsor_journey_events DROP CONSTRAINT IF EXISTS career_sponsor_journey_events_game_time_check`);
     await tx.execute(sql`ALTER TABLE career_sponsor_journey_events ADD CONSTRAINT career_sponsor_journey_events_game_time_check
       CHECK ((season IS NULL AND week IS NULL) OR (season BETWEEN 1 AND 1000 AND week BETWEEN 1 AND 52))`);

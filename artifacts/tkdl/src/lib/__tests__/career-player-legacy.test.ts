@@ -84,14 +84,15 @@ test("new Career with no honours: honest empty profile, no trophies, no document
 });
 
 test("established professional: real standing, landmarks in order, honours with catalogue trophies; no-trophy events get a plaque", () => {
-  const titles = [title({ eventId: "ev-major", name: "Fixture Masters", season: 2, circuit: "MAJOR", classification: "MAJOR", trophyIdentityId: "trophy:fixture-masters",
-    trophy: { id: "championship-cup", name: "Wide Championship Cup", designKey: "wide-silver" } }), title({ trophy: null, name: "Club Night Cup", eventId: "ev-club", trophyIdentityId: "trophy:club" })];
+  // Real event keys: E2 resolves awards by the event's actual key (Grand Slam = Wide Championship Cup; a weekly fixture awards none).
+  const titles = [title({ eventId: "ev-major", canonicalEventId: "grand-slam-of-champions", name: "Fixture Masters", season: 2, circuit: "MAJOR", classification: "MAJOR", trophyIdentityId: "trophy:fixture-masters",
+    trophy: { id: "championship-cup", name: "Wide Championship Cup", designKey: "wide-silver" } }), title({ trophy: null, canonicalEventId: "friday-night-501", circuit: "GRASSROOTS", name: "Club Night Cup", eventId: "ev-club", trophyIdentityId: "trophy:club" })];
   const html = render(h(M.PlayerLegacyProfile, { ctx: ctx() }), profileSeed(established(), titles, 21, true));
   const t = text(html);
   for (const x of ["Tour Card professional", "World #21", "Career high #12", "Titles 2", "Finals 3", "Major / World 1", "First final: Ayrshire Masters", "First title: Ayrshire Open",
     "Tour Card won", "Q-School day winner · season 2", "Fixture Masters", "Wide Championship Cup", "no trophy awarded"]) assert.ok(t.includes(x), x);
   assert.ok(t.indexOf("First final") < t.indexOf("Tour Card won"), "landmarks are chronological");
-  assert.equal((html.match(/career-trophy-svg/g) ?? []).length, 1, "only the event with a catalogue trophy shows one");
+  assert.equal((html.match(/data-award="PHYSICAL_TROPHY"/g) ?? []).length, 1, "only the event with a catalogue trophy shows one");
   assert.match(html, /career-kit-library\/kit-50-07/, "the saved kit is the shirt");
   assert.doesNotMatch(t, /potential|ability|Legacy Score/i);
   scene("profile-pro", html);
@@ -112,9 +113,9 @@ test("profile load failure offers retry instead of a blank card", () => {
 // ---------------------------------------------------------------- D2 cabinet
 test("trophy cabinet: majors shelf, grouped repeat wins, qualifier wins without trophies, finals and awards", () => {
   const titles = [
-    title({ eventId: "m", name: "Fixture Masters", season: 2, circuit: "MAJOR", classification: "MAJOR", trophyIdentityId: "trophy:fm", trophy: { id: "championship-cup", name: "Wide Championship Cup", designKey: "wide-silver" } }),
-    title({ eventId: "a1", season: 1 }), title({ eventId: "a2", season: 3 }),
-    title({ eventId: "q", name: "Q-School Day 2", circuit: "Q_SCHOOL", classification: "QUALIFIER", trophyIdentityId: "trophy:q" }),
+    title({ eventId: "m", canonicalEventId: "grand-slam-of-champions", name: "Fixture Masters", season: 2, circuit: "MAJOR", classification: "MAJOR", trophyIdentityId: "trophy:fm", trophy: { id: "championship-cup", name: "Wide Championship Cup", designKey: "wide-silver" } }),
+    title({ eventId: "a1", canonicalEventId: "county-championship", season: 1 }), title({ eventId: "a2", canonicalEventId: "county-championship", season: 3 }),
+    title({ eventId: "q", canonicalEventId: "q-school-first-uk_ireland-d2", name: "Q-School Day 2", circuit: "Q_SCHOOL", classification: "QUALIFIER", trophyIdentityId: "trophy:q" }),
   ];
   const awards = { honours: [{ kind: "BREAKTHROUGH_PLAYER", season: 2, participant: "HUMAN", name: "Ayr Arrow", reason: "Rose from #64 to #12.", sources: [] },
     { kind: "PLAYER_OF_THE_YEAR", season: 2, participant: "npc", name: "Someone", reason: "Not you.", sources: [] }] };
@@ -123,7 +124,7 @@ test("trophy cabinet: majors shelf, grouped repeat wins, qualifier wins without 
   for (const x of ["4 titles won", "Majors & World Championship", "Fixture Masters", "Tournament titles", "Ayrshire Open", "Season 1 · Ayr Town Hall", "Season 3 · Ayr Town Hall",
     "Qualifier & session wins", "Q-School Day 2", "Runner-up finishes", "World Darts Championship", "Ayrshire Masters", "Breakthrough player · season 2", "Rose from #64 to #12."]) assert.ok(t.includes(x), x);
   assert.match(html, /aria-label="2 wins"/, "repeat wins share one trophy with a count");
-  assert.equal((html.match(/career-trophy-svg/g) ?? []).length, 2, "the qualifier never gets a trophy");
+  assert.equal((html.match(/data-award="PHYSICAL_TROPHY"/g) ?? []).length, 2, "the qualifier never gets a trophy");
   assert.doesNotMatch(t, /Not you\./, "other players' awards are not yours");
   scene("cabinet", html);
 });

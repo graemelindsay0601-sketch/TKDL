@@ -173,7 +173,9 @@ test("milestones render as neutral factual labels (no prose)", () => {
 
 test("navigation: five destinations, legacy screens remain reachable, events belong to Calendar", () => {
   assert.deepEqual(CAREER_NAV.map(l => l.label), ["Home","Map","Calendar","Darts World","My Career"]);
-  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 13);
+  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 14); // 13 + SP-D Sponsor HQ (a98a841)
+
+  assert.equal(navLayerOf(activeNavKey("/career/abc/sponsors")).label, "My Career", "SP-D Sponsor HQ lives under My Career");
   assert.equal(navLayerOf(activeNavKey("/career/abc/recognition/npcs/example")).label, "My Career");
   assert.equal(navLayerOf(activeNavKey("/career/abc/goals")).label, "My Career");
   assert.equal(navLayerOf(activeNavKey("/career/abc/relationships")).label, "My Career");
