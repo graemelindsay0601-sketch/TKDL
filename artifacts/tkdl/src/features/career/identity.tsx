@@ -1,6 +1,7 @@
 import {useId,type CSSProperties,type ReactNode} from "react";
 import {eventIdentity} from "./presentation";
 import {CAREER_KIT_BY_ID} from "./kit-catalog";
+import {PremiumTrophy,TROPHY_ART,type TrophySize} from "./trophies";
 
 export type ShirtIdentity={shirtTemplate?:string;kitDesignId?:string;kitTintEnabled?:boolean;primaryColour?:string;secondaryColour?:string;accentColour?:string};
 export type ShirtPartner={brandName:string;slot:string};
@@ -36,16 +37,9 @@ export function CareerEventIdentity({eventKey,circuit,level,children,className="
   const t=eventIdentity(eventKey,circuit,level);
   return <div className={`career-event-identity identity-${t.className} ${className}`} title={t.motif} style={{"--identity-accent":t.accent} as CSSProperties}>{children}</div>;
 }
-export function CareerTrophy({name,design=""}:{name:string;design?:string}) {
-  const sovereign=/sovereign|distinctive-tall-silver-not-a-crown/.test(`${name.toLowerCase()} ${design}`);
-  return <svg viewBox="0 0 100 150" className="career-trophy-svg" role="img" aria-label={`${name}${sovereign?" · tall silver sculpture, not a crown":""}`}>
-    <path d="M25 130H75V140H25Z" fill="#222e3b"/><path d="M32 122H68V132H32Z" fill="#b7c5d0"/>
-    {sovereign?<><path d="M40 119 34 45 42 10 52 21 62 8 67 46 60 119Z" fill="#c4d3df"/><path d="M48 117 46 39 52 23 57 39 54 117Z" fill="#f3f7fa"/><path d="M37 52 66 44 62 75 39 83Z" fill="#7b91a4"/></>:
-      /globe|continental/.test(design)?<><circle cx="50" cy="48" r="29" fill="none" stroke="#c9d7e3" strokeWidth="5"/><ellipse cx="50" cy="48" rx="13" ry="29" fill="none" stroke="#c9d7e3"/><path d="M22 48H78M50 78V122" stroke="#c9d7e3" strokeWidth="6"/></>:
-      /crown|arch/.test(design)?<><path d="M27 95V40Q39 5 50 40Q62 5 74 40V95ZM42 96V121H59V96" fill="none" stroke="#cbd8e5" strokeWidth="7"/></>:
-      /heritage|bowl/.test(design)?<><path d="M12 46H88Q82 90 56 93V115H71V123H29V115H44V93Q18 90 12 46Z" fill="#c6d2df"/><path d="M13 52H87M27 72H73" stroke="#879cae" strokeWidth="3"/></>:
-      /column|geometric|steel|tall-silver|crystal|modern-metal/.test(design)?<><path d="M32 122 26 24 51 10 75 24 67 122Z" fill="#8ba5bd"/><path d="M51 12 50 120H62L69 29Z" fill="#d6e4ef"/><path d="M29 31 50 18" stroke="#e9f0f6" strokeWidth="5"/></>:
-      /plate|shield/.test(design)?<><path d="M18 28Q50 9 82 28V76Q78 94 50 114Q22 94 18 76Z" fill="#bac9d8"/><path d="M26 34Q50 21 74 34V71Q70 88 50 101Q30 88 26 71Z" fill="#30485e"/></>:
-      <><path d="M25 30H75L65 77 55 90V115H66V123H34V115H45V90L35 77Z" fill="#c4d3df"/><path d="M25 37H10Q8 72 35 72M75 37H90Q92 72 65 72" fill="none" stroke="#96aebf" strokeWidth="5"/></>}
-  </svg>;
+/** G1: the shared trophy renderer delegates to the E2 premium artwork. Callers that know their event should use
+ * AwardPresentation (event-aware); this keeps name/designKey callers working with the same catalogue identity. */
+export function CareerTrophy({name,design="",id,size="md",engraving}:{name:string;design?:string;id?:string;size?:TrophySize;engraving?:string}) {
+  const known=Object.values(TROPHY_ART).find(a=>a.id===id||a.family&&a.designKey===design||a.name===name);
+  return <PremiumTrophy trophy={{id:known?.id??id??null,name}} size={size} engraving={engraving}/>;
 }

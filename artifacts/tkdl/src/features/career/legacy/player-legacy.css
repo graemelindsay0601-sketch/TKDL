@@ -119,3 +119,8 @@
   .pl-doc__exit{margin-left:auto}
   .pl-doc__moments li{grid-template-columns:32px minmax(0,1fr)}.pl-doc__season{display:none}
 }
+
+/* G1/F1: archival broadcast backdrop behind documentary cards. */
+.pl-doc__stage{position:relative;isolation:isolate;overflow:hidden}
+.pl-doc__stage>:not(.ca-backdrop){position:relative;z-index:1}
+.pl-doc__card{background:linear-gradient(180deg,#05070c99,#05070ce6);backdrop-filter:blur(1.5px)}

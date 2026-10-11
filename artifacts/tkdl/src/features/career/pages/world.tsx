@@ -5,7 +5,9 @@ import {CareerError,CareerLoading,CareerSection,BoundedList,OSWALD} from "../com
 import {titleCase,formatPence} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
-import {CareerShirt,CareerTrophy,CareerEventIdentity,type ShirtIdentity} from "../identity";
+import {CareerShirt,CareerEventIdentity,type ShirtIdentity} from "../identity";
+import {AwardPresentation,resolveAward} from "../trophies";
+import "./trophy-cabinet.css";
 import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
 import {CareerMapPage} from "./map";
@@ -54,15 +56,36 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
   const [offset,setOffset]=useState(0),cabinet=useTrophyCabinet(ctx.save.id,offset);
   if(cabinet.isLoading)return <CareerLoading/>;
   if(cabinet.error||!cabinet.data)return <CareerError error={cabinet.error} onRetry={()=>cabinet.refetch()}/>;
-  return <CareerSection title="Factual trophy cabinet"><p className="p-3">{cabinet.data.total} actual A3 tournament wins. Repeated wins remain separate achievements. Qualifier wins are labelled, not promoted into major titles.</p>
-    <div className="career-trophy-grid">{[...new Set(cabinet.data.titles.map(t=>t.canonicalEventId))].map(key=>{
-      const editions=cabinet.data!.titles.filter(t=>t.canonicalEventId===key),t=editions[0];
-      return <CareerEventIdentity eventKey={key} key={key} className="career-surface surface-prestige">
-        {t.trophy&&t.circuit!=="Q_SCHOOL"&&<CareerTrophy name={t.trophy.name} design={t.trophy.designKey}/>}<h3>{t.name}</h3><p>{editions.length} recorded edition{editions.length===1?"":"s"} on this page · {t.circuit==="Q_SCHOOL"?"Session win — not a tournament title or automatic Tour Card":titleCase(t.classification)}</p><details><summary>Inspect individual wins</summary>{editions.map(e=><p key={e.eventId}><Link href={`/career/${ctx.save.id}/events/${e.eventId}`}>Season {e.season} · {e.venue?.displayName??"Venue not recorded"} · {e.circuit==="Q_SCHOOL"?"Q-School session":e.trophy?.name??"Trophy design unavailable"}</Link></p>)}</details></CareerEventIdentity>;
-    })}</div>
+  // G1: silverware on shelves (E2 policy by actual event key); title wins without a trophy listed honestly below.
+  const groups=[...new Set(cabinet.data.titles.map(t=>t.canonicalEventId))].map(key=>{
+    const editions=cabinet.data!.titles.filter(t=>t.canonicalEventId===key),t=editions[0];
+    return {key,t,editions,award:resolveAward({definitionKey:key,circuit:t.circuit,classification:t.classification},{persistedTrophyId:t.trophy?.id??null})};
+  });
+  const silverware=groups.filter(g=>g.award.award!=="RESULT_ONLY"),plain=groups.filter(g=>g.award.award==="RESULT_ONLY");
+  const wins=(n:number)=>`${n} recorded win${n===1?"":"s"}`;
+  return <div className="space-y-3">
+    <section className="career-cabinet-hero" aria-label="Trophy cabinet">
+      <p className="career-cabinet-hero__eyebrow">Trophy cabinet</p>
+      <h1 style={OSWALD}>{cabinet.data.total} recorded title{cabinet.data.total===1?"":"s"}</h1>
+      <p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every win is an actual A3 champion result; repeat wins stay separate.</p>
+    </section>
+    {silverware.length>0?<section className="career-cabinet" aria-label="Silverware">
+      {silverware.map(({key,t,editions})=><CareerEventIdentity eventKey={key} key={key} className="career-cabinet__item">
+        <div className="career-cabinet__plinth">{editions.length>1&&<span className="career-cabinet__count" aria-label={`${editions.length} wins`}>×{editions.length}</span>}
+          <AwardPresentation event={{definitionKey:key,circuit:t.circuit,classification:t.classification}} persistedTrophyId={t.trophy?.id??null} size="lg" eventName={t.name}/></div>
+        <h3 style={OSWALD}>{t.name}</h3><p>{wins(editions.length)} · {titleCase(t.classification)}</p>
+        <details><summary>Inspect individual wins</summary>{editions.map(e=><p key={e.eventId}><Link href={`/career/${ctx.save.id}/events/${e.eventId}`}>Season {e.season} · {e.venue?.displayName??"Venue not recorded"}</Link></p>)}</details>
+      </CareerEventIdentity>)}
+    </section>:<p className="career-cabinet__empty">Silverware appears here when you win an event that awards a trophy, plaque or medal.</p>}
+    {plain.length>0&&<CareerSection title="Titles without silverware">
+      <p className="px-3 pt-3 text-sm text-white/60">Weekly fixtures, qualifiers and Q-School sessions are recorded wins with result and prize only.</p>
+      <ul className="career-cabinet__list">{plain.map(({key,t,editions})=><li key={key}>
+        <Link href={`/career/${ctx.save.id}/events/${editions[0].eventId}`}><strong>{t.name}</strong></Link>
+        <span>{wins(editions.length)} · {t.circuit==="Q_SCHOOL"?"Q-School session":titleCase(t.classification)}</span></li>)}</ul>
+    </CareerSection>}
     {!cabinet.data.total&&<p className="p-3">No titles invented. Your first actual win will appear here.</p>}
-    <div className="p-3 flex gap-2"><button className="career-btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous</button><button className="career-btn" disabled={cabinet.data.nextOffset===null} onClick={()=>cabinet.data.nextOffset!==null&&setOffset(cabinet.data.nextOffset)}>Next</button></div>
-  </CareerSection>;
+    {(offset>0||cabinet.data.nextOffset!==null)&&<div className="p-3 flex gap-2"><button className="career-btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous</button><button className="career-btn" disabled={cabinet.data.nextOffset===null} onClick={()=>cabinet.data.nextOffset!==null&&setOffset(cabinet.data.nextOffset)}>Next</button></div>}
+  </div>;
 }
 export function PresentationPage({ctx}:{ctx:ShellContext}) {
   const needsSetup=new URLSearchParams(useSearch()).get("setup")==="needed";

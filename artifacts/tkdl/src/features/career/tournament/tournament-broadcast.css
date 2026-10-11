@@ -173,3 +173,17 @@
 .tb-strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 12px;padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));
   background:linear-gradient(180deg,#0d1220,#06040e);border-bottom:2px solid var(--tb-accent);font-size:.82rem;color:#fff;text-align:center}
 .tb-strip strong{text-transform:uppercase;letter-spacing:.04em}
+
+/* G1: E2 premium awards and F1 broadcast atmosphere. Backdrops sit behind content (F1 .ca-backdrop is pointer-events:none). */
+.tb-hero,.tb-arrival,.tb-walkon,.tb-complete{position:relative;isolation:isolate;overflow:hidden}
+.tb-hero>:not(.ca-backdrop):not(.tb-hero__shade),.tb-arrival>:not(.ca-backdrop),.tb-walkon>:not(.ca-backdrop),.tb-complete>:not(.ca-backdrop){position:relative;z-index:1}
+.tb-hero__shade{background:linear-gradient(90deg,#090c14e6 0%,#090c14b3 45%,#090c1426 85%),radial-gradient(70% 120% at 100% 0%,var(--tb-glow),transparent 60%)}
+.tb-hero{min-height:clamp(260px,40vw,420px);display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end}
+.tb-hero__trophy{align-self:stretch;justify-content:flex-end;background:linear-gradient(180deg,transparent,#05070c99);border-left:1px solid #ffffff12}
+.tb-hero__trophy .ct-award{display:flex;justify-content:center}
+.tb-arrival{min-height:260px;display:flex;flex-direction:column;justify-content:flex-end}
+.tb-walkon{min-height:clamp(340px,50vw,560px);align-content:end}
+.tb-walkon__card{background:#05070cb8;backdrop-filter:blur(2px)}
+.tb-complete.is-champion{min-height:clamp(360px,50vw,600px);align-content:end;background:#05070c}
+.tb-complete__stats div{background:#05070cb8}
+@media (max-width:640px){.tb-hero{grid-template-columns:1fr}.tb-hero__trophy{border-left:0;border-top:1px solid #ffffff12;flex-direction:row;justify-content:flex-start;padding:10px 18px}}

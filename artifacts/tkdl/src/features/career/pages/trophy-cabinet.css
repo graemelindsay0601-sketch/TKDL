@@ -1,0 +1,20 @@
+/* G1: premium trophy cabinet (screen-specific). */
+.career-cabinet-hero{position:relative;overflow:hidden;border-radius:18px;padding:22px 22px 20px;border:1px solid #f2c15a40;
+  background:radial-gradient(60% 120% at 85% 0%,#f2c15a26,transparent 60%),radial-gradient(50% 90% at 10% 100%,#3a5a9a22,transparent 60%),linear-gradient(135deg,#141a26,#090c14)}
+.career-cabinet-hero__eyebrow{font-family:Oswald,sans-serif;font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:#f2c15a}
+.career-cabinet-hero h1{font-size:clamp(1.6rem,4.5vw,2.6rem);text-transform:uppercase;line-height:1;margin:4px 0 6px;color:#fff}
+.career-cabinet-hero p{color:rgba(255,255,255,.7);font-size:.9rem;max-width:62ch}
+.career-cabinet{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:14px;padding:18px;border-radius:18px;
+  background:linear-gradient(180deg,#0d1220,#070a12);border:1px solid #ffffff12;box-shadow:inset 0 1px 0 #ffffff0d}
+.career-cabinet__item{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;padding:14px 12px 16px;border-radius:14px;min-width:0;
+  background:radial-gradient(70% 55% at 50% 0%,#ffffff1c,transparent 70%),linear-gradient(180deg,#121826,#0a0e17);border:1px solid #ffffff10}
+.career-cabinet__plinth{position:relative;display:flex;justify-content:center;width:100%;padding-bottom:10px;margin-bottom:4px;
+  background:linear-gradient(180deg,transparent 88%,#9fd0ff22 88%,#9fd0ff40 90%,transparent 94%)}
+.career-cabinet__count{position:absolute;top:0;right:4px;z-index:2;background:#f2c15a;color:#141414;font-weight:800;font-size:.75rem;border-radius:999px;padding:2px 9px}
+.career-cabinet__item h3{font-size:1.02rem;text-transform:uppercase;line-height:1.1;color:#fff;overflow-wrap:break-word}
+.career-cabinet__item p{font-size:.78rem;color:rgba(255,255,255,.62)}
+.career-cabinet__item details{font-size:.78rem;margin-top:6px;color:rgba(255,255,255,.7)}
+.career-cabinet__empty{padding:14px 16px;border-radius:14px;border:1px dashed #ffffff22;color:rgba(255,255,255,.65);font-size:.9rem}
+.career-cabinet__list{display:grid;gap:2px;padding:10px 12px 14px}
+.career-cabinet__list li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:9px 10px;border-radius:10px;background:#ffffff06;font-size:.88rem}
+.career-cabinet__list li span{color:rgba(255,255,255,.6);font-size:.8rem}
