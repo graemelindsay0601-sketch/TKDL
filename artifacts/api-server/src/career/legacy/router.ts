@@ -13,6 +13,7 @@ export function createCareerLegacyRouter(service:ReturnType<typeof createCareerL
     res.locals.careerActor={playerId:s!.playerId!,isAdmin:s?.isAdmin===true};next();
   };
   router.get("/saves/:id/legacy",auth,async(req,res)=>res.json(await service.read(res.locals.careerActor,String(req.params.id))));
+  router.get("/saves/:id/legacy/player",auth,async(req,res)=>res.json(await service.player(res.locals.careerActor,String(req.params.id))));
   router.get("/saves/:id/legacy/seasons/:season",auth,async(req,res)=>res.json(await service.season(res.locals.careerActor,String(req.params.id),Number(req.params.season))));
   router.get("/saves/:id/legacy/events/:key",auth,async(req,res)=>res.json(await service.event(res.locals.careerActor,String(req.params.id),String(req.params.key))));
   router.get("/saves/:id/legacy/npcs/:npcId",auth,async(req,res)=>res.json(await service.npc(res.locals.careerActor,String(req.params.id),String(req.params.npcId))));
