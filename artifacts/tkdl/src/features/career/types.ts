@@ -188,6 +188,8 @@ export type SponsorSigningReveal = {
 };
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
   slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean;source?:Record<string,unknown>; journey?:SponsorJourney|null;
+  /** Server signability (same rules as signing). signable=false: Accept is refused whatever the player selects. */
+  acceptance?:{signable:boolean;code:string|null;reason:string|null}|null;
   offered: { season: number; week: number }; expires: { season: number; week: number } };
 export type SponsorsResponse = { guaranteeConfiguration?: { status: "APPROVED"; catalogueVersion: number };
    active: SponsorContract | null; activeContracts?:SponsorContract[];pendingContracts?:SponsorContract[];portfolioLimit?:number;offers: SponsorOffer[]; journeys?:SponsorJourney[];

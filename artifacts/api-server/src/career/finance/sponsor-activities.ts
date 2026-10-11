@@ -6,14 +6,18 @@ import type { SponsorActivitySpecification } from "./sponsors.catalogue.ts";
 const REQUIRED_KIND:Record<string,string>={MEDIA_APPEARANCE:"MEDIA_APPEARANCE",COMMUNITY_APPEARANCE:"COMMUNITY_SESSION",PROMOTIONAL_APPEARANCE:"PROMOTIONAL_APPEARANCE",PRODUCT_APPEARANCE:"PRODUCT_APPEARANCE"};
 const OPTIONAL_KIND:Record<string,string>={SPONSOR_MEDIA_APPEARANCE:"MEDIA",PROMOTIONAL_EVENT:"PROMOTIONAL_EVENT",COMMUNITY_APPEARANCE:"COMMUNITY",PRODUCT_LAUNCH:"PRODUCT_LAUNCH"};
 
-async function freeWeeks(tx:CareerExecutor,saveId:string,season:number,from:number,to:number){
+async function freeWeeks(tx:CareerExecutor,saveId:string,season:number,from:number,to:number,ignoreContractIds:readonly string[]=[]){
+  // Bookings held by contracts that a signing will explicitly replace are released by that signing.
+  const ignoredBooking=ignoreContractIds.length?sql`AND b.activity_id NOT IN (
+        SELECT c.id FROM career_sponsor_commitments c WHERE c.career_save_id=${saveId} AND c.contract_id IN (${sql.join(ignoreContractIds.map(id=>sql`${id}`),sql`, `)})
+        UNION ALL SELECT o.id FROM career_sponsor_opportunities o WHERE o.career_save_id=${saveId} AND o.contract_id IN (${sql.join(ignoreContractIds.map(id=>sql`${id}`),sql`, `)}))`:sql``;
   const rows=await tx.execute(sql`SELECT series.week FROM generate_series(${from}::integer,${to}::integer) AS series(week)
     WHERE NOT EXISTS (
       SELECT 1 FROM career_event_instances i JOIN career_event_entries e
         ON e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.participant_key='HUMAN'
       WHERE i.career_save_id=${saveId} AND i.season=${season} AND i.start_week<=series.week AND i.end_week>=series.week AND e.status<>'WITHDRAWN'
     ) AND NOT EXISTS (
-      SELECT 1 FROM career_sponsor_week_bookings b WHERE b.career_save_id=${saveId} AND b.season=${season} AND b.week=series.week
+      SELECT 1 FROM career_sponsor_week_bookings b WHERE b.career_save_id=${saveId} AND b.season=${season} AND b.week=series.week ${ignoredBooking}
     ) AND NOT EXISTS (
       SELECT 1 FROM career_life_commitments l WHERE l.career_save_id=${saveId} AND l.season=${season} AND l.status='ACCEPTED'
         AND ((l.day-1)/7+1)=series.week
@@ -39,6 +43,48 @@ function canPlaceAll(tasks:number[][]){
   return ordered.every((_,index)=>place(index,new Set()));
 }
 
+type ActivityWindow={saveId:string;contractId:string;season:number;week:number;endSeason:number;endWeek:number;specification?:SponsorActivitySpecification};
+
+async function requiredTasksForSeason(tx:CareerExecutor,input:ActivityWindow,season:number,ignoreContractIds:readonly string[]){
+  const spec=input.specification!;
+  const requiredTasks:{clause:typeof spec.required[number];occurrence:number;from:number;to:number;weeks:number[]}[]=[];
+  for(const clause of spec.required)for(let occurrence=1;occurrence<=clause.maxPerSeason;occurrence++){
+    const authoredFrom=clause.firstWindowWeek+(occurrence-1)*clause.windowWeeks;
+    const authoredTo=Math.min(52,authoredFrom+clause.windowWeeks-1);
+    const agreementEnd=season===input.endSeason?input.endWeek:52;
+    const from=Math.max(authoredFrom,season===input.season?input.week+1:1);
+    const to=Math.min(authoredTo,agreementEnd);
+    // A contract signed after an authored window creates no retroactive duty.
+    // Never move the deadline to make a late-signed activity appear feasible.
+    if(authoredFrom>agreementEnd||from>to)continue;
+    requiredTasks.push({clause,occurrence,from,to,weeks:await freeWeeks(tx,input.saveId,season,from,to,ignoreContractIds)});
+  }
+  const requiredWindows=requiredTasks.map(task=>task.weeks);
+  const ignored=ignoreContractIds.length?sql`AND contract_id NOT IN (${sql.join(ignoreContractIds.map(id=>sql`${id}`),sql`, `)})`:sql``;
+  const existing=(await tx.execute(sql`SELECT available_from_week,due_week FROM career_sponsor_commitments
+    WHERE career_save_id=${input.saveId} AND season=${season} AND contract_id<>${input.contractId} ${ignored}
+      AND status IN ('PLANNED','AVAILABLE')`)).rows;
+  for(const row of existing)requiredWindows.push(await freeWeeks(tx,input.saveId,season,Number(row.available_from_week),Number(row.due_week),ignoreContractIds));
+  const issue=requiredWindows.some(weeks=>weeks.length===0)||!canPlaceAll(requiredWindows)
+    ?`Required sponsor activities have no complete, non-overlapping schedule in season ${season}`:null;
+  return {requiredTasks,issue};
+}
+
+/**
+ * Read-only: the reason the signed activity clauses could not be materialized for this
+ * contract window, or null when they can. Signing and offer listing both use this, so an
+ * offer is never presented as signable when materialization would refuse it.
+ * `ignoreContractIds` are contracts the signing explicitly replaces (their activities are cancelled first).
+ */
+export async function sponsorActivityScheduleIssue(tx:CareerExecutor,input:ActivityWindow,ignoreContractIds:readonly string[]=[]){
+  if(!input.specification)return null;
+  for(let season=input.season;season<=input.endSeason;season++){
+    const {issue}=await requiredTasksForSeason(tx,input,season,ignoreContractIds);
+    if(issue)return issue;
+  }
+  return null;
+}
+
 /** Materialize only clauses present in the immutable signed contract snapshot. */
 export async function materializeSponsorActivities(
   tx:CareerExecutor,
@@ -48,25 +94,8 @@ export async function materializeSponsorActivities(
   if(!spec)return {commitments:0,opportunities:0};
   let commitments=0,opportunities=0;
   for(let season=input.season;season<=input.endSeason;season++){
-    const requiredTasks:{clause:typeof spec.required[number];occurrence:number;from:number;to:number;weeks:number[]}[]=[];
-    for(const clause of spec.required)for(let occurrence=1;occurrence<=clause.maxPerSeason;occurrence++){
-      const authoredFrom=clause.firstWindowWeek+(occurrence-1)*clause.windowWeeks;
-      const authoredTo=Math.min(52,authoredFrom+clause.windowWeeks-1);
-      const agreementEnd=season===input.endSeason?input.endWeek:52;
-      const from=Math.max(authoredFrom,season===input.season?input.week+1:1);
-      const to=Math.min(authoredTo,agreementEnd);
-      // A contract signed after an authored window creates no retroactive duty.
-      // Never move the deadline to make a late-signed activity appear feasible.
-      if(authoredFrom>agreementEnd||from>to)continue;
-      requiredTasks.push({clause,occurrence,from,to,weeks:await freeWeeks(tx,input.saveId,season,from,to)});
-    }
-    const requiredWindows=requiredTasks.map(task=>task.weeks);
-    const existing=(await tx.execute(sql`SELECT available_from_week,due_week FROM career_sponsor_commitments
-      WHERE career_save_id=${input.saveId} AND season=${season} AND contract_id<>${input.contractId}
-        AND status IN ('PLANNED','AVAILABLE')`)).rows;
-    for(const row of existing)requiredWindows.push(await freeWeeks(tx,input.saveId,season,Number(row.available_from_week),Number(row.due_week)));
-    if(requiredWindows.some(weeks=>weeks.length===0)||!canPlaceAll(requiredWindows))
-      throw new Error(`Required sponsor activities have no complete, non-overlapping schedule in season ${season}`);
+    const {requiredTasks,issue}=await requiredTasksForSeason(tx,input,season,[]);
+    if(issue)throw new Error(issue);
     for(const {clause,occurrence,from,to} of requiredTasks){
       const id=stableUuid(input.worldSeed,1,"sponsor-commitment",input.contractId,clause.id,season,occurrence);
       const operationKey=`spd:${input.contractId}:${clause.id}:${season}:${occurrence}`;
