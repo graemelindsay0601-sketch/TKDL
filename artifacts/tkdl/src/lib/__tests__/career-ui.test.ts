@@ -86,6 +86,8 @@ function tournamentFixture(champion=false) {
   const entrant=(key:string,name:string)=>({key,name,nickname:null,nationality:"Scotland",ranking:null,titles:0,badges:[],
     source:"HUMAN_ENTRY",status:"LOCKED",seed:null,sponsors:[],shirt:{primaryColour:"#20334A",secondaryColour:"#FFFFFF",accentColour:"#C8A050"}});
   return {saveId:SAVE_ID,event:{id:"event",name:champion?"The Palace World Championship":"Community Open",level:champion?5:1,
+    // The real server read carries the event's key: E2 resolves the award from it, never from the name.
+    definitionKey:champion?"world-darts-championship":"community-open",circuit:champion?"WORLD_CHAMPIONSHIP":"GRASSROOTS",classification:champion?"RANKING":"RANKING",
     season:1,startDay:1,endDay:1,venue:null,venueFallback:{city:"London",country:"England"},drawLocked:true,fieldLocked:true,
     format:{inRule:"STRAIGHT",scoringUnit:champion?"SETS":"LEGS",legsPerSet:5},executable:true,
     trophy:champion?{name:"The Sovereign Trophy"}:null,qualificationOutputs:[],qSchool:null},
@@ -109,7 +111,7 @@ test("A8.2 real Palace champion summary uses tall Sovereign silver trophy, settl
   const t=text(html);
   assert.match(t,/World Champion · Sovereign Trophy/);assert.match(t,/7 wins · 0 losses · 7 played matches/);
   assert.match(t,/Prize settled: £2,000/);assert.match(t,/Ranking-eligible money: £2,000/);
-  assert.match(html,/tall silver sculpture/);assert.doesNotMatch(html,/lucide-crown/);
+  assert.match(html,/data-award="PHYSICAL_TROPHY"[^>]*data-design="sovereign"/,"E2 Sovereign (the tall silver sculpture, not a crown)");assert.doesNotMatch(html,/lucide-crown/);
 });
 test("A8.2 Home resume opens the saved tournament and explicitly preserves participation",()=>{
   const html=render(h(M.TournamentResume,{saveId:SAVE_ID}),[[key("tournaments"),{tournaments:[{eventId:"event",name:"Saved Vault Nights",level:3}]}]]);
@@ -576,7 +578,8 @@ test("A8.1 empty trophy cabinet invents nothing; repeated genuine wins stay dist
   assert.match(empty,/No titles invented/);
   const award={canonicalEventId:"double-crown",name:"The Double Crown",classification:"RANKING",trophy:{name:"Double Crown Trophy"}};
   const full=text(render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:2,nextOffset:null,titles:[{...award,eventId:"a",season:2},{...award,eventId:"b",season:3}]}]]));
-  assert.equal((full.match(/Double Crown Trophy/g)??[]).length,2);assert.match(full,/Season 2/);assert.match(full,/Season 3/);
+  // One shelf (grouped, ×2) whose two genuine wins are each listed with their own season and award.
+  assert.match(full,/Season 2 · [^·]+ · Double Crown Trophy/);assert.match(full,/Season 3 · [^·]+ · Double Crown Trophy/);assert.match(full,/×2/);
 });
 
 const a83MapFixture=()=>{

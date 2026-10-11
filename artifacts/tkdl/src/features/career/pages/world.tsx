@@ -6,7 +6,7 @@ import {titleCase,formatPence} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
 import {CareerShirt,CareerEventIdentity,type ShirtIdentity} from "../identity";
-import {AwardPresentation,resolveAward} from "../trophies";
+import {AwardPresentation,awardLabel,resolveAward,trophyArt} from "../trophies";
 import "./trophy-cabinet.css";
 import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
@@ -64,6 +64,8 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
   });
   const silverware=groups.filter(g=>g.award.award!=="RESULT_ONLY"),plain=groups.filter(g=>g.award.award==="RESULT_ONLY");
   const wins=(n:number)=>`${n} recorded win${n===1?"":"s"}`;
+  // The award's name as text (not only image alt): the E2 design's catalogue name, or the recognition form.
+  const awardName=(a:ReturnType<typeof resolveAward>)=>a.designId?trophyArt(a.designId)?.name??awardLabel(a):awardLabel(a);
   return <div className="space-y-3">
     <section className="career-cabinet-hero" aria-label="Trophy cabinet">
       <p className="career-cabinet-hero__eyebrow">Trophy cabinet</p>
@@ -71,18 +73,18 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
       <p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every win is an actual A3 champion result; repeat wins stay separate.</p>
     </section>
     {silverware.length>0?<section className="career-cabinet" aria-label="Silverware">
-      {silverware.map(({key,t,editions})=><CareerEventIdentity eventKey={key} key={key} className="career-cabinet__item">
+      {silverware.map(({key,t,editions,award})=><CareerEventIdentity eventKey={key} key={key} className="career-cabinet__item">
         <div className="career-cabinet__plinth">{editions.length>1&&<span className="career-cabinet__count" aria-label={`${editions.length} wins`}>×{editions.length}</span>}
           <AwardPresentation event={{definitionKey:key,circuit:t.circuit,classification:t.classification}} persistedTrophyId={t.trophy?.id??null} size="lg" eventName={t.name}/></div>
-        <h3 style={OSWALD}>{t.name}</h3><p>{wins(editions.length)} · {titleCase(t.classification)}</p>
-        <details><summary>Inspect individual wins</summary>{editions.map(e=><p key={e.eventId}><Link href={`/career/${ctx.save.id}/events/${e.eventId}`}>Season {e.season} · {e.venue?.displayName??"Venue not recorded"}</Link></p>)}</details>
+        <h3 style={OSWALD}>{t.name}</h3><p className="career-cabinet__award">{awardName(award)}</p><p>{wins(editions.length)} · {titleCase(t.classification)}</p>
+        <details><summary>Inspect individual wins</summary>{editions.map(e=><p key={e.eventId}><Link href={`/career/${ctx.save.id}/events/${e.eventId}`}>Season {e.season} · {e.venue?.displayName??"Venue not recorded"} · {awardName(award)}</Link></p>)}</details>
       </CareerEventIdentity>)}
     </section>:<p className="career-cabinet__empty">Silverware appears here when you win an event that awards a trophy, plaque or medal.</p>}
     {plain.length>0&&<CareerSection title="Titles without silverware">
       <p className="px-3 pt-3 text-sm text-white/60">Weekly fixtures, qualifiers and Q-School sessions are recorded wins with result and prize only.</p>
       <ul className="career-cabinet__list">{plain.map(({key,t,editions})=><li key={key}>
         <Link href={`/career/${ctx.save.id}/events/${editions[0].eventId}`}><strong>{t.name}</strong></Link>
-        <span>{wins(editions.length)} · {t.circuit==="Q_SCHOOL"?"Q-School session":titleCase(t.classification)}</span></li>)}</ul>
+        <span>{wins(editions.length)} · {t.circuit==="Q_SCHOOL"?"Session win — not a tournament title or automatic Tour Card":titleCase(t.classification)}</span></li>)}</ul>
     </CareerSection>}
     {!cabinet.data.total&&<p className="p-3">No titles invented. Your first actual win will appear here.</p>}
     {(offset>0||cabinet.data.nextOffset!==null)&&<div className="p-3 flex gap-2"><button className="career-btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous</button><button className="career-btn" disabled={cabinet.data.nextOffset===null} onClick={()=>cabinet.data.nextOffset!==null&&setOffset(cabinet.data.nextOffset)}>Next</button></div>}

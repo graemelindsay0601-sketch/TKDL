@@ -5,7 +5,7 @@ import { CalendarDays, Coins, Crown, MapPin, Medal, Shield, Swords, Target, Tren
 import { Label, OSWALD, StatusBadge } from "../components";
 import { formatPence } from "../model";
 import { CareerShirt } from "../identity";
-import { AwardPresentation, resolveAward, trophyArt } from "../trophies";
+import { AwardPresentation, awardLabel, resolveAward, trophyArt } from "../trophies";
 import { CareerStageBackdrop, atmosphereFromTournament, resolveAtmosphere, spectacleFor, type MatchStage, type MomentKind } from "../atmosphere";
 import type { CareerEvent } from "../types";
 import {
@@ -66,7 +66,7 @@ export function TournamentHero({ v, children }: { v: TView; children?: ReactNode
       {(() => { const award = resolveAward(awardInput(v).event, { persistedTrophyId: awardInput(v).persistedTrophyId });
         if (award.award === "RESULT_ONLY") return null;
         return <div className="tb-hero__trophy"><AwardPresentation {...awardInput(v)} size="md" />
-          <span>{award.designId ? trophyArt(award.designId)?.name : award.recognition === "MEDAL" ? "Winner's medal" : "Winner's plaque"}</span></div>; })()}
+          <span>{award.designId ? trophyArt(award.designId)?.name ?? awardLabel(award) : awardLabel(award)}</span></div>; })()}
     </section>
   );
 }
