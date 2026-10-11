@@ -100,7 +100,7 @@ function tournamentFixture(champion=false) {
 }
 test("A8.2 floor hub is quick, factual and offers explicit concession/withdrawal rather than browser-loss penalties",()=>{
   const t=text(render(h(M.TournamentPage,{ctx:ctx(),eventId:"event"}),[[key("tournament","event"),tournamentFixture()]]));
-  assert.match(t,/Floor tournament/);assert.match(t,/Official draw locked/);assert.match(t,/Fixture Player vs Fixture Opponent/);
+  assert.match(t,/Grassroots Club & community darts/);assert.match(t,/Official draw locked/);assert.match(t,/Fixture Player vs Fixture Opponent/);
   assert.match(t,/Prepare match/);assert.match(t,/Concede this match/);assert.match(t,/Withdraw from tournament/);
   assert.match(t,/no sporting effects/);assert.doesNotMatch(t,/World Champion|Tournament Champion|Event arrival/);
 });

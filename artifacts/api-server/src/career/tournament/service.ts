@@ -163,7 +163,7 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
         presentation,depth:presentationDepth(level,presentation.mode,presentation.reducedMotion),phase,field,routes,matches,groups,history,
         nextMatchId:next?.status==="AWAITING_HUMAN"?next.id:null,session,latestMatch:latest,humanResult:result,results,
         groupBull:bull?{...bull,row:bull.row}:null,championKey:event.champion_participant_key,position,
-        money:{securedPence,paid:!!prize,prize,ledger:ledger.map(r=>({category:String(r.category),amountPence:Number(r.amount_pence)}))},
+        money:{securedPence,paid:!!prize,prize,bands:bands.map(b=>({upToPosition:Number(b.upToPosition),amountPence:Number(b.amountPence)})),ledger:ledger.map(r=>({category:String(r.category),amountPence:Number(r.amount_pence)}))},
         achievements:{groupWinner:!!humanGroup&&!humanGroup.pending&&humanGroup.finished&&humanGroup.qualifiers[0]==="HUMAN",
           tournamentChampion:!event.snapshot.qSchool&&result?.is_champion===true},readOnly:root.status!=="ACTIVE",
         authority:{draw:"A3",results:"A3/A6.5",finance:"A4",qualification:"A5",relationships:"A7.2",presentationOnly:true}};

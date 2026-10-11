@@ -10,6 +10,7 @@ import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
 import { MatchBoundaryNotice } from "./match-boundary";
 import { CareerVenueArtwork } from "./venue-atlas";
+import { EntryCase } from "../tournament/components";
 
 type Tab = "OVERVIEW" | "DRAW" | "SCHEDULE" | "MY_MATCHES" | "PLAYERS" | "PRIZE" | "RANKING";
 
@@ -73,6 +74,7 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
       )}
       <Link href={`/career/${save.id}/tournaments/${e.id}`} className="career-btn career-btn-gold"><Trophy className="w-4 h-4" aria-hidden/> Tournament Hub</Link>
       {awaiting && <MatchBoundaryNotice saveId={save.id} eventId={e.id} />}
+      {!awaiting && !["COMPLETED", "CANCELLED"].includes(e.status) && <EntryCase e={e} />}
       {!awaiting && <EntryActions ctx={ctx} detail={detail} />}
 
       <Segmented label="Event sections" value={tab} onChange={value => setTab(value as Tab)} options={tabs} wrap />

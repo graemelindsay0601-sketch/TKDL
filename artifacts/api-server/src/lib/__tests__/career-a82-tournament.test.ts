@@ -8,6 +8,8 @@ import {createCareerSaves} from "../../db/migrations/create_career_saves.ts";
 import {createShadowObservations} from "../../db/migrations/create_shadow_observations_sb21a.ts";
 import {createCareerWorld} from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
+import {createCareerNpcSponsorMarketSPF} from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
+import {createCareerSponsorContractActionsSPE2} from "../../db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import {createCareerFinanceSPC} from "../../db/migrations/create_career_finance_spc.ts";
 import {createCareerSponsorHQSPD} from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import {createCareerCalendar} from "../../db/migrations/create_career_calendar.ts";
@@ -51,7 +53,7 @@ before(async()=>{
   await pg.exec(`CREATE TABLE players(id integer PRIMARY KEY);INSERT INTO players VALUES(1),(2);
     CREATE TABLE feature_flags(feature_name text UNIQUE,enabled boolean,admin_test_mode boolean,description text);
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
-  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSponsorHQSPD(db);await createCareerSporting(db);
+  await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerNpcSponsorMarketSPF(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSponsorHQSPD(db);await createCareerSponsorContractActionsSPE2(db);await createCareerSporting(db);
   await createShadowObservations(db);
   const app=express();app.use(express.json());app.use((req,_res,next)=>{
     (req as unknown as {session:unknown}).session={playerId:Number(req.header("x-test-player")??0)};
@@ -212,6 +214,9 @@ test("actual group wins feed cross-group QFs; championship/settlement/results ar
   assert.equal(v.results.filter(r=>r.stage_reached==="GROUP_STAGE").length,8);
   const awards=await rows(sql`SELECT COUNT(*)::int n FROM career_prize_awards WHERE career_save_id=${saveId} AND event_id=${eventId} AND participant_key='HUMAN'`);
   assert.equal(awards[0].n,1);
+  const paid=(await rows(sql`SELECT cash_award_pence FROM career_prize_awards WHERE career_save_id=${saveId} AND event_id=${eventId} AND participant_key='HUMAN'`))[0];
+  assert.ok(v.money.bands.length>0,"the presentation prize ladder is exposed");
+  assert.equal(v.money.bands.find(b=>b.upToPosition===1)?.amountPence,Number(paid.cash_award_pence),"the ladder's winner band is A4's settled champion award");
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_ranking_contributions WHERE career_save_id=${saveId} AND event_id=${eventId}`))[0].n,0,
     "Special-event cash is not invented pro-world ranking money");
   const later=(await rows(sql`SELECT id FROM career_event_instances WHERE career_save_id=${saveId} AND definition_key='vault-nights'
