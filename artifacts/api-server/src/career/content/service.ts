@@ -30,7 +30,9 @@ import {COUNTRY_CONTENT,REGIONS,CITIES,VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,ORG
 export const cosmeticSchema=z.object({
   nickname:z.string().trim().max(32).regex(/^[\p{L}\p{N} .'-]*$/u).nullable().optional(),
   shirtTemplate:z.enum(["CLASSIC","CHEVRON","SPLIT"]).optional(),
-  kitDesignId:z.string().regex(/^kit-50-(?:0[1-9]|[1-4][0-9]|50)$/).optional(),
+  // Keep the wire validator aligned with the append-only Career Kit Studio IDs.
+  // v1–v3 IDs remain valid; new collection IDs are explicit, never inferred.
+  kitDesignId:z.string().regex(/^kit-(?:50-(?:0[1-9]|[1-4][0-9]|50)|pro-(?:0[1-9]|10))$/).optional(),
   kitTintEnabled:z.boolean().optional(),
   primaryColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   secondaryColour:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),

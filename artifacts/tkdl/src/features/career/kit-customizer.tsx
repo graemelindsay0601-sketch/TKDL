@@ -1,7 +1,8 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { Check, ChevronLeft, ChevronRight, Search, Shirt, Sparkles, Tag } from "lucide-react";
 import { CAREER_KIT_COLORWAYS, CAREER_KIT_COLLECTIONS, CAREER_KIT_DESIGNS, filterCareerKitDesigns } from "./kit-catalog";
-import { CareerShirt, type ShirtIdentity, type ShirtPartner } from "./identity";
+import { type ShirtIdentity, type ShirtPartner } from "./identity";
+import { PremiumCareerShirt } from "./apparel/premium-shirt";
 import "./kit-customizer.css";
 
 const PAGE_SIZE = 12;
@@ -42,13 +43,13 @@ export function CareerKitCustomizer({
           <h3>Your look. Your career.</h3>
           <p>Choose a distinct cut and artwork, then tune its fabric colour. Your kit is cosmetic only.</p>
         </div>
-        <span className="career-kit-library__count"><strong>50</strong><small>ORIGINAL<br />DESIGNS</small></span>
+        <span className="career-kit-library__count"><strong>{CAREER_KIT_DESIGNS.length}</strong><small>ORIGINAL<br />DESIGNS</small></span>
       </header>
       <div className="career-kit-library__feature">
         <div className="career-kit-library__feature-art" aria-label={`Preview of ${selected.name}`}>
           <span className="career-kit-library__stage-mark career-kit-library__stage-mark--top">TOUR ISSUE <i /> PERFORMANCE KNIT</span>
-          <CareerShirt identity={{ ...identity, kitDesignId: selected.id }} sponsors={sponsors} name={playerName} scale="profile" />
-          <span className="career-kit-library__stage-mark career-kit-library__stage-mark--bottom">FRONT VIEW <b>{selected.number} / 50</b></span>
+          <PremiumCareerShirt identity={{ ...identity, kitDesignId: selected.id }} sponsors={sponsors} name={playerName} scale="profile" />
+          <span className="career-kit-library__stage-mark career-kit-library__stage-mark--bottom">FRONT VIEW <b>{selected.number} / {CAREER_KIT_DESIGNS.length}</b></span>
         </div>
         <div className="career-kit-library__feature-info">
           <div className="career-kit-library__selected-label"><span>SELECTED SHIRT · {selected.number}</span><b>{selected.collection}</b></div>
@@ -78,6 +79,12 @@ export function CareerKitCustomizer({
               </label>
             </div>
           </div>
+          <details className="career-kit-library__debug">
+            <summary>Inspect sponsor print zones</summary>
+            <div><PremiumCareerShirt identity={{ ...identity, kitDesignId: selected.id }} sponsors={sponsors}
+              name={`${playerName} print placement`} scale="profile" debugZones /></div>
+            <small>Dashed guides are garment-relative print-safe areas. Sponsor marks are clipped to the shirt artwork.</small>
+          </details>
           <div className="career-kit-library__partner-note">
             <span className="career-kit-library__partner-icon"><Tag size={14} aria-hidden="true" /></span>
             <div><strong>Contract partner marks</strong>
@@ -99,13 +106,13 @@ export function CareerKitCustomizer({
         <label className="career-kit-library__search"><Search size={14} aria-hidden="true" /><input type="search" value={search}
           onChange={event => { setSearch(event.target.value); setPage(0); }} placeholder="Search cuts, names, collections" aria-label="Search shirts" disabled={disabled} /></label>
       </div>
-      <div className="career-kit-library__grid" role="group" aria-label="Choose one of 50 shirt designs">
+      <div className="career-kit-library__grid" role="group" aria-label={`Choose one of ${CAREER_KIT_DESIGNS.length} shirt designs`}>
         {visible.map(item => (
           <button key={item.id} type="button" className={`career-kit-library__card ${selected.id === item.id ? "is-selected" : ""}`}
             onClick={() => onChange({ kitDesignId: item.id })} aria-pressed={selected.id === item.id} disabled={disabled}>
             <span className="career-kit-library__card-art">
               <span className="career-kit-library__card-number">{item.number} <i /> {item.collection}</span>
-              <CareerShirt identity={{ ...identity, kitDesignId: item.id }} name={item.name} scale="profile" />
+              <PremiumCareerShirt identity={{ ...identity, kitDesignId: item.id }} sponsors={sponsors} name={item.name} scale="profile" />
               {selected.id === item.id && <i className="career-kit-library__card-check"><Check size={13} aria-hidden="true" /></i>}
             </span>
             <span className="career-kit-library__card-copy"><strong>{item.name}</strong><small>{item.cut}</small></span>

@@ -61,11 +61,35 @@ const designRows = [
   ["The Final", "After Dark", "Raised buttonless collar", "Ivory, midnight and garnet blocks with champagne piping."],
 ] as const satisfies ReadonlyArray<readonly [string, string, string, string]>;
 
-export const CAREER_KIT_DESIGNS: CareerKitDesign[] = designRows.map(([name, collection, cut, detail], index) => {
+const historicalDesigns: CareerKitDesign[] = designRows.map(([name, collection, cut, detail], index) => {
   const number = String(index + 1).padStart(2, "0");
   return { name, collection, cut, detail, id: `kit-50-${number}`, number, image: `kit-50-${number}.webp` };
 });
 
+const tourRows = [
+  ["Carbon Crown", "Precision", "Zip-collar tournament polo", "Ink-knit body with a champagne crown and engineered shoulder seams."],
+  ["Redline Atelier", "Rivalry", "Point-collar tournament polo", "Deep navy base with scarlet speed panels and an ivory pinline."],
+  ["Verdant Circuit", "Heritage", "Mandarin-collar shirt", "Forest technical knit with a copper circuit motif and clean piping."],
+  ["Copper Tide", "Energy", "Split-placket polo", "Burnished copper rings cut through a midnight performance fabric."],
+  ["After Hours", "After Dark", "Crew-neck performance jersey", "Violet star geometry set into a charcoal night-stage shirt."],
+  ["Northern Chevron", "Precision", "High-stand collar jersey", "Jade and gold chevrons with a restrained ice-white seam."],
+  ["Signal Point", "Rivalry", "Quarter-zip mock collar", "Warm ochre burst lines over a tailored graphite silhouette."],
+  ["Club Standard", "Heritage", "Classic button-placket polo", "Cobalt blockwork and bright scarlet details for the local circuit."],
+  ["Rose Circuit", "Energy", "Technical crew jersey", "Magenta panels framed by pale woven lines and a dark body."],
+  ["Midnight Relay", "After Dark", "Zip-neck touring shirt", "Teal circuit traces on a black technical base with gold finishing."],
+] as const;
+
+const tourDesigns: CareerKitDesign[] = tourRows.map(([name, collection, cut, detail], index) => ({
+  id: `kit-pro-${String(index + 1).padStart(2, "0")}`,
+  number: `P${String(index + 1).padStart(2, "0")}`,
+  name,
+  collection,
+  cut,
+  detail,
+  image: `kit-pro-${String(index + 1).padStart(2, "0")}.svg`,
+}));
+
+export const CAREER_KIT_DESIGNS: CareerKitDesign[] = [...historicalDesigns, ...tourDesigns];
 export const CAREER_KIT_BY_ID = new Map(CAREER_KIT_DESIGNS.map(design => [design.id, design]));
 
 export const CAREER_KIT_COLLECTIONS = ["Precision", "Rivalry", "Heritage", "Energy", "After Dark"] as const;
