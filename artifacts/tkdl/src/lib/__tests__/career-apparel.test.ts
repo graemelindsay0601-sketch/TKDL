@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { existsSync } from "node:fs";
-import { CAREER_KIT_DESIGNS, isCareerKitAvailable } from "../../features/career/kit-catalog.ts";
+import { CAREER_KIT_DESIGNS, filterCareerKitDesigns, isCareerKitAvailable } from "../../features/career/kit-catalog.ts";
 import { garmentPrintZones, printZonesAreSafe } from "../../features/career/apparel/print-zones.ts";
 import { SPONSOR_LOGO_ASSETS, sponsorMarkIdentity } from "../../features/career/apparel/brand-mark-identity.ts";
-import { stableNpcKitDesignId } from "../../features/career/apparel/npc-wardrobe.ts";
+import { stableNpcKitDesignId, stableNpcWardrobeKitDesignId } from "../../features/career/apparel/npc-wardrobe.ts";
 import { BRANDS } from "../../../../api-server/src/career/content/brands.ts";
 
 test("premium apparel print zones fit the garment and do not collide across every current shirt cut", () => {
@@ -39,6 +39,15 @@ test("the expanded premium range has 150 complete original artwork assets and se
   assert.deepEqual(wave[0].number, "101");
   assert.deepEqual(wave.at(-1)?.number, "250");
   assert.ok(wave.every(kit => kit.cut.trim().length >= 10 && kit.detail.trim().length >= 30));
+  const makerCounts = new Map<string, number>();
+  for (const kit of wave) if (kit.makerBrandId) makerCounts.set(kit.makerBrandId, (makerCounts.get(kit.makerBrandId) ?? 0) + 1);
+  assert.deepEqual([...makerCounts.values()].sort((a, b) => a - b), [5, 5, 5, 5, 5]);
+  assert.ok([...makerCounts.keys()].every(id => SPONSOR_LOGO_ASSETS.has(id)), "manufacturer ranges must map to known sponsors");
+  for (const makerId of makerCounts.keys()) {
+    const range = filterCareerKitDesigns("All shirts", "", makerId);
+    assert.ok(range.every(kit => kit.makerBrandId === makerId));
+    assert.equal(range.filter(kit => kit.id.startsWith("kit-250-")).length, 5, `${makerId} new capsule should have five designs`);
+  }
 });
 
 test("every authoritative sponsor maps to a bespoke, unique vector identity", () => {
@@ -72,4 +81,17 @@ test("NPC kit assignment is stable across catalogue growth and preserves valid s
   assert.equal(stableNpcKitDesignId(npc, "kit-pro-03"), "kit-pro-03");
   assert.equal(stableNpcKitDesignId(npc, "not-a-kit"), assigned);
   assert.ok(CAREER_KIT_DESIGNS.slice(0, 50).some(kit => kit.id === assigned));
+});
+
+test("tier-aware NPC wardrobes are stable, preserve saved kits and never imply inactive maker access", () => {
+  const options = { tier: "ELITE" as const };
+  const assigned = stableNpcWardrobeKitDesignId("career-world-player-1044", options);
+  assert.equal(stableNpcWardrobeKitDesignId("career-world-player-1044", options), assigned);
+  const savedMakerKit = CAREER_KIT_DESIGNS.find(kit => kit.makerBrandId)?.id;
+  assert.ok(savedMakerKit);
+  assert.equal(stableNpcWardrobeKitDesignId("career-world-player-1044", { ...options, savedKitDesignId: savedMakerKit }), savedMakerKit);
+  for (const tier of ["LOCAL", "REGIONAL", "PROFESSIONAL", "ELITE"] as const) {
+    const selected = CAREER_KIT_DESIGNS.find(kit => kit.id === stableNpcWardrobeKitDesignId("npc-no-maker", { tier }));
+    assert.ok(selected && !selected.makerBrandId, `${tier} NPC must not receive an unlicensed maker shirt`);
+  }
 });

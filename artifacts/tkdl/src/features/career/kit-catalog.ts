@@ -200,6 +200,16 @@ const wave250Cuts = [
   ["high mock-neck performance shirt", "split shoulder panels, sculpted side gussets and clean hem"],
 ] as const;
 
+// These are true manufacturer capsules: every range has a dedicated motif and
+// an intentionally chosen manufacturer palette, each offered in five cuts.
+const wave250MakerByTheme: Record<number, string> = {
+  4: "vela-sport",
+  6: "blackforge-darts",
+  7: "apex-arrow",
+  8: "northstar-performance",
+  20: "vector-nine",
+};
+
 const generatedWave250: CareerKitDesign[] = wave250Themes.flatMap(([theme, collection, palette, artwork], themeIndex) =>
   wave250Cuts.map(([cut, construction], cutIndex) => {
     const index = themeIndex * wave250Cuts.length + cutIndex;
@@ -213,6 +223,7 @@ const generatedWave250: CareerKitDesign[] = wave250Themes.flatMap(([theme, colle
       cut,
       detail: `${artwork} in ${palette}, with ${construction}.`,
       image: `kit-250-${number}.webp`,
+      ...(wave250MakerByTheme[themeIndex] ? { makerBrandId: wave250MakerByTheme[themeIndex] } : {}),
     };
   }),
 );
@@ -244,10 +255,15 @@ export const CAREER_KIT_COLORWAYS = [
   { name: "Champagne", primary: "#ae8642" },
 ] as const;
 
-export function filterCareerKitDesigns(collection: "All shirts" | CareerKitCollection, search: string) {
+export function filterCareerKitDesigns(
+  collection: "All shirts" | CareerKitCollection,
+  search: string,
+  makerBrandId?: string,
+) {
   const query = search.trim().toLowerCase();
   return CAREER_KIT_DESIGNS.filter(design =>
     (collection === "All shirts" || design.collection === collection) &&
+    (!makerBrandId || design.makerBrandId === makerBrandId) &&
     (!query || `${design.name} ${design.cut} ${design.collection} ${design.detail}`.toLowerCase().includes(query)),
   );
 }

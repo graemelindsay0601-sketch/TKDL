@@ -3,6 +3,7 @@ import { Check, ChevronLeft, ChevronRight, Search, Shirt, Sparkles, Tag } from "
 import { CAREER_KIT_COLORWAYS, CAREER_KIT_COLLECTIONS, CAREER_KIT_DESIGNS, filterCareerKitDesigns, isCareerKitAvailable } from "./kit-catalog";
 import { type ShirtIdentity, type ShirtPartner } from "./identity";
 import { PremiumCareerShirt } from "./apparel/premium-shirt";
+import { SPONSOR_LOGO_ASSETS } from "./apparel/brand-mark-identity";
 import "./kit-customizer.css";
 
 const PAGE_SIZE = 12;
@@ -24,11 +25,13 @@ export function CareerKitCustomizer({
   onChange: (patch: Partial<ShirtIdentity>) => void;
 }) {
   const [collection, setCollection] = useState<(typeof collections)[number]>("All shirts");
+  const [makerBrandId, setMakerBrandId] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [customColour, setCustomColour] = useState(identity.primaryColour ?? "#7e63ae");
   const selected = CAREER_KIT_DESIGNS.find(item => item.id === identity.kitDesignId) ?? CAREER_KIT_DESIGNS[0]!;
-  const filtered = useMemo(() => filterCareerKitDesigns(collection, search), [collection, search]);
+  const makerBrandIds = useMemo(() => [...new Set(CAREER_KIT_DESIGNS.flatMap(item => item.makerBrandId ? [item.makerBrandId] : []))], []);
+  const filtered = useMemo(() => filterCareerKitDesigns(collection, search, makerBrandId || undefined), [collection, search, makerBrandId]);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const tintEnabled = identity.kitTintEnabled !== false && Boolean(identity.primaryColour);
@@ -105,6 +108,12 @@ export function CareerKitCustomizer({
         <div className="career-kit-library__tabs" role="group" aria-label="Filter shirt collection">
           {collections.map(item => <button key={item} type="button" className={collection === item ? "is-active" : ""} aria-pressed={collection === item} onClick={() => { setCollection(item); setPage(0); }} disabled={disabled}>{item}</button>)}
         </div>
+        <label className="career-kit-library__maker-filter">Manufacturer range
+          <select value={makerBrandId} onChange={event => { setMakerBrandId(event.target.value); setPage(0); }} disabled={disabled}>
+            <option value="">All ranges</option>
+            {makerBrandIds.map(id => <option key={id} value={id}>{SPONSOR_LOGO_ASSETS.get(id)?.name ?? id}</option>)}
+          </select>
+        </label>
         <label className="career-kit-library__search"><Search size={14} aria-hidden="true" /><input type="search" value={search}
           onChange={event => { setSearch(event.target.value); setPage(0); }} placeholder="Search cuts, names, collections" aria-label="Search shirts" disabled={disabled} /></label>
       </div>
