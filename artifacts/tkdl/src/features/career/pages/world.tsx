@@ -1,7 +1,7 @@
 import {useState} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldMap,useWorldPlayers,useTrophyCabinet,usePresentation,useEditPresentation,useLaunchSignature,errorMessage} from "../api";
-import {CareerError,CareerLoading,CareerSection,BoundedList} from "../components";
+import {CareerError,CareerLoading,CareerSection,BoundedList,OSWALD} from "../components";
 import {titleCase,formatPence} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
@@ -66,18 +66,113 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
 }
 export function PresentationPage({ctx}:{ctx:ShellContext}) {
   const needsSetup=new URLSearchParams(useSearch()).get("setup")==="needed";
-  const p=usePresentation(ctx.save.id),launch=useLaunchSignature(ctx.save.id),[message,setMessage]=useState("");
+  const p=usePresentation(ctx.save.id),launch=useLaunchSignature(ctx.save.id);
+  const [message,setMessage]=useState("");
+  const [launchReveal,setLaunchReveal]=useState<{manufacturer:string;type:string;season:number}|null>(null);
   if(p.isLoading)return <CareerLoading/>;
   if(p.error||!p.data)return <CareerError error={p.error} onRetry={()=>p.refetch()}/>;
-  return <div className="space-y-3"><h1>Player presentation & equipment</h1><p>Cosmetic only. No scorer, ability, RNG, ranking or financial bonuses.</p>
+  const products=p.data.products;
+  return <div className="space-y-3">
+    <header className="relative overflow-hidden rounded-2xl border border-cyan-200/15 bg-[radial-gradient(ellipse_at_82%_10%,rgba(34,211,238,.17),transparent_38%),linear-gradient(120deg,#0b2030,#08121f_60%,#060b14)] p-5 sm:p-7">
+      <div className="relative z-10 max-w-3xl">
+        <p className="text-[10px] font-bold uppercase tracking-[.24em] text-cyan-200">Career identity · Equipment studio</p>
+        <h1 className="mt-2 text-3xl text-white sm:text-4xl" style={OSWALD}>Your look. Your signature.</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">Shape the presentation of your player, manage your cosmetic kit and see the signature products recorded in your Career.</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/sponsors`}>Sponsor headquarters</Link>
+          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/finances`}>Commercial finances</Link>
+          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/history`}>Career history</Link>
+        </div>
+      </div>
+      <div className="pointer-events-none absolute -right-8 -top-10 hidden h-52 w-52 rotate-[-18deg] opacity-25 sm:block" aria-hidden="true">
+        <svg viewBox="0 0 180 180" className="h-full w-full"><circle cx="90" cy="90" r="67" fill="none" stroke="#67e8f9" strokeWidth="2"/><circle cx="90" cy="90" r="44" fill="none" stroke="#67e8f9" strokeWidth="1"/><path d="M35 144 141 38m-24 0h24v24" fill="none" stroke="#fbbf24" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </div>
+    </header>
     {needsSetup&&<p className="career-surface surface-context" role="status">This Career is saved. Shirt setup was not confirmed; review and save your cosmetic choices here. You do not need to create another Career.</p>}
-    <IdentityEditor key={JSON.stringify(p.data.identity)} saveId={ctx.save.id} data={p.data}/>
+    <CareerSection title="Player kit & presentation">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(15rem,.8fr)]">
+        <IdentityEditor key={JSON.stringify(p.data.identity)} saveId={ctx.save.id} data={p.data}/>
+        <aside className="border-t border-white/10 p-4 lg:border-l lg:border-t-0 lg:p-5">
+          <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-amber-200">Equipment rules</p>
+          <h2 className="mt-2 text-xl text-white" style={OSWALD}>Style, never stats.</h2>
+          <p className="mt-2 text-sm leading-relaxed text-white/60">Your kit and cosmetic choices change presentation only. They do not alter scoring, ability, RNG, rankings, eligibility or finances.</p>
+          <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+            <p className="text-xs uppercase tracking-wider text-white/45">Edit window</p>
+            <p className="mt-1 text-sm text-white">{p.data.editWindow}</p>
+          </div>
+        </aside>
+      </div>
+    </CareerSection>
     <CareerSection title="Contract-controlled shirt placement"><div className="p-4">{p.data.placements.map(s=><p key={s.contractId}>{s.brandName}: {titleCase(s.position)} ({titleCase(s.slot)})</p>)}{!p.data.placements.length&&<p>No active partners.</p>}</div></CareerSection>
-    <CareerSection title="Signature product history"><div className="p-4"><BoundedList rows={p.data.products}>{s=><p key={s.id}>{s.name} · S{s.launchSeason} · {s.state}</p>}</BoundedList>
-      <p>Drafts require an active equipment contract with explicit signed product rights. Review, approve and launch them in Sponsor HQ; A4 records royalties.</p>
-      {!ctx.retired&&p.data.productCandidates.map(c=><div key={c.contractId}>{c.types.map(type=><button className="career-btn m-1" key={type} disabled={launch.isPending}
-        onClick={()=>launch.mutate({contractId:c.contractId,productType:type},{onSuccess:()=>setMessage("Product draft created. Review it in the Equipment Studio before approval and launch."),onError:e=>setMessage(errorMessage(e))})}>Create {titleCase(type)} draft with {c.manufacturer}</button>)}</div>)}
-      {message&&<p role="status">{message}</p>}</div></CareerSection></div>;
+    <CareerSection title="Signature products">
+      <div className="space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-cyan-200">Your commercial legacy</p>
+            <h2 className="mt-1 text-2xl text-white" style={OSWALD}>Products carrying your name</h2></div>
+          <span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-xs text-white/65">{products.length} recorded</span>
+        </div>
+        {launchReveal&&<div className="relative overflow-hidden rounded-xl border border-amber-200/25 bg-[radial-gradient(ellipse_at_80%_0%,rgba(251,191,36,.17),transparent_40%),linear-gradient(110deg,#111d2e,#07101c)] p-4" role="status">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-amber-200">Career product milestone · Season {launchReveal.season}</p>
+              <h3 className="mt-1 text-xl text-white" style={OSWALD}>{titleCase(launchReveal.type.replaceAll("_"," "))}</h3>
+              <p className="mt-1 text-sm text-white/65">Recorded with {launchReveal.manufacturer}. A4 remains the authority for any commercial payments.</p></div>
+            <button className="career-btn career-btn-ghost shrink-0" onClick={()=>setLaunchReveal(null)} aria-label="Dismiss product launch confirmation">Close</button>
+          </div>
+        </div>}
+        {products.length>0?<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{products.map(product=>{
+          const productType=String(product.type??"SIGNATURE_PRODUCT"),manufacturer=String(product.manufacturer??"Equipment partner");
+          return <article key={product.id} className="group relative overflow-hidden rounded-xl border border-white/10 bg-[linear-gradient(145deg,#122338,#09111c_70%)] p-4 transition hover:-translate-y-0.5 hover:border-cyan-200/25">
+          <div className="absolute right-0 top-0 h-28 w-28 translate-x-8 -translate-y-8 rounded-full border border-cyan-200/10 bg-cyan-300/[.035]" aria-hidden="true"/>
+          <div className="relative flex items-start justify-between gap-3">
+            <ProductArtwork type={productType} manufacturer={manufacturer}/>
+            <span className={`rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-wider ${product.state==="ACTIVE"?"border-emerald-300/25 bg-emerald-300/10 text-emerald-200":"border-white/10 bg-white/[.04] text-white/55"}`}>{product.state}</span>
+          </div>
+          <p className="relative mt-4 text-[9px] font-semibold uppercase tracking-[.18em] text-cyan-100/65">{titleCase(manufacturer)} · Season {product.launchSeason}</p>
+          <h3 className="relative mt-1 text-xl leading-tight text-white" style={OSWALD}>{product.name}</h3>
+          <p className="relative mt-1 text-xs text-white/50">{titleCase(productType.replaceAll("_"," "))} · Cosmetic identity only</p>
+        </article>})}</div>:<div className="rounded-xl border border-dashed border-white/15 bg-black/10 p-5">
+          <p className="text-sm text-white/70">No signature products are recorded yet.</p>
+          <p className="mt-1 text-xs text-white/45">Eligible launches will appear here after the required sporting standing, active equipment partnership and merchandise agreement are in place.</p>
+        </div>}
+        <div className="rounded-xl border border-white/10 bg-black/15 p-4">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-amber-200">Eligible equipment partners</p>
+              <h3 className="mt-1 text-lg text-white" style={OSWALD}>Launch a signature line</h3>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-white/50">Launch eligibility is checked against the current contract and Career record. This action records the product; it does not invent sales or pay a royalty.</p></div>
+          </div>
+          {!p.data.productCandidates.length&&<p className="mt-3 text-sm text-white/50">An active equipment partnership is required before a signature-product launch can be offered.</p>}
+          <div className="mt-3 grid gap-3 md:grid-cols-2">{!ctx.retired&&p.data.productCandidates.map(candidate=><article key={candidate.contractId} className="rounded-lg border border-white/10 bg-white/[.025] p-3">
+            <p className="text-xs uppercase tracking-wider text-white/45">Equipment partner</p><h4 className="mt-1 text-base text-white" style={OSWALD}>{titleCase(candidate.manufacturer)}</h4>
+            {!candidate.hasCommercialAgreement&&<p className="mt-1 text-xs text-amber-100/70">An active merchandise agreement is required to launch.</p>}
+            <div className="mt-3 flex flex-wrap gap-2">{candidate.types.map(type=><button className="career-btn career-btn-primary" key={type} disabled={launch.isPending||!candidate.hasCommercialAgreement}
+              onClick={()=>launch.mutate({contractId:candidate.contractId,productType:type},{onSuccess:()=>{setMessage("");setLaunchReveal({manufacturer:titleCase(candidate.manufacturer),type,season:p.data.season});},onError:e=>setMessage(errorMessage(e))})}>
+              Launch {titleCase(type.replaceAll("_"," "))}
+            </button>)}</div>
+          </article>)}</div>
+          {message&&<p role="alert" className="mt-3 rounded-lg border border-rose-300/20 bg-rose-300/[.06] px-3 py-2 text-sm text-rose-100">{message}</p>}
+        </div>
+        <p className="text-xs text-white/45">Actual product payments belong to A4. This view reports recorded product state only; it does not estimate sales or royalties.</p>
+      </div>
+    </CareerSection>
+  </div>;
+}
+
+function ProductArtwork({type,manufacturer}:{type:string;manufacturer:string}) {
+  const darts=type==="SIGNATURE_DARTS";
+  return <div className="relative flex h-28 flex-1 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-[radial-gradient(ellipse_at_50%_45%,rgba(34,211,238,.13),transparent_65%),linear-gradient(135deg,#15263a,#080d15)]" aria-hidden="true">
+    <span className="absolute left-2 top-2 text-[8px] font-bold uppercase tracking-[.2em] text-white/30">{manufacturer.slice(0,12)}</span>
+    {darts?<svg viewBox="0 0 240 100" className="h-20 w-full max-w-52" fill="none">
+      <path d="M28 52h68l12-14h38l20 14-20 14h-38L96 52" fill="#94a3b8" stroke="#e2e8f0" strokeWidth="2"/>
+      <path d="M146 40l19-20 8 22m-8 18 8 22-19-20" fill="#fbbf24" stroke="#fde68a" strokeWidth="2"/>
+      <path d="M28 52H12m16-7-12-7m12 21-12 7" stroke="#67e8f9" strokeWidth="3" strokeLinecap="round"/>
+      <path d="M94 45h45m-45 14h45" stroke="#475569" strokeWidth="2"/>
+    </svg>:<div className="flex items-center gap-3">
+      <div className="relative h-16 w-9 rotate-[-16deg] rounded-[45%_45%_10%_10%] border border-cyan-100/35 bg-gradient-to-b from-cyan-300/65 via-blue-700 to-slate-950 shadow-[0_0_24px_rgba(34,211,238,.18)]">
+        <span className="absolute left-1/2 top-2 h-1 w-6 -translate-x-1/2 bg-amber-200/90"/>
+        <span className="absolute bottom-3 left-1/2 h-5 w-5 -translate-x-1/2 rounded-full border border-white/20"/>
+      </div><div className="flex flex-col gap-1"><span className="h-1 w-12 -skew-x-12 bg-cyan-200/70"/><span className="h-1 w-9 -skew-x-12 bg-amber-200/70"/></div>
+    </div>}
+  </div>;
 }
 function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) {
   type EditableIdentity=ShirtIdentity&{nickname?:string|null;competitionCategory?:unknown};

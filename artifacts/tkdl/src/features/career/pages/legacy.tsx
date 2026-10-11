@@ -11,7 +11,28 @@ const tabs=["Career Record","Seasons","Honours","World History","Event Legends",
 export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;initialTab?:string}) {
   const query=useLegacy(ctx.save.id),[tab,setTab]=useState(initialTab),[season,setSeason]=useState<number|null>(null),[event,setEvent]=useState<string|null>(null);
   const seasonQuery=useSeasonReview(ctx.save.id,season),eventQuery=useEventLegacy(ctx.save.id,event);
-  return <div className="space-y-3"><CareerSection title="History & Legacy">
+  return <div className="space-y-3"><QueryState query={query} label="Building your Career legacy">{d=><header className="relative overflow-hidden rounded-2xl border border-amber-200/15 bg-[radial-gradient(ellipse_at_80%_0%,rgba(251,191,36,.15),transparent_40%),linear-gradient(115deg,#152033,#090f19_70%,#101820)] p-5 sm:p-7">
+      <div className="relative z-10">
+        <p className="text-[10px] font-bold uppercase tracking-[.22em] text-amber-200">The record you build · Season {ctx.save.currentSeason}</p>
+        <h1 className="mt-2 text-3xl text-white sm:text-4xl">Career archive</h1>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/65">{d.descriptors.join(" · ")||"Every result, partnership and turning point recorded across your darts career."}</p>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            ["Main-event titles",String(d.overview.titles)],
+            ["Finals",String(d.overview.finals)],
+            ["Major / World titles",String(d.overview.majorTitles)],
+            ["Highest World rank",d.bestRanking?`#${d.bestRanking.position}`:"—"],
+          ].map(([label,value])=><div key={label} className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+            <span className="block text-[9px] uppercase tracking-[.14em] text-white/45">{label}</span><strong className="mt-1 block text-xl text-white">{value}</strong>
+          </div>)}
+        </div>
+        <nav aria-label="Career commercial and legacy navigation" className="mt-4 flex flex-wrap gap-2">
+          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/sponsors`}>Sponsor HQ</Link>
+          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/finances`}>Finances & ledger</Link>
+          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/presentation`}>Equipment & signature products</Link>
+        </nav>
+      </div>
+    </header>}</QueryState><CareerSection title="History & Legacy">
     <div className="p-4 pb-3"><div className="tkdl-tab-rail" role="tablist" aria-label="History & Legacy areas">{tabs.map(t=>
       <button type="button" key={t} role="tab" aria-selected={tab===t} className="tkdl-tab-trigger career-btn career-btn-ghost" onClick={()=>setTab(t)}>{t}</button>)}</div></div>
     <QueryState query={query} label="Reading permanent Career history">{d=><div className="p-4 pt-0 space-y-4">
@@ -26,20 +47,6 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
         <h3 className="font-bold">Commercial Career</h3><BoundedList rows={d.sponsors}>{s=><p key={s.id}>{s.name}: signed term seasons {s.startSeason}–{s.endSeason} · {s.status}</p>}</BoundedList>
         <BoundedList rows={d.commercial}>{c=><p key={c.id}>Season {c.season}: {c.title} · {c.status}</p>}</BoundedList>
         {d.merchandise&&<p>Merchandise: {d.merchandise.category} · {d.merchandise.active?"active":"stopped"}</p>}
-        <h3 className="font-bold">Commercial legacy · signature products</h3>
-        {!d.productArchive.length?<p className="text-sm text-white/55">No signature products have launched in this Career yet.</p>
-          :<div className="grid gap-2 sm:grid-cols-2">{d.productArchive.map(product=><article key={product.id} className="rounded-xl border border-amber-200/15 bg-slate-950/50 p-3">
-            <div className="flex items-start justify-between gap-2"><div><p className="text-[10px] uppercase tracking-widest text-amber-100/65">{product.manufacturer} · {product.type.replaceAll("_"," ")}</p>
-              <h4 className="mt-1 font-semibold text-white">{product.name}</h4></div>
-              <span className="rounded-full border border-white/15 px-2 py-1 text-[9px] uppercase text-white/60">{product.state}</span>
-            </div>
-            <p className="mt-2 text-xs text-white/55">Launched season {product.launchSeason} · {product.unitsSold} units recorded</p>
-            <p className="mt-1 text-sm text-amber-100">8% royalties settled: {formatPence(product.royaltyPence)}</p>
-            <details className="mt-2 text-xs text-white/60"><summary className="cursor-pointer">Sales by season</summary>
-              <ul className="mt-1 space-y-1">{product.salesBySeason.map(s=><li key={s.season}>Season {s.season}: {s.units} units · gross {formatPence(s.grossPence)} · A4 royalty {formatPence(s.royaltyPence)}</li>)}</ul>
-              <p className="mt-1">Gross sales are product turnover, not player income. Only posted A4 royalties count as commercial cash.</p>
-            </details>
-          </article>)}</div>}
         <div className="flex flex-wrap gap-3"><Link className="underline" href={`/career/${ctx.save.id}/relationships`}>Sporting H2H & Rivalries</Link>
           <Link className="underline" href={`/career/${ctx.save.id}/life`}>Public profile, tone & commercial decisions</Link>
           <Link className="underline" href={d.storiesLink}>Career Story Threads</Link></div>
@@ -101,18 +108,6 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
   return <section className="space-y-3" aria-label={`Season ${r.season} Review`}><h2 className="text-xl font-bold">Season {r.season} Complete — {r.identity}</h2>
     <p className="text-xs">{r.provenance.toLowerCase()} · permanent history</p>{r.story.map(s=><p key={s}>{s}</p>)}
     <p>Prize {formatPence(r.prizePence)} · Sponsor/Commercial {formatPence(r.commercialPence)}</p>
-    {!!r.productSales?.length&&<section className="rounded-lg border border-amber-200/15 bg-slate-950/40 p-3">
-      <h3 className="font-bold">Commercial product results · season {r.season}</h3>
-      {r.productSales.map(p=><p className="mt-1 text-sm" key={p.id}>{p.name}: {p.units} units · gross {formatPence(p.grossPence)} · A4 royalty {formatPence(p.royaltyPence)}</p>)}
-      <p className="mt-2 text-xs text-white/55">This review is a saved season snapshot. Product gross is not added to player income; settled royalty appears in Sponsor/Commercial only through A4.</p>
-    </section>}
-    {!!r.sponsorActivities?.length&&<section className="rounded-lg border border-sky-200/15 bg-slate-950/40 p-3">
-      <h3 className="font-bold">Sponsor commitments & opportunities · season {r.season}</h3>
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{r.sponsorActivities.map(a=><li className="rounded-md border border-white/10 p-2 text-sm" key={a.id}>
-        <strong>{a.sponsorKey}</strong> · {a.kind.replaceAll("_"," ").toLowerCase()}
-        <p className="text-xs text-white/55">{a.required?"Contractual commitment":"Optional opportunity"} · {a.status.toLowerCase().replaceAll("_"," ")}{a.scheduledWeek?` · Week ${a.scheduledWeek}`:" · not scheduled"}</p>
-      </li>)}</ul>
-    </section>}
     <p>{r.cardStatus}</p><p>Starting World rank: {r.startingRank?`#${r.startingRank.position} (previous season, week ${r.startingRank.week})`:"not recorded"} · Final published: {r.finalRank?`#${r.finalRank.position} (week ${r.finalRank.week})`:"not recorded"}</p>
     {r.bestMajor&&<p>Best major: {r.bestMajor.name} · position {r.bestMajor.position}</p>}
     {r.worldResult&&<p>World Championship: {r.worldResult.name} · position {r.worldResult.position}</p>}
@@ -124,12 +119,7 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
     <h3 className="font-bold">Career Changes</h3>{r.changes.map(c=><p key={c}>{c}</p>)}
     {r.world.cardChanges.map(c=><p key={c.id}>Card change: {c.participantName??"Recorded participant"} · {c.source} · {c.status}</p>)}
     {r.world.retirements.map(p=><p key={p.id}>Retirement: {p.name}</p>)}
-    {!!r.sponsors.length&&<section className="rounded-lg border border-amber-200/15 bg-slate-950/40 p-3">
-      <h3 className="font-bold">Partnerships in season {r.season}</h3>
-      <ul className="mt-2 grid gap-2 sm:grid-cols-2">{r.sponsors.map(s=><li key={s.id} className="rounded-md border border-white/10 p-2 text-sm">
-        <strong>{s.name}</strong><p className="text-xs text-white/55">{s.renewal?"Renewal term":"Agreement"} · {s.status} · S{s.startSeason}–S{s.endSeason}</p>
-      </li>)}</ul>
-    </section>}
+    {r.sponsors.map(s=><p key={s.id}>Sponsor: {s.name} · {s.status}</p>)}
     <p>{r.publicLife.decisions} remembered Career Life decisions · {r.publicLife.completedWork} completed off-board commitments.</p>
     {r.publicLife.profile&&<p>Public profile at transition: {r.publicLife.profile.persona.label} · {r.publicLife.profile.awareness} · {r.publicLife.profile.reception}</p>}
     <Link className="underline" href={`/career/${saveId}/stories`}>Established Career Story Threads</Link>

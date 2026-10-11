@@ -98,9 +98,9 @@ function EventInspector({
             <div className="cma-cost-heading"><span>TRAVEL PLAN</span><small>ESTIMATES</small></div>
             {costs && (
               <dl>
-                <div><dt>Commitment</dt><dd>{formatPence(costs.commitment)}</dd></div>
+                <div><dt>Commitment (estimated)</dt><dd>{formatPence(costs.commitment)}</dd></div>
                 <div><dt>Sponsor coverage</dt><dd className="is-covered">{formatPence(costs.coverage)}</dd></div>
-                <div className="cma-cost-total"><dt>Your cost</dt><dd>{formatPence(costs.playerCost)}</dd></div>
+                <div className="cma-cost-total"><dt>Your cost (estimated)</dt><dd>{formatPence(costs.playerCost)}</dd></div>
               </dl>
             )}
             <p>Estimated figures · subject to change</p>
@@ -285,7 +285,7 @@ export function CareerMapPage({ ctx }: { ctx: ShellContext }) {
                 >
                   <option value="OPPORTUNITIES">My Opportunities</option>
                   <option value="ENTERED">Entered</option>
-                  <option value="ALL">All events · including inaccessible</option>
+                  <option value="ALL">All events — including inaccessible Palace</option>
                   {[...new Set(allEvents.map((item) => item.content.circuitId))].sort().map((circuit) => (
                     <option value={circuit} key={circuit}>{titleCase(circuit)}</option>
                   ))}
