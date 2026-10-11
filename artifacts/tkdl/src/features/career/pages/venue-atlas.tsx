@@ -33,7 +33,7 @@ const ARTWORK: Record<VenueFamily, string> = {
   "small-arena": "career-venue-arena.jpg",
   "major-arena": "career-venue-major-arena.jpg",
   "international-arena": "career-venue-international-arena.jpg",
-  palace: "career-palace-arena.png",
+  palace: "career-palace-arena.webp", // F2: same 1024² image, 71 KB instead of a 1.2 MB PNG
 };
 const FAMILY_LABEL: Record<VenueFamily, string> = {
   "pub-club": "Pub club", "social-club": "Social club", "community-hall": "Community hall",
