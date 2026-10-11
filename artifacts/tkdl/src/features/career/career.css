@@ -830,3 +830,13 @@
 .career-root .career-stat[data-tone="danger"] { --stat-accent:#fb8a92; }
 .career-root .career-stat__icon { position:absolute; right:10px; top:10px; display:grid; place-items:center; width:30px; height:30px; border-radius:9px;
   color:color-mix(in srgb,var(--stat-accent) 75%, #fff 15%); background:color-mix(in srgb,var(--stat-accent) 14%, transparent); border:1px solid color-mix(in srgb,var(--stat-accent) 35%, transparent); }
+/* Kit Room */
+.career-kitroom-details { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto; gap:12px; align-items:end; padding:14px; border-radius:14px; border:1px solid #ffffff14; background:linear-gradient(160deg,#131b29,#0a1019); }
+.career-kitroom-details label { display:grid; gap:6px; font:700 .6rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#ffffff99; }
+.career-kitroom-details input, .career-kitroom-details select { min-height:42px; padding:8px 12px; border-radius:10px; border:1px solid #ffffff26; background:#070b12; color:#fff; font:600 .85rem Inter,system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+@media (max-width:760px) { .career-kitroom-details { grid-template-columns:minmax(0,1fr); } }
+.career-placements { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr)); gap:10px; }
+.career-placement { display:flex; align-items:center; gap:12px; padding:12px; border-radius:12px; border:1px solid #d1a65c40; background:radial-gradient(80% 120% at 100% 0,#d1a65c14,transparent 60%),#0d141f; }
+.career-placement > span { display:grid; place-items:center; width:44px; height:44px; border-radius:11px; font:800 .9rem Oswald,sans-serif; color:#ffd27a; border:1px solid #d1a65c66; background:linear-gradient(150deg,#3a2c10,#141007); }
+.career-placement strong { display:block; color:#fff; font:700 .9rem Oswald,sans-serif; text-transform:uppercase; }
+.career-placement small { color:#a9b6c4; font-size:.72rem; }
