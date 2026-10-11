@@ -4,7 +4,8 @@ import { Award, BadgeCheck, Briefcase, ChevronLeft, ChevronRight, Clapperboard, 
 import { useCareerProfile, useLegacy, usePresentation, useSeasonReview, useSporting, useTrophyCabinet } from "../api";
 import { BoundedList, CareerError, CareerLoading, Label, OSWALD, QueryState, StatusBadge } from "../components";
 import { CareerEventIdentity, CareerPlayerCard } from "../identity";
-import { AwardPresentation } from "../trophies";
+import { AwardPresentation, resolveAward } from "../trophies";
+import { CareerPageHero } from "../page-hero";
 import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "../atmosphere";
 import { formatPence, ordinal } from "../model";
 import type { ShellContext } from "../shell";
@@ -111,19 +112,35 @@ export function TrophyCabinet({ ctx }: { ctx: ShellContext }) {
   const titles = cabinet.data.titles;
   const isQualifier = (t: typeof titles[number]) => t.classification === "QUALIFIER" || t.circuit === "Q_SCHOOL";
   const major = titles.filter(t => !isQualifier(t) && ["MAJOR", "WORLD_CHAMPIONSHIP"].includes(t.circuit));
-  const other = titles.filter(t => !isQualifier(t) && !["MAJOR", "WORLD_CHAMPIONSHIP"].includes(t.circuit));
+  // Only wins whose event really awards silverware go on a shelf (E2, by the event's actual key);
+  // result-only wins (weekly club nights, unclassified events) are listed honestly below instead.
+  const silver = (t: typeof titles[number]) => resolveAward({ definitionKey: t.canonicalEventId, circuit: t.circuit, classification: t.classification },
+    { persistedTrophyId: t.trophy?.id ?? null }).award !== "RESULT_ONLY";
+  const nonMajor = titles.filter(t => !isQualifier(t) && !["MAJOR", "WORLD_CHAMPIONSHIP"].includes(t.circuit));
+  const other = nonMajor.filter(silver), plain = nonMajor.filter(t => !silver(t));
   const sessions = titles.filter(isQualifier);
   const finals = legacy.data?.finals ?? [];
   const awards = (archive.data?.honours ?? []).filter(a => a.participant === "HUMAN");
   return (
     <div className="pl-stack">
-      <header className="pl-cabinet-head">
-        <p className="pl-eyebrow">Trophy cabinet</p>
-        <h1 style={OSWALD}>{cabinet.data.total} {cabinet.data.total === 1 ? "title" : "titles"} won</h1>
-        <p className="pl-dim">Every piece below is an actual A3 champion result. Repeat wins stay separate; events that award no trophy never get one.</p>
-      </header>
+      <CareerPageHero kicker="Trophy cabinet" title={`${cabinet.data.total} ${cabinet.data.total === 1 ? "title" : "titles"} won`} accent="#ffd24a"
+        archival={ctx.retired} stage={{ venue: { venueType: "historic-theatre" }, eventClass: "MAJOR" }}
+        subtitle="Every piece below is an actual A3 champion result. Repeat wins stay separate; events that award no trophy never get one."
+        stats={[
+          { label: "Majors & World", value: major.length, tone: "gold" },
+          { label: "Silverware", value: major.length + other.length },
+          { label: "Runner-up finishes", value: finals.length },
+          { label: "Season awards", value: awards.length },
+        ]} />
       <Shelf title="Majors & World Championship" tone="gold" empty="No major or World title yet." items={major} saveId={id} />
       <Shelf title="Tournament titles" tone="silver" empty={major.length ? "No other titles on this page." : "No tournament titles yet."} items={other} saveId={id} />
+      {plain.length > 0 && <section className="pl-panel" aria-label="Titles without silverware">
+        <h2 className="pl-panel__title"><Medal size={15} aria-hidden /> Titles without silverware</h2>
+        <p className="pl-dim pl-small">Weekly club nights and other result-only events are recorded titles with result and prize; they award no trophy.</p>
+        <ul className="pl-list">{[...plain.reduce((m, t) => m.set(t.canonicalEventId + t.name, [...(m.get(t.canonicalEventId + t.name) ?? []), t]), new Map<string, typeof plain>()).values()].map(group =>
+          <li key={group[0].eventId}><Link href={`/career/${id}/events/${group[0].eventId}`}>{group[0].name}</Link>
+            <span>{group.length > 1 ? `×${group.length} · ` : ""}Season {[...new Set(group.map(t => t.season))].join(", ")}</span></li>)}</ul>
+      </section>}
       {sessions.length > 0 && <section className="pl-panel" aria-label="Qualifier and session wins">
         <h2 className="pl-panel__title"><BadgeCheck size={15} aria-hidden /> Qualifier & session wins</h2>
         <p className="pl-dim pl-small">Session and qualifier wins are recorded achievements, not championship titles, so no trophy is shown.</p>
