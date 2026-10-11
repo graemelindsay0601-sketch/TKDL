@@ -201,7 +201,7 @@ function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) 
   return <form className="p-4 space-y-4" onSubmit={e=>{e.preventDefault();edit.mutate(identity,{onSuccess:()=>setMessage("Presentation saved."),onError:e=>setMessage(errorMessage(e))});}}>
      <CareerKitCustomizer identity={identity} sponsors={data.placements}
        eligibleMakerBrandIds={eligibleKitMakerIds(data.placements)}
-       playerName="Your Career player" disabled={!data.canEdit} onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
+       playerName="Your Career player" disabled={!data.canEdit} embedded onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
     <div className="career-kitroom-details">
       <label>Nickname <input maxLength={32} value={identity.nickname??""} onChange={e=>set("nickname",e.target.value)} disabled={!data.canEdit} placeholder="e.g. The Anchor"/></label>
       <label>Competition category <select value={String(identity.competitionCategory)} onChange={e=>set("competitionCategory",e.target.value)} disabled={!data.canEdit}>

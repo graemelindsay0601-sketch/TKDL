@@ -15,6 +15,7 @@ export function CareerKitCustomizer({
   playerName = "Career player",
   disabled = false,
   eligibleMakerBrandIds = [],
+  embedded = false,
   onChange,
 }: {
   identity?: ShirtIdentity;
@@ -22,6 +23,8 @@ export function CareerKitCustomizer({
   playerName?: string;
   disabled?: boolean;
   eligibleMakerBrandIds?: string[];
+  /** Inside a page that already has its own header (Kit Room): no second title block or outer frame. */
+  embedded?: boolean;
   onChange: (patch: Partial<ShirtIdentity>) => void;
 }) {
   const [collection, setCollection] = useState<(typeof collections)[number]>("All shirts");
@@ -43,15 +46,15 @@ export function CareerKitCustomizer({
   const selectOriginal = () => onChange({ kitTintEnabled: false });
 
   return (
-    <section className="career-kit-library" aria-label="Career shirt designer">
-      <header className="career-kit-library__header">
+    <section className={`career-kit-library${embedded ? " career-kit-library--embedded" : ""}`} aria-label="Career shirt designer">
+      {!embedded && <header className="career-kit-library__header">
         <div>
           <span className="career-kit-library__eyebrow"><Shirt size={13} aria-hidden="true" /> CAREER PLAYER IDENTITY · KIT ROOM</span>
           <h3>Your look. Your career.</h3>
           <p>Choose a distinct cut and artwork, then tune its fabric colour. Your kit is cosmetic only.</p>
         </div>
         <span className="career-kit-library__count"><strong>{CAREER_KIT_DESIGNS.length}</strong><small>ORIGINAL<br />DESIGNS</small></span>
-      </header>
+      </header>}
       <div className="career-kit-library__feature">
         <div className="career-kit-library__feature-art" aria-label={`Preview of ${selected.name}`}>
           <span className="career-kit-library__stage-mark career-kit-library__stage-mark--top">TOUR ISSUE <i /> PERFORMANCE KNIT</span>
