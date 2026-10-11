@@ -104,8 +104,10 @@ export function StoriesPage({ctx,initialTab="News"}:{ctx:ShellContext;initialTab
     <div className="p-4"><div className="tkdl-tab-rail" role="group" aria-label="Story views">{["News","Story Threads"].map(t=><button type="button" className="tkdl-tab-trigger career-btn career-btn-ghost" aria-pressed={tab===t} aria-selected={tab===t} key={t} onClick={()=>setTab(t)}>{t}</button>)}</div></div>
     <QueryState query={query} label="Reading living-world stories">{d=><div className="px-4 pb-4 space-y-3">
       {tab==="News"?(d.news.length?d.news.map(s=><StoryCard key={s.id} story={s} saveId={ctx.save.id}/>):<CareerEmptyState title="No significant stories yet">The feed waits for real sporting and world evidence.</CareerEmptyState>):
-        d.threads.map(t=><details className="career-life-thread" key={t.id}><summary className="cursor-pointer font-bold">{t.title} · {t.stories.length} factual chapters</summary>
-          <div className="mt-3 space-y-3">{t.stories.map(s=><StoryCard key={s.id} story={s} saveId={ctx.save.id}/>)}</div></details>)}
+        d.threads.map(t=>{const latest=t.stories[t.stories.length-1];return <details className="career-life-thread" key={t.id}><summary className="cursor-pointer font-bold">
+          <span className="career-life-thread__count" aria-hidden="true">{t.stories.length}</span>
+          <span className="career-life-thread__copy"><b>{latest?.title ?? t.title}</b><small>{t.title} · {t.stories.length} factual {t.stories.length===1?"chapter":"chapters"}{latest?` · latest S${latest.season}${latest.week?` W${latest.week}`:""}`:""}</small></span></summary>
+          <div className="mt-3 space-y-3">{t.stories.map(s=><StoryCard key={s.id} story={s} saveId={ctx.save.id}/>)}</div></details>;})}
       <p className="career-fineprint">No scripted champion, invented emotion or hidden sporting modifier. Threads follow facts and actual choices.</p>
     </div>}</QueryState>
   </CareerSection></div>;

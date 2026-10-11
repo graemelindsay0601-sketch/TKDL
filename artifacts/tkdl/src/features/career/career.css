@@ -873,3 +873,20 @@
 .career-kitroom-details label { min-width:0; }
 .career-kitroom-details input, .career-kitroom-details select { width:100%; min-width:0; max-width:100%; }
 @media (max-width:640px) { .career-root .career-event-hero { min-height:270px; } .career-root .career-event-hero__shade { background:linear-gradient(0deg,#05070cf5 0%,#05070cd0 45%,#05070c40 85%); } }
+/* Head-to-head: career generations */
+.career-generations__title { margin:18px 0 8px; font:700 .72rem Oswald,sans-serif; letter-spacing:.18em; text-transform:uppercase; color:#ff7a93; }
+.career-generations__stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 10px; }
+.career-generations__stats > div { padding:10px 12px; border-radius:10px; border:1px solid #ffffff14; background:#0d1520; }
+.career-generations__stats dt { font:700 .58rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff85; }
+.career-generations__stats dd { margin:2px 0 0; font:800 1.3rem Oswald,sans-serif; color:#fff; }
+@media (max-width:640px) { .career-generations__stats { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.career-generations__filters { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0; }
+.career-generations__filters label { display:grid; gap:5px; font:700 .6rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff99; flex:1 1 220px; }
+.career-generations__filters select, .career-generations__filters input { min-height:40px; padding:8px 12px; border-radius:10px; border:1px solid #ffffff26; background:#070b12; color:#fff; font:600 .84rem Inter,system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.career-generations__grid { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr)); gap:8px; }
+.career-generations__card { display:flex; gap:10px; align-items:center; padding:8px 12px 8px 8px; border-radius:12px; border:1px solid #ffffff14; background:linear-gradient(160deg,#141c2a,#0a1019); }
+.career-generations__shirt { flex:0 0 52px; width:52px; } .career-generations__shirt .career-premium-shirt, .career-generations__shirt .career-shirt { width:100% !important; max-width:none; }
+.career-generations__card strong { display:block; font:700 .86rem Oswald,sans-serif; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.career-generations__card small { display:block; font-size:.68rem; color:#ffffff8c; }
+.career-generations__links { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:3px; } .career-generations__links a { font-size:.7rem; font-weight:600; color:#ff9db1; }
+.career-root .career-field-shirt { flex:0 0 34px; width:34px; } .career-root .career-field-shirt .career-premium-shirt, .career-root .career-field-shirt .career-shirt { width:100% !important; max-width:none; }

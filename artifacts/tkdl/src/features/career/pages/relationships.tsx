@@ -39,19 +39,23 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
           <p className="text-xs text-white/60">{opponents.length} of {data.opponents.length} opponents and historical cohort members. Unlabelled opponents still have factual H2H records.</p>
           {!opponents.length && <CareerEmptyState title="No opponent history here yet">Played matches build H2H. Shared played Q-School sessions or Junior events establish cohorts; a single match does not establish a rivalry.</CareerEmptyState>}
           <div className="career-rivals">{opponents.map(o=><OpponentPanel key={o.player.id} opponent={o} saveId={ctx.save.id} />)}</div>
-          <h3 className="font-bold pt-3">Career generations</h3>
-          <p className="text-sm text-white/70">{data.world.active} active · {data.world.retired} retired · {data.world.newEntrants} new entrants this season · {data.world.youngPlayers} active aged {data.world.youngAgeMaximum} or under</p>
-          <p className="text-xs text-white/60">Young age is context, not a promise of future success. New entrants use the existing junior/grassroots pathways. Retired identities and sporting records remain in this save.</p>
-          <div className="flex flex-wrap gap-2">
-            <label className="text-xs">World players <select value={worldFilter} onChange={e=>{setWorldFilter(e.target.value);setLimit(30);}} className="block bg-black/60 rounded p-2 border border-white/20">
+          <h3 className="career-generations__title">Career generations</h3>
+          <dl className="career-generations__stats">
+            <div><dt>Active</dt><dd>{data.world.active}</dd></div><div><dt>Retired</dt><dd>{data.world.retired}</dd></div>
+            <div><dt>New this season</dt><dd>{data.world.newEntrants}</dd></div><div><dt>Aged {data.world.youngAgeMaximum} or under</dt><dd>{data.world.youngPlayers}</dd></div>
+          </dl>
+          <details className="career-note"><summary>About generations</summary><p>Young age is context, not a promise of future success. New entrants use the existing junior/grassroots pathways. Retired identities and sporting records remain in this save.</p></details>
+          <div className="career-generations__filters">
+            <label>World players <select value={worldFilter} onChange={e=>{setWorldFilter(e.target.value);setLimit(30);}}>
               <option value="ACTIVE">Active players</option><option value="YOUNG">Young players ({data.world.youngAgeMaximum} or under)</option><option value="RETIRED">Retired players</option><option value="ALL">All generations</option>
             </select></label>
-            <label className="text-xs">Find world player <input type="search" value={worldSearch} onChange={e=>{setWorldSearch(e.target.value);setLimit(30);}} className="block bg-black/60 rounded p-2 border border-white/20" /></label>
+            <label>Find world player <input type="search" value={worldSearch} placeholder="Search a name" onChange={e=>{setWorldSearch(e.target.value);setLimit(30);}} /></label>
           </div>
           {!world.length && <CareerEmptyState title="No players in this view" />}
-          <ul className="space-y-2">{world.slice(0,limit).map(p=><li key={p.id} className="border-b border-white/10 pb-2 text-sm">
-            <Flag code={p.nationality} /> {p.name}<span className="block text-xs text-white/60">{identity(p)} · {p.createdSeason===1 ? "Starting generation" : `Entered in season ${p.createdSeason}`}</span>
-             <div className="flex flex-wrap gap-3"><Link className="underline text-xs" href={`/career/${ctx.save.id}/world/players/${p.id}/profile`}>Player profile</Link><Link className="underline text-xs" href={`/career/${ctx.save.id}/recognition/npcs/${p.id}`}>Public sporting recognition</Link></div>
+          <ul className="career-generations__grid">{world.slice(0,limit).map(p=><li key={p.id} className="career-generations__card">
+            <span className="career-generations__shirt" aria-hidden="true"><CareerShirt playerId={p.id} name={p.name} scale="compact"/></span>
+            <div className="min-w-0"><strong><Flag code={p.nationality} /> {p.name}</strong><small>{identity(p)} · {p.createdSeason===1 ? "Starting generation" : `Entered in season ${p.createdSeason}`}</small>
+             <div className="career-generations__links"><Link href={`/career/${ctx.save.id}/world/players/${p.id}/profile`}>Player profile</Link><Link href={`/career/${ctx.save.id}/recognition/npcs/${p.id}`}>Public sporting recognition</Link></div></div>
           </li>)}</ul>
           {world.length>limit && <button className="career-btn career-btn-ghost" onClick={()=>setLimit(limit+30)}>Show more ({world.length-limit} remaining)</button>}
         </div>;

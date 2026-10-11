@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import {CareerEventIdentity} from "../identity";
+import {CareerEventIdentity, CareerShirt} from "../identity";
 import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
-import { useEnterEvent, useEvent, useEventFinance, useQualification, useWithdrawEvent, errorMessage } from "../api";
+import { useEnterEvent, useEvent, useEventFinance, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
 import { circuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
@@ -79,7 +79,7 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
       {tab === "DRAW" && <Draw detail={detail} />}
       {tab === "SCHEDULE" && <Schedule detail={detail} />}
       {tab === "MY_MATCHES" && <CareerSection title="My matches" icon={<Swords className="w-3.5 h-3.5" />}>{myMatches.map(m => <MatchRow key={m.id} m={m} rounds={detail.draw.rounds} />)}</CareerSection>}
-      {tab === "PLAYERS" && <Players detail={detail} />}
+      {tab === "PLAYERS" && <Players detail={detail} saveId={save.id} />}
       {tab === "PRIZE" && <Prize saveId={save.id} detail={detail} />}
       {tab === "RANKING" && <RankingTab saveId={save.id} detail={detail} retired={retired} />}
     </div></CareerEventIdentity>
@@ -218,7 +218,8 @@ function Schedule({ detail }: { detail: EventDetail }) {
     </CareerSection>
   );
 }
-function Players({ detail }: { detail: EventDetail }) {
+function Players({ detail, saveId }: { detail: EventDetail; saveId: string }) {
+  const presentation = usePresentation(saveId);
   const results = new Map(detail.results.map(r => [r.participantKey, r]));
   return (
     <CareerSection title="Field" icon={<Users className="w-3.5 h-3.5" />}>
@@ -226,6 +227,9 @@ function Players({ detail }: { detail: EventDetail }) {
         {detail.field.map(p => { const r = results.get(p.participantKey); return (
           <li key={p.participantKey} className="px-4 py-2 flex items-center gap-2 text-sm" style={{ background: p.participantKey === "HUMAN" ? "rgba(255,0,92,0.1)" : undefined }}>
             <span className="w-6 text-center text-xs" style={{ ...OSWALD, color: "#ffd24a" }}>{p.seed ?? ""}</span>
+            <span className="career-field-shirt" aria-hidden="true">{p.kind === "HUMAN"
+              ? presentation.data && <CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name="You" scale="compact" />
+              : <CareerShirt playerId={p.participantKey} name={p.name} scale="compact" />}</span>
             <Flag code={p.nationality} />
             <span className="flex-1 truncate" style={{ ...OSWALD, color: "#fff" }}>{p.kind === "HUMAN" ? "You" : p.name}</span>
             <span className="hidden sm:inline text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{titleCase(p.source)}</span>
