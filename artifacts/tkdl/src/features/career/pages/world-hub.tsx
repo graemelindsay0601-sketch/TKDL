@@ -35,7 +35,7 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
   const searchBox=<label className="career-world-search"><Search size={16} aria-hidden="true"/><span className="sr-only">Search</span><input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Names, cities, circuits"/></label>;
   const seasonEditions=map.data?.events??[];
   return <div className="space-y-3">{section==="history"&&<h2 className="sr-only">World History</h2>}
-    {section==="search"&&<CareerPageHero kicker="Darts World" title="Search the darts world" stage={{venue:{venueType:"conference"}}} accent="#7ebbd3"
+    {section==="search"&&<CareerPageHero kicker="Darts World" title="Search the darts world" stage={{venue:{venueType:"conference"},eventClass:"PROFESSIONAL_TOUR"}} accent="#7ebbd3"
       subtitle={<p>Players, championships and venues across your saved Career world.</p>}>{searchBox}</CareerPageHero>}
     {section==="events"&&!selected&&<CareerPageHero kicker="Darts World" title="Events & Circuits" stage={{venue:{venueType:"small-arena"},eventClass:"MAJOR"}} accent="#e4bb67"
       watermark={`${d.eventFamilies.length}`}

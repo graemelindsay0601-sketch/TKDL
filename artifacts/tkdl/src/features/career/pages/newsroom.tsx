@@ -139,7 +139,7 @@ export function StoryArticle({ ctx, storyId, onBack }: { ctx: ShellContext; stor
 
   const callbackTexts = story.callbacks.filter(callback => callback.text.trim());
   const sourceIds = [...new Set([...story.sourceIds, ...story.callbacks.flatMap(callback => callback.sourceIds)])];
-  return <article className="news-article">
+  const article = <article className="news-article">
     <header className="news-article-top">
       <div className="news-story-tags">
         <span className={`news-tag ${story.significance === "MAJOR" ? "news-tag--major" : story.significance === "MOMENT" ? "news-tag--moment" : ""}`}>{classification(story)}</span>
@@ -171,6 +171,14 @@ export function StoryArticle({ ctx, storyId, onBack }: { ctx: ShellContext; stor
       </aside>
     </div>
   </article>;
+  if (onBack) return article;
+  // Opened directly (/world/news/:id): give the article the newsroom's own page and a way back to it.
+  return <CareerSection title="Darts World · Newsroom" icon={<Newspaper size={15} aria-hidden />} accent="#d1a65c">
+    <div className="tkdl-newsroom"><div className="px-3 sm:px-4">
+      <Link className="news-action mb-3" href={`/career/${ctx.save.id}/world/news`}><ArrowLeft size={15} aria-hidden /> Back to newsroom</Link>
+      {article}
+    </div></div>
+  </CareerSection>;
 }
 
 function OpponentEvidence({ ctx, opponentId }: { ctx: ShellContext; opponentId: string }) {
