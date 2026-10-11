@@ -17,7 +17,7 @@ import { EVENT_AWARDS, EVENT_DESIGNS_V2, AWARD_POLICY_VERSION, resolveAward, awa
 import { EVENT_DESIGN_IDS, FAMILY_IDS, RECOGNITION_ART, TROPHY_ART } from "../../features/career/trophies/manifest/trophy-manifest.ts";
 import { TROPHY_RENDERS } from "../../features/career/trophies/manifest/render-manifest.ts";
 import { FAMILY_IDS as RENDER_FAMILY_IDS, EVENT_DESIGN_IDS as RENDER_EVENT_IDS } from "../../../scripts/trophy-render/designs-list.mjs";
-import { auditRows } from "../../../scripts/career-award-report.ts";
+import { auditRows, reachability } from "../../../scripts/career-award-report.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
 const ASSETS = path.join(ROOT, "public/assets/career-trophies");
@@ -185,6 +185,31 @@ test("historical compatibility: v1 shows the family, a differing stored trophyId
   assert.equal(resolveAward({ definitionKey: "future-major", tier: "MAJOR" }).designSource, "FAMILY", "unallocated future majors fall back to a family design");
 });
 
+test("reachability: special-format and league trophies are authored but benched; only scheduled events can produce an award", () => {
+  for (const k of ["snooker-darts-cup", "noughts-and-crosses-trophy", "national-cricket", "national-halve-it"]) assert.deepEqual([reachability(k).status, reachability(k).reasons], ["BENCHED", ["GAME_TYPE"]], k);
+  assert.deepEqual([reachability("treble-out-trophy").status, reachability("treble-out-trophy").reasons], ["BENCHED", ["OUT_RULE"]]);
+  assert.deepEqual([reachability("regional-champions-league").status, reachability("regional-champions-league").reasons], ["BENCHED", ["STRUCTURE"]]);
+  assert.equal(reachability("double-start-grand-prix").status, "LEGACY"); assert.equal(reachability("vault-masters").status, "LEGACY");
+  for (const k of ["world-darts-championship", "double-crown", "open-championship", "european-championship", "women-world-championship", "youth-world-championship", "amateur-masters", "county-championship", "pro-circuit-championship"])
+    assert.equal(reachability(k).status, "SCHEDULED", k);
+  const physical = rows.filter(r => resolveAward({ definitionKey: r.key }).award === "PHYSICAL_TROPHY");
+  assert.deepEqual(physical.map(r => reachability(r.key).status).reduce((m, s) => ({ ...m, [s]: (m[s] ?? 0) + 1 }), {} as Record<string, number>), { SCHEDULED: 36, BENCHED: 6, LEGACY: 2 });
+  // Benched instances are generated cancelled and never drawn, played or resulted.
+  const engine = readFileSync(path.join(ROOT, "../api-server/src/career/calendar/engine.ts"), "utf8");
+  assert.match(engine, /CASE WHEN r\.executable THEN 'SCHEDULED' ELSE 'CANCELLED' END/);
+  assert.match(engine, /CASE WHEN r\.executable THEN NULL ELSE 'INTENTIONALLY_BENCHED' END/);
+  assert.match(readFileSync(path.join(ROOT, "../api-server/src/career/calendar/service.ts"), "utf8"), /if \(!event\.executable\) denials\.push\("UNSUPPORTED_FORMAT"\)/);
+});
+
+test("special-format designs are never substituted for unrelated championships", () => {
+  const special = ["snooker-darts-cup", "noughts-crosses-block", "treble-triangles", "cricket-scoreboard", "league-shield-ring"];
+  for (const d of special) assert.deepEqual(Object.entries(EVENT_DESIGNS_V2).filter(([, a]) => a.designId === d).map(([, a]) => a.allocation), ["UNIQUE"], `${d} belongs to exactly one event`);
+  for (const r of rows) for (const v of [1, 2] as const) { const a = resolveAward({ definitionKey: r.key }, { version: v });
+    if (a.designId && special.includes(a.designId)) assert.equal(EVENT_DESIGNS_V2[r.key]?.designId, a.designId, `${r.key} v${v}`); }
+  for (const t of ["MAJOR", "WORLD", "LOCAL"]) assert.ok(!special.includes(resolveAward({ definitionKey: "future-x", tier: t }).designId ?? ""), "rule fallback never yields a special design");
+  assert.deepEqual(EVENT_DESIGN_IDS.filter(id => TROPHIES.some(t => t.id === id)), [], "no catalogue content can store an event-design id");
+});
+
 test("presentation boundary: policy is frozen, pure and unknown to sporting, finance and ranking code", () => {
   assert.ok(Object.isFrozen(EVENT_AWARDS));
   const policy = readFileSync(path.join(ROOT, "src/features/career/trophies/manifest/award-policy.ts"), "utf8");
@@ -199,6 +224,8 @@ test("the committed audit report is current and lists every definition", () => {
   const report = readFileSync(path.join(ROOT, "../../docs/career/e2-trophy-award-report.md"), "utf8");
   for (const r of rows) assert.ok(report.includes(`| \`${r.key}\` |`), r.key);
   assert.match(report, /distinct event definitions: \*\*95\*\*/);
+  assert.match(report, /## Reachability through normal Career scheduling/); assert.match(report, /Designs a new Career can actually award: \*\*25\*\* of 30/);
+  for (const k of ["snooker-darts-cup", "noughts-and-crosses-trophy", "treble-out-trophy", "national-cricket"]) assert.match(report, new RegExp(`\\(\`${k}\`\\) \\| [^\\n]*\\*\\*benched\\*\\*`), k);
 });
 
 // ---------------------------------------------------------------- renderer
@@ -240,6 +267,8 @@ test("award presentation: weekly result-only, Q-School no trophy, regional plaqu
   assert.match(html(h(M.AwardPresentation, { event: { definitionKey: "amateur-masters" }, policyVersion: 1 })), /data-design-source="FAMILY"[\s\S]*render\/silver-cup\.webp/, "v1 pinned shows the family");
   assert.match(html(h(M.AwardPresentation, { event: { definitionKey: "amateur-masters" }, persistedTrophyId: "crystal-column" })), /data-design-source="PERSISTED"[\s\S]*crystal-column\.webp/, "historic stored identity is preserved");
   assert.match(html(h(M.AwardPresentation, { event: { definitionKey: "amateur-masters" }, persistedTrophyId: "not-real" })), /amateur-masters-tankard\.webp/, "unknown stored ids fall back to the policy design");
+  const sub = html(h(M.AwardPresentation, { event: { definitionKey: "open-championship" }, persistedTrophyId: "snooker-darts-cup" }));
+  assert.match(sub, /open-masters-heritage\.webp/, "an event-design id is never accepted as a stored identity"); assert.doesNotMatch(sub, /snooker/);
   assert.match(html(h(M.AwardPresentation, { event: { definitionKey: "friday-night-501" }, persistedTrophyId: "wood-silver-shield" })), /data-award="RESULT_ONLY"/,
     "a stored trophyId alone never creates a physical trophy");
 });

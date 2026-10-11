@@ -81,7 +81,9 @@ export function RecognitionMark({ form, size = "md", label }: { form: "PLAQUE" |
 export function AwardPresentation({ event, size = "md", eventName, persistedTrophyId, policyVersion, children }: {
   event: AwardInput; size?: TrophySize; eventName?: string; persistedTrophyId?: string | null; policyVersion?: AwardPolicyVersion; children?: ReactNode;
 }) {
-  const known = persistedTrophyId && trophyArt(persistedTrophyId) ? persistedTrophyId : null;
+  // Saved content only ever stores a catalogue family id; an event-specific design id is never a
+  // stored identity, so it is ignored here and can never be substituted onto an unrelated event.
+  const known = persistedTrophyId && trophyArt(persistedTrophyId)?.family ? persistedTrophyId : null;
   const award = resolveAward(event, { version: policyVersion, persistedTrophyId: known });
   return <div className="ct-award" data-award={award.award} data-award-kind={award.kind} data-design={award.designId ?? undefined} data-design-source={award.designSource ?? undefined}>
     {award.award === "PHYSICAL_TROPHY"
