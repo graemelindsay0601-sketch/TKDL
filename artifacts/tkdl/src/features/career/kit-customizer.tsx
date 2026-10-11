@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { Check, ChevronLeft, ChevronRight, Search, Shirt, Sparkles, Tag } from "lucide-react";
-import { CAREER_KIT_COLORWAYS, CAREER_KIT_COLLECTIONS, CAREER_KIT_DESIGNS, filterCareerKitDesigns } from "./kit-catalog";
+import { CAREER_KIT_COLORWAYS, CAREER_KIT_COLLECTIONS, CAREER_KIT_DESIGNS, filterCareerKitDesigns, isCareerKitAvailable } from "./kit-catalog";
 import { type ShirtIdentity, type ShirtPartner } from "./identity";
 import { PremiumCareerShirt } from "./apparel/premium-shirt";
 import "./kit-customizer.css";
@@ -13,12 +13,14 @@ export function CareerKitCustomizer({
   sponsors = [],
   playerName = "Career player",
   disabled = false,
+  eligibleMakerBrandIds = [],
   onChange,
 }: {
   identity?: ShirtIdentity;
   sponsors?: ShirtPartner[];
   playerName?: string;
   disabled?: boolean;
+  eligibleMakerBrandIds?: string[];
   onChange: (patch: Partial<ShirtIdentity>) => void;
 }) {
   const [collection, setCollection] = useState<(typeof collections)[number]>("All shirts");
@@ -98,7 +100,7 @@ export function CareerKitCustomizer({
       <div className="career-kit-library__toolbar">
         <div className="career-kit-library__catalog-heading">
           <div><span className="career-kit-library__eyebrow"><Sparkles size={12} aria-hidden="true" /> THE KIT COLLECTION</span><strong>Find your shirt</strong></div>
-          <span>50 designs · 5 collections</span>
+          <span>{CAREER_KIT_DESIGNS.length} designs · {CAREER_KIT_COLLECTIONS.length} visual collections · maker ranges unlock with active partner rights</span>
         </div>
         <div className="career-kit-library__tabs" role="group" aria-label="Filter shirt collection">
           {collections.map(item => <button key={item} type="button" className={collection === item ? "is-active" : ""} aria-pressed={collection === item} onClick={() => { setCollection(item); setPage(0); }} disabled={disabled}>{item}</button>)}
@@ -108,15 +110,17 @@ export function CareerKitCustomizer({
       </div>
       <div className="career-kit-library__grid" role="group" aria-label={`Choose one of ${CAREER_KIT_DESIGNS.length} shirt designs`}>
         {visible.map(item => (
+          (() => { const locked = !isCareerKitAvailable(item, eligibleMakerBrandIds, selected.id); return (
           <button key={item.id} type="button" className={`career-kit-library__card ${selected.id === item.id ? "is-selected" : ""}`}
-            onClick={() => onChange({ kitDesignId: item.id })} aria-pressed={selected.id === item.id} disabled={disabled}>
+            onClick={() => onChange({ kitDesignId: item.id })} aria-pressed={selected.id === item.id} disabled={disabled || locked} title={locked ? `Requires an active ${item.makerBrandId} apparel/equipment agreement` : undefined}>
             <span className="career-kit-library__card-art">
               <span className="career-kit-library__card-number">{item.number} <i /> {item.collection}</span>
               <PremiumCareerShirt identity={{ ...identity, kitDesignId: item.id }} sponsors={sponsors} name={item.name} scale="profile" />
               {selected.id === item.id && <i className="career-kit-library__card-check"><Check size={13} aria-hidden="true" /></i>}
             </span>
-            <span className="career-kit-library__card-copy"><strong>{item.name}</strong><small>{item.cut}</small></span>
+            <span className="career-kit-library__card-copy"><strong>{item.name}{locked ? " · Partner range" : ""}</strong><small>{item.cut}</small></span>
           </button>
+          ); })()
         ))}
         {!visible.length && <p className="career-kit-library__empty">No shirts match. Try a different search or collection.</p>}
       </div>

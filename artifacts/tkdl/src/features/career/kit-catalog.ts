@@ -6,6 +6,7 @@ export type CareerKitDesign = {
   cut: string;
   detail: string;
   image: string;
+  makerBrandId?: string;
 };
 
 const designRows = [
@@ -89,8 +90,61 @@ const tourDesigns: CareerKitDesign[] = tourRows.map(([name, collection, cut, det
   image: `kit-pro-${String(index + 1).padStart(2, "0")}.svg`,
 }));
 
-export const CAREER_KIT_DESIGNS: CareerKitDesign[] = [...historicalDesigns, ...tourDesigns];
+const nextWaveRows = [
+  ["Civic Standard", "Precision", "Button-front club polo", "Midnight body, ivory shoulder yoke and scarlet seam piping."],
+  ["Harbour Lights", "Rivalry", "Resort-collar regional shirt", "Sea-glass and coral panels with a subtle woven wave."],
+  ["Royal Exchange", "Heritage", "Spread-collar professional polo", "Oxblood and black with fine champagne art-deco lines."],
+  ["Comet Run", "Energy", "Stand-collar zip jersey", "Violet body crossed by cobalt comet-tail panels."],
+  ["Ironflight Forge", "After Dark", "Mock-neck equipment jersey", "Graphite knit, brushed-steel wing and restrained red seams.", "ironflight"],
+  ["Redpoint Velocity", "Precision", "Mandarin performance polo", "Carmine, white chevrons and black negative-space wedges.", "redpoint-darts"],
+  ["Ochre Solar", "Rivalry", "Zip-collar maker polo", "Ochre gold, slate shoulders and eclipse jacquard.", "ochre-darts"],
+  ["Northline Polar", "Heritage", "High-band technical jersey", "Glacial cyan and navy split with topographic knit.", "northline-darts"],
+  ["Keystone Architect", "Energy", "Stand-collar maker shirt", "Stone grey with copper stepped geometry and ivory linework.", "keystone-darts"],
+  ["Vector Nine Apex", "After Dark", "Folded-V performance shirt", "Forest and lime angular rising panels.", "vector-nine"],
+  ["Club Green Room", "Precision", "Button polo", "Bottle green, broad cream rib collar and burgundy piping."],
+  ["County Lines", "Rivalry", "Split-collar regional shirt", "Ivory and teal panels with copper contour lines."],
+  ["Golden Hour", "Heritage", "Point-collar tour jersey", "Burnt orange and plum blocks with champagne arc."],
+  ["Tidal Shift", "Energy", "Asymmetric zip jersey", "Turquoise, ultramarine and lilac panels."],
+  ["Carbon Orchid", "After Dark", "Sculpted mock-neck shirt", "Black micro-jacquard with magenta petal geometry."],
+  ["Redline Night Tour", "Precision", "Short-zip stage jersey", "Scarlet shoulder yoke, white blade and graphite mesh."],
+  ["Ivory Comet", "Rivalry", "Wide-collar elite polo", "Pearl and navy with vivid fuchsia comet trails."],
+  ["Black Tie 180", "Heritage", "Gold-edge championship polo", "Near-black fabric with brushed-gold geometry."],
+  ["Blackforge Foundry", "Energy", "Graphite equipment polo", "Copper forge panels with engineered shoulder structure.", "blackforge-darts"],
+  ["Apex Arrow Flight", "After Dark", "High-collar maker shirt", "White and cobalt with lime arrow panels.", "apex-arrow"],
+  ["Forge Sport Apexline", "Precision", "Mandarin apparel jersey", "Black and red blocks with athletic seam lines.", "forge-sport"],
+  ["Northstar Meridian", "Rivalry", "High-collar apparel shirt", "Navy starburst, silver and ice-blue piping.", "northstar-performance"],
+  ["Baseline Tempo", "Heritage", "Split-placket performance polo", "Slate with emerald pace bands.", "baseline-athletic"],
+  ["Vela Sails", "Energy", "Open-collar apparel shirt", "Midnight teal with coral and turquoise curves.", "vela-sport"],
+  ["Vantage Crownline", "After Dark", "Sculpted signature shirt", "Black technical fabric with antique-gold woven geometry.", "vantage-darts"],
+  ["Northstar Icefield", "Precision", "Point-collar technical polo", "Ice-blue body, navy sleeves and white diagonal.", "northstar-performance"],
+  ["Harbour Smoke", "Rivalry", "Low-stand invitational shirt", "Burgundy-charcoal blocks with ivory shoulder and copper pinstripe."],
+  ["Mosaic 180", "Heritage", "Asymmetric elite jersey", "Ink-blue facets in teal, amethyst and amber."],
+  ["Sunday League", "Energy", "Classic club polo", "Cream torso, forest sleeves and burgundy side stripe."],
+  ["The Contender", "After Dark", "Stand-collar challenger shirt", "Cobalt, citrus and navy angled panels."],
+  ["Prism Fade", "Precision", "Button-collar club shirt", "Violet and teal fields with frost-blue piping."],
+  ["Copper Cathedral", "Rivalry", "High-band regional shirt", "Navy with copper arches and muted-cream linework."],
+  ["Velocity Rose", "Heritage", "Asymmetric stage jersey", "Black and crimson with sharp rose speed panels."],
+  ["Whiteout", "Energy", "Wide-collar elite shirt", "White and silver with navy sleeves and cobalt diagonal."],
+  ["Blackforge Shard", "After Dark", "Black stand-collar maker jersey", "Forged-steel facets in red and pale grey.", "blackforge-darts"],
+  ["Apex Arrowhead", "Precision", "Mandarin maker shirt", "Royal blue with lime-and-white arrowhead panels.", "apex-arrow"],
+  ["Northline Borealis", "Rivalry", "Stand-collar technical shirt", "Teal and black with arctic cyan ribbons.", "northline-darts"],
+  ["Vector Nine Gridline", "Heritage", "Point-collar maker jersey", "Navy with silver grid panels and lime blocks.", "vector-nine"],
+  ["Vela Afterglow", "Energy", "Open-collar signature shirt", "Deep plum with coral and pale-gold sail panels.", "vela-sport"],
+  ["Baseline Crosscourt", "After Dark", "Ribbed-crew apparel jersey", "Warm white, graphite and emerald blocks.", "baseline-athletic"],
+] as const;
+
+const nextWaveDesigns: CareerKitDesign[] = nextWaveRows.map(([name, collection, cut, detail, makerBrandId], index) => ({
+  id: `kit-100-${String(index + 1).padStart(2, "0")}`,
+  number: String(index + 61).padStart(3, "0"),
+  name, collection, cut, detail, ...(makerBrandId ? { makerBrandId } : {}),
+  image: `kit-100-${String(index + 1).padStart(2, "0")}.webp`,
+}));
+
+export const CAREER_KIT_DESIGNS: CareerKitDesign[] = [...historicalDesigns, ...tourDesigns, ...nextWaveDesigns];
 export const CAREER_KIT_BY_ID = new Map(CAREER_KIT_DESIGNS.map(design => [design.id, design]));
+export function isCareerKitAvailable(design: CareerKitDesign, activePartnerBrandIds: readonly string[], currentlySelectedId?: string) {
+  return !design.makerBrandId || design.id === currentlySelectedId || activePartnerBrandIds.includes(design.makerBrandId);
+}
 
 export const CAREER_KIT_COLLECTIONS = ["Precision", "Rivalry", "Heritage", "Energy", "After Dark"] as const;
 export type CareerKitCollection = (typeof CAREER_KIT_COLLECTIONS)[number];

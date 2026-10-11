@@ -9,6 +9,7 @@ import {CareerShirt,CareerTrophy,CareerEventIdentity,type ShirtIdentity} from ".
 import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
 import {CareerMapPage} from "./map";
+import {sponsorMarkIdentity} from "../apparel/brand-mark-identity";
 
 export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
   const world=useWorldContent(ctx.save.id);
@@ -179,7 +180,9 @@ function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) 
   const edit=useEditPresentation(saveId),[identity,setIdentity]=useState<EditableIdentity>(data.identity),[message,setMessage]=useState("");
   const set=(key:string,value:string)=>setIdentity({...identity,[key]:value});
   return <CareerSection title="Presentation identity"><form className="p-4 space-y-3" onSubmit={e=>{e.preventDefault();edit.mutate(identity,{onSuccess:()=>setMessage("Presentation saved."),onError:e=>setMessage(errorMessage(e))});}}>
-    <CareerKitCustomizer identity={identity} sponsors={data.placements} playerName="Your Career player" disabled={!data.canEdit} onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
+     <CareerKitCustomizer identity={identity} sponsors={data.placements}
+       eligibleMakerBrandIds={data.placements.map(partner=>sponsorMarkIdentity(undefined,partner.brandName)?.id).filter((id):id is string=>Boolean(id))}
+       playerName="Your Career player" disabled={!data.canEdit} onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
     <label className="block">Nickname <input maxLength={32} value={identity.nickname??""} onChange={e=>set("nickname",e.target.value)} disabled={!data.canEdit}/></label>
     <label className="block">Competition category <select value={String(identity.competitionCategory)} onChange={e=>set("competitionCategory",e.target.value)} disabled={!data.canEdit}>
       <option value="OPEN">Open / mixed pathways</option><option value="WOMEN">Declared women's-category eligibility + open / mixed pathways</option></select></label>

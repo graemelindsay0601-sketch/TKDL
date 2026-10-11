@@ -1,18 +1,34 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { CAREER_KIT_DESIGNS } from "../../features/career/kit-catalog.ts";
+import { existsSync } from "node:fs";
+import { CAREER_KIT_DESIGNS, isCareerKitAvailable } from "../../features/career/kit-catalog.ts";
 import { garmentPrintZones, printZonesAreSafe } from "../../features/career/apparel/print-zones.ts";
 import { SPONSOR_LOGO_ASSETS, sponsorMarkIdentity } from "../../features/career/apparel/brand-mark-identity.ts";
 import { stableNpcKitDesignId } from "../../features/career/apparel/npc-wardrobe.ts";
 import { BRANDS } from "../../../../api-server/src/career/content/brands.ts";
 
 test("premium apparel print zones fit the garment and do not collide across every current shirt cut", () => {
-  assert.equal(CAREER_KIT_DESIGNS.length, 60);
+  assert.equal(CAREER_KIT_DESIGNS.length, 100);
   for (const kit of CAREER_KIT_DESIGNS) {
     const zones = garmentPrintZones(kit);
     assert.equal(zones.length, 5, kit.id);
     assert.ok(printZonesAreSafe(zones), `${kit.id} has overlapping or out-of-bounds print areas`);
   }
+});
+
+test("the new shirt wave has unique persistent IDs, real image files and explicit maker-range access", () => {
+  const wave = CAREER_KIT_DESIGNS.filter(kit => kit.id.startsWith("kit-100-"));
+  assert.equal(wave.length, 40);
+  assert.equal(new Set(CAREER_KIT_DESIGNS.map(kit => kit.name)).size, CAREER_KIT_DESIGNS.length);
+  assert.equal(new Set(wave.map(kit => kit.name)).size, 40);
+  assert.ok(wave.every(kit => existsSync(`public/assets/career-kit-library/${kit.image}`)));
+  assert.equal(wave.filter(kit => kit.makerBrandId).length, 20);
+  assert.ok(wave.filter(kit => kit.makerBrandId).every(kit => SPONSOR_LOGO_ASSETS.has(kit.makerBrandId!)));
+  const licensed = wave.find(kit => kit.makerBrandId)!;
+  assert.ok(licensed);
+  assert.equal(isCareerKitAvailable(licensed, []), false);
+  assert.equal(isCareerKitAvailable(licensed, [licensed.makerBrandId!]), true);
+  assert.equal(isCareerKitAvailable(licensed, [], licensed.id), true);
 });
 
 test("every authoritative sponsor maps to a bespoke, unique vector identity", () => {
