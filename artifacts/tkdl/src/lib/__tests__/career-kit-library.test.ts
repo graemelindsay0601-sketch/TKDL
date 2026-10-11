@@ -9,13 +9,14 @@ import {
   filterCareerKitDesigns,
 } from "../../features/career/kit-catalog.ts";
 
-test("Career kit library preserves the original 60 shirts and adds 40 distinct premium artworks", async () => {
-  assert.equal(CAREER_KIT_DESIGNS.length, 100);
+test("Career kit library preserves previous IDs and includes 150 individually produced new artworks", async () => {
+  assert.equal(CAREER_KIT_DESIGNS.length, 250);
   assert.deepEqual(CAREER_KIT_DESIGNS.slice(0, 50).map(design => design.id),
     Array.from({ length: 50 }, (_, index) => `kit-50-${String(index + 1).padStart(2, "0")}`));
   assert.equal(CAREER_KIT_DESIGNS.slice(50, 60).filter(design => design.id.startsWith("kit-pro-")).length, 10);
   assert.equal(CAREER_KIT_DESIGNS.slice(60).filter(design => design.id.startsWith("kit-100-")).length, 40);
-  assert.equal(new Set(CAREER_KIT_DESIGNS.map(design => design.id)).size, 100);
+  assert.equal(CAREER_KIT_DESIGNS.slice(100).filter(design => design.id.startsWith("kit-250-")).length, 150);
+  assert.equal(new Set(CAREER_KIT_DESIGNS.map(design => design.id)).size, 250);
 
   const hashes = new Set<string>();
   for (const [index, design] of CAREER_KIT_DESIGNS.entries()) {
@@ -23,7 +24,7 @@ test("Career kit library preserves the original 60 shirts and adds 40 distinct p
     assert.ok(bytes.byteLength > (index < 50 ? 10_000 : 500), `${design.image} should contain full shirt artwork`);
     hashes.add(createHash("sha256").update(bytes).digest("hex"));
   }
-  assert.equal(hashes.size, 100, "every catalog item should use its own artwork file");
+  assert.equal(hashes.size, 250, "every catalog item should use its own artwork file");
 });
 
 test("Career kit filters cover five complete collections and find cuts by name", () => {

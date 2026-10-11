@@ -8,7 +8,7 @@ import { stableNpcKitDesignId } from "../../features/career/apparel/npc-wardrobe
 import { BRANDS } from "../../../../api-server/src/career/content/brands.ts";
 
 test("premium apparel print zones fit the garment and do not collide across every current shirt cut", () => {
-  assert.equal(CAREER_KIT_DESIGNS.length, 100);
+  assert.equal(CAREER_KIT_DESIGNS.length, 250);
   for (const kit of CAREER_KIT_DESIGNS) {
     const zones = garmentPrintZones(kit);
     assert.equal(zones.length, 5, kit.id);
@@ -29,6 +29,16 @@ test("the new shirt wave has unique persistent IDs, real image files and explici
   assert.equal(isCareerKitAvailable(licensed, []), false);
   assert.equal(isCareerKitAvailable(licensed, [licensed.makerBrandId!]), true);
   assert.equal(isCareerKitAvailable(licensed, [], licensed.id), true);
+});
+
+test("the expanded premium range has 150 complete original artwork assets and searchable, unique names", () => {
+  const wave = CAREER_KIT_DESIGNS.filter(kit => kit.id.startsWith("kit-250-"));
+  assert.equal(wave.length, 150);
+  assert.equal(new Set(wave.map(kit => kit.name)).size, 150);
+  assert.ok(wave.every(kit => existsSync(`public/assets/career-kit-library/${kit.image}`)));
+  assert.deepEqual(wave[0].number, "101");
+  assert.deepEqual(wave.at(-1)?.number, "250");
+  assert.ok(wave.every(kit => kit.cut.trim().length >= 10 && kit.detail.trim().length >= 30));
 });
 
 test("every authoritative sponsor maps to a bespoke, unique vector identity", () => {
