@@ -39,9 +39,14 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
   return (
     <CareerEventIdentity eventKey={e.definitionKey} circuit={e.circuit} level={e.presentation.tier}><div className="space-y-3">
       {!palace && <Link href={`/career/${save.id}/calendar`} className="career-btn career-btn-ghost"><ArrowLeft className="w-4 h-4" aria-hidden /> Calendar</Link>}
-      <section className="pdc-card overflow-hidden relative" style={{ borderColor: `${tier.accent}${tier.emphasis >= 4 ? "66" : "33"}` }}>
+      <section className="pdc-card overflow-hidden relative career-event-hero" style={{ borderColor: `${tier.accent}${tier.emphasis >= 4 ? "66" : "33"}`, ["--event-accent" as string]: tier.accent }}
+        aria-label={`${e.name} at ${e.venue.name}`}>
+        {/* The event's own venue art sits behind the title (decorative); the venue name stays in the text below. */}
+        <CareerVenueArtwork family={e.venue.venueType} className="career-event-hero__art" />
+        <div className="career-event-hero__shade" aria-hidden="true" />
         <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: `radial-gradient(80% 140% at 100% 0%, ${tier.accent}${tier.emphasis >= 4 ? "26" : "12"}, transparent 60%)` }} />
-        <div className="relative p-4 md:p-5 space-y-2">
+        <div className="relative p-4 md:p-6 space-y-2 career-event-hero__copy">
+          <p className="career-event-hero__venue">Venue · {e.venue.venueType.replaceAll("-", " ")}</p>
           <div className="flex flex-wrap items-center gap-2"><TierBadge tier={e.presentation.tier} />{isJuniorEvent(e) && <JuniorBadge />}<StatusBadge label={life.label} tone={life.tone} />
             {ageReason(e) && <StatusBadge label={ageReason(e)!} tone="muted" />}
             {e.qSchool && <StatusBadge label={`Q-School ${e.qSchool.stage === "FIRST" ? "First" : "Final"} Stage · Day ${e.qSchool.day}`} tone="gold" />}</div>
@@ -57,18 +62,9 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
       {/* F2: guidance loads asynchronously; placed after the hero so it never pushes the event identity down (CLS). */}
       <ContextHelp saveId={save.id} topic="event"/>
       {(e.circuit==="Q_SCHOOL"||["WORLD","MAJOR"].includes(e.presentation.tier))&&<ContextHelp saveId={save.id} topic={e.circuit==="Q_SCHOOL"?"q-school":e.presentation.tier==="WORLD"?"palace":"major"}/>}
-      <section className="career-venue-event-scene" aria-label={`${e.venue.name} venue identity`}>
-        <CareerVenueArtwork family={e.venue.venueType} className="career-venue-event-scene__art" />
-        <div className="career-venue-event-scene__shade" aria-hidden="true"/>
-        <div className="career-venue-event-scene__copy">
-          <span>VENUE · {e.venue.venueType.replaceAll("-", " ")}</span>
-          <strong>{e.venue.name}</strong>
-          <small>{e.venue.city} · {e.venue.region}</small>
-        </div>
-      </section>
 
       {life.key === "UNSUPPORTED" && (
-        <div role="status" className="pdc-card px-4 py-3 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
+        <div role="status" className="career-event-notice">
           <strong style={OSWALD}>Intentionally benched.</strong> This event's format ({formatLabel(e.format)}) is
           {" intentionally benched — informational only, with no entry, field, draw or invented result."}
         </div>

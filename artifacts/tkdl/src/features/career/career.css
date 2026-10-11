@@ -830,3 +830,43 @@
 .career-root .career-stat[data-tone="danger"] { --stat-accent:#fb8a92; }
 .career-root .career-stat__icon { position:absolute; right:10px; top:10px; display:grid; place-items:center; width:30px; height:30px; border-radius:9px;
   color:color-mix(in srgb,var(--stat-accent) 75%, #fff 15%); background:color-mix(in srgb,var(--stat-accent) 14%, transparent); border:1px solid color-mix(in srgb,var(--stat-accent) 35%, transparent); }
+/* Kit Room */
+.career-kitroom-details { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) auto; gap:12px; align-items:end; padding:14px; border-radius:14px; border:1px solid #ffffff14; background:linear-gradient(160deg,#131b29,#0a1019); }
+.career-kitroom-details label { display:grid; gap:6px; font:700 .6rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#ffffff99; }
+.career-kitroom-details input, .career-kitroom-details select { min-height:42px; padding:8px 12px; border-radius:10px; border:1px solid #ffffff26; background:#070b12; color:#fff; font:600 .85rem Inter,system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+@media (max-width:760px) { .career-kitroom-details { grid-template-columns:minmax(0,1fr); } }
+.career-placements { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr)); gap:10px; }
+.career-placement { display:flex; align-items:center; gap:12px; padding:12px; border-radius:12px; border:1px solid #d1a65c40; background:radial-gradient(80% 120% at 100% 0,#d1a65c14,transparent 60%),#0d141f; }
+.career-placement > span { display:grid; place-items:center; width:44px; height:44px; border-radius:11px; font:800 .9rem Oswald,sans-serif; color:#ffd27a; border:1px solid #d1a65c66; background:linear-gradient(150deg,#3a2c10,#141007); }
+.career-placement strong { display:block; color:#fff; font:700 .9rem Oswald,sans-serif; text-transform:uppercase; }
+.career-placement small { color:#a9b6c4; font-size:.72rem; }
+/* Event page: the venue is the backdrop of the event header */
+.career-root .career-event-hero { min-height:clamp(190px,24vw,260px); display:flex; align-items:flex-end; background:#070a10; isolation:isolate; }
+.career-root .career-event-hero__art { position:absolute !important; inset:0; width:100%; height:100%; z-index:-2; }
+.career-root .career-event-hero__art img, .career-root .career-event-hero__art svg { width:100%; height:100%; object-fit:cover; }
+.career-root .career-event-hero__shade { position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,#05070cf2 0%,#05070cc4 45%,#05070c55 85%),linear-gradient(0deg,#05070ce6,transparent 70%); }
+.career-root .career-event-hero::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,var(--event-accent),transparent 70%); box-shadow:0 0 14px var(--event-accent); }
+.career-root .career-event-hero__copy { width:100%; }
+.career-root .career-event-hero__venue { margin:0 0 4px; font:700 .62rem Oswald,sans-serif; letter-spacing:.2em; text-transform:uppercase; color:var(--event-accent); }
+.career-root .career-event-hero h1 { text-shadow:0 2px 18px #000a; }
+.career-root .career-event-notice { padding:12px 16px; border-radius:12px; border:1px solid #ffffff17; border-left:3px solid #f5be72; background:linear-gradient(160deg,#171b24,#0c1119); color:#ffffffcc; font-size:.86rem; line-height:1.5; }
+.career-root .career-palace-hero { position:relative; isolation:isolate; overflow:hidden; border-radius:16px; border:1px solid #ffd24a33; padding-inline:16px; }
+.career-root .career-palace-hero__plate { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2; filter:saturate(1.1) brightness(.75); }
+.career-root .career-palace-hero::before { content:""; position:absolute; inset:0; z-index:-1; background:radial-gradient(60% 80% at 50% 40%,#05070c80,#05070ce6 85%),linear-gradient(0deg,#05070cf0,transparent 60%); }
+.career-root .career-palace-hero::after { content:""; position:absolute; left:15%; right:15%; bottom:0; height:2px; background:linear-gradient(90deg,transparent,#ffd24a,transparent); box-shadow:0 0 18px #ffd24a; }
+.career-root .career-palace-hero h2 { text-shadow:0 4px 28px #000c, 0 0 40px #ffd24a40; }
+/* Fact lines read as a timeline (recognition milestones, factual timeline, evidence lists) */
+.career-root .career-fact { position:relative; list-style:none; padding:8px 0 10px 22px; border-left:2px solid #ffffff14; margin-left:6px; }
+.career-root .career-fact::before { content:""; position:absolute; left:-7px; top:12px; width:12px; height:12px; border-radius:50%; background:#0b1019; border:2px solid #e8c66a; box-shadow:0 0 10px #e8c66a55; }
+.career-root .career-fact__when { font:700 .62rem Oswald,sans-serif; letter-spacing:.12em; text-transform:uppercase; color:#e8c66a; }
+.career-root .career-fact > a, .career-root .career-fact > span:not(.career-fact__source) { display:block; margin-top:2px; font-weight:600; color:#eef2f6; }
+.career-root .career-fact__source { display:block; margin-top:2px; font-size:.68rem; color:#8d9bab; }
+/* Career saves: each slot on its own stage with the save's shirt */
+.career-root .career-save-card { padding:0 0 16px; overflow:hidden; }
+.career-root .career-save-card__stage { position:relative; height:132px; isolation:isolate; overflow:hidden; border-bottom:1px solid #ffffff14; }
+.career-root .career-save-card__plate { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2; filter:brightness(.6) saturate(1.1); }
+.career-root .career-save-card__stage::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(0deg,#0b111a,#0b111a40 60%,#05070c80); }
+.career-root .career-save-card__stage::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:linear-gradient(90deg,#ff005c,transparent 70%); box-shadow:0 0 12px #ff005c; }
+.career-root .career-save-card__top { position:relative; z-index:2; display:flex; justify-content:space-between; align-items:center; padding:12px 14px; }
+.career-root .career-save-card__shirt { position:absolute; right:18px; bottom:-12px; width:92px; filter:drop-shadow(0 10px 18px #000c); }
+.career-root .career-save-card__shirt .career-premium-shirt, .career-root .career-save-card__shirt .career-shirt { width:100%; max-width:none; }

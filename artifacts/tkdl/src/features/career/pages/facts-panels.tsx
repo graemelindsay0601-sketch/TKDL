@@ -31,10 +31,10 @@ export function PerformancePanel({ facts }: { facts: CareerFacts }) {
   </CareerSection>;
 }
 export function FactLine({ fact, saveId }: { fact: Fact; saveId: string }) {
-  return <li className="border-b border-white/10 py-2 text-sm">
-    <div className="text-xs text-muted-foreground">S{fact.season}{fact.week ? ` · W${fact.week}` : ' · week not recorded'}{fact.date ? ` · ${fact.date}` : ''}{fact.age != null ? ` · Age ${fact.age}` : ''}</div>
+  return <li className="career-fact text-sm">
+    <div className="career-fact__when">S{fact.season}{fact.week ? ` · W${fact.week}` : ' · week not recorded'}{fact.date ? ` · ${fact.date}` : ''}{fact.age != null ? ` · Age ${fact.age}` : ''}</div>
     {fact.eventId ? <Link className="career-row-link" href={`/career/${saveId}/events/${fact.eventId}`}>{fact.label}</Link> : <span>{fact.label}</span>}
-    <span className="block text-xs text-muted-foreground">{fact.source}</span>
+    <span className="career-fact__source">{fact.source}</span>
   </li>;
 }
 export function FactsTimeline({ facts }: { facts: CareerFacts }) {

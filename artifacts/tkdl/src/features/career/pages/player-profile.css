@@ -112,3 +112,27 @@
   background:radial-gradient(80% 70% at 50% 15%,#ffffff26,transparent 70%),#0a0e17d9;border:1px solid #ffffff22;box-shadow:0 16px 36px #0008}
 .player-portrait .career-shirt{width:78%!important;height:auto!important}
 @media (max-width:520px){.player-profile-head__row{flex-direction:column;align-items:flex-start}}
+
+/* Dark premium panels: replaces the cream paper cards on player profiles and the rivalry record. */
+.tkdl-player-profile { --player-paper:#0d141f; --player-ink:#eef2f6; }
+.player-panel { color:#eef2f6; border:1px solid #ffffff14; border-top:2px solid #d1a65c66;
+  background:radial-gradient(80% 120% at 100% 0,#d1a65c10,transparent 55%),linear-gradient(160deg,#141c2a,#0a1019); box-shadow:0 10px 24px #0005, inset 0 1px #ffffff0a; }
+.player-panel h2 { color:#fff; }
+.player-panel h2 svg { color:#d1a65c; }
+.player-panel h3 { color:#d1a65c; }
+.player-panel p { color:#b3c0cd; }
+.player-metric { background:#ffffff08; border:1px solid #ffffff12; border-left:3px solid #d1a65c99; }
+.player-metric span { color:#8d9bab; }
+.player-metric strong { color:#fff; }
+.player-record-row { border-top-color:#ffffff12; }
+.player-record-row strong { color:#eef2f6; }
+.player-record-row small { color:#93a2b2; }
+.player-tag { color:#ffd27a; background:#d1a65c1f; border:1px solid #d1a65c55; }
+.player-empty { color:#a9b6c4; border-color:#ffffff24; background:#ffffff05; }
+.player-link { color:#eef2f6; border-color:#ffffff2e; background:#ffffff08; }
+.player-link:hover { background:#ffffff12; border-color:#d1a65c; color:#ffd27a; }
+.player-event-link { color:#eef2f6; text-decoration-color:#d1a65c; }
+.player-event-link:hover { color:#ffd27a; }
+.player-panel ul.text-stone-600, .player-panel .text-stone-600 { color:#a9b6c4; }
+@media (min-width:700px) { .player-panel:not(.player-panel--wide) .player-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.player-metric span { overflow-wrap:normal; word-break:normal; hyphens:auto; }

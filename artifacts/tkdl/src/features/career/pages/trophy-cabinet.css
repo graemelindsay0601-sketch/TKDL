@@ -18,3 +18,6 @@
 .career-cabinet__list{display:grid;gap:2px;padding:10px 12px 14px}
 .career-cabinet__list li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:9px 10px;border-radius:10px;background:#ffffff06;font-size:.88rem}
 .career-cabinet__list li span{color:rgba(255,255,255,.6);font-size:.8rem}
+.career-cabinet__list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid #ffffff10}
+.career-cabinet__list li > a{min-width:0}
+@media (max-width:560px){.career-cabinet__list li{grid-template-columns:auto minmax(0,1fr)}.career-cabinet__list li span{grid-column:2}}

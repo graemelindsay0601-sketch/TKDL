@@ -6,6 +6,7 @@ import { CareerSection } from "../components";
 import type { ShellContext } from "../shell";
 import type { Story } from "../../../../../api-server/src/career/life/types";
 import "./newsroom.css";
+import { PLATES } from "../atmosphere";
 
 type NewsroomProps = { ctx: ShellContext };
 
@@ -141,6 +142,7 @@ export function StoryArticle({ ctx, storyId, onBack }: { ctx: ShellContext; stor
   const sourceIds = [...new Set([...story.sourceIds, ...story.callbacks.flatMap(callback => callback.sourceIds)])];
   const article = <article className="news-article">
     <header className="news-article-top">
+      <img className="news-article-plate" src={(PLATES[story.scope === "WORLD" ? "small-arena" : story.opponentId ? "studio" : "pub-club"] ?? PLATES.neutral).src} alt="" aria-hidden="true" loading="lazy" />
       <div className="news-story-tags">
         <span className={`news-tag ${story.significance === "MAJOR" ? "news-tag--major" : story.significance === "MOMENT" ? "news-tag--moment" : ""}`}>{classification(story)}</span>
         <span className="news-tag">{storyCategory(story)}</span>

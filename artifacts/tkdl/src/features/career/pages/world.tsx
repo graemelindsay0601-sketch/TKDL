@@ -1,7 +1,7 @@
 import {useState} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldMap,useWorldPlayers,useTrophyCabinet,usePresentation,useEditPresentation,useLaunchSignature,errorMessage} from "../api";
-import {CareerError,CareerLoading,CareerSection,BoundedList,OSWALD} from "../components";
+import {CareerError,CareerLoading,CareerSection,BoundedList,EventPlateTile,OSWALD} from "../components";
 import {titleCase,formatPence} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
@@ -13,6 +13,8 @@ import {GuidanceSettings} from "../guidance";
 import {CareerMapPage} from "./map";
 import {eligibleKitMakerIds} from "../apparel/brand-mark-identity";
 import {CareerPageHero} from "../page-hero";
+import {Shirt,Sparkles,Tag} from "lucide-react";
+import "./life.css";
 
 export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
   const world=useWorldContent(ctx.save.id);
@@ -71,11 +73,11 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
   // The award's name as text (not only image alt): the E2 design's catalogue name, or the recognition form.
   const awardName=(a:ReturnType<typeof resolveAward>)=>a.designId?trophyArt(a.designId)?.name??awardLabel(a):awardLabel(a);
   return <div className="space-y-3">
-    <section className="career-cabinet-hero" aria-label="Trophy cabinet">
-      <p className="career-cabinet-hero__eyebrow">Trophy cabinet</p>
-      <h1 style={OSWALD}>{cabinet.data.total} recorded title{cabinet.data.total===1?"":"s"}</h1>
-      <p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every win is an actual A3 champion result; repeat wins stay separate.</p>
-    </section>
+    <CareerPageHero kicker="Trophy cabinet" title={`${cabinet.data.total} recorded title${cabinet.data.total===1?"":"s"}`} accent="#e9c77a"
+      stage={{venue:{venueType:"historic-theatre"},eventClass:"MAJOR"}} watermark={`${cabinet.data.total}`}
+      subtitle={<p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every win is an actual A3 champion result; repeat wins stay separate.</p>}
+      stats={[{label:"Titles",value:cabinet.data.total,tone:"gold"},{label:"With silverware",value:silverware.reduce((n,g)=>n+g.editions.length,0)},
+        {label:"Trophy designs",value:silverware.length},{label:"Result-only wins",value:plain.reduce((n,g)=>n+g.editions.length,0)}]}/>
     {silverware.length>0?<section className="career-cabinet" aria-label="Silverware">
       {silverware.map(({key,t,editions,award})=><CareerEventIdentity eventKey={key} key={key} className="career-cabinet__item">
         <div className="career-cabinet__plinth">{editions.length>1&&<span className="career-cabinet__count" aria-label={`${editions.length} wins`}>×{editions.length}</span>}
@@ -87,6 +89,7 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
     {plain.length>0&&<CareerSection title="Titles without silverware">
       <p className="px-3 pt-3 text-sm text-white/60">Weekly fixtures, qualifiers and Q-School sessions are recorded wins with result and prize only.</p>
       <ul className="career-cabinet__list">{plain.map(({key,t,editions})=><li key={key}>
+        <EventPlateTile atmosphere={{definitionKey:key,circuit:t.circuit,classification:t.classification,venue:t.venue??null}} label={`×${editions.length}`}/>
         <Link href={`/career/${ctx.save.id}/events/${editions[0].eventId}`}><strong>{t.name}</strong></Link>
         <span>{wins(editions.length)} · {t.circuit==="Q_SCHOOL"?"Session win — not a tournament title or automatic Tour Card":titleCase(t.classification)}</span></li>)}</ul>
     </CareerSection>}
@@ -103,38 +106,26 @@ export function PresentationPage({ctx}:{ctx:ShellContext}) {
   if(p.error||!p.data)return <CareerError error={p.error} onRetry={()=>p.refetch()}/>;
   const products=p.data.products;
   return <div className="space-y-3">
-    <header className="relative overflow-hidden rounded-2xl border border-cyan-200/15 bg-[radial-gradient(ellipse_at_82%_10%,rgba(34,211,238,.17),transparent_38%),linear-gradient(120deg,#0b2030,#08121f_60%,#060b14)] p-5 sm:p-7">
-      <div className="relative z-10 max-w-3xl">
-        <p className="text-[10px] font-bold uppercase tracking-[.24em] text-cyan-200">Career identity · Equipment studio</p>
-        <h1 className="mt-2 text-3xl text-white sm:text-4xl" style={OSWALD}>Your look. Your signature.</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">Shape the presentation of your player, manage your cosmetic kit and see the signature products recorded in your Career.</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/sponsors`}>Sponsor headquarters</Link>
-          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/finances`}>Commercial finances</Link>
-          <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/history`}>Career history</Link>
-        </div>
-      </div>
-      <div className="pointer-events-none absolute -right-8 -top-10 hidden h-52 w-52 rotate-[-18deg] opacity-25 sm:block" aria-hidden="true">
-        <svg viewBox="0 0 180 180" className="h-full w-full"><circle cx="90" cy="90" r="67" fill="none" stroke="#67e8f9" strokeWidth="2"/><circle cx="90" cy="90" r="44" fill="none" stroke="#67e8f9" strokeWidth="1"/><path d="M35 144 141 38m-24 0h24v24" fill="none" stroke="#fbbf24" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-      </div>
-    </header>
+    <CareerPageHero kicker="Career identity · Equipment studio" title="Kit Room" accent="#4fd1e8"
+      stage={{venue:{venueType:"studio"},eventClass:"PROFESSIONAL_TOUR"}}
+      subtitle={<p>Shape the presentation of your player, manage your cosmetic kit and see the signature products recorded in your Career.</p>}
+      portrait={<CareerShirt identity={p.data.identity} sponsors={p.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>}
+      actions={<><Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/sponsors`}>Sponsor headquarters</Link>
+        <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/finances`}>Commercial finances</Link>
+        <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/history`}>Career history</Link></>}
+      stats={[{label:"Kit collection",value:"250",sub:"Original designs",tone:"gold"},{label:"Partner marks",value:p.data.placements.length,sub:p.data.placements.length?"On your shirt":"No active partners"},
+        {label:"Signature products",value:products.length},{label:"Edit window",value:p.data.canEdit?"Open":"Closed",sub:p.data.editWindow,tone:p.data.canEdit?"good":"neutral"}]}/>
     {needsSetup&&<p className="career-surface surface-context" role="status">This Career is saved. Shirt setup was not confirmed; review and save your cosmetic choices here. You do not need to create another Career.</p>}
-    <CareerSection title="Player kit & presentation">
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.4fr)_minmax(15rem,.8fr)]">
-        <IdentityEditor key={JSON.stringify(p.data.identity)} saveId={ctx.save.id} data={p.data}/>
-        <aside className="border-t border-white/10 p-4 lg:border-l lg:border-t-0 lg:p-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-amber-200">Equipment rules</p>
-          <h2 className="mt-2 text-xl text-white" style={OSWALD}>Style, never stats.</h2>
-          <p className="mt-2 text-sm leading-relaxed text-white/60">Your kit and cosmetic choices change presentation only. They do not alter scoring, ability, RNG, rankings, eligibility or finances.</p>
-          <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
-            <p className="text-xs uppercase tracking-wider text-white/45">Edit window</p>
-            <p className="mt-1 text-sm text-white">{p.data.editWindow}</p>
-          </div>
-        </aside>
-      </div>
+    <CareerSection title="Player kit & presentation" icon={<Shirt size={15}/>} accent="#4fd1e8">
+      <details className="career-note mx-4 mt-4"><summary>Style, never stats</summary><p>Your kit and cosmetic choices change presentation only. They do not alter scoring, ability, RNG, rankings, eligibility or finances.</p></details>
+      <IdentityEditor key={JSON.stringify(p.data.identity)} saveId={ctx.save.id} data={p.data}/>
     </CareerSection>
-    <CareerSection title="Contract-controlled shirt placement"><div className="p-4">{p.data.placements.map(s=><p key={s.contractId}>{s.brandName}: {titleCase(s.position)} ({titleCase(s.slot)})</p>)}{!p.data.placements.length&&<p>No active partners.</p>}</div></CareerSection>
-    <CareerSection title="Signature products">
+    <CareerSection title="Contract-controlled shirt placement" icon={<Tag size={15}/>} accent="#d1a65c"><div className="p-4">
+      {p.data.placements.length?<div className="career-placements">{p.data.placements.map(s=><div key={s.contractId} className="career-placement">
+        <span aria-hidden="true">{s.brandName.trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}</span>
+        <div><strong>{s.brandName}</strong><small>{titleCase(s.position)} · {titleCase(s.slot)}</small></div></div>)}</div>
+      :<p className="career-fineprint">No active partners. Partner marks appear here and on your shirt when a sponsor agreement is signed.</p>}</div></CareerSection>
+    <CareerSection title="Signature products" icon={<Sparkles size={15}/>} accent="#4fd1e8">
       <div className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div><p className="text-[10px] font-semibold uppercase tracking-[.18em] text-cyan-200">Your commercial legacy</p>
@@ -207,13 +198,16 @@ function IdentityEditor({saveId,data}:{saveId:string;data:PresentationContent}) 
   type EditableIdentity=ShirtIdentity&{nickname?:string|null;competitionCategory?:unknown};
   const edit=useEditPresentation(saveId),[identity,setIdentity]=useState<EditableIdentity>(data.identity),[message,setMessage]=useState("");
   const set=(key:string,value:string)=>setIdentity({...identity,[key]:value});
-  return <CareerSection title="Presentation identity"><form className="p-4 space-y-3" onSubmit={e=>{e.preventDefault();edit.mutate(identity,{onSuccess:()=>setMessage("Presentation saved."),onError:e=>setMessage(errorMessage(e))});}}>
+  return <form className="p-4 space-y-4" onSubmit={e=>{e.preventDefault();edit.mutate(identity,{onSuccess:()=>setMessage("Presentation saved."),onError:e=>setMessage(errorMessage(e))});}}>
      <CareerKitCustomizer identity={identity} sponsors={data.placements}
        eligibleMakerBrandIds={eligibleKitMakerIds(data.placements)}
        playerName="Your Career player" disabled={!data.canEdit} onChange={patch=>setIdentity(current=>({...current,...patch}))}/>
-    <label className="block">Nickname <input maxLength={32} value={identity.nickname??""} onChange={e=>set("nickname",e.target.value)} disabled={!data.canEdit}/></label>
-    <label className="block">Competition category <select value={String(identity.competitionCategory)} onChange={e=>set("competitionCategory",e.target.value)} disabled={!data.canEdit}>
-      <option value="OPEN">Open / mixed pathways</option><option value="WOMEN">Declared women's-category eligibility + open / mixed pathways</option></select></label>
-    <p>{data.editWindow}. All other eligibility rules still apply.</p><button className="career-btn" disabled={!data.canEdit||edit.isPending}>Save presentation</button>{message&&<p role="status">{message}</p>}
-  </form></CareerSection>;
+    <div className="career-kitroom-details">
+      <label>Nickname <input maxLength={32} value={identity.nickname??""} onChange={e=>set("nickname",e.target.value)} disabled={!data.canEdit} placeholder="e.g. The Anchor"/></label>
+      <label>Competition category <select value={String(identity.competitionCategory)} onChange={e=>set("competitionCategory",e.target.value)} disabled={!data.canEdit}>
+        <option value="OPEN">Open / mixed pathways</option><option value="WOMEN">Declared women's-category eligibility + open / mixed pathways</option></select></label>
+      <button className="career-btn career-btn-primary" disabled={!data.canEdit||edit.isPending}>Save presentation</button>
+    </div>
+    <p className="career-fineprint">{data.editWindow}. All other eligibility rules still apply.</p>{message&&<p role="status">{message}</p>}
+  </form>;
 }
