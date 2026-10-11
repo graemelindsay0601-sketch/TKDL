@@ -173,3 +173,26 @@
 .career-home .home-next-stage .ca-content { padding:clamp(14px, 2.4vw, 22px); }
 .career-home .home-next-stage .home-event-topline { margin-top:10px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; color:#ffffffc7; font-size:.78rem; }
 .career-home .career-note { margin:0; }
+
+/* ---------------------------------------------------------------- visual completion: Home body */
+/* milestones: a medal timeline with a connecting rail */
+.career-home .home-milestones { position:relative; padding:10px 16px; }
+.career-home .home-milestones::before { content:""; position:absolute; left:calc(16px + 43px + 10px + 3px); top:18px; bottom:18px; width:1px;
+  background:linear-gradient(180deg,#d4b66f80,#d4b66f10); }
+.career-home .home-milestone-mark { position:relative; z-index:1; width:16px; height:16px; margin:2px 0 0 -4px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff3c8,#d4b66f 45%,#8a6a2a); box-shadow:0 0 0 3px #0f1824, 0 0 14px #d4b66f66; }
+.career-home .home-milestones li { grid-template-columns:43px 16px minmax(0,1fr); }
+.career-home .home-milestones strong { font-size:.9rem; letter-spacing:.02em; }
+/* news: headline cards */
+.career-home .home-news { display:grid; gap:8px; padding:10px 12px; }
+.career-home .home-news li { border:0; }
+.career-home .home-news a { position:relative; min-height:58px; padding:12px 14px 12px 18px; border-radius:12px; border:1px solid #7ebbd326;
+  background:linear-gradient(100deg,#183244,#101c28 70%); font:600 .86rem/1.35 Oswald,system-ui,sans-serif; letter-spacing:.01em; color:#eef5f8; }
+.career-home .home-news a::before { content:""; position:absolute; left:0; top:10px; bottom:10px; width:3px; border-radius:2px; background:#7ebbd3; box-shadow:0 0 10px #7ebbd3; }
+.career-home .home-news a:hover { border-color:#7ebbd366; background:linear-gradient(100deg,#1d3d52,#122130 70%); }
+/* results: venue tile, bolder event name */
+.career-home .home-result-link { gap:12px; padding:10px 14px; }
+.career-home .home-result-link .career-event-tile { width:5.2rem; min-height:3.2rem; }
+.career-home .home-result-name strong { font-size:.95rem; font-weight:700; letter-spacing:.02em; }
+/* season changes */
+.career-home .home-change-list p { border-left:3px solid #82a9d040; margin:8px 12px; border-radius:10px; background:#ffffff06; }

@@ -31,7 +31,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
   return (
     <div className="space-y-3">
       {sporting.isLoading ? <CareerLoading label="Reading your Career chapter" /> : sporting.error ? <CareerError error={sporting.error} onRetry={() => sporting.refetch()} /> : chapter && (
-        <CareerPageHero kicker={`Career journey · Season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title={chapter.label} accent="#4ade80"
+        <CareerPageHero kicker={`Career journey · Season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title={chapter.label} accent="#4ade80" watermark={`S${String(ctx.save.currentSeason).padStart(2, "0")}`}
           archival={ctx.retired}
           stage={cards.data?.history.some(c => c.status === "ACTIVE") ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "community-hall" }, eventClass: "REGIONAL" }}
           subtitle={<><NextObjective ctx={ctx} /><AgeLine saveId={id} /></>}
