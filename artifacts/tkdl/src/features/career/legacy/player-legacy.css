@@ -124,3 +124,11 @@
 .pl-doc__stage{position:relative;isolation:isolate;overflow:hidden}
 .pl-doc__stage>:not(.ca-backdrop){position:relative;z-index:1}
 .pl-doc__card{background:linear-gradient(180deg,#05070c99,#05070ce6);backdrop-filter:blur(1.5px)}
+.pl-shelf__venue{position:relative;display:block;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;border:1px solid #ffffff1f}
+.pl-shelf__venue img{width:100%;height:100%;object-fit:cover;filter:brightness(.8) saturate(1.05)}
+.pl-shelf__venue b{position:absolute;left:8px;bottom:8px;display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:#05070cd9;border:1px solid #e9c77a66;color:#ffd27a;font:700 .62rem Oswald,sans-serif;letter-spacing:.12em;text-transform:uppercase}
+.pl-shelf__item.is-result{padding-top:10px}
+/* the profile shirt is width:100% of a shrink-to-fit card; give it a definite size so it never collapses to 0 */
+.pl-hero__card .career-player{width:100%;justify-content:center;padding:0}
+.pl-hero__card .career-premium-shirt,.pl-hero__card .career-shirt{width:min(100%,250px);flex:0 0 auto;filter:drop-shadow(0 16px 24px #000a)}
+@media (max-width:640px){.pl-hero__card .career-premium-shirt,.pl-hero__card .career-shirt{width:min(60%,170px)}}
