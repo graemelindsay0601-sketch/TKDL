@@ -25,7 +25,9 @@ export function PremiumCareerShirt({
   const kit = CAREER_KIT_BY_ID.get(identity.kitDesignId ?? "") ?? CAREER_KIT_DESIGNS[0]!;
   const artwork = `${artworkBaseUrl}assets/career-kit-library/${kit.image}`;
   const zones = garmentPrintZones(kit);
-  const tintEnabled = identity.kitTintEnabled !== false && Boolean(identity.primaryColour);
+  // Original artwork is the default. Only an explicit colourway choice (kitTintEnabled: true) tints the fabric:
+  // every save carries a template primaryColour and NPC palettes have one too, which must not wash premium art.
+  const tintEnabled = identity.kitTintEnabled === true && Boolean(identity.primaryColour);
   return (
     <span className={`career-premium-shirt career-premium-shirt--${scale}`}
       role="img" aria-label={`${name} wearing ${kit.name}${sponsors.length ? ` with ${sponsors.length} active sponsor marks` : ""}`}>

@@ -1,0 +1,40 @@
+# Career 2.0 — visual completion programme
+
+Branch flow: each verified batch goes `career-polish/visual-completion` → PR → `main`.
+
+## Batch 1 — Shirt collection quality
+
+### Audit
+
+All 250 kits in `CAREER_KIT_DESIGNS` were audited in two ways:
+- **Visual:** labelled contact sheets per asset group (`scripts/kit-audit/contact-sheets.mjs`).
+- **Pixels:** alpha, border opacity, chroma-key residue and framing, measured on every raster.
+
+| Group | Kits | Finding | Classification |
+|---|---|---|---|
+| Original 50 (`kit-50-*`, WebP) | 50 | Consistent photographic studio garments with real folds, seams and lighting. `kit-50-01` was cropped by the canvas edges (collar, sleeves and hem touched the frame). | 49 KEEP · 1 IMPROVE |
+| Pro 10 (`kit-pro-*`, SVG) | 10 | Flat clip-art T-shapes (~1 KB each), clearly below the rest of the collection, and their art did not match the catalogue descriptions. | 10 REPLACE |
+| Next 40 (`kit-100-*`, WebP) | 40 | Same photographic standard. A few plain club shirts are intentionally simple. | 40 KEEP |
+| Expanded 150 (`kit-250-*`, WebP) | 150 | Strong overall. The five-cut theme sets vary cut and motif, not just palette. `kit-250-133` had a solid chroma-key green block beside the garment. `kit-250-104` is a narrower cut at the normal height, not a defect. | 149 KEEP · 1 IMPROVE |
+
+**Result:** 238 KEEP, 2 IMPROVE, 10 REPLACE. 12 assets changed in total.
+
+### Changes
+
+- **Pro 10 rebuilt as photographic garments** (`scripts/kit-audit/rebuild-pro-kits.py`).
+  - Each design follows its own catalogue description, for example "ink-knit body with a champagne crown and engineered shoulder seams".
+  - The design is printed onto the real fabric shading, folds, seams, collar and alpha of a plain studio shirt from the collection: `kit-100-06` for the zip, stand and crew cuts, and `kit-100-29` for the polos.
+  - Panels are separated by dye rather than by light, so the original seams stay sharp.
+  - The kit IDs are unchanged. The image changed from `.svg` to `.webp`, and only the catalogue references the file.
+- **`kit-50-01`:** reframed with the collection's margins.
+- **`kit-250-133`:** chroma key removed and green spill cleaned (`scripts/kit-audit/fix-raster-defects.py`).
+- **Renderer (`premium-shirt.tsx`, `kit-customizer.tsx`):** the colour wash used to apply whenever `primaryColour` existed.
+  - Every save has one via the presentation defaults, and so does every NPC palette. Almost every shirt in the game was therefore drawn under a 34% colour-blend over its artwork.
+  - Original artwork is now the default. The tint applies only when the player explicitly chose a colourway (`kitTintEnabled: true`, which the Kit Room already stores).
+  - Saves where the player did choose a colour are unchanged.
+
+Evidence: `docs/career/evidence/kit-contact-sheets/`, which contains the full updated sheets plus the before sheets for the Pro 10 and the raster fixes.
+Tests: `career-kit-quality.test.ts` checks:
+- all 250 IDs are stable;
+- every kit is a raster garment of production size;
+- tint applies only on an explicit choice.

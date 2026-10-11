@@ -87,7 +87,7 @@ const tourDesigns: CareerKitDesign[] = tourRows.map(([name, collection, cut, det
   collection,
   cut,
   detail,
-  image: `kit-pro-${String(index + 1).padStart(2, "0")}.svg`,
+  image: `kit-pro-${String(index + 1).padStart(2, "0")}.webp`,
 }));
 
 const nextWaveRows = [
