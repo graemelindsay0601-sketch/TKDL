@@ -10,7 +10,10 @@ export type ShirtPartner={brandName:string;slot:string;brandId?:string;theme?:"l
 const colour=(v:string|undefined,fallback:string)=>/^#[0-9a-f]{6}$/i.test(v??"")?v!:fallback;
 export function CareerShirt({identity={},sponsors=[],name="Player",scale="standard",playerId,wardrobeTier="PROFESSIONAL"}:{identity?:ShirtIdentity;sponsors?:ShirtPartner[];name?:string;scale?:"compact"|"standard"|"featured"|"profile";playerId?:string;wardrobeTier?:NpcWardrobeTier}) {
   const clip=useId().replace(/:/g,""),p=colour(identity.primaryColour,"#20334A"),s=colour(identity.secondaryColour,"#FFFFFF"),a=colour(identity.accentColour,"#C8A050");
-  const resolvedKitId=identity.kitDesignId??(playerId?stableNpcWardrobeKitDesignId(playerId,{tier:wardrobeTier,activeMakerBrandIds:sponsors.filter(x=>x.slot==="EQUIPMENT_PARTNER"&&x.brandId).map(x=>x.brandId!)}):undefined);
+  // NPC wardrobe = f(stable NPC id) only. Screens pass different (stature-derived) partner lists, so letting
+  // them steer the pool would give one NPC different shirts on different screens and as their ranking moves.
+  // Current partners are still printed as logos; maker-range shirts are never assigned without a saved choice.
+  const resolvedKitId=identity.kitDesignId??(playerId?stableNpcWardrobeKitDesignId(playerId,{tier:wardrobeTier}):undefined);
   const kit=resolvedKitId?CAREER_KIT_BY_ID.get(resolvedKitId):undefined;
   if(kit) {
     return <PremiumCareerShirt identity={{...identity,kitDesignId:resolvedKitId}} sponsors={sponsors} name={name} scale={scale}/>;

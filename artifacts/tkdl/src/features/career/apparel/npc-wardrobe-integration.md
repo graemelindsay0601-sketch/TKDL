@@ -17,3 +17,16 @@ not change the shared NPC profile, rankings, tournament or world screens.
 Use `PremiumCareerShirt` for the garment and vector sponsor marks. The older
 `CareerShirt` helper remains a compatibility renderer; do not use its text
 fallback as the final branded apparel presentation.
+
+## Release-candidate integration decision (final fixes)
+
+NPCs have no persisted sponsor contracts: their partner list is a stature-based content
+allocation (`npcCommercial`, `contractHistoryInvented: false`) that differs between screens
+and changes as an NPC's titles and ranking change. Feeding it to `activeMakerBrandIds`
+gave one NPC different shirts on rankings, the directory and tournaments, and could
+re-dress them when their ranking moved. The shared `CareerShirt` therefore resolves an
+NPC's wardrobe from the NPC id and tier only — `stableNpcWardrobeKitDesignId(npcId, { tier })`
+— so maker-range shirts are never assigned to NPCs and no NPC agreement is implied. Partner
+marks are still printed from the screen's current list. Every NPC shirt site (rankings,
+directory, tournament player cards, tale of the tape, walk-on, NPC profile header) passes
+the NPC id. Covered by `career-npc-wardrobe-consistency.test.ts`.

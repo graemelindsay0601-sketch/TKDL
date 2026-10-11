@@ -67,7 +67,7 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
           {(() => { const stage = resolveAtmosphere({ eventClass: player.ranking !== null ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
             return <CareerStageBackdrop atmosphere={stage} spectacle={spectacleFor("ARRIVAL", stage.level)} documentary={player.status === "RETIRED"} animate={false} eager />; })()}
           <div className="player-profile-head__row">
-          {player.shirt && <span className="player-portrait" aria-hidden="true"><CareerShirt identity={player.shirt as ShirtIdentity} name={player.name} scale="featured" /></span>}
+          {player.shirt && <span className="player-portrait" aria-hidden="true"><CareerShirt playerId={player.id} identity={player.shirt as ShirtIdentity} name={player.name} scale="featured" /></span>}
           <div className="player-profile-head__text">
           <div className="player-eyebrow">Saved Darts World identity</div>
           <h1 className="player-name">{player.name}</h1>
