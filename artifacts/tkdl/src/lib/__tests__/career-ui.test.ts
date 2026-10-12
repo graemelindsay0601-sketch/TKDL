@@ -579,9 +579,9 @@ test("A8.1 empty trophy cabinet invents nothing; repeated genuine wins stay dist
   const empty=text(render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:0,titles:[],nextOffset:null}]]));
   assert.match(empty,/No titles invented/);
   const award={canonicalEventId:"double-crown",name:"The Double Crown",classification:"RANKING",trophy:{name:"Double Crown Trophy"}};
-  const full=text(render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:2,nextOffset:null,titles:[{...award,eventId:"a",season:2},{...award,eventId:"b",season:3}]}]]));
-  // One shelf (grouped, ×2) whose two genuine wins are each listed with their own season and award.
-  assert.match(full,/Season 2 · [^·]+ · Double Crown Trophy/);assert.match(full,/Season 3 · [^·]+ · Double Crown Trophy/);assert.match(full,/×2/);
+  const fullHtml=render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:2,nextOffset:null,titles:[{...award,eventId:"a",season:2},{...award,eventId:"b",season:3}]}]]),full=text(fullHtml);
+  assert.equal((fullHtml.match(/data-trophy="double-crown"/g)??[]).length,1,"repeat wins share one correctly identified trophy");
+  assert.match(fullHtml,/aria-label="2 wins"/);assert.match(full,/Season 2/);assert.match(full,/Season 3/);
 });
 
 const a83MapFixture=()=>{
@@ -645,7 +645,7 @@ test("A8.3 World landing is a hub rather than an encyclopaedia dump",()=>{
 });
 test("A8.3 championship detail has central Palace identity and no fictional champion",()=>{
   const html=render(h(M.WorldHub,{ctx:ctx(),section:"events",detail:"world-darts-championship"}),[[key("world-content"),worldFixture()],[key("world-map"),a83MapFixture()],[key("event-legacy","world-darts-championship"),{champions:[]}]]);
-  assert.match(html,/identity-palace/);assert.match(text(html),/Sovereign Trophy/);assert.match(text(html),/No pre-save history is invented/);
+  assert.match(html,/identity-palace/);assert.match(html,/data-trophy="sovereign"/);assert.match(text(html),/No pre-save history is invented/);
   assert.match(html,/events\/palace/);
   browserScene("palace",`<div class="career-root">${html}</div>`);
 });
@@ -677,7 +677,8 @@ test("A8.3 long histories render twenty records at a time without discarding tot
 });
 test("A8.3 Q-School session evidence is not portrayed as a championship trophy",()=>{
   const html=render(h(M.TrophyPage,{ctx:ctx()}),[[key("trophy-cabinet",0),{total:1,nextOffset:null,titles:[{eventId:"session",canonicalEventId:"q-school",circuit:"Q_SCHOOL",name:"Q-School day",classification:"QUALIFIER",season:1,trophy:{name:"Session Cup",designKey:"handled-silver"}}]}]]);
-  assert.match(text(html),/Session win — not a tournament title or automatic Tour Card/);assert.doesNotMatch(html,/aria-label="Session Cup"/);
+  assert.match(text(html),/Q-School session/);assert.match(text(html),/No silverware yet/);
+  assert.doesNotMatch(html,/data-trophy=/);assert.doesNotMatch(html,/aria-label="Session Cup"/);
 });
 test("A9 establishment copy is new-save-only; Career Calendar fixture remains bounded",()=>{
   const seed:[unknown[],unknown][]=[[key("calendar",{scope:"WORLD",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
