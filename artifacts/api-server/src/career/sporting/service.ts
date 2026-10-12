@@ -11,7 +11,7 @@ import { evaluateRule } from "../calendar/eligibility.ts";
 import { catalogueFor } from "../calendar/catalogue.ts";
 import { createCareerFinanceService } from "../finance/service.ts";
 import type { SponsorFactsProvider } from "../finance/engine.ts";
-import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, timeIndex } from "./config.ts";
+import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, rankingRulesVersionFor, timeIndex } from "./config.ts";
 import { createSportingHooks, createSportingFactsProvider, bindSporting, ensureSporting, UNBOUND_STATUS, UNBOUND_SEEDING } from "./engine.ts";
 import { orderOfMerit, finalStageDays, PATHWAYS } from "./qschool.ts";
 import { captureSeasonReview } from "../legacy/persistence.ts";
@@ -62,7 +62,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
   };
   const latestSnapshot = async (tx: CareerExecutor, saveId: string, list: string) =>
     (await tx.execute(sql`SELECT * FROM career_ranking_snapshots WHERE career_save_id = ${saveId} AND list_key = ${list} ORDER BY sequence DESC LIMIT 1`)).rows[0] ?? null;
-  const rulesVersion=(root:RootRow)=>Number(root.event_database_version)>=3?2:1;
+  const rulesVersion=(root:RootRow)=>rankingRulesVersionFor(Number(root.event_database_version));
   const requireList = (key: string,root:RootRow) => { const list = rankingList(key,rulesVersion(root)); if (!list) throw new CareerError(404, "Ranking list not found"); return list; };
   const presentRow = (r: Record<string, unknown>, who?: { name: string; nationality: string | null }) => ({ position: Number(r.position), participantKey: String(r.participant_key),
     kind: String(r.participant_kind), name: who?.name ?? null, nationality: who?.nationality ?? null, valuePence: Number(r.value_pence),

@@ -20,7 +20,7 @@ import { CareerStageBackdrop, PLATES, atmosphereFromCalendarEvent, resolveAtmosp
 const HERO_STAGE = resolveAtmosphere({ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" });
 
 type View = "MY_SCHEDULE" | "UPCOMING" | "SEASON";
-const CIRCUITS = ["GRASSROOTS", "COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "CHALLENGER", "VAULT", "Q_SCHOOL", "PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL", "MAJOR", "WORLD_CHAMPIONSHIP", "SPECIAL"];
+const CIRCUITS = ["GRASSROOTS", "COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "CHALLENGER", "VAULT", "Q_SCHOOL", "PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL", "MAJOR", "WORLD_CHAMPIONSHIP", "SOFT_TIP", "SPECIAL"];
 const PAGE_SIZE = 30;
 
 function EventStatus({ event, awaitingMatch = false }: { event: CareerEvent; awaitingMatch?: boolean }) {

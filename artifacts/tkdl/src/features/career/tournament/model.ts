@@ -16,7 +16,7 @@ export const involvesHuman = (m: Pick<TMatch, "a_key" | "b_key">) => m.a_key ===
 export const isFinal = (m: Pick<TMatch, "status">) => FINAL.has(m.status);
 
 // ---------------------------------------------------------------- tier identity
-export type TierKey = "GRASSROOTS" | "REGIONAL" | "DEVELOPMENT" | "PROFESSIONAL" | "MAJOR" | "WORLD";
+export type TierKey = "GRASSROOTS" | "REGIONAL" | "DEVELOPMENT" | "SOFTTIP" | "PROFESSIONAL" | "MAJOR" | "WORLD";
 export type TierProfile = { key: TierKey; label: string; kicker: string; arrival: string; stage: string };
 
 const PROFILES: Record<TierKey, TierProfile> = {
@@ -26,6 +26,8 @@ const PROFILES: Record<TierKey, TierProfile> = {
     arrival: "A wider field drawn from across the region. Results here build a reputation beyond your home venue." },
   DEVELOPMENT: { key: "DEVELOPMENT", label: "Development", kicker: "Development tour", stage: "Tour floor",
     arrival: "Players without a Tour Card chasing ranking points, finals places and the next step up." },
+  SOFTTIP: { key: "SOFTTIP", label: "Soft-tip", kicker: "Soft-Tip Tour · electronic boards", stage: "Soft-tip floor",
+    arrival: "Electronic boards and shorter matches: a separate discipline with its own tour and its own world ranking." },
   PROFESSIONAL: { key: "PROFESSIONAL", label: "Professional", kicker: "Professional tour", stage: "Tour floor",
     arrival: "Tour professionals, seeded draws and ranking money on the line." },
   MAJOR: { key: "MAJOR", label: "Major", kicker: "Major championship", stage: "Major stage",
@@ -35,7 +37,8 @@ const PROFILES: Record<TierKey, TierProfile> = {
 };
 
 /** Tier from the tournament read: importance level first, then the event's content class. */
-export function tierProfile(level: number, eventClass?: string | null): TierProfile {
+export function tierProfile(level: number, eventClass?: string | null, circuit?: string | null): TierProfile {
+  if (circuit === "SOFT_TIP") return PROFILES.SOFTTIP;
   if (level >= 5 || eventClass === "WORLD_CHAMPIONSHIP") return PROFILES.WORLD;
   if (level === 4 || eventClass === "MAJOR") return PROFILES.MAJOR;
   if (eventClass === "SECONDARY_TOUR") return PROFILES.DEVELOPMENT;
@@ -46,6 +49,7 @@ export function tierProfile(level: number, eventClass?: string | null): TierProf
 
 /** Tier from a calendar event (A3 presentation tier + circuit), used on the entry screen. */
 export function tierFromEvent(tier: string, circuit: string): TierProfile {
+  if (circuit === "SOFT_TIP") return PROFILES.SOFTTIP;
   if (tier === "WORLD" || circuit === "WORLD_CHAMPIONSHIP") return PROFILES.WORLD;
   if (tier === "MAJOR" || circuit === "MAJOR") return PROFILES.MAJOR;
   // Second-tier tours (Challenger, Vault, Q-School, regional affiliate tours) are for players without a Tour Card.

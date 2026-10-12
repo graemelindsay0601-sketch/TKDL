@@ -25,5 +25,8 @@ const gated = await rows(sql`SELECT definition_key, start_week, status, (SELECT 
 const detailKey = process.argv.find(x => x.startsWith("--detail="))?.slice(9);
 const detail = detailKey ? await rows(sql`SELECT start_week, start_day, status, status_reason, (SELECT COUNT(*)::int FROM career_event_entries e WHERE e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.status<>'WITHDRAWN') entrants
   FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND definition_key=${detailKey} ORDER BY start_day`) : [];
-console.log(JSON.stringify({ proWorldDepthByWeek: depth, cancelled, majors: gated, detail }, null, 1));
+const byStatus = await rows(sql`SELECT definition_key, status, COUNT(*)::int n, ROUND(AVG((SELECT COUNT(*) FROM career_event_entries e WHERE e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.status<>'WITHDRAWN')))::int avg_entrants
+  FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND definition_key IN (${sql.join((process.argv.find(x => x.startsWith("--keys="))?.slice(7) ?? "-").split(",").map(k => sql`${k}`), sql`, `)}) GROUP BY 1,2 ORDER BY 1,2`);
+const lists = await rows(sql`SELECT list_key, COUNT(*)::int n FROM career_ranking_participants WHERE career_save_id=${id} AND current_position IS NOT NULL GROUP BY 1 ORDER BY 1`);
+console.log(JSON.stringify({ proWorldDepthByWeek: depth, cancelled, majors: gated, detail, byStatus, lists }, null, 1));
 await a.pg.close();

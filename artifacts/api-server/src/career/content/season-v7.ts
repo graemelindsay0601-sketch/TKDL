@@ -14,17 +14,20 @@ import type { PrestigeClass } from "./world.ts";
  *  - regional tours modelled on the real affiliate tours — Asian Tour, North American Championship
  *    Tour (steel-tip), a Soft-Tip Series (USA & Japan), Oceanic Tour, Nordic & Baltic Tour and a
  *    European Development Series — each closed by a Finals whose top finishers earn World
- *    Championship places (the Soft-Tip World Finals is a prize event).
+ *    Championship places;
+ *  - a separate Soft-Tip Tour (electronic boards) with its own circuit and its own ranking, open to
+ *    everyone including Tour Card holders, as soft-tip is a different discipline from steel-tip;
+ *  - more for professionals: a Pro Super Series in the weeks a Tour Card holder outside the majors
+ *    has nothing on, and a Grand Slam qualifier for Tour Card holders.
  *
  * Fields favour local players (COUNTRY geography) and are topped up from neighbouring countries; the
  * Oceanic and Nordic & Baltic tours are open across their zone because those pools are small,
  * so smaller darting nations still produce full, playable events. Regional tours use the existing
  * second-tier CHALLENGER circuit for presentation but rank in the amateur/open lists, never in the
- * Challenger ranking that awards Tour Cards. Soft-tip events are played as 501 double-out legs
- * (the format the live scorer supports), on the soft-tip circuit's shorter match lengths.
+ * Challenger ranking that awards Tour Cards.
  */
 type Tour = { key: string; name: string; title: string; summary: string; ci: string; countries: string[] | null; zone?: "EUROPE" | "REST_OF_WORLD"; venues: string[]; weeks: number[]; fieldSize: number;
-  finals: { name: string; week: number; venue: string; worldChampionshipPlaces: number }; softTip?: boolean };
+  finals: { name: string; week: number; venue: string; worldChampionshipPlaces: number } };
 
 export const REGIONAL_TOURS_V7: readonly Tour[] = [
   { key: "asian-tour", title: "Asian Tour", summary: "The affiliate tour for players based in Japan and Singapore: steel-tip 501, double out, across Tokyo, Osaka, Nagoya and Singapore. The top eight in every event qualify for the Asian Tour Finals, whose two finalists earn places at the Palace World Championship.", fieldSize: 32, name: "Asian Tour {n} — {city}", ci: "asian-tour", countries: ["JPN", "SGP"],
@@ -33,9 +36,6 @@ export const REGIONAL_TOURS_V7: readonly Tour[] = [
   { key: "north-american-tour", title: "North American Championship Tour", summary: "Steel-tip 501, double out, for players based in the United States and Canada, visiting New York, Toronto, Chicago, Calgary, Boston, Halifax and Las Vegas. The top eight in every event qualify for the North American Championship Finals in Las Vegas; the two finalists earn Palace World Championship places.", fieldSize: 32, name: "North American Championship Tour {n} — {city}", ci: "north-american-tour", countries: ["USA", "CAN"],
     venues: ["hudson-hall-new-york", "lakeshore-coliseum-toronto", "lakefront-hall-chicago", "prairie-forum", "harbor-forum-boston", "harbourfront-hall-halifax", "desert-pavilion-las-vegas", "lakeshore-coliseum-toronto"],
     weeks: [6, 11, 15, 19, 24, 29, 33, 38], finals: { name: "North American Championship Finals", week: 43, venue: "desert-pavilion-las-vegas", worldChampionshipPlaces: 2 } },
-  { key: "soft-tip-series", title: "Soft-Tip Series", summary: "Electronic-board (soft-tip) darts in the United States and Japan, open to every player without a Tour Card. Matches are 501 with a double to finish, over the shorter soft-tip match lengths (best of 5 to 9 legs). The top eight in every event qualify for the Soft-Tip World Finals in Las Vegas, a prize event with no World Championship places.", fieldSize: 32, name: "Soft-Tip Series {n} — {city}", ci: "soft-tip", countries: null, softTip: true,
-    venues: ["desert-pavilion-las-vegas", "bayfront-dome-tokyo", "lakefront-hall-chicago", "osaka-bay-hall", "hudson-hall-new-york", "bayfront-dome-tokyo"],
-    weeks: [8, 16, 21, 26, 34, 40], finals: { name: "Soft-Tip World Finals", week: 46, venue: "desert-pavilion-las-vegas", worldChampionshipPlaces: 0 } },
   { key: "oceanic-tour", title: "Oceanic Tour", summary: "Steel-tip 501, double out, across Australia and New Zealand. Open to players based outside Europe, with local players filling the field first. The top eight in every event qualify for the Oceanic Tour Finals in Sydney; the two finalists earn Palace World Championship places.", fieldSize: 32, name: "Oceanic Tour {n} — {city}", ci: "oceanic-tour", countries: null, zone: "REST_OF_WORLD",
     venues: ["harbourside-arena-sydney", "southern-cross-hall", "waitemata-centre-auckland", "pacific-assembly", "swan-river-hall-perth", "capital-hall-wellington", "southern-cross-hall", "garden-city-theatre-christchurch"],
     weeks: [5, 9, 13, 17, 22, 27, 31, 36], finals: { name: "Oceanic Tour Finals", week: 42, venue: "harbourside-arena-sydney", worldChampionshipPlaces: 2 } },
@@ -46,6 +46,25 @@ export const REGIONAL_TOURS_V7: readonly Tour[] = [
     venues: ["maas-hal-rotterdam", "scheldt-dome-antwerp", "spree-halle-berlin", "seine-forum", "danube-halle-vienna", "vltava-arena-prague", "maas-valley-hall-maastricht", "meuse-hall-liege"],
     weeks: [5, 9, 13, 17, 21, 25, 30, 35], finals: { name: "European Development Finals", week: 40, venue: "maas-hal-rotterdam", worldChampionshipPlaces: 2 } },
 ];
+
+/**
+ * Soft-Tip Tour: electronic-board darts as its own discipline, as in real life (the soft-tip scene in
+ * Japan, Asia, the United States and German-speaking Europe runs separately from steel-tip). Its results
+ * count only in the Soft-Tip World Ranking (ranking rules v3) — never in the amateur, open, Challenger or
+ * professional steel-tip lists — and it awards no Tour Cards or World Championship places. Open to
+ * everyone, Tour Card holders included. Legs are 501 double out (the format the live scorer supports)
+ * over soft-tip's shorter match lengths.
+ */
+export const SOFT_TIP_TOUR_V7 = {
+  title: "Soft-Tip Tour",
+  weeks: [4, 8, 12, 16, 20, 24, 29, 32, 36, 40, 43, 45],
+  venues: ["desert-pavilion-las-vegas", "bayfront-dome-tokyo", "lakefront-hall-chicago", "osaka-bay-hall", "garden-city-arena", "rhein-hall-dusseldorf",
+    "hudson-hall-new-york", "chubu-civic-theatre", "spree-halle-berlin", "desert-pavilion-las-vegas", "bayfront-dome-tokyo", "danube-halle-vienna"],
+  masters: { week: 30, venue: "osaka-bay-hall", ranking: 16 },
+  finals: { week: 47, venue: "desert-pavilion-las-vegas" },
+} as const;
+/** Pro Super Series: non-ranking pro-am studio events (modelled on the real streamed pro series) in the weeks with no Pro Tour event. */
+export const SUPER_SERIES_WEEKS_V7 = [3, 4, 29, 30, 40, 43, 45, 46, 48] as const;
 
 /** Regional series name and venues per starting country (the county/state level outside the UK county map). */
 export const NATIONAL_LADDERS_V7: Record<string, { series: string; venues: string[] }> = {
@@ -155,7 +174,7 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
     const pass = `${tour.key}-finals`;
     // Country-locked where the home pool can fill fields; otherwise open to the zone with locals picked first.
     const region = tour.countries ? R.all(R.nonTourCard(), R.country(...tour.countries)) : tour.zone ? R.all(R.nonTourCard(), R.zone(tour.zone)) : R.nonTourCard();
-    const format = tour.softTip ? knockout501([5, 5, 7, 7, 7, 9], "floor") : knockout501([7, 7, 9, 9, 9, 11], "floor");
+    const format = knockout501([7, 7, 9, 9, 9, 11], "floor");
     const tourEvent = make("challenger-event", tour.key, tour.name, tour.weeks.flatMap((week, i) => [6, 7].map(day => ({ week, day, venue: tour.venues[i % tour.venues.length] }))),
       { eligibility: region, geography: tour.countries || tour.zone ? { kind: "COUNTRY" } : { kind: "INTERNATIONAL", hostBonus: 2 }, rankingCategory: "AMATEUR_NATIONAL",
         fieldSize: tour.fieldSize, minimumEntrants: 8, npcFill: [0.4, 0.8], npcTierWeights: tw(0.3, 1, 0.5, 0.1), format, entitlementIntake: [],
@@ -166,7 +185,7 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
     make("challenger-event", pass, tour.finals.name, [{ week: tour.finals.week, day: 6, endDay: 7, venue: tour.finals.venue }],
       { eligibility: R.all(R.nonTourCard(), R.qualified(pass)), geography: { kind: "INTERNATIONAL", hostBonus: 1 }, rankingCategory: "AMATEUR_NATIONAL",
         fieldSize: 32, minimumEntrants: 8, npcFill: [1, 1], npcTierWeights: tw(0.3, 1, 0.5, 0.1), invitationPolicy: null, entitlementIntake: [pass],
-        format: tour.softTip ? knockout501([7, 7, 9, 9, 11], "stage", 2) : knockout501([9, 9, 11, 11, 13], "stage", 2),
+        format: knockout501([9, 9, 11, 11, 13], "stage", 2),
         qualificationOutputs: tour.finals.worldChampionshipPlaces ? [{ maxPosition: tour.finals.worldChampionshipPlaces, entitlementType: "EVENT_ENTRY", targetKey: "world-championship", targetSeason: "SAME", consumption: "SINGLE_USE" }] : [] },
       tour.ci, "SECONDARY_TOUR", "TELEVISED", true);
     const finals = out[out.length - 1];
@@ -176,5 +195,60 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
     finals.content = { ...finals.content!, trophyId: "international-globe", trophyIdentity: { id: `trophy:${pass}`, designId: "international-globe" }, circuitName: tour.title,
       summary: `The ${tour.title} season finale: the top eight from every ${tour.title} event this season meet for the title${places ? ` and ${places === 1 ? "a Palace World Championship place for the winner" : `Palace World Championship places for the ${places === 2 ? "two" : places} finalists`}` : " and the largest prize on the circuit; no World Championship places"}.` };
   }
+  // ---------------------------------------------------------------- Soft-Tip Tour (separate discipline)
+  const soft = SOFT_TIP_TOUR_V7, softPass = "soft-tip-series-finals";
+  const softBase: Partial<EventDefinition> = { circuit: "SOFT_TIP", classification: "RANKING", rankingCategory: "SOFT_TIP", entitlementIntake: [], invitationPolicy: null, seedingPolicy: { list: null, seeds: 0 },
+    npcTierWeights: tw(0.3, 1, 0.4, 0.1), geography: { kind: "INTERNATIONAL", hostBonus: 2 } };
+  const softSummary = "Soft-tip darts on electronic boards — a separate discipline with its own tour and its own Soft-Tip World Ranking, in Las Vegas, Chicago, New York, Tokyo, Osaka, Nagoya, Singapore, Düsseldorf, Berlin and Vienna. Open to everyone, Tour Card holders included. Matches are 501 with a double to finish over the shorter soft-tip match lengths (best of 5 to 9 legs). Results never count towards steel-tip rankings, Tour Cards or World Championship places.";
+  const softRound = make("challenger-event", "soft-tip-series", "Soft-Tip Tour {n} — {city}", soft.weeks.flatMap((week, i) => [6, 7].map(day => ({ week, day, venue: soft.venues[i] }))),
+    { ...softBase, eligibility: R.open(), fieldSize: 32, minimumEntrants: 8, npcFill: [0.4, 0.8], format: knockout501([5, 5, 7, 7, 7, 9], "floor"),
+      qualificationOutputs: [{ maxPosition: 8, entitlementType: "EVENT_ENTRY", targetKey: softPass, targetSeason: "SAME", consumption: "SEASON_PASS" }] },
+    "soft-tip", "INTERNATIONAL_OPEN", "STANDARD");
+  softRound.presentation.calendarPriority = PRIORITY.open;
+  describe(softRound, soft.title, `${softSummary} The top eight in every round qualify for the Soft-Tip World Finals in Las Vegas.`);
+  const softMasters = make("challenger-event", "soft-tip-masters", "Soft-Tip Masters", [{ week: soft.masters.week, day: 6, endDay: 7, venue: soft.masters.venue }],
+    { ...softBase, eligibility: R.any(R.ranking("soft-tip", soft.masters.ranking), R.result("soft-tip-series", 2, "SAME")), fieldSize: 16, minimumEntrants: 8, npcFill: [1, 1],
+      seedingPolicy: { list: "soft-tip", seeds: 4 }, format: knockout501([7, 9, 9, 11], "stage", 2), qualificationOutputs: [] },
+    "soft-tip", "INTERNATIONAL_OPEN", "FEATURED", true);
+  softMasters.presentation.calendarPriority = PRIORITY.openFinals;
+  softMasters.content = { ...softMasters.content!, trophyId: "silver-cup", circuitName: soft.title,
+    summary: `The Soft-Tip Masters in Osaka: the top ${soft.masters.ranking} on the Soft-Tip World Ranking and this season's Soft-Tip Tour finalists. ${softSummary.split(". ").slice(-1)[0]}` };
+  const softFinals = make("challenger-event", softPass, "Soft-Tip World Finals", [{ week: soft.finals.week, day: 6, endDay: 7, venue: soft.finals.venue }],
+    { ...softBase, eligibility: R.qualified(softPass), entitlementIntake: [softPass], fieldSize: 32, minimumEntrants: 8, npcFill: [1, 1], seedingPolicy: { list: "soft-tip", seeds: 8 },
+      format: knockout501([7, 7, 9, 9, 11], "stage", 2), qualificationOutputs: [] },
+    "soft-tip", "INTERNATIONAL_OPEN", "TELEVISED", true);
+  softFinals.presentation.calendarPriority = PRIORITY.openFinals;
+  softFinals.content = { ...softFinals.content!, trophyId: "international-globe", trophyIdentity: { id: `trophy:${softPass}`, designId: "international-globe" }, circuitName: soft.title,
+    summary: "The Soft-Tip World Finals in Las Vegas: the top eight from every Soft-Tip Tour round meet for the soft-tip world title and the biggest prize in soft-tip darts. Soft-tip only — no steel-tip ranking money, Tour Cards or World Championship places." };
+  // ---------------------------------------------------------------- professionals: Pro Super Series and Grand Slam qualifier
+  // A Tour Card holder outside the majors had nine empty weeks (Q-School, Matchplay, Double Crown, European
+  // Championship, Grand Slam and Tour Finals weeks). The Super Series fills them with Monday/Tuesday studio
+  // events for Tour Card holders and the top amateurs; top four in each event qualify for the Super Series Finals.
+  const superPass = "pro-super-series-finals";
+  const superBase: Partial<EventDefinition> = { circuit: "INVITATIONAL", classification: "INVITATIONAL_EXHIBITION", rankingCategory: null, entitlementIntake: [], invitationPolicy: null,
+    seedingPolicy: { list: null, seeds: 0 }, npcTierWeights: tw(0, 0.3, 1, 0.4), geography: { kind: "INTERNATIONAL", hostBonus: 1 } };
+  const superEntry = R.any(R.tourCard(), R.ranking("open-world", 32));
+  const superRound = make("challenger-event", "pro-super-series", "Pro Super Series {n}", SUPER_SERIES_WEEKS_V7.flatMap(week => [1, 2].map(day => ({ week, day, venue: "vault-studio-leeds" }))),
+    { ...superBase, eligibility: superEntry, fieldSize: 32, minimumEntrants: 8, npcFill: [0.6, 1], format: knockout501([7, 7, 9, 9, 11], "floor"),
+      qualificationOutputs: [{ maxPosition: 4, entitlementType: "EVENT_ENTRY", targetKey: superPass, targetSeason: "SAME", consumption: "SEASON_PASS" }] },
+    "pro-super-series", "STAGE_SERIES", "STANDARD");
+  superRound.presentation.calendarPriority = PRIORITY.open;
+  describe(superRound, "Pro Super Series", "A streamed studio pro-am in Leeds for Tour Card holders and the top 32 on the Open World Ranking, held on Mondays and Tuesdays in the weeks without a Pro Tour event. Prize money only — no ranking points — and the top four in every event qualify for the Super Series Finals.");
+  const superFinals = make("challenger-event", superPass, "Pro Super Series Finals", [{ week: 49, day: 2, endDay: 3, venue: "vault-studio-leeds" }],
+    { ...superBase, eligibility: R.qualified(superPass), entitlementIntake: [superPass], fieldSize: 32, minimumEntrants: 8, npcFill: [1, 1], format: knockout501([9, 9, 11, 11, 13], "stage", 2), qualificationOutputs: [] },
+    "pro-super-series", "STAGE_SERIES", "FEATURED", true);
+  superFinals.presentation.calendarPriority = PRIORITY.openFinals;
+  superFinals.content = { ...superFinals.content!, trophyId: "silver-cup", circuitName: "Pro Super Series",
+    summary: "The Pro Super Series Finals: the top four from every Super Series event this season play for the series title in the week before the World Championship. Prize money only — no ranking points." };
+  const gsQualifier = make("world-championship-qualifier", "grand-slam-qualifier", "Grand Slam Qualifier", [{ week: 44, day: 1, venue: "midlands-oche" }],
+    { circuit: "MAJOR", classification: "QUALIFIER", rankingCategory: null, eligibility: R.all(R.tourCard(), R.not(R.ranking("pro-world", 16))), seedingPolicy: { list: null, seeds: 0 }, geography: { kind: "INTERNATIONAL", hostBonus: 1 }, npcTierWeights: tw(0, 0, 1, 0.6),
+      fieldSize: 128, minimumEntrants: 16, npcFill: [0.9, 1], format: knockout501([9, 9, 9, 11, 11, 11, 13], "qualifier"),
+      qualificationOutputs: [{ maxPosition: 8, entitlementType: "EVENT_ENTRY", targetKey: "grand-slam-of-champions", targetSeason: "SAME", consumption: "SINGLE_USE" }] },
+    "majors", "MAJOR", "FEATURED", true);
+  gsQualifier.presentation.calendarPriority = 58;
+  describe(gsQualifier, "Grand Slam of Champions", "The Tour Card holders' qualifier for the Grand Slam of Champions: a one-day knockout on the Monday of the last Pro Tour week. The eight quarter-finalists join the title winners at the Grand Slam.");
+  const grandSlam = base("grand-slam-of-champions");
+  grandSlam.eligibility = R.any(grandSlam.eligibility, R.qualified("grand-slam-of-champions"));
+  grandSlam.entitlementIntake = [...grandSlam.entitlementIntake, "grand-slam-of-champions"];
   return Object.freeze(out);
 }

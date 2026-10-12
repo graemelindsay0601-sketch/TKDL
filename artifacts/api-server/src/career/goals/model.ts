@@ -43,7 +43,7 @@ export function goalLabel(d: GoalDefinition, s: GoalSources, events: Opportunity
     case "BEAT_RELATIONSHIP": return `Beat ${name} — selected ${d.relationship}`;
   }
 }
-const amateur = (c: string) => ["GRASSROOTS","COUNTY","REGIONAL","NATIONAL_AMATEUR","VAULT","CHALLENGER"].includes(c);
+const amateur = (c: string) => ["GRASSROOTS","COUNTY","REGIONAL","NATIONAL_AMATEUR","VAULT","CHALLENGER","SOFT_TIP"].includes(c);
 export function evidenceFor(d: GoalDefinition, s: GoalSources): Fact[] {
   switch (d.type) {
     case "WIN_TITLE": return s.facts.results.filter(r=>r.champion);

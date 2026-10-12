@@ -27,7 +27,7 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
     COUNT(*) FILTER(WHERE (r.is_champion OR r.stage_reached='FINAL') AND i.classification<>'QUALIFIER')::int finals,
     COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.presentation_tier IN ('MAJOR','WORLD'))::int "majorTitles",
     COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit='WORLD_CHAMPIONSHIP')::int worlds,
-    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('JUNIOR','COUNTY','REGIONAL','NATIONAL_AMATEUR','VAULT','CHALLENGER'))::int "amateurTitles",
+    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('JUNIOR','COUNTY','REGIONAL','NATIONAL_AMATEUR','VAULT','CHALLENGER','SOFT_TIP'))::int "amateurTitles",
     COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('NATIONAL_AMATEUR','VAULT','CHALLENGER'))::int "nationalTitles",
     COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('PRO_CIRCUIT','EUROPEAN_SERIES'))::int "proTitles",
     COALESCE(SUM(r.wins),0)::int wins,COALESCE(SUM(r.losses),0)::int losses

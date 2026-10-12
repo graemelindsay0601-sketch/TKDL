@@ -49,6 +49,8 @@ export const DEVELOPMENT_CADENCE = Object.freeze({
 export const CIRCUITS = [
   "GRASSROOTS", "COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "CHALLENGER", "VAULT", "Q_SCHOOL",
   "PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL", "MAJOR", "WORLD_CHAMPIONSHIP", "SPECIAL",
+  /** Event database v7: soft-tip (electronic boards), a separate discipline with its own ranking. */
+  "SOFT_TIP",
 ] as const;
 export type Circuit = typeof CIRCUITS[number];
 

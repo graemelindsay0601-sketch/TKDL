@@ -31,10 +31,10 @@ export function eventDateLabel(e: Pick<CareerEvent, "dates">) {
 const CIRCUITS: Record<string, string> = {
   GRASSROOTS: "Grassroots", COUNTY: "County", REGIONAL: "Regional", NATIONAL_AMATEUR: "National Amateur", CHALLENGER: "Challenger", VAULT: "Vault",
   Q_SCHOOL: "Q-School", PRO_CIRCUIT: "Pro Circuit", EUROPEAN_SERIES: "European Series", WORLD_SERIES: "World Series", INVITATIONAL: "Invitational",
-  MAJOR: "Major", WORLD_CHAMPIONSHIP: "World Championship", SPECIAL: "Special",
+  MAJOR: "Major", WORLD_CHAMPIONSHIP: "World Championship", SPECIAL: "Special", SOFT_TIP: "Soft-Tip",
 };
 export const circuitLabel = (c: string) => CIRCUITS[c] ?? titleCase(c);
-/** An event's tour or ladder name where it has one (e.g. "Soft-Tip Series"), otherwise its circuit label. */
+/** An event's tour or ladder name where it has one (e.g. "Soft-Tip Tour"), otherwise its circuit label. */
 export const eventCircuitLabel = (e: { circuit: string; content?: { circuitName?: string } | null; circuitName?: string }) =>
   e.content?.circuitName ?? e.circuitName ?? circuitLabel(e.circuit);
 /**
@@ -219,7 +219,7 @@ const MILESTONES: Record<string, string> = {
   TOUR_CARD_REGAINED: "Tour Card regained", TOUR_CARD_SURRENDERED: "Tour Card surrendered", FIRST_PROFESSIONAL_EVENT: "First professional event",
   FIRST_MAJOR: "First major qualification", FIRST_WORLD_CHAMPIONSHIP: "First World Championship qualification",
 };
-const LISTS: Record<string, string> = { "pro-world": "World Ranking", "pro-circuit": "Pro Circuit", "european-series": "European Series", challenger: "Challenger", vault: "Vault", amateur: "Amateur" };
+const LISTS: Record<string, string> = { "pro-world": "World Ranking", "pro-circuit": "Pro Circuit", "european-series": "European Series", challenger: "Challenger", vault: "Vault", amateur: "Amateur", "open-world": "Open World Ranking", "soft-tip": "Soft-Tip World Ranking" };
 export const listLabel = (key: string | null | undefined) => key ? LISTS[key] ?? titleCase(key) : "";
 export function milestoneLabel(m: Pick<Milestone, "kind" | "list_key" | "detail">): { title: string; detail: string | null; tone: Tone } {
   const title = MILESTONES[m.kind] ?? titleCase(m.kind);

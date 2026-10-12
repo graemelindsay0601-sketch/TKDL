@@ -34,7 +34,8 @@ export const CIRCUIT_CONTENT = [
   // Event database v7 regional tours (affiliate second-tier tours with World Championship places).
   ["asian-tour", "Asian Tour", "iodf", "CHALLENGER"],
   ["north-american-tour", "North American Championship Tour", "iodf", "CHALLENGER"],
-  ["soft-tip", "Soft-Tip Series", "iodf", "CHALLENGER"],
+  ["soft-tip", "Soft-Tip Tour", "iodf", "SOFT_TIP"],
+  ["pro-super-series", "Pro Super Series", "wdu", "INVITATIONAL"],
   ["oceanic-tour", "Oceanic Tour", "iodf", "CHALLENGER"],
   ["nordic-baltic-tour", "Nordic & Baltic Tour", "iodf", "CHALLENGER"],
   ["european-development", "European Development Series", "iodf", "CHALLENGER"],

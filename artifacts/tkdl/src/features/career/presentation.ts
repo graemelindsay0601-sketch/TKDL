@@ -10,7 +10,7 @@ export const CHAMPIONSHIP_THEMES:Record<string,{accent:string;motif:string;class
 };
 const REGIONAL_TOUR_THEMES:[string,string,string][]=[
   ["asian-tour","#ef6f6c","Asian Tour"],["north-american-tour","#6fa8ff","North American Championship Tour"],
-  ["soft-tip-series","#53d6c4","Soft-Tip Series"],["oceanic-tour","#f2b45a","Oceanic Tour"],
+  ["soft-tip","#53d6c4","Soft-Tip Tour"],["pro-super-series","#bc89ee","Pro Super Series"],["oceanic-tour","#f2b45a","Oceanic Tour"],
   ["nordic-baltic-tour","#9ccaf0","Nordic & Baltic Tour"],["european-development-series","#c39cf2","European Development Series"],
 ];
 export function eventIdentity(key="",circuit="",level?:string|number) {

@@ -77,7 +77,7 @@ test("new migration independently installs the full Career schema and v1-v7 cata
     const versions=await pg.query<{event_database_version:number;count:number}>(
       "SELECT event_database_version,count(*)::int AS count FROM career_event_definitions GROUP BY 1 ORDER BY 1");
     assert.deepEqual(versions.rows,[{event_database_version:1,count:73},{event_database_version:2,count:75},
-      {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94},{event_database_version:7,count:149}]);
+      {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94},{event_database_version:7,count:153}]);
     assert.equal((await marker(pg)).length,1);
     const before=await contents(pg),beforeSchema=await schema(pg);
     await upgradeCareerContentA9V1(db);
