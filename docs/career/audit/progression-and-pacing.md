@@ -28,7 +28,7 @@ All runs use an isolated in-memory PGlite database built with the production sta
 2. **The harness signs one sponsor and never looks for another.** Missing sponsor income after season 1 in A–D is a harness artefact, not a game finding. Sponsor renewal is covered by `finance/harness.ts`.
 3. **Run lengths.**
    - The 20-season world run was OOM-killed after season 9 (in-memory PGlite grew to about 4 GB). World results cover seasons 1–9. `AUDIT_PGDATA=<dir>` now allows an on-disk rerun.
-   - Profile runs: see §3 for how many seasons each completed.
+   - Profile runs hit the 2-hour background limit (A was also OOM-killed). Seasons completed: **A 9, B 5, C 4, D 4**. Results were written each season, so every completed season is in the evidence.
 4. **A single world seed.** Conclusions about the shape of the world are hypotheses until repeated on other seeds.
 
 ---
@@ -120,12 +120,12 @@ Travel bands:
 
 Measured outcomes (balance at each season end):
 
-| Profile | S1 | S2 | S3 | S4 | Notes |
-|---|---|---|---|---|---|
-| A (40) | £370 | £240 | £65 | £20 | Q-School First Stage denied `INSUFFICIENT_FUNDS` (cost ≈ £570) every year; drifting to zero; fell off every ranking by S4 |
-| B (58) | £1,105 | £2,875 | £4,230 | £7,995 | Could not afford the Final Stage in S2 week 3 (£530 available); played it from S3; Challenger 15 → 7 → 12, so no card |
-| C (78) | £27.8k | £382k | £753k | £1.11m | Card at the S2 Q-School (direct); retained by ranking |
-| D (98) | £915k | £2.76m | £4.60m | £6.39m | Won the Open and the World Championship as an amateur in S1 |
+| Profile | S1 | S2 | S3 | S4 | S5 | Later | Notes |
+|---|---|---|---|---|---|---|---|
+| A (40) | £370 | £240 | £65 | £20 | £20 | S6–S9: £20–£25 | Q-School First Stage denied `INSUFFICIENT_FUNDS` (cost ≈ £570) each year. Unranked everywhere from S4. From S5, 5–7 free events a season. The 20%-of-balance policy rule keeps it out of £5 events, so a real player has slightly more room. |
+| B (58) | £1,105 | £2,875 | £4,230 | £7,995 | £11,070 | — | Could not afford the Final Stage in S2 week 3 (£530 available). Q-School every year S2–S5 with no card. Challenger 15 → 7 → 12 → 9. Vault No.1 S2–S5, but its final never runs (PROG-01). This plateau is consistent with skill 58 against NPC pros at about 59–65. |
+| C (78) | £27.8k | £382k | £753k | £1.11m | — | — | Card at the S2 Q-School (direct); retained by ranking; world No.4 by S3 |
+| D (98) | £915k | £2.76m | £4.60m | £6.39m | — | — | Won the Open and the World Championship as an amateur in S1; world No.1 S1–S4; won 26 of 28 Pro Circuit events in S4 |
 
 Assessment:
 
@@ -309,6 +309,15 @@ Status: **Confirmed** = reproduced by code path and run/test. **Hypothesis** = s
 - **To confirm:** profile `advance` by table size against population on a real Postgres instance.
 - **Fix:** have annual cohorts respect `targetPopulation()`, or raise amateur retirement for long-term low-ability players. This needs a new generation version.
 - **Complexity:** M.
+
+### PROG-11 · P3 · Confirmed — Tour Card holders farm amateur national opens and top the Open World ranking
+- **Files:** `content/events.ts:64-66` (`national-open` uses `R.open()`); `sporting/config.ts` (`open-world` is AMATEUR scope, category AMATEUR_NATIONAL).
+- **Evidence:** in S4, as card holders, C won 13 of 14 national opens and D won 14 of 14. Both stayed Open World No.1.
+- **Impact:**
+  - Professionals take amateur prize money and can occupy the top-32 Open World places that feed the amateur finale (once PROG-01 is fixed).
+  - It also adds filler to the pro off-weeks (PROG-03).
+- **Fix:** in a new edition, exclude card holders from `open-world` contributions or from `national-open`. Decide alongside PROG-03.
+- **Complexity:** S.
 
 ### Integrity checks — passed (no defect)
 
