@@ -2326,7 +2326,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       </div>
       }
       bot={<div className="flex flex-col gap-2 x01-keypad-dock">
-        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "X01") : undefined} />
+        <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01 || !!(cork && !cork.decided)} fatBull={fatBull} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "X01") : undefined} />
         <AbandonBtn onAbandon={() => { if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode }); onAbandon(); }} />
         {isCardClash && <DownloadMatchLogBtn logger={matchLoggerRef.current} />}
       </div>}
