@@ -31,6 +31,13 @@ export const CIRCUIT_CONTENT = [
   ["north-american", "North American Dart Tour", "iodf", "NATIONAL_AMATEUR"],
   ["australasian", "Australasian Dart Tour", "iodf", "NATIONAL_AMATEUR"],
   ["continental-open", "Continental Open Series", "iodf", "NATIONAL_AMATEUR"],
+  // Event database v7 regional tours (affiliate second-tier tours with World Championship places).
+  ["asian-tour", "Asian Tour", "iodf", "CHALLENGER"],
+  ["north-american-tour", "North American Championship Tour", "iodf", "CHALLENGER"],
+  ["soft-tip", "Soft-Tip Series", "iodf", "CHALLENGER"],
+  ["oceanic-tour", "Oceanic Tour", "iodf", "CHALLENGER"],
+  ["nordic-baltic-tour", "Nordic & Baltic Tour", "iodf", "CHALLENGER"],
+  ["european-development", "European Development Series", "iodf", "CHALLENGER"],
 ].map(([id, name, organisationId, authorityCircuit]) => ({ id, name, organisationId, authorityCircuit }));
 export { SEASON_GROUPINGS as SEASON_RHYTHM } from "../calendar/config.ts";
 export const PRESTIGE_CLASSES = ["GRASSROOTS", "REGIONAL", "NATIONAL", "INTERNATIONAL_OPEN", "SECONDARY_TOUR", "PROFESSIONAL_TOUR", "STAGE_SERIES", "MAJOR", "WORLD_CHAMPIONSHIP"] as const;

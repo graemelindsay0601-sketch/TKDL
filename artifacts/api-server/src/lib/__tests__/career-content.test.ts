@@ -54,8 +54,8 @@ test("crowded country-aware pools extend deterministically without numeric or du
   assert.deepEqual(names,geographicalIdentities(seed,input).map(p=>`${p.firstName} ${p.surname}`));
 });
 test("authored counts, hierarchy and complete map anchors",()=>{
-  assert.equal(ORGANISATIONS.length,4);assert.equal(CIRCUIT_CONTENT.length,22);
-  assert.equal(VENUE_CONTENT.length,60);assert.equal(VENUE_FAMILIES.length,15);assert.equal(TROPHIES.length,18);
+  assert.equal(ORGANISATIONS.length,4);assert.equal(CIRCUIT_CONTENT.length,28);
+  assert.equal(VENUE_CONTENT.length,71);assert.equal(VENUE_FAMILIES.length,15);assert.equal(TROPHIES.length,18);
   assert.equal(CORE_BRANDS.length,36);assert.equal(LOCAL_SPONSORS.length,16);
   assert.ok(CITIES.every(c=>Number.isFinite(c.mapAnchor.latitude)&&Number.isFinite(c.mapAnchor.longitude)));
   for(const e of season)assert.ok(venueContent(e.venueKey).mapAnchor);
