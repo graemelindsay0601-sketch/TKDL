@@ -14,9 +14,9 @@ const facts = (over: Partial<ParticipantFacts> = {}): ParticipantFacts => ({ key
   results: { SAME: new Map(), PREVIOUS: new Map() }, defendingChampion: false, ...over });
 const card = facts({ professionalStatus: "PROFESSIONAL", tourCard: true });
 
-test("new saves use event database v6; v1–v5 catalogues are unchanged", () => {
-  assert.equal(CURRENT_EVENT_DATABASE_VERSION, 6);
-  assert.equal(CAREER_VERSIONS.eventDatabaseVersion, 6);
+test("v6 is an immutable edition; new saves use v6 or later; v1–v5 catalogues are unchanged", () => {
+  assert.ok(CURRENT_EVENT_DATABASE_VERSION >= 6);
+  assert.equal(CAREER_VERSIONS.eventDatabaseVersion, CURRENT_EVENT_DATABASE_VERSION);
   assert.equal(catalogueFor(5).length, 92);
   assert.equal(catalogueFor(6).length, 94);
   assert.ok(catalogueFor(5).every(d => d.eventDatabaseVersion === 5));

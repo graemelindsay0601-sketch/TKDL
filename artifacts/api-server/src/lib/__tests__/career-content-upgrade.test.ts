@@ -70,14 +70,14 @@ async function newSave(db:CareerDatabase){
   return createCareerService(db).create(1,{slot:1,careerName:"Isolated repair test",dateOfBirth:"1990-06-15"});
 }
 
-test("new migration independently installs the full Career schema and v1-v6 catalogue",async()=>{
+test("new migration independently installs the full Career schema and v1-v7 catalogue",async()=>{
   const pg=new PGlite(),db=drizzle(pg);
   try{
     await foundation(pg);await upgradeCareerContentA9V1(db);
     const versions=await pg.query<{event_database_version:number;count:number}>(
       "SELECT event_database_version,count(*)::int AS count FROM career_event_definitions GROUP BY 1 ORDER BY 1");
     assert.deepEqual(versions.rows,[{event_database_version:1,count:73},{event_database_version:2,count:75},
-      {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94}]);
+      {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94},{event_database_version:7,count:149}]);
     assert.equal((await marker(pg)).length,1);
     const before=await contents(pg),beforeSchema=await schema(pg);
     await upgradeCareerContentA9V1(db);
