@@ -22,6 +22,8 @@ import type { ScorerRecoveryState, X01RecoveryState, CricketRecoveryState, TeamX
 import { type BotConfig } from "@/lib/bot-engine";
 import { type PracticeStats } from "@/lib/stats-types";
 import { useNewScoringUI } from "@/lib/useNewScoringUI";
+import { ArrowRight, Check, Crosshair, Radio, RotateCcw } from "lucide-react";
+import "./bull-up.css";
 export type { PracticeStats };
 
 export type GameTypeOption = {
@@ -46,13 +48,12 @@ function safeParse(s: string | null | undefined): Record<string, unknown> {
 // outer beats miss, a tie in the same ring (or two misses) is re-thrown IN
 // REVERSE ORDER, never a coin flip. The bot throws from its own accuracy.
 
-const THROW_OPTS: { t: BullThrow; label: string; emoji: string; color: string; pts: string }[] = [
-  { t: "INNER", label: "Inner Bull", emoji: "🎯", color: "#22c55e",              pts: "50" },
-  { t: "OUTER", label: "Outer Bull", emoji: "⭕", color: "#ffd24a",              pts: "25" },
-  { t: "MISS",  label: "Miss",       emoji: "❌", color: "rgba(255,255,255,0.45)", pts: "0"  },
+const THROW_OPTS: { t: BullThrow; label: string; color: string; pts: string }[] = [
+  { t: "INNER", label: "Inner Bull", color: "#29d49a", pts: "50" },
+  { t: "OUTER", label: "Outer Bull", color: "#edc66c", pts: "25" },
+  { t: "MISS",  label: "Miss",       color: "#a3aab9", pts: "0"  },
 ];
 const throwLabel = (t: BullThrow | undefined) => t === "INNER" ? "Inner Bull" : t === "OUTER" ? "Outer Bull" : t === "MISS" ? "Miss" : "–";
-const throwEmoji = (t: BullThrow | undefined) => t === "INNER" ? "🎯" : t === "OUTER" ? "⭕" : t === "MISS" ? "❌" : "";
 
 /**
  * Presentational bull-up. `state` is a resolveBullUp() result; `isHuman(idx)`
@@ -67,70 +68,110 @@ export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, 
   const roundNo = state.rounds.length;
   const thrower = state.nextThrower;
   const prev = state.rounds.length > 1 ? state.rounds[state.rounds.length - 2] : null;
+  const statusCopy = state.winner !== null
+    ? `${names[state.winner]} wins the bull-up`
+    : thrower !== null && isHuman(thrower)
+      ? `${names[thrower]} · make your throw`
+      : thrower !== null
+        ? `${names[thrower]} is throwing`
+        : "Waiting for throw";
   return (
-    <div role="dialog" aria-label="Bull up" style={{
-      position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center",
-      background: `linear-gradient(rgba(4,4,10,0.93), rgba(4,4,10,0.97)), url("https://i.postimg.cc/Bbf9fbrp/pdc1.jpg")`, backgroundSize: "cover", backgroundPosition: "center",
-    }}>
-      <div style={{ width: "100%", maxWidth: 380, padding: "0 20px" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }} aria-hidden>🎯</div>
-          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.85rem", fontWeight: 900, color: "#fff", letterSpacing: "0.14em", textTransform: "uppercase" }}>BULL UP</div>
-          <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.55)", marginTop: 5, letterSpacing: "0.08em" }}>
-            {subtitle ?? (roundNo > 1 ? `RE-THROW ${roundNo - 1} — REVERSE ORDER` : "NEAREST THE BULL THROWS FIRST")}
-          </div>
-          {prev && <div style={{ fontSize: "0.72rem", color: "rgba(255,210,74,0.85)", marginTop: 6 }}>
-            Tie: {throwLabel(prev.throws[0])} v {throwLabel(prev.throws[1])} — {names[round.order[0]]} throws first now.
-          </div>}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-          {round.order.map(idx => {
-            const t = round.throws[idx];
-            const win = state.winner === idx;
-            return (
-              <div key={idx} style={{ padding: "12px 16px", borderRadius: 10, display: "flex", alignItems: "center", gap: 10,
-                background: win ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)", border: `1px solid ${win ? "rgba(34,197,94,0.28)" : thrower === idx ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.07)"}` }}>
-                <span style={{ fontFamily: "Oswald, sans-serif", fontWeight: 800, fontSize: "0.88rem", textTransform: "uppercase", flex: 1, color: win ? "#22c55e" : "#fff" }}>{names[idx]}</span>
-                <span aria-hidden style={{ fontSize: 15 }}>{throwEmoji(t)}</span>
-                <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.72rem", color: "rgba(255,255,255,0.6)" }}>{t ? throwLabel(t) : thrower === idx ? "to throw" : "waiting"}</span>
-                {win && <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", fontWeight: 900, color: "#22c55e", letterSpacing: "0.1em" }}>FIRST ▶</span>}
+    <div className="bullup-overlay" role="dialog" aria-modal="true" aria-labelledby="bullup-title">
+      <div className="bullup-scene" />
+      <div className="bullup-frame">
+        <header className="bullup-topbar">
+          <div className="bullup-brand"><span className="bullup-mark"><Crosshair size={14} /></span><span>TKDL</span><i /> <span className="bullup-brand-sub">MATCH NIGHT</span></div>
+          <div className="bullup-live"><span /> LIVE MATCH <b>MATCH 04&nbsp; / &nbsp;LEG {roundNo}</b></div>
+        </header>
+
+        <main className="bullup-content">
+          <section className="bullup-hero">
+            <div className="bullup-hero-copy">
+              <div className="bullup-kicker"><span /> BULL-UP&nbsp; / &nbsp;ROUND {roundNo}</div>
+              <h1 id="bullup-title">{state.winner !== null ? "The first edge." : roundNo > 1 ? "The decider." : "The first edge."}</h1>
+              <p>{subtitle ?? (roundNo > 1 ? `Re-throw ${roundNo - 1} · reverse order` : "One dart decides who owns the oche.")}</p>
+              {prev && <div className="bullup-tie-note" role="status">
+                <Radio size={13} aria-hidden /> Tied round: {throwLabel(prev.throws[0])} vs {throwLabel(prev.throws[1])}. {names[round.order[0]]} throws first now.
+              </div>}
+            </div>
+
+            <div className="bullup-target-stage" aria-hidden="true">
+              <div className="bullup-target-halo" />
+              <div className="bullup-target">
+                <span className="bullup-target-ring" />
+                <span className="bullup-target-ring bullup-target-ring--inner" />
+                <span className="bullup-target-ring bullup-target-ring--outer" />
+                <span className="bullup-target-bull" />
+                <span className="bullup-target-center" />
               </div>
-            );
-          })}
-        </div>
-        {state.winner === null && thrower !== null && isHuman(thrower) && (
-          <>
-            <div style={{ textAlign: "center", marginBottom: 12, fontFamily: "Oswald, sans-serif", color: "#fff", fontSize: "0.9rem", letterSpacing: "0.06em" }}>
-              {names[thrower]} — where did your dart land?
+              <span className="bullup-target-caption">ONE DART&nbsp; / &nbsp;FIRST THROW</span>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {THROW_OPTS.map(opt => (
-                <button key={opt.t} disabled={busy} onClick={() => onThrow(thrower, opt.t)} style={{
-                  width: "100%", padding: "16px 20px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14,
-                  background: `${opt.color}12`, border: `1px solid ${opt.color}3a`, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.6 : 1 }}>
-                  <span aria-hidden style={{ fontSize: 22 }}>{opt.emoji}</span>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", fontWeight: 700, color: opt.color, flex: 1, textAlign: "left", textTransform: "uppercase" }}>{opt.label}</span>
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem", fontWeight: 900, color: opt.color, opacity: 0.7 }}>{opt.pts}</span>
-                </button>
-              ))}
+          </section>
+
+          <section className="bullup-faceoff" aria-label="Bull-up results">
+            {([0, 1] as const).map((idx) => {
+              const t = round.throws[idx];
+              const win = state.winner === idx;
+              const active = thrower === idx && state.winner === null;
+              return (
+                <article key={idx} className={`bullup-player${win ? " is-winner" : ""}${active ? " is-active" : ""}`}>
+                  <div className="bullup-player-top">
+                    <span>PLAYER 0{idx + 1}</span>
+                    {win && <span className="bullup-first"><Check size={12} aria-hidden /> FIRST THROW</span>}
+                    {active && <span className="bullup-turn">AT THE OCHE</span>}
+                  </div>
+                  <h2>{names[idx]}</h2>
+                  <div className="bullup-result">
+                    <strong>{t ? (t === "INNER" ? "50" : t === "OUTER" ? "25" : "—") : "—"}</strong>
+                    <span><b>{t ? throwLabel(t).toUpperCase() : active ? "YOUR THROW" : "WAITING"}</b><small>{t === "INNER" ? "Closest to centre" : t === "OUTER" ? "Outer ring" : t === "MISS" ? "Outside the scoring area" : active ? "Choose where your dart landed" : "Awaiting throw"}</small></span>
+                  </div>
+                </article>
+              );
+            })}
+            <div className="bullup-verdict" aria-live="polite">
+              <div className="bullup-verdict-label"><Radio size={13} aria-hidden /> OFFICIAL THROW ORDER</div>
+              <div className="bullup-verdict-score">
+                <span>{round.throws[0] ? (round.throws[0] === "INNER" ? "50" : round.throws[0] === "OUTER" ? "25" : "0") : "—"}</span>
+                <i>TO</i>
+                <strong>{round.throws[1] ? (round.throws[1] === "INNER" ? "50" : round.throws[1] === "OUTER" ? "25" : "0") : "—"}</strong>
+              </div>
+              <div className="bullup-verdict-copy">
+                <b>{statusCopy}</b>
+                <small>{state.winner !== null ? "Nearest to the centre earns the opening throw." : thrower !== null && isHuman(thrower) ? "Record your dart to resolve the opener." : "The opening throw is decided by the bull."}</small>
+              </div>
             </div>
-          </>
-        )}
-        {state.winner === null && thrower !== null && !isHuman(thrower) && (
-          <div role="status" style={{ textAlign: "center", color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif" }}>{names[thrower]} is throwing…</div>
-        )}
-        {error && <p role="alert" style={{ marginTop: 12, color: "#ff8fb4", textAlign: "center", fontSize: "0.85rem" }}>{error}</p>}
-        {state.winner !== null && (
-          <>
-            <div style={{ textAlign: "center", marginBottom: 16, fontFamily: "Oswald, sans-serif", fontSize: "1rem", fontWeight: 800, color: "#fff", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              {names[state.winner]} throws first
+          </section>
+
+          {state.winner === null && thrower !== null && isHuman(thrower) && (
+            <section className="bullup-throw" aria-label={`${names[thrower]} bull-up throw`}>
+              <div className="bullup-throw-heading">
+                <div><span>YOUR MOMENT</span><h2>Where did it land?</h2></div>
+                <small>SELECT THE RESULT</small>
+              </div>
+              <div className="bullup-throw-options">
+                {THROW_OPTS.map((opt) => (
+                  <button key={opt.t} className={`bullup-throw-option bullup-throw-option--${opt.t.toLowerCase()}`} disabled={busy} onClick={() => onThrow(thrower, opt.t)}>
+                    <span className="bullup-option-marker" aria-hidden="true" />
+                    <span className="bullup-option-copy"><b>{opt.label}</b><small>{opt.t === "INNER" ? "Inside the outer ring" : opt.t === "OUTER" ? "In the outer bull" : "Missed the board"}</small></span>
+                    <strong>{opt.pts}</strong>
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+          {state.winner === null && thrower !== null && !isHuman(thrower) && (
+            <div className="bullup-waiting" role="status"><span className="bullup-pulse" /> {names[thrower]} is at the oche</div>
+          )}
+          {error && <p className="bullup-error" role="alert">{error}</p>}
+          {state.winner !== null && (
+            <div className="bullup-continue">
+              <div><span>THE OPENING THROW</span><strong>{names[state.winner]}</strong><small>has the first visit</small></div>
+              <button onClick={onContinue} disabled={busy}>Start game <ArrowRight size={17} aria-hidden="true" /></button>
             </div>
-            <button onClick={onContinue} disabled={busy} style={{ width: "100%", padding: "14px 0", borderRadius: 12, border: "none", fontFamily: "Oswald, sans-serif", fontWeight: 900, fontSize: "0.88rem",
-              background: "linear-gradient(135deg, #ff005c, #cc0048)", color: "#fff", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.14em" }}>
-              Start Game →
-            </button>
-          </>
-        )}
+          )}
+          <footer className="bullup-footer"><span>TKDL CAREER TOUR</span><i /> NEAREST TO THE BULL THROWS FIRST</footer>
+        </main>
       </div>
     </div>
   );
