@@ -14,7 +14,8 @@ import { createCareerLegacyService } from "../../src/career/legacy/service.ts";
 import { createShadowObservations } from "../../src/db/migrations/create_shadow_observations_sb21a.ts";
 
 export async function auditDatabase() {
-  const pg = new PGlite();
+  // AUDIT_PGDATA=dir keeps the audit database on disk (long world runs exceed memory in-process).
+  const pg = process.env.AUDIT_PGDATA ? new PGlite(process.env.AUDIT_PGDATA) : new PGlite();
   const db = drizzle(pg);
   await pg.exec(`CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1) ON CONFLICT DO NOTHING;
     CREATE TABLE IF NOT EXISTS feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
