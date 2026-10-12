@@ -85,8 +85,8 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
         <SeasonOneGuidance saveId={id} />
                 <details className="career-note" open><summary>Establishment season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 6
-          ? "Choose your own amateur path. This season the Challenger Tour is open to every player without a Tour Card: finish in its top 2 to earn a Tour Card for Season 2, or 3rd–10th to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–3 of Season 2. Turning professional is optional."
-          : "Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional."}</p></details>}
+          ? `Choose your own amateur path. This season the Challenger Tour is open to every player without a Tour Card: finish in its top 2 to earn a Tour Card for Season 2, or ${(save.eventDatabaseVersion ?? 0) >= 8 ? "3rd–16th" : "3rd–10th"} to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–3 of Season 2. Turning professional is optional.`
+          : "Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional."}</p></details>
       </>}
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
@@ -140,6 +140,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
             events={qualification.data?.events ?? []}
             hasCard={sporting.data?.tourCard.holdsCard ?? false}
             card={sporting.data?.tourCard.current ?? null}
+            worldPosition={sporting.data?.worldRanking.standing?.position ?? null}
             saveId={id}
           />
         </CareerSection>
@@ -218,14 +219,22 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
   );
 }
 
-function RouteObjective({ loading, error, retry, events, hasCard, card, saveId }: {
+/** Where the player stands against the Tour Card retention cut, in plain words. */
+export const retentionStatus = (card: { retention: { maxPosition: number } }, position: number | null) =>
+  position === null ? "You are not on the World Ranking yet."
+    : position === card.retention.maxPosition ? `You are ${ordinal(position)} — exactly on the cut line.`
+    : position < card.retention.maxPosition ? `You are ${ordinal(position)} — inside the cut with ${card.retention.maxPosition - position} place${card.retention.maxPosition - position === 1 ? "" : "s"} to spare.`
+    : `You are ${ordinal(position)} — ${position - card.retention.maxPosition} place${position - card.retention.maxPosition === 1 ? "" : "s"} outside the cut.`;
+
+function RouteObjective({ loading, error, retry, events, hasCard, card, worldPosition = null, saveId }: {
   loading: boolean; error: unknown; retry: () => void; events: QualificationEvent[]; hasCard: boolean;
-  card: { reviewSeason: number; retention: { maxPosition: number } } | null; saveId: string;
+  card: { reviewSeason: number; retention: { maxPosition: number }; inFinalSeason?: boolean } | null; worldPosition?: number | null; saveId: string;
 }) {
   if (loading) return <CareerLoading label="Checking qualification routes" />;
   if (error) return <CareerError error={error} onRetry={retry} />;
   if (hasCard && card) return <div className="home-objective">
-    <span className="home-objective-icon"><Flag aria-hidden /></span><div><span className="home-objective-label">TOUR CARD RETENTION</span><h3>Hold position {ordinal(card.retention.maxPosition)} or higher</h3><p>Review at the end of Season {card.reviewSeason}. Your current published ranking is the sporting evidence.</p></div>
+    <span className="home-objective-icon"><Flag aria-hidden /></span><div><span className="home-objective-label">TOUR CARD RETENTION</span><h3>Finish Season {card.reviewSeason} in the World top {card.retention.maxPosition}</h3>
+      <p>{retentionStatus(card, worldPosition)} The World Ranking is prize money over the last two seasons. {card.inFinalSeason ? "This is the final season of your card." : "Your card runs for two seasons, so this season counts towards the review without deciding it."} Missing the cut is not the end: you keep playing the Challenger ranking and go straight into the Q-School Final Stage.</p></div>
     <Link href={`/career/${saveId}/rankings`} className="home-objective-link">Rankings <ArrowUpRight aria-hidden /></Link>
   </div>;
   const sorted = [...events].sort((a, b) => a.startWeek - b.startWeek);

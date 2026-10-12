@@ -55,6 +55,8 @@ export const CAREER_SIMULATION_CONFIG = {
   singleBase: 0.45, singleWeight: 0.004,
   doubleBase: 0.045, doubleWeight: 0.0045, bullBase: 0.025, bullWeight: 0.0025,
   minimumHit: 0.03, maximumHit: 0.92, doubleMissSingleShare: 0.55,
+  /** Soft-tip: fat-bull hit chance relative to a double (the whole bull counts 50). */
+  fatBullFactor: 1.6,
   clutchWeight: 0.035, clutchNeutral: 50,
   momentumLimit: 1.8, momentumDecay: 0.8, maximumMomentum: 0.5,
   largeCheckoutMomentum: 0.5, breakMomentum: 0.4, missedDoubleMomentum: 0.08,

@@ -14,6 +14,8 @@ export type X01RecoveryState = {
   p1Stats: X01StatsAccumulator; p2Stats: X01StatsAccumulator;
   /** A6.5 (optional, absent in older snapshots): leg counters and the canonical dart log. */
   legNo?: number; legInSet?: number; dartLog?: Dart[];
+  /** Soft-tip round-limit cork in progress (optional). */
+  cork?: { starter: 0 | 1; throws: ("INNER" | "OUTER" | "MISS")[] } | null;
 };
 
 export type CricketMarks = [[number, number, number, number, number, number, number], [number, number, number, number, number, number, number]];

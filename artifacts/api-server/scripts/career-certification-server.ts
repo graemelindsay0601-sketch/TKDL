@@ -228,6 +228,12 @@ router.use(createCareerCalendarRouter(sporting.calendar, available));
 router.use(createCareerRouter(saves));
 app.use("/api/career", router);
 app.get("/__cert/state", (_req, res) => { res.json(state); });
+// Dev only: make one live match's opponent miss everything, so a soft-tip leg reaches its round limit (cork check).
+app.post("/__cert/fund/:saveId", async (req, res) => { await fund(String(req.params.saveId), 500000); res.json({ ok: true }); });
+app.post("/__cert/weak-bot/:matchId", async (req, res) => {
+  await db.execute(sql`UPDATE career_match_sessions SET bot_config = '{"avg":3,"sd":1,"checkoutPct":0,"hitAcc":0.3}'::jsonb WHERE match_id = ${req.params.matchId}`);
+  res.json({ ok: true });
+});
 // Minimal non-Career stubs so the TKDL shell renders with the fixture player signed in.
 app.get("/api/startup", (_req, res) => { res.json({ ready: true, phase: "READY" }); });
 app.get("/api/auth/me", (_req, res) => { res.json({ id: 1, username: "certification", isAdmin: false, playerId: 1, playerName: "Certification Player", lastLoginAt: null }); });

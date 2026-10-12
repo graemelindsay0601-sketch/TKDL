@@ -5,7 +5,7 @@ import { CALENDAR_GENERATION_VERSION } from "../calendar/config.ts";
 import { zoneOf } from "../calendar/geography.ts";
 import { BOOTSTRAP_STATUS } from "../calendar/providers.ts";
 import { stableUuid } from "../world/random.ts";
-import { TOUR_CARD_RULES_V1, PATHWAY_FOR_ZONE } from "./config.ts";
+import { TOUR_CARD_RULES_V1, PATHWAY_FOR_ZONE, tourCardRulesFor } from "./config.ts";
 import { recordMilestones, type Milestone } from "./state.ts";
 
 export type CardSource = "FOUNDING" | "Q_SCHOOL_DIRECT" | "Q_SCHOOL_ORDER_OF_MERIT" | "RANKING_RETENTION" | "CHALLENGER_RANKING";
@@ -101,7 +101,7 @@ export async function issueFoundingCards(tx: CareerExecutor, root: RootRow, rule
 export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersion: number, season: number) {
   const state = (await tx.execute(sql`SELECT reviewed_season FROM career_sporting_state WHERE career_save_id = ${root.id} FOR UPDATE`)).rows[0];
   if (!state || Number(state.reviewed_season) >= season) return null;
-  const rules = TOUR_CARD_RULES_V1, week = 52;
+  const rules = tourCardRulesFor(rulesVersion), week = 52;
   const position = async (list: string) => new Map((await tx.execute(sql`SELECT participant_key, current_position FROM career_ranking_participants
     WHERE career_save_id = ${root.id} AND list_key = ${list} AND current_position IS NOT NULL`)).rows.map(r => [String(r.participant_key), Number(r.current_position)]));
   const world = await position(rules.retention.list);
@@ -154,6 +154,15 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
       grants.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "entitlement", idempotency), idempotency_key: idempotency, recipient_key: participant,
         recipient_kind: e.kind, npc_id: e.npc, entitlement_type: "STAGE_ENTRY", source_event_id: null, source_position: null,
         source_detail: { providerId: "A5_SPORTING", reason: e.reason, pathway, ...e.detail }, target_key: `q-school-final:${pathway}`, target_season: season + 1, consumption: "SEASON_PASS" });
+    }
+    // v2: the next eight on the Challenger ranking also earn a place at next season's Open Championship.
+    const open = rules.openChampionshipPlaces;
+    if (open) for (const [participant, rank] of challenger) if (rank >= open.positions[0] && rank <= open.positions[1] && !holdersNext.has(participant)) {
+      const who = kinds.get(participant)!;
+      const idempotency = `provider:a5-open-championship-place:${season + 1}:${participant}`;
+      grants.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "entitlement", idempotency), idempotency_key: idempotency, recipient_key: participant,
+        recipient_kind: who.kind, npc_id: who.npc, entitlement_type: "EVENT_ENTRY", source_event_id: null, source_position: null,
+        source_detail: { providerId: "A5_SPORTING", reason: "CHALLENGER_RANKING", position: rank }, target_key: open.targetKey, target_season: season + 1, consumption: "SINGLE_USE" });
     }
     if (grants.length) await insertEntitlements(tx, root.id, season, grants, "PROVIDER");
     summary.exemptions = grants.length;

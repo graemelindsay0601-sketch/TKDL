@@ -11,6 +11,8 @@
  * authored first-throw method) and throws first in leg 1 of set 1.
  */
 
+import { resolveBullUp, type BullThrow } from "./bull-up.ts";
+
 export type Dart = { segment: number; multiplier: 1 | 2 | 3; value: number; label?: string; ring?: "inner" | "outer" };
 export type PlayerIdx = 0 | 1;
 export type InRule = "STRAIGHT" | "DOUBLE" | "MASTER";
@@ -22,9 +24,17 @@ export type OutRule = "STRAIGHT" | "DOUBLE" | "MASTER" | "TREBLE" | "BULL";
  * SETS: best of `bestOfSets` sets, each set best of `bestOfLegsPerSet` legs.
  * Never confuse best-of with "to win": bestOfSets 5 means 3 sets to win.
  */
-export type X01Format =
+/**
+ * Soft-tip (electronic board) options, absent for steel-tip:
+ *  - bull "FAT": the outer and inner bull both score 50 and both count as a finishing (and opening) dart;
+ *  - roundLimit: if neither player has checked out after this many visits each, the leg is decided by a
+ *    cork (one dart each at the bull, nearest wins; same ring = re-throw in reverse order), as in the
+ *    DARTSLIVE rulebook. The leg starter corks first.
+ */
+export type SoftTipRules = { bull?: "STANDARD" | "FAT"; roundLimit?: number };
+export type X01Format = SoftTipRules & (
   | { startingScore: number; inRule: InRule; outRule: OutRule; unit: "LEGS"; bestOfLegs: number }
-  | { startingScore: number; inRule: InRule; outRule: OutRule; unit: "SETS"; bestOfSets: number; bestOfLegsPerSet: number };
+  | { startingScore: number; inRule: InRule; outRule: OutRule; unit: "SETS"; bestOfSets: number; bestOfLegsPerSet: number });
 
 export const MISS: Dart = Object.freeze({ segment: 0, multiplier: 1, value: 0, label: "Miss" }) as Dart;
 export const other = (p: PlayerIdx): PlayerIdx => (p === 0 ? 1 : 0);
@@ -38,6 +48,8 @@ export function validateFormat(format: X01Format): X01Format {
   if (format.unit === "LEGS") { if (!odd(format.bestOfLegs)) throw new Error("bestOfLegs must be odd"); }
   else if (format.unit === "SETS") { if (!odd(format.bestOfSets) || !odd(format.bestOfLegsPerSet)) throw new Error("Set best-of values must be odd"); }
   else throw new Error("Invalid scoring unit");
+  if (format.bull !== undefined && !["STANDARD", "FAT"].includes(format.bull)) throw new Error("Invalid bull rule");
+  if (format.roundLimit !== undefined && !(Number.isInteger(format.roundLimit) && format.roundLimit >= 1 && format.roundLimit <= 50)) throw new Error("Invalid round limit");
   return format;
 }
 
@@ -97,7 +109,9 @@ export type VisitRecord = {
   /** Whether the thrower was already opened when this visit began (double-in). */
   startOpened: boolean;
 };
-export type LegRecord = { setNo: number; legNo: number; legInSet: number; starter: PlayerIdx; winner: PlayerIdx; darts: [number, number]; checkout: number };
+export type LegRecord = { setNo: number; legNo: number; legInSet: number; starter: PlayerIdx; winner: PlayerIdx; darts: [number, number]; checkout: number; cork?: boolean };
+/** A round-limit cork in progress: throws in order (leg starter first; re-throws reverse the order). */
+export type CorkState = { starter: PlayerIdx; throws: BullThrow[]; darts: Dart[] };
 
 export type X01MatchState = {
   format: X01Format; firstThrower: PlayerIdx;
@@ -108,11 +122,15 @@ export type X01MatchState = {
   legs: [number, number]; sets: [number, number]; totalLegs: [number, number];
   visit: { thrower: PlayerIdx; darts: Dart[]; startScore: number; startOpened: boolean } | null;
   visits: VisitRecord[]; legsLog: LegRecord[];
+  /** Soft-tip round limit reached: the leg is being decided by a cork. */
+  cork: CorkState | null;
+  /** Cork darts of completed legs (kept apart from visits so averages are unaffected). */
+  corkLog: { legNo: number; darts: Dart[] }[];
   dartsThrown: number; legDarts: [number, number];
   complete: boolean; winner: PlayerIdx | null;
 };
 
-export type DartOutcome = "UNOPENED" | "OPENED" | "SCORED" | "VISIT_END" | "BUST" | "LEG_WON" | "SET_WON" | "MATCH_WON";
+export type DartOutcome = "UNOPENED" | "OPENED" | "SCORED" | "VISIT_END" | "BUST" | "LEG_WON" | "SET_WON" | "MATCH_WON" | "ROUND_LIMIT" | "CORK";
 
 export function createMatch(format: X01Format, firstThrower: PlayerIdx): X01MatchState {
   validateFormat(format);
@@ -122,7 +140,7 @@ export function createMatch(format: X01Format, firstThrower: PlayerIdx): X01Matc
     format, firstThrower, setNo: 1, legNo: 1, legInSet: 1,
     setStarter: firstThrower, legStarter: firstThrower, turn: firstThrower,
     scores: [format.startingScore, format.startingScore], opened: [open, open],
-    legs: [0, 0], sets: [0, 0], totalLegs: [0, 0], visit: null, visits: [], legsLog: [],
+    legs: [0, 0], sets: [0, 0], totalLegs: [0, 0], visit: null, visits: [], legsLog: [], cork: null, corkLog: [],
     dartsThrown: 0, legDarts: [0, 0], complete: false, winner: null,
   };
 }
@@ -132,7 +150,28 @@ const copy = (s: X01MatchState): X01MatchState => ({
   legs: [...s.legs] as [number, number], sets: [...s.sets] as [number, number], totalLegs: [...s.totalLegs] as [number, number],
   legDarts: [...s.legDarts] as [number, number],
   visit: s.visit ? { ...s.visit, darts: [...s.visit.darts] } : null, visits: s.visits.slice(), legsLog: s.legsLog.slice(),
+  cork: s.cork ? { ...s.cork, throws: [...s.cork.throws], darts: [...s.cork.darts] } : null, corkLog: s.corkLog.slice(),
 });
+
+/** Fat bull: any bull is scored as the 50, which also finishes (and opens) like a double. */
+export const normaliseDart = (d: Dart, format: Pick<X01Format, "bull">): Dart =>
+  format.bull === "FAT" && d.segment === 25 && d.multiplier === 1 ? { segment: 25, multiplier: 2, value: 50, label: "Bull" } : d;
+/** A cork dart is recorded as a bull dart: inner (50), outer (25) or a miss. */
+export const corkDart = (t: BullThrow): Dart => t === "INNER" ? { segment: 25, multiplier: 2, value: 50, label: "DB" } : t === "OUTER" ? { segment: 25, multiplier: 1, value: 25, label: "Bull" } : { segment: 0, multiplier: 1, value: 0, label: "Miss" };
+const corkThrow = (d: Dart): BullThrow => d.segment === 25 ? (d.multiplier === 2 ? "INNER" : "OUTER") : "MISS";
+
+/** Close the visit, then start a cork when both players have used the leg's round limit. */
+function endVisit(s: X01MatchState, p: PlayerIdx, bust: boolean): DartOutcome {
+  closeVisit(s, { bust, checkout: false });
+  s.turn = other(p);
+  const limit = s.format.roundLimit;
+  if (limit && ([0, 1] as PlayerIdx[]).every(q => s.visits.filter(v => v.legNo === s.legNo && v.thrower === q).length >= limit)) {
+    s.cork = { starter: s.legStarter, throws: [], darts: [] };
+    s.turn = s.legStarter;
+    return "ROUND_LIMIT";
+  }
+  return bust ? "BUST" : "VISIT_END";
+}
 
 /**
  * Starter convention (professional darts): legs alternate; in set play the first
@@ -156,11 +195,22 @@ function closeVisit(s: X01MatchState, opts: { bust: boolean; checkout: boolean }
 /** Apply one dart. Throws on an invalid dart or a dart after the match is over. */
 export function throwDart(prev: X01MatchState, input: unknown): { state: X01MatchState; outcome: DartOutcome } {
   if (prev.complete) throw new Error("Match is already complete");
-  const dart = validateDart(input);
-  if (!dart) throw new Error("Invalid dart");
+  const raw = validateDart(input);
+  if (!raw) throw new Error("Invalid dart");
   const s = copy(prev);
   const f = s.format;
   const p = s.turn;
+  if (s.cork) {
+    // Cork: one dart each at the bull (the board's segment is ignored; only the bull rings count).
+    if (raw.segment !== 0 && raw.segment !== 25) throw new Error("A cork dart is recorded as inner bull, outer bull or a miss");
+    s.cork.throws.push(corkThrow(raw)); s.cork.darts.push(raw); s.dartsThrown++;
+    const result = resolveBullUp(s.cork.starter, s.cork.throws);
+    if (result.winner === null) { s.turn = result.nextThrower!; return { state: s, outcome: "CORK" }; }
+    s.corkLog.push({ legNo: s.legNo, darts: s.cork.darts });
+    s.cork = null;
+    return { state: s, outcome: finishLeg(s, result.winner, true) };
+  }
+  const dart = normaliseDart(raw, f);
   if (!s.visit) s.visit = { thrower: p, darts: [], startScore: s.scores[p], startOpened: s.opened[p] };
   s.visit.darts.push(dart);
   s.dartsThrown++; s.legDarts[p]++;
@@ -169,7 +219,7 @@ export function throwDart(prev: X01MatchState, input: unknown): { state: X01Matc
   if (!s.opened[p]) {
     if (!opensLeg(dart, f.inRule)) {
       // Dart order matters: a non-opening dart scores nothing, whatever follows.
-      if (s.visit.darts.length === 3) { closeVisit(s, { bust: false, checkout: false }); s.turn = other(p); return { state: s, outcome: "VISIT_END" }; }
+      if (s.visit.darts.length === 3) return { state: s, outcome: endVisit(s, p, false) };
       return { state: s, outcome: "UNOPENED" };
     }
     s.opened[p] = true; // the opening dart itself scores
@@ -179,23 +229,22 @@ export function throwDart(prev: X01MatchState, input: unknown): { state: X01Matc
   const remaining = s.scores[p] - dart.value;
   if (remaining < 0 || isDeadScore(remaining, f.outRule) || (remaining === 0 && !isValidFinish(dart, f.outRule))) {
     s.scores[p] = remaining; // transient; closeVisit restores the start-of-visit score
-    closeVisit(s, { bust: true, checkout: false });
-    s.turn = other(p);
-    return { state: s, outcome: "BUST" };
+    return { state: s, outcome: endVisit(s, p, true) };
   }
   s.scores[p] = remaining;
   if (remaining === 0) {
     closeVisit(s, { bust: false, checkout: true });
     return { state: s, outcome: finishLeg(s, p) };
   }
-  if (s.visit.darts.length === 3) { closeVisit(s, { bust: false, checkout: false }); s.turn = other(p); return { state: s, outcome: "VISIT_END" }; }
+  if (s.visit.darts.length === 3) return { state: s, outcome: endVisit(s, p, false) };
   return { state: s, outcome };
 }
 
-function finishLeg(s: X01MatchState, winner: PlayerIdx): DartOutcome {
+function finishLeg(s: X01MatchState, winner: PlayerIdx, cork = false): DartOutcome {
   const f = s.format;
   const checkoutVisit = s.visits[s.visits.length - 1];
-  s.legsLog.push({ setNo: s.setNo, legNo: s.legNo, legInSet: s.legInSet, starter: s.legStarter, winner, darts: [...s.legDarts] as [number, number], checkout: checkoutVisit.startScore });
+  s.legsLog.push({ setNo: s.setNo, legNo: s.legNo, legInSet: s.legInSet, starter: s.legStarter, winner, darts: [...s.legDarts] as [number, number],
+    checkout: cork ? 0 : checkoutVisit.startScore, ...(cork ? { cork: true } : {}) });
   s.legs[winner]++; s.totalLegs[winner]++;
   let outcome: DartOutcome = "LEG_WON";
   if (f.unit === "LEGS") {
@@ -228,6 +277,7 @@ export function replay(format: X01Format, firstThrower: PlayerIdx, darts: readon
 export function settledDartCount(state: X01MatchState): number {
   let n = 0;
   for (const v of state.visits) if (v.legNo < state.legNo || state.complete) n += v.darts.length;
+  for (const c of state.corkLog) n += c.darts.length;
   return n;
 }
 
@@ -235,6 +285,7 @@ export function settledDartCount(state: X01MatchState): number {
 export const visitsBy = (state: X01MatchState, player: PlayerIdx) => state.visits.filter(v => v.thrower === player).length + (state.visit?.thrower === player ? 1 : 0);
 
 export function describeFormat(f: X01Format): string {
-  const rules = `${f.startingScore} ${f.inRule === "STRAIGHT" ? "straight-in" : f.inRule === "DOUBLE" ? "double-in" : "master-in"} ${f.outRule.toLowerCase()}-out`;
+  const rules = `${f.startingScore} ${f.inRule === "STRAIGHT" ? "straight-in" : f.inRule === "DOUBLE" ? "double-in" : "master-in"} ${f.outRule.toLowerCase()}-out`
+    + (f.bull === "FAT" ? ", fat bull" : "") + (f.roundLimit ? `, ${f.roundLimit}-round limit (cork decides)` : "");
   return f.unit === "LEGS" ? `${rules}, best of ${f.bestOfLegs} legs` : `${rules}, best of ${f.bestOfSets} sets (best of ${f.bestOfLegsPerSet} legs per set)`;
 }

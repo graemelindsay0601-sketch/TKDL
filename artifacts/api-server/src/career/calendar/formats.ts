@@ -34,6 +34,10 @@ export const eventFormatSchema = z.object({
   sideSize: z.union([z.literal(1), z.literal(2)]),
   /** A2 match context category used for NPC simulation pressure. */
   matchContext: z.enum(["local", "floor", "stage", "qualifier", "major"]),
+  /** Soft-tip (electronic board) rules; absent for steel-tip. FAT: both bulls score 50 and finish. */
+  bull: z.enum(["STANDARD", "FAT"]).optional(),
+  /** Soft-tip round limit per leg; a cork at the bull decides a leg nobody has finished. */
+  roundLimit: z.number().int().min(5).max(30).optional(),
 }).strict();
 export type EventFormat = z.infer<typeof eventFormatSchema>;
 
@@ -62,7 +66,10 @@ export function assessCapability(format: EventFormat, allowGroups = false): Capa
   else {
     if (format.startingScore === null || format.startingScore < 101 || format.startingScore > 1001) reasons.push("STARTING_SCORE");
     if (format.inRule !== "STRAIGHT" && format.inRule !== "DOUBLE") reasons.push("IN_RULE");
-    if (format.outRule !== "DOUBLE") reasons.push("OUT_RULE");
+    // Master out runs end to end only as the soft-tip ruleset (fat bull + round limit), which both the
+    // shared scorer and A2 implement; other master-out identities stay benched.
+    const softTip = format.outRule === "MASTER" && format.bull === "FAT" && !!format.roundLimit && format.inRule === "STRAIGHT" && format.scoringUnit === "LEGS";
+    if (format.outRule !== "DOUBLE" && !softTip) reasons.push("OUT_RULE");
   }
   if (format.scoringUnit === "SETS" && !(format.legsPerSet && format.legsPerSet % 2 === 1)) reasons.push("SET_PLAY");
   if (format.sideSize !== 1) reasons.push("PAIRS");
@@ -75,17 +82,21 @@ export function assessCapability(format: EventFormat, allowGroups = false): Capa
 
 /** A3 format -> A2 match format for one match (best-of from the bracket row). */
 export function a2MatchFormat(format: EventFormat, bestOf: number, firstThrow: 0 | 1) {
-  const base: { bestOf: number; firstThrow: 0 | 1; startingScore?: number; inRule?: "STRAIGHT" | "DOUBLE"; unit?: "LEGS" | "SETS"; legsPerSet?: number } = { bestOf, firstThrow };
+  const base: { bestOf: number; firstThrow: 0 | 1; startingScore?: number; inRule?: "STRAIGHT" | "DOUBLE"; unit?: "LEGS" | "SETS"; legsPerSet?: number;
+    outRule?: "MASTER"; bull?: "FAT"; roundLimit?: number } = { bestOf, firstThrow };
   // Omit defaults so legacy 501 straight-in legs requests stay byte-identical.
   if (format.startingScore !== null && format.startingScore !== 501) base.startingScore = format.startingScore;
   if (format.inRule === "DOUBLE") base.inRule = "DOUBLE";
   if (format.scoringUnit === "SETS") { base.unit = "SETS"; base.legsPerSet = format.legsPerSet!; }
+  if (format.outRule === "MASTER" && format.bull === "FAT" && format.roundLimit) { base.outRule = "MASTER"; base.bull = "FAT"; base.roundLimit = format.roundLimit; }
   return base;
 }
 
 /** A3 format -> shared live-scorer format for one match. */
 export function liveMatchFormat(format: EventFormat, bestOf: number) {
-  const common = { startingScore: format.startingScore ?? 501, inRule: (format.inRule ?? "STRAIGHT") as "STRAIGHT" | "DOUBLE", outRule: "DOUBLE" as const };
+  const soft = format.outRule === "MASTER" && format.bull === "FAT" && !!format.roundLimit;
+  const common = { startingScore: format.startingScore ?? 501, inRule: (format.inRule ?? "STRAIGHT") as "STRAIGHT" | "DOUBLE",
+    outRule: (soft ? "MASTER" : "DOUBLE") as "MASTER" | "DOUBLE", ...(soft ? { bull: "FAT" as const, roundLimit: format.roundLimit } : {}) };
   return format.scoringUnit === "SETS"
     ? { ...common, unit: "SETS" as const, bestOfSets: bestOf, bestOfLegsPerSet: format.legsPerSet! }
     : { ...common, unit: "LEGS" as const, bestOfLegs: bestOf };
@@ -101,6 +112,13 @@ export const bestOfForRound = (format: EventFormat, round: number, totalRounds: 
 export const knockout501 = (bestOfByRound: number[], matchContext: EventFormat["matchContext"], days = 1, firstThrowMethod: EventFormat["firstThrowMethod"] = "BULL_UP"): EventFormat => ({
   gameType: "X01", startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", scoringUnit: "LEGS", legsPerSet: null,
   structure: "KNOCKOUT", stages: [{ key: "main", kind: "KNOCKOUT", bestOfByRound }], days, firstThrowMethod, sideSize: 1, matchContext,
+});
+/**
+ * Soft-tip 501 (DARTSLIVE-style): open in, master out (double, treble or bull), fat bull, and a 15-round
+ * limit per leg with a cork deciding an unfinished leg.
+ */
+export const softTip501 = (bestOfByRound: number[], matchContext: EventFormat["matchContext"], days = 1): EventFormat => ({
+  ...knockout501(bestOfByRound, matchContext, days), outRule: "MASTER", bull: "FAT", roundLimit: 15,
 });
 export const setsKnockout501 = (setsByRound: number[], legsPerSet: number, matchContext: EventFormat["matchContext"], days: number, inRule: "STRAIGHT" | "DOUBLE" = "STRAIGHT"): EventFormat => ({
   gameType: "X01", startingScore: 501, inRule, outRule: "DOUBLE", scoringUnit: "SETS", legsPerSet,

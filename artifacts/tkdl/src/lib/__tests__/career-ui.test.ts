@@ -720,3 +720,12 @@ test("Career C/D integration keeps the world directory routes and wires news, pr
   assert.match(world,/Rivalries & H2H/);
   assert.match(news,/world\/news\/\$\{encodeURIComponent\(story\.id\)\}/);
 });
+
+test("Tour Card retention status is stated in plain words against the top-64 cut", async () => {
+  const { retentionStatus } = M;
+  const card = { retention: { maxPosition: 64 } };
+  assert.equal(retentionStatus(card, null), "You are not on the World Ranking yet.");
+  assert.equal(retentionStatus(card, 60), "You are 60th — inside the cut with 4 places to spare.");
+  assert.equal(retentionStatus(card, 64), "You are 64th — exactly on the cut line.");
+  assert.equal(retentionStatus(card, 65), "You are 65th — 1 place outside the cut.");
+});

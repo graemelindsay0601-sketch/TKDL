@@ -3,7 +3,7 @@ export const CAREER_VERSIONS = Object.freeze({
   careerSchemaVersion: 1,
   worldGenerationVersion: 1,
   /** v7 regional ladders & tours edition for new saves only; existing roots keep their pins. */
-  eventDatabaseVersion: 7,
+  eventDatabaseVersion: 8,
   playerDatabaseVersion: 2,
 });
 

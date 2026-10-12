@@ -199,7 +199,7 @@ export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
   teamNames, playerNames, soloMode, bullUp, scorerThemeColor, teamTurnOrder,
-  onLiveState, initialRecovery, onRecoveryState, firstThrower, botVisitPlanner, onDartLog,
+  onLiveState, initialRecovery, onRecoveryState, firstThrower, botVisitPlanner, botCorkPlanner, onDartLog,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -233,6 +233,8 @@ export function GameScorer({
   firstThrower?: 0 | 1;
   /** X01 only: deterministic bot visits (Career). */
   botVisitPlanner?: (ctx: { remaining: number; opened: boolean }) => Dart[];
+  /** Soft-tip: the bot's seeded cork dart for a round-limit leg (Career). */
+  botCorkPlanner?: (ctx: { legNo: number; throwIndex: number }) => Dart;
   /** X01 only: canonical dart log of the match after every dart/undo. */
   onDartLog?: (darts: Dart[]) => void;
 }) {
@@ -315,7 +317,7 @@ export function GameScorer({
     case "X01":
       return <X01Scorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
         initialRecovery={initialRecovery?.engine === "X01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportX01Recovery : undefined}
-        firstThrower={starterIdx} botVisitPlanner={botVisitPlanner} onDartLog={onDartLog} />;
+        firstThrower={starterIdx} botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog} />;
 
     case "Cricket":
       return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}

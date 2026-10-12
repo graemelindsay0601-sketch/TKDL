@@ -7,7 +7,7 @@ import { DartInputBoard, VisitDarts, CHECKOUTS, type Dart } from "./dartboard";
 import { AlertTriangle, Trophy, Zap, RotateCcw, Target, Crosshair, Maximize, Minimize, Shuffle, Grid3X3, Dices, Rabbit, Lock, Swords, Ship, EyeOff, Footprints, Award, PawPrint, ArrowDownToLine, LayoutGrid, Flame } from "lucide-react";
 import { type BotConfig, botX01Visit, botCricketVisit, botSequenceVisit, botHareHoundsVisit, botHalveItVisit, botCountUpVisit, botFootballVisit, botGolfVisit, botKillerVisit, botGotchaVisit, botBaseballVisit, botScramVisit, botJDCVisit, botExponentialVisit, botShootingGalleryDart, botHighLowVisit, getOppositeSeg, botPickADoubleVisit, botNoughtsCrossesDart, botOcheRouletteVisit, botOneEightyVisit, botFivesVisit, botTennisVisit, botBattleshipShot, botBlindKillerVisit, botDonkeyDerbyVisit, botLimboVisit, botSnakesLaddersDart, botQuackshotVisit, botFightGameVisit, BOARD_ORDER } from "./bot-engine";
 import { type PracticeStats, type DartThrow } from "./stats-types";
-import { starterFor, opensLeg } from "./darts-rules";
+import { starterFor, opensLeg, resolveBullUp, corkDart, botBullThrow, type BullThrow } from "./darts-rules";
 import type { X01StatsAccumulator, X01RecoveryState, CricketMarks, CricketUndoSnapshot, CricketRecoveryState, TeamX01RecoveryState, TeamCricketRecoveryState } from "./scorer-recovery";
 import { CardActivationOverlay } from "@/components/CardActivationOverlay";
 import { ChaosCardReveal } from "@/components/ChaosCardReveal";
@@ -664,7 +664,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
 export type LiveScoreState = { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string };
 
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, botVisitPlanner, onDartLog }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, botVisitPlanner, botCorkPlanner, onDartLog }: {
   p1Name: string; p2Name: string;
   config: {
     startingScore: number;
@@ -674,7 +674,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // additive — a config without these behaves exactly as before.
     p1StartingScore?: number;
     p2StartingScore?: number;
-    doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number
+    doubleIn?: boolean; doubleOut?: boolean; trebleOut?: boolean; masterOut?: boolean; bullFinish?: boolean; noTrebles?: boolean; legs?: number; bustResetTo?: number;
+    /** Soft-tip: both bulls score 50 (and finish), and a per-leg round limit is decided by a cork at the bull. */
+    fatBull?: boolean; roundLimit?: number
   };
   botConfig?: BotConfig;
   onWin: (w: 0 | 1, detail?: string) => void; onAbandon: () => void;
@@ -716,9 +718,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   botVisitPlanner?: (ctx: { remaining: number; opened: boolean }) => Dart[];
   /** Every dart thrown in the match, in order (after undo). The canonical log the shared rules replay. */
   onDartLog?: (darts: Dart[]) => void;
+  /** Soft-tip cork: the bot's seeded cork dart (Career); defaults to a bull throw from the bot's accuracy. */
+  botCorkPlanner?: (ctx: { legNo: number; throwIndex: number }) => Dart;
 }) {
   const safeTimeout = useSafeTimeout();
-  const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo } = config;
+  const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo, fatBull = false, roundLimit } = config;
   const legs = legsProp ?? configLegs;
   const setsNeeded  = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded  = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
@@ -749,6 +753,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   const pushDartLog = (darts: Dart[]) => { dartLogRef.current = darts; onDartLog?.(darts); };
   const visitStartOpenedRef         = useRef<boolean>(true);
   const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
+  /** Soft-tip round-limit cork in progress (leg starter throws first; same ring re-throws in reverse order). */
+  // `decided` holds the cork (so the bot stays idle) until the next leg actually begins.
+  const [cork, setCork]             = useState<{ starter: 0 | 1; throws: BullThrow[]; decided?: boolean } | null>(() => initialRecovery?.cork ?? null);
   const [bust, setBust]             = useState(false);
   const [bustMsg, setBustMsg]       = useState("");
   const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
@@ -883,11 +890,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     if (visitDarts.length > 0 && scores[turn] - visitTotal === 0) return; // winning dart is awaiting its leg/match transition
     recoveryCallbackRef.current?.({
-      scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, legNo, legInSet, dartLog: [...dartLogRef.current],
+      scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, legNo, legInSet, dartLog: [...dartLogRef.current], cork,
       p1Stats: { ...p1StatsRef.current, dartLog: [...p1StatsRef.current.dartLog] },
       p2Stats: { ...p2StatsRef.current, dartLog: [...p2StatsRef.current.dartLog] },
     });
-  }, [scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, bust, legNo, legInSet]);
+  }, [scores, legWins, setWins, legHistory, started, turn, legStarter, visitDarts, history, bust, legNo, legInSet, cork]);
 
   // Visit-score milestone buckets are cumulative, not exclusive — a 180 visit
   // is also a 170+, 140+, and 100+ visit, same convention real darts stats use.
@@ -1148,7 +1155,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // the retry logic sets visitDarts to length 3 intending a 4th dart next,
     // but this guard used to see length >= 3 and swallow every further tap,
     // permanently stalling the turn.
-    if (bust || visitDarts.length >= 3 + freeRetriesUsed[turn]) return;
+    if (bust || cork || visitDarts.length >= 3 + freeRetriesUsed[turn]) return;
 
     matchLoggerRef.current.log("dart_thrown", { player: turn, segment: dart.segment, multiplier: dart.multiplier, value: dart.value, label: dart.label, remainingBefore: scores[turn] });
     if (visitDarts.length === 0) visitStartOpenedRef.current = started[turn];
@@ -1165,6 +1172,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // No-trebles variant: treble ring counts as a single
     if (noTrebles && dart.multiplier === 3) {
       dart = { ...dart, multiplier: 1 as const, value: dart.segment, label: String(dart.segment) };
+    }
+    // Soft-tip fat bull: the outer bull is the 50 too (recorded as the 50 so the shared rules agree).
+    if (fatBull && dart.segment === 25 && dart.multiplier === 1) {
+      dart = { segment: 25, multiplier: 2 as const, value: 50, label: "Bull" };
     }
     pushDartLog([...dartLogRef.current, dart]);
 
@@ -1347,7 +1358,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       return;
     }
     // Score of 1 is unreachable in double-out (minimum finish is D1 = 2) — bust immediately
-    if (rem === 1 && doubleOut) {
+    if (rem === 1 && (doubleOut || masterOut)) {
       if (turn === 0) p1StatsRef.current.darts += nv.length;
       if (turn === 1 && isHumanVsHuman) p2StatsRef.current.darts += nv.length;
       triggerBust(nv, "BUST — can't leave 1!");
@@ -1471,11 +1482,43 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       if (isCardClash) setActiveEffects(prev => ccExpireOnTurnEnd(prev, turn));
       setTurn(t => soloMode ? 0 : (t===0?1:0));
     }
-  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects, isChaosLabMode, activeBoardMarks, freeRetriesUsed, legNo]);
+  }, [bust, visitDarts, turn, started, doubleIn, scores, legWins, triggerBust, handleWin, bustResetTo, bullFinish, doubleOut, trebleOut, isValidOut, noTrebles, isCardClash, activeEffects, isChaosLabMode, activeBoardMarks, freeRetriesUsed, legNo, cork, fatBull, masterOut]);
+
+  // ---------------------------------------------------------------- soft-tip round limit & cork
+  // When both players have used the leg's round limit without a finish, a cork at the bull decides
+  // the leg (DARTSLIVE rule). Cork darts join the dart log as bull darts so the server replays them.
+  useEffect(() => {
+    if (!roundLimit || cork || bust || visitDarts.length > 0) return;
+    const inLeg = history.filter(h => h.leg === legNo);
+    if ([0, 1].every(p => inLeg.filter(h => h.turn === p).length >= roundLimit)) {
+      botTimersRef.current.forEach(clearTimeout); botTimersRef.current = [];
+      setCork({ starter: legStarter, throws: [] });
+      setTurn(legStarter);
+    }
+  }, [roundLimit, cork, bust, visitDarts, history, legNo, legStarter]);
+  // A decided cork clears only when the next leg starts, so no bot visit is planned in the hand-over.
+  useEffect(() => { setCork(c => (c?.decided ? null : c)); }, [legNo]);
+  const corkThrower = cork && !cork.decided ? resolveBullUp(cork.starter, cork.throws).nextThrower : null;
+  const throwCork = useCallback((t: BullThrow) => {
+    if (!cork || cork.decided) return;
+    { const c = corkDart(t); pushDartLog([...dartLogRef.current, { ...c, label: c.label ?? "Miss" }]); }
+    const throws = [...cork.throws, t];
+    const result = resolveBullUp(cork.starter, throws);
+    if (result.winner === null) { setCork({ starter: cork.starter, throws }); setTurn(result.nextThrower!); return; }
+    setCork({ starter: cork.starter, throws, decided: true });
+    handleWin(result.winner, []);
+  }, [cork, handleWin]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!cork || corkThrower !== 1 || !botConfig) return;
+    const dart = botCorkPlanner ? botCorkPlanner({ legNo, throwIndex: cork.throws.length }) : corkDart(botBullThrow(botConfig.hitAcc ?? 0.5, Math.random));
+    const t = safeTimeout(() => throwCork(dart.segment === 25 ? (dart.multiplier === 2 ? "INNER" : "OUTER") : "MISS"), 900);
+    return () => clearTimeout(t);
+  }, [cork, corkThrower, botConfig, legNo]); // eslint-disable-line react-hooks/exhaustive-deps
+  const roundNo = roundLimit ? Math.min(roundLimit, history.filter(h => h.leg === legNo && h.turn === legStarter).length + (turn === legStarter || visitDarts.length > 0 ? 1 : 0)) : 0;
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
-    if (bust) return;
+    if (bust || cork) return;
     if (visitDarts.length > 0) {
       // Remove the last dart within the current visit
       const remaining = visitDarts.slice(0, -1);
@@ -1675,7 +1718,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [isCardClash, activeEffects, turn, p1Cards, p2Cards]);
   const isBotTurnX01 = !!botConfig && turn === 1;
   useEffect(() => {
-    if (!botConfig || turn !== 1 || bust) return;
+    if (!botConfig || turn !== 1 || bust || cork) return;
     const [d1, d2, d3] = botVisitPlanner
       ? botVisitPlanner({ remaining: scores[1], opened: started[1] }) as [Dart, Dart, Dart]
       : botX01Visit(scores[1], !!doubleOut, botConfig, { opened: started[1] });
@@ -1694,7 +1737,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     // A6.5: keyed on legNo too — a bot that wins a leg AND starts the next one
     // keeps turn === 1, which previously never re-fired this effect (match hang).
-  }, [turn, botConfig, legNo, bust]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [turn, botConfig, legNo, bust, cork]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Boss Battle: leg 1 never goes through resetForLeg (that only runs between
   // legs), so it needs its own one-time call on mount to keep leg numbering
@@ -1913,9 +1956,41 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   return (
     <>
+    {cork && !cork.decided && (
+      <div role="dialog" aria-label="Cork for the leg" style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(4,4,10,0.88)" }}>
+        <div style={{ width: "100%", maxWidth: 380, borderRadius: 16, padding: 20, background: "#120d22", border: "1px solid rgba(83,214,196,0.45)", color: "#fff" }}>
+          <div style={{ fontSize: 12, letterSpacing: "0.12em", textTransform: "uppercase", color: "#53d6c4" }}>Round limit reached</div>
+          <div style={{ fontSize: 20, fontWeight: 800, margin: "4px 0 8px" }}>Cork for the leg</div>
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 12 }}>
+            Nobody checked out in {roundLimit} rounds, so one dart each at the bull decides the leg. Nearest the centre wins; the same ring throws again in reverse order.
+          </p>
+          <ul style={{ fontSize: 13, marginBottom: 12 }}>
+            {cork.throws.map((t, i) => {
+              const who = resolveBullUp(cork.starter, cork.throws.slice(0, i)).nextThrower;
+              return <li key={i}>{who === 0 ? p1Name : p2Name}: {t === "INNER" ? "Inner bull" : t === "OUTER" ? "Outer bull" : "Missed the bull"}</li>;
+            })}
+          </ul>
+          {corkThrower === 0 || (corkThrower === 1 && !botConfig) ? (
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>{corkThrower === 0 ? p1Name : p2Name} to throw</div>
+              {(["INNER", "OUTER", "MISS"] as BullThrow[]).map(t => (
+                <button key={t} className="career-btn career-btn-primary" style={{ justifyContent: "center" }} onClick={() => throwCork(t)}>
+                  {t === "INNER" ? "Inner bull" : t === "OUTER" ? "Outer bull" : "Missed the bull"}
+                </button>
+              ))}
+            </div>
+          ) : <p role="status" style={{ fontSize: 13 }}>{p2Name} is throwing…</p>}
+        </div>
+      </div>
+    )}
     <ScorerLayout
       top={<div className="space-y-3 x01-match-content">
         {topBanner}
+        {roundLimit ? (
+          <div aria-label="Soft-tip match rules" style={{ display: "flex", justifyContent: "center", gap: 8, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "#53d6c4" }}>
+            <span>Round {roundNo} / {roundLimit}</span>{fatBull && <span>· Fat bull</span>}{masterOut && <span>· Master out</span>}
+          </div>
+        ) : null}
         {/* Fullscreen toggle — always shown on mobile, hover-visible on desktop.
             Hidden entirely when the browser has no Fullscreen API for arbitrary
             elements (iOS Safari, standalone PWAs on iOS) — there's nothing the

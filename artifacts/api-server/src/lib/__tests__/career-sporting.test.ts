@@ -28,6 +28,7 @@ import { Q_SCHOOL_PATHWAYS } from "../../career/calendar/eligibility.ts";
 import { expiresIndex, timeIndex, rankingList, RANKING_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, qSchoolPoints } from "../../career/sporting/config.ts";
 import { recordRankingContributions, publishRankings, standingsAt, compareStandings } from "../../career/sporting/rankings.ts";
 import { awardCard, seasonReview, processRetirements, cardHoldersIn, type CardRow } from "../../career/sporting/cards.ts";
+import { tourCardRulesFor, tourCardRulesVersionFor } from "../../career/sporting/config.ts";
 import { allocateQSchool, orderOfMerit, compareOom, type OomEntry } from "../../career/sporting/qschool.ts";
 import { boundSeeding, createSportingFactsProvider, selectionTierFor, createSportingHooks } from "../../career/sporting/engine.ts";
 
@@ -324,6 +325,25 @@ test("14-15. season review: retention inside the cut, loss outside it, regain la
     assert.ok(regained?.created);
     const ms = (await tx.execute(sql`SELECT kind FROM career_sporting_milestones WHERE career_save_id = ${A} AND participant_key = ${loser.participant_key} ORDER BY created_at`)).rows.map(r => r.kind);
     assert.ok(ms.includes("TOUR_CARD_LOST") && ms.includes("TOUR_CARD_REGAINED"));
+  });
+});
+
+test("14b. Tour Card rules v2 (new saves): Challenger top 16 reach the Q-School Final Stage, the next eight get an Open Championship place", async () => {
+  assert.equal(tourCardRulesVersionFor(8), 2); assert.equal(tourCardRulesVersionFor(7), 1);
+  assert.equal(tourCardRulesFor(2).retention.maxPosition, 64, "retention stays the real top 64");
+  await inRollback(human, A, async (tx, root) => {
+    const challenger = (await tx.execute(sql`SELECT participant_key, current_position FROM career_ranking_participants WHERE career_save_id = ${A} AND list_key = 'challenger' AND current_position IS NOT NULL ORDER BY current_position`)).rows
+      .map(r => [String(r.participant_key), Number(r.current_position)] as const);
+    assert.ok(challenger.length >= 16, "fixture has a full Challenger ranking");
+    await seasonReview(tx, root, 2, 1);
+    const holders = await cardHoldersIn(tx, A, 2);
+    const grants = (await tx.execute(sql`SELECT recipient_key, target_key FROM career_qualification_entitlements WHERE career_save_id = ${A} AND target_season = 2 AND source_kind = 'PROVIDER'`)).rows;
+    const has = (key: string, target: (t: string) => boolean) => grants.some(g => g.recipient_key === key && target(String(g.target_key)));
+    for (const [key, pos] of challenger) {
+      if (holders.has(key)) continue;
+      if (pos >= 3 && pos <= 16) assert.ok(has(key, t => t.startsWith("q-school-final:")), `Challenger ${pos} gets a Final Stage place`);
+      assert.equal(has(key, t => t === "open-championship"), pos >= 3 && pos <= 10, `Challenger ${pos} Open Championship place`);
+    }
   });
 });
 

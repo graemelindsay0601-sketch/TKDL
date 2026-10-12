@@ -11,7 +11,7 @@ import { WEEKS_PER_SEASON } from "../calendar/config.ts";
 export const RANKING_RULES_VERSION = 1;
 export const TOUR_CARD_RULES_VERSION = 1;
 export const Q_SCHOOL_RULES_VERSION = 1;
-export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2, 3], tourCard: [1], qSchool: [1] } as const;
+export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2, 3], tourCard: [1, 2], qSchool: [1] } as const;
 
 /** Linear Career clock: (season, week) -> publication index. Week 52 of season S = S*52. */
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS_PER_SEASON + week;
@@ -113,6 +113,25 @@ export const TOUR_CARD_RULES_V1 = Object.freeze({
   /** Final Stage exemptions for the next season's Q-School (A3 provider entitlements). */
   qSchoolExemptions: { cardLosers: true, challengerPositions: [3, 10] as [number, number] },
 });
+
+/**
+ * Tour Card rules v2 (event database v8 saves), matching the real PDC pathway more closely:
+ *  - retention, term and Challenger cards are unchanged (top 64 of the two-year World Ranking; two-season
+ *    cards; the top two on the Challenger ranking without a card);
+ *  - the Challenger top 16 without a card get free entry to the next Q-School Final Stage (was 3rd-10th),
+ *    as the real Challenge Tour top 16 do;
+ *  - the next eight on the Challenger ranking (3rd-10th) also get a place at the next Open Championship,
+ *    as the real Challenge Tour's next eight do at the UK Open.
+ */
+export const TOUR_CARD_RULES_V2 = Object.freeze({
+  ...TOUR_CARD_RULES_V1,
+  qSchoolExemptions: { cardLosers: true, challengerPositions: [3, 16] as [number, number] },
+  openChampionshipPlaces: { list: "challenger", positions: [3, 10] as [number, number], targetKey: "open-championship" },
+});
+export type TourCardRules = typeof TOUR_CARD_RULES_V1 & { openChampionshipPlaces?: typeof TOUR_CARD_RULES_V2.openChampionshipPlaces };
+export const tourCardRulesFor = (version: number): TourCardRules => version === 2 ? TOUR_CARD_RULES_V2 : TOUR_CARD_RULES_V1;
+/** Tour Card rules version a save is created under, from its event database version. */
+export const tourCardRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 8 ? 2 : 1;
 
 // ------------------------------------------------------------------ Q-School
 export const Q_SCHOOL_RULES_V1 = Object.freeze({

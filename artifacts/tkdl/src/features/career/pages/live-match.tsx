@@ -11,7 +11,7 @@ import { MatchContextStrip, ResultBanner } from "../tournament/components";
 import { resultMoment } from "../tournament/model";
 import { formatPence } from "../model";
 import { OSWALD, Label, StatusBadge } from "../components";
-import { adoptLiveCursor, careerGameType, careerBotVisit, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
+import { adoptLiveCursor, careerGameType, careerBotVisit, careerBotCork, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
 import type { ShellContext } from "../shell";
 import type { LiveSession } from "../types";
 
@@ -99,6 +99,8 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   const botVisitPlanner = useCallback((ctx2: { remaining: number; opened: boolean }) =>
     careerBotVisit(session!, session!.firstThrower!, cursorRef.current.darts, ctx2), [session]);
 
+  const botCorkPlanner = useCallback((c: { legNo: number; throwIndex: number }) => careerBotCork(session!, c), [session]);
+
   const initialRecovery = useMemo(() => session && session.firstThrower !== null && format
     ? recoveryFromLog(format, session.firstThrower, session.darts as Dart[]) : null, [session?.sessionId, session?.firstThrower, format, scorerKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -142,7 +144,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
         botConfig={session.bot.config} firstThrower={session.firstThrower ?? 0}
         {...scorerLength(session.format)}
         initialRecovery={initialRecovery} onRecoveryState={() => { /* the server log is the recovery source */ }}
-        botVisitPlanner={botVisitPlanner} onDartLog={onDartLog}
+        botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog}
         onWin={() => setPhase(p => (p === "done" ? p : "submitting"))}
         onAbandon={() => navigate(`/career/${saveId}/tournaments/${session.eventId}`)} />
       {phase === "submitting" && (
