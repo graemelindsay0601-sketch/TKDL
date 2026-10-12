@@ -2,7 +2,7 @@ import {useState} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldMap,useWorldPlayers,useTrophyCabinet,usePresentation,useEditPresentation,useLaunchSignature,errorMessage} from "../api";
 import {CareerError,CareerLoading,CareerSection,BoundedList,EventPlateTile,OSWALD} from "../components";
-import {titleCase,formatPence} from "../model";
+import {titleCase,formatPence,publicText} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
 import {CareerShirt,CareerEventIdentity,type ShirtIdentity} from "../identity";
@@ -27,7 +27,7 @@ export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
       stats={[{label:"Guide topics",value:d.guide.length,tone:"gold"},{label:"Organisations",value:d.organisations.length},{label:"Circuits",value:d.circuits.length},{label:"Venues",value:d.venues.length}]}/>
     :<><h1>Darts World / Almanac</h1><p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p></>}
     {guide?<><GuidanceSettings saveId={ctx.save.id}/>
-      <div className="career-guide-grid">{d.guide.map((g,i)=><details className="career-guide-topic" key={g.id}><summary><span aria-hidden="true">{String(i+1).padStart(2,"0")}</span>{g.title}</summary><p>{g.body}</p></details>)}</div></>:<>
+      <div className="career-guide-grid">{d.guide.map((g,i)=><details className="career-guide-topic" key={g.id}><summary><span aria-hidden="true">{String(i+1).padStart(2,"0")}</span>{g.title}</summary><p>{publicText(g.body)}</p></details>)}</div></>:<>
       <CareerSection title="Organisations & circuits"><div className="p-4 space-y-2">{d.organisations.map(o=><p key={o.id}><strong>{o.shortName}</strong> — {o.name}: {o.role}</p>)}
         <p>{d.circuits.map(c=>c.name).join(" · ")}</p></div></CareerSection>
       <CareerSection title="Season rhythm"><div className="p-4">{d.seasonRhythm.map(s=><p key={s.id}>Weeks {s.fromWeek}–{s.toWeek}: {s.name}</p>)}</div></CareerSection>
@@ -36,7 +36,7 @@ export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
         <Link href={`/career/${ctx.save.id}/map`}>Events & locations</Link>{" · "}
         <Link href={`/career/${ctx.save.id}/history`}>Champions, records & Hall of Fame</Link>{" · "}
         <Link href={`/career/${ctx.save.id}/world/trophies`}>Factual trophy cabinet</Link>{" · "}
-        <Link href={`/career/${ctx.save.id}/relationships`}>Player relationships (A7.2)</Link>{" · "}
+        <Link href={`/career/${ctx.save.id}/relationships`}>Player relationships</Link>{" · "}
         <Link href={`/career/${ctx.save.id}/world/players`}>Players & commercial identity</Link>
         <p>{d.venues.length} authored venues · {d.trophies.length} trophy designs · {d.brands.length} brands and local partners</p></div></CareerSection>
       <CareerSection title="Championship identities"><div className="p-4 space-y-2">{d.eventFamilies.filter(e=>["MAJOR","WORLD_CHAMPIONSHIP"].includes(e.eventClass)).map(e=><p key={e.id}>
@@ -75,7 +75,7 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
   return <div className="space-y-3">
     <CareerPageHero kicker="Trophy cabinet" title={`${cabinet.data.total} recorded title${cabinet.data.total===1?"":"s"}`} accent="#e9c77a"
       stage={{venue:{venueType:"historic-theatre"},eventClass:"MAJOR"}} watermark={`${cabinet.data.total}`}
-      subtitle={<p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every win is an actual A3 champion result; repeat wins stay separate.</p>}
+      subtitle={<p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every title here is a real win; repeat wins stay separate.</p>}
       stats={[{label:"Titles",value:cabinet.data.total,tone:"gold"},{label:"With silverware",value:silverware.reduce((n,g)=>n+g.editions.length,0)},
         {label:"Trophy designs",value:silverware.length},{label:"Result-only wins",value:plain.reduce((n,g)=>n+g.editions.length,0)}]}/>
     {silverware.length>0?<section className="career-cabinet" aria-label="Silverware">
@@ -136,7 +136,7 @@ export function PresentationPage({ctx}:{ctx:ShellContext}) {
           <div className="flex items-start justify-between gap-3">
             <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-amber-200">Career product milestone · Season {launchReveal.season}</p>
               <h3 className="mt-1 text-xl text-white" style={OSWALD}>{titleCase(launchReveal.type.replaceAll("_"," "))}</h3>
-              <p className="mt-1 text-sm text-white/65">Recorded with {launchReveal.manufacturer}. A4 remains the authority for any commercial payments.</p></div>
+              <p className="mt-1 text-sm text-white/65">Recorded with {launchReveal.manufacturer}. Any commercial payments go through your Career ledger.</p></div>
             <button className="career-btn career-btn-ghost shrink-0" onClick={()=>setLaunchReveal(null)} aria-label="Dismiss product launch confirmation">Close</button>
           </div>
         </div>}
@@ -171,7 +171,7 @@ export function PresentationPage({ctx}:{ctx:ShellContext}) {
           </article>)}</div>
           {message&&<p role="alert" className="mt-3 rounded-lg border border-rose-300/20 bg-rose-300/[.06] px-3 py-2 text-sm text-rose-100">{message}</p>}
         </div>
-        <p className="text-xs text-white/45">Actual product payments belong to A4. This view reports recorded product state only; it does not estimate sales or royalties.</p>
+        <p className="text-xs text-white/45">Actual product payments go through your Career ledger. This view reports recorded product state only; it does not estimate sales or royalties.</p>
       </div>
     </CareerSection>
   </div>;

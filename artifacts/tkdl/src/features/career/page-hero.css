@@ -92,3 +92,7 @@
   .career-page-hero__stats:has(> div:nth-child(3):last-child) > div { border-top:0; border-left:1px solid #ffffff10; }
   .career-page-hero__stats:has(> div:nth-child(3):last-child) > div:first-child { border-left:0; }
 }
+.career-npc-nav { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
+.career-npc-nav a { padding:6px 12px; border-radius:999px; border:1px solid #ffffff2e; background:#05070cb3; backdrop-filter:blur(6px); color:#dbe4ee; font-size:.74rem; font-weight:600; text-decoration:none; }
+.career-npc-nav a:hover { border-color:#69b8ec; color:#fff; }
+.career-npc-nav a[aria-current="page"] { border-color:#69b8ec; background:#69b8ec26; color:#fff; }

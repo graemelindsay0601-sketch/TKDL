@@ -197,3 +197,4 @@
   .career-kit-library__colourways { grid-template-columns:repeat(4,minmax(0,1fr)); }
   .career-kit-library__colour-option>strong { font-size:.58rem; }
 }
+@media (max-width:420px) { .career-kit-library__colourways { grid-template-columns:repeat(3,minmax(0,1fr)) !important; } }

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useCareerLife, useLifeChoice, useMerchandiseChoice, useNpcLife, usePresentation, errorMessage } from "../api";
 import { CareerEmptyState, CareerSection, QueryState, StatusBadge } from "../components";
-import { formatPence } from "../model";
+import { formatPence, publicText } from "../model";
+import { NpcHero } from "../npc-hero";
 import type { ShellContext } from "../shell";
 import { CareerPageHero } from "../page-hero";
 import { CareerShirt } from "../identity";
@@ -85,7 +86,7 @@ function Profile({data:d}:{data:LifeView}) {
       ["Commercial demand",d.profile.commercial.demand],["Commercial activity",d.profile.commercial.activity],
     ].map(([label,value])=><div className="career-life-stat" key={label}><h3>{label}</h3><p>{value}</p></div>)}</div>
     <p className="text-sm text-white/75">{d.profile.commercial.description}</p>
-    <details className="career-note"><summary>Commercial income</summary><p>Actual commercial income: {formatPence(d.commercialIncomePence)} — part of A4 Sponsor/Commercial earnings, never prize earnings or a separate wallet.</p></details>
+    <details className="career-note"><summary>Commercial income</summary><p>Actual commercial income: {formatPence(d.commercialIncomePence)} — part of your sponsor and commercial earnings, never prize earnings or a separate wallet.</p></details>
     {!!d.signatureProducts?.length&&<section><h3 className="font-bold">Factual signature products</h3>{d.signatureProducts.map(p=><p key={p.id}>{p.name} · S{p.launchSeason} · {p.state.toLowerCase()}</p>)}</section>}
     <h3 className="font-bold">Narrative relationship tone</h3>{d.relationshipTones.length?<ul className="career-life-tones">{d.relationshipTones.map(r=><li key={r.opponentId}>{r.name}: {r.tone.toLowerCase()} · sporting labels remain {r.sportingLabels.join(", ")||"unchanged"}</li>)}</ul>:
       <p className="text-sm text-white/60">No interaction-based tone yet. Sporting rivalry does not imply hatred.</p>}
@@ -104,8 +105,10 @@ export function StoriesPage({ctx,initialTab="News"}:{ctx:ShellContext;initialTab
     <div className="p-4"><div className="tkdl-tab-rail" role="group" aria-label="Story views">{["News","Story Threads"].map(t=><button type="button" className="tkdl-tab-trigger career-btn career-btn-ghost" aria-pressed={tab===t} aria-selected={tab===t} key={t} onClick={()=>setTab(t)}>{t}</button>)}</div></div>
     <QueryState query={query} label="Reading living-world stories">{d=><div className="px-4 pb-4 space-y-3">
       {tab==="News"?(d.news.length?d.news.map(s=><StoryCard key={s.id} story={s} saveId={ctx.save.id}/>):<CareerEmptyState title="No significant stories yet">The feed waits for real sporting and world evidence.</CareerEmptyState>):
-        d.threads.map(t=><details className="career-life-thread" key={t.id}><summary className="cursor-pointer font-bold">{t.title} · {t.stories.length} factual chapters</summary>
-          <div className="mt-3 space-y-3">{t.stories.map(s=><StoryCard key={s.id} story={s} saveId={ctx.save.id}/>)}</div></details>)}
+        d.threads.map(t=>{const latest=t.stories[t.stories.length-1];return <details className="career-life-thread" key={t.id}><summary className="cursor-pointer font-bold">
+          <span className="career-life-thread__count" aria-hidden="true">{t.stories.length}</span>
+          <span className="career-life-thread__copy"><b>{latest?.title ?? t.title}</b><small>{t.title} · {t.stories.length} factual {t.stories.length===1?"chapter":"chapters"}{latest?` · latest S${latest.season}${latest.week?` W${latest.week}`:""}`:""}</small></span></summary>
+          <div className="mt-3 space-y-3">{t.stories.map(s=><StoryCard key={s.id} story={s} saveId={ctx.save.id}/>)}</div></details>;})}
       <p className="career-fineprint">No scripted champion, invented emotion or hidden sporting modifier. Threads follow facts and actual choices.</p>
     </div>}</QueryState>
   </CareerSection></div>;
@@ -121,9 +124,14 @@ function StoryCard({story:s,saveId}:{story:Story;saveId:string}) {
 }
 export function NpcLifePage({ctx,npcId}:{ctx:ShellContext;npcId:string}) {
   const query=useNpcLife(ctx.save.id,npcId);
-  return <CareerSection title="Public opponent identity"><QueryState query={query} label="Reading public opponent">{d=><div className="p-4 space-y-2">
-    <h2 className="text-xl font-bold">{d.name}</h2><p>{d.standing} · {d.publicDraw}</p><p className="text-sm">Public presentation: {d.personality.primary.toLowerCase()}{d.personality.secondary?` / ${d.personality.secondary.toLowerCase()}`:""}</p>
-    {d.retired&&<p>Retired player — sporting history remains available.</p>}<p className="text-xs text-white/60">{d.notes}</p>
-    <Link className="underline" href={`/career/${ctx.save.id}/recognition/npcs/${npcId}`}>Sporting recognition</Link>
-  </div>}</QueryState></CareerSection>;
+  return <div className="space-y-3 career-life"><NpcHero ctx={ctx} npcId={npcId} current="life" kicker="Public presentation"/>
+  <CareerSection title="Public opponent identity" accent="#c99bff"><QueryState query={query} label="Reading public opponent">{d=><div className="p-4 space-y-3">
+    <h2 className="text-xl font-bold">{d.name}</h2>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="career-life-stat"><h3>Standing</h3><p>{d.standing}</p></div><div className="career-life-stat"><h3>Crowd draw</h3><p>{d.publicDraw}</p></div>
+      <div className="career-life-stat"><h3>Public presentation</h3><p>{d.personality.primary.toLowerCase()}{d.personality.secondary?` / ${d.personality.secondary.toLowerCase()}`:""}</p></div>
+    </div>
+    {d.retired&&<p className="career-fineprint">Retired player — sporting history remains available.</p>}<p className="career-fineprint">{publicText(d.notes)}</p>
+    <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/recognition/npcs/${npcId}`}>Sporting recognition</Link>
+  </div>}</QueryState></CareerSection></div>;
 }

@@ -22,3 +22,12 @@
 .career-recog-card[data-level="ESTABLISHED"] { border-top-color:#5ee39b; }
 .career-recog-card h3 { font:700 .95rem Oswald,sans-serif; text-transform:uppercase; letter-spacing:.04em; color:#fff; }
 .career-recognition .career-note { margin-bottom:0; }
+.career-life-thread > summary { display:flex; align-items:center; gap:12px; list-style:none; }
+.career-life-thread > summary::-webkit-details-marker { display:none; }
+.career-life-thread > summary::after { content:"+"; margin-left:auto; color:#ffffff80; font-size:1.1rem; }
+.career-life-thread[open] > summary::after { content:"−"; }
+.career-life-thread__count { display:grid; place-items:center; flex:0 0 38px; height:38px; border-radius:10px; font:800 1rem Oswald,sans-serif; color:#d1a65c; background:#d1a65c17; border:1px solid #d1a65c55; }
+.career-life-thread__copy { display:grid; min-width:0; }
+.career-life-thread__copy b { font:700 .9rem Oswald,sans-serif; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.career-life-thread__copy small { font:500 .7rem Inter,system-ui,sans-serif; letter-spacing:0; text-transform:none; color:#ffffff8c; }
+.career-life-thread[open] { border-color:#d1a65c55; }

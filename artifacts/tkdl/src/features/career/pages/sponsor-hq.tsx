@@ -9,6 +9,7 @@ import type { SponsorNegotiationChange, SponsorSigningReveal } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 import { CareerShirt } from "../identity";
+import { publicText } from "../model";
 import { CareerPageHero } from "../page-hero";
 import "./sponsor-hq.css";
 
@@ -260,8 +261,8 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
               <h3 className="mt-1 text-lg text-white" style={OSWALD}>{journey.displayName}</h3><p className="text-xs text-white/50">{journey.representative?.displayName??journey.brandPersonality} · {label(journey.status)}</p></div>
               <span className="text-xs text-white/45">{journey.timeline.length} updates</span></div>
             <ol className="mt-3 space-y-2 border-l border-white/10 pl-3">{journey.timeline.slice(-4).reverse().map((event,index)=><li key={`${journey.id}-${event.type}-${event.createdAt}-${index}`}>
-              <p className="text-xs font-medium text-white">{String(event.details.headline??label(event.type))}</p>
-              <p className="mt-0.5 text-xs text-white/55">{String(event.details.summary??"Sponsor journey update")} · Season {event.season??"—"}, week {event.week??"—"}</p>
+              <p className="text-xs font-medium text-white">{publicText(String(event.details.headline??label(event.type)))}</p>
+              <p className="mt-0.5 text-xs text-white/55">{publicText(String(event.details.summary??"Sponsor journey update"))} · Season {event.season??"—"}, week {event.week??"—"}</p>
             </li>)}</ol>
           </article>)}
           {history.map(contract=><article key={contract.id} className="pdc-card p-4">

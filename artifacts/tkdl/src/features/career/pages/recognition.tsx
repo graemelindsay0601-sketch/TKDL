@@ -7,6 +7,7 @@ import type { RecognitionLevel, RecognitionView } from "../../../../../api-serve
 import { FactLine } from "./facts-panels";
 import { CareerPageHero, type HeroStat } from "../page-hero";
 import "./life.css";
+import { NpcHero } from "../npc-hero";
 
 const tone = (level:RecognitionLevel):Tone => level==="ELITE" ? "gold" : level==="HIGHLY_REGARDED" ? "info" : level==="ESTABLISHED" ? "success" : level==="UNKNOWN" ? "muted" : "neutral";
 export function RecognitionPage({ctx,npcId}: {ctx:ShellContext;npcId?:string}) {
@@ -14,6 +15,7 @@ export function RecognitionPage({ctx,npcId}: {ctx:ShellContext;npcId?:string}) {
   const query=npcId ? npc : human;
   const heroTone=(level:RecognitionLevel):HeroStat["tone"]=>level==="ELITE"?"gold":level==="HIGHLY_REGARDED"||level==="ESTABLISHED"?"good":"neutral";
   return <div className="space-y-3 career-recognition">
+    {npcId&&<NpcHero ctx={ctx} npcId={npcId} current="recognition" kicker="Sporting recognition"/>}
     {!npcId&&query.data&&<CareerPageHero kicker="Career standing" title={query.data.standing.label} accent="#e8c66a"
       stage={{venue:{venueType:"hotel-ballroom"},eventClass:"MAJOR"}} archival={query.data.subject.retired}
       subtitle={<p>{query.data.standing.description}</p>}

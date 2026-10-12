@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { Briefcase, CalendarClock, Coins, Handshake, Receipt, ShieldCheck, Sparkles, Wallet } from "lucide-react";
 import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useNegotiateOffer, useSponsors, errorMessage } from "../api";
-import { LEDGER_FILTERS, circuitLabel, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
+import { LEDGER_FILTERS, circuitLabel, publicText, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
 import { CareerPageHero } from "../page-hero";
@@ -154,7 +154,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
                   <span className="career-money-row__week">{event.season ? <>S{event.season}<b>W{event.week ?? "—"}</b></> : "—"}</span>
                   <div className="min-w-0">
                     <strong>{journey.displayName} · {journeyEventText(event.type)}</strong>
-                    <small>{summary}{category ? ` · ${ledgerLabel(category)}` : ""}</small>
+                    <small>{publicText(summary)}{category ? ` · ${ledgerLabel(category)}` : ""}</small>
                   </div>
                   {amount !== null && amount > 0 ? <span className="career-money-row__amount is-in">{formatPence(amount)}</span> : <span />}
                 </li>
@@ -316,7 +316,7 @@ function Ledger({ saveId }: { saveId: string }) {
         <ul className="career-money-list">{rows.map(e => (
           <li key={e.id} className="career-money-row">
             <span className="career-money-row__week">{e.season ? <>S{e.season}<b>W{e.week}</b></> : "—"}</span>
-            <div className="min-w-0"><strong>{e.reason ?? ledgerLabel(e.category)}</strong>
+            <div className="min-w-0"><strong>{publicText(e.reason ?? ledgerLabel(e.category))}</strong>
               <small>{ledgerLabel(e.category)}{e.sponsorCoveredPence ? ` · ${formatPence(e.sponsorCoveredPence)} sponsor-covered` : ""}</small></div>
             <span className={`career-money-row__amount ${e.amountPence >= 0 ? "is-in" : "is-out"}`}>{formatPence(e.amountPence, { signed: true })}</span>
           </li>))}</ul>

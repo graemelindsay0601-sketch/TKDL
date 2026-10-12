@@ -59,7 +59,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
   return <CareerEventIdentity eventKey={v.event.definitionKey} circuit={v.event.circuit} level={v.event.level}><div className={`tournament-mode tournament-level-${v.event.level} ${reduced?"tournament-reduced":""}`} data-mode={v.presentation.mode}>
     <TournamentHero v={v}>
       <div className="flex flex-wrap items-center gap-2"><StatusBadge label={v.phase.replace(/_/g," ")} tone={v.phase==="CHAMPION"?"gold":"neutral"}/>
-        <span className="text-sm text-white/70">{v.event.drawLocked?"Official draw locked. No reshuffle on reload.":v.event.fieldLocked?"Field locked; official draw pending.":"A3 will lock eligible entries and generate the official draw on the scheduled date."}</span></div>
+        <span className="text-sm text-white/70">{v.event.drawLocked?"Official draw locked. No reshuffle on reload.":v.event.fieldLocked?"Field locked; official draw pending.":"Entries lock and the official draw is made on the scheduled date."}</span></div>
       <div className="flex flex-wrap gap-2">
         {v.depth.arrival&&<button className="career-btn career-btn-ghost" onClick={()=>setCeremony("arrival")}>Event arrival</button>}
         {v.depth.drawReveal&&v.event.drawLocked&&<button className="career-btn career-btn-ghost" onClick={()=>setCeremony("draw")}>Reveal official draw</button>}
@@ -82,7 +82,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
     {ceremony==="walkon"&&next?<WalkOn v={v} match={next} playHref={playHref} onSkip={()=>setCeremony(null)}/>:
     ceremony&&<section className="pdc-card p-5 tournament-ceremony space-y-3" role="region" aria-label={ceremony==="draw"?"Official draw reveal":"Event arrival"}>
       <Label color="#ffd24a">{ceremony==="arrival"?"Event arrival":"The official draw"}</Label>
-      {ceremony==="arrival"?<ArrivalCeremony v={v}/>:<><p>No scripted matchup. These are the stored A3 positions.</p>
+      {ceremony==="arrival"?<ArrivalCeremony v={v}/>:<><p>No scripted matchup. These are the official draw positions.</p>
         {v.groups.length?<MatchList v={v} list={v.matches.filter(m=>m.round===1)}/>:<BracketBoard v={v}/>}</>}
       <div className="flex gap-2 flex-wrap">
         <button className="career-btn career-btn-ghost" onClick={()=>{setCeremony(null);if(ceremony==="draw")setTab("draw");}}>Skip / return to hub</button>
@@ -99,7 +99,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
         <Money v={v}/>
         <div className="flex flex-wrap gap-2"><button className="career-btn career-btn-gold" disabled={busy||v.readOnly} onClick={()=>mutate("dismiss",undefined,true)}>Return to Career</button>
           <Link className="career-btn career-btn-ghost" href={`/career/${id}/history`}>History &amp; trophy cabinet</Link>
-          <Link className="career-btn career-btn-ghost" href={`/career/${id}/rankings`}>A5 rankings &amp; qualification</Link></div>
+          <Link className="career-btn career-btn-ghost" href={`/career/${id}/rankings`}>Rankings &amp; qualification</Link></div>
       </CompletionSummary>:<section className="pdc-card p-5 space-y-3" aria-label="Next tournament action">
         <Label color="#ffd24a">Next action</Label>
         {v.phase==="GROUP_BULL"&&v.groupBull?.row?<BullUpBoard names={v.groupBull.pair.map(k=>name(v,k)) as [string,string]}
@@ -114,7 +114,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
               <ConfirmButton label="Concede this match" confirmLabel="Confirm match concession" danger busy={busy}
                 description="This records a walkover, not played darts. In a group you remain in the event; in a knockout you are eliminated."
                 onConfirm={()=>mutate("concede",{matchId:next.id,confirmation:"CONCEDE_MATCH"})}/></div></>:
-            <><p>{v.event.executable?"The next fixture/session is not yet ready. Continue through A3's real calendar; it stops for pending play and meaningful dates.":"This format is unsupported. No winner, score or simulated history will be fabricated."}</p>
+            <><p>{v.event.executable?"The next fixture/session is not yet ready. Continue through the Career calendar; it stops for pending play and meaningful dates.":"This format is unsupported. No winner, score or simulated history will be fabricated."}</p>
               {next&&<p>{stage(next,v)} · scheduled day {next.scheduled_day}</p>}
               <button className="career-btn career-btn-gold" disabled={busy||v.readOnly} onClick={continueCalendar}>Continue to next calendar action</button></>}
         <Money v={v}/>
@@ -126,19 +126,19 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
       <div className="tb-hub-grid"><PathToTitle v={v}/><PrizeLadder v={v}/></div>
       {v.groups.length>0&&<GroupTables v={v}/>}
       {v.achievements.groupWinner&&!v.achievements.tournamentChampion&&<p className="pdc-card p-3"><Flag size={15} className="inline" aria-hidden/> Group winner — a stage achievement, not a tournament title.</p>}
-      {v.event.qSchool&&<p className="pdc-card p-3">Q-School session: direct cards and the Order of Merit are A5 decisions. <Link className="underline" href={`/career/${id}/q-school`}>View Q-School standings and sessions</Link>.</p>}
+      {v.event.qSchool&&<p className="pdc-card p-3">Q-School session: direct cards and the Order of Merit are decided by the rankings. <Link className="underline" href={`/career/${id}/q-school`}>View Q-School standings and sessions</Link>.</p>}
       {v.history&&<details className="pdc-card p-4" open={v.event.level===5}><summary>Event history · recorded in this save</summary>
         {v.history.palace?.firstAppearance&&<p className="mt-2">World Championship debut · first Palace field appearance.</p>}
         {v.history.palace?.appearanceNumber&&!v.history.palace.firstAppearance&&<p className="mt-2">Palace appearance {v.history.palace.appearanceNumber}.</p>}
         {v.history.palace?.formerWorldChampion&&<p>Former World Champion — actual prior Palace champion result.</p>}
         <p>{v.history.previousAppearances.length} previous confirmed field appearances{v.history.bestFinish?` · previous best finish ${v.history.bestFinish}`:" · no previous finish recorded"}.</p>
         {v.history.recentChampions.length?<ul>{v.history.recentChampions.map(c=><li key={String(c.id)}>Season {String(c.season)} · {String(c.champion_name||"Champion identity unavailable")}</li>)}</ul>:<p>No previous champions recorded in this save.</p>}
-        <Link className="underline text-sm" href={`/career/${id}/history`}>Full A7.1 / A7.6 event and match history</Link>
+        <Link className="underline text-sm" href={`/career/${id}/history`}>Full event and match history</Link>
       </details>}
       <details className="pdc-card p-4"><summary>Qualification outputs — awarded only by actual results</summary><pre className="tournament-factual-json">{JSON.stringify(v.event.qualificationOutputs,null,2)}</pre></details>
     </>}
     {tab==="draw"&&<section className="pdc-card p-4 space-y-3"><Label>Official draw &amp; remaining fixtures</Label>
-      {!v.matches.length?<p>No official draw yet. A3 owns field lock and draw generation.</p>:<>
+      {!v.matches.length?<p>No official draw yet. The field locks and the draw is made when entries close.</p>:<>
         {v.groups.length>0&&<GroupTables v={v}/>}
         <BracketBoard v={v}/>
         <details><summary className="text-sm cursor-pointer">Fixture list &amp; filters</summary>
@@ -153,7 +153,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
         {v.routes.filter(r=>r.recipient_key===p.key).map((r,i)=><p key={i} className="text-xs">Confirmed entitlement: {String(r.entitlement_type).replace(/_/g," ")} · {String(r.source_kind)}{r.source_position?` · finish ${r.source_position}`:""}</p>)}</div>)}</div>
       <p className="text-xs text-white/70">Badges are actual results or published rankings. Multiple qualifying routes never create a second berth. No reputation or ability is used for the draw.</p></section>}
     {tab==="results"&&<section className="pdc-card p-4 space-y-3"><Label>Actual tournament results</Label>
-      {v.results.length?<ul>{v.results.map(r=><li key={String(r.participant_key)} className="p-2 border-b border-white/10">{Number(r.finishing_position)} · {name(v,String(r.participant_key))} · {String(r.stage_reached).replace(/_/g," ")} · {String(r.wins)}W/{String(r.losses)}L</li>)}</ul>:<p>Final A3 placement and A4 settlement are pending. The completed fixtures below are saved facts, not fabricated final history.</p>}
+      {v.results.length?<ul>{v.results.map(r=><li key={String(r.participant_key)} className="p-2 border-b border-white/10">{Number(r.finishing_position)} · {name(v,String(r.participant_key))} · {String(r.stage_reached).replace(/_/g," ")} · {String(r.wins)}W/{String(r.losses)}L</li>)}</ul>:<p>Final placement and prize settlement are pending. The completed fixtures below are saved facts, not fabricated final history.</p>}
       <MatchList v={v} list={v.matches.filter(m=>["COMPLETED","WALKOVER","BYE","VOID"].includes(m.status))}/><PrizeLadder v={v}/><Money v={v}/></section>}
   </div></CareerEventIdentity>;
 }
@@ -170,15 +170,15 @@ function Money({v}:{v:TournamentView}) {
   const label = v.money.paid ? "Prize settled" : complete && v.money.prize ? "Final award · settlement pending" : v.position ? "Current-position estimate" : "Prize settlement pending";
   const amount = v.money.paid ? Number(v.money.prize?.cash_award_pence ?? 0) : complete && v.money.prize ? Number(v.money.prize.cash_award_pence) : v.money.securedPence;
   return <div className="text-sm space-y-1"><p>{label}: {formatPence(amount)}
-    {!v.money.paid ? complete ? " · awaiting A4 settlement" : " · estimate only; no prize is settled before event completion" : ""}</p>
-    {v.money.prize&&<p>Ranking-eligible money: {formatPence(Number(v.money.prize.ranking_eligible_pence))} · A5 publication follows its existing schedule.</p>}
-    {v.money.ledger.length>0&&<details><summary>Recorded A4 event ledger</summary>{v.money.ledger.map((r,i)=><p key={i}>{r.category.replace(/_/g," ")}: {formatPence(r.amountPence)}</p>)}</details>}</div>;
+    {!v.money.paid ? complete ? " · awaiting prize settlement" : " · estimate only; no prize is settled before event completion" : ""}</p>
+    {v.money.prize&&<p>Ranking-eligible money: {formatPence(Number(v.money.prize.ranking_eligible_pence))} · Rankings update on their normal publication schedule.</p>}
+    {v.money.ledger.length>0&&<details><summary>Recorded event payments</summary>{v.money.ledger.map((r,i)=><p key={i}>{r.category.replace(/_/g," ")}: {formatPence(r.amountPence)}</p>)}</details>}</div>;
 }
 function MatchList({v,list}:{v:TournamentView;list:TournamentView["matches"]}) {
   return <ul className="tournament-fixtures">{list.map(m=><li key={m.id} className={[m.a_key,m.b_key].includes("HUMAN")?"tournament-human-fixture":""}>
     <div className="text-xs text-white/60">{stage(m,v)} · day {m.scheduled_day} · best of {m.best_of}</div>
     <div>{name(v,m.a_key)} <strong>{m.legs_a!==null?`${m.legs_a}–${m.legs_b}`:"vs"}</strong> {name(v,m.b_key)}</div>
-    <p className="text-xs">{m.status==="BYE"?"Bye — no played match":m.status==="WALKOVER"?"Walkover — no played darts":m.status==="VOID"?"Both paths withdrawn — no winner":m.status==="COMPLETED"?`Winner: ${name(v,m.winner_key)} · ${m.result_source==="HUMAN_LIVE"?"verified shared scorer":"A2 simulation"}`:m.status.replace(/_/g," ")}</p>
+    <p className="text-xs">{m.status==="BYE"?"Bye — no played match":m.status==="WALKOVER"?"Walkover — no played darts":m.status==="VOID"?"Both paths withdrawn — no winner":m.status==="COMPLETED"?`Winner: ${name(v,m.winner_key)} · ${m.result_source==="HUMAN_LIVE"?"verified shared scorer":"simulated match"}`:m.status.replace(/_/g," ")}</p>
     {!!m.summary&&typeof m.summary==="object"&&"sets" in m.summary&&<p className="text-xs">Sets: {String((m.summary as {sets:unknown[]}).sets.join("–"))} · score above is total legs</p>}
   </li>)}</ul>;
 }

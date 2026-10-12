@@ -99,7 +99,7 @@ export function PrizeLadder({ v }: { v: TView }) {
   return (
     <section className="tb-panel" aria-label="Prize ladder">
       <div className="tb-panel__head"><Coins size={15} aria-hidden /><Label color="#ffd24a">Prize ladder</Label>
-        <span className="tb-dim tb-small">{v.money.paid ? "Settled by A4" : ["COMPLETE", "CHAMPION"].includes(v.phase) ? "Final award pending A4" : "Current-position estimate · not settled"}</span></div>
+        <span className="tb-dim tb-small">{v.money.paid ? "Prize settled" : ["COMPLETE", "CHAMPION"].includes(v.phase) ? "Final award pending" : "Current-position estimate · not settled"}</span></div>
       <ol className="tb-ladder">
         {ladder.map(step => (
           <li key={step.upToPosition} className={step.current ? "is-current" : step.reached ? "is-reached" : ""}>
@@ -117,7 +117,7 @@ export function BracketBoard({ v, focusHuman = true }: { v: TView; focusHuman?: 
   const columns = useMemo(() => bracketColumns(v), [v]);
   const seeds = useMemo(() => new Map(v.field.filter(p => p.seed).map(p => [p.key, p.seed!])), [v.field]);
   const pathIds = new Set(humanPath(v).map(m => m.id));
-  if (!columns.length) return <p className="tb-dim">The knockout draw appears here once A3 makes it official.</p>;
+  if (!columns.length) return <p className="tb-dim">The knockout draw appears here once it is made official.</p>;
   return (
     <div className="tb-bracket" role="region" aria-label="Knockout bracket" tabIndex={0}>
       {columns.map(col => (
@@ -338,7 +338,7 @@ export function CompletionSummary({ v, children }: { v: TView; children?: ReactN
             : v.event.level >= 5 && v.position === 2 ? "World Championship Runner-up" : "Tournament summary"}</Label>
           <h2 style={OSWALD}>{champion ? `${nameOf(v, "HUMAN")} — ${v.event.name}` : v.phase === "ELIMINATED" ? "Your tournament is over" : v.phase.replace(/_/g, " ")}</h2>
           {finish && <p className="tb-complete__finish">{finish}{v.humanResult ? "" : " · settlement pending"}</p>}
-          {champion && <p className="tb-small tb-dim">{v.event.qSchool ? "Actual session finish; a Tour Card is an A5 decision" : `${award.award === "RESULT_ONLY" ? "Result & prize · no trophy at this event" : award.award === "RECOGNITION" ? (award.recognition === "MEDAL" ? "Winner's medal" : "Winner's plaque") : trophy?.name ?? "Championship trophy"} · actual A3 champion result`}</p>}
+          {champion && <p className="tb-small tb-dim">{v.event.qSchool ? "Actual session finish; Tour Cards are decided by the Order of Merit" : `${award.award === "RESULT_ONLY" ? "Result & prize · no trophy at this event" : award.award === "RECOGNITION" ? (award.recognition === "MEDAL" ? "Winner's medal" : "Winner's plaque") : trophy?.name ?? "Championship trophy"} · a title you actually won`}</p>}
         </div>
       </div>
       <dl className="tb-complete__stats">

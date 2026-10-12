@@ -873,3 +873,61 @@
 .career-kitroom-details label { min-width:0; }
 .career-kitroom-details input, .career-kitroom-details select { width:100%; min-width:0; max-width:100%; }
 @media (max-width:640px) { .career-root .career-event-hero { min-height:270px; } .career-root .career-event-hero__shade { background:linear-gradient(0deg,#05070cf5 0%,#05070cd0 45%,#05070c40 85%); } }
+/* Head-to-head: career generations */
+.career-generations__title { margin:18px 0 8px; font:700 .72rem Oswald,sans-serif; letter-spacing:.18em; text-transform:uppercase; color:#ff7a93; }
+.career-generations__stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin:0 0 10px; }
+.career-generations__stats > div { padding:10px 12px; border-radius:10px; border:1px solid #ffffff14; background:#0d1520; }
+.career-generations__stats dt { font:700 .58rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff85; }
+.career-generations__stats dd { margin:2px 0 0; font:800 1.3rem Oswald,sans-serif; color:#fff; }
+@media (max-width:640px) { .career-generations__stats { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.career-generations__filters { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0; }
+.career-generations__filters label { display:grid; gap:5px; font:700 .6rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff99; flex:1 1 220px; }
+.career-generations__filters select, .career-generations__filters input { min-height:40px; padding:8px 12px; border-radius:10px; border:1px solid #ffffff26; background:#070b12; color:#fff; font:600 .84rem Inter,system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.career-generations__grid { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr)); gap:8px; }
+.career-generations__card { display:flex; gap:10px; align-items:center; padding:8px 12px 8px 8px; border-radius:12px; border:1px solid #ffffff14; background:linear-gradient(160deg,#141c2a,#0a1019); }
+.career-generations__shirt { flex:0 0 52px; width:52px; } .career-generations__shirt .career-premium-shirt, .career-generations__shirt .career-shirt { width:100% !important; max-width:none; }
+.career-generations__card strong { display:block; font:700 .86rem Oswald,sans-serif; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.career-generations__card small { display:block; font-size:.68rem; color:#ffffff8c; }
+.career-generations__links { display:flex; flex-wrap:wrap; gap:4px 10px; margin-top:3px; } .career-generations__links a { font-size:.7rem; font-weight:600; color:#ff9db1; }
+.career-root .career-field-shirt { flex:0 0 34px; width:34px; } .career-root .career-field-shirt .career-premium-shirt, .career-root .career-field-shirt .career-shirt { width:100% !important; max-width:none; }
+/* New Career: staged empty slot and full-width wizard */
+.career-root .career-new-career { position:relative; overflow:hidden; padding:0; border-style:dashed !important; border-color:#ff005c55 !important; }
+.career-root .career-new-career.is-open { grid-column:1 / -1; border-style:solid !important; padding:18px; }
+.career-root .career-new-career__empty { position:relative; isolation:isolate; display:flex; flex-direction:column; gap:14px; height:100%; min-height:340px; padding:14px 16px 16px; }
+.career-root .career-new-career__plate { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2; filter:brightness(.35) saturate(1.1); }
+.career-root .career-new-career__empty::before { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(0deg,#0b111a 25%,#0b111acc 60%,#05070c66); }
+.career-root .career-new-career__top { display:flex; justify-content:space-between; align-items:center; }
+.career-root .career-new-career__badge { padding:3px 9px; border-radius:999px; font:700 .6rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ff9db1; border:1px solid #ff005c66; background:#ff005c1a; }
+.career-root .career-new-career__pitch { margin-top:auto; display:grid; gap:6px; }
+.career-root .career-new-career__pitch p { margin:0; font-size:.82rem; color:#ffffffb3; }
+.career-root .career-new-career__plus { display:grid; place-items:center; width:48px; height:48px; border-radius:14px; color:#fff; background:radial-gradient(circle at 30% 25%,#ff4d8a,#a1003c 75%); box-shadow:0 0 22px #ff005c66; }
+.career-root .career-new-career__form { display:grid; gap:16px; }
+.career-root .career-new-career__head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-end; gap:14px; padding-bottom:14px; border-bottom:1px solid #ffffff14; }
+.career-root .career-new-career__head h2 { margin:4px 0 4px; font-size:clamp(1.5rem,3vw,2.1rem); font-weight:800; text-transform:uppercase; color:#fff; line-height:1; }
+.career-root .career-new-career__head p { margin:0; max-width:60ch; font-size:.8rem; color:#ffffff99; }
+.career-root .career-new-career__steps { list-style:none; margin:0; padding:0; display:flex; gap:6px; }
+.career-root .career-new-career__steps li { display:flex; align-items:center; gap:7px; padding:6px 12px 6px 6px; border-radius:999px; border:1px solid #ffffff1a; font:700 .68rem Oswald,sans-serif; letter-spacing:.1em; text-transform:uppercase; color:#ffffff80; }
+.career-root .career-new-career__steps b { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#ffffff12; color:#fff; }
+.career-root .career-new-career__steps .is-current { color:#fff; border-color:#ff005c88; background:#ff005c1f; } .career-root .career-new-career__steps .is-current b { background:#ff005c; }
+.career-root .career-new-career__steps .is-done { color:#5ee39b; } .career-root .career-new-career__steps .is-done b { background:#5ee39b33; color:#5ee39b; }
+.career-root .career-new-career__fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:14px; }
+.career-root .career-new-career__fields--row { align-items:end; }
+.career-root .career-new-career__fields input, .career-root .career-new-career__fields select { min-height:44px; border-radius:10px !important; background:#070b12 !important; border-color:#ffffff26 !important; color:#fff; padding:8px 12px; }
+.career-root .career-new-career__fields > p { grid-column:1 / -1; }
+.career-root .career-new-career__confirm { display:grid; grid-template-columns:minmax(140px,240px) minmax(0,1fr); gap:20px; align-items:center; padding:18px; border-radius:14px; border:1px solid #ffffff17;
+  background:radial-gradient(70% 120% at 0 50%,#ff005c1f,transparent 60%),linear-gradient(160deg,#141c2a,#0a1019); }
+.career-root .career-new-career__confirm-shirt { filter:drop-shadow(0 18px 26px #000b); } .career-root .career-new-career__confirm-shirt .career-premium-shirt { width:100%; max-width:none; }
+.career-root .career-new-career__confirm h3 { margin:0; font-size:clamp(1.6rem,4vw,2.4rem); font-weight:800; text-transform:uppercase; color:#fff; line-height:1; }
+.career-root .career-new-career__nick { margin:4px 0 0; color:#ffd27a; font-weight:600; }
+.career-root .career-new-career__confirm dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:14px 0 10px; }
+.career-root .career-new-career__confirm dl > div { padding:9px 12px; border-radius:10px; background:#ffffff08; border:1px solid #ffffff12; }
+.career-root .career-new-career__confirm dt { font:700 .58rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff85; } .career-root .career-new-career__confirm dd { margin:2px 0 0; color:#fff; font-weight:600; }
+@media (max-width:640px) { .career-root .career-new-career__confirm { grid-template-columns:1fr; } .career-root .career-new-career__confirm-shirt { width:60%; margin:auto; } .career-root .career-new-career.is-open { padding:12px; } }
+.career-root .career-new-career__actions { display:flex; flex-wrap:wrap; gap:8px; padding-top:14px; border-top:1px solid #ffffff14; }
+/* Attention panel rows */
+.career-attention-group > a { display:flex !important; align-items:center; gap:10px; }
+.career-attention-group > a svg { flex:0 0 auto; color:#8fb6dc; }
+.career-attention-group > a span { flex:1; min-width:0; }
+.career-attention-group > a small { flex:0 0 auto; font-size:.66rem; color:#ffffff80; }
+.career-attention-group > a.is-action { border-color:#ff005c66 !important; background:#ff005c14 !important; }
+.career-attention-group > a.is-action svg { color:#ff7aa8; }
