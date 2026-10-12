@@ -309,8 +309,8 @@ test("Career Home, ranked professional with sponsor and a pending match: real fi
   const html = render(h(M.HomePage, { ctx: ctx(s, overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] })) }), seed);
   const t = text(html);
   for (const x of ["42nd", "£14,690", "Active", "Ochre Darts Co.", "Your match is waiting", "Play match"]) assert.ok(t.includes(x), x);
-  // A8.2 adds preparation before the same A6.5 session; never a client-reported result.
-  assert.match(html, new RegExp(`href="/career/${SAVE_ID}/tournaments/${live.id}/matches/m1"`), "Play match opens preparation for the same live Career session");
+  // Play match opens the same server-owned A6.5 session directly; never a client-reported result.
+  assert.match(html, new RegExp(`href="/career/${SAVE_ID}/matches/m1/play"`), "Play match opens the live Career session directly");
   assert.ok(!t.includes("not connected yet"), "no stale A6 boundary copy");
 });
 

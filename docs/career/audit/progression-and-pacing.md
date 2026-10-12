@@ -368,3 +368,27 @@ Recommendation:
    - Acceptance: `career-audit-unfillable-fields.test.ts` passes; `season1-check.ts` shows both events COMPLETED with at least 8 entrants; existing calendar and season tests still pass.
 2. **Guidance copy (PROG-02, 05, 07).** Hand to the Career UI owner; no shared components touched here. Data is already available: the Q-School instances and their finance preview in `calendar()`, and Tour Card `retention`.
 3. **PROG-06.** In the v6 edition, drop the `vault-tour` SERIES_ACCESS output from `vault-qualifier`, or keep it and correct the label.
+
+---
+
+## Implementation status (branch `career/progression-pacing-v6`)
+
+Event database **v6** for new saves only; v1–v5 definitions and existing saves are unchanged.
+
+| Finding | Status |
+|---|---|
+| PROG-01 amateur finals never run | **Fixed** — both fill from NPCs meeting their own ranking rules (season-1 simulation: both COMPLETED) |
+| PROG-02 no season-1 route to a card | **Fixed** — season-1 Challenger Tour open to all non-card players (top 2 cards, 3–10 Final Stage exemptions); profile C (skill 78) carded at end of S1 |
+| PROG-03 repetitive / empty pro calendar | **Fixed** — real-world season shape; Pro Tour 46 events weeks 5–44; majors Oct–Nov; new-pro zero weeks 18 → 9, champion 15 → 5 |
+| PROG-06 redundant Vault pass | **Fixed** |
+| PROG-07 human never invited | **Fixed** — invited when inside the invitation count on the World Ranking |
+| PROG-11 pros farm amateur opens | **Fixed** — amateur opens exclude Tour Card holders |
+| Week-1 / festive dead weeks | **Fixed** — New Year (wk 1) and Festive (wk 49–52) local opens; Sunday League all year |
+| PROG-04 empty starting ranking | Open — needs a design for synthetic prior-season history |
+| PROG-05 Q-School cost vs start balance | Mitigated — season-1 Challenger route; amateur S1 earnings ×8 for profile B |
+| PROG-08 money irrelevant once pro | Open — design decision |
+| PROG-09 / PROG-10 world turnover and growth | Open — hypotheses need long multi-seed runs |
+
+Enter-to-play flow: Continue Career plays straight to a booked event's match (`NEXT_MATCH`) and opens it; matches open
+straight in the scorer; the result card plays the next fixture directly and files a finished event on the way home.
+Enter → match now takes 4 clicks (Enter, Continue Career, bull-up, Start Game); each later match takes 3.
