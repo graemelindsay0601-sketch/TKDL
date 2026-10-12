@@ -34,7 +34,9 @@ export type EventFinancePreview = {
   commitment: { status: string; entryFeePaidPence: number; entryFeeCoveredPence: number; tripId: string | null } | null;
 };
 export type EventFormat = { gameType: string; startingScore?: number; matchContext: string; structure: string; stages: { key: string; kind: string; bestOfByRound?: number[] }[];
-  days: number; sideSize: number; inRule?: string; outRule?: string; scoringUnit?: "LEGS" | "SETS"; legsPerSet?: number | null; setPlay?: unknown };
+  days: number; sideSize: number; inRule?: string; outRule?: string; scoringUnit?: "LEGS" | "SETS"; legsPerSet?: number | null; setPlay?: unknown;
+  /** Soft-tip: fat bull and a per-leg round limit decided by a cork. */
+  bull?: "STANDARD" | "FAT"; roundLimit?: number };
 export type CareerEvent = {
   id: string; instanceKey: string; season: number; name: string; definitionKey: string; family: string; circuit: string; classification: string;
   rankingCategory: string | null; presentation: { tier: PresentationTier; featured: boolean; calendarPriority: number; brandingFamily?: string };
@@ -215,7 +217,7 @@ export type Standing = { list: string; published: { season: number; week: number
   standing: RankingRow | null; careerHighPosition: number | null; seasonHighPosition: number | null; cutLines: CutGap[] };
 export type TourCard = { id: string; source: string; sourceDetail: Record<string, unknown>; awarded: { season: number; week: number }; term: { startSeason: number; endSeason: number };
   status: string; endReason: string | null; ended: { season: number; week: number } | null };
-export type TourCardView = { participantKey: string; holdsCard: boolean; current: (TourCard & { reviewSeason: number; retention: { list: string; maxPosition: number } }) | null; history: TourCard[] };
+export type TourCardView = { participantKey: string; holdsCard: boolean; current: (TourCard & { reviewSeason: number; retention: { list: string; maxPosition: number }; termSeasons?: number; inFinalSeason?: boolean }) | null; history: TourCard[] };
 export type Milestone = { id?: string; kind: string; list_key: string | null; season: number; week: number; detail: Record<string, unknown> };
 export type SportingSummary = {
   season: number; week: number; professionalStatus: "AMATEUR" | "PROFESSIONAL"; tourCard: { holdsCard: boolean; current: TourCardView["current"] };
@@ -256,9 +258,10 @@ export type CareerProfile =
       age: number; ageAtCareerStart: number; minimumStartAge: number; junior: boolean; juniorMaxAgeExclusive: number;
       qSchool: { minimumAge: number; eligibleNow: boolean; eligibleFrom: { season: number; week: number; date: string } | null } };
 export type LiveDart = { segment: number; multiplier: 1 | 2 | 3; value: number; label?: string };
-export type LiveFormat =
+/** Soft-tip options (fat bull, per-leg round limit decided by a cork); absent for steel-tip. */
+export type LiveFormat = { bull?: "STANDARD" | "FAT"; roundLimit?: number } & (
   | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "LEGS"; bestOfLegs: number }
-  | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "SETS"; bestOfSets: number; bestOfLegsPerSet: number };
+  | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "SETS"; bestOfSets: number; bestOfLegsPerSet: number });
 export type LiveSession = {
   sessionId: string; sessionVersion: number; matchId: string; eventId: string;
   status: "BULL_UP" | "IN_PLAY" | "COMPLETED" | "SUPERSEDED"; revision: number;

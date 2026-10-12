@@ -4,7 +4,7 @@
  * server's dart log with the SAME shared rules the server uses. The browser holds
  * no authoritative state: reload = replay the server log.
  */
-import { replay, opensLeg, planBotX01Visit, seededRandom, type X01Format, type X01MatchState, type Dart } from "../../lib/darts-rules.ts";
+import { replay, opensLeg, planBotX01Visit, seededRandom, botOptionsFor, botCorkDart, type X01Format, type X01MatchState, type Dart } from "../../lib/darts-rules.ts";
 import type { X01RecoveryState, ScorerRecoveryState } from "@/lib/scorer-recovery";
 import type { Dart as UiDart } from "@/lib/dartboard";
 import type { LiveSession } from "./types";
@@ -22,9 +22,10 @@ export function adoptLiveCursor(cursor: { revision: number; darts: Dart[] }, ses
 export function careerGameType(format: LiveSession["format"]): CareerGameType {
   return {
     id: -1, key: "career_x01", engine: "X01", category: "x01", enabled: true,
-    name: `${format.startingScore} ${format.inRule === "DOUBLE" ? "Double In " : ""}Double Out`,
-    description: "Career match — scored with the TKDL X01 scorer",
-    config: JSON.stringify({ startingScore: format.startingScore, doubleIn: format.inRule === "DOUBLE", doubleOut: format.outRule === "DOUBLE" }),
+    name: format.outRule === "MASTER" ? `${format.startingScore} Soft-Tip (Master Out)` : `${format.startingScore} ${format.inRule === "DOUBLE" ? "Double In " : ""}Double Out`,
+    description: format.outRule === "MASTER" ? "Career soft-tip match — fat bull, master out, round limit decided by a cork" : "Career match — scored with the TKDL X01 scorer",
+    config: JSON.stringify({ startingScore: format.startingScore, doubleIn: format.inRule === "DOUBLE", doubleOut: format.outRule === "DOUBLE",
+      ...(format.outRule === "MASTER" ? { masterOut: true, fatBull: format.bull === "FAT", roundLimit: format.roundLimit } : {}) }),
   };
 }
 
@@ -62,6 +63,7 @@ export function recoveryFromLog(format: X01Format, firstThrower: 0 | 1, darts: D
     history: s.visits.map(v => ({ turn: v.thrower as 0 | 1, score: v.points, left: v.endScore, darts: displayDarts(v.darts, v.startOpened, format.inRule), leg: v.legNo, openedBefore: v.startOpened })),
     p1Stats: emptyStats(), p2Stats: emptyStats(),
     legNo: s.legNo, legInSet: s.legInSet, dartLog: darts.map(toUiDart),
+    cork: s.cork ? { starter: s.cork.starter, throws: [...s.cork.throws] } : null,
   };
   // Mid-visit restore (normally logs are checkpointed at visit boundaries): the scorer keeps the
   // start-of-visit score and re-adds the in-progress darts itself; opening state stays as replayed.
@@ -75,9 +77,13 @@ export const nextBotVisitIndex = (format: X01Format, firstThrower: 0 | 1, darts:
 
 /** Seeded bot visit identical to the server's verifier. */
 export function careerBotVisit(session: Pick<LiveSession, "bot" | "format">, firstThrower: 0 | 1, darts: Dart[], ctx: { remaining: number; opened: boolean }): UiDart[] {
-  return planBotX01Visit(ctx.remaining, session.bot.config, { doubleOut: session.format.outRule === "DOUBLE", opened: ctx.opened,
+  return planBotX01Visit(ctx.remaining, session.bot.config, { ...botOptionsFor(session.format), opened: ctx.opened,
     rng: seededRandom(session.bot.seed, "bot-visit", nextBotVisitIndex(session.format as X01Format, firstThrower, darts)) }).map(toUiDart);
 }
+
+/** Seeded bot cork dart identical to the server's verifier (soft-tip round-limit legs). */
+export const careerBotCork = (session: Pick<LiveSession, "bot">, ctx: { legNo: number; throwIndex: number }): UiDart =>
+  toUiDart(botCorkDart(session.bot.config, session.bot.seed, ctx.legNo, ctx.throwIndex));
 
 /**
  * Checkpoint after every HUMAN dart (so a refresh mid-visit loses nothing) and when a
@@ -86,7 +92,11 @@ export function careerBotVisit(session: Pick<LiveSession, "bot" | "format">, fir
  * completed legs are immutable server-side.
  */
 export function shouldCheckpoint(format: X01Format, firstThrower: 0 | 1, darts: Dart[]): boolean {
-  try { const s = replay(format, firstThrower, darts); return s.complete || s.visit === null || s.visit.thrower === 0; } catch { return false; }
+  try {
+    const s = replay(format, firstThrower, darts);
+    // A cork in progress is checkpointed after every dart (each is a single, self-contained throw).
+    return s.complete || s.cork !== null || s.visit === null || s.visit.thrower === 0;
+  } catch { return false; }
 }
 
 export function scoreLine(session: Pick<LiveSession, "format" | "result">): string {

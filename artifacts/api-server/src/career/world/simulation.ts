@@ -1,11 +1,12 @@
 import type { CareerDifficulty } from "../config.ts";
 import { CAREER_SIMULATION_CONFIG as S, CAREER_WORLD_CONFIG as W, SIMULATION_VERSION } from "./config.ts";
 import { scopedRandom, normal, pick, type Random } from "./random.ts";
+import { resolveBullUp, botBullThrow, type BullThrow } from "../../shared/darts-rules/bull-up.ts";
 import { createPerformance, finishingProbability } from "./performance.ts";
 import { assertGenerationVersion } from "./generation.ts";
 import { clamp, matchContextSchema, matchFormatSchema, npcSchema, type Npc, type MatchContext, type MatchFormat, type MatchStats, type SimulatedMatch, type Performance } from "./types.ts";
 
-type Dart = { score: number; double: boolean };
+type Dart = { score: number; double: boolean; treble?: boolean };
 type Aim = { segment: number; multiplier: 1 | 2 | 3 };
 const BOARD = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
 const scoringTargets: Aim[] = [20, 19, 18, 17, 16, 15].map(segment => ({ segment, multiplier: 3 }));
@@ -23,6 +24,24 @@ for (let darts = 1; darts <= 3; darts++) {
   }
 }
 
+// Soft-tip master out with a fat bull: a leg can finish on a double, a treble or the (fat) bull.
+const softFinisher = (v: number): Aim | null => v === 50 ? { segment: 25, multiplier: 2 } : v <= 60 && v % 3 === 0 ? { segment: v / 3, multiplier: 3 }
+  : v <= 40 && v % 2 === 0 ? { segment: v / 2, multiplier: 2 } : null;
+const softCheckout = new Map<string, Aim>();
+for (let darts = 1; darts <= 3; darts++) {
+  for (let remaining = 2; remaining <= 180; remaining++) {
+    const direct = softFinisher(remaining);
+    if (direct) softCheckout.set(`${remaining}:${darts}`, direct);
+    else if (darts > 1) {
+      const aim = setupTargets.filter(t => t.segment !== 25).find(target => softCheckout.has(`${remaining - target.segment * target.multiplier}:${darts - 1}`));
+      if (aim) softCheckout.set(`${remaining}:${darts}`, aim);
+    }
+  }
+}
+function chooseSoftAim(remaining: number, dartsLeft: number): Aim {
+  return softCheckout.get(`${remaining}:${dartsLeft}`) ?? (remaining > 60 ? { segment: 20, multiplier: 3 } : { segment: 1, multiplier: 1 });
+}
+
 function chooseAim(remaining: number, dartsLeft: number): Aim {
   const route = checkout.get(`${remaining}:${dartsLeft}`);
   if (route) return route;
@@ -31,9 +50,14 @@ function chooseAim(remaining: number, dartsLeft: number): Aim {
   return { segment: 1, multiplier: 1 }; // odd small score: set up a double.
 }
 
-function throwDart(aim: Aim, profile: Performance, scoring: number, decisive: boolean, momentum: number, rng: Random): Dart {
+function throwDart(aim: Aim, profile: Performance, scoring: number, decisive: boolean, momentum: number, rng: Random, fatBull = false): Dart {
   const roll = rng();
   const neighbours = aim.segment === 25 ? [5, 20, 1] : [BOARD[(BOARD.indexOf(aim.segment) + 19) % 20], BOARD[(BOARD.indexOf(aim.segment) + 1) % 20]];
+  if (fatBull && aim.segment === 25) {
+    // The fat bull (inner + outer, both 50) is a bigger target than any double.
+    const chance = clamp(finishingProbability(profile, decisive, momentum, false) * S.fatBullFactor, 0, S.maximumHit);
+    return roll < chance ? { score: 50, double: true } : { score: rng() < 0.5 ? pick(rng, neighbours) : 0, double: false };
+  }
   if (aim.multiplier === 2) {
     const chance = finishingProbability(profile, decisive, momentum, aim.segment === 25);
     if (roll < chance) return { score: aim.segment * 2, double: true };
@@ -43,7 +67,7 @@ function throwDart(aim: Aim, profile: Performance, scoring: number, decisive: bo
   if (aim.multiplier === 3) {
     const treble = clamp(S.trebleBase + scoring * S.trebleScoringWeight + profile.effective.powerScoring * S.treblePowerWeight, 0, S.maximumHit);
     const single = S.trebleSingleBase + scoring * S.trebleSingleWeight;
-    if (roll < treble) return { score: aim.segment * 3, double: false };
+    if (roll < treble) return { score: aim.segment * 3, double: false, treble: true };
     if (roll < treble + single) return { score: aim.segment, double: false };
     return { score: pick(rng, neighbours), double: false };
   }
@@ -78,6 +102,7 @@ export function simulateNpcMatch(input: {
   const momentum = [0, 0];
   const startingScore = format.startingScore ?? S.startingScore;
   const doubleIn = format.inRule === "DOUBLE";
+  const soft = format.outRule === "MASTER";
   const sets = format.unit === "SETS";
   // LEGS: target legs in the match. SETS: target legs in a set and target sets in the match.
   const targetLegs = sets ? (format.legsPerSet! + 1) / 2 : (format.bestOf + 1) / 2;
@@ -97,7 +122,8 @@ export function simulateNpcMatch(input: {
     const darts: [number, number] = [0, 0];
     const points: [number, number] = [0, 0];
     let won = false;
-    for (let visit = 0; visit < S.maxVisitsPerLeg && !won; visit++) {
+    const visitLimit = soft ? format.roundLimit! * 2 : S.maxVisitsPerLeg;
+    for (let visit = 0; visit < visitLimit && !won; visit++) {
       const who = ((firstThrow + visit) % 2) as 0 | 1;
       const other = (1 - who) as 0 | 1;
       const before = remaining[who];
@@ -121,13 +147,14 @@ export function simulateNpcMatch(input: {
           remaining[who] -= thrown.score; visitPoints += thrown.score;
           continue;
         }
-        const aim = chooseAim(remaining[who], 3 - dart);
-        const finishAttempt = aim.multiplier === 2 && aim.segment * 2 === remaining[who];
-        const thrown = throwDart(aim, profile, scoring, leverage, momentum[who], random);
+        const aim = soft ? chooseSoftAim(remaining[who], 3 - dart) : chooseAim(remaining[who], 3 - dart);
+        const finishAttempt = soft ? aim.segment * aim.multiplier === remaining[who] && aim.multiplier > 1 : aim.multiplier === 2 && aim.segment * 2 === remaining[who];
+        const thrown = throwDart(aim, profile, scoring, leverage, momentum[who], random, soft);
         stats[who].darts++; darts[who]++;
         if (finishAttempt) stats[who].doubleAttempts++;
         const next = remaining[who] - thrown.score;
-        if (next < 0 || next === 1 || (next === 0 && !thrown.double)) { bust = true; if (finishAttempt) missedDoubles++; break; }
+        const validFinish = thrown.double || (soft && !!thrown.treble);
+        if (next < 0 || next === 1 || (next === 0 && !validFinish)) { bust = true; if (finishAttempt) missedDoubles++; break; }
         remaining[who] = next;
         visitPoints += thrown.score;
         if (next === 0) {
@@ -151,6 +178,17 @@ export function simulateNpcMatch(input: {
           else legInSet++;
         }
       }
+    }
+    if (!won && soft) {
+      // Round limit reached: a cork (one dart each at the bull; nearest wins; same ring re-throws in reverse order).
+      const corkRng = scopedRandom(seed, generationVersion, "cork", SIMULATION_VERSION, matchKey, legIndex);
+      const acc = (who: 0 | 1) => clamp(finishingProbability(performance[who], false, 0, true) * 2.5, 0, 1);
+      const corkThrows: BullThrow[] = [];
+      let cork = resolveBullUp(firstThrow, corkThrows);
+      while (cork.winner === null) { corkThrows.push(botBullThrow(acc(cork.nextThrower!), corkRng)); cork = resolveBullUp(firstThrow, corkThrows); }
+      const who = cork.winner;
+      stats[who].legsWon++; won = true;
+      legs.push(sets ? { winner: who, firstThrow, checkout: 0, darts, points, set: setNo } : { winner: who, firstThrow, checkout: 0, darts, points });
     }
     if (!won) throw new Error("NPC leg exceeded simulation safety limit; result not fabricated");
   }

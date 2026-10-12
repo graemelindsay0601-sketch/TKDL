@@ -16,7 +16,7 @@ import { assessCapability, liveMatchFormat } from "../calendar/formats.ts";
 import { isGroupMatch } from "../calendar/groups.ts";
 import type { CareerCalendarService } from "../calendar/service.ts";
 import {
-  replay, settledDartCount, validateDart, resolveBullUp, botBullThrow, isBullThrow, planBotX01Visit, seededRandom,
+  replay, settledDartCount, validateDart, resolveBullUp, botBullThrow, isBullThrow, planBotX01Visit, seededRandom, botOptionsFor, botCorkDart, corkThrowers,
   type Dart, type X01Format, type X01MatchState, type BullThrow, type PlayerIdx,
 } from "../../shared/darts-rules/index.ts";
 
@@ -50,9 +50,20 @@ type SessionRow = {
 
 /** Every bot visit in a replayed log must be exactly what the seeded planner throws. */
 export function verifyBotVisits(state: X01MatchState, bot: SessionRow["bot_config"], seed: string): void {
-  const doubleOut = state.format.outRule === "DOUBLE";
+  const rules = botOptionsFor(state.format);
+  // Soft-tip cork darts: every opponent cork dart must be the session bot's seeded cork.
+  const checkCork = (legNo: number, starter: PlayerIdx, darts: readonly Dart[]) => {
+    const throws = darts.map(d => (d.segment === 25 ? (d.multiplier === 2 ? "INNER" : "OUTER") : "MISS") as BullThrow);
+    corkThrowers(starter, throws).forEach((who, i) => {
+      if (who !== 1) return;
+      const p = botCorkDart(bot, seed, legNo, i);
+      if (p.segment !== darts[i].segment || p.multiplier !== darts[i].multiplier) throw new CareerError(409, `Opponent cork in leg ${legNo} does not match the session's bot`);
+    });
+  };
+  for (const c of state.corkLog) checkCork(c.legNo, state.legsLog.find(l => l.legNo === c.legNo)!.starter, c.darts);
+  if (state.cork) checkCork(state.legNo, state.cork.starter, state.cork.darts);
   const check = (visit: { startScore: number; startOpened: boolean; darts: Dart[] }, index: number) => {
-    const plan = planBotX01Visit(visit.startScore, bot, { doubleOut, opened: visit.startOpened, rng: seededRandom(seed, "bot-visit", index) });
+    const plan = planBotX01Visit(visit.startScore, bot, { ...rules, opened: visit.startOpened, rng: seededRandom(seed, "bot-visit", index) });
     visit.darts.forEach((d, i) => {
       const p = plan[i];
       if (!p || p.segment !== d.segment || p.multiplier !== d.multiplier || p.value !== d.value) throw new CareerError(409, `Opponent visit ${index + 1} does not match the session's bot`);

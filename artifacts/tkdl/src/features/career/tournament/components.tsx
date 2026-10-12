@@ -19,7 +19,8 @@ const formatLine = (f: TView["event"]["format"], bestOf?: number) => {
   const unit = f.scoringUnit === "SETS" ? "sets" : "legs";
   const isX01 = f.gameType?.toUpperCase() === "X01" || f.startingScore != null;
   const rule = (value?: string) => ({ STRAIGHT: "straight", DOUBLE: "double", MASTER: "master", TREBLE: "treble", BULL: "bull" } as Record<string, string>)[value ?? ""];
-  const rules = [f.inRule && rule(f.inRule) ? `${rule(f.inRule)}-in` : null, f.outRule && rule(f.outRule) ? `${rule(f.outRule)}-out` : null].filter(Boolean).join(", ");
+  const rules = [f.inRule && rule(f.inRule) ? `${rule(f.inRule)}-in` : null, f.outRule && rule(f.outRule) ? `${rule(f.outRule)}-out` : null,
+    "bull" in f && f.bull === "FAT" ? "fat bull" : null, "roundLimit" in f && f.roundLimit ? `${f.roundLimit}-round limit (cork decides)` : null].filter(Boolean).join(", ");
   const base = isX01
     ? [`X01 · ${f.startingScore ?? 501}`, rules, f.scoringUnit === "SETS" && f.legsPerSet ? `${f.legsPerSet} legs per set` : null].filter(Boolean).join(" · ")
     : f.scoringUnit === "SETS" ? `Set play · ${f.legsPerSet ?? "variable"} legs per set` : f.gameType;

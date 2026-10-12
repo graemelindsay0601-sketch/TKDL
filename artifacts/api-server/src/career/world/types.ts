@@ -46,7 +46,12 @@ export const matchFormatSchema = z.object({
   inRule: z.enum(["STRAIGHT", "DOUBLE"]).optional(),
   unit: z.enum(["LEGS", "SETS"]).optional(),
   legsPerSet: oddBestOf.optional(),
+  /** Soft-tip: master out with a fat bull and a per-leg round limit decided by a cork. */
+  outRule: z.literal("MASTER").optional(),
+  bull: z.literal("FAT").optional(),
+  roundLimit: z.number().int().min(5).max(30).optional(),
 }).strict().superRefine((f, ctx) => {
+  if ((f.outRule !== undefined) !== (f.bull !== undefined) || (f.outRule !== undefined) !== (f.roundLimit !== undefined)) ctx.addIssue({ code: "custom", message: "Soft-tip rules (master out, fat bull, round limit) are set together" });
   if ((f.unit === "SETS") !== (f.legsPerSet !== undefined)) ctx.addIssue({ code: "custom", message: "legsPerSet is required for (and only for) set play" });
 });
 export type MatchFormat = z.infer<typeof matchFormatSchema>;

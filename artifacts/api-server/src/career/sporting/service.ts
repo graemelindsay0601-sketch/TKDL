@@ -11,7 +11,7 @@ import { evaluateRule } from "../calendar/eligibility.ts";
 import { catalogueFor } from "../calendar/catalogue.ts";
 import { createCareerFinanceService } from "../finance/service.ts";
 import type { SponsorFactsProvider } from "../finance/engine.ts";
-import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, rankingRulesVersionFor, timeIndex } from "./config.ts";
+import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, rankingRulesVersionFor, tourCardRulesVersionFor, timeIndex } from "./config.ts";
 import { createSportingHooks, createSportingFactsProvider, bindSporting, ensureSporting, UNBOUND_STATUS, UNBOUND_SEEDING } from "./engine.ts";
 import { orderOfMerit, finalStageDays, PATHWAYS } from "./qschool.ts";
 import { captureSeasonReview } from "../legacy/persistence.ts";
@@ -94,7 +94,8 @@ export function createCareerSportingService(database: CareerDatabase, options: {
       term: { startSeason: c.start_season, endSeason: c.end_season }, status: c.status, endReason: c.end_reason, ended: c.ended_season ? { season: c.ended_season, week: c.ended_week } : null,
       previousCardId: c.previous_card_id, rulesVersion: c.tour_card_rules_version });
     return { participantKey: participant, holdsCard: !!current && Number(current.start_season) <= season && Number(current.end_season) >= season,
-      current: current ? { ...present(current), reviewSeason: Number(current.end_season), retention: TOUR_CARD_RULES_V1.retention } : null, history: cards.map(present) };
+      current: current ? { ...present(current), reviewSeason: Number(current.end_season), retention: TOUR_CARD_RULES_V1.retention,
+        termSeasons: TOUR_CARD_RULES_V1.termSeasons, inFinalSeason: Number(current.end_season) <= season } : null, history: cards.map(present) };
   }
 
   async function qSchoolView(tx: CareerExecutor, root: RootRow, season: number, participant: string) {
@@ -181,7 +182,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const card = await cardView(tx, root, HUMAN);
         return { season: Number(root.current_season), week: Number(root.current_week), professionalStatus: card.holdsCard ? "PROFESSIONAL" : "AMATEUR",
           tourCard: { holdsCard: card.holdsCard, current: card.current }, worldRanking: await participantStanding(tx, root.id, "pro-world", HUMAN), rankings: lists,
-          recentMilestones: recent, versions: { ranking: rulesVersion(root), tourCard: TOUR_CARD_RULES_VERSION, qSchool: Q_SCHOOL_RULES_VERSION } };
+          recentMilestones: recent, versions: { ranking: rulesVersion(root), tourCard: tourCardRulesVersionFor(Number(root.event_database_version)), qSchool: Q_SCHOOL_RULES_VERSION } };
       });
     },
 
