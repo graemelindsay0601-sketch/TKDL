@@ -110,7 +110,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
                 <div className="home-event-topline"><StatusBadge label={next.reason} tone={pending ? "warning" : next.event.human?.canEnter ? "gold" : "neutral"} /><span>Week {next.event.dates.startWeek} <span aria-hidden>·</span> {circuitLabel(next.event.circuit)}</span></div>
               </CareerEventAtmosphere>
               {pending
-                ? <Link className="career-btn career-btn-primary" href={`/career/${id}/tournaments/${next.event.id}/matches/${pending.matchId}`}>Prepare / Play match <ArrowUpRight aria-hidden /></Link>
+                ? <Link className="career-btn career-btn-primary" href={`/career/${id}/matches/${pending.matchId}/play`}>Play match <ArrowUpRight aria-hidden /></Link>
                 : <CareerEventCard event={next.event} saveId={id} onEnter={onEnter} entering={enter.isPending} />}
               {next.event.finance && <div className="home-cost-grid">
                 <div><span>EST. COMMITMENT</span><strong>{formatPence(next.event.finance.entryFeePence + next.event.finance.estimatedTravelPence + next.event.finance.estimatedAccommodationPence)}</strong></div>

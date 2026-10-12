@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
   Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
+import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useLegacy, useActiveTournament, useTournamentAction, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, milestoneLabel, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -122,7 +122,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
             </div>
           </div>
         </div>
-        {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} />}
+        {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} hubAction={!!overview?.pendingTournamentActions?.length} nextEntry={overview?.nextHumanEntry ?? null} />}
       </div>
       <div className="career-header-tools"><WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link></div>
     </header>
@@ -135,31 +135,51 @@ function HeaderAge({ saveId }: { saveId: string }) {
   return <>{` · ${p.careerDate} · Age ${p.age}`}{p.junior ? " · Junior" : ""}</>;
 }
 
-/** Time only moves through A3's retry-safe advance. A pending human match blocks it (honestly). */
-function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount }: { save: CareerSave; pendingEventId: string | null; pendingMatchId: string | null; pendingCount: number }) {
+/**
+ * Time only moves through A3's retry-safe advance. A pending human match blocks it (honestly).
+ * One button, one next step: a waiting match opens straight in the scorer, Continue Career opens
+ * the match it stops for, and a finished tournament is filed away as the calendar continues.
+ */
+function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hubAction, nextEntry }: { save: CareerSave; pendingEventId: string | null; pendingMatchId: string | null; pendingCount: number; hubAction: boolean; nextEntry: { name: string; week: number } | null }) {
   const advance = useAdvance(save.id);
   const legacy=useLegacy(save.id);
   const tournament=useActiveTournament(save.id);
   const active=tournament.data?.tournaments.find(t=>!t.terminal);
+  const finished=tournament.data?.tournaments.filter(t=>t.terminal)??[];
+  const dismiss=useTournamentAction(save.id,finished[0]?.eventId??"");
+  const [, navigate] = useLocation();
   const [message, setMessage] = useState<string | null>(null);
   const live = useLiveSession(save.id, pendingMatchId);
   const resumable = !!live.data && (live.data.status === "BULL_UP" || live.data.status === "IN_PLAY");
   if(legacy.data?.pendingReview)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/my-career/history`}>Continue Season Review — before Season {save.currentSeason}</Link>;
-  if(active)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/tournaments/${active.eventId}`}>Return to Tournament</Link>;
   if (pendingEventId) return (
     <Link href={pendingMatchId ? `/career/${save.id}/matches/${pendingMatchId}/play` : `/career/${save.id}/events/${pendingEventId}`}
       className="career-btn career-btn-gold w-full sm:w-auto" aria-label={resumable ? "Resume your match" : `${pendingCount > 1 ? `${pendingCount} matches are` : "Your match is"} waiting — play it now`}>
       <Swords className="w-4 h-4" aria-hidden /> {resumable ? "Resume match" : pendingCount > 1 ? `Play match (${pendingCount} waiting)` : "Play your match"}
     </Link>
   );
+  if(active&&hubAction)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/tournaments/${active.eventId}`}>Return to Tournament</Link>;
+  const go = async () => {
+    setMessage(null);
+    // A finished tournament only needs filing away; it never blocks the calendar on the server.
+    if (finished.length) await dismiss.mutateAsync({ action: "dismiss" }).catch(() => undefined);
+    // With an event booked, play straight on to its first match; otherwise stop at the next notable date.
+    advance.mutate({ season: save.currentSeason, week: save.currentWeek, target: { kind: nextEntry ? "NEXT_MATCH" : "NEXT_MEANINGFUL" } }, {
+      onSuccess: r => {
+        const matchId = r.stop.reason === "HUMAN_MATCH_PENDING" ? (r.stop.detail as { matchIds?: string[] } | undefined)?.matchIds?.[0] : undefined;
+        if (matchId) navigate(`/career/${save.id}/matches/${matchId}/play`);
+        else setMessage(`${advanceStopLabel(r.stop.reason)} — ${weekLabel(r.to.season, r.to.week)}`);
+      },
+      onError: e => setMessage(errorMessage(e)) });
+  };
   return (
     <div className="flex flex-col items-stretch sm:items-end gap-1">
-      <button className="career-btn career-btn-primary" title="Play simulated weeks until your next important date" disabled={advance.isPending||legacy.isLoading||tournament.isLoading||!!legacy.error||!!tournament.error}
-        onClick={() => { setMessage(null); advance.mutate({ season: save.currentSeason, week: save.currentWeek, target: { kind: "NEXT_MEANINGFUL" } },
-          { onSuccess: r => setMessage(`${advanceStopLabel(r.stop.reason)} — ${weekLabel(r.to.season, r.to.week)}`), onError: e => setMessage(errorMessage(e)) }); }}>
+      <button className="career-btn career-btn-primary" title={nextEntry ? `Play on to your next match: ${nextEntry.name}` : "Play simulated weeks until your next important date"} disabled={advance.isPending||dismiss.isPending||legacy.isLoading||tournament.isLoading||!!legacy.error||!!tournament.error}
+        onClick={() => { void go(); }}>
         {advance.isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
         {advance.isPending ? "Playing…" : "Continue Career"}
       </button>
+      {nextEntry && !advance.isPending && <span className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Next: {nextEntry.name} · wk {nextEntry.week}</span>}
       {(legacy.error||tournament.error)&&<CareerError error={legacy.error||tournament.error} onRetry={()=>{void legacy.refetch();void tournament.refetch();}}/>}
       {message && <span role="status" className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.7)" }}>{message}</span>}
     </div>

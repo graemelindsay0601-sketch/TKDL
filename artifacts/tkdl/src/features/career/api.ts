@@ -135,7 +135,7 @@ export const useMilestones = (saveId: string, limit = 50) => useQuery({ queryKey
  */
 export type EntryResult = { entered: boolean; created: boolean; denials: string[] };
 export type WithdrawResult = { withdrawn: boolean; postLock?: boolean; denials: string[] };
-export type AdvanceTarget = { kind: "NEXT_MEANINGFUL" } | { kind: "WEEKS"; weeks: number };
+export type AdvanceTarget = { kind: "NEXT_MEANINGFUL" } | { kind: "NEXT_MATCH" } | { kind: "WEEKS"; weeks: number };
 export const careerRequests = {
   enter: (saveId: string, eventId: string) => send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`),
   withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),

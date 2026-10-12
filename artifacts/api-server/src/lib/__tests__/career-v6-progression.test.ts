@@ -72,7 +72,7 @@ test("PROG-01/06/11: amateur finals fill from ranking-eligible NPCs; no redundan
 
 test("PROG-07: the human is invited when inside an event's invitation count on the World Ranking (v6 only)", () => {
   const ws = { event_database_version: 6, snapshot: { invitationPolicy: { count: 8 } } } as unknown as InstanceRow;
-  const human = (rank?: number) => ({ kind: "HUMAN" as const, rankings: rank ? { "pro-world": rank } : {} });
+  const human = (rank?: number) => ({ kind: "HUMAN" as const, rankings: (rank ? { "pro-world": rank } : {}) as Record<string, number> });
   assert.equal(humanInvited(human(8), ws), true);
   assert.equal(humanInvited(human(9), ws), false);
   assert.equal(humanInvited(human(), ws), false);

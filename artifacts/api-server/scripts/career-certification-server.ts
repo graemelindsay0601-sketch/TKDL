@@ -30,6 +30,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { sql } from "drizzle-orm";
 import { careerStartupSteps, runCareerStartupSteps } from "./career-startup-steps.ts";
+import { createShadowObservations } from "../src/db/migrations/create_shadow_observations_sb21a.ts";
 import { createCareerService } from "../src/career/service.ts";
 import { createCareerRouter } from "../src/career/router.ts";
 import { createCareerCalendarRouter } from "../src/career/calendar/router.ts";
@@ -144,9 +145,12 @@ let state: State;
 if (reuse) {
   state = JSON.parse(readFileSync(statePath!, "utf8"));
   log("Reusing seeded data", dataDir);
+  await db.transaction(async tx => createShadowObservations(tx as never));
 } else {
   log(`Schema: app.ts Career steps before A9 (${STEPS.slice(0, A9).map(st => st.key).join(", ")})`);
   await baseSchema();
+  // Live match sessions record a Shadow activity (non-Career table the production app creates at startup).
+  await db.transaction(async tx => createShadowObservations(tx as never));
   log("Legacy save on event database v2 (before A9 upgrade)");
   const legacy = await newSave(3, "Legacy Career", "1988-03-02", "ayrshire", 2);
   await fund(legacy, 150000);
