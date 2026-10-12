@@ -2,17 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateSeason } from "../../career/calendar/generation.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
+import { CURRENT_EVENT_DATABASE_VERSION } from "../../career/calendar/config.ts";
 
 /**
- * AUDIT REGRESSION (career-audit/progression-and-pacing, finding PROG-01) — expected to FAIL
- * until fixed. A SELECTION event with npcFill [0,0] and no invitation policy only admits NPCs
- * that hold an intake entitlement (calendar/engine.ts field assembly). If the season can never
- * issue enough such entitlements to reach minimumEntrants (plus the one human), every edition is
- * cancelled for INSUFFICIENT_ENTRANTS — including for a human who qualified by ranking.
+ * Guard for audit finding PROG-01 (fixed in event database v6). A SELECTION event with npcFill [0,0]
+ * and no invitation policy only admits NPCs that hold an intake entitlement (calendar/engine.ts field
+ * assembly). If a season can never issue enough such entitlements to reach minimumEntrants (plus the
+ * one human), every edition is cancelled — including for a human who qualified by ranking.
  */
-test("every executable event can reach its minimum field in a normal season (v5)", () => {
+test("every executable event can reach its minimum field in a normal season (current edition)", () => {
   for (const season of [2, 3]) {
-    const drafts = generateSeason(HARNESS_SEED, 5, season);
+    const drafts = generateSeason(HARNESS_SEED, CURRENT_EVENT_DATABASE_VERSION, season);
     const unfillable: string[] = [];
     for (const d of drafts) {
       const s = d.snapshot as any;

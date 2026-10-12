@@ -3,7 +3,7 @@ import { scopedRandom, stableUuid } from "../world/random.ts";
 import { catalogueFor, type EventDefinition, type ScheduleSlot } from "./catalogue.ts";
 import { CALENDAR_GENERATION_VERSION, DAYS_PER_WEEK, WEEKS_PER_SEASON, groupingForWeek } from "./config.ts";
 import { assessCapability, eventFormatSchema, type Capability } from "./formats.ts";
-import { ruleSchema, type Rule } from "./eligibility.ts";
+import { R, ruleSchema, type Rule } from "./eligibility.ts";
 import { LOCALITIES, LOCALITIES_V1, venueByKey, localVenue, zoneOf, COUNTRIES, COUNTY_CATCHMENTS } from "./geography.ts";
 import { venueContent } from "../content/world.ts";
 
@@ -85,7 +85,10 @@ export function generateSeason(seed: string, eventDatabaseVersion: number, seaso
     // Do not move the clock, invent results, or rewrite any v1–v4 edition.
     if(eventDatabaseVersion>=5 && season===1 && definition.circuit==="Q_SCHOOL")continue;
     const hash = definitionHash(definition);
-    const { schedule: _schedule, eligibility: rawEligibility, ...rest } = definition;
+    const { schedule: _schedule, eligibility: authoredEligibility, ...rest } = definition;
+    // v6: with no Q-School in season 1, the season-1 Challenger Tour is open to every player without
+    // a Tour Card, so its ranking (top 2 cards, 3–10 Final Stage exemptions) is a first-season route.
+    const rawEligibility = eventDatabaseVersion >= 6 && season === 1 && definition.key === "challenger-event" ? R.nonTourCard() : authoredEligibility;
     placements(definition, seed, season).forEach((placement, index) => {
       const venue = venueByKey(placement.venueKey);
       const locality = placement.localityKey ? LOCALITIES.find(l => l.key === placement.localityKey)! : null;

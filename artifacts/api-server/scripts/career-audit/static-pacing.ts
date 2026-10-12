@@ -17,7 +17,7 @@ import { FEE_PROFILES, FEE_OVERRIDES, PRIZE_PROFILES, PRIZE_OVERRIDES } from "..
 import { travelBand, tripCost } from "../../src/career/finance/travel.ts";
 import { HARNESS_SEED } from "../../src/career/world/harness.ts";
 
-const VERSION = 5;
+const VERSION = Number(process.argv.find(a => a.startsWith("--version="))?.slice(10) ?? 5);
 const seasons = (process.argv.find(a => a.startsWith("--seasons="))?.slice(10) ?? "1,2,3,5,10,15,20").split(",").map(Number);
 const home = { locality: "ayrshire", country: "GBR", zone: "UK_IRELAND", travelVersion: 2 };
 
