@@ -35,6 +35,7 @@ import { cardDebugLog } from "./card-debug";
 import { createMatchLogger, downloadMatchLog } from "./card-clash/matchLogger";
 import type { MatchLogger } from "./card-clash/matchLogger";
 import { RaceTrack, TrackStats, LivesPods, TerritoryGrid, MatchStrip, ScoreTower, LimboBar, SnakesLaddersBoard, CricketBoard, type LifePod } from "@/components/party-ui";
+import "./x01-scorer.css";
 
 /**
  * Sends a match's accumulated log to the backend for later download from
@@ -1983,7 +1984,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       </div>
     )}
     <ScorerLayout
-      top={<div className="space-y-3">
+      top={<div className="space-y-3 x01-match-content">
         {topBanner}
         {roundLimit ? (
           <div aria-label="Soft-tip match rules" style={{ display: "flex", justifyContent: "center", gap: 8, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "#53d6c4" }}>
@@ -2020,7 +2021,21 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         </button>
       </div>
       )}
-      <div className="pdc-divider" />
+      <div className="x01-event-header">
+        <div className="x01-event-brand">
+          <span className="x01-event-target"><Target size={16} /></span>
+          <div><b>TKDL</b><span>{startingScore} · X01</span></div>
+        </div>
+        <div className="x01-event-active">
+          <span className="x01-live-indicator" />
+          <div><small>{bust ? "VISIT BUST" : isBotTurnX01 ? "OPPONENT AT THE OCHE" : "AT THE OCHE"}</small><strong>{bust ? bustMsg : names[turn]}</strong></div>
+        </div>
+        <div className="x01-event-leg">
+          <span>LEG</span><strong>{legNo}</strong>
+          {legs ? <small>OF {legs}</small> : <small>IN PLAY</small>}
+        </div>
+      </div>
+      <div className="pdc-divider x01-divider" />
       {/* Leg / Set score indicators */}
       {(setsToWin > 0 || (legs && legs > 1)) && (
         <div className="flex items-center justify-center gap-6 text-sm" style={{ fontFamily: "Oswald, sans-serif" }}>
@@ -2084,7 +2099,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         </div>
       )}
       {/* Scoreboard */}
-      <div className={soloMode ? "grid grid-cols-1 gap-3 max-w-xs mx-auto w-full" : "grid grid-cols-2 gap-3"}>
+      <div className={`x01-player-grid ${soloMode ? "grid grid-cols-1 gap-3 max-w-xs mx-auto w-full" : "grid grid-cols-2 gap-3"}`}>
         {([0, ...(soloMode ? [] : [1])] as (0|1)[]).map(i => (
           newScoringUI ? (
             <ScoreTower key={i} label={names[i]} value={scores[i]} max={startingScores[i]}
@@ -2110,14 +2125,17 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} />;
       })}
       {bust ? <BustBanner msg={bustMsg} /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
-      <SectionCard accentColor={scorerThemeColor}>
-        <VisitDarts darts={visitDarts} cappedTotal={isCardClash ? cappedCum : undefined} />
-        {visitDarts.length > 0 && (
-          <div className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-            {cappedCum} scored{cappedCum !== cum ? ` (${cum} capped)` : ""} → leaves {(scores[turn] - cappedCum) >= 0 ? scores[turn] - cappedCum : "BUST"}
-          </div>
-        )}
-      </SectionCard>
+      <div className="x01-visit-card">
+        <SectionCard accentColor={scorerThemeColor}>
+          <div className="x01-visit-heading"><span>THIS VISIT</span><b>{names[turn]}</b><i>{visitDarts.length}/3 DARTS</i></div>
+          <VisitDarts darts={visitDarts} cappedTotal={isCardClash ? cappedCum : undefined} />
+          {visitDarts.length > 0 && (
+            <div className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+              {cappedCum} scored{cappedCum !== cum ? ` (${cum} capped)` : ""} → leaves {(scores[turn] - cappedCum) >= 0 ? scores[turn] - cappedCum : "BUST"}
+            </div>
+          )}
+        </SectionCard>
+      </div>
       {/* Card Modal - shows as overlay on top when showCards is true */}
       {showCards && isCardClash && (
         <div style={{
@@ -2307,7 +2325,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       )}
       </div>
       }
-      bot={<div className="flex flex-col gap-2">
+      bot={<div className="flex flex-col gap-2 x01-keypad-dock">
         <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo} disabled={bust || isBotTurnX01} markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "X01") : undefined} />
         <AbandonBtn onAbandon={() => { if (isCardClash) uploadMatchLog(matchLoggerRef.current, { gameMode: "X01", isChaosMode, isChaosLabMode }); onAbandon(); }} />
         {isCardClash && <DownloadMatchLogBtn logger={matchLoggerRef.current} />}

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { ArrowUpRight, Award, CalendarDays, Flag, History, Medal, Target, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Award, CalendarDays, CircleDollarSign, Flag, History, Medal, Target, TrendingUp, X } from "lucide-react";
 import {
   useCalendar, useSporting, useFinance, useHistory, useActiveTournament, usePresentation,
   useCareerProfile, useCareerLife, useLegacy, useEnterEvent, useQualification, useMilestones,
-  useCareerGoals, errorMessage,
+  useCareerGoals, useGuidance, useEditGuidance, errorMessage,
 } from "../api";
 import {
   CareerSection, CareerEventCard, CareerEmptyState, CareerError, CareerLoading, EventPlateTile, Label, OSWALD, StatusBadge,
@@ -82,10 +82,12 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
       <ContextHelp saveId={id} topic="home" />
-      {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired &&
-        <details className="career-note" open><summary>Establishment season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 6
+      {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
+        <SeasonOneGuidance saveId={id} />
+                <details className="career-note" open><summary>Establishment season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 6
           ? "Choose your own amateur path. This season the Challenger Tour is open to every player without a Tour Card: finish in its top 2 to earn a Tour Card for Season 2, or 3rd–10th to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–3 of Season 2. Turning professional is optional."
           : "Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional."}</p></details>}
+      </>}
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
         <div className="home-section-kicker"><span className="live-indicator" aria-hidden /> PRIORITY DESK</div>
@@ -142,14 +144,21 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
             saveId={id}
           />
         </CareerSection>
-        <CareerSection title="Focus & goals" icon={<Target aria-hidden />} accent="#dbb866" action={<Link className="home-text-link" href={`/career/${id}/goals`}>Manage goals <ArrowUpRight aria-hidden /></Link>}>
+        <CareerSection title="Career Compass" icon={<Target aria-hidden />} accent="#dbb866" action={<Link className="home-text-link" href={`/career/${id}/goals`}>Focus & goals <ArrowUpRight aria-hidden /></Link>}>
           {goals.isLoading ? <CareerLoading label="Reading your goals" /> : goals.error ? <CareerError error={goals.error} onRetry={() => void goals.refetch()} /> :
             goals.data ? <div className="home-goals">
               <p className="home-focus">{goals.data.focusOptions.find(f => f.value === goals.data?.focus)?.label ?? "Career focus"} <span>OPTIONAL FOCUS</span></p>
               {goals.data.retired && <p className="home-muted">Retired Career: goals remain readable; no new sporting progress.</p>}
               {goals.data.goals.filter(g => g.status === "ACTIVE").length
                 ? <ul>{goals.data.goals.filter(g => g.status === "ACTIVE").slice(0, 3).map(g => <li key={g.id}><span aria-hidden />{g.label}</li>)}</ul>
-                : <CareerEmptyState title="No active personal goals">Goals are optional ambitions, not quests. They grant no points, money or unlocks.</CareerEmptyState>}
+                : <NoGoalNudge saveId={id} retired={goals.data.retired} />}
+              <CompassOpportunities
+                opportunities={goals.data.opportunities}
+                events={events}
+                saveId={id}
+                onEnter={onEnter}
+                entering={enter.isPending}
+              />
               <p className="home-goal-foot">{goals.data.goals.filter(g => g.status === "ACTIVE").length} active <span aria-hidden>·</span> no rewards or progression shortcuts</p>
             </div> : <CareerEmptyState title="No goals available" />}
         </CareerSection>
@@ -255,6 +264,80 @@ function OpportunityRow({ event, saveId, onEnter, entering }: { event: CareerEve
         : event.human?.eligible ? <span>Eligibility confirmed by Career rules. Registration status is shown above.</span>
           : <span>Eligibility details are not available for this event.</span>}
     </div>
+  </div>;
+}
+
+function SeasonOneGuidance({ saveId }: { saveId: string }) {
+  const guidance = useGuidance(saveId);
+  const edit = useEditGuidance(saveId);
+  if (!guidance.data || guidance.data.mode === "MINIMAL" || guidance.data.dismissed.includes("establishment")) return null;
+  return <aside className="career-home-note" aria-label="Season 1 guidance">
+    <div><strong>Establishment season · Season 1</strong><p>Amateur competition is a valid route. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional.</p></div>
+    {guidance.data.canEdit && <button type="button" className="home-guidance-dismiss" disabled={edit.isPending} onClick={() => edit.mutate({ dismiss: "establishment" })} aria-label="Dismiss Season 1 guidance"><X aria-hidden /><span>Later</span></button>}
+    {edit.error && <p role="alert">{errorMessage(edit.error)}</p>}
+  </aside>;
+}
+
+function NoGoalNudge({ saveId, retired }: { saveId: string; retired: boolean }) {
+  const guidance = useGuidance(saveId);
+  const edit = useEditGuidance(saveId);
+  if (retired || guidance.data?.dismissed.includes("compass") || guidance.data?.mode === "MINIMAL") {
+    return <CareerEmptyState title="No active personal goals">Goals are optional ambitions, not quests. They grant no points, money or unlocks.</CareerEmptyState>;
+  }
+  return <div className="home-no-goal">
+    <div><strong>No active ambition</strong><p>Choose a focus or personal goal when it helps. You can leave it for later; the calendar, event entry and Career progression stay open.</p></div>
+    <div className="home-no-goal-actions"><Link className="career-btn career-btn-ghost" href={`/career/${saveId}/goals`}>Choose a focus or goal</Link>
+      {guidance.data?.canEdit && <button type="button" className="home-later-link" disabled={edit.isPending} onClick={() => edit.mutate({ dismiss: "compass" })}>Later</button>}</div>
+      {edit.error && <p role="alert">{errorMessage(edit.error)}</p>}
+  </div>;
+}
+
+type CompassOpportunityView = {
+  id: string; name: string; season: number; startDay: number; circuit: string; classification: string; tier: string; status: string;
+  canEnter: boolean; eligible: boolean; denials: string[]; relationship: string; firstPrizePence: number | null;
+  estimatedCostPence: number | null; registration: { opensWeek: number; closesWeek: number }; reason: string;
+};
+
+function CompassOpportunities({ opportunities, events, saveId, onEnter, entering }: {
+  opportunities: CompassOpportunityView[]; events: CareerEvent[]; saveId: string;
+  onEnter: (eventId: string) => void; entering: boolean;
+}) {
+  if (!opportunities.length) return <div className="home-compass-opportunities">
+    <span className="home-compass-kicker">OPPORTUNITIES THAT FIT YOUR FOCUS</span>
+    <p>No matching opportunity is listed in the current window. Your full calendar remains open.</p>
+    <Link href={`/career/${saveId}/calendar`}>Browse calendar <ArrowUpRight aria-hidden /></Link>
+  </div>;
+  const [recommended, ...alternatives] = opportunities;
+  const render = (opportunity: CompassOpportunityView, isRecommended: boolean) => {
+    const event = events.find(item => item.id === opportunity.id);
+    const state = event ? eventStatus(event) : null;
+    const availability = opportunity.canEnter ? "Open for entry" :
+      opportunity.denials.length ? opportunity.denials.map(denialLabel).join(" · ") :
+        `${opportunity.status.replaceAll("_", " ")} · ${opportunity.relationship.replaceAll("_", " ")}`;
+    return <article className={`home-compass-opportunity${isRecommended ? " is-recommended" : ""}`} key={opportunity.id}>
+      <div className="home-compass-opportunity-head">
+        <span className="home-compass-kicker">{isRecommended ? "RECOMMENDED OPPORTUNITY" : "ALTERNATIVE"}</span>
+        <span className="home-compass-event-meta">S{opportunity.season} · Day {opportunity.startDay} · {opportunity.circuit.replaceAll("_", " ")}</span>
+      </div>
+      <h3><Link href={`/career/${saveId}/events/${opportunity.id}`}>{opportunity.name}</Link></h3>
+      <p className="home-compass-reason">{opportunity.reason}</p>
+      {event ? <CareerEventCard event={event} saveId={saveId} compact onEnter={onEnter} entering={entering} /> :
+        <div className="home-compass-facts">
+          <span>{availability}</span><span>Registration weeks {opportunity.registration.opensWeek}–{opportunity.registration.closesWeek}</span>
+          <span>{opportunity.firstPrizePence === null ? "First prize unavailable" : `${formatPence(opportunity.firstPrizePence)} first prize`}</span>
+          <span>{opportunity.estimatedCostPence === null ? "Cost estimate unavailable" : `${formatPence(opportunity.estimatedCostPence)} estimated Career cost`}</span>
+          <Link className="home-text-link" href={`/career/${saveId}/events/${opportunity.id}`}>View event details <ArrowUpRight aria-hidden /></Link>
+        </div>}
+      {event && <p className="home-compass-eligibility">{state?.label ?? availability} · {availability} · Registration weeks {opportunity.registration.opensWeek}–{opportunity.registration.closesWeek}
+        {opportunity.firstPrizePence === null ? " · First prize unavailable" : ` · ${formatPence(opportunity.firstPrizePence)} first prize`}
+        {opportunity.estimatedCostPence === null ? " · Cost estimate unavailable" : ` · ${formatPence(opportunity.estimatedCostPence)} estimated Career cost`}</p>}
+    </article>;
+  };
+  return <div className="home-compass-opportunities">
+    <div className="home-compass-title-row"><span className="home-compass-kicker">OPPORTUNITIES THAT FIT YOUR FOCUS</span><Link href={`/career/${saveId}/calendar`}>Full calendar <ArrowUpRight aria-hidden /></Link></div>
+    {render(recommended, true)}
+    {alternatives.length > 0 && <div className="home-compass-alternatives">{alternatives.slice(0, 3).map(item => render(item, false))}</div>}
+    <p className="home-compass-caveat">Guidance only. Check event eligibility, registration, schedule and costs before entering; this recommendation makes no sporting decision for you.</p>
   </div>;
 }
 
