@@ -187,9 +187,19 @@ export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; coun
   // A6.5: the human's age is taken on THIS event's start date (Career-world time).
   const age = participant.identity !== undefined ? careerAge(participant.identity, event.season, event.start_day) : participant.age;
   return { ...participant, age, zone: participant.zone as ParticipantFacts["zone"],
-    entitlementTargets: ctx.entitlements.get(participant.key) ?? new Set(), invited,
+    entitlementTargets: ctx.entitlements.get(participant.key) ?? new Set(), invited: invited || humanInvited(participant, event),
     results: { SAME: ctx.results.SAME.get(participant.key) ?? new Map(), PREVIOUS: ctx.results.PREVIOUS.get(participant.key) ?? new Map() },
     defendingChampion: ctx.champions.get(`${event.definition_key}:${event.ordinal}`)?.has(participant.key) ?? false };
+}
+/**
+ * v6: NPC invitations are sampled during field assembly, which the human never passes through.
+ * The human is invited on the published World Ranking instead: inside the event's invitation
+ * count. Deterministic and explainable; v1–v5 saves keep "never invited".
+ */
+export function humanInvited(participant: { kind: "HUMAN" | "NPC"; rankings: Record<string, number> }, event: InstanceRow): boolean {
+  const policy = event.snapshot.invitationPolicy;
+  const rank = participant.rankings["pro-world"];
+  return participant.kind === "HUMAN" && Number(event.event_database_version) >= 6 && !!policy && rank !== undefined && rank <= policy.count;
 }
 export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age, womenEligible: npc.worldKey.startsWith("women:"),
   professionalStatus: providers.sportingStatus.npcProfessionalStatus?.(npc) ?? npc.professionalStatus, tourCard: providers.sportingStatus.npcTourCard(npc), rankings: providers.sportingStatus.rankings(npc.id) });

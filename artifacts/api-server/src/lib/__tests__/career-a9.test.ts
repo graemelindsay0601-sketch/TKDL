@@ -17,8 +17,8 @@ const event=(key:string,day=50)=>{const v=VENUES.find(v=>v.key===key)!;assert.ok
 const contract=(key:string,version=3):ContractRow=>({id:key,offer_id:key,sponsor_key:key,
   tier:sponsorCatalogue(version).find(d=>d.key===key)!.terms.tier,terms:structuredClone(sponsorCatalogue(version).find(d=>d.key===key)!.terms),
   start_season:1,start_week:1,end_season:3,end_week:52,status:"ACTIVE"});
-test("A9 new-save v5 establishment season; annual A3 Q-School resumes without moving the clock",()=>{
-  assert.equal(CAREER_VERSIONS.eventDatabaseVersion,5);assert.equal(CAREER_DEFAULTS.currentWeek,1);
+test("A9 v5 establishment season (kept by v6 new saves); annual A3 Q-School resumes without moving the clock",()=>{
+  assert.equal(CAREER_VERSIONS.eventDatabaseVersion,6);assert.ok(!generateSeason(seed,6,1).some(e=>e.circuit==="Q_SCHOOL"));assert.equal(CAREER_DEFAULTS.currentWeek,1);
   assert.equal(CAREER_DEFAULTS.balancePence,25000);
   const old=generateSeason(seed,4,1),fresh=generateSeason(seed,5,1);
   assert.ok(old.some(e=>e.circuit==="Q_SCHOOL"));assert.ok(!fresh.some(e=>e.circuit==="Q_SCHOOL"));

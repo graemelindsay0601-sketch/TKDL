@@ -111,6 +111,8 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "sunday-league-sprint": N("WEEKLY", WEEKLY),
   "pub-doubles": N("WEEKLY", WEEKLY),
   "town-open": T("SPECIAL_LOCAL_CHAMPIONSHIP", "wood-silver-shield", "TOWN OPEN"),
+  "new-year-open": T("SPECIAL_LOCAL_CHAMPIONSHIP", "wood-silver-shield", "NEW YEAR OPEN"),
+  "festive-open": T("SPECIAL_LOCAL_CHAMPIONSHIP", "wood-silver-shield", "FESTIVE OPEN"),
   // ---- Special formats: local nights result-only; named trophies/cups modest shield; featured classics plaque
   ...Object.fromEntries(["count-up-challenge", "cricket-classic", "football-darts", "golf-night", "halve-it-night", "killer-night", "sudden-death-night"]
     .map(k => [k, N("WEEKLY", "Local format night: result and prize only.")])),
@@ -167,6 +169,8 @@ export const EVENT_DESIGNS_V2: Readonly<Record<string, DesignAllocation>> = Obje
   "vault-masters": S("vault-geometric", "Vault championship lineage"),
   "pro-circuit-championship": S("championship-plate", "Pro Circuit tour rounds"),
   "town-open": S("wood-silver-shield", "Local & format championships"),
+  "new-year-open": S("wood-silver-shield", "Local & format championships"),
+  "festive-open": S("wood-silver-shield", "Local & format championships"),
   "national-halve-it": S("wood-silver-shield", "Local & format championships"),
   "double-start-grand-prix": { designId: "silver-cup", allocation: "HISTORIC", group: "Retired v1 major (kept as recorded)" },
 });

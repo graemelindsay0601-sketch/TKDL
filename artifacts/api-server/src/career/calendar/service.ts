@@ -27,6 +27,9 @@ const advanceSchema = z.object({
   expectedWeek: z.number().int().min(1).max(WEEKS_PER_SEASON),
   target: z.discriminatedUnion("kind", [
     z.object({ kind: z.literal("NEXT_MEANINGFUL") }).strict(),
+    /** Play on to the human's next match: skips ordinary weeks and open-entry deadlines, stops for
+     *  qualified-event deadlines, the season boundary, or once no confirmed entry is left. */
+    z.object({ kind: z.literal("NEXT_MATCH") }).strict(),
     z.object({ kind: z.literal("WEEKS"), weeks: z.number().int().min(1).max(WEEKS_PER_SEASON) }).strict(),
     z.object({ kind: z.literal("WEEK"), week: z.number().int().min(1).max(WEEKS_PER_SEASON) }).strict(),
   ]),
@@ -250,6 +253,13 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     return event;
   }
 
+  /** The human's next confirmed entry that has not finished (null when nothing is booked). */
+  async function nextHumanEntry(tx: CareerExecutor, saveId: string) {
+    const row = (await tx.execute(sql`SELECT i.id, i.name, i.season, i.start_week FROM career_event_entries e JOIN career_event_instances i
+      ON i.career_save_id = e.career_save_id AND i.id = e.event_id WHERE e.career_save_id = ${saveId} AND e.participant_key = ${HUMAN} AND e.status <> 'WITHDRAWN'
+      AND i.status NOT IN ('COMPLETED','CANCELLED') ORDER BY i.season, i.start_day, i.id LIMIT 1`)).rows[0];
+    return row ? { eventId: String(row.id), name: String(row.name), season: Number(row.season), week: Number(row.start_week) } : null;
+  }
   /** Meaningful-date evaluation for a (season, week). */
   async function meaningfulReasons(tx: CareerExecutor, root: RootRow, season: number, week: number) {
     const events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week = ${week}`);
@@ -286,6 +296,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       instanceCount: Number(seasonRow.instance_count), developmentCadence: DEVELOPMENT_CADENCE,
       pendingHumanMatches: pending.map(r => ({ matchId: String(r.id), eventId: String(r.event_id) })),
       pendingTournamentActions,
+      nextHumanEntry: await nextHumanEntry(tx, root.id),
       currentWeekActions: reasonsFor(events.filter(e => e.start_week === week), human, windows, season, week),
       nextMeaningful: pending.length||pendingTournamentActions.length ? { season, week, reasons: [{ type: pending.length?"HUMAN_MATCH_PENDING":"GROUP_BULL_UP" }] } : next,
     };
@@ -612,6 +623,13 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const index = (at.season - 1) * WEEKS_PER_SEASON + at.week - 1;
         if (targetIndex !== null) { if (index >= targetIndex) { stop = { reason: "TARGET_REACHED" }; break; } continue; }
         if (at.season !== step.season) { stop = { reason: "SEASON_BOUNDARY" }; break; }
+        if (request.target.kind === "NEXT_MATCH") {
+          const ahead = await database.transaction(async tx => { const { root } = await requireSeason(tx, actor, saveId);
+            return { qualified: (await meaningfulReasons(tx, root, at.season, at.week)).filter(r => r.type === "QUALIFIED_EVENT_DEADLINE"), entry: await nextHumanEntry(tx, root.id) }; });
+          if (ahead.qualified.length) { stop = { reason: "MEANINGFUL_DATE", detail: ahead.qualified }; break; }
+          if (!ahead.entry) { stop = { reason: "TARGET_REACHED" }; break; }
+          continue;
+        }
         const reasons = await database.transaction(async tx => { const { root } = await requireSeason(tx, actor, saveId); return meaningfulReasons(tx, root, at.season, at.week); });
         if (reasons.length) { stop = { reason: "MEANINGFUL_DATE", detail: reasons }; break; }
       }

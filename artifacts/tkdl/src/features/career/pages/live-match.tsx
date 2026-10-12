@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Home, ListOrdered, Swords, Trophy } from "lucide-react";
+import { ArrowLeft, FastForward, Home, ListOrdered, Loader2, Swords, Trophy } from "lucide-react";
 import { GameScorer, BullUpBoard, type GameTypeOption } from "@/components/game-scorer";
 import { resolveBullUp, type Dart, type X01Format } from "@/lib/darts-rules";
 import { useWakeLock, useZoomLock } from "@/lib/nativeParity";
-import { liveApi, errorMessage, useTournament } from "../api";
+import { liveApi, errorMessage, useTournament, useAdvance, useTournamentAction } from "../api";
 import { MatchContextStrip, ResultBanner } from "../tournament/components";
 import { resultMoment } from "../tournament/model";
 import { formatPence } from "../model";
@@ -132,7 +132,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
       </div>, document.body);
   }
 
-  if (phase === "done" && session.result) return <PostMatch saveId={saveId} session={session} onNext={id => navigate(`/career/${saveId}/tournaments/${session.eventId}/matches/${id}`)} />;
+  if (phase === "done" && session.result) return <PostMatch ctx={ctx} session={session} />;
 
   const gameType = careerGameType(session.format) as unknown as GameTypeOption;
   return createPortal(
@@ -163,11 +163,31 @@ function Overlay({ children }: { children: React.ReactNode }) {
 }
 
 /** Career result transition: score, significance from the saved tournament state, what happens next. No narrative (A7). */
-function PostMatch({ saveId, session, onNext }: { saveId: string; session: LiveSession; onNext: (matchId: string) => void }) {
+/**
+ * Result card with one obvious next step: the next fixture opens straight in the scorer; when the
+ * next round is not drawn yet, the calendar moves on to it; a finished event is filed away on the
+ * way back to Career. The Tournament Hub stays one link away for the bracket and summary.
+ */
+function PostMatch({ ctx, session }: { ctx: ShellContext; session: LiveSession }) {
+  const saveId = ctx.save.id;
+  const [, navigate] = useLocation();
+  const advance = useAdvance(saveId);
+  const dismiss = useTournamentAction(saveId, session.eventId);
+  const [note, setNote] = useState<string | null>(null);
   const r = session.result!;
   const next = r.nextHumanMatchIds?.[0] ?? null;
-  const nextState = next ? "Your next fixture is ready." : r.eventCompleted ? "The event is complete. View your tournament summary." : "Result saved. The Tournament Hub shows your group, bracket and next session; a group loss does not automatically eliminate you.";
+  const play = (id: string) => navigate(`/career/${saveId}/matches/${id}/play`);
+  const continueToNext = () => advance.mutate({ season: ctx.save.currentSeason, week: ctx.save.currentWeek, target: { kind: "NEXT_MATCH" } }, {
+    onSuccess: res => {
+      const id = res.stop.reason === "HUMAN_MATCH_PENDING" ? (res.stop.detail as { matchIds?: string[] } | undefined)?.matchIds?.[0] : undefined;
+      if (id) play(id); else navigate(`/career/${saveId}/tournaments/${session.eventId}`);
+    },
+    onError: e => setNote(errorMessage(e)) });
+  const backToCareer = () => dismiss.mutate({ action: "dismiss" }, { onSettled: () => navigate(`/career/${saveId}`) });
   const t = useTournament(saveId, session.eventId);
+  // The player's own tournament is over when the event completes or the hub reports a terminal phase (e.g. knocked out).
+  const finished = r.eventCompleted || ["CHAMPION", "COMPLETE", "ELIMINATED", "WITHDRAWN", "CANCELLED"].includes(t.data?.phase ?? "");
+  const nextState = next ? "Your next fixture is ready." : finished ? (r.eventCompleted ? "The event is complete." : "Your tournament is over. The result is saved.") : "Your next fixture is drawn when the rest of the round is played.";
   const saved = t.data?.matches.find(m => m.id === session.matchId) ?? null;
   const moment = t.data && saved ? resultMoment(t.data, saved) : null;
   const prize = t.data ? (t.data.money.paid ? Number(t.data.money.prize?.cash_award_pence ?? 0) : t.data.money.securedPence) : null;
@@ -187,11 +207,16 @@ function PostMatch({ saveId, session, onNext }: { saveId: string; session: LiveS
         {prize !== null && prize > 0 && <p className="text-sm" style={{ color: "#ffd24a" }}>{t.data?.money.paid ? "Prize settled" : "Prize secured so far"}: {formatPence(prize)}</p>}
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{nextState}</p>
         <div className="flex flex-wrap gap-2">
-          {next && <button className="career-btn career-btn-gold" onClick={() => onNext(next)}><Swords className="w-4 h-4" aria-hidden /> Next match</button>}
-          <Link href={`/career/${saveId}/tournaments/${session.eventId}`} className="career-btn career-btn-primary"><Trophy className="w-4 h-4" aria-hidden /> Tournament progress &amp; summary</Link>
-          <Link href={`/career/${saveId}`} className="career-btn career-btn-ghost"><Home className="w-4 h-4" aria-hidden /> Career Home</Link>
+          {next ? <button className="career-btn career-btn-gold" onClick={() => play(next)}><Swords className="w-4 h-4" aria-hidden /> Play next match</button>
+            : finished ? <button className="career-btn career-btn-gold" disabled={dismiss.isPending || t.isLoading} onClick={backToCareer}><Home className="w-4 h-4" aria-hidden /> Back to Career</button>
+            : <button className="career-btn career-btn-gold" disabled={advance.isPending || t.isLoading} onClick={continueToNext}>
+                {advance.isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
+                {advance.isPending ? "Playing the round…" : "Continue to next match"}</button>}
+          <Link href={`/career/${saveId}/tournaments/${session.eventId}`} className="career-btn career-btn-primary"><Trophy className="w-4 h-4" aria-hidden /> Tournament Hub</Link>
+          {!finished && <Link href={`/career/${saveId}`} className="career-btn career-btn-ghost"><Home className="w-4 h-4" aria-hidden /> Career Home</Link>}
           <Link href={`/career/${saveId}/calendar`} className="career-btn career-btn-ghost"><ListOrdered className="w-4 h-4" aria-hidden /> Calendar</Link>
         </div>
+        {note && <p role="alert" className="text-sm" style={{ color: "#ff8fb4" }}>{note}</p>}
       </div>
     </Overlay>
   );

@@ -83,7 +83,9 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
         ]} />
       <ContextHelp saveId={id} topic="home" />
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired &&
-        <details className="career-note" open><summary>Establishment season</summary><p>Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional.</p></details>}
+        <details className="career-note" open><summary>Establishment season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 6
+          ? "Choose your own amateur path. This season the Challenger Tour is open to every player without a Tour Card: finish in its top 2 to earn a Tour Card for Season 2, or 3rd–10th to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–3 of Season 2. Turning professional is optional."
+          : "Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional."}</p></details>}
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
         <div className="home-section-kicker"><span className="live-indicator" aria-hidden /> PRIORITY DESK</div>
@@ -108,7 +110,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
                 <div className="home-event-topline"><StatusBadge label={next.reason} tone={pending ? "warning" : next.event.human?.canEnter ? "gold" : "neutral"} /><span>Week {next.event.dates.startWeek} <span aria-hidden>·</span> {circuitLabel(next.event.circuit)}</span></div>
               </CareerEventAtmosphere>
               {pending
-                ? <Link className="career-btn career-btn-primary" href={`/career/${id}/tournaments/${next.event.id}/matches/${pending.matchId}`}>Prepare / Play match <ArrowUpRight aria-hidden /></Link>
+                ? <Link className="career-btn career-btn-primary" href={`/career/${id}/matches/${pending.matchId}/play`}>Play match <ArrowUpRight aria-hidden /></Link>
                 : <CareerEventCard event={next.event} saveId={id} onEnter={onEnter} entering={enter.isPending} />}
               {next.event.finance && <div className="home-cost-grid">
                 <div><span>EST. COMMITMENT</span><strong>{formatPence(next.event.finance.entryFeePence + next.event.finance.estimatedTravelPence + next.event.finance.estimatedAccommodationPence)}</strong></div>

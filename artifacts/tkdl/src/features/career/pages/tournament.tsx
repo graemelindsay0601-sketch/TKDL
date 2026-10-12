@@ -52,8 +52,10 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
     if(v.session?.status==="IN_PLAY"||v.presentation.mode==="QUICK"||!v.depth.walkOn)navigate(`/career/${id}/matches/${next.id}/play`);
     else setCeremony("walkon");
   };
-  const continueCalendar=()=>advance.mutate({season:ctx.save.currentSeason,week:ctx.save.currentWeek,target:{kind:"NEXT_MEANINGFUL"}},
-    {onSuccess:()=>{setMessage("Calendar progressed to its next real action. No tournament result was invented.");q.refetch();},onError:e=>setMessage(errorMessage(e))});
+  const continueCalendar=()=>advance.mutate({season:ctx.save.currentSeason,week:ctx.save.currentWeek,target:{kind:"NEXT_MATCH"}},
+    {onSuccess:r=>{const m=r.stop.reason==="HUMAN_MATCH_PENDING"?(r.stop.detail as {matchIds?:string[]}|undefined)?.matchIds?.[0]:undefined;
+      if(m){navigate(`/career/${id}/matches/${m}/play`);return;}
+      setMessage("Calendar progressed to its next real action. No tournament result was invented.");q.refetch();},onError:e=>setMessage(errorMessage(e))});
   const reduced=v.presentation.reducedMotion;
   const playHref=next?`/career/${id}/matches/${next.id}/play`:"";
   return <CareerEventIdentity eventKey={v.event.definitionKey} circuit={v.event.circuit} level={v.event.level}><div className={`tournament-mode tournament-level-${v.event.level} ${reduced?"tournament-reduced":""}`} data-mode={v.presentation.mode}>

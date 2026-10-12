@@ -56,6 +56,10 @@ export type CalendarOverview = {
   season: number; week: number; grouping: { key: string; name: string; fromWeek: number; toWeek: number };
   groupings: { key: string; name: string; fromWeek: number; toWeek: number }[]; status: string; playedWeek: number; instanceCount: number;
   pendingHumanMatches: { matchId: string; eventId: string }[];
+  /** Tournament actions the human must take in the hub (group bull-up playoffs). */
+  pendingTournamentActions?: { eventId: string; kind: string; group: string }[];
+  /** The human's next booked event that has not finished; Continue Career plays straight to it. */
+  nextHumanEntry?: { eventId: string; name: string; season: number; week: number } | null;
   currentWeekActions: { type: string; eventId: string; name: string }[];
   nextMeaningful: { season: number; week: number; reasons: { type: string; eventId?: string; name?: string }[] };
 };

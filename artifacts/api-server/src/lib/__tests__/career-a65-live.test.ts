@@ -51,6 +51,7 @@ import { EVENT_CATALOGUE_V2 } from "../../career/calendar/catalogue.ts";
 import { replay, throwDart, type X01Format, type Dart } from "../../shared/darts-rules/x01.ts";
 import { planBotX01Visit, type BotSkill } from "../../shared/darts-rules/bot.ts";
 import { seededRandom } from "../../shared/darts-rules/random.ts";
+import { CURRENT_EVENT_DATABASE_VERSION } from "../../career/calendar/config.ts";
 const { adoptLiveCursor, recoveryFromLog } = await import(new URL("../../../../tkdl/src/features/career/live-model.ts", import.meta.url).href);
 
 /**
@@ -985,12 +986,12 @@ test("A6.6 admin reset cascades populated Career data only, requires confirmatio
   assert.deepEqual(await again.json(), { deletedSaves: 0 });
 });
 
-// Certification fixtures use actual immutable v5 major instances/fields/formats.
+// Certification fixtures use actual immutable current-edition major instances/fields/formats.
 // Prior Match Trophy results are explicit TEST fixtures. A4/A5 derive their real
 // prize amounts/ranking publications; neither the ranking cache nor bank is forged.
 // not a simulation of acquiring that rank/budget from the initial £250.
 for(const definition of ["world-darts-championship","double-crown"]) {
-  test(`certification actual v5 ${definition}: entry, full field, live sets, NPC champion and exactly-once downstream settlement`,async()=>{
+  test(`certification actual current-edition ${definition}: entry, full field, live sets, NPC champion and exactly-once downstream settlement`,async()=>{
     await pg.exec(`UPDATE feature_flags SET enabled=true WHERE feature_name='tour_career_2'`);
     const made=await call("POST","/saves",{slot:definition==="double-crown"?2:1,careerName:`Cert ${definition}`,dateOfBirth:dobForAge(35)});
     assert.equal(made.status,201,JSON.stringify(made.body));
@@ -1001,7 +1002,7 @@ for(const definition of ["world-darts-championship","double-crown"]) {
     const past=(await q(sql`SELECT * FROM career_event_instances WHERE career_save_id=${id} AND definition_key='long-format-matchplay'`))[0];
     const qualifierEvents=definition==="world-darts-championship"?await q(sql`SELECT * FROM career_event_instances
       WHERE career_save_id=${id} AND definition_key='world-championship-qualifier' ORDER BY ordinal`):[];
-    assert.equal(e.event_database_version,5);assert.equal(e.snapshot.format.scoringUnit,"SETS");
+    assert.equal(e.event_database_version,CURRENT_EVENT_DATABASE_VERSION);assert.equal(e.snapshot.format.scoringUnit,"SETS");
     const field=definition==="world-darts-championship"?128:32;
     assert.equal(e.field_size,field);
     // TEST ONLY clock/other-event boundary, funds and persisted A5 ranking fixture.

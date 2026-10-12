@@ -2,8 +2,8 @@
 export const CAREER_VERSIONS = Object.freeze({
   careerSchemaVersion: 1,
   worldGenerationVersion: 1,
-  /** A9: establishment season v5 for new saves only; existing roots keep their pins. */
-  eventDatabaseVersion: 5,
+  /** v6 progression & pacing edition for new saves only; existing roots keep their pins. */
+  eventDatabaseVersion: 6,
   playerDatabaseVersion: 2,
 });
 

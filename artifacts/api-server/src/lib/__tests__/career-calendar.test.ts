@@ -354,3 +354,24 @@ test("Classic Tour data and code are untouched by A3", async () => {
 });
 /** sha256 of artifacts/api-server/src/lib/tourSeed.ts at approved A2 commit 92b09c7 (61 events / 305 trophies). */
 const TOUR_SEED_SHA256 = "bd9c35ae2b2c8c1b560be03987972a9d9432e0019d167c8c62e171e7bbc4b994";
+
+// ------------------------------------------------------------------ NEXT_MATCH: play straight on to a booked event
+test("NEXT_MATCH plays past ordinary stops straight to the human's booked match in one advance", async () => {
+  const pick = async (id: string) => {
+    const view = await calendar.calendar(actor, id, { scope: "WORLD", fromWeek: 1, toWeek: 8 }) as { events: { id: string; dates: { startWeek: number }; capability: { executable: boolean }; human: { canEnter: boolean } | null }[] };
+    return view.events.filter(e => e.human?.canEnter && e.capability.executable && e.dates.startWeek >= 2).sort((x, y) => y.dates.startWeek - x.dates.startWeek)[0];
+  };
+  const a = await careerFor(1, 1), b = await careerFor(1, 2);
+  const target = await pick(a.id);
+  assert.ok(target, "an enterable event after week 1");
+  for (const s of [a, b]) assert.equal((await calendar.enter(actor, s.id, { eventId: (await pick(s.id)).id }) as { entered: boolean }).entered, true);
+  const direct = await calendar.advance(actor, a.id, { operationKey: "next-match-a-1", expectedSeason: 1, expectedWeek: 1, target: { kind: "NEXT_MATCH" } }) as { stop: { reason: string }; to: { week: number } };
+  assert.equal(direct.stop.reason, "HUMAN_MATCH_PENDING");
+  assert.equal(direct.to.week, target.dates.startWeek);
+  // The ordinary advance stops earlier (registration deadlines / the booked week's start) — the reason NEXT_MATCH exists.
+  const meaningful = await calendar.advance(actor, b.id, { operationKey: "next-match-b-1", expectedSeason: 1, expectedWeek: 1, target: { kind: "NEXT_MEANINGFUL" } }) as { to: { week: number } };
+  assert.ok(meaningful.to.week < direct.to.week, "NEXT_MEANINGFUL stops earlier");
+  // Retry-safe like every advance: the same operation key returns the stored outcome.
+  const again = await calendar.advance(actor, a.id, { operationKey: "next-match-a-1", expectedSeason: 1, expectedWeek: 1, target: { kind: "NEXT_MATCH" } }) as { stop: { reason: string } };
+  assert.equal(again.stop.reason, direct.stop.reason);
+});
