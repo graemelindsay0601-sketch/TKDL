@@ -7,6 +7,7 @@ import { AGE_POLICY } from "../identity/age.ts";
 import { COUNTRIES, LOCALITIES, type Zone } from "./geography.ts";
 import { expandWorldCatalogue } from "../content/events.ts";
 import { buildCatalogueV6 } from "../content/season-v6.ts";
+import { buildCatalogueV7 } from "../content/season-v7.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -439,6 +440,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 4) return EVENT_CATALOGUE_V4;
   if (version === 5) return EVENT_CATALOGUE_V5;
   if (version === 6) return EVENT_CATALOGUE_V6;
+  if (version === 7) return EVENT_CATALOGUE_V7;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -446,5 +448,7 @@ export const EVENT_CATALOGUE_V5: readonly EventDefinition[] = Object.freeze(
   EVENT_CATALOGUE_V4.map(d=>({...d,eventDatabaseVersion:5})));
 /** Progression & pacing edition: real-world season shape, season-1 Challenger route, filled finals. */
 export const EVENT_CATALOGUE_V6: readonly EventDefinition[] = buildCatalogueV6(EVENT_CATALOGUE_V5);
+/** Every starting country gets a full ladder; regional tours (Asian, North American, Soft-Tip, Oceanic, Nordic & Baltic, European Development). */
+export const EVENT_CATALOGUE_V7: readonly EventDefinition[] = buildCatalogueV7(EVENT_CATALOGUE_V6);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

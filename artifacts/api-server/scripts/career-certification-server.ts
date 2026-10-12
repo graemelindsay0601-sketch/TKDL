@@ -20,7 +20,7 @@
  *   slot 3  "Legacy Career"   pinned to event database v2 BEFORE the A9 upgrade migration runs
  *   archive "Retired Career"  a club title, then retired (A Career Remembered)
  *
- *   node scripts/career-certification-server.ts [--port=8790] [--dist=../tkdl/dist/public] [--data=DIR] [--quick]
+ *   node scripts/career-certification-server.ts [--port=8790] [--dist=../tkdl/dist/public] [--data=DIR] [--quick | --minimal]
  * GET /__cert/state returns the seeded save ids (dev only).
  */
 import express from "express";
@@ -68,6 +68,8 @@ const port = Number(arg("port") ?? 8790);
 const dist = path.resolve(arg("dist") ?? path.resolve(import.meta.dirname, "../../tkdl/dist/public"));
 const dataDir = arg("data") ?? null;
 const quick = flag("quick");
+/** --minimal: create every seeded save but play no weeks (fast startup for screen checks). */
+const minimal = flag("minimal");
 const statePath = dataDir ? path.join(dataDir, "..", `${path.basename(dataDir)}.state.json`) : null;
 const reuse = !!(dataDir && existsSync(dataDir) && statePath && existsSync(statePath));
 const pg = dataDir ? new PGlite(dataDir) : new PGlite();
@@ -142,6 +144,7 @@ const seasonPolicy: Policy = m => m.def.startsWith("q-school-first") ? true : m.
 type State = { season: string; fresh: string; legacy: string; retired: string; steps: string[]; sponsorLog: string[] };
 const sponsorLog: string[] = [];
 let state: State;
+const skipPlay = async (..._args: unknown[]) => undefined;
 if (reuse) {
   state = JSON.parse(readFileSync(statePath!, "utf8"));
   log("Reusing seeded data", dataDir);
@@ -154,19 +157,19 @@ if (reuse) {
   log("Legacy save on event database v2 (before A9 upgrade)");
   const legacy = await newSave(3, "Legacy Career", "1988-03-02", "ayrshire", 2);
   await fund(legacy, 150000);
-  await playTo(legacy, 1, 6, m => m.round <= 2, async () => enterIfOpen(legacy, ["friday-night-501", "sunday-league-sprint"]));
+  await (minimal ? skipPlay : playTo)(legacy, 1, 6, m => m.round <= 2, async () => enterIfOpen(legacy, ["friday-night-501", "sunday-league-sprint"]));
   log(`app.ts steps from A9: ${STEPS.slice(A9).map(st => st.key).join(", ")}`);
   await runCareerStartupSteps(db, STEPS.slice(A9), migrated);
   log("Retired save");
   const retired = await newSave(1, "Retired Career", "1979-11-20", "north-east");
   await fund(retired, 150000);
-  await playTo(retired, 1, 10, seasonPolicy, async () => enterIfOpen(retired, [...LOCAL_WINS]));
+  await (minimal ? skipPlay : playTo)(retired, 1, 10, seasonPolicy, async () => enterIfOpen(retired, [...LOCAL_WINS]));
   await saves.retire(1, retired);
   log("Season save (this takes a while: a full simulated season)");
   const season = await newSave(1, "Season Career", "1996-05-14", "ayrshire");
   await fund(season, 400000);
   const enterSeason = async () => enterIfOpen(season, [...LOCAL_WINS, "q-school-first-uk_ireland-d1", "q-school-final-uk_ireland-d1", "pro-circuit-championship", "challenger-event"]);
-  await playTo(season, 1, 9, seasonPolicy, enterSeason);
+  await (minimal ? skipPlay : playTo)(season, 1, 9, seasonPolicy, enterSeason);
   // Try every listed offer, in a rolled-back transaction each, and record the listed signability next to
   // the real signing result (P1-2: the two must agree). Then sign one for real, preferring an offer with
   // guaranteed payments so the guarantee schedule is exercised by the season run.
@@ -194,9 +197,9 @@ if (reuse) {
     catch (e) { sponsorLog.push(`refused ${o.sponsorKey} ${o.id}: ${(e as Error).message}`); }
   }
   log("Sponsor offers", sponsorLog);
-  if (quick) await playTo(season, 1, 20, seasonPolicy, enterSeason);
+  if (quick) await (minimal ? skipPlay : playTo)(season, 1, 20, seasonPolicy, enterSeason);
   // Full run: past the season boundary and past week 8 of season 2, when a one-season agreement signed in week 9 concludes.
-  else await playTo(season, 2, 10, seasonPolicy, enterSeason);
+  else await (minimal ? skipPlay : playTo)(season, 2, 10, seasonPolicy, enterSeason);
   log("New save");
   const fresh = await newSave(2, "New Career", "2001-08-09", "north-east");
   state = { season, fresh, legacy, retired, steps: STEPS.map(st => st.key), sponsorLog };

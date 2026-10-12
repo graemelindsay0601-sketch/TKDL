@@ -7,7 +7,7 @@ const order=(a:Story,b:Story)=>when(b)-when(a) || a.id.localeCompare(b.id);
 const publicMain=(r:EventFact)=>r.classification!=="QUALIFIER";
 const stage=(r:EventFact)=>publicMain(r) && ["TELEVISED","MAJOR","WORLD"].includes(r.presentationTier);
 const familyOf=(r:EventFact)=>!publicMain(r) && r.circuit==="Q_SCHOOL" ? "q-school" : r.presentationTier==="WORLD" && publicMain(r) ? "palace" :
-  stage(r) ? "major" : ["COUNTY","REGIONAL","NATIONAL_AMATEUR","VAULT","CHALLENGER"].includes(r.circuit) ? "amateur" :
+  stage(r) ? "major" : ["COUNTY","REGIONAL","NATIONAL_AMATEUR","VAULT","CHALLENGER","SOFT_TIP"].includes(r.circuit) ? "amateur" :
   ["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(r.circuit) ? "professional" : "breakthrough";
 
 export function storyEngine(s:LifeSources):Story[] {
@@ -50,7 +50,7 @@ export function storyEngine(s:LifeSources):Story[] {
   };
   const firsts:[string,(r:EventFact)=>boolean][]=[
     ["first-final",r=>r.stageReached==="FINAL"||r.champion],["first-title",r=>r.champion],
-    ["first-amateur-title",r=>publicMain(r) && r.champion && ["REGIONAL","NATIONAL_AMATEUR","VAULT","CHALLENGER"].includes(r.circuit)],
+    ["first-amateur-title",r=>publicMain(r) && r.champion && ["REGIONAL","NATIONAL_AMATEUR","VAULT","CHALLENGER","SOFT_TIP"].includes(r.circuit)],
     ["first-pro-final",r=>publicMain(r) && ["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(r.circuit) && (r.stageReached==="FINAL"||r.champion)],
     ["first-pro-title",r=>publicMain(r) && ["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(r.circuit) && r.champion],
     ["first-major-deep-run",r=>stage(r)&&["QUARTER_FINAL","SEMI_FINAL"].includes(r.stageReached)],

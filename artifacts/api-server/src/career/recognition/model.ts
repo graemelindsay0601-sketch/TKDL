@@ -6,7 +6,7 @@ import { CONTEXTS, LEVELS, LEVEL_LABELS, type RecognitionContext, type Recogniti
 const THRESHOLDS = [0, 3, 15, 40, 80];
 type Contribution = { fact: Fact; weight: number; category: "appearance" | "qualification" | "result" | "card" | "ranking"; precision: "DAY" | "WEEK" | "SEASON" };
 const local = new Set(["GRASSROOTS", "COUNTY"]);
-const amateur = new Set(["COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "VAULT", "CHALLENGER"]);
+const amateur = new Set(["COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "VAULT", "CHALLENGER", "SOFT_TIP"]);
 const pro = new Set(["PRO_CIRCUIT", "EUROPEAN_SERIES", "MAJOR", "WORLD_CHAMPIONSHIP"]);
 const international = new Set(["EUROPEAN_SERIES", "WORLD_SERIES", "WORLD_CHAMPIONSHIP"]);
 const stage = new Set(["TELEVISED", "MAJOR", "WORLD"]);

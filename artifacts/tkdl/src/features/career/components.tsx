@@ -3,7 +3,7 @@ import { type ReactNode, useState, useId } from "react";
 import { Link } from "wouter";
 import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-react";
 import type { CareerEvent } from "./types";
-import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, movementLabel, formatPence, isJuniorEvent } from "./model";
+import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, eventCircuitLabel, movementLabel, formatPence, isJuniorEvent } from "./model";
 import { errorMessage } from "./api";
 import {CareerEventIdentity} from "./identity";
 
@@ -143,7 +143,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
       <Link href={href} className="flex-1 min-w-0 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
         <div className="font-black uppercase leading-tight line-clamp-3 sm:line-clamp-2 break-words" style={{ ...OSWALD, fontSize: compact ? "0.78rem" : "0.85rem", color: "#fff" }}>{event.name}</div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>
-          <span>{circuitLabel(event.circuit)}</span>
+          <span>{eventCircuitLabel(event)}</span>
           {isJuniorEvent(event) && <JuniorBadge />}
           <span aria-hidden>·</span><span className="truncate">{event.venue.city}</span>
           {event.finance && event.finance.topPrizePence > 0 && <><span aria-hidden>·</span><span>Top prize {formatPence(event.finance.topPrizePence, { compact: true })}</span></>}

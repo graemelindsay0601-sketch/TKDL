@@ -8,7 +8,7 @@ import {PLATES,resolveAtmosphere} from "../atmosphere";
 import {CareerEventIdentity,CareerPlayerCard,CareerShirt} from "../identity";
 import {AwardPresentation,awardLabel,resolveAward,trophyArt} from "../trophies";
 import {mapState} from "../presentation";
-import {circuitLabel,familyName,titleCase} from "../model";
+import {circuitLabel,eventCircuitLabel,familyName,titleCase} from "../model";
 import {NpcLegacyPage,LegacyPage} from "./legacy";
 import type {ShellContext} from "../shell";
 import {CareerVenueAtlas} from "./venue-atlas";
@@ -84,9 +84,9 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
       const award=resolveAward({definitionKey:selected.id,circuit:selected.circuit},{persistedTrophyId:selected.trophyId??null});
       const champions=history.data?.champions.slice(-5).reverse()??[];
       return <CareerEventIdentity eventKey={selected.id} circuit={selected.circuit} level={selected.eventClass} className="career-world-detail space-y-3">
-        <CareerPageHero kicker={org?.name??circuitLabel(selected.circuit)} title={familyName(selected.name)} accent="#e4bb67"
+        <CareerPageHero kicker={selected.circuitName??org?.name??circuitLabel(selected.circuit)} title={familyName(selected.name)} accent="#e4bb67"
           stage={{definitionKey:selected.id,circuit:selected.circuit,eventClass:selected.eventClass}}
-          subtitle={<><p>{[...new Set([titleCase(selected.eventClass),circuitLabel(selected.circuit),titleCase(selected.formatKind)])].join(" · ")}</p><p>{selected.fieldDescription}</p></>}
+          subtitle={<><p>{[...new Set([titleCase(selected.eventClass),eventCircuitLabel(selected),titleCase(selected.formatKind)])].join(" · ")}</p><p>{selected.summary??selected.fieldDescription}</p></>}
           portrait={<div className="career-world-award"><AwardPresentation event={{definitionKey:selected.id,circuit:selected.circuit}} persistedTrophyId={selected.trophyId??null} size="md" eventName={familyName(selected.name)}/></div>}
           stats={[{label:"Winner receives",value:award.designId?trophyArt(award.designId)?.name??awardLabel(award):awardLabel(award),tone:"gold"},
             {label:"Editions this season",value:map.isLoading?"…":editions.length,sub:`${done} completed`},
@@ -113,7 +113,7 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
       <div className="career-family-grid">{families.slice(page*20,(page+1)*20).map(f=>{const plate=PLATES[resolveAtmosphere({definitionKey:f.id,circuit:f.circuit,eventClass:f.eventClass}).plate]??PLATES.neutral;
         return <CareerEventIdentity key={f.id} eventKey={f.id} circuit={f.circuit}><Link className="career-family-card" href={`${base}/world/events/${f.id}`}>
           <img src={plate.src} alt="" aria-hidden="true" loading="lazy" decoding="async" style={{objectPosition:`${plate.focal.x*100}% ${plate.focal.y*100}%`}}/>
-          <span><small>{circuitLabel(f.circuit)}</small><strong>{familyName(f.name)}</strong><em>{titleCase(f.eventClass)}</em></span></Link></CareerEventIdentity>;})}</div>
+          <span><small>{eventCircuitLabel(f)}</small><strong>{familyName(f.name)}</strong><em>{titleCase(f.eventClass)}</em></span></Link></CareerEventIdentity>;})}</div>
       {families.length===0&&<p className="career-surface p-4 text-sm text-white/65">No championships match “{search}”.</p>}
       <Pagination page={page} total={families.length} setPage={setPage}/>
     </>)}

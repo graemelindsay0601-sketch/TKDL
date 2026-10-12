@@ -31,6 +31,14 @@ export const CIRCUIT_CONTENT = [
   ["north-american", "North American Dart Tour", "iodf", "NATIONAL_AMATEUR"],
   ["australasian", "Australasian Dart Tour", "iodf", "NATIONAL_AMATEUR"],
   ["continental-open", "Continental Open Series", "iodf", "NATIONAL_AMATEUR"],
+  // Event database v7 regional tours (affiliate second-tier tours with World Championship places).
+  ["asian-tour", "Asian Tour", "iodf", "CHALLENGER"],
+  ["north-american-tour", "North American Championship Tour", "iodf", "CHALLENGER"],
+  ["soft-tip", "Soft-Tip Tour", "iodf", "SOFT_TIP"],
+  ["pro-super-series", "Pro Super Series", "wdu", "INVITATIONAL"],
+  ["oceanic-tour", "Oceanic Tour", "iodf", "CHALLENGER"],
+  ["nordic-baltic-tour", "Nordic & Baltic Tour", "iodf", "CHALLENGER"],
+  ["european-development", "European Development Series", "iodf", "CHALLENGER"],
 ].map(([id, name, organisationId, authorityCircuit]) => ({ id, name, organisationId, authorityCircuit }));
 export { SEASON_GROUPINGS as SEASON_RHYTHM } from "../calendar/config.ts";
 export const PRESTIGE_CLASSES = ["GRASSROOTS", "REGIONAL", "NATIONAL", "INTERNATIONAL_OPEN", "SECONDARY_TOUR", "PROFESSIONAL_TOUR", "STAGE_SERIES", "MAJOR", "WORLD_CHAMPIONSHIP"] as const;
@@ -41,6 +49,10 @@ export type EventContent = {
   longevity: "PERMANENT" | "RECURRING" | "ROTATING_VENUE" | "OCCASIONAL" | "RETIRABLE_MINOR";
   venueRotation?: string[]; fieldDescription: string; themeKey: string;
   trophyIdentity?:{id:string;designId:string};
+  /** Player-facing circuit/tour name when the authority circuit label is too generic (v7 tours and ladders). */
+  circuitName?: string;
+  /** One-paragraph player-facing description of what the event is and what it leads to. */
+  summary?: string;
   venue?: ReturnType<typeof venueContent>;
 };
 export const VENUE_FAMILIES = [
@@ -49,6 +61,8 @@ export const VENUE_FAMILIES = [
   "exhibition", "small-arena", "major-arena", "international-arena", "palace",
 ] as const;
 const COORDS: Record<string, [number, number]> = {
+  Osaka: [34.69, 135.5], Nagoya: [35.18, 136.91], Chicago: [41.88, -87.63], Boston: [42.36, -71.06],
+  Wellington: [-41.29, 174.78], Christchurch: [-43.53, 172.64], Gothenburg: [57.71, 11.97],
   London: [51.5, -0.12], Manchester: [53.48, -2.24], Liverpool: [53.41, -2.98],
   Glasgow: [55.86, -4.25], Wolverhampton: [52.59, -2.13], Leeds: [53.8, -1.55],
   Cardiff: [51.48, -3.18], Dublin: [53.35, -6.26], Newcastle: [54.98, -1.61],

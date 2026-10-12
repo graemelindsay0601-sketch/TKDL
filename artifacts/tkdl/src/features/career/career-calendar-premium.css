@@ -373,3 +373,26 @@
 .cc-hero--stage .cc-hero-stage .ca-scrim { background: linear-gradient(90deg,#05070cf2 0%,#05070cd9 40%,#05070caa 70%,#05070c80 100%), linear-gradient(0deg,#05070ccc,transparent 70%); }
 .cc-hero--stage .cc-hero-orbit { display: none; }
 .cc-hero--stage::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; z-index:1; background:linear-gradient(90deg,#ff005c,#ff005c33 60%,transparent); box-shadow:0 0 16px #ff005c; }
+
+/* Host-country sections (calendar grouped by where events are played). */
+.cc-country-heading { display: flex; width: 100%; align-items: center; gap: 9px; min-height: 44px; border: 0; padding: 8px 14px; color: inherit; text-align: left; cursor: pointer;
+  background: linear-gradient(90deg, rgba(87,142,192,.12), rgba(87,142,192,.02) 70%, transparent); }
+.cc-country-heading:hover { background: linear-gradient(90deg, rgba(237,71,119,.14), rgba(87,142,192,.04) 70%, transparent); }
+.cc-country-heading:focus-visible { outline: 2px solid #ed4777; outline-offset: -2px; }
+.cc-country-heading strong { color: #e8eef5; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.cc-country-heading > i { height: 1px; flex: 1; background: rgba(180,199,219,.14); }
+.cc-country-heading small { color: #8fa3b8; font-size: 10px; white-space: nowrap; }
+.cc-country-flag { display: inline-grid; place-items: center; width: 24px; font-size: 17px; line-height: 1; }
+.cc-country-tag { white-space: nowrap; border: 1px solid rgba(105,184,236,.4); border-radius: 999px; padding: 1px 7px; color: #9fd2f4; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.cc-country-tag--entered { border-color: rgba(237,71,119,.5); color: #ffadc5; }
+.cc-country-chevron { flex: 0 0 auto; color: #8fa3b8; transition: transform .18s ease; }
+.cc-country-group[data-open="true"] .cc-country-chevron { transform: rotate(180deg); }
+.cc-country-more { width: 100%; border: 0; border-top: 1px solid rgba(180,199,219,.08); padding: 9px; background: rgba(7,15,25,.25); color: #9fd2f4; font-size: 11px; font-weight: 700; cursor: pointer; }
+.cc-country-more:hover { color: #ffadc5; }
+@media (max-width: 640px) {
+  .cc-country-heading { gap: 7px; padding: 8px 10px; }
+  .cc-country-heading small { font-size: 9px; }
+  .cc-country-heading > i { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .cc-country-chevron { transition: none; } }
+.cc-detail-summary { margin: 2px 0 10px; color: #b9c8d7; font-size: 12px; line-height: 1.55; }

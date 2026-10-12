@@ -11,7 +11,7 @@ import { WEEKS_PER_SEASON } from "../calendar/config.ts";
 export const RANKING_RULES_VERSION = 1;
 export const TOUR_CARD_RULES_VERSION = 1;
 export const Q_SCHOOL_RULES_VERSION = 1;
-export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2], tourCard: [1], qSchool: [1] } as const;
+export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2, 3], tourCard: [1], qSchool: [1] } as const;
 
 /** Linear Career clock: (season, week) -> publication index. Week 52 of season S = S*52. */
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS_PER_SEASON + week;
@@ -58,7 +58,18 @@ export const RANKING_LISTS_V2: readonly RankingListDefinition[] = Object.freeze(
   {key:"women",name:"Women's Order of Merit",scope:"AMATEUR",categories:["WOMENS"],window:{kind:"ROLLING",weeks:52},cutLines:[8,16,32],milestoneThresholds:[1]},
   {key:"youth",name:"Youth Order of Merit",scope:"AMATEUR",categories:["YOUTH"],window:{kind:"SEASON"},cutLines:[8,16],milestoneThresholds:[1]},
 ]);
+/**
+ * Ranking rules v3 (event database v7 saves): soft-tip is its own discipline with its own ranking.
+ * Soft-tip results count only here — never in the steel-tip amateur, open, Challenger or professional lists.
+ */
+export const RANKING_LISTS_V3: readonly RankingListDefinition[] = Object.freeze([
+  ...RANKING_LISTS_V2,
+  { key: "soft-tip", name: "Soft-Tip World Ranking", scope: "SECONDARY", categories: ["SOFT_TIP"], window: { kind: "ROLLING", weeks: 52 }, cutLines: [8, 16, 32], milestoneThresholds: [1] },
+]);
+/** Ranking rules version a save is created under, from its event database version. */
+export const rankingRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 7 ? 3 : eventDatabaseVersion >= 3 ? 2 : 1;
 export function rankingListsFor(version: number): readonly RankingListDefinition[] {
+  if(version===3)return RANKING_LISTS_V3;
   if(version===2)return RANKING_LISTS_V2;
   if (version !== RANKING_RULES_VERSION) throw new Error(`Unsupported Career ranking rules version ${version}; migration required`);
   return RANKING_LISTS_V1;

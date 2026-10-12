@@ -31,9 +31,12 @@ export function eventDateLabel(e: Pick<CareerEvent, "dates">) {
 const CIRCUITS: Record<string, string> = {
   GRASSROOTS: "Grassroots", COUNTY: "County", REGIONAL: "Regional", NATIONAL_AMATEUR: "National Amateur", CHALLENGER: "Challenger", VAULT: "Vault",
   Q_SCHOOL: "Q-School", PRO_CIRCUIT: "Pro Circuit", EUROPEAN_SERIES: "European Series", WORLD_SERIES: "World Series", INVITATIONAL: "Invitational",
-  MAJOR: "Major", WORLD_CHAMPIONSHIP: "World Championship", SPECIAL: "Special",
+  MAJOR: "Major", WORLD_CHAMPIONSHIP: "World Championship", SPECIAL: "Special", SOFT_TIP: "Soft-Tip",
 };
 export const circuitLabel = (c: string) => CIRCUITS[c] ?? titleCase(c);
+/** An event's tour or ladder name where it has one (e.g. "Soft-Tip Tour"), otherwise its circuit label. */
+export const eventCircuitLabel = (e: { circuit: string; content?: { circuitName?: string } | null; circuitName?: string }) =>
+  e.content?.circuitName ?? e.circuitName ?? circuitLabel(e.circuit);
 /**
  * Player-facing wording for text the server writes with internal authority labels ("A3 event result",
  * "A4 sponsor journey event: OFFER_RECEIVED", "78000 pence"). Display only; the stored text is unchanged.
@@ -68,6 +71,8 @@ const COUNTRIES: Record<string, { name: string; flag: string }> = {
   BEL: { name: "Belgium", flag: "🇧🇪" }, AUT: { name: "Austria", flag: "🇦🇹" }, CZE: { name: "Czechia", flag: "🇨🇿" }, DNK: { name: "Denmark", flag: "🇩🇰" },
   POL: { name: "Poland", flag: "🇵🇱" }, HUN: { name: "Hungary", flag: "🇭🇺" }, ESP: { name: "Spain", flag: "🇪🇸" }, AUS: { name: "Australia", flag: "🇦🇺" },
   CAN: { name: "Canada", flag: "🇨🇦" }, USA: { name: "United States", flag: "🇺🇸" }, NZL: { name: "New Zealand", flag: "🇳🇿" }, JPN: { name: "Japan", flag: "🇯🇵" },
+  FRA: { name: "France", flag: "🇫🇷" }, SWE: { name: "Sweden", flag: "🇸🇪" }, FIN: { name: "Finland", flag: "🇫🇮" }, EST: { name: "Estonia", flag: "🇪🇪" },
+  SGP: { name: "Singapore", flag: "🇸🇬" }, ZAF: { name: "South Africa", flag: "🇿🇦" },
 };
 export const country = (code: string | null | undefined) => code ? COUNTRIES[code] ?? { name: code, flag: "" } : null;
 
@@ -214,7 +219,7 @@ const MILESTONES: Record<string, string> = {
   TOUR_CARD_REGAINED: "Tour Card regained", TOUR_CARD_SURRENDERED: "Tour Card surrendered", FIRST_PROFESSIONAL_EVENT: "First professional event",
   FIRST_MAJOR: "First major qualification", FIRST_WORLD_CHAMPIONSHIP: "First World Championship qualification",
 };
-const LISTS: Record<string, string> = { "pro-world": "World Ranking", "pro-circuit": "Pro Circuit", "european-series": "European Series", challenger: "Challenger", vault: "Vault", amateur: "Amateur" };
+const LISTS: Record<string, string> = { "pro-world": "World Ranking", "pro-circuit": "Pro Circuit", "european-series": "European Series", challenger: "Challenger", vault: "Vault", amateur: "Amateur", "open-world": "Open World Ranking", "soft-tip": "Soft-Tip World Ranking" };
 export const listLabel = (key: string | null | undefined) => key ? LISTS[key] ?? titleCase(key) : "";
 export function milestoneLabel(m: Pick<Milestone, "kind" | "list_key" | "detail">): { title: string; detail: string | null; tone: Tone } {
   const title = MILESTONES[m.kind] ?? titleCase(m.kind);
@@ -410,3 +415,12 @@ export const HOME_REGIONS: { key: string; label: string }[] = [
   ["borders","Borders, Scotland"],["north-east-scotland","North-East Scotland"],["tayside","Tayside, Scotland"],["northern-ireland","Northern Ireland"],
   ["ile-de-france","Île-de-France, France"],["stockholm","Stockholm, Sweden"],["kanto","Kanto, Japan"],["new-york","New York, USA"],["auckland","Auckland, New Zealand"],
 ].map(([key, label]) => ({ key, label }));
+/** Starting locality → country, for "home first" groupings. */
+const LOCALITY_COUNTRY: Record<string, string> = Object.fromEntries([
+  ...["ayrshire", "highlands", "north-east", "midlands", "south-wales", "south-coast", "glasgow-clyde", "central-scotland", "edinburgh-lothians", "borders", "north-east-scotland", "tayside", "northern-ireland"].map(k => [k, "GBR"]),
+  ...["munster", "connacht", "leinster"].map(k => [k, "IRL"]), ...["utrecht", "limburg", "friesland"].map(k => [k, "NLD"]),
+  ...["hessen", "saxony", "bremen"].map(k => [k, "DEU"]), ...["flanders", "wallonia"].map(k => [k, "BEL"]),
+  ...["victoria", "queensland", "western-australia"].map(k => [k, "AUS"]), ...["ontario", "alberta", "nova-scotia"].map(k => [k, "CAN"]),
+  ["ile-de-france", "FRA"], ["stockholm", "SWE"], ["kanto", "JPN"], ["new-york", "USA"], ["auckland", "NZL"],
+]);
+export const homeCountryOf = (locality: string | null | undefined) => (locality && LOCALITY_COUNTRY[locality]) || null;

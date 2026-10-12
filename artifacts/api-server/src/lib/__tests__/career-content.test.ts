@@ -54,8 +54,8 @@ test("crowded country-aware pools extend deterministically without numeric or du
   assert.deepEqual(names,geographicalIdentities(seed,input).map(p=>`${p.firstName} ${p.surname}`));
 });
 test("authored counts, hierarchy and complete map anchors",()=>{
-  assert.equal(ORGANISATIONS.length,4);assert.equal(CIRCUIT_CONTENT.length,22);
-  assert.equal(VENUE_CONTENT.length,60);assert.equal(VENUE_FAMILIES.length,15);assert.equal(TROPHIES.length,18);
+  assert.equal(ORGANISATIONS.length,4);assert.equal(CIRCUIT_CONTENT.length,29);
+  assert.equal(VENUE_CONTENT.length,71);assert.equal(VENUE_FAMILIES.length,15);assert.equal(TROPHIES.length,18);
   assert.equal(CORE_BRANDS.length,36);assert.equal(LOCAL_SPONSORS.length,16);
   assert.ok(CITIES.every(c=>Number.isFinite(c.mapAnchor.latitude)&&Number.isFinite(c.mapAnchor.longitude)));
   for(const e of season)assert.ok(venueContent(e.venueKey).mapAnchor);
@@ -91,7 +91,7 @@ test("women's eligibility only restricts dedicated women events; open remains op
   assert.equal(evaluateRule(R.age({maxAgeExclusive:23}),{...p,age:23}).eligible,false);
 });
 test("old ranking catalogue is pinned; new lists reuse existing prize-money model",()=>{
-  assert.equal(rankingListsFor(1).length,6);assert.equal(rankingListsFor(2).length,9);
+  assert.equal(rankingListsFor(1).length,6);assert.equal(rankingListsFor(2).length,9);assert.equal(rankingListsFor(3).length,10);
   assert.ok(rankingListsFor(2).find(l=>l.key==="women")!.categories.includes("WOMENS"));
 });
 test("equipment, apparel and commercial partners coexist; competitors conflict",()=>{

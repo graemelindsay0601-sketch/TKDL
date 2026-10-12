@@ -16,7 +16,7 @@ export const involvesHuman = (m: Pick<TMatch, "a_key" | "b_key">) => m.a_key ===
 export const isFinal = (m: Pick<TMatch, "status">) => FINAL.has(m.status);
 
 // ---------------------------------------------------------------- tier identity
-export type TierKey = "GRASSROOTS" | "REGIONAL" | "PROFESSIONAL" | "MAJOR" | "WORLD";
+export type TierKey = "GRASSROOTS" | "REGIONAL" | "DEVELOPMENT" | "SOFTTIP" | "PROFESSIONAL" | "MAJOR" | "WORLD";
 export type TierProfile = { key: TierKey; label: string; kicker: string; arrival: string; stage: string };
 
 const PROFILES: Record<TierKey, TierProfile> = {
@@ -24,6 +24,10 @@ const PROFILES: Record<TierKey, TierProfile> = {
     arrival: "A local field, a handful of boards and every leg counted the same way as on the big stage." },
   REGIONAL: { key: "REGIONAL", label: "Regional", kicker: "Regional & national circuit", stage: "Open floor",
     arrival: "A wider field drawn from across the region. Results here build a reputation beyond your home venue." },
+  DEVELOPMENT: { key: "DEVELOPMENT", label: "Development", kicker: "Development tour", stage: "Tour floor",
+    arrival: "Players without a Tour Card chasing ranking points, finals places and the next step up." },
+  SOFTTIP: { key: "SOFTTIP", label: "Soft-tip", kicker: "Soft-Tip Tour · electronic boards", stage: "Soft-tip floor",
+    arrival: "Electronic boards and shorter matches: a separate discipline with its own tour and its own world ranking." },
   PROFESSIONAL: { key: "PROFESSIONAL", label: "Professional", kicker: "Professional tour", stage: "Tour floor",
     arrival: "Tour professionals, seeded draws and ranking money on the line." },
   MAJOR: { key: "MAJOR", label: "Major", kicker: "Major championship", stage: "Major stage",
@@ -33,19 +37,24 @@ const PROFILES: Record<TierKey, TierProfile> = {
 };
 
 /** Tier from the tournament read: importance level first, then the event's content class. */
-export function tierProfile(level: number, eventClass?: string | null): TierProfile {
+export function tierProfile(level: number, eventClass?: string | null, circuit?: string | null): TierProfile {
+  if (circuit === "SOFT_TIP") return PROFILES.SOFTTIP;
   if (level >= 5 || eventClass === "WORLD_CHAMPIONSHIP") return PROFILES.WORLD;
   if (level === 4 || eventClass === "MAJOR") return PROFILES.MAJOR;
-  if (level === 3 || ["PROFESSIONAL_TOUR", "STAGE_SERIES", "SECONDARY_TOUR"].includes(eventClass ?? "")) return PROFILES.PROFESSIONAL;
+  if (eventClass === "SECONDARY_TOUR") return PROFILES.DEVELOPMENT;
+  if (level === 3 || ["PROFESSIONAL_TOUR", "STAGE_SERIES"].includes(eventClass ?? "")) return PROFILES.PROFESSIONAL;
   if (["REGIONAL", "NATIONAL", "INTERNATIONAL_OPEN"].includes(eventClass ?? "") || level === 2) return PROFILES.REGIONAL;
   return PROFILES.GRASSROOTS;
 }
 
 /** Tier from a calendar event (A3 presentation tier + circuit), used on the entry screen. */
 export function tierFromEvent(tier: string, circuit: string): TierProfile {
+  if (circuit === "SOFT_TIP") return PROFILES.SOFTTIP;
   if (tier === "WORLD" || circuit === "WORLD_CHAMPIONSHIP") return PROFILES.WORLD;
   if (tier === "MAJOR" || circuit === "MAJOR") return PROFILES.MAJOR;
-  if (["PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL", "CHALLENGER", "VAULT", "Q_SCHOOL"].includes(circuit) || tier === "TELEVISED")
+  // Second-tier tours (Challenger, Vault, Q-School, regional affiliate tours) are for players without a Tour Card.
+  if (["CHALLENGER", "VAULT", "Q_SCHOOL"].includes(circuit)) return PROFILES.DEVELOPMENT;
+  if (["PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL"].includes(circuit) || tier === "TELEVISED")
     return PROFILES.PROFESSIONAL;
   if (["NATIONAL_AMATEUR", "COUNTY", "REGIONAL"].includes(circuit) || tier === "FEATURED") return PROFILES.REGIONAL;
   return PROFILES.GRASSROOTS;

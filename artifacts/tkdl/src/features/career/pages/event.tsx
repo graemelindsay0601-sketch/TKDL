@@ -4,7 +4,7 @@ import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
-import { circuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason } from "../model";
+import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
@@ -52,11 +52,12 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
             {e.qSchool && <StatusBadge label={`Q-School ${e.qSchool.stage === "FIRST" ? "First" : "Final"} Stage · Day ${e.qSchool.day}`} tone="gold" />}</div>
           <h1 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: `clamp(1.5rem, ${4 + tier.emphasis * 0.4}vw, ${2 + tier.emphasis * 0.18}rem)`, color: palace ? "#ffe79a" : "#fff" }}>{e.name}</h1>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>
-            <span>{circuitLabel(e.circuit)} · {titleCase(e.classification)}</span>
+            <span>{eventCircuitLabel(e)} · {titleCase(e.classification)}</span>
             <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" aria-hidden />{e.venue.name}, {e.venue.city} <Flag code={e.venue.country} /></span>
             <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" aria-hidden />Season {e.season} · {eventDateLabel(e)}</span>
             <span>{formatLabel(e.format)}</span>
           </div>
+          {e.content?.summary && <p className="text-sm max-w-3xl" style={{ color: "rgba(255,255,255,0.78)" }}>{e.content.summary}</p>}
         </div>
       </section>
       {/* F2: guidance loads asynchronously; placed after the hero so it never pushes the event identity down (CLS). */}

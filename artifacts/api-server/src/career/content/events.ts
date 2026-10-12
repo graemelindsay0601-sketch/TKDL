@@ -25,7 +25,7 @@ export function identity(d: EventDefinition, circuitId?: string, eventClass?: Pr
     c === "VAULT" ? "vault-geometric" : cls === "GRASSROOTS" ? "wood-silver-shield" : cls === "REGIONAL" ? "regional-craft" :
       cls === "INTERNATIONAL_OPEN" ? "international-globe" : cls === "PROFESSIONAL_TOUR" ? "championship-plate" : "silver-cup");
   return { version: 1, canonicalEventId: d.key, organisationId: ci.startsWith("vault") ? "vault" : ["foundation", "development", "youth-championships"].includes(ci) ? "yda" :
-    ["q-school", "challenger", "pro-tour", "continental", "majors", "palace", "international", "women"].includes(ci) ? "wdu" : "iodf",
+    ["q-school", "challenger", "pro-tour", "continental", "majors", "palace", "international", "women", "pro-super-series"].includes(ci) ? "wdu" : "iodf",
     circuitId: ci, eventClass: cls, trophyId,trophyIdentity:{id:`trophy:${d.key}`,designId:trophyId},
     titleSponsorId: cls==="GRASSROOTS"?null:ci.startsWith("vault")?"arcbyte":ci==="women"?"vela-sport":ci==="palace"?"meridian-energy":"northway-logistics",
     longevity: d.classification==="SPECIAL"?"OCCASIONAL":["MAJOR", "WORLD_CHAMPIONSHIP"].includes(cls) ? "PERMANENT" : "RECURRING",

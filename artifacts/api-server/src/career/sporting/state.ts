@@ -21,7 +21,7 @@ export async function loadSportingState(tx: CareerExecutor, saveId: string): Pro
 }
 export async function createSportingState(tx: CareerExecutor, saveId: string): Promise<boolean> {
   const created = await tx.execute(sql`INSERT INTO career_sporting_state (career_save_id, ranking_rules_version, tour_card_rules_version, q_school_rules_version)
-    SELECT ${saveId}, CASE WHEN event_database_version>=3 THEN 2 ELSE 1 END, ${TOUR_CARD_RULES_VERSION}, ${Q_SCHOOL_RULES_VERSION}
+    SELECT ${saveId}, CASE WHEN event_database_version>=7 THEN 3 WHEN event_database_version>=3 THEN 2 ELSE 1 END, ${TOUR_CARD_RULES_VERSION}, ${Q_SCHOOL_RULES_VERSION}
     FROM career_saves WHERE id=${saveId} ON CONFLICT DO NOTHING RETURNING career_save_id`);
   return created.rows.length > 0;
 }

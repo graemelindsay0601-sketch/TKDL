@@ -41,7 +41,7 @@ const matchStageOf = (label: string): MatchStage => label === "Final" ? "FINAL" 
 // ---------------------------------------------------------------- hero / arrival
 /** Broadcast-style event identity built only from the real event, venue and trophy content. */
 export function TournamentHero({ v, children }: { v: TView; children?: ReactNode }) {
-  const tier = tierProfile(v.event.level, v.event.content?.eventClass);
+  const tier = tierProfile(v.event.level, v.event.content?.eventClass, v.event.circuit);
   const venue = v.event.venue;
   const days = v.event.startDay === v.event.endDay ? `Day ${v.event.startDay}` : `Days ${v.event.startDay}–${v.event.endDay}`;
   return (
@@ -73,7 +73,7 @@ export function TournamentHero({ v, children }: { v: TView; children?: ReactNode
 
 /** Arrival ceremony: the venue and what is at stake, all real metadata. */
 export function ArrivalCeremony({ v }: { v: TView }) {
-  const tier = tierProfile(v.event.level, v.event.content?.eventClass);
+  const tier = tierProfile(v.event.level, v.event.content?.eventClass, v.event.circuit);
   const venue = v.event.venue;
   const atmosphere = (venue?.atmosphereTags ?? []).map(t => t.replace(/-/g, " "));
   return (
@@ -244,7 +244,7 @@ function TapeSide({ p, side, lines }: { p: TPlayer; side: "left" | "right"; line
 /** Walk-on: the opponent, then the player, then the bull-up. Purely presentational. */
 export function WalkOn({ v, match, playHref, onSkip }: { v: TView; match: TMatch; playHref: string; onSkip: () => void }) {
   const rounds = knockoutRounds(v.matches);
-  const tier = tierProfile(v.event.level, v.event.content?.eventClass);
+  const tier = tierProfile(v.event.level, v.event.content?.eventClass, v.event.circuit);
   const oppKey = match.a_key === "HUMAN" ? match.b_key : match.a_key;
   const me = v.field.find(p => p.key === "HUMAN"), them = v.field.find(p => p.key === oppKey);
   const animate = v.depth.animate && !v.presentation.reducedMotion;
@@ -309,7 +309,7 @@ export function LatestResult({ v }: { v: TView }) {
 export function CompletionSummary({ v, children }: { v: TView; children?: ReactNode }) {
   const run = runSummary(v);
   const champion = v.phase === "CHAMPION";
-  const tier = tierProfile(v.event.level, v.event.content?.eventClass);
+  const tier = tierProfile(v.event.level, v.event.content?.eventClass, v.event.circuit);
   // E2: the award is resolved from the event's own key; weekly/qualifier wins are result-only.
   const award = resolveAward(awardInput(v).event, { persistedTrophyId: awardInput(v).persistedTrophyId });
   const trophy = award.designId ? { name: trophyArt(award.designId)?.name ?? "Championship trophy" } : null;
@@ -385,7 +385,7 @@ export function MatchContextStrip({ saveId, eventId, matchId }: { saveId: string
   const v = q.data;
   const m = v?.matches.find(x => x.id === matchId);
   if (!v || !m) return null;
-  const tier = tierProfile(v.event.level, v.event.content?.eventClass);
+  const tier = tierProfile(v.event.level, v.event.content?.eventClass, v.event.circuit);
   return (
     <div className={`tb-strip tb-tier-${tier.key.toLowerCase()}`} role="note" aria-label="Match context">
       <span className="tb-chip">{tier.label}</span>

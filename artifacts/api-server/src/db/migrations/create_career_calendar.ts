@@ -286,6 +286,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
         PRIMARY KEY (career_save_id, operation_key)
       )
     `);
+    await ensureSoftTipCircuit(tx);
     await syncEventDefinitions(tx);
     // A6.5: server-authoritative live match sessions — additive, idempotent.
     await ensureCareerMatchSessionSchema(tx);
@@ -294,6 +295,19 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
     await createCareerLife(tx);
     await createCareerLegacy(tx);
   });
+}
+
+/**
+ * Event database v7 adds the SOFT_TIP circuit (soft-tip is its own discipline). Widens the instance
+ * circuit check once; later startups see SOFT_TIP already allowed and leave the table alone.
+ */
+export async function ensureSoftTipCircuit(tx: CareerExecutor): Promise<void> {
+  const current = (await tx.execute(sql`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+    WHERE conrelid = 'career_event_instances'::regclass AND conname = 'career_event_instances_circuit_check'`)).rows[0] as { def: string } | undefined;
+  if (current?.def.includes("SOFT_TIP")) return;
+  await tx.execute(sql`ALTER TABLE career_event_instances DROP CONSTRAINT IF EXISTS career_event_instances_circuit_check`);
+  await tx.execute(sql`ALTER TABLE career_event_instances ADD CONSTRAINT career_event_instances_circuit_check CHECK (circuit IN ('GRASSROOTS','COUNTY','REGIONAL',
+    'NATIONAL_AMATEUR','CHALLENGER','VAULT','Q_SCHOOL','PRO_CIRCUIT','EUROPEAN_SERIES','WORLD_SERIES','INVITATIONAL','MAJOR','WORLD_CHAMPIONSHIP','SPECIAL','SOFT_TIP'))`);
 }
 
 /** Insert shipped definitions; a changed definition under an existing version is refused. */
