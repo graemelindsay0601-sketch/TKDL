@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "wouter";
 import {
-  Activity, CalendarDays, ChevronLeft, ChevronRight, CircleDollarSign, Clock3,
+  Activity, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, Clock3,
   MapPin, ShieldCheck, Ticket, Trophy,
 } from "lucide-react";
-import { useCalendar, useEnterEvent, errorMessage, type CalendarQuery } from "../api";
+import { useCalendar, useCareerProfile, useEnterEvent, errorMessage, type CalendarQuery } from "../api";
 import {
-  CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, denialLabel, eventDateLabel,
+  CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, country as countryInfo, denialLabel, eventDateLabel, homeCountryOf,
   eventStatus, formatLabel, formatPence, matchesStatusFilter, primaryAction, titleCase,
 } from "../model";
 import {
@@ -209,11 +209,44 @@ function SelectedEvent({
 }
 
 /** Career Calendar, grounded in the live save and its authoritative event/finance projections. */
+/** One host country: a collapsible section. Rows render only while open, a few dozen at a time. */
+const COUNTRY_SECTION_STEP = 40;
+function CountrySection({ code, events, entered, home, defaultOpen, children }: {
+  code: string; events: CareerEvent[]; entered: number; home: boolean; defaultOpen: boolean; children: (list: CareerEvent[]) => ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [shown, setShown] = useState(COUNTRY_SECTION_STEP);
+  const info = countryInfo(code);
+  const next = events.find(event => !["COMPLETED", "CANCELLED"].includes(event.status));
+  const panel = `cc-country-${code}`;
+  return (
+    <section className="cc-event-group cc-country-group" data-open={open} aria-label={`${info?.name ?? code}: ${events.length} events`}>
+      <button type="button" className="cc-country-heading" aria-expanded={open} aria-controls={panel} onClick={() => setOpen(value => !value)}>
+        <span className="cc-country-flag" aria-hidden="true">{info?.flag || <MapPin size={13} />}</span>
+        <strong>{info?.name ?? code}</strong>
+        {home && <span className="cc-country-tag">Home</span>}
+        {entered > 0 && <span className="cc-country-tag cc-country-tag--entered">{entered} entered</span>}
+        <i />
+        <small>{events.length} event{events.length === 1 ? "" : "s"}{next ? ` · next wk ${next.dates.startWeek}` : ""}</small>
+        <ChevronDown size={15} className="cc-country-chevron" aria-hidden="true" />
+      </button>
+      {open && <div className="cc-event-list" id={panel}>
+        {children(events.slice(0, shown))}
+        {events.length > shown && <button type="button" className="cc-country-more" onClick={() => setShown(value => value + COUNTRY_SECTION_STEP)}>
+          Show {Math.min(COUNTRY_SECTION_STEP, events.length - shown)} more in {info?.name ?? code}</button>}
+      </div>}
+    </section>
+  );
+}
+
 export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const { save, retired } = ctx;
   const [view, setView] = useState<View>("UPCOMING");
   const [page, setPage] = useState(0);
   const [circuit, setCircuit] = useState("");
+  const [groupBy, setGroupBy] = useState<"COUNTRY" | "PHASE">("COUNTRY");
+  const [hostCountry, setHostCountry] = useState("");
+  const homeCountry = homeCountryOf(useCareerProfile(save.id).data?.homeLocality);
   const [tier, setTier] = useState("");
   const [status, setStatus] = useState("ALL");
   const [season, setSeason] = useState(save.currentSeason);
@@ -233,7 +266,18 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
     (view !== "MY_SCHEDULE" || event.human?.entryStatus || event.human?.relationship === "QUALIFIED")
     && (!tier || event.presentation.tier === tier)
     && matchesStatusFilter(event, status)
-  ), [calendar.data, tier, status, view]);
+    && (!hostCountry || event.venue.country === hostCountry)
+  ), [calendar.data, tier, status, view, hostCountry]);
+  const hostCountries = useMemo(() => [...new Set((calendar.data?.events ?? []).map(event => event.venue.country))]
+    .sort((a, b) => (countryInfo(a)?.name ?? a).localeCompare(countryInfo(b)?.name ?? b)), [calendar.data]);
+  // Host-country sections: home first, then countries with your entries, then the busiest.
+  const countryGroups = useMemo(() => {
+    const by = new Map<string, CareerEvent[]>();
+    for (const event of events) by.set(event.venue.country, [...(by.get(event.venue.country) ?? []), event]);
+    const entered = (list: CareerEvent[]) => list.filter(event => event.human?.entryStatus && event.human.entryStatus !== "WITHDRAWN").length;
+    return [...by.entries()].map(([code, list]) => ({ code, events: list.sort((a, b) => a.dates.startDay - b.dates.startDay || a.name.localeCompare(b.name)), entered: entered(list) }))
+      .sort((a, b) => Number(b.code === homeCountry) - Number(a.code === homeCountry) || b.entered - a.entered || b.events.length - a.events.length || a.code.localeCompare(b.code));
+  }, [events, homeCountry]);
   const selectedEvent = events.find(event => event.id === selectedId) ?? events[0];
   const groupings = calendar.data?.overview.groupings ?? [];
   const pageEvents = events.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -252,7 +296,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
       onError: error => setMessage(errorMessage(error)),
     });
   };
-  const resetFilters = () => { setCircuit(""); setTier(""); setStatus("ALL"); setPage(0); };
+  const resetFilters = () => { setCircuit(""); setTier(""); setStatus("ALL"); setHostCountry(""); setPage(0); };
 
   return (
     <div className="career-calendar-page cc-root">
@@ -301,6 +345,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
             <Select label="Circuit" value={circuit} onChange={value => { setCircuit(value); setPage(0); }} options={[["", "All circuits"], ...CIRCUITS.map(value => [value, circuitLabel(value)] as [string, string])]} />
             <Select label="Event level" value={tier} onChange={value => { setTier(value); setPage(0); }} options={[["", "All levels"], ...(Object.keys(TIER_STYLES) as PresentationTier[]).map(value => [value, TIER_STYLES[value].label] as [string, string])]} />
             <Select label="Entry status" value={status} onChange={value => { setStatus(value); setPage(0); }} options={CALENDAR_STATUS_FILTERS.map(filter => [filter.key, filter.label])} />
+            <Select label="Host country" value={hostCountry} onChange={value => { setHostCountry(value); setPage(0); }} options={[["", "All countries"], ...hostCountries.map(code => [code, `${countryInfo(code)?.flag ?? ""} ${countryInfo(code)?.name ?? code}`.trim()] as [string, string])]} />
           </div>
         </div>
         {message && <p role="status" className="cc-action-message">{message}</p>}
@@ -342,6 +387,9 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
             <div><span className="cc-kicker">{view === "MY_SCHEDULE" ? "YOUR COMMITMENTS" : view === "SEASON" ? "THE CAMPAIGN" : "NEXT ON THE TOUR"}</span>
               <h3>{view === "MY_SCHEDULE" ? "My Entries" : view === "SEASON" ? "Season events" : "Upcoming events"} <span>{events.length.toString().padStart(2, "0")}</span></h3>
             </div>
+            <Segmented label="Group events" value={groupBy} onChange={next => { setGroupBy(next); setPage(0); }} options={[
+              { value: "COUNTRY", label: "By country" }, { value: "PHASE", label: "By date" },
+            ]} />
             {view === "UPCOMING" && <div className="cc-week-controls">
               <button type="button" aria-label="Previous weeks" disabled={focusWeek <= 1} onClick={() => { setFocusWeek(week => Math.max(1, week - 2)); setPage(0); }}><ChevronLeft size={16} /></button>
               <button type="button" onClick={() => { setFocusWeek(save.currentWeek); setPage(0); }}>Today</button>
@@ -355,6 +403,14 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
               <div className="cc-state"><CareerEmptyState title={view === "MY_SCHEDULE" ? "No events in your schedule" : "No events match these filters"}>
                 {view === "MY_SCHEDULE" ? <>Browse <button type="button" className="cc-inline-link" onClick={() => setView("UPCOMING")}>upcoming events</button> to find your next entry.</> : "Try another circuit, level or entry status."}
               </CareerEmptyState></div>
+            ) : groupBy === "COUNTRY" ? (
+              <div className="cc-event-groups cc-country-groups">
+                {countryGroups.map(group => <CountrySection key={group.code} code={group.code} events={group.events} entered={group.entered} home={group.code === homeCountry}
+                  defaultOpen={group.code === homeCountry || group.entered > 0 || countryGroups.length === 1 || !!hostCountry}>
+                  {list => list.map(event => <CalendarEventRow key={event.id} event={event} active={selectedEvent?.id === event.id} awaitingMatch={pending.has(event.id)} saveId={save.id} retired={retired || !isCurrentSeason} entering={enter.isPending}
+                    onSelect={() => setSelectedId(event.id)} onEnter={onEnter} />)}
+                </CountrySection>)}
+              </div>
             ) : (
               <div className="cc-event-groups">
                 {groups.map(group => <section className="cc-event-group" key={group.key} aria-label={`${group.name}, weeks ${group.fromWeek} to ${group.toWeek}`}>
@@ -371,11 +427,11 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
         {selectedEvent ? <SelectedEvent event={selectedEvent} saveId={save.id} awaitingMatch={pending.has(selectedEvent.id)} retired={retired} currentSeason={isCurrentSeason} entering={enter.isPending} onEnter={onEnter} />
           : <aside className="cc-detail cc-detail--empty" aria-label="Selected event details"><CalendarDays size={24} /><strong>Select an event</strong><span>Choose an event in your season schedule to see its venue, entry status and cost outlook.</span></aside>}
       </div>
-      <div className="cc-pagination">
+      {groupBy === "PHASE" && <div className="cc-pagination">
         <button type="button" className="cc-button cc-button--quiet" disabled={page === 0} onClick={() => setPage(value => Math.max(0, value - 1))}>Previous events</button>
         <span>Page {page + 1} · {events.length} events</span>
         <button type="button" className="cc-button cc-button--quiet" disabled={(page + 1) * PAGE_SIZE >= events.length} onClick={() => setPage(value => value + 1)}>Next events</button>
-      </div>
+      </div>}
     </div>
   );
 }

@@ -21,7 +21,7 @@ type DragState = { x: number; y: number; view: MapView; inverse: DOMMatrix };
 const EMPTY_EVENTS: MapEvent[] = [];
 
 function regionName(key: string) {
-  return key === "UK_IRELAND" ? "UK & Ireland" : titleCase(key);
+  return key === "UK_IRELAND" ? "UK & Ireland" : key === "ASIA" ? "Asia" : titleCase(key);
 }
 
 function EventStatus({ event }: { event: MapEvent }) {
@@ -149,7 +149,8 @@ export function CareerMapPage({ ctx }: { ctx: ShellContext }) {
   const initialRegion = MAP_VIEWS[requestedRegion] ? requestedRegion : "WORLD";
   const initialEvent = params.get("event");
   const q = useWorldMap(ctx.save.id);
-  const [filter, setFilter] = useState(params.get("filter") ?? "OPPORTUNITIES");
+  // Every scheduled event is on the map by default; "My Opportunities" narrows to what you can enter now.
+  const [filter, setFilter] = useState(params.get("filter") ?? "ALL");
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const [region, setRegion] = useState(initialRegion);
   const [view, setView] = useState<MapView>(MAP_VIEWS[initialRegion]);
@@ -213,7 +214,7 @@ export function CareerMapPage({ ctx }: { ctx: ShellContext }) {
     setPage(0);
   };
   const resetFilters = () => {
-    setFilter("OPPORTUNITIES");
+    setFilter("ALL");
     setIncludeCompleted(false);
     setPage(0);
     changeRegion("WORLD");
@@ -285,7 +286,7 @@ export function CareerMapPage({ ctx }: { ctx: ShellContext }) {
                 >
                   <option value="OPPORTUNITIES">My Opportunities</option>
                   <option value="ENTERED">Entered</option>
-                  <option value="ALL">All events — including inaccessible Palace</option>
+                  <option value="ALL">All events</option>
                   {[...new Set(allEvents.map((item) => item.content.circuitId))].sort().map((circuit) => (
                     <option value={circuit} key={circuit}>{titleCase(circuit)}</option>
                   ))}

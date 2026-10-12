@@ -32,6 +32,7 @@ export function eventIdentity(key="",circuit="",level?:string|number) {
 export const MAP_VIEWS:Record<string,{x:number;y:number;width:number;height:number}>={
   WORLD:{x:0,y:0,width:720,height:360},EUROPE:{x:330,y:35,width:170,height:130},
   UK_IRELAND:{x:335,y:52,width:32,height:30},SCOTLAND:{x:346,y:62,width:15,height:10},
+  NORTH_AMERICA:{x:100,y:55,width:160,height:95},ASIA:{x:545,y:85,width:125,height:110},OCEANIA:{x:575,y:195,width:150,height:95},
 };
 export function projectCoordinate(latitude:number,longitude:number) {
   return {x:(Math.max(-180,Math.min(180,longitude))+180)*2,y:(90-Math.max(-90,Math.min(90,latitude)))*2};

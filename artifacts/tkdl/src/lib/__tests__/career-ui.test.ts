@@ -558,13 +558,13 @@ test("Premium cache still invalidates the whole save and save list after a mocke
   } finally {globalThis.fetch=original;client.clear();}
 });
 
-test("A8.3 map defaults to personal opportunities; inaccessible Palace remains available through All Events",()=>{
+test("map shows every scheduled event by default (Palace listed but not enterable); My Opportunities narrows it",()=>{
   const d=identity(catalogueFor(3).find(d=>d.key==="world-darts-championship")!);
   const e={id:"palace",name:"The Palace World Championship",status:"SCHEDULED",definitionId:"world-darts-championship",dates:{startWeek:50},venue:venueContent("the-palace-london"),fieldDescriptor:"World Championship Field",
     content:d,opportunity:{state:"NOT_QUALIFIED",reasons:["REQUIRES_RANKING"],canEnter:false}};
   const t=text(render(h(M.WorldMapPage,{ctx:ctx()}),[[key("world-map"),{events:[e]}]]));
-  assert.match(t,/Career Map/);assert.match(t,/All events — including inaccessible/);assert.match(t,/City-level approximations/);
-  assert.match(t,/No matching activity/);
+  assert.match(t,/Career Map/);assert.match(t,/All events/);assert.match(t,/City-level approximations/);
+  assert.match(t,/The Palace World Championship/);assert.match(t,/My Opportunities/);
   assert.doesNotMatch(t,/Enter this event|Buy access/);
 });
 test("A8.1 retired identity/products render read-only, with contract-controlled placement",()=>{

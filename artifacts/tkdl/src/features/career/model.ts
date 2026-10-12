@@ -68,6 +68,8 @@ const COUNTRIES: Record<string, { name: string; flag: string }> = {
   BEL: { name: "Belgium", flag: "🇧🇪" }, AUT: { name: "Austria", flag: "🇦🇹" }, CZE: { name: "Czechia", flag: "🇨🇿" }, DNK: { name: "Denmark", flag: "🇩🇰" },
   POL: { name: "Poland", flag: "🇵🇱" }, HUN: { name: "Hungary", flag: "🇭🇺" }, ESP: { name: "Spain", flag: "🇪🇸" }, AUS: { name: "Australia", flag: "🇦🇺" },
   CAN: { name: "Canada", flag: "🇨🇦" }, USA: { name: "United States", flag: "🇺🇸" }, NZL: { name: "New Zealand", flag: "🇳🇿" }, JPN: { name: "Japan", flag: "🇯🇵" },
+  FRA: { name: "France", flag: "🇫🇷" }, SWE: { name: "Sweden", flag: "🇸🇪" }, FIN: { name: "Finland", flag: "🇫🇮" }, EST: { name: "Estonia", flag: "🇪🇪" },
+  SGP: { name: "Singapore", flag: "🇸🇬" }, ZAF: { name: "South Africa", flag: "🇿🇦" },
 };
 export const country = (code: string | null | undefined) => code ? COUNTRIES[code] ?? { name: code, flag: "" } : null;
 
@@ -410,3 +412,12 @@ export const HOME_REGIONS: { key: string; label: string }[] = [
   ["borders","Borders, Scotland"],["north-east-scotland","North-East Scotland"],["tayside","Tayside, Scotland"],["northern-ireland","Northern Ireland"],
   ["ile-de-france","Île-de-France, France"],["stockholm","Stockholm, Sweden"],["kanto","Kanto, Japan"],["new-york","New York, USA"],["auckland","Auckland, New Zealand"],
 ].map(([key, label]) => ({ key, label }));
+/** Starting locality → country, for "home first" groupings. */
+const LOCALITY_COUNTRY: Record<string, string> = Object.fromEntries([
+  ...["ayrshire", "highlands", "north-east", "midlands", "south-wales", "south-coast", "glasgow-clyde", "central-scotland", "edinburgh-lothians", "borders", "north-east-scotland", "tayside", "northern-ireland"].map(k => [k, "GBR"]),
+  ...["munster", "connacht", "leinster"].map(k => [k, "IRL"]), ...["utrecht", "limburg", "friesland"].map(k => [k, "NLD"]),
+  ...["hessen", "saxony", "bremen"].map(k => [k, "DEU"]), ...["flanders", "wallonia"].map(k => [k, "BEL"]),
+  ...["victoria", "queensland", "western-australia"].map(k => [k, "AUS"]), ...["ontario", "alberta", "nova-scotia"].map(k => [k, "CAN"]),
+  ["ile-de-france", "FRA"], ["stockholm", "SWE"], ["kanto", "JPN"], ["new-york", "USA"], ["auckland", "NZL"],
+]);
+export const homeCountryOf = (locality: string | null | undefined) => (locality && LOCALITY_COUNTRY[locality]) || null;
