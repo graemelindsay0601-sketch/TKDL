@@ -49,6 +49,8 @@ export type CareerEvent = {
   status: EventStatus; statusReason: string | null;
   champion: { participantKey: string; npcId: string | null } | null;
   human: HumanView | null; finance: EventFinancePreview | null;
+  /** Stored event content identity; v7 events add a display circuit name and a summary. */
+  content?: { circuitId?: string; circuitName?: string; summary?: string; eventClass?: string | null } | null;
 };
 export type EventStatus = "SCHEDULED" | "REGISTRATION_OPEN" | "REGISTRATION_CLOSED" | "DRAW_PENDING" | "DRAWN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export type PresentationTier = "LOCAL" | "STANDARD" | "FEATURED" | "TELEVISED" | "MAJOR" | "WORLD";

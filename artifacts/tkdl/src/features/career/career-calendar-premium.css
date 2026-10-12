@@ -395,3 +395,4 @@
   .cc-country-heading > i { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .cc-country-chevron { transition: none; } }
+.cc-detail-summary { margin: 2px 0 10px; color: #b9c8d7; font-size: 12px; line-height: 1.55; }

@@ -23,26 +23,26 @@ import type { PrestigeClass } from "./world.ts";
  * Challenger ranking that awards Tour Cards. Soft-tip events are played as 501 double-out legs
  * (the format the live scorer supports), on the soft-tip circuit's shorter match lengths.
  */
-type Tour = { key: string; name: string; ci: string; countries: string[] | null; zone?: "EUROPE" | "REST_OF_WORLD"; venues: string[]; weeks: number[]; fieldSize: number;
+type Tour = { key: string; name: string; title: string; summary: string; ci: string; countries: string[] | null; zone?: "EUROPE" | "REST_OF_WORLD"; venues: string[]; weeks: number[]; fieldSize: number;
   finals: { name: string; week: number; venue: string; worldChampionshipPlaces: number }; softTip?: boolean };
 
 export const REGIONAL_TOURS_V7: readonly Tour[] = [
-  { key: "asian-tour", fieldSize: 32, name: "Asian Tour {n} — {city}", ci: "asian-tour", countries: ["JPN", "SGP"],
+  { key: "asian-tour", title: "Asian Tour", summary: "The affiliate tour for players based in Japan and Singapore: steel-tip 501, double out, across Tokyo, Osaka, Nagoya and Singapore. The top eight in every event qualify for the Asian Tour Finals, whose two finalists earn places at the Palace World Championship.", fieldSize: 32, name: "Asian Tour {n} — {city}", ci: "asian-tour", countries: ["JPN", "SGP"],
     venues: ["bayfront-dome-tokyo", "osaka-bay-hall", "chubu-civic-theatre", "bayfront-dome-tokyo", "garden-city-arena", "osaka-bay-hall", "bayfront-dome-tokyo", "chubu-civic-theatre"],
     weeks: [5, 10, 14, 18, 23, 28, 32, 37], finals: { name: "Asian Tour Finals", week: 43, venue: "bayfront-dome-tokyo", worldChampionshipPlaces: 2 } },
-  { key: "north-american-tour", fieldSize: 32, name: "North American Championship Tour {n} — {city}", ci: "north-american-tour", countries: ["USA", "CAN"],
+  { key: "north-american-tour", title: "North American Championship Tour", summary: "Steel-tip 501, double out, for players based in the United States and Canada, visiting New York, Toronto, Chicago, Calgary, Boston, Halifax and Las Vegas. The top eight in every event qualify for the North American Championship Finals in Las Vegas; the two finalists earn Palace World Championship places.", fieldSize: 32, name: "North American Championship Tour {n} — {city}", ci: "north-american-tour", countries: ["USA", "CAN"],
     venues: ["hudson-hall-new-york", "lakeshore-coliseum-toronto", "lakefront-hall-chicago", "prairie-forum", "harbor-forum-boston", "harbourfront-hall-halifax", "desert-pavilion-las-vegas", "lakeshore-coliseum-toronto"],
     weeks: [6, 11, 15, 19, 24, 29, 33, 38], finals: { name: "North American Championship Finals", week: 43, venue: "desert-pavilion-las-vegas", worldChampionshipPlaces: 2 } },
-  { key: "soft-tip-series", fieldSize: 32, name: "Soft-Tip Series {n} — {city}", ci: "soft-tip", countries: null, softTip: true,
+  { key: "soft-tip-series", title: "Soft-Tip Series", summary: "Electronic-board (soft-tip) darts in the United States and Japan, open to every player without a Tour Card. Matches are 501 with a double to finish, over the shorter soft-tip match lengths (best of 5 to 9 legs). The top eight in every event qualify for the Soft-Tip World Finals in Las Vegas, a prize event with no World Championship places.", fieldSize: 32, name: "Soft-Tip Series {n} — {city}", ci: "soft-tip", countries: null, softTip: true,
     venues: ["desert-pavilion-las-vegas", "bayfront-dome-tokyo", "lakefront-hall-chicago", "osaka-bay-hall", "hudson-hall-new-york", "bayfront-dome-tokyo"],
     weeks: [8, 16, 21, 26, 34, 40], finals: { name: "Soft-Tip World Finals", week: 46, venue: "desert-pavilion-las-vegas", worldChampionshipPlaces: 0 } },
-  { key: "oceanic-tour", fieldSize: 32, name: "Oceanic Tour {n} — {city}", ci: "oceanic-tour", countries: null, zone: "REST_OF_WORLD",
+  { key: "oceanic-tour", title: "Oceanic Tour", summary: "Steel-tip 501, double out, across Australia and New Zealand. Open to players based outside Europe, with local players filling the field first. The top eight in every event qualify for the Oceanic Tour Finals in Sydney; the two finalists earn Palace World Championship places.", fieldSize: 32, name: "Oceanic Tour {n} — {city}", ci: "oceanic-tour", countries: null, zone: "REST_OF_WORLD",
     venues: ["harbourside-arena-sydney", "southern-cross-hall", "waitemata-centre-auckland", "pacific-assembly", "swan-river-hall-perth", "capital-hall-wellington", "southern-cross-hall", "garden-city-theatre-christchurch"],
     weeks: [5, 9, 13, 17, 22, 27, 31, 36], finals: { name: "Oceanic Tour Finals", week: 42, venue: "harbourside-arena-sydney", worldChampionshipPlaces: 2 } },
-  { key: "nordic-baltic-tour", fieldSize: 32, name: "Nordic & Baltic Tour {n} — {city}", ci: "nordic-baltic-tour", countries: null, zone: "EUROPE",
+  { key: "nordic-baltic-tour", title: "Nordic & Baltic Tour", summary: "Steel-tip 501, double out, in Stockholm, Gothenburg, Copenhagen, Helsinki and Tallinn. Open to mainland-European players without a Tour Card, with local players filling the field first. The top eight in every event qualify for the Finals in Stockholm; the winner earns a Palace World Championship place.", fieldSize: 32, name: "Nordic & Baltic Tour {n} — {city}", ci: "nordic-baltic-tour", countries: null, zone: "EUROPE",
     venues: ["northern-waterfront", "harbour-hall-copenhagen", "aurora-centre", "gota-hall-gothenburg", "baltic-exchange", "northern-waterfront"],
     weeks: [6, 12, 17, 22, 28, 33], finals: { name: "Nordic & Baltic Tour Finals", week: 39, venue: "northern-waterfront", worldChampionshipPlaces: 1 } },
-  { key: "european-development-series", fieldSize: 48, name: "European Development Series {n} — {city}", ci: "european-development", countries: null, zone: "EUROPE",
+  { key: "european-development-series", title: "European Development Series", summary: "A second-tier tour for mainland-European players without a Tour Card: steel-tip 501, double out, across the Netherlands, Belgium, Germany, France, Austria and Czechia. The top eight in every event qualify for the European Development Finals in Rotterdam; the two finalists earn Palace World Championship places.", fieldSize: 48, name: "European Development Series {n} — {city}", ci: "european-development", countries: null, zone: "EUROPE",
     venues: ["maas-hal-rotterdam", "scheldt-dome-antwerp", "spree-halle-berlin", "seine-forum", "danube-halle-vienna", "vltava-arena-prague", "maas-valley-hall-maastricht", "meuse-hall-liege"],
     weeks: [5, 9, 13, 17, 21, 25, 30, 35], finals: { name: "European Development Finals", week: 40, venue: "maas-hal-rotterdam", worldChampionshipPlaces: 2 } },
 ];
@@ -71,6 +71,8 @@ const NEW_NATIONAL_CHAMPIONSHIPS: Record<string, ScheduleSlot> = {
 const AMATEUR_ONLY = R.all(R.amateur(), R.nonTourCard());
 const tw = (g: number, a: number, p: number, e: number) => ({ GRASSROOTS: g, AMATEUR: a, PROFESSIONAL: p, ELITE: e });
 const slug = (country: string) => country.toLowerCase();
+/** Country name as used mid-sentence ("based in the United States"). */
+const inCountry = (country: string) => (["USA"].includes(country) ? "the " : "") + COUNTRIES[country].name;
 /** Field sizes follow each country's NPC pool (player database v2 identity weights) so events fill without starving neighbours. */
 const POOL: Record<string, "large" | "medium" | "small"> = { GBR: "large", IRL: "medium", NLD: "medium", DEU: "medium" };
 const poolOf = (country: string) => POOL[country] ?? "small";
@@ -103,18 +105,24 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
   // A country's Classic and Masters avoid its own regional tour weekends (the same players).
   const tourWeeks = (country: string) => new Set(REGIONAL_TOURS_V7.filter(t => t.countries?.includes(country)).flatMap(t => [...t.weeks, t.finals.week]));
   const freeWeek = (country: string, from: number) => { const busy = tourWeeks(country); let w = from; while (busy.has(w)) w++; return w; };
+  const entry = (country: string) => ZONE_FILLED[country] ? `open to amateurs from across ${ZONE_FILLED[country] === "EUROPE" ? "mainland Europe" : "the region"}, with local players filling the field first`
+    : `for amateurs based in ${inCountry(country)}`;
+  const describe = (d: EventDefinition, circuitName: string, summary: string) => { d.content = { ...d.content!, circuitName, summary }; return d; };
   Object.entries(NATIONAL_LADDERS_V7).forEach(([country, ladder], index) => {
     const c = slug(country), countryName = COUNTRIES[country].name, pool = poolOf(country);
     make("regional-classic", `${c}-regional-series`, `${ladder.series} {n} — {city}`,
       NATIONAL_SERIES_WEEKS_V7.map((week, i) => ({ week: week + (index % 3), day: 6, venue: ladder.venues[i % ladder.venues.length] })),
       { eligibility: ladderRule(country), geography: { kind: "COUNTRY" }, fieldSize: SERIES_FIELD[pool], minimumEntrants: 8, npcFill: [0.5, 0.9], npcTierWeights: tw(0.6, 1, 0.1, 0) },
       "regional", "REGIONAL", "STANDARD").presentation.calendarPriority = ladderPriority(country);
+    describe(out[out.length - 1], ladder.series, `A round of the ${ladder.series}, the regional rung of the amateur ladder in ${inCountry(country)}: eight rounds a season for ranking points and prize money, ${entry(country)}.`);
     make("national-open", `${c}-classic`, `${countryName} Classic`, [{ week: freeWeek(country, 6 + (index % 6)), day: 6, endDay: 7, venue: ladder.venues[0] }],
       { eligibility: ladderRule(country), geography: { kind: "COUNTRY" }, fieldSize: CLASSIC_FIELD[pool], minimumEntrants: 8, npcFill: [0.5, 0.9] }, "open", "NATIONAL", "FEATURED", true)
       .presentation.calendarPriority = ladderPriority(country);
+    describe(out[out.length - 1], `${countryName} amateur ladder`, `The ${countryName} Classic: a two-day national open in the spring, ${entry(country)}. A national-level title, ranking points and prize money.`);
     make("national-open", `${c}-masters`, `${countryName} Masters`, [{ week: freeWeek(country, 38 + (index % 6)), day: 6, endDay: 7, venue: ladder.venues[1 % ladder.venues.length] }],
       { eligibility: ladderRule(country), geography: { kind: "COUNTRY" }, fieldSize: CLASSIC_FIELD[pool], minimumEntrants: 8, npcFill: [0.5, 0.9] }, "open", "NATIONAL", "FEATURED", true)
       .presentation.calendarPriority = ladderPriority(country);
+    describe(out[out.length - 1], `${countryName} amateur ladder`, `The ${countryName} Masters: the autumn national open that closes the ${countryName} amateur season, ${entry(country)}.`);
   });
   // New Zealand has no resident NPC pool yet, so its national event is an Amateur Open across the region.
   for (const [country, slot] of Object.entries(NEW_NATIONAL_CHAMPIONSHIPS)) {
@@ -122,6 +130,9 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
     const d = make("national-amateur-gbr", `national-amateur-${slug(country)}`, name, [{ ...slot, country }],
       { eligibility: ladderRule(country), geography: { kind: "COUNTRY" } }, "open", "NATIONAL", "FEATURED", true);
     d.family = "national-amateur-championship"; d.presentation.calendarPriority = ladderPriority(country);
+    describe(d, `${COUNTRIES[country].name} amateur ladder`, ZONE_FILLED[country]
+      ? `The ${COUNTRIES[country].name} Amateur Open: the country's flagship amateur event, ${entry(country)}.`
+      : `The ${COUNTRIES[country].name} National Amateur Championship: the national title, for amateurs based in ${inCountry(country)}.`);
   }
   // Existing national championships are country-locked too: in this edition they lock before open events.
   for (const d of out) if (d.family === "national-amateur-championship" && d.eventDatabaseVersion === 7 && !ZONE_FILLED[d.key.slice(-3).toUpperCase()]) d.presentation = { ...d.presentation, calendarPriority: PRIORITY.countryLocked };
@@ -133,7 +144,7 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
     const d: EventDefinition = { ...structuredClone(friday), key, name, family: key, legacyConcept: null, eventDatabaseVersion: 7,
       eligibility: AMATEUR_ONLY, fieldSize: 16, minimumEntrants: 4, npcFill: [0.4, 0.75],
       schedule: { kind: "LOCAL_ROTATION", venueKind: "CLUB", perWeight, day: 4, weekRange: [1, 52], countries } };
-    d.content = identity(d, "grassroots");
+    d.content = { ...identity(d, "grassroots"), circuitName: "Club league", summary: "A weekly league night at a local club for amateurs without a Tour Card: short 501 matches for small prizes and amateur ranking points." };
     out.push(d);
   };
   // Thinly populated darting nations: a league night in most weeks. Mid-sized European scenes: every few weeks.
@@ -145,11 +156,13 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
     // Country-locked where the home pool can fill fields; otherwise open to the zone with locals picked first.
     const region = tour.countries ? R.all(R.nonTourCard(), R.country(...tour.countries)) : tour.zone ? R.all(R.nonTourCard(), R.zone(tour.zone)) : R.nonTourCard();
     const format = tour.softTip ? knockout501([5, 5, 7, 7, 7, 9], "floor") : knockout501([7, 7, 9, 9, 9, 11], "floor");
-    make("challenger-event", tour.key, tour.name, tour.weeks.flatMap((week, i) => [6, 7].map(day => ({ week, day, venue: tour.venues[i % tour.venues.length] }))),
+    const tourEvent = make("challenger-event", tour.key, tour.name, tour.weeks.flatMap((week, i) => [6, 7].map(day => ({ week, day, venue: tour.venues[i % tour.venues.length] }))),
       { eligibility: region, geography: tour.countries || tour.zone ? { kind: "COUNTRY" } : { kind: "INTERNATIONAL", hostBonus: 2 }, rankingCategory: "AMATEUR_NATIONAL",
         fieldSize: tour.fieldSize, minimumEntrants: 8, npcFill: [0.4, 0.8], npcTierWeights: tw(0.3, 1, 0.5, 0.1), format, entitlementIntake: [],
         qualificationOutputs: [{ maxPosition: 8, entitlementType: "EVENT_ENTRY", targetKey: pass, targetSeason: "SAME", consumption: "SEASON_PASS" }] },
-      tour.ci, "SECONDARY_TOUR", "STANDARD").presentation.calendarPriority = tour.countries ? PRIORITY.countryLocked : PRIORITY.open;
+      tour.ci, "SECONDARY_TOUR", "STANDARD");
+    tourEvent.presentation.calendarPriority = tour.countries ? PRIORITY.countryLocked : PRIORITY.open;
+    tourEvent.content = { ...tourEvent.content!, circuitName: tour.title, summary: tour.summary };
     make("challenger-event", pass, tour.finals.name, [{ week: tour.finals.week, day: 6, endDay: 7, venue: tour.finals.venue }],
       { eligibility: R.all(R.nonTourCard(), R.qualified(pass)), geography: { kind: "INTERNATIONAL", hostBonus: 1 }, rankingCategory: "AMATEUR_NATIONAL",
         fieldSize: 32, minimumEntrants: 8, npcFill: [1, 1], npcTierWeights: tw(0.3, 1, 0.5, 0.1), invitationPolicy: null, entitlementIntake: [pass],
@@ -159,7 +172,9 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
     const finals = out[out.length - 1];
     finals.presentation.calendarPriority = tour.countries ? PRIORITY.countryFinals : PRIORITY.openFinals;
     // Tour finals lift an international globe; the identity is stored with the event content.
-    finals.content = { ...finals.content!, trophyId: "international-globe", trophyIdentity: { id: `trophy:${pass}`, designId: "international-globe" } };
+    const places = tour.finals.worldChampionshipPlaces;
+    finals.content = { ...finals.content!, trophyId: "international-globe", trophyIdentity: { id: `trophy:${pass}`, designId: "international-globe" }, circuitName: tour.title,
+      summary: `The ${tour.title} season finale: the top eight from every ${tour.title} event this season meet for the title${places ? ` and ${places === 1 ? "a Palace World Championship place for the winner" : `Palace World Championship places for the ${places === 2 ? "two" : places} finalists`}` : " and the largest prize on the circuit; no World Championship places"}.` };
   }
   return Object.freeze(out);
 }

@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useCalendar, useCareerProfile, useEnterEvent, errorMessage, type CalendarQuery } from "../api";
 import {
-  CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, country as countryInfo, denialLabel, eventDateLabel, homeCountryOf,
+  CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, country as countryInfo, eventCircuitLabel, denialLabel, eventDateLabel, homeCountryOf,
   eventStatus, formatLabel, formatPence, matchesStatusFilter, primaryAction, titleCase,
 } from "../model";
 import {
@@ -88,7 +88,7 @@ function CalendarEventRow({
         <EventMark event={event} />
         <span className="cc-event-copy">
           <strong>{event.name}</strong>
-          <span>{circuitLabel(event.circuit)} <i aria-hidden="true" /> {event.venue.city}, {event.venue.country}</span>
+          <span>{eventCircuitLabel(event)} <i aria-hidden="true" /> {event.venue.city}, {event.venue.country}</span>
         </span>
         <span className="cc-event-status"><EventStatus event={event} awaitingMatch={awaitingMatch} />
           <small>{eventDateLabel(event)}</small>
@@ -140,8 +140,9 @@ function SelectedEvent({
         style={{ objectPosition: `${eventPlate(event).focal.x * 100}% ${eventPlate(event).focal.y * 100}%` }} /></div>
       <div className="cc-detail-heading">
         <EventMark event={event} />
-        <div><span className="cc-detail-circuit">{circuitLabel(event.circuit)}</span><h2>{event.name}</h2></div>
+        <div><span className="cc-detail-circuit">{eventCircuitLabel(event)}</span><h2>{event.name}</h2></div>
       </div>
+      {event.content?.summary && <p className="cc-detail-summary">{event.content.summary}</p>}
       <div className="cc-detail-status"><EventStatus event={event} awaitingMatch={awaitingMatch} />
         <span>{event.human?.eligible ? "Eligibility checked" : "Event information"}</span>
       </div>

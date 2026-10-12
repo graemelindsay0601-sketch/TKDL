@@ -34,6 +34,9 @@ const CIRCUITS: Record<string, string> = {
   MAJOR: "Major", WORLD_CHAMPIONSHIP: "World Championship", SPECIAL: "Special",
 };
 export const circuitLabel = (c: string) => CIRCUITS[c] ?? titleCase(c);
+/** An event's tour or ladder name where it has one (e.g. "Soft-Tip Series"), otherwise its circuit label. */
+export const eventCircuitLabel = (e: { circuit: string; content?: { circuitName?: string } | null; circuitName?: string }) =>
+  e.content?.circuitName ?? e.circuitName ?? circuitLabel(e.circuit);
 /**
  * Player-facing wording for text the server writes with internal authority labels ("A3 event result",
  * "A4 sponsor journey event: OFFER_RECEIVED", "78000 pence"). Display only; the stored text is unchanged.

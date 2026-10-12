@@ -79,6 +79,9 @@ test("tier identity distinguishes grassroots, regional, professional, major and 
   assert.equal(tierFromEvent("LOCAL", "GRASSROOTS").key, "GRASSROOTS");
   assert.equal(tierFromEvent("STANDARD", "COUNTY").key, "REGIONAL");
   assert.equal(tierFromEvent("STANDARD", "PRO_CIRCUIT").key, "PROFESSIONAL");
+  assert.equal(tierFromEvent("STANDARD", "CHALLENGER").key, "DEVELOPMENT", "second-tier tours are not the professional tour");
+  assert.equal(tierFromEvent("TELEVISED", "CHALLENGER").key, "DEVELOPMENT");
+  assert.equal(tierProfile(3, "SECONDARY_TOUR").key, "DEVELOPMENT");
   assert.equal(tierFromEvent("MAJOR", "MAJOR").key, "MAJOR");
   assert.equal(tierFromEvent("WORLD", "WORLD_CHAMPIONSHIP").key, "WORLD");
 });

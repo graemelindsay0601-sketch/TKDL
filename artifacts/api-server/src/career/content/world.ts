@@ -48,6 +48,10 @@ export type EventContent = {
   longevity: "PERMANENT" | "RECURRING" | "ROTATING_VENUE" | "OCCASIONAL" | "RETIRABLE_MINOR";
   venueRotation?: string[]; fieldDescription: string; themeKey: string;
   trophyIdentity?:{id:string;designId:string};
+  /** Player-facing circuit/tour name when the authority circuit label is too generic (v7 tours and ladders). */
+  circuitName?: string;
+  /** One-paragraph player-facing description of what the event is and what it leads to. */
+  summary?: string;
   venue?: ReturnType<typeof venueContent>;
 };
 export const VENUE_FAMILIES = [
