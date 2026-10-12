@@ -102,8 +102,11 @@ export function DartInputBoard({
   disabled = false,
   visitDartCount,
   distinguishSingleRing = false,
+  fatBull = false,
 }: {
   onDart: (dart: Dart) => void;
+  /** Soft-tip fat bull: the outer bull also scores 50, so its button says so. */
+  fatBull?: boolean;
   onMiss: () => void;
   onUndo: () => void;
   activeSegments?: number[];
@@ -360,8 +363,8 @@ export function DartInputBoard({
             minHeight: "52px",
             justifyContent: "center",
           }}>
-          <span style={{ fontSize: "0.55rem", opacity: 0.6, letterSpacing: "0.1em", fontWeight: 700 }}>SINGLE</span>
-          <span>BULL · 25</span>
+          <span style={{ fontSize: "0.55rem", opacity: 0.6, letterSpacing: "0.1em", fontWeight: 700 }}>{fatBull ? "OUTER · FAT BULL" : "SINGLE"}</span>
+          <span>{fatBull ? "BULL · 50" : "BULL · 25"}</span>
           {markFor(25) && (
             <span style={{ fontSize: "0.6rem", fontWeight: 800 }}>
               {markFor(25)!.icon} {markFor(25)!.magnitudeLabel}
