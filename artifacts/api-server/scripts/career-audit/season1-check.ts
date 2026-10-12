@@ -22,5 +22,8 @@ const cancelled = await rows(sql`SELECT definition_key, circuit, status_reason, 
   WHERE career_save_id=${id} AND season=1 AND status='CANCELLED' GROUP BY 1,2,3 ORDER BY 2,1`);
 const gated = await rows(sql`SELECT definition_key, start_week, status, (SELECT COUNT(*)::int FROM career_event_results r WHERE r.career_save_id=i.career_save_id AND r.event_id=i.id) entrants
   FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND circuit IN ('MAJOR','WORLD_CHAMPIONSHIP') AND classification='RANKING' ORDER BY start_week`);
-console.log(JSON.stringify({ proWorldDepthByWeek: depth, cancelled, majors: gated }, null, 1));
+const detailKey = process.argv.find(x => x.startsWith("--detail="))?.slice(9);
+const detail = detailKey ? await rows(sql`SELECT start_week, start_day, status, status_reason, (SELECT COUNT(*)::int FROM career_event_entries e WHERE e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.status<>'WITHDRAWN') entrants
+  FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND definition_key=${detailKey} ORDER BY start_day`) : [];
+console.log(JSON.stringify({ proWorldDepthByWeek: depth, cancelled, majors: gated, detail }, null, 1));
 await a.pg.close();

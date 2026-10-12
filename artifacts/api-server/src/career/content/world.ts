@@ -49,6 +49,8 @@ export const VENUE_FAMILIES = [
   "exhibition", "small-arena", "major-arena", "international-arena", "palace",
 ] as const;
 const COORDS: Record<string, [number, number]> = {
+  Osaka: [34.69, 135.5], Nagoya: [35.18, 136.91], Chicago: [41.88, -87.63], Boston: [42.36, -71.06],
+  Wellington: [-41.29, 174.78], Christchurch: [-43.53, 172.64], Gothenburg: [57.71, 11.97],
   London: [51.5, -0.12], Manchester: [53.48, -2.24], Liverpool: [53.41, -2.98],
   Glasgow: [55.86, -4.25], Wolverhampton: [52.59, -2.13], Leeds: [53.8, -1.55],
   Cardiff: [51.48, -3.18], Dublin: [53.35, -6.26], Newcastle: [54.98, -1.61],

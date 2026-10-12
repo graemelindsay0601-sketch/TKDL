@@ -170,6 +170,18 @@ export const VENUES: readonly Venue[] = [
   V("southern-cross-hall", "Southern Cross Hall", "Melbourne", "AUS", "Victoria", "HALL"),
   V("pacific-assembly", "Pacific Assembly Hall", "Brisbane", "AUS", "Queensland", "HALL"),
   V("prairie-forum", "Prairie Forum", "Calgary", "CAN", "Alberta", "HALL"),
+  // Event database v7: regional ladders and tours for every starting country (additive keys only).
+  V("osaka-bay-hall", "Osaka Bay Hall", "Osaka", "JPN", "Kansai", "HALL"),
+  V("chubu-civic-theatre", "Chubu Civic Theatre", "Nagoya", "JPN", "Chubu", "HALL"),
+  V("lakefront-hall-chicago", "Lakefront Hall", "Chicago", "USA", "Illinois", "HALL"),
+  V("harbor-forum-boston", "Harbor Forum", "Boston", "USA", "Massachusetts", "HALL"),
+  V("harbourfront-hall-halifax", "Harbourfront Hall", "Halifax", "CAN", "Nova Scotia", "HALL"),
+  V("swan-river-hall-perth", "Swan River Hall", "Perth", "AUS", "Western Australia", "HALL"),
+  V("capital-hall-wellington", "Capital Hall", "Wellington", "NZL", "Wellington", "HALL"),
+  V("garden-city-theatre-christchurch", "Garden City Theatre", "Christchurch", "NZL", "Canterbury", "HALL"),
+  V("gota-hall-gothenburg", "Göta Hall", "Gothenburg", "SWE", "Västra Götaland", "HALL"),
+  V("maas-valley-hall-maastricht", "Maas Valley Hall", "Maastricht", "NLD", "Limburg", "HALL"),
+  V("meuse-hall-liege", "Meuse Hall", "Liège", "BEL", "Wallonia", "HALL"),
 ];
 
 /** Grassroots/county clubs are generated per locality with stable keys. */

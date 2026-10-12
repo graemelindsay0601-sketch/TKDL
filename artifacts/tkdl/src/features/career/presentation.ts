@@ -8,6 +8,11 @@ export const CHAMPIONSHIP_THEMES:Record<string,{accent:string;motif:string;class
   "pro-tour-finals":{accent:"#6caaff",motif:"Modern steel trophy",className:"tour"},
   "world-championship":{accent:"#e9c77a",motif:"The Palace · Sovereign Trophy",className:"palace"},
 };
+const REGIONAL_TOUR_THEMES:[string,string,string][]=[
+  ["asian-tour","#ef6f6c","Asian Tour"],["north-american-tour","#6fa8ff","North American Championship Tour"],
+  ["soft-tip-series","#53d6c4","Soft-Tip Series"],["oceanic-tour","#f2b45a","Oceanic Tour"],
+  ["nordic-baltic-tour","#9ccaf0","Nordic & Baltic Tour"],["european-development-series","#c39cf2","European Development Series"],
+];
 export function eventIdentity(key="",circuit="",level?:string|number) {
   // Canonical catalogue keys, never a title-sponsor-derived name.
   const canonical=key==="long-format-matchplay"?"the-match-trophy":key==="double-crown"?"the-double-crown":
@@ -17,6 +22,9 @@ export function eventIdentity(key="",circuit="",level?:string|number) {
   if(theme)return theme;
   if(circuit==="WORLD_CHAMPIONSHIP"&&(level==="WORLD"||level===5))return CHAMPIONSHIP_THEMES["world-championship"];
   if(circuit==="VAULT")return {accent:"#b59af3",motif:"Vault Darts",className:"vault"};
+  // v7 regional tours: each keeps its own identity while sharing the second-tier tour styling.
+  const tour=REGIONAL_TOUR_THEMES.find(([prefix])=>canonical.startsWith(prefix));
+  if(tour)return {accent:tour[1],motif:tour[2],className:"pro"};
   if(circuit==="PRO_CIRCUIT"||circuit==="CHALLENGER")return {accent:"#80b6f7",motif:circuit==="CHALLENGER"?"Challenger Tour":"WDU Pro Tour",className:"pro"};
   if(circuit==="EUROPEAN_SERIES")return CHAMPIONSHIP_THEMES["continental-finals"];
   return {accent:"#86c7c6",motif:"Open darts",className:"local"};
