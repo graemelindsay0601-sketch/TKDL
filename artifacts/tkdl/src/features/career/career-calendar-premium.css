@@ -383,7 +383,7 @@
 .cc-country-heading > i { height: 1px; flex: 1; background: rgba(180,199,219,.14); }
 .cc-country-heading small { color: #8fa3b8; font-size: 10px; white-space: nowrap; }
 .cc-country-flag { display: inline-grid; place-items: center; width: 24px; font-size: 17px; line-height: 1; }
-.cc-country-tag { border: 1px solid rgba(105,184,236,.4); border-radius: 999px; padding: 1px 7px; color: #9fd2f4; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.cc-country-tag { white-space: nowrap; border: 1px solid rgba(105,184,236,.4); border-radius: 999px; padding: 1px 7px; color: #9fd2f4; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .cc-country-tag--entered { border-color: rgba(237,71,119,.5); color: #ffadc5; }
 .cc-country-chevron { flex: 0 0 auto; color: #8fa3b8; transition: transform .18s ease; }
 .cc-country-group[data-open="true"] .cc-country-chevron { transform: rotate(180deg); }

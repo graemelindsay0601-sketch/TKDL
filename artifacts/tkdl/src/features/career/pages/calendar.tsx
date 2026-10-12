@@ -278,7 +278,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
     return [...by.entries()].map(([code, list]) => ({ code, events: list.sort((a, b) => a.dates.startDay - b.dates.startDay || a.name.localeCompare(b.name)), entered: entered(list) }))
       .sort((a, b) => Number(b.code === homeCountry) - Number(a.code === homeCountry) || b.entered - a.entered || b.events.length - a.events.length || a.code.localeCompare(b.code));
   }, [events, homeCountry]);
-  const selectedEvent = events.find(event => event.id === selectedId) ?? events[0];
+  const selectedEvent = events.find(event => event.id === selectedId);
   const groupings = calendar.data?.overview.groupings ?? [];
   const pageEvents = events.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const groups = useMemo(() => {
@@ -296,6 +296,8 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
       onError: error => setMessage(errorMessage(error)),
     });
   };
+  // Default dossier: the first event of the top section (home country first when grouping by country).
+  const shownEvent = selectedEvent ?? (groupBy === "COUNTRY" ? countryGroups[0]?.events[0] : events[0]);
   const resetFilters = () => { setCircuit(""); setTier(""); setStatus("ALL"); setHostCountry(""); setPage(0); };
 
   return (
@@ -407,7 +409,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
               <div className="cc-event-groups cc-country-groups">
                 {countryGroups.map(group => <CountrySection key={group.code} code={group.code} events={group.events} entered={group.entered} home={group.code === homeCountry}
                   defaultOpen={group.code === homeCountry || group.entered > 0 || countryGroups.length === 1 || !!hostCountry}>
-                  {list => list.map(event => <CalendarEventRow key={event.id} event={event} active={selectedEvent?.id === event.id} awaitingMatch={pending.has(event.id)} saveId={save.id} retired={retired || !isCurrentSeason} entering={enter.isPending}
+                  {list => list.map(event => <CalendarEventRow key={event.id} event={event} active={shownEvent?.id === event.id} awaitingMatch={pending.has(event.id)} saveId={save.id} retired={retired || !isCurrentSeason} entering={enter.isPending}
                     onSelect={() => setSelectedId(event.id)} onEnter={onEnter} />)}
                 </CountrySection>)}
               </div>
@@ -416,7 +418,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
                 {groups.map(group => <section className="cc-event-group" key={group.key} aria-label={`${group.name}, weeks ${group.fromWeek} to ${group.toWeek}`}>
                   <div className="cc-group-heading"><span className="cc-group-pin" /><strong>{group.name}</strong><i /><small>W{group.fromWeek}—{group.toWeek}</small></div>
                   <div className="cc-event-list">
-                    {group.events.map(event => <CalendarEventRow key={event.id} event={event} active={selectedEvent?.id === event.id} awaitingMatch={pending.has(event.id)} saveId={save.id} retired={retired || !isCurrentSeason} entering={enter.isPending} onSelect={() => setSelectedId(event.id)} onEnter={onEnter} />)}
+                    {group.events.map(event => <CalendarEventRow key={event.id} event={event} active={shownEvent?.id === event.id} awaitingMatch={pending.has(event.id)} saveId={save.id} retired={retired || !isCurrentSeason} entering={enter.isPending} onSelect={() => setSelectedId(event.id)} onEnter={onEnter} />)}
                   </div>
                 </section>)}
               </div>
@@ -424,7 +426,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
           <div className="cc-agenda-footer"><span>{events.length} event{events.length === 1 ? "" : "s"} match your view</span><span>Showing events from your Career save</span></div>
         </section>
 
-        {selectedEvent ? <SelectedEvent event={selectedEvent} saveId={save.id} awaitingMatch={pending.has(selectedEvent.id)} retired={retired} currentSeason={isCurrentSeason} entering={enter.isPending} onEnter={onEnter} />
+        {shownEvent ? <SelectedEvent event={shownEvent} saveId={save.id} awaitingMatch={pending.has(shownEvent.id)} retired={retired} currentSeason={isCurrentSeason} entering={enter.isPending} onEnter={onEnter} />
           : <aside className="cc-detail cc-detail--empty" aria-label="Selected event details"><CalendarDays size={24} /><strong>Select an event</strong><span>Choose an event in your season schedule to see its venue, entry status and cost outlook.</span></aside>}
       </div>
       {groupBy === "PHASE" && <div className="cc-pagination">

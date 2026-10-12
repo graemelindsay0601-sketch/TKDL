@@ -392,3 +392,17 @@ Event database **v6** for new saves only; v1–v5 definitions and existing saves
 Enter-to-play flow: Continue Career plays straight to a booked event's match (`NEXT_MATCH`) and opens it; matches open
 straight in the scorer; the result card plays the next fixture directly and files a finished event on the way home.
 Enter → match now takes 4 clicks (Enter, Continue Career, bull-up, Start Game); each later match takes 3.
+
+## Event database v7 — every starting country (branch `career/regional-ladders-v7`)
+
+- National ladders in all 12 starting countries: a regional/state/provincial/prefecture series (8 rounds), a national
+  Classic and Masters, and national championships for France, Sweden, Japan and the USA (New Zealand Amateur Open).
+- Regional tours with finals: Asian Tour (Japan & Singapore), North American Championship Tour (steel-tip, USA & Canada),
+  Soft-Tip Series (USA & Japan), Oceanic Tour, Nordic & Baltic Tour, European Development Series. Finals award World
+  Championship places (Soft-Tip World Finals is a prize event).
+- Weekly club league nights where local scenes were thin; 11 new venues with map anchors.
+- Amateur weeks with no meaningful option (season 2): Japan/USA/NZ 39–40 → 9–13; Australia/Canada 34 → 5–10;
+  France/Sweden 29 → 6–10; Belgium 23 → 5; Netherlands 18 → 6; Germany 15 → 0–2; UK ≤ 12 everywhere.
+- Country-locked events lock fields first; zone-wide/open events afterwards. Season-1 simulation: majors full; ~7% of new
+  instances unfilled (mostly small club nights), in line with existing local events.
+- Calendar grouped by host country (collapsible, home first); map shows all events with North America, Asia and Oceania views.

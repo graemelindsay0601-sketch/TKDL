@@ -50,17 +50,17 @@ export const REGIONAL_TOURS_V7: readonly Tour[] = [
 /** Regional series name and venues per starting country (the county/state level outside the UK county map). */
 export const NATIONAL_LADDERS_V7: Record<string, { series: string; venues: string[] }> = {
   GBR: { series: "Home Nations Series", venues: ["northern-forum-newcastle", "riverside-hall-cardiff", "midlands-oche", "castle-exchange-edinburgh", "vault-studio-leeds", "lagan-exchange", "glasgow-hall"] },
-  IRL: { series: "Provincial Series", venues: ["harbour-rooms-dublin", "lee-assembly", "western-rooms"] },
+  IRL: { series: "Irish Provincial Series", venues: ["harbour-rooms-dublin", "lee-assembly", "western-rooms"] },
   NLD: { series: "Dutch Regional Series", venues: ["canal-conference", "maas-hal-rotterdam", "maas-valley-hall-maastricht"] },
   DEU: { series: "German Regional Series", venues: ["rhein-hall-dusseldorf", "spree-halle-berlin", "isar-forum-munich", "ruhr-forum-dortmund"] },
   BEL: { series: "Belgian Regional Series", venues: ["scheldt-dome-antwerp", "meuse-hall-liege", "grand-place-pavilion-brussels"] },
   FRA: { series: "French Regional Series", venues: ["seine-forum", "rhone-theatre"] },
   SWE: { series: "Swedish Regional Series", venues: ["northern-waterfront", "gota-hall-gothenburg"] },
-  AUS: { series: "State Series", venues: ["southern-cross-hall", "pacific-assembly", "swan-river-hall-perth", "harbourside-arena-sydney"] },
-  CAN: { series: "Provincial Series", venues: ["lakeshore-coliseum-toronto", "prairie-forum", "harbourfront-hall-halifax"] },
-  USA: { series: "State Series", venues: ["hudson-hall-new-york", "lakefront-hall-chicago", "harbor-forum-boston", "desert-pavilion-las-vegas"] },
-  JPN: { series: "Prefecture Series", venues: ["bayfront-dome-tokyo", "osaka-bay-hall", "chubu-civic-theatre"] },
-  NZL: { series: "Regional Series", venues: ["waitemata-centre-auckland", "capital-hall-wellington", "garden-city-theatre-christchurch"] },
+  AUS: { series: "Australian State Series", venues: ["southern-cross-hall", "pacific-assembly", "swan-river-hall-perth", "harbourside-arena-sydney"] },
+  CAN: { series: "Canadian Provincial Series", venues: ["lakeshore-coliseum-toronto", "prairie-forum", "harbourfront-hall-halifax"] },
+  USA: { series: "US State Series", venues: ["hudson-hall-new-york", "lakefront-hall-chicago", "harbor-forum-boston", "desert-pavilion-las-vegas"] },
+  JPN: { series: "Japan Prefecture Series", venues: ["bayfront-dome-tokyo", "osaka-bay-hall", "chubu-civic-theatre"] },
+  NZL: { series: "New Zealand Regional Series", venues: ["waitemata-centre-auckland", "capital-hall-wellington", "garden-city-theatre-christchurch"] },
 };
 export const NATIONAL_SERIES_WEEKS_V7 = [3, 7, 11, 16, 20, 26, 34, 45] as const;
 const NEW_NATIONAL_CHAMPIONSHIPS: Record<string, ScheduleSlot> = {
@@ -105,7 +105,7 @@ export function buildCatalogueV7(v6: readonly EventDefinition[]): readonly Event
   const freeWeek = (country: string, from: number) => { const busy = tourWeeks(country); let w = from; while (busy.has(w)) w++; return w; };
   Object.entries(NATIONAL_LADDERS_V7).forEach(([country, ladder], index) => {
     const c = slug(country), countryName = COUNTRIES[country].name, pool = poolOf(country);
-    make("regional-classic", `${c}-regional-series`, `${countryName} ${ladder.series} {n} — {city}`,
+    make("regional-classic", `${c}-regional-series`, `${ladder.series} {n} — {city}`,
       NATIONAL_SERIES_WEEKS_V7.map((week, i) => ({ week: week + (index % 3), day: 6, venue: ladder.venues[i % ladder.venues.length] })),
       { eligibility: ladderRule(country), geography: { kind: "COUNTRY" }, fieldSize: SERIES_FIELD[pool], minimumEntrants: 8, npcFill: [0.5, 0.9], npcTierWeights: tw(0.6, 1, 0.1, 0) },
       "regional", "REGIONAL", "STANDARD").presentation.calendarPriority = ladderPriority(country);
