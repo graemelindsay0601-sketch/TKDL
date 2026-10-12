@@ -924,3 +924,10 @@
 .career-root .career-new-career__confirm dt { font:700 .58rem Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; color:#ffffff85; } .career-root .career-new-career__confirm dd { margin:2px 0 0; color:#fff; font-weight:600; }
 @media (max-width:640px) { .career-root .career-new-career__confirm { grid-template-columns:1fr; } .career-root .career-new-career__confirm-shirt { width:60%; margin:auto; } .career-root .career-new-career.is-open { padding:12px; } }
 .career-root .career-new-career__actions { display:flex; flex-wrap:wrap; gap:8px; padding-top:14px; border-top:1px solid #ffffff14; }
+/* Attention panel rows */
+.career-attention-group > a { display:flex !important; align-items:center; gap:10px; }
+.career-attention-group > a svg { flex:0 0 auto; color:#8fb6dc; }
+.career-attention-group > a span { flex:1; min-width:0; }
+.career-attention-group > a small { flex:0 0 auto; font-size:.66rem; color:#ffffff80; }
+.career-attention-group > a.is-action { border-color:#ff005c66 !important; background:#ff005c14 !important; }
+.career-attention-group > a.is-action svg { color:#ff7aa8; }

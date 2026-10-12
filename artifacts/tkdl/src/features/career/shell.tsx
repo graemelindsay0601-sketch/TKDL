@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
-  Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, type LucideIcon } from "lucide-react";
+  Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useLegacy, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
-import { CAREER_NAV, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
+import { CAREER_NAV, milestoneLabel, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
@@ -252,16 +252,16 @@ export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:b
         {(finance.isLoading||life.isLoading||sporting.isLoading)&&<p role="status" data-testid="status-career-attention-loading">Loading Career updates…</p>}
         <section className="career-attention-group" aria-labelledby={`${panelId}-actions`}>
           <h3 id={`${panelId}-actions`}>Action required</h3>
-          {actions.length?actions.map((a,i)=><Link key={a.path} data-testid={`link-career-action-${i}`} href={a.path}>{a.title}</Link>):<p>{finance.isLoading?"Checking pending decisions…":"No pending action reported."}</p>}
+          {actions.length?actions.map((a,i)=><Link key={a.path} className="is-action" data-testid={`link-career-action-${i}`} href={a.path}><Bell size={14} aria-hidden/><span>{a.title}</span></Link>):<p>{finance.isLoading?"Checking pending decisions…":"No pending action reported."}</p>}
         </section>
         <section className="career-attention-group" aria-labelledby={`${panelId}-career`}>
           <h3 id={`${panelId}-career`}>Career updates</h3>
-          {milestones.map((m,i)=><Link key={`${m.kind}-${m.season}-${i}`} data-testid={`link-career-milestone-${i}`} href={`${base}/journey`}>{String(m.kind).replace(/_/g," ")} · Season {m.season}</Link>)}
+          {milestones.map((m,i)=><Link key={`${m.kind}-${m.season}-${i}`} data-testid={`link-career-milestone-${i}`} href={`${base}/journey`}><Trophy size={14} aria-hidden/><span>{milestoneLabel(m).title}</span><small>Season {m.season}</small></Link>)}
           {sporting.data&&!milestones.length&&<p>No recent Career milestones.</p>}
         </section>
         <section className="career-attention-group" aria-labelledby={`${panelId}-world`}>
           <h3 id={`${panelId}-world`}>World news</h3>
-          {news.map(n=><Link key={n.id} data-testid={`link-career-story-${n.id}`} href={`${base}/stories`}>{n.title}</Link>)}
+          {news.map(n=><Link key={n.id} data-testid={`link-career-story-${n.id}`} href={`${base}/stories`}><Newspaper size={14} aria-hidden/><span>{n.title}</span></Link>)}
           {life.data&&!news.length&&<p>No recent Darts World stories.</p>}
           <Link data-testid="link-explore-darts-world" href={`${base}/world`}>Explore Darts World</Link>
         </section>
