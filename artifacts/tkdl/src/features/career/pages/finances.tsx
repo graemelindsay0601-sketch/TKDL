@@ -316,7 +316,7 @@ function Ledger({ saveId }: { saveId: string }) {
         <ul className="career-money-list">{rows.map(e => (
           <li key={e.id} className="career-money-row">
             <span className="career-money-row__week">{e.season ? <>S{e.season}<b>W{e.week}</b></> : "—"}</span>
-            <div className="min-w-0"><strong>{e.reason ?? ledgerLabel(e.category)}</strong>
+            <div className="min-w-0"><strong>{publicText(e.reason ?? ledgerLabel(e.category))}</strong>
               <small>{ledgerLabel(e.category)}{e.sponsorCoveredPence ? ` · ${formatPence(e.sponsorCoveredPence)} sponsor-covered` : ""}</small></div>
             <span className={`career-money-row__amount ${e.amountPence >= 0 ? "is-in" : "is-out"}`}>{formatPence(e.amountPence, { signed: true })}</span>
           </li>))}</ul>
