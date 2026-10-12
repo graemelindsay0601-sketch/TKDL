@@ -7,6 +7,7 @@ import { Award as AwardIcon, Crown, Landmark, Medal, ScrollText, Star, Trophy } 
 import { CareerPageHero } from "../page-hero";
 import { CareerShirt } from "../identity";
 import { NpcHero } from "../npc-hero";
+import { PLATES } from "../atmosphere";
 import "./legacy.css";
 import { HistoryPage } from "./history";
 import type { ShellContext } from "../shell";
@@ -141,44 +142,61 @@ function Records({rows}:{rows:RecordRow[]}) {
     <span>{r.holders.map(h=>h.name).join(", ")}</span><em>{publicText(r.scope)}</em></div>)}</div>;
 }
 export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:string}) {
-  return <section className="space-y-3" aria-label={`Season ${r.season} Review`}><h2 className="text-xl font-bold">Season {r.season} Complete — {r.identity}</h2>
-    <p className="text-xs">{r.provenance.toLowerCase()} · permanent history</p>{r.story.map(s=><p key={s}>{s}</p>)}
-    <p>Prize {formatPence(r.prizePence)} · Sponsor/Commercial {formatPence(r.commercialPence)}</p>
-    <p>{r.cardStatus}</p><p>Starting World rank: {r.startingRank?`#${r.startingRank.position} (previous season, week ${r.startingRank.week})`:"not recorded"} · Final published: {r.finalRank?`#${r.finalRank.position} (week ${r.finalRank.week})`:"not recorded"}</p>
-    {r.bestMajor&&<p>Best major: {r.bestMajor.name} · position {r.bestMajor.position}</p>}
-    {r.worldResult&&<p>World Championship: {r.worldResult.name} · position {r.worldResult.position}</p>}
-    {r.biggestMoment&&<p>Defining recorded result: {r.biggestMoment.name} · position {r.biggestMoment.position}</p>}
-    {r.definingRival&&<p>Most-met season opponent: {r.definingRival.name}; {r.definingRival.meetings} meetings, {r.definingRival.wins}–{r.definingRival.losses}.</p>}
-    <h3 className="font-bold">Awards & Champions</h3><Awards rows={r.awards}/>
-    <p>Last published World #1: {r.world.numberOne?.name??"not recorded"}</p>
-    <BoundedList rows={r.world.champions}>{c=><p key={c.id}>{c.name}: {c.participantName??"Recorded participant"}</p>}</BoundedList>
-    <h3 className="font-bold">Career Changes</h3>{r.changes.map(c=><p key={c}>{c}</p>)}
-    {r.world.cardChanges.map(c=><p key={c.id}>Card change: {c.participantName??"Recorded participant"} · {c.source} · {c.status}</p>)}
-    {r.world.retirements.map(p=><p key={p.id}>Retirement: {p.name}</p>)}
-    {r.sponsors.map(s=><p key={s.id}>Sponsor: {s.name} · {s.status}</p>)}
-    <p>{r.publicLife.decisions} remembered Career Life decisions · {r.publicLife.completedWork} completed off-board commitments.</p>
-    {r.publicLife.profile&&<p>Public profile at transition: {r.publicLife.profile.persona.label} · {r.publicLife.profile.awareness} · {r.publicLife.profile.reception}</p>}
-    <Link className="underline" href={`/career/${saveId}/stories`}>Established Career Story Threads</Link>
-    {r.notes.map(n=><p className="text-xs text-white/60" key={n}>{n}</p>)}
+  const highlights:[string,string][]=[
+    ...(r.bestMajor?[["Best major",`${r.bestMajor.name} · position ${r.bestMajor.position}`] as [string,string]]:[]),
+    ...(r.worldResult?[["World Championship",`${r.worldResult.name} · position ${r.worldResult.position}`] as [string,string]]:[]),
+    ...(r.biggestMoment?[["Defining recorded result",`${r.biggestMoment.name} · position ${r.biggestMoment.position}`] as [string,string]]:[]),
+    ...(r.definingRival?[["Most-met season opponent",`${r.definingRival.name}; ${r.definingRival.meetings} meetings, ${r.definingRival.wins}–${r.definingRival.losses}.`] as [string,string]]:[]),
+  ];
+  return <section className="career-review space-y-4" aria-label={`Season ${r.season} Review`}>
+    <header className="career-review__head"><img src={PLATES["historic-theatre"].src} alt="" aria-hidden="true" loading="lazy"/>
+      <p className="career-review__kicker">{titleCase(r.provenance)} · permanent history</p>
+      <h2>Season {r.season} Complete — {r.identity}</h2>
+      {r.story.map(x=><p key={x}>{publicText(x)}</p>)}</header>
+    <dl className="career-archive__facts">
+      <div><dt>Prize money</dt><dd>{formatPence(r.prizePence)}</dd></div><div><dt>Sponsor / commercial</dt><dd>{formatPence(r.commercialPence)}</dd></div>
+      <div><dt>Tour Card</dt><dd className="career-review__small">{publicText(r.cardStatus)}</dd></div>
+      <div><dt>World ranking</dt><dd className="career-review__small">{r.finalRank?`#${r.finalRank.position}`:"—"}</dd>
+        <small>Starting World rank: {r.startingRank?`#${r.startingRank.position} (previous season, week ${r.startingRank.week})`:"not recorded"} · Final published: {r.finalRank?`#${r.finalRank.position} (week ${r.finalRank.week})`:"not recorded"}</small></div>
+    </dl>
+    {highlights.length>0&&<div className="career-review__highlights">{highlights.map(([k,v])=><div key={k}><small>{k}</small><strong>{v}</strong></div>)}</div>}
+    <h3>Awards & Champions</h3><Awards rows={r.awards}/>
+    <div className="career-archive__cols">
+      <section><h3>World champions</h3><div className="career-archive__row"><span className="career-archive__chip">#1</span><strong>Last published World #1: {r.world.numberOne?.name??"not recorded"}</strong><em /></div>
+        <BoundedList rows={r.world.champions}>{c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip"><Trophy size={11}/></span><strong>{c.name}</strong><em>{c.participantName??"Recorded participant"}</em></div>}</BoundedList></section>
+      <section><h3>Career Changes</h3><ul className="career-archive__summary">{r.changes.map(c=><li key={c}>{publicText(c)}</li>)}
+        {r.sponsors.map(x=><li key={x.id}>Sponsor: {sponsorName(x.name)} · {titleCase(x.status)}</li>)}</ul>
+        {r.world.cardChanges.map(c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip">Card</span><strong>{c.participantName??"Recorded participant"}</strong><em>{titleCase(c.source)} · {titleCase(c.status)}</em></div>)}
+        {r.world.retirements.map(x=><div className="career-archive__row" key={x.id}><span className="career-archive__chip">Retired</span><strong>{x.name}</strong><em /></div>)}</section>
+    </div>
+    <p className="career-fineprint">{r.publicLife.decisions} remembered Career Life decisions · {r.publicLife.completedWork} completed off-board commitments.
+      {r.publicLife.profile&&<> Public profile at transition: {r.publicLife.profile.persona.label} · {r.publicLife.profile.awareness} · {r.publicLife.profile.reception}</>}</p>
+    <Link className="career-btn career-btn-ghost" href={`/career/${saveId}/stories`}>Established Career Story Threads</Link>
+    {r.notes.length>0&&<details className="career-note"><summary>How this review is recorded</summary>{r.notes.map(n=><p key={n}>{publicText(n)}</p>)}</details>}
   </section>;
 }
+const TRANSITION_STEPS=["Season Review","Awards & Champions","Career Changes","New Season"];
 export function Transition({saveId,season}:{saveId:string;season:number}) {
   const query=useSeasonReview(saveId,season),begin=useBeginSeason(saveId),[step,setStep]=useState(0),[message,setMessage]=useState<string|null>(null);
-  return <section className="rounded-xl border border-yellow-500/40 p-4 space-y-3" aria-label="Season-end transition">
-    <h2 className="font-bold">Season Complete → Review → Awards & Champions → Career Changes → New Season</h2>
-    <QueryState query={query} label="Reading completed season">{r=><>
-      <p>Step {step+1} of 4 · Season {season}</p>
-      {step===0&&<><h3>Season Review</h3><p>{r.identity}</p>{r.story.map(s=><p key={s}>{s}</p>)}</>}
-      {step===1&&<><h3>Awards & Champions</h3><Awards rows={r.awards}/><p>World #1: {r.world.numberOne?.name??"not recorded"}</p>{r.world.champions.map(c=><p key={c.id}>{c.name} champion: {c.participantName??"Recorded participant"}</p>)}</>}
-      {step===2&&<><h3>Career Changes</h3><p>{r.cardStatus}</p>{r.changes.map(c=><p key={c}>{c}</p>)}{r.sponsors.map(s=><p key={s.id}>{s.name}: {s.status}</p>)}
-        {r.world.retirements.map(p=><p key={p.id}>Retired: {p.name}</p>)}{r.world.cardChanges.map(c=><p key={c.id}>Tour Card: {c.participantName??"Recorded participant"} · {c.source}</p>)}
-        <p>{r.world.newEntrants.length} recorded next-season entrants.</p></>}
-      {step===3&&<><h3>New Season</h3><p>The existing authorities have prepared season {season+1}. Begin acknowledges this review; it does not rerun development, rankings or payments.</p></>}
-      {step>0&&<button className="career-btn career-btn-ghost" onClick={()=>setStep(step-1)}>Back</button>}
+  return <section className="career-transition" aria-label="Season-end transition">
+    <img className="career-transition__plate" src={PLATES.palace.src} alt="" aria-hidden="true" loading="lazy"/>
+    <header><p className="career-review__kicker">Season {season} · End of season</p><h2>Season Complete</h2>
+      <ol className="career-new-career__steps career-transition__steps">{TRANSITION_STEPS.map((label,i)=><li key={label} className={i===step?"is-current":i<step?"is-done":""} aria-current={i===step?"step":undefined}><b>{i+1}</b>{label}</li>)}</ol></header>
+    <QueryState query={query} label="Reading completed season">{r=><div className="career-transition__body">
+      <p className="career-fineprint">Step {step+1} of 4 · Season {season}</p>
+      {step===0&&<><h3>Season Review</h3><p className="career-transition__identity">{r.identity}</p>{r.story.map(x=><p key={x}>{publicText(x)}</p>)}</>}
+      {step===1&&<><h3>Awards & Champions</h3><Awards rows={r.awards}/><div className="career-archive__row"><span className="career-archive__chip">#1</span><strong>World #1: {r.world.numberOne?.name??"not recorded"}</strong><em /></div>
+        {r.world.champions.map(c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip"><Trophy size={11}/></span><strong>{c.name} champion: {c.participantName??"Recorded participant"}</strong><em /></div>)}</>}
+      {step===2&&<><h3>Career Changes</h3><ul className="career-archive__summary"><li>{publicText(r.cardStatus)}</li>{r.changes.map(c=><li key={c}>{publicText(c)}</li>)}{r.sponsors.map(x=><li key={x.id}>{sponsorName(x.name)}: {titleCase(x.status)}</li>)}</ul>
+        {r.world.retirements.map(x=><div className="career-archive__row" key={x.id}><span className="career-archive__chip">Retired</span><strong>{x.name}</strong><em /></div>)}
+        {r.world.cardChanges.map(c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip">Card</span><strong>Tour Card: {c.participantName??"Recorded participant"}</strong><em>{titleCase(c.source)}</em></div>)}
+        <p className="career-fineprint">{r.world.newEntrants.length} recorded next-season entrants.</p></>}
+      {step===3&&<><h3>New Season</h3><p>Season {season+1} is ready. Beginning it acknowledges this review; it does not rerun development, rankings or payments.</p></>}
+      <div className="career-transition__actions">{step>0&&<button className="career-btn career-btn-ghost" onClick={()=>setStep(step-1)}>Back</button>}
       {step<3?<button className="career-btn career-btn-primary" onClick={()=>setStep(step+1)}>Next section</button>:
-        <button className="career-btn career-btn-primary" disabled={begin.isPending} onClick={()=>begin.mutate(season,{onError:e=>setMessage(errorMessage(e))})}>Begin Season {season+1}</button>}
+        <button className="career-btn career-btn-primary" disabled={begin.isPending} onClick={()=>begin.mutate(season,{onError:e=>setMessage(errorMessage(e))})}>Begin Season {season+1}</button>}</div>
       {message&&<p role="alert">{message}</p>}
-    </>}</QueryState>
+    </div>}</QueryState>
   </section>;
 }
 function Retirement({data:d,saveId}:{data:LegacyView;saveId:string}) {
