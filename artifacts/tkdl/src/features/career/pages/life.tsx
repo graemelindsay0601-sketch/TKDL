@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useCareerLife, useLifeChoice, useMerchandiseChoice, useNpcLife, usePresentation, errorMessage } from "../api";
 import { CareerEmptyState, CareerSection, QueryState, StatusBadge } from "../components";
-import { formatPence } from "../model";
+import { formatPence, publicText } from "../model";
+import { NpcHero } from "../npc-hero";
 import type { ShellContext } from "../shell";
 import { CareerPageHero } from "../page-hero";
 import { CareerShirt } from "../identity";
@@ -123,9 +124,14 @@ function StoryCard({story:s,saveId}:{story:Story;saveId:string}) {
 }
 export function NpcLifePage({ctx,npcId}:{ctx:ShellContext;npcId:string}) {
   const query=useNpcLife(ctx.save.id,npcId);
-  return <CareerSection title="Public opponent identity"><QueryState query={query} label="Reading public opponent">{d=><div className="p-4 space-y-2">
-    <h2 className="text-xl font-bold">{d.name}</h2><p>{d.standing} · {d.publicDraw}</p><p className="text-sm">Public presentation: {d.personality.primary.toLowerCase()}{d.personality.secondary?` / ${d.personality.secondary.toLowerCase()}`:""}</p>
-    {d.retired&&<p>Retired player — sporting history remains available.</p>}<p className="text-xs text-white/60">{d.notes}</p>
-    <Link className="underline" href={`/career/${ctx.save.id}/recognition/npcs/${npcId}`}>Sporting recognition</Link>
-  </div>}</QueryState></CareerSection>;
+  return <div className="space-y-3 career-life"><NpcHero ctx={ctx} npcId={npcId} current="life" kicker="Public presentation"/>
+  <CareerSection title="Public opponent identity" accent="#c99bff"><QueryState query={query} label="Reading public opponent">{d=><div className="p-4 space-y-3">
+    <h2 className="text-xl font-bold">{d.name}</h2>
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="career-life-stat"><h3>Standing</h3><p>{d.standing}</p></div><div className="career-life-stat"><h3>Crowd draw</h3><p>{d.publicDraw}</p></div>
+      <div className="career-life-stat"><h3>Public presentation</h3><p>{d.personality.primary.toLowerCase()}{d.personality.secondary?` / ${d.personality.secondary.toLowerCase()}`:""}</p></div>
+    </div>
+    {d.retired&&<p className="career-fineprint">Retired player — sporting history remains available.</p>}<p className="career-fineprint">{publicText(d.notes)}</p>
+    <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/recognition/npcs/${npcId}`}>Sporting recognition</Link>
+  </div>}</QueryState></CareerSection></div>;
 }

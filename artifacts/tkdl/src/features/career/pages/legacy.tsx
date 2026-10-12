@@ -6,6 +6,7 @@ import { circuitLabel, formatPence, publicText, titleCase } from "../model";
 import { Award as AwardIcon, Crown, Landmark, Medal, ScrollText, Star, Trophy } from "lucide-react";
 import { CareerPageHero } from "../page-hero";
 import { CareerShirt } from "../identity";
+import { NpcHero } from "../npc-hero";
 import "./legacy.css";
 import { HistoryPage } from "./history";
 import type { ShellContext } from "../shell";
@@ -193,14 +194,20 @@ function Retirement({data:d,saveId}:{data:LegacyView;saveId:string}) {
 }
 export function NpcLegacyPage({ctx,npcId}:{ctx:ShellContext;npcId:string}) {
   const query=useNpcLegacy(ctx.save.id,npcId);
-  return <CareerSection title="Historical NPC Career"><QueryState query={query} label="Reading owned public NPC history">{d=><div className="p-4 space-y-3">
-    <h2 className="font-bold">{d.player.name}{d.player.retiredSeason?` · Retired season ${d.player.retiredSeason}`:""}</h2>
-    <p>{d.totals?.titles??0} titles · {d.totals?.majorTitles??0} majors/Worlds · {d.totals?.worlds??0} World Championships</p>
-    <BoundedList rows={d.titles}>{t=><p key={t.id}>Season {t.season}: {t.name}</p>}</BoundedList><Awards rows={d.awards}/>
-    {d.cards.map(c=><p key={c.id}>Card {c.source}: seasons {c.startSeason}–{c.endSeason} · {c.status}</p>)}
-    {d.hallOfFame&&<p>Hall of Fame: {d.hallOfFame.route}</p>}
-    <h3 className="font-bold">Published World Ranking History</h3><p className="text-xs">Season endpoints and #1 observations, not every weekly position or an inferred reign length.</p><BoundedList rows={d.rankings}>{r=><p key={`${r.id}:${r.participant}`}>Season {r.season}, week {r.week}: #{r.position}</p>}</BoundedList>
-    <h3 className="font-bold">Actual human meetings</h3><BoundedList rows={d.meetings??[]}>{(m,i)=><p key={i}>Season {m.season}: {m.name} · {m.won?"human win":"opponent win"}</p>}</BoundedList>
-    <Link className="underline" href={`/career/${ctx.save.id}/life/npcs/${npcId}`}>Public personality & draw</Link>
-  </div>}</QueryState></CareerSection>;
+  return <div className="space-y-3 career-archive"><NpcHero ctx={ctx} npcId={npcId} current="history" kicker="Historical Career"/>
+  <CareerSection title="Historical NPC Career" accent="#69b8ec"><QueryState query={query} label="Reading owned public NPC history">{d=><div className="p-4 space-y-3">
+    <h2>{d.player.name}{d.player.retiredSeason?` · Retired season ${d.player.retiredSeason}`:""}</h2>
+    <dl className="career-archive__facts">
+      <div><dt>Titles</dt><dd>{d.totals?.titles??0}</dd></div><div><dt>Majors / Worlds</dt><dd>{d.totals?.majorTitles??0}</dd></div>
+      <div><dt>World Championships</dt><dd>{d.totals?.worlds??0}</dd></div>{d.hallOfFame&&<div><dt>Hall of Fame</dt><dd>{d.hallOfFame.route}</dd></div>}
+    </dl>
+    <div className="career-archive__cols">
+      <section><h3>Titles</h3>{d.titles.length?<BoundedList rows={d.titles}>{t=><div className="career-archive__row" key={t.id}><span className="career-archive__chip">S{t.season}</span><strong>{t.name}</strong><em className="is-gold">Champion</em></div>}</BoundedList>:<p className="career-archive__empty">No titles recorded in this Career yet.</p>}</section>
+      <section><h3>Meetings with you</h3>{(d.meetings??[]).length?<BoundedList rows={d.meetings??[]}>{(m,i)=><div className="career-archive__row" key={i}><span className="career-archive__chip">S{m.season}</span><strong>{m.name}</strong><em className={m.won?"is-gold":""}>{m.won?"You won":"They won"}</em></div>}</BoundedList>:<p className="career-archive__empty">You have not played this player yet.</p>}</section>
+      <section><h3>Published World Ranking</h3>{d.rankings.length?<BoundedList rows={d.rankings}>{r=><div className="career-archive__row" key={`${r.id}:${r.participant}`}><span className="career-archive__chip">S{r.season} W{r.week}</span><strong>#{r.position}</strong><em /></div>}</BoundedList>:<p className="career-archive__empty">No published World Ranking position yet.</p>}
+        <p className="career-fineprint">Season endpoints and #1 observations, not every weekly position or an inferred reign length.</p></section>
+      {d.cards.length>0&&<section><h3>Tour Cards</h3>{d.cards.map(c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip">S{c.startSeason}–{c.endSeason}</span><strong>{titleCase(c.source)}</strong><em>{titleCase(c.status)}</em></div>)}</section>}
+    </div>
+    <Awards rows={d.awards}/>
+  </div>}</QueryState></CareerSection></div>;
 }
