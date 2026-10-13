@@ -14,6 +14,7 @@ import { OSWALD, Label, StatusBadge } from "../components";
 import { adoptLiveCursor, careerGameType, careerBotVisit, careerBotCork, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
 import type { ShellContext } from "../shell";
 import type { LiveSession } from "../types";
+import { SoftTipScorer } from "../soft-tip-scorer";
 
 /**
  * A6.5 Career live match. An integration layer around the EXISTING GameScorer (X01):
@@ -135,6 +136,17 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   }
 
   if (phase === "done" && session.result) return <PostMatch ctx={ctx} session={session} />;
+
+  if (session.format.mix === "SOFT_TIP") return createPortal(
+    <>
+      <SoftTipScorer key={`${session.sessionId}:${scorerKey}`} session={session} firstThrower={session.firstThrower ?? 0} initialDarts={session.darts as Dart[]}
+        onDarts={onDartLog} onAbandon={() => navigate(`/career/${saveId}/tournaments/${session.eventId}`)} />
+      {error && phase === "play" && (
+        <div role="alert" style={{ position: "fixed", left: 12, right: 12, top: 12, zIndex: 10002, padding: "8px 12px", borderRadius: 10, background: "rgba(255,0,92,0.18)", border: "1px solid rgba(255,0,92,0.5)", color: "#fff", fontSize: 13 }}>
+          {error} <button className="underline" onClick={() => setError(null)}>Dismiss</button>
+        </div>
+      )}
+    </>, document.body);
 
   const gameType = careerGameType(session.format) as unknown as GameTypeOption;
   return createPortal(

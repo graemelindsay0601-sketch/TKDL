@@ -3,6 +3,7 @@
  * Career server. Keep this folder dependency-free and runtime-agnostic.
  */
 export * from "./x01.ts";
+export * from "./cricket.ts";
 export * from "./bull-up.ts";
 export * from "./bot.ts";
 export * from "./random.ts";

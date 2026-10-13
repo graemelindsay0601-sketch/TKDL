@@ -7,7 +7,8 @@
  *  - double-in awareness: an unopened bot aims at a double dart by dart, and only
  *    the darts after the opening double score.
  */
-import { corkDart, type Dart, type PlayerIdx, type X01Format } from "./x01.ts";
+import { corkDart, CHOICE_DARTS, type Dart, type PlayerIdx, type X01Format, type LegGame } from "./x01.ts";
+import { applyCricketDart, copyCricket, cricketAim, cricketWon, type CricketBoard } from "./cricket.ts";
 import { seededRandom, type Random } from "./random.ts";
 import { botBullThrow, resolveBullUp, type BullThrow } from "./bull-up.ts";
 
@@ -167,8 +168,44 @@ export const botOptionsFor = (format: Pick<X01Format, "outRule" | "bull">) =>
   ({ doubleOut: format.outRule === "DOUBLE", masterOut: format.outRule === "MASTER", fatBull: format.bull === "FAT" });
 
 /** The bot's cork dart for a leg: seeded by leg and throw index, so the server regenerates exactly the same dart. */
-export const botCorkDart = (cfg: BotSkill, seed: string, legNo: number, throwIndex: number): Dart =>
-  corkDart(botBullThrow(cfg.hitAcc, seededRandom(seed, "cork", legNo, throwIndex)));
+export const botCorkDart = (cfg: BotSkill, seed: string, legNo: number, throwIndex: number, kind: "limit" | "choice" = "limit"): Dart =>
+  corkDart(botBullThrow(cfg.hitAcc, seededRandom(seed, kind === "choice" ? "choice-cork" : "cork", legNo, throwIndex)));
+
+/** The bot's game for a Choice leg it won the cork for: Cricket if it marks better than it scores, else 01. */
+export function botChoiceDart(cfg: BotSkill, seed: string, legNo: number): Dart {
+  const lean = seededRandom(seed, "choice", legNo)();
+  const prefersCricket = cfg.hitAcc >= 0.5 ? lean < 0.65 : lean < 0.35;
+  const game: LegGame = prefersCricket ? "CRICKET" : "X01";
+  return CHOICE_DARTS[game];
+}
+
+/**
+ * Cricket visit for the bot: aims like a sensible player (close the highest open number, score when
+ * behind) and lands trebles, singles or neighbours from its accuracy. Planned dart by dart from the
+ * board at the start of the visit, so the server regenerates exactly the same visit.
+ */
+export function planBotCricketVisit(start: CricketBoard, me: PlayerIdx, cfg: BotSkill, rng: Random): [Dart, Dart, Dart] {
+  const board = copyCricket(start), acc = Math.max(0, Math.min(1, cfg.hitAcc));
+  const darts: Dart[] = [];
+  for (let i = 0; i < 3; i++) {
+    const target = cricketAim(board, me), r = rng();
+    let d: Dart;
+    if (target === 25) {
+      const inner = 0.05 + 0.2 * acc, outer = 0.18 + 0.3 * acc;
+      d = r < inner ? makeDart(25, 2) : r < inner + outer ? makeDart(25, 1) : r < 0.85 ? makeDart(BOARD_ORDER_SHARED[Math.floor(rng() * 20)], 1) : BOT_MISS;
+    } else {
+      const treble = 0.06 + 0.3 * acc, single = 0.35 + 0.25 * acc;
+      const idx = BOARD_ORDER_SHARED.indexOf(target);
+      const neighbour = BOARD_ORDER_SHARED[(idx + (rng() < 0.5 ? 19 : 1)) % 20];
+      d = r < treble ? makeDart(target, 3) : r < treble + single ? makeDart(target, 1) : r < 0.97 ? makeDart(neighbour, 1) : BOT_MISS;
+    }
+    darts.push(d);
+    applyCricketDart(board, me, d);
+    if (cricketWon(board, me)) { while (darts.length < 3) darts.push(BOT_MISS); break; }
+  }
+  return darts as [Dart, Dart, Dart];
+}
+const BOARD_ORDER_SHARED = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5];
 
 /** Who threw each cork dart, replaying the cork order (starter first, re-throws reversed). */
 export function corkThrowers(starter: PlayerIdx, throws: readonly BullThrow[]): PlayerIdx[] {

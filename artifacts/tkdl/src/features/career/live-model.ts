@@ -95,7 +95,7 @@ export function shouldCheckpoint(format: X01Format, firstThrower: 0 | 1, darts: 
   try {
     const s = replay(format, firstThrower, darts);
     // A cork in progress is checkpointed after every dart (each is a single, self-contained throw).
-    return s.complete || s.cork !== null || s.visit === null || s.visit.thrower === 0;
+    return s.complete || s.cork !== null || s.choice !== null || s.visit === null || s.visit.thrower === 0;
   } catch { return false; }
 }
 
