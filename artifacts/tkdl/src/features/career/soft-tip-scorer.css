@@ -1,0 +1,35 @@
+.stt{position:fixed;inset:0;z-index:9999;overflow-y:auto;background:radial-gradient(120% 80% at 50% 0%,#0f2a2c 0%,#071214 55%,#05080a 100%);color:#e9fbf8;padding:16px;display:flex;flex-direction:column;gap:12px;font-family:Oswald,system-ui,sans-serif}
+.stt-top{flex-shrink:0;display:flex;flex-direction:column;gap:6px;align-items:center}
+.stt-legs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;width:100%;max-width:640px;font-size:15px;letter-spacing:.04em}
+.stt-legs>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stt-legs>span:first-child{text-align:right}
+.stt-legs em{white-space:nowrap}
+.stt-legs b{font-size:22px;color:#53d6c4;margin:0 4px}
+.stt-legs em{font-style:normal;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#8fb7b2}
+.stt-rules{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#53d6c4}
+.stt-game{padding:2px 10px;border-radius:999px;border:1px solid #53d6c480;background:#53d6c41a;color:#fff;font-weight:700}
+.stt-game-cricket{border-color:#f2b45a99;background:#f2b45a1f}
+.stt-x01{flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:640px;width:100%;margin:0 auto}
+.stt-player{border:1px solid #ffffff1f;border-radius:14px;padding:12px;text-align:center;background:#ffffff08}
+.stt-player.is-up{border-color:#53d6c4;box-shadow:0 0 18px #53d6c433}
+.stt-name{display:block;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#a9c9c4}
+.stt-score{display:block;font-size:52px;font-weight:800;line-height:1.05}
+.stt-cricket{flex-shrink:0;max-width:520px;width:100%;margin:0 auto;border:1px solid #ffffff1f;border-radius:14px;overflow:hidden;background:#ffffff06}
+.stt-cricket-head,.stt-cricket-row{display:grid;grid-template-columns:1fr 70px 1fr;text-align:center;align-items:center}
+.stt-cricket-head{padding:8px 0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#a9c9c4;border-bottom:1px solid #ffffff1a}
+.stt-cricket-head b{display:block;font-size:28px;color:#fff}
+.stt-cricket-head .is-up{color:#53d6c4}
+.stt-cricket-row{min-height:34px;font-size:22px;font-weight:700;border-bottom:1px solid #ffffff0d}
+.stt-cricket-row.is-dead{opacity:.45}
+.stt-target{font-size:15px;color:#f2b45a;letter-spacing:.06em}
+.stt-visit{display:flex;justify-content:space-between;align-items:center;max-width:640px;width:100%;margin:0 auto;font-size:13px;color:#a9c9c4;min-height:24px}
+.stt-visit-darts i{font-style:normal;margin-left:8px;padding:2px 8px;border-radius:6px;background:#ffffff12;color:#fff}
+.stt-leave{align-self:center;background:none;border:0;color:#8fb7b2;text-decoration:underline;font-size:12px;cursor:pointer;padding:8px}
+.stt-dialog{position:fixed;inset:0;z-index:10001;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,8,9,.86)}
+.stt-dialog-card{width:100%;max-width:380px;border-radius:16px;padding:20px;background:#0c1b1d;border:1px solid #53d6c473;font-family:system-ui,sans-serif}
+.stt-dialog-card h2{font-size:20px;font-weight:800;margin:4px 0 8px}
+.stt-dialog-card p{font-size:13px;color:#cfe5e1;margin-bottom:12px}
+.stt-dialog-card ul{font-size:13px;margin-bottom:12px}
+.stt-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#53d6c4}
+.stt-choices{display:grid;gap:8px}
+.stt-choices .career-btn{justify-content:center}

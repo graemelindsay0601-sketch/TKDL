@@ -259,7 +259,7 @@ export type CareerProfile =
       qSchool: { minimumAge: number; eligibleNow: boolean; eligibleFrom: { season: number; week: number; date: string } | null } };
 export type LiveDart = { segment: number; multiplier: 1 | 2 | 3; value: number; label?: string };
 /** Soft-tip options (fat bull, per-leg round limit decided by a cork); absent for steel-tip. */
-export type LiveFormat = { bull?: "STANDARD" | "FAT"; roundLimit?: number } & (
+export type LiveFormat = { bull?: "STANDARD" | "FAT"; roundLimit?: number; mix?: "SOFT_TIP" } & (
   | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "LEGS"; bestOfLegs: number }
   | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "SETS"; bestOfSets: number; bestOfLegsPerSet: number });
 export type LiveSession = {

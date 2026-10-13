@@ -2,6 +2,8 @@ import type { CareerDifficulty } from "../config.ts";
 import { CAREER_SIMULATION_CONFIG as S, CAREER_WORLD_CONFIG as W, SIMULATION_VERSION } from "./config.ts";
 import { scopedRandom, normal, pick, type Random } from "./random.ts";
 import { resolveBullUp, botBullThrow, type BullThrow } from "../../shared/darts-rules/bull-up.ts";
+import { applyCricketDart, cricketAim, cricketWon, emptyCricket, CRICKET_ROUND_LIMIT } from "../../shared/darts-rules/cricket.ts";
+import { legGameFor, type LegGame } from "../../shared/darts-rules/x01.ts";
 import { createPerformance, finishingProbability } from "./performance.ts";
 import { assertGenerationVersion } from "./generation.ts";
 import { clamp, matchContextSchema, matchFormatSchema, npcSchema, type Npc, type MatchContext, type MatchFormat, type MatchStats, type SimulatedMatch, type Performance } from "./types.ts";
@@ -110,13 +112,59 @@ export function simulateNpcMatch(input: {
   const setsWon: [number, number] = [0, 0];
   let setLegs: [number, number] = [0, 0];
   let setNo = 1, legInSet = 1;
+  /** Cork at the bull (round limits and Choice legs): nearest wins; the same ring re-throws in reverse order. */
+  const corkWinner = (starter: 0 | 1, corkRng: Random): 0 | 1 => {
+    const acc = (who: 0 | 1) => clamp(finishingProbability(performance[who], false, 0, true) * 2.5, 0, 1);
+    const corkThrows: BullThrow[] = [];
+    let cork = resolveBullUp(starter, corkThrows);
+    while (cork.winner === null) { corkThrows.push(botBullThrow(acc(cork.nextThrower!), corkRng)); cork = resolveBullUp(starter, corkThrows); }
+    return cork.winner;
+  };
+  /** Standard cricket leg (20-round limit, higher points then a cork), dart by dart from the same throwing model. */
+  const cricketLeg = (firstThrow: 0 | 1, rng: [Random, Random], legIndex: number) => {
+    const board = emptyCricket(), darts: [number, number] = [0, 0];
+    let winner: 0 | 1 | null = null;
+    for (let visit = 0; visit < CRICKET_ROUND_LIMIT * 2 && winner === null; visit++) {
+      const who = ((firstThrow + visit) % 2) as 0 | 1, profile = performance[who], random = rng[who];
+      const scoring = clamp(profile.effective.scoring + normal(random) * profile.visitSd + momentum[who], W.attributeMin, W.attributeMax);
+      for (let k = 0; k < 3; k++) {
+        const target = cricketAim(board, who);
+        const thrown = throwDart(target === 25 ? { segment: 25, multiplier: 2 } : { segment: target, multiplier: 3 }, profile, scoring, false, momentum[who], random);
+        darts[who]++;
+        const landed = target === 25 ? (thrown.double ? { segment: 25, multiplier: 2 as const } : { segment: thrown.score, multiplier: 1 as const })
+          : thrown.treble ? { segment: target, multiplier: 3 as const } : { segment: thrown.score, multiplier: 1 as const };
+        applyCricketDart(board, who, landed);
+        if (cricketWon(board, who)) { winner = who; break; }
+      }
+    }
+    if (winner === null) winner = board.points[0] !== board.points[1] ? (board.points[0] > board.points[1] ? 0 : 1)
+      : corkWinner(firstThrow, scopedRandom(seed, generationVersion, "cork", SIMULATION_VERSION, matchKey, legIndex));
+    return { winner, darts, points: [board.points[0], board.points[1]] as [number, number] };
+  };
   const matchOver = () => sets ? Math.max(...setsWon) >= targetSets : Math.max(stats[0].legsWon, stats[1].legsWon) >= targetLegs;
   while (!matchOver()) {
     const legIndex = legs.length;
     const legsHere: [number, number] = sets ? setLegs : [stats[0].legsWon, stats[1].legsWon];
     const setStarter = ((format.firstThrow + setNo - 1) % 2) as 0 | 1;
-    const firstThrow = (sets ? (setStarter + legInSet - 1) % 2 : (format.firstThrow + legIndex) % 2) as 0 | 1;
+    let firstThrow = (sets ? (setStarter + legInSet - 1) % 2 : (format.firstThrow + legIndex) % 2) as 0 | 1;
     const rng = players.map(player => scopedRandom(seed, generationVersion, "darts", SIMULATION_VERSION, matchKey, legIndex, player.id));
+    // Mixed soft-tip match: this leg's game (01 / Cricket), or a Choice leg decided by a cork.
+    let game: LegGame = "X01";
+    if (format.mix) {
+      const g = legGameFor({ mix: format.mix, unit: "LEGS", bestOfLegs: format.bestOf }, legIndex + 1);
+      if (g === "CHOICE") {
+        const choiceRng = scopedRandom(seed, generationVersion, "choice-cork", SIMULATION_VERSION, matchKey, legIndex);
+        const picker = corkWinner(firstThrow, choiceRng);
+        game = choiceRng() < 0.5 ? "CRICKET" : "X01";
+        firstThrow = (1 - picker) as 0 | 1;
+      } else game = g;
+    }
+    if (game === "CRICKET") {
+      const leg = cricketLeg(firstThrow, rng as [Random, Random], legIndex);
+      stats[leg.winner].legsWon++;
+      legs.push({ winner: leg.winner, firstThrow, checkout: 0, darts: leg.darts, points: leg.points });
+      continue;
+    }
     const remaining = [startingScore, startingScore] as number[];
     const opened = [!doubleIn, !doubleIn];
     const darts: [number, number] = [0, 0];
@@ -181,12 +229,7 @@ export function simulateNpcMatch(input: {
     }
     if (!won && soft) {
       // Round limit reached: a cork (one dart each at the bull; nearest wins; same ring re-throws in reverse order).
-      const corkRng = scopedRandom(seed, generationVersion, "cork", SIMULATION_VERSION, matchKey, legIndex);
-      const acc = (who: 0 | 1) => clamp(finishingProbability(performance[who], false, 0, true) * 2.5, 0, 1);
-      const corkThrows: BullThrow[] = [];
-      let cork = resolveBullUp(firstThrow, corkThrows);
-      while (cork.winner === null) { corkThrows.push(botBullThrow(acc(cork.nextThrower!), corkRng)); cork = resolveBullUp(firstThrow, corkThrows); }
-      const who = cork.winner;
+      const who = corkWinner(firstThrow, scopedRandom(seed, generationVersion, "cork", SIMULATION_VERSION, matchKey, legIndex));
       stats[who].legsWon++; won = true;
       legs.push(sets ? { winner: who, firstThrow, checkout: 0, darts, points, set: setNo } : { winner: who, firstThrow, checkout: 0, darts, points });
     }

@@ -50,6 +50,7 @@ export const matchFormatSchema = z.object({
   outRule: z.literal("MASTER").optional(),
   bull: z.literal("FAT").optional(),
   roundLimit: z.number().int().min(5).max(30).optional(),
+  mix: z.literal("SOFT_TIP").optional(),
 }).strict().superRefine((f, ctx) => {
   if ((f.outRule !== undefined) !== (f.bull !== undefined) || (f.outRule !== undefined) !== (f.roundLimit !== undefined)) ctx.addIssue({ code: "custom", message: "Soft-tip rules (master out, fat bull, round limit) are set together" });
   if ((f.unit === "SETS") !== (f.legsPerSet !== undefined)) ctx.addIssue({ code: "custom", message: "legsPerSet is required for (and only for) set play" });

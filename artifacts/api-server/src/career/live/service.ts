@@ -17,6 +17,7 @@ import { isGroupMatch } from "../calendar/groups.ts";
 import type { CareerCalendarService } from "../calendar/service.ts";
 import {
   replay, settledDartCount, validateDart, resolveBullUp, botBullThrow, isBullThrow, planBotX01Visit, seededRandom, botOptionsFor, botCorkDart, corkThrowers,
+  planBotCricketVisit, botChoiceDart, starterFor, type CricketBoard,
   type Dart, type X01Format, type X01MatchState, type BullThrow, type PlayerIdx,
 } from "../../shared/darts-rules/index.ts";
 
@@ -52,18 +53,27 @@ type SessionRow = {
 export function verifyBotVisits(state: X01MatchState, bot: SessionRow["bot_config"], seed: string): void {
   const rules = botOptionsFor(state.format);
   // Soft-tip cork darts: every opponent cork dart must be the session bot's seeded cork.
-  const checkCork = (legNo: number, starter: PlayerIdx, darts: readonly Dart[]) => {
+  const checkCork = (legNo: number, starter: PlayerIdx, darts: readonly Dart[], kind: "limit" | "choice" = "limit") => {
     const throws = darts.map(d => (d.segment === 25 ? (d.multiplier === 2 ? "INNER" : "OUTER") : "MISS") as BullThrow);
     corkThrowers(starter, throws).forEach((who, i) => {
       if (who !== 1) return;
-      const p = botCorkDart(bot, seed, legNo, i);
+      const p = botCorkDart(bot, seed, legNo, i, kind);
       if (p.segment !== darts[i].segment || p.multiplier !== darts[i].multiplier) throw new CareerError(409, `Opponent cork in leg ${legNo} does not match the session's bot`);
     });
   };
   for (const c of state.corkLog) checkCork(c.legNo, state.legsLog.find(l => l.legNo === c.legNo)!.starter, c.darts);
   if (state.cork) checkCork(state.legNo, state.cork.starter, state.cork.darts);
-  const check = (visit: { startScore: number; startOpened: boolean; darts: Dart[] }, index: number) => {
-    const plan = planBotX01Visit(visit.startScore, bot, { ...rules, opened: visit.startOpened, rng: seededRandom(seed, "bot-visit", index) });
+  // Choice legs (mixed soft-tip): the bot's choice-cork darts and, when it won the cork, its pick of game.
+  for (const c of state.choiceLog) {
+    const corkDarts = c.darts.slice(0, -1), starter = resolveChoiceStarter(state, c.legNo);
+    checkCork(c.legNo, starter, corkDarts, "choice");
+    if (c.picker === 1 && !sameDarts([c.darts[c.darts.length - 1]], [botChoiceDart(bot, seed, c.legNo)])) throw new CareerError(409, `Opponent's game choice in leg ${c.legNo} does not match the session's bot`);
+  }
+  if (state.choice) checkCork(state.legNo, state.choice.starter, state.choice.darts, "choice");
+  const check = (visit: { startScore: number; startOpened: boolean; darts: Dart[]; game?: string; startBoard?: CricketBoard }, index: number) => {
+    const rng = seededRandom(seed, "bot-visit", index);
+    const plan = visit.game === "CRICKET" || visit.startBoard ? planBotCricketVisit(visit.startBoard!, 1, bot, rng)
+      : planBotX01Visit(visit.startScore, bot, { ...rules, opened: visit.startOpened, rng });
     visit.darts.forEach((d, i) => {
       const p = plan[i];
       if (!p || p.segment !== d.segment || p.multiplier !== d.multiplier || p.value !== d.value) throw new CareerError(409, `Opponent visit ${index + 1} does not match the session's bot`);
@@ -74,12 +84,17 @@ export function verifyBotVisits(state: X01MatchState, bot: SessionRow["bot_confi
   if (state.visit && state.visit.thrower === 1) check(state.visit, index);
 }
 
+/** Who corked first in a completed Choice leg: the starter the alternation gave that leg (before the pick). */
+function resolveChoiceStarter(state: X01MatchState, legNo: number): PlayerIdx {
+  return starterFor(state.format, state.firstThrower, 1, legNo).legStarter;
+}
+
 const sameDarts = (a: readonly Dart[], b: readonly Dart[]) => a.length === b.length && a.every((d, i) => d.segment === b[i].segment && d.multiplier === b[i].multiplier && d.value === b[i].value);
 
 /** Compact, verified match facts handed to A3 with the result (and to the UI). */
 export function matchFacts(state: X01MatchState) {
   const per = (p: PlayerIdx) => {
-    const visits = state.visits.filter(v => v.thrower === p);
+    const visits = state.visits.filter(v => v.thrower === p && v.game !== "CRICKET");
     const darts = visits.reduce((n, v) => n + v.darts.length, 0);
     const points = visits.reduce((n, v) => n + v.points, 0);
     return { darts, points, average: darts ? Math.round(points / darts * 300) / 100 : 0, maximums: visits.filter(v => v.points === 180).length,
