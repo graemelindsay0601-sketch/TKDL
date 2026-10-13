@@ -742,3 +742,11 @@ test("Career Compass presents one selected ambition and evidence instead of a pr
   assert.match(t,/No confirmed milestone yet/);
   assert.doesNotMatch(t,/0 \/ 1|0%/);
 });
+
+test("small local events say whether they go ahead, without predicting", async () => {
+  const { viabilityText } = await import("../../features/career/model.ts");
+  assert.equal(viabilityText(null), null);
+  assert.deepEqual(viabilityText({ status: "PENDING", minimum: 4, fieldSetWeek: 12, entrants: null }), { label: "Needs 4+ players", detail: "Field set in week 12", tone: "neutral" });
+  assert.deepEqual(viabilityText({ status: "CONFIRMED", minimum: 4, fieldSetWeek: 12, entrants: 9 }), { label: "Going ahead", detail: "9 players", tone: "good" });
+  assert.equal(viabilityText({ status: "CANCELLED", minimum: 4, fieldSetWeek: 12, entrants: null })!.label, "Cancelled");
+});

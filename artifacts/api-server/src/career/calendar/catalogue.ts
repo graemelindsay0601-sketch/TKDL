@@ -10,6 +10,7 @@ import { buildCatalogueV6 } from "../content/season-v6.ts";
 import { buildCatalogueV7 } from "../content/season-v7.ts";
 import { buildCatalogueV8 } from "../content/season-v8.ts";
 import { buildCatalogueV9 } from "../content/season-v9.ts";
+import { buildCatalogueV10 } from "../content/season-v10.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -445,6 +446,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 7) return EVENT_CATALOGUE_V7;
   if (version === 8) return EVENT_CATALOGUE_V8;
   if (version === 9) return EVENT_CATALOGUE_V9;
+  if (version === 10) return EVENT_CATALOGUE_V10;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -458,5 +460,7 @@ export const EVENT_CATALOGUE_V7: readonly EventDefinition[] = buildCatalogueV7(E
 export const EVENT_CATALOGUE_V8: readonly EventDefinition[] = buildCatalogueV8(EVENT_CATALOGUE_V7);
 /** v9: soft-tip matches mix 01 and Cricket legs with a deciding Choice leg. */
 export const EVENT_CATALOGUE_V9: readonly EventDefinition[] = buildCatalogueV9(EVENT_CATALOGUE_V8);
+/** v10: small local events share thin player pools, so far fewer are cancelled for lack of entrants. */
+export const EVENT_CATALOGUE_V10: readonly EventDefinition[] = buildCatalogueV10(EVENT_CATALOGUE_V9);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

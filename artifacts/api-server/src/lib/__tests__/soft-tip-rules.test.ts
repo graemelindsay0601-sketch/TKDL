@@ -87,7 +87,7 @@ test("NPC soft-tip matches finish on doubles, trebles and bulls, and corks decid
 test("event database v8: every soft-tip event plays soft-tip rules; v7 is unchanged", async () => {
   const { catalogueFor } = await import("../../career/calendar/catalogue.ts");
   const { CURRENT_EVENT_DATABASE_VERSION } = await import("../../career/calendar/config.ts");
-  assert.ok(CURRENT_EVENT_DATABASE_VERSION >= 8);
+  assert.ok(CURRENT_EVENT_DATABASE_VERSION >= 9);
   const v8 = catalogueFor(8), v7 = catalogueFor(7);
   assert.equal(v8.length, v7.length);
   for (const d of v8.filter(x => x.circuit === "SOFT_TIP")) {

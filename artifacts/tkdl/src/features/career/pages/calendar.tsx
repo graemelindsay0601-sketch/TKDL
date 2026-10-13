@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useCalendar, useCareerProfile, useEnterEvent, errorMessage, type CalendarQuery } from "../api";
 import {
-  CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, country as countryInfo, eventCircuitLabel, denialLabel, eventDateLabel, homeCountryOf,
+  CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, country as countryInfo, eventCircuitLabel, viabilityText, denialLabel, eventDateLabel, homeCountryOf,
   eventStatus, formatLabel, formatPence, matchesStatusFilter, primaryAction, titleCase,
 } from "../model";
 import {
@@ -160,6 +160,7 @@ function SelectedEvent({
         <div className="cc-facts-grid">
           <div><small>Entry window</small><strong>Weeks {event.registration.opensWeek}–{event.registration.closesWeek}</strong></div>
           <div><small>Field</small><strong>{event.field.entrants ?? "—"} / {event.field.size}</strong><em>entrants / capacity</em></div>
+          {viabilityText(event.viability) && <div><small>Goes ahead?</small><strong>{viabilityText(event.viability)!.label}</strong><em>{viabilityText(event.viability)!.detail}</em></div>}
           <div><small>Eligibility</small><strong>{event.human?.eligible ? "Eligible" : event.human ? "Not eligible" : "Details unavailable"}</strong></div>
           <div><small>Entry status</small><strong>{titleCase(String(event.human?.entryStatus ?? event.human?.relationship ?? "Not entered").replaceAll("_", " "))}</strong></div>
         </div>
