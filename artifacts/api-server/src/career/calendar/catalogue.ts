@@ -12,6 +12,7 @@ import { buildCatalogueV8 } from "../content/season-v8.ts";
 import { buildCatalogueV9 } from "../content/season-v9.ts";
 import { buildCatalogueV10 } from "../content/season-v10.ts";
 import { buildCatalogueV11 } from "../content/season-v11.ts";
+import { buildCatalogueV12 } from "../content/season-v12.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -449,6 +450,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 9) return EVENT_CATALOGUE_V9;
   if (version === 10) return EVENT_CATALOGUE_V10;
   if (version === 11) return EVENT_CATALOGUE_V11;
+  if (version === 12) return EVENT_CATALOGUE_V12;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -466,5 +468,7 @@ export const EVENT_CATALOGUE_V9: readonly EventDefinition[] = buildCatalogueV9(E
 export const EVENT_CATALOGUE_V10: readonly EventDefinition[] = buildCatalogueV10(EVENT_CATALOGUE_V9);
 /** v11: Thursday Night Darts is a real weekly league. */
 export const EVENT_CATALOGUE_V11: readonly EventDefinition[] = buildCatalogueV11(EVENT_CATALOGUE_V10);
+/** v12: the Development Tour (16–23) has its own Order of Merit and Tour Card places. */
+export const EVENT_CATALOGUE_V12: readonly EventDefinition[] = buildCatalogueV12(EVENT_CATALOGUE_V11);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

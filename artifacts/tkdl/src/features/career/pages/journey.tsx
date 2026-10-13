@@ -66,7 +66,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
                   <span style={{ ...OSWALD, color: "#fff" }}>S{c.term.startSeason}–S{c.term.endSeason}</span><span style={{ color: "rgba(255,255,255,0.65)" }}>{sourceLabel(c.source)}</span>
                   <span className="ml-auto"><StatusBadge label={c.status === "ACTIVE" ? "Active" : titleCase(c.endReason ?? c.status)} tone={c.status === "ACTIVE" ? "success" : c.status === "LOST" ? "danger" : "muted"} /></span>
                 </li>))}</ul>
-            ) : <CareerEmptyState title="No Tour Card yet">Q-School and the Challenger ranking are the routes to a card.</CareerEmptyState>}
+            ) : <CareerEmptyState title="No Tour Card yet">{(ctx.save.eventDatabaseVersion ?? 0) >= 12 ? "Q-School, the Challenger ranking and (aged 16–23) the Development Tour Order of Merit are the routes to a card." : "Q-School and the Challenger ranking are the routes to a card."}</CareerEmptyState>}
           </CareerSection>
           <CareerSection title="Q-School" icon={<FlagIcon className="w-3.5 h-3.5" />} accent="#ffd24a" action={<Link href={`/career/${id}/q-school`} className="career-btn career-btn-ghost">Q-School</Link>}>
             {qSchool.length ? <ul>{qSchool.map((m, i) => <li key={i} className="px-4 py-2 text-sm" style={{ color: "#fff" }}>Season {m.season}: {milestoneLabel(m).title}{milestoneLabel(m).detail ? ` — ${milestoneLabel(m).detail}` : ""}</li>)}</ul>
@@ -94,7 +94,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
 function NextObjective({ ctx }: { ctx: ShellContext }) {
   const s = useSporting(ctx.save.id).data;
   if (!s || ctx.retired) return null;
-  const text = s.tourCard.current ? `Next: Tour Card review end of S${s.tourCard.current.reviewSeason} (World top ${s.tourCard.current.retention.maxPosition})` : "Next: earn a Tour Card at Q-School or via the Challenger ranking";
+  const text = s.tourCard.current ? `Next: Tour Card review end of S${s.tourCard.current.reviewSeason} (World top ${s.tourCard.current.retention.maxPosition})` : `Next: earn a Tour Card at Q-School or via the Challenger${(ctx.save.eventDatabaseVersion ?? 0) >= 12 ? " or Development Tour" : ""} ranking`;
   return <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}><Compass className="w-3.5 h-3.5" aria-hidden />{text}</span>;
 }
 /** Reserved slot for A7 narrative. Intentionally renders nothing in A6. */

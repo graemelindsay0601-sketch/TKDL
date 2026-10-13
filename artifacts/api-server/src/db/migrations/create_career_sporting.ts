@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { CareerDatabase } from "../../career/database.ts";
+import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 
 /**
  * Additive A5 schema: rankings, Tour Cards, Q-School and sporting milestones.
@@ -259,5 +259,19 @@ export async function createCareerSporting(database: CareerDatabase): Promise<vo
       await tx.execute(sql`DROP TRIGGER IF EXISTS ${sql.raw(`${table}_immutable`)} ON ${sql.raw(table)}`);
       await tx.execute(sql`CREATE TRIGGER ${sql.raw(`${table}_immutable`)} BEFORE UPDATE ON ${sql.raw(table)} FOR EACH ROW EXECUTE FUNCTION career_sporting_reject_update()`);
     }
+    await ensureDevelopmentCardSource(tx);
   });
+}
+
+/**
+ * Tour Card rules v3 (event database v12) award cards from the Development Tour Order of Merit.
+ * Widens the card source check once; later startups see DEVELOPMENT_RANKING allowed and leave it alone.
+ */
+export async function ensureDevelopmentCardSource(tx: CareerExecutor): Promise<void> {
+  const current = (await tx.execute(sql`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+    WHERE conrelid = 'career_tour_cards'::regclass AND conname = 'career_tour_cards_source_check'`)).rows[0] as { def: string } | undefined;
+  if (current?.def.includes("DEVELOPMENT_RANKING")) return;
+  await tx.execute(sql`ALTER TABLE career_tour_cards DROP CONSTRAINT IF EXISTS career_tour_cards_source_check`);
+  await tx.execute(sql`ALTER TABLE career_tour_cards ADD CONSTRAINT career_tour_cards_source_check CHECK (source IN ('FOUNDING','Q_SCHOOL_DIRECT','Q_SCHOOL_ORDER_OF_MERIT',
+    'RANKING_RETENTION','CHALLENGER_RANKING','DEVELOPMENT_RANKING'))`);
 }

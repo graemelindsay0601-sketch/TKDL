@@ -219,7 +219,7 @@ const MILESTONES: Record<string, string> = {
   TOUR_CARD_REGAINED: "Tour Card regained", TOUR_CARD_SURRENDERED: "Tour Card surrendered", FIRST_PROFESSIONAL_EVENT: "First professional event",
   FIRST_MAJOR: "First major qualification", FIRST_WORLD_CHAMPIONSHIP: "First World Championship qualification",
 };
-const LISTS: Record<string, string> = { "pro-world": "World Ranking", "pro-circuit": "Pro Circuit", "european-series": "European Series", challenger: "Challenger", vault: "Vault", amateur: "Amateur", "open-world": "Open World Ranking", "soft-tip": "Soft-Tip World Ranking" };
+const LISTS: Record<string, string> = { "pro-world": "World Ranking", "pro-circuit": "Pro Circuit", "european-series": "European Series", challenger: "Challenger", development: "Development Tour", vault: "Vault", amateur: "Amateur", "open-world": "Open World Ranking", "soft-tip": "Soft-Tip World Ranking" };
 export const listLabel = (key: string | null | undefined) => key ? LISTS[key] ?? titleCase(key) : "";
 export function milestoneLabel(m: Pick<Milestone, "kind" | "list_key" | "detail">): { title: string; detail: string | null; tone: Tone } {
   const title = MILESTONES[m.kind] ?? titleCase(m.kind);
@@ -234,7 +234,7 @@ export function milestoneLabel(m: Pick<Milestone, "kind" | "list_key" | "detail"
   return { title, detail: bits.length ? bits.join(" · ") : null, tone };
 }
 const SOURCES: Record<string, string> = { FOUNDING: "Founding member", Q_SCHOOL_DIRECT: "Q-School day winner", Q_SCHOOL_ORDER_OF_MERIT: "Q-School Order of Merit",
-  RANKING_RETENTION: "Retained on ranking", CHALLENGER_RANKING: "Challenger ranking" };
+  RANKING_RETENTION: "Retained on ranking", CHALLENGER_RANKING: "Challenger ranking", DEVELOPMENT_RANKING: "Development Tour ranking" };
 export const sourceLabel = (s: string) => SOURCES[s] ?? titleCase(s);
 
 // ---------------------------------------------------------------- career state (factual chapter label, no narrative)
