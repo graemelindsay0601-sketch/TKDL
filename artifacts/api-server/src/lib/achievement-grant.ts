@@ -26,8 +26,18 @@ import { ensurePlayerCurrency } from "./cardTablesMigration";
  *   achievement (Season MVP, Climber, etc.) so it can be earned again in a
  *   later season instead of only ever once per player.
  */
+// Achievement definitions are seeded at startup and never change while the server runs, but every
+// match checks ~80 of them per player — one SELECT each. Load them all once; a key that isn't known
+// yet (seeding still running, or a definition added since) reloads the set before giving up.
+let definitions: Map<string, typeof achievementsTable.$inferSelect> | null = null;
+export function invalidateAchievementDefinitions(): void { definitions = null; }
+async function definitionByKey(key: string) {
+  if (!definitions?.has(key)) definitions = new Map((await db.select().from(achievementsTable)).map(a => [a.key, a]));
+  return definitions.get(key);
+}
+
 export async function grantIfNotHas(playerId: number, key: string, seasonId = 0): Promise<boolean> {
-  const [ach] = await db.select().from(achievementsTable).where(eq(achievementsTable.key, key));
+  const ach = await definitionByKey(key);
   if (!ach) return false;
 
   const [existing] = await db.select({ id: playerAchievementsTable.id })
