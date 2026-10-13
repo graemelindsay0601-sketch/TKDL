@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Link } from "wouter";
 import { useCareerGoals, useCareerFocus, useCreateCareerGoal, useAbandonCareerGoal, useSetMainCareerGoal, useSetCareerRoute, errorMessage } from "../api";
 import { CareerSection, CareerEmptyState, QueryState } from "../components";
-import { formatPence } from "../model";
+import { formatPence, denialLabel } from "../model";
 import type { ShellContext } from "../shell";
 import type { Focus, GoalDefinition, GoalView } from "../../../../../api-server/src/career/goals/types";
 
@@ -41,7 +41,7 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
               <button type="button" className="career-btn career-btn-ghost" disabled={busy} onClick={()=>setMain.mutate(null,{onSuccess:()=>setMessage("Main ambition cleared. Your other goals remain unchanged."),onError:e=>setMessage(errorMessage(e))})}>Clear main ambition</button>
             </> : <p className="text-sm text-white/70">No main ambition selected. Choose one from your recorded goals below.</p>}
           </section>
-          <p className="text-xs text-white/60">World ranking: {data.context.currentRank===null?"Unranked":`#${data.context.currentRank}`} · {data.context.holdsCard?"Active Tour Card":"No active Tour Card"} · Career prize earnings {formatPence(data.context.earningsPence)}</p>
+          <p className="text-xs text-white/60">World ranking {data.context.currentRank===null?"Unranked":`#${data.context.currentRank}`} · {data.context.holdsCard?"Active Tour Card":"No active Tour Card"} · Career prize earnings {formatPence(data.context.earningsPence)}</p>
           <h3 className="font-bold">Near-term route</h3>
           <p className="text-xs text-white/60">Choose one next step; recommendations refresh with Career events, but your choice stays yours. These are calendar suggestions, not guaranteed progress toward a milestone. <Link className="underline" href={`/career/${ctx.save.id}/calendar`}>Browse every route</Link>.</p>
            {main?.status==="ACTIVE" && <p className="text-xs text-amber-100/70">Recommendations prioritize published routes that can support “{main.label}”. When Career cannot link an event directly to that ambition, it is labelled as a general alternative.</p>}
@@ -52,7 +52,7 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
             <Link href={`/career/${ctx.save.id}/events/${e.id}`} className="font-bold underline">{e.name}</Link>
             <p className="text-xs text-white/70">S{e.season} · Day {e.startDay} · {e.reason}</p>
             <p className="text-xs text-white/70">{e.firstPrizePence===null?"First prize unavailable":`${formatPence(e.firstPrizePence)} first prize`} · {e.estimatedCostPence===null?"Cost estimate unavailable":`${formatPence(e.estimatedCostPence)} estimated Career cost`}</p>
-            <p className="text-xs">{e.canEnter?"Currently open for your entry":e.denials.length?`Not currently enterable: ${e.denials.join(", ")}`:`${e.status.replaceAll("_"," ")} · ${e.relationship.replaceAll("_"," ")}`} · Registration weeks {e.registration.opensWeek}–{e.registration.closesWeek}</p>
+            <p className="text-xs">{e.canEnter?"Currently open for your entry":e.denials.length?`Not currently enterable: ${e.denials.map(denialLabel).join(", ")}`:`${e.status.replaceAll("_"," ")} · ${e.relationship.replaceAll("_"," ")}`} · Registration weeks {e.registration.opensWeek}–{e.registration.closesWeek}</p>
             <button type="button" className="career-btn career-btn-ghost mt-1" disabled={busy||data.retired||data.nearTermEventId===e.id} onClick={()=>setRoute.mutate(e.id,{onSuccess:()=>setMessage("Near-term route saved. You can change it when suggestions update."),onError:error=>setMessage(errorMessage(error))})}>
               {data.nearTermEventId===e.id?"Selected route":"Choose this route"}
             </button>

@@ -44,6 +44,11 @@ router.get("/notifications", async (req, res): Promise<void> => {
   }
 });
 
+// A plain string[] interpolated into ANY(...) spreads into positional parameters
+// ("($1, $2)::text[]"), which Postgres rejects — and the catch below then reported
+// 0 unread for everyone. Bind it as one ARRAY[...] instead (see broadcast.ts).
+const textArray = (values: readonly string[]) => sql`ARRAY[${sql.join(values.map(v => sql`${v}`), sql`, `)}]::text[]`;
+
 // ── GET /notifications/unread-count (must come before /:id) ──────────────────
 // Optional ?types=a,b,c scopes the count to specific notification types —
 // used by the sidebar's Community badge (post_approved/post_liked/
@@ -63,12 +68,12 @@ router.get("/notifications/unread-count", async (req, res): Promise<void> => {
       ? await db.execute(sql`
           SELECT COUNT(*)::int AS count
           FROM notifications
-          WHERE player_id = ${playerId} AND read_at IS NULL AND type = ANY(${types}::text[])
+          WHERE player_id = ${playerId} AND read_at IS NULL AND type = ANY(${textArray(types)})
         `)
       : await db.execute(sql`
           SELECT
             COUNT(*)::int AS count,
-            COUNT(*) FILTER (WHERE type = ANY(${["post_approved", "post_liked", "post_commented", "auto_post_fired"]}::text[]))::int AS community_count
+            COUNT(*) FILTER (WHERE type = ANY(${textArray(["post_approved", "post_liked", "post_commented", "auto_post_fired"])}))::int AS community_count
           FROM notifications
           WHERE player_id = ${playerId} AND read_at IS NULL
         `);

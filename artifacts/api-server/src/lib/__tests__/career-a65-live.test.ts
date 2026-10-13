@@ -5,6 +5,7 @@ import { createCareerRelationshipsRouter } from "../../career/relationships/rout
 import { createCareerGoalsService } from "../../career/goals/service.ts";
 import { createCareerGoalsRouter } from "../../career/goals/router.ts";
 import { createCareerGoals } from "../../db/migrations/create_career_goals.ts";
+import { addCareerMainGoal } from "../../db/migrations/add_career_main_goal.ts";
 import { createCareerRecognitionService } from "../../career/recognition/service.ts";
 import { createCareerRecognitionRouter } from "../../career/recognition/router.ts";
 import { createCareerLifeService } from "../../career/life/service.ts";
@@ -85,6 +86,8 @@ before(async () => {
   const {career_focus:_focus,...unchanged}=migratedRoot;
   assert.deepEqual(unchanged,oldRoot,"existing save migrates additively without a sporting/version rebuild");
   await db.execute(sql`DELETE FROM career_saves WHERE id=${preMigration.id}`);
+  // Startup's next step after the goals tables (app.ts addCareerMainGoalA1): the goals service writes main_goal_id.
+  await addCareerMainGoal(db); await addCareerMainGoal(db);
   const app = express();
   app.use(express.json({ limit: "2mb" }));
   app.use((req, _res, next) => {

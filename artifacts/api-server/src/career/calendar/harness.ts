@@ -90,13 +90,14 @@ export async function seasonReport(db: CareerDatabase, saveId: string, season: n
     FROM career_world_players p LEFT JOIN career_event_entries e ON e.career_save_id = p.career_save_id AND e.npc_id = p.id AND e.status = 'CONFIRMED'
       AND e.event_id IN (SELECT id FROM career_event_instances WHERE career_save_id = ${saveId} AND season = ${season})
     WHERE p.career_save_id = ${saveId} AND p.created_season <= ${season} GROUP BY 1 ORDER BY 1`));
-  // Double booking: any participant confirmed in two events whose day windows overlap.
-  const doubleBooked = (await q(sql`SELECT COUNT(*)::int AS n FROM career_event_entries a
-    JOIN career_event_instances ia ON ia.career_save_id = a.career_save_id AND ia.id = a.event_id
-    JOIN career_event_entries b ON b.career_save_id = a.career_save_id AND b.participant_key = a.participant_key AND b.event_id > a.event_id
-    JOIN career_event_instances ib ON ib.career_save_id = b.career_save_id AND ib.id = b.event_id
-    WHERE a.career_save_id = ${saveId} AND ia.season = ${season} AND ib.season = ${season} AND a.status = 'CONFIRMED' AND b.status = 'CONFIRMED'
-      AND ia.status NOT IN ('CANCELLED') AND ib.status NOT IN ('CANCELLED') AND ia.start_day <= ib.end_day AND ib.start_day <= ia.end_day`))[0].n;
+  // Double booking: any participant confirmed in two events on the same day. An event occupies every
+  // day of its window, except a league, which plays (and books) only its weekly nights (playingDays).
+  const doubleBooked = (await q(sql`WITH occupied AS (
+      SELECT e.participant_key, e.event_id, d.day FROM career_event_entries e
+      JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
+      CROSS JOIN LATERAL generate_series(i.start_day, i.end_day, CASE WHEN i.snapshot->'format'->>'structure' = 'LEAGUE' THEN 7 ELSE 1 END) AS d(day)
+      WHERE e.career_save_id = ${saveId} AND i.season = ${season} AND e.status = 'CONFIRMED' AND i.status NOT IN ('CANCELLED'))
+    SELECT COUNT(*)::int AS n FROM (SELECT participant_key, day FROM occupied GROUP BY 1, 2 HAVING COUNT(DISTINCT event_id) > 1) clash`))[0].n;
   const invalidEntries = (await q(sql`SELECT COUNT(*)::int AS n FROM career_event_instances i WHERE i.career_save_id = ${saveId} AND i.season = ${season}
     AND (i.entrant_count > i.field_size OR i.entrant_count <> (SELECT COUNT(*) FROM career_event_entries e WHERE e.career_save_id = i.career_save_id AND e.event_id = i.id AND e.status <> 'WITHDRAWN')
       AND i.status NOT IN ('CANCELLED','SCHEDULED','REGISTRATION_OPEN','REGISTRATION_CLOSED'))`))[0].n;
@@ -106,7 +107,10 @@ export async function seasonReport(db: CareerDatabase, saveId: string, season: n
   const championChecks = (await q(sql`SELECT COUNT(*)::int AS completed,
       SUM(CASE WHEN (SELECT COUNT(*) FROM career_event_results r WHERE r.career_save_id = i.career_save_id AND r.event_id = i.id AND r.is_champion AND r.participant_key = i.champion_participant_key) = 1
         AND (SELECT COUNT(*) FROM career_tournament_matches m WHERE m.career_save_id = i.career_save_id AND m.event_id = i.id AND m.winner_key = i.champion_participant_key
-          AND m.stage_key = i.snapshot->'format'->'stages'->-1->>'key'
+          -- Grouped events (Vault groups, league nights) store their play-offs as the 'knockout' stage
+          -- whatever the authored stage is called (a league's is 'playoffs').
+          AND m.stage_key = CASE WHEN i.snapshot->'format'->>'structure' IN ('GROUP_KNOCKOUT','LEAGUE') THEN 'knockout'
+            ELSE i.snapshot->'format'->'stages'->-1->>'key' END
           AND m.round = (SELECT MAX(round) FROM career_tournament_matches x WHERE x.career_save_id = i.career_save_id AND x.event_id = i.id AND x.stage_key=m.stage_key)) = 1
         AND (SELECT COUNT(*) FROM career_tournament_matches m WHERE m.career_save_id = i.career_save_id AND m.event_id = i.id AND m.status NOT IN ('COMPLETED','BYE','WALKOVER')) = 0
         THEN 1 ELSE 0 END)::int AS valid
