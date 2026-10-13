@@ -42,6 +42,7 @@ import { addScheduledSponsorRenewalsSPE1B } from "./db/migrations/add_scheduled_
 import { createCareerSponsorContractActionsSPE2 } from "./db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import { createCareerSporting } from "./db/migrations/create_career_sporting";
 import { createCareerGoals } from "./db/migrations/create_career_goals";
+import { addCareerMainGoal } from "./db/migrations/add_career_main_goal";
 import { createCareerLife } from "./db/migrations/create_career_life";
 import { createCareerLegacy } from "./db/migrations/create_career_legacy";
 import { ensureCardClashAchievementTables } from "./lib/card-clash-achievements";
@@ -1556,6 +1557,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerSponsorContractActionsSPE2", () => createCareerSponsorContractActionsSPE2(db));
   await runMigrationStep("createCareerSportingA5", () => createCareerSporting(db));
   await runMigrationStep("createCareerGoalsA73", () => createCareerGoals(db));
+  await runMigrationStep("addCareerMainGoalA1", () => addCareerMainGoal(db));
   await runMigrationStep("createCareerLifeA75", () => createCareerLife(db));
   await runMigrationStep("createCareerLegacyA76", () => createCareerLegacy(db));
   await runMigrationStep(SHADOW_OBSERVATIONS_SB21A, () => createShadowObservations(db));

@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { completionFact, goalSchema, focusSchema, goalProgress, evidenceFor, recommend, targetKey } from "../../career/goals/model.ts";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle } from "drizzle-orm/pglite";
+import { addCareerMainGoal } from "../../db/migrations/add_career_main_goal.ts";
+import type { CareerDatabase } from "../../career/database.ts";
+import { completionFact, goalSchema, focusSchema, mainGoalSchema, nearTermRouteSchema, goalProgress, evidenceFor, recommend, targetKey } from "../../career/goals/model.ts";
 import type { GoalRow, GoalSources, Opportunity } from "../../career/goals/types.ts";
 import type { Fact } from "../../career/facts/types.ts";
 
@@ -17,7 +21,30 @@ test("strict focus/goal definitions reject invented types, completion fields and
   for (const d of [{type:"XP"},{type:"WIN_TITLE",completed:true},{type:"EARNINGS",target:-1},{type:"REACH_WORLD_RANK",target:1.5},{type:"WIN_EVENT",eventId:"bad"}])
     assert.throws(()=>goalSchema.parse(d));
   assert.throws(()=>focusSchema.parse({focus:"OPEN_SCHEDULE",bonus:100}));
+  assert.deepEqual(mainGoalSchema.parse({goalId:null}),{goalId:null});
+  assert.throws(()=>mainGoalSchema.parse({goalId:"not-a-uuid"}));
+  assert.throws(()=>mainGoalSchema.parse({goalId:null,extra:true}));
+  assert.deepEqual(nearTermRouteSchema.parse({eventId:null}),{eventId:null});
+  assert.throws(()=>nearTermRouteSchema.parse({eventId:""}));
   assert.deepEqual(goalSchema.parse({type:"REACH_WORLD_RANK",target:64}),{type:"REACH_WORLD_RANK",target:64});
+});
+test("main ambition migration is additive, repeatable and backfills the oldest active goal",async()=>{
+  const pg=new PGlite(),db=drizzle(pg) as unknown as CareerDatabase;
+  try {
+    await pg.exec(`CREATE TABLE career_saves(id uuid PRIMARY KEY);
+      CREATE TABLE career_personal_goals(id uuid PRIMARY KEY,career_save_id uuid,status text,created_at timestamptz);
+      INSERT INTO career_saves VALUES ('00000000-0000-0000-0000-000000000001'),('00000000-0000-0000-0000-000000000002');
+      INSERT INTO career_personal_goals VALUES
+        ('00000000-0000-0000-0000-000000000011','00000000-0000-0000-0000-000000000001','ACTIVE','2026-01-02'),
+        ('00000000-0000-0000-0000-000000000012','00000000-0000-0000-0000-000000000001','ACTIVE','2026-01-01'),
+        ('00000000-0000-0000-0000-000000000013','00000000-0000-0000-0000-000000000002','ABANDONED','2025-01-01')`);
+    await addCareerMainGoal(db);
+    await addCareerMainGoal(db);
+    const rows=(await pg.query(`SELECT id,main_goal_id,near_term_event_id FROM career_saves ORDER BY id`)).rows as Array<Record<string,unknown>>;
+    assert.equal(rows[0].main_goal_id,"00000000-0000-0000-0000-000000000012");
+    assert.equal(rows[1].main_goal_id,null);
+    assert.equal(rows[0].near_term_event_id,null);
+  } finally { await pg.close(); }
 });
 test("completion keeps a thin supporting reference and uses immutable identity for age at the actual known date",()=>{
   const evidence={...fact("event"),age:19,wins:4,losses:0};

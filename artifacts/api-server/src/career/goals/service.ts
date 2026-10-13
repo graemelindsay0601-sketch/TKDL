@@ -10,7 +10,7 @@ import { createCareerSportingService } from "../sporting/service.ts";
 import { summary } from "../finance/ledger.ts";
 import { catalogueFor } from "../calendar/catalogue.ts";
 import { FOCUSES, type Focus, type GoalDefinition, type GoalRow, type GoalSources, type GoalsView, type Opportunity } from "./types.ts";
-import { ACTIVE_GOAL_LIMIT, completionFact, createGoalSchema, evidenceFor, focusSchema, goalLabel, goalProgress, recommend, targetKey } from "./model.ts";
+import { ACTIVE_GOAL_LIMIT, completionFact, createGoalSchema, evidenceFor, focusSchema, goalLabel, goalProgress, mainGoalSchema, nearTermRouteSchema, recommend, targetKey } from "./model.ts";
 import type { Fact } from "../facts/types.ts";
 
 /** Existing read authorities share ONE outer transaction/root lock, not nested transactions. */
@@ -112,12 +112,14 @@ export function createCareerGoalsService(database: CareerDatabase) {
   }
   function view(saveId: string, root: Root, goals: GoalRow[], s: GoalSources, events: Opportunity[]): GoalsView {
     const rr=root as unknown as Record<string,unknown>,focus=(rr.career_focus??"OPEN_SCHEDULE") as Focus,retired=rr.status==="RETIRED";
-    return {careerSaveId:saveId,focus,focusOptions:Object.entries(FOCUSES).map(([value,detail])=>({value:value as Focus,...detail})),activeLimit:ACTIVE_GOAL_LIMIT,retired,
+        return {careerSaveId:saveId,focus,focusOptions:Object.entries(FOCUSES).map(([value,detail])=>({value:value as Focus,...detail})),activeLimit:ACTIVE_GOAL_LIMIT,retired,
+          mainGoalId:rr.main_goal_id ? String(rr.main_goal_id) : null,
+          nearTermEventId:rr.near_term_event_id ? String(rr.near_term_event_id) : null,
       goals:goals.map(r=>{
-        const progress=goalProgress(r,s).progress;
+        const result=goalProgress(r,s),progress=result.progress;
         if (retired && r.status==="ACTIVE") progress.note="Career retired; no further sporting progress. This selection remains in the record.";
         return {id:r.id,definition:r.definition,label:goalLabel(r.definition,s,events),status:r.status,created:{season:r.created_season,week:r.created_week},
-          progress,completion:r.completed_evidence};
+          progress,completion:r.completed_evidence,evidence:result.evidence};
       }),
       options:options(s,events,retired),opportunities:recommend(focus,events),context:{currentRank:s.currentRank,holdsCard:s.holdsCard,earningsPence:s.earningsPence}};
   }
@@ -154,7 +156,35 @@ export function createCareerGoalsService(database: CareerDatabase) {
         await tx.execute(sql`INSERT INTO career_personal_goals(id,career_save_id,request_key,definition,target_key,baseline_evidence,created_season,created_week)
           VALUES(${id},${saveId},${input.requestKey},${JSON.stringify(definition)}::jsonb,${key},ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(baseline)}::jsonb)),
             ${root.current_season},${Number(rr.current_week)})`);
+        if (!rr.main_goal_id) await tx.execute(sql`UPDATE career_saves SET main_goal_id=${id} WHERE id=${saveId} AND main_goal_id IS NULL`);
         return {id,created:true};
+      });
+    },
+    async setMainGoal(actor: CareerActor, saveId: string, body: unknown) {
+      const input=mainGoalSchema.parse(body);
+      return database.transaction(async tx=>{
+        await lockRoot(tx,actor,saveId);
+        if (input.goalId) {
+          const row=(await tx.execute(sql`SELECT status FROM career_personal_goals WHERE career_save_id=${saveId} AND id=${input.goalId}`)).rows[0];
+          if (!row) throw new CareerError(404,"Personal goal not found");
+          if (row.status==="ABANDONED") throw new CareerError(409,"An abandoned goal cannot be the main ambition");
+        }
+        await tx.execute(sql`UPDATE career_saves SET main_goal_id=${input.goalId} WHERE id=${saveId}`);
+        return {mainGoalId:input.goalId};
+      });
+    },
+    async setNearTermRoute(actor: CareerActor, saveId: string, body: unknown) {
+      const input=nearTermRouteSchema.parse(body);
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId);
+        if (input.eventId) {
+          const {events}=await sources(tx,actor,saveId,root);
+          const rr=root as unknown as Record<string,unknown>,focus=(rr.career_focus??"OPEN_SCHEDULE") as Focus;
+          if (!recommend(focus,events).slice(0,2).some(item=>item.id===input.eventId))
+            throw new CareerError(409,"Choose one of the two currently suggested route options");
+        }
+        await tx.execute(sql`UPDATE career_saves SET near_term_event_id=${input.eventId} WHERE id=${saveId}`);
+        return {nearTermEventId:input.eventId};
       });
     },
     async abandon(actor: CareerActor, saveId: string, goalId: string) {
@@ -165,6 +195,8 @@ export function createCareerGoalsService(database: CareerDatabase) {
         const {s}=await sources(tx,actor,saveId,root);
         await reconcile(tx,saveId,root,goals,s);
         if (row.status==="ACTIVE") {await tx.execute(sql`UPDATE career_personal_goals SET status='ABANDONED',abandoned_at=NOW() WHERE career_save_id=${saveId} AND id=${goalId} AND status='ACTIVE'`);row.status="ABANDONED";}
+        if ((root as unknown as Record<string,unknown>).main_goal_id===goalId)
+          await tx.execute(sql`UPDATE career_saves SET main_goal_id=NULL WHERE id=${saveId} AND main_goal_id=${goalId}`);
         return {id:goalId,status:row.status};
       });
     },

@@ -25,7 +25,7 @@ export type Opportunity = {
 export type GoalSources = { facts: CareerFacts; relationships: CareerRelationships; eventNames?: Record<string,string>; currentWeek:number; currentRank: number | null; holdsCard: boolean;
   earningsPence: number; earningsEvidence: { id: string; amountPence: number; fact: Fact }[] };
 export type GoalView = { id: string; definition: GoalDefinition; label: string; status: GoalRow["status"]; created: { season: number; week: number };
-  progress: { current: number | null; target: number; unit: string; note: string | null }; completion: Fact | null };
+  progress: { current: number | null; target: number; unit: string; note: string | null }; completion: Fact | null; evidence: Fact | null };
 export type GoalsView = { careerSaveId: string; focus: Focus; focusOptions: { value: Focus; label: string; description: string }[];
-  activeLimit: number; retired: boolean; goals: GoalView[]; options: { definition: GoalDefinition; label: string }[];
+  activeLimit: number; retired: boolean; mainGoalId: string | null; nearTermEventId: string | null; goals: GoalView[]; options: { definition: GoalDefinition; label: string }[];
   opportunities: (Opportunity & { reason: string })[]; context: { currentRank: number | null; holdsCard: boolean; earningsPence: number } };

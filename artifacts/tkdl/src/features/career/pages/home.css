@@ -90,6 +90,11 @@
 .home-goals ul { display:grid; gap:0; margin:0; padding:0 15px; list-style:none; }
 .home-goals li { display:flex; align-items:center; gap:9px; min-height:38px; border-top:1px solid #ffffff0e; color:#d8e1e5; font-size:.78rem; }
 .home-goals li>span { width:6px; height:6px; border-radius:50%; background:#ceb574; }
+.home-main-ambition { display:grid; gap:4px; margin:0 14px 10px; padding:11px 13px; border:1px solid #d7b55d33; border-radius:10px; background:#d7b55d08; }
+.home-main-ambition strong { color:#f2e8d0; font:600 .9rem Oswald,system-ui,sans-serif; }
+.home-main-ambition>span { color:#c7a854; font:700 .58rem Oswald,system-ui,sans-serif; letter-spacing:.12em; text-transform:uppercase; }
+.home-main-ambition p { margin:0; color:#aebdc6; font-size:.68rem; line-height:1.45; }
+.home-route-choice { margin:0 14px 9px; color:#d4c08b; font-size:.7rem; }
 .home-goal-foot { margin:8px 15px 13px!important; color:#99aab7; font-size:.67rem; }
 .home-opportunity { border-bottom:1px solid #ffffff0c; }
 .home-opportunity:last-child { border-bottom:0; }
