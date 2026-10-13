@@ -10,7 +10,7 @@ import { BOARD_CURSE_ACHIEVEMENT_DEFINITIONS } from "./board-curse-achievements"
 import { BOSS_BATTLE_ACHIEVEMENT_DEFINITIONS } from "./boss-battle-achievements";
 import { SHIFT_WARS_ACHIEVEMENT_DEFINITIONS } from "./shift-wars-achievements";
 import { DOUBLES_ACHIEVEMENT_DEFINITIONS } from "./doubles-achievements";
-import { grantIfNotHas } from "./achievement-grant";
+import { grantIfNotHas, invalidateAchievementDefinitions } from "./achievement-grant";
 
 export type AchievementDef = {
   key: string;
@@ -677,6 +677,8 @@ export async function seedAchievements(): Promise<void> {
     await db.delete(achievementsTable).where(inArray(achievementsTable.key, retiredKeys));
     logger.info({ keys: retiredKeys }, "Retired dead achievements with no grant path");
   }
+  // Grants cache the definitions; drop that cache whenever seeding has rewritten them.
+  invalidateAchievementDefinitions();
 }
 
 export async function checkStatAchievements(playerId: number): Promise<void> {

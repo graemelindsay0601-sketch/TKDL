@@ -2,7 +2,7 @@
 // Combines the pure formulas in predictor-math.ts with the real facts
 // history-reconstruction.ts gathers. See predictor-math.ts for the formula
 // citations; this file is where they're wired to actual player data.
-import { and, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import { db, matchesTable } from "@workspace/db";
 import { buildPlayerBaselines, buildH2HBefore, SINGLES_ONLY, type PlayerBaselines } from "./history-reconstruction";
 import {
@@ -138,13 +138,33 @@ export async function computeOpponentQuality(playerId: number, seasonId: number,
 
   if (rows.length === 0) return null;
 
-  const strengths: number[] = [];
-  for (const r of rows) {
+  // Each opponent's record exactly as buildPlayerBaselines(opponent, meeting).currentSeason
+  // reports it — the season of their latest singles match before the meeting, counted up to
+  // (not including) the meeting — but from ONE read of the opponents' histories before the
+  // cutoff instead of one full-history read per meeting (that was hundreds of queries and tens
+  // of thousands of rows after every submitted match, growing with the league's history).
+  const opponents = [...new Set(rows.map(r => r.winnerId === playerId ? r.loserId : r.winnerId))];
+  const history = await db
+    .select({ id: matchesTable.id, playedAt: matchesTable.playedAt, seasonId: matchesTable.seasonId, winnerId: matchesTable.winnerId, loserId: matchesTable.loserId })
+    .from(matchesTable)
+    .where(and(
+      SINGLES_ONLY,
+      lt(matchesTable.playedAt, cutoff),
+      or(inArray(matchesTable.winnerId, opponents), inArray(matchesTable.loserId, opponents)),
+    ))
+    .orderBy(desc(matchesTable.playedAt), desc(matchesTable.id));
+
+  const strengths = rows.map(r => {
     const opponentId = r.winnerId === playerId ? r.loserId : r.winnerId;
-    const opponentBaselines = await buildPlayerBaselines(opponentId, r.playedAt);
-    const season = opponentBaselines.currentSeason;
-    strengths.push(season ? smoothedRate(season.wins, season.gamesPlayed, PRIOR_GAMES.season) : 0.5);
-  }
+    const before = r.playedAt.getTime();
+    let season: number | null = null, wins = 0, games = 0;
+    for (const h of history) {
+      if (h.playedAt.getTime() >= before || (h.winnerId !== opponentId && h.loserId !== opponentId)) continue;
+      season ??= h.seasonId;
+      if (h.seasonId === season) { games++; if (h.winnerId === opponentId) wins++; }
+    }
+    return season === null ? 0.5 : smoothedRate(wins, games, PRIOR_GAMES.season);
+  });
 
   return strengths.reduce((sum, s) => sum + s, 0) / strengths.length;
 }

@@ -234,7 +234,7 @@ async function grantTitle(playerId: number, titleKey: string): Promise<void> {
 export async function checkAndGrantTitles(playerId: number): Promise<void> {
   try {
     // Collect unlocked keys from all three sources
-    const [leagueRows, botRows] = await Promise.all([
+    const [leagueRows, botRows, ownedRows] = await Promise.all([
       db.execute(sql`
         SELECT a.key FROM player_achievements pa
         JOIN achievements a ON a.id = pa.achievement_id
@@ -244,12 +244,17 @@ export async function checkAndGrantTitles(playerId: number): Promise<void> {
         SELECT achievement_key AS key FROM shadow_bot_achievements
         WHERE player_id = ${playerId}
       `),
+      db.execute(sql`SELECT title_key FROM player_titles WHERE player_id = ${playerId}`),
     ]);
 
     const leagueKeys   = new Set((leagueRows.rows as any[]).map(r => r.key as string));
     const botKeys      = new Set((botRows.rows as any[]).map(r => r.key as string));
+    // Only titles not yet held are written (this runs after every match; re-inserting every earned
+    // title each time was dozens of no-op writes per player). grantTitle stays the race-safe insert.
+    const owned        = new Set((ownedRows.rows as any[]).map(r => r.title_key as string));
 
     for (const def of TITLE_DEFINITIONS) {
+      if (owned.has(def.key)) continue;
       const source = def.achievementSource ?? "league";
       const has =
         source === "shadow_bot" ? botKeys.has(def.requiresAchievement) :
