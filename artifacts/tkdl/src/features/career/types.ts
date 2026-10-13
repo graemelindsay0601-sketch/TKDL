@@ -46,6 +46,8 @@ export type CareerEvent = {
     venueType: string; capacityBand: "CLUB" | "HALL" | "ARENA" };
   format: EventFormat; capability: { executable: boolean; code?: string; reasons?: string[]; engine?: string; liveScorer?: string };
   field: { size: number; minimum: number; entrants: number; policy: string };
+  /** Small local events: whether the field is set yet, and the minimum it needs to go ahead. */
+  viability?: { status: "PENDING" | "CONFIRMED" | "CANCELLED"; minimum: number; fieldSetWeek: number; entrants: number | null } | null;
   series: { key: string; day: number } | null; qSchool: { pathway: string; stage: "FIRST" | "FINAL"; day: number } | null;
   seedingPolicy: { list: string | null; seeds: number };
   status: EventStatus; statusReason: string | null;

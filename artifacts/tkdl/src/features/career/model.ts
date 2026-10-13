@@ -424,3 +424,11 @@ const LOCALITY_COUNTRY: Record<string, string> = Object.fromEntries([
   ["ile-de-france", "FRA"], ["stockholm", "SWE"], ["kanto", "JPN"], ["new-york", "USA"], ["auckland", "NZL"],
 ]);
 export const homeCountryOf = (locality: string | null | undefined) => (locality && LOCALITY_COUNTRY[locality]) || null;
+
+/** Plain words for a small local event's "will it go ahead" facts (no prediction: the field decides). */
+export function viabilityText(v: { status: "PENDING" | "CONFIRMED" | "CANCELLED"; minimum: number; fieldSetWeek: number; entrants: number | null } | null | undefined) {
+  if (!v) return null;
+  if (v.status === "CONFIRMED") return { label: "Going ahead", detail: v.entrants ? `${v.entrants} players` : "Field set", tone: "good" as const };
+  if (v.status === "CANCELLED") return { label: "Cancelled", detail: `Fewer than ${v.minimum} players entered`, tone: "danger" as const };
+  return { label: `Needs ${v.minimum}+ players`, detail: `Field set in week ${v.fieldSetWeek}`, tone: "neutral" as const };
+}

@@ -28,5 +28,8 @@ const detail = detailKey ? await rows(sql`SELECT start_week, start_day, status, 
 const byStatus = await rows(sql`SELECT definition_key, status, COUNT(*)::int n, ROUND(AVG((SELECT COUNT(*) FROM career_event_entries e WHERE e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.status<>'WITHDRAWN')))::int avg_entrants
   FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND definition_key IN (${sql.join((process.argv.find(x => x.startsWith("--keys="))?.slice(7) ?? "-").split(",").map(k => sql`${k}`), sql`, `)}) GROUP BY 1,2 ORDER BY 1,2`);
 const lists = await rows(sql`SELECT list_key, COUNT(*)::int n FROM career_ranking_participants WHERE career_save_id=${id} AND current_position IS NOT NULL GROUP BY 1 ORDER BY 1`);
-console.log(JSON.stringify({ proWorldDepthByWeek: depth, cancelled, majors: gated, detail, byStatus, lists }, null, 1));
+const byCountry = await rows(sql`SELECT definition_key, country, locality_key, field_size, minimum_entrants, COUNT(*) FILTER (WHERE status='CANCELLED' AND status_reason='INSUFFICIENT_ENTRANTS')::int cancelled,
+  COUNT(*)::int total, ROUND(AVG((SELECT COUNT(*) FROM career_event_entries e WHERE e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.status<>'WITHDRAWN')) FILTER (WHERE status='COMPLETED'))::int avg_completed_field
+  FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND circuit IN ('GRASSROOTS','COUNTY') GROUP BY 1,2,3,4,5 HAVING COUNT(*) FILTER (WHERE status='CANCELLED' AND status_reason='INSUFFICIENT_ENTRANTS') > 0 ORDER BY 6 DESC`);
+console.log(JSON.stringify({ proWorldDepthByWeek: depth, byCountry, cancelled, majors: gated, detail, byStatus, lists }, null, 1));
 await a.pg.close();

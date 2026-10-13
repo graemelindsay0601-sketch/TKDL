@@ -1,3 +1,4 @@
+import { viabilityOf } from "./viability.ts";
 import { sql } from "drizzle-orm";
 import { opportunity } from "../content/opportunities.ts";
 import { venueContent } from "../content/world.ts";
@@ -177,6 +178,7 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
     content:s.content??null,opportunity:opportunity({status:event.status,classification:event.classification,human:human??null}),
     format: s.format, capability: s.capability,
     field: { size: event.field_size, minimum: event.minimum_entrants, entrants: event.entrant_count, policy: s.fieldPolicy },
+    viability: viabilityOf(event),
     series: event.series_key ? { key: event.series_key, day: event.series_day } : null, qSchool: s.qSchool,
     profiles: s.profiles, seedingPolicy: s.seedingPolicy, qualificationOutputs: s.qualificationOutputs,
     status: event.status, statusReason: event.status_reason,

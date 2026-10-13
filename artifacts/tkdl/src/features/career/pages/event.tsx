@@ -4,7 +4,7 @@ import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
-import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason } from "../model";
+import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
@@ -131,6 +131,7 @@ function Overview({ detail, saveId }: { detail: EventDetail; saveId: string }) {
       <CareerSection title="Event facts" icon={<Trophy className="w-3.5 h-3.5" />}>
         <dl className="px-4 py-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
           <F label="Field" value={`${e.field.entrants || "—"} of ${e.field.size} (min ${e.field.minimum})`} />
+          {viabilityText(e.viability) && <F label="Goes ahead?" value={`${viabilityText(e.viability)!.label} · ${viabilityText(e.viability)!.detail}`} />}
           <F label="Entries" value={`Weeks ${e.registration.opensWeek}–${e.registration.closesWeek}`} />
           <F label="Ranking category" value={e.rankingCategory ? titleCase(e.rankingCategory) : "None"} />
           <F label="Seeding" value={e.seedingPolicy.list ? `${e.seedingPolicy.seeds} seeds · ${listLabel(e.seedingPolicy.list)}` : "Unseeded draw"} />
