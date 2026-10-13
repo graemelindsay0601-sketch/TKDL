@@ -71,7 +71,7 @@ export function roundLabel(round: number, rounds: number) {
   return remaining === 2 ? "Final" : remaining === 4 ? "Semi-final" : remaining === 8 ? "Quarter-final" : `Last ${remaining}`;
 }
 export function stageOf(m: Pick<TMatch, "stage_key" | "round">, rounds: number) {
-  return isGroup(m) ? `Group ${m.stage_key.split(":")[1]} · Round ${m.round}` : roundLabel(m.round, rounds);
+  return m.stage_key === "groups:L" ? `League night ${m.round}` : isGroup(m) ? `Group ${m.stage_key.split(":")[1]} · Round ${m.round}` : roundLabel(m.round, rounds);
 }
 
 export type BracketColumn = { round: number; label: string; matches: TMatch[] };
@@ -149,17 +149,50 @@ export function dossier(v: Pick<TView, "matches" | "field" | "opponents">, key: 
 // ---------------------------------------------------------------- result significance
 export type Significance = "TITLE" | "FINAL_REACHED" | "SEMI_REACHED" | "QUARTER_REACHED" | "WIN" | "GROUP_WIN"
   | "GROUP_LOSS" | "ELIMINATED" | "RUNNER_UP";
-export type ResultMoment = { significance: Significance; headline: string; detail: string; milestone: boolean };
+export type ResultMoment = { significance: Significance; headline: string; detail: string; milestone: boolean;
+  /** A7.2 rivalry context for the result (Nemesis beaten, rivalry head to head), when the opponent has one. */
+  rivalry?: string | null };
+
+const nth = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+/** Pre-match "needle" framing from the A7.2 relationship labels; null for an ordinary meeting. */
+export function needleMatch(m: Dossier["meetings"]): { label: string; line: string } | null {
+  if (!m || m.played === 0) return null;
+  const record = `${m.humanWins}–${m.npcWins}`;
+  if (m.labels.includes("Nemesis")) return { label: "Needle match · Nemesis", line: `They have beaten you ${m.npcWins} time${m.npcWins === 1 ? "" : "s"} in ${m.played} meetings.` };
+  const rival = m.labels.includes("Generation Rival") ? "Generation Rival" : m.labels.includes("Career Rival") ? "Career Rival" : null;
+  if (rival) return { label: `Needle match · ${rival}`,
+    line: `${m.humanWins > m.npcWins ? `You lead ${record}` : m.npcWins > m.humanWins ? `You trail ${record}` : `Level at ${record}`} after ${m.played} meetings.` };
+  if (m.labels.includes("Favourite Opponent")) return { label: "Favourite opponent", line: `You have won ${m.humanWins} of ${m.played} meetings.` };
+  return null;
+}
+/** Post-match rivalry line (the meetings already include this result). */
+export function rivalryAfter(m: Dossier["meetings"], won: boolean): string | null {
+  if (!m || m.played === 0) return null;
+  if (m.labels.includes("Nemesis")) return won ? `Nemesis beaten — only your ${nth(m.humanWins)} win in ${m.played} meetings.` : `Your Nemesis again: ${m.npcWins} wins from ${m.played} meetings.`;
+  if (m.labels.includes("Generation Rival") || m.labels.includes("Career Rival"))
+    return `Rivalry head to head: ${m.humanWins}–${m.npcWins}${m.humanWins === m.npcWins ? ", level" : m.humanWins > m.npcWins ? ", you lead" : ", you trail"}.`;
+  return null;
+}
 
 /**
  * Classifies the player's most recent decided match from saved facts. A win in
  * round r of R takes the player to round r+1; a final win is a title only when
  * the server says the player is champion.
  */
-export function resultMoment(v: Pick<TView, "matches" | "phase" | "event" | "achievements">, m: TMatch | null): ResultMoment | null {
+export function resultMoment(v: Pick<TView, "matches" | "phase" | "event" | "achievements"> & Partial<Pick<TView, "field" | "opponents">>, m: TMatch | null): ResultMoment | null {
+  const moment = baseMoment(v, m);
+  if (!moment || !m || !v.field || !v.opponents) return moment;
+  const opp = m.a_key === "HUMAN" ? m.b_key : m.a_key;
+  const rivalry = opp ? rivalryAfter(dossier(v as Pick<TView, "matches" | "field" | "opponents">, opp)?.meetings ?? null, m.winner_key === "HUMAN") : null;
+  return rivalry ? { ...moment, rivalry } : moment;
+}
+function baseMoment(v: Pick<TView, "matches" | "phase" | "event" | "achievements">, m: TMatch | null): ResultMoment | null {
   if (!m || !involvesHuman(m) || !isFinal(m) || m.status === "BYE") return null;
   const rounds = knockoutRounds(v.matches);
   const won = m.winner_key === "HUMAN";
+  if (isGroup(m) && m.stage_key === "groups:L") return won
+    ? { significance: "GROUP_WIN", headline: "League match won", detail: "The league table decides the four play-off places.", milestone: false }
+    : { significance: "GROUP_LOSS", headline: "League match lost", detail: "One league night does not decide your season — the table does.", milestone: false };
   if (isGroup(m)) return won
     ? { significance: "GROUP_WIN", headline: "Group match won", detail: "Group standings decide who reaches the knockout stage.", milestone: false }
     : { significance: "GROUP_LOSS", headline: "Group match lost", detail: "A group loss does not end your event on its own — the table decides.", milestone: false };
@@ -209,4 +242,39 @@ export function runSummary(v: Pick<TView, "matches" | "humanResult" | "position"
     acc[0] += (mine ? m.legs_a : m.legs_b) ?? 0; acc[1] += (mine ? m.legs_b : m.legs_a) ?? 0; return acc;
   }, [0, 0] as [number, number]);
   return { matches: path.length, played: played.length, won: path.filter(m => m.winner_key === "HUMAN").length, legsFor: legs[0], legsAgainst: legs[1] };
+}
+
+// ---------------------------------------------------------------- elsewhere in the draw
+export type RoundUpItem = { kind: "UPSET" | "WHITEWASH" | "CHECKOUT" | "AVERAGE" | "MAXIMUMS"; text: string; stage: string; order: number };
+type MatchSummary = { averages?: [number, number]; maximums?: [number, number]; highestCheckouts?: [number, number] };
+/**
+ * Notable results from other boards in this event, from saved results only (seeds, published ranking,
+ * and the simulated match summary): seed and ranking upsets, whitewashes, big checkouts, 100+ averages
+ * and 180 hauls. Newest stage first, at most `limit` items. The human's own matches are excluded.
+ */
+export function roundUp(v: Pick<TView, "matches" | "field">, limit = 6): RoundUpItem[] {
+  const rounds = knockoutRounds(v.matches);
+  const player = (k: string | null) => v.field.find(p => p.key === k);
+  const items: RoundUpItem[] = [];
+  for (const m of v.matches) {
+    if (m.status !== "COMPLETED" || involvesHuman(m) || !m.winner_key || m.legs_a === null || m.legs_b === null) continue;
+    const winnerIsA = m.winner_key === m.a_key, w = player(m.winner_key), l = player(winnerIsA ? m.b_key : m.a_key);
+    if (!w || !l) continue;
+    const stage = stageOf(m, rounds), order = (isGroup(m) ? 0 : 100) + m.round;
+    const score = winnerIsA ? `${m.legs_a}–${m.legs_b}` : `${m.legs_b}–${m.legs_a}`, lost = winnerIsA ? m.legs_b : m.legs_a;
+    const beat = isGroup(m) ? "beat" : "knocked out";
+    if (l.seed && (!w.seed || w.seed > l.seed + 3)) items.push({ kind: "UPSET", stage, order: order + 0.5, text: `${w.name} ${beat} No.${l.seed} seed ${l.name} ${score}` });
+    else if (l.ranking && l.ranking <= 16 && (!w.ranking || w.ranking > l.ranking + 32)) items.push({ kind: "UPSET", stage, order: order + 0.5, text: `${w.name}${w.ranking ? ` (world #${w.ranking})` : ""} ${beat} world #${l.ranking} ${l.name} ${score}` });
+    else if (lost === 0 && m.best_of >= 7) items.push({ kind: "WHITEWASH", stage, order: order + 0.3, text: `${w.name} whitewashed ${l.name} ${score}` });
+    const sum = (m as TMatch & { summary?: MatchSummary }).summary ?? {};
+    ([0, 1] as const).forEach(side => {
+      const who = player(side === 0 ? m.a_key : m.b_key);
+      if (!who) return;
+      const checkout = sum.highestCheckouts?.[side] ?? 0, average = sum.averages?.[side] ?? 0, maximums = sum.maximums?.[side] ?? 0;
+      if (checkout >= 130) items.push({ kind: "CHECKOUT", stage, order: order + checkout / 1000, text: `${who.name} took out ${checkout}` });
+      if (average >= 100) items.push({ kind: "AVERAGE", stage, order: order + 0.2, text: `${who.name} averaged ${average.toFixed(2)}` });
+      if (maximums >= 4) items.push({ kind: "MAXIMUMS", stage, order: order + 0.1, text: `${who.name} hit ${maximums} maximums` });
+    });
+  }
+  return items.sort((a, b) => b.order - a.order).slice(0, limit);
 }

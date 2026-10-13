@@ -11,6 +11,7 @@ import type { CareerEvent } from "../types";
 import {
   bracketColumns, dossier, humanPath, involvesHuman, isFinal, isGroup, knockoutRounds, opponentIfWin, prizeLadder,
   resultMoment, runSummary, stageOf, tierFromEvent, tierProfile, type ResultMoment, type TMatch, type TPlayer, type TView,
+  needleMatch, roundUp,
 } from "./model";
 import "./tournament-broadcast.css";
 
@@ -209,6 +210,7 @@ export function TaleOfTheTape({ v, match }: { v: TView; match: TMatch }) {
         {them ? <TapeSide p={them.player} side="right" lines={[them.ranking, them.titles, them.nationality]} />
           : <div className="tb-tape__tbc">Opponent decided by the draw</div>}
       </div>
+      {needleMatch(meetings ?? null) && <div className="tb-tape__needle" role="note"><strong style={OSWALD}>{needleMatch(meetings ?? null)!.label}</strong><span>{needleMatch(meetings ?? null)!.line}</span></div>}
       <div className="tb-tape__h2h">
         <Label>Head to head</Label>
         {meetings && meetings.played > 0 ? <>
@@ -293,6 +295,7 @@ export function ResultBanner({ moment, score, opponent }: { moment: ResultMoment
         <strong style={OSWALD}>{moment.headline}</strong>
         {(score || opponent) && <p className="tb-result__score">{score}{opponent ? ` v ${opponent}` : ""}</p>}
         <p className="tb-small">{moment.detail}</p>
+        {moment.rivalry && <p className="tb-small tb-result__rivalry">{moment.rivalry}</p>}
       </div>
     </div>
   );
@@ -398,3 +401,15 @@ export function MatchContextStrip({ saveId, eventId, matchId }: { saveId: string
 }
 
 export { involvesHuman, isFinal, resultMoment, tierProfile };
+
+/** Elsewhere in the draw: notable results from other boards in this event. */
+export function RoundUp({ v }: { v: TView }) {
+  const items = roundUp(v);
+  if (!items.length) return null;
+  return (
+    <section className="pdc-card p-4 tb-roundup" aria-label="Elsewhere in the draw">
+      <Label>Elsewhere in the draw</Label>
+      <ul>{items.map((i, n) => <li key={n} className={`tb-roundup__${i.kind.toLowerCase()}`}><span className="tb-roundup__stage">{i.stage}</span><span>{i.text}</span></li>)}</ul>
+    </section>
+  );
+}

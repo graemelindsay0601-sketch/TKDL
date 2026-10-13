@@ -14,8 +14,8 @@ import { npcFacts, type CalendarProviders } from "./providers.ts";
 import { geographyWeight, weightedSample, tierWeight, fillTarget } from "./selection.ts";
 import { generateKnockoutDraw, finishingPosition, stageName } from "./draw.ts";
 import { careerAge, type CareerIdentity } from "../identity/age.ts";
-import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups } from "./group-engine.ts";
-import { isGroupMatch } from "./groups.ts";
+import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups, playingDays } from "./group-engine.ts";
+import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
 
 export const HUMAN = "HUMAN";
 /** A6.5: identity columns joined onto the locked root by lockRoot (null when the save has no profile row). */
@@ -216,9 +216,16 @@ export async function bookedParticipants(tx: CareerExecutor, saveId: string, sea
   return new Set((await tx.execute(sql`SELECT DISTINCT participant_key FROM career_participant_bookings
     WHERE career_save_id = ${saveId} AND season = ${season} AND day BETWEEN ${fromDay} AND ${toDay}`)).rows.map(row => String(row.participant_key)));
 }
+/** Participants booked on any of the given days (a league's nights). */
+export async function bookedOnDays(tx: CareerExecutor, saveId: string, season: number, days: readonly number[]): Promise<Set<string>> {
+  if (!days.length) return new Set();
+  return new Set((await tx.execute(sql`SELECT DISTINCT participant_key FROM career_participant_bookings
+    WHERE career_save_id = ${saveId} AND season = ${season} AND day IN (${sql.join(days.map(d => sql`${d}`), sql`, `)})`)).rows.map(row => String(row.participant_key)));
+}
 export async function insertBookings(tx: CareerExecutor, saveId: string, season: number, event: InstanceRow, participants: readonly string[]) {
   if (!participants.length) return;
-  const rows = participants.flatMap(key => Array.from({ length: event.end_day - event.start_day + 1 }, (_, i) => ({ participant_key: key, day: event.start_day + i })));
+  // A league books only its weekly nights, so its players keep their other events in between.
+  const rows = participants.flatMap(key => playingDays(event).map(day => ({ participant_key: key, day })));
   // Primary key (save, season, participant, day) makes a double booking impossible even if code regresses.
   await tx.execute(sql`INSERT INTO career_participant_bookings (career_save_id, season, participant_key, day, event_id)
     SELECT ${saveId}::uuid, ${season}, b.participant_key, b.day, ${event.id}::uuid FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS b(participant_key text, day integer)`);
@@ -245,7 +252,8 @@ type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; np
  */
 export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number): Promise<{ locked: boolean; entrants: number }> {
   const saveId = root.id, snapshot = event.snapshot;
-  const booked = await bookedParticipants(tx, saveId, event.season, event.start_day, event.end_day);
+  const booked = event.snapshot.format.structure === "LEAGUE" ? await bookedOnDays(tx, saveId, event.season, playingDays(event))
+    : await bookedParticipants(tx, saveId, event.season, event.start_day, event.end_day);
   const excluded = await exclusiveConflicts(tx, saveId, event);
   const existing = (await tx.execute(sql`SELECT * FROM career_event_entries WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`)).rows;
   const taken = new Set(existing.map(row => String(row.participant_key)));
@@ -348,19 +356,20 @@ export async function makeDraw(tx: CareerExecutor, root: RootRow, event: Instanc
   const policy = event.snapshot.seedingPolicy;
   const seeded = policy.list ? providers.seeding.order(policy.list, keys) : [];
   const draw = generateKnockoutDraw(keys, seeded, policy.seeds, scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "draw", event.season, event.instance_key));
-  const groups = event.snapshot.format.structure === "GROUP_KNOCKOUT";
+  const groups = isGroupedStructure(event.snapshot.format.structure), layout = layoutFor(event.snapshot.format.structure);
   const stage = groups ? "knockout" : event.snapshot.format.stages[0].key;
-  const rows: Record<string, unknown>[] = groups ? makeGroupRows(root, event, draw.positions.map(p => p.participantKey)) : [];
-  const rounds = groups ? 3 : draw.rounds;
+  const rows: Record<string, unknown>[] = groups ? makeGroupRows(root, event, draw.positions.map(p => p.participantKey), layout) : [];
+  const rounds = groups ? layout.knockoutRounds : draw.rounds;
   for (let round = 1; round <= rounds; round++) {
-    const slots = (groups ? 8 : draw.size) / 2 ** round;
+    const slots = (groups ? 2 ** layout.knockoutRounds : draw.size) / 2 ** round;
     for (let slot = 1; slot <= slots; slot++) {
       const a = !groups && round === 1 ? draw.positions[(slot - 1) * 2].participantKey : null;
       const b = !groups && round === 1 ? draw.positions[(slot - 1) * 2 + 1].participantKey : null;
       const bye = !groups && round === 1 && (!a || !b);
       rows.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "tournament-match", event.id, stage, round, slot), stage_key: stage, round, slot,
         best_of: groups ? event.snapshot.format.stages[1].bestOfByRound[round - 1] : bestOfForRound(event.snapshot.format, round, draw.rounds),
-        scheduled_day: groups ? tournamentDay(event, round + 3, 6) : roundDay(event, round, draw.rounds),
+        // League play-offs (semi-finals and final) are on the last night.
+        scheduled_day: groups ? (layout.kind === "LEAGUE" ? event.end_day : tournamentDay(event, round + 3, 6)) : roundDay(event, round, draw.rounds),
         a_key: a, b_key: b, a_npc_id: a ? npcOf.get(a) : null, b_npc_id: b ? npcOf.get(b) : null,
         status: bye ? "BYE" : "PENDING", winner_key: bye ? (a ?? b) : null, result_source: bye ? "BYE" : null,
         first_throw_method: event.snapshot.format.firstThrowMethod });
@@ -479,7 +488,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       const matches = all.filter(m => m.event_id === event.id);
       if (!matches.length) throw new CareerError(409, "Active tournament has no official draw");
       const officialSize = (event.snapshot as unknown as {draw?:{size:number}}).draw?.size;
-      const expected = event.snapshot.format.structure === "GROUP_KNOCKOUT" ? 31 : officialSize ? officialSize-1 : null;
+      const expected = isGroupedStructure(event.snapshot.format.structure) ? layoutFor(event.snapshot.format.structure).fixtures : officialSize ? officialSize-1 : null;
       if (expected !== null && matches.length !== expected) throw new CareerError(409,"Official draw has missing or extra fixtures; it has not been regenerated");
       const knockout = matches.filter(m => !isGroupMatch(m));
       const rounds = Math.max(...knockout.map(m => m.round));
@@ -495,8 +504,8 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
         if (matches.some(m=>!FINAL.has(m.status))) throw new CareerError(409,"Final result conflicts with unfinished tournament fixtures");
         finishedEvents.push({ event, matches, rounds }); continue;
       }
-      if (event.snapshot.format.structure === "GROUP_KNOCKOUT") {
-        const out = await progressGroups(tx, root, event, matches, new Set(withdrawnRows.filter(r => r.event_id === event.id).map(r => String(r.participant_key))));
+      if (isGroupedStructure(event.snapshot.format.structure)) {
+        const out = await progressGroups(tx, root, event, matches, new Set(withdrawnRows.filter(r => r.event_id === event.id).map(r => String(r.participant_key))), layoutFor(event.snapshot.format.structure));
         if (out.changed) { structureChanged = true; continue; } // Reload persisted slots before simulating.
       }
       if (await resolveEmptyPaths(tx,root.id,matches)) { structureChanged = true; continue; }
@@ -541,7 +550,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       const bull = simulateBullUp(npcs.get(m.a_key!)!, npcs.get(m.b_key!)!, root.world_seed, key);
       m.first_throw = bull.firstThrow; m.first_throw_detail = { method: bull.method, throws: bull.throws };
       return { matchKey: key, playerAId: m.a_key!, playerBId: m.b_key!,
-        context: { category: event.snapshot.format.matchContext, roundImportance: Math.round(m.round / (isGroupMatch(m) ? 3 : rounds) * 1000) / 1000, elimination: !isGroupMatch(m) },
+        context: { category: event.snapshot.format.matchContext, roundImportance: Math.round(m.round / (isGroupMatch(m) ? layoutFor(event.snapshot.format.structure).schedule.length : rounds) * 1000) / 1000, elimination: !isGroupMatch(m) },
         format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow) };
     });
     const results = await simulateMatchesInTransaction(tx, root, world, requests);
@@ -574,21 +583,27 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
     AND participant_key IN (${sql.join(drawn.map(k => sql`${k}`), sql`, `)}) ORDER BY participant_key`)).rows;
   const final = matches.find(m => !isGroupMatch(m) && m.round === rounds)!;
   const champion = final.winner_key!;
+  // League: players who miss the play-offs finish in their table position (5th-8th; tied rows share a place).
+  const leagueRank = new Map<string, number>();
+  if (event.snapshot.format.structure === "LEAGUE") {
+    let place = 1;
+    for (const bucket of groupTable(matches, "L", new Set(), layoutFor("LEAGUE")).buckets) { for (const p of bucket) leagueRank.set(p.key, place); place += bucket.length; }
+  }
   const results = entries.map(entry => {
     const key = String(entry.participant_key);
     const played = matches.filter(m => m.a_key === key || m.b_key === key);
     const lost = played.find(m => !isGroupMatch(m) && FINAL.has(m.status) && m.winner_key !== key && m.status !== "BYE");
-    const groupOut = event.snapshot.format.structure === "GROUP_KNOCKOUT" && !played.some(m => !isGroupMatch(m));
+    const groupOut = isGroupedStructure(event.snapshot.format.structure) && !played.some(m => !isGroupMatch(m));
     const completed = played.filter(m => m.status === "COMPLETED");
     const legs = completed.reduce((acc, m) => { const mine = m.a_key === key; acc[0] += (mine ? m.legs_a : m.legs_b) ?? 0; acc[1] += (mine ? m.legs_b : m.legs_a) ?? 0; return acc; }, [0, 0]);
     const isChampion = key === champion;
-    const position = isChampion ? 1 : groupOut ? 9 : lost ? finishingPosition(lost.round, rounds) : finishingPosition(1, rounds);
+    const position = isChampion ? 1 : groupOut ? (leagueRank.get(key) ?? 9) : lost ? finishingPosition(lost.round, rounds) : finishingPosition(1, rounds);
     return { participant_key: key, participant_kind: String(entry.participant_kind), npc_id: entry.npc_id ? String(entry.npc_id) : null,
       finishing_position: position, stage_reached: isChampion ? "CHAMPION" : groupOut ? "GROUP_STAGE" : lost ? stageName(lost.round, rounds) : stageName(1, rounds), is_champion: isChampion,
       matches_played: completed.length, wins: completed.filter(m => m.winner_key === key).length, losses: completed.filter(m => m.winner_key !== key).length,
       legs_for: legs[0], legs_against: legs[1],
       metadata: { byes: played.filter(m => m.status === "BYE").length, walkovers: played.filter(m => m.status === "WALKOVER").map(m => ({ round: m.round, won: m.winner_key === key })),
-        ...(event.snapshot.format.structure==="GROUP_KNOCKOUT"?{structure:"GROUP_KNOCKOUT",groupLosses:completed.filter(m=>isGroupMatch(m)&&m.winner_key!==key).length}:{}),
+        ...(isGroupedStructure(event.snapshot.format.structure)?{structure:event.snapshot.format.structure,groupLosses:completed.filter(m=>isGroupMatch(m)&&m.winner_key!==key).length}:{}),
         qSchool: event.snapshot.qSchool ?? null, rankingCategory: event.ranking_category, classification: event.classification, roundLost: lost?.round ?? null, rounds,
         // A6.5: the human's age on the event's start date (a persisted fact for later storytelling).
         ...(key === HUMAN ? { humanAge: careerAge(rootIdentity(root as RootRow & { identity_dob?: unknown; identity_start?: unknown }), event.season, event.start_day) } : {}) } };
@@ -666,10 +681,10 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
   summary.completed += progress.completed;
   summary.awaitingHuman.push(...progress.awaitingHuman.map(m => m.id));
   // A real human group bull playoff also blocks the calendar; its ID is not a scoring match.
-  for (const event of live.filter(e => e.snapshot.format.structure === "GROUP_KNOCKOUT" && e.status === "IN_PROGRESS")) {
+  for (const event of live.filter(e => isGroupedStructure(e.snapshot.format.structure) && e.status === "IN_PROGRESS")) {
     const withdrawn = new Set((await tx.execute(sql`SELECT participant_key FROM career_event_entries WHERE career_save_id=${root.id}
       AND event_id=${event.id} AND status='WITHDRAWN'`)).rows.map(r => String(r.participant_key)));
-    const groups = resolvedGroups(await loadMatches(tx,root.id,event.id),await loadBulls(tx,root.id,event.id),withdrawn);
+    const groups = resolvedGroups(await loadMatches(tx,root.id,event.id),await loadBulls(tx,root.id,event.id),withdrawn,layoutFor(event.snapshot.format.structure));
     if (groups.some(g => g.pending?.pair.includes(HUMAN))) summary.awaitingHuman.push(`group-bull:${event.id}`);
   }
   return summary;

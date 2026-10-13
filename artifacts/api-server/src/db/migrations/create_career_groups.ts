@@ -20,11 +20,11 @@ export async function ensureCareerGroupSchema(tx: CareerExecutor) {
   await tx.execute(sql`DROP TRIGGER IF EXISTS career_group_bull_final_guard ON career_group_bull_playoffs`);
   await tx.execute(sql`CREATE TRIGGER career_group_bull_final_guard BEFORE UPDATE ON career_group_bull_playoffs
     FOR EACH ROW EXECUTE FUNCTION career_reject_finished_bull_update()`);
-  // A group-stage loss is not elimination. Preserve the old zero-loss KO champion rule.
+  // A group-stage (or league-stage) loss is not elimination. Preserve the old zero-loss KO champion rule.
   await tx.execute(sql`ALTER TABLE career_event_results DROP CONSTRAINT IF EXISTS career_event_results_champion_check`);
   await tx.execute(sql`ALTER TABLE career_event_results ADD CONSTRAINT career_event_results_champion_check
     CHECK (is_champion=(finishing_position=1) AND (NOT is_champion OR losses=0 OR
-      COALESCE(metadata->>'structure'='GROUP_KNOCKOUT' AND losses=(metadata->>'groupLosses')::integer,FALSE)))`);
+      COALESCE(metadata->>'structure' IN ('GROUP_KNOCKOUT','LEAGUE') AND losses=(metadata->>'groupLosses')::integer,FALSE)))`);
   // Honest double withdrawal: no invented winner and no played statistics.
   await tx.execute(sql`ALTER TABLE career_tournament_matches DROP CONSTRAINT IF EXISTS career_tournament_matches_status_check`);
   await tx.execute(sql`ALTER TABLE career_tournament_matches ADD CONSTRAINT career_tournament_matches_status_check

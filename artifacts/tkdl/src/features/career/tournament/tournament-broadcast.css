@@ -189,3 +189,13 @@
 .tb-complete.is-champion{min-height:clamp(360px,50vw,600px);align-content:end;background:#05070c}
 .tb-complete__stats div{background:#05070cb8}
 @media (max-width:640px){.tb-hero{grid-template-columns:1fr}.tb-hero__trophy{border-left:0;border-top:1px solid #ffffff12;flex-direction:row;justify-content:flex-start;padding:10px 18px}}
+
+.tb-tape__needle{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;margin:10px 0 2px;padding:8px 12px;border-radius:10px;border:1px solid #ff5a7a66;background:linear-gradient(90deg,#ff5a7a26,transparent)}
+.tb-tape__needle strong{letter-spacing:.08em;text-transform:uppercase;color:#ff8fa3;font-size:13px}
+.tb-tape__needle span{font-size:13px;color:#f3d6dc}
+.tb-result__rivalry{color:#ffd24a;margin-top:2px}
+
+.tb-roundup ul{display:grid;gap:6px;margin-top:8px}
+.tb-roundup li{display:flex;gap:10px;align-items:baseline;font-size:14px}
+.tb-roundup__stage{flex:0 0 auto;min-width:96px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9fb0c8}
+.tb-roundup__upset span:last-child{color:#ffd24a}

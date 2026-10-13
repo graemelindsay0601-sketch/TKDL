@@ -15,7 +15,8 @@ import { canonicalJson } from "./generation.ts";
 import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
 import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
 import { settleLifeCommitments } from "../life/commitments.ts";
-import { humanGroupBull,loadBulls,resolvedGroups } from "./group-engine.ts";
+import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-engine.ts";
+import { isGroupedStructure, layoutFor } from "./groups.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
   insertBookings, exclusiveConflicts, insertEntitlements, lastDayOfWeek, refreshCapabilities, type InstanceRow, type RootRow, type MatchRow,
@@ -125,7 +126,10 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   const spans = series ? [...series.spans.entries()] : [[event.id, { start: event.start_day, end: event.end_day }] as const];
   const own = new Set(spans.map(([id]) => id));
   const conflicts = new Set<string>();
-  for (const [, span] of spans) for (let d = span.start; d <= span.end; d++) { const other = human.bookings.get(d); if (other && !own.has(other)) conflicts.add(other); }
+  // A league only clashes on its weekly nights.
+  const days = (span: { start: number; end: number }) => event.snapshot.format.structure === "LEAGUE" && !series ? playingDays(event)
+    : Array.from({ length: span.end - span.start + 1 }, (_, i) => span.start + i);
+  for (const [, span] of spans) for (const d of days(span)) { const other = human.bookings.get(d); if (other && !own.has(other)) conflicts.add(other); }
   if (conflicts.size) denials.push("SCHEDULE_CONFLICT");
   const result = human.results.get(event.id);
   const held = human.ctx.entitlements.get(HUMAN) ?? new Set<string>();
@@ -276,11 +280,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const pending = (await tx.execute(sql`SELECT m.id, m.event_id FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
       WHERE m.career_save_id = ${root.id} AND m.status = 'AWAITING_HUMAN' AND i.season = ${season}`)).rows;
     const pendingTournamentActions:{eventId:string;kind:"GROUP_BULL_UP";group:string}[]=[];
-    const groupEvents=await loadInstances(tx,root.id,sql`season=${season} AND status='IN_PROGRESS' AND snapshot->'format'->>'structure'='GROUP_KNOCKOUT'`);
+    const groupEvents=await loadInstances(tx,root.id,sql`season=${season} AND status='IN_PROGRESS' AND snapshot->'format'->>'structure' IN ('GROUP_KNOCKOUT','LEAGUE')`);
     for(const e of groupEvents) {
       const withdrawn=new Set((await tx.execute(sql`SELECT participant_key FROM career_event_entries WHERE career_save_id=${root.id}
         AND event_id=${e.id} AND status='WITHDRAWN'`)).rows.map(r=>String(r.participant_key)));
-      for(const g of resolvedGroups(await loadMatches(tx,root.id,e.id),await loadBulls(tx,root.id,e.id),withdrawn))
+      for(const g of resolvedGroups(await loadMatches(tx,root.id,e.id),await loadBulls(tx,root.id,e.id),withdrawn,layoutFor(e.snapshot.format.structure)))
         if(g.pending?.pair.includes(HUMAN))pendingTournamentActions.push({eventId:e.id,kind:"GROUP_BULL_UP",group:g.key});
     }
     const events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
@@ -402,7 +406,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       return database.transaction(async tx => {
         const {root,world:state}=await requireSeason(tx,actor,saveId);
         const event=await eventOwned(tx,root.id,eventId);
-        if(event.status!=="IN_PROGRESS" || event.snapshot.format.structure!=="GROUP_KNOCKOUT")
+        if(event.status!=="IN_PROGRESS" || !isGroupedStructure(event.snapshot.format.structure))
           throw new CareerError(409,"Event is not awaiting a group bull playoff");
         const withdrawn=new Set((await tx.execute(sql`SELECT participant_key FROM career_event_entries WHERE career_save_id=${root.id}
           AND event_id=${eventId} AND status='WITHDRAWN'`)).rows.map(r=>String(r.participant_key)));
