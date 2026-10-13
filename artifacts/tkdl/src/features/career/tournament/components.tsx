@@ -11,7 +11,7 @@ import type { CareerEvent } from "../types";
 import {
   bracketColumns, dossier, humanPath, involvesHuman, isFinal, isGroup, knockoutRounds, opponentIfWin, prizeLadder,
   resultMoment, runSummary, stageOf, tierFromEvent, tierProfile, type ResultMoment, type TMatch, type TPlayer, type TView,
-  needleMatch,
+  needleMatch, roundUp,
 } from "./model";
 import "./tournament-broadcast.css";
 
@@ -401,3 +401,15 @@ export function MatchContextStrip({ saveId, eventId, matchId }: { saveId: string
 }
 
 export { involvesHuman, isFinal, resultMoment, tierProfile };
+
+/** Elsewhere in the draw: notable results from other boards in this event. */
+export function RoundUp({ v }: { v: TView }) {
+  const items = roundUp(v);
+  if (!items.length) return null;
+  return (
+    <section className="pdc-card p-4 tb-roundup" aria-label="Elsewhere in the draw">
+      <Label>Elsewhere in the draw</Label>
+      <ul>{items.map((i, n) => <li key={n} className={`tb-roundup__${i.kind.toLowerCase()}`}><span className="tb-roundup__stage">{i.stage}</span><span>{i.text}</span></li>)}</ul>
+    </section>
+  );
+}

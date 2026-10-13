@@ -10,7 +10,7 @@ import {CareerShirt,CareerEventIdentity} from "../identity";
 import {ContextHelp} from "../guidance";
 import type {ShellContext} from "../shell";
 import "./tournament.css";
-import {ArrivalCeremony,BracketBoard,CompletionSummary,LatestResult,PathToTitle,PrizeLadder,TaleOfTheTape,TournamentHero,WalkOn} from "../tournament/components";
+import {ArrivalCeremony,BracketBoard,CompletionSummary,LatestResult,PathToTitle,PrizeLadder,RoundUp,TaleOfTheTape,TournamentHero,WalkOn} from "../tournament/components";
 
 type Player=TournamentView["field"][number];
 const name=(v:TournamentView,key:string|null)=>v.field.find(p=>p.key===key)?.name??(key?"Participant unavailable":"To be decided");
@@ -126,6 +126,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
       </section>}
       {v.latestMatch&&!terminal&&<LatestResult v={v}/>}
       <div className="tb-hub-grid"><PathToTitle v={v}/><PrizeLadder v={v}/></div>
+      <RoundUp v={v}/>
       {v.groups.length>0&&<GroupTables v={v}/>}
       {v.achievements.groupWinner&&!v.achievements.tournamentChampion&&<p className="pdc-card p-3"><Flag size={15} className="inline" aria-hidden/> Group winner — a stage achievement, not a tournament title.</p>}
       {v.event.qSchool&&<p className="pdc-card p-3">Q-School session: direct cards and the Order of Merit are decided by the rankings. <Link className="underline" href={`/career/${id}/q-school`}>View Q-School standings and sessions</Link>.</p>}

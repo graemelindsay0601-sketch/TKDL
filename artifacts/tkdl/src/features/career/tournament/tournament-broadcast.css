@@ -194,3 +194,8 @@
 .tb-tape__needle strong{letter-spacing:.08em;text-transform:uppercase;color:#ff8fa3;font-size:13px}
 .tb-tape__needle span{font-size:13px;color:#f3d6dc}
 .tb-result__rivalry{color:#ffd24a;margin-top:2px}
+
+.tb-roundup ul{display:grid;gap:6px;margin-top:8px}
+.tb-roundup li{display:flex;gap:10px;align-items:baseline;font-size:14px}
+.tb-roundup__stage{flex:0 0 auto;min-width:96px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9fb0c8}
+.tb-roundup__upset span:last-child{color:#ffd24a}

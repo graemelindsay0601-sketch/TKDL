@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createServer, type ViteDevServer } from "vite";
 import {
-  bracketColumns, stageOf, needleMatch, rivalryAfter, dossier, humanPath, opponentIfWin, prizeLadder, resultMoment, roundLabel, runSummary, tierFromEvent, tierProfile,
+  bracketColumns, stageOf, needleMatch, rivalryAfter, roundUp, dossier, humanPath, opponentIfWin, prizeLadder, resultMoment, roundLabel, runSummary, tierFromEvent, tierProfile,
 } from "../../features/career/tournament/model.ts";
 import { event, eventDetail, overview, save, SAVE_ID } from "./career-fixtures.ts";
 
@@ -336,4 +336,24 @@ test("rivalries: needle-match framing before, and a rivalry line after, from the
   assert.equal(rivalryAfter(m(2, 5, ["Nemesis"]), true), "Nemesis beaten — only your 2nd win in 7 meetings.");
   assert.equal(rivalryAfter(m(4, 4, ["Career Rival"]), false), "Rivalry head to head: 4–4, level.");
   assert.equal(rivalryAfter(m(5, 1, ["Favourite Opponent"]), true), null);
+});
+
+test("round-up: other boards' upsets, whitewashes, big checkouts, 100+ averages and 180 hauls — never the player's own matches", () => {
+  const p = (key: string, name: string, seed: number | null, ranking: number | null) => ({ key, name, seed, ranking }) as never;
+  const field = [p("HUMAN", "You", null, null), p("a", "Ann Seed", 1, 3), p("b", "Bo Qualifier", null, 140), p("c", "Cy Mid", 5, 30), p("d", "Di Low", null, 90)];
+  const m = (round: number, slot: number, a: string, b: string, winner: string, la: number, lb: number, summary: object = {}, best_of = 11) =>
+    ({ stage_key: "main", round, slot, a_key: a, b_key: b, winner_key: winner, legs_a: la, legs_b: lb, status: "COMPLETED", best_of, summary }) as never;
+  const matches = [
+    m(1, 1, "a", "b", "b", 4, 6),                                                   // seed 1 beaten by an unseeded player
+    m(1, 2, "c", "d", "c", 6, 0, { highestCheckouts: [164, 40], averages: [101.2, 80], maximums: [5, 1] }),
+    m(1, 3, "HUMAN", "d", "HUMAN", 6, 0, { highestCheckouts: [170, 0] }),            // the player's own match: never listed
+    m(2, 1, "b", "c", "c", 2, 6),
+  ];
+  const items = roundUp({ matches, field } as never);
+  const texts = items.map(i => i.text);
+  assert.ok(texts.includes("Bo Qualifier knocked out No.1 seed Ann Seed 6–4"));
+  assert.ok(texts.includes("Cy Mid whitewashed Di Low 6–0"));
+  assert.ok(texts.includes("Cy Mid took out 164") && texts.includes("Cy Mid averaged 101.20") && texts.includes("Cy Mid hit 5 maximums"));
+  assert.ok(!texts.some(t => t.includes("You") || t.includes("170")));
+  assert.equal(items[0].order >= items.at(-1)!.order, true, "newest stage first");
 });

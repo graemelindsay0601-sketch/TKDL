@@ -243,3 +243,38 @@ export function runSummary(v: Pick<TView, "matches" | "humanResult" | "position"
   }, [0, 0] as [number, number]);
   return { matches: path.length, played: played.length, won: path.filter(m => m.winner_key === "HUMAN").length, legsFor: legs[0], legsAgainst: legs[1] };
 }
+
+// ---------------------------------------------------------------- elsewhere in the draw
+export type RoundUpItem = { kind: "UPSET" | "WHITEWASH" | "CHECKOUT" | "AVERAGE" | "MAXIMUMS"; text: string; stage: string; order: number };
+type MatchSummary = { averages?: [number, number]; maximums?: [number, number]; highestCheckouts?: [number, number] };
+/**
+ * Notable results from other boards in this event, from saved results only (seeds, published ranking,
+ * and the simulated match summary): seed and ranking upsets, whitewashes, big checkouts, 100+ averages
+ * and 180 hauls. Newest stage first, at most `limit` items. The human's own matches are excluded.
+ */
+export function roundUp(v: Pick<TView, "matches" | "field">, limit = 6): RoundUpItem[] {
+  const rounds = knockoutRounds(v.matches);
+  const player = (k: string | null) => v.field.find(p => p.key === k);
+  const items: RoundUpItem[] = [];
+  for (const m of v.matches) {
+    if (m.status !== "COMPLETED" || involvesHuman(m) || !m.winner_key || m.legs_a === null || m.legs_b === null) continue;
+    const winnerIsA = m.winner_key === m.a_key, w = player(m.winner_key), l = player(winnerIsA ? m.b_key : m.a_key);
+    if (!w || !l) continue;
+    const stage = stageOf(m, rounds), order = (isGroup(m) ? 0 : 100) + m.round;
+    const score = winnerIsA ? `${m.legs_a}–${m.legs_b}` : `${m.legs_b}–${m.legs_a}`, lost = winnerIsA ? m.legs_b : m.legs_a;
+    const beat = isGroup(m) ? "beat" : "knocked out";
+    if (l.seed && (!w.seed || w.seed > l.seed + 3)) items.push({ kind: "UPSET", stage, order: order + 0.5, text: `${w.name} ${beat} No.${l.seed} seed ${l.name} ${score}` });
+    else if (l.ranking && l.ranking <= 16 && (!w.ranking || w.ranking > l.ranking + 32)) items.push({ kind: "UPSET", stage, order: order + 0.5, text: `${w.name}${w.ranking ? ` (world #${w.ranking})` : ""} ${beat} world #${l.ranking} ${l.name} ${score}` });
+    else if (lost === 0 && m.best_of >= 7) items.push({ kind: "WHITEWASH", stage, order: order + 0.3, text: `${w.name} whitewashed ${l.name} ${score}` });
+    const sum = (m as TMatch & { summary?: MatchSummary }).summary ?? {};
+    ([0, 1] as const).forEach(side => {
+      const who = player(side === 0 ? m.a_key : m.b_key);
+      if (!who) return;
+      const checkout = sum.highestCheckouts?.[side] ?? 0, average = sum.averages?.[side] ?? 0, maximums = sum.maximums?.[side] ?? 0;
+      if (checkout >= 130) items.push({ kind: "CHECKOUT", stage, order: order + checkout / 1000, text: `${who.name} took out ${checkout}` });
+      if (average >= 100) items.push({ kind: "AVERAGE", stage, order: order + 0.2, text: `${who.name} averaged ${average.toFixed(2)}` });
+      if (maximums >= 4) items.push({ kind: "MAXIMUMS", stage, order: order + 0.1, text: `${who.name} hit ${maximums} maximums` });
+    });
+  }
+  return items.sort((a, b) => b.order - a.order).slice(0, limit);
+}
