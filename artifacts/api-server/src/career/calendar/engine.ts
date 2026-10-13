@@ -16,6 +16,7 @@ import { generateKnockoutDraw, finishingPosition, stageName } from "./draw.ts";
 import { careerAge, type CareerIdentity } from "../identity/age.ts";
 import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups, playingDays } from "./group-engine.ts";
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
+import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
 export const HUMAN = "HUMAN";
 /** A6.5: identity columns joined onto the locked root by lockRoot (null when the save has no profile row). */
@@ -310,14 +311,41 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     const pool = npcs.filter(npc => free(npc) && eligible(npc, true));
     for (const npc of weightedSample(pool, npc => tierWeight(policy.tierWeights, npc, tierOf), need, rng)) add(npc, "INVITATION");
   }
-  if (snapshot.fieldPolicy === "SELECTION") {
+  // v13 pairs: World Cup national selection replaces open selection (each country's top two on the World Ranking).
+  const pairs = snapshot.format.sideSize === 2;
+  let teams: PairRow[] = [];
+  if (pairs && snapshot.format.pairing === "NATION") {
+    const rank = (key: string) => selectionRank(providers.sportingStatus.rankings(key));
+    const candidates: PairCandidate[] = npcs.filter(npc => npc.status === "ACTIVE" && free(npc) && rank(npc.id) !== undefined)
+      .map(npc => ({ key: npc.id, npcId: npc.id, country: dartsNation(npc.nationality, npcFacts(npc).locality), rank: rank(npc.id)! }));
+    const human = humanParticipant(root, providers);
+    if (root.status === "ACTIVE" && rank(HUMAN) !== undefined && !booked.has(HUMAN) && !excluded.has(HUMAN) && !taken.has(HUMAN))
+      candidates.push({ key: HUMAN, npcId: null, country: dartsNation(human.country, human.locality), rank: rank(HUMAN)! });
+    const selected = nationTeams(candidates, Math.floor((capacity - taken.size) / 2));
+    for (const p of selected.players) {
+      if (p.key === HUMAN) { taken.add(HUMAN); additions.push({ participant_key: HUMAN, participant_kind: "HUMAN", npc_id: null, source: "INVITATION", entitlement_id: null }); }
+      else add(byId.get(p.key)!, "INVITATION");
+    }
+    teams = selected.teams;
+  } else if (snapshot.fieldPolicy === "SELECTION") {
     const target = Math.max(taken.size, fillTarget(capacity, snapshot.npcFill, rng));
     const pool = npcs.filter(npc => free(npc) && eligible(npc));
     const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
     for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc), target - taken.size, rng)) add(npc, "SELECTION");
   }
+  if (pairs && snapshot.format.pairing === "LOCAL") {
+    const order = [...existing.map(row => String(row.participant_key)), ...additions.map(a => a.participant_key)];
+    const human = humanParticipant(root, providers);
+    const local = localTeams(order.map(key => ({ key, npc: key === HUMAN ? null : byId.get(key) ?? null })), { country: human.country, locality: human.locality });
+    teams = local.teams;
+    // The odd player out is not entered (an existing human entry is always paired when any NPC was selected).
+    for (const key of local.unpaired) {
+      const at = additions.findIndex(a => a.participant_key === key);
+      if (at >= 0) { taken.delete(key); additions.splice(at, 1); }
+    }
+  }
   const entrants = taken.size;
-  if (entrants < event.minimum_entrants || entrants < 2) {
+  if (entrants < event.minimum_entrants || entrants < 2 || (pairs && (teams.length < 2 || teams.length * 2 !== entrants))) {
     // Unfillable: cancel honestly; the human keeps no booking for a cancelled event.
     await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${saveId} AND event_id = ${event.id}`);
     await tx.execute(sql`UPDATE career_event_entries SET status = 'WITHDRAWN', withdrawn_at = NOW() WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`);
@@ -336,6 +364,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     await tx.execute(sql`UPDATE career_qualification_entitlements SET status = 'CONSUMED', consumed_by_event_id = ${event.id}, resolved_at = NOW()
       WHERE career_save_id = ${saveId} AND status = 'ACTIVE' AND id IN (${sql.join(consumed.map(id => sql`${id}::uuid`), sql`, `)})`);
   }
+  await insertPairs(tx, saveId, event.id, teams);
   await transition(tx, event, "DRAW_PENDING", { set: sql`entrant_count = ${entrants}, field_locked_at = NOW()` });
   event.entrant_count = entrants;
   return { locked: true, entrants };
@@ -350,7 +379,10 @@ export async function makeDraw(tx: CareerExecutor, root: RootRow, event: Instanc
   if (event.status !== "DRAW_PENDING") throw new CareerError(409, "Draw requires a locked field");
   const already = (await tx.execute(sql`SELECT 1 FROM career_tournament_matches WHERE career_save_id = ${root.id} AND event_id = ${event.id} LIMIT 1`)).rows.length;
   if (already) throw new CareerError(409, "Official draw already exists");
-  const entries = (await tx.execute(sql`SELECT participant_key, npc_id FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status = 'CONFIRMED' ORDER BY participant_key`)).rows;
+  const allEntries = (await tx.execute(sql`SELECT participant_key, npc_id FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status = 'CONFIRMED' ORDER BY participant_key`)).rows;
+  // Pairs: the bracket holds each team's captain.
+  const captains = event.snapshot.format.sideSize === 2 ? new Set([...(await loadPairs(tx, root.id, [event.id])).values()].map(p => p.captain_key)) : null;
+  const entries = captains ? allEntries.filter(row => captains.has(String(row.participant_key))) : allEntries;
   const keys = entries.map(row => String(row.participant_key));
   const npcOf = new Map(entries.map(row => [String(row.participant_key), row.npc_id ? String(row.npc_id) : null]));
   const policy = event.snapshot.seedingPolicy;
@@ -545,13 +577,21 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       continue;
     }
     const npcs = new Map((await loadNpcs(tx, root.id, { ids: [...new Set(npcReady.flatMap(r => [r.match.a_key!, r.match.b_key!]))] })).map(n => [n.id, n]));
+    const pairEvents = [...new Set(npcReady.filter(r => r.event.snapshot.format.sideSize === 2).map(r => r.event.id))];
+    const teams = await loadPairs(tx, root.id, pairEvents);
+    const partnerOf = (eventId: string, captain: string) => {
+      const team = teams.get(`${eventId}|${captain}`);
+      if (!team) throw new CareerError(409, "Pairs match has no recorded team");
+      return team.partner_npc_id;
+    };
     const requests = npcReady.map(({ event, match: m, rounds }) => {
       const key = matchKeyFor(event, m.stage_key, m.round, m.slot);
       const bull = simulateBullUp(npcs.get(m.a_key!)!, npcs.get(m.b_key!)!, root.world_seed, key);
       m.first_throw = bull.firstThrow; m.first_throw_detail = { method: bull.method, throws: bull.throws };
       return { matchKey: key, playerAId: m.a_key!, playerBId: m.b_key!,
         context: { category: event.snapshot.format.matchContext, roundImportance: Math.round(m.round / (isGroupMatch(m) ? layoutFor(event.snapshot.format.structure).schedule.length : rounds) * 1000) / 1000, elimination: !isGroupMatch(m) },
-        format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow) };
+        format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow),
+        ...(event.snapshot.format.sideSize === 2 ? { partners: [partnerOf(event.id, m.a_key!), partnerOf(event.id, m.b_key!)] as [string, string] } : {}) };
     });
     const results = await simulateMatchesInTransaction(tx, root, world, requests);
     simulated += results.length;
@@ -589,8 +629,11 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
     let place = 1;
     for (const bucket of groupTable(matches, "L", new Set(), layoutFor("LEAGUE")).buckets) { for (const p of bucket) leagueRank.set(p.key, place); place += bucket.length; }
   }
+  // Pairs: the captain's result names the partner (partners have no result row of their own; the pair is one entrant).
+  const teams = event.snapshot.format.sideSize === 2 ? await loadPairs(tx, root.id, [event.id]) : new Map();
   const results = entries.map(entry => {
     const key = String(entry.participant_key);
+    const team = teams.get(`${event.id}|${key}`);
     const played = matches.filter(m => m.a_key === key || m.b_key === key);
     const lost = played.find(m => !isGroupMatch(m) && FINAL.has(m.status) && m.winner_key !== key && m.status !== "BYE");
     const groupOut = isGroupedStructure(event.snapshot.format.structure) && !played.some(m => !isGroupMatch(m));
@@ -604,6 +647,7 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
       legs_for: legs[0], legs_against: legs[1],
       metadata: { byes: played.filter(m => m.status === "BYE").length, walkovers: played.filter(m => m.status === "WALKOVER").map(m => ({ round: m.round, won: m.winner_key === key })),
         ...(isGroupedStructure(event.snapshot.format.structure)?{structure:event.snapshot.format.structure,groupLosses:completed.filter(m=>isGroupMatch(m)&&m.winner_key!==key).length}:{}),
+        ...(team ? { pairs: { partnerKey: team.partner_key, partnerNpcId: team.partner_npc_id, nation: team.nation } } : {}),
         qSchool: event.snapshot.qSchool ?? null, rankingCategory: event.ranking_category, classification: event.classification, roundLost: lost?.round ?? null, rounds,
         // A6.5: the human's age on the event's start date (a persisted fact for later storytelling).
         ...(key === HUMAN ? { humanAge: careerAge(rootIdentity(root as RootRow & { identity_dob?: unknown; identity_start?: unknown }), event.season, event.start_day) } : {}) } };

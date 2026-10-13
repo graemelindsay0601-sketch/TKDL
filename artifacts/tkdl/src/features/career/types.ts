@@ -264,12 +264,15 @@ export type LiveDart = { segment: number; multiplier: 1 | 2 | 3; value: number; 
 export type LiveFormat = { bull?: "STANDARD" | "FAT"; roundLimit?: number; mix?: "SOFT_TIP" } & (
   | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "LEGS"; bestOfLegs: number }
   | { startingScore: number; inRule: "STRAIGHT" | "DOUBLE" | "MASTER"; outRule: "DOUBLE" | "STRAIGHT" | "MASTER" | "TREBLE" | "BULL"; unit: "SETS"; bestOfSets: number; bestOfLegsPerSet: number });
+export type LiveTeamBot = { key: string; name: string; config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string };
 export type LiveSession = {
   sessionId: string; sessionVersion: number; matchId: string; eventId: string;
   status: "BULL_UP" | "IN_PLAY" | "COMPLETED" | "SUPERSEDED"; revision: number;
   player: { name: string }; opponent: { key: string; name: string };
   format: LiveFormat; bestOf: number; firstThrowMethod: string;
   bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string };
+  /** Event database v13 pairs: your partner and the opposing partner, each a seeded bot like the opponent. */
+  team?: { partner: LiveTeamBot; opponentPartner: LiveTeamBot } | null;
   bullUp: { required: boolean; firstOrder: 0 | 1; throws: ("INNER" | "OUTER" | "MISS")[]; winner: 0 | 1 | null; nextThrower: 0 | 1 | null };
   firstThrower: 0 | 1 | null; darts: LiveDart[]; settledDarts: number;
   progress: { legs: [number, number]; sets: [number, number]; totalLegs: [number, number]; setNo: number; legNo: number; complete: boolean } | null;

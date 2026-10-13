@@ -14,10 +14,11 @@ import { SIMULATION_VERSION } from "../world/config.ts";
 import { HUMAN, loadInstances, matchKeyFor, type InstanceRow, type MatchRow } from "../calendar/engine.ts";
 import { assessCapability, liveMatchFormat } from "../calendar/formats.ts";
 import { isGroupMatch, layoutFor } from "../calendar/groups.ts";
+import { loadPairs } from "../calendar/pairs.ts";
 import type { CareerCalendarService } from "../calendar/service.ts";
 import {
   replay, settledDartCount, validateDart, resolveBullUp, botBullThrow, isBullThrow, planBotX01Visit, seededRandom, botOptionsFor, botCorkDart, corkThrowers,
-  planBotCricketVisit, botChoiceDart, starterFor, type CricketBoard,
+  planBotCricketVisit, botChoiceDart, starterFor, pairsSeat, pairsSeats, type CricketBoard, type PairsSeat,
   type Dart, type X01Format, type X01MatchState, type BullThrow, type PlayerIdx,
 } from "../../shared/darts-rules/index.ts";
 
@@ -46,11 +47,25 @@ type SessionRow = {
   human_side: 0 | 1; opponent_key: string; best_of: number; format: X01Format; first_throw_method: string;
   bot_config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; bot_seed: string; bull_first_order: 0 | 1; bull_throws: BullThrow[];
   first_thrower: 0 | 1 | null; darts: Dart[]; revision: number; result: Record<string, unknown> | null;
+  /** Event database v13 pairs: the human's partner and the opposing captain's partner, each a seeded bot. */
+  team: SessionTeam | null;
   created_at: unknown; updated_at: unknown; completed_at: unknown;
 };
+type TeamBot = { key: string; config: SessionRow["bot_config"]; seed: string };
+export type SessionTeam = { partner: TeamBot; opponentPartner: TeamBot };
 
-/** Every bot visit in a replayed log must be exactly what the seeded planner throws. */
-export function verifyBotVisits(state: X01MatchState, bot: SessionRow["bot_config"], seed: string): void {
+/** The bot throwing a visit at this seat, or null for the human's own visits. */
+export function seatBot(seat: PairsSeat, bot: SessionRow["bot_config"], seed: string, team: SessionTeam | null): { config: SessionRow["bot_config"]; seed: string } | null {
+  if (seat.team === 0) return seat.member === 1 && team ? team.partner : null;
+  return seat.member === 1 && team ? team.opponentPartner : { config: bot, seed };
+}
+
+/**
+ * Every bot visit in a replayed log must be exactly what the seeded planner throws. Pairs: visits alternate
+ * between a team's two players (pairsSeat); the human's partner and both opponents are seeded bots, each
+ * indexed over its own visits, and only the human's own visits are self-reported.
+ */
+export function verifyBotVisits(state: X01MatchState, bot: SessionRow["bot_config"], seed: string, team: SessionTeam | null = null): void {
   const rules = botOptionsFor(state.format);
   // Soft-tip cork darts: every opponent cork dart must be the session bot's seeded cork.
   const checkCork = (legNo: number, starter: PlayerIdx, darts: readonly Dart[], kind: "limit" | "choice" = "limit") => {
@@ -70,18 +85,21 @@ export function verifyBotVisits(state: X01MatchState, bot: SessionRow["bot_confi
     if (c.picker === 1 && !sameDarts([c.darts[c.darts.length - 1]], [botChoiceDart(bot, seed, c.legNo)])) throw new CareerError(409, `Opponent's game choice in leg ${c.legNo} does not match the session's bot`);
   }
   if (state.choice) checkCork(state.legNo, state.choice.starter, state.choice.darts, "choice");
-  const check = (visit: { startScore: number; startOpened: boolean; darts: Dart[]; game?: string; startBoard?: CricketBoard }, index: number) => {
-    const rng = seededRandom(seed, "bot-visit", index);
-    const plan = visit.game === "CRICKET" || visit.startBoard ? planBotCricketVisit(visit.startBoard!, 1, bot, rng)
-      : planBotX01Visit(visit.startScore, bot, { ...rules, opened: visit.startOpened, rng });
+  const check = (visit: { startScore: number; startOpened: boolean; darts: Dart[]; game?: string; startBoard?: CricketBoard }, seat: PairsSeat) => {
+    const thrower = seatBot(seat, bot, seed, team);
+    if (!thrower) return;
+    const rng = seededRandom(thrower.seed, "bot-visit", seat.memberVisit);
+    const plan = visit.game === "CRICKET" || visit.startBoard ? planBotCricketVisit(visit.startBoard!, seat.team, thrower.config, rng)
+      : planBotX01Visit(visit.startScore, thrower.config, { ...rules, opened: visit.startOpened, rng });
     visit.darts.forEach((d, i) => {
       const p = plan[i];
-      if (!p || p.segment !== d.segment || p.multiplier !== d.multiplier || p.value !== d.value) throw new CareerError(409, `Opponent visit ${index + 1} does not match the session's bot`);
+      const who = seat.team === 0 ? "Partner" : "Opponent";
+      if (!p || p.segment !== d.segment || p.multiplier !== d.multiplier || p.value !== d.value) throw new CareerError(409, `${who} visit ${seat.memberVisit + 1} does not match the session's bot`);
     });
   };
-  let index = 0;
-  for (const v of state.visits) if (v.thrower === 1) check(v, index++);
-  if (state.visit && state.visit.thrower === 1) check(state.visit, index);
+  const size = team ? 2 : 1;
+  pairsSeats(state.visits, size).forEach((seat, i) => check(state.visits[i], seat));
+  if (state.visit) check(state.visit, pairsSeat(state.visits, state.visit.thrower, size));
 }
 
 /** Who corked first in a completed Choice leg: the starter the alternation gave that leg (before the pick). */
@@ -91,17 +109,19 @@ function resolveChoiceStarter(state: X01MatchState, legNo: number): PlayerIdx {
 
 const sameDarts = (a: readonly Dart[], b: readonly Dart[]) => a.length === b.length && a.every((d, i) => d.segment === b[i].segment && d.multiplier === b[i].multiplier && d.value === b[i].value);
 
-/** Compact, verified match facts handed to A3 with the result (and to the UI). */
-export function matchFacts(state: X01MatchState) {
-  const per = (p: PlayerIdx) => {
-    const visits = state.visits.filter(v => v.thrower === p && v.game !== "CRICKET");
+/** Compact, verified match facts handed to A3 with the result (and to the UI). Pairs: `human` is the human's own visits only. */
+export function matchFacts(state: X01MatchState, pairs = false) {
+  const seats = pairsSeats(state.visits, pairs ? 2 : 1);
+  const per = (p: PlayerIdx, member?: 0 | 1) => {
+    const visits = state.visits.filter((v, i) => v.thrower === p && v.game !== "CRICKET" && (member === undefined || seats[i].member === member));
     const darts = visits.reduce((n, v) => n + v.darts.length, 0);
     const points = visits.reduce((n, v) => n + v.points, 0);
     return { darts, points, average: darts ? Math.round(points / darts * 300) / 100 : 0, maximums: visits.filter(v => v.points === 180).length,
       highestCheckout: Math.max(0, ...visits.filter(v => v.checkout).map(v => v.startScore)) };
   };
   return { legs: state.totalLegs, sets: state.format.unit === "SETS" ? state.sets : null, winner: state.winner,
-    legLog: state.legsLog.map(l => ({ set: l.setNo, leg: l.legNo, starter: l.starter, winner: l.winner })), human: per(0), opponent: per(1) };
+    legLog: state.legsLog.map(l => ({ set: l.setNo, leg: l.legNo, starter: l.starter, winner: l.winner })), human: pairs ? per(0, 0) : per(0), opponent: per(1),
+    ...(pairs ? { partner: per(0, 1), team: per(0) } : {}) };
 }
 
 export function createCareerLiveMatchService(database: CareerDatabase, calendar: CareerCalendarService) {
@@ -114,7 +134,7 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
     return { root, match, session };
   }
 
-  function present(session: SessionRow, match: MatchRow, opponentName: string, humanName: string) {
+  function present(session: SessionRow, match: MatchRow, opponentName: string, humanName: string, teamNames?: { partner: string; opponentPartner: string }) {
     const bull = resolveBullUp(session.bull_first_order, session.bull_throws);
     const state = session.first_thrower !== null ? replay(session.format, session.first_thrower, session.darts) : null;
     const superseded = session.status !== "COMPLETED" && match.status !== "AWAITING_HUMAN";
@@ -125,6 +145,8 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
       format: session.format, bestOf: session.best_of, firstThrowMethod: session.first_throw_method,
       // Only what GameScorer needs: the bot's live config and its visit seed. No hidden potential/ability.
       bot: { config: session.bot_config, seed: session.bot_seed },
+      // Pairs: the partner bots (same disclosure as the opponent's bot: live config and visit seed only).
+      team: session.team ? { partner: { ...session.team.partner, name: teamNames?.partner ?? "Partner" }, opponentPartner: { ...session.team.opponentPartner, name: teamNames?.opponentPartner ?? "Partner" } } : null,
       bullUp: { required: session.first_throw_method === "BULL_UP", firstOrder: session.bull_first_order, throws: session.bull_throws, winner: bull.winner, nextThrower: bull.nextThrower },
       firstThrower: session.first_thrower,
       darts: session.darts, settledDarts: state ? settledDartCount(state) : 0,
@@ -134,14 +156,16 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
   }
 
   async function names(tx: CareerExecutor, saveId: string, session: SessionRow) {
-    const npc = (await loadNpcs(tx, saveId, { ids: [session.opponent_key] }))[0];
+    const ids = [session.opponent_key, ...(session.team ? [session.team.partner.key, session.team.opponentPartner.key] : [])];
+    const npcs = new Map((await loadNpcs(tx, saveId, { ids })).map(n => [n.id, `${n.firstName} ${n.surname}`]));
     const human = (await tx.execute(sql`SELECT COALESCE(p.display_name, s.career_name) AS name FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId}`)).rows[0];
-    return { opponent: npc ? `${npc.firstName} ${npc.surname}` : "Opponent", human: (human?.name as string | null) ?? "You" };
+    return { opponent: npcs.get(session.opponent_key) ?? "Opponent", human: (human?.name as string | null) ?? "You",
+      team: session.team ? { partner: npcs.get(session.team.partner.key) ?? "Partner", opponentPartner: npcs.get(session.team.opponentPartner.key) ?? "Partner" } : undefined };
   }
 
   async function presentLoaded(tx: CareerExecutor, saveId: string, session: SessionRow, match: MatchRow) {
     const n = await names(tx, saveId, session);
-    return present(session, match, n.opponent, n.human);
+    return present(session, match, n.opponent, n.human, n.team);
   }
 
   return {
@@ -169,14 +193,30 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
         const context = { category: event.snapshot.format.matchContext, roundImportance: Math.round(match.round / (isGroupMatch(match) ? layoutFor(event.snapshot.format.structure).schedule.length : rounds) * 1000) / 1000, elimination: !isGroupMatch(match) };
         const performance = createPerformance(npc, context, root.difficulty, scopedRandom(root.world_seed, root.world_generation_version, "performance", SIMULATION_VERSION, matchKey, npc.id));
         const botConfig = toCareerBotConfig(performance);
+        // Pairs: both partners throw as seeded bots, their form for this match derived exactly like the captain's.
+        let team: SessionTeam | null = null;
+        if (event.snapshot.format.sideSize === 2) {
+          const pairs = await loadPairs(tx, root.id, [event.id]);
+          const mine = pairs.get(`${event.id}|${HUMAN}`), theirs = pairs.get(`${event.id}|${opponentKey}`);
+          if (!mine || !theirs) throw new CareerError(409, "Pairs match has no recorded team");
+          const partners = new Map((await loadNpcs(tx, root.id, { ids: [mine.partner_npc_id, theirs.partner_npc_id] })).map(n => [n.id, n]));
+          const teamBot = (id: string): TeamBot => {
+            const p = partners.get(id);
+            if (!p || p.status !== "ACTIVE") throw new CareerError(409, "A partner is unavailable");
+            return { key: id, config: toCareerBotConfig(createPerformance(p, context, root.difficulty, scopedRandom(root.world_seed, root.world_generation_version, "performance", SIMULATION_VERSION, matchKey, p.id))),
+              seed: randomBytes(16).toString("hex") };
+          };
+          team = { partner: teamBot(mine.partner_npc_id), opponentPartner: teamBot(theirs.partner_npc_id) };
+        }
         const format = liveMatchFormat(event.snapshot.format, match.best_of) as X01Format;
         const method = event.snapshot.format.firstThrowMethod;
         // Non-bull methods are decided from authored facts; BULL_UP waits for the live bull-up.
         const firstThrower: 0 | 1 | null = method === "BULL_UP" ? null : method === "ALTERNATE_FROM_DRAW" ? (humanSide === 0 ? 0 : 1) : await higherSeedFirst(tx, root.id, event.id, opponentKey);
         const row = (await tx.execute(sql`INSERT INTO career_match_sessions (career_save_id, id, match_id, event_id, session_version, status, human_side, opponent_key, best_of, format,
-            first_throw_method, bot_config, bot_seed, bull_first_order, first_thrower)
+            first_throw_method, bot_config, bot_seed, bull_first_order, first_thrower, team)
           VALUES (${root.id}, ${randomUUID()}, ${match.id}, ${event.id}, ${LIVE_SESSION_VERSION}, ${firstThrower === null ? "BULL_UP" : "IN_PLAY"}, ${humanSide}, ${opponentKey}, ${match.best_of},
-            ${JSON.stringify(format)}::jsonb, ${method}, ${JSON.stringify(botConfig)}::jsonb, ${randomBytes(16).toString("hex")}, ${humanSide === 0 ? 0 : 1}, ${firstThrower})
+            ${JSON.stringify(format)}::jsonb, ${method}, ${JSON.stringify(botConfig)}::jsonb, ${randomBytes(16).toString("hex")}, ${humanSide === 0 ? 0 : 1}, ${firstThrower},
+            ${team ? JSON.stringify(team) : null}::jsonb)
           ON CONFLICT (career_save_id, match_id) DO NOTHING RETURNING *`)).rows[0] as SessionRow | undefined;
         const created = row ?? (await tx.execute(sql`SELECT * FROM career_match_sessions WHERE career_save_id = ${root.id} AND match_id = ${match.id}`)).rows[0] as SessionRow;
         return presentLoaded(tx, root.id, await botBullTurns(tx, root.id, created), match);
@@ -240,7 +280,7 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
         let state: X01MatchState;
         try { state = replay(session.format, session.first_thrower, darts); }
         catch (error) { throw new CareerError(409, `Dart log rejected: ${(error as Error).message}`); }
-        verifyBotVisits(state, session.bot_config, session.bot_seed);
+        verifyBotVisits(state, session.bot_config, session.bot_seed, session.team ?? null);
         const previous = replay(session.format, session.first_thrower, session.darts);
         const settled = settledDartCount(previous);
         for (let i = 0; i < settled; i++) {
@@ -249,7 +289,7 @@ export function createCareerLiveMatchService(database: CareerDatabase, calendar:
         }
         let result: Record<string, unknown> | null = null;
         if (state.complete) {
-          const facts = matchFacts(state);
+          const facts = matchFacts(state, !!session.team);
           const bull = resolveBullUp(session.bull_first_order, session.bull_throws);
           const recorded = await calendar.recordHumanMatchResultInTx(tx, actor, saveId, {
             matchId: match.id, humanLegs: state.totalLegs[0], opponentLegs: state.totalLegs[1], humanThrewFirst: session.first_thrower === 0,

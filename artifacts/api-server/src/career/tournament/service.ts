@@ -11,6 +11,7 @@ import {lockRoot,type CareerActor} from "../world/service.ts";
 import {loadInstances,loadMatches,type RootRow} from "../calendar/engine.ts";
 import type {CareerCalendarService} from "../calendar/service.ts";
 import {isGroupMatch,isGroupedStructure,layoutFor} from "../calendar/groups.ts";
+import {loadPairs,type PairRow} from "../calendar/pairs.ts";
 import {loadBulls,resolvedGroups} from "../calendar/group-engine.ts";
 import {stageName,finishingPosition} from "../calendar/draw.ts";
 import {createCareerRelationshipsService} from "../relationships/service.ts";
@@ -57,7 +58,12 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
         WHERE e.career_save_id=${saveId} AND e.event_id=${eventId} ORDER BY e.draw_seed NULLS LAST,e.participant_key`)).rows;
       const withdrawn=new Set(entries.filter(e=>e.status==="WITHDRAWN").map(e=>String(e.participant_key)));
       const drawKeys=new Set(matches.flatMap(m=>[m.a_key,m.b_key]).filter((k):k is string=>!!k));
-      const fieldEntries=matches.length?entries.filter(e=>drawKeys.has(String(e.participant_key))):entries.filter(e=>e.status!=="WITHDRAWN");
+      // v13 pairs: one field entry per team (the captain), named with the partner.
+      const teams=event.snapshot.format.sideSize===2?await loadPairs(tx,saveId,[eventId]):new Map<string,PairRow>();
+      const partnerKeys=new Set([...teams.values()].map(t=>t.partner_key));
+      const nameOf=new Map(entries.map(e=>[String(e.participant_key),`${e.first_name} ${e.surname}`]));
+      const fieldEntries=(matches.length?entries.filter(e=>drawKeys.has(String(e.participant_key))):entries.filter(e=>e.status!=="WITHDRAWN"))
+        .filter(e=>!partnerKeys.has(String(e.participant_key)));
       const groups=isGroupedStructure(event.snapshot.format.structure)&&matches.length
         ?resolvedGroups(matches,await loadBulls(tx,saveId,eventId),withdrawn,layoutFor(event.snapshot.format.structure)):[];
       const next=matches.filter(m=>[m.a_key,m.b_key].includes("HUMAN")&&!finalStatus(m.status))
@@ -134,7 +140,10 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
         if(ranking===1)badges.push({label:"World #1",source:"A5 latest published pro-world snapshot"});
         if(Number(achievement?.major_titles)>0)badges.push({label:`${achievement!.major_titles} major/world titles`,source:"A3 actual champion results"});
         const stature={titles:Number(achievement?.titles??0),majorTitles:Number(achievement?.major_titles??0),worldRanking:ranking?Number(ranking):null};
-        return {key,name:human?String(profile?.display_name??root.career_name):`${e.first_name} ${e.surname}`,nickname:human?personal.nickname??null:e.nickname??null,
+        const team=teams.get(`${eventId}|${key}`);
+        const own=human?String(profile?.display_name??root.career_name):`${e.first_name} ${e.surname}`;
+        return {key,name:team?`${own} & ${nameOf.get(team.partner_key)??"Partner"}`:own,nickname:human?personal.nickname??null:e.nickname??null,
+          partner:team?{key:team.partner_key,name:nameOf.get(team.partner_key)??"Partner"}:null,nation:team?.nation??null,
           nationality:human?country:String(e.nationality??""),ranking:stature.worldRanking,
           titles:stature.titles,badges:badges.slice(0,2),source:String(e.source),status:String(e.status),seed:e.draw_seed?Number(e.draw_seed):null,
           sponsors:human?contracts.map(c=>({brandId:c.sponsor_key,brandName:c.terms.displayName,slot:relationship(c.terms).slot})):

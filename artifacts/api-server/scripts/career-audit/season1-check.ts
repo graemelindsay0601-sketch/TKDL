@@ -34,9 +34,17 @@ const byCountry = await rows(sql`SELECT definition_key, country, locality_key, f
 const awardedCards = await rows(sql`SELECT source, COUNT(*)::int n FROM career_tour_cards WHERE career_save_id=${id} AND awarded_season=1 AND source<>'FOUNDING' GROUP BY 1 ORDER BY 1`);
 const developmentTop = await rows(sql`SELECT r.current_position, r.current_value_pence, p.age FROM career_ranking_participants r LEFT JOIN career_world_players p ON p.career_save_id=r.career_save_id AND p.id=r.npc_id
   WHERE r.career_save_id=${id} AND r.list_key='development' AND r.current_position <= 4 ORDER BY 1`);
+const pairs = await rows(sql`SELECT i.definition_key, COUNT(DISTINCT i.id)::int events, COUNT(*)::int teams, COUNT(DISTINCT p.nation)::int nations FROM career_event_pairs p JOIN career_event_instances i ON i.career_save_id=p.career_save_id AND i.id=p.event_id
+  WHERE p.career_save_id=${id} GROUP BY 1`);
+const worldCup = await rows(sql`SELECT r.finishing_position, r.metadata->'pairs'->>'nation' nation, concat(c.first_name,' ',c.surname) captain, concat(q.first_name,' ',q.surname) partner, wc.rank_c, wc.rank_p
+  FROM career_event_results r JOIN career_world_players c ON c.career_save_id=r.career_save_id AND c.id=r.npc_id
+  JOIN career_world_players q ON q.career_save_id=r.career_save_id AND q.id=(r.metadata->'pairs'->>'partnerNpcId')::uuid
+  LEFT JOIN LATERAL (SELECT (SELECT current_position FROM career_ranking_participants x WHERE x.career_save_id=r.career_save_id AND x.list_key='pro-world' AND x.participant_key=c.id::text) rank_c,
+    (SELECT current_position FROM career_ranking_participants x WHERE x.career_save_id=r.career_save_id AND x.list_key='pro-world' AND x.participant_key=q.id::text) rank_p) wc ON TRUE
+  WHERE r.career_save_id=${id} AND r.definition_key='world-cup-of-darts' AND r.finishing_position <= 4 ORDER BY 1`);
 const league = await rows(sql`SELECT m.stage_key, m.round, m.scheduled_day, m.status, m.a_key, m.b_key, m.winner_key, m.legs_a, m.legs_b FROM career_tournament_matches m
   JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id WHERE m.career_save_id=${id} AND i.definition_key='thursday-night-darts' ORDER BY m.stage_key, m.round, m.slot`);
 const leagueResults = await rows(sql`SELECT r.participant_key, r.finishing_position, r.stage_reached, r.wins, r.losses FROM career_event_results r WHERE r.career_save_id=${id} AND r.definition_key='thursday-night-darts' ORDER BY r.finishing_position`);
 console.log(JSON.stringify({ league: { matches: league.length, byStatus: league.reduce((a: Record<string, number>, m) => (a[m.status] = (a[m.status] ?? 0) + 1, a), {}), days: [...new Set(league.map(m => m.scheduled_day))], knockout: league.filter(m => m.stage_key === "knockout") }, leagueResults,
-  proWorldDepthByWeek: depth, byCountry, cancelled, majors: gated, detail, byStatus, lists, awardedCards, developmentTop }, null, 1));
+  proWorldDepthByWeek: depth, byCountry, cancelled, majors: gated, detail, byStatus, lists, awardedCards, developmentTop, pairs, worldCup }, null, 1));
 await a.pg.close();

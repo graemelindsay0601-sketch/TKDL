@@ -5,7 +5,7 @@ import { CURRENT_EVENT_DATABASE_VERSION } from "../../career/calendar/config.ts"
 import { rankingListsFor, rankingRulesVersionFor, tourCardRulesFor, tourCardRulesVersionFor } from "../../career/sporting/config.ts";
 
 test("v12 Development Tour: 16–23 on the event date, its own ranking category; older databases unchanged", () => {
-  assert.equal(CURRENT_EVENT_DATABASE_VERSION, 12);
+  assert.ok(CURRENT_EVENT_DATABASE_VERSION >= 12);
   const v12 = catalogueFor(12), v11 = catalogueFor(11);
   const dev = v12.find(d => d.key === "development-tour")!;
   assert.deepEqual(dev.eligibility, { type: "AGE", minAge: 16, maxAgeExclusive: 24 });

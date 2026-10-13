@@ -61,6 +61,7 @@ export function createCareerLifeService(database:CareerDatabase) {
       SELECT m.*,CASE WHEN m.winner_key=m.a_key THEN m.b_key ELSE m.a_key END AS loser_key,i.season,i.name
       FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
       WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND i.classification<>'QUALIFIER'
+        AND COALESCE((i.snapshot->'format'->>'sideSize')::int,1)=1
       ORDER BY i.season DESC,m.scheduled_day DESC,m.id LIMIT 600)
       SELECT m.id,m.event_id,m.season,m.scheduled_day,m.name,m.winner_key,m.loser_key,p.id AS snapshot_id,w.position AS winner_position,l.position AS loser_position,
         CASE WHEN m.winner_key='HUMAN' THEN 'You' ELSE concat(wn.first_name,' ',wn.surname) END AS winner_name,

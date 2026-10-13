@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { createMatch, throwDart, validateDart, type X01Format, type X01MatchState } from "../shared/darts-rules/index.ts";
+import { createMatch, throwDart, validateDart, pairsSeat, type X01Format, type X01MatchState } from "../shared/darts-rules/index.ts";
 import { ingestSnapshot } from "./ingestion-service.ts";
 import type { ActivitySnapshot, Observation, ShadowExecutor } from "./observation-types.ts";
 
@@ -16,6 +16,14 @@ export function careerSnapshot(row: Record<string, unknown>): ActivitySnapshot {
   if (!Number.isSafeInteger(row.player_id) || Number(row.player_id) <= 0 || !Array.isArray(row.darts)) throw new Error("Unattributed or malformed Career recording");
   const owner = Number(row.player_id), human = `player:${owner}`, npc = `npc:${row.opponent_key}`;
   if (typeof row.opponent_key !== "string" || !row.opponent_key) throw new Error("Missing Career opponent");
+  // Pairs (event database v13): visits alternate inside each team, so every dart is credited to the player at that seat.
+  const team = row.team && typeof row.team === "object" ? row.team as { partner: { key: string }; opponentPartner: { key: string } } : null;
+  const partner = team ? `npc:${team.partner.key}` : null, opponentPartner = team ? `npc:${team.opponentPartner.key}` : null;
+  const thrower = (s: X01MatchState) => {
+    if (!team) return s.turn === 0 ? human : npc;
+    const seat = pairsSeat(s.visits, s.turn);
+    return s.turn === 0 ? (seat.member === 0 ? human : partner!) : (seat.member === 0 ? npc : opponentPartner!);
+  };
   let state = createMatch(row.format as X01Format, row.first_thrower as 0 | 1);
   const observations: Observation[] = [];
   for (const [ordinal, raw] of row.darts.entries()) {
@@ -24,7 +32,7 @@ export function careerSnapshot(row: Record<string, unknown>): ActivitySnapshot {
     const before = state;
     const result = throwDart(before, dart); // existing scoring authority; no Shadow scoring logic
     state = result.state;
-    observations.push({ participantKey: before.turn === 0 ? human : npc, ordinal, unit: "DART",
+    observations.push({ participantKey: thrower(before), ordinal, unit: "DART",
       physicalHit: { segment: dart.segment, multiplier: dart.multiplier, value: dart.value }, effectiveValue: null,
       intendedTarget: null, setIndex: before.setNo, legIndex: before.legNo, roundIndex: null,
       visitNumber: before.visits.length + 1, dartNumber: (before.visit?.darts.length ?? 0) + 1,
@@ -34,7 +42,8 @@ export function careerSnapshot(row: Record<string, unknown>): ActivitySnapshot {
   if (typeof row.id !== "string" || typeof row.career_save_id !== "string" || typeof row.match_id !== "string") throw new Error("Missing Career source identity");
   return { schemaVersion: 1, namespace: "CAREER_LIVE", sourceId: `${row.career_save_id}/${row.id}`,
     sourceRevision: Number(row.revision), ownerPlayerId: owner,
-    participants: [{ key: human, playerId: owner, slot: 0, provenance: "HUMAN" }, { key: npc, playerId: null, slot: 1, provenance: "NPC" }],
+    participants: [{ key: human, playerId: owner, slot: 0, provenance: "HUMAN" }, { key: npc, playerId: null, slot: 1, provenance: "NPC" },
+      ...(team ? [{ key: partner!, playerId: null, slot: 2, provenance: "NPC" as const }, { key: opponentPartner!, playerId: null, slot: 3, provenance: "NPC" as const }] : [])],
     aliases: [{ namespace: "CAREER_MATCH", sourceId: `${row.career_save_id}/${row.match_id}` }],
     gameFamily: "X01", gameVariant: "CAREER_LIVE", rulesVersion: "TKDL_X01_LIVE_V1",
     config: { format: row.format, firstThrower: row.first_thrower, firstThrowMethod: row.first_throw_method,

@@ -664,7 +664,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
 export type LiveScoreState = { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string };
 
-export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, botVisitPlanner, botCorkPlanner, onDartLog }: {
+export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, botVisitPlanner, botCorkPlanner, onDartLog, partnerVisitPlanner }: {
   p1Name: string; p2Name: string;
   config: {
     startingScore: number;
@@ -720,6 +720,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   onDartLog?: (darts: Dart[]) => void;
   /** Soft-tip cork: the bot's seeded cork dart (Career); defaults to a bull throw from the bot's accuracy. */
   botCorkPlanner?: (ctx: { legNo: number; throwIndex: number }) => Dart;
+  /**
+   * Career pairs: player 0 is a team whose visits alternate between you and a seeded partner. Called at the
+   * start of each of player 0's visits; returns the partner's darts when it is their visit, or null for yours.
+   * While set, undo stays inside your own current visit (visits alternate between four throwers).
+   */
+  partnerVisitPlanner?: (ctx: { remaining: number; opened: boolean }) => Dart[] | null;
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, p1StartingScore, p2StartingScore, doubleIn = false, doubleOut = true, trebleOut = false, masterOut = false, bullFinish = false, noTrebles = false, legs: configLegs, bustResetTo, fatBull = false, roundLimit } = config;
@@ -1518,7 +1524,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => {
-    if (bust || cork) return;
+    if (bust || cork || partnerTurn) return;
     if (visitDarts.length > 0) {
       // Remove the last dart within the current visit
       const remaining = visitDarts.slice(0, -1);
@@ -1530,7 +1536,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         setStarted(prev => { const n = [...prev] as [boolean, boolean]; n[turn] = stillOpen; return n; });
       }
       // NOTE: activeEffects persist within a turn (that's correct)
-    } else if (history.length > 0) {
+    } else if (history.length > 0 && !partnerVisitPlanner) {
       // Build new state from history stack. A6.5: undo never crosses a leg
       // boundary (the finished leg is settled), and restores opening state.
       const h = [...history];
@@ -1716,7 +1722,22 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
       return newUsed;
     });
   }, [isCardClash, activeEffects, turn, p1Cards, p2Cards]);
-  const isBotTurnX01 = !!botConfig && turn === 1;
+  // Career pairs: your partner's visits are thrown by their seeded bot, like the opponent's.
+  // The planner is read through a ref (like the bot's): a refreshed callback after a checkpoint must never
+  // re-plan a visit that is already being thrown.
+  const [partnerTurn, setPartnerTurn] = useState(false);
+  const partnerPlannerRef = useRef(partnerVisitPlanner);
+  partnerPlannerRef.current = partnerVisitPlanner;
+  useEffect(() => {
+    if (!partnerPlannerRef.current || turn !== 0 || bust || cork) { setPartnerTurn(false); return; }
+    const plan = partnerPlannerRef.current({ remaining: scores[0], opened: started[0] });
+    if (!plan) { setPartnerTurn(false); return; }
+    setPartnerTurn(true);
+    const timers = plan.map((d, i) => safeTimeout(() => handleDartRef.current(d), 700 * (i + 1)));
+    botTimersRef.current = timers;
+    return () => timers.forEach(clearTimeout);
+  }, [turn, legNo, bust, cork]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isBotTurnX01 = (!!botConfig && turn === 1) || partnerTurn;
   useEffect(() => {
     if (!botConfig || turn !== 1 || bust || cork) return;
     const [d1, d2, d3] = botVisitPlanner
@@ -2028,7 +2049,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         </div>
         <div className="x01-event-active">
           <span className="x01-live-indicator" />
-          <div><small>{bust ? "VISIT BUST" : isBotTurnX01 ? "OPPONENT AT THE OCHE" : "AT THE OCHE"}</small><strong>{bust ? bustMsg : names[turn]}</strong></div>
+          <div><small>{bust ? "VISIT BUST" : partnerTurn ? "PARTNER AT THE OCHE" : isBotTurnX01 ? "OPPONENT AT THE OCHE" : "AT THE OCHE"}</small><strong>{bust ? bustMsg : names[turn]}</strong></div>
         </div>
         <div className="x01-event-leg">
           <span>LEG</span><strong>{legNo}</strong>
@@ -2124,7 +2145,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         if (!co) return null;
         return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} />;
       })}
-      {bust ? <BustBanner msg={bustMsg} /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
+      {bust ? <BustBanner msg={bustMsg} /> : partnerTurn ? <TurnBanner name={names[0]} turn={0} msg="— PARTNER THROWING…" /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
       <div className="x01-visit-card">
         <SectionCard accentColor={scorerThemeColor}>
           <div className="x01-visit-heading"><span>THIS VISIT</span><b>{names[turn]}</b><i>{visitDarts.length}/3 DARTS</i></div>
