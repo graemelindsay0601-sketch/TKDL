@@ -106,7 +106,10 @@ export async function seasonReport(db: CareerDatabase, saveId: string, season: n
   const championChecks = (await q(sql`SELECT COUNT(*)::int AS completed,
       SUM(CASE WHEN (SELECT COUNT(*) FROM career_event_results r WHERE r.career_save_id = i.career_save_id AND r.event_id = i.id AND r.is_champion AND r.participant_key = i.champion_participant_key) = 1
         AND (SELECT COUNT(*) FROM career_tournament_matches m WHERE m.career_save_id = i.career_save_id AND m.event_id = i.id AND m.winner_key = i.champion_participant_key
-          AND m.stage_key = i.snapshot->'format'->'stages'->-1->>'key'
+          -- Grouped events (Vault groups, league nights) store their play-offs as the 'knockout' stage
+          -- whatever the authored stage is called (a league's is 'playoffs').
+          AND m.stage_key = CASE WHEN i.snapshot->'format'->>'structure' IN ('GROUP_KNOCKOUT','LEAGUE') THEN 'knockout'
+            ELSE i.snapshot->'format'->'stages'->-1->>'key' END
           AND m.round = (SELECT MAX(round) FROM career_tournament_matches x WHERE x.career_save_id = i.career_save_id AND x.event_id = i.id AND x.stage_key=m.stage_key)) = 1
         AND (SELECT COUNT(*) FROM career_tournament_matches m WHERE m.career_save_id = i.career_save_id AND m.event_id = i.id AND m.status NOT IN ('COMPLETED','BYE','WALKOVER')) = 0
         THEN 1 ELSE 0 END)::int AS valid
