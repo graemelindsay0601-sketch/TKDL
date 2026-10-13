@@ -288,6 +288,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
     `);
     await ensureSoftTipCircuit(tx);
     await ensureLeagueRounds(tx);
+    await ensureEventPairs(tx);
     await syncEventDefinitions(tx);
     // A6.5: server-authoritative live match sessions — additive, idempotent.
     await ensureCareerMatchSessionSchema(tx);
@@ -321,6 +322,28 @@ export async function ensureLeagueRounds(tx: CareerExecutor): Promise<void> {
   if (current?.def.includes("30")) return;
   await tx.execute(sql`ALTER TABLE career_tournament_matches DROP CONSTRAINT IF EXISTS career_tournament_matches_round_check`);
   await tx.execute(sql`ALTER TABLE career_tournament_matches ADD CONSTRAINT career_tournament_matches_round_check CHECK (round BETWEEN 1 AND 30)`);
+}
+
+/**
+ * Event database v13 pairs events: the teams formed when the field locks. The bracket holds the captain;
+ * the partner is entered and booked like any player and is named here. Additive, idempotent.
+ */
+export async function ensureEventPairs(tx: CareerExecutor): Promise<void> {
+  await tx.execute(sql`
+    CREATE TABLE IF NOT EXISTS career_event_pairs (
+      career_save_id UUID NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+      event_id UUID NOT NULL,
+      captain_key TEXT NOT NULL,
+      captain_npc_id UUID,
+      partner_key TEXT NOT NULL CHECK (partner_key <> 'HUMAN'),
+      partner_npc_id UUID NOT NULL,
+      nation TEXT,
+      PRIMARY KEY (career_save_id, event_id, captain_key),
+      CONSTRAINT career_event_pairs_partner_once UNIQUE (career_save_id, event_id, partner_key),
+      CONSTRAINT career_event_pairs_distinct CHECK (captain_key <> partner_key),
+      FOREIGN KEY (career_save_id, event_id) REFERENCES career_event_instances(career_save_id, id) ON DELETE CASCADE
+    )
+  `);
 }
 
 /** Insert shipped definitions; a changed definition under an existing version is refused. */

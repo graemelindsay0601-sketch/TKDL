@@ -61,7 +61,7 @@ const reachLabel = (r: Reachability) => r.status === "SCHEDULED" ? (r.benchedIn.
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const rows = auditRows();
-  const versions = [...new Set(rows.flatMap(r => r.versions))].sort();
+  const versions = [...new Set(rows.flatMap(r => r.versions))].sort((a, b) => a - b);
   const counts = { PHYSICAL_TROPHY: 0, RECOGNITION: 0, RESULT_ONLY: 0 } as Record<string, number>;
   const lines = rows.map(r => {
     const a = resolveAward({ definitionKey: r.key, circuit: r.circuit, classification: r.classification, tier: r.tier });

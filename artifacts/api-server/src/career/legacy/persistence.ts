@@ -127,6 +127,7 @@ export async function definingRival(tx:CareerExecutor,e:Evidence,season:number):
     COUNT(*)::int meetings,COUNT(*) FILTER(WHERE m.winner_key='HUMAN')::int wins
     FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
     WHERE m.career_save_id=${e.saveId} AND i.season=${season} AND m.status='COMPLETED' AND (m.a_key='HUMAN' OR m.b_key='HUMAN')
+      AND COALESCE((i.snapshot->'format'->>'sideSize')::int,1)=1
     GROUP BY opponent HAVING COUNT(*)>=2 ORDER BY meetings DESC,opponent LIMIT 1`)).rows[0];
   return r?{id:String(r.opponent),name:nameOf(e,String(r.opponent)),meetings:n(r,"meetings"),wins:n(r,"wins"),losses:n(r,"meetings")-n(r,"wins")}:null;
 }

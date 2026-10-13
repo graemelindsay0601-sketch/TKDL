@@ -79,4 +79,6 @@ export async function ensureCareerMatchSessionSchema(tx: CareerExecutor): Promis
         AND (status = 'COMPLETED') = (result IS NOT NULL AND completed_at IS NOT NULL))
     )
   `);
+  // Event database v13 pairs: the human's partner and the opposing partner (each a seeded bot). Additive.
+  await tx.execute(sql`ALTER TABLE career_match_sessions ADD COLUMN IF NOT EXISTS team JSONB CHECK (team IS NULL OR jsonb_typeof(team) = 'object')`);
 }

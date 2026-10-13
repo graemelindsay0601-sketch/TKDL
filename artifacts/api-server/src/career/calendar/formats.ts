@@ -30,8 +30,13 @@ export const eventFormatSchema = z.object({
   stages: z.array(stageSchema).min(1),
   days: z.number().int().min(1).max(21),
   firstThrowMethod: z.enum(FIRST_THROW_METHODS),
-  /** 1 = singles. 2 = pairs (doubles); no A3 engine for pairs. */
+  /** 1 = singles. 2 = pairs (doubles); executable only with a `pairing` rule (event database v13). */
   sideSize: z.union([z.literal(1), z.literal(2)]),
+  /**
+   * Event database v13 pairs: how teams are formed when the field locks. NATION = each country's top two on
+   * the World Ranking (World Cup); LOCAL = entrants paired with a compatriot (the human captains their pair).
+   */
+  pairing: z.enum(["NATION", "LOCAL"]).optional(),
   /** A2 match context category used for NPC simulation pressure. */
   matchContext: z.enum(["local", "floor", "stage", "qualifier", "major"]),
   /** Soft-tip (electronic board) rules; absent for steel-tip. FAT: both bulls score 50 and finish. */
@@ -61,7 +66,7 @@ export const CAPABILITY_ENGINE_VERSION = 4;
  * GameScorer X01) and every NPC match through A2's dart-level simulation.
  * Shared X01 and A2 support 101..1001, straight/double-in, double-out,
  * legs/sets and singles knockout. A8.2 adds its explicitly versioned 4x4
- * group -> KO format. Master-out, leagues, pairs and other games remain benched.
+ * group -> KO format; v11 league nights; v13 pairs knockouts with a pairing rule.
  */
 export function assessCapability(format: EventFormat, allowGroups = false): Capability {
   eventFormatSchema.parse(format);
@@ -77,7 +82,9 @@ export function assessCapability(format: EventFormat, allowGroups = false): Capa
     if (format.outRule !== "DOUBLE" && !softTip) reasons.push("OUT_RULE");
   }
   if (format.scoringUnit === "SETS" && !(format.legsPerSet && format.legsPerSet % 2 === 1)) reasons.push("SET_PLAY");
-  if (format.sideSize !== 1) reasons.push("PAIRS");
+  // Pairs run end to end (team composite in A2, alternating visits in the shared scorer) for steel-tip
+  // knockout legs when the definition says how teams form; other pairs identities stay benched.
+  if (format.sideSize !== 1 && !(format.pairing && format.structure === "KNOCKOUT" && format.scoringUnit === "LEGS" && format.outRule === "DOUBLE" && !format.mix)) reasons.push("PAIRS");
   const groups = allowGroups && format.structure === "GROUP_KNOCKOUT" && format.scoringUnit === "LEGS"
     && format.stages.length === 2 && format.stages[0].kind === "GROUP" && format.stages[0].groupSize === 4
     && format.stages[0].advancePerGroup === 2 && format.stages[1].kind === "KNOCKOUT";

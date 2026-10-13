@@ -30,7 +30,9 @@ export function createCareerRelationshipsService(database: CareerDatabase) {
         JOIN finals f ON f.event_id=m.event_id AND f.stage_key=m.stage_key
         WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND m.a_key IS NOT NULL AND m.b_key IS NOT NULL AND m.a_key<>m.b_key
           AND m.winner_key IN (m.a_key,m.b_key) AND (m.a_key='HUMAN' OR m.b_key='HUMAN')
-          AND COALESCE(m.result_source,'') NOT IN ('BYE','WALKOVER')`)).rows;
+          AND COALESCE(m.result_source,'') NOT IN ('BYE','WALKOVER')
+          -- A pairs match is a team meeting, not a singles head-to-head.
+          AND COALESCE((i.snapshot->'format'->>'sideSize')::int,1)=1`)).rows;
       const meetings: Meeting[] = rows.map(r=>{
         const humanA = r.a_key==="HUMAN", season=Number(r.season), day=Number(r.scheduled_day);
         const date = start ? careerDate(start,season,day) : null;

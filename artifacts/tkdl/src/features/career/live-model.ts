@@ -4,7 +4,7 @@
  * server's dart log with the SAME shared rules the server uses. The browser holds
  * no authoritative state: reload = replay the server log.
  */
-import { replay, opensLeg, planBotX01Visit, seededRandom, botOptionsFor, botCorkDart, type X01Format, type X01MatchState, type Dart } from "../../lib/darts-rules.ts";
+import { replay, opensLeg, planBotX01Visit, seededRandom, botOptionsFor, botCorkDart, pairsSeat, type X01Format, type X01MatchState, type Dart } from "../../lib/darts-rules.ts";
 import type { X01RecoveryState, ScorerRecoveryState } from "@/lib/scorer-recovery";
 import type { Dart as UiDart } from "@/lib/dartboard";
 import type { LiveSession } from "./types";
@@ -75,10 +75,29 @@ export function recoveryFromLog(format: X01Format, firstThrower: 0 | 1, darts: D
 export const nextBotVisitIndex = (format: X01Format, firstThrower: 0 | 1, darts: Dart[]) =>
   replay(format, firstThrower, darts).visits.filter(v => v.thrower === 1).length;
 
-/** Seeded bot visit identical to the server's verifier. */
-export function careerBotVisit(session: Pick<LiveSession, "bot" | "format">, firstThrower: 0 | 1, darts: Dart[], ctx: { remaining: number; opened: boolean }): UiDart[] {
-  return planBotX01Visit(ctx.remaining, session.bot.config, { ...botOptionsFor(session.format), opened: ctx.opened,
-    rng: seededRandom(session.bot.seed, "bot-visit", nextBotVisitIndex(session.format as X01Format, firstThrower, darts)) }).map(toUiDart);
+type Seated = Pick<LiveSession, "bot" | "format"> & { team?: LiveSession["team"] };
+/** Who throws `team`'s next visit (pairs alternate inside each team), and with which seeded bot (null = you). */
+export function nextSeat(session: Seated, firstThrower: 0 | 1, darts: Dart[], team: 0 | 1) {
+  const seat = pairsSeat(replay(session.format as X01Format, firstThrower, darts).visits, team, session.team ? 2 : 1);
+  const bot = team === 0 ? (seat.member === 1 && session.team ? session.team.partner : null)
+    : seat.member === 1 && session.team ? session.team.opponentPartner : session.bot;
+  return { ...seat, bot };
+}
+
+/** Seeded opponent visit identical to the server's verifier (the opposing captain, or in pairs their partner). */
+export function careerBotVisit(session: Seated, firstThrower: 0 | 1, darts: Dart[], ctx: { remaining: number; opened: boolean }): UiDart[] {
+  const seat = nextSeat(session, firstThrower, darts, 1);
+  return planBotX01Visit(ctx.remaining, seat.bot!.config, { ...botOptionsFor(session.format), opened: ctx.opened,
+    rng: seededRandom(seat.bot!.seed, "bot-visit", seat.memberVisit) }).map(toUiDart);
+}
+
+/** Pairs: your partner's seeded visit when it is their turn for your team, or null when it is yours. */
+export function careerPartnerVisit(session: Seated, firstThrower: 0 | 1, darts: Dart[], ctx: { remaining: number; opened: boolean }): UiDart[] | null {
+  if (!session.team) return null;
+  const seat = nextSeat(session, firstThrower, darts, 0);
+  if (!seat.bot) return null;
+  return planBotX01Visit(ctx.remaining, seat.bot.config, { ...botOptionsFor(session.format), opened: ctx.opened,
+    rng: seededRandom(seat.bot.seed, "bot-visit", seat.memberVisit) }).map(toUiDart);
 }
 
 /** Seeded bot cork dart identical to the server's verifier (soft-tip round-limit legs). */
@@ -91,11 +110,13 @@ export const careerBotCork = (session: Pick<LiveSession, "bot">, ctx: { legNo: n
  * verifies bot visits whole. Darts of the unfinished leg stay editable (undo);
  * completed legs are immutable server-side.
  */
-export function shouldCheckpoint(format: X01Format, firstThrower: 0 | 1, darts: Dart[]): boolean {
+export function shouldCheckpoint(format: X01Format, firstThrower: 0 | 1, darts: Dart[], pairs = false): boolean {
   try {
     const s = replay(format, firstThrower, darts);
+    // Pairs: your partner's visit is a bot visit too — checkpointed whole, never mid-visit.
+    const yours = !!s.visit && s.visit.thrower === 0 && (!pairs || pairsSeat(s.visits, 0).member === 0);
     // A cork in progress is checkpointed after every dart (each is a single, self-contained throw).
-    return s.complete || s.cork !== null || s.choice !== null || s.visit === null || s.visit.thrower === 0;
+    return s.complete || s.cork !== null || s.choice !== null || s.visit === null || yours;
   } catch { return false; }
 }
 

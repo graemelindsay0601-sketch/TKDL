@@ -22,7 +22,7 @@ before(async()=>{
       age int,starting_age int,created_season int,retired_season int,status text,scoring int,potential int);
     CREATE TABLE career_ranking_snapshots(career_save_id uuid,id text,list_key text,sequence int);
     CREATE TABLE career_ranking_snapshot_rows(career_save_id uuid,npc_id text,snapshot_id text,position int);
-    CREATE TABLE career_event_instances(career_save_id uuid,id text,name text,season int,presentation_tier text,circuit text,classification text,family text,series_key text);
+    CREATE TABLE career_event_instances(career_save_id uuid,id text,name text,season int,presentation_tier text,circuit text,classification text,family text,series_key text,snapshot jsonb);
     CREATE TABLE career_tournament_matches(career_save_id uuid,id text,event_id text,status text,a_key text,b_key text,a_npc_id text,b_npc_id text,
       winner_key text,result_source text,stage_key text,round int,scheduled_day int,legs_a int,legs_b int,summary jsonb);
     CREATE TABLE career_event_entries(career_save_id uuid,event_id text,participant_key text,status text);

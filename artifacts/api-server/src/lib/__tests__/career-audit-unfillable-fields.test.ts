@@ -17,6 +17,8 @@ test("every executable event can reach its minimum field in a normal season (cur
     for (const d of drafts) {
       const s = d.snapshot as any;
       if (!d.executable || s.fieldPolicy !== "SELECTION" || s.invitationPolicy) continue;
+      // v13 World Cup: the field is each nation's top two by ranking (national selection), not intake entitlements.
+      if (s.format?.pairing === "NATION") continue;
       if (!(s.npcFill?.[0] === 0 && s.npcFill?.[1] === 0)) continue;
       const intake = new Set<string>(s.entitlementIntake ?? []);
       // Upper bound: every qualifying position of every same-season source edition issues a distinct NPC entitlement.

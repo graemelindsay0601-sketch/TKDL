@@ -11,7 +11,7 @@ import { MatchContextStrip, ResultBanner } from "../tournament/components";
 import { resultMoment } from "../tournament/model";
 import { formatPence } from "../model";
 import { OSWALD, Label, StatusBadge } from "../components";
-import { adoptLiveCursor, careerGameType, careerBotVisit, careerBotCork, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
+import { adoptLiveCursor, careerGameType, careerBotVisit, careerBotCork, careerPartnerVisit, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
 import type { ShellContext } from "../shell";
 import type { LiveSession } from "../types";
 import { SoftTipScorer } from "../soft-tip-scorer";
@@ -94,13 +94,21 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   const onDartLog = useCallback((darts: Dart[]) => {
     cursorRef.current.darts = darts;
     if (!session || session.firstThrower === null || !format) return;
-    if (shouldCheckpoint(format, session.firstThrower, darts)) checkpoint(darts);
+    if (shouldCheckpoint(format, session.firstThrower, darts, !!session.team)) checkpoint(darts);
   }, [session, format, checkpoint]);
 
   const botVisitPlanner = useCallback((ctx2: { remaining: number; opened: boolean }) =>
     careerBotVisit(session!, session!.firstThrower!, cursorRef.current.darts, ctx2), [session]);
 
   const botCorkPlanner = useCallback((c: { legNo: number; throwIndex: number }) => careerBotCork(session!, c), [session]);
+
+  // Pairs (v13): your partner throws alternate visits for your team as a seeded bot the server verifies.
+  const partnerVisitPlanner = useCallback((ctx2: { remaining: number; opened: boolean }) =>
+    careerPartnerVisit(session!, session!.firstThrower!, cursorRef.current.darts, ctx2), [session]);
+  const pairs = !!session?.team;
+  const sideNames: [string, string] = session ? (session.team
+    ? [`${session.player.name} & ${session.team.partner.name}`, `${session.opponent.name} & ${session.team.opponentPartner.name}`]
+    : [session.player.name, session.opponent.name]) : ["", ""];
 
   const initialRecovery = useMemo(() => session && session.firstThrower !== null && format
     ? recoveryFromLog(format, session.firstThrower, session.darts as Dart[]) : null, [session?.sessionId, session?.firstThrower, format, scorerKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -152,11 +160,11 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   return createPortal(
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
       <GameScorer key={`${session.sessionId}:${scorerKey}`}
-        p1Name={session.player.name} p2Name={session.opponent.name} gameType={gameType}
+        p1Name={sideNames[0]} p2Name={sideNames[1]} gameType={gameType}
         botConfig={session.bot.config} firstThrower={session.firstThrower ?? 0}
         {...scorerLength(session.format)}
         initialRecovery={initialRecovery} onRecoveryState={() => { /* the server log is the recovery source */ }}
-        botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog}
+        botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog} partnerVisitPlanner={pairs ? partnerVisitPlanner : undefined}
         onWin={() => setPhase(p => (p === "done" ? p : "submitting"))}
         onAbandon={() => navigate(`/career/${saveId}/tournaments/${session.eventId}`)} />
       {phase === "submitting" && (

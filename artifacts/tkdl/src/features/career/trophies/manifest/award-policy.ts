@@ -62,6 +62,8 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "world-dart-series-finals": T("SERIES_FINALS", "silver-cup", "WORLD SERIES FINALS"),
   "champions-masters": T("INVITATIONAL", "silver-cup", "CHAMPIONS MASTERS"),
   "thursday-night-darts": N("WEEKLY", "Weekly league night: result and prize only."),
+  // v13 pairs: the nation's pair lifts the World Cup.
+  "world-cup-of-darts": T("INVITATIONAL", "international-globe", "WORLD CUP OF DARTS"),
   // ---- Vault
   "vault-championship": T("CHAMPIONSHIP", "vault-geometric", "VAULT CHAMPION"),
   "vault-masters": T("CHAMPIONSHIP", "vault-geometric", "VAULT MASTERS"),
@@ -211,6 +213,7 @@ export const EVENT_DESIGNS_V2: Readonly<Record<string, DesignAllocation>> = Obje
   ...Object.fromEntries(["asian-tour-finals", "north-american-tour-finals", "soft-tip-series-finals", "oceanic-tour-finals", "nordic-baltic-tour-finals", "european-development-series-finals"].map(k => [k, S("international-globe", "Regional tour finals")])),
   ...Object.fromEntries(["international-open", "northern-open", "north-american-open", "asia-pacific-open", "australasian-open", "premier-open"]
     .map(k => [k, S("international-globe", "International open series")])),
+  "world-cup-of-darts": S("international-globe", "International team event"),
   "soft-tip-masters": S("silver-cup", "Soft-tip championships"),
   "pro-super-series-finals": S("silver-cup", "Pro Super Series"),
   "vault-championship": S("vault-geometric", "Vault championship lineage"),

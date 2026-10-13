@@ -7,6 +7,7 @@ import { careerIdSchema } from "../validation.ts";
 import { CAREER_WORLD_CONFIG, CAREER_DEVELOPMENT_CONFIG, CAREER_DIFFICULTY_CONFIG, CAREER_SIMULATION_CONFIG, SIMULATION_VERSION } from "./config.ts";
 import { assertGenerationVersion, generateInitialWorld, generateJuniorCohort, generateWomenCohort, JUNIOR_COHORT } from "./generation.ts";
 import { geographicalIdentities } from "./geographical-identities.ts";
+import { teamComposite } from "./team.ts";
 import { loadNpcs, persistNpcs, presentNpc } from "./repository.ts";
 import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./types.ts";
 import { simulateNpcMatch } from "./simulation.ts";
@@ -20,7 +21,9 @@ export type Root = { id: string; world_seed: string; world_generation_version: n
 export type World = { season: number; period: number; elapsed_year: number; generation_version: number; simulation_version: number };
 const periodSchema = z.object({ season: z.number().int().positive(), period: z.number().int().positive(), elapsedYears: z.number().finite().positive().max(1), opportunity: z.number().finite().min(0).max(1) }).strict();
 const offSeasonSchema = z.object({ season: z.number().int().positive(), opportunity: z.number().finite().min(0).max(1) }).strict();
-export const simulationSchema = z.object({ matchKey: z.string().min(1).max(120), playerAId: z.string().uuid(), playerBId: z.string().uuid(), context: matchContextSchema, format: matchFormatSchema }).strict();
+export const simulationSchema = z.object({ matchKey: z.string().min(1).max(120), playerAId: z.string().uuid(), playerBId: z.string().uuid(), context: matchContextSchema, format: matchFormatSchema,
+  /** Event database v13 pairs: each captain's partner. The team plays as the pair's averaged composite. */
+  partners: z.tuple([z.string().uuid(), z.string().uuid()]).optional() }).strict();
 
 export async function lockRoot(tx: CareerExecutor, actor: CareerActor, saveId: string, active = true): Promise<Root> {
   careerIdSchema.parse(saveId);
@@ -67,7 +70,7 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
   const saveId = root.id;
   const stored = new Map((await tx.execute(sql`SELECT match_key, request, result FROM career_simulated_matches WHERE career_save_id = ${saveId}
     AND match_key IN (${sql.join(keys.map(key => sql`${key}`), sql`, `)})`)).rows.map(row => [String(row.match_key), row]));
-  const ids = [...new Set(parsed.flatMap(request => [request.playerAId, request.playerBId]))];
+  const ids = [...new Set(parsed.flatMap(request => [request.playerAId, request.playerBId, ...(request.partners ?? [])]))];
   const players = new Map((await loadNpcs(tx, saveId, { ids })).map(player => [player.id, player]));
   const results: SimulatedMatch[] = [];
   const inserts: unknown[] = [];
@@ -78,7 +81,10 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
     const a = players.get(request.playerAId), b = players.get(request.playerBId);
     if (!a || !b) throw new CareerError(404, "Career opponent not found");
     if (a.status !== "ACTIVE" || b.status !== "ACTIVE" || a.id === b.id) throw new CareerError(409, "Match requires two active distinct NPCs");
-    const input = { players: [structuredClone(a), structuredClone(b)] as [typeof a, typeof b], seed: root.world_seed, generationVersion: root.world_generation_version,
+    const partners = request.partners?.map(id => players.get(id));
+    if (partners && (partners.some(p => !p || p.status !== "ACTIVE") || new Set([a.id, b.id, ...request.partners!]).size !== 4)) throw new CareerError(409, "Pairs match requires four active distinct NPCs");
+    const sides = partners ? [teamComposite(a, partners[0]!), teamComposite(b, partners[1]!)] as [typeof a, typeof b] : [structuredClone(a), structuredClone(b)] as [typeof a, typeof b];
+    const input = { players: sides, seed: root.world_seed, generationVersion: root.world_generation_version,
       matchKey: request.matchKey, difficulty: root.difficulty, context: request.context, format: request.format };
     const result = simulateNpcMatch(input);
     inserts.push({ id: stableUuid(root.world_seed, root.world_generation_version, "match", request.matchKey), match_key: request.matchKey,
@@ -87,6 +93,7 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
     a.form = formAfterMatch(a.form, result.performance[0], result.stats[0], result.performance[1]);
     b.form = formAfterMatch(b.form, result.performance[1], result.stats[1], result.performance[0]);
     touched.add(a.id); touched.add(b.id);
+    if (partners) partners.forEach((p, i) => { p!.form = formAfterMatch(p!.form, result.performance[i], result.stats[i], result.performance[1 - i]); touched.add(p!.id); });
     results.push(result);
   }
   if (inserts.length) {

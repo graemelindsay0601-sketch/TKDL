@@ -13,6 +13,7 @@ import { buildCatalogueV9 } from "../content/season-v9.ts";
 import { buildCatalogueV10 } from "../content/season-v10.ts";
 import { buildCatalogueV11 } from "../content/season-v11.ts";
 import { buildCatalogueV12 } from "../content/season-v12.ts";
+import { buildCatalogueV13 } from "../content/season-v13.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -451,6 +452,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 10) return EVENT_CATALOGUE_V10;
   if (version === 11) return EVENT_CATALOGUE_V11;
   if (version === 12) return EVENT_CATALOGUE_V12;
+  if (version === 13) return EVENT_CATALOGUE_V13;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -470,5 +472,7 @@ export const EVENT_CATALOGUE_V10: readonly EventDefinition[] = buildCatalogueV10
 export const EVENT_CATALOGUE_V11: readonly EventDefinition[] = buildCatalogueV11(EVENT_CATALOGUE_V10);
 /** v12: the Development Tour (16–23) has its own Order of Merit and Tour Card places. */
 export const EVENT_CATALOGUE_V12: readonly EventDefinition[] = buildCatalogueV12(EVENT_CATALOGUE_V11);
+/** v13: pairs — the World Cup of Darts and Pub Doubles. */
+export const EVENT_CATALOGUE_V13: readonly EventDefinition[] = buildCatalogueV13(EVENT_CATALOGUE_V12);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;
