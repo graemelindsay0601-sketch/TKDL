@@ -16,6 +16,8 @@ export function createCareerGoalsRouter(service: ReturnType<typeof createCareerG
   router.get("/saves/:id/goals",auth,async(req,res)=>res.json(await service.read(res.locals.careerActor,String(req.params.id))));
   router.post("/saves/:id/focus",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.focus(res.locals.careerActor,String(req.params.id),req.body)));
   router.post("/saves/:id/goals",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.create(res.locals.careerActor,String(req.params.id),req.body)));
+  router.put("/saves/:id/goals/main",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.setMainGoal(res.locals.careerActor,String(req.params.id),req.body)));
+  router.put("/saves/:id/goals/route",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.setNearTermRoute(res.locals.careerActor,String(req.params.id),req.body)));
   router.post("/saves/:id/goals/:goalId/abandon",auth,authedWriteRateLimit,async(req,res)=>res.json(await service.abandon(res.locals.careerActor,String(req.params.id),String(req.params.goalId))));
   router.use((error:unknown,_req:Request,res:Response,next:NextFunction)=>{
     if (error instanceof CareerError) res.status(error.status).json({error:error.message});

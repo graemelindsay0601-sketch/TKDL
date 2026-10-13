@@ -147,11 +147,20 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
         <CareerSection title="Career Compass" icon={<Target aria-hidden />} accent="#dbb866" action={<Link className="home-text-link" href={`/career/${id}/goals`}>Focus & goals <ArrowUpRight aria-hidden /></Link>}>
           {goals.isLoading ? <CareerLoading label="Reading your goals" /> : goals.error ? <CareerError error={goals.error} onRetry={() => void goals.refetch()} /> :
             goals.data ? <div className="home-goals">
-              <p className="home-focus">{goals.data.focusOptions.find(f => f.value === goals.data?.focus)?.label ?? "Career focus"} <span>OPTIONAL FOCUS</span></p>
+              <p className="home-focus">{goals.data.focusOptions.find(f => f.value === goals.data?.focus)?.label ?? "Career focus"} <span>NEAR-TERM PREFERENCE</span></p>
               {goals.data.retired && <p className="home-muted">Retired Career: goals remain readable; no new sporting progress.</p>}
-              {goals.data.goals.filter(g => g.status === "ACTIVE").length
-                ? <ul>{goals.data.goals.filter(g => g.status === "ACTIVE").slice(0, 3).map(g => <li key={g.id}><span aria-hidden />{g.label}</li>)}</ul>
-                : <NoGoalNudge saveId={id} retired={goals.data.retired} />}
+               {(() => {
+                 const activeGoals=goals.data!.goals.filter(g=>g.status==="ACTIVE");
+                 const mainGoal=goals.data!.goals.find(g=>g.id===goals.data!.mainGoalId) ?? activeGoals[0];
+                 return mainGoal ? <div className="home-main-ambition">
+                   <strong>{mainGoal.label}</strong><span>{mainGoal.status==="COMPLETED"?"Achieved":"Main ambition"}</span>
+                   {mainGoal.evidence && <p>Confirmed: {mainGoal.evidence.label} · Season {mainGoal.evidence.season}</p>}
+                   {mainGoal.status==="ACTIVE" && !mainGoal.evidence && <p>No confirmed milestone yet. Follow the recommended next step below.</p>}
+                 </div> : <NoGoalNudge saveId={id} retired={goals.data!.retired} />;
+                })()}
+               {goals.data.nearTermEventId && <p className="home-route-choice">
+                 Chosen next step: {goals.data.opportunities.find(e=>e.id===goals.data!.nearTermEventId)?.name ?? "no longer among the two current suggestions"}
+               </p>}
               <CompassOpportunities
                 opportunities={goals.data.opportunities}
                 events={events}
@@ -159,7 +168,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
                 onEnter={onEnter}
                 entering={enter.isPending}
               />
-              <p className="home-goal-foot">{goals.data.goals.filter(g => g.status === "ACTIVE").length} active <span aria-hidden>·</span> no rewards or progression shortcuts</p>
+               <p className="home-goal-foot">Evidence-based guidance <span aria-hidden>·</span> no rewards or progression shortcuts</p>
             </div> : <CareerEmptyState title="No goals available" />}
         </CareerSection>
       </div>
@@ -336,7 +345,7 @@ function CompassOpportunities({ opportunities, events, saveId, onEnter, entering
   return <div className="home-compass-opportunities">
     <div className="home-compass-title-row"><span className="home-compass-kicker">OPPORTUNITIES THAT FIT YOUR FOCUS</span><Link href={`/career/${saveId}/calendar`}>Full calendar <ArrowUpRight aria-hidden /></Link></div>
     {render(recommended, true)}
-    {alternatives.length > 0 && <div className="home-compass-alternatives">{alternatives.slice(0, 3).map(item => render(item, false))}</div>}
+    {alternatives.length > 0 && <div className="home-compass-alternatives">{alternatives.slice(0, 1).map(item => render(item, false))}</div>}
     <p className="home-compass-caveat">Guidance only. Check event eligibility, registration, schedule and costs before entering; this recommendation makes no sporting decision for you.</p>
   </div>;
 }

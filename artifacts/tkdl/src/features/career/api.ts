@@ -52,6 +52,8 @@ export const useNpcRecognition = (saveId: string, npcId?: string) => useQuery({ 
 export const useCareerGoals = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "goals"), queryFn: () => get<GoalsView>(`/saves/${saveId}/goals`), staleTime: STALE });
 export const useCareerFocus = (saveId: string) => useSaveMutation(saveId, (focus: Focus) => send<{focus:Focus}>("POST",`/saves/${saveId}/focus`,{focus}));
 export const useCreateCareerGoal = (saveId: string) => useSaveMutation(saveId, (body: {requestKey:string;definition:GoalDefinition}) => send<{id:string;created:boolean}>("POST",`/saves/${saveId}/goals`,body));
+export const useSetMainCareerGoal = (saveId: string) => useSaveMutation(saveId, (goalId:string|null) => send<{mainGoalId:string|null}>("PUT",`/saves/${saveId}/goals/main`,{goalId}));
+export const useSetCareerRoute = (saveId: string) => useSaveMutation(saveId, (eventId:string|null) => send<{nearTermEventId:string|null}>("PUT",`/saves/${saveId}/goals/route`,{eventId}));
 export const useAbandonCareerGoal = (saveId: string) => useSaveMutation(saveId, (goalId:string) => send<{id:string;status:string}>("POST",`/saves/${saveId}/goals/${goalId}/abandon`,{}));
 
 // ---------------------------------------------------------------- reads

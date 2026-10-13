@@ -18,6 +18,8 @@ export const goalSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("BEAT_RELATIONSHIP"), opponentId: z.string().uuid(), relationship: z.enum(["Career Rival","Nemesis"]) }).strict(),
 ]);
 export const createGoalSchema = z.object({ requestKey: z.string().uuid(), definition: goalSchema }).strict();
+export const mainGoalSchema = z.object({ goalId: z.string().uuid().nullable() }).strict();
+export const nearTermRouteSchema = z.object({ eventId: z.string().min(1).max(120).nullable() }).strict();
 export const targetKey = (d: GoalDefinition) => `${d.type}:${"eventId" in d ? d.eventId : "opponentId" in d ? `${d.opponentId}:${"relationship" in d ? d.relationship : ""}` : "target" in d ? d.target : ""}`;
 /** Thin immutable supporting record; age at known completion date, not event start. */
 export function completionFact(e: Fact, dob?: string): Fact {

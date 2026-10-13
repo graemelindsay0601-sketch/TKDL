@@ -173,7 +173,7 @@ const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[]
 ];
 
 const goalsFixture=():GoalsView=>({careerSaveId:SAVE_ID,focus:"OPEN_SCHEDULE",focusOptions:Object.entries(FOCUSES).map(([value,d])=>({value:value as GoalsView["focus"],...d})),
-  activeLimit:5,retired:false,goals:[],options:[{definition:{type:"WIN_TITLE"},label:"Win a Career title"}],
+  activeLimit:5,retired:false,mainGoalId:null,nearTermEventId:null,goals:[],options:[{definition:{type:"WIN_TITLE"},label:"Win a Career title"}],
   context:{currentRank:null,holdsCard:false,earningsPence:0},opportunities:[]});
 const recognitionFixture=(elite=false):RecognitionView=>({careerSaveId:SAVE_ID,subject:{kind:"HUMAN",id:"HUMAN",name:"Your Career",retired:false},relationships:[],
   ...recognitionModel({appearances:[],qualifications:[],cards:[],rankings:[],results:elite ? Array.from({length:4},(_,i)=>({
@@ -242,14 +242,14 @@ test("A7.3 recommendations retain exact costs, eligibility blockers and event li
   assert.doesNotMatch(t,/XP awarded|skill points|loot|level up/i);
 });
 test("A7.3 retired Careers retain readable goals/focus but no new-goal or abandon actions; Home has a compact summary",()=>{
-  const data=goalsFixture();data.retired=true;
+  const data=goalsFixture();data.retired=true;data.mainGoalId="pending";
   data.goals=[{id:"pending",definition:{type:"WIN_TITLE"},label:"Win a Career title",status:"ACTIVE",created:{season:1,week:1},
-    progress:{current:0,target:1,unit:"achievement",note:"Career retired; no further sporting progress."},completion:null}];
+    progress:{current:0,target:1,unit:"achievement",note:"Career retired; no further sporting progress."},completion:null,evidence:null}];
   const html=render(h(M.GoalsPage,{ctx:ctx(save({status:"RETIRED"}))}),[[key("goals"),data]]),t=text(html);
   assert.match(t,/Retired Career/);assert.match(t,/no further sporting progress/);
   assert.doesNotMatch(t,/Select goal|Abandon without penalty/);assert.match(html,/<select[^>]*disabled/);
   const summary=text(render(h(M.GoalsSummary,{saveId:SAVE_ID}),[[key("goals"),data]]));
-  assert.match(summary,/Open Schedule/);assert.match(summary,/1 active goals/);assert.match(summary,/Win a Career title/);assert.match(summary,/Manage/);
+  assert.match(summary,/Open Schedule/);assert.match(summary,/Main ambition/);assert.match(summary,/Win a Career title/);assert.match(summary,/Manage/);
 });
 
 test("A7.2 relationships render factual retired identity, H2H, cohorts, meetings, world context and no gameplay effects",()=>{
@@ -728,4 +728,17 @@ test("Tour Card retention status is stated in plain words against the top-64 cut
   assert.equal(retentionStatus(card, 60), "You are 60th — inside the cut with 4 places to spare.");
   assert.equal(retentionStatus(card, 64), "You are 64th — exactly on the cut line.");
   assert.equal(retentionStatus(card, 65), "You are 65th — 1 place outside the cut.");
+});
+
+test("Career Compass presents one selected ambition and evidence instead of a progress percentage",()=>{
+  const goals=goalsFixture();
+  goals.mainGoalId="ambition-1";
+  goals.goals=[{id:"ambition-1",definition:{type:"WIN_TITLE"},label:"Win a Career title",status:"ACTIVE",created:{season:1,week:1},
+    progress:{current:0,target:1,unit:"achievement",note:null},completion:null,evidence:null}];
+  const html=render(h(M.HomePage,{ctx:ctx()}),[...homeSeed(save(),[event()]),[key("goals"),goals]]);
+  const t=text(html);
+  assert.match(t,/Main ambition/);
+  assert.match(t,/Win a Career title/);
+  assert.match(t,/No confirmed milestone yet/);
+  assert.doesNotMatch(t,/0 \/ 1|0%/);
 });
