@@ -3,7 +3,7 @@ services:
   - type: web
     name: tkdl
     runtime: node
-    region: oregon
+    region: frankfurt
     buildCommand: pnpm install && pnpm --filter @workspace/tkdl run build && pnpm --filter @workspace/api-server run build
     startCommand: node --enable-source-maps ./artifacts/api-server/dist/index.mjs
     envVars:
