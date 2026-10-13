@@ -8,7 +8,7 @@ import { stableUuid } from "../world/random.ts";
 import { TOUR_CARD_RULES_V1, PATHWAY_FOR_ZONE, tourCardRulesFor } from "./config.ts";
 import { recordMilestones, type Milestone } from "./state.ts";
 
-export type CardSource = "FOUNDING" | "Q_SCHOOL_DIRECT" | "Q_SCHOOL_ORDER_OF_MERIT" | "RANKING_RETENTION" | "CHALLENGER_RANKING";
+export type CardSource = "FOUNDING" | "Q_SCHOOL_DIRECT" | "Q_SCHOOL_ORDER_OF_MERIT" | "RANKING_RETENTION" | "CHALLENGER_RANKING" | "DEVELOPMENT_RANKING";
 export type CardRow = { id: string; participant_key: string; participant_kind: string; npc_id: string | null; source: CardSource; source_detail: Record<string, unknown>;
   awarded_season: number; awarded_week: number; start_season: number; end_season: number; status: string; end_reason: string | null; previous_card_id: string | null };
 
@@ -105,7 +105,7 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
   const position = async (list: string) => new Map((await tx.execute(sql`SELECT participant_key, current_position FROM career_ranking_participants
     WHERE career_save_id = ${root.id} AND list_key = ${list} AND current_position IS NOT NULL`)).rows.map(r => [String(r.participant_key), Number(r.current_position)]));
   const world = await position(rules.retention.list);
-  const summary = { season, retained: 0, lost: 0, challengerCards: 0, exemptions: 0 };
+  const summary = { season, retained: 0, lost: 0, challengerCards: 0, developmentCards: 0, exemptions: 0 };
   const losers: CardRow[] = [];
   const expiring = (await tx.execute(sql`SELECT * FROM career_tour_cards WHERE career_save_id = ${root.id} AND status = 'ACTIVE' AND end_season <= ${season}
     ORDER BY participant_key`)).rows as CardRow[];
@@ -134,12 +134,32 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
       source: "CHALLENGER_RANKING", detail: { list: rules.challengerCards.list, position: rank }, season, week, startSeason: season + 1, endSeason: season + rules.termSeasons });
     if (result) { holdersNext.add(participant); summary.challengerCards++; }
   }
+  // v3: the Development Tour Order of Merit top two without a card for next season (after the Challenger cards).
+  const devRules = rules.developmentCards;
+  const development = devRules ? [...(await position(devRules.list)).entries()].sort((a, b) => a[1] - b[1]) : [];
+  if (devRules) {
+    for (const r of (await tx.execute(sql`SELECT participant_key, participant_kind, npc_id FROM career_ranking_participants WHERE career_save_id = ${root.id} AND list_key = ${devRules.list}`)).rows)
+      if (!kinds.has(String(r.participant_key))) kinds.set(String(r.participant_key), { kind: String(r.participant_kind), npc: r.npc_id ? String(r.npc_id) : null });
+    let awarded = 0;
+    for (const [participant, rank] of development) {
+      if (awarded >= devRules.count) break;
+      if (holdersNext.has(participant)) continue;
+      const who = kinds.get(participant)!;
+      const result = await awardCard(tx, root, rulesVersion, { operationKey: `development:${season}:${participant}`, participantKey: participant, participantKind: who.kind, npcId: who.npc,
+        source: "DEVELOPMENT_RANKING", detail: { list: devRules.list, position: rank }, season, week, startSeason: season + 1, endSeason: season + rules.termSeasons });
+      if (result) { holdersNext.add(participant); awarded++; summary.developmentCards++; }
+    }
+  }
   // Q-School Final Stage exemptions (A3 entitlement model, provider-issued).
   const [from, to] = rules.qSchoolExemptions.challengerPositions;
   const exempt = new Map<string, { kind: string; npc: string | null; reason: string; detail: Record<string, unknown> }>();
   if (rules.qSchoolExemptions.cardLosers) for (const c of losers) exempt.set(c.participant_key, { kind: c.participant_kind, npc: c.npc_id, reason: "TOUR_CARD_LOST", detail: { cardId: c.id } });
   for (const [participant, rank] of challenger) if (rank >= from && rank <= to && !exempt.has(participant)) {
     const who = kinds.get(participant)!; exempt.set(participant, { kind: who.kind, npc: who.npc, reason: "CHALLENGER_RANKING", detail: { position: rank } });
+  }
+  const devPlaces = rules.developmentPlaces;
+  if (devPlaces) for (const [participant, rank] of development) if (rank >= devPlaces.qSchoolPositions[0] && rank <= devPlaces.qSchoolPositions[1] && !exempt.has(participant)) {
+    const who = kinds.get(participant)!; exempt.set(participant, { kind: who.kind, npc: who.npc, reason: "DEVELOPMENT_RANKING", detail: { position: rank } });
   }
   const grants: Record<string, unknown>[] = [];
   if (exempt.size) {
@@ -164,6 +184,16 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
         recipient_kind: who.kind, npc_id: who.npc, entitlement_type: "EVENT_ENTRY", source_event_id: null, source_position: null,
         source_detail: { providerId: "A5_SPORTING", reason: "CHALLENGER_RANKING", position: rank }, target_key: open.targetKey, target_season: season + 1, consumption: "SINGLE_USE" });
     }
+    // v3: Development Tour 3rd–10th also earn an Open Championship place (one place per player, whichever route).
+    if (open && devPlaces) for (const [participant, rank] of development)
+      if (rank >= devPlaces.openChampionshipPositions[0] && rank <= devPlaces.openChampionshipPositions[1] && !holdersNext.has(participant)
+        && !grants.some(g => g.recipient_key === participant && g.target_key === open.targetKey)) {
+        const who = kinds.get(participant)!;
+        const idempotency = `provider:a5-open-championship-place:${season + 1}:${participant}`;
+        grants.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "entitlement", idempotency), idempotency_key: idempotency, recipient_key: participant,
+          recipient_kind: who.kind, npc_id: who.npc, entitlement_type: "EVENT_ENTRY", source_event_id: null, source_position: null,
+          source_detail: { providerId: "A5_SPORTING", reason: "DEVELOPMENT_RANKING", position: rank }, target_key: open.targetKey, target_season: season + 1, consumption: "SINGLE_USE" });
+      }
     if (grants.length) await insertEntitlements(tx, root.id, season, grants, "PROVIDER");
     summary.exemptions = grants.length;
   }

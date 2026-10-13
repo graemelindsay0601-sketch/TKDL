@@ -347,6 +347,35 @@ test("14b. Tour Card rules v2 (new saves): Challenger top 16 reach the Q-School 
   });
 });
 
+test("14c. Tour Card rules v3 (event database v12): the Development Tour Order of Merit top two without a card earn one; the Challenger cards come first", async () => {
+  assert.equal(tourCardRulesVersionFor(12), 3); assert.equal(tourCardRulesVersionFor(11), 2);
+  assert.equal(tourCardRulesFor(3).developmentCards?.count, 2);
+  await inRollback(human, A, async (tx, root) => {
+    // The fixture predates v12, so seed a Development Tour Order of Merit with the Challenger ranking's order:
+    // the same leaders top both lists, so the development cards must pass down to the next players without a card.
+    await tx.execute(sql`INSERT INTO career_ranking_participants (career_save_id, list_key, participant_key, participant_kind, npc_id, current_position, current_value_pence,
+      career_high_position, career_high_index, first_ranked_index, updated_index)
+      SELECT career_save_id, 'development', participant_key, participant_kind, npc_id, current_position, current_value_pence, current_position, updated_index, updated_index, updated_index
+      FROM career_ranking_participants WHERE career_save_id = ${A} AND list_key = 'challenger' AND current_position IS NOT NULL`);
+    const order = (await tx.execute(sql`SELECT participant_key, current_position FROM career_ranking_participants WHERE career_save_id = ${A} AND list_key = 'development' ORDER BY current_position`)).rows
+      .map(r => [String(r.participant_key), Number(r.current_position)] as const);
+    const before = await cardHoldersIn(tx, A, 2);
+    const summary = await seasonReview(tx, root, 3, 1);
+    assert.equal(summary?.challengerCards, 2); assert.equal(summary?.developmentCards, 2);
+    const cards = (await tx.execute(sql`SELECT participant_key, source, start_season, end_season FROM career_tour_cards WHERE career_save_id = ${A} AND awarded_season = 1 AND source IN ('CHALLENGER_RANKING','DEVELOPMENT_RANKING')`)).rows;
+    const challengerWinners = new Set(cards.filter(c => c.source === "CHALLENGER_RANKING").map(c => String(c.participant_key)));
+    const expected = order.filter(([k]) => !before.has(k) && !challengerWinners.has(k)).slice(0, 2).map(([k]) => k);
+    assert.deepEqual(cards.filter(c => c.source === "DEVELOPMENT_RANKING").map(c => String(c.participant_key)).sort(), [...expected].sort(), "cards pass down past players who already have one");
+    for (const c of cards) assert.deepEqual([Number(c.start_season), Number(c.end_season)], [2, 3], "two-season card from next season");
+    const grants = (await tx.execute(sql`SELECT recipient_key, target_key, source_detail FROM career_qualification_entitlements WHERE career_save_id = ${A} AND target_season = 2 AND source_kind = 'PROVIDER'`)).rows;
+    const opens = grants.filter(g => g.target_key === "open-championship").map(g => String(g.recipient_key));
+    assert.equal(new Set(opens).size, opens.length, "one Open Championship place per player, whichever route");
+    const holders = await cardHoldersIn(tx, A, 2);
+    for (const [key, pos] of order) if (!holders.has(key) && pos >= 3 && pos <= 16)
+      assert.ok(grants.some(g => g.recipient_key === key && String(g.target_key).startsWith("q-school-final:")), `Development ${pos} reaches the Final Stage`);
+  });
+});
+
 test("16. duplicate / overlapping cards are impossible", async () => {
   const holder = (await rows(sql`SELECT * FROM career_tour_cards WHERE career_save_id = ${A} AND status = 'ACTIVE' LIMIT 1`))[0] as CardRow;
   await inRollback(human, A, async (tx, root) => {

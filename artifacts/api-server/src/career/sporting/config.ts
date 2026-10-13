@@ -11,7 +11,7 @@ import { WEEKS_PER_SEASON } from "../calendar/config.ts";
 export const RANKING_RULES_VERSION = 1;
 export const TOUR_CARD_RULES_VERSION = 1;
 export const Q_SCHOOL_RULES_VERSION = 1;
-export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2, 3], tourCard: [1, 2], qSchool: [1] } as const;
+export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2, 3, 4], tourCard: [1, 2, 3], qSchool: [1] } as const;
 
 /** Linear Career clock: (season, week) -> publication index. Week 52 of season S = S*52. */
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS_PER_SEASON + week;
@@ -66,9 +66,20 @@ export const RANKING_LISTS_V3: readonly RankingListDefinition[] = Object.freeze(
   ...RANKING_LISTS_V2,
   { key: "soft-tip", name: "Soft-Tip World Ranking", scope: "SECONDARY", categories: ["SOFT_TIP"], window: { kind: "ROLLING", weeks: 52 }, cutLines: [8, 16, 32], milestoneThresholds: [1] },
 ]);
+/**
+ * Ranking rules v4 (event database v12 saves): the Development Tour (16–23) has its own season Order of
+ * Merit, the real PDC Development Tour ranking that awards Tour Cards. Development Tour results also still
+ * count in the Youth Order of Merit alongside the Youth Masters and Youth World Championship.
+ */
+export const RANKING_LISTS_V4: readonly RankingListDefinition[] = Object.freeze([
+  ...RANKING_LISTS_V3.flatMap(l => l.key === "youth" ? [{ ...l, categories: ["YOUTH", "DEVELOPMENT"] }]
+    : l.key === "challenger" ? [l, { key: "development", name: "Development Tour Order of Merit", scope: "SECONDARY" as const, categories: ["DEVELOPMENT"], window: { kind: "SEASON" as const }, cutLines: [2, 16], milestoneThresholds: [1] }]
+    : [l]),
+]);
 /** Ranking rules version a save is created under, from its event database version. */
-export const rankingRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 7 ? 3 : eventDatabaseVersion >= 3 ? 2 : 1;
+export const rankingRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 12 ? 4 : eventDatabaseVersion >= 7 ? 3 : eventDatabaseVersion >= 3 ? 2 : 1;
 export function rankingListsFor(version: number): readonly RankingListDefinition[] {
+  if(version===4)return RANKING_LISTS_V4;
   if(version===3)return RANKING_LISTS_V3;
   if(version===2)return RANKING_LISTS_V2;
   if (version !== RANKING_RULES_VERSION) throw new Error(`Unsupported Career ranking rules version ${version}; migration required`);
@@ -128,10 +139,22 @@ export const TOUR_CARD_RULES_V2 = Object.freeze({
   qSchoolExemptions: { cardLosers: true, challengerPositions: [3, 16] as [number, number] },
   openChampionshipPlaces: { list: "challenger", positions: [3, 10] as [number, number], targetKey: "open-championship" },
 });
-export type TourCardRules = typeof TOUR_CARD_RULES_V1 & { openChampionshipPlaces?: typeof TOUR_CARD_RULES_V2.openChampionshipPlaces };
-export const tourCardRulesFor = (version: number): TourCardRules => version === 2 ? TOUR_CARD_RULES_V2 : TOUR_CARD_RULES_V1;
+/**
+ * Tour Card rules v3 (event database v12 saves): the Development Tour is a second route to a card, as the
+ * real PDC Development Tour is. Its Order of Merit top two without a card for next season earn one (after
+ * the Challenger cards, so a player at the top of both passes the second card down); the next places
+ * (3rd–16th) go straight to the Q-School Final Stage, and 3rd–10th also get an Open Championship place.
+ */
+export const TOUR_CARD_RULES_V3 = Object.freeze({
+  ...TOUR_CARD_RULES_V2,
+  developmentCards: { list: "development", count: 2 },
+  developmentPlaces: { qSchoolPositions: [3, 16] as [number, number], openChampionshipPositions: [3, 10] as [number, number] },
+});
+export type TourCardRules = typeof TOUR_CARD_RULES_V1 & { openChampionshipPlaces?: typeof TOUR_CARD_RULES_V2.openChampionshipPlaces }
+  & { developmentCards?: typeof TOUR_CARD_RULES_V3.developmentCards; developmentPlaces?: typeof TOUR_CARD_RULES_V3.developmentPlaces };
+export const tourCardRulesFor = (version: number): TourCardRules => version === 3 ? TOUR_CARD_RULES_V3 : version === 2 ? TOUR_CARD_RULES_V2 : TOUR_CARD_RULES_V1;
 /** Tour Card rules version a save is created under, from its event database version. */
-export const tourCardRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 8 ? 2 : 1;
+export const tourCardRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 12 ? 3 : eventDatabaseVersion >= 8 ? 2 : 1;
 
 // ------------------------------------------------------------------ Q-School
 export const Q_SCHOOL_RULES_V1 = Object.freeze({
