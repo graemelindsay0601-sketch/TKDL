@@ -149,17 +149,50 @@ export function dossier(v: Pick<TView, "matches" | "field" | "opponents">, key: 
 // ---------------------------------------------------------------- result significance
 export type Significance = "TITLE" | "FINAL_REACHED" | "SEMI_REACHED" | "QUARTER_REACHED" | "WIN" | "GROUP_WIN"
   | "GROUP_LOSS" | "ELIMINATED" | "RUNNER_UP";
-export type ResultMoment = { significance: Significance; headline: string; detail: string; milestone: boolean };
+export type ResultMoment = { significance: Significance; headline: string; detail: string; milestone: boolean;
+  /** A7.2 rivalry context for the result (Nemesis beaten, rivalry head to head), when the opponent has one. */
+  rivalry?: string | null };
+
+const nth = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th")}`;
+/** Pre-match "needle" framing from the A7.2 relationship labels; null for an ordinary meeting. */
+export function needleMatch(m: Dossier["meetings"]): { label: string; line: string } | null {
+  if (!m || m.played === 0) return null;
+  const record = `${m.humanWins}–${m.npcWins}`;
+  if (m.labels.includes("Nemesis")) return { label: "Needle match · Nemesis", line: `They have beaten you ${m.npcWins} time${m.npcWins === 1 ? "" : "s"} in ${m.played} meetings.` };
+  const rival = m.labels.includes("Generation Rival") ? "Generation Rival" : m.labels.includes("Career Rival") ? "Career Rival" : null;
+  if (rival) return { label: `Needle match · ${rival}`,
+    line: `${m.humanWins > m.npcWins ? `You lead ${record}` : m.npcWins > m.humanWins ? `You trail ${record}` : `Level at ${record}`} after ${m.played} meetings.` };
+  if (m.labels.includes("Favourite Opponent")) return { label: "Favourite opponent", line: `You have won ${m.humanWins} of ${m.played} meetings.` };
+  return null;
+}
+/** Post-match rivalry line (the meetings already include this result). */
+export function rivalryAfter(m: Dossier["meetings"], won: boolean): string | null {
+  if (!m || m.played === 0) return null;
+  if (m.labels.includes("Nemesis")) return won ? `Nemesis beaten — only your ${nth(m.humanWins)} win in ${m.played} meetings.` : `Your Nemesis again: ${m.npcWins} wins from ${m.played} meetings.`;
+  if (m.labels.includes("Generation Rival") || m.labels.includes("Career Rival"))
+    return `Rivalry head to head: ${m.humanWins}–${m.npcWins}${m.humanWins === m.npcWins ? ", level" : m.humanWins > m.npcWins ? ", you lead" : ", you trail"}.`;
+  return null;
+}
 
 /**
  * Classifies the player's most recent decided match from saved facts. A win in
  * round r of R takes the player to round r+1; a final win is a title only when
  * the server says the player is champion.
  */
-export function resultMoment(v: Pick<TView, "matches" | "phase" | "event" | "achievements">, m: TMatch | null): ResultMoment | null {
+export function resultMoment(v: Pick<TView, "matches" | "phase" | "event" | "achievements"> & Partial<Pick<TView, "field" | "opponents">>, m: TMatch | null): ResultMoment | null {
+  const moment = baseMoment(v, m);
+  if (!moment || !m || !v.field || !v.opponents) return moment;
+  const opp = m.a_key === "HUMAN" ? m.b_key : m.a_key;
+  const rivalry = opp ? rivalryAfter(dossier(v as Pick<TView, "matches" | "field" | "opponents">, opp)?.meetings ?? null, m.winner_key === "HUMAN") : null;
+  return rivalry ? { ...moment, rivalry } : moment;
+}
+function baseMoment(v: Pick<TView, "matches" | "phase" | "event" | "achievements">, m: TMatch | null): ResultMoment | null {
   if (!m || !involvesHuman(m) || !isFinal(m) || m.status === "BYE") return null;
   const rounds = knockoutRounds(v.matches);
   const won = m.winner_key === "HUMAN";
+  if (isGroup(m) && m.stage_key === "groups:L") return won
+    ? { significance: "GROUP_WIN", headline: "League match won", detail: "The league table decides the four play-off places.", milestone: false }
+    : { significance: "GROUP_LOSS", headline: "League match lost", detail: "One league night does not decide your season — the table does.", milestone: false };
   if (isGroup(m)) return won
     ? { significance: "GROUP_WIN", headline: "Group match won", detail: "Group standings decide who reaches the knockout stage.", milestone: false }
     : { significance: "GROUP_LOSS", headline: "Group match lost", detail: "A group loss does not end your event on its own — the table decides.", milestone: false };

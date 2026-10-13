@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createServer, type ViteDevServer } from "vite";
 import {
-  bracketColumns, stageOf, dossier, humanPath, opponentIfWin, prizeLadder, resultMoment, roundLabel, runSummary, tierFromEvent, tierProfile,
+  bracketColumns, stageOf, needleMatch, rivalryAfter, dossier, humanPath, opponentIfWin, prizeLadder, resultMoment, roundLabel, runSummary, tierFromEvent, tierProfile,
 } from "../../features/career/tournament/model.ts";
 import { event, eventDetail, overview, save, SAVE_ID } from "./career-fixtures.ts";
 
@@ -324,4 +324,16 @@ test("grassroots hub scene", () => {
 test("league matches are labelled by league night; Vault groups keep their group label", () => {
   assert.equal(stageOf({ stage_key: "groups:L", round: 9 } as never, 2), "League night 9");
   assert.equal(stageOf({ stage_key: "groups:B", round: 2 } as never, 3), "Group B · Round 2");
+});
+
+test("rivalries: needle-match framing before, and a rivalry line after, from the recorded head to head", () => {
+  const m = (humanWins: number, npcWins: number, labels: string[]) => ({ played: humanWins + npcWins, humanWins, npcWins, latest: null, labels });
+  assert.equal(needleMatch(null), null);
+  assert.equal(needleMatch(m(2, 1, ["Familiar Opponent"])), null, "an ordinary meeting gets no needle framing");
+  assert.deepEqual(needleMatch(m(1, 5, ["Nemesis"])), { label: "Needle match · Nemesis", line: "They have beaten you 5 times in 6 meetings." });
+  assert.deepEqual(needleMatch(m(4, 3, ["Career Rival"])), { label: "Needle match · Career Rival", line: "You lead 4–3 after 7 meetings." });
+  assert.equal(needleMatch(m(3, 3, ["Career Rival", "Generation Rival"]))!.label, "Needle match · Generation Rival");
+  assert.equal(rivalryAfter(m(2, 5, ["Nemesis"]), true), "Nemesis beaten — only your 2nd win in 7 meetings.");
+  assert.equal(rivalryAfter(m(4, 4, ["Career Rival"]), false), "Rivalry head to head: 4–4, level.");
+  assert.equal(rivalryAfter(m(5, 1, ["Favourite Opponent"]), true), null);
 });
