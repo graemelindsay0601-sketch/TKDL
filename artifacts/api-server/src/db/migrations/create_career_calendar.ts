@@ -287,6 +287,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
       )
     `);
     await ensureSoftTipCircuit(tx);
+    await ensureLeagueRounds(tx);
     await syncEventDefinitions(tx);
     // A6.5: server-authoritative live match sessions — additive, idempotent.
     await ensureCareerMatchSessionSchema(tx);
@@ -308,6 +309,18 @@ export async function ensureSoftTipCircuit(tx: CareerExecutor): Promise<void> {
   await tx.execute(sql`ALTER TABLE career_event_instances DROP CONSTRAINT IF EXISTS career_event_instances_circuit_check`);
   await tx.execute(sql`ALTER TABLE career_event_instances ADD CONSTRAINT career_event_instances_circuit_check CHECK (circuit IN ('GRASSROOTS','COUNTY','REGIONAL',
     'NATIONAL_AMATEUR','CHALLENGER','VAULT','Q_SCHOOL','PRO_CIRCUIT','EUROPEAN_SERIES','WORLD_SERIES','INVITATIONAL','MAJOR','WORLD_CHAMPIONSHIP','SPECIAL','SOFT_TIP'))`);
+}
+
+/**
+ * Event database v11 league nights play fourteen league rounds; the match round check allowed eight.
+ * Widened once (to 30); later startups see the wider check and leave the table alone.
+ */
+export async function ensureLeagueRounds(tx: CareerExecutor): Promise<void> {
+  const current = (await tx.execute(sql`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+    WHERE conrelid = 'career_tournament_matches'::regclass AND conname = 'career_tournament_matches_round_check'`)).rows[0] as { def: string } | undefined;
+  if (current?.def.includes("30")) return;
+  await tx.execute(sql`ALTER TABLE career_tournament_matches DROP CONSTRAINT IF EXISTS career_tournament_matches_round_check`);
+  await tx.execute(sql`ALTER TABLE career_tournament_matches ADD CONSTRAINT career_tournament_matches_round_check CHECK (round BETWEEN 1 AND 30)`);
 }
 
 /** Insert shipped definitions; a changed definition under an existing version is refused. */

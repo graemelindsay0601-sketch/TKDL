@@ -10,7 +10,7 @@ import {careerIdSchema} from "../validation.ts";
 import {lockRoot,type CareerActor} from "../world/service.ts";
 import {loadInstances,loadMatches,type RootRow} from "../calendar/engine.ts";
 import type {CareerCalendarService} from "../calendar/service.ts";
-import {isGroupMatch} from "../calendar/groups.ts";
+import {isGroupMatch,isGroupedStructure,layoutFor} from "../calendar/groups.ts";
 import {loadBulls,resolvedGroups} from "../calendar/group-engine.ts";
 import {stageName,finishingPosition} from "../calendar/draw.ts";
 import {createCareerRelationshipsService} from "../relationships/service.ts";
@@ -46,7 +46,7 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
       const matches=await loadMatches(tx,root.id,eventId);
       if(event.status==="IN_PROGRESS"&&!matches.length)throw new CareerError(409,"Official draw is missing; nothing has been regenerated");
       const size=(event.snapshot as unknown as {draw?:{size:number}}).draw?.size;
-      const expected=event.snapshot.format.structure==="GROUP_KNOCKOUT"?31:size?size-1:null;
+      const expected=isGroupedStructure(event.snapshot.format.structure)?layoutFor(event.snapshot.format.structure).fixtures:size?size-1:null;
       if(event.status==="IN_PROGRESS"&&expected!==null&&matches.length!==expected)
         throw new CareerError(409,"Official draw is incomplete; it has not been regenerated");
       const entries=(await tx.execute(sql`SELECT e.participant_key,e.source,e.status,e.draw_seed,
@@ -58,8 +58,8 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
       const withdrawn=new Set(entries.filter(e=>e.status==="WITHDRAWN").map(e=>String(e.participant_key)));
       const drawKeys=new Set(matches.flatMap(m=>[m.a_key,m.b_key]).filter((k):k is string=>!!k));
       const fieldEntries=matches.length?entries.filter(e=>drawKeys.has(String(e.participant_key))):entries.filter(e=>e.status!=="WITHDRAWN");
-      const groups=event.snapshot.format.structure==="GROUP_KNOCKOUT"&&matches.length
-        ?resolvedGroups(matches,await loadBulls(tx,saveId,eventId),withdrawn):[];
+      const groups=isGroupedStructure(event.snapshot.format.structure)&&matches.length
+        ?resolvedGroups(matches,await loadBulls(tx,saveId,eventId),withdrawn,layoutFor(event.snapshot.format.structure)):[];
       const next=matches.filter(m=>[m.a_key,m.b_key].includes("HUMAN")&&!finalStatus(m.status))
         .sort((a,b)=>Number(!isGroupMatch(a))-Number(!isGroupMatch(b))||a.round-b.round||a.slot-b.slot)[0]??null;
       const humanMatches=matches.filter(m=>[m.a_key,m.b_key].includes("HUMAN"));

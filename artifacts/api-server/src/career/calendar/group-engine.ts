@@ -8,7 +8,7 @@ import { toCareerBotConfig } from "../world/bot-adapter.ts";
 import { SIMULATION_VERSION } from "../world/config.ts";
 import { botBullThrow, resolveBullUp, seededRandom, type BullThrow } from "../../shared/darts-rules/index.ts";
 import type { InstanceRow, MatchRow, RootRow } from "./engine.ts";
-import { GROUP_KEYS, GROUP_SCHEDULE, bullRanking, groupStage, groupTable } from "./groups.ts";
+import { VAULT_LAYOUT, bullRanking, groupStage, groupTable, layoutFor, type GroupLayout } from "./groups.ts";
 import { CALENDAR_GENERATION_VERSION } from "./config.ts";
 
 export type BullRow = {
@@ -18,15 +18,25 @@ export type BullRow = {
 export const tournamentDay = (e: InstanceRow, phase: number, count: number) =>
   e.start_day + Math.floor((phase - 1) * (e.end_day - e.start_day + 1) / count);
 
-export function makeGroupRows(root: RootRow, event: InstanceRow, positions: (string | null)[]) {
-  if (positions.length !== 16 || positions.some(k => !k) || new Set(positions).size !== 16)
-    throw new CareerError(409, "Vault requires sixteen real confirmed entrants");
-  return GROUP_KEYS.flatMap((group, g) => GROUP_SCHEDULE.flatMap((pairs, r) => pairs.map(([a, b], s) => ({
+/** League nights: round r is played on the r-th weekly night; the play-offs on the last night. */
+export const leagueNight = (e: Pick<InstanceRow, "start_day">, night: number) => e.start_day + 7 * (night - 1);
+/** Every day a grouped event is actually played: weekly nights for a league, every day otherwise. */
+export function playingDays(e: Pick<InstanceRow, "start_day" | "end_day" | "snapshot">): number[] {
+  const all = Array.from({ length: e.end_day - e.start_day + 1 }, (_, i) => e.start_day + i);
+  return e.snapshot.format.structure === "LEAGUE" ? all.filter(d => (d - e.start_day) % 7 === 0) : all;
+}
+
+export function makeGroupRows(root: RootRow, event: InstanceRow, positions: (string | null)[], layout: GroupLayout = VAULT_LAYOUT) {
+  const entrants = layout.keys.length * layout.size;
+  if (positions.length !== entrants || positions.some(k => !k) || new Set(positions).size !== entrants)
+    throw new CareerError(409, layout.kind === "LEAGUE" ? "A league requires eight real confirmed entrants" : "Vault requires sixteen real confirmed entrants");
+  const day = (r: number) => layout.kind === "LEAGUE" ? leagueNight(event, r + 1) : tournamentDay(event, r + 1, 6);
+  return layout.keys.flatMap((group, g) => layout.schedule.flatMap((pairs, r) => pairs.map(([a, b], s) => ({
     id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "tournament-match", event.id, groupStage(group), r + 1, s + 1),
     stage_key: groupStage(group), round: r + 1, slot: s + 1, best_of: event.snapshot.format.stages[0].bestOfByRound[0],
-    scheduled_day: tournamentDay(event, r + 1, 6), a_key: positions[g * 4 + a], b_key: positions[g * 4 + b],
-    a_npc_id: positions[g * 4 + a] === "HUMAN" ? null : positions[g * 4 + a],
-    b_npc_id: positions[g * 4 + b] === "HUMAN" ? null : positions[g * 4 + b],
+    scheduled_day: day(r), a_key: positions[g * layout.size + a], b_key: positions[g * layout.size + b],
+    a_npc_id: positions[g * layout.size + a] === "HUMAN" ? null : positions[g * layout.size + a],
+    b_npc_id: positions[g * layout.size + b] === "HUMAN" ? null : positions[g * layout.size + b],
     status: "PENDING", winner_key: null, result_source: null, first_throw_method: event.snapshot.format.firstThrowMethod,
   }))));
 }
@@ -63,15 +73,17 @@ async function botTurns(tx: CareerExecutor, root: RootRow, event: InstanceRow, r
 }
 
 /** Projection never writes. Completed standings + persisted bull facts determine the qualifiers. */
-export function resolvedGroups(matches: MatchRow[], bulls: BullRow[], withdrawn: Set<string>) {
+export function resolvedGroups(matches: MatchRow[], bulls: BullRow[], withdrawn: Set<string>, layout: GroupLayout = VAULT_LAYOUT) {
   const qfs=matches.filter(m=>m.stage_key==="knockout"&&m.round===1).sort((a,b)=>a.slot-b.slot);
-  const locked=qfs.length===4&&qfs.every(m=>!!m.a_key||!!m.b_key||m.status==="VOID");
-  const lockedPairs=locked?[
+  const firstRound = layout.kind === "LEAGUE" ? 2 : 4;
+  const locked=qfs.length===firstRound&&qfs.every(m=>!!m.a_key||!!m.b_key||m.status==="VOID");
+  // League semi-finals: 1st v 4th (slot 1), 2nd v 3rd (slot 2); qualifiers are recorded in table order.
+  const lockedPairs=locked?(layout.kind === "LEAGUE" ? [[qfs[0].a_key,qfs[1].a_key,qfs[1].b_key,qfs[0].b_key]] : [
     [qfs[0].a_key,qfs[2].b_key],[qfs[2].a_key,qfs[0].b_key],
     [qfs[1].a_key,qfs[3].b_key],[qfs[3].a_key,qfs[1].b_key],
-  ]:null;
-  return GROUP_KEYS.map((group,index) => {
-    const table = groupTable(matches, group, locked?new Set():withdrawn);
+  ]):null;
+  return layout.keys.map((group,index) => {
+    const table = groupTable(matches, group, locked?new Set():withdrawn, layout);
     if(locked) {
       for(const p of table.buckets.flat())p.withdrawn=withdrawn.has(p.key);
       return {...table,qualifiers:lockedPairs![index].filter((k):k is string=>!!k),pending:null};
@@ -79,11 +91,11 @@ export function resolvedGroups(matches: MatchRow[], bulls: BullRow[], withdrawn:
     const qualifiers: string[] = [];
     let pending: { group: string; tieKey: string; ordinal: number; pair: [string, string]; row: BullRow | null } | null = null;
     if (table.finished) for (const bucket of table.buckets) {
-      if (qualifiers.length >= 2 || bucket[0].withdrawn) break;
+      if (qualifiers.length >= layout.qualifiers || bucket[0].withdrawn) break;
       if (bucket.length === 1) { qualifiers.push(bucket[0].key); continue; }
       const keys = bucket.map(p => p.key), tieKey = keys.join(":");
       const results = bulls.filter(b => b.group_key === group && b.tie_key === tieKey);
-      const ranking = bullRanking(keys, results, Math.min(2 - qualifiers.length, keys.length));
+      const ranking = bullRanking(keys, results, Math.min(layout.qualifiers - qualifiers.length, keys.length));
       qualifiers.push(...ranking.ranked);
       if (ranking.pair) {
         pending = { group, tieKey, ordinal: ranking.ordinal, pair: ranking.pair,
@@ -95,10 +107,10 @@ export function resolvedGroups(matches: MatchRow[], bulls: BullRow[], withdrawn:
 }
 
 /** Called only by A3 writers under its root lock. Qualifiers feed the original stored QF slots once. */
-export async function progressGroups(tx: CareerExecutor, root: RootRow, event: InstanceRow, matches: MatchRow[], withdrawn: Set<string>) {
+export async function progressGroups(tx: CareerExecutor, root: RootRow, event: InstanceRow, matches: MatchRow[], withdrawn: Set<string>, layout: GroupLayout = VAULT_LAYOUT) {
   let changed = false;
   for (let guard = 0; guard < 32; guard++) {
-    const groups = resolvedGroups(matches, await loadBulls(tx, root.id, event.id), withdrawn);
+    const groups = resolvedGroups(matches, await loadBulls(tx, root.id, event.id), withdrawn, layout);
     const pending = groups.find(g => g.pending && (!g.pending.row || !g.pending.pair.includes("HUMAN")));
     if (!pending?.pending) break;
     const p = pending.pending;
@@ -109,17 +121,19 @@ export async function progressGroups(tx: CareerExecutor, root: RootRow, event: I
     changed = true;
     if (!row.winner_key) break;
   }
-  const groups = resolvedGroups(matches, await loadBulls(tx, root.id, event.id), withdrawn);
+  const groups = resolvedGroups(matches, await loadBulls(tx, root.id, event.id), withdrawn, layout);
   if (groups.some(g => !g.finished || g.pending)) return { changed, groups };
-  // Cross-group QFs: A1-B2, C1-D2, B1-A2, D1-C2. No reseeding, same-group SFs avoided.
+  // Vault: cross-group QFs A1-B2, C1-D2, B1-A2, D1-C2 (no reseeding, same-group SFs avoided).
+  // League: semi-finals 1st v 4th and 2nd v 3rd.
   const q = groups.map(g => g.qualifiers);
-  const pairs = [[q[0][0], q[1][1]], [q[2][0], q[3][1]], [q[1][0], q[0][1]], [q[3][0], q[2][1]]];
+  const pairs = layout.kind === "LEAGUE" ? [[q[0][0], q[0][3]], [q[0][1], q[0][2]]]
+    : [[q[0][0], q[1][1]], [q[2][0], q[3][1]], [q[1][0], q[0][1]], [q[3][0], q[2][1]]];
   for (let i = 0; i < pairs.length; i++) {
     const m = matches.find(m => m.stage_key === "knockout" && m.round === 1 && m.slot === i + 1);
-    if (!m) throw new CareerError(409, "Official quarter-final slot is missing");
+    if (!m) throw new CareerError(409, layout.kind === "LEAGUE" ? "Official semi-final slot is missing" : "Official quarter-final slot is missing");
     const [a, b] = pairs[i].map(k => k ?? null);
     if (m.a_key || m.b_key) {
-      if (m.a_key !== a || m.b_key !== b) throw new CareerError(409, "Quarter-final conflicts with actual group qualifiers");
+      if (m.a_key !== a || m.b_key !== b) throw new CareerError(409, "Knockout slot conflicts with actual group qualifiers");
       continue;
     }
     const status = a && b ? "PENDING" : a || b ? "BYE" : "VOID";
@@ -134,7 +148,7 @@ export async function progressGroups(tx: CareerExecutor, root: RootRow, event: I
 
 export async function humanGroupBull(tx: CareerExecutor, root: RootRow, event: InstanceRow, matches: MatchRow[],
   withdrawn: Set<string>, group: string, tieKey: string, ordinal: number, revision: number, value: BullThrow) {
-  const p = resolvedGroups(matches, await loadBulls(tx, root.id, event.id), withdrawn).find(g => g.key === group)?.pending;
+  const p = resolvedGroups(matches, await loadBulls(tx, root.id, event.id), withdrawn, layoutFor(event.snapshot.format.structure)).find(g => g.key === group)?.pending;
   if (!p || !p.row || p.tieKey !== tieKey || p.ordinal !== ordinal || !p.pair.includes("HUMAN"))
     throw new CareerError(409, "This sporting bull playoff is no longer awaiting you");
   const row = p.row, state = resolveBullUp(0, row.throws);

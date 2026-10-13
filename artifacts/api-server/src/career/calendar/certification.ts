@@ -8,8 +8,10 @@ export function eventRationale(d:EventDefinition):string {
   if(d.key==="champions-masters")return "Champions Masters: retain authored straight-leg knockout; ambiguous historical Masters inspiration is not a reason to change current fictional identity.";
   if(d.key==="vault-nights")return "A8.2: 16 singles, four groups of four, top two into fixed eight-player knockout; sporting bull playoffs, no random tiebreak or reseeding.";
   if(d.format.sideSize>1)return "Pairs identity retained as informational content; existing Career framework represents singles, not partner rotation/team results.";
+  if(d.format.structure==="LEAGUE"&&d.format.leagueNights)return "League nights (v11): eight players, double round robin on weekly nights, top four to semi-finals and a final on play-off night; group engine generalised from the Vault framework, bookings on league nights only.";
   if(d.format.structure==="LEAGUE")return "League identity retained but benched: authored field/schedule/playoffs are not the fixed 4x4 Vault framework; arbitrary league adaptation requires materially different progression.";
   if(d.format.gameType!=="X01")return "Special identity retained but benched: existing standalone games do not supply Career NPC simulation plus persisted live replay/validation. No new scorer built.";
+  if(d.format.outRule==="MASTER"&&d.format.bull==="FAT")return "Soft-tip: fat bull, master out and a round limit decided by a cork (v8); mixed 01 / Cricket legs with a Choice leg (v9).";
   if(d.format.outRule==="MASTER")return "Master/treble-out identity benched: Career NPC finishing is double-out only; a shared scorer option alone does not provide equivalent NPC execution.";
   if(d.format.startingScore!==501)return "Generic X01 score variant: shared live scorer and A2 already accept this starting score; reuse adapters and ordinary settlement without new engine.";
   return `${d.family}: preserve authored fictional singles X01 identity, schedule, selection/qualification and round lengths; use existing scorer, A2, A3/A8.2, A4 and A5.`;

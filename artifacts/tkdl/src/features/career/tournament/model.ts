@@ -71,7 +71,7 @@ export function roundLabel(round: number, rounds: number) {
   return remaining === 2 ? "Final" : remaining === 4 ? "Semi-final" : remaining === 8 ? "Quarter-final" : `Last ${remaining}`;
 }
 export function stageOf(m: Pick<TMatch, "stage_key" | "round">, rounds: number) {
-  return isGroup(m) ? `Group ${m.stage_key.split(":")[1]} · Round ${m.round}` : roundLabel(m.round, rounds);
+  return m.stage_key === "groups:L" ? `League night ${m.round}` : isGroup(m) ? `Group ${m.stage_key.split(":")[1]} · Round ${m.round}` : roundLabel(m.round, rounds);
 }
 
 export type BracketColumn = { round: number; label: string; matches: TMatch[] };

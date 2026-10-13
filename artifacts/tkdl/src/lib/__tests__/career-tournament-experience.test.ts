@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createServer, type ViteDevServer } from "vite";
 import {
-  bracketColumns, dossier, humanPath, opponentIfWin, prizeLadder, resultMoment, roundLabel, runSummary, tierFromEvent, tierProfile,
+  bracketColumns, stageOf, dossier, humanPath, opponentIfWin, prizeLadder, resultMoment, roundLabel, runSummary, tierFromEvent, tierProfile,
 } from "../../features/career/tournament/model.ts";
 import { event, eventDetail, overview, save, SAVE_ID } from "./career-fixtures.ts";
 
@@ -319,4 +319,9 @@ test("grassroots hub scene", () => {
   scene("hub-grassroots", html);
   // E2/P1-1: a weekly club fixture awards result and prize only; its stored catalogue trophy is not shown as silverware.
   assert.match(html, /tb-tier-grassroots/); assert.doesNotMatch(text(html), /Wood & Silver Shield/); assert.doesNotMatch(html, /data-award="PHYSICAL_TROPHY"/);
+});
+
+test("league matches are labelled by league night; Vault groups keep their group label", () => {
+  assert.equal(stageOf({ stage_key: "groups:L", round: 9 } as never, 2), "League night 9");
+  assert.equal(stageOf({ stage_key: "groups:B", round: 2 } as never, 3), "Group B · Round 2");
 });

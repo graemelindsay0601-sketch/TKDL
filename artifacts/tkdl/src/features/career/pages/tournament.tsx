@@ -14,7 +14,7 @@ import {ArrivalCeremony,BracketBoard,CompletionSummary,LatestResult,PathToTitle,
 
 type Player=TournamentView["field"][number];
 const name=(v:TournamentView,key:string|null)=>v.field.find(p=>p.key===key)?.name??(key?"Participant unavailable":"To be decided");
-const stage=(m:TournamentView["matches"][number],v:TournamentView)=>m.stage_key.startsWith("groups:")?
+const stage=(m:TournamentView["matches"][number],v:TournamentView)=>m.stage_key==="groups:L"?`League night ${m.round}`:m.stage_key.startsWith("groups:")?
   `Group ${m.stage_key.split(":")[1]} · Round ${m.round}`:
   m.round===Math.max(...v.matches.filter(x=>!x.stage_key.startsWith("groups:")).map(x=>x.round))?"Final":
   m.round===Math.max(...v.matches.filter(x=>!x.stage_key.startsWith("groups:")).map(x=>x.round))-1?"Semi-final":
@@ -106,7 +106,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
         <Label color="#ffd24a">Next action</Label>
         {v.phase==="GROUP_BULL"&&v.groupBull?.row?<BullUpBoard names={v.groupBull.pair.map(k=>name(v,k)) as [string,string]}
           state={resolveBullUp(0,v.groupBull.row.throws)} isHuman={idx=>v.groupBull!.pair[idx]==="HUMAN"} busy={busy}
-          subtitle={`Group ${v.groupBull.group}: real qualification bull playoff`} error={message}
+          subtitle={v.groupBull.group==="L"?"League table: real play-off bull playoff":`Group ${v.groupBull.group}: real qualification bull playoff`} error={message}
           onThrow={(_,t)=>mutate("group-bull",{group:v.groupBull!.group,tieKey:v.groupBull!.tieKey,ordinal:v.groupBull!.ordinal,expectedRevision:v.groupBull!.row!.revision,throw:t})}
           onContinue={()=>q.refetch()}/>:
           next&&v.nextMatchId?<><h2 style={OSWALD}>{stage(next,v)} · {name(v,next.a_key)} vs {name(v,next.b_key)}</h2>
@@ -185,9 +185,10 @@ function MatchList({v,list}:{v:TournamentView;list:TournamentView["matches"]}) {
   </li>)}</ul>;
 }
 function GroupTables({v}:{v:TournamentView}) {
-  return <section className="pdc-card p-4 space-y-4"><Label>Groups · top two qualify</Label>
-    <p className="text-xs text-white/70">Match wins → leg difference → legs won → clean H2H → real bull playoff. Equal unfinished standings have no arbitrary qualification order. P/W/L count played darts; W/O wins count toward sporting wins separately.</p>
-    {v.groups.map(g=><div key={g.key}><h3 style={OSWALD}>Group {g.key}{g.pending?" · Awaiting real bull playoff":g.finished?" · Group complete":" · In progress"}</h3>
+  const league=v.groups.length===1&&v.groups[0].key==="L";
+  return <section className="pdc-card p-4 space-y-4"><Label>{league?"League table · top four reach the play-offs":"Groups · top two qualify"}</Label>
+    <p className="text-xs text-white/70">Match wins → leg difference → legs won → clean H2H → real bull playoff. Equal unfinished standings have no arbitrary qualification order. P/W/L count played darts; W/O wins count toward sporting wins separately.{league?" Each pair meets twice over fourteen league nights; the semi-finals (1st v 4th, 2nd v 3rd) and final are on play-off night.":""}</p>
+    {v.groups.map(g=><div key={g.key}><h3 style={OSWALD}>{league?"League table":`Group ${g.key}`}{g.pending?" · Awaiting real bull playoff":g.finished?(league?" · League complete":" · Group complete"):" · In progress"}</h3>
       <div className="tournament-table-scroll"><table><thead><tr>{["Position","Player","P","W","L","LD","LF","LA","W/O"].map(t=><th key={t}>{t}</th>)}</tr></thead>
         <tbody>{g.buckets.flatMap((bucket,i)=>bucket.map(p=><tr key={p.key} className={p.key==="HUMAN"?"tournament-human-fixture":""}>
           <td>{g.finished&&g.qualifiers.includes(p.key)?g.qualifiers.indexOf(p.key)+1:bucket.length>1?"Tied":g.buckets.slice(0,i).reduce((n,b)=>n+b.length,1)}</td>

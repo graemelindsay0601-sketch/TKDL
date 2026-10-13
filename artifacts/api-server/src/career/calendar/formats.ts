@@ -38,6 +38,8 @@ export const eventFormatSchema = z.object({
   bull: z.enum(["STANDARD", "FAT"]).optional(),
   /** Soft-tip round limit per leg; a cork at the bull decides a leg nobody has finished. */
   roundLimit: z.number().int().min(5).max(30).optional(),
+  /** Event database v11: a league played on weekly nights (8 players, double round robin, top-four play-offs). */
+  leagueNights: z.literal(true).optional(),
   /** Soft-tip tournament match: 01 and Cricket legs mixed, with a deciding Choice leg (DARTSLIVE format). */
   mix: z.literal("SOFT_TIP").optional(),
 }).strict();
@@ -79,8 +81,11 @@ export function assessCapability(format: EventFormat, allowGroups = false): Capa
   const groups = allowGroups && format.structure === "GROUP_KNOCKOUT" && format.scoringUnit === "LEGS"
     && format.stages.length === 2 && format.stages[0].kind === "GROUP" && format.stages[0].groupSize === 4
     && format.stages[0].advancePerGroup === 2 && format.stages[1].kind === "KNOCKOUT";
-  if (!groups && !(format.structure === "KNOCKOUT" && format.stages.length === 1 && format.stages[0].kind === "KNOCKOUT")) reasons.push("STRUCTURE");
-  return reasons.length ? { executable: false, code: "UNSUPPORTED_FORMAT", reasons } : { executable: true, engine: groups ? "A2_X01_GROUP_KNOCKOUT" : "A2_X01_KNOCKOUT", simulationVersion: 1, liveScorer: "GAME_SCORER_X01" };
+  // League nights only where the definition opts in (v11), so older saves keep their benched league identity.
+  const league = allowGroups && format.structure === "LEAGUE" && format.leagueNights === true && format.scoringUnit === "LEGS"
+    && format.stages.length === 2 && format.stages[0].kind === "LEAGUE" && format.stages[1].kind === "KNOCKOUT" && format.stages[1].bestOfByRound.length >= 1;
+  if (!groups && !league && !(format.structure === "KNOCKOUT" && format.stages.length === 1 && format.stages[0].kind === "KNOCKOUT")) reasons.push("STRUCTURE");
+  return reasons.length ? { executable: false, code: "UNSUPPORTED_FORMAT", reasons } : { executable: true, engine: groups || league ? "A2_X01_GROUP_KNOCKOUT" : "A2_X01_KNOCKOUT", simulationVersion: 1, liveScorer: "GAME_SCORER_X01" };
 }
 
 /** A3 format -> A2 match format for one match (best-of from the bracket row). */
