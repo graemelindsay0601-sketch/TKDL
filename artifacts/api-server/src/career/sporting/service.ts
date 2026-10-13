@@ -311,6 +311,47 @@ export function createCareerSportingService(database: CareerDatabase, options: {
       });
     },
 
+    /**
+     * World Ranking movers: who has climbed and fallen over roughly the last season (52 publications),
+     * newcomers to the top 32 and recent retirements. Published ranking facts only; the NPC development
+     * model is never read here.
+     */
+    async movers(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId);
+        const snap = async (where: ReturnType<typeof sql>) => (await tx.execute(sql`SELECT id, season, week, publication_index FROM career_ranking_snapshots
+          WHERE career_save_id = ${root.id} AND list_key = 'pro-world' ${where} LIMIT 1`)).rows[0] as { id: string; season: number; week: number; publication_index: number } | undefined;
+        const latest = await snap(sql`ORDER BY publication_index DESC`);
+        if (!latest) return { available: false as const };
+        const baseline = await snap(sql`AND publication_index <= ${Number(latest.publication_index) - 52} ORDER BY publication_index DESC`)
+          ?? await snap(sql`ORDER BY publication_index ASC`);
+        if (!baseline || baseline.id === latest.id) return { available: false as const };
+        const positions = async (id: string) => new Map((await tx.execute(sql`SELECT participant_key, position FROM career_ranking_snapshot_rows
+          WHERE career_save_id = ${root.id} AND snapshot_id = ${id}`)).rows.map(r => [String(r.participant_key), Number(r.position)]));
+        const now = await positions(latest.id), then = await positions(baseline.id);
+        const people = new Map((await tx.execute(sql`SELECT id::text AS key, first_name || ' ' || surname AS name, age, nationality, status, retired_season
+          FROM career_world_players WHERE career_save_id = ${root.id}`)).rows.map(r => [String(r.key), r]));
+        const humanName = String((await tx.execute(sql`SELECT COALESCE(p.display_name, s.career_name) AS name FROM career_saves s
+          LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${root.id}`)).rows[0]?.name ?? "You");
+        const who = (key: string) => key === "HUMAN" ? { key, name: humanName, age: null, nationality: null, human: true }
+          : { key, name: String(people.get(key)?.name ?? "Unknown player"), age: people.get(key)?.age === undefined ? null : Number(people.get(key)!.age),
+            nationality: people.get(key)?.nationality ? String(people.get(key)!.nationality) : null, human: false };
+        const risers = [...now.entries()].filter(([, p]) => p <= 64).map(([key, p]) => ({ ...who(key), from: then.get(key) ?? null, to: p, change: (then.get(key) ?? 129) - p }))
+          .filter(r => r.change > 0).sort((a, b) => b.change - a.change || a.to - b.to).slice(0, 5);
+        const fallers = [...then.entries()].filter(([, p]) => p <= 32).map(([key, p]) => ({ ...who(key), from: p, to: now.get(key) ?? null,
+          change: p - (now.get(key) ?? 129), retired: people.get(key)?.status === "RETIRED" }))
+          .filter(r => r.change < 0).sort((a, b) => a.change - b.change || a.from - b.from).slice(0, 5);
+        const newTop32 = [...now.entries()].filter(([key, p]) => p <= 32 && !((then.get(key) ?? 999) <= 32)).sort((a, b) => a[1] - b[1])
+          .map(([key, p]) => ({ ...who(key), from: then.get(key) ?? null, to: p }));
+        const best = new Map((await tx.execute(sql`SELECT participant_key, MIN(position)::int AS best FROM career_ranking_snapshot_rows
+          WHERE career_save_id = ${root.id} AND list_key = 'pro-world' GROUP BY 1`)).rows.map(r => [String(r.participant_key), Number(r.best)]));
+        const retirements = [...people.entries()].filter(([, p]) => p.status === "RETIRED" && Number(p.retired_season) >= Number(root.current_season) - 1 && best.has(String(p.key)))
+          .map(([key, p]) => ({ ...who(key), season: Number(p.retired_season), bestRanking: best.get(key)! }))
+          .sort((a, b) => a.bestRanking - b.bestRanking).slice(0, 5);
+        return { available: true as const, since: { season: Number(baseline.season), week: Number(baseline.week) }, at: { season: Number(latest.season), week: Number(latest.week) },
+          risers, fallers, newTop32, retirements };
+      });
+    },
     async milestones(actor: CareerActor, saveId: string, query: unknown = {}) {
       const q = milestoneQuerySchema.parse(query);
       return database.transaction(async tx => {

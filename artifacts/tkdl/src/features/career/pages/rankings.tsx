@@ -5,7 +5,7 @@ import {usePresentation} from "../api";
 import {CareerShirt} from "../identity";
 import {npcShirt} from "../../../../../api-server/src/career/content/visual";
 import { BarChart3, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
-import { useRankingExplain, useRankingHistory, useRankingLists, useRankingTable, type TableQuery } from "../api";
+import { useRankingExplain, useRankingHistory, useRankingLists, useRankingMovers, useRankingTable, type TableQuery } from "../api";
 import { formatPence, ordinal } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Flag, Label, Movement, OSWALD, Segmented } from "../components";
 import type { ShellContext } from "../shell";
@@ -34,7 +34,35 @@ export function RankingsPage({ ctx }: { ctx: ShellContext }) {
         <div className="hidden sm:block"><Segmented label="Ranking list" value={key ?? ""} onChange={setListKey} options={lists.data.map(l => ({ value: l.key, label: l.name }))} /></div>
       </div>
       </>} /> : <div className="pdc-card"><CareerEmptyState title="No ranking lists" /></div>}
+      {key === "pro-world" && <MoversPanel saveId={ctx.save.id} />}
     </div>
+  );
+}
+
+/** Who has climbed and fallen in the World Ranking over roughly the last season. Published ranking facts only. */
+export function MoversPanel({ saveId }: { saveId: string }) {
+  const q = useRankingMovers(saveId);
+  if (!q.data || !q.data.available) return null;
+  const d = q.data;
+  const pos = (n: number | null) => n === null ? "unranked" : `#${n}`;
+  const young = (age: number | null) => age !== null && age <= 23;
+  const Row = ({ name, human, detail, tag }: { name: string; human: boolean; detail: string; tag?: string | null }) => (
+    <li className="flex items-baseline justify-between gap-3 text-sm py-1 border-b border-white/5"><span className={human ? "font-bold text-[#ffd24a]" : ""}>{name}{tag && <span className="ml-2 text-[11px] uppercase tracking-wider text-[#7fe3c4]">{tag}</span>}</span><span className="text-white/70 whitespace-nowrap">{detail}</span></li>);
+  return (
+    <section className="pdc-card p-4 space-y-3" aria-label="World Ranking movers">
+      <div><Label>Movers · World Ranking</Label>
+        <p className="text-xs text-white/60">Since season {d.since.season}, week {d.since.week} (published ranking week {d.at.week}, season {d.at.season}).</p></div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {d.risers.length > 0 && <div><h3 className="text-xs uppercase tracking-wider text-white/60">Biggest climbers</h3><ul>{d.risers.map(r =>
+          <Row key={r.key} name={r.name} human={r.human} tag={young(r.age) ? "Rising star" : null} detail={`${pos(r.from)} → #${r.to} (+${r.change})`} />)}</ul></div>}
+        {d.fallers.length > 0 && <div><h3 className="text-xs uppercase tracking-wider text-white/60">Biggest fallers</h3><ul>{d.fallers.map(r =>
+          <Row key={r.key} name={r.name} human={r.human} tag={r.retired ? "Retired" : null} detail={`#${r.from} → ${pos(r.to)}`} />)}</ul></div>}
+        {d.newTop32.length > 0 && <div><h3 className="text-xs uppercase tracking-wider text-white/60">New to the top 32</h3><ul>{d.newTop32.map(r =>
+          <Row key={r.key} name={r.name} human={r.human} tag={young(r.age) ? "Breakthrough" : null} detail={`${pos(r.from)} → #${r.to}`} />)}</ul></div>}
+        {d.retirements.length > 0 && <div><h3 className="text-xs uppercase tracking-wider text-white/60">Recent retirements</h3><ul>{d.retirements.map(r =>
+          <Row key={r.key} name={r.name} human={false} detail={`Season ${r.season} · career-best #${r.bestRanking}`} />)}</ul></div>}
+      </div>
+    </section>
   );
 }
 
