@@ -38,6 +38,7 @@ export function createCareerSportingRouter(service: CareerSportingService, isAva
   router.get("/saves/:id/rankings/:list/explain", async (req, res) => {
     res.json(await service.rankingExplain(res.locals.careerActor, id(req), String(req.params.list), str(req.query.participant)));
   });
+  router.get("/saves/:id/rankings-movers", async (req, res) => { res.json(await service.movers(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/tour-card", async (req, res) => { res.json(await service.tourCard(res.locals.careerActor, id(req), str(req.query.participant))); });
   router.get("/saves/:id/q-school", async (req, res) => {
     res.json(await service.qSchool(res.locals.careerActor, id(req), defined({ season: num(req.query.season), participant: str(req.query.participant) }) as { season?: number; participant?: string }));

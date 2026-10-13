@@ -575,3 +575,17 @@ test("33. difficulty never touches sporting rules", async () => {
   assert.ok(!/root\.difficulty|CAREER_DIFFICULTY|difficulty\s*[:=(]/.test(sources));
   assert.equal(RANKING_RULES_VERSION, 1);
 });
+
+test("World Ranking movers: climbers, fallers and top-32 newcomers come from published snapshots only", async () => {
+  const m = await career.movers(human, A);
+  assert.equal(m.available, true);
+  if (!m.available) return;
+  assert.ok(m.since.season <= m.at.season);
+  for (const r of m.risers) { assert.ok(r.change > 0 && r.to <= 64); assert.equal(r.change, (r.from ?? 129) - r.to); }
+  for (const f of m.fallers) { assert.ok(f.change < 0 && f.from <= 32); }
+  for (const n of m.newTop32) assert.ok(n.to <= 32 && !(n.from !== null && n.from <= 32));
+  assert.ok(m.risers.length <= 5 && m.fallers.length <= 5);
+  const latest = (await rows(sql`SELECT id FROM career_ranking_snapshots WHERE career_save_id = ${A} AND list_key = 'pro-world' ORDER BY publication_index DESC LIMIT 1`))[0];
+  const top = new Map((await rows(sql`SELECT participant_key, position FROM career_ranking_snapshot_rows WHERE career_save_id = ${A} AND snapshot_id = ${latest.id}`)).map(r => [String(r.participant_key), Number(r.position)]));
+  for (const r of m.risers) assert.equal(top.get(r.key), r.to, "a riser's position is the latest published one");
+});

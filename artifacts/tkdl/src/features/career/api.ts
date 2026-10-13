@@ -113,6 +113,11 @@ export const useCreateProductDraft=(saveId:string)=>useSaveMutation(saveId,(body
 export const useApproveProductDraft=(saveId:string)=>useSaveMutation(saveId,(draftId:string)=>send("POST",`/saves/${saveId}/signature-product-drafts/${draftId}/approve`));
 export const useLaunchProductDraft=(saveId:string)=>useSaveMutation(saveId,(draftId:string)=>send("POST",`/saves/${saveId}/signature-product-drafts/${draftId}/launch`));
 export const useRetireProductDraft=(saveId:string)=>useSaveMutation(saveId,(draftId:string)=>send("POST",`/saves/${saveId}/signature-product-drafts/${draftId}/retire`));
+export type MoverPerson = { key: string; name: string; age: number | null; nationality: string | null; human: boolean };
+export type RankingMovers = { available: false } | { available: true; since: { season: number; week: number }; at: { season: number; week: number };
+  risers: (MoverPerson & { from: number | null; to: number; change: number })[]; fallers: (MoverPerson & { from: number; to: number | null; change: number; retired: boolean })[];
+  newTop32: (MoverPerson & { from: number | null; to: number })[]; retirements: (MoverPerson & { season: number; bestRanking: number })[] };
+export const useRankingMovers = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "ranking-movers"), queryFn: () => get<RankingMovers>(`/saves/${saveId}/rankings-movers`), staleTime: STALE });
 export const useRankingLists = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "ranking-lists"), queryFn: () => get<RankingListMeta[]>(`/saves/${saveId}/rankings`), staleTime: STALE });
 export type TableQuery = { view: "TOP" | "AROUND" | "PAGE"; limit?: number; offset?: number; participant?: string; radius?: number };
 export const useRankingTable = (saveId: string, list: string, q: TableQuery, enabled = true) => useQuery({ queryKey: careerKey(saveId, "ranking", list, q), enabled, staleTime: STALE,
