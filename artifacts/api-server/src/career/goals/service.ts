@@ -112,6 +112,7 @@ export function createCareerGoalsService(database: CareerDatabase) {
   }
   function view(saveId: string, root: Root, goals: GoalRow[], s: GoalSources, events: Opportunity[]): GoalsView {
     const rr=root as unknown as Record<string,unknown>,focus=(rr.career_focus??"OPEN_SCHEDULE") as Focus,retired=rr.status==="RETIRED";
+    const mainGoal=goals.find(g=>g.id===String(rr.main_goal_id??"") && g.status==="ACTIVE")?.definition ?? null;
         return {careerSaveId:saveId,focus,focusOptions:Object.entries(FOCUSES).map(([value,detail])=>({value:value as Focus,...detail})),activeLimit:ACTIVE_GOAL_LIMIT,retired,
           mainGoalId:rr.main_goal_id ? String(rr.main_goal_id) : null,
           nearTermEventId:rr.near_term_event_id ? String(rr.near_term_event_id) : null,
@@ -121,7 +122,7 @@ export function createCareerGoalsService(database: CareerDatabase) {
         return {id:r.id,definition:r.definition,label:goalLabel(r.definition,s,events),status:r.status,created:{season:r.created_season,week:r.created_week},
           progress,completion:r.completed_evidence,evidence:result.evidence};
       }),
-      options:options(s,events,retired),opportunities:recommend(focus,events),context:{currentRank:s.currentRank,holdsCard:s.holdsCard,earningsPence:s.earningsPence}};
+       options:options(s,events,retired),opportunities:recommend(focus,events,mainGoal),context:{currentRank:s.currentRank,holdsCard:s.holdsCard,earningsPence:s.earningsPence}};
   }
   return {
     async read(actor: CareerActor, saveId: string) {
@@ -176,11 +177,12 @@ export function createCareerGoalsService(database: CareerDatabase) {
     async setNearTermRoute(actor: CareerActor, saveId: string, body: unknown) {
       const input=nearTermRouteSchema.parse(body);
       return database.transaction(async tx=>{
-        const root=await lockRoot(tx,actor,saveId);
+        const root=await lockRoot(tx,actor,saveId),goals=await rows(tx,saveId);
         if (input.eventId) {
           const {events}=await sources(tx,actor,saveId,root);
           const rr=root as unknown as Record<string,unknown>,focus=(rr.career_focus??"OPEN_SCHEDULE") as Focus;
-          if (!recommend(focus,events).slice(0,2).some(item=>item.id===input.eventId))
+          const mainGoal=goals.find(g=>g.id===String(rr.main_goal_id??"") && g.status==="ACTIVE")?.definition ?? null;
+          if (!recommend(focus,events,mainGoal).slice(0,2).some(item=>item.id===input.eventId))
             throw new CareerError(409,"Choose one of the two currently suggested route options");
         }
         await tx.execute(sql`UPDATE career_saves SET near_term_event_id=${input.eventId} WHERE id=${saveId}`);

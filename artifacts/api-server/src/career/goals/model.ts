@@ -89,15 +89,66 @@ export function goalProgress(row: GoalRow, s: GoalSources): { progress: GoalView
     "Eliminated from the selected event. The goal is no longer achievable; abandon it without penalty." : "Selected event only; cancellation/elimination does not count as completion.";
   return { progress:{current,target,unit,note},evidence };
 }
-export function recommend(focus: Focus, events: Opportunity[]): (Opportunity & {reason:string})[] {
+function goalRoute(goal: GoalDefinition, event: Opportunity): { score: number; reason: string } {
+  switch (goal.type) {
+    case "WIN_EVENT":
+      return event.id===goal.eventId
+        ? {score:3,reason:"This is the event named by your ambition; only a recorded win completes it."}
+        : {score:0,reason:"Your selected event is not in the current suggestions; this is a general alternative."};
+    case "WIN_MAJOR":
+      return event.majorRoute || ["MAJOR","WORLD"].includes(event.tier)
+        ? {score:3,reason:"This event is a major/world competition or has an authored route to one."}
+        : {score:0,reason:"No direct major route is recorded for this event; it is a general alternative."};
+    case "WIN_WORLD":
+      return event.circuit==="WORLD_CHAMPIONSHIP" || event.tier==="WORLD"
+        ? {score:3,reason:"This event is on the World Championship tier; a recorded title is still required."}
+        : {score:0,reason:"No direct World Championship route is recorded for this event; it is a general alternative."};
+    case "WIN_AMATEUR_TITLE":
+      return amateur(event.circuit)
+        ? {score:3,reason:"This event is on an amateur/open/secondary circuit where a confirmed title can count."}
+        : {score:0,reason:"This event is outside the amateur/secondary circuits; it is a general alternative."};
+    case "EARN_TOUR_CARD":
+      return event.circuit==="Q_SCHOOL"
+        ? {score:3,reason:"Q-School is the direct published Tour Card pathway; eligibility and results still decide the outcome."}
+        : ["PRO_CIRCUIT","CHALLENGER"].includes(event.circuit) && event.classification==="RANKING"
+          ? {score:2,reason:"This ranking event supports your professional route, but does not itself guarantee a Tour Card."}
+          : {score:0,reason:"This is a general event option, not a direct Tour Card route."};
+    case "REACH_WORLD_RANK":
+      return event.classification==="RANKING"
+        ? {score:2,reason:"A ranking event can affect your World position; only published results update it."}
+        : {score:0,reason:"This event is not classified as a ranking event; it is a general alternative."};
+    case "EARNINGS":
+      return (event.firstPrizePence??0)>0
+        ? {score:2,reason:"A published first prize is available; earnings count only if actually awarded."}
+        : {score:0,reason:"No published first prize is available for this event; it is a general alternative."};
+    case "WIN_TITLE":
+    case "REACH_FINAL":
+      return {score:1,reason:"A confirmed title or final here can count toward this ambition; the result is not guaranteed."};
+    case "MAXIMUMS":
+      return {score:1,reason:"Verified maximums come from played scoring data, not from entering this event."};
+    case "BEAT_OPPONENT":
+    case "IMPROVE_H2H":
+    case "BEAT_RELATIONSHIP":
+      return {score:0,reason:"The current calendar does not link this event to your selected opponent; this is a general option."};
+  }
+}
+
+export function recommend(focus: Focus, events: Opportunity[], mainGoal: GoalDefinition | null = null): (Opportunity & {reason:string})[] {
   const upcoming=events.filter(e=>["SCHEDULED","REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS"].includes(e.status));
   const relevant=upcoming.filter(e=>focus==="OPEN_SCHEDULE" || focus==="PRIZE_MONEY" ||
     (focus==="AMATEUR_CIRCUIT" ? amateur(e.circuit) : focus==="MAJOR_QUALIFICATION" ? e.majorRoute || ["MAJOR","WORLD"].includes(e.tier) :
       ["Q_SCHOOL","PRO_CIRCUIT","CHALLENGER"].includes(e.circuit) || e.classification==="RANKING"));
   const sorted=focus==="OPEN_SCHEDULE" ? relevant : [...relevant].sort((a,b)=>Number(b.canEnter)-Number(a.canEnter) ||
     (focus==="PRIZE_MONEY" ? (b.firstPrizePence??-1)-(a.firstPrizePence??-1) || (a.estimatedCostPence??Infinity)-(b.estimatedCostPence??Infinity) : a.startDay-b.startDay) || a.id.localeCompare(b.id));
-  return sorted.slice(0,6).map(e=>({...e,reason:focus==="OPEN_SCHEDULE" ? "Normal upcoming calendar" : focus==="PRIZE_MONEY" ?
+  const baseReason=(e: Opportunity)=>focus==="OPEN_SCHEDULE" ? "Normal upcoming calendar" : focus==="PRIZE_MONEY" ?
     "Published first prize and estimated costs; winning and profit are not guaranteed" : e.circuit==="Q_SCHOOL" ? "Q-School pathway — optional" :
     e.majorRoute ? "Authored qualification output to a major/world event" : focus==="MAJOR_QUALIFICATION" ? "Major/world event; existing eligibility applies" :
-    focus==="AMATEUR_CIRCUIT" ? "Amateur / open / secondary-circuit competition" : "Published ranking or professional opportunity; see its existing route"}));
+    focus==="AMATEUR_CIRCUIT" ? "Amateur / open / secondary-circuit competition" : "Published ranking or professional opportunity; see its existing route";
+  const candidates=mainGoal ? upcoming.map(event=>({event,alignment:goalRoute(mainGoal,event)})).sort((a,b)=>
+    b.alignment.score-a.alignment.score || Number(b.event.canEnter)-Number(a.event.canEnter) ||
+    (focus==="PRIZE_MONEY" ? (b.event.firstPrizePence??-1)-(a.event.firstPrizePence??-1) : a.event.startDay-b.event.startDay) ||
+    a.event.id.localeCompare(b.event.id))
+    .map(({event,alignment})=>({...event,reason:alignment.reason}))
+    : sorted.map(event=>({...event,reason:baseReason(event)}));
+  return candidates.slice(0,6);
 }

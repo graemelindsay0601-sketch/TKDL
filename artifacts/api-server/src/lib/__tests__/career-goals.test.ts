@@ -113,6 +113,26 @@ test("recommendations are deterministic, preserve blocked-state denials and leav
   assert.deepEqual(recommend("PROFESSIONAL_PATHWAY",events).find(e=>e.id==="q")?.denials,["BELOW_MINIMUM_AGE"]);
   assert.deepEqual(events,before);
 });
+test("active ambitions rank only authored or evidence-backed event routes and explain general alternatives",()=>{
+  const events=[
+    event("early-local",{startDay:7}),
+    event("world",{startDay:21,circuit:"WORLD_CHAMPIONSHIP",tier:"WORLD"}),
+    event("major-route",{startDay:14,majorRoute:true}),
+    event("q-school",{startDay:28,circuit:"Q_SCHOOL"}),
+    event("ranking",{startDay:35,classification:"RANKING",circuit:"PRO_CIRCUIT"}),
+  ];
+  const major=recommend("OPEN_SCHEDULE",events,{type:"WIN_MAJOR"});
+  assert.deepEqual(major.slice(0,2).map(e=>e.id),["major-route","world"]);
+  assert.match(major[0].reason,/authored route/i);
+
+  const card=recommend("OPEN_SCHEDULE",events,{type:"EARN_TOUR_CARD"});
+  assert.deepEqual(card.slice(0,2).map(e=>e.id),["q-school","ranking"]);
+  assert.match(card[0].reason,/Q-School/i);
+  assert.match(card[1].reason,/does not itself guarantee/i);
+
+  const h2h=recommend("OPEN_SCHEDULE",events,{type:"IMPROVE_H2H",opponentId:"opponent"});
+  assert.match(h2h[0].reason,/does not link this event to your selected opponent/i);
+});
 test("prize focus ranks factual prizes/costs, not probabilities, profit or monetary rewards",()=>{
   const list=recommend("PRIZE_MONEY",[event("cheap",{firstPrizePence:1000}),event("high",{firstPrizePence:100000,estimatedCostPence:50000})]);
   assert.equal(list[0].id,"high");assert.match(list[0].reason,/not guaranteed/);

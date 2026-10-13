@@ -44,6 +44,7 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
           <p className="text-xs text-white/60">World ranking: {data.context.currentRank===null?"Unranked":`#${data.context.currentRank}`} · {data.context.holdsCard?"Active Tour Card":"No active Tour Card"} · Career prize earnings {formatPence(data.context.earningsPence)}</p>
           <h3 className="font-bold">Near-term route</h3>
           <p className="text-xs text-white/60">Choose one next step; recommendations refresh with Career events, but your choice stays yours. These are calendar suggestions, not guaranteed progress toward a milestone. <Link className="underline" href={`/career/${ctx.save.id}/calendar`}>Browse every route</Link>.</p>
+           {main?.status==="ACTIVE" && <p className="text-xs text-amber-100/70">Recommendations prioritize published routes that can support “{main.label}”. When Career cannot link an event directly to that ambition, it is labelled as a general alternative.</p>}
           {data.nearTermEventId && !selectedRoute && <p className="text-xs text-amber-100/80">Your selected route is no longer among the two current suggestions. It remains saved until you choose a replacement.</p>}
           {!data.opportunities.length && <CareerEmptyState title="No matching upcoming opportunity">Your full calendar remains open; the route will refresh as dates and results change.</CareerEmptyState>}
           <ul className="space-y-3">{data.opportunities.slice(0,2).map((e,i)=><li key={e.id} className="border-b border-white/10 pb-2 text-sm">
