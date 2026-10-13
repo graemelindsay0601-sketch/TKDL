@@ -119,7 +119,8 @@ describe("selectSeasonReviewRunningOrder", () => {
       closedSeasons: [closed], pool: [], highlightsByLeague: new Map([["singles" as LeagueType, highlights]]),
     });
     const highlightIds = order.filter(e => e.purpose === "season_highlight").map(e => e.group!.primary.id);
-    assert.deepEqual(highlightIds, [350, 352]);
+    // Match 42 airs once (REVENGE, the higher-scoring description); the season's biggest upset leads the highlights by design.
+    assert.deepEqual(highlightIds, [352, 350]);
   });
 
   test("equal match ids in different league tables remain distinct highlights", () => {

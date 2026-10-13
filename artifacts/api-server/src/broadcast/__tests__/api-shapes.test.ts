@@ -145,8 +145,11 @@ describe("serializeSegment", () => {
       loserEntityIds: [8],
       stake: 30,
     };
-    const api = serializeSegment(segment({ storyType: "TEAM_RESULT", leagueType: "doubles", facts }), "slot-2");
+    const api = serializeSegment(segment({ storyType: "TEAM_RESULT", leagueType: "doubles", importance: "supporting", facts }), "slot-2");
     assert.deepEqual(api.graphic, { kind: "TeamResultGraphic", data: facts });
+    // A "major" team result earns the Match Poster hero treatment (MAJOR_GRAPHIC_OVERRIDE) with the same facts.
+    const major = serializeSegment(segment({ storyType: "TEAM_RESULT", leagueType: "doubles", importance: "major", facts }), "slot-2");
+    assert.deepEqual(major.graphic, { kind: "PosterRevealGraphic", data: facts });
   });
 
   test("an interview transports its frozen question and answer facts to the dedicated scene", () => {
