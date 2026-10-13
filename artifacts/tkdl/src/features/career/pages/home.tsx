@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ArrowUpRight, Award, CalendarDays, CircleDollarSign, Flag, History, Medal, Target, TrendingUp, X } from "lucide-react";
 import {
   useCalendar, useSporting, useFinance, useHistory, useActiveTournament, usePresentation,
-  useCareerProfile, useCareerLife, useLegacy, useEnterEvent, useQualification, useMilestones,
+  useCareerProfile, useCareerLife, useCareerLegacySummary, useEnterEvent, useQualification, useMilestones,
   useCareerGoals, useGuidance, useEditGuidance, errorMessage,
 } from "../api";
 import {
@@ -31,7 +31,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
   const presentation = usePresentation(id);
   const profile = useCareerProfile(id);
   const life = useCareerLife(id);
-  const legacy = useLegacy(id);
+  const legacy = useCareerLegacySummary(id, !retired);
   const calendar = useCalendar(id, { scope: "WORLD", fromWeek: Math.max(1, save.currentWeek - 2), toWeek: Math.min(52, save.currentWeek + 8) }, !retired);
   const history = useHistory(id, { participant: "HUMAN" });
   const tournaments = useActiveTournament(id, !retired);
@@ -212,8 +212,8 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       <div className="home-two-column home-latest">
         <CareerSection title="Recent changes" icon={<History aria-hidden />} accent="#82a9d0" action={<Link className="home-text-link" href={`/career/${id}/my-career/history`}>Career history <ArrowUpRight aria-hidden /></Link>}>
           {legacy.isLoading ? <CareerLoading label="Checking Career changes" /> : legacy.error ? <CareerError error={legacy.error} onRetry={() => void legacy.refetch()} /> :
-            legacy.data?.reviews?.length ? <div className="home-change-list">
-              {legacy.data.reviews.slice(-3).reverse().map((review, index) => <p key={`${review.season}-${index}`}><span>S{review.season}</span>{review.identity}<small>{review.provenance === "CAPTURED" ? "Recorded season review" : "Reconstructed historical review"}</small><Link href={`/career/${id}/my-career/history`} aria-label={`Open season ${review.season} history`}><ArrowUpRight aria-hidden /></Link></p>)}
+            legacy.data?.recentReviews?.length ? <div className="home-change-list">
+              {legacy.data.recentReviews.slice(0,3).map((review, index) => <p key={`${review.season}-${index}`}><span>S{review.season}</span>{review.identity}<small>{review.provenance === "CAPTURED" ? "Recorded season review" : "Reconstructed historical review"}</small><Link href={`/career/${id}/my-career/history`} aria-label={`Open season ${review.season} history`}><ArrowUpRight aria-hidden /></Link></p>)}
             </div> : <CareerEmptyState title="No season changes to report">Important changes and season reviews will be recorded here.</CareerEmptyState>}
         </CareerSection>
         <CareerSection title="Darts world" icon={<TrendingUp aria-hidden />} accent="#7ebbd3" action={<Link className="home-text-link" href={`/career/${id}/world`}>Explore world <ArrowUpRight aria-hidden /></Link>}>

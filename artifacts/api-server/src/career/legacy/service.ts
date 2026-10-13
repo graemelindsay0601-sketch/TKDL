@@ -13,6 +13,21 @@ const rootSchema=z.object({id:z.string().uuid(),current_season:z.number().int().
 const ownedRoot=async(tx:CareerExecutor,actor:CareerActor,id:string,active=false)=>rootSchema.parse(await lockRoot(tx,actor,id,active));
 export function createCareerLegacyService(database:CareerDatabase) {
   return {
+    summary:(actor:CareerActor,id:string)=>database.transaction(async tx=>{
+      await ownedRoot(tx,actor,id);
+      const pending=(await tx.execute(sql`SELECT season FROM career_legacy_reviews
+        WHERE career_save_id=${id} AND acknowledged=false ORDER BY season LIMIT 1`)).rows[0];
+      const recentReviews=(await tx.execute(sql`SELECT s.season,r.snapshot->>'identity' AS identity,
+          r.snapshot->>'provenance' AS provenance
+        FROM career_seasons s LEFT JOIN career_legacy_reviews r
+          ON r.career_save_id=s.career_save_id AND r.season=s.season
+        WHERE s.career_save_id=${id} AND s.status='COMPLETED'
+        ORDER BY s.season DESC LIMIT 3`)).rows.map(row=>({
+          season:Number(row.season),identity:String(row.identity??"Season review"),
+          provenance:row.provenance==="CAPTURED"?"CAPTURED" as const:"RECONSTRUCTED" as const,
+        }));
+      return {pendingReview:pending?Number(pending.season):null,recentReviews};
+    }),
     read:(actor:CareerActor,id:string)=>database.transaction(async tx=>{
       const root=await ownedRoot(tx,actor,id);
       const saved=(await tx.execute(sql`SELECT snapshot FROM career_legacy_retirements WHERE career_save_id=${id}`)).rows[0];

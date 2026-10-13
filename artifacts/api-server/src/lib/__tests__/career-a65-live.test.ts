@@ -902,6 +902,8 @@ test("A7.6 live: real week-52 authority transition, stable review, begin gate, o
   assert.equal(advanced.body.recovered,true,"same operation recovers the boundary without another A2 off-season");
   const legacyPath=`/saves/${id}/legacy`,rpath=`${legacyPath}/seasons/1`;
   const v=await call("GET",legacyPath);assert.equal(v.status,200,JSON.stringify(v.body));assert.equal(v.body.pendingReview,1);
+  const summary=await call("GET",`${legacyPath}/summary`);assert.equal(summary.status,200,JSON.stringify(summary.body));
+  assert.equal(summary.body.pendingReview,1);assert.equal(summary.body.recentReviews[0].season,1);assert.equal(summary.body.recentReviews[0].provenance,"CAPTURED");
   const r=await call("GET",rpath);assert.equal(r.status,200);assert.equal(r.body.provenance,"CAPTURED");assert.equal(r.body.human.titles,1);
   await assert.rejects(db.execute(sql`UPDATE career_legacy_reviews SET snapshot='{}'::jsonb WHERE career_save_id=${id}`));
   assert.equal((await call("GET",`${legacyPath}/events/${event.definition_key}`)).status,200);

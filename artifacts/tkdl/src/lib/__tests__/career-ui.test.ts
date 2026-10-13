@@ -168,7 +168,7 @@ test("A7.5 public NPC identity exposes only presentation and sporting standing, 
 });
 const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[], sp = sporting("UNRANKED_AMATEUR"), fin = finance()): [unknown[], unknown][] => [
   [key("sporting"), sp], [key("finance"), fin], [key("history", { participant: "HUMAN" }), []],
-  [key("tournaments"),{tournaments:[]}],[key("legacy"),projectLegacy(legacyEvidence(),[],[],null)],
+  [key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}],
   [key("calendar", { scope: "WORLD", fromWeek: Math.max(1,s.currentWeek-2), toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],
 ];
 
@@ -606,7 +606,7 @@ test("A8.3 Home prioritises an actual active tournament, then the mandatory seas
   const html=render(h(M.HomePage,{ctx:ctx()}),seed);
   assert.match(text(html),/Next Up Tournament in progress Fixture Open Return to Tournament/);
   assert.match(html,/tournaments\/active/);
-  const reviewing=render(h(M.HomePage,{ctx:ctx()}),[...seed,[key("legacy"),{pendingReview:1}]]);
+  const reviewing=render(h(M.HomePage,{ctx:ctx()}),[...seed,[key("legacy-summary"),{pendingReview:1,recentReviews:[]}]]);
   assert.match(text(reviewing),/Continue Season Review/);assert.doesNotMatch(text(reviewing),/Return to Tournament/);
   browserScene("home",render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.HomePage,{ctx:ctx()})),seed));
 });
@@ -682,7 +682,7 @@ test("A8.3 Q-School session evidence is not portrayed as a championship trophy",
 });
 test("A9 establishment copy is new-save-only; Career Calendar fixture remains bounded",()=>{
   const seed:[unknown[],unknown][]=[[key("calendar",{scope:"WORLD",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
-    [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy"),{pendingReview:null}]];
+    [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}]];
   const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5}))}),seed);
   assert.match(text(html),/Establishment season/);assert.match(text(html),/Turning professional is optional/);
   assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Establishment season/);

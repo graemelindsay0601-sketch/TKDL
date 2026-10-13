@@ -216,6 +216,9 @@ export function newOperationKey() {
 }
 export const errorMessage = (e: unknown) => e instanceof ApiRequestError ? e.message : e instanceof Error ? e.message : "Something went wrong";
 export const errorStatus = (e: unknown) => e instanceof ApiRequestError ? e.status : null;
+export type CareerLegacySummary={pendingReview:number|null;recentReviews:{season:number;identity:string;provenance:"CAPTURED"|"RECONSTRUCTED"}[]};
+export const useCareerLegacySummary=(id:string,enabled=true)=>useQuery({queryKey:careerKey(id,"legacy-summary"),staleTime:STALE,enabled,
+  queryFn:()=>get<CareerLegacySummary>(`/saves/${id}/legacy/summary`)});
 export const useLegacy=(id:string,enabled=true)=>useQuery({queryKey:careerKey(id,"legacy"),staleTime:STALE,enabled,queryFn:()=>get<LegacyView>(`/saves/${id}/legacy`)});
 export const useSeasonReview=(id:string,season:number|null)=>useQuery({queryKey:careerKey(id,"legacy-season",season),enabled:season!==null,staleTime:STALE,
   queryFn:()=>get<SeasonReview>(`/saves/${id}/legacy/seasons/${season}`)});

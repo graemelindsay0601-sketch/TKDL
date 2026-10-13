@@ -1,9 +1,9 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
   Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useLegacy, useActiveTournament, useTournamentAction, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
+import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useTournamentAction, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, milestoneLabel, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -84,11 +84,26 @@ function ProfileIncompleteBanner({ saveId }: { saveId: string }) {
 /** A save whose world/calendar was never initialized (e.g. created before A6): one idempotent server initialize. */
 function InitializeCareer({ saveId }: { saveId: string }) {
   const { initialize } = useSaveLifecycle();
+  const startedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (startedFor.current === saveId) return;
+    startedFor.current = saveId;
+    initialize.mutate(saveId);
+  }, [initialize.mutate, saveId]);
+  const retry = () => {
+    startedFor.current = saveId;
+    initialize.reset();
+    initialize.mutate(saveId);
+  };
   return (
-    <div className="pdc-card px-4 py-4 space-y-2">
-      <p className="text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>This Career's world has not been generated yet.</p>
-      <button className="career-btn career-btn-primary" disabled={initialize.isPending} onClick={() => initialize.mutate(saveId)}>{initialize.isPending ? "Generating world…" : "Generate Career world"}</button>
-      {initialize.error && <p role="alert" className="text-sm" style={{ color: "#ff8fb4" }}>{errorMessage(initialize.error)}</p>}
+    <div className="pdc-card px-4 py-4 space-y-2" role={initialize.error ? "alert" : "status"}>
+      <p className="text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>
+        {initialize.error ? "Career setup could not finish." : initialize.isPending ? "Setting up your Career world and calendar…" : "Preparing your Career…"}
+      </p>
+      {initialize.error && <>
+        <p className="text-sm" style={{ color: "#ff8fb4" }}>{errorMessage(initialize.error)}</p>
+        <button className="career-btn career-btn-primary" disabled={initialize.isPending} onClick={retry}>Retry setup</button>
+      </>}
     </div>
   );
 }
@@ -142,7 +157,7 @@ function HeaderAge({ saveId }: { saveId: string }) {
  */
 function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hubAction, nextEntry }: { save: CareerSave; pendingEventId: string | null; pendingMatchId: string | null; pendingCount: number; hubAction: boolean; nextEntry: { name: string; week: number } | null }) {
   const advance = useAdvance(save.id);
-  const legacy=useLegacy(save.id);
+  const seasonReview=useCareerLegacySummary(save.id);
   const tournament=useActiveTournament(save.id);
   const active=tournament.data?.tournaments.find(t=>!t.terminal);
   const finished=tournament.data?.tournaments.filter(t=>t.terminal)??[];
@@ -151,7 +166,7 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
   const [message, setMessage] = useState<string | null>(null);
   const live = useLiveSession(save.id, pendingMatchId);
   const resumable = !!live.data && (live.data.status === "BULL_UP" || live.data.status === "IN_PLAY");
-  if(legacy.data?.pendingReview)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/my-career/history`}>Continue Season Review — before Season {save.currentSeason}</Link>;
+  if(seasonReview.data?.pendingReview)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/my-career/history`}>Continue Season Review — before Season {save.currentSeason}</Link>;
   if (pendingEventId) return (
     <Link href={pendingMatchId ? `/career/${save.id}/matches/${pendingMatchId}/play` : `/career/${save.id}/events/${pendingEventId}`}
       className="career-btn career-btn-gold w-full sm:w-auto" aria-label={resumable ? "Resume your match" : `${pendingCount > 1 ? `${pendingCount} matches are` : "Your match is"} waiting — play it now`}>
@@ -174,13 +189,13 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
   };
   return (
     <div className="flex flex-col items-stretch sm:items-end gap-1">
-      <button className="career-btn career-btn-primary" title={nextEntry ? `Play on to your next match: ${nextEntry.name}` : "Play simulated weeks until your next important date"} disabled={advance.isPending||dismiss.isPending||legacy.isLoading||tournament.isLoading||!!legacy.error||!!tournament.error}
+      <button className="career-btn career-btn-primary" title={nextEntry ? `Play on to your next match: ${nextEntry.name}` : "Play simulated weeks until your next important date"} disabled={advance.isPending||dismiss.isPending||seasonReview.isLoading||tournament.isLoading||!!seasonReview.error||!!tournament.error}
         onClick={() => { void go(); }}>
         {advance.isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
         {advance.isPending ? "Playing…" : "Continue Career"}
       </button>
       {nextEntry && !advance.isPending && <span className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Next: {nextEntry.name} · wk {nextEntry.week}</span>}
-      {(legacy.error||tournament.error)&&<CareerError error={legacy.error||tournament.error} onRetry={()=>{void legacy.refetch();void tournament.refetch();}}/>}
+      {(seasonReview.error||tournament.error)&&<CareerError error={seasonReview.error||tournament.error} onRetry={()=>{void seasonReview.refetch();void tournament.refetch();}}/>}
       {message && <span role="status" className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.7)" }}>{message}</span>}
     </div>
   );
@@ -246,10 +261,10 @@ function WorldSearch({saveId}:{saveId:string}) {
 }
 export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:boolean}) {
   const [open,setOpen]=useState(false);
-  const t=useActiveTournament(saveId),legacy=useLegacy(saveId),finance=useFinance(saveId,open),life=useCareerLife(saveId,open),sporting=useSporting(saveId,open);
+  const t=useActiveTournament(saveId),seasonReview=useCareerLegacySummary(saveId),finance=useFinance(saveId,open),life=useCareerLife(saveId,open),sporting=useSporting(saveId,open);
   const active=t.data?.tournaments.find(x=>!x.terminal),base=`/career/${saveId}`;
   const actions=!retired?[...(active?[{title:`Return to ${active.name}`,path:`${base}/tournaments/${active.eventId}`}]:[]),
-    ...(legacy.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
+    ...(seasonReview.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
     ...(finance.data?.availableOffers?[{title:"Sponsor decision available",path:`${base}/finances`}]:[])]:[];
   const panelId=`career-attention-panel-${saveId}`;
   const milestones=sporting.data?.recentMilestones.slice(0,2)??[];
@@ -285,7 +300,7 @@ export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:b
           {life.data&&!news.length&&<p>No recent Darts World stories.</p>}
           <Link data-testid="link-explore-darts-world" href={`${base}/world`}>Explore Darts World</Link>
         </section>
-        {(t.error||legacy.error||finance.error||life.error||sporting.error)&&<p className="career-attention-error" role="status">Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
+        {(t.error||seasonReview.error||finance.error||life.error||sporting.error)&&<p className="career-attention-error" role="status">Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
       </div>
     </PopoverContent>
   </Popover>;
