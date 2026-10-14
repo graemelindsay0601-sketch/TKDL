@@ -3,6 +3,7 @@ import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, syncEventDe
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
 import { ensureDevelopmentCardSource } from "./create_career_sporting.ts";
+import { createCareerContent } from "./create_career_content.ts";
 
 /**
  * Career schema repairs that later event databases (v7 soft-tip, v11 league nights, v12 Development Tour,
@@ -20,6 +21,9 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureCareerMatchSessionSchema(tx);
     await ensureCareerGroupSchema(tx);
     await ensureDevelopmentCardSource(tx);
+    // SP-G (signature products, equipment) tables were added to createCareerContent after its ledgered
+    // caller (createCareerFinanceA4 / the A9 upgrade) had already run in production. All IF NOT EXISTS.
+    await createCareerContent(tx);
   });
 }
 
