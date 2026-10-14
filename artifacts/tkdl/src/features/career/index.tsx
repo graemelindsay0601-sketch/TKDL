@@ -22,6 +22,7 @@ import {TournamentPage} from "./pages/tournament";
 import {CareerMapPage} from "./pages/map";
 import {WorldHub,WorldPlayerDirectory} from "./pages/world-hub";
 import {MyCareerPage} from "./pages/my-career";
+import {PlayPage} from "./pages/play";
 import {SponsorHQPage} from "./pages/sponsor-hq";
 import {NewsroomPage,StoryArticle} from "./pages/newsroom";
 import {WorldPlayerProfile,RivalryPage} from "./pages/player-profile";
@@ -62,6 +63,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/my-career/history"><MyCareerPage ctx={ctx} section="history"/></Route>
           <Route path="/career/:saveId/my-career/remembered"><MyCareerPage ctx={ctx} section="remembered"/></Route>
           <Route path="/career/:saveId/my-career"><MyCareerPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/play"><PlayPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/sponsors"><SponsorHQPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/tournaments/:eventId/matches/:matchId">{(p:{eventId:string;matchId:string})=><TournamentPage ctx={ctx} eventId={p.eventId} matchId={p.matchId}/>}</Route>

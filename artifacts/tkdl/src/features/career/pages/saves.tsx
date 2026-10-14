@@ -46,13 +46,13 @@ export function SavesPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {saves.data.slots.map(slot => slot.career
               ? <SlotCard key={slot.slotNumber} save={slot.career} busy={life.retire.isPending || life.restart.isPending || life.remove.isPending}
-                  onContinue={() => navigate(`/career/${slot.career!.id}`)}
-                  onRestart={() => life.restart.mutate(slot.career!.id, { onSuccess: s => navigate(`/career/${s.id}`), onError: e => setError(errorMessage(e)) })}
+                  onContinue={() => navigate(`/career/${slot.career!.id}/play`)}
+                  onRestart={() => life.restart.mutate(slot.career!.id, { onSuccess: s => navigate(`/career/${s.id}/play`), onError: e => setError(errorMessage(e)) })}
                   onRetire={() => life.retire.mutate(slot.career!.id, { onError: e => setError(errorMessage(e)) })}
                   onDelete={() => life.remove.mutate(slot.career!.id, { onError: e => setError(errorMessage(e)) })} />
               : <EmptySlot key={slot.slotNumber} slot={slot.slotNumber} busy={life.create.isPending}
                   onCreate={(name, difficulty, dateOfBirth, homeLocality,shirt,nickname) => { setError(null); life.create.mutate({ slot: slot.slotNumber, careerName: name || undefined, difficulty, dateOfBirth, homeLocality },
-                    { onSuccess: async s => {try {await saveInitialShirt(s.id,{...shirt,nickname:nickname.trim()||null});navigate(`/career/${s.id}`);}catch {navigate(`/career/${s.id}/presentation?setup=needed`);}}, onError: e => setError(errorMessage(e)) }); }} />)}
+                    { onSuccess: async s => {try {await saveInitialShirt(s.id,{...shirt,nickname:nickname.trim()||null});navigate(`/career/${s.id}/play`);}catch {navigate(`/career/${s.id}/presentation?setup=needed`);}}, onError: e => setError(errorMessage(e)) }); }} />)}
           </div>
           <section className="pdc-card overflow-hidden" aria-label="Retired Careers">
             <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.06)" }}><Archive className="w-3.5 h-3.5" style={{ color: "#94a3b8" }} aria-hidden /><Label>Retired archive</Label></div>
