@@ -1,0 +1,299 @@
+.career-history {
+  --history-line: rgba(223, 231, 244, 0.12);
+  --history-muted: #98a6bb;
+  color: #f4f5fa;
+}
+
+.career-history-hero {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(16px, 2.6vw, 28px);
+  border: 1px solid rgba(224, 232, 247, 0.13);
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 86% 20%, rgba(141, 30, 68, 0.22), transparent 38%),
+    linear-gradient(125deg, #111622 5%, #171a27 57%, #201720 100%);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.22), inset 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.career-history-hero::after {
+  content: "";
+  position: absolute;
+  top: -55%;
+  right: 11%;
+  width: 1px;
+  height: 230%;
+  transform: rotate(30deg);
+  background: linear-gradient(transparent, rgba(232, 194, 123, 0.2), transparent);
+  pointer-events: none;
+}
+
+.career-history-mast,
+.career-history-season {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.career-history-mast {
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--history-line);
+  font-family: Oswald, sans-serif;
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.career-history-brand { color: #d9e0ec; }
+.career-history-brand i {
+  display: inline-block;
+  width: 3px;
+  height: 10px;
+  margin: 0 7px -1px;
+  background: #e14771;
+}
+.career-history-season { color: #9ca9ba; }
+.career-history-season b { color: #f0d49b; font-weight: 700; }
+.career-history-live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e05879;
+  box-shadow: 0 0 10px rgba(224, 88, 121, 0.6);
+}
+
+.career-history-heading {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 20px;
+  padding: clamp(20px, 4vw, 36px) 0 22px;
+}
+
+.career-history-kicker { display: block; margin-bottom: 8px; }
+.career-history-heading h1 {
+  margin: 0;
+  color: #fbf8f6;
+  font-family: Oswald, sans-serif;
+  font-size: clamp(2.1rem, 5vw, 3.8rem);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+}
+.career-history-heading p {
+  max-width: 520px;
+  margin: 12px 0 0;
+  color: #aab3c2;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.career-history-season-mark {
+  position: relative;
+  min-width: 200px;
+  padding: 3px 0 4px 16px;
+  border-left: 2px solid rgba(228, 185, 115, 0.62);
+  color: #e5c98e;
+}
+.career-history-season-mark > span {
+  display: block;
+  margin-bottom: 8px;
+  color: #9da8b8;
+  font-family: Oswald, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.career-history-season-mark strong {
+  display: block;
+  font-family: Oswald, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.career-history-season-mark small { color: #a8afbd; font-size: 0.76rem; font-weight: 500; }
+.career-history-season-mark i {
+  position: absolute;
+  right: 0;
+  bottom: -14px;
+  color: rgba(229, 201, 142, 0.13);
+  font-family: Oswald, sans-serif;
+  font-size: 2.5rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.career-history-records {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 16px 0 14px;
+  border-top: 1px solid var(--history-line);
+  border-bottom: 1px solid var(--history-line);
+}
+.career-history-records > div { min-width: 0; padding: 0 15px; border-left: 1px solid var(--history-line); }
+.career-history-records > div:first-child { padding-left: 0; border-left: 0; }
+.career-history-records span,
+.career-history-records small {
+  display: block;
+  color: #9ba7b8;
+  font-family: Oswald, sans-serif;
+  font-size: 0.57rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+}
+.career-history-records strong {
+  display: block;
+  overflow: hidden;
+  margin: 4px 0 2px;
+  color: #f5f3f0;
+  font-family: Oswald, sans-serif;
+  font-size: clamp(1.35rem, 3vw, 1.95rem);
+  font-weight: 600;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.career-history-records > div:nth-child(2) strong,
+.career-history-records > div:nth-child(3) strong { color: #e5c98e; }
+.career-history-records small { font-family: inherit; font-size: 0.68rem; font-weight: 400; letter-spacing: 0; }
+.career-history-records small b { color: #e5c98e; font-weight: 700; }
+
+.career-history-proofline {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  padding-top: 12px;
+  color: #aeb8c7;
+  font-size: 0.72rem;
+}
+.career-history-proofline span { display: inline-flex; align-items: center; gap: 7px; }
+.career-history-proofline svg { color: #d8b979; }
+
+.career-history-navigation {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(224, 232, 247, 0.1);
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(18, 22, 33, 0.94), rgba(25, 24, 36, 0.94));
+}
+.career-history-nav-label {
+  flex: 0 0 auto;
+  color: #8e9bae;
+  font-family: Oswald, sans-serif;
+  font-size: 0.59rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+.career-history-navigation .tkdl-tab-rail {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 5px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(223, 190, 130, 0.35) transparent;
+}
+.career-history-navigation .tkdl-tab-trigger { flex: 0 0 auto; white-space: nowrap; }
+
+.career-history .career-section {
+  border-color: rgba(224, 232, 247, 0.11);
+  background: linear-gradient(145deg, rgba(19, 23, 34, 0.96), rgba(15, 19, 29, 0.98));
+}
+.career-history .career-section-head { border-color: rgba(224, 232, 247, 0.09); }
+
+.career-trophy-intro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 22px 18px;
+}
+.career-trophy-intro h3 {
+  margin: 3px 0 0;
+  color: #f4f0e9;
+  font-family: Oswald, sans-serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.career-trophy-intro p { max-width: 390px; margin: 0; color: #9da8b8; font-size: 0.77rem; line-height: 1.55; }
+.career-trophy-gallery {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 22px;
+  border-top: 1px solid rgba(224, 232, 247, 0.11);
+  border-bottom: 1px solid rgba(224, 232, 247, 0.11);
+}
+.career-trophy-entry {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: 19px 13px 17px;
+  text-align: center;
+}
+.career-trophy-entry + .career-trophy-entry { border-left: 1px solid rgba(224, 232, 247, 0.1); }
+.career-trophy-seal {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 10px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--trophy-accent) 57%, transparent);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--trophy-accent) 19%, transparent), rgba(10, 13, 20, 0.4) 72%);
+  color: var(--trophy-accent);
+  box-shadow: 0 0 23px color-mix(in srgb, var(--trophy-accent) 14%, transparent);
+}
+.career-trophy-title {
+  max-width: 100%;
+  color: #f3f0eb;
+  font-size: 0.79rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.career-trophy-meta { margin-top: 6px; color: #9ba6b5; font-size: 0.64rem; }
+.career-trophy-foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 13px 22px 16px;
+  color: #8995a6;
+  font-size: 0.67rem;
+}
+.career-trophy-foot svg { color: #d7b979; }
+
+@media (max-width: 700px) {
+  .career-history-hero { border-radius: 16px; }
+  .career-history-heading { grid-template-columns: 1fr; gap: 18px; padding: 22px 0 18px; }
+  .career-history-heading h1 { font-size: clamp(2.1rem, 11vw, 3.2rem); }
+  .career-history-desktop-break { display: none; }
+  .career-history-season-mark { min-width: 0; }
+  .career-history-records { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 15px; }
+  .career-history-records > div:nth-child(3) { padding-left: 0; border-left: 0; }
+  .career-history-navigation { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .career-history-navigation .tkdl-tab-rail { width: 100%; padding-bottom: 3px; }
+  .career-trophy-intro { align-items: flex-start; flex-direction: column; gap: 6px; padding: 18px 16px 15px; }
+  .career-trophy-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 14px; }
+  .career-trophy-entry { padding: 16px 8px 14px; }
+  .career-trophy-entry:nth-child(odd) { border-left: 0; }
+  .career-trophy-entry:nth-child(n + 3) { border-top: 1px solid rgba(224, 232, 247, 0.1); }
+  .career-trophy-foot { padding-right: 14px; padding-left: 14px; }
+}
+
+@media (max-width: 380px) {
+  .career-history-mast { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .career-history-records > div { padding-right: 8px; padding-left: 10px; }
+  .career-history-records > div:first-child,
+  .career-history-records > div:nth-child(3) { padding-left: 0; }
+  .career-history-proofline { flex-direction: column; }
+}

@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
-import { Award, CalendarRange, Coins, CreditCard, Crown, Flag, History as HistoryIcon, Target, TrendingUp, Trophy } from "lucide-react";
+import { Award, CalendarRange, CreditCard, Crown, Flag, Medal, TrendingUp, Trophy } from "lucide-react";
 import { useFinance, useCareerFacts, useMilestones, useRankingHistory, useSporting, useTourCard } from "../api";
-import { circuitLabel, formatPence, milestoneLabel, ordinal, stageLabel, tierStyle } from "../model";
-import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile } from "../components";
+import { circuitLabel, formatPence, ordinal, stageLabel, tierStyle } from "../model";
+import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented } from "../components";
 import type { ShellContext } from "../shell";
 import type { HistoryRow } from "../types";
 import { FactsOverview, FactsTimeline, PerformancePanel, RecordsPanel, WorldHistoryPanel } from "./facts-panels";
 import { ResultList } from "./journey";
 import { RecognitionTimeline } from "./recognition";
+import "./history.css";
 
 type Tab = "OVERVIEW" | "TIMELINE" | "SEASONS" | "TITLES" | "MAJORS" | "RANKING" | "TROPHIES" | "PLAYING" | "RECORDS" | "WORLD";
 const MAJOR = new Set(["MAJOR", "WORLD_CHAMPIONSHIP"]);
@@ -39,23 +40,44 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
   if (history.isLoading) return <div className="pdc-card"><CareerLoading label="Loading your record" /></div>;
   if (history.error) return <CareerError error={history.error} onRetry={() => history.refetch()} />;
   return (
-    <div className="space-y-3">
-      <div className="pdc-card px-3 py-2.5"><Segmented label="History sections" value={tab} onChange={next => setTab(next as Tab)} wrap options={[
-        { value: "OVERVIEW", label: "Overview" }, { value: "PLAYING", label: "Playing stats" }, { value: "RECORDS", label: "Records" }, { value: "WORLD", label: "World history" }, { value: "TIMELINE", label: "Timeline" }, { value: "SEASONS", label: "Seasons" }, { value: "TITLES", label: "Titles & finals", count: titles.length + finals.length },
-        { value: "MAJORS", label: "Majors", count: majors.length }, { value: "RANKING", label: "Ranking" }, { value: "TROPHIES", label: "Trophy room", count: titles.length }]} /></div>
-
-      {tab === "OVERVIEW" && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          <StatTile icon={<CalendarRange size={16}/>} label="Seasons" value={ctx.save.currentSeason} sub={ctx.retired ? "Retired" : `Now week ${ctx.save.currentWeek}`} />
-          <StatTile icon={<Target size={16}/>} label="Events played" value={rows.length} sub="All completed event results" />
-          <StatTile icon={<Trophy size={16}/>} label="Titles" value={titles.length} tone={titles.length ? "gold" : "neutral"} sub={`${finals.length} other final${finals.length === 1 ? "" : "s"}`} />
-          <StatTile icon={<TrendingUp size={16}/>} label="Highest World Rank" value={sporting.data?.worldRanking.careerHighPosition ? ordinal(sporting.data.worldRanking.careerHighPosition) : "—"} />
-          <StatTile icon={<Coins size={16}/>} label="Career Earnings" value={finance.data ? formatPence(finance.data.careerEarningsPence) : "…"} sub="Prize money" />
-          <StatTile icon={<CreditCard size={16}/>} label="Tour Cards" value={cards.data?.history.length ?? "…"} sub={cards.data?.holdsCard ? "Currently held" : "None held now"} />
-          <StatTile icon={<Crown size={16}/>} label="Major appearances" value={majors.length} />
-          <StatTile icon={<Flag size={16}/>} label="Milestones" value={milestones.data?.milestones.length ?? "…"} />
+    <div className="career-history space-y-4">
+      <header className="career-history-hero">
+        <div className="career-history-mast">
+          <span className="career-history-brand">TKDL <i /> MY CAREER</span>
+          <span className="career-history-season"><span className="career-history-live" />{ctx.retired ? "RETIRED CAREER" : "ACTIVE CAREER"} <b>S{ctx.save.currentSeason} · W{ctx.save.currentWeek}</b></span>
         </div>
-      )}
+        <div className="career-history-heading">
+          <div>
+            <Label className="career-history-kicker" color="#ef8aa9">THE RECORD, SEASON BY SEASON</Label>
+            <h1>A career<br className="career-history-desktop-break" /> in the making.</h1>
+            <p>Completed results, personal records and honours — a record to return to, built from your Career.</p>
+          </div>
+          <div className="career-history-season-mark">
+            <span>{ctx.retired ? "CAREER COMPLETE" : "YOUR PLACE IN THE RECORD"}</span>
+            <strong>Season {String(ctx.save.currentSeason).padStart(2, "0")} <small>· Week {ctx.save.currentWeek}</small></strong>
+            <i aria-hidden="true">TKDL</i>
+          </div>
+        </div>
+        <div className="career-history-records" aria-label="Career highlights">
+          <div><span>EVENTS COMPLETED</span><strong>{rows.length}</strong><small>Results on the record</small></div>
+          <div><span>EVENT TITLES</span><strong>{titles.length.toString().padStart(2, "0")}</strong><small><b>{finals.length}</b> other finals</small></div>
+          <div><span>WORLD RANKING HIGH</span><strong>{sporting.data?.worldRanking.careerHighPosition ? ordinal(sporting.data.worldRanking.careerHighPosition) : "—"}</strong><small>Career-best position</small></div>
+          <div><span>PRIZE MONEY</span><strong>{finance.data ? formatPence(finance.data.careerEarningsPence) : "…"}</strong><small>Career earnings</small></div>
+        </div>
+        <div className="career-history-proofline">
+          <span><CreditCard size={14} aria-hidden /> {cards.data?.history.length ?? "…"} tour cards{cards.data?.holdsCard ? " · currently held" : ""}</span>
+          <span><Crown size={14} aria-hidden /> {majors.length} major appearances</span>
+          <span><Flag size={14} aria-hidden /> {milestones.data?.milestones.length ?? "…"} milestones</span>
+        </div>
+      </header>
+
+      <nav className="career-history-navigation" aria-label="Career history sections">
+        <span className="career-history-nav-label">CAREER RECORD</span>
+        <Segmented label="History sections" value={tab} onChange={next => setTab(next as Tab)} options={[
+          { value: "OVERVIEW", label: "Overview" }, { value: "PLAYING", label: "Playing stats" }, { value: "RECORDS", label: "Records" }, { value: "WORLD", label: "World history" }, { value: "TIMELINE", label: "Timeline" }, { value: "SEASONS", label: "Seasons" }, { value: "TITLES", label: "Titles & finals", count: titles.length + finals.length },
+          { value: "MAJORS", label: "Majors", count: majors.length }, { value: "RANKING", label: "Ranking" }, { value: "TROPHIES", label: "Trophy room", count: titles.length }]} />
+      </nav>
+
       {tab === "OVERVIEW" && history.data && <FactsOverview facts={history.data} />}
       {tab === "TIMELINE" && history.data && <><FactsTimeline facts={history.data} /><RecognitionTimeline saveId={id}/></>}
       {tab === "PLAYING" && history.data && <PerformancePanel facts={history.data} />}
@@ -96,19 +118,22 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
         </CareerSection>
       )}
       {tab === "TROPHIES" && (
-        <CareerSection title="Career trophy room" icon={<Award className="w-3.5 h-3.5" />} accent="#ffd24a">
-          <p className="px-4 pt-3 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Titles won in this Career. Separate from the Classic Tour's 305 Trophy Hunt trophies, which are untouched.</p>
+        <CareerSection title="Career trophy room" icon={<Award className="w-3.5 h-3.5" />} accent="#e9c77a">
+          <div className="career-trophy-intro">
+            <div><Label color="#e9c77a">CAREER-ONLY HONOURS</Label><h3>The trophy room</h3></div>
+            <p>Titles won in this Career. Separate from the Classic Tour&apos;s 305 Trophy Hunt trophies.</p>
+          </div>
           {titles.length ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 p-3">
+            <div className="career-trophy-gallery" aria-label={`${titles.length} Career event titles`}>
               {titles.map(t => { const tier = tierStyle(t.presentationTier); return (
-                <div key={t.eventId} className="rounded-xl p-3 text-center" style={{ background: tier.surface, border: `1px solid ${tier.accent}44` }}>
-                  <Trophy className="w-6 h-6 mx-auto" style={{ color: tier.accent }} aria-hidden />
-                  <div className="mt-1.5 text-xs font-black uppercase leading-tight" style={{ ...OSWALD, color: "#fff" }}>{t.name}</div>
-                  <div className="text-[0.65rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Season {t.season} · {circuitLabel(t.circuit)}</div>
-                </div>); })}
+                <article key={t.eventId} className="career-trophy-entry" style={{ ["--trophy-accent" as string]: tier.accent }}>
+                  <span className="career-trophy-seal"><Trophy size={23} aria-hidden /></span>
+                  <span className="career-trophy-title" style={{ ...OSWALD }}>{t.name}</span>
+                  <span className="career-trophy-meta">Season {t.season} · {circuitLabel(t.circuit)}</span>
+                </article>); })}
             </div>
           ) : <CareerEmptyState title="The cabinet is empty" icon={<Trophy className="w-6 h-6" />}>Win an event and its trophy appears here.</CareerEmptyState>}
-          <div className="px-4 pb-3"><Label color="rgba(255,255,255,0.3)">Career records are available in the Records tab</Label></div>
+          <div className="career-trophy-foot"><Medal size={14} aria-hidden /> {titles.length} event title{titles.length === 1 ? "" : "s"} recorded in this Career</div>
         </CareerSection>
       )}
     </div>

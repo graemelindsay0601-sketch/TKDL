@@ -424,9 +424,13 @@ test("entered event offers Withdraw; completed event shows the persisted result"
 test("Trophy room is Career-only and states its separation from the Classic Tour trophies", () => {
   const won = [{ eventId: "e1", season: 1, name: "Kilbirnie Friday Night 501", definitionKey: "k", circuit: "GRASSROOTS", classification: "RANKING", presentationTier: "LOCAL", week: 3,
     country: "GBR", participantKey: "HUMAN", position: 1, stageReached: "CHAMPION", champion: true, wins: 5, losses: 0 }];
-  const t = text(render(h(M.HistoryPage, { ctx: ctx(), initialTab: "TROPHIES" }), [[key("facts"), { results: won }]]));
+  const html = render(h(M.HistoryPage, { ctx: ctx(), initialTab: "TROPHIES" }), [[key("facts"), { results: won }]]);
+  const t = text(html);
+  assert.ok(t.includes("A career in the making"));
   assert.ok(t.includes("Kilbirnie Friday Night 501"));
   assert.ok(t.includes("Separate from the Classic Tour's 305 Trophy Hunt trophies"));
+  assert.match(html, /career-history-records/);
+  assert.match(html, /career-trophy-seal/);
   const empty = text(render(h(M.HistoryPage, { ctx: ctx(), initialTab: "TROPHIES" }), [[key("facts"), { results: [] }]]));
   assert.ok(empty.includes("The cabinet is empty"));
 });
