@@ -3,11 +3,12 @@ import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
   Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useAdvance, useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useTournamentAction, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
-import { CAREER_NAV, milestoneLabel, activeNavKey, advanceStopLabel, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
+import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
+import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
+import { useContinueCareer, ContinueOutcomeCard, ContinueProgress } from "./continue-career";
 import { CareerStageBackdrop, PLATES, resolveAtmosphere, spectacleFor } from "./atmosphere";
 import type { PlateKey } from "./atmosphere/model";
 
@@ -156,14 +157,10 @@ function HeaderAge({ saveId }: { saveId: string }) {
  * the match it stops for, and a finished tournament is filed away as the calendar continues.
  */
 function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hubAction, nextEntry }: { save: CareerSave; pendingEventId: string | null; pendingMatchId: string | null; pendingCount: number; hubAction: boolean; nextEntry: { name: string; week: number } | null }) {
-  const advance = useAdvance(save.id);
   const seasonReview=useCareerLegacySummary(save.id);
   const tournament=useActiveTournament(save.id);
   const active=tournament.data?.tournaments.find(t=>!t.terminal);
-  const finished=tournament.data?.tournaments.filter(t=>t.terminal)??[];
-  const dismiss=useTournamentAction(save.id,finished[0]?.eventId??"");
-  const [, navigate] = useLocation();
-  const [message, setMessage] = useState<string | null>(null);
+  const go = useContinueCareer(save, nextEntry);
   const live = useLiveSession(save.id, pendingMatchId);
   const resumable = !!live.data && (live.data.status === "BULL_UP" || live.data.status === "IN_PLAY");
   if(seasonReview.data?.pendingReview)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/my-career/history`}>Continue Season Review — before Season {save.currentSeason}</Link>;
@@ -174,29 +171,17 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
     </Link>
   );
   if(active&&hubAction)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/tournaments/${active.eventId}`}>Return to Tournament</Link>;
-  const go = async () => {
-    setMessage(null);
-    // A finished tournament only needs filing away; it never blocks the calendar on the server.
-    if (finished.length) await dismiss.mutateAsync({ action: "dismiss" }).catch(() => undefined);
-    // With an event booked, play straight on to its first match; otherwise stop at the next notable date.
-    advance.mutate({ season: save.currentSeason, week: save.currentWeek, target: { kind: nextEntry ? "NEXT_MATCH" : "NEXT_MEANINGFUL" } }, {
-      onSuccess: r => {
-        const matchId = r.stop.reason === "HUMAN_MATCH_PENDING" ? (r.stop.detail as { matchIds?: string[] } | undefined)?.matchIds?.[0] : undefined;
-        if (matchId) navigate(`/career/${save.id}/matches/${matchId}/play`);
-        else setMessage(`${advanceStopLabel(r.stop.reason)} — ${weekLabel(r.to.season, r.to.week)}`);
-      },
-      onError: e => setMessage(errorMessage(e)) });
-  };
   return (
     <div className="flex flex-col items-stretch sm:items-end gap-1">
-      <button className="career-btn career-btn-primary" title={nextEntry ? `Play on to your next match: ${nextEntry.name}` : "Play simulated weeks until your next important date"} disabled={advance.isPending||dismiss.isPending||seasonReview.isLoading||tournament.isLoading||!!seasonReview.error||!!tournament.error}
-        onClick={() => { void go(); }}>
-        {advance.isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
-        {advance.isPending ? "Playing…" : "Continue Career"}
+      <button className="career-btn career-btn-primary" title={nextEntry ? `Play on to your next match: ${nextEntry.name}` : "Play simulated weeks until your next important date"} disabled={go.pending||seasonReview.isLoading||go.blocked||!!seasonReview.error}
+        onClick={() => { void go.run(); }}>
+        {go.pending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
+        {go.pending ? "Playing…" : nextEntry ? "Play on to your match" : "Continue Career"}
       </button>
-      {nextEntry && !advance.isPending && <span className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Next: {nextEntry.name} · wk {nextEntry.week}</span>}
+      {nextEntry && !go.pending && <span className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Booked: {nextEntry.name} · wk {nextEntry.week}</span>}
       {(seasonReview.error||tournament.error)&&<CareerError error={seasonReview.error||tournament.error} onRetry={()=>{void seasonReview.refetch();void tournament.refetch();}}/>}
-      {message && <span role="status" className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.7)" }}>{message}</span>}
+      {go.pending && <ContinueProgress from={go.from} toEvent={nextEntry} />}
+      {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
     </div>
   );
 }

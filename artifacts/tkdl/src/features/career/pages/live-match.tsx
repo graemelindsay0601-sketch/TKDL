@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ContinueProgress } from "../continue-career";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
@@ -239,6 +240,7 @@ function PostMatch({ ctx, session }: { ctx: ShellContext; session: LiveSession }
           <Link href={`/career/${saveId}/calendar`} className="career-btn career-btn-ghost"><ListOrdered className="w-4 h-4" aria-hidden /> Calendar</Link>
         </div>
         {note && <p role="alert" className="text-sm" style={{ color: "#ff8fb4" }}>{note}</p>}
+        {advance.isPending && <ContinueProgress from={{ season: ctx.save.currentSeason, week: ctx.save.currentWeek }} toEvent={null} />}
       </div>
     </Overlay>
   );
