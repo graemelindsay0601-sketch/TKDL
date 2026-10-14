@@ -3,7 +3,7 @@
  * Handles web push notifications, offline support, and caching
  */
 
-const CACHE_NAME = "tkdl-v9";
+const CACHE_NAME = "tkdl-v10";
 
 // Files to cache for offline support
 const STATIC_ASSETS = [
@@ -70,8 +70,15 @@ self.addEventListener("fetch", (event) => {
   // The application shell must be network-first. Cache-first navigation used
   // to pin an old Vite entry module in development and could also keep a
   // deployed browser on an obsolete index.html after a new release.
+  const isCareerRoute =
+    url.pathname === "/career" ||
+    url.pathname.startsWith("/career/");
+
   const isApplicationShell =
     request.mode === "navigate" ||
+    request.destination === "document" ||
+    request.headers.get("accept")?.includes("text/html") ||
+    isCareerRoute ||
     url.pathname === "/" ||
     url.pathname === "/index.html" ||
     url.pathname.startsWith("/src/") ||
@@ -83,13 +90,24 @@ self.addEventListener("fetch", (event) => {
         .then((response) => {
           if (response && response.status === 200) {
             const clonedResponse = response.clone();
-            caches.open(CACHE_NAME).then((c) => c.put(request, clonedResponse));
+            event.waitUntil(
+              caches.open(CACHE_NAME)
+                .then((cache) => cache.put(request, clonedResponse))
+                .catch(() => {})
+            );
           }
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => {
-          return cached || new Response("Network error", { status: 503 });
-        }))
+        .catch(async () => {
+          try {
+            const cached = await caches.match(request);
+            if (cached) return cached;
+            const shell = await caches.match("/index.html");
+            return shell || new Response("Network error", { status: 503 });
+          } catch {
+            return new Response("Network error", { status: 503 });
+          }
+        })
     );
     return;
   }
@@ -97,18 +115,20 @@ self.addEventListener("fetch", (event) => {
   // Fingerprinted production assets and media: cache-first with network
   // fallback. Their URLs change when their contents change.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      return (
-        cached ||
-        fetch(request).then((response) => {
-          if (response && response.status === 200) {
-            const clonedResponse = response.clone();
-            caches.open(CACHE_NAME).then((c) => c.put(request, clonedResponse));
-          }
-          return response;
-        })
-      );
-    })
+    caches.match(request)
+      .then((cached) => cached || fetch(request))
+      .then((response) => {
+        if (response && response.status === 200) {
+          const clonedResponse = response.clone();
+          event.waitUntil(
+            caches.open(CACHE_NAME)
+              .then((cache) => cache.put(request, clonedResponse))
+              .catch(() => {})
+          );
+        }
+        return response;
+      })
+      .catch(() => new Response("Network error", { status: 503 }))
   );
 });
 
