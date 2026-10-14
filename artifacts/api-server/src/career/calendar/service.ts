@@ -620,6 +620,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         return { stored: null };
       });
       if (started.stored) return started.stored;
+      // Events finished from here on are this advance's headlines (a second of slack for clock skew).
+      const startedAt = new Date(Date.now() - 1000).toISOString();
       const targetIndex = request.target.kind === "WEEKS" ? (request.expectedSeason - 1) * WEEKS_PER_SEASON + request.expectedWeek - 1 + request.target.weeks
         : request.target.kind === "WEEK" ? (request.expectedSeason - 1) * WEEKS_PER_SEASON + request.target.week - 1 + (request.target.week <= request.expectedWeek ? WEEKS_PER_SEASON : 0) : null;
       const steps: unknown[] = [];
@@ -648,8 +650,15 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       }
       return database.transaction(async tx => {
         const { root } = await requireSeason(tx, actor, saveId);
+        // Who won what while time moved on: the biggest events first, for the Continue result card.
+        const headlines = (await tx.execute(sql`SELECT i.name, i.circuit, i.presentation_tier AS tier, i.champion_participant_key = ${HUMAN} AS you,
+            COALESCE(p.first_name || ' ' || p.surname, CASE WHEN i.champion_participant_key = ${HUMAN} THEN 'You' END) AS champion
+          FROM career_event_instances i LEFT JOIN career_world_players p ON p.career_save_id = i.career_save_id AND p.id = i.champion_npc_id
+          WHERE i.career_save_id = ${saveId} AND i.status = 'COMPLETED' AND i.completed_at >= ${startedAt}::timestamptz AND i.champion_participant_key IS NOT NULL
+          ORDER BY (i.champion_participant_key = ${HUMAN}) DESC, i.calendar_priority DESC, i.completed_at DESC LIMIT 6`)).rows
+          .map(r => ({ name: String(r.name), circuit: String(r.circuit), tier: String(r.tier), champion: r.champion ? String(r.champion) : null, you: r.you === true }));
         const result = { operationKey: request.operationKey, from: { season: request.expectedSeason, week: request.expectedWeek },
-          to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps };
+          to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
         // Blocked advances are recorded (resumable from the same position); completed ones are final.
         await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
             completed_at = ${stop.reason === "HUMAN_MATCH_PENDING" ? null : sql`NOW()`}

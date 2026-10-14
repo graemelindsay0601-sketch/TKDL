@@ -185,7 +185,7 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
       </button>
       {nextEntry && !go.pending && <span className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Booked: {nextEntry.name} · wk {nextEntry.week}</span>}
       {(seasonReview.error||tournament.error)&&<CareerError error={seasonReview.error||tournament.error} onRetry={()=>{void seasonReview.refetch();void tournament.refetch();}}/>}
-      {go.pending && <ContinueProgress from={go.from} toEvent={nextEntry} />}
+      {go.pending && <ContinueProgress saveId={save.id} from={go.from} toEvent={nextEntry} />}
       {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
     </div>
   );

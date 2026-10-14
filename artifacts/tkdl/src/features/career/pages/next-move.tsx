@@ -52,7 +52,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         {!booked && <button type="button" className="career-btn career-btn-ghost next-move__skip" disabled={go.pending || go.blocked} onClick={() => { void go.run(); }}>
           {go.pending ? <Loader2 className="animate-spin" aria-hidden /> : <FastForward aria-hidden />} Skip ahead to the next date</button>}
       </>}
-      {go.pending && <ContinueProgress from={go.from} toEvent={booked} />}
+      {go.pending && <ContinueProgress saveId={save.id} from={go.from} toEvent={booked} />}
       {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
     </section>
   );
