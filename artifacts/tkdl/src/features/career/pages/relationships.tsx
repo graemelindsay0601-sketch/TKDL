@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useCareerRelationships } from "../api";
+import { useCareerRelationships, usePresentation } from "../api";
 import { Swords } from "lucide-react";
 import { CareerSection, CareerEmptyState, Flag, QueryState } from "../components";
 import { CareerShirt } from "../identity";
@@ -13,8 +13,11 @@ const identity = (p: WorldIdentity) => `${p.homeRegion} · Age ${p.age}${p.statu
 const FILTERS = ["All opponents", "Career Rival", "Nemesis", "Favourite Opponent", "Familiar Opponent", "Generation Rival", "Q-School Class", "Junior Contemporary"] as const;
 export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
   const query = useCareerRelationships(ctx.save.id);
+  const presentation = usePresentation(ctx.save.id, Boolean(query.data?.opponents.length));
   const [filter,setFilter] = useState<string>("All opponents"), [search,setSearch] = useState("");
   const [worldFilter,setWorldFilter] = useState("ACTIVE"), [worldSearch,setWorldSearch] = useState(""), [limit,setLimit] = useState(30);
+  const opponents = query.data?.opponents.filter(o=>(filter==="All opponents" || o.labels.some(l=>l===filter)) && o.player.name.toLowerCase().includes(search.toLowerCase())) ?? [];
+  const featuredOpponent = opponents[0];
   return <div className="space-y-3">
     {query.data && <CareerPageHero kicker="Relationships · rivalries" title="Head-to-head" accent="#ff5d5d"
       stage={{ venue: { venueType: "studio" }, eventClass: "STAGE_SERIES" }} archival={ctx.retired}
@@ -25,9 +28,34 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
         { label: "Their wins", tone: "bad", value: query.data.opponents.reduce((n, o) => n + o.npcWins, 0) },
         { label: "Labelled rivals", value: query.data.opponents.filter(o => o.labels.length).length, tone: "gold" },
       ]} />}
+    {featuredOpponent && <section className="career-relationships-showcase" aria-label="Featured head-to-head record">
+      <div className="career-relationships-showcase__eyebrow"><span>Head-to-head spotlight</span><span>Based on played results</span></div>
+      <div className="career-relationships-showcase__matchup">
+        <div className="career-relationships-showcase__side">
+          {presentation.data && <span className="career-relationships-showcase__kit"><CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName ?? "You"} scale="featured" /></span>}
+          <div className="career-relationships-showcase__identity">
+            <span>Your record</span><strong>{ctx.save.careerName ?? "You"}</strong>
+          </div>
+        </div>
+        <div className="career-relationships-showcase__score">
+          <span>{featuredOpponent.meetings ? "Head-to-head" : "Shared sporting history"}</span>
+          {featuredOpponent.meetings
+            ? <strong aria-label={`${featuredOpponent.humanWins} wins to ${featuredOpponent.npcWins}`}>{featuredOpponent.humanWins}<i>–</i>{featuredOpponent.npcWins}</strong>
+            : <strong className="career-relationships-showcase__no-score">No matches yet</strong>}
+          <small>{featuredOpponent.meetings} {featuredOpponent.meetings === 1 ? "meeting" : "meetings"}{featuredOpponent.winPercentage === null ? "" : ` · ${featuredOpponent.winPercentage}% wins`}</small>
+        </div>
+        <div className="career-relationships-showcase__side career-relationships-showcase__side--opponent">
+          <span className="career-relationships-showcase__kit"><CareerShirt playerId={featuredOpponent.player.id} name={featuredOpponent.player.name} scale="featured" /></span>
+          <div className="career-relationships-showcase__identity">
+            <span><Flag code={featuredOpponent.player.nationality} /> Featured opponent</span><strong>{featuredOpponent.player.name}</strong>
+            <div className="career-relationships-showcase__labels">{featuredOpponent.labels.map(label=><i key={label}>{label}</i>)}</div>
+          </div>
+        </div>
+      </div>
+      {featuredOpponent.evidence.length > 0 && <p className="career-relationships-showcase__evidence">{featuredOpponent.evidence[0]}</p>}
+    </section>}
     <CareerSection title="Opponents" icon={<Swords aria-hidden />} accent="#ff5d5d">
       <QueryState query={query} label="Reading opponent history">{data=>{
-        const opponents = data.opponents.filter(o=>(filter==="All opponents" || o.labels.some(l=>l===filter)) && o.player.name.toLowerCase().includes(search.toLowerCase()));
         const world = data.world.players.filter(p=>p.name.toLowerCase().includes(worldSearch.toLowerCase()) &&
           (worldFilter==="ALL" || (worldFilter==="YOUNG" ? p.status==="ACTIVE" && p.age<=data.world.youngAgeMaximum : p.status===worldFilter)));
         return <div className="p-4 pt-0 space-y-4">
@@ -69,7 +97,7 @@ export function OpponentPanel({ opponent:o, saveId }: { opponent:OpponentRelatio
     <summary className="cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
       <span className="career-rival__shirt" aria-hidden="true"><CareerShirt playerId={o.player.id} name={o.player.name} scale="standard" /></span>
       <span className="career-rival__who"><span><Flag code={o.player.nationality} /> <strong>{o.player.name}</strong></span>
-        <span className="block text-sm">{o.meetings} meetings · H2H {o.humanWins}–{o.npcWins}{o.winPercentage===null ? "" : ` · ${o.winPercentage}% wins`}</span>
+        <span className="block text-sm">{o.meetings} {o.meetings===1 ? "meeting" : "meetings"}{o.meetings ? ` · H2H ${o.humanWins}–${o.npcWins}` : " · No H2H record"}{o.winPercentage===null ? "" : ` · ${o.winPercentage}% wins`}</span>
         <span className="career-rival__labels">{o.labels.length ? o.labels.map(l => <i key={l}>{l}</i>) : <em>No special relationship yet</em>}</span></span>
       <span className="career-rival__score" aria-hidden="true"><b>{o.humanWins}</b><small>–</small><b>{o.npcWins}</b></span>
     </summary>

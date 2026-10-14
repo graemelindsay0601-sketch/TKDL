@@ -672,7 +672,48 @@
 .career-root .career-world-tile small { color:#ffffffb3; font-size:.72rem; }
 @media (max-width:640px) { .career-root .career-world-tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
-/* Relationships: rival cards */
+/* Relationships: premium H2H spotlight */
+.career-root .career-relationships-showcase {
+  position:relative; overflow:hidden; padding:16px clamp(16px,3vw,30px) 12px;
+  border:1px solid #8eb4d52b; border-radius:18px;
+  background:
+    radial-gradient(ellipse at 14% 62%,#b7194c2b,transparent 37%),
+    radial-gradient(ellipse at 90% 50%,#126bb32b,transparent 40%),
+    linear-gradient(120deg,#111a28,#09111c 55%,#101a29);
+  box-shadow:0 16px 38px #0006,inset 0 1px #ffffff0b;
+}
+.career-root .career-relationships-showcase::before {
+  content:""; position:absolute; inset:0 0 auto; height:2px;
+  background:linear-gradient(90deg,#ff005c 0 45%,#315ff5 55% 100%);
+}
+.career-root .career-relationships-showcase__eyebrow {
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  color:#f4d58c; font:700 .62rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase;
+}
+.career-root .career-relationships-showcase__eyebrow span+span { color:#9fb0c2; font:600 .65rem Inter,system-ui,sans-serif; letter-spacing:.02em; text-transform:none; }
+.career-root .career-relationships-showcase__matchup {
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(165px,.72fr) minmax(0,1fr);
+  align-items:center; gap:clamp(10px,2vw,28px); min-height:190px; padding:8px 0 4px;
+}
+.career-root .career-relationships-showcase__side { display:flex; align-items:center; gap:14px; min-width:0; }
+.career-root .career-relationships-showcase__side--opponent { flex-direction:row-reverse; text-align:right; }
+.career-root .career-relationships-showcase__kit { display:block; flex:0 0 clamp(90px,13vw,148px); width:clamp(90px,13vw,148px); filter:drop-shadow(0 12px 13px #0009); }
+.career-root .career-relationships-showcase__kit > * { width:100%; max-width:none; }
+.career-root .career-relationships-showcase__identity { display:grid; gap:4px; min-width:0; }
+.career-root .career-relationships-showcase__identity > span { color:#aebed0; font-size:.68rem; }
+.career-root .career-relationships-showcase__identity > strong { color:#fff; font:700 clamp(.85rem,1.2vw,1.05rem)/1.15 Oswald,sans-serif; letter-spacing:.03em; text-transform:uppercase; overflow-wrap:anywhere; }
+.career-root .career-relationships-showcase__labels { display:flex; flex-wrap:wrap; gap:5px; }
+.career-root .career-relationships-showcase__side--opponent .career-relationships-showcase__labels { justify-content:flex-end; }
+.career-root .career-relationships-showcase__labels i { padding:2px 7px; border:1px solid #ffd27a45; border-radius:999px; background:#ffd27a12; color:#ffd27a; font:700 .55rem Oswald,sans-serif; letter-spacing:.08em; text-transform:uppercase; font-style:normal; }
+.career-root .career-relationships-showcase__score { display:grid; justify-items:center; gap:3px; text-align:center; }
+.career-root .career-relationships-showcase__score > span { color:#f4d58c; font:700 .62rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; }
+.career-root .career-relationships-showcase__score > strong { color:#fff; font:800 clamp(2.6rem,5vw,4.25rem)/.95 Oswald,sans-serif; font-variant-numeric:tabular-nums; text-shadow:0 5px 20px #0009; }
+.career-root .career-relationships-showcase__score > strong i { padding:0 .12em; color:#93a5b8; font-style:normal; font-size:.72em; }
+.career-root .career-relationships-showcase__score > strong.career-relationships-showcase__no-score { font-size:1.25rem; }
+.career-root .career-relationships-showcase__score small { color:#b5c5d6; font-size:.7rem; }
+.career-root .career-relationships-showcase__evidence { max-width:80ch; margin:0 auto; padding:9px 0 0; border-top:1px solid #ffffff16; color:#bdcad7; text-align:center; font-size:.72rem; }
+
+/* Relationships: rival records */
 .career-root .career-rivals { display:grid; gap:10px; }
 .career-root .career-rival { border-radius:14px; border:1px solid #ffffff1c; background:linear-gradient(100deg,#1a2536,#0f1722 70%); overflow:hidden; }
 .career-root .career-rival.is-ahead { border-left:3px solid #5ee39b; }
@@ -693,7 +734,22 @@
 .career-root .career-rival.is-behind .career-rival__score b:last-child { color:#ff7a93; }
 .career-root .career-rival__score small { color:#ffffff66; font-size:1.1rem; }
 .career-root .career-rival[open] > div { padding:4px 16px 16px; border-top:1px solid #ffffff10; }
-@media (max-width:640px) { .career-root .career-rival > summary { grid-template-columns:48px minmax(0,1fr) auto; gap:10px; } .career-root .career-rival__shirt { width:48px; } .career-root .career-rival__score { font-size:1.3rem; } }
+@media (max-width:640px) {
+  .career-root .career-relationships-showcase { padding:14px 12px 10px; border-radius:15px; }
+  .career-root .career-relationships-showcase__eyebrow { align-items:flex-start; flex-direction:column; gap:3px; }
+  .career-root .career-relationships-showcase__matchup { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:3px 8px; min-height:0; padding:10px 0; }
+  .career-root .career-relationships-showcase__side,.career-root .career-relationships-showcase__side--opponent { grid-row:1; flex-direction:column; justify-content:flex-start; gap:3px; text-align:center; }
+  .career-root .career-relationships-showcase__side { grid-column:1; }
+  .career-root .career-relationships-showcase__side--opponent { grid-column:2; }
+  .career-root .career-relationships-showcase__kit { flex-basis:auto; width:clamp(82px,25vw,118px); }
+  .career-root .career-relationships-showcase__identity { justify-items:center; }
+  .career-root .career-relationships-showcase__side--opponent .career-relationships-showcase__labels { justify-content:center; }
+  .career-root .career-relationships-showcase__score { grid-column:1 / -1; grid-row:2; padding:6px 0; border-top:1px solid #ffffff12; }
+  .career-root .career-relationships-showcase__score > strong { font-size:3.1rem; }
+  .career-root .career-rival > summary { grid-template-columns:48px minmax(0,1fr) auto; gap:10px; }
+  .career-root .career-rival__shirt { width:48px; }
+  .career-root .career-rival__score { font-size:1.3rem; }
+}
 
 /* Darts World: events directory and championship detail */
 .career-world-search { display:flex; align-items:center; gap:8px; margin-top:14px; max-width:520px; padding:0 12px; border-radius:999px; border:1px solid #ffffff2e; background:#05070cc7; backdrop-filter:blur(6px); color:#ffffffa6; }

@@ -259,9 +259,13 @@ test("A7.2 relationships render factual retired identity, H2H, cohorts, meetings
   const data={careerSaveId:SAVE_ID,opponents:[opponent],world:{players:[player],active:0,retired:1,newEntrants:0,youngPlayers:0,youngAgeMaximum:23}};
   const html=render(h(M.RelationshipsPage,{ctx:ctx(save({status:"RETIRED"}))}),[[key("relationships"),data]]);
   const t=text(html);
-  for (const s of ["Fictional Opponent","H2H 4–2","66.67% wins","Career Rival","Q-School Class","Retired (season 8)","No current World Ranking","Legs 6–3","Fictional Final","never change scoring","Career generations"]) assert.ok(t.includes(s),s);
+  for (const s of ["Fictional Opponent","H2H 4–2","Head-to-head spotlight","4–2","66.67% wins","Career Rival","Q-School Class","Retired (season 8)","No current World Ranking","Legs 6–3","Fictional Final","never change scoring","Career generations"]) assert.ok(t.includes(s),s);
   assert.ok(html.includes(`/career/${SAVE_ID}/events/event-one`));
   assert.ok(!/Rivalry Score|Potential|Current ability/.test(t));
+  const cohortOnly={...opponent,labels:["Q-School Class"],evidence:["Shared played cohort."],meetings:0,humanWins:0,npcWins:0,winPercentage:null,eventCount:0,seasonCount:0,finals:0,majorMeetings:0,qualificationMeetings:0,firstMeeting:null,latestMeeting:null,history:[]};
+  const cohortText=text(render(h(M.RelationshipsPage,{ctx:ctx(save())}),[[key("relationships"),{...data,opponents:[cohortOnly]}]]));
+  assert.ok(cohortText.includes("No matches yet"));
+  assert.ok(!cohortText.includes("0–0"));
   const empty=text(render(h(M.RelationshipsPage,{ctx:ctx()}),[[key("relationships"),{...data,opponents:[],world:{...data.world,players:[]}}]]));
   assert.ok(empty.includes("No opponent history here yet"));
 });
