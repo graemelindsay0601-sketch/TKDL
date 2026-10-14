@@ -275,7 +275,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
   }
 
   /** Calendar overview with next meaningful date, computed from one season load. */
-  async function overview(tx: CareerExecutor, root: RootRow, seasonRow: Record<string, unknown>) {
+  async function overview(tx: CareerExecutor, root: RootRow, seasonRow: Record<string, unknown>,
+    loaded?: { events: InstanceRow[]; human: HumanContext; windows: SeriesWindows }) {
     const season = Number(root.current_season), week = Number(root.current_week);
     const pending = (await tx.execute(sql`SELECT m.id, m.event_id FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
       WHERE m.career_save_id = ${root.id} AND m.status = 'AWAITING_HUMAN' AND i.season = ${season}`)).rows;
@@ -287,9 +288,10 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       for(const g of resolvedGroups(await loadMatches(tx,root.id,e.id),await loadBulls(tx,root.id,e.id),withdrawn,layoutFor(e.snapshot.format.structure)))
         if(g.pending?.pair.includes(HUMAN))pendingTournamentActions.push({eventId:e.id,kind:"GROUP_BULL_UP",group:g.key});
     }
-    const events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
-    const human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
-    const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
+    // The calendar read passes the current season's context it already loaded (one load, not two).
+    const events = loaded ? loaded.events.filter(e => e.start_week >= week) : await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
+    const human = loaded?.human ?? await loadHumanContext(tx, root, season, events, await bind(tx, root));
+    const windows = loaded?.windows ?? seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
     let next: { season: number; week: number; reasons: unknown[] } | null = null;
     for (let w = week + 1; w <= WEEKS_PER_SEASON && !next; w++) {
       const reasons = reasonsFor(events.filter(e => e.start_week === w), human, windows, season, w);
@@ -449,15 +451,16 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       const q = calendarQuerySchema.parse(query);
       return database.transaction(async tx => {
         const { root, season: seasonRow } = await requireSeason(tx, actor, saveId, false);
-        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
-          WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'
-            AND season=${root.current_season} AND available_from_week<=${root.current_week} AND due_week>=${root.current_week}`);
-        await tx.execute(sql`UPDATE career_sponsor_commitments SET status='MISSED',
-          resolution_evidence=COALESCE(resolution_evidence,'{}'::jsonb)||jsonb_build_object('reason','DEADLINE_PASSED','season',season,'week',due_week),
-          updated_at=NOW() WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
-          AND scheduling_requirements->>'activitySpecVersion'='1'
-          AND (season < ${root.current_season} OR (season=${root.current_season} AND due_week < ${root.current_week}))`);
-        await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='EXPIRED',updated_at=NOW()
+        // Sponsor activity upkeep in one round trip (the three updates touch disjoint rows).
+        await tx.execute(sql`WITH available AS (UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
+            WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'
+              AND season=${root.current_season} AND available_from_week<=${root.current_week} AND due_week>=${root.current_week} RETURNING 1),
+          missed AS (UPDATE career_sponsor_commitments SET status='MISSED',
+            resolution_evidence=COALESCE(resolution_evidence,'{}'::jsonb)||jsonb_build_object('reason','DEADLINE_PASSED','season',season,'week',due_week),
+            updated_at=NOW() WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
+            AND scheduling_requirements->>'activitySpecVersion'='1'
+            AND (season < ${root.current_season} OR (season=${root.current_season} AND due_week < ${root.current_week})) RETURNING 1)
+          UPDATE career_sponsor_opportunities SET status='EXPIRED',updated_at=NOW()
           WHERE career_save_id=${root.id} AND status IN ('AVAILABLE','ACCEPTED','CONFIRMED')
           AND terms->>'activitySpecVersion'='1'
           AND (season < ${root.current_season} OR (season=${root.current_season} AND available_to_week < ${root.current_week}))`);
@@ -470,7 +473,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         if (q.family) filters.push(sql`family = ${q.family}`);
         if (q.scope === "FEATURED") filters.push(sql`featured`);
         const events = (await loadInstances(tx, root.id, sql.join(filters, sql` AND `))).sort((a, b) => a.start_day - b.start_day || b.calendar_priority - a.calendar_priority || (a.instance_key < b.instance_key ? -1 : 1));
-        const human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
+        // For the current season, one human context covers both the requested events and the overview's weeks ahead.
+        const current = season === Number(root.current_season);
+        const ahead = current ? await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${Number(root.current_week)}`) : [];
+        const seen = new Set(events.map(e => e.id));
+        const human = await loadHumanContext(tx, root, season, [...events, ...ahead.filter(e => !seen.has(e.id))], await bind(tx, root));
         const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
         const previews = providers.finance ? await providers.finance.previews(tx, root, season, events) : null;
         let rows = events.map(event => withFinance(presentEvent(event, humanView(event, human, windows)), previews?.get(event.id)));
@@ -486,7 +493,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           WHERE career_save_id=${root.id} AND season=${season} AND status NOT IN ('COMPLETED','DECLINED','EXPIRED','CANCELLED')
           AND COALESCE(scheduled_week,available_from_week) BETWEEN ${q.fromWeek??1} AND ${q.toWeek??52}
           ORDER BY COALESCE(scheduled_week,available_from_week),id`)).rows;
-        return { overview: await overview(tx, root, seasonRow), season, scope: q.scope, events: rows,
+        return { overview: await overview(tx, root, seasonRow, current ? { events: ahead, human, windows } : undefined), season, scope: q.scope, events: rows,
           sponsorActivities:[...sponsorCommitments,...sponsorOpportunities] };
       });
     },

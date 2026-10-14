@@ -36,7 +36,10 @@ export function profileFor(event: Pick<InstanceRow, "definition_key" | "classifi
 }
 
 // ------------------------------------------------------------------ state / contract / coverage
+// Checked once per transaction: within one transaction the state row, once present and supported, cannot change.
+const financeStateChecked = new WeakMap<CareerExecutor, Set<string>>();
 export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
+  if (financeStateChecked.get(tx)?.has(saveId)) return;
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
     SELECT ${saveId}, ${FINANCE_VERSION},
       CASE
@@ -50,6 +53,8 @@ export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
     ON CONFLICT (career_save_id) DO NOTHING`);
   const row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
   if (Number(row.finance_version) !== FINANCE_VERSION || !(SUPPORTED_SPONSOR_DATABASE_VERSIONS as readonly number[]).includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
+  if (!financeStateChecked.has(tx)) financeStateChecked.set(tx, new Set());
+  financeStateChecked.get(tx)!.add(saveId);
 }
 export type ContractRow = { id: string; offer_id: string; sponsor_key: string; tier: SponsorTier; terms: SponsorTerms; start_season: number; start_week: number; end_season: number; end_week: number; status: string };
 export async function activeContracts(tx: CareerExecutor, saveId: string): Promise<ContractRow[]> {

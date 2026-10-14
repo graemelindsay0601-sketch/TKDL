@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db as rawDb } from "@workspace/db";
+import { careerRequestScope, readRetryingCareerDatabase } from "../career/request-scope.ts";
 import { createCareerService } from "../career/service.ts";
 import { createCareerRouter } from "../career/router.ts";
 import { createCareerCalendarRouter } from "../career/calendar/router.ts";
@@ -26,6 +27,7 @@ import { captureRetirement } from "../career/legacy/persistence.ts";
 import {createCareerContentService,createCareerContentRouter} from "../career/content/service.ts";
 import {createCareerTournamentService,createCareerTournamentRouter} from "../career/tournament/service.ts";
 
+const db = readRetryingCareerDatabase(rawDb);
 const saves = createCareerService(db,{onRetired:captureRetirement});
 // A5 composes the Career: A3 calendar with A4 finance hooks and A5 sporting status/seeding/hooks,
 // and A4 sponsorship reading A5 sporting facts. Every Career route uses this one composition.
@@ -34,6 +36,7 @@ const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
 // A6.5: live Career matches through the real scorer; results enter via A3's human-result boundary.
 const live = createCareerLiveMatchService(db, sporting.calendar);
 const router = Router();
+router.use(careerRequestScope);
 router.use(createCareerTournamentRouter(createCareerTournamentService(db,sporting.calendar),sporting.calendar,available));
 router.use(createCareerContentRouter(createCareerContentService(db,sporting)));
 router.use(createCareerFactsRouter(createCareerFactsService(db)));
