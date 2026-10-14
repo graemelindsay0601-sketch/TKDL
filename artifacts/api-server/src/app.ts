@@ -41,6 +41,7 @@ import { addContractConcludedSponsorEventSPE1 } from "./db/migrations/add_contra
 import { addScheduledSponsorRenewalsSPE1B } from "./db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
 import { createCareerSponsorContractActionsSPE2 } from "./db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import { createCareerSporting } from "./db/migrations/create_career_sporting";
+import { repairCareerSchema, syncCareerEventDefinitions } from "./db/migrations/repair_career_schema";
 import { createCareerGoals } from "./db/migrations/create_career_goals";
 import { addCareerMainGoal } from "./db/migrations/add_career_main_goal";
 import { createCareerLife } from "./db/migrations/create_career_life";
@@ -1566,6 +1567,9 @@ async function initSchemaAndData(): Promise<boolean> {
   // below the SP-C/SP-E2 sponsor categories. Re-apply the SP-E2 ledger constraint once (idempotent); a new key
   // also repairs databases where A9 already ran after SP-C.
   await runMigrationStep("reapplyCareerLedgerConstraintSPE2AfterA9", () => createCareerSponsorContractActionsSPE2(db));
+  // Idempotent, every boot: repairs added after the ledgered Career migrations above were recorded complete.
+  await runInitStep("repairCareerSchema", () => repairCareerSchema(db));
+  await runInitStep("syncCareerEventDefinitions", () => syncCareerEventDefinitions(db));
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
   await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
   await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
