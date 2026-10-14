@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useAdvance, useActiveTournament, useTournamentAction, errorMessage } from "./api";
-import { advanceStopLabel, weekLabel } from "./model";
+import { continueOutcome, weekLabel } from "./model";
 import type { AdvanceResult, CareerSave } from "./types";
 
 export type NextEntry = { name: string; week: number } | null;
@@ -24,24 +24,23 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
 
   const run = async () => {
     setOutcome(null);
-    if (finished.length) await dismiss.mutateAsync({ action: "dismiss" }).catch(() => undefined);
+    let dismissWarning: string | undefined;
+    if (finished.length) {
+      try { await dismiss.mutateAsync({ action: "dismiss" }); }
+      catch (e) { dismissWarning = errorMessage(e); }
+    }
     advance.mutate({ season: save.currentSeason, week: save.currentWeek, target: { kind: nextEntry ? "NEXT_MATCH" : "NEXT_MEANINGFUL" } }, {
       onSuccess: r => {
         const matchId = r.stop.reason === "HUMAN_MATCH_PENDING" ? (r.stop.detail as { matchIds?: string[] } | undefined)?.matchIds?.[0] : undefined;
         if (matchId) navigate(`/career/${save.id}/matches/${matchId}/play`);
-        else setOutcome(describe(r));
+        else setOutcome(continueOutcome(r, dismissWarning));
       },
-      onError: e => setOutcome({ tone: "error", headline: "Couldn't continue", detail: errorMessage(e) }),
+      onError: e => setOutcome({ tone: "error", headline: "Couldn't continue",
+        detail: dismissWarning ? `Finished event cleanup also failed: ${dismissWarning}. ${errorMessage(e)}` : errorMessage(e) }),
     });
   };
   return { run, pending: advance.isPending || dismiss.isPending, outcome, clear: () => setOutcome(null),
     blocked: tournament.isLoading || !!tournament.error, from: { season: save.currentSeason, week: save.currentWeek } };
-}
-
-function describe(r: AdvanceResult): ContinueOutcome {
-  const weeks = r.weeksPlayed === 1 ? "1 week played" : `${r.weeksPlayed} weeks played`;
-  const next = r.stop.reason === "TARGET_REACHED" || r.stop.reason === "MEANINGFUL_DATE" ? " Pick an event to enter, or continue again." : "";
-  return { tone: "info", headline: `Now ${weekLabel(r.to.season, r.to.week)}`, detail: `${advanceStopLabel(r.stop.reason)} · ${weeks}.${next}` };
 }
 
 /** Clear result of a continue: where the Career now is and why it stopped. */

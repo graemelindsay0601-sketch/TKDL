@@ -1,4 +1,4 @@
-import type { CareerEvent, CareerSave, CalendarOverview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary } from "./types";
+import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary } from "./types";
 
 /**
  * Pure Career view-model helpers. They only translate authoritative A1–A5 facts
@@ -161,6 +161,16 @@ export function pickNextEvent(events: CareerEvent[], overview: Pick<CalendarOver
   if (best) return { event: best, reason: best.human?.relationship === "QUALIFIED" ? "You have qualified" : "Open for entry" };
   const blocked = upcoming.find(e => e.dates.startWeek >= overview.week && e.human && e.human.eligible && e.status !== "CANCELLED" && e.status !== "COMPLETED" && e.capability.executable);
   return blocked ? { event: blocked, reason: "Next event you are eligible for" } : null;
+}
+
+/** Actionable entry windows closing this or next in-game week, from server-approved available events only. */
+export function registrationAlerts(events: CareerEvent[], season: number, week: number): CareerEvent[] {
+  const deadline = Math.min(WEEKS_PER_SEASON, week + 1);
+  return events
+    .filter(e => e.season === season && e.status === "REGISTRATION_OPEN" && e.human?.canEnter
+      && e.registration.closesWeek >= week && e.registration.closesWeek <= deadline)
+    .sort((a, b) => a.registration.closesWeek - b.registration.closesWeek
+      || a.dates.startDay - b.dates.startDay || b.presentation.calendarPriority - a.presentation.calendarPriority);
 }
 
 // ---------------------------------------------------------------- rankings
@@ -331,6 +341,16 @@ export function slotLines(save: CareerSave): { label: string; value: string }[] 
 }
 export const advanceStopLabel = (reason: string) => ({ TARGET_REACHED: "Played on — no events booked", MEANINGFUL_DATE: "Stopped at your next important date",
   SEASON_BOUNDARY: "New season", SEASON_REVIEW:"Season complete — review before continuing", HUMAN_MATCH_PENDING: "Your match is ready", LIMIT: "Advanced" } as Record<string, string>)[reason] ?? titleCase(reason);
+
+/** Report a cleanup failure without hiding a successful calendar advance. */
+export function continueOutcome(result: AdvanceResult, dismissWarning?: string) {
+  const weeks = result.weeksPlayed === 1 ? "1 week played" : `${result.weeksPlayed} weeks played`;
+  const next = result.stop.reason === "TARGET_REACHED" || result.stop.reason === "MEANINGFUL_DATE" ? " Pick an event to enter, or continue again." : "";
+  const detail = `${advanceStopLabel(result.stop.reason)} · ${weeks}.${next}`;
+  return dismissWarning
+    ? { tone: "info" as const, headline: "Career continued, but a finished event remains", detail: `Its result could not be cleared: ${dismissWarning}. ${detail}` }
+    : { tone: "info" as const, headline: `Now ${weekLabel(result.to.season, result.to.week)}`, detail };
+}
 
 // ---------------------------------------------------------------- formats (describes A3's stored format; never executes it)
 export function formatLabel(f: CareerEvent["format"] | undefined | null): string {
