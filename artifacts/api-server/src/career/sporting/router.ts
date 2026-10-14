@@ -29,7 +29,25 @@ export function createCareerSportingRouter(service: CareerSportingService, isAva
     try {
       res.json(await service.initialize(res.locals.careerActor, id(req)));
     } catch (error) {
-      req.log.error({ err: error }, "Career world initialization failed");
+      // DrizzleQueryError.message embeds the full SQL parameters (including the
+      // generated calendar JSON). Log the underlying database diagnosis instead
+      // of a huge payload that production log providers truncate.
+      const outer = error && typeof error === "object" ? error as Record<string, unknown> : {};
+      const cause = outer.cause && typeof outer.cause === "object" ? outer.cause as Record<string, unknown> : outer;
+      const short = (value: unknown) => typeof value === "string" ? value.slice(0, 500) : undefined;
+      req.log.error({
+        errorType: short(outer.name),
+        databaseError: {
+          type: short(cause.name),
+          code: short(cause.code),
+          message: short(cause.message) ?? short(outer.message)?.split("\n", 1)[0],
+          detail: short(cause.detail),
+          hint: short(cause.hint),
+          constraint: short(cause.constraint),
+          table: short(cause.table),
+          column: short(cause.column),
+        },
+      }, "Career world initialization failed");
       const careerError = error instanceof CareerError;
       res.status(careerError ? error.status : 500).json({ error: careerError ? error.message : "Career setup could not finish" });
     }
