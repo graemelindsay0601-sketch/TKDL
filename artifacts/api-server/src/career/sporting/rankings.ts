@@ -25,7 +25,9 @@ export async function recordRankingContributions(tx: CareerExecutor, root: RootR
   if (!table) throw new Error(`A4 prize table missing for ${event.id}: A5 ranking money must come from A4 prize facts`);
   if (table.ranking_eligible !== true) return 0;
   const bands = { key: String(table.prize_profile_key), bands: table.bands } as PrizeProfile;
-  const award = (await tx.execute(sql`SELECT ranking_eligible_pence FROM career_prize_awards WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0];
+  const award = results.some(r => r.participant_key === HUMAN)
+    ? (await tx.execute(sql`SELECT ranking_eligible_pence FROM career_prize_awards WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0]
+    : undefined;
   const completion = timeIndex(Number(root.current_season), Number(root.current_week));
   const rows: Record<string, unknown>[] = [];
   for (const r of results) {
