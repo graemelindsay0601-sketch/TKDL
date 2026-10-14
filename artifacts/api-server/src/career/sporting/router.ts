@@ -25,7 +25,15 @@ export function createCareerSportingRouter(service: CareerSportingService, isAva
   });
   const id = (req: Request) => String(req.params.id);
   // A6: one idempotent initialize for the whole composed Career (A2 world, A3 calendar, A4 finance, A5 sporting state).
-  router.post("/saves/:id/initialize", authedWriteRateLimit, async (req, res) => { res.json(await service.initialize(res.locals.careerActor, id(req))); });
+  router.post("/saves/:id/initialize", authedWriteRateLimit, async (req, res) => {
+    try {
+      res.json(await service.initialize(res.locals.careerActor, id(req)));
+    } catch (error) {
+      req.log.error({ err: error }, "Career world initialization failed");
+      const careerError = error instanceof CareerError;
+      res.status(careerError ? error.status : 500).json({ error: careerError ? error.message : "Career setup could not finish" });
+    }
+  });
   router.get("/saves/:id/sporting", async (req, res) => { res.json(await service.summary(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/rankings", async (req, res) => { res.json(await service.rankingLists(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/rankings/:list", async (req, res) => {

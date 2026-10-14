@@ -89,18 +89,23 @@ export async function persistInitialNpcSponsorRelationships(
         id text,npc_id text,sponsor_key text,category text,representative_id text,status text,start_season integer,start_week integer,
         end_season integer,end_week integer,sponsor_snapshot jsonb
       ) ON CONFLICT(career_save_id,id) DO NOTHING`);
-    for(const relationship of relationships){
-      await tx.execute(sql`INSERT INTO career_npc_sponsor_market_events
-        (career_save_id,id,relationship_id,npc_id,sponsor_key,event_type,season,week,operation_key,details)
-        SELECT ${input.saveId},${stableUuid(input.seed,input.generationVersion,"npc-sponsor-story",`relationship-start:${relationship.id}`)},
-          ${relationship.id},p.id,${relationship.sponsorKey},'SIGNED',1,1,${`relationship-start:${relationship.id}`},
-          jsonb_build_object('npcName',concat_ws(' ',p.first_name,p.surname),
-            'sponsorName',${relationship.sponsorSnapshot.displayName}::text,
-            'title',concat_ws(' ',${relationship.sponsorSnapshot.displayName}::text,'enters the tour market'),
-            'summary','A seeded NPC sponsorship relationship was recorded when this Career world was created.')
-        FROM career_world_players p WHERE p.career_save_id=${input.saveId} AND p.id=${relationship.npcId}
-        ON CONFLICT(career_save_id,operation_key) DO NOTHING`);
-    }
+    const eventRows=relationships.map(relationship=>({
+      id:stableUuid(input.seed,input.generationVersion,"npc-sponsor-story",`relationship-start:${relationship.id}`),
+      relationshipId:relationship.id,npcId:relationship.npcId,sponsorKey:relationship.sponsorKey,
+      sponsorName:relationship.sponsorSnapshot.displayName,operationKey:`relationship-start:${relationship.id}`,
+    }));
+    await tx.execute(sql`INSERT INTO career_npc_sponsor_market_events
+      (career_save_id,id,relationship_id,npc_id,sponsor_key,event_type,season,week,operation_key,details)
+      SELECT ${input.saveId}::uuid,r.id::uuid,r.relationship_id::uuid,p.id,r.sponsor_key,'SIGNED',1,1,r.operation_key,
+        jsonb_build_object('npcName',concat_ws(' ',p.first_name,p.surname),
+          'sponsorName',r.sponsor_name,
+          'title',concat_ws(' ',r.sponsor_name,'enters the tour market'),
+          'summary','A seeded NPC sponsorship relationship was recorded when this Career world was created.')
+      FROM jsonb_to_recordset(${JSON.stringify(eventRows)}::jsonb) AS r(
+        id text,relationship_id text,npc_id text,sponsor_key text,sponsor_name text,operation_key text
+      )
+      JOIN career_world_players p ON p.career_save_id=${input.saveId} AND p.id=r.npc_id::uuid
+      ON CONFLICT(career_save_id,operation_key) DO NOTHING`);
   }
   await tx.execute(sql`INSERT INTO career_sponsor_world_state(career_save_id,content_version,generation_version,npc_count,relationship_count)
     VALUES(${input.saveId},${NPC_SPONSOR_CONTENT_VERSION},${input.generationVersion},${input.npcIds.length},${relationships.length})`);
