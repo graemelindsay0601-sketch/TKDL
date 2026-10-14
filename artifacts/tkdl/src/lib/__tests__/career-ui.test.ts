@@ -743,6 +743,17 @@ test("Career Compass presents one selected ambition and evidence instead of a pr
   assert.doesNotMatch(t,/0 \/ 1|0%/);
 });
 
+test("Career Compass and personal goals load their dedicated spacious styling",()=>{
+  const goals=readFileSync(path.join(ROOT,"src/features/career/pages/goals.tsx"),"utf8");
+  const goalsCss=readFileSync(path.join(ROOT,"src/features/career/pages/goals.css"),"utf8");
+  const homeCss=readFileSync(path.join(ROOT,"src/features/career/pages/home.css"),"utf8");
+  assert.match(goals,/import "\.\/goals\.css"/);
+  assert.match(goalsCss,/\.career-goals__overview/);
+  assert.match(goalsCss,/\.career-goals__routes/);
+  assert.match(homeCss,/\.home-compass-opportunities/);
+  assert.match(homeCss,/grid-template-columns:minmax\(0,1fr\)/);
+});
+
 test("small local events say whether they go ahead, without predicting", async () => {
   const { viabilityText } = await import("../../features/career/model.ts");
   assert.equal(viabilityText(null), null);

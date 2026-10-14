@@ -144,6 +144,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
             saveId={id}
           />
         </CareerSection>
+      </div>
         <CareerSection title="Career Compass" icon={<Target aria-hidden />} accent="#dbb866" action={<Link className="home-text-link" href={`/career/${id}/goals`}>Focus & goals <ArrowUpRight aria-hidden /></Link>}>
           {goals.isLoading ? <CareerLoading label="Reading your goals" /> : goals.error ? <CareerError error={goals.error} onRetry={() => void goals.refetch()} /> :
             goals.data ? <div className="home-goals">
@@ -171,7 +172,6 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
                <p className="home-goal-foot">Evidence-based guidance <span aria-hidden>·</span> no rewards or progression shortcuts</p>
             </div> : <CareerEmptyState title="No goals available" />}
         </CareerSection>
-      </div>
 
       {!retired && <CareerSection title="Entry windows" icon={<CalendarDays aria-hidden />} accent="#86b8ec" action={<Link className="home-text-link" href={`/career/${id}/calendar`}>Full calendar <ArrowUpRight aria-hidden /></Link>}>
         {calendar.isLoading ? <CareerLoading label="Reading registration windows" /> : calendar.error ? <CareerError error={calendar.error} onRetry={() => void calendar.refetch()} /> :

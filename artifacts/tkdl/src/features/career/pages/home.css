@@ -201,3 +201,45 @@
 .career-home .home-result-name strong { font-size:.95rem; font-weight:700; letter-spacing:.02em; }
 /* season changes */
 .career-home .home-change-list p { border-left:3px solid #82a9d040; margin:8px 12px; border-radius:10px; background:#ffffff06; }
+
+/* Career Compass is a full-width decision surface, not a cramped half-card. */
+.career-home > .career-section:has(.home-goals) { --section-accent:#d7b55d; }
+.home-goals { display:grid; gap:14px; padding:16px 18px 18px; }
+.home-focus { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 14px; margin:0!important; padding:12px 15px; border:1px solid #8dbfac3b; border-radius:12px; background:linear-gradient(100deg,#36745b24,#12241f 65%,#131d27); color:#e0f0e7; font:600 1.02rem Oswald,system-ui,sans-serif; }
+.home-focus span { color:#9ec8b0; font:700 .6rem Oswald,system-ui,sans-serif; letter-spacing:.14em; }
+.home-main-ambition { gap:7px; margin:0; padding:15px 17px; border-color:#d7b55d50; border-radius:13px; background:radial-gradient(100% 140% at 0% 0%,#d7b55d17,transparent 62%),linear-gradient(125deg,#242316,#151c25 76%); }
+.home-main-ambition strong { color:#fff4d6; font-size:1.1rem; }
+.home-main-ambition>span { color:#e0c574; }
+.home-main-ambition p { font-size:.77rem; line-height:1.55; }
+.home-route-choice { margin:0!important; padding:10px 13px; border-left:2px solid #88bda9; border-radius:0 8px 8px 0; background:#7eb59b0c; color:#c5d9d0; font-size:.77rem; }
+.home-compass-opportunities { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr); align-items:start; gap:12px; }
+.home-compass-title-row { grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; gap:12px; padding-bottom:2px; }
+.home-compass-title-row > a,.home-compass-opportunities > a { display:inline-flex; align-items:center; gap:5px; color:#dfc27d; font-size:.73rem; font-weight:700; text-decoration:none; }
+.home-compass-kicker { color:#ad9a66; font:700 .59rem Oswald,system-ui,sans-serif; letter-spacing:.15em; }
+.home-compass-opportunity { display:grid; align-content:start; gap:8px; min-width:0; padding:15px; border:1px solid #ffffff17; border-radius:14px; background:linear-gradient(155deg,#172535,#101923 78%); }
+.home-compass-opportunity.is-recommended { border-color:#d4b56a60; background:radial-gradient(90% 120% at 0% 0%,#d4b56a16,transparent 65%),linear-gradient(155deg,#242317,#111a24 78%); }
+.home-compass-opportunity-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:5px 10px; }
+.home-compass-event-meta { color:#9aabba; font-size:.67rem; }
+.home-compass-opportunity h3 { margin:0; color:#f5f7f8; font:700 1.05rem/1.25 Oswald,system-ui,sans-serif; }
+.home-compass-opportunity h3 a { color:inherit; text-decoration:none; }
+.home-compass-opportunity h3 a:hover { color:#ff9bbb; }
+.home-compass-reason { margin:0; color:#c0ccd5; font-size:.77rem; line-height:1.5; }
+.home-compass-opportunity > .career-event-card { min-width:0; }
+.home-compass-eligibility,.home-compass-caveat { margin:0; color:#94a6b5; font-size:.68rem; line-height:1.5; }
+.home-compass-eligibility { padding-top:8px; border-top:1px solid #ffffff10; }
+.home-compass-alternatives { min-width:0; }
+.home-compass-alternatives .home-compass-opportunity { height:100%; }
+.home-compass-facts { display:grid; gap:7px; color:#b9c5ce; font-size:.73rem; }
+.home-compass-facts > span { padding-bottom:6px; border-bottom:1px solid #ffffff0d; }
+.home-compass-facts .home-text-link { justify-self:start; }
+.home-compass-caveat { grid-column:1/-1; padding:0 2px; }
+.home-goal-foot { margin:0!important; padding-top:9px; border-top:1px solid #ffffff10; color:#8fa4b4; font-size:.68rem; }
+@media(max-width:760px) {
+  .home-compass-opportunities { grid-template-columns:minmax(0,1fr); }
+  .home-compass-title-row,.home-compass-caveat { grid-column:1; }
+}
+@media(max-width:560px) {
+  .home-goals { gap:11px; padding:12px; }
+  .home-compass-opportunity { padding:13px; }
+  .home-compass-title-row { align-items:flex-start; flex-direction:column; }
+}
