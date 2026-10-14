@@ -4,7 +4,7 @@ import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays
   Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
-import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "./model";
+import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
@@ -140,7 +140,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
         </div>
         {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} hubAction={!!overview?.pendingTournamentActions?.length} nextEntry={overview?.nextHumanEntry ?? null} />}
       </div>
-      <div className="career-header-tools"><WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link></div>
+      <div className="career-header-tools"><WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link></div>
     </header>
   );
 }
@@ -244,35 +244,41 @@ function WorldSearch({saveId}:{saveId:string}) {
   return <form className="career-search" role="search" onSubmit={e=>{e.preventDefault();navigate(`/career/${saveId}/world/search?q=${encodeURIComponent(search)}`);}}>
     <label htmlFor={`world-search-${saveId}`}>Search the darts world</label><input id={`world-search-${saveId}`} type="search" maxLength={80} placeholder="Players, events, venues" value={search} onChange={e=>setSearch(e.target.value)}/><button className="career-btn career-btn-ghost">Search</button></form>;
 }
-export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:boolean}) {
+export function CareerAttention({saveId,season,week,retired=false}:{saveId:string;season:number;week:number;retired?:boolean}) {
   const [open,setOpen]=useState(false);
   const t=useActiveTournament(saveId),seasonReview=useCareerLegacySummary(saveId),finance=useFinance(saveId,open),life=useCareerLife(saveId,open),sporting=useSporting(saveId,open);
+  const entryCalendar=useCalendar(saveId,{scope:"AVAILABLE",season,fromWeek:week,toWeek:Math.min(52,week+1)},open&&!retired);
   const active=t.data?.tournaments.find(x=>!x.terminal),base=`/career/${saveId}`;
+  const entryWindows=retired?[]:registrationAlerts(entryCalendar.data?.events??[],season,week);
   const actions=!retired?[...(active?[{title:`Return to ${active.name}`,path:`${base}/tournaments/${active.eventId}`}]:[]),
     ...(seasonReview.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
     ...(finance.data?.availableOffers?[{title:"Sponsor decision available",path:`${base}/finances`}]:[])]:[];
+  const attentionCount=actions.length+entryWindows.length;
   const panelId=`career-attention-panel-${saveId}`;
   const milestones=sporting.data?.recentMilestones.slice(0,2)??[];
-  const news=life.data?.news.slice(0,Math.min(3,5-actions.length))??[];
+  const news=life.data?.news.slice(0,Math.min(3,5-attentionCount))??[];
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
       <button type="button" className="career-attention-trigger" data-testid="button-career-attention" aria-expanded={open} aria-controls={panelId}>
-        <Bell size={17} aria-hidden/><span>Attention</span>{actions.length>0&&<span className="career-inbox-count" title="Known actions — open to check all updates">{actions.length}</span>}
+        <Bell size={17} aria-hidden/><span>Attention</span>{attentionCount>0&&<span className="career-inbox-count" title="Known actions — open to check all updates">{attentionCount}</span>}
       </button>
     </PopoverTrigger>
     <PopoverContent id={panelId} className="career-attention-panel" side="bottom" align="end" sideOffset={10} collisionPadding={12} aria-labelledby={`${panelId}-title`}>
       <header className="career-attention-panel-header">
         <div><span className="career-eyebrow">Career updates</span><h2 id={`${panelId}-title`}>Attention</h2><p>Your next steps and recent activity.</p></div>
         <div className="career-attention-panel-tools">
-          {actions.length>0&&<span className="career-attention-total" data-testid="text-career-attention-count">{actions.length} action{actions.length===1?"":"s"}</span>}
+          {attentionCount>0&&<span className="career-attention-total" data-testid="text-career-attention-count">{attentionCount} action{attentionCount===1?"":"s"}</span>}
           <button type="button" className="career-attention-close" data-testid="button-close-career-attention" aria-label="Close Career attention" onClick={()=>setOpen(false)}><X size={17} aria-hidden/></button>
         </div>
       </header>
       <div className="career-attention-content">
-        {(finance.isLoading||life.isLoading||sporting.isLoading)&&<p role="status" data-testid="status-career-attention-loading">Loading Career updates…</p>}
+        {(finance.isLoading||life.isLoading||sporting.isLoading||entryCalendar.isLoading)&&<p role="status" data-testid="status-career-attention-loading">Loading Career updates…</p>}
         <section className="career-attention-group" aria-labelledby={`${panelId}-actions`}>
           <h3 id={`${panelId}-actions`}>Action required</h3>
-          {actions.length?actions.map((a,i)=><Link key={a.path} className="is-action" data-testid={`link-career-action-${i}`} href={a.path}><Bell size={14} aria-hidden/><span>{a.title}</span></Link>):<p>{finance.isLoading?"Checking pending decisions…":"No pending action reported."}</p>}
+          {actions.map((a,i)=><Link key={a.path} className="is-action" data-testid={`link-career-action-${i}`} href={a.path}><Bell size={14} aria-hidden/><span>{a.title}</span></Link>)}
+          {entryWindows.slice(0,3).map(e=><Link key={e.id} className="is-action" data-testid={`link-registration-alert-${e.id}`} href={`${base}/events/${encodeURIComponent(e.id)}`}><CalendarDays size={14} aria-hidden/><span>{e.name}<small>Entry closes {e.registration.closesWeek===week?"this week":"next week"}</small></span></Link>)}
+          {entryWindows.length>3&&<Link href={`${base}/calendar`}>View all {entryWindows.length} entry windows</Link>}
+          {!attentionCount&&<p>{finance.isLoading||entryCalendar.isLoading?"Checking pending decisions and entry windows…":"No pending action reported."}</p>}
         </section>
         <section className="career-attention-group" aria-labelledby={`${panelId}-career`}>
           <h3 id={`${panelId}-career`}>Career updates</h3>
@@ -285,7 +291,7 @@ export function CareerAttention({saveId,retired=false}:{saveId:string;retired?:b
           {life.data&&!news.length&&<p>No recent Darts World stories.</p>}
           <Link data-testid="link-explore-darts-world" href={`${base}/world`}>Explore Darts World</Link>
         </section>
-        {(t.error||seasonReview.error||finance.error||life.error||sporting.error)&&<p className="career-attention-error" role="status">Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
+        {(t.error||seasonReview.error||finance.error||life.error||sporting.error||entryCalendar.error)&&<p className="career-attention-error" role="status">Attention is temporarily incomplete. Open the relevant Career page to retry.</p>}
       </div>
     </PopoverContent>
   </Popover>;

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   activeNavKey, cardLineText, careerChapter, eventLifecycle, eventStatus, financeHeadlines, formatLabel, matchesStatusFilter, milestoneLabel, movementLabel,
-  navLayerOf, pickNextEvent, primaryAction, qSchoolState, routeLines, slotLines, CAREER_NAV,
+  navLayerOf, pickNextEvent, primaryAction, qSchoolState, registrationAlerts, routeLines, slotLines, CAREER_NAV,
 } from "../../features/career/model.ts";
 import { event, finance, human, overview, pathway, save, sporting } from "./career-fixtures.ts";
 
@@ -67,6 +67,15 @@ test("entered, in-progress and completed states come from the human relationship
   assert.deepEqual([eventStatus(done).key, eventStatus(done).label], ["COMPLETED", "Finished — Last 32"]);
   const won = event({ status: "COMPLETED", human: human({ relationship: "COMPLETED", canEnter: false, result: { finishingPosition: 1, stageReached: "CHAMPION", champion: true } }) });
   assert.equal(eventStatus(won).key, "CHAMPION");
+});
+
+test("registration alerts include only server-enterable open entries closing this or next week", () => {
+  const closingNow = event({ name: "Closes now", registration: { opensWeek: 1, closesWeek: 1 }, dates: { startWeek: 1, endWeek: 1 } });
+  const closingNext = event({ name: "Closes next", registration: { opensWeek: 1, closesWeek: 2 } });
+  const later = event({ registration: { opensWeek: 1, closesWeek: 3 } });
+  const notEnterable = event({ registration: { opensWeek: 1, closesWeek: 1 }, human: human({ canEnter: false, denials: ["SCHEDULE_CONFLICT"] }) });
+  const closed = event({ registration: { opensWeek: 1, closesWeek: 1 }, status: "REGISTRATION_CLOSED" });
+  assert.deepEqual(registrationAlerts([closingNext, later, notEnterable, closed, closingNow], 1, 1).map(e => e.name), ["Closes now", "Closes next"]);
 });
 
 test("a pending human match exposes Play match (the UI then shows the not-connected boundary)", () => {

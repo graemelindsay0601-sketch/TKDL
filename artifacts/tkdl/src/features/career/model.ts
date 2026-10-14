@@ -163,6 +163,16 @@ export function pickNextEvent(events: CareerEvent[], overview: Pick<CalendarOver
   return blocked ? { event: blocked, reason: "Next event you are eligible for" } : null;
 }
 
+/** Actionable entry windows closing this or next in-game week, from server-approved available events only. */
+export function registrationAlerts(events: CareerEvent[], season: number, week: number): CareerEvent[] {
+  const deadline = Math.min(WEEKS_PER_SEASON, week + 1);
+  return events
+    .filter(e => e.season === season && e.status === "REGISTRATION_OPEN" && e.human?.canEnter
+      && e.registration.closesWeek >= week && e.registration.closesWeek <= deadline)
+    .sort((a, b) => a.registration.closesWeek - b.registration.closesWeek
+      || a.dates.startDay - b.dates.startDay || b.presentation.calendarPriority - a.presentation.calendarPriority);
+}
+
 // ---------------------------------------------------------------- rankings
 export function movementLabel(movement: number | null | undefined, isNew = false): { text: string; tone: Tone; aria: string } {
   if (isNew) return { text: "NEW", tone: "info", aria: "New entry" };
