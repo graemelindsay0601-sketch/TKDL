@@ -1,4 +1,4 @@
-import type { CareerEvent, CareerSave, CalendarOverview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary } from "./types";
+import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary } from "./types";
 
 /**
  * Pure Career view-model helpers. They only translate authoritative A1–A5 facts
@@ -341,6 +341,16 @@ export function slotLines(save: CareerSave): { label: string; value: string }[] 
 }
 export const advanceStopLabel = (reason: string) => ({ TARGET_REACHED: "Played on — no events booked", MEANINGFUL_DATE: "Stopped at your next important date",
   SEASON_BOUNDARY: "New season", SEASON_REVIEW:"Season complete — review before continuing", HUMAN_MATCH_PENDING: "Your match is ready", LIMIT: "Advanced" } as Record<string, string>)[reason] ?? titleCase(reason);
+
+/** Report a cleanup failure without hiding a successful calendar advance. */
+export function continueOutcome(result: AdvanceResult, dismissWarning?: string) {
+  const weeks = result.weeksPlayed === 1 ? "1 week played" : `${result.weeksPlayed} weeks played`;
+  const next = result.stop.reason === "TARGET_REACHED" || result.stop.reason === "MEANINGFUL_DATE" ? " Pick an event to enter, or continue again." : "";
+  const detail = `${advanceStopLabel(result.stop.reason)} · ${weeks}.${next}`;
+  return dismissWarning
+    ? { tone: "info" as const, headline: "Career continued, but a finished event remains", detail: `Its result could not be cleared: ${dismissWarning}. ${detail}` }
+    : { tone: "info" as const, headline: `Now ${weekLabel(result.to.season, result.to.week)}`, detail };
+}
 
 // ---------------------------------------------------------------- formats (describes A3's stored format; never executes it)
 export function formatLabel(f: CareerEvent["format"] | undefined | null): string {

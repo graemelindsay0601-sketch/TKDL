@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  activeNavKey, cardLineText, careerChapter, eventLifecycle, eventStatus, financeHeadlines, formatLabel, matchesStatusFilter, milestoneLabel, movementLabel,
+  activeNavKey, cardLineText, careerChapter, continueOutcome, eventLifecycle, eventStatus, financeHeadlines, formatLabel, matchesStatusFilter, milestoneLabel, movementLabel,
   navLayerOf, pickNextEvent, primaryAction, qSchoolState, registrationAlerts, routeLines, slotLines, CAREER_NAV,
 } from "../../features/career/model.ts";
 import { event, finance, human, overview, pathway, save, sporting } from "./career-fixtures.ts";
@@ -76,6 +76,15 @@ test("registration alerts include only server-enterable open entries closing thi
   const notEnterable = event({ registration: { opensWeek: 1, closesWeek: 1 }, human: human({ canEnter: false, denials: ["SCHEDULE_CONFLICT"] }) });
   const closed = event({ registration: { opensWeek: 1, closesWeek: 1 }, status: "REGISTRATION_CLOSED" });
   assert.deepEqual(registrationAlerts([closingNext, later, notEnterable, closed, closingNow], 1, 1).map(e => e.name), ["Closes now", "Closes next"]);
+});
+
+test("continue outcome does not hide a finished-event cleanup failure", () => {
+  const result = { operationKey: "op", from: { season: 1, week: 2 }, to: { season: 1, week: 4 }, stop: { reason: "TARGET_REACHED" as const }, weeksPlayed: 2 };
+  const warning = continueOutcome(result, "cleanup request failed");
+  assert.equal(warning.headline, "Career continued, but a finished event remains");
+  assert.match(warning.detail, /cleanup request failed/);
+  assert.match(warning.detail, /2 weeks played/);
+  assert.equal(continueOutcome(result).headline, "Now Season 1 · Week 4");
 });
 
 test("a pending human match exposes Play match (the UI then shows the not-connected boundary)", () => {
