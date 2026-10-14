@@ -310,7 +310,7 @@ export function LatestResult({ v }: { v: TView }) {
 }
 
 // ---------------------------------------------------------------- completion
-export function CompletionSummary({ v, children }: { v: TView; children?: ReactNode }) {
+export function CompletionSummary({ v, children, actions }: { v: TView; children?: ReactNode; actions?: ReactNode }) {
   const run = runSummary(v);
   const champion = v.phase === "CHAMPION";
   const tier = tierProfile(v.event.level, v.event.content?.eventClass, v.event.circuit);
@@ -331,29 +331,41 @@ export function CompletionSummary({ v, children }: { v: TView; children?: ReactN
     }
   }
   if (v.achievements.groupWinner) records.push("Group winner");
+  const heading = champion ? `${nameOf(v, "HUMAN")} — ${v.event.name}`
+    : v.phase === "WITHDRAWN" ? "You withdrew from this event"
+    : v.phase === "ELIMINATED" ? "Your tournament is over"
+    : v.phase === "CANCELLED" ? "Event cancelled"
+    : "Tournament complete";
+  const detailTitle = records.length ? `Verified event changes · ${records.length}` : "Run details";
   return (
-    <section className={`tb-complete tb-tier-${tier.key.toLowerCase()}${champion ? " is-champion" : ""}`} aria-label="Tournament summary">
+    <section className={`tb-complete tb-tier-${tier.key.toLowerCase()}${champion ? " is-champion" : ""}`} aria-label="Event closeout">
       {/* F1: victory spectacle only for the recorded champion; a loss never celebrates. */}
       {champion && !v.event.qSchool && <Stage v={v} moment="VICTORY" />}
       <div className="tb-complete__head">
         {champion && !v.event.qSchool && award.award !== "RESULT_ONLY" && <div className="tb-complete__trophy"><AwardPresentation {...awardInput(v)} size="lg" /></div>}
         <div className="min-w-0">
           <Label color="#ffd24a">{champion ? (v.event.qSchool ? "Q-School session winner" : v.event.level >= 5 ? "World Champion · Sovereign Trophy" : "Tournament Champion")
-            : v.event.level >= 5 && v.position === 2 ? "World Championship Runner-up" : "Tournament summary"}</Label>
-          <h2 style={OSWALD}>{champion ? `${nameOf(v, "HUMAN")} — ${v.event.name}` : v.phase === "ELIMINATED" ? "Your tournament is over" : v.phase.replace(/_/g, " ")}</h2>
+            : v.event.level >= 5 && v.position === 2 ? "World Championship Runner-up" : v.phase === "WITHDRAWN" ? "Tournament run · withdrawal" : v.phase === "CANCELLED" ? "Event cancelled" : "Tournament closeout"}</Label>
+          <h2 style={OSWALD}>{heading}</h2>
           {finish && <p className="tb-complete__finish">{finish}{v.humanResult ? "" : " · settlement pending"}</p>}
           {champion && <p className="tb-small tb-dim">{v.event.qSchool ? "Actual session finish; Tour Cards are decided by the Order of Merit" : `${award.award === "RESULT_ONLY" ? "Result & prize · no trophy at this event" : award.award === "RECOGNITION" ? (award.recognition === "MEDAL" ? "Winner's medal" : "Winner's plaque") : trophy?.name ?? "Championship trophy"} · a title you actually won`}</p>}
+          {v.phase === "WITHDRAWN" && <p className="tb-small tb-dim">Your run was closed by withdrawal.</p>}
+          {v.phase === "CANCELLED" && <p className="tb-small tb-dim">This event was cancelled. No final placing is reported here.</p>}
         </div>
       </div>
-      <dl className="tb-complete__stats">
-        <div><dt>Matches</dt><dd>{v.humanResult ? `${Number(v.humanResult.wins)}–${Number(v.humanResult.losses)}` : `${run.won}–${run.matches - run.won}`}</dd></div>
-        <div><dt>Legs</dt><dd>{run.legsFor}–{run.legsAgainst}</dd></div>
-        <div><dt>Prize</dt><dd>{formatPence(v.money.paid ? Number(v.money.prize?.cash_award_pence ?? 0) : v.money.securedPence)}</dd></div>
-        <div><dt>Ranking money</dt><dd>{v.money.prize ? formatPence(Number(v.money.prize.ranking_eligible_pence)) : "—"}</dd></div>
-      </dl>
-      {records.length > 0 && <ul className="tb-complete__records" aria-label="Records">{records.map(r => <li key={r}><Medal size={14} aria-hidden /> {r}</li>)}</ul>}
-      {v.championKey && !champion && <p className="tb-small">Champion: <strong>{nameOf(v, v.championKey)}</strong></p>}
-      {children}
+      <details className="tb-complete__details" open={champion || records.length > 0}>
+        <summary>{detailTitle}</summary>
+        <dl className="tb-complete__stats">
+          <div><dt>Matches</dt><dd>{v.humanResult ? `${Number(v.humanResult.wins)}–${Number(v.humanResult.losses)}` : `${run.won}–${run.matches - run.won}`}</dd></div>
+          <div><dt>Legs</dt><dd>{run.legsFor}–{run.legsAgainst}</dd></div>
+          <div><dt>Prize</dt><dd>{formatPence(v.money.paid ? Number(v.money.prize?.cash_award_pence ?? 0) : v.money.securedPence)}</dd></div>
+          <div><dt>Ranking money</dt><dd>{v.money.prize ? formatPence(Number(v.money.prize.ranking_eligible_pence)) : "—"}</dd></div>
+        </dl>
+        {records.length > 0 && <ul className="tb-complete__records" aria-label="Verified event changes">{records.map(r => <li key={r}><Medal size={14} aria-hidden /> {r}</li>)}</ul>}
+        {v.championKey && !champion && <p className="tb-small">Champion: <strong>{nameOf(v, v.championKey)}</strong></p>}
+        {children}
+      </details>
+      {actions}
     </section>
   );
 }

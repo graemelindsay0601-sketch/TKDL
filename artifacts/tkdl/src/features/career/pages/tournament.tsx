@@ -94,14 +94,14 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
     <nav className="tournament-tabs tkdl-tab-rail" aria-label="Tournament views">{(["progress","draw","field","results"] as const).map(t=>
       <button key={t} type="button" className="tkdl-tab-trigger" onClick={()=>setTab(t)} aria-pressed={tab===t}>{t==="progress"?"Tournament Hub":t==="draw"?"Draw & fixtures":t==="field"?"Field & routes":"Results"}</button>)}</nav>
     {tab==="progress"&&<>
-      {terminal?<CompletionSummary v={v}>
+      {terminal?<CompletionSummary v={v} actions={<div className="tb-complete__actions">
+        <button className="career-btn career-btn-gold" disabled={busy||v.readOnly} onClick={()=>mutate("dismiss",undefined,true)}>Return to Career</button>
+        <Link className="career-btn career-btn-ghost" href={`/career/${id}/history`}>History &amp; trophy cabinet</Link>
+        <Link className="career-btn career-btn-ghost" href={`/career/${id}/rankings`}>Rankings &amp; qualification</Link></div>}>
         {v.latestMatch&&<LatestResult v={v}/>}
         {v.humanResult&&<p className="text-sm">{String(v.humanResult.wins)} wins · {String(v.humanResult.losses)} losses · {String(v.humanResult.matches_played)} played matches. Byes and walkovers excluded.</p>}
         <details><summary>Your tournament run · recorded fixtures</summary><MatchList v={v} list={v.matches.filter(m=>[m.a_key,m.b_key].includes("HUMAN"))}/></details>
         <Money v={v}/>
-        <div className="flex flex-wrap gap-2"><button className="career-btn career-btn-gold" disabled={busy||v.readOnly} onClick={()=>mutate("dismiss",undefined,true)}>Return to Career</button>
-          <Link className="career-btn career-btn-ghost" href={`/career/${id}/history`}>History &amp; trophy cabinet</Link>
-          <Link className="career-btn career-btn-ghost" href={`/career/${id}/rankings`}>Rankings &amp; qualification</Link></div>
       </CompletionSummary>:<section className="pdc-card p-5 space-y-3" aria-label="Next tournament action">
         <Label color="#ffd24a">Next action</Label>
         {v.phase==="GROUP_BULL"&&v.groupBull?.row?<BullUpBoard names={v.groupBull.pair.map(k=>name(v,k)) as [string,string]}

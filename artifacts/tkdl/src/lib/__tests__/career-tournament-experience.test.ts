@@ -291,6 +291,19 @@ test("Palace champion: Sovereign Trophy, World Champion label, first title recor
   assert.match(html, /tb-tier-world/);
 });
 
+test("withdrawal closeout names the outcome, keeps detail collapsed and leaves return actions visible", () => {
+  const v = majorView({ phase: "WITHDRAWN", position: null, championKey: null, nextMatchId: null, latestMatch: null, humanResult: null });
+  const html = render(h(M.TournamentPage, { ctx: ctx(), eventId: "major" }), [[key("tournament", "major"), v]]);
+  const t = text(html);
+  assert.match(t, /You withdrew from this event/);
+  assert.match(t, /Your run was closed by withdrawal/);
+  assert.match(t, /Run details/);
+  assert.match(t, /Return to Career/);
+  assert.match(html, /class="tb-complete__details"/);
+  assert.doesNotMatch(html, /class="tb-complete__details" open/);
+  assert.doesNotMatch(t, /Finished 0th|0–0/);
+});
+
 test("title defended only when the previous edition was won by the player", () => {
   const base = { phase: "CHAMPION", position: 1, championKey: "HUMAN", achievements: { groupWinner: false, tournamentChampion: true } };
   const prev = { id: "old", name: "Fixture Masters", season: 1, start_day: 205, finishing_position: 1, is_champion: true };
