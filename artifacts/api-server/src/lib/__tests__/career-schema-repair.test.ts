@@ -38,7 +38,9 @@ test("every-boot repair restores the Career schema a ledger-skipped migration ne
     ALTER TABLE career_tour_cards DROP CONSTRAINT career_tour_cards_source_check;
     ALTER TABLE career_tour_cards ADD CONSTRAINT career_tour_cards_source_check CHECK (source IN ('FOUNDING','Q_SCHOOL_DIRECT','Q_SCHOOL_ORDER_OF_MERIT',
       'RANKING_RETENTION','CHALLENGER_RANKING')) NOT VALID;
-    DELETE FROM career_event_definitions WHERE event_database_version >= 7;`);
+    DELETE FROM career_event_definitions WHERE event_database_version >= 7;
+    DROP TABLE career_signature_product_events; DROP TABLE career_signature_product_sales;
+    DROP TABLE career_signature_product_drafts; DROP TABLE career_equipment_loadouts;`);
   assert.doesNotMatch(await def("career_event_instances", "career_event_instances_circuit_check"), /SOFT_TIP/);
 
   for (let run = 0; run < 2; run++) { await repairCareerSchema(db); await syncCareerEventDefinitions(db); }
@@ -49,6 +51,8 @@ test("every-boot repair restores the Career schema a ledger-skipped migration ne
   assert.match(await def("career_tour_cards", "career_tour_cards_source_check"), /DEVELOPMENT_RANKING/, "Development Tour cards (v12)");
   assert.ok((await db.execute(sql`SELECT to_regclass('career_event_pairs') AS t`)).rows[0].t, "pairs table (v13)");
   assert.equal((await db.execute(sql`SELECT count(*)::int AS n FROM information_schema.columns WHERE table_name = 'career_match_sessions' AND column_name = 'team'`)).rows[0].n, 1, "live pairs sessions (v13)");
+  for (const table of ["career_signature_product_drafts", "career_signature_product_sales", "career_signature_product_events", "career_equipment_loadouts"])
+    assert.ok((await db.execute(sql`SELECT to_regclass(${table}) AS t`)).rows[0].t, `${table} (SP-G signature products)`);
   assert.ok(Number((await db.execute(sql`SELECT count(*)::int AS n FROM career_event_definitions WHERE event_database_version = 13`)).rows[0].n) > 0, "current definitions synced");
   await pg.close();
 });
