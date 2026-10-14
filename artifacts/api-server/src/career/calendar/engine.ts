@@ -172,6 +172,15 @@ export async function loadFactsContext(tx: CareerExecutor, saveId: string, seaso
       bucket.get(key)!.set(String(row.definition_key), Number(row.best));
     }
   }
+  return { season, entitlements, results, champions: await previousChampions(tx, saveId, season) };
+}
+/** Last season's champions: closed history, so loaded once per transaction (every field lock reads it). */
+const championsByTx = new WeakMap<CareerExecutor, Map<string, Map<string, Set<string>>>>();
+async function previousChampions(tx: CareerExecutor, saveId: string, season: number) {
+  const memo = championsByTx.get(tx) ?? new Map<string, Map<string, Set<string>>>();
+  championsByTx.set(tx, memo);
+  const cached = memo.get(`${saveId}:${season}`);
+  if (cached) return cached;
   const champions = new Map<string, Set<string>>();
   for (const row of (await tx.execute(sql`SELECT definition_key, ordinal, champion_participant_key FROM career_event_instances
     WHERE career_save_id = ${saveId} AND season = ${season - 1} AND status = 'COMPLETED'`)).rows) {
@@ -179,7 +188,8 @@ export async function loadFactsContext(tx: CareerExecutor, saveId: string, seaso
     if (!champions.has(key)) champions.set(key, new Set());
     champions.get(key)!.add(String(row.champion_participant_key));
   }
-  return { season, entitlements, results, champions };
+  memo.set(`${saveId}:${season}`, champions);
+  return champions;
 }
 
 export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; country: string; zone: string; locality: string | null; professionalStatus: "AMATEUR" | "PROFESSIONAL"; tourCard: boolean | null; rankings: Record<string, number>;
@@ -225,11 +235,15 @@ export async function bookedOnDays(tx: CareerExecutor, saveId: string, season: n
 }
 export async function insertBookings(tx: CareerExecutor, saveId: string, season: number, event: InstanceRow, participants: readonly string[]) {
   if (!participants.length) return;
+  await tx.execute(bookingsInsert(saveId, season, event, participants));
+}
+/** The bookings INSERT, also composed into lockField's entries write (one round trip). */
+function bookingsInsert(saveId: string, season: number, event: InstanceRow, participants: readonly string[]) {
   // A league books only its weekly nights, so its players keep their other events in between.
   const rows = participants.flatMap(key => playingDays(event).map(day => ({ participant_key: key, day })));
   // Primary key (save, season, participant, day) makes a double booking impossible even if code regresses.
-  await tx.execute(sql`INSERT INTO career_participant_bookings (career_save_id, season, participant_key, day, event_id)
-    SELECT ${saveId}::uuid, ${season}, b.participant_key, b.day, ${event.id}::uuid FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS b(participant_key text, day integer)`);
+  return sql`INSERT INTO career_participant_bookings (career_save_id, season, participant_key, day, event_id)
+    SELECT ${saveId}::uuid, ${season}, b.participant_key, b.day, ${event.id}::uuid FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS b(participant_key text, day integer)`;
 }
 async function exclusiveConflicts(tx: CareerExecutor, saveId: string, event: InstanceRow): Promise<Set<string>> {
   const group = event.snapshot.exclusiveGroup;
@@ -354,12 +368,14 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     return { locked: false, entrants };
   }
   if (additions.length) {
-    await tx.execute(sql`INSERT INTO career_event_entries (career_save_id, event_id, participant_key, participant_kind, npc_id, source, entitlement_id, status, entered_season, entered_week)
+    // Entries and their bookings in one statement (independent rows; both inserts always run).
+    await tx.execute(sql`WITH entries AS (INSERT INTO career_event_entries (career_save_id, event_id, participant_key, participant_kind, npc_id, source, entitlement_id, status, entered_season, entered_week)
       SELECT ${saveId}::uuid, ${event.id}::uuid, a.participant_key, a.participant_kind, a.npc_id, a.source, a.entitlement_id, 'CONFIRMED', ${event.season}, ${week}
-      FROM jsonb_to_recordset(${JSON.stringify(additions)}::jsonb) AS a(participant_key text, participant_kind text, npc_id uuid, source text, entitlement_id uuid)`);
-    await insertBookings(tx, saveId, event.season, event, additions.map(a => a.participant_key));
+      FROM jsonb_to_recordset(${JSON.stringify(additions)}::jsonb) AS a(participant_key text, participant_kind text, npc_id uuid, source text, entitlement_id uuid) RETURNING 1)
+      ${bookingsInsert(saveId, event.season, event, additions.map(a => a.participant_key))}`);
   }
-  await tx.execute(sql`UPDATE career_event_entries SET status = 'CONFIRMED' WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status = 'ENTERED'`);
+  if (existing.some(row => row.status === "ENTERED"))
+    await tx.execute(sql`UPDATE career_event_entries SET status = 'CONFIRMED' WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status = 'ENTERED'`);
   if (consumed.length) {
     await tx.execute(sql`UPDATE career_qualification_entitlements SET status = 'CONSUMED', consumed_by_event_id = ${event.id}, resolved_at = NOW()
       WHERE career_save_id = ${saveId} AND status = 'ACTIVE' AND id IN (${sql.join(consumed.map(id => sql`${id}::uuid`), sql`, `)})`);
@@ -377,9 +393,12 @@ const roundDay = (event: InstanceRow, round: number, rounds: number) => event.st
 /** Official draw: generated once from the locked field, persisted with every bracket slot. */
 export async function makeDraw(tx: CareerExecutor, root: RootRow, event: InstanceRow, providers: CalendarProviders) {
   if (event.status !== "DRAW_PENDING") throw new CareerError(409, "Draw requires a locked field");
-  const already = (await tx.execute(sql`SELECT 1 FROM career_tournament_matches WHERE career_save_id = ${root.id} AND event_id = ${event.id} LIMIT 1`)).rows.length;
-  if (already) throw new CareerError(409, "Official draw already exists");
-  const allEntries = (await tx.execute(sql`SELECT participant_key, npc_id FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status = 'CONFIRMED' ORDER BY participant_key`)).rows;
+  // Existing-draw guard and the confirmed field in one round trip.
+  const field = (await tx.execute(sql`SELECT EXISTS (SELECT 1 FROM career_tournament_matches WHERE career_save_id = ${root.id} AND event_id = ${event.id}) AS already,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('participant_key', participant_key, 'npc_id', npc_id) ORDER BY participant_key)
+        FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status = 'CONFIRMED'), '[]'::jsonb) AS entries`)).rows[0];
+  if (field.already === true) throw new CareerError(409, "Official draw already exists");
+  const allEntries = field.entries as { participant_key: string; npc_id: string | null }[];
   // Pairs: the bracket holds each team's captain.
   const captains = event.snapshot.format.sideSize === 2 ? new Set([...(await loadPairs(tx, root.id, [event.id])).values()].map(p => p.captain_key)) : null;
   const entries = captains ? allEntries.filter(row => captains.has(String(row.participant_key))) : allEntries;

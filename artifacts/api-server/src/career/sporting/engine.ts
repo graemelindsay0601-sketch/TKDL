@@ -116,12 +116,24 @@ async function weeklyMilestones(tx: CareerExecutor, root: RootRow, season: numbe
   await recordMilestones(tx, root, milestones);
 }
 
+/** Rules versions are pinned when the state is created and never change, so event completion reads them once per transaction. */
+const rulesByTx = new WeakMap<CareerExecutor, Map<string, SportingState>>();
+async function rulesState(tx: CareerExecutor, root: RootRow): Promise<SportingState> {
+  const memo = rulesByTx.get(tx) ?? new Map<string, SportingState>();
+  rulesByTx.set(tx, memo);
+  const cached = memo.get(root.id);
+  if (cached) return cached;
+  const state = await ensureSporting(tx, root);
+  memo.set(root.id, state);
+  return state;
+}
+
 /** The A5 CalendarSportingHooks implementation (A3 calls these inside its own transactions). */
 export function createSportingHooks(): CalendarSportingHooks {
   return {
     async bind(tx, root) { const b = await bindSporting(tx, root); return { sportingStatus: b.sportingStatus, seeding: b.seeding }; },
     async onEventCompleted(tx, root, event, results) {
-      const state = await ensureSporting(tx, root);
+      const state = await rulesState(tx, root);
       await recordRankingContributions(tx, root, Number(state.ranking_rules_version), event, results);
       await recordQSchoolResults(tx, root, Number(state.q_school_rules_version), event, results);
     },
