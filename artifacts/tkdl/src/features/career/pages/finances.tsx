@@ -35,6 +35,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
     .sort((a, b) => (b.event.createdAt ?? "").localeCompare(a.event.createdAt ?? ""))
     .slice(0, 12);
   const commitments = (schedule.data?.events ?? []).filter(e => e.finance?.commitment && ["ENTERED", "TRAVEL_COMMITTED"].includes(e.finance.commitment.status) && e.status !== "COMPLETED");
+  const pendingOffers = sponsors.data?.offers.length ?? 0;
 
   return (
     <div className="space-y-3">
@@ -47,6 +48,11 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
+      {pendingOffers > 0 && <a href="#career-finance-offers" className="pdc-card flex items-center gap-3 px-4 py-3 text-sm no-underline" style={{ borderColor: "rgba(255,210,74,0.42)", color: "#f3dfaa", background: "linear-gradient(90deg,rgba(255,210,74,0.11),rgba(255,255,255,0.025))" }}>
+        <Briefcase className="shrink-0" size={16} aria-hidden="true" />
+        <span><strong>{pendingOffers} sponsor {pendingOffers === 1 ? "offer" : "offers"} to review</strong><span className="block text-xs opacity-75">Review proposed terms separately from signed agreements.</span></span>
+        <span className="ml-auto" aria-hidden="true">View →</span>
+      </a>}
       {sponsors.data?.commercial && <CommercialOverview commercial={sponsors.data.commercial} />}
       {sponsors.data?.guaranteeConfiguration?.status === "APPROVED" && (
         <details className="career-note">
@@ -93,6 +99,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
               </div>
             ) : <CareerEmptyState title="Self-funded" icon={<Wallet className="w-6 h-6" />}>No sponsor yet. Offers arrive from real results — titles, finishes, qualifications and later your ranking.</CareerEmptyState>}
         </CareerSection>
+        <div id="career-finance-offers">
         <CareerSection title="Sponsor offers" icon={<Briefcase className="w-3.5 h-3.5" />} accent="#ffd24a">
           {sponsors.data?.offers.length ? (
             <div className="career-sponsor-offers__stack">
@@ -138,8 +145,10 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
             </div>
           ) : sponsors.isLoading ? <CareerLoading /> : <CareerEmptyState title="No offers right now" />}
         </CareerSection>
+        </div>
       </div>
 
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
       {sponsorActivity.length > 0 && (
         <CareerSection title="Sponsor activity & payment history" icon={<Receipt className="w-3.5 h-3.5" />} accent="#ffd24a">
           {(() => { const row = ({ journey, event, index }: typeof sponsorActivity[number]) => {
@@ -179,6 +188,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
         ) : <CareerEmptyState title="No upcoming commitments" />}
         {fin.data && fin.data.reservedForTravelPence > 0 && <p className="px-4 py-2 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{formatPence(fin.data.reservedForTravelPence)} is reserved for travel on events you have entered; it is charged in the week you travel.</p>}
       </CareerSection>
+      </div>
 
       <Ledger saveId={save.id} />
 
