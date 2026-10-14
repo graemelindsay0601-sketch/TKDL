@@ -159,7 +159,7 @@ export function pickNextEvent(events: CareerEvent[], overview: Pick<CalendarOver
   const open = upcoming.filter(e => e.human?.canEnter && e.dates.startWeek >= overview.week);
   const best = open.find(e => e.human?.relationship === "QUALIFIED") ?? open.sort((a, b) => a.dates.startDay - b.dates.startDay || b.presentation.calendarPriority - a.presentation.calendarPriority)[0];
   if (best) return { event: best, reason: best.human?.relationship === "QUALIFIED" ? "You have qualified" : "Open for entry" };
-  const blocked = upcoming.find(e => e.dates.startWeek >= overview.week && e.human && e.human.eligible && e.status !== "CANCELLED" && e.capability.executable);
+  const blocked = upcoming.find(e => e.dates.startWeek >= overview.week && e.human && e.human.eligible && e.status !== "CANCELLED" && e.status !== "COMPLETED" && e.capability.executable);
   return blocked ? { event: blocked, reason: "Next event you are eligible for" } : null;
 }
 

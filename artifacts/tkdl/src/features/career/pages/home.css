@@ -243,3 +243,42 @@
   .home-compass-opportunity { padding:13px; }
   .home-compass-title-row { align-items:flex-start; flex-direction:column; }
 }
+
+/* Your next move: the one action that matters, first. */
+.next-move { display:grid; gap:12px; padding:16px; }
+.next-move__title { margin:0; color:#f3f7fb; font:600 1.35rem/1.1 Oswald,system-ui,sans-serif; letter-spacing:.02em; text-transform:uppercase; }
+.next-move__lead { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px 14px; padding:12px; border:1px solid #d9b96f44; border-radius:12px; background:#d9b96f0d; }
+.next-move__lead > div { display:grid; gap:2px; min-width:0; }
+.next-move__lead strong { color:#fff; font:600 1.05rem Oswald,system-ui,sans-serif; }
+.next-move__lead span { color:var(--home-muted); font-size:.8rem; }
+.next-move__subhead { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#d2b677; font:700 .66rem Oswald,system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+.next-move__link { display:inline-flex; align-items:center; gap:6px; color:#c5d9e8; font-size:.74rem; letter-spacing:0; text-transform:none; text-decoration:none; }
+.next-move__link svg { width:14px; height:14px; }
+.next-move__events { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.next-move__events li { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--home-line); border-radius:12px; background:#ffffff05; }
+.next-move__event { display:grid; gap:2px; flex:1; min-width:0; color:inherit; text-decoration:none; }
+.next-move__event strong { overflow:hidden; color:#fff; font-size:.92rem; text-overflow:ellipsis; white-space:nowrap; }
+.next-move__event span, .next-move__event small { color:var(--home-muted); font-size:.74rem; }
+.next-move__enter { flex:none; min-width:76px; }
+.next-move__empty, .next-move__message { margin:0; color:#adbdca; font-size:.82rem; }
+.next-move__message { color:#e9d9a8; }
+.next-move__skip { justify-self:start; }
+.home-more { border:1px solid var(--home-line); border-radius:16px; background:#ffffff03; }
+.home-more__summary { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; padding:14px 16px; color:#dfe9f1; font:600 .95rem Oswald,system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; }
+.home-more__summary span { color:var(--home-muted); font:400 .74rem system-ui,sans-serif; letter-spacing:0; text-transform:none; }
+.home-more__body { display:grid; gap:16px; padding:0 10px 12px; }
+
+/* Continue feedback (shared with the header button). */
+.career-continue-outcome { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-top:6px; padding:10px 12px; border:1px solid #84c8bc55; border-radius:12px; background:#0f2a2ae6; color:#d9efe9; text-align:left; }
+.career-continue-outcome div { display:grid; gap:2px; }
+.career-continue-outcome strong { color:#fff; font:600 1rem Oswald,system-ui,sans-serif; }
+.career-continue-outcome span { font-size:.78rem; }
+.career-continue-outcome button { flex:none; border:0; background:none; color:#d9efe9; cursor:pointer; }
+.career-continue-outcome--error { border-color:#ff8fb455; background:#2a0f1ae6; color:#ffd3e1; }
+.career-continue-overlay { position:fixed; inset:0; z-index:9998; display:grid; place-items:center; padding:16px; background:#05080dcc; }
+.career-continue-overlay__card { display:grid; justify-items:center; gap:8px; max-width:340px; padding:22px; border:1px solid #d9b96f55; border-radius:16px; background:#111c29; color:#dfe9f1; text-align:center; }
+.career-continue-overlay__card strong { color:#fff; font:600 1.2rem Oswald,system-ui,sans-serif; }
+.career-continue-overlay__card span { font-size:.82rem; color:#adbdca; }
+.career-continue-overlay__card small { color:#d9b96f; font-variant-numeric:tabular-nums; }
+.career-continue-overlay__spin { width:30px; height:30px; color:#d9b96f; animation:spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .career-continue-overlay__spin { animation:none; } }

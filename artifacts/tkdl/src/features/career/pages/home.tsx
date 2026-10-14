@@ -18,6 +18,7 @@ import { CareerPageHero } from "../page-hero";
 import { CareerEventAtmosphere, atmosphereFromCalendarEvent } from "../atmosphere";
 import { ContextHelp } from "../guidance";
 import { TournamentResume } from "./tournament";
+import { NextMove } from "./next-move";
 import type { ShellContext } from "../shell";
 import type { CareerEvent, QualificationEvent } from "../types";
 import "./home.css";
@@ -81,6 +82,12 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
             sub: finance.data ? `${formatPence(finance.data.availablePence)} available` : undefined },
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
+      {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
+        onEnter={onEnter} entering={enter.isPending} message={message} />}
+      {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
+      <details className="home-more" open={retired}>
+      <summary className="home-more__summary">More about your Career <span>Guidance, route ahead, goals, schedule and results</span></summary>
+      <div className="home-more__body">
       <ContextHelp saveId={id} topic="home" />
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
         <SeasonOneGuidance saveId={id} />
@@ -223,7 +230,8 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
         </CareerSection>
       </div>
 
-      {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
+      </div>
+      </details>
     </main>
   );
 }
