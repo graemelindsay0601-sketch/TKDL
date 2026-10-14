@@ -1,13 +1,14 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
-  Activity, BookOpen, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
+  Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
+import { PlayBar } from "./play-bar";
 import { useContinueCareer, ContinueOutcomeCard, ContinueProgress } from "./continue-career";
 import { CareerStageBackdrop, PLATES, resolveAtmosphere, spectacleFor } from "./atmosphere";
 import type { PlateKey } from "./atmosphere/model";
@@ -28,11 +29,15 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
   if (save.error || !save.data) return <div className="space-y-3"><BackToSaves /><CareerError error={save.error ?? new Error("Career not found")} onRetry={() => save.refetch()} /></div>;
   const retired = save.data.status === "RETIRED";
   const overview = header.data?.overview ?? null;
+  // Play mode: a slim bar and a Menu instead of the full header and navigation.
+  const focused = /^\/career\/[^/]+\/play\/?$/.test(location);
   return (
     <div className={`career-root space-y-3 ${/\/(tournaments|matches)\//.test(location)?"career-gameplay":""}`}>
       <a href="#career-content" className="career-skip">Skip to Career content</a>
-      <CareerHeader save={save.data} overview={overview} retired={retired} />
-      {!location.includes("/play")&&<CareerNav saveId={saveId} />}
+      {focused ? <PlayBar save={save.data} /> : <>
+        <CareerHeader save={save.data} overview={overview} retired={retired} />
+        {!location.includes("/play")&&<CareerNav saveId={saveId} />}
+      </>}
       {!retired && <ProfileIncompleteBanner saveId={saveId} />}
       {retired && (
         <div role="status" className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)" }}>
@@ -140,7 +145,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
         </div>
         {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} hubAction={!!overview?.pendingTournamentActions?.length} nextEntry={overview?.nextHumanEntry ?? null} />}
       </div>
-      <div className="career-header-tools"><WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link></div>
+      <div className="career-header-tools">{!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><Gamepad2 aria-hidden /> Play mode</Link>}<WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link></div>
     </header>
   );
 }

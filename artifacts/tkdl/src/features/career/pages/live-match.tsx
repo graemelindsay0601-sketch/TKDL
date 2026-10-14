@@ -206,7 +206,7 @@ function PostMatch({ ctx, session }: { ctx: ShellContext; session: LiveSession }
       if (id) play(id); else navigate(`/career/${saveId}/tournaments/${session.eventId}`);
     },
     onError: e => setNote(errorMessage(e)) });
-  const backToCareer = () => dismiss.mutate({ action: "dismiss" }, { onSettled: () => navigate(`/career/${saveId}`) });
+  const backToCareer = () => dismiss.mutate({ action: "dismiss" }, { onSettled: () => navigate(`/career/${saveId}/play`) });
   const t = useTournament(saveId, session.eventId);
   // The player's own tournament is over when the event completes or the hub reports a terminal phase (e.g. knocked out).
   const finished = r.eventCompleted || ["CHAMPION", "COMPLETE", "ELIMINATED", "WITHDRAWN", "CANCELLED"].includes(t.data?.phase ?? "");
