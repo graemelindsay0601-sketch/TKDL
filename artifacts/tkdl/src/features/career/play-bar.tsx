@@ -2,23 +2,30 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "wouter";
 import { ArrowLeft, Menu, X, Gamepad2, House, BookOpen } from "lucide-react";
-import { useFinance } from "./api";
-import { CAREER_NAV, formatPence, weekLabel } from "./model";
+import { useFinance, usePresentation } from "./api";
+import { CareerShirt } from "./identity";
+import { CareerStageBackdrop, resolveAtmosphere, spectacleFor } from "./atmosphere";
+import { CAREER_NAV, formatPence } from "./model";
 import type { CareerSave } from "./types";
 import "./pages/play.css";
 
-/** Play mode's slim bar: who and when you are, your money, and a Menu holding every other screen. */
+/** Play mode's header: the player on their stage (shirt, venue backdrop), when and what they have, and the Menu. */
 export function PlayBar({ save }: { save: CareerSave }) {
   const finance = useFinance(save.id);
+  const presentation = usePresentation(save.id).data;
   const [open, setOpen] = useState(false);
+  const stage = resolveAtmosphere({ eventClass: save.hasTourCard ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
   return (
-    <header className="career-playbar">
+    <header className="pdc-card career-hero career-hero--stage career-playbar">
+      <CareerStageBackdrop atmosphere={stage} spectacle={spectacleFor("ARRIVAL", stage.level)} animate={false} eager className="career-hero__stage" />
       <Link href="/career" className="career-playbar__back" aria-label="Back to Career saves"><ArrowLeft aria-hidden /></Link>
+      {presentation && <span className="career-hero__portrait" aria-hidden="true"><CareerShirt identity={presentation.identity} sponsors={presentation.placements} name={save.careerName ?? "Player"} scale="compact" /></span>}
       <div className="career-playbar__who">
+        <span className="career-playbar__kicker"><b>Career</b> S{save.currentSeason} · Wk {save.currentWeek}</span>
         <strong>{save.careerName ?? "My Career"}</strong>
-        <span>{weekLabel(save.currentSeason, save.currentWeek)} · {formatPence(finance.data?.balancePence ?? save.balancePence)}</span>
+        <span className="career-playbar__chips"><i>{formatPence(finance.data?.balancePence ?? save.balancePence)}</i><i>{save.hasTourCard ? "Tour Card" : "Amateur"}</i></span>
       </div>
-      <button type="button" className="career-playbar__menu" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open}><Menu aria-hidden /> Menu</button>
+      <button type="button" className="career-playbar__menu" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label="Career menu"><Menu aria-hidden /><span className="career-playbar__menu-label">Menu</span></button>
       {open && <CareerMenu saveId={save.id} onClose={() => setOpen(false)} />}
     </header>
   );

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { ArrowUpRight } from "lucide-react";
 import { useCalendar, useEnterEvent, useHistory, useActiveTournament, useCareerLegacySummary, useSporting, errorMessage } from "../api";
-import { circuitLabel, denialLabel, ordinal } from "../model";
-import { CareerError, CareerLoading } from "../components";
+import { denialLabel, ordinal } from "../model";
+import { CareerError, CareerEventCard, CareerLoading } from "../components";
 import { NextMove } from "./next-move";
 import type { ShellContext } from "../shell";
 
@@ -40,8 +40,8 @@ export function PlayPage({ ctx }: { ctx: ShellContext }) {
         pendingReview={!!legacy.data?.pendingReview} onEnter={onEnter} entering={enter.isPending} message={message} />
 
       {booked.length > 0 && <section className="career-play__card" aria-label="Booked events">
-        <h3>Booked</h3>
-        <ul>{booked.map(e => <li key={e.id}><Link href={`/career/${id}/events/${e.id}`}><strong>{e.name}</strong><span>Wk {e.dates.startWeek} · {circuitLabel(e.circuit)}</span></Link></li>)}</ul>
+        <h3><span className="live-indicator" aria-hidden /> Booked</h3>
+        <div className="career-play__booked">{booked.map(e => <CareerEventCard key={e.id} event={e} saveId={id} compact />)}</div>
       </section>}
 
       <section className="career-play__card career-play__facts" aria-label="Where you stand">
