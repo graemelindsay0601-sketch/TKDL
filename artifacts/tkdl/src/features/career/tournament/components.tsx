@@ -349,7 +349,7 @@ export function CompletionSummary({ v, children, actions }: { v: TView; children
           <h2 style={OSWALD}>{heading}</h2>
           {finish && <p className="tb-complete__finish">{finish}{v.humanResult ? "" : " · settlement pending"}</p>}
           {champion && <p className="tb-small tb-dim">{v.event.qSchool ? "Actual session finish; Tour Cards are decided by the Order of Merit" : `${award.award === "RESULT_ONLY" ? "Result & prize · no trophy at this event" : award.award === "RECOGNITION" ? (award.recognition === "MEDAL" ? "Winner's medal" : "Winner's plaque") : trophy?.name ?? "Championship trophy"} · a title you actually won`}</p>}
-          {v.phase === "WITHDRAWN" && <p className="tb-small tb-dim">You withdrew; remaining fixtures were recorded as walkovers.</p>}
+          {v.phase === "WITHDRAWN" && <p className="tb-small tb-dim">Your run was closed by withdrawal.</p>}
           {v.phase === "CANCELLED" && <p className="tb-small tb-dim">This event was cancelled. No final placing is reported here.</p>}
         </div>
       </div>

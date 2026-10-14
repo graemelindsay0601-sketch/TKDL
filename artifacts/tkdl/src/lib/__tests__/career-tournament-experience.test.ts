@@ -296,7 +296,7 @@ test("withdrawal closeout names the outcome, keeps detail collapsed and leaves r
   const html = render(h(M.TournamentPage, { ctx: ctx(), eventId: "major" }), [[key("tournament", "major"), v]]);
   const t = text(html);
   assert.match(t, /You withdrew from this event/);
-  assert.match(t, /remaining fixtures were recorded as walkovers/);
+  assert.match(t, /Your run was closed by withdrawal/);
   assert.match(t, /Run details/);
   assert.match(t, /Return to Career/);
   assert.match(html, /class="tb-complete__details"/);
