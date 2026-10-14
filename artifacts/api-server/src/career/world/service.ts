@@ -15,6 +15,7 @@ import { stableUuid } from "./random.ts";
 import { formAfterMatch } from "./form.ts";
 import { developNpc, evolveOffSeason } from "./development.ts";
 import {persistInitialNpcSponsorRelationships} from "../sponsorship/npc-foundation.ts";
+import { isCareerRead } from "../request-scope.ts";
 
 export type CareerActor = { playerId: number; isAdmin?: boolean };
 export type Root = { id: string; world_seed: string; world_generation_version: number; difficulty: CareerDifficulty; current_season: number };
@@ -31,8 +32,9 @@ export async function lockRoot(tx: CareerExecutor, actor: CareerActor, saveId: s
   const flags = (await tx.execute(sql`SELECT enabled, admin_test_mode FROM feature_flags WHERE feature_name = ${CAREER_FEATURE}`)).rows;
   if (!(flags[0]?.enabled === true || (actor.isAdmin === true && flags[0]?.admin_test_mode === true))) throw new CareerError(404, "Career not available");
   // A6.5: identity (DOB / Career start date) rides along with the locked root for age facts.
+  // Reads share the lock so a screen's parallel requests don't queue (see request-scope.ts).
   const row = (await tx.execute(sql`SELECT s.*, to_char(p.date_of_birth, 'YYYY-MM-DD') AS identity_dob, to_char(p.career_start_date, 'YYYY-MM-DD') AS identity_start
-    FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId} AND s.player_id = ${actor.playerId} FOR UPDATE OF s`)).rows[0];
+    FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId} AND s.player_id = ${actor.playerId} ${isCareerRead() ? sql`FOR SHARE OF s` : sql`FOR UPDATE OF s`}`)).rows[0];
   if (!row) throw new CareerError(404, "Career not found");
   if (active && row.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
   assertGenerationVersion(Number(row.world_generation_version));
