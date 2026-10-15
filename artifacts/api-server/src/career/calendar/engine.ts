@@ -427,6 +427,17 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
     for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc), target - taken.size, rng)) add(npc, "SELECTION");
   }
+  // v14+: a local, county or regional selection event short of its minimum is topped up with guests from further
+  // afield (nearest first, same level and status rules, only their home location relaxed) instead of being cancelled.
+  // National titles and tours keep their own field, and are cancelled honestly when it is too thin.
+  if (!pairs && guestTopUpApplies(event) && taken.size < event.minimum_entrants) {
+    const guest = (npc: Npc) => guestEligible(event, factsFor(npcParticipant(npc, providers), ctx, event));
+    const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
+    const pool = npcs.filter(npc => free(npc) && guest(npc));
+    const topUp = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "field-top-up", event.season, event.instance_key);
+    for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * Math.max(0.01, geographyWeight(snapshot.geography, geo, npc)),
+      Math.min(capacity, event.minimum_entrants) - taken.size, topUp)) add(npc, "SELECTION");
+  }
   if (pairs && snapshot.format.pairing === "LOCAL") {
     const order = [...existing.map(row => String(row.participant_key)), ...additions.map(a => a.participant_key)];
     const human = humanParticipant(root, providers);
@@ -468,6 +479,15 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   event.entrant_count = entrants;
   return { locked: true, entrants };
 }
+
+/** Event database version from which short fields are topped up with guests rather than cancelled. */
+export const GUEST_TOP_UP_FROM = 14;
+const GUEST_TOP_UP_CIRCUITS = new Set(["GRASSROOTS", "SPECIAL", "COUNTY", "REGIONAL"]);
+export const guestTopUpApplies = (event: InstanceRow) => event.snapshot.fieldPolicy === "SELECTION" && !event.snapshot.invitationPolicy
+  && event.event_database_version >= GUEST_TOP_UP_FROM && GUEST_TOP_UP_CIRCUITS.has(event.circuit);
+/** A guest meets every rule of the event except where they live (level, status, age and category still apply). */
+export const guestEligible = (event: InstanceRow, facts: ParticipantFacts) =>
+  evaluate(event, { ...facts, country: event.country, zone: event.zone as ParticipantFacts["zone"], locality: event.locality_key }).eligible;
 
 // ------------------------------------------------------------------ draw
 export const matchKeyFor = (event: InstanceRow, stage: string, round: number, slot: number) => `a3:${event.id}:${stage}:r${round}:m${slot}`;
