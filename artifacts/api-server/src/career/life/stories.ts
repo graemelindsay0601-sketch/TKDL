@@ -183,6 +183,8 @@ export function storyEngine(s:LifeSources):Story[] {
   }
   for(const npcId of [...new Set(tips.map(t=>t.npcId))]) {
     const first=tips.find(t=>t.npcId===npcId)!;
+    // World results reach back three seasons (life service), so older tips cannot be matched to their first proof.
+    if(first.season<s.season-2)continue;
     const titles=s.worldResults.filter(r=>r.participantKey===npcId&&r.season>=first.season&&(r.champion||(stage(r)&&r.stageReached==="FINAL")));
     const cards=(s.publicChanges??[]).filter(f=>f.kind==="world-card-award"&&f.participantKey===npcId&&f.season>=first.season);
     const proof=[...titles,...cards].sort((a,b)=>when(a)-when(b)||a.id.localeCompare(b.id))[0];

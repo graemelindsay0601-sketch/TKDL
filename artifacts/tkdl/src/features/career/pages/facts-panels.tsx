@@ -51,7 +51,7 @@ export function RecordsPanel({ facts }: { facts: CareerFacts }) {
   </CareerSection>;
 }
 export function WorldHistoryPanel({ facts }: { facts: CareerFacts }) {
-  return <div className="space-y-3"><CareerSection title="Event champions in this Career">
+  return <div className="space-y-3"><CareerSection title="Latest event champions">
     {facts.world.champions.length ? <ul className="p-3">{[...facts.world.champions].reverse().map(f=><FactLine key={f.id} fact={{...f,label:`${f.name}: ${f.participantName} (${circuitLabel(f.circuit)})`}} saveId={facts.careerSaveId}/>)}</ul> : <CareerEmptyState title="No completed events yet"/>}
     </CareerSection><CareerSection title="Historical World Ranking leaders">{facts.world.rankingLeaders.length ? <ul className="p-3">{[...facts.world.rankingLeaders].reverse().map(f=><FactLine key={f.id} fact={{...f,label:`World #1: ${f.participantName}`}} saveId={facts.careerSaveId}/>)}</ul> : <CareerEmptyState title="No published World Ranking leaders yet"/>}</CareerSection></div>;
 }

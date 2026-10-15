@@ -13,6 +13,9 @@ const label = (v: string) => v.toLowerCase().replaceAll('_', ' ');
 
 /** Read-only composition. The existing root lock keeps A3/A4/A5 writers from
  * changing a save halfway through this snapshot; retired saves are readable. */
+/** The latest event champions shown in the facts view (the full history is in the Legacy archive). */
+export const WORLD_CHAMPIONS_SHOWN = 200;
+
 export function createCareerFactsService(database: CareerDatabase) {
   return { async read(actor: CareerActor, saveId: string): Promise<CareerFacts> {
     return database.transaction(async tx => {
@@ -31,7 +34,11 @@ export function createCareerFactsService(database: CareerDatabase) {
         FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
         JOIN career_saves s ON s.id=r.career_save_id LEFT JOIN career_profiles p ON p.career_save_id=r.career_save_id
         LEFT JOIN career_world_players n ON n.career_save_id=r.career_save_id AND n.id=r.npc_id
-        WHERE r.career_save_id=${saveId} AND i.status='COMPLETED' AND (r.participant_key='HUMAN' OR r.is_champion)`);
+        WHERE r.career_save_id=${saveId} AND i.status='COMPLETED' AND (r.participant_key='HUMAN' OR (r.is_champion AND i.id IN (
+          -- Every champion of every season was ~1,800 a season (6 MB by season 6); the facts view keeps the latest ones,
+          -- and the Legacy archive keeps the full history by event.
+          SELECT ci.id FROM career_event_instances ci WHERE ci.career_save_id=${saveId} AND ci.status='COMPLETED' AND ci.champion_participant_key IS NOT NULL
+          ORDER BY ci.season DESC,ci.end_day DESC,ci.id LIMIT ${WORLD_CHAMPIONS_SHOWN})))`);
       const allResults: EventFact[] = resultRows.map(r => ({
         ...fact(`result:${text(r,'event_id')}:${text(r,'participant_key')}`, 'A3 event result', `${text(r,'name')}: ${label(text(r,'stage_reached'))}`, num(r,'season'),num(r,'end_day'),text(r,'event_id'),object(r.metadata).humanAge),
         // A6.5 result humanAge is explicitly age at event START, not completion.

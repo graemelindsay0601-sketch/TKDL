@@ -31,8 +31,12 @@ export function createCareerRecognitionService(database: CareerDatabase) {
       };
       const catalogue=new Map(catalogueFor(Number(rr.event_database_version)).map(d=>[d.key,d]));
       // Metadata only from owned A3 instances. No NPC attributes or recreated statistics.
+      // Only events this participant has a result or a match in (every instance of every season grew with the save).
+      const played=npcId ? sql`(a_npc_id=${npcId} OR b_npc_id=${npcId})` : sql`(a_key='HUMAN' OR b_key='HUMAN')`;
       const metadata=(await tx.execute(sql`SELECT id,name,definition_key,circuit,classification,presentation_tier,season,end_day
-        FROM career_event_instances WHERE career_save_id=${saveId}`)).rows;
+        FROM career_event_instances WHERE career_save_id=${saveId} AND (
+          id IN (SELECT event_id FROM career_event_results WHERE career_save_id=${saveId} AND participant_key=${participant})
+          OR id IN (SELECT event_id FROM career_tournament_matches WHERE career_save_id=${saveId} AND ${played}))`)).rows;
       const events=new Map(metadata.map(r=>[str(r,"id"),r]));
       const eventMeta=(r:Row):Omit<RecognitionEvent,"fact">=>({
         circuit:str(r,"circuit"),classification:str(r,"classification"),tier:str(r,"presentation_tier"),

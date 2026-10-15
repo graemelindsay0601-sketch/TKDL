@@ -20,9 +20,24 @@ export async function createCareerLegacy(tx:CareerExecutor):Promise<void> {
         THEN RETURN NEW; END IF;
       RAISE EXCEPTION 'Career legacy history is immutable';
     END; $$ LANGUAGE plpgsql`);
+  await ensureLegacySeasonTotals(tx);
   for(const table of ["career_legacy_reviews","career_legacy_inductions","career_legacy_retirements"]) {
     await tx.execute(sql`DROP TRIGGER IF EXISTS career_legacy_history_guard ON ${sql.identifier(table)}`);
     await tx.execute(sql`CREATE TRIGGER career_legacy_history_guard BEFORE UPDATE ON ${sql.identifier(table)}
       FOR EACH ROW EXECUTE FUNCTION career_legacy_guard()`);
   }
+}
+
+/**
+ * Per-player totals of each finished season, stored once (a finished season's results never change). Legacy,
+ * season reviews and the close season otherwise re-aggregated every result of every season (~35,000 a season).
+ * Filled on first read of a finished season, so existing saves fill themselves. Idempotent; runs every boot.
+ */
+export async function ensureLegacySeasonTotals(tx:CareerExecutor):Promise<void> {
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_legacy_season_totals (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL CHECK(season>0),participant_key text NOT NULL,
+    appearances integer NOT NULL,titles integer NOT NULL,finals integer NOT NULL,major_titles integer NOT NULL,worlds integer NOT NULL,
+    amateur_titles integer NOT NULL,national_titles integer NOT NULL,pro_titles integer NOT NULL,wins integer NOT NULL,losses integer NOT NULL,
+    PRIMARY KEY(career_save_id,season,participant_key))`);
 }

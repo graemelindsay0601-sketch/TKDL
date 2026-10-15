@@ -16,6 +16,8 @@ import { LEVELS } from "../recognition/types.ts";
 import type { Commitment, Decision, LifeSources, LifeView, NpcLifeView } from "./types.ts";
 
 type Row=Record<string,unknown>;
+/** Seasons of public world results and upsets the news draws on (the current one and the two before it). */
+export const NEWS_SEASONS=3;
 const adapter=(tx:CareerExecutor):CareerDatabase=>({execute:q=>tx.execute(q),transaction:w=>w(tx)});
 const choiceSchema=z.object({choice:z.string().min(1).max(40)}).strict();
 const merchandiseSchema=z.object({choice:z.enum(["REPLICA_SHIRT","SIGNED_ITEMS","SPONSOR_LINKED","STOP"])}).strict();
@@ -31,16 +33,17 @@ export function createCareerLifeService(database:CareerDatabase) {
     const recognition=await createCareerRecognitionService(db).read(actor,saveId);
     const events=(await tx.execute(sql`SELECT id,definition_key,name,circuit,classification,presentation_tier,season,start_day,end_day,status,venue_key
       FROM career_event_instances WHERE career_save_id=${saveId} ORDER BY season,start_day,id`)).rows;
-    // Bounded public world evidence only; NEVER select NPC ability/config/potential.
+    // Bounded public world evidence only; NEVER select NPC ability/config/potential. Recent seasons only: the news
+    // shows the latest stories, and scanning every season's results grew with the save.
+    const recentFrom=Number(root.current_season)-NEWS_SEASONS+1;
     const world=(await tx.execute(sql`SELECT r.event_id,r.participant_key,r.finishing_position,r.stage_reached,r.is_champion,r.wins,r.losses,
       i.definition_key,i.name,i.circuit,i.classification,i.presentation_tier,i.country,i.season,i.end_day,concat(n.first_name,' ',n.surname) AS participant_name
       FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
       JOIN career_world_players n ON n.career_save_id=r.career_save_id AND n.id::text=r.participant_key
       WHERE r.career_save_id=${saveId} AND i.status='COMPLETED' AND (r.is_champion=true OR r.stage_reached='FINAL'
-        OR EXISTS (SELECT 1 FROM career_event_results previous JOIN career_event_instances prior ON prior.career_save_id=previous.career_save_id AND prior.id=previous.event_id
-          WHERE previous.career_save_id=r.career_save_id AND previous.participant_key=r.participant_key AND previous.is_champion=true
-          AND prior.definition_key=i.definition_key AND prior.season=i.season-1))
-      AND i.classification<>'QUALIFIER' ORDER BY i.season DESC,i.end_day DESC,r.participant_key LIMIT 1200`)).rows;
+        OR (r.participant_key,i.definition_key,i.season-1) IN (SELECT participant_key,definition_key,season FROM career_event_results
+          WHERE career_save_id=${saveId} AND is_champion=true AND season>=${recentFrom-1}))
+      AND i.classification<>'QUALIFIER' AND i.season>=${recentFrom} ORDER BY i.season DESC,i.end_day DESC,r.participant_key LIMIT 1200`)).rows;
     const contract=(await tx.execute(sql`SELECT id,sponsor_key FROM career_sponsor_contracts WHERE career_save_id=${saveId} AND status='ACTIVE' LIMIT 1`)).rows[0];
     const decisions=decisionsFrom((await tx.execute(sql`SELECT * FROM career_life_decisions WHERE career_save_id=${saveId} ORDER BY season,week,created_at,id`)).rows);
     const commitments=commitmentsFrom((await tx.execute(sql`SELECT * FROM career_life_commitments WHERE career_save_id=${saveId} ORDER BY season,day,id`)).rows);
@@ -57,11 +60,16 @@ export function createCareerLifeService(database:CareerDatabase) {
       ORDER BY q.awarded_season DESC,q.id LIMIT 150`)).rows;
     // Both ranks must be published BEFORE the match's week; no hidden ratings,
     // current/future ranking hindsight or guesses about unranked players.
-    const upsets=(await tx.execute(sql`WITH recent AS (
-      SELECT m.*,CASE WHEN m.winner_key=m.a_key THEN m.b_key ELSE m.a_key END AS loser_key,i.season,i.name
+    // An upset needs a top-8 loser, so only matches of players ranked in the top 8 lately (and the human's) are read,
+    // through the NPC and human match indexes; the pairs check reads the event snapshot only for those.
+    const upsets=(await tx.execute(sql`WITH top AS (
+      SELECT DISTINCT r.npc_id FROM career_ranking_snapshot_rows r JOIN career_ranking_snapshots p ON p.career_save_id=r.career_save_id AND p.id=r.snapshot_id
+      WHERE r.career_save_id=${saveId} AND p.list_key='pro-world' AND p.season>=${recentFrom-1} AND r.position<=8 AND r.npc_id IS NOT NULL
+    ), recent AS (
+      SELECT m.id,m.event_id,m.scheduled_day,m.winner_key,CASE WHEN m.winner_key=m.a_key THEN m.b_key ELSE m.a_key END AS loser_key,i.season,i.name
       FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
-      WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND i.classification<>'QUALIFIER'
-        AND COALESCE((i.snapshot->'format'->>'sideSize')::int,1)=1
+      WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND i.classification<>'QUALIFIER' AND i.season>=${recentFrom}
+        AND (m.a_npc_id=ANY(ARRAY(SELECT npc_id FROM top)) OR m.b_npc_id=ANY(ARRAY(SELECT npc_id FROM top)) OR m.a_key='HUMAN' OR m.b_key='HUMAN')
       ORDER BY i.season DESC,m.scheduled_day DESC,m.id LIMIT 600)
       SELECT m.id,m.event_id,m.season,m.scheduled_day,m.name,m.winner_key,m.loser_key,p.id AS snapshot_id,w.position AS winner_position,l.position AS loser_position,
         CASE WHEN m.winner_key='HUMAN' THEN 'You' ELSE concat(wn.first_name,' ',wn.surname) END AS winner_name,
@@ -73,7 +81,9 @@ export function createCareerLifeService(database:CareerDatabase) {
       JOIN career_ranking_snapshot_rows l ON l.career_save_id=${saveId} AND l.snapshot_id=p.id AND l.participant_key=m.loser_key
       LEFT JOIN career_world_players wn ON wn.career_save_id=${saveId} AND wn.id::text=m.winner_key
       LEFT JOIN career_world_players ln ON ln.career_save_id=${saveId} AND ln.id::text=m.loser_key
-      WHERE l.position<=8 AND w.position>=32 ORDER BY m.season DESC,m.scheduled_day DESC,m.id LIMIT 40`)).rows;
+      WHERE l.position<=8 AND w.position>=32
+        -- A scalar lookup per candidate (a pairs match is a team meeting); as EXISTS it read every event's snapshot.
+        AND (SELECT COALESCE((e.snapshot->'format'->>'sideSize')::int,1) FROM career_event_instances e WHERE e.career_save_id=${saveId} AND e.id=m.event_id)=1 ORDER BY m.season DESC,m.scheduled_day DESC,m.id LIMIT 40`)).rows;
     // Close-season breakthroughs (v6): who is tipped and for which level, never why (no ability or potential).
     const tips=(await tx.execute(sql`SELECT p.season+1 AS season,t.ordinality AS ord,t.value->>'id' AS npc_id,t.value->>'band' AS band,concat(n.first_name,' ',n.surname) AS name
       FROM career_world_periods p CROSS JOIN LATERAL jsonb_array_elements(COALESCE(p.summary->'breakthroughs','[]'::jsonb)) WITH ORDINALITY t
