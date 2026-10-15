@@ -174,6 +174,23 @@ function qualificationKeys(rule: Rule): string[] {
   return rule.type === "QUALIFICATION" ? [rule.targetKey] : [];
 }
 
+/** The content fields calendar lists display (the full venue/history content stays on the event, map and tournament views). */
+const LIST_CONTENT = ["circuitId", "circuitName", "summary", "eventClass", "fieldDescription", "trophyId"] as const;
+/**
+ * The calendar list's event: everything the list screens read, without the per-event venue history and map
+ * content, prize/travel profile keys and qualification outputs (about a third of each event; a full season's
+ * list was 6.4 MB). The event page, map and tournament views still return the full event.
+ */
+export function listEvent<E extends { content?: unknown; profiles?: unknown; qualificationOutputs?: unknown; opportunity?: unknown }>(event: E) {
+  const { profiles: _profiles, qualificationOutputs: _outputs, ...rest } = event;
+  const content = event.content && typeof event.content === "object"
+    ? Object.fromEntries(LIST_CONTENT.flatMap(key => key in (event.content as object) ? [[key, (event.content as Record<string, unknown>)[key]]] : []))
+    : event.content ?? null;
+  const opportunity = event.opportunity && typeof event.opportunity === "object"
+    ? (({ authority: _authority, ...o }) => o)(event.opportunity as Record<string, unknown>) : event.opportunity;
+  return { ...rest, content, opportunity };
+}
+
 function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) {
   const s = event.snapshot, venue = venueByKey(event.venue_key), venueIdentity = venueContent(event.venue_key);
   return {
