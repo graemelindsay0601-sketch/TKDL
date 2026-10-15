@@ -62,11 +62,11 @@ after(async()=>await pg.close());
 test("new and old roots are genuinely pinned, initialize idempotently and expose real lists",async()=>{
   const versions=await rows(sql`SELECT id,event_database_version,player_database_version FROM career_saves ORDER BY slot_number`);
   assert.equal(versions[0].event_database_version,3);assert.equal(versions[1].event_database_version,2);
-  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${saveId}`))[0].n,340);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${saveId}`))[0].n,804); // v4: 340 + 464 club and international squad players
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${oldId}`))[0].n,260);
   assert.equal((await sporting.rankingLists(actor,saveId)).length,9);assert.equal((await sporting.rankingLists(actor,oldId)).length,6);
   await sporting.initialize(actor,saveId);
-  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${saveId}`))[0].n,340);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${saveId}`))[0].n,804); // v4: 340 + 464 club and international squad players
 });
 test("read-only content/almanac/presentation do not rewrite an old world or Legacy",async()=>{
   const snapshot=async()=>calendarHashOf(await rows(sql`SELECT jsonb_build_object('save',s,'players',(SELECT jsonb_agg(p ORDER BY p.id) FROM career_world_players p WHERE p.career_save_id=s.id),

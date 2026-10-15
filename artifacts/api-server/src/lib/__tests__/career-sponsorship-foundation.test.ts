@@ -77,16 +77,17 @@ test("a fresh world gets deterministic save-scoped NPC relationships without cha
   }
   const market=await db.transaction(tx=>getNpcSponsorMarket(tx,saveId));
   assert.equal(market?.relationships.length,expected.length);
-  assert.equal(market?.events.length,expected.length);
+  // The market lists the 100 most recent signings.
+  assert.equal(market?.events.length,Math.min(100,expected.length));
   assert.ok(market?.events.every(event=>event.eventType==="SIGNED"&&event.npcName.length>2&&event.sponsorName.length>2));
   assert.ok(market?.events.every(event=>event.sourceEventId===null));
-  assert.equal(new Set(market?.events.map(event=>event.id)).size,expected.length);
+  assert.equal(new Set(market?.events.map(event=>event.id)).size,Math.min(100,expected.length));
   const brandPlayers=market?.brandRosters.flatMap(brand=>brand.players)??[];
   assert.equal(brandPlayers.length,expected.length,"brand roster is built from persisted NPC relationships");
   assert.equal(market?.npcCommercialProfiles.length,new Set(expected.map(row=>row.npcId)).size);
   assert.ok(expected.every(row=>brandPlayers.some(player=>player.npcId===row.npcId)));
   const retried=await db.transaction(tx=>getNpcSponsorMarket(tx,saveId));
-  assert.equal(retried?.events.length,expected.length);
+  assert.equal(retried?.events.length,Math.min(100,expected.length));
   const additionalId="00000000-0000-4000-8000-000000000001";
   await db.execute(sql`INSERT INTO career_npc_sponsor_relationships
       (career_save_id,id,npc_id,sponsor_key,category,representative_id,status,start_season,start_week,end_season,end_week,sponsor_snapshot)
