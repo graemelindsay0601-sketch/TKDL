@@ -4,7 +4,8 @@ import {generateSeason,calendarHashOf} from "../../career/calendar/generation.ts
 import {catalogueFor} from "../../career/calendar/catalogue.ts";
 import {R,evaluateRule,type ParticipantFacts} from "../../career/calendar/eligibility.ts";
 import {generateInitialWorld,generateWomenCohort} from "../../career/world/generation.ts";
-import {geographicalIdentities} from "../../career/world/geographical-identities.ts";
+import {geographicalIdentities,geographicalIdentitiesV3} from "../../career/world/geographical-identities.ts";
+import {NAME_BANKS_V3,DARTS_NAME_BLOCKLIST} from "../../career/world/name-banks.ts";
 import {stableUuid} from "../../career/world/random.ts";
 import {VENUE_CONTENT,VENUE_FAMILIES,TROPHIES,GUIDE,ORGANISATIONS,CIRCUIT_CONTENT,CITIES,venueContent} from "../../career/content/world.ts";
 import {CORE_BRANDS,LOCAL_SPONSORS} from "../../career/content/brands.ts";
@@ -52,6 +53,33 @@ test("crowded country-aware pools extend deterministically without numeric or du
   const names=geographicalIdentities(seed,input).map(p=>`${p.firstName} ${p.surname}`);
   assert.equal(new Set(names).size,names.length);assert.ok(names.every(n=>!/\d/.test(n)));
   assert.deepEqual(names,geographicalIdentities(seed,input).map(p=>`${p.firstName} ${p.surname}`));
+});
+test("player database v3: realistic country names, surnames spread, no real darts players, ids/abilities untouched",()=>{
+  for(const s of ["a","b","c"].map(c=>c.repeat(64))){
+    const original=generateInitialWorld(s,1),women=generateWomenCohort(s,1,1,80,original);
+    const men=geographicalIdentitiesV3(s,original),people=[...men,...geographicalIdentitiesV3(s,women,men)];
+    assert.deepEqual(men,geographicalIdentitiesV3(s,original));
+    for(let i=0;i<men.length;i++){assert.equal(men[i].id,original[i].id);assert.deepEqual(men[i].ability,original[i].ability);}
+    const names=people.map(p=>`${p.firstName} ${p.surname}`);
+    assert.equal(new Set(names).size,names.length);
+    assert.ok(names.every(n=>!DARTS_NAME_BLOCKLIST.has(n)&&!/\d|-/.test(n)));
+    // Each generated person's name and region come from a bank for their own country.
+    for(const p of people.filter(p=>!p.templateKey)){
+      const banks=NAME_BANKS_V3.filter(b=>b.country===p.nationality&&b.regions.includes(p.homeRegion!));
+      assert.ok(banks.some(b=>b.last.includes(p.surname)&&(p.worldKey.startsWith("women:")?b.women:b.first).includes(p.firstName)),`${p.firstName} ${p.surname} (${p.nationality})`);
+    }
+    // Spread: no surname is carried by more than three people of one country.
+    const counts=new Map<string,number>();
+    for(const p of people)counts.set(`${p.nationality}|${p.surname}`,(counts.get(`${p.nationality}|${p.surname}`)??0)+1);
+    assert.ok(Math.max(...counts.values())<=3,`max surname repeat ${Math.max(...counts.values())}`);
+  }
+});
+test("player database v3 extends deterministically when crowded",()=>{
+  const example=generateInitialWorld(seed,1).find(p=>!p.templateKey)!;
+  const input=Array.from({length:4000},(_,i)=>({...example,id:stableUuid(seed,1,"name-bank-fixture",i),worldKey:`crowded:${i}`}));
+  const names=geographicalIdentitiesV3(seed,input).map(p=>`${p.firstName} ${p.surname}`);
+  assert.equal(new Set(names).size,names.length);
+  assert.deepEqual(names,geographicalIdentitiesV3(seed,input).map(p=>`${p.firstName} ${p.surname}`));
 });
 test("authored counts, hierarchy and complete map anchors",()=>{
   assert.equal(ORGANISATIONS.length,4);assert.equal(CIRCUIT_CONTENT.length,29);
