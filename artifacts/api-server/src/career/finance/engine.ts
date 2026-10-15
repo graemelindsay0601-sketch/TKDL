@@ -665,6 +665,79 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
     return { available, balance, contract, estimates: units.map(u => estimateUnit(home(root), u, contract, usage)) };
   }
 
+  /** Every event's immutable prize table in one insert; the human's money (rare) per event, in event order. */
+  async function eventsCompleted(tx: CareerExecutor, root: RootRow, batch: readonly { event: InstanceRow; results: readonly { participant_key: string; finishing_position: number; is_champion: boolean }[] }[]) {
+    if (!batch.length) return;
+    await ensureFinanceState(tx, root.id);
+    const tables = batch.map(({ event }) => { const profile = profileFor(event);
+      return { event_id: event.id, season: event.season, prize_profile_key: profile.prize.key, classification: event.classification, ranking_eligible: profile.rankingEligible, bands: profile.prize.bands }; });
+    await tx.execute(sql`INSERT INTO career_event_prize_tables (career_save_id, event_id, season, finance_version, prize_profile_key, classification, ranking_eligible, bands)
+      SELECT ${root.id}::uuid, t.event_id, t.season, ${FINANCE_VERSION}, t.prize_profile_key, t.classification, t.ranking_eligible, t.bands
+      FROM jsonb_to_recordset(${JSON.stringify(tables)}::jsonb) AS t(event_id uuid, season integer, prize_profile_key text, classification text, ranking_eligible boolean, bands jsonb)
+      ON CONFLICT DO NOTHING`);
+    for (const { event, results } of batch) await humanEventMoney(tx, root, event, results);
+  }
+
+  /** The human's prize, prize award and sponsor event money for one completed event (no-op when they did not play). */
+  async function humanEventMoney(tx: CareerExecutor, root: RootRow, event: InstanceRow, results: readonly { participant_key: string; finishing_position: number; is_champion: boolean }[]) {
+    const profile = profileFor(event);
+    const mine = results.find(r => r.participant_key === HUMAN);
+    if (!mine) return;
+    const season = Number(root.current_season), week = Number(root.current_week);
+    const cash = prizeForPosition(profile.prize, mine.finishing_position);
+    const ranking = profile.rankingEligible ? cash : 0;
+    let ledgerId: string | null = null;
+    if (cash > 0) ledgerId = (await post(tx, root, { operationKey: `prize:${event.id}`, category: "PRIZE", amountPence: cash, reason: `Prize money — ${event.name}`,
+      season, week, eventId: event.id, detail: { finishingPosition: mine.finishing_position, prizeProfile: profile.prize.key, rankingEligiblePence: ranking } })).row.id;
+    await tx.execute(sql`INSERT INTO career_prize_awards (career_save_id, event_id, participant_key, season, finishing_position, cash_award_pence, ranking_eligible_pence, classification, ledger_entry_id)
+      VALUES (${root.id}, ${event.id}, ${HUMAN}, ${event.season}, ${mine.finishing_position}, ${cash}, ${ranking}, ${event.classification}, ${ledgerId}) ON CONFLICT DO NOTHING`);
+    await tx.execute(sql`UPDATE career_event_finance SET status = 'COMPLETED', estimated_trip_pence = 0, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status IN ('ENTERED','TRAVEL_COMMITTED')`);
+    const played = (await tx.execute(sql`SELECT status FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0];
+    const portfolio = await activeContracts(tx, root.id);
+    if (played && played.status !== "WITHDRAWN") for (const contract of portfolio) {
+      const pay = contract.terms.eventPayment;
+      if (pay && pay.amountPence > 0 && pay.circuits.includes(event.circuit)) {
+        const paid = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id = ${contract.id}
+          AND category = 'SPONSOR_EVENT_PAYMENT' AND season = ${season}`)).rows[0].n);
+        if (paid < pay.maxEventsPerSeason) {
+          const operationKey = `sponsor-event:${contract.id}:${event.id}`;
+          const payment = await post(tx, root, { operationKey, category: "SPONSOR_EVENT_PAYMENT", amountPence: pay.amountPence,
+            reason: `${contract.terms.displayName} event payment — ${event.name}`, season, week, eventId: event.id, contractId: contract.id });
+          if (payment.created) await appendSponsorPaymentTimeline(tx, root, contract, {
+            ledgerEntryId: payment.row.id,
+            operationKey,
+            headline: `${contract.terms.displayName} event payment posted`,
+            amountPence: pay.amountPence,
+            category: "SPONSOR_EVENT_PAYMENT",
+            season,
+            week,
+            details: { eventId: event.id, eventName: event.name },
+          });
+        }
+      }
+      for (const bonus of contract.terms.performanceBonuses) {
+        if (bonus.amountPence <= 0 || mine.finishing_position > bonus.maxPosition || !bonus.classifications.includes(event.classification) || (bonus.circuits && !bonus.circuits.includes(event.circuit))) continue;
+        const operationKey = `sponsor-bonus:${contract.id}:${event.id}:${bonus.key}`;
+        const paid = await post(tx, root, { operationKey, category: "SPONSOR_PERFORMANCE_BONUS", amountPence: bonus.amountPence,
+          reason: `${contract.terms.displayName} ${bonus.key} bonus — ${event.name}`, season, week, eventId: event.id, contractId: contract.id, detail: { bonusKey: bonus.key, finishingPosition: mine.finishing_position } });
+        if (paid.created) await appendSponsorPaymentTimeline(tx, root, contract, {
+          ledgerEntryId: paid.row.id,
+          operationKey,
+          headline: `${contract.terms.displayName} performance bonus earned`,
+          amountPence: bonus.amountPence,
+          category: "SPONSOR_PERFORMANCE_BONUS",
+          season,
+          week,
+          details: { bonusKey: bonus.key, eventId: event.id, eventName: event.name, finishingPosition: mine.finishing_position },
+        });
+      }
+    }
+    await evaluateOffers(tx, root, await factsProvider().facts(tx, root), `event:${event.id}`, season, week, {
+      kind: "RESULT", eventId: event.id, eventName: event.name, circuit: event.circuit, classification: event.classification, season, week,
+      finishingPosition: mine.finishing_position, isChampion: mine.is_champion,
+    });
+  }
+
   return {
     async entryCheck(tx, root, event, siblings) {
       await ensureFinanceState(tx, root.id);
@@ -774,67 +847,10 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
     },
 
     async onEventCompleted(tx, root, event, results) {
-      await ensureFinanceState(tx, root.id);
-      const profile = profileFor(event);
-      await tx.execute(sql`INSERT INTO career_event_prize_tables (career_save_id, event_id, season, finance_version, prize_profile_key, classification, ranking_eligible, bands)
-        VALUES (${root.id}, ${event.id}, ${event.season}, ${FINANCE_VERSION}, ${profile.prize.key}, ${event.classification}, ${profile.rankingEligible}, ${JSON.stringify(profile.prize.bands)}::jsonb)
-        ON CONFLICT DO NOTHING`);
-      const mine = results.find(r => r.participant_key === HUMAN);
-      if (!mine) return;
-      const season = Number(root.current_season), week = Number(root.current_week);
-      const cash = prizeForPosition(profile.prize, mine.finishing_position);
-      const ranking = profile.rankingEligible ? cash : 0;
-      let ledgerId: string | null = null;
-      if (cash > 0) ledgerId = (await post(tx, root, { operationKey: `prize:${event.id}`, category: "PRIZE", amountPence: cash, reason: `Prize money — ${event.name}`,
-        season, week, eventId: event.id, detail: { finishingPosition: mine.finishing_position, prizeProfile: profile.prize.key, rankingEligiblePence: ranking } })).row.id;
-      await tx.execute(sql`INSERT INTO career_prize_awards (career_save_id, event_id, participant_key, season, finishing_position, cash_award_pence, ranking_eligible_pence, classification, ledger_entry_id)
-        VALUES (${root.id}, ${event.id}, ${HUMAN}, ${event.season}, ${mine.finishing_position}, ${cash}, ${ranking}, ${event.classification}, ${ledgerId}) ON CONFLICT DO NOTHING`);
-      await tx.execute(sql`UPDATE career_event_finance SET status = 'COMPLETED', estimated_trip_pence = 0, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status IN ('ENTERED','TRAVEL_COMMITTED')`);
-      const played = (await tx.execute(sql`SELECT status FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0];
-      const portfolio = await activeContracts(tx, root.id);
-      if (played && played.status !== "WITHDRAWN") for (const contract of portfolio) {
-        const pay = contract.terms.eventPayment;
-        if (pay && pay.amountPence > 0 && pay.circuits.includes(event.circuit)) {
-          const paid = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id = ${root.id} AND contract_id = ${contract.id}
-            AND category = 'SPONSOR_EVENT_PAYMENT' AND season = ${season}`)).rows[0].n);
-          if (paid < pay.maxEventsPerSeason) {
-            const operationKey = `sponsor-event:${contract.id}:${event.id}`;
-            const payment = await post(tx, root, { operationKey, category: "SPONSOR_EVENT_PAYMENT", amountPence: pay.amountPence,
-              reason: `${contract.terms.displayName} event payment — ${event.name}`, season, week, eventId: event.id, contractId: contract.id });
-            if (payment.created) await appendSponsorPaymentTimeline(tx, root, contract, {
-              ledgerEntryId: payment.row.id,
-              operationKey,
-              headline: `${contract.terms.displayName} event payment posted`,
-              amountPence: pay.amountPence,
-              category: "SPONSOR_EVENT_PAYMENT",
-              season,
-              week,
-              details: { eventId: event.id, eventName: event.name },
-            });
-          }
-        }
-        for (const bonus of contract.terms.performanceBonuses) {
-          if (bonus.amountPence <= 0 || mine.finishing_position > bonus.maxPosition || !bonus.classifications.includes(event.classification) || (bonus.circuits && !bonus.circuits.includes(event.circuit))) continue;
-          const operationKey = `sponsor-bonus:${contract.id}:${event.id}:${bonus.key}`;
-          const paid = await post(tx, root, { operationKey, category: "SPONSOR_PERFORMANCE_BONUS", amountPence: bonus.amountPence,
-            reason: `${contract.terms.displayName} ${bonus.key} bonus — ${event.name}`, season, week, eventId: event.id, contractId: contract.id, detail: { bonusKey: bonus.key, finishingPosition: mine.finishing_position } });
-          if (paid.created) await appendSponsorPaymentTimeline(tx, root, contract, {
-            ledgerEntryId: paid.row.id,
-            operationKey,
-            headline: `${contract.terms.displayName} performance bonus earned`,
-            amountPence: bonus.amountPence,
-            category: "SPONSOR_PERFORMANCE_BONUS",
-            season,
-            week,
-            details: { bonusKey: bonus.key, eventId: event.id, eventName: event.name, finishingPosition: mine.finishing_position },
-          });
-        }
-      }
-      await evaluateOffers(tx, root, await factsProvider().facts(tx, root), `event:${event.id}`, season, week, {
-        kind: "RESULT", eventId: event.id, eventName: event.name, circuit: event.circuit, classification: event.classification, season, week,
-        finishingPosition: mine.finishing_position, isChampion: mine.is_champion,
-      });
+      await eventsCompleted(tx, root, [{ event, results }]);
     },
+
+    async onEventsCompleted(tx, root, batch) { await eventsCompleted(tx, root, batch); },
 
     async onCalendarMoved(tx, root, season, week) {
       await ensureFinanceState(tx, root.id);
