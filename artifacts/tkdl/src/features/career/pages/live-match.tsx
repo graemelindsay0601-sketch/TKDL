@@ -240,7 +240,7 @@ function PostMatch({ ctx, session }: { ctx: ShellContext; session: LiveSession }
           <Link href={`/career/${saveId}/calendar`} className="career-btn career-btn-ghost"><ListOrdered className="w-4 h-4" aria-hidden /> Calendar</Link>
         </div>
         {note && <p role="alert" className="text-sm" style={{ color: "#ff8fb4" }}>{note}</p>}
-        {advance.isPending && <ContinueProgress from={{ season: ctx.save.currentSeason, week: ctx.save.currentWeek }} toEvent={null} />}
+        {advance.isPending && <ContinueProgress saveId={saveId} from={{ season: ctx.save.currentSeason, week: ctx.save.currentWeek }} toEvent={null} />}
       </div>
     </Overlay>
   );
