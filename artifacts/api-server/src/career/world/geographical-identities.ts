@@ -88,13 +88,16 @@ export function geographicalIdentitiesV3(seed: string, people: readonly Npc[], e
  * A name and home region for a player from a given country (and, when known, region), from the v3 banks:
  * used for substitutes created where an event is played. Null when no bank covers the country.
  */
+const REGION_BANK_ALIAS: Record<string, string> = { Tayside: "Highlands" };
 export function localIdentity(seed: string, worldKey: string, country: string, region: string | null, women: boolean, used: Set<string>) {
   const home = NAME_BANKS_V3.filter(b => b.country === country);
   const banks = home.length ? home : SUBSTITUTE_BANKS.filter(b => b.country === country);
   if (!banks.length) return null;
   const rng = scopedRandom(seed, 3, "substitute-identity", worldKey);
-  const bank = banks.find(b => region && b.regions.includes(region)) ?? weighted(rng, banks);
-  const homeRegion = region && bank.regions.includes(region) ? region : pick(rng, bank.regions);
+  // Home areas the banks do not list by name use their neighbours' bank (Tayside: Scottish names).
+  const lookup = region ? REGION_BANK_ALIAS[region] ?? region : null;
+  const bank = banks.find(b => lookup && b.regions.includes(lookup)) ?? weighted(rng, banks);
+  const homeRegion = region && (bank.regions.includes(region) || REGION_BANK_ALIAS[region]) ? region : pick(rng, bank.regions);
   const firstPool = women ? bank.women : bank.first;
   for (let i = 0; i < 400; i++) {
     const firstName = pick(rng, firstPool), surname = pick(rng, bank.last), full = `${firstName} ${surname}`;

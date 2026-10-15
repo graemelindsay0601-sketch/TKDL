@@ -7,6 +7,7 @@ import { careerIdSchema } from "../validation.ts";
 import { CAREER_WORLD_CONFIG, CAREER_DEVELOPMENT_CONFIG, CAREER_DIFFICULTY_CONFIG, CAREER_SIMULATION_CONFIG, SIMULATION_VERSION } from "./config.ts";
 import { assertGenerationVersion, generateInitialWorld, generateJuniorCohort, generateWomenCohort, JUNIOR_COHORT } from "./generation.ts";
 import { geographicalIdentities, geographicalIdentitiesV3 } from "./geographical-identities.ts";
+import { worldExpansion } from "./expansion.ts";
 import { teamComposite } from "./team.ts";
 import { loadNpcs, persistNpcs, presentNpc } from "./repository.ts";
 import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./types.ts";
@@ -128,6 +129,8 @@ export function createCareerWorldService(database: CareerDatabase) {
         const playerDb = Number((root as Root & {player_database_version?:number}).player_database_version ?? 1);
         const persistedPlayers = playerDb >= 3 ? geographicalIdentitiesV3(root.world_seed, players)
           : playerDb >= 2 ? geographicalIdentities(root.world_seed, players) : players;
+        // Player database v4: club squads in every home area and international squads abroad.
+        if (playerDb >= 4) persistedPlayers.push(...worldExpansion(root.world_seed, root.world_generation_version, 1, persistedPlayers, "initial"));
         await persistNpcs(tx, saveId, persistedPlayers);
         await persistInitialNpcSponsorRelationships(tx,{saveId,seed:root.world_seed,generationVersion:root.world_generation_version,
           npcIds:persistedPlayers.map(player=>player.id)});
@@ -193,6 +196,11 @@ export function createCareerWorldService(database: CareerDatabase) {
           const name = playerDb >= 3 ? geographicalIdentitiesV3 : geographicalIdentities;
           const replacements = new Map(name(root.world_seed, evolved.players.filter(p => ids.has(p.id)), old).map(p => [p.id, p]));
           evolved.players = evolved.players.map(p => replacements.get(p.id) ?? p);
+        }
+        if (playerDb >= 4) {
+          // Squads are topped back up to size for the new season (retirees replaced by local entrants).
+          const intake = worldExpansion(root.world_seed, root.world_generation_version, world.season + 1, evolved.players, `s${world.season + 1}`);
+          evolved.players.push(...intake); evolved.entrants.push(...intake.map(p => p.id));
         }
         await persistNpcs(tx, saveId, evolved.players);
         const summary = { completedSeason: world.season, nextSeason: world.season + 1, retired: evolved.retired, entrants: evolved.entrants };
