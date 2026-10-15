@@ -14,7 +14,7 @@ import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./ty
 import { simulateNpcMatch } from "./simulation.ts";
 import { stableUuid } from "./random.ts";
 import { formAfterMatch } from "./form.ts";
-import { developNpc, evolveOffSeason } from "./development.ts";
+import { developNpc, evolveOffSeason, isBasePopulation } from "./development.ts";
 import {persistInitialNpcSponsorRelationships} from "../sponsorship/npc-foundation.ts";
 import { isCareerRead } from "../request-scope.ts";
 
@@ -181,7 +181,9 @@ export function createCareerWorldService(database: CareerDatabase) {
         const old = (await tx.execute(sql`SELECT request, summary FROM career_world_periods WHERE career_save_id = ${saveId} AND season = ${request.season} AND kind = 'OFF_SEASON' AND sequence = 0`)).rows[0];
         if (old) { checkRetry(old.request, request); return old.summary; }
         if (request.season !== world.season || root.current_season !== world.season) throw new CareerError(409, "Off-season must close the current season");
-        const evolved = evolveOffSeason(await loadNpcs(tx, saveId), root.world_seed, root.world_generation_version, world.season, 1 - world.elapsed_year, request.opportunity);
+        const playerDbVersion = Number((root as Root & {player_database_version?:number}).player_database_version ?? 1);
+        const evolved = evolveOffSeason(await loadNpcs(tx, saveId), root.world_seed, root.world_generation_version, world.season, 1 - world.elapsed_year, request.opportunity,
+          playerDbVersion >= 4 ? isBasePopulation : undefined);
         if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 2) {
           const intake = generateJuniorCohort(root.world_seed, root.world_generation_version, world.season + 1, JUNIOR_COHORT.annualIntake, evolved.players, `intake:${world.season + 1}`);
           evolved.players.push(...intake); evolved.entrants.push(...intake.map(npc => npc.id));

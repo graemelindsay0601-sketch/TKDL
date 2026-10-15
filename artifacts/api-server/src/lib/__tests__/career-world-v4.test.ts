@@ -36,3 +36,14 @@ test("v4: each season tops squads back up to size after retirements", () => {
   assert.ok(intake.every(p => squad("club:ayrshire")(p) && p.createdSeason === 2));
   assert.equal(worldExpansion(seed, 1, 2, [...retired, ...intake], "s2").length, 0, "full squads take nobody");
 });
+
+test("v4: retirements from the base pool are replaced by new prospects (squads and cohorts no longer hide them)", async () => {
+  const { generateInitialWorld } = await import("../../career/world/generation.ts");
+  const { evolveOffSeason, isBasePopulation } = await import("../../career/world/development.ts");
+  const base = generateInitialWorld(seed, 1);
+  const world = [...base, ...worldExpansion(seed, 1, 1, base, "initial")];
+  const old = evolveOffSeason(world, seed, 1, 1, 1, 0.5);
+  const fixed = evolveOffSeason(world, seed, 1, 1, 1, 0.5, isBasePopulation);
+  assert.equal(old.entrants.length, 0, "counting every squad player, the base pool never refills");
+  assert.equal(fixed.entrants.length, fixed.retired.filter(id => isBasePopulation(world.find(p => p.id === id)!)).length, "each base retirement is replaced");
+});
