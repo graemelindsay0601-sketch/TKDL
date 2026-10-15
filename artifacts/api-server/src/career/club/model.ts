@@ -1,6 +1,6 @@
 /**
  * Your home club: the darts club of your home area, whose members are the players who live there (and you).
- * Clubs in a country play a county league in divisions: a club scores from its members' finishes at local level
+ * Clubs in a darts nation play a county league in divisions: a club scores from its members' finishes at local level
  * (club nights, county and regional events), the top two of each division go up and the bottom two go down at the
  * end of a season. The captain is the member who scored most for the club last season. Nothing here is invented:
  * every point comes from a recorded result.
@@ -11,6 +11,8 @@ export const CLUB = Object.freeze({
   points: (position: number) => position === 1 ? 5 : position === 2 ? 3 : position <= 4 ? 2 : position <= 8 ? 1 : 0,
   divisionSize: 8, promoted: 2,
 });
+/** Divisions of eight; a nation with eight clubs or fewer splits into two divisions so promotion still means something. */
+export const divisionSizeFor = (clubs: number) => clubs > CLUB.divisionSize ? CLUB.divisionSize : clubs >= 4 ? Math.ceil(clubs / 2) : clubs;
 
 export type ClubLocality = { key: string; country: string; city: string; region: string; weight: number };
 export type ClubResult = { season: number; participantKey: string; locality: string | null; position: number };
@@ -56,11 +58,28 @@ export function leagueSeason(country: string, localities: readonly ClubLocality[
   const points = memberPoints(results, season), last = memberPoints(results, season - 1);
   const total = (key: string) => [...points.values()].filter(m => m.locality === key).reduce((n, m) => n + m.points, 0);
   const out: ClubSeason[] = [];
-  for (let start = 0, division = 1; start < order.length; start += CLUB.divisionSize, division++) {
-    const keys = order.slice(start, start + CLUB.divisionSize), seeded = new Map(keys.map((k, i) => [k, i]));
+  const size = divisionSizeFor(order.length);
+  for (let start = 0, division = 1; start < order.length; start += size, division++) {
+    const keys = order.slice(start, start + size), seeded = new Map(keys.map((k, i) => [k, i]));
     // Ties keep the division's starting order (last season's standing), so a table never reshuffles on a draw.
     keys.map(k => ({ k, p: total(k) })).sort((a, b) => b.p - a.p || seeded.get(a.k)! - seeded.get(b.k)!)
       .forEach((c, i) => out.push({ season, country, localityKey: c.k, division, points: c.p, position: i + 1, captainKey: captainOf(last, c.k) }));
   }
   return out;
 }
+
+/** County A team: the six members who scored most for the area last season (picked for the whole season, like the captain). */
+export const COUNTY_TEAM = 6;
+export function countyTeam(results: readonly ClubResult[], season: number, locality: string) {
+  return [...memberPoints(results, season - 1)].filter(([, m]) => m.locality === locality && m.points > 0)
+    .sort((a, b) => b[1].points - a[1].points || (a[0] === "HUMAN" ? -1 : b[0] === "HUMAN" ? 1 : a[0].localeCompare(b[0])))
+    .slice(0, COUNTY_TEAM).map(([key, m]) => ({ key, points: m.points }));
+}
+/** Inter-County standings for a season: each area's six best scorers that season, added together. */
+export function interCounty(results: readonly ClubResult[], season: number, localities: readonly string[]) {
+  const points = memberPoints(results, season);
+  return localities.map(locality => ({ locality, points: [...points.values()].filter(m => m.locality === locality).map(m => m.points)
+    .sort((a, b) => b - a).slice(0, COUNTY_TEAM).reduce((n, p) => n + p, 0) }))
+    .sort((a, b) => b.points - a.points || a.locality.localeCompare(b.locality)).map((c, i) => ({ ...c, position: i + 1 }));
+}
+export const NATION_NAMES: Record<string, string> = { ENG: "England", SCO: "Scotland", WAL: "Wales", NIR: "Northern Ireland" };

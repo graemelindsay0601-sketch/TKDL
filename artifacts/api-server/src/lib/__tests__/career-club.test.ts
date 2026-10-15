@@ -29,3 +29,25 @@ test("divisions of eight: seeded by area size, then the top two go up and the bo
   assert.ok(relegated.every(k => division(k) === 2), "relegated");
   assert.deepEqual(leagueSeason("GBR", clubs, results, 1, null), table1, "deterministic");
 });
+
+test("a nation with eight clubs or fewer plays two divisions, so promotion still exists", async () => {
+  const { divisionSizeFor } = await import("../../career/club/model.ts");
+  assert.deepEqual([12, 8, 6, 3, 1].map(divisionSizeFor), [8, 4, 3, 3, 1]);
+  const scotland = leagueSeason("SCO", clubs.slice(0, 8).map(c => ({ ...c, country: "SCO" })), [], 1, null);
+  assert.deepEqual([1, 2].map(d => scotland.filter(c => c.division === d).length), [4, 4]);
+});
+
+test("county A team is last season's six best scorers; Inter-County adds each area's six best", async () => {
+  const { countyTeam, interCounty, COUNTY_TEAM } = await import("../../career/club/model.ts");
+  const results = [
+    ...Array.from({ length: 8 }, (_, i) => win(1, `npc-${i}`, "area-00", i + 1)),
+    win(1, "HUMAN", "area-00", 1), win(1, "rival", "area-01", 1), win(2, "late", "area-00", 1),
+  ];
+  const team = countyTeam(results, 2, "area-00");
+  assert.equal(team.length, COUNTY_TEAM);
+  assert.deepEqual(team.slice(0, 2).map(m => m.key), ["HUMAN", "npc-0"], "ties put you first, then by key");
+  assert.ok(!team.some(m => m.key === "late"), "this season's points pick next season's team");
+  const standings = interCounty(results, 1, ["area-00", "area-01", "area-02"]);
+  assert.deepEqual(standings.map(c => [c.locality, c.position]), [["area-00", 1], ["area-01", 2], ["area-02", 3]]);
+  assert.equal(standings[0].points, 5 + 5 + 3 + 2 + 2 + 1, "only the six best count");
+});

@@ -227,3 +227,16 @@ test("nine-darters from the records book: yours is a major career moment, anyone
   assert.deepEqual([world.scope,world.opponentId],["WORLD","npc-nine"]);
   assert.match(world.body,/Nina Perfect threw a nine-dart leg at Pro Tour 7 \(2 in the match\)\./);
 });
+
+test("county and national selection: picked, dropped, Inter-County titles and World Cup call-ups make the news",()=>{
+  const s=source();s.season=3;
+  s.club={club:{localityKey:"ayrshire",name:"Kilbirnie Darts Club",city:"Kilbirnie",region:"Ayrshire",country:"GBR"},season:3,captain:{key:"HUMAN",name:"You",you:true},
+    history:[{season:1,division:2,position:1,points:40,champions:true,promoted:true,relegated:false},{season:2,division:1,position:8,points:3,champions:false,promoted:false,relegated:true}],
+    county:{name:"Ayrshire County",aTeam:[],youSelected:true,youSelectedLastSeason:false,standings:[],lastSeasonChampion:{name:"Ayrshire",you:true}},
+    nation:{code:"SCO",name:"Scotland",candidates:[],yourPlace:1,selected:true,worldCups:[{season:2,players:["You","Blair Paterson"],you:true},{season:3,players:["Blair Paterson","Kieran Ross"],you:false}]}};
+  const kinds=storyEngine(s).map(st=>st.kind);
+  for(const k of ["club-champions","club-relegated","club-captain","county-selected","county-champions","nation-selected","nation-dropped"])assert.ok(kinds.includes(k),k);
+  assert.ok(!kinds.includes("county-dropped"));
+  const called=storyEngine(s).find(st=>st.kind==="nation-selected")!;
+  assert.match(called.body,/represent Scotland at the World Cup of Darts in season 2, alongside Blair Paterson\./);
+});

@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Crown, Shield, Users } from "lucide-react";
+import { Crown, Flag, Shield, Users } from "lucide-react";
 import { useHomeClub, type ClubView } from "../api";
 import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../components";
 import { CareerPageHero } from "../page-hero";
@@ -31,6 +31,23 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
         <span>{m.you ? <strong>You</strong> : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}{m.professional && <small className="career-club__pro"> · Pro</small>}</span>
         <em>{m.seasonPoints}</em><small>Last season {m.lastSeasonPoints} pts · {m.titles} title{m.titles === 1 ? "" : "s"}</small></li>)}</ol>
     </CareerSection>
+    {d.county && <CareerSection title={`${d.county.name} A team`} icon={<Shield aria-hidden />} accent="#69b8ec">
+      <p className="px-4 pt-3 text-sm">{d.county.youSelected ? "You are in the A team this season." : d.county.youSelectedLastSeason ? "You lost your A-team place this season." : "The A team is last season's six best scorers in the county."}
+        {d.county.lastSeasonChampion && <> Inter-County champions last season: <strong>{d.county.lastSeasonChampion.name}</strong>{d.county.lastSeasonChampion.you ? " (your county)" : ""}.</>}</p>
+      {d.county.aTeam.length ? <ol className="career-club__table">{d.county.aTeam.map((m, i) => <li key={m.key} className={m.you ? "is-you" : undefined}>
+        <b>{i + 1}</b><span>{m.you ? <strong>You</strong> : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}</span><em>{m.points}</em></li>)}</ol>
+        : <p className="p-4 text-sm text-white/70">The first A team is picked once a season of local results is in.</p>}
+      <h3 className="px-4 pt-2 text-sm font-bold">Inter-County Championship · Season {d.season}</h3>
+      <ol className="career-club__table">{d.county.standings.slice(0, 10).map(c => <li key={c.localityKey} className={c.you ? "is-you" : undefined}>
+        <b>{c.position}</b><span>{c.name}</span><em>{c.points}</em></li>)}</ol>
+    </CareerSection>}
+    {d.nation && <CareerSection title={`${d.nation.name} national team`} icon={<Flag aria-hidden />} accent="#e4bb67">
+      <p className="px-4 pt-3 text-sm">The World Cup of Darts takes each nation's two best players on the published rankings. {d.nation.selected ? "On today's rankings you would be picked." :
+        d.nation.yourPlace ? `On today's rankings you are ${ordinal(d.nation.yourPlace)} in line.` : "You need a ranking to be considered."}</p>
+      {d.nation.candidates.length > 0 && <ol className="career-club__table">{d.nation.candidates.map((c, i) => <li key={c.key} className={c.you ? "is-you" : undefined}>
+        <b>{i + 1}</b><span>{c.you ? <strong>You</strong> : <Link href={`${base}/world/players/${c.key}/profile`}>{c.name}</Link>}{i < 2 && <small className="career-club__pro"> · In the team</small>}</span><em>{c.ranking}</em></li>)}</ol>}
+      {d.nation.worldCups.length > 0 && <ul className="career-club__history">{d.nation.worldCups.map(w => <li key={w.season}><span>Season {w.season}</span><span>{w.players.join(" & ")}</span><em>{w.you ? "You played" : ""}</em></li>)}</ul>}
+    </CareerSection>}
     <CareerSection title="Club history" icon={<Crown aria-hidden />} accent="#e9c77a">
       {honours.length > 0 && <p className="px-4 pt-3 text-sm">Division titles: {honours.map(h => `Division ${h.division}, season ${h.season}`).join(" · ")}</p>}
       {d.history.length ? <ul className="career-club__history">{[...d.history].reverse().map(h => <li key={h.season}>
