@@ -11,7 +11,7 @@ export function stageForAge(age: number, peakStart: number, peakEnd: number): Np
   return age < 23 ? "PROSPECT" : age < peakStart ? "DEVELOPING" : age <= peakEnd ? "PRIME" : "VETERAN";
 }
 
-function generateNpc(seed: string, version: number, worldKey: string, tier: Tier, season: number, names: Set<string>, prospect: boolean, ageRange?: readonly [number, number]): Npc {
+export function generateNpc(seed: string, version: number, worldKey: string, tier: Tier, season: number, names: Set<string>, prospect: boolean, ageRange?: readonly [number, number]): Npc {
   const identity = scopedRandom(seed, version, "identity", worldKey);
   const attributes = scopedRandom(seed, version, "attributes", worldKey);
   const development = scopedRandom(seed, version, "development-profile", worldKey);

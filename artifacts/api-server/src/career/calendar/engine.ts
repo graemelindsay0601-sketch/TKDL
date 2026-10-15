@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
-import { loadNpcs } from "../world/repository.ts";
+import { loadNpcs, persistNpcs } from "../world/repository.ts";
 import { scopedRandom, stableUuid, normal } from "../world/random.ts";
 import { simulateMatchesInTransaction, type Root, type World } from "../world/service.ts";
 import type { Npc } from "../world/types.ts";
@@ -16,6 +16,7 @@ import { generateKnockoutDraw, finishingPosition, stageName } from "./draw.ts";
 import { careerAge, type CareerIdentity } from "../identity/age.ts";
 import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups, playingDays } from "./group-engine.ts";
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
+import { substitutesFor } from "./substitutes.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
 export const HUMAN = "HUMAN";
@@ -438,6 +439,20 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * Math.max(0.01, geographyWeight(snapshot.geography, geo, npc)),
       Math.min(capacity, event.minimum_entrants) - taken.size, topUp)) add(npc, "SELECTION");
   }
+  // v14+: still short (everyone eligible is playing elsewhere that day)? Substitute club players from the event's
+  // own area make up the field, as real events always find players. They join the world as ordinary players.
+  if (substitutesApply(event)) {
+    let want = Math.min(capacity, Math.max(event.minimum_entrants, pairs ? 4 : 2));
+    if (pairs && want % 2) want = Math.min(capacity - capacity % 2, want + 1);
+    if (taken.size < want) {
+      const subs = substitutesFor(root.world_seed, root.world_generation_version, event, want - taken.size, npcs, snapshot.npcTierWeights)
+        .filter(npc => eligible(npc));
+      if (subs.length) {
+        await persistNpcs(tx, saveId, subs);
+        for (const npc of subs) { (npcs as Npc[]).push(npc); byId.set(npc.id, npc); add(npc, "SELECTION"); }
+      }
+    }
+  }
   if (pairs && snapshot.format.pairing === "LOCAL") {
     const order = [...existing.map(row => String(row.participant_key)), ...additions.map(a => a.participant_key)];
     const human = humanParticipant(root, providers);
@@ -450,7 +465,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     }
   }
   const entrants = taken.size;
-  if (entrants < event.minimum_entrants || entrants < 2 || (pairs && (teams.length < 2 || teams.length * 2 !== entrants))) {
+  if (entrants < runsWith(event) || entrants < 2 || (pairs && (teams.length < 2 || teams.length * 2 !== entrants))) {
     // Unfillable: cancel honestly; the human keeps no booking for a cancelled event.
     await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${saveId} AND event_id = ${event.id}`);
     forgetBookings(pre, event.id);
@@ -479,6 +494,21 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   event.entrant_count = entrants;
   return { locked: true, entrants };
 }
+
+/**
+ * Fewest entrants an event runs with. From event database v14 a knockout plays whoever turns up, as real events
+ * do: the draw shrinks to fit and the gaps are byes (two players make a final; pairs need two teams). Group and
+ * league formats keep their authored minimum (their tables need a full field).
+ */
+export const runsWith = (event: Pick<InstanceRow, "event_database_version" | "minimum_entrants" | "snapshot">) =>
+  event.event_database_version >= GUEST_TOP_UP_FROM && !isGroupedStructure(event.snapshot.format.structure)
+    ? Math.min(event.minimum_entrants, event.snapshot.format.sideSize === 2 ? 4 : 2) : event.minimum_entrants;
+
+/**
+ * Substitute club players only ever fill local, county and regional events (v14+). Bigger events lock first each
+ * week and take the players they want; they never need made-up players (and run with byes if ever short).
+ */
+export const substitutesApply = (event: InstanceRow) => guestTopUpApplies(event) && event.snapshot.format.pairing !== "NATION";
 
 /** Event database version from which short fields are topped up with guests rather than cancelled. */
 export const GUEST_TOP_UP_FROM = 14;

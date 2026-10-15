@@ -448,8 +448,9 @@ const LOCALITY_COUNTRY: Record<string, string> = Object.fromEntries([
 export const homeCountryOf = (locality: string | null | undefined) => (locality && LOCALITY_COUNTRY[locality]) || null;
 
 /** Plain words for a small local event's "will it go ahead" facts (no prediction: the field decides). */
-export function viabilityText(v: { status: "PENDING" | "CONFIRMED" | "CANCELLED"; minimum: number; fieldSetWeek: number; entrants: number | null } | null | undefined) {
+export function viabilityText(v: { status: "PENDING" | "CONFIRMED" | "CANCELLED"; minimum: number; fieldSetWeek: number; entrants: number | null; byes?: true } | null | undefined) {
   if (!v) return null;
+  if (v.byes && v.status === "PENDING") return { label: "Goes ahead", detail: `Plays whoever enters; byes fill the draw · field set in week ${v.fieldSetWeek}`, tone: "good" as const };
   if (v.status === "CONFIRMED") return { label: "Going ahead", detail: v.entrants ? `${v.entrants} players` : "Field set", tone: "good" as const };
   if (v.status === "CANCELLED") return { label: "Cancelled", detail: `Fewer than ${v.minimum} players entered`, tone: "danger" as const };
   return { label: `Needs ${v.minimum}+ players`, detail: `Field set in week ${v.fieldSetWeek}`, tone: "neutral" as const };
