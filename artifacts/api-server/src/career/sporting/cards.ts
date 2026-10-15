@@ -78,16 +78,27 @@ export async function syncHumanCardCache(tx: CareerExecutor, root: RootRow, seas
 export async function issueFoundingCards(tx: CareerExecutor, root: RootRow, rulesVersion: number) {
   const season = Number(root.current_season), week = Number(root.current_week);
   const pros = (await tx.execute(sql`SELECT id FROM career_world_players WHERE career_save_id = ${root.id} AND status = 'ACTIVE' AND professional_status = 'PROFESSIONAL' ORDER BY world_key`)).rows;
+  if (!pros.length) return 0;
   const ends = TOUR_CARD_RULES_V1.founding.endSeasons;
-  let issued = 0;
-  for (const p of pros) {
-    const npcId = String(p.id);
+  // Same cards and guards as awardCard, in one read and one insert (one card per founding professional).
+  const keys = pros.map(p => `founding:${String(p.id)}`), ids = pros.map(p => String(p.id));
+  const existing = new Map((await tx.execute(sql`SELECT operation_key, participant_key, source FROM career_tour_cards WHERE career_save_id = ${root.id}
+    AND operation_key IN (${sql.join(keys.map(k => sql`${k}`), sql`, `)})`)).rows.map(r => [String(r.operation_key), r]));
+  const holding = new Set((await tx.execute(sql`SELECT participant_key FROM career_tour_cards WHERE career_save_id = ${root.id} AND status = 'ACTIVE'
+    AND participant_key IN (${sql.join(ids.map(k => sql`${k}`), sql`, `)})`)).rows.map(r => String(r.participant_key)));
+  const detail = JSON.stringify({ reason: "Existing professional when the Career world was generated" });
+  const rows = [];
+  for (const npcId of ids) {
+    const operationKey = `founding:${npcId}`, prior = existing.get(operationKey);
+    if (prior) { if (String(prior.participant_key) !== npcId || prior.source !== "FOUNDING") throw new Error("Tour Card operation identity reused with different inputs"); continue; }
+    if (holding.has(npcId)) continue;
     const offset = ends[parseInt(stableUuid(root.world_seed, rulesVersion, "founding-card-term", npcId).slice(0, 8), 16) % ends.length];
-    const result = await awardCard(tx, root, rulesVersion, { operationKey: `founding:${npcId}`, participantKey: npcId, participantKind: "NPC", npcId, source: "FOUNDING",
-      detail: { reason: "Existing professional when the Career world was generated" }, season, week, startSeason: season, endSeason: season + offset - 1 });
-    if (result?.created) issued++;
+    const id = stableUuid(root.world_seed, rulesVersion, "tour-card", root.id, operationKey);
+    rows.push(sql`(${root.id}, ${id}, ${operationKey}, ${npcId}, 'NPC', ${npcId}, 'FOUNDING', ${detail}::jsonb, NULL, ${season}, ${week}, ${season}, ${season + offset - 1}, 'ACTIVE', NULL, ${rulesVersion})`);
   }
-  return issued;
+  if (rows.length) await tx.execute(sql`INSERT INTO career_tour_cards (career_save_id, id, operation_key, participant_key, participant_kind, npc_id, source, source_detail, source_event_id,
+      awarded_season, awarded_week, start_season, end_season, status, previous_card_id, tour_card_rules_version) VALUES ${sql.join(rows, sql`, `)}`);
+  return rows.length;
 }
 
 /**
