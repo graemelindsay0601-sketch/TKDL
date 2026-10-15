@@ -504,9 +504,11 @@ export const runsWith = (event: Pick<InstanceRow, "event_database_version" | "mi
   event.event_database_version >= GUEST_TOP_UP_FROM && !isGroupedStructure(event.snapshot.format.structure)
     ? Math.min(event.minimum_entrants, event.snapshot.format.sideSize === 2 ? 4 : 2) : event.minimum_entrants;
 
-/** Selection events (no invitation list, not national team selection) that take substitutes when short (v14+). */
-export const substitutesApply = (event: InstanceRow) => event.snapshot.fieldPolicy === "SELECTION" && !event.snapshot.invitationPolicy
-  && event.snapshot.format.pairing !== "NATION" && event.event_database_version >= GUEST_TOP_UP_FROM;
+/**
+ * Substitute club players only ever fill local, county and regional events (v14+). Bigger events lock first each
+ * week and take the players they want; they never need made-up players (and run with byes if ever short).
+ */
+export const substitutesApply = (event: InstanceRow) => guestTopUpApplies(event) && event.snapshot.format.pairing !== "NATION";
 
 /** Event database version from which short fields are topped up with guests rather than cancelled. */
 export const GUEST_TOP_UP_FROM = 14;
