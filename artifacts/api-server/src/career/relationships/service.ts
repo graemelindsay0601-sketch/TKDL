@@ -52,13 +52,23 @@ export function createCareerRelationshipsService(database: CareerDatabase) {
       // Only an actually played match proves attendance. Result/entry rows alone
       // also include post-lock withdrawals. Q-School session = season + pathway/stage
       // series; Junior overlap = same actual event, not merely same age/year.
-      const shared = (await tx.execute(sql`WITH participation AS (
+      // Only the sessions the human played in are expanded (all Q-School and junior matches of every season grew with the save).
+      const shared = (await tx.execute(sql`WITH human AS (
+        SELECT DISTINCT i.season, i.circuit, i.family, CASE WHEN i.circuit='Q_SCHOOL' THEN i.series_key ELSE i.id::text END AS session
+        FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
+        WHERE m.career_save_id=${saveId} AND (m.a_key='HUMAN' OR m.b_key='HUMAN') AND (i.circuit='Q_SCHOOL' OR i.family='junior-development-circuit')
+      ), sessions AS (
+        SELECT i.id FROM career_event_instances i JOIN human h ON h.season=i.season AND h.circuit=i.circuit AND h.family=i.family
+          AND h.session=CASE WHEN i.circuit='Q_SCHOOL' THEN i.series_key ELSE i.id::text END
+        WHERE i.career_save_id=${saveId}
+      ), participation AS (
         SELECT DISTINCT i.season, i.name, i.id AS event_id, i.circuit, i.family,
           CASE WHEN i.circuit='Q_SCHOOL' THEN i.series_key ELSE i.id::text END AS session,
           p.key
         FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
         CROSS JOIN LATERAL (VALUES(m.a_key),(m.b_key)) p(key)
-        WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND m.a_key IS NOT NULL AND m.b_key IS NOT NULL AND m.a_key<>m.b_key
+        WHERE m.career_save_id=${saveId} AND m.event_id IN (SELECT id FROM sessions)
+          AND m.status='COMPLETED' AND m.a_key IS NOT NULL AND m.b_key IS NOT NULL AND m.a_key<>m.b_key
           AND m.winner_key IN (m.a_key,m.b_key) AND COALESCE(m.result_source,'') NOT IN ('BYE','WALKOVER')
           AND (i.circuit='Q_SCHOOL' OR i.family='junior-development-circuit')
       )

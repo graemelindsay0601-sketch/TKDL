@@ -3,7 +3,10 @@ import type { Award, Card, Evidence, Induction, LegacyView, Player, Ranking, Rec
 export const YOUNG_MAX_AGE = 23; // public age at the start of the season; never an ability input
 export const zero=(id:string,season=0):Totals=>({id,season,appearances:0,titles:0,finals:0,majorTitles:0,worlds:0,amateurTitles:0,nationalTitles:0,proTitles:0,wins:0,losses:0});
 const fields=["appearances","titles","finals","majorTitles","worlds","amateurTitles","nationalTitles","proTitles","wins","losses"] as const;
-export const nameOf=(e:Evidence,id:string)=>e.players.find(p=>p.id===id)?.name??"Recorded participant";
+/** Players by id, built once per evidence (linear finds per result row were the slowest part of long-save Legacy). */
+const playerIndex=new WeakMap<Evidence,Map<string,Player>>();
+const playerOf=(e:Evidence,id:string)=>{let index=playerIndex.get(e);if(!index){index=new Map(e.players.map(p=>[p.id,p]));playerIndex.set(e,index);}return index.get(id);};
+export const nameOf=(e:Evidence,id:string)=>playerOf(e,id)?.name??"Recorded participant";
 export function aggregate(e:Evidence,through=e.currentSeason):Totals[] {
   const map=new Map<string,Totals>();
   for(const row of e.totals.filter(t=>t.season<=through)) {
@@ -32,7 +35,7 @@ export function seasonAwards(e:Evidence,season:number):Award[] {
   const amateur=[...rows].filter(t=>t.amateurTitles>0).sort((a,b)=>b.nationalTitles-a.nationalTitles||b.amateurTitles-a.amateurTitles||b.finals-a.finals||a.id.localeCompare(b.id))[0];
   add("Amateur Player of the Season",amateur,`${amateur?.amateurTitles??0} amateur titles, including ${amateur?.nationalTitles??0} national/open-circuit titles.`,amateur?[`A3:amateur:${season}:${amateur.id}`]:[]);
   const young=rows.filter(t=>{
-    const p=e.players.find(p=>p.id===t.id);
+    const p=playerOf(e,t.id);
     const age=t.id==="HUMAN"?(e.ages?.find(a=>a.participant==="HUMAN"&&a.season===season)?.atStart??(season===1?p?.startingAge:null)):
       p?.startingAge==null?null:p.startingAge+season-p.createdSeason;
     return age!=null&&age>=0&&age<=YOUNG_MAX_AGE;
@@ -63,7 +66,7 @@ export function descriptors(t:Totals,best:Ranking|null,cards:Card[]):string[] {
 export function hall(e:Evidence,through=e.currentSeason):Induction[] {
   const totals=aggregate(e,through);
   return totals.flatMap(t=>{
-    const p=e.players.find(p=>p.id===t.id);if(!p?.retiredSeason||p.retiredSeason>through)return [];
+    const p=playerOf(e,t.id);if(!p?.retiredSeason||p.retiredSeason>through)return [];
     const seasons=e.totals.filter(x=>x.id===t.id&&x.season<=through&&x.appearances>0).length;
     const route=t.worlds>=2||(t.majorTitles>=4&&t.proTitles>=8)?"Professional Great":
       t.amateurTitles>=20&&t.nationalTitles>=5&&seasons>=5?"Amateur Great":

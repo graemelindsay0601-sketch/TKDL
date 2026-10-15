@@ -57,6 +57,7 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
     startingAge:profile?.dob&&profile?.start?ageOn(String(profile.dob),String(profile.start)):null,createdSeason:1},
     ...npcs.map(r=>({id:String(r.id),name:`${r.first_name} ${r.surname}`,startingAge:n(r,"starting_age"),
       createdSeason:n(r,"created_season"),retiredSeason:r.retired_season?n(r,"retired_season"):null}))];
+  const names=new Map(players.map(p=>[p.id,p.name]));
   // Aggregate immutable results in SQL; do not snapshot full NPC/match databases. Finished seasons are stored once
   // (career_legacy_season_totals); only seasons still being played are aggregated live.
   const totals=await seasonTotals(tx,id,Number(root.current_season));
@@ -67,7 +68,7 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
       (r.is_champion OR r.stage_reached='FINAL' OR r.participant_key='HUMAN')
     ORDER BY i.season,i.end_day,i.id,r.participant_key`)).rows.map(r=>({
       id:`result:${r.id}:${r.participant_key}`,key:String(r.definition_key),name:String(r.name),season:n(r,"season"),day:n(r,"end_day"),
-      participant:String(r.participant_key),participantName:players.find(p=>p.id===String(r.participant_key))?.name??"Recorded participant",
+      participant:String(r.participant_key),participantName:names.get(String(r.participant_key))??"Recorded participant",
       position:n(r,"finishing_position"),champion:r.is_champion===true,
       final:r.is_champion===true||r.stage_reached==="FINAL",circuit:String(r.circuit),tier:String(r.presentation_tier),classification:String(r.classification)}));
   // Only season endpoints, #1s and human ranks are needed, not all weekly rows.
@@ -82,7 +83,7 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
       id:String(r.id),season:n(r,"season"),week:n(r,"week"),participant:String(r.participant_key),position:n(r,"position")}));
   const cards:Card[]=(await tx.execute(sql`SELECT id,participant_key,source,awarded_season,awarded_week,start_season,end_season,ended_season,ended_week,status
     FROM career_tour_cards WHERE career_save_id=${id} ORDER BY awarded_season,awarded_week,id`)).rows.map(r=>({
-      id:String(r.id),participant:String(r.participant_key),participantName:players.find(p=>p.id===String(r.participant_key))?.name??"Recorded participant",
+      id:String(r.id),participant:String(r.participant_key),participantName:names.get(String(r.participant_key))??"Recorded participant",
       source:String(r.source),awardedSeason:n(r,"awarded_season"),awardedWeek:n(r,"awarded_week"),
       startSeason:n(r,"start_season"),endSeason:n(r,"end_season"),endedSeason:r.ended_season?n(r,"ended_season"):null,
       endedWeek:r.ended_week?n(r,"ended_week"):null,status:String(r.status)}));

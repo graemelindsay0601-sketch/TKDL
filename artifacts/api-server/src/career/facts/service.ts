@@ -31,14 +31,17 @@ export function createCareerFactsService(database: CareerDatabase) {
       const weekDay = (r: Row, field='week') => (num(r,field)-1)*7+1;
       const resultRows = await query(sql`SELECT r.*, i.name, i.circuit, i.classification, i.presentation_tier, i.country, i.start_day, i.end_day,
           CASE WHEN r.participant_key='HUMAN' THEN COALESCE(p.display_name,s.career_name,'You') ELSE concat(n.first_name,' ',n.surname) END AS participant_name
-        FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
+        -- The human's results, plus the champions of the latest events: every champion of every season was ~1,800 a
+        -- season (6 MB by season 6); the facts view keeps the latest ones and the Legacy archive the full history.
+        FROM (SELECT * FROM career_event_results WHERE career_save_id=${saveId} AND participant_key='HUMAN'
+          UNION ALL SELECT * FROM career_event_results WHERE career_save_id=${saveId} AND participant_key<>'HUMAN' AND is_champion AND event_id IN (
+            SELECT ci.id FROM career_event_instances ci WHERE ci.career_save_id=${saveId} AND ci.season>=${Number(root.current_season)-1}
+              AND ci.status='COMPLETED' AND ci.champion_participant_key IS NOT NULL
+            ORDER BY ci.season DESC,ci.end_day DESC,ci.id LIMIT ${WORLD_CHAMPIONS_SHOWN})) r
+        JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
         JOIN career_saves s ON s.id=r.career_save_id LEFT JOIN career_profiles p ON p.career_save_id=r.career_save_id
         LEFT JOIN career_world_players n ON n.career_save_id=r.career_save_id AND n.id=r.npc_id
-        WHERE r.career_save_id=${saveId} AND i.status='COMPLETED' AND (r.participant_key='HUMAN' OR (r.is_champion AND i.id IN (
-          -- Every champion of every season was ~1,800 a season (6 MB by season 6); the facts view keeps the latest ones,
-          -- and the Legacy archive keeps the full history by event.
-          SELECT ci.id FROM career_event_instances ci WHERE ci.career_save_id=${saveId} AND ci.status='COMPLETED' AND ci.champion_participant_key IS NOT NULL
-          ORDER BY ci.season DESC,ci.end_day DESC,ci.id LIMIT ${WORLD_CHAMPIONS_SHOWN})))`);
+        WHERE i.status='COMPLETED'`);
       const allResults: EventFact[] = resultRows.map(r => ({
         ...fact(`result:${text(r,'event_id')}:${text(r,'participant_key')}`, 'A3 event result', `${text(r,'name')}: ${label(text(r,'stage_reached'))}`, num(r,'season'),num(r,'end_day'),text(r,'event_id'),object(r.metadata).humanAge),
         // A6.5 result humanAge is explicitly age at event START, not completion.
