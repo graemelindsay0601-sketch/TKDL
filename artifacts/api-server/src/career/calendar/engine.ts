@@ -88,6 +88,17 @@ async function transition(tx: CareerExecutor, event: InstanceRow, to: EventStatu
   event.status_reason = extra.reason ?? null;
 }
 
+/** REGISTRATION_OPEN -> REGISTRATION_CLOSED for many events in one statement (the history trigger checks each row). */
+async function closeRegistrations(tx: CareerExecutor, events: InstanceRow[]) {
+  const open = events.filter(e => e.status === "REGISTRATION_OPEN");
+  if (!open.length) return;
+  assertTransition("REGISTRATION_OPEN", "REGISTRATION_CLOSED");
+  const updated = await tx.execute(sql`UPDATE career_event_instances SET status = 'REGISTRATION_CLOSED', status_reason = NULL
+    WHERE career_save_id = ${open[0].career_save_id} AND status = 'REGISTRATION_OPEN' AND id IN (${sql.join(open.map(e => sql`${e.id}::uuid`), sql`, `)}) RETURNING id`);
+  if (updated.rows.length !== open.length) throw new CareerError(409, "Career event changed concurrently");
+  for (const e of open) { e.status = "REGISTRATION_CLOSED"; e.status_reason = null; }
+}
+
 // ------------------------------------------------------------------ seasons
 export const calendarHash = (drafts: readonly EventInstanceDraft[]) => createHash("sha256").update(canonicalJson(drafts.map(d => [d.id, d.instanceKey, d.startDay, d.endDay, d.snapshot.resolvedFrom.definitionHash]))).digest("hex");
 
@@ -161,6 +172,11 @@ export async function loadFactsContext(tx: CareerExecutor, saveId: string, seaso
   }
   const definitions = new Set<string>();
   rules.forEach(rule => collectResultKeys(rule, definitions));
+  const results = await loadResultFacts(tx, saveId, season, definitions);
+  return { season, entitlements, results, champions: await previousChampions(tx, saveId, season) };
+}
+/** Best finishing position per participant/definition this season and last (only for EVENT_RESULT rules in play). */
+async function loadResultFacts(tx: CareerExecutor, saveId: string, season: number, definitions: ReadonlySet<string>): Promise<FactsContext["results"]> {
   const results = { SAME: new Map<string, Map<string, number>>(), PREVIOUS: new Map<string, Map<string, number>>() };
   if (definitions.size) {
     for (const row of (await tx.execute(sql`SELECT participant_key, definition_key, season, MIN(finishing_position) AS best FROM career_event_results
@@ -172,7 +188,7 @@ export async function loadFactsContext(tx: CareerExecutor, saveId: string, seaso
       bucket.get(key)!.set(String(row.definition_key), Number(row.best));
     }
   }
-  return { season, entitlements, results, champions: await previousChampions(tx, saveId, season) };
+  return results;
 }
 /** Last season's champions: closed history, so loaded once per transaction (every field lock reads it). */
 const championsByTx = new WeakMap<CareerExecutor, Map<string, Map<string, Set<string>>>>();
@@ -255,6 +271,66 @@ async function exclusiveConflicts(tx: CareerExecutor, saveId: string, event: Ins
 }
 export { exclusiveConflicts };
 
+// ------------------------------------------------------------------ week preload (batched field locks)
+/**
+ * What every field lock of one week reads, loaded once and kept current in memory as each event locks
+ * (bookings added/removed, entitlements consumed). lockField reads it instead of querying per event;
+ * results are identical to the per-event queries because nothing else writes these rows mid-week.
+ */
+export type LockPreload = {
+  season: number;
+  bookings: Map<number, Map<string, string>>;        // day -> participant -> event
+  entries: Map<string, Record<string, unknown>[]>;   // event -> non-withdrawn entries
+  entitlements: { id: string; recipient_key: string; recipient_kind: string; target_key: string; consumption: string; active: boolean }[]; // ACTIVE at load, query order
+  results: FactsContext["results"];
+};
+export async function preloadLocks(tx: CareerExecutor, saveId: string, season: number, events: readonly InstanceRow[]): Promise<LockPreload> {
+  const days = new Set<number>();
+  for (const e of events) {
+    if (e.snapshot.format.structure === "LEAGUE") playingDays(e).forEach(d => days.add(d));
+    else for (let d = e.start_day; d <= e.end_day; d++) days.add(d);
+  }
+  const bookings = new Map<number, Map<string, string>>();
+  if (days.size) for (const r of (await tx.execute(sql`SELECT day, participant_key, event_id FROM career_participant_bookings
+      WHERE career_save_id = ${saveId} AND season = ${season} AND day IN (${sql.join([...days].map(d => sql`${d}`), sql`, `)})`)).rows) {
+    const day = Number(r.day);
+    if (!bookings.has(day)) bookings.set(day, new Map());
+    bookings.get(day)!.set(String(r.participant_key), String(r.event_id));
+  }
+  const entries = new Map<string, Record<string, unknown>[]>(events.map(e => [e.id, []]));
+  if (events.length) for (const r of (await tx.execute(sql`SELECT * FROM career_event_entries WHERE career_save_id = ${saveId} AND status <> 'WITHDRAWN'
+      AND event_id IN (${sql.join(events.map(e => sql`${e.id}::uuid`), sql`, `)})`)).rows) entries.get(String(r.event_id))?.push(r);
+  const entitlements = (await tx.execute(sql`SELECT id, recipient_key, recipient_kind, target_key, consumption FROM career_qualification_entitlements
+      WHERE career_save_id = ${saveId} AND target_season = ${season} AND status = 'ACTIVE' ORDER BY created_at, source_position NULLS LAST, id`)).rows
+    .map(r => ({ id: String(r.id), recipient_key: String(r.recipient_key), recipient_kind: String(r.recipient_kind), target_key: String(r.target_key), consumption: String(r.consumption), active: true }));
+  const definitions = new Set<string>();
+  events.forEach(e => collectResultKeys(e.snapshot.eligibility, definitions));
+  return { season, bookings, entries, entitlements, results: await loadResultFacts(tx, saveId, season, definitions) };
+}
+function bookedFrom(pre: LockPreload, days: readonly number[]) {
+  const out = new Set<string>();
+  for (const d of days) for (const key of pre.bookings.get(d)?.keys() ?? []) out.add(key);
+  return out;
+}
+function rememberBookings(pre: LockPreload, event: InstanceRow, participants: readonly string[]) {
+  for (const key of participants) for (const d of playingDays(event)) {
+    if (!pre.bookings.has(d)) pre.bookings.set(d, new Map());
+    pre.bookings.get(d)!.set(key, event.id);
+  }
+}
+/** The same facts loadFactsContext returns, from the preload (ACTIVE entitlements as they stand now). */
+async function factsFromPreload(tx: CareerExecutor, saveId: string, pre: LockPreload): Promise<FactsContext> {
+  const entitlements = new Map<string, Set<string>>();
+  for (const e of pre.entitlements) if (e.active) {
+    if (!entitlements.has(e.recipient_key)) entitlements.set(e.recipient_key, new Set());
+    entitlements.get(e.recipient_key)!.add(e.target_key);
+  }
+  return { season: pre.season, entitlements, results: pre.results, champions: await previousChampions(tx, saveId, pre.season) };
+}
+export function forgetBookings(pre: LockPreload | undefined, eventId: string) {
+  if (pre) for (const day of pre.bookings.values()) for (const [key, id] of day) if (id === eventId) day.delete(key);
+}
+
 // ------------------------------------------------------------------ field assembly
 type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; npc_id: string | null; source: string; entitlement_id: string | null };
 
@@ -265,17 +341,19 @@ type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; np
  * bookings and consumed entitlements once; the instance then leaves
  * REGISTRATION_CLOSED so this can never run twice for the same event.
  */
-export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number): Promise<{ locked: boolean; entrants: number }> {
+export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload): Promise<{ locked: boolean; entrants: number }> {
   const saveId = root.id, snapshot = event.snapshot;
-  const booked = event.snapshot.format.structure === "LEAGUE" ? await bookedOnDays(tx, saveId, event.season, playingDays(event))
+  if (pre && pre.season !== event.season) throw new Error("Lock preload is for another season");
+  const eventDays = event.snapshot.format.structure === "LEAGUE" ? playingDays(event) : Array.from({ length: event.end_day - event.start_day + 1 }, (_, i) => event.start_day + i);
+  const booked = pre ? bookedFrom(pre, eventDays) : event.snapshot.format.structure === "LEAGUE" ? await bookedOnDays(tx, saveId, event.season, eventDays)
     : await bookedParticipants(tx, saveId, event.season, event.start_day, event.end_day);
   const excluded = await exclusiveConflicts(tx, saveId, event);
-  const existing = (await tx.execute(sql`SELECT * FROM career_event_entries WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`)).rows;
+  const existing = pre ? pre.entries.get(event.id) ?? [] : (await tx.execute(sql`SELECT * FROM career_event_entries WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`)).rows;
   const taken = new Set(existing.map(row => String(row.participant_key)));
   const capacity = event.field_size;
   const additions: NewEntry[] = [];
   const consumed: string[] = [];
-  const ctx = await loadFactsContext(tx, saveId, event.season, [snapshot.eligibility]);
+  const ctx = pre ? await factsFromPreload(tx, saveId, pre) : await loadFactsContext(tx, saveId, event.season, [snapshot.eligibility]);
   const free = (npc: Npc) => !taken.has(npc.id) && !booked.has(npc.id) && !excluded.has(npc.id);
   const add = (npc: Npc, source: string, entitlementId: string | null = null) => {
     taken.add(npc.id); additions.push({ participant_key: npc.id, participant_kind: "NPC", npc_id: npc.id, source, entitlement_id: entitlementId });
@@ -295,7 +373,9 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     }
   }
   if (snapshot.entitlementIntake.length) {
-    const rows = (await tx.execute(sql`SELECT id, recipient_key, consumption FROM career_qualification_entitlements
+    const intake = new Set(snapshot.entitlementIntake);
+    const rows = pre ? pre.entitlements.filter(e => e.active && e.recipient_kind === "NPC" && intake.has(e.target_key))
+      : (await tx.execute(sql`SELECT id, recipient_key, consumption FROM career_qualification_entitlements
       WHERE career_save_id = ${saveId} AND target_season = ${event.season} AND status = 'ACTIVE' AND recipient_kind = 'NPC'
         AND target_key IN (${sql.join(snapshot.entitlementIntake.map(k => sql`${k}`), sql`, `)})
       ORDER BY created_at, source_position NULLS LAST, id`)).rows;
@@ -362,6 +442,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   if (entrants < event.minimum_entrants || entrants < 2 || (pairs && (teams.length < 2 || teams.length * 2 !== entrants))) {
     // Unfillable: cancel honestly; the human keeps no booking for a cancelled event.
     await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${saveId} AND event_id = ${event.id}`);
+    forgetBookings(pre, event.id);
     await tx.execute(sql`UPDATE career_event_entries SET status = 'WITHDRAWN', withdrawn_at = NOW() WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`);
     await transition(tx, event, "CANCELLED", { reason: "INSUFFICIENT_ENTRANTS" });
     await providers.finance?.onEventCancelled(tx, root, event, "INSUFFICIENT_ENTRANTS");
@@ -373,12 +454,14 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
       SELECT ${saveId}::uuid, ${event.id}::uuid, a.participant_key, a.participant_kind, a.npc_id, a.source, a.entitlement_id, 'CONFIRMED', ${event.season}, ${week}
       FROM jsonb_to_recordset(${JSON.stringify(additions)}::jsonb) AS a(participant_key text, participant_kind text, npc_id uuid, source text, entitlement_id uuid) RETURNING 1)
       ${bookingsInsert(saveId, event.season, event, additions.map(a => a.participant_key))}`);
+    if (pre) rememberBookings(pre, event, additions.map(a => a.participant_key));
   }
   if (existing.some(row => row.status === "ENTERED"))
     await tx.execute(sql`UPDATE career_event_entries SET status = 'CONFIRMED' WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status = 'ENTERED'`);
   if (consumed.length) {
     await tx.execute(sql`UPDATE career_qualification_entitlements SET status = 'CONSUMED', consumed_by_event_id = ${event.id}, resolved_at = NOW()
       WHERE career_save_id = ${saveId} AND status = 'ACTIVE' AND id IN (${sql.join(consumed.map(id => sql`${id}::uuid`), sql`, `)})`);
+    if (pre) for (const e of pre.entitlements) if (consumed.includes(e.id)) e.active = false;
   }
   await insertPairs(tx, saveId, event.id, teams);
   await transition(tx, event, "DRAW_PENDING", { set: sql`entrant_count = ${entrants}, field_locked_at = NOW()` });
@@ -390,56 +473,82 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
 export const matchKeyFor = (event: InstanceRow, stage: string, round: number, slot: number) => `a3:${event.id}:${stage}:r${round}:m${slot}`;
 const roundDay = (event: InstanceRow, round: number, rounds: number) => event.start_day + Math.floor((round - 1) * (event.end_day - event.start_day + 1) / rounds);
 
-/** Official draw: generated once from the locked field, persisted with every bracket slot. */
+/**
+ * Official draws for a week's locked events: generated once from each locked field, persisted with every
+ * bracket slot. One read for every field, then one write each for matches, seeds and the two status steps
+ * (DRAWN, IN_PROGRESS) across all events, instead of five round trips per event. Draws are independent.
+ */
+/** One event's official draw (the batched path with a single event). */
 export async function makeDraw(tx: CareerExecutor, root: RootRow, event: InstanceRow, providers: CalendarProviders) {
-  if (event.status !== "DRAW_PENDING") throw new CareerError(409, "Draw requires a locked field");
-  // Existing-draw guard and the confirmed field in one round trip.
-  const field = (await tx.execute(sql`SELECT EXISTS (SELECT 1 FROM career_tournament_matches WHERE career_save_id = ${root.id} AND event_id = ${event.id}) AS already,
-      COALESCE((SELECT jsonb_agg(jsonb_build_object('participant_key', participant_key, 'npc_id', npc_id) ORDER BY participant_key)
-        FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status = 'CONFIRMED'), '[]'::jsonb) AS entries`)).rows[0];
-  if (field.already === true) throw new CareerError(409, "Official draw already exists");
-  const allEntries = field.entries as { participant_key: string; npc_id: string | null }[];
-  // Pairs: the bracket holds each team's captain.
-  const captains = event.snapshot.format.sideSize === 2 ? new Set([...(await loadPairs(tx, root.id, [event.id])).values()].map(p => p.captain_key)) : null;
-  const entries = captains ? allEntries.filter(row => captains.has(String(row.participant_key))) : allEntries;
-  const keys = entries.map(row => String(row.participant_key));
-  const npcOf = new Map(entries.map(row => [String(row.participant_key), row.npc_id ? String(row.npc_id) : null]));
-  const policy = event.snapshot.seedingPolicy;
-  const seeded = policy.list ? providers.seeding.order(policy.list, keys) : [];
-  const draw = generateKnockoutDraw(keys, seeded, policy.seeds, scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "draw", event.season, event.instance_key));
-  const groups = isGroupedStructure(event.snapshot.format.structure), layout = layoutFor(event.snapshot.format.structure);
-  const stage = groups ? "knockout" : event.snapshot.format.stages[0].key;
-  const rows: Record<string, unknown>[] = groups ? makeGroupRows(root, event, draw.positions.map(p => p.participantKey), layout) : [];
-  const rounds = groups ? layout.knockoutRounds : draw.rounds;
-  for (let round = 1; round <= rounds; round++) {
-    const slots = (groups ? 2 ** layout.knockoutRounds : draw.size) / 2 ** round;
-    for (let slot = 1; slot <= slots; slot++) {
-      const a = !groups && round === 1 ? draw.positions[(slot - 1) * 2].participantKey : null;
-      const b = !groups && round === 1 ? draw.positions[(slot - 1) * 2 + 1].participantKey : null;
-      const bye = !groups && round === 1 && (!a || !b);
-      rows.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "tournament-match", event.id, stage, round, slot), stage_key: stage, round, slot,
-        best_of: groups ? event.snapshot.format.stages[1].bestOfByRound[round - 1] : bestOfForRound(event.snapshot.format, round, draw.rounds),
-        // League play-offs (semi-finals and final) are on the last night.
-        scheduled_day: groups ? (layout.kind === "LEAGUE" ? event.end_day : tournamentDay(event, round + 3, 6)) : roundDay(event, round, draw.rounds),
-        a_key: a, b_key: b, a_npc_id: a ? npcOf.get(a) : null, b_npc_id: b ? npcOf.get(b) : null,
-        status: bye ? "BYE" : "PENDING", winner_key: bye ? (a ?? b) : null, result_source: bye ? "BYE" : null,
-        first_throw_method: event.snapshot.format.firstThrowMethod });
+  await makeDraws(tx, root, [event], providers);
+}
+export async function makeDraws(tx: CareerExecutor, root: RootRow, events: readonly InstanceRow[], providers: CalendarProviders) {
+  if (!events.length) return;
+  for (const event of events) if (event.status !== "DRAW_PENDING") throw new CareerError(409, "Draw requires a locked field");
+  const ids = sql.join(events.map(e => sql`${e.id}::uuid`), sql`, `);
+  // Existing-draw guard and the confirmed field of every event in one round trip.
+  const fields = new Map((await tx.execute(sql`SELECT i.id, EXISTS (SELECT 1 FROM career_tournament_matches m WHERE m.career_save_id = i.career_save_id AND m.event_id = i.id) AS already,
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('participant_key', e.participant_key, 'npc_id', e.npc_id) ORDER BY e.participant_key)
+        FROM career_event_entries e WHERE e.career_save_id = i.career_save_id AND e.event_id = i.id AND e.status = 'CONFIRMED'), '[]'::jsonb) AS entries
+    FROM career_event_instances i WHERE i.career_save_id = ${root.id} AND i.id IN (${ids})`)).rows.map(r => [String(r.id), r]));
+  const pairEvents = events.filter(e => e.snapshot.format.sideSize === 2).map(e => e.id);
+  const pairs = await loadPairs(tx, root.id, pairEvents);
+  const matchRows: Record<string, unknown>[] = [], seedRows: Record<string, unknown>[] = [], drawn: { id: string; draw: unknown }[] = [];
+  for (const event of events) {
+    const field = fields.get(event.id);
+    if (!field || field.already === true) throw new CareerError(409, "Official draw already exists");
+    const allEntries = field.entries as { participant_key: string; npc_id: string | null }[];
+    // Pairs: the bracket holds each team's captain.
+    const captains = event.snapshot.format.sideSize === 2 ? new Set([...pairs.values()].filter(p => p.event_id === event.id).map(p => p.captain_key)) : null;
+    const entries = captains ? allEntries.filter(row => captains.has(String(row.participant_key))) : allEntries;
+    const keys = entries.map(row => String(row.participant_key));
+    const npcOf = new Map(entries.map(row => [String(row.participant_key), row.npc_id ? String(row.npc_id) : null]));
+    const policy = event.snapshot.seedingPolicy;
+    const seeded = policy.list ? providers.seeding.order(policy.list, keys) : [];
+    const draw = generateKnockoutDraw(keys, seeded, policy.seeds, scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "draw", event.season, event.instance_key));
+    const groups = isGroupedStructure(event.snapshot.format.structure), layout = layoutFor(event.snapshot.format.structure);
+    const stage = groups ? "knockout" : event.snapshot.format.stages[0].key;
+    const rows: Record<string, unknown>[] = groups ? makeGroupRows(root, event, draw.positions.map(p => p.participantKey), layout) : [];
+    const rounds = groups ? layout.knockoutRounds : draw.rounds;
+    for (let round = 1; round <= rounds; round++) {
+      const slots = (groups ? 2 ** layout.knockoutRounds : draw.size) / 2 ** round;
+      for (let slot = 1; slot <= slots; slot++) {
+        const a = !groups && round === 1 ? draw.positions[(slot - 1) * 2].participantKey : null;
+        const b = !groups && round === 1 ? draw.positions[(slot - 1) * 2 + 1].participantKey : null;
+        const bye = !groups && round === 1 && (!a || !b);
+        rows.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "tournament-match", event.id, stage, round, slot), stage_key: stage, round, slot,
+          best_of: groups ? event.snapshot.format.stages[1].bestOfByRound[round - 1] : bestOfForRound(event.snapshot.format, round, draw.rounds),
+          // League play-offs (semi-finals and final) are on the last night.
+          scheduled_day: groups ? (layout.kind === "LEAGUE" ? event.end_day : tournamentDay(event, round + 3, 6)) : roundDay(event, round, draw.rounds),
+          a_key: a, b_key: b, a_npc_id: a ? npcOf.get(a) : null, b_npc_id: b ? npcOf.get(b) : null,
+          status: bye ? "BYE" : "PENDING", winner_key: bye ? (a ?? b) : null, result_source: bye ? "BYE" : null,
+          first_throw_method: event.snapshot.format.firstThrowMethod });
+      }
     }
+    for (const row of rows) matchRows.push({ ...row, event_id: event.id });
+    for (const p of draw.positions) if (p.participantKey && p.seed) seedRows.push({ event_id: event.id, participant_key: p.participantKey, seed: p.seed });
+    drawn.push({ id: event.id, draw: { draw: { size: draw.size, rounds: draw.rounds, byes: draw.byes, seedingProvider: providers.seeding.id, seeded: draw.seededKeys.length } } });
   }
   await tx.execute(sql`INSERT INTO career_tournament_matches (career_save_id, id, event_id, stage_key, round, slot, best_of, scheduled_day, a_key, b_key, a_npc_id, b_npc_id,
       status, winner_key, result_source, first_throw_method, completed_at)
-    SELECT ${root.id}::uuid, m.id, ${event.id}::uuid, m.stage_key, m.round, m.slot, m.best_of, m.scheduled_day, m.a_key, m.b_key, m.a_npc_id, m.b_npc_id,
+    SELECT ${root.id}::uuid, m.id, m.event_id, m.stage_key, m.round, m.slot, m.best_of, m.scheduled_day, m.a_key, m.b_key, m.a_npc_id, m.b_npc_id,
       m.status, m.winner_key, m.result_source, m.first_throw_method, CASE WHEN m.status = 'BYE' THEN NOW() END
-    FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS m(id uuid, stage_key text, round integer, slot integer, best_of integer, scheduled_day integer,
+    FROM jsonb_to_recordset(${JSON.stringify(matchRows)}::jsonb) AS m(id uuid, event_id uuid, stage_key text, round integer, slot integer, best_of integer, scheduled_day integer,
       a_key text, b_key text, a_npc_id uuid, b_npc_id uuid, status text, winner_key text, result_source text, first_throw_method text)`);
-  const seedRows = draw.positions.filter(p => p.participantKey && p.seed).map(p => ({ participant_key: p.participantKey, seed: p.seed }));
   if (seedRows.length) {
-    await tx.execute(sql`UPDATE career_event_entries e SET draw_seed = s.seed FROM jsonb_to_recordset(${JSON.stringify(seedRows)}::jsonb) AS s(participant_key text, seed integer)
-      WHERE e.career_save_id = ${root.id} AND e.event_id = ${event.id} AND e.participant_key = s.participant_key`);
+    await tx.execute(sql`UPDATE career_event_entries e SET draw_seed = s.seed FROM jsonb_to_recordset(${JSON.stringify(seedRows)}::jsonb) AS s(event_id uuid, participant_key text, seed integer)
+      WHERE e.career_save_id = ${root.id} AND e.event_id = s.event_id AND e.participant_key = s.participant_key`);
   }
-  await transition(tx, event, "DRAWN", { set: sql`drawn_at = NOW(), snapshot = snapshot || ${JSON.stringify({ draw: { size: draw.size, rounds: draw.rounds, byes: draw.byes, seedingProvider: providers.seeding.id, seeded: draw.seededKeys.length } })}::jsonb` });
-  await transition(tx, event, "IN_PROGRESS");
-  return draw;
+  // DRAW_PENDING -> DRAWN -> IN_PROGRESS for every event: two writes, each row checked by the history trigger.
+  assertTransition("DRAW_PENDING", "DRAWN"); assertTransition("DRAWN", "IN_PROGRESS");
+  const toDrawn = await tx.execute(sql`UPDATE career_event_instances i SET status = 'DRAWN', status_reason = NULL, drawn_at = NOW(), snapshot = i.snapshot || d.draw
+    FROM jsonb_to_recordset(${JSON.stringify(drawn)}::jsonb) AS d(id uuid, draw jsonb)
+    WHERE i.career_save_id = ${root.id} AND i.id = d.id AND i.status = 'DRAW_PENDING' RETURNING i.id`);
+  if (toDrawn.rows.length !== events.length) throw new CareerError(409, "Career event changed concurrently");
+  const toLive = await tx.execute(sql`UPDATE career_event_instances SET status = 'IN_PROGRESS', status_reason = NULL
+    WHERE career_save_id = ${root.id} AND status = 'DRAWN' AND id IN (${ids}) RETURNING id`);
+  if (toLive.rows.length !== events.length) throw new CareerError(409, "Career event changed concurrently");
+  for (const event of events) { event.status = "IN_PROGRESS"; event.status_reason = null; }
 }
 
 // ------------------------------------------------------------------ bull-up (first throw)
@@ -722,22 +831,28 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
     .sort((a, b) => b.calendar_priority - a.calendar_priority || a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
   const summary = { week, locked: 0, cancelledUnsupported: 0, cancelledUnfilled: 0, drawn: 0, completed: 0, simulatedMatches: 0, awaitingHuman: [] as string[] };
   const npcs = starting.length ? await loadNpcs(tx, root.id, { activeOnly: true }) : [];
+  // Close every starting event's registration in one write (each row's transition is still checked).
+  await closeRegistrations(tx, starting);
+  const pre = starting.some(e => e.status === "REGISTRATION_CLOSED" && e.executable) ? await preloadLocks(tx, root.id, season, starting) : undefined;
   for (const event of starting) {
-    if (event.status === "REGISTRATION_OPEN") await transition(tx, event, "REGISTRATION_CLOSED");
     if (event.status === "REGISTRATION_CLOSED") {
       if (!event.executable) {
         await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${root.id} AND event_id = ${event.id}`);
+        forgetBookings(pre, event.id);
         await transition(tx, event, "CANCELLED", { reason: "UNSUPPORTED_FORMAT" });
         await providers.finance?.onEventCancelled(tx, root, event, "UNSUPPORTED_FORMAT");
         summary.cancelledUnsupported++;
         continue;
       }
-      const lock = await lockField(tx, root, event, npcs, providers, week);
+      const lock = await lockField(tx, root, event, npcs, providers, week, pre);
       if (!lock.locked) { summary.cancelledUnfilled++; continue; }
       summary.locked++;
     }
-    if (event.status === "DRAW_PENDING") { await makeDraw(tx, root, event, providers); summary.drawn++; }
   }
+  // Every locked field's draw, written together (draws read nothing the locks above change).
+  const toDraw = starting.filter(e => e.status === "DRAW_PENDING");
+  await makeDraws(tx, root, toDraw, providers);
+  summary.drawn += toDraw.length;
   const live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
   const progress = await progressEvents(tx, root, world, live, lastDayOfWeek(week), providers);
   summary.simulatedMatches += progress.simulated;
