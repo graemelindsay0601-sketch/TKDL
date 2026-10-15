@@ -10,6 +10,7 @@ import { createCareerRecognitionService } from "../recognition/service.ts";
 import { careerDate } from "../identity/age.ts";
 import { contentId, npcPersonality } from "./content.ts";
 import { loadFanFollowing } from "../fans/service.ts";
+import { createCareerClubService } from "../club/service.ts";
 import { crowdSupport } from "../fans/model.ts";
 import { storyEngine, newsSelection, currentMoments, storyThreads } from "./stories.ts";
 import { publicProfile, relationshipTones } from "./profile.ts";
@@ -129,6 +130,7 @@ export function createCareerLifeService(database:CareerDatabase) {
     return {saveId,season:Number(root.current_season),week:Number(root.current_week),active:root.status==="ACTIVE",ready:Boolean(root.identity_dob)&&events.length>0,
       facts,relationships,recognition,decisions,commitments,publicChanges,
       fans:await loadFanFollowing(tx,saveId),
+      club:await createCareerClubService(db).read(actor,saveId),
       nineDarters:nineDarters.map(r=>({matchId:String(r.match_id),eventId:String(r.event_id),eventName:String(r.event_name),participantKey:String(r.participant_key),
         name:String(r.name),season:Number(r.season),day:Number(r.day),count:Number(r.value),source:String(r.source)})),
       tips:tips.map(r=>({npcId:String(r.npc_id),name:String(r.name),band:r.band==="ELITE"?"ELITE" as const:"TOUR" as const,season:Number(r.season),order:Number(r.ord)})),

@@ -164,6 +164,18 @@ export function storyEngine(s:LifeSources):Story[] {
       `${r.participantName}: ${r.champion?"champion":r.stageReached.toLowerCase().replaceAll("_"," ")} at ${r.name}.${earlier? r.champion?" The previous season's winner retained this title.":" The previous season's winner did not retain this title.":""}`,
       prospect?"prospect":"world",`world:${r.participantKey}`, "NEWS",rival?"RIVAL":"WORLD",r.participantKey,earlier?[earlier.id]:[]);
   }
+  // Home club: division titles, promotion and relegation in the county league, and your captaincy.
+  if(s.club?.club) {
+    const name=s.club.club.name;
+    for(const h of s.club.history) {
+      const f=(kind:string,label:string)=>({id:`club:${kind}:${h.season}`,source:"Home club county league / A3 local results",label,season:h.season,week:null,day:null,date:null,age:null});
+      if(h.champions)add("club-champions",f("champions",name),`${name} won Division ${h.division} of the county league in season ${h.season} with ${h.points} points.`,"club","club","MOMENT");
+      else if(h.promoted)add("club-promoted",f("promoted",name),`${name} finished ${h.position}${h.position===2?"nd":"th"} in Division ${h.division} and were promoted.`,"club","club");
+      if(h.relegated)add("club-relegated",f("relegated",name),`${name} were relegated from Division ${h.division} after season ${h.season}.`,"club","club");
+    }
+    if(s.club.captain?.you)add("club-captain",{id:`club:captain:${s.club.season}`,source:"Home club / last season's local results",label:name,season:s.club.season,week:1,day:1,date:null,age:null},
+      `You scored the most points for ${name} last season and are this season's club captain.`,"club","club","MOMENT");
+  }
   // Fan milestones: the season your following first passed each mark (from results and moments, never bought).
   for(const m of s.fans?.milestones??[]) add(`fans-${m.fans}`,{id:`fans:${m.fans}`,source:"Fan following / A3 results",label:`${m.fans.toLocaleString("en-GB")} fans`,
     season:m.season,week:null,day:null,date:null,age:null},`Your following passed ${m.fans.toLocaleString("en-GB")} fans in season ${m.season}.`,
