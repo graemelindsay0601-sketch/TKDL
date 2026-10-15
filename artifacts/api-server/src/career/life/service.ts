@@ -74,6 +74,11 @@ export function createCareerLifeService(database:CareerDatabase) {
       LEFT JOIN career_world_players wn ON wn.career_save_id=${saveId} AND wn.id::text=m.winner_key
       LEFT JOIN career_world_players ln ON ln.career_save_id=${saveId} AND ln.id::text=m.loser_key
       WHERE l.position<=8 AND w.position>=32 ORDER BY m.season DESC,m.scheduled_day DESC,m.id LIMIT 40`)).rows;
+    // Close-season breakthroughs (v6): who is tipped and for which level, never why (no ability or potential).
+    const tips=(await tx.execute(sql`SELECT p.season+1 AS season,t.ordinality AS ord,t.value->>'id' AS npc_id,t.value->>'band' AS band,concat(n.first_name,' ',n.surname) AS name
+      FROM career_world_periods p CROSS JOIN LATERAL jsonb_array_elements(COALESCE(p.summary->'breakthroughs','[]'::jsonb)) WITH ORDINALITY t
+      JOIN career_world_players n ON n.career_save_id=p.career_save_id AND n.id::text=t.value->>'id'
+      WHERE p.career_save_id=${saveId} AND p.kind='OFF_SEASON' ORDER BY p.season,t.ordinality`)).rows;
     const failures=(await tx.execute(sql`SELECT DISTINCT a.season,a.pathway,a.allocated_week FROM career_qschool_allocations a
       JOIN career_qschool_results q ON q.career_save_id=a.career_save_id AND q.season=a.season AND q.pathway=a.pathway
       WHERE a.career_save_id=${saveId} AND q.participant_key='HUMAN' AND q.stage='FINAL'
@@ -101,6 +106,7 @@ export function createCareerLifeService(database:CareerDatabase) {
       ])];
     return {saveId,season:Number(root.current_season),week:Number(root.current_week),active:root.status==="ACTIVE",ready:Boolean(root.identity_dob)&&events.length>0,
       facts,relationships,recognition,decisions,commitments,publicChanges,
+      tips:tips.map(r=>({npcId:String(r.npc_id),name:String(r.name),band:r.band==="ELITE"?"ELITE" as const:"TOUR" as const,season:Number(r.season),order:Number(r.ord)})),
       draws:draws.map(r=>({id:String(r.id),eventId:String(r.event_id),opponentId:String(r.opponent_id),season:Number(r.season),day:Number(r.scheduled_day),
         name:String(r.name),circuit:String(r.circuit),tier:String(r.presentation_tier),classification:String(r.classification)})),
       upsets:upsets.map(r=>({id:`upset:${r.id}`,eventId:String(r.event_id),source:"A3 played match / A5 prior published ranking",label:String(r.name),

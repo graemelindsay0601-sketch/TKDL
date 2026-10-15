@@ -21,6 +21,8 @@ export type LifeSources = {
   sponsor:{id:string;name:string}|null;
   publicChanges?:(import("../facts/types.ts").Fact & {kind:string;participantKey:string;participantName:string})[];
   draws?:{id:string;eventId:string;opponentId:string;season:number;day:number;name:string;circuit:string;tier:string;classification:string}[];
+  /** Player database v6: players tipped for a breakthrough in each close season (published at the new season's start). */
+  tips?:{npcId:string;name:string;band:"ELITE"|"TOUR";season:number;order:number}[];
   upsets?:(import("../facts/types.ts").Fact & {winnerKey:string;winnerName:string;loserKey:string;loserName:string;winnerPosition:number;loserPosition:number;snapshotId:string})[];
 };
 export type Callback = {text:string;sourceIds:string[]};
