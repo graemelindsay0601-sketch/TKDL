@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Archive, Plus, Star } from "lucide-react";
-import { useCareerSaves, useSaveLifecycle, usePresentation, saveInitialShirt, errorMessage, errorStatus } from "../api";
+import { useCareerSaves, useSaveLifecycle, usePresentation, errorMessage, errorStatus } from "../api";
 import { CareerPageHero } from "../page-hero";
 import { PLATES } from "../atmosphere";
 import type { PlateKey } from "../atmosphere/model";
@@ -51,8 +51,8 @@ export function SavesPage() {
                   onRetire={() => life.retire.mutate(slot.career!.id, { onError: e => setError(errorMessage(e)) })}
                   onDelete={() => life.remove.mutate(slot.career!.id, { onError: e => setError(errorMessage(e)) })} />
               : <EmptySlot key={slot.slotNumber} slot={slot.slotNumber} busy={life.create.isPending}
-                  onCreate={(name, difficulty, dateOfBirth, homeLocality,shirt,nickname) => { setError(null); life.create.mutate({ slot: slot.slotNumber, careerName: name || undefined, difficulty, dateOfBirth, homeLocality },
-                    { onSuccess: async s => {try {await saveInitialShirt(s.id,{...shirt,nickname:nickname.trim()||null});navigate(`/career/${s.id}/play`);}catch {navigate(`/career/${s.id}/presentation?setup=needed`);}}, onError: e => setError(errorMessage(e)) }); }} />)}
+                  onCreate={(name, difficulty, dateOfBirth, homeLocality,shirt,nickname) => { setError(null); life.create.mutate({ slot: slot.slotNumber, careerName: name || undefined, difficulty, dateOfBirth, homeLocality, shirt: { ...shirt, nickname: nickname.trim() || null } },
+                    { onSuccess: s => navigate(s.shirtSaved ? `/career/${s.id}/play` : `/career/${s.id}/presentation?setup=needed`), onError: e => setError(errorMessage(e)) }); }} />)}
           </div>
           <section className="pdc-card overflow-hidden" aria-label="Retired Careers">
             <div className="px-4 py-2.5 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.06)" }}><Archive className="w-3.5 h-3.5" style={{ color: "#94a3b8" }} aria-hidden /><Label>Retired archive</Label></div>
