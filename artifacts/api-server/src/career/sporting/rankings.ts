@@ -18,37 +18,46 @@ import { recordMilestones, type Milestone } from "./state.ts";
  * against the table so the two paths can never diverge (no human favour).
  */
 export async function recordRankingContributions(tx: CareerExecutor, root: RootRow, rulesVersion: number, event: InstanceRow, results: readonly SportingResult[]) {
-  if (event.classification !== "RANKING" || !event.ranking_category) return 0;
-  const lists = rankingListsFor(rulesVersion).filter(l => l.categories.includes(event.ranking_category!));
-  if (!lists.length) return 0;
-  const table = (await tx.execute(sql`SELECT ranking_eligible, bands, prize_profile_key FROM career_event_prize_tables WHERE career_save_id = ${root.id} AND event_id = ${event.id}`)).rows[0];
-  if (!table) throw new Error(`A4 prize table missing for ${event.id}: A5 ranking money must come from A4 prize facts`);
-  if (table.ranking_eligible !== true) return 0;
-  const bands = { key: String(table.prize_profile_key), bands: table.bands } as PrizeProfile;
-  const award = results.some(r => r.participant_key === HUMAN)
-    ? (await tx.execute(sql`SELECT ranking_eligible_pence FROM career_prize_awards WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0]
-    : undefined;
+  return recordRankingContributionsBatch(tx, root, rulesVersion, [{ event, results }]);
+}
+
+/** Ranking money for many completed events: one read of their A4 prize tables and one insert. */
+export async function recordRankingContributionsBatch(tx: CareerExecutor, root: RootRow, rulesVersion: number, batch: readonly { event: InstanceRow; results: readonly SportingResult[] }[]) {
+  const ranked = batch.map(b => ({ ...b, lists: b.event.classification === "RANKING" && b.event.ranking_category
+    ? rankingListsFor(rulesVersion).filter(l => l.categories.includes(b.event.ranking_category!)) : [] })).filter(b => b.lists.length);
+  if (!ranked.length) return 0;
+  const tables = new Map((await tx.execute(sql`SELECT event_id, ranking_eligible, bands, prize_profile_key FROM career_event_prize_tables WHERE career_save_id = ${root.id}
+    AND event_id IN (${sql.join(ranked.map(b => sql`${b.event.id}::uuid`), sql`, `)})`)).rows.map(r => [String(r.event_id), r]));
   const completion = timeIndex(Number(root.current_season), Number(root.current_week));
   const rows: Record<string, unknown>[] = [];
-  for (const r of results) {
-    const fromTable = prizeForPosition(bands, r.finishing_position);
-    let amount = fromTable, source = "A4_PRIZE_TABLE";
-    if (r.participant_key === HUMAN && award) {
-      amount = Number(award.ranking_eligible_pence); source = "A4_PRIZE_AWARD";
-      if (amount !== fromTable) throw new Error("A4 human ranking-eligible award disagrees with the immutable prize table");
+  for (const { event, results, lists } of ranked) {
+    const table = tables.get(event.id);
+    if (!table) throw new Error(`A4 prize table missing for ${event.id}: A5 ranking money must come from A4 prize facts`);
+    if (table.ranking_eligible !== true) continue;
+    const bands = { key: String(table.prize_profile_key), bands: table.bands } as PrizeProfile;
+    const award = results.some(r => r.participant_key === HUMAN)
+      ? (await tx.execute(sql`SELECT ranking_eligible_pence FROM career_prize_awards WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0]
+      : undefined;
+    for (const r of results) {
+      const fromTable = prizeForPosition(bands, r.finishing_position);
+      let amount = fromTable, source = "A4_PRIZE_TABLE";
+      if (r.participant_key === HUMAN && award) {
+        amount = Number(award.ranking_eligible_pence); source = "A4_PRIZE_AWARD";
+        if (amount !== fromTable) throw new Error("A4 human ranking-eligible award disagrees with the immutable prize table");
+      }
+      if (amount <= 0) continue;
+      for (const list of lists) rows.push({ id: stableUuid(root.world_seed, rulesVersion, "ranking-contribution", root.id, list.key, event.id, r.participant_key), list_key: list.key,
+        participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount, source,
+        expires_index: expiresIndex(list.window, completion), event_id: event.id, season: event.season, ranking_category: event.ranking_category });
     }
-    if (amount <= 0) continue;
-    for (const list of lists) rows.push({ id: stableUuid(root.world_seed, rulesVersion, "ranking-contribution", root.id, list.key, event.id, r.participant_key), list_key: list.key,
-      participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount, source,
-      expires_index: expiresIndex(list.window, completion) });
   }
   if (!rows.length) return 0;
   await tx.execute(sql`INSERT INTO career_ranking_contributions (career_save_id, id, list_key, participant_key, participant_kind, npc_id, event_id, season, week, completion_index,
       expires_index, finishing_position, amount_pence, source, ranking_category, ranking_rules_version)
-    SELECT ${root.id}::uuid, c.id, c.list_key, c.participant_key, c.participant_kind, c.npc_id, ${event.id}::uuid, ${event.season}, ${Number(root.current_week)}, ${completion},
-      c.expires_index, c.finishing_position, c.amount_pence, c.source, ${event.ranking_category}, ${rulesVersion}
+    SELECT ${root.id}::uuid, c.id, c.list_key, c.participant_key, c.participant_kind, c.npc_id, c.event_id, c.season, ${Number(root.current_week)}, ${completion},
+      c.expires_index, c.finishing_position, c.amount_pence, c.source, c.ranking_category, ${rulesVersion}
     FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS c(id uuid, list_key text, participant_key text, participant_kind text, npc_id uuid, finishing_position integer,
-      amount_pence bigint, source text, expires_index integer)
+      amount_pence bigint, source text, expires_index integer, event_id uuid, season integer, ranking_category text)
     ON CONFLICT (career_save_id, list_key, event_id, participant_key) DO NOTHING`);
   return rows.length;
 }

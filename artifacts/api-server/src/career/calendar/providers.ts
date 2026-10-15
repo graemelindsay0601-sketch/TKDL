@@ -74,6 +74,8 @@ export interface CalendarFinanceHooks {
   beforeWeek(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
   onEventCancelled(tx: CareerExecutor, root: RootRow, event: InstanceRow, reason: string): Promise<void>;
   onEventCompleted(tx: CareerExecutor, root: RootRow, event: InstanceRow, results: readonly { participant_key: string; finishing_position: number; is_champion: boolean }[]): Promise<void>;
+  /** Optional batch form of onEventCompleted (same effects, in event order, fewer round trips). */
+  onEventsCompleted?(tx: CareerExecutor, root: RootRow, batch: readonly { event: InstanceRow; results: readonly { participant_key: string; finishing_position: number; is_champion: boolean }[] }[]): Promise<void>;
   /** The calendar clock moved to (season, week) — offers/contract lifecycle. */
   onCalendarMoved(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
   /** Batch previews for calendar DTOs (no N+1). */
@@ -90,6 +92,8 @@ export interface CalendarSportingHooks {
   bind(tx: CareerExecutor, root: RootRow): Promise<{ sportingStatus: SportingStatusProvider; seeding: SeedingProvider }>;
   /** Immutable results exist (after A4 prize processing), same transaction. */
   onEventCompleted(tx: CareerExecutor, root: RootRow, event: InstanceRow, results: readonly SportingResult[]): Promise<void>;
+  /** Optional batch form of onEventCompleted (same effects, in event order, fewer round trips). */
+  onEventsCompleted?(tx: CareerExecutor, root: RootRow, batch: readonly { event: InstanceRow; results: readonly SportingResult[] }[]): Promise<void>;
   /** A week has been fully played out (not blocked), same transaction that marks it played. */
   afterWeek(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
   /** The calendar clock moved to (season, week). */

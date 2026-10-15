@@ -8,7 +8,7 @@ import { defaultFactsProvider, type SponsorFactsProvider } from "../finance/engi
 import type { Npc, Tier } from "../world/types.ts";
 import { QUALIFICATION_MILESTONES, timeIndex } from "./config.ts";
 import { loadSportingState, createSportingState, recordMilestones, type SportingState, type Milestone } from "./state.ts";
-import { recordRankingContributions, publishRankings, currentPositions } from "./rankings.ts";
+import { recordRankingContributions, recordRankingContributionsBatch, publishRankings, currentPositions } from "./rankings.ts";
 import { cardHoldersIn, issueFoundingCards, seasonReview, processRetirements, syncHumanCardCache } from "./cards.ts";
 import { recordQSchoolResults, allocateQSchool, PATHWAYS } from "./qschool.ts";
 
@@ -136,6 +136,12 @@ export function createSportingHooks(): CalendarSportingHooks {
       const state = await rulesState(tx, root);
       await recordRankingContributions(tx, root, Number(state.ranking_rules_version), event, results);
       await recordQSchoolResults(tx, root, Number(state.q_school_rules_version), event, results);
+    },
+    async onEventsCompleted(tx, root, batch) {
+      if (!batch.length) return;
+      const state = await rulesState(tx, root);
+      await recordRankingContributionsBatch(tx, root, Number(state.ranking_rules_version), batch);
+      for (const { event, results } of batch) await recordQSchoolResults(tx, root, Number(state.q_school_rules_version), event, results);
     },
     async afterWeek(tx, root, season, week) {
       const state = await ensureSporting(tx, root);
