@@ -147,7 +147,7 @@ function BracketMatch({ v, m, seeds, highlight }: { v: TView; m: TMatch; seeds: 
     <li className={`tb-bm${highlight ? " is-path" : ""}${m.status === "AWAITING_HUMAN" ? " is-awaiting" : ""}`}>
       {row(m.a_key, m.legs_a)}{row(m.b_key, m.legs_b)}
       <div className="tb-bm__meta">{m.status === "AWAITING_HUMAN" ? "Your match" : m.status === "WALKOVER" ? "Walkover" : m.status === "BYE" ? "Bye"
-        : m.status === "COMPLETED" ? (m.result_source === "HUMAN_LIVE" ? "Played live" : "Result") : `Day ${m.scheduled_day}`}</div>
+        : m.status === "COMPLETED" ? (m.result_source === "HUMAN_LIVE" ? "Played live" : m.result_source === "QUICK_SIM" ? "Quick-sim" : "Result") : `Day ${m.scheduled_day}`}</div>
     </li>
   );
 }
