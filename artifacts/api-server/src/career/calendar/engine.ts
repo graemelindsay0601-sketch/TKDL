@@ -450,7 +450,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     }
   }
   const entrants = taken.size;
-  if (entrants < event.minimum_entrants || entrants < 2 || (pairs && (teams.length < 2 || teams.length * 2 !== entrants))) {
+  if (entrants < runsWith(event) || entrants < 2 || (pairs && (teams.length < 2 || teams.length * 2 !== entrants))) {
     // Unfillable: cancel honestly; the human keeps no booking for a cancelled event.
     await tx.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${saveId} AND event_id = ${event.id}`);
     forgetBookings(pre, event.id);
@@ -479,6 +479,15 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   event.entrant_count = entrants;
   return { locked: true, entrants };
 }
+
+/**
+ * Fewest entrants an event runs with. From event database v14 a knockout plays whoever turns up, as real events
+ * do: the draw shrinks to fit and the gaps are byes (two players make a final; pairs need two teams). Group and
+ * league formats keep their authored minimum (their tables need a full field).
+ */
+export const runsWith = (event: Pick<InstanceRow, "event_database_version" | "minimum_entrants" | "snapshot">) =>
+  event.event_database_version >= GUEST_TOP_UP_FROM && !isGroupedStructure(event.snapshot.format.structure)
+    ? Math.min(event.minimum_entrants, event.snapshot.format.sideSize === 2 ? 4 : 2) : event.minimum_entrants;
 
 /** Event database version from which short fields are topped up with guests rather than cancelled. */
 export const GUEST_TOP_UP_FROM = 14;
