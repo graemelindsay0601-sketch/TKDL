@@ -85,9 +85,12 @@ export async function bindSporting(tx: CareerExecutor, root: RootRow) {
  *    and the fixed Vault groups-to-knockout format are executable.
  */
 async function weeklyMilestones(tx: CareerExecutor, root: RootRow, season: number, week: number, providers: CalendarProviders) {
+  // This week's professional events first, then each one's entries by key (LATERAL keeps the plan index-driven
+  // even while a new save's statistics are stale).
   const confirmed = (await tx.execute(sql`SELECT e.participant_key, e.participant_kind, e.npc_id, i.id AS event_id, i.circuit, i.classification, i.definition_key, i.name
-    FROM career_event_entries e JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
-    WHERE e.career_save_id = ${root.id} AND i.season = ${season} AND i.start_week = ${week} AND e.status = 'CONFIRMED' AND i.classification = 'RANKING'
+    FROM career_event_instances i CROSS JOIN LATERAL (SELECT x.participant_key, x.participant_kind, x.npc_id FROM career_event_entries x
+      WHERE x.career_save_id = i.career_save_id AND x.event_id = i.id AND x.status = 'CONFIRMED') e
+    WHERE i.career_save_id = ${root.id} AND i.season = ${season} AND i.start_week = ${week} AND i.classification = 'RANKING'
       AND i.circuit IN ('PRO_CIRCUIT','EUROPEAN_SERIES','MAJOR','WORLD_CHAMPIONSHIP') ORDER BY i.start_day, i.instance_key, e.participant_key`)).rows;
   const milestones: Milestone[] = [];
   for (const m of QUALIFICATION_MILESTONES) for (const e of confirmed) {
