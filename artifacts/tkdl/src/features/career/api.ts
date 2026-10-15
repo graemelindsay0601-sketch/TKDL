@@ -153,6 +153,32 @@ export type AdvanceTarget = { kind: "NEXT_MEANINGFUL" } | { kind: "NEXT_MATCH" }
 /** One retry for idempotent setup requests (a dropped mobile connection is the usual failure). */
 const twice = async <T,>(run: () => Promise<T>) => { try { return await run(); } catch { return await run(); } };
 
+/** Waits between retries of an advance whose connection dropped (about 15 seconds in all). */
+export const ADVANCE_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000];
+const DROPPED_STATUS = new Set([408, 502, 503, 504]);
+/** Repeats an idempotent request when the connection failed (no answer, or a gateway timeout); real errors are thrown at once. */
+async function retryDropped<T>(request: () => Promise<T>, delays: readonly number[]): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await request(); }
+    catch (error) {
+      const dropped = !(error instanceof ApiRequestError) || DROPPED_STATUS.has(error.status);
+      if (!dropped || attempt >= delays.length) throw error;
+      await signalBack(delays[attempt]);
+    }
+  }
+}
+/** The retry delay, first waiting (up to 30 seconds) for the device to come back online when it knows it is offline. */
+async function signalBack(ms: number) {
+  if (typeof window !== "undefined" && typeof navigator !== "undefined" && navigator.onLine === false) {
+    await new Promise<void>(resolve => {
+      const done = () => { window.removeEventListener("online", done); clearTimeout(timer); resolve(); };
+      const timer = setTimeout(done, 30_000);
+      window.addEventListener("online", done);
+    });
+  }
+  if (ms > 0) await new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export const careerRequests = {
   enter: (saveId: string, eventId: string) => send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`),
   withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),
@@ -160,9 +186,13 @@ export const careerRequests = {
   declineOffer: (saveId: string, offerId: string) => send<unknown>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/decline`),
   negotiateOffer: (saveId: string, offerId: string, input: { requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) =>
     send<SponsorNegotiationResult>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/negotiate`, input),
-  /** A3 advance: retry-safe via a client-generated operation key; expected position guards against stale screens. */
-  advance: (saveId: string, args: { season: number; week: number; target: AdvanceTarget }, operationKey = newOperationKey()) =>
-    send<AdvanceResult>("POST", `/saves/${saveId}/calendar/advance`, { operationKey, expectedSeason: args.season, expectedWeek: args.week, target: args.target }),
+  /**
+   * A3 advance: retry-safe via a client-generated operation key; expected position guards against stale screens.
+   * A dropped connection (a phone losing signal, or the host cutting a long request) is retried with the SAME key:
+   * the server returns the stored result, or joins the advance that is still running, so time never moves twice.
+   */
+  advance: (saveId: string, args: { season: number; week: number; target: AdvanceTarget }, operationKey = newOperationKey(), delays = ADVANCE_RETRY_DELAYS_MS) =>
+    retryDropped(() => send<AdvanceResult>("POST", `/saves/${saveId}/calendar/advance`, { operationKey, expectedSeason: args.season, expectedWeek: args.week, target: args.target }), delays),
   /** Idempotent composed initialize: A2 world, A3 calendar, A4 finance, A5 sporting state. */
   initialize: (saveId: string) => send<unknown>("POST", `/saves/${saveId}/initialize`, {}),
   /**

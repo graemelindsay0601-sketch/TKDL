@@ -213,9 +213,101 @@ function humanSimulationPlayer(root: RootRow, frame: Npc, form: HumanForm): Npc 
     form: Math.max(-1, Math.min(1, form.form)), tendencies: { local: 0, floor: 0, stage: 0, qualifier: 0, major: 0 } };
 }
 
+/** Advances running in this process, by save (see advance). */
+const ADVANCES_IN_FLIGHT = new Map<string, { operationKey: string; playerId: number; result: Promise<unknown> }>();
+
 export function createCareerCalendarService(database: CareerDatabase, options: { providers?: Partial<CalendarProviders> } = {}) {
   const providers: CalendarProviders = { ...DEFAULT_PROVIDERS, ...options.providers };
   const world = createCareerWorldService(database);
+  /** One advance from start to result (callers go through advance, which joins a retry to a running one). */
+  async function runAdvance(actor: CareerActor, saveId: string, request: z.infer<typeof advanceSchema>) {
+    const started = await database.transaction(async tx => {
+      const { root } = await open(tx, actor, saveId);
+      // A2 commits its off-season separately. Recover only an unfinished,
+      // demonstrably processed boundary, never backfill awards for old closed seasons.
+      if(providers.history&&Number(root.current_season)>1) {
+        const previous=Number(root.current_season)-1;
+        const unfinished=(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id=${saveId}
+          AND season=${previous} AND status='ACTIVE' AND played_week=52 AND developed_week=52`)).rows[0];
+        if(unfinished) {
+          await finalizeSeason(tx,root,previous);
+          await ensureSeason(tx,root,Number(root.current_season));
+          await openRegistrations(tx,saveId,Number(root.current_season),Number(root.current_week));
+          await providers.finance?.onCalendarMoved(tx,root,Number(root.current_season),Number(root.current_week));
+          await providers.sporting?.onCalendarMoved(tx,root,Number(root.current_season),Number(root.current_week));
+          await providers.history.afterSeason(tx,root,previous);
+        }
+      }
+      await requireSeason(tx,actor,saveId);
+      const op = (await tx.execute(sql`SELECT request, result FROM career_calendar_operations WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey}`)).rows[0];
+      if (op) {
+        checkRetry(op.request, request);
+        const stored = op.result as { stop?: { reason?: string }; to?: { season: number; week: number } } | null;
+        const pending=await providers.history?.pending(tx,root);
+        if(!stored&&pending===request.expectedSeason&&Number(root.current_season)===pending+1) {
+          const recovered={operationKey:request.operationKey,from:{season:request.expectedSeason,week:request.expectedWeek},
+            to:{season:Number(root.current_season),week:Number(root.current_week)},stop:{reason:"SEASON_REVIEW",detail:{season:pending,recovered:true}},
+            weeksPlayed:0,steps:[],recovered:true};
+          await tx.execute(sql`UPDATE career_calendar_operations SET result=${JSON.stringify(recovered)}::jsonb,completed_at=NOW()
+            WHERE career_save_id=${saveId} AND operation_key=${request.operationKey} AND completed_at IS NULL`);
+          return {stored:recovered};
+        }
+        // A blocked (human-match) advance may resume only from the exact position it stopped at;
+        // once the Career has moved on, retrying it returns the stored result and never moves time.
+        if (stored?.stop?.reason === "HUMAN_MATCH_PENDING" && stored.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
+        return { stored: (stored ?? null) as unknown };
+      }
+      if (Number(root.current_season) !== request.expectedSeason || Number(root.current_week) !== request.expectedWeek) throw new CareerError(409, "Career calendar has moved; refresh before advancing");
+      await tx.execute(sql`INSERT INTO career_calendar_operations (career_save_id, operation_key, request) VALUES (${saveId}, ${request.operationKey}, ${JSON.stringify(request)}::jsonb)`);
+      return { stored: null };
+    });
+    if (started.stored) return started.stored;
+    // Events finished from here on are this advance's headlines (a second of slack for clock skew).
+    const startedAt = new Date(Date.now() - 1000).toISOString();
+    const targetIndex = request.target.kind === "WEEKS" ? (request.expectedSeason - 1) * WEEKS_PER_SEASON + request.expectedWeek - 1 + request.target.weeks
+      : request.target.kind === "WEEK" ? (request.expectedSeason - 1) * WEEKS_PER_SEASON + request.target.week - 1 + (request.target.week <= request.expectedWeek ? WEEKS_PER_SEASON : 0) : null;
+    const steps: unknown[] = [];
+    let stop: { reason: string; detail?: unknown } = { reason: "LIMIT" };
+    for (let i = 0; i < MAX_WEEKS_PER_ADVANCE; i++) {
+      const step = await stepWeek(actor, saveId);
+      if (step.blocked) {
+        stop = { reason: "HUMAN_MATCH_PENDING", detail: { season: step.season, week: step.week, matchIds: (step.summary as { awaitingHuman: string[] }).awaitingHuman } };
+        break;
+      }
+      steps.push({ season: step.season, week: step.week, summary: step.summary, offSeason: "offSeason" in step ? step.offSeason : undefined });
+      const at = step.advancedTo!;
+      if(providers.history&&at.season!==step.season){stop={reason:"SEASON_REVIEW",detail:{season:step.season}};break;}
+      const index = (at.season - 1) * WEEKS_PER_SEASON + at.week - 1;
+      if (targetIndex !== null) { if (index >= targetIndex) { stop = { reason: "TARGET_REACHED" }; break; } continue; }
+      if (at.season !== step.season) { stop = { reason: "SEASON_BOUNDARY" }; break; }
+      if (request.target.kind === "NEXT_MATCH") {
+        const ahead = await database.transaction(async tx => { const { root } = await requireSeason(tx, actor, saveId);
+          return { qualified: (await meaningfulReasons(tx, root, at.season, at.week)).filter(r => r.type === "QUALIFIED_EVENT_DEADLINE"), entry: await nextHumanEntry(tx, root.id) }; });
+        if (ahead.qualified.length) { stop = { reason: "MEANINGFUL_DATE", detail: ahead.qualified }; break; }
+        if (!ahead.entry) { stop = { reason: "TARGET_REACHED" }; break; }
+        continue;
+      }
+      const reasons = await database.transaction(async tx => { const { root } = await requireSeason(tx, actor, saveId); return meaningfulReasons(tx, root, at.season, at.week); });
+      if (reasons.length) { stop = { reason: "MEANINGFUL_DATE", detail: reasons }; break; }
+    }
+    return database.transaction(async tx => {
+      const { root } = await requireSeason(tx, actor, saveId);
+      // Who won what while time moved on: the biggest events first, for the Continue result card.
+      const headlines = (await tx.execute(sql`SELECT i.name, i.circuit, i.presentation_tier AS tier, i.champion_participant_key = ${HUMAN} AS you,
+          COALESCE(p.first_name || ' ' || p.surname, CASE WHEN i.champion_participant_key = ${HUMAN} THEN 'You' END) AS champion
+        FROM career_event_instances i LEFT JOIN career_world_players p ON p.career_save_id = i.career_save_id AND p.id = i.champion_npc_id
+        WHERE i.career_save_id = ${saveId} AND i.status = 'COMPLETED' AND i.completed_at >= ${startedAt}::timestamptz AND i.champion_participant_key IS NOT NULL
+        ORDER BY (i.champion_participant_key = ${HUMAN}) DESC, i.calendar_priority DESC, i.completed_at DESC LIMIT 6`)).rows
+        .map(r => ({ name: String(r.name), circuit: String(r.circuit), tier: String(r.tier), champion: r.champion ? String(r.champion) : null, you: r.you === true }));
+      const result = { operationKey: request.operationKey, from: { season: request.expectedSeason, week: request.expectedWeek },
+        to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
+      // Blocked advances are recorded (resumable from the same position); completed ones are final.
+      await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
+          completed_at = ${stop.reason === "HUMAN_MATCH_PENDING" ? null : sql`NOW()`}
+        WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
+      return result;
+    });
+  }
   /** A5: sporting status/seeding bound to this save's persisted state, after the root lock. Without A5 the A3 placeholders apply. */
   async function bind(tx: CareerExecutor, root: RootRow): Promise<CalendarProviders> {
     return providers.sporting ? { ...providers, ...(await providers.sporting.bind(tx, root)) } : providers;
@@ -650,94 +742,21 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     async recordHumanMatchResultInTx(tx: CareerExecutor, actor: CareerActor, saveId: string, body: unknown) {
       return recordHumanResultTx(tx, actor, saveId, humanResultSchema.parse(body));
     },
-    async advance(actor: CareerActor, saveId: string, body: unknown) {
+    /**
+     * A phone that loses signal mid-advance retries with the same operationKey while this process may still be
+     * running the first request: the retry joins it and gets the same result instead of advancing twice. A
+     * different advance for the same save meanwhile is refused (only one advance per save at a time).
+     */
+    advance(actor: CareerActor, saveId: string, body: unknown) {
       const request = advanceSchema.parse(body);
-      const started = await database.transaction(async tx => {
-        const { root } = await open(tx, actor, saveId);
-        // A2 commits its off-season separately. Recover only an unfinished,
-        // demonstrably processed boundary, never backfill awards for old closed seasons.
-        if(providers.history&&Number(root.current_season)>1) {
-          const previous=Number(root.current_season)-1;
-          const unfinished=(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id=${saveId}
-            AND season=${previous} AND status='ACTIVE' AND played_week=52 AND developed_week=52`)).rows[0];
-          if(unfinished) {
-            await finalizeSeason(tx,root,previous);
-            await ensureSeason(tx,root,Number(root.current_season));
-            await openRegistrations(tx,saveId,Number(root.current_season),Number(root.current_week));
-            await providers.finance?.onCalendarMoved(tx,root,Number(root.current_season),Number(root.current_week));
-            await providers.sporting?.onCalendarMoved(tx,root,Number(root.current_season),Number(root.current_week));
-            await providers.history.afterSeason(tx,root,previous);
-          }
-        }
-        await requireSeason(tx,actor,saveId);
-        const op = (await tx.execute(sql`SELECT request, result FROM career_calendar_operations WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey}`)).rows[0];
-        if (op) {
-          checkRetry(op.request, request);
-          const stored = op.result as { stop?: { reason?: string }; to?: { season: number; week: number } } | null;
-          const pending=await providers.history?.pending(tx,root);
-          if(!stored&&pending===request.expectedSeason&&Number(root.current_season)===pending+1) {
-            const recovered={operationKey:request.operationKey,from:{season:request.expectedSeason,week:request.expectedWeek},
-              to:{season:Number(root.current_season),week:Number(root.current_week)},stop:{reason:"SEASON_REVIEW",detail:{season:pending,recovered:true}},
-              weeksPlayed:0,steps:[],recovered:true};
-            await tx.execute(sql`UPDATE career_calendar_operations SET result=${JSON.stringify(recovered)}::jsonb,completed_at=NOW()
-              WHERE career_save_id=${saveId} AND operation_key=${request.operationKey} AND completed_at IS NULL`);
-            return {stored:recovered};
-          }
-          // A blocked (human-match) advance may resume only from the exact position it stopped at;
-          // once the Career has moved on, retrying it returns the stored result and never moves time.
-          if (stored?.stop?.reason === "HUMAN_MATCH_PENDING" && stored.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
-          return { stored: (stored ?? null) as unknown };
-        }
-        if (Number(root.current_season) !== request.expectedSeason || Number(root.current_week) !== request.expectedWeek) throw new CareerError(409, "Career calendar has moved; refresh before advancing");
-        await tx.execute(sql`INSERT INTO career_calendar_operations (career_save_id, operation_key, request) VALUES (${saveId}, ${request.operationKey}, ${JSON.stringify(request)}::jsonb)`);
-        return { stored: null };
-      });
-      if (started.stored) return started.stored;
-      // Events finished from here on are this advance's headlines (a second of slack for clock skew).
-      const startedAt = new Date(Date.now() - 1000).toISOString();
-      const targetIndex = request.target.kind === "WEEKS" ? (request.expectedSeason - 1) * WEEKS_PER_SEASON + request.expectedWeek - 1 + request.target.weeks
-        : request.target.kind === "WEEK" ? (request.expectedSeason - 1) * WEEKS_PER_SEASON + request.target.week - 1 + (request.target.week <= request.expectedWeek ? WEEKS_PER_SEASON : 0) : null;
-      const steps: unknown[] = [];
-      let stop: { reason: string; detail?: unknown } = { reason: "LIMIT" };
-      for (let i = 0; i < MAX_WEEKS_PER_ADVANCE; i++) {
-        const step = await stepWeek(actor, saveId);
-        if (step.blocked) {
-          stop = { reason: "HUMAN_MATCH_PENDING", detail: { season: step.season, week: step.week, matchIds: (step.summary as { awaitingHuman: string[] }).awaitingHuman } };
-          break;
-        }
-        steps.push({ season: step.season, week: step.week, summary: step.summary, offSeason: "offSeason" in step ? step.offSeason : undefined });
-        const at = step.advancedTo!;
-        if(providers.history&&at.season!==step.season){stop={reason:"SEASON_REVIEW",detail:{season:step.season}};break;}
-        const index = (at.season - 1) * WEEKS_PER_SEASON + at.week - 1;
-        if (targetIndex !== null) { if (index >= targetIndex) { stop = { reason: "TARGET_REACHED" }; break; } continue; }
-        if (at.season !== step.season) { stop = { reason: "SEASON_BOUNDARY" }; break; }
-        if (request.target.kind === "NEXT_MATCH") {
-          const ahead = await database.transaction(async tx => { const { root } = await requireSeason(tx, actor, saveId);
-            return { qualified: (await meaningfulReasons(tx, root, at.season, at.week)).filter(r => r.type === "QUALIFIED_EVENT_DEADLINE"), entry: await nextHumanEntry(tx, root.id) }; });
-          if (ahead.qualified.length) { stop = { reason: "MEANINGFUL_DATE", detail: ahead.qualified }; break; }
-          if (!ahead.entry) { stop = { reason: "TARGET_REACHED" }; break; }
-          continue;
-        }
-        const reasons = await database.transaction(async tx => { const { root } = await requireSeason(tx, actor, saveId); return meaningfulReasons(tx, root, at.season, at.week); });
-        if (reasons.length) { stop = { reason: "MEANINGFUL_DATE", detail: reasons }; break; }
+      const running = ADVANCES_IN_FLIGHT.get(saveId);
+      if (running) {
+        if (running.operationKey === request.operationKey && running.playerId === actor.playerId) return running.result as ReturnType<typeof runAdvance>;
+        return Promise.reject(new CareerError(409, "This Career is already advancing; wait for it to finish")) as ReturnType<typeof runAdvance>;
       }
-      return database.transaction(async tx => {
-        const { root } = await requireSeason(tx, actor, saveId);
-        // Who won what while time moved on: the biggest events first, for the Continue result card.
-        const headlines = (await tx.execute(sql`SELECT i.name, i.circuit, i.presentation_tier AS tier, i.champion_participant_key = ${HUMAN} AS you,
-            COALESCE(p.first_name || ' ' || p.surname, CASE WHEN i.champion_participant_key = ${HUMAN} THEN 'You' END) AS champion
-          FROM career_event_instances i LEFT JOIN career_world_players p ON p.career_save_id = i.career_save_id AND p.id = i.champion_npc_id
-          WHERE i.career_save_id = ${saveId} AND i.status = 'COMPLETED' AND i.completed_at >= ${startedAt}::timestamptz AND i.champion_participant_key IS NOT NULL
-          ORDER BY (i.champion_participant_key = ${HUMAN}) DESC, i.calendar_priority DESC, i.completed_at DESC LIMIT 6`)).rows
-          .map(r => ({ name: String(r.name), circuit: String(r.circuit), tier: String(r.tier), champion: r.champion ? String(r.champion) : null, you: r.you === true }));
-        const result = { operationKey: request.operationKey, from: { season: request.expectedSeason, week: request.expectedWeek },
-          to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
-        // Blocked advances are recorded (resumable from the same position); completed ones are final.
-        await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
-            completed_at = ${stop.reason === "HUMAN_MATCH_PENDING" ? null : sql`NOW()`}
-          WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
-        return result;
-      });
+      const result = runAdvance(actor, saveId, request).finally(() => ADVANCES_IN_FLIGHT.delete(saveId));
+      ADVANCES_IN_FLIGHT.set(saveId, { operationKey: request.operationKey, playerId: actor.playerId, result });
+      return result;
     },
 
     async history(actor: CareerActor, saveId: string, query: { participantKey?: string; definitionKey?: string; season?: number; limit?: number } = {}) {

@@ -489,6 +489,32 @@ test("new Career saves the chosen shirt before the world is built; a dropped set
   } finally { globalThis.fetch = original; }
 });
 
+test("an advance whose connection drops is retried with the same operation key; real errors are not", async () => {
+  const original = globalThis.fetch;
+  const keys: string[] = [];
+  let failures = 0;
+  const args = { season: 1, week: 3, target: { kind: "NEXT_MEANINGFUL" } as const };
+  try {
+    globalThis.fetch = (async (_url: string, init: RequestInit = {}) => {
+      keys.push(JSON.parse(String(init.body)).operationKey);
+      if (failures-- > 0) { if (failures % 2) throw new TypeError("Load failed"); return new Response("", { status: 502 }); }
+      return new Response(JSON.stringify({ operationKey: keys[0], to: { season: 1, week: 4 } }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as typeof fetch;
+    failures = 3;
+    const result = await M.careerRequests.advance("s", args, "phone-key-1", [0, 0, 0, 0]);
+    assert.equal(result.to.week, 4);
+    assert.deepEqual(keys, ["phone-key-1", "phone-key-1", "phone-key-1", "phone-key-1"], "every retry reuses the key");
+    keys.length = 0; failures = 10;
+    await assert.rejects(M.careerRequests.advance("s", args, "phone-key-2", [0, 0]), /Load failed|502/);
+    assert.equal(keys.length, 3, "gives up after the last retry");
+    keys.length = 0;
+    globalThis.fetch = (async (_url: string, init: RequestInit = {}) => { keys.push(JSON.parse(String(init.body)).operationKey);
+      return new Response(JSON.stringify({ error: "Career calendar has moved; refresh before advancing" }), { status: 409 }); }) as typeof fetch;
+    await assert.rejects(M.careerRequests.advance("s", args, "phone-key-3", [0, 0]), (e: { status?: number }) => e.status === 409);
+    assert.equal(keys.length, 1, "a real answer from the server is never repeated");
+  } finally { globalThis.fetch = original; }
+});
+
 test("Career delete rejects on HTTP errors and network failures instead of reporting success", async () => {
   const original = globalThis.fetch;
   try {

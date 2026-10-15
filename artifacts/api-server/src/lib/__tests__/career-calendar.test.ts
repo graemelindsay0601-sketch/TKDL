@@ -297,6 +297,21 @@ test("multi-week advance processes each A2 week exactly once and retries return 
   assert.equal((await saves.read(1, save.id)).currentWeek, 5);
 });
 
+test("a retry sent while the first advance is still running joins it (no double advance); another advance is refused", async () => {
+  const save = await careerFor();
+  const body = { operationKey: "advance-dropped-signal", expectedSeason: 1, expectedWeek: 1, target: { kind: "WEEKS", weeks: 2 } };
+  const first = calendar.advance(actor, save.id, body);
+  const retry = calendar.advance(actor, save.id, body);
+  await rejectsStatus(calendar.advance(actor, save.id, { ...body, operationKey: "advance-second-tab" }), 409);
+  const [a, b] = await Promise.all([first, retry]) as { to: { week: number }; weeksPlayed: number }[];
+  assert.equal(a, b, "the retry receives the original result");
+  assert.deepEqual([a.to.week, a.weeksPlayed], [3, 2]);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_world_periods WHERE career_save_id = ${save.id}`))[0].n, 2);
+  assert.equal((await saves.read(1, save.id)).currentWeek, 3);
+  const later = await calendar.advance(actor, save.id, body) as { to: { week: number } };
+  assert.equal(later.to.week, 3, "once finished, a late retry gets the stored result");
+});
+
 test("next-meaningful-date advancement stops at the human's events and never skips past them", async () => {
   const save = await careerFor();
   const { events } = await calendar.calendar(actor, save.id, { scope: "AVAILABLE" });
