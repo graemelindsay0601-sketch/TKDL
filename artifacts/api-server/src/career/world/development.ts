@@ -41,7 +41,15 @@ export function retirementProbability(npc: Npc): number {
     + (npc.stage === "VETERAN" ? r.veteranWeight : 0)) * (npc.professionalStatus === "AMATEUR" ? r.amateurMultiplier : 1), 0, r.maximumChance);
 }
 
-export function evolveOffSeason(players: readonly Npc[], seed: string, version: number, season: number, remainingYear: number, opportunity: number) {
+/**
+ * Player database v4: the base population (the original world and its prospects) is topped up on its own count.
+ * Juniors, women's intake, club and international squads and substitutes are maintained separately, so they no
+ * longer hide retirements from the base pool (which otherwise never received new prospects).
+ */
+export const isBasePopulation = (npc: Npc) => /^(initial|curated|generation):/.test(npc.worldKey);
+
+export function evolveOffSeason(players: readonly Npc[], seed: string, version: number, season: number, remainingYear: number, opportunity: number,
+  countsTowardTarget: (npc: Npc) => boolean = () => true) {
   assertGenerationVersion(version);
   const retired: string[] = [];
   const evolved = players.map(player => {
@@ -55,7 +63,7 @@ export function evolveOffSeason(players: readonly Npc[], seed: string, version: 
     const age = developed.age + 1;
     return npcSchema.parse({ ...developed, age, stage: stageForAge(age, developed.development.peakStart, developed.development.peakEnd) });
   });
-  const deficit = Math.max(0, targetPopulation() - evolved.filter(npc => npc.status === "ACTIVE").length);
+  const deficit = Math.max(0, targetPopulation() - evolved.filter(npc => npc.status === "ACTIVE" && countsTowardTarget(npc)).length);
   const entrants = generateProspects(seed, version, season + 1, deficit, evolved);
   return { players: [...evolved, ...entrants], retired, entrants: entrants.map(npc => npc.id) };
 }

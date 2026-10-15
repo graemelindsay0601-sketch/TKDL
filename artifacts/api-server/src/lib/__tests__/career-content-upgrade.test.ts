@@ -95,7 +95,7 @@ test("recorded old keys cannot skip the upgrade; the failed world/save survives 
     });
     const preserved=["career_saves","career_world_state","career_world_players","players","feature_flags"];
     const before=await contents(pg,preserved),keys=await legacyMarkers(pg);
-    assert.equal((before.career_world_players as {count:number}).count,340);
+    assert.equal((before.career_world_players as {count:number}).count,804); // v4: 340 + 464 squad players
     await upgradeCareerContentA9V1(db);
     assert.deepEqual(await contents(pg,preserved),before);assert.deepEqual(await legacyMarkers(pg),keys);
     assert.equal((await marker(pg)).length,1);

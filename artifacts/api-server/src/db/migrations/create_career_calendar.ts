@@ -290,6 +290,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
     await ensureLeagueRounds(tx);
     await ensureEventPairs(tx);
     await ensureQuickSimSource(tx);
+    await ensureCareerForeignKeyIndexes(tx);
     await syncEventDefinitions(tx);
     // A6.5: server-authoritative live match sessions — additive, idempotent.
     await ensureCareerMatchSessionSchema(tx);
@@ -323,6 +324,25 @@ export async function ensureLeagueRounds(tx: CareerExecutor): Promise<void> {
   if (current?.def.includes("30")) return;
   await tx.execute(sql`ALTER TABLE career_tournament_matches DROP CONSTRAINT IF EXISTS career_tournament_matches_round_check`);
   await tx.execute(sql`ALTER TABLE career_tournament_matches ADD CONSTRAINT career_tournament_matches_round_check CHECK (round BETWEEN 1 AND 30)`);
+}
+
+/**
+ * Indexes behind the foreign keys into players, simulated matches and events. Without them every deleted player
+ * (deleting or restarting a Career) scans whole match, entry and result tables once per row. Idempotent.
+ */
+export async function ensureCareerForeignKeyIndexes(tx: CareerExecutor): Promise<void> {
+  const indexes: [string, string, string][] = [
+    ["career_tournament_matches_a_npc_idx", "career_tournament_matches", "career_save_id, a_npc_id) WHERE a_npc_id IS NOT NULL"],
+    ["career_tournament_matches_b_npc_idx", "career_tournament_matches", "career_save_id, b_npc_id) WHERE b_npc_id IS NOT NULL"],
+    ["career_tournament_matches_sim_key_idx", "career_tournament_matches", "career_save_id, simulated_match_key) WHERE simulated_match_key IS NOT NULL"],
+    ["career_event_entries_npc_idx", "career_event_entries", "career_save_id, npc_id) WHERE npc_id IS NOT NULL"],
+    ["career_event_results_npc_idx", "career_event_results", "career_save_id, npc_id) WHERE npc_id IS NOT NULL"],
+    ["career_event_instances_champion_npc_idx", "career_event_instances", "career_save_id, champion_npc_id) WHERE champion_npc_id IS NOT NULL"],
+    ["career_qualification_entitlements_npc_idx", "career_qualification_entitlements", "career_save_id, npc_id) WHERE npc_id IS NOT NULL"],
+    ["career_qualification_entitlements_source_idx", "career_qualification_entitlements", "career_save_id, source_event_id) WHERE source_event_id IS NOT NULL"],
+    ["career_qualification_entitlements_consumed_idx", "career_qualification_entitlements", "career_save_id, consumed_by_event_id) WHERE consumed_by_event_id IS NOT NULL"],
+  ];
+  for (const [name, table, cols] of indexes) await tx.execute(sql.raw(`CREATE INDEX IF NOT EXISTS ${name} ON ${table} (${cols}`));
 }
 
 /** Quick-sim: a human match the simulator played at the human's level is recorded as QUICK_SIM (never as live darts). Idempotent. */

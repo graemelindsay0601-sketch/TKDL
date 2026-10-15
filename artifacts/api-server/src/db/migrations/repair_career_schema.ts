@@ -1,5 +1,5 @@
 import type { CareerDatabase } from "../../career/database.ts";
-import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, syncEventDefinitions } from "./create_career_calendar.ts";
+import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, syncEventDefinitions } from "./create_career_calendar.ts";
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
 import { ensureDevelopmentCardSource } from "./create_career_sporting.ts";
@@ -19,6 +19,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureLeagueRounds(tx);
     await ensureEventPairs(tx);
     await ensureQuickSimSource(tx);
+    await ensureCareerForeignKeyIndexes(tx);
     await ensureCareerMatchSessionSchema(tx);
     await ensureCareerGroupSchema(tx);
     await ensureDevelopmentCardSource(tx);
