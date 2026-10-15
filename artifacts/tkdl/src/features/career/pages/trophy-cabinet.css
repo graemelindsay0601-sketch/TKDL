@@ -31,3 +31,16 @@
 .career-records__list li > span { min-width: 0; overflow-wrap: anywhere; }
 .career-records__list li:not(:has(> b)) { grid-template-columns: 1fr; }
 .career-records__list li.is-you { background: rgba(233,199,122,0.14); outline: 1px solid rgba(233,199,122,0.45); }
+
+/* Home club */
+.career-club__table { list-style: none; margin: 0; padding: 0.25rem 0.75rem 0.75rem; display: grid; gap: 0.3rem; }
+.career-club__table li { display: grid; grid-template-columns: 1.6rem 1fr auto; gap: 0.1rem 0.6rem; align-items: baseline; padding: 0.45rem 0.6rem; border-radius: 10px; background: rgba(255,255,255,0.03); }
+.career-club__table li > b { color: #7ec8a4; font-variant-numeric: tabular-nums; }
+.career-club__table li > em { font-style: normal; font-weight: 800; font-variant-numeric: tabular-nums; }
+.career-club__table li > small { grid-column: 2 / -1; color: rgba(255,255,255,0.6); font-size: 0.72rem; }
+.career-club__table li > span { min-width: 0; overflow-wrap: anywhere; }
+.career-club__table li.is-you { background: rgba(126,200,164,0.14); outline: 1px solid rgba(126,200,164,0.45); }
+.career-club__pro { color: #e9c77a; }
+.career-club__history { list-style: none; margin: 0; padding: 0.5rem 1rem 1rem; display: grid; gap: 0.25rem; font-size: 0.85rem; }
+.career-club__history li { display: grid; grid-template-columns: 5.5rem 1fr auto; gap: 0.5rem; }
+.career-club__history li em { font-style: normal; color: #e9c77a; font-weight: 700; }

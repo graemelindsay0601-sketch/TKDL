@@ -22,6 +22,7 @@ export async function createCareerLegacy(tx:CareerExecutor):Promise<void> {
     END; $$ LANGUAGE plpgsql`);
   await ensureLegacySeasonTotals(tx);
   await ensureWorldRecords(tx);
+  await ensureClubSeasons(tx);
   for(const table of ["career_legacy_reviews","career_legacy_inductions","career_legacy_retirements"]) {
     await tx.execute(sql`DROP TRIGGER IF EXISTS career_legacy_history_guard ON ${sql.identifier(table)}`);
     await tx.execute(sql`CREATE TRIGGER career_legacy_history_guard BEFORE UPDATE ON ${sql.identifier(table)}
@@ -56,4 +57,13 @@ export async function ensureWorldRecords(tx:CareerExecutor):Promise<void> {
   await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_world_records_state (
     career_save_id uuid PRIMARY KEY REFERENCES career_saves(id) ON DELETE CASCADE,had_history boolean NOT NULL,
     backfilled_at timestamptz NOT NULL DEFAULT NOW())`);
+}
+
+/** Home clubs' county league: each finished season's table, stored once (filled on first read). Every boot. */
+export async function ensureClubSeasons(tx:CareerExecutor):Promise<void> {
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_club_seasons (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL CHECK(season>0),country text NOT NULL,locality_key text NOT NULL,
+    division integer NOT NULL CHECK(division>0),points integer NOT NULL,position integer NOT NULL CHECK(position>0),captain_key text,
+    PRIMARY KEY(career_save_id,season,locality_key))`);
 }

@@ -22,6 +22,7 @@ import {TournamentPage} from "./pages/tournament";
 import {CareerMapPage} from "./pages/map";
 import {WorldHub,WorldPlayerDirectory} from "./pages/world-hub";
 import {RecordsPage} from "./pages/records";
+import {ClubPage} from "./pages/club";
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
 import {PlayPage} from "./pages/play";
@@ -87,6 +88,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/world/search"><WorldHub ctx={ctx} section="search"/></Route>
           <Route path="/career/:saveId/world/trophies"><TrophyPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/world/records"><RecordsPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/club"><ClubPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/world"><WorldHub ctx={ctx}/></Route>
           <Route path="/career/:saveId/map"><CareerMapPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/guide"><WorldPage ctx={ctx} guide/></Route>

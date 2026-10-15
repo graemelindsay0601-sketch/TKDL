@@ -1,0 +1,42 @@
+import { Link } from "wouter";
+import { Crown, Shield, Users } from "lucide-react";
+import { useHomeClub, type ClubView } from "../api";
+import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../components";
+import { CareerPageHero } from "../page-hero";
+import type { ShellContext } from "../shell";
+
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+
+/** Your home club: its members, captain, county league division and the club's league history. */
+export function ClubPage({ ctx }: { ctx: ShellContext }) {
+  const club = useHomeClub(ctx.save.id), base = `/career/${ctx.save.id}`;
+  if (club.isLoading) return <CareerLoading />;
+  if (club.error || !club.data) return <CareerError error={club.error} onRetry={() => club.refetch()} />;
+  const d: ClubView = club.data;
+  if (!d.club || !d.table) return <CareerEmptyState title="No home club yet">Your home club comes from your home area. Set it in your Career profile.</CareerEmptyState>;
+  const mine = d.table.rows.find(r => r.you)!, honours = d.history.filter(h => h.champions);
+  return <div className="space-y-3 career-club">
+    <CareerPageHero kicker={`${d.club.region} · County league`} title={d.club.name} accent="#7ec8a4" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}
+      subtitle={<p>Your home club. Members score club points with their finishes at club nights, county and regional events. {d.legend ? "You turned professional and remain the club's legend." : ""}</p>}
+      stats={[{ label: "Division", value: d.table.division, tone: "gold" }, { label: "League position", value: ordinal(mine.position) }, { label: "Club points", value: mine.points },
+        { label: "Captain", value: d.captain ? (d.captain.you ? "You" : d.captain.name) : "To be decided" }]} />
+    <CareerSection title={`Division ${d.table.division} · Season ${d.season}`} icon={<Shield aria-hidden />} accent="#7ec8a4">
+      <ol className="career-club__table">{d.table.rows.map(r => <li key={r.localityKey} className={r.you ? "is-you" : undefined}>
+        <b>{r.position}</b><span>{r.name}</span><em>{r.points}</em></li>)}</ol>
+      <p className="px-4 pb-3 text-xs text-white/60">The top two go up and the bottom two go down at the end of the season. Points: winner 5, runner-up 3, semi-final 2, quarter-final 1.</p>
+    </CareerSection>
+    <CareerSection title="Members" icon={<Users aria-hidden />} accent="#7ec8a4">
+      <ol className="career-club__table">{d.members.filter(m => m.active).slice(0, 25).map(m => <li key={m.key} className={m.you ? "is-you" : undefined}>
+        <b>{d.captain?.key === m.key ? <Crown size={14} aria-label="Captain" /> : ""}</b>
+        <span>{m.you ? <strong>You</strong> : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}{m.professional && <small className="career-club__pro"> · Pro</small>}</span>
+        <em>{m.seasonPoints}</em><small>Last season {m.lastSeasonPoints} pts · {m.titles} title{m.titles === 1 ? "" : "s"}</small></li>)}</ol>
+    </CareerSection>
+    <CareerSection title="Club history" icon={<Crown aria-hidden />} accent="#e9c77a">
+      {honours.length > 0 && <p className="px-4 pt-3 text-sm">Division titles: {honours.map(h => `Division ${h.division}, season ${h.season}`).join(" · ")}</p>}
+      {d.history.length ? <ul className="career-club__history">{[...d.history].reverse().map(h => <li key={h.season}>
+        <span>Season {h.season}</span><span>Division {h.division} · {ordinal(h.position)} · {h.points} pts</span>
+        <em>{h.champions ? "Champions" : h.promoted ? "Promoted" : h.relegated ? "Relegated" : ""}</em></li>)}</ul>
+        : <p className="p-4 text-sm text-white/70">The club's first season is under way.</p>}
+    </CareerSection>
+  </div>;
+}
