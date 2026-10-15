@@ -227,7 +227,7 @@ export type TournamentView=Awaited<ReturnType<ReturnType<typeof createCareerTour
 
 export function createCareerTournamentRouter(service:ReturnType<typeof createCareerTournamentService>,calendar:CareerCalendarService,isAvailable:(admin:boolean)=>Promise<boolean>) {
   const router=Router();
-  router.use("/saves/:id/tournaments",async(req,res,next)=>{
+  router.use(["/saves/:id/tournaments","/saves/:id/form"],async(req,res,next)=>{
     res.set("Cache-Control","no-store");
     const s=req.session as {playerId?:number;isAdmin?:boolean}|undefined;
     if(!Number.isSafeInteger(s?.playerId)||(s?.playerId??0)<=0){res.status(401).json({error:"Authentication required"});return;}
@@ -239,6 +239,8 @@ export function createCareerTournamentRouter(service:ReturnType<typeof createCar
   router.post("/saves/:id/tournaments/presentation",authedWriteRateLimit,async(req,res)=>res.json(await service.presentation(res.locals.careerActor,save(req),req.body)));
   router.get("/saves/:id/tournaments/:eventId",async(req,res)=>res.json(await service.read(res.locals.careerActor,save(req),event(req))));
   router.post("/saves/:id/tournaments/:eventId/group-bull",authedWriteRateLimit,async(req,res)=>res.json(await calendar.groupBull(res.locals.careerActor,save(req),event(req),req.body)));
+  router.get("/saves/:id/form",async(req,res)=>res.json(await calendar.form(res.locals.careerActor,save(req))));
+  router.post("/saves/:id/tournaments/:eventId/quick-sim",authedWriteRateLimit,async(req,res)=>res.json(await calendar.quickSimMatch(res.locals.careerActor,save(req),event(req),req.body)));
   router.post("/saves/:id/tournaments/:eventId/concede",authedWriteRateLimit,async(req,res)=>res.json(await calendar.concedeMatch(res.locals.careerActor,save(req),event(req),req.body)));
   router.post("/saves/:id/tournaments/:eventId/withdraw",authedWriteRateLimit,async(req,res)=>{
     z.object({confirmation:z.literal("WITHDRAW_TOURNAMENT")}).strict().parse(req.body);

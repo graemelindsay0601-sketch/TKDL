@@ -2,7 +2,7 @@
  * GameScorer — orchestrator that routes any game type to its proper scorer engine.
  * Used by both /play (real matches) and /practice (practice sessions).
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { resolveBullUp, botBullThrow, type BullThrow, type BullUpState } from "@/lib/darts-rules";
 import type { Dart } from "@/lib/dartboard";
 import {
@@ -60,9 +60,11 @@ const throwLabel = (t: BullThrow | undefined) => t === "INNER" ? "Inner Bull" : 
  * says whose dart the user enters. Used by GameScorer (local) and Career
  * (server-authoritative: the server records each throw and the bot's throws).
  */
-export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, error, subtitle }: {
+export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, error, subtitle, footer }: {
   names: [string, string]; state: BullUpState; isHuman: (idx: 0 | 1) => boolean;
   onThrow: (idx: 0 | 1, t: BullThrow) => void; onContinue: () => void; busy?: boolean; error?: string | null; subtitle?: string;
+  /** Extra actions under the board (Career: quick-sim the match instead). */
+  footer?: ReactNode;
 }) {
   const round = state.rounds[state.rounds.length - 1];
   const roundNo = state.rounds.length;
@@ -171,6 +173,7 @@ export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, 
             </div>
           )}
           <footer className="bullup-footer"><span>TKDL CAREER TOUR</span><i /> NEAREST TO THE BULL THROWS FIRST</footer>
+        {footer && <div className="bullup-footer">{footer}</div>}
         </main>
       </div>
     </div>

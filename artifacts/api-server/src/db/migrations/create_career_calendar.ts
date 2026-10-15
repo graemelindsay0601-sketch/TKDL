@@ -289,6 +289,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
     await ensureSoftTipCircuit(tx);
     await ensureLeagueRounds(tx);
     await ensureEventPairs(tx);
+    await ensureQuickSimSource(tx);
     await syncEventDefinitions(tx);
     // A6.5: server-authoritative live match sessions — additive, idempotent.
     await ensureCareerMatchSessionSchema(tx);
@@ -322,6 +323,16 @@ export async function ensureLeagueRounds(tx: CareerExecutor): Promise<void> {
   if (current?.def.includes("30")) return;
   await tx.execute(sql`ALTER TABLE career_tournament_matches DROP CONSTRAINT IF EXISTS career_tournament_matches_round_check`);
   await tx.execute(sql`ALTER TABLE career_tournament_matches ADD CONSTRAINT career_tournament_matches_round_check CHECK (round BETWEEN 1 AND 30)`);
+}
+
+/** Quick-sim: a human match the simulator played at the human's level is recorded as QUICK_SIM (never as live darts). Idempotent. */
+export async function ensureQuickSimSource(tx: CareerExecutor): Promise<void> {
+  const current = (await tx.execute(sql`SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint
+    WHERE conrelid = 'career_tournament_matches'::regclass AND contype = 'c' AND pg_get_constraintdef(oid) LIKE '%HUMAN_LIVE%'`)).rows as { conname: string; def: string }[];
+  if (current.some(c => c.def.includes("QUICK_SIM"))) return;
+  for (const c of current) await tx.execute(sql.raw(`ALTER TABLE career_tournament_matches DROP CONSTRAINT IF EXISTS "${c.conname.replace(/"/g, "")}"`));
+  await tx.execute(sql`ALTER TABLE career_tournament_matches ADD CONSTRAINT career_tournament_matches_result_source_check
+    CHECK (result_source IN ('A2_SIMULATION','HUMAN_LIVE','QUICK_SIM','BYE','WALKOVER'))`);
 }
 
 /**

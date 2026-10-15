@@ -4,6 +4,7 @@ import { ArrowUpRight, CalendarDays, FastForward, Loader2, Swords, Trophy } from
 import { CareerEventCard } from "../components";
 import { CareerEventAtmosphere, atmosphereFromCalendarEvent } from "../atmosphere";
 import { useContinueCareer, ContinueOutcomeCard, ContinueProgress } from "../continue-career";
+import { FormBadge, QuickSim } from "../quick-sim";
 import type { CareerEvent, CareerSave, CalendarOverview } from "../types";
 
 /**
@@ -30,7 +31,8 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
   if (pendingReview) lead = <Lead title="Season complete" text="Read your season review to start the next season.">
     <Link className="career-btn career-btn-primary" href={`/career/${id}/my-career/history`}>Season review <ArrowUpRight aria-hidden /></Link></Lead>;
   else if (match) lead = <Lead title="Your match is ready" text="Step up to the oche." event={byId(match.eventId)}>
-    <Link className="career-btn career-btn-gold" href={`/career/${id}/matches/${match.matchId}/play`}><Swords aria-hidden /> Play your match</Link></Lead>;
+    <Link className="career-btn career-btn-gold" href={`/career/${id}/matches/${match.matchId}/play`}><Swords aria-hidden /> Play your match</Link>
+    <QuickSim saveId={id} eventId={match.eventId} matchId={match.matchId} compact /></Lead>;
   else if (activeTournament) lead = <Lead title={activeTournament.name} text="Tournament in progress.">
     <Link className="career-btn career-btn-primary" href={`/career/${id}/tournaments/${activeTournament.eventId}`}><Trophy aria-hidden /> Return to tournament</Link></Lead>;
   else if (booked) lead = <Lead title={byId(booked.eventId) ? "Booked" : `Booked: ${booked.name}`} text={`Week ${booked.week} · play on and your first match opens`} event={byId(booked.eventId)}>
@@ -52,6 +54,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         {!booked && <button type="button" className="career-btn career-btn-ghost next-move__skip" disabled={go.pending || go.blocked} onClick={() => { void go.run(); }}>
           {go.pending ? <Loader2 className="animate-spin" aria-hidden /> : <FastForward aria-hidden />} Skip ahead to the next date</button>}
       </>}
+      <FormBadge saveId={id} variant="card" />
       {go.pending && <ContinueProgress saveId={save.id} from={go.from} toEvent={booked} />}
       {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
     </section>

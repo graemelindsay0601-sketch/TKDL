@@ -34,6 +34,14 @@ export type TournamentView = import("../../../../api-server/src/career/tournamen
 export const useTournament = (saveId:string,eventId:string) => useQuery({queryKey:careerKey(saveId,"tournament",eventId),queryFn:()=>get<TournamentView>(`/saves/${saveId}/tournaments/${eventId}`),staleTime:0});
 export const useActiveTournament = (saveId:string,enabled=true) => useQuery({queryKey:careerKey(saveId,"tournaments"),queryFn:()=>get<{tournaments:{eventId:string;name:string;level:number;terminal:boolean}[]}>(`/saves/${saveId}/tournaments`),enabled,staleTime:0});
 export const useTournamentAction = (saveId:string,eventId:string) => useSaveMutation(saveId,(input:{action:"group-bull"|"concede"|"withdraw"|"dismiss";body?:unknown})=>send("POST",`/saves/${saveId}/tournaments/${eventId}/${input.action}`,input.body));
+export type HumanForm = import("../../../../api-server/src/career/form/human").HumanForm;
+/** Your form and confidence (live darts, recent results, the week's practice). */
+export const useHumanForm = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "form"), queryFn: () => get<HumanForm>(`/saves/${saveId}/form`), enabled, staleTime: STALE });
+export type QuickSimResult = { matchId: string; winnerKey: string; eventCompleted: number; nextHumanMatchIds: string[];
+  quickSim: { won: boolean; legs: [number, number]; sets: [number, number] | null; yourAverage: number; opponentAverage: number; opponent: string; maximums: number; highestCheckout: number; form: HumanForm } };
+/** Play your waiting match by simulation at your level (recorded as a quick-sim, never as live darts). */
+export const useQuickSim = (saveId: string) => useSaveMutation(saveId, (input: { eventId: string; matchId: string }) =>
+  send<QuickSimResult>("POST", `/saves/${saveId}/tournaments/${input.eventId}/quick-sim`, { matchId: input.matchId, confirmation: "QUICK_SIM" }));
 export const useTournamentPresentation = (saveId:string) => useSaveMutation(saveId,(body:{mode:"FULL"|"BALANCED"|"QUICK";reducedMotion:boolean})=>send("POST",`/saves/${saveId}/tournaments/presentation`,body));
 
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
