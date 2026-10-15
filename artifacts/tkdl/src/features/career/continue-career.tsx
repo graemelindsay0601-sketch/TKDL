@@ -29,7 +29,7 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
   const finished = tournament.data?.tournaments.filter(t => t.terminal) ?? [];
   const dismiss = useTournamentAction(save.id, finished[0]?.eventId ?? "");
   const [, navigate] = useLocation();
-  const outcome = useSyncExternalStore(subscribe, () => outcomes.get(save.id) ?? null);
+  const outcome = useSyncExternalStore(subscribe, () => outcomes.get(save.id) ?? null, () => null);
   const setOutcome = (value: ContinueOutcome | null) => setStoredOutcome(save.id, value);
 
   const run = async () => {
