@@ -52,7 +52,7 @@ test("Pub Doubles: you enter, the field locks into pairs, you captain a pair wit
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${save.id}`);
   await sporting.initialize(actor, save.id);
   saveId = save.id;
-  assert.equal(Number((await rows(sql`SELECT event_database_version v FROM career_saves WHERE id=${saveId}`))[0].v), 13);
+  assert.equal(Number((await rows(sql`SELECT event_database_version v FROM career_saves WHERE id=${saveId}`))[0].v) >= 13, true);
   const e = (await rows(sql`SELECT id, start_week, start_day FROM career_event_instances WHERE career_save_id=${saveId} AND definition_key='pub-doubles' AND country='GBR' AND executable ORDER BY start_day LIMIT 1`))[0];
   assert.ok(e, "a Pub Doubles night in the UK");
   eventId = String(e.id);

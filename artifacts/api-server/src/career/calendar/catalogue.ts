@@ -14,6 +14,7 @@ import { buildCatalogueV10 } from "../content/season-v10.ts";
 import { buildCatalogueV11 } from "../content/season-v11.ts";
 import { buildCatalogueV12 } from "../content/season-v12.ts";
 import { buildCatalogueV13 } from "../content/season-v13.ts";
+import { buildCatalogueV14 } from "../content/season-v14.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -38,7 +39,8 @@ export type ScheduleSlot = { week: number; day: number; venue: string; label?: s
 export type Schedule =
   | { kind: "FIXED"; slots: ScheduleSlot[] }
   /** Deterministic seeded rotation across localities. */
-  | { kind: "LOCAL_ROTATION"; venueKind: "CLUB" | "COUNTY"; perWeight: number; day: number; weekRange: [number, number]; countries?: string[] };
+  | { kind: "LOCAL_ROTATION"; venueKind: "CLUB" | "COUNTY"; perWeight: number; day: number; weekRange: [number, number]; countries?: string[];
+      /** v14: every N weeks from a seeded start week instead of perWeight random weeks. */ everyWeeks?: number };
 
 export type EventDefinition = {
   key: string;
@@ -453,6 +455,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 11) return EVENT_CATALOGUE_V11;
   if (version === 12) return EVENT_CATALOGUE_V12;
   if (version === 13) return EVENT_CATALOGUE_V13;
+  if (version === 14) return EVENT_CATALOGUE_V14;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -474,5 +477,7 @@ export const EVENT_CATALOGUE_V11: readonly EventDefinition[] = buildCatalogueV11
 export const EVENT_CATALOGUE_V12: readonly EventDefinition[] = buildCatalogueV12(EVENT_CATALOGUE_V11);
 /** v13: pairs — the World Cup of Darts and Pub Doubles. */
 export const EVENT_CATALOGUE_V13: readonly EventDefinition[] = buildCatalogueV13(EVENT_CATALOGUE_V12);
+/** v14: Free Entry Nights — a free, local way to earn in every home area every four weeks. */
+export const EVENT_CATALOGUE_V14: readonly EventDefinition[] = buildCatalogueV14(EVENT_CATALOGUE_V13);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

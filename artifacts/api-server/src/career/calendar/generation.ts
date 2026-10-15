@@ -57,12 +57,21 @@ function placements(definition: EventDefinition, seed: string, season: number): 
   for (const locality of definition.eventDatabaseVersion >= 3 ? LOCALITIES : LOCALITIES_V1) {
     if (schedule.countries && !schedule.countries.includes(locality.country)) continue;
     const rng = scopedRandom(seed, CALENDAR_GENERATION_VERSION, "calendar-rotation", season, definition.key, locality.key);
-    const expected = locality.weight * schedule.perWeight;
-    const count = Math.floor(expected) + (rng() < expected - Math.floor(expected) ? 1 : 0);
-    const weeks = Array.from({ length: schedule.weekRange[1] - schedule.weekRange[0] + 1 }, (_, i) => schedule.weekRange[0] + i);
-    for (let i = weeks.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [weeks[i], weeks[j]] = [weeks[j], weeks[i]]; }
     const venue = localVenue(locality.key, schedule.venueKind);
-    for (const week of weeks.slice(0, Math.min(count, weeks.length)).sort((a, b) => a - b)) {
+    let chosen: number[];
+    if (schedule.everyWeeks) {
+      // Fixed cadence from a seeded start week, so gaps never exceed everyWeeks.
+      const start = schedule.weekRange[0] + Math.floor(rng() * schedule.everyWeeks);
+      chosen = [];
+      for (let week = start; week <= schedule.weekRange[1]; week += schedule.everyWeeks) chosen.push(week);
+    } else {
+      const expected = locality.weight * schedule.perWeight;
+      const count = Math.floor(expected) + (rng() < expected - Math.floor(expected) ? 1 : 0);
+      const weeks = Array.from({ length: schedule.weekRange[1] - schedule.weekRange[0] + 1 }, (_, i) => schedule.weekRange[0] + i);
+      for (let i = weeks.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [weeks[i], weeks[j]] = [weeks[j], weeks[i]]; }
+      chosen = weeks.slice(0, Math.min(count, weeks.length)).sort((a, b) => a - b);
+    }
+    for (const week of chosen) {
       out.push({ slotKey: `${locality.key}-w${week}`, week, day: schedule.day, endWeek: week, endDay: schedule.day, venueKey: venue.key, label: null, country: locality.country, localityKey: locality.key });
     }
   }

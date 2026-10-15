@@ -279,6 +279,8 @@ export function routeLines(r: RouteFact): { text: string; met: boolean }[] {
     case "ZONE": case "COUNTRY": case "LOCALITY": return [{ text: "Region restricted", met: r.met }];
     case "EVENT_RESULT": return [{ text: "Earlier result required", met: r.met }];
     case "DEFENDING_CHAMPION": return [{ text: "Defending champion", met: r.met }];
+    // Field top-up for computer players only; nothing for the player to meet.
+    case "COMPUTER_PLAYER": return [];
     default: return [{ text: titleCase(r.type), met: r.met }];
   }
 }

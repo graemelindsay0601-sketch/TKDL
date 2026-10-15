@@ -22,7 +22,9 @@ export type Rule =
   | { type: "EVENT_RESULT"; definitionKey: string; maxPosition: number; season: "SAME" | "PREVIOUS" }
   | { type: "DEFENDING_CHAMPION" }
   /** A6.5: age on the event's start date. Bounds come from AGE_POLICY when authored. */
-  | { type: "AGE"; minAge?: number; maxAgeExclusive?: number };
+  | { type: "AGE"; minAge?: number; maxAgeExclusive?: number }
+  /** v14: computer-controlled players only (lets a home-area event top its field up from further afield). */
+  | { type: "COMPUTER_PLAYER" };
 
 const leaf = z.discriminatedUnion("type", [
   z.object({ type: z.literal("OPEN") }).strict(),
@@ -38,6 +40,7 @@ const leaf = z.discriminatedUnion("type", [
   z.object({ type: z.literal("RANKING"), list: z.string().min(1), maxPosition: z.number().int().positive() }).strict(),
   z.object({ type: z.literal("EVENT_RESULT"), definitionKey: z.string().min(1), maxPosition: z.number().int().positive(), season: z.enum(["SAME", "PREVIOUS"]) }).strict(),
   z.object({ type: z.literal("DEFENDING_CHAMPION") }).strict(),
+  z.object({ type: z.literal("COMPUTER_PLAYER") }).strict(),
   z.object({ type: z.literal("AGE"), minAge: z.number().int().min(5).max(120).optional(), maxAgeExclusive: z.number().int().min(6).max(121).optional() }).strict(),
 ]);
 export const ruleSchema: z.ZodType<Rule> = z.lazy(() => z.union([
@@ -113,6 +116,7 @@ export function evaluateRule(rule: Rule, facts: ParticipantFacts): RuleOutcome {
       return position !== undefined && position <= rule.maxPosition ? ok : deny("REQUIRES_EVENT_RESULT");
     }
     case "DEFENDING_CHAMPION": return facts.defendingChampion ? ok : deny("REQUIRES_DEFENDING_CHAMPION");
+    case "COMPUTER_PLAYER": return facts.kind === "NPC" ? ok : deny("OUTSIDE_REGION");
     case "AGE": {
       if (facts.age === null || facts.age === undefined) return deny("PROFILE_INCOMPLETE");
       if (rule.minAge !== undefined && facts.age < rule.minAge) return deny("BELOW_MINIMUM_AGE");
@@ -133,6 +137,7 @@ export const R = {
   country: (...countries: string[]): Rule => ({ type: "COUNTRY", countries }),
   zone: (...zones: Zone[]): Rule => ({ type: "ZONE", zones }),
   locality: (...localities: string[]): Rule => ({ type: "LOCALITY", localities }),
+  computerPlayer: (): Rule => ({ type: "COMPUTER_PLAYER" }),
   amateur: (): Rule => ({ type: "PRO_STATUS", status: "AMATEUR" }),
   tourCard: (): Rule => ({ type: "TOUR_CARD" }),
   nonTourCard: (): Rule => ({ type: "NON_TOUR_CARD" }),
