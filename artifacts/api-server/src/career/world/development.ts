@@ -1,5 +1,5 @@
 import { ATTRIBUTES, CAREER_DEVELOPMENT_CONFIG as D, CAREER_WORLD_CONFIG as W, targetPopulation } from "./config.ts";
-import { scopedRandom, normal } from "./random.ts";
+import { scopedRandom, normal, between, integer } from "./random.ts";
 import { clamp, meanAbility, npcSchema, type Npc, type Ability } from "./types.ts";
 import { stageForAge, tierForAbility, generateProspects, assertGenerationVersion } from "./generation.ts";
 import { regressForm } from "./form.ts";
@@ -83,4 +83,54 @@ export function steadyIntakes(players: readonly Npc[]) {
   const junior = clamp(openDeficit, STEADY_WORLD.junior.minimum, STEADY_WORLD.junior.maximum);
   return { junior, prospects: Math.max(0, openDeficit - junior),
     women: clamp(STEADY_WORLD.womenTarget - active.filter(isWomenCohort).length, STEADY_WORLD.women.minimum, STEADY_WORLD.women.maximum) };
+}
+
+/**
+ * Player database v6: the top of the pyramid holds. Real darts keeps a steady top 32 and 128 Tour Card holders
+ * because new players keep breaking through; generated prospects alone rarely have that ceiling, so the elite and
+ * the tour level thinned out over long Careers. Each off-season the elite and tour-level counts, plus the players
+ * already rising towards them, are compared with the world's targets; any shortfall goes to the best young players
+ * one level below as a breakthrough (a higher ceiling and growth from now), and they rise over the next seasons.
+ * The open (men's) game and the women's game are counted separately.
+ */
+export const PYRAMID = Object.freeze({
+  open: { elite: 36, tourLevel: 140 },
+  women: { elite: 8, tourLevel: 24 },
+  maximumAge: 34, minimumRate: 2, growthYears: [6, 9] as const, risingWeight: 0.5, fadingWeight: 0.25,
+  elite: { potential: [76, 90] as const, perSeason: 6, risingFrom: 50 },
+  tour: { potential: [60, 72] as const, perSeason: 10, risingFrom: 38 },
+});
+const isWomen = (npc: Npc) => npc.worldKey.startsWith("women:");
+const tourLevel = (npc: Npc) => npc.tier === "ELITE" || npc.tier === "PROFESSIONAL";
+
+export function breakthroughs(players: readonly Npc[], seed: string, version: number, season: number) {
+  const P = PYRAMID, chosen = new Map<string, Npc>();
+  const best = (a: Npc, b: Npc) => meanAbility(b.ability) - meanAbility(a.ability) || a.id.localeCompare(b.id);
+  /** Already on the way up: a ceiling in the band, quick development, past the breakthrough age and close enough. */
+  const rising = (npc: Npc, band: typeof P.elite | typeof P.tour) => npc.age >= npc.development.breakthroughAge && npc.age < npc.development.peakStart
+    && npc.development.potential >= band.potential[0] && npc.development.rate >= P.minimumRate && meanAbility(npc.ability) >= band.risingFrom;
+  for (const [game, targets] of [["open", P.open], ["women", P.women]] as const) {
+    const pool = players.filter(npc => npc.status === "ACTIVE" && isWomen(npc) === (game === "women"));
+    const plan = [
+      { band: P.elite, reached: (npc: Npc) => npc.tier === "ELITE", target: targets.elite, from: ["PROFESSIONAL", "AMATEUR"] },
+      { band: P.tour, reached: tourLevel, target: targets.tourLevel, from: ["AMATEUR", "GRASSROOTS"] },
+    ] as const;
+    for (const { band, reached, target, from } of plan) {
+      // Rising players count half: they take several seasons to arrive and not all of them do.
+      // Looking ahead (a breakthrough takes a few seasons): players there but past their peak count a quarter.
+      const there = pool.filter(reached), fading = there.filter(npc => npc.age > npc.development.peakEnd).length;
+      const need = target - (there.length - fading) - Math.floor(fading * P.fadingWeight)
+        - Math.ceil(pool.filter(npc => !reached(npc) && (chosen.has(npc.id) || rising(npc, band))).length * P.risingWeight);
+      // The best young players one level below first, then the level below that when they run short.
+      const candidates = from.flatMap(tier => pool.filter(npc => npc.tier === tier && npc.age <= P.maximumAge && !chosen.has(npc.id) && !rising(npc, band)).sort(best));
+      for (const npc of candidates.slice(0, clamp(need, 0, band.perSeason))) {
+        const rng = scopedRandom(seed, version, "breakthrough", season, npc.id), d = npc.development;
+        const peakStart = Math.max(d.peakStart, npc.age + integer(rng, ...P.growthYears));
+        chosen.set(npc.id, npcSchema.parse({ ...npc, development: { ...d, potential: Math.max(d.potential, between(rng, band.potential[0], band.potential[1])),
+          rate: Math.max(d.rate, between(rng, P.minimumRate + 0.5, D.developmentRate[1])), breakthroughAge: Math.min(d.breakthroughAge, npc.age),
+          peakStart, peakEnd: Math.max(d.peakEnd, peakStart + D.peakLength[0]) } }));
+      }
+    }
+  }
+  return { players: players.map(npc => chosen.get(npc.id) ?? npc), breakthroughs: [...chosen.keys()] };
 }

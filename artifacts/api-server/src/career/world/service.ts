@@ -14,7 +14,7 @@ import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./ty
 import { simulateNpcMatch } from "./simulation.ts";
 import { stableUuid } from "./random.ts";
 import { formAfterMatch } from "./form.ts";
-import { developNpc, evolveOffSeason, isBasePopulation, steadyIntakes } from "./development.ts";
+import { breakthroughs, developNpc, evolveOffSeason, isBasePopulation, steadyIntakes } from "./development.ts";
 import {persistInitialNpcSponsorRelationships} from "../sponsorship/npc-foundation.ts";
 import { isCareerRead } from "../request-scope.ts";
 
@@ -186,6 +186,8 @@ export function createCareerWorldService(database: CareerDatabase) {
         const steady = playerDbVersion >= 5;
         const evolved = evolveOffSeason(await loadNpcs(tx, saveId), root.world_seed, root.world_generation_version, world.season, 1 - world.elapsed_year, request.opportunity,
           playerDbVersion >= 4 ? isBasePopulation : undefined, steady ? 0 : undefined);
+        // v6: shortfalls at the top of the pyramid go to the best young players below as breakthroughs.
+        if (playerDbVersion >= 6) evolved.players = breakthroughs(evolved.players, root.world_seed, root.world_generation_version, world.season).players;
         const intakes = steady ? steadyIntakes(evolved.players) : { junior: JUNIOR_COHORT.annualIntake, prospects: 0, women: 20 };
         if (intakes.prospects) {
           const prospects = generateProspects(root.world_seed, root.world_generation_version, world.season + 1, intakes.prospects, evolved.players);
