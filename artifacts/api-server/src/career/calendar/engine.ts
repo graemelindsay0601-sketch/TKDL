@@ -710,7 +710,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       slotUpdates.push(...updates.filter(u => !walkoverIds.has(u.id)));
       if (!changed && !npcReady.some(r => r.event === event)) continue;
     }
-    for (const done of finishedEvents) { await completeEvent(tx, root, done.event, done.matches, done.rounds, providers); completed++; }
+    await completeEvents(tx, root, finishedEvents, providers); completed += finishedEvents.length;
     await saveSlotUpdates(tx, root.id, slotUpdates);
     if (walkovers.length) {
       await tx.execute(sql`UPDATE career_tournament_matches t SET status = CASE WHEN w.winner_key IS NULL THEN 'VOID' ELSE 'WALKOVER' END, winner_key = w.winner_key, result_source = 'WALKOVER', completed_at = NOW(),
@@ -763,12 +763,54 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
 }
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Permanent facts: results for every confirmed entrant, champion, entitlement outputs. */
-async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceRow, matches: MatchRow[], rounds: number, providers?: CalendarProviders) {
-  // Everyone placed in the official draw gets a permanent result, including post-lock withdrawals.
-  const drawn = [...new Set(matches.flatMap(m => [m.a_key, m.b_key]).filter((k): k is string => !!k))];
-  const entries = (await tx.execute(sql`SELECT participant_key, participant_kind, npc_id FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${event.id}
-    AND participant_key IN (${sql.join(drawn.map(k => sql`${k}`), sql`, `)}) ORDER BY participant_key`)).rows;
+/**
+ * Permanent facts for every event that finished in this pass: results for every confirmed entrant, champion,
+ * entitlement outputs. Written together (one read of entries, one insert of results and of entitlements, one
+ * status write), then A4 and A5 process the same immutable results in event order.
+ */
+async function completeEvents(tx: CareerExecutor, root: RootRow, finished: readonly { event: InstanceRow; matches: MatchRow[]; rounds: number }[], providers?: CalendarProviders) {
+  if (!finished.length) return;
+  const ids = finished.map(f => sql`${f.event.id}::uuid`);
+  const entryRows = (await tx.execute(sql`SELECT event_id, participant_key, participant_kind, npc_id FROM career_event_entries WHERE career_save_id = ${root.id}
+    AND event_id IN (${sql.join(ids, sql`, `)}) ORDER BY participant_key`)).rows;
+  // Pairs: the captain's result names the partner (partners have no result row of their own; the pair is one entrant).
+  const teams = await loadPairs(tx, root.id, finished.filter(f => f.event.snapshot.format.sideSize === 2).map(f => f.event.id));
+  const done = finished.map(({ event, matches, rounds }) => {
+    // Everyone placed in the official draw gets a permanent result, including post-lock withdrawals.
+    const drawn = new Set(matches.flatMap(m => [m.a_key, m.b_key]).filter((k): k is string => !!k));
+    const entries = entryRows.filter(e => String(e.event_id) === event.id && drawn.has(String(e.participant_key)));
+    const { results, champion } = eventResults(root, event, matches, rounds, entries, teams);
+    return { event, results, champion };
+  });
+  await tx.execute(sql`INSERT INTO career_event_results (career_save_id, event_id, participant_key, participant_kind, npc_id, season, definition_key, finishing_position,
+      stage_reached, is_champion, matches_played, wins, losses, legs_for, legs_against, metadata)
+    SELECT ${root.id}::uuid, r.event_id, r.participant_key, r.participant_kind, r.npc_id, r.season, r.definition_key, r.finishing_position,
+      r.stage_reached, r.is_champion, r.matches_played, r.wins, r.losses, r.legs_for, r.legs_against, r.metadata
+    FROM jsonb_to_recordset(${JSON.stringify(done.flatMap(d => d.results.map(r => ({ ...r, event_id: d.event.id, season: d.event.season, definition_key: d.event.definition_key }))))}::jsonb)
+      AS r(event_id uuid, season integer, definition_key text, participant_key text, participant_kind text, npc_id uuid, finishing_position integer, stage_reached text,
+      is_champion boolean, matches_played integer, wins integer, losses integer, legs_for integer, legs_against integer, metadata jsonb)
+    ON CONFLICT (career_save_id, event_id, participant_key) DO NOTHING`);
+  for (const season of new Set(done.map(d => d.event.season))) {
+    const grants = done.filter(d => d.event.season === season).flatMap(({ event, results }) => eventGrants(root, event, results));
+    if (grants.length) await insertEntitlements(tx, root.id, season, grants, "EVENT_RESULT");
+  }
+  for (const { event } of done) assertTransition(event.status, "COMPLETED");
+  const champions = done.map(d => ({ id: d.event.id, from: d.event.status, champion: d.champion, npc: d.champion === HUMAN ? null : d.champion }));
+  const moved = await tx.execute(sql`UPDATE career_event_instances e SET status = 'COMPLETED', status_reason = NULL, champion_participant_key = c.champion,
+      champion_npc_id = c.npc, completed_at = NOW()
+    FROM jsonb_to_recordset(${JSON.stringify(champions)}::jsonb) AS c(id uuid, "from" text, champion text, npc uuid)
+    WHERE e.career_save_id = ${root.id} AND e.id = c.id AND e.status = c."from" RETURNING e.id`);
+  if (moved.rows.length !== done.length) throw new CareerError(409, "Career event changed concurrently");
+  for (const d of done) { d.event.status = "COMPLETED"; d.event.status_reason = null; }
+  // A4: financial consequences of the immutable results (exactly-once via ledger operation keys), then A5 rankings / Q-School from the same facts.
+  const batch = done.map(d => ({ event: d.event, results: d.results }));
+  if (providers?.finance?.onEventsCompleted) await providers.finance.onEventsCompleted(tx, root, batch);
+  else for (const d of batch) await providers?.finance?.onEventCompleted(tx, root, d.event, d.results);
+  if (providers?.sporting?.onEventsCompleted) await providers.sporting.onEventsCompleted(tx, root, batch);
+  else for (const d of batch) await providers?.sporting?.onEventCompleted(tx, root, d.event, d.results);
+}
+
+function eventResults(root: RootRow, event: InstanceRow, matches: MatchRow[], rounds: number, entries: readonly Record<string, unknown>[], teams: Awaited<ReturnType<typeof loadPairs>>) {
   const final = matches.find(m => !isGroupMatch(m) && m.round === rounds)!;
   const champion = final.winner_key!;
   // League: players who miss the play-offs finish in their table position (5th-8th; tied rows share a place).
@@ -777,8 +819,6 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
     let place = 1;
     for (const bucket of groupTable(matches, "L", new Set(), layoutFor("LEAGUE")).buckets) { for (const p of bucket) leagueRank.set(p.key, place); place += bucket.length; }
   }
-  // Pairs: the captain's result names the partner (partners have no result row of their own; the pair is one entrant).
-  const teams = event.snapshot.format.sideSize === 2 ? await loadPairs(tx, root.id, [event.id]) : new Map();
   const results = entries.map(entry => {
     const key = String(entry.participant_key);
     const team = teams.get(`${event.id}|${key}`);
@@ -800,13 +840,10 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
         // A6.5: the human's age on the event's start date (a persisted fact for later storytelling).
         ...(key === HUMAN ? { humanAge: careerAge(rootIdentity(root as RootRow & { identity_dob?: unknown; identity_start?: unknown }), event.season, event.start_day) } : {}) } };
   });
-  await tx.execute(sql`INSERT INTO career_event_results (career_save_id, event_id, participant_key, participant_kind, npc_id, season, definition_key, finishing_position,
-      stage_reached, is_champion, matches_played, wins, losses, legs_for, legs_against, metadata)
-    SELECT ${root.id}::uuid, ${event.id}::uuid, r.participant_key, r.participant_kind, r.npc_id, ${event.season}, ${event.definition_key}, r.finishing_position,
-      r.stage_reached, r.is_champion, r.matches_played, r.wins, r.losses, r.legs_for, r.legs_against, r.metadata
-    FROM jsonb_to_recordset(${JSON.stringify(results)}::jsonb) AS r(participant_key text, participant_kind text, npc_id uuid, finishing_position integer, stage_reached text,
-      is_champion boolean, matches_played integer, wins integer, losses integer, legs_for integer, legs_against integer, metadata jsonb)
-    ON CONFLICT (career_save_id, event_id, participant_key) DO NOTHING`);
+  return { results, champion };
+}
+
+function eventGrants(root: RootRow, event: InstanceRow, results: ReturnType<typeof eventResults>["results"]) {
   const grants = event.snapshot.qualificationOutputs.flatMap((output, index) => results.filter(r => r.finishing_position <= output.maxPosition).map(r => {
     const targetSeason = event.season + (output.targetSeason === "NEXT" ? 1 : 0);
     const idempotency = output.consumption === "SEASON_PASS" ? `pass:${output.targetKey}:${targetSeason}:${r.participant_key}` : `result:${event.id}:${index}:${r.participant_key}`;
@@ -815,12 +852,7 @@ async function completeEvent(tx: CareerExecutor, root: RootRow, event: InstanceR
       source_detail: { definitionKey: event.definition_key, instanceKey: event.instance_key, outputIndex: index, stageReached: r.stage_reached },
       target_key: output.targetKey, target_season: targetSeason, consumption: output.consumption };
   }));
-  if (grants.length) await insertEntitlements(tx, root.id, event.season, grants, "EVENT_RESULT");
-  await transition(tx, event, "COMPLETED", { set: sql`champion_participant_key = ${champion}, champion_npc_id = ${champion === HUMAN ? null : champion}, completed_at = NOW()` });
-  // A4: financial consequences of the immutable result, same transaction (exactly-once via ledger operation keys).
-  await providers?.finance?.onEventCompleted(tx, root, event, results);
-  // A5: ranking contributions / Q-School standings from the same immutable facts (after A4's prize tables).
-  await providers?.sporting?.onEventCompleted(tx, root, event, results);
+  return grants;
 }
 
 export async function insertEntitlements(tx: CareerExecutor, saveId: string, awardedSeason: number, grants: Record<string, unknown>[], sourceKind: "EVENT_RESULT" | "PROVIDER") {
