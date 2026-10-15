@@ -1,4 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
+import { liveNineDarters } from "../records/model.ts";
 import { ingestCareerLive } from "../../shadow/career-live-adapter.ts";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
@@ -116,8 +117,9 @@ export function matchFacts(state: X01MatchState, pairs = false) {
     const visits = state.visits.filter((v, i) => v.thrower === p && v.game !== "CRICKET" && (member === undefined || seats[i].member === member));
     const darts = visits.reduce((n, v) => n + v.darts.length, 0);
     const points = visits.reduce((n, v) => n + v.points, 0);
+    const nineDarters = pairs ? 0 : liveNineDarters(state, p);
     return { darts, points, average: darts ? Math.round(points / darts * 300) / 100 : 0, maximums: visits.filter(v => v.points === 180).length,
-      highestCheckout: Math.max(0, ...visits.filter(v => v.checkout).map(v => v.startScore)) };
+      highestCheckout: Math.max(0, ...visits.filter(v => v.checkout).map(v => v.startScore)), ...(nineDarters ? { nineDarters } : {}) };
   };
   return { legs: state.totalLegs, sets: state.format.unit === "SETS" ? state.sets : null, winner: state.winner,
     legLog: state.legsLog.map(l => ({ set: l.setNo, leg: l.legNo, starter: l.starter, winner: l.winner })), human: pairs ? per(0, 0) : per(0), opponent: per(1),

@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { opportunity } from "../content/opportunities.ts";
 import { venueContent } from "../content/world.ts";
 import { z } from "zod";
+import { simulatedNineDarters } from "../records/model.ts";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { careerIdSchema } from "../validation.ts";
@@ -603,7 +604,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           summary: { quickSim: { skillAverage: form.skillAverage, form: form.form, confidence: form.confidence }, averages,
             checkoutPercentages: [result.stats[0].checkoutPercentage, result.stats[1].checkoutPercentage].map(n => Math.round(n * 100) / 100),
             maximums: [result.stats[0].maximums, result.stats[1].maximums], highestCheckouts: [result.stats[0].highestCheckout, result.stats[1].highestCheckout],
-            simulationVersion: result.simulationVersion },
+            simulationVersion: result.simulationVersion,
+            ...((nines => nines[0] || nines[1] ? { nineDarters: nines } : {})(simulatedNineDarters(result.legs, event.snapshot.format))) },
           firstThrowDetail: { method: "SIMULATED_BULL_UP", throws: bull.throws } });
         return { ...recorded, quickSim: { won: recorded.winnerKey === HUMAN, legs: [mine.legsWon, theirs.legsWon], sets: mine.setsWon !== undefined ? [mine.setsWon, theirs.setsWon] : null,
           yourAverage: Math.round(mine.average * 100) / 100, opponentAverage: Math.round(theirs.average * 100) / 100, opponent: `${opponent.firstName} ${opponent.surname}`,

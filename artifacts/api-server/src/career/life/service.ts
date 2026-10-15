@@ -94,6 +94,11 @@ export function createCareerLifeService(database:CareerDatabase) {
       FROM career_world_periods p CROSS JOIN LATERAL jsonb_array_elements(COALESCE(p.summary->'breakthroughs','[]'::jsonb)) WITH ORDINALITY t
       JOIN career_world_players n ON n.career_save_id=p.career_save_id AND n.id::text=t.value->>'id'
       WHERE p.career_save_id=${saveId} AND p.kind='OFF_SEASON' ORDER BY p.season,t.ordinality`)).rows;
+    const nineDarters=(await tx.execute(sql`SELECT w.match_id,w.event_id,i.name AS event_name,w.participant_key,w.season,w.day,w.value,w.source,
+        CASE WHEN w.participant_key='HUMAN' THEN 'You' ELSE concat(n.first_name,' ',n.surname) END AS name
+      FROM career_world_records w JOIN career_event_instances i ON i.career_save_id=w.career_save_id AND i.id=w.event_id
+      LEFT JOIN career_world_players n ON n.career_save_id=w.career_save_id AND n.id::text=w.participant_key
+      WHERE w.career_save_id=${saveId} AND w.record_key='nine-darter' AND w.season>=${recentFrom}`)).rows;
     const failures=(await tx.execute(sql`SELECT DISTINCT a.season,a.pathway,a.allocated_week FROM career_qschool_allocations a
       JOIN career_qschool_results q ON q.career_save_id=a.career_save_id AND q.season=a.season AND q.pathway=a.pathway
       WHERE a.career_save_id=${saveId} AND q.participant_key='HUMAN' AND q.stage='FINAL'
@@ -121,6 +126,8 @@ export function createCareerLifeService(database:CareerDatabase) {
       ])];
     return {saveId,season:Number(root.current_season),week:Number(root.current_week),active:root.status==="ACTIVE",ready:Boolean(root.identity_dob)&&events.length>0,
       facts,relationships,recognition,decisions,commitments,publicChanges,
+      nineDarters:nineDarters.map(r=>({matchId:String(r.match_id),eventId:String(r.event_id),eventName:String(r.event_name),participantKey:String(r.participant_key),
+        name:String(r.name),season:Number(r.season),day:Number(r.day),count:Number(r.value),source:String(r.source)})),
       tips:tips.map(r=>({npcId:String(r.npc_id),name:String(r.name),band:r.band==="ELITE"?"ELITE" as const:"TOUR" as const,season:Number(r.season),order:Number(r.ord)})),
       draws:draws.map(r=>({id:String(r.id),eventId:String(r.event_id),opponentId:String(r.opponent_id),season:Number(r.season),day:Number(r.scheduled_day),
         name:String(r.name),circuit:String(r.circuit),tier:String(r.presentation_tier),classification:String(r.classification)})),

@@ -17,6 +17,8 @@ import { careerAge, type CareerIdentity } from "../identity/age.ts";
 import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups, playingDays } from "./group-engine.ts";
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
 import { substitutesFor } from "./substitutes.ts";
+import { simulatedNineDarters } from "../records/model.ts";
+import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
 export const HUMAN = "HUMAN";
@@ -780,7 +782,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
         first_throw_detail: m.first_throw_detail, simulated_match_key: requests[i].matchKey,
         summary: { averages: [round2(r.stats[0].average), round2(r.stats[1].average)], checkoutPercentages: [round2(r.stats[0].checkoutPercentage), round2(r.stats[1].checkoutPercentage)],
           maximums: [r.stats[0].maximums, r.stats[1].maximums], highestCheckouts: [r.stats[0].highestCheckout, r.stats[1].highestCheckout], simulationVersion: r.simulationVersion,
-          ...(r.stats[0].setsWon !== undefined ? { sets: [r.stats[0].setsWon, r.stats[1].setsWon] } : {}) } };
+          ...(r.stats[0].setsWon !== undefined ? { sets: [r.stats[0].setsWon, r.stats[1].setsWon] } : {}), ...nineDartersOf(r.legs, npcReady[i].event) } };
     });
     await tx.execute(sql`UPDATE career_tournament_matches t SET status = 'COMPLETED', winner_key = d.winner_key, legs_a = d.legs_a, legs_b = d.legs_b,
         first_throw = d.first_throw, first_throw_detail = d.first_throw_detail, result_source = 'A2_SIMULATION', simulated_match_key = d.simulated_match_key,
@@ -792,6 +794,11 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
   return { completed, awaitingHuman: awaiting, simulated };
 }
 const round2 = (n: number) => Math.round(n * 100) / 100;
+/** Recorded only when a nine-darter happened (summaries otherwise unchanged). */
+const nineDartersOf = (legs: Parameters<typeof simulatedNineDarters>[0], event: InstanceRow) => {
+  const nines = simulatedNineDarters(legs, event.snapshot.format);
+  return nines[0] || nines[1] ? { nineDarters: nines } : {};
+};
 
 /**
  * Permanent facts for every event that finished in this pass: results for every confirmed entrant, champion,
@@ -832,6 +839,8 @@ async function completeEvents(tx: CareerExecutor, root: RootRow, finished: reado
     WHERE e.career_save_id = ${root.id} AND e.id = c.id AND e.status = c."from" RETURNING e.id`);
   if (moved.rows.length !== done.length) throw new CareerError(409, "Career event changed concurrently");
   for (const d of done) { d.event.status = "COMPLETED"; d.event.status_reason = null; }
+  // The records book (best match statistics and nine-darters) from these events' matches.
+  await updateWorldRecords(tx, root.id, done.map(d => d.event));
   // A4: financial consequences of the immutable results (exactly-once via ledger operation keys), then A5 rankings / Q-School from the same facts.
   const batch = done.map(d => ({ event: d.event, results: d.results }));
   if (providers?.finance?.onEventsCompleted) await providers.finance.onEventsCompleted(tx, root, batch);
