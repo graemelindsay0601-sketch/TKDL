@@ -1,3 +1,4 @@
+import { QuickSim } from "../quick-sim";
 import {useState} from "react";
 import {Link,useLocation} from "wouter";
 import {Flag,Swords} from "lucide-react";
@@ -113,6 +114,7 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
             <TaleOfTheTape v={v} match={next}/>
             <div className="flex flex-wrap gap-2">
               <button className="career-btn career-btn-gold" disabled={busy||v.readOnly} onClick={begin}>{v.session?.status==="IN_PLAY"?"Resume verified match":v.session?.status==="BULL_UP"?"Resume bull-up":"Prepare match"}</button>
+              {!v.readOnly&&v.session?.status!=="IN_PLAY"&&<QuickSim saveId={id} eventId={eventId} matchId={next.id} compact onDone={()=>{void q.refetch();}}/>}
               <ConfirmButton label="Concede this match" confirmLabel="Confirm match concession" danger busy={busy}
                 description="This records a walkover, not played darts. In a group you remain in the event; in a knockout you are eliminated."
                 onConfirm={()=>mutate("concede",{matchId:next.id,confirmation:"CONCEDE_MATCH"})}/></div></>:
@@ -181,7 +183,7 @@ function MatchList({v,list}:{v:TournamentView;list:TournamentView["matches"]}) {
   return <ul className="tournament-fixtures">{list.map(m=><li key={m.id} className={[m.a_key,m.b_key].includes("HUMAN")?"tournament-human-fixture":""}>
     <div className="text-xs text-white/60">{stage(m,v)} · day {m.scheduled_day} · best of {m.best_of}</div>
     <div>{name(v,m.a_key)} <strong>{m.legs_a!==null?`${m.legs_a}–${m.legs_b}`:"vs"}</strong> {name(v,m.b_key)}</div>
-    <p className="text-xs">{m.status==="BYE"?"Bye — no played match":m.status==="WALKOVER"?"Walkover — no played darts":m.status==="VOID"?"Both paths withdrawn — no winner":m.status==="COMPLETED"?`Winner: ${name(v,m.winner_key)} · ${m.result_source==="HUMAN_LIVE"?"verified shared scorer":"simulated match"}`:m.status.replace(/_/g," ")}</p>
+    <p className="text-xs">{m.status==="BYE"?"Bye — no played match":m.status==="WALKOVER"?"Walkover — no played darts":m.status==="VOID"?"Both paths withdrawn — no winner":m.status==="COMPLETED"?`Winner: ${name(v,m.winner_key)} · ${m.result_source==="HUMAN_LIVE"?"verified shared scorer":m.result_source==="QUICK_SIM"?"quick-sim at your level":"simulated match"}`:m.status.replace(/_/g," ")}</p>
     {!!m.summary&&typeof m.summary==="object"&&"sets" in m.summary&&<p className="text-xs">Sets: {String((m.summary as {sets:unknown[]}).sets.join("–"))} · score above is total legs</p>}
   </li>)}</ul>;
 }

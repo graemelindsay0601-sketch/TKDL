@@ -4,6 +4,7 @@ import { Link, useLocation } from "wouter";
 import { ArrowLeft, Menu, X, Gamepad2, House, BookOpen, CalendarDays, Map as MapIcon, ListOrdered, Users, Trophy, Landmark, ScrollText, LayoutGrid, Activity, Medal, Sparkles, Briefcase, Coins, Target, GraduationCap, type LucideIcon } from "lucide-react";
 import { useFinance, usePresentation } from "./api";
 import { CareerShirt } from "./identity";
+import { FormBadge } from "./quick-sim";
 import { CareerStageBackdrop, PLATES, resolveAtmosphere, spectacleFor } from "./atmosphere";
 import type { PlateKey } from "./atmosphere/model";
 import { CAREER_NAV, formatPence } from "./model";
@@ -24,7 +25,7 @@ export function PlayBar({ save }: { save: CareerSave }) {
       <div className="career-playbar__who">
         <span className="career-playbar__kicker"><b>Career</b> S{save.currentSeason} · Wk {save.currentWeek}</span>
         <strong>{save.careerName ?? "My Career"}</strong>
-        <span className="career-playbar__chips"><i>{formatPence(finance.data?.balancePence ?? save.balancePence)}</i><i>{save.hasTourCard ? "Tour Card" : "Amateur"}</i></span>
+        <span className="career-playbar__chips"><i>{formatPence(finance.data?.balancePence ?? save.balancePence)}</i><i>{save.hasTourCard ? "Tour Card" : "Amateur"}</i><FormBadge saveId={save.id} /></span>
       </div>
       <button type="button" className="career-playbar__menu" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label="Career menu"><Menu aria-hidden /><span className="career-playbar__menu-label">Menu</span></button>
       {open && <CareerMenu save={save} onClose={() => setOpen(false)} />}

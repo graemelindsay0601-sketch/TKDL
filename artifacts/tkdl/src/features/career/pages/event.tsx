@@ -187,7 +187,7 @@ function MatchCard({ m, seeds }: { m: CareerMatch; seeds: Map<string, number> })
     <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${m.status === "AWAITING_HUMAN" ? "rgba(255,210,74,0.5)" : "rgba(255,255,255,0.08)"}`, background: "rgba(255,255,255,0.02)" }}>
       {side(m.a, m.legs?.[0])}<div className="h-px" style={{ background: "rgba(255,255,255,0.06)" }} />{side(m.b, m.legs?.[1])}
       <div className="px-2.5 py-1 text-[0.6rem] uppercase flex justify-between" style={{ ...OSWALD, letterSpacing: "0.08em", color: "rgba(255,255,255,0.35)" }}>
-        <span>Best of {m.bestOf} · day {m.scheduledDay}</span><span>{m.status === "AWAITING_HUMAN" ? "Awaiting your match" : m.status === "WALKOVER" ? "Walkover" : m.status === "BYE" ? "Bye" : m.resultSource === "A2_SIMULATION" ? "Simulated" : m.resultSource === "HUMAN_LIVE" ? "Played live" : titleCase(m.status)}</span>
+        <span>Best of {m.bestOf} · day {m.scheduledDay}</span><span>{m.status === "AWAITING_HUMAN" ? "Awaiting your match" : m.status === "WALKOVER" ? "Walkover" : m.status === "BYE" ? "Bye" : m.resultSource === "A2_SIMULATION" ? "Simulated" : m.resultSource === "QUICK_SIM" ? "Quick-sim" : m.resultSource === "HUMAN_LIVE" ? "Played live" : titleCase(m.status)}</span>
       </div>
     </div>
   );

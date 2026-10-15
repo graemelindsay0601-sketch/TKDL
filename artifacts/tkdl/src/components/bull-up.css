@@ -708,3 +708,6 @@
   .bullup-throw-option,
   .bullup-continue button { transition: none; }
 }
+
+/* Extra actions under the bull-up (Career quick-sim). */
+.bullup-footer { margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.08); display: grid; gap: 8px; max-width: 560px; }
