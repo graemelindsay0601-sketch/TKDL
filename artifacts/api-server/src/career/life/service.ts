@@ -9,6 +9,8 @@ import { createCareerRelationshipsService } from "../relationships/service.ts";
 import { createCareerRecognitionService } from "../recognition/service.ts";
 import { careerDate } from "../identity/age.ts";
 import { contentId, npcPersonality } from "./content.ts";
+import { loadFanFollowing } from "../fans/service.ts";
+import { crowdSupport } from "../fans/model.ts";
 import { storyEngine, newsSelection, currentMoments, storyThreads } from "./stories.ts";
 import { publicProfile, relationshipTones } from "./profile.ts";
 import { opportunities } from "./opportunities.ts";
@@ -126,6 +128,7 @@ export function createCareerLifeService(database:CareerDatabase) {
       ])];
     return {saveId,season:Number(root.current_season),week:Number(root.current_week),active:root.status==="ACTIVE",ready:Boolean(root.identity_dob)&&events.length>0,
       facts,relationships,recognition,decisions,commitments,publicChanges,
+      fans:await loadFanFollowing(tx,saveId),
       nineDarters:nineDarters.map(r=>({matchId:String(r.match_id),eventId:String(r.event_id),eventName:String(r.event_name),participantKey:String(r.participant_key),
         name:String(r.name),season:Number(r.season),day:Number(r.day),count:Number(r.value),source:String(r.source)})),
       tips:tips.map(r=>({npcId:String(r.npc_id),name:String(r.name),band:r.band==="ELITE"?"ELITE" as const:"TOUR" as const,season:Number(r.season),order:Number(r.ord)})),
@@ -160,7 +163,8 @@ export function createCareerLifeService(database:CareerDatabase) {
       o.conflicts.push(...booked.filter(b=>Number(b.day)===o.day).map(b=>s.events.find(e=>e.id===b.event_id)?.name??"Entered tournament"));
       o.canAccept=o.conflicts.length===0;
     }
-    return {careerSaveId:saveId,retired:!s.active,profile,news:newsSelection(stories),threads:storyThreads(stories),moments:currentMoments(s,stories),
+    const fans=s.fans?{...s.fans,crowd:crowdSupport(s.fans,profile.reception==="Divisive")}:undefined;
+    return {careerSaveId:saveId,retired:!s.active,profile,...(fans?{fans}:{}),news:newsSelection(stories),threads:storyThreads(stories),moments:currentMoments(s,stories),
       opportunities:offers,history:s.decisions,commitments:s.commitments,relationshipTones:relationshipTones(s),
       merchandise:{demand:profile.commercial.demand,incomePence:Number(entries.find(e=>e.category==="MERCHANDISE_ROYALTY")?.total??0),
         royaltyPence:merch?Number(merch.royalty_pence):null,offerRoyaltyPence:2500*Math.max(...s.recognition.contexts.map(c=>LEVELS.indexOf(c.level))),

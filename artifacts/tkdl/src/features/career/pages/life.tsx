@@ -37,7 +37,7 @@ export function LifePage({ctx,initialTab="Profile"}:{ctx:ShellContext;initialTab
       stage={{venue:{venueType:"studio"},eventClass:"PROFESSIONAL_TOUR"}}
       subtitle={<p>{d0.profile.persona.description}</p>}
       portrait={presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>:undefined}
-      stats={[{label:"Awareness",value:d0.profile.awareness,tone:"gold"},{label:"Public reception",value:d0.profile.reception},{label:"Crowd draw",value:d0.profile.draw},
+      stats={[...(d0.fans?[{label:"Fans",value:d0.fans.total.toLocaleString("en-GB"),sub:d0.fans.label,tone:"gold" as const}]:[]),{label:"Awareness",value:d0.profile.awareness,tone:d0.fans?undefined:"gold" as const},{label:"Public reception",value:d0.profile.reception},{label:"Crowd draw",value:d0.profile.draw},
         {label:"Commercial income",value:formatPence(d0.commercialIncomePence),sub:d0.profile.commercial.demand,tone:"good"}]}/>}
     <CareerSection title="Career Life & Public Profile" icon={<Sparkles size={15}/>} accent="#c99bff">
     <div className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -79,8 +79,21 @@ export function LifePage({ctx,initialTab="Profile"}:{ctx:ShellContext;initialTab
       {d.notes.length>0&&<details className="career-note"><summary>How Career Life is recorded</summary><p>{d.notes.join(" ")}</p></details>}
     </div>}</QueryState></CareerSection></div>;
 }
+function Fans({fans}:{fans:NonNullable<LifeView["fans"]>}) {
+  const peak=Math.max(1,...fans.bySeason.map(b=>b.total)),n=(v:number)=>v.toLocaleString("en-GB");
+  return <section className="career-fans space-y-3" aria-label="Fan following">
+    <h2 className="text-lg font-bold">Fan following</h2>
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{[["Fans",n(fans.total)],["At home",n(fans.home)],["Abroad",n(fans.international)],["New this season",n(fans.thisSeason)]]
+      .map(([label,value])=><div className="career-life-stat" key={label}><h3>{label}</h3><p>{value}</p></div>)}</div>
+    <p className="text-sm">{fans.label}. Home crowds: <strong>{fans.crowd.home}</strong> · Crowds abroad: <strong>{fans.crowd.away}</strong></p>
+    {fans.bySeason.length>1&&fans.bySeason.some(b=>b.total>0)&&<div className="career-fans__bars" role="img" aria-label={`Fans by season: ${fans.bySeason.map(b=>`season ${b.season} ${n(b.total)}`).join(", ")}`}>
+      {fans.bySeason.map(b=><span key={b.season} style={{height:`${Math.max(4,Math.round(b.total/peak*100))}%`}} title={`Season ${b.season}: ${n(b.total)}`}/>)}</div>}
+    {fans.milestones.length>0&&<p className="text-xs text-white/60">Milestones: {fans.milestones.map(m=>`${n(m.fans)} (season ${m.season})`).join(" · ")}</p>}
+    <details className="career-note"><summary>How fans are counted</summary><p>Fans come only from what you do: results (bigger stages win more), titles, nine-darters, and a showman or confident interview style. Wins at home build a home following; wins abroad an international one. A core stays loyal; casual fans drift when you are out of the spotlight. A big following sells more signature products and earns bigger sponsor signing bonuses. It never changes how you throw.</p></details>
+  </section>;
+}
 function Profile({data:d}:{data:LifeView}) {
-  return <section className="space-y-3"><h2 className="text-lg font-bold">Your public presentation</h2>
+  return <section className="space-y-3">{d.fans&&<Fans fans={d.fans}/>}<h2 className="text-lg font-bold">Your public presentation</h2>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{[
       ["Persona",d.profile.persona.label],["Awareness / interest",d.profile.awareness],["Public reception",d.profile.reception],["Crowd draw",d.profile.draw],
       ["Commercial demand",d.profile.commercial.demand],["Commercial activity",d.profile.commercial.activity],

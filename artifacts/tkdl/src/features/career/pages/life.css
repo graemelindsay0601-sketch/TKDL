@@ -31,3 +31,7 @@
 .career-life-thread__copy b { font:700 .9rem Oswald,sans-serif; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .career-life-thread__copy small { font:500 .7rem Inter,system-ui,sans-serif; letter-spacing:0; text-transform:none; color:#ffffff8c; }
 .career-life-thread[open] { border-color:#d1a65c55; }
+
+/* Fan following */
+.career-fans__bars { display: flex; align-items: flex-end; gap: 4px; height: 72px; padding: 6px 2px 0; border-bottom: 1px solid rgba(255,255,255,0.12); }
+.career-fans__bars span { flex: 1 1 0; min-width: 4px; max-width: 28px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #c99bff, rgba(201,155,255,0.35)); }
