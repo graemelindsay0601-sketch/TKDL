@@ -89,6 +89,8 @@ function resolveText(template: string, values: Record<string, string>): string {
 export function generateSeason(seed: string, eventDatabaseVersion: number, season: number): EventInstanceDraft[] {
   if (!Number.isSafeInteger(season) || season < 1) throw new Error("Invalid season");
   const drafts: EventInstanceDraft[] = [];
+  /** Resolved rule text → its validated form (fresh object per instance, as before). */
+  const validatedRules = new Map<string, string>();
   for (const definition of catalogueFor(eventDatabaseVersion)) {
     // New v5 careers establish themselves after the initial Q-School window.
     // Do not move the clock, invent results, or rewrite any v1–v4 edition.
@@ -98,6 +100,8 @@ export function generateSeason(seed: string, eventDatabaseVersion: number, seaso
     // v6: with no Q-School in season 1, the season-1 Challenger Tour is open to every player without
     // a Tour Card, so its ranking (top 2 cards, 3–10 Final Stage exemptions) is a first-season route.
     const rawEligibility = eventDatabaseVersion >= 6 && season === 1 && definition.key === "challenger-event" ? R.nonTourCard() : authoredEligibility;
+    // Validated once per definition: every placement shares the format, and rules repeat across placements.
+    const format = eventFormatSchema.parse(definition.format);
     placements(definition, seed, season).forEach((placement, index) => {
       const venue = venueByKey(placement.venueKey);
       const locality = placement.localityKey ? LOCALITIES.find(l => l.key === placement.localityKey)! : null;
@@ -109,8 +113,10 @@ export function generateSeason(seed: string, eventDatabaseVersion: number, seaso
       const catchment = placement.localityKey ? COUNTY_CATCHMENTS[placement.localityKey] ?? [placement.localityKey] : [];
       // "{catchment}" expands to a list inside LOCALITY rules; other placeholders are plain text.
       const expanded = JSON.stringify(rawEligibility).replace('["{catchment}"]', JSON.stringify(catchment));
-      const eligibility = ruleSchema.parse(JSON.parse(resolveText(expanded, values)));
-      const format = eventFormatSchema.parse(definition.format);
+      const resolved = resolveText(expanded, values);
+      let validated = validatedRules.get(resolved);
+      if (validated === undefined) { validated = JSON.stringify(ruleSchema.parse(JSON.parse(resolved))); validatedRules.set(resolved, validated); }
+      const eligibility = JSON.parse(validated) as Rule;
       const startDay = absoluteDay(placement.week, placement.day);
       const endDay = absoluteDay(placement.endWeek, placement.endDay);
       if (placement.week < 1 || placement.endWeek > WEEKS_PER_SEASON || endDay < startDay) throw new Error(`Invalid event window for ${definition.key}`);
