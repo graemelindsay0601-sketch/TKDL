@@ -1,4 +1,5 @@
 import { pick, scopedRandom, weighted } from "./random.ts";
+import { DARTS_NAME_BLOCKLIST, NAME_BANKS_V3 } from "./name-banks.ts";
 import type { Npc } from "./types.ts";
 
 /** Player database v2. Used ONLY for newly generated people, never established rows. */
@@ -47,5 +48,38 @@ export function geographicalIdentities(seed: string, people: readonly Npc[], exi
     const nick=scopedRandom(seed,1,"curated-presentation-nickname",p.createdSeason,p.worldKey);
     return { ...p, firstName, surname, nickname:nick()<0.06?pick(nick,["The Anchor","Steady Hand","The Herald","The Quiet One"]):null,
       nationality: pool.country, homeRegion: pick(rng, pool.regions) };
+  });
+}
+
+/**
+ * Player database v3: realistic per-country names (name-banks.ts) spread so a surname rarely repeats.
+ * Same countries, regions and weights as v2. Its own random stream, so v2 saves are untouched.
+ * Surnames are counted per country: early attempts insist on a surname not yet used in that country,
+ * then allow one more holder every few attempts, so repeats stay rare and even.
+ */
+export function geographicalIdentitiesV3(seed: string, people: readonly Npc[], existing: readonly Npc[] = []): Npc[] {
+  const used = new Set<string>(), surnames = new Map<string, number>();
+  const claim = (p: Pick<Npc, "firstName" | "surname" | "nationality">) => {
+    used.add(`${p.firstName} ${p.surname}`);
+    const key = `${p.nationality}|${p.surname}`; surnames.set(key, (surnames.get(key) ?? 0) + 1);
+  };
+  existing.forEach(claim);
+  people.forEach(p => { if (p.templateKey) claim(p); });
+  return people.map(p => {
+    if (p.templateKey) return p;
+    const rng = scopedRandom(seed, 3, "geographical-identity", p.worldKey), bank = weighted(rng, NAME_BANKS_V3);
+    const firstPool = p.worldKey.startsWith("women:") ? bank.women : bank.first;
+    const free = (first: string, last: string) => !used.has(`${first} ${last}`) && !DARTS_NAME_BLOCKLIST.has(`${first} ${last}`);
+    let firstName = "", surname = "", accepted = false;
+    for (let i = 0; i < 512 && !accepted; i++) {
+      firstName = pick(rng, firstPool); surname = pick(rng, bank.last);
+      accepted = free(firstName, surname) && (surnames.get(`${bank.country}|${surname}`) ?? 0) <= Math.floor(i / 8);
+    }
+    for (const first of firstPool) for (const last of bank.last) if (!accepted && free(first, last)) { firstName = first; surname = last; accepted = true; }
+    if (!accepted) throw new Error("Player database v3 name bank exhausted; extend the bank");
+    const named = { ...p, firstName, surname, nationality: bank.country, homeRegion: pick(rng, bank.regions) };
+    claim(named);
+    const nick = scopedRandom(seed, 3, "geographical-nickname", p.createdSeason, p.worldKey);
+    return { ...named, nickname: nick() < 0.06 ? pick(nick, ["The Anchor", "Steady Hand", "The Herald", "The Quiet One"]) : null };
   });
 }
