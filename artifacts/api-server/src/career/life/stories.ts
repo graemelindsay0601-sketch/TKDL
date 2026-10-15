@@ -176,6 +176,21 @@ export function storyEngine(s:LifeSources):Story[] {
     if(s.club.captain?.you)add("club-captain",{id:`club:captain:${s.club.season}`,source:"Home club / last season's local results",label:name,season:s.club.season,week:1,day:1,date:null,age:null},
       `You scored the most points for ${name} last season and are this season's club captain.`,"club","club","MOMENT");
   }
+  // County and national selection: picked or dropped, Inter-County titles, and World Cup call-ups (from the actual pairs).
+  if(s.club?.county) {
+    const c=s.club.county,season=s.club.season,f=(kind:string,label:string,se=season,week:number|null=1)=>({id:`selection:${kind}:${se}`,source:"County selection / A3 local results",label,season:se,week,day:week,date:null,age:null});
+    if(c.youSelected&&!c.youSelectedLastSeason)add("county-selected",f("county-in",c.name),`You have been picked for the ${c.name} A team this season after finishing among the county's six best scorers last season.`,"club","selection","MOMENT");
+    if(!c.youSelected&&c.youSelectedLastSeason)add("county-dropped",f("county-out",c.name),`You have lost your place in the ${c.name} A team this season.`,"adversity","selection");
+    if(c.lastSeasonChampion?.you)add("county-champions",f("county-champions",c.name,season-1,null),`${c.name} won the Inter-County Championship in season ${season-1}.`,"club","selection","MOMENT");
+  }
+  if(s.club?.nation) {
+    const n=s.club.nation,cups=[...n.worldCups].sort((a,b)=>a.season-b.season);
+    cups.forEach((cup,i)=>{
+      const f=(kind:string)=>({id:`selection:${kind}:${cup.season}`,source:"World Cup of Darts selection / A5 rankings",label:n.name,season:cup.season,week:null,day:null,date:null,age:null});
+      if(cup.you)add("nation-selected",f("nation-in"),`You were picked to represent ${n.name} at the World Cup of Darts in season ${cup.season}, alongside ${cup.players.filter(p=>p!=="You").join(" and ")||"a compatriot"}.`,"major","selection","MAJOR");
+      else if(i>0&&cups[i-1].you)add("nation-dropped",f("nation-out"),`${n.name} picked ${cup.players.join(" and ")} for the World Cup of Darts in season ${cup.season}; you were not selected.`,"adversity","selection");
+    });
+  }
   // Fan milestones: the season your following first passed each mark (from results and moments, never bought).
   for(const m of s.fans?.milestones??[]) add(`fans-${m.fans}`,{id:`fans:${m.fans}`,source:"Fan following / A3 results",label:`${m.fans.toLocaleString("en-GB")} fans`,
     season:m.season,week:null,day:null,date:null,age:null},`Your following passed ${m.fans.toLocaleString("en-GB")} fans in season ${m.season}.`,
