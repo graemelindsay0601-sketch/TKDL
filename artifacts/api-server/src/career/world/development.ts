@@ -49,7 +49,7 @@ export function retirementProbability(npc: Npc): number {
 export const isBasePopulation = (npc: Npc) => /^(initial|curated|generation):/.test(npc.worldKey);
 
 export function evolveOffSeason(players: readonly Npc[], seed: string, version: number, season: number, remainingYear: number, opportunity: number,
-  countsTowardTarget: (npc: Npc) => boolean = () => true) {
+  countsTowardTarget: (npc: Npc) => boolean = () => true, target = targetPopulation()) {
   assertGenerationVersion(version);
   const retired: string[] = [];
   const evolved = players.map(player => {
@@ -63,7 +63,24 @@ export function evolveOffSeason(players: readonly Npc[], seed: string, version: 
     const age = developed.age + 1;
     return npcSchema.parse({ ...developed, age, stage: stageForAge(age, developed.development.peakStart, developed.development.peakEnd) });
   });
-  const deficit = Math.max(0, targetPopulation() - evolved.filter(npc => npc.status === "ACTIVE" && countsTowardTarget(npc)).length);
+  const deficit = Math.max(0, target - evolved.filter(npc => npc.status === "ACTIVE" && countsTowardTarget(npc)).length);
   const entrants = generateProspects(seed, version, season + 1, deficit, evolved);
   return { players: [...evolved, ...entrants], retired, entrants: entrants.map(npc => npc.id) };
+}
+
+/**
+ * Player database v5: a steady world. Juniors grow up into the open (men's) pool, so the open pool is the base
+ * population plus every junior; retirements there are replaced by the junior intake first (at least a small
+ * class every season, so the junior circuit never empties) and then by adult prospects. The women's intake
+ * replaces the women's cohort's retirements. Squads (v4) already hold their size.
+ */
+export const STEADY_WORLD = Object.freeze({ openTarget: targetPopulation() + 40, junior: { minimum: 6, maximum: 18 }, womenTarget: 80, women: { minimum: 4, maximum: 20 } });
+export const isOpenPopulation = (npc: Npc) => isBasePopulation(npc) || npc.worldKey.startsWith("junior:");
+export const isWomenCohort = (npc: Npc) => /^women:\d+:/.test(npc.worldKey);
+export function steadyIntakes(players: readonly Npc[]) {
+  const active = players.filter(npc => npc.status === "ACTIVE");
+  const openDeficit = Math.max(0, STEADY_WORLD.openTarget - active.filter(isOpenPopulation).length);
+  const junior = clamp(openDeficit, STEADY_WORLD.junior.minimum, STEADY_WORLD.junior.maximum);
+  return { junior, prospects: Math.max(0, openDeficit - junior),
+    women: clamp(STEADY_WORLD.womenTarget - active.filter(isWomenCohort).length, STEADY_WORLD.women.minimum, STEADY_WORLD.women.maximum) };
 }

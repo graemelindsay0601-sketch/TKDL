@@ -4,7 +4,7 @@ export const CAREER_VERSIONS = Object.freeze({
   worldGenerationVersion: 1,
   /** v7 regional ladders & tours edition for new saves only; existing roots keep their pins. */
   eventDatabaseVersion: 14,
-  playerDatabaseVersion: 4,
+  playerDatabaseVersion: 5,
 });
 
 export const CAREER_SLOTS = [1, 2, 3] as const;

@@ -5,7 +5,7 @@ import { CAREER_FEATURE, type CareerDifficulty } from "../config.ts";
 import { CareerError } from "../service.ts";
 import { careerIdSchema } from "../validation.ts";
 import { CAREER_WORLD_CONFIG, CAREER_DEVELOPMENT_CONFIG, CAREER_DIFFICULTY_CONFIG, CAREER_SIMULATION_CONFIG, SIMULATION_VERSION } from "./config.ts";
-import { assertGenerationVersion, generateInitialWorld, generateJuniorCohort, generateWomenCohort, JUNIOR_COHORT } from "./generation.ts";
+import { assertGenerationVersion, generateInitialWorld, generateJuniorCohort, generateProspects, generateWomenCohort, JUNIOR_COHORT } from "./generation.ts";
 import { geographicalIdentities, geographicalIdentitiesV3 } from "./geographical-identities.ts";
 import { worldExpansion } from "./expansion.ts";
 import { teamComposite } from "./team.ts";
@@ -14,7 +14,7 @@ import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./ty
 import { simulateNpcMatch } from "./simulation.ts";
 import { stableUuid } from "./random.ts";
 import { formAfterMatch } from "./form.ts";
-import { developNpc, evolveOffSeason, isBasePopulation } from "./development.ts";
+import { developNpc, evolveOffSeason, isBasePopulation, steadyIntakes } from "./development.ts";
 import {persistInitialNpcSponsorRelationships} from "../sponsorship/npc-foundation.ts";
 import { isCareerRead } from "../request-scope.ts";
 
@@ -182,14 +182,21 @@ export function createCareerWorldService(database: CareerDatabase) {
         if (old) { checkRetry(old.request, request); return old.summary; }
         if (request.season !== world.season || root.current_season !== world.season) throw new CareerError(409, "Off-season must close the current season");
         const playerDbVersion = Number((root as Root & {player_database_version?:number}).player_database_version ?? 1);
+        // v5 replaces retirements instead of adding fixed classes, so prospects are decided after retirements (below).
+        const steady = playerDbVersion >= 5;
         const evolved = evolveOffSeason(await loadNpcs(tx, saveId), root.world_seed, root.world_generation_version, world.season, 1 - world.elapsed_year, request.opportunity,
-          playerDbVersion >= 4 ? isBasePopulation : undefined);
+          playerDbVersion >= 4 ? isBasePopulation : undefined, steady ? 0 : undefined);
+        const intakes = steady ? steadyIntakes(evolved.players) : { junior: JUNIOR_COHORT.annualIntake, prospects: 0, women: 20 };
+        if (intakes.prospects) {
+          const prospects = generateProspects(root.world_seed, root.world_generation_version, world.season + 1, intakes.prospects, evolved.players);
+          evolved.players.push(...prospects); evolved.entrants.push(...prospects.map(npc => npc.id));
+        }
         if (Number((root as Root & { event_database_version?: number }).event_database_version ?? 1) >= 2) {
-          const intake = generateJuniorCohort(root.world_seed, root.world_generation_version, world.season + 1, JUNIOR_COHORT.annualIntake, evolved.players, `intake:${world.season + 1}`);
+          const intake = generateJuniorCohort(root.world_seed, root.world_generation_version, world.season + 1, intakes.junior, evolved.players, `intake:${world.season + 1}`);
           evolved.players.push(...intake); evolved.entrants.push(...intake.map(npc => npc.id));
         }
         if (Number((root as Root & {event_database_version?:number}).event_database_version ?? 1) >= 3) {
-          const intake = generateWomenCohort(root.world_seed, root.world_generation_version, world.season + 1, 20, evolved.players);
+          const intake = generateWomenCohort(root.world_seed, root.world_generation_version, world.season + 1, intakes.women, evolved.players);
           evolved.players.push(...intake); evolved.entrants.push(...intake.map(p => p.id));
         }
         const playerDb = Number((root as Root & {player_database_version?:number}).player_database_version ?? 1);
