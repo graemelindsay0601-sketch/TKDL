@@ -10,6 +10,42 @@ import type { Card, Evidence, Induction, LegacyView, Ranking, Result, SeasonRevi
 export type LegacyRoot={id:string;current_season:number;current_week:number;status:string;player_id?:number;career_name?:string|null};
 type Row=Record<string,unknown>;
 const n=(r:Row,k:string)=>Number(r[k]??0);
+const TOTALS=(id:string,seasons:ReturnType<typeof sql>)=>sql`SELECT r.participant_key id,i.season,COUNT(*)::int appearances,
+    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER')::int titles,
+    COUNT(*) FILTER(WHERE (r.is_champion OR r.stage_reached='FINAL') AND i.classification<>'QUALIFIER')::int finals,
+    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.presentation_tier IN ('MAJOR','WORLD'))::int "majorTitles",
+    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit='WORLD_CHAMPIONSHIP')::int worlds,
+    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('JUNIOR','COUNTY','REGIONAL','NATIONAL_AMATEUR','VAULT','CHALLENGER','SOFT_TIP'))::int "amateurTitles",
+    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('NATIONAL_AMATEUR','VAULT','CHALLENGER'))::int "nationalTitles",
+    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('PRO_CIRCUIT','EUROPEAN_SERIES'))::int "proTitles",
+    COALESCE(SUM(r.wins),0)::int wins,COALESCE(SUM(r.losses),0)::int losses
+    FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
+    WHERE r.career_save_id=${id} AND i.status='COMPLETED' AND ${seasons}
+    GROUP BY r.participant_key,i.season`;
+const totalsFrom=(r:Row):Totals=>({id:String(r.id),season:n(r,"season"),appearances:n(r,"appearances"),titles:n(r,"titles"),finals:n(r,"finals"),
+  majorTitles:n(r,"majorTitles"),worlds:n(r,"worlds"),amateurTitles:n(r,"amateurTitles"),nationalTitles:n(r,"nationalTitles"),
+  proTitles:n(r,"proTitles"),wins:n(r,"wins"),losses:n(r,"losses")});
+/** Per-player per-season totals: finished seasons from the stored table (filled the first time), the rest live. */
+export async function seasonTotals(tx:CareerExecutor,id:string,currentSeason:number):Promise<Totals[]> {
+  // A season is finished once it is behind the Career and none of its events can still change.
+  const seasons=(await tx.execute(sql`SELECT season,season<${currentSeason} AND bool_and(status IN ('COMPLETED','CANCELLED')) AS finished
+    FROM career_event_instances WHERE career_save_id=${id} GROUP BY season ORDER BY season`)).rows;
+  const finished=seasons.filter(r=>r.finished===true).map(r=>n(r,"season")),open=seasons.filter(r=>r.finished!==true).map(r=>n(r,"season"));
+  const stored=new Set((await tx.execute(sql`SELECT DISTINCT season FROM career_legacy_season_totals WHERE career_save_id=${id}`)).rows.map(r=>n(r,"season")));
+  const missing=finished.filter(s=>!stored.has(s));
+  if(missing.length) await tx.execute(sql`INSERT INTO career_legacy_season_totals (career_save_id,season,participant_key,appearances,titles,finals,
+      major_titles,worlds,amateur_titles,national_titles,pro_titles,wins,losses)
+    SELECT ${id},t.season,t.id,t.appearances,t.titles,t.finals,t."majorTitles",t.worlds,t."amateurTitles",t."nationalTitles",t."proTitles",t.wins,t.losses
+    FROM (${TOTALS(id,sql`i.season IN (${sql.join(missing.map(s=>sql`${s}`),sql`,`)})`)}) t ON CONFLICT DO NOTHING`);
+  const finishedList=finished.length?sql.join(finished.map(s=>sql`${s}`),sql`,`):null;
+  // One query, ordered as before (season, then participant key in the database's collation).
+  return (await tx.execute(sql`SELECT * FROM (
+      SELECT participant_key id,season,appearances,titles,finals,major_titles "majorTitles",worlds,amateur_titles "amateurTitles",
+        national_titles "nationalTitles",pro_titles "proTitles",wins,losses FROM career_legacy_season_totals
+      WHERE career_save_id=${id} AND ${finishedList?sql`season IN (${finishedList})`:sql`false`}
+      UNION ALL ${TOTALS(id,open.length?sql`i.season IN (${sql.join(open.map(s=>sql`${s}`),sql`,`)})`:sql`false`)}
+    ) t ORDER BY season,id`)).rows.map(totalsFrom);
+}
 export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Evidence> {
   const id=root.id;
   const profile=(await tx.execute(sql`SELECT display_name,to_char(date_of_birth,'YYYY-MM-DD') dob,
@@ -21,22 +57,10 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
     startingAge:profile?.dob&&profile?.start?ageOn(String(profile.dob),String(profile.start)):null,createdSeason:1},
     ...npcs.map(r=>({id:String(r.id),name:`${r.first_name} ${r.surname}`,startingAge:n(r,"starting_age"),
       createdSeason:n(r,"created_season"),retiredSeason:r.retired_season?n(r,"retired_season"):null}))];
-  // Aggregate immutable results in SQL; do not snapshot full NPC/match databases.
-  const totals:Totals[]=(await tx.execute(sql`SELECT r.participant_key id,i.season,COUNT(*)::int appearances,
-    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER')::int titles,
-    COUNT(*) FILTER(WHERE (r.is_champion OR r.stage_reached='FINAL') AND i.classification<>'QUALIFIER')::int finals,
-    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.presentation_tier IN ('MAJOR','WORLD'))::int "majorTitles",
-    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit='WORLD_CHAMPIONSHIP')::int worlds,
-    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('JUNIOR','COUNTY','REGIONAL','NATIONAL_AMATEUR','VAULT','CHALLENGER','SOFT_TIP'))::int "amateurTitles",
-    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('NATIONAL_AMATEUR','VAULT','CHALLENGER'))::int "nationalTitles",
-    COUNT(*) FILTER(WHERE r.is_champion AND i.classification<>'QUALIFIER' AND i.circuit IN ('PRO_CIRCUIT','EUROPEAN_SERIES'))::int "proTitles",
-    COALESCE(SUM(r.wins),0)::int wins,COALESCE(SUM(r.losses),0)::int losses
-    FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
-    WHERE r.career_save_id=${id} AND i.status='COMPLETED'
-    GROUP BY r.participant_key,i.season ORDER BY i.season,r.participant_key`)).rows.map(r=>({
-      id:String(r.id),season:n(r,"season"),appearances:n(r,"appearances"),titles:n(r,"titles"),finals:n(r,"finals"),
-      majorTitles:n(r,"majorTitles"),worlds:n(r,"worlds"),amateurTitles:n(r,"amateurTitles"),nationalTitles:n(r,"nationalTitles"),
-      proTitles:n(r,"proTitles"),wins:n(r,"wins"),losses:n(r,"losses")}));
+  const names=new Map(players.map(p=>[p.id,p.name]));
+  // Aggregate immutable results in SQL; do not snapshot full NPC/match databases. Finished seasons are stored once
+  // (career_legacy_season_totals); only seasons still being played are aggregated live.
+  const totals=await seasonTotals(tx,id,Number(root.current_season));
   const results:Result[]=(await tx.execute(sql`SELECT i.id,i.definition_key,i.name,i.season,i.end_day,i.circuit,i.presentation_tier,i.classification,
     r.participant_key,r.finishing_position,r.is_champion,r.stage_reached
     FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
@@ -44,7 +68,7 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
       (r.is_champion OR r.stage_reached='FINAL' OR r.participant_key='HUMAN')
     ORDER BY i.season,i.end_day,i.id,r.participant_key`)).rows.map(r=>({
       id:`result:${r.id}:${r.participant_key}`,key:String(r.definition_key),name:String(r.name),season:n(r,"season"),day:n(r,"end_day"),
-      participant:String(r.participant_key),participantName:players.find(p=>p.id===String(r.participant_key))?.name??"Recorded participant",
+      participant:String(r.participant_key),participantName:names.get(String(r.participant_key))??"Recorded participant",
       position:n(r,"finishing_position"),champion:r.is_champion===true,
       final:r.is_champion===true||r.stage_reached==="FINAL",circuit:String(r.circuit),tier:String(r.presentation_tier),classification:String(r.classification)}));
   // Only season endpoints, #1s and human ranks are needed, not all weekly rows.
@@ -59,7 +83,7 @@ export async function loadEvidence(tx:CareerExecutor,root:LegacyRoot):Promise<Ev
       id:String(r.id),season:n(r,"season"),week:n(r,"week"),participant:String(r.participant_key),position:n(r,"position")}));
   const cards:Card[]=(await tx.execute(sql`SELECT id,participant_key,source,awarded_season,awarded_week,start_season,end_season,ended_season,ended_week,status
     FROM career_tour_cards WHERE career_save_id=${id} ORDER BY awarded_season,awarded_week,id`)).rows.map(r=>({
-      id:String(r.id),participant:String(r.participant_key),participantName:players.find(p=>p.id===String(r.participant_key))?.name??"Recorded participant",
+      id:String(r.id),participant:String(r.participant_key),participantName:names.get(String(r.participant_key))??"Recorded participant",
       source:String(r.source),awardedSeason:n(r,"awarded_season"),awardedWeek:n(r,"awarded_week"),
       startSeason:n(r,"start_season"),endSeason:n(r,"end_season"),endedSeason:r.ended_season?n(r,"ended_season"):null,
       endedWeek:r.ended_week?n(r,"ended_week"):null,status:String(r.status)}));

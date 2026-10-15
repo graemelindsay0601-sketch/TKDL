@@ -189,3 +189,30 @@ test("static boundary: only A4 posts money; no parallel wallet, simulation hooks
   assert.match(files[3],/await post\(tx,root/);assert.match(files[2],/choice.*strict\(\)/);
   const validation=await readFile(new URL("../../career/validation.ts",import.meta.url),"utf8");assert.doesNotMatch(validation,/persona|publicProfile/);
 });
+
+test("v6 close-season tips: elite tips by name, a tour-level round-up, and the tip coming good only on public evidence",()=>{
+  const s=source();s.season=3;
+  s.relationships.world.players=[{...worldPlayer("npc-rising"),name:"Ryan Kerr",homeRegion:"Ayrshire",startingAge:21,createdSeason:1},
+    ...["a","b","c","d","e"].map(x=>({...worldPlayer(`npc-${x}`),name:`Club ${x.toUpperCase()}`,homeRegion:"Fife"}))];
+  s.tips=[{npcId:"npc-rising",name:"Ryan Kerr",band:"ELITE",season:2,order:1},
+    ...["a","b","c","d","e"].map((x,i)=>({npcId:`npc-${x}`,name:`Club ${x.toUpperCase()}`,band:"TOUR" as const,season:2,order:i+2}))];
+  let stories=storyEngine(s);
+  const tip=stories.find(st=>st.kind==="tipped-for-the-top")!;
+  assert.match(tip.body,/ Ryan Kerr \(22, Ayrshire\) goes into season 2 tipped/);
+  assert.deepEqual([tip.scope,tip.thread,tip.opponentId,tip.season,tip.week],["WORLD","world:npc-rising","npc-rising",2,1]);
+  assert.ok(!/\d{2,}\s*(ability|potential|rating)|potential/i.test(tip.body),"never reveals ratings");
+  const roundUp=stories.filter(st=>st.kind==="names-to-watch");
+  assert.equal(roundUp.length,1,"one round-up a season");
+  assert.equal(roundUp[0].body.match(/Club [A-E]/g)!.length,4,"at most four names");
+  assert.ok(!stories.some(st=>st.kind==="tip-arrival"),"no arrival without a public result");
+  // A title before the tip proves nothing; a later public title does.
+  s.worldResults=[{...result("before","PRO_CIRCUIT","STANDARD",1,70),participantKey:"npc-rising",participantName:"Ryan Kerr"},
+    {...result("pro-tour-12","PRO_CIRCUIT","STANDARD",3,140),name:"Pro Tour 12",participantKey:"npc-rising",participantName:"Ryan Kerr"}];
+  s.publicChanges=[{id:"world-card:x",source:"A5",label:"Club A: Tour Card awarded",kind:"world-card-award",participantKey:"npc-a",participantName:"Club A",season:2,week:3,day:null,date:null,age:null}];
+  stories=storyEngine(s);
+  const arrivals=stories.filter(st=>st.kind==="tip-arrival");
+  assert.deepEqual(arrivals.map(a=>a.body.replace(/^.*?\. (?=[A-Z][a-z]+ [A-Z])/,"")).sort(),["Club A, tipped in the close season before season 2, has earned a Tour Card.",
+    "Ryan Kerr, tipped in the close season before season 2, has won Pro Tour 12."]);
+  assert.ok(arrivals.every(a=>a.sourceIds.some(id=>id.startsWith("tip:2:"))),"linked to the tip");
+  assert.deepEqual(storyEngine(s),stories,"deterministic");
+});

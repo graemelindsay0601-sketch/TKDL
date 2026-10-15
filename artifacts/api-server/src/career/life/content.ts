@@ -37,6 +37,9 @@ export const COPY:Record<string,{heads:string[];intro:string[];question:string}>
   commercial:{heads:["Life away from the match board","An optional off-board chapter"],intro:["A legitimate darts commitment has been completed.","Commercial history is separate from sporting results."],question:"How do you approach this part of your Career?"},
   draw:{heads:["An actual draw","An upcoming contest"],intro:["The authored draw provides the upcoming match.","This is draw evidence, not a played result."],question:"What do you take from this draw?"},
   qualification:{heads:["A qualification chapter","A recorded entry entitlement"],intro:["A public qualification has been awarded.","A recorded entitlement is not a claim of a played appearance."],question:"How do you approach this qualification opportunity?"},
+  tipped:{heads:["Tipped for the top","One to watch this season"],intro:["The close season has the circuit talking about a player on the rise.","A name is doing the rounds on the circuit this close season."],question:"Who do you see coming through?"},
+  watch:{heads:["Names to watch","Rising through the ranks"],intro:["A few players are being tipped to step up a level this season.","The close season has produced some names to follow."],question:"Who do you see coming through?"},
+  arrival:{heads:["The tip comes good","A rise confirmed"],intro:["A player tipped in the close season has backed it up with a public result.","The talk has turned into a result."],question:"What do you make of this player's rise?"},
   prospect:{heads:["A younger public Career","A young player's recorded result"],intro:["A younger player has produced a public sporting result.","This young player's result comes from the same darts world."],question:"What do you take from this public sporting result?"},
 };
 export function response(persona:Persona,family:string,key:string) {

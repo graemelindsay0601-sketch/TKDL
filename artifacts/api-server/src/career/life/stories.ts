@@ -164,6 +164,36 @@ export function storyEngine(s:LifeSources):Story[] {
       `${r.participantName}: ${r.champion?"champion":r.stageReached.toLowerCase().replaceAll("_"," ")} at ${r.name}.${earlier? r.champion?" The previous season's winner retained this title.":" The previous season's winner did not retain this title.":""}`,
       prospect?"prospect":"world",`world:${r.participantKey}`, "NEWS",rival?"RIVAL":"WORLD",r.participantKey,earlier?[earlier.id]:[]);
   }
+  // Close-season breakthroughs (v6): elite tips are named one by one, tour-level tips in one round-up a season, and a
+  // tipped player's first public title, final or Tour Card afterwards is reported as the tip coming good.
+  const who=(id:string,season:number)=>{const p=s.relationships.world.players.find(p=>p.id===id);
+    return p?` (${p.startingAge+(season-p.createdSeason)}, ${p.homeRegion})`:"";};
+  const rivalOf=(id:string)=>s.relationships.opponents.some(o=>o.player.id===id&&o.meetings>=3);
+  const tipFact=(id:string,label:string,season:number)=>({id,source:"A2 close-season breakthrough",label,season,week:1,day:1,date:null,age:null});
+  const tips=[...(s.tips??[])].sort((a,b)=>a.season-b.season||a.order-b.order);
+  for(const t of tips.filter(t=>t.band==="ELITE"))
+    add("tipped-for-the-top",tipFact(`tip:${t.season}:${t.npcId}`,t.name,t.season),
+      `${t.name}${who(t.npcId,t.season)} goes into season ${t.season} tipped to push for a place among the game's elite.`,
+      "tipped",`world:${t.npcId}`,"NEWS",rivalOf(t.npcId)?"RIVAL":"WORLD",t.npcId);
+  for(const season of [...new Set(tips.map(t=>t.season))]) {
+    const names=tips.filter(t=>t.season===season&&t.band==="TOUR").slice(0,4);
+    if(names.length)add("names-to-watch",tipFact(`tips:${season}`,`Season ${season}`,season),
+      `Tipped to step up to tour level this season: ${names.map(t=>`${t.name}${who(t.npcId,season)}`).join(", ")}.`,"watch","world:names-to-watch","NEWS","WORLD",undefined,
+      names.map(t=>`tip:${t.season}:${t.npcId}`));
+  }
+  for(const npcId of [...new Set(tips.map(t=>t.npcId))]) {
+    const first=tips.find(t=>t.npcId===npcId)!;
+    // World results reach back three seasons (life service), so older tips cannot be matched to their first proof.
+    if(first.season<s.season-2)continue;
+    const titles=s.worldResults.filter(r=>r.participantKey===npcId&&r.season>=first.season&&(r.champion||(stage(r)&&r.stageReached==="FINAL")));
+    const cards=(s.publicChanges??[]).filter(f=>f.kind==="world-card-award"&&f.participantKey===npcId&&f.season>=first.season);
+    const proof=[...titles,...cards].sort((a,b)=>when(a)-when(b)||a.id.localeCompare(b.id))[0];
+    if(!proof)continue;
+    const tip=[...tips].reverse().find(t=>t.npcId===npcId&&t.season<=proof.season)!;
+    const what="kind" in proof?"has earned a Tour Card":proof.champion?`has won ${proof.name}`:`has reached the final of ${proof.name}`;
+    add("tip-arrival",proof,`${tip.name}, tipped in the close season before season ${tip.season}, ${what}.`,"arrival",`world:${npcId}`,"NEWS",
+      rivalOf(npcId)?"RIVAL":"WORLD",npcId,[`tip:${tip.season}:${npcId}`]);
+  }
   for(const f of s.facts.world.rankingLeaders)add("world-number-one",f,`${f.participantName} leads the published World Ranking.`,"ranking",`world:${f.participantKey}`,"NEWS","WORLD",f.participantKey);
   for(const p of s.relationships.world.players.filter(p=>p.status==="RETIRED"&&p.retiredSeason&&!s.relationships.opponents.some(o=>o.player.id===p.id&&o.meetings>=3)))
     add("world-retirement",{id:`retirement:${p.id}:${p.retiredSeason}`,source:"A2 public retirement",label:p.name,season:p.retiredSeason!,week:null,day:null,date:null,age:null},

@@ -104,7 +104,7 @@ const isWomen = (npc: Npc) => npc.worldKey.startsWith("women:");
 const tourLevel = (npc: Npc) => npc.tier === "ELITE" || npc.tier === "PROFESSIONAL";
 
 export function breakthroughs(players: readonly Npc[], seed: string, version: number, season: number) {
-  const P = PYRAMID, chosen = new Map<string, Npc>();
+  const P = PYRAMID, chosen = new Map<string, Npc>(), bands = new Map<string, "ELITE" | "TOUR">();
   const best = (a: Npc, b: Npc) => meanAbility(b.ability) - meanAbility(a.ability) || a.id.localeCompare(b.id);
   /** Already on the way up: a ceiling in the band, quick development, past the breakthrough age and close enough. */
   const rising = (npc: Npc, band: typeof P.elite | typeof P.tour) => npc.age >= npc.development.breakthroughAge && npc.age < npc.development.peakStart
@@ -126,11 +126,14 @@ export function breakthroughs(players: readonly Npc[], seed: string, version: nu
       for (const npc of candidates.slice(0, clamp(need, 0, band.perSeason))) {
         const rng = scopedRandom(seed, version, "breakthrough", season, npc.id), d = npc.development;
         const peakStart = Math.max(d.peakStart, npc.age + integer(rng, ...P.growthYears));
+        bands.set(npc.id, band === P.elite ? "ELITE" : "TOUR");
         chosen.set(npc.id, npcSchema.parse({ ...npc, development: { ...d, potential: Math.max(d.potential, between(rng, band.potential[0], band.potential[1])),
           rate: Math.max(d.rate, between(rng, P.minimumRate + 0.5, D.developmentRate[1])), breakthroughAge: Math.min(d.breakthroughAge, npc.age),
           peakStart, peakEnd: Math.max(d.peakEnd, peakStart + D.peakLength[0]) } }));
       }
     }
   }
-  return { players: players.map(npc => chosen.get(npc.id) ?? npc), breakthroughs: [...chosen.keys()] };
+  return { players: players.map(npc => chosen.get(npc.id) ?? npc), breakthroughs: [...chosen.keys()],
+    /** For the close-season news (who is tipped, and for which level); best first within each band. */
+    tips: [...bands].map(([id, band]) => ({ id, band })) };
 }

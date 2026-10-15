@@ -187,7 +187,8 @@ export function createCareerWorldService(database: CareerDatabase) {
         const evolved = evolveOffSeason(await loadNpcs(tx, saveId), root.world_seed, root.world_generation_version, world.season, 1 - world.elapsed_year, request.opportunity,
           playerDbVersion >= 4 ? isBasePopulation : undefined, steady ? 0 : undefined);
         // v6: shortfalls at the top of the pyramid go to the best young players below as breakthroughs.
-        if (playerDbVersion >= 6) evolved.players = breakthroughs(evolved.players, root.world_seed, root.world_generation_version, world.season).players;
+        const tips = playerDbVersion >= 6 ? breakthroughs(evolved.players, root.world_seed, root.world_generation_version, world.season) : null;
+        if (tips) evolved.players = tips.players;
         const intakes = steady ? steadyIntakes(evolved.players) : { junior: JUNIOR_COHORT.annualIntake, prospects: 0, women: 20 };
         if (intakes.prospects) {
           const prospects = generateProspects(root.world_seed, root.world_generation_version, world.season + 1, intakes.prospects, evolved.players);
@@ -214,7 +215,8 @@ export function createCareerWorldService(database: CareerDatabase) {
           evolved.players.push(...intake); evolved.entrants.push(...intake.map(p => p.id));
         }
         await persistNpcs(tx, saveId, evolved.players);
-        const summary = { completedSeason: world.season, nextSeason: world.season + 1, retired: evolved.retired, entrants: evolved.entrants };
+        const summary = { completedSeason: world.season, nextSeason: world.season + 1, retired: evolved.retired, entrants: evolved.entrants,
+          ...(tips ? { breakthroughs: tips.tips } : {}) };
         await tx.execute(sql`INSERT INTO career_world_periods (career_save_id, season, kind, sequence, request, summary)
           VALUES (${saveId}, ${world.season}, 'OFF_SEASON', 0, ${JSON.stringify(request)}::jsonb, ${JSON.stringify(summary)}::jsonb)`);
         await tx.execute(sql`UPDATE career_world_state SET season = season + 1, period = 0, elapsed_year = 0 WHERE career_save_id = ${saveId}`);
