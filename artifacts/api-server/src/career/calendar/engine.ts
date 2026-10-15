@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
-import { loadNpcs } from "../world/repository.ts";
+import { loadNpcs, persistNpcs } from "../world/repository.ts";
 import { scopedRandom, stableUuid, normal } from "../world/random.ts";
 import { simulateMatchesInTransaction, type Root, type World } from "../world/service.ts";
 import type { Npc } from "../world/types.ts";
@@ -16,6 +16,7 @@ import { generateKnockoutDraw, finishingPosition, stageName } from "./draw.ts";
 import { careerAge, type CareerIdentity } from "../identity/age.ts";
 import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups, playingDays } from "./group-engine.ts";
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
+import { substitutesFor } from "./substitutes.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
 export const HUMAN = "HUMAN";
@@ -438,6 +439,20 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * Math.max(0.01, geographyWeight(snapshot.geography, geo, npc)),
       Math.min(capacity, event.minimum_entrants) - taken.size, topUp)) add(npc, "SELECTION");
   }
+  // v14+: still short (everyone eligible is playing elsewhere that day)? Substitute club players from the event's
+  // own area make up the field, as real events always find players. They join the world as ordinary players.
+  if (substitutesApply(event)) {
+    let want = Math.min(capacity, Math.max(event.minimum_entrants, pairs ? 4 : 2));
+    if (pairs && want % 2) want = Math.min(capacity - capacity % 2, want + 1);
+    if (taken.size < want) {
+      const subs = substitutesFor(root.world_seed, root.world_generation_version, event, want - taken.size, npcs, snapshot.npcTierWeights)
+        .filter(npc => eligible(npc));
+      if (subs.length) {
+        await persistNpcs(tx, saveId, subs);
+        for (const npc of subs) { (npcs as Npc[]).push(npc); byId.set(npc.id, npc); add(npc, "SELECTION"); }
+      }
+    }
+  }
   if (pairs && snapshot.format.pairing === "LOCAL") {
     const order = [...existing.map(row => String(row.participant_key)), ...additions.map(a => a.participant_key)];
     const human = humanParticipant(root, providers);
@@ -488,6 +503,10 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
 export const runsWith = (event: Pick<InstanceRow, "event_database_version" | "minimum_entrants" | "snapshot">) =>
   event.event_database_version >= GUEST_TOP_UP_FROM && !isGroupedStructure(event.snapshot.format.structure)
     ? Math.min(event.minimum_entrants, event.snapshot.format.sideSize === 2 ? 4 : 2) : event.minimum_entrants;
+
+/** Selection events (no invitation list, not national team selection) that take substitutes when short (v14+). */
+export const substitutesApply = (event: InstanceRow) => event.snapshot.fieldPolicy === "SELECTION" && !event.snapshot.invitationPolicy
+  && event.snapshot.format.pairing !== "NATION" && event.event_database_version >= GUEST_TOP_UP_FROM;
 
 /** Event database version from which short fields are topped up with guests rather than cancelled. */
 export const GUEST_TOP_UP_FROM = 14;

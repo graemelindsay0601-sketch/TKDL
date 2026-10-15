@@ -1,5 +1,5 @@
 import { pick, scopedRandom, weighted } from "./random.ts";
-import { DARTS_NAME_BLOCKLIST, NAME_BANKS_V3 } from "./name-banks.ts";
+import { DARTS_NAME_BLOCKLIST, NAME_BANKS_V3, SUBSTITUTE_BANKS } from "./name-banks.ts";
 import type { Npc } from "./types.ts";
 
 /** Player database v2. Used ONLY for newly generated people, never established rows. */
@@ -82,4 +82,27 @@ export function geographicalIdentitiesV3(seed: string, people: readonly Npc[], e
     const nick = scopedRandom(seed, 3, "geographical-nickname", p.createdSeason, p.worldKey);
     return { ...named, nickname: nick() < 0.06 ? pick(nick, ["The Anchor", "Steady Hand", "The Herald", "The Quiet One"]) : null };
   });
+}
+
+/**
+ * A name and home region for a player from a given country (and, when known, region), from the v3 banks:
+ * used for substitutes created where an event is played. Null when no bank covers the country.
+ */
+export function localIdentity(seed: string, worldKey: string, country: string, region: string | null, women: boolean, used: Set<string>) {
+  const home = NAME_BANKS_V3.filter(b => b.country === country);
+  const banks = home.length ? home : SUBSTITUTE_BANKS.filter(b => b.country === country);
+  if (!banks.length) return null;
+  const rng = scopedRandom(seed, 3, "substitute-identity", worldKey);
+  const bank = banks.find(b => region && b.regions.includes(region)) ?? weighted(rng, banks);
+  const homeRegion = region && bank.regions.includes(region) ? region : pick(rng, bank.regions);
+  const firstPool = women ? bank.women : bank.first;
+  for (let i = 0; i < 400; i++) {
+    const firstName = pick(rng, firstPool), surname = pick(rng, bank.last), full = `${firstName} ${surname}`;
+    if (!used.has(full) && !DARTS_NAME_BLOCKLIST.has(full)) { used.add(full); return { firstName, surname, nationality: country, homeRegion }; }
+  }
+  for (const firstName of firstPool) for (const surname of bank.last) {
+    const full = `${firstName} ${surname}`;
+    if (!used.has(full) && !DARTS_NAME_BLOCKLIST.has(full)) { used.add(full); return { firstName, surname, nationality: country, homeRegion }; }
+  }
+  return null;
 }

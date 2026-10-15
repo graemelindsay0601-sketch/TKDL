@@ -27,6 +27,7 @@ const detail = detailKey ? await rows(sql`SELECT start_week, start_day, status, 
   FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND definition_key=${detailKey} ORDER BY start_day`) : [];
 const byStatus = await rows(sql`SELECT definition_key, status, COUNT(*)::int n, ROUND(AVG((SELECT COUNT(*) FROM career_event_entries e WHERE e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.status<>'WITHDRAWN')))::int avg_entrants
   FROM career_event_instances i WHERE career_save_id=${id} AND season=1 AND definition_key IN (${sql.join((process.argv.find(x => x.startsWith("--keys="))?.slice(7) ?? "-").split(",").map(k => sql`${k}`), sql`, `)}) GROUP BY 1,2 ORDER BY 1,2`);
+const substitutes = await rows(sql`SELECT nationality, COUNT(*)::int n FROM career_world_players WHERE career_save_id=${id} AND world_key LIKE ${"%sub:%"} GROUP BY 1 ORDER BY 2 DESC`);
 const lists = await rows(sql`SELECT list_key, COUNT(*)::int n FROM career_ranking_participants WHERE career_save_id=${id} AND current_position IS NOT NULL GROUP BY 1 ORDER BY 1`);
 const byCountry = await rows(sql`SELECT definition_key, country, locality_key, field_size, minimum_entrants, COUNT(*) FILTER (WHERE status='CANCELLED' AND status_reason='INSUFFICIENT_ENTRANTS')::int cancelled,
   COUNT(*)::int total, ROUND(AVG((SELECT COUNT(*) FROM career_event_entries e WHERE e.career_save_id=i.career_save_id AND e.event_id=i.id AND e.status<>'WITHDRAWN')) FILTER (WHERE status='COMPLETED'))::int avg_completed_field
@@ -46,5 +47,5 @@ const league = await rows(sql`SELECT m.stage_key, m.round, m.scheduled_day, m.st
   JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id WHERE m.career_save_id=${id} AND i.definition_key='thursday-night-darts' ORDER BY m.stage_key, m.round, m.slot`);
 const leagueResults = await rows(sql`SELECT r.participant_key, r.finishing_position, r.stage_reached, r.wins, r.losses FROM career_event_results r WHERE r.career_save_id=${id} AND r.definition_key='thursday-night-darts' ORDER BY r.finishing_position`);
 console.log(JSON.stringify({ league: { matches: league.length, byStatus: league.reduce((a: Record<string, number>, m) => (a[m.status] = (a[m.status] ?? 0) + 1, a), {}), days: [...new Set(league.map(m => m.scheduled_day))], knockout: league.filter(m => m.stage_key === "knockout") }, leagueResults,
-  proWorldDepthByWeek: depth, byCountry, cancelled, majors: gated, detail, byStatus, lists, awardedCards, developmentTop, pairs, worldCup }, null, 1));
+  proWorldDepthByWeek: depth, byCountry, cancelled, majors: gated, detail, byStatus, lists, awardedCards, developmentTop, pairs, worldCup, substitutes }, null, 1));
 await a.pg.close();
