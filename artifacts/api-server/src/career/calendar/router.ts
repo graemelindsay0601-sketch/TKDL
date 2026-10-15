@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import { ZodError } from "zod";
 import { CareerError } from "../service.ts";
 import { authedWriteRateLimit } from "../../middleware/writeRateLimit.ts";
-import type { CareerCalendarService } from "./service.ts";
+import { listEvent, type CareerCalendarService } from "./service.ts";
 
 type PlayerSession = { playerId?: number; isAdmin?: boolean };
 const num = (value: unknown) => typeof value === "string" && value.trim() !== "" ? Number(value) : undefined;
@@ -31,9 +31,10 @@ export function createCareerCalendarRouter(service: CareerCalendarService, isAva
   });
   router.get("/saves/:id/calendar", async (req, res) => {
     const q = req.query;
-    res.json(await service.calendar(res.locals.careerActor, id(req), Object.fromEntries(Object.entries({
+    const calendar = await service.calendar(res.locals.careerActor, id(req), Object.fromEntries(Object.entries({
       season: num(q.season), fromWeek: num(q.fromWeek), toWeek: num(q.toWeek), scope: str(q.scope), circuit: str(q.circuit), classification: str(q.classification), family: str(q.family),
-    }).filter(([, v]) => v !== undefined))));
+    }).filter(([, v]) => v !== undefined)));
+    res.json({ ...calendar, events: calendar.events.map(listEvent) });
   });
   router.post("/saves/:id/calendar/advance", authedWriteRateLimit, async (req, res) => {
     res.json(await service.advance(res.locals.careerActor, id(req), req.body));
