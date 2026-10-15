@@ -470,6 +470,25 @@ test("every Career mutation hits the real A1–A5 endpoint with the right method
   } finally { globalThis.fetch = original; }
 });
 
+test("new Career saves the chosen shirt before the world is built; a dropped setup never loses it", async () => {
+  const calls: string[] = [];
+  const original = globalThis.fetch;
+  let initAttempts = 0;
+  globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
+    calls.push(`${init.method ?? "GET"} ${url}`);
+    // A phone losing signal while the world is built (Safari reports "Load failed").
+    if (url.endsWith("/initialize")) { initAttempts++; throw new TypeError("Load failed"); }
+    return new Response(JSON.stringify(/\/saves$/.test(url) ? { id: "new-save" } : { ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    const created = await M.careerRequests.create({ slot: 1, careerName: "Test", shirt: { kitDesignId: "kit-ice-breaker", nickname: null } });
+    assert.deepEqual([created.id, created.shirtSaved], ["new-save", true], "the save is adopted; the shell finishes setup on open");
+    assert.deepEqual(calls, ["POST /api/career/saves", "POST /api/career/saves/new-save/presentation",
+      "POST /api/career/saves/new-save/initialize", "POST /api/career/saves/new-save/initialize"]);
+    assert.equal(initAttempts, 2, "setup is retried once");
+  } finally { globalThis.fetch = original; }
+});
+
 test("Career delete rejects on HTTP errors and network failures instead of reporting success", async () => {
   const original = globalThis.fetch;
   try {

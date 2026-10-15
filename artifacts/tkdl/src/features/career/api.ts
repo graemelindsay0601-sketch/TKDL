@@ -102,7 +102,6 @@ export const useWorldMap=(saveId:string,enabled=true)=>useQuery({queryKey:career
 export const useWorldPlayers=(saveId:string,offset=0,search="",status="ALL",id?:string)=>useQuery({queryKey:careerKey(saveId,"world-players",offset,search,status,id??null),queryFn:()=>get<import("../../../../api-server/src/career/content/service").WorldPlayersContent>(`/saves/${saveId}/world-players?offset=${offset}&limit=50&search=${encodeURIComponent(search)}&status=${status}${id?`&id=${id}`:""}`),staleTime:STALE});
 export const useGuidance=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"guidance"),queryFn:()=>get<{mode:string;dismissed:string[];canEdit:boolean}>(`/saves/${saveId}/guidance`),staleTime:STALE});
 export const useEditGuidance=(saveId:string)=>useSaveMutation(saveId,(body:{mode?:string;dismiss?:string})=>send("PUT",`/saves/${saveId}/guidance`,body));
-export const saveInitialShirt=(saveId:string,identity:Record<string,unknown>)=>send("POST",`/saves/${saveId}/presentation`,identity);
 export const useTrophyCabinet=(saveId:string,offset=0)=>useQuery({queryKey:careerKey(saveId,"trophy-cabinet",offset),queryFn:()=>get<import("../../../../api-server/src/career/content/service").TrophyContent>(`/saves/${saveId}/trophy-cabinet?offset=${offset}&limit=50`),staleTime:STALE});
 export const usePresentation=(saveId:string,enabled=true)=>useQuery({queryKey:careerKey(saveId,"presentation"),queryFn:()=>get<import("../../../../api-server/src/career/content/service").PresentationContent>(`/saves/${saveId}/presentation`),enabled,staleTime:STALE});
 export const useEditPresentation=(saveId:string)=>useSaveMutation(saveId,(body:Record<string,unknown>)=>send("POST",`/saves/${saveId}/presentation`,body));
@@ -143,6 +142,9 @@ export const useMilestones = (saveId: string, limit = 50) => useQuery({ queryKey
 export type EntryResult = { entered: boolean; created: boolean; denials: string[] };
 export type WithdrawResult = { withdrawn: boolean; postLock?: boolean; denials: string[] };
 export type AdvanceTarget = { kind: "NEXT_MEANINGFUL" } | { kind: "NEXT_MATCH" } | { kind: "WEEKS"; weeks: number };
+/** One retry for idempotent setup requests (a dropped mobile connection is the usual failure). */
+const twice = async <T,>(run: () => Promise<T>) => { try { return await run(); } catch { return await run(); } };
+
 export const careerRequests = {
   enter: (saveId: string, eventId: string) => send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`),
   withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),
@@ -155,15 +157,22 @@ export const careerRequests = {
     send<AdvanceResult>("POST", `/saves/${saveId}/calendar/advance`, { operationKey, expectedSeason: args.season, expectedWeek: args.week, target: args.target }),
   /** Idempotent composed initialize: A2 world, A3 calendar, A4 finance, A5 sporting state. */
   initialize: (saveId: string) => send<unknown>("POST", `/saves/${saveId}/initialize`, {}),
-  create: async (body: { slot: number; careerName?: string; difficulty?: string; dateOfBirth?: string; homeLocality?: string }) => {
-    const save = await send<CareerSave>("POST", "/saves", body);
-    await careerRequests.initialize(save.id);
-    return save;
+  /**
+   * New Career: create the save, store the chosen shirt straight away, then build the world. The shirt goes
+   * first so a slow or dropped world setup (a phone losing signal mid-request) can never lose it. Setup is
+   * idempotent: one retry here, and the Career shell finishes it on open if it still did not complete.
+   */
+  create: async (body: { slot: number; careerName?: string; difficulty?: string; dateOfBirth?: string; homeLocality?: string; shirt?: Record<string, unknown> }) => {
+    const { shirt, ...input } = body;
+    const save = await send<CareerSave>("POST", "/saves", input);
+    const shirtSaved = shirt ? await twice(() => send("POST", `/saves/${save.id}/presentation`, shirt)).then(() => true, () => false) : true;
+    await twice(() => careerRequests.initialize(save.id)).catch(() => undefined);
+    return { ...save, shirtSaved };
   },
   /** A1 restart returns a NEW save id in the same slot; the client must adopt it. */
   restart: async (saveId: string) => {
     const save = await send<CareerSave>("POST", `/saves/${saveId}/restart`, {});
-    await careerRequests.initialize(save.id);
+    await twice(() => careerRequests.initialize(save.id)).catch(() => undefined);
     return save;
   },
   retire: (saveId: string) => send<CareerSave>("POST", `/saves/${saveId}/retire`, {confirmation:"RETIRE CAREER"}),
