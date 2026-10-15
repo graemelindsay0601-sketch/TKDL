@@ -21,6 +21,7 @@ export async function createCareerLegacy(tx:CareerExecutor):Promise<void> {
       RAISE EXCEPTION 'Career legacy history is immutable';
     END; $$ LANGUAGE plpgsql`);
   await ensureLegacySeasonTotals(tx);
+  await ensureWorldRecords(tx);
   for(const table of ["career_legacy_reviews","career_legacy_inductions","career_legacy_retirements"]) {
     await tx.execute(sql`DROP TRIGGER IF EXISTS career_legacy_history_guard ON ${sql.identifier(table)}`);
     await tx.execute(sql`CREATE TRIGGER career_legacy_history_guard BEFORE UPDATE ON ${sql.identifier(table)}
@@ -40,4 +41,19 @@ export async function ensureLegacySeasonTotals(tx:CareerExecutor):Promise<void> 
     appearances integer NOT NULL,titles integer NOT NULL,finals integer NOT NULL,major_titles integer NOT NULL,worlds integer NOT NULL,
     amateur_titles integer NOT NULL,national_titles integer NOT NULL,pro_titles integer NOT NULL,wins integer NOT NULL,losses integer NOT NULL,
     PRIMARY KEY(career_save_id,season,participant_key))`);
+}
+
+/**
+ * The darts world's records book: the best match statistics recorded in a Career (top entries per record) and every
+ * nine-dart leg. Kept up to date as events finish, so reading it never scans the save's match history. Every boot.
+ */
+export async function ensureWorldRecords(tx:CareerExecutor):Promise<void> {
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_world_records (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    record_key text NOT NULL,participant_key text NOT NULL,match_id uuid NOT NULL,event_id uuid NOT NULL,
+    value numeric NOT NULL,season integer NOT NULL,day integer NOT NULL,source text NOT NULL CHECK(source IN ('SIMULATED','QUICK_SIM','LIVE')),
+    PRIMARY KEY(career_save_id,record_key,match_id,participant_key))`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_world_records_state (
+    career_save_id uuid PRIMARY KEY REFERENCES career_saves(id) ON DELETE CASCADE,had_history boolean NOT NULL,
+    backfilled_at timestamptz NOT NULL DEFAULT NOW())`);
 }

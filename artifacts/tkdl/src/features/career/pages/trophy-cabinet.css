@@ -21,3 +21,13 @@
 .career-cabinet__list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid #ffffff10}
 .career-cabinet__list li > a{min-width:0}
 @media (max-width:560px){.career-cabinet__list li{grid-template-columns:auto minmax(0,1fr)}.career-cabinet__list li span{grid-column:2}}
+
+/* Records book */
+.career-records__list { list-style: none; margin: 0; padding: 0.25rem 0.75rem 0.75rem; display: grid; gap: 0.35rem; }
+.career-records__list li { display: grid; grid-template-columns: auto 1fr auto; gap: 0.15rem 0.6rem; align-items: baseline; padding: 0.5rem 0.6rem; border-radius: 10px; background: rgba(255,255,255,0.03); }
+.career-records__list li > small { grid-column: 1 / -1; color: rgba(255,255,255,0.6); font-size: 0.72rem; }
+.career-records__list li > b { color: #e9c77a; font-variant-numeric: tabular-nums; min-width: 1.4rem; }
+.career-records__list li > em { font-style: normal; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.career-records__list li > span { min-width: 0; overflow-wrap: anywhere; }
+.career-records__list li:not(:has(> b)) { grid-template-columns: 1fr; }
+.career-records__list li.is-you { background: rgba(233,199,122,0.14); outline: 1px solid rgba(233,199,122,0.45); }

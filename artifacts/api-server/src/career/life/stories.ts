@@ -164,6 +164,16 @@ export function storyEngine(s:LifeSources):Story[] {
       `${r.participantName}: ${r.champion?"champion":r.stageReached.toLowerCase().replaceAll("_"," ")} at ${r.name}.${earlier? r.champion?" The previous season's winner retained this title.":" The previous season's winner did not retain this title.":""}`,
       prospect?"prospect":"world",`world:${r.participantKey}`, "NEWS",rival?"RIVAL":"WORLD",r.participantKey,earlier?[earlier.id]:[]);
   }
+  const rivalOfPlayer=(id:string)=>s.relationships.opponents.some(o=>o.player.id===id&&o.meetings>=3);
+  // Nine-dart legs from the records book: the human's is a career moment, anyone else's is world news.
+  for(const n of s.nineDarters??[]) {
+    const you=n.participantKey==="HUMAN";
+    add(you?"your-nine-darter":"nine-darter",{id:`nine:${n.matchId}:${n.participantKey}`,source:"Records book / A3 match statistics",label:you?n.eventName:`${n.name} at ${n.eventName}`,
+        season:n.season,day:n.day,week:Math.ceil(n.day/7),date:null,age:null,eventId:n.eventId},
+      you?`You threw a nine-dart leg at ${n.eventName}${n.count>1?` (${n.count} in the match)`:""}${n.source==="LIVE"?" with your own darts":""}.`
+        :`${n.name} threw a nine-dart leg at ${n.eventName}${n.count>1?` (${n.count} in the match)`:""}.`,
+      "perfect",you?"perfect":`world:${n.participantKey}`,you?"MAJOR":"NEWS",you?"HUMAN":rivalOfPlayer(n.participantKey)?"RIVAL":"WORLD",you?undefined:n.participantKey);
+  }
   // Close-season breakthroughs (v6): elite tips are named one by one, tour-level tips in one round-up a season, and a
   // tipped player's first public title, final or Tour Card afterwards is reported as the tip coming good.
   const who=(id:string,season:number)=>{const p=s.relationships.world.players.find(p=>p.id===id);

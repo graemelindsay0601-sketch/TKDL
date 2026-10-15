@@ -44,6 +44,9 @@ export const useQuickSim = (saveId: string) => useSaveMutation(saveId, (input: {
   send<QuickSimResult>("POST", `/saves/${saveId}/tournaments/${input.eventId}/quick-sim`, { matchId: input.matchId, confirmation: "QUICK_SIM" }));
 export const useTournamentPresentation = (saveId:string) => useSaveMutation(saveId,(body:{mode:"FULL"|"BALANCED"|"QUICK";reducedMotion:boolean})=>send("POST",`/saves/${saveId}/tournaments/presentation`,body));
 
+export type WorldRecordsView = import("../../../../api-server/src/career/records/service").WorldRecordsView;
+/** The darts world's records book (best recorded match statistics and every nine-darter). */
+export const useWorldRecords = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "records"), queryFn: () => get<WorldRecordsView>(`/saves/${saveId}/records`), staleTime: STALE });
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
 export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });

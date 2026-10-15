@@ -23,6 +23,8 @@ import { createCareerLifeService } from "../career/life/service.ts";
 import { createCareerLifeRouter } from "../career/life/router.ts";
 import { createCareerLegacyService } from "../career/legacy/service.ts";
 import { createCareerLegacyRouter } from "../career/legacy/router.ts";
+import { createCareerRecordsService } from "../career/records/service.ts";
+import { createCareerRecordsRouter } from "../career/records/router.ts";
 import { captureRetirement } from "../career/legacy/persistence.ts";
 import {createCareerContentService,createCareerContentRouter} from "../career/content/service.ts";
 import {createCareerTournamentService,createCareerTournamentRouter} from "../career/tournament/service.ts";
@@ -45,6 +47,7 @@ router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
 router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
 router.use(createCareerLifeRouter(createCareerLifeService(db)));
 router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
+router.use(createCareerRecordsRouter(createCareerRecordsService(db)));
 // A6.5: Career identity endpoints + PROFILE_INCOMPLETE gate (first, so it guards sporting routes).
 router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
 router.use(createCareerLiveRouter(live, available));

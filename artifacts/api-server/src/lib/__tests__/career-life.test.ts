@@ -216,3 +216,14 @@ test("v6 close-season tips: elite tips by name, a tour-level round-up, and the t
   assert.ok(arrivals.every(a=>a.sourceIds.some(id=>id.startsWith("tip:2:"))),"linked to the tip");
   assert.deepEqual(storyEngine(s),stories,"deterministic");
 });
+
+test("nine-darters from the records book: yours is a major career moment, anyone else's is world news",()=>{
+  const s=source();s.season=2;s.relationships.world.players=[{...worldPlayer("npc-nine"),name:"Nina Perfect"}];
+  s.nineDarters=[{matchId:"m-you",eventId:"e1",eventName:"The Match Trophy",participantKey:"HUMAN",name:"You",season:2,day:150,count:1,source:"LIVE"},
+    {matchId:"m-npc",eventId:"e2",eventName:"Pro Tour 7",participantKey:"npc-nine",name:"Nina Perfect",season:2,day:40,count:2,source:"SIMULATED"}];
+  const stories=storyEngine(s),you=stories.find(st=>st.kind==="your-nine-darter")!,world=stories.find(st=>st.kind==="nine-darter")!;
+  assert.deepEqual([you.scope,you.significance,you.week],["HUMAN","MAJOR",22]);
+  assert.match(you.body,/You threw a nine-dart leg at The Match Trophy with your own darts\./);
+  assert.deepEqual([world.scope,world.opponentId],["WORLD","npc-nine"]);
+  assert.match(world.body,/Nina Perfect threw a nine-dart leg at Pro Tour 7 \(2 in the match\)\./);
+});
