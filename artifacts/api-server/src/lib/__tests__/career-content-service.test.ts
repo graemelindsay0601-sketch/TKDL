@@ -29,7 +29,7 @@ import {calendarHashOf} from "../../career/calendar/generation.ts";
 import {stableUuid} from "../../career/world/random.ts";
 import {createCareerLegacyService} from "../../career/legacy/service.ts";
 import {settleLifeCommitments} from "../../career/life/commitments.ts";
-import {calculateProductWeek} from "../../career/content/product-economy.ts";
+import {calculateProductWeek,PRODUCT_ECONOMY} from "../../career/content/product-economy.ts";
 import type {RootRow} from "../../career/calendar/engine.ts";
 const pg=new PGlite(),db=drizzle(pg),saves=createCareerService(db),actor={playerId:1},seed="a".repeat(64);
 const facts:SportingFacts={careerStarted:true,titles:20,professionalStatus:"PROFESSIONAL",tourCard:true,worldRanking:8,qualifications:[],bestFinishByCircuit:{VAULT:1}};
@@ -162,7 +162,9 @@ test("signature launches are factual, immutable, retry-safe metadata, never mone
   await settleWeek();
   const sales=await rows(sql`SELECT * FROM career_signature_product_sales WHERE career_save_id=${saveId} AND product_id=${launched.id}`);
   assert.equal(sales.length,1);
-  assert.equal(Number(sales[0].demand_version),2);
+  // A new save (player database v7) counts its fan following in product demand (version 3); evidence records the fans used.
+  assert.equal(Number(sales[0].demand_version),PRODUCT_ECONOMY.fanDemandVersion);
+  assert.equal(typeof (sales[0].demand_evidence as {fans?:number}).fans,"number");
   assert.equal((sales[0].demand_evidence as {weeklyCap:number}).weeklyCap,100);
   const royaltyEntries=await rows(sql`SELECT * FROM career_finance_entries WHERE career_save_id=${saveId} AND category='MERCHANDISE_ROYALTY'`);
   assert.equal(royaltyEntries.length,1);assert.equal(Number(royaltyEntries[0].amount_pence),Number(sales[0].royalty_pence));

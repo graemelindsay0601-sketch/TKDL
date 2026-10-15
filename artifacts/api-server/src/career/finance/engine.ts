@@ -1,4 +1,6 @@
 import { sql } from "drizzle-orm";
+import { fansForEffects } from "../fans/service.ts";
+import { fanSponsorPremium } from "../fans/model.ts";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { stableUuid } from "../world/random.ts";
@@ -275,8 +277,12 @@ async function recordContractConclusion(tx:CareerExecutor,root:RootRow,contractI
       summary:status==="COMPLETED"?"The agreed partnership term has ended. Completed history and earnings remain recorded.":`The agreement ended (${reason.toLowerCase().replaceAll("_"," ")}). Completed history and earnings remain recorded.`},
   });
 }
-async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: string, kind: "NEW" | "RENEWAL", terms: SponsorTerms, source: Record<string, unknown>, season: number, week: number, expiry?: {season:number;week:number}) {
+async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: string, kind: "NEW" | "RENEWAL", baseTerms: SponsorTerms, baseSource: Record<string, unknown>, season: number, week: number, expiry?: {season:number;week:number}) {
   const expires = expiry ?? fromIndex(timeIndex(season, week) + OFFER_LIFETIME_WEEKS);
+  // Player database v7: a big following earns a bigger signing bonus (up to +50%, rounded to £10); recorded on the offer.
+  const fans = await fansForEffects(tx, root.id), premium = fans === null ? 0 : fanSponsorPremium(fans);
+  const terms = premium > 0 ? { ...baseTerms, signingBonusPence: Math.round(baseTerms.signingBonusPence * (1 + premium) / 1000) * 1000 } : baseTerms;
+  const source = premium > 0 ? { ...baseSource, fanPremium: { fans, premium, baseSigningBonusPence: baseTerms.signingBonusPence } } : baseSource;
   const result = await tx.execute(sql`INSERT INTO career_sponsor_offers (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
       offered_season, offered_week, expires_season, expires_week, status)
     VALUES (${root.id}, ${stableUuid(root.world_seed, terms.sponsorDatabaseVersion, "sponsor-offer", operationKey)}, ${operationKey}, ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},

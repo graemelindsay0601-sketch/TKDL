@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { calculateProductWeek } from "../content/product-economy.ts";
+import { fansForEffects } from "../fans/service.ts";
 
 /** Invoked in A3's root-locked transaction after a sporting week has completed.
  * Does not move time, rewrite event dates or touch any sporting authority. */
@@ -41,6 +42,7 @@ export async function settleLifeCommitments(tx:CareerExecutor,root:{id:string;wo
     WHERE rs.career_save_id=${root.id} AND rs.list_key='pro-world' AND rs.season=${season}
       AND rs.week<=${week} AND rr.participant_key='HUMAN'
     ORDER BY rs.week DESC,rs.id DESC LIMIT 1`)).rows[0];
+  const fans=products.length?await fansForEffects(tx,root.id):null;
   for(const product of products) {
     const design=product.design as {limitedEdition?:boolean;editionSize?:number|null};
     const inventory=design?.limitedEdition&&Number.isInteger(design.editionSize)?Number(design.editionSize):null;
@@ -53,7 +55,7 @@ export async function settleLifeCommitments(tx:CareerExecutor,root:{id:string;wo
         AND (season>${Number(product.launch_season)} OR
           (season=${Number(product.launch_season)} AND scheduled_week>=${Number(product.launch_week)}))`)).rows[0]?.n??0);
     const sale=calculateProductWeek(String(product.id),String(product.product_type) as "SIGNATURE_DARTS"|"SIGNATURE_RANGE",season,week,
-      inventory===null?null:inventory-sold,{seasonTitles:Number(achievement?.titles??0),worldRank:ranking?Number(ranking.position):null,productLaunchPromotions:promotion});
+      inventory===null?null:inventory-sold,{seasonTitles:Number(achievement?.titles??0),worldRank:ranking?Number(ranking.position):null,productLaunchPromotions:promotion,fans});
     const {units,grossPence,royaltyPence}=sale;
     if(units===0||royaltyPence===0)continue;
     const operationKey=`spg:sales:${product.id}:${season}:${week}`;

@@ -23,6 +23,7 @@ export type LifeSources = {
   draws?:{id:string;eventId:string;opponentId:string;season:number;day:number;name:string;circuit:string;tier:string;classification:string}[];
   /** Player database v6: players tipped for a breakthrough in each close season (published at the new season's start). */
   tips?:{npcId:string;name:string;band:"ELITE"|"TOUR";season:number;order:number}[];
+  fans?:import("../fans/model.ts").FanFollowing;
   /** Nine-dart legs from the records book (recorded match statistics), within the news window. */
   nineDarters?:{matchId:string;eventId:string;eventName:string;participantKey:string;name:string;season:number;day:number;count:number;source:string}[];
   upsets?:(import("../facts/types.ts").Fact & {winnerKey:string;winnerName:string;loserKey:string;loserName:string;winnerPosition:number;loserPosition:number;snapshotId:string})[];
@@ -52,5 +53,7 @@ export type LifeView = {
   merchandise:{demand:string;incomePence:number;agreement:string|null;royaltyPence:number|null;offerRoyaltyPence:number;canOptIn:boolean;canStop:boolean};
   commercialIncomePence:number;notes:string[];
   signatureProducts?:{id:string;name:string;manufacturer:string;launchSeason:number;state:"ACTIVE"|"LEGACY"}[];
+  /** Your fan following (from your results, nine-darters and interview style) and how crowds treat you. */
+  fans?:import("../fans/model.ts").FanFollowing & {crowd:{home:string;away:string}};
 };
 export type NpcLifeView = {careerSaveId:string;id:string;name:string;retired:boolean;personality:{primary:string;secondary:string|null};standing:string;publicDraw:string;notes:string};

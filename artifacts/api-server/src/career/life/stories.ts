@@ -164,6 +164,10 @@ export function storyEngine(s:LifeSources):Story[] {
       `${r.participantName}: ${r.champion?"champion":r.stageReached.toLowerCase().replaceAll("_"," ")} at ${r.name}.${earlier? r.champion?" The previous season's winner retained this title.":" The previous season's winner did not retain this title.":""}`,
       prospect?"prospect":"world",`world:${r.participantKey}`, "NEWS",rival?"RIVAL":"WORLD",r.participantKey,earlier?[earlier.id]:[]);
   }
+  // Fan milestones: the season your following first passed each mark (from results and moments, never bought).
+  for(const m of s.fans?.milestones??[]) add(`fans-${m.fans}`,{id:`fans:${m.fans}`,source:"Fan following / A3 results",label:`${m.fans.toLocaleString("en-GB")} fans`,
+    season:m.season,week:null,day:null,date:null,age:null},`Your following passed ${m.fans.toLocaleString("en-GB")} fans in season ${m.season}.`,
+    "fans","fans",m.fans>=100_000?"MAJOR":"NEWS");
   const rivalOfPlayer=(id:string)=>s.relationships.opponents.some(o=>o.player.id===id&&o.meetings>=3);
   // Nine-dart legs from the records book: the human's is a career moment, anyone else's is world news.
   for(const n of s.nineDarters??[]) {
