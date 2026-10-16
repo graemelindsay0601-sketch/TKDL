@@ -263,7 +263,7 @@ test("A9 new root pins current event edition (v7)/travel2/current sponsor catalo
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${fresh.id}`);
   await real.initialize(a,fresh.id);await real.initialize(a,fresh.id);
   const pin=(await rows(sql`SELECT s.*,f.sponsor_database_version FROM career_saves s JOIN career_finance_state f ON f.career_save_id=s.id WHERE s.id=${fresh.id}`))[0];
-  assert.equal(pin.event_database_version,14);assert.equal(pin.sponsor_database_version,CURRENT_SPONSOR_DATABASE_VERSION,"new roots pin the current sponsor catalogue (v5 since cf72f55)");
+  assert.equal(pin.event_database_version,15);assert.equal(pin.sponsor_database_version,CURRENT_SPONSOR_DATABASE_VERSION,"new roots pin the current sponsor catalogue (v5 since cf72f55)");
   assert.equal((pin.settings_snapshot as {travelVersion:number}).travelVersion,2);
   assert.equal(pin.current_season,1);assert.equal(pin.current_week,1);assert.equal(pin.balance_pence,25000);
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id=${fresh.id} AND category='CAREER_START'`))[0].n,1);

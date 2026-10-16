@@ -55,6 +55,9 @@ export const FEE_OVERRIDES: Record<string, FeeProfile> = {
   "sudden-death-night": fee("fee:sudden-death", 0, "local"),
   /** v14: free to enter, always (the way back from an empty bank). */
   "free-entry-night": fee("fee:free-entry", 0, "local"),
+  /** v15 midweek pub circuit: small stakes, local. */
+  "monday-league-night": fee("fee:monday-league", 200, "local"),
+  "wednesday-flier": fee("fee:wednesday-flier", 300, "local"),
   "open-championship-qualifier": fee("fee:open-qualifier", 4000),
   "european-series-qualifier": fee("fee:eds-qualifier", 5000),
   "world-championship-qualifier": fee("fee:wc-qualifier", 7500),
@@ -129,6 +132,8 @@ export const PRIZE_PROFILES: Record<string, PrizeProfile> = {
 export const PRIZE_OVERRIDES: Record<string, PrizeProfile> = {
   "sunday-league-sprint": prize("prize:sunday-league", 1000),
   "free-entry-night": prize("prize:free-entry", 4000, 2000, 1000),
+  "monday-league-night": prize("prize:monday-league", 2000, 800, 400),
+  "wednesday-flier": prize("prize:wednesday-flier", 3000, 1200, 500),
   "open-championship-qualifier": prize("prize:qualifier-small", 5000, 2500),
   "european-series-qualifier": prize("prize:qualifier-small", 5000, 2500),
   "world-championship-qualifier": prize("prize:qualifier-medium", 10000, 5000, 2500),

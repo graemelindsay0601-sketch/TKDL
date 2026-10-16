@@ -86,12 +86,13 @@ function resolveText(template: string, values: Record<string, string>): string {
  * Deterministic season generation. Inputs: world seed, event database version,
  * calendar generation version and season. No clock, no Math.random().
  */
-export function generateSeason(seed: string, eventDatabaseVersion: number, season: number): EventInstanceDraft[] {
+export function generateSeason(seed: string, eventDatabaseVersion: number, season: number, only?: (definition: EventDefinition) => boolean): EventInstanceDraft[] {
   if (!Number.isSafeInteger(season) || season < 1) throw new Error("Invalid season");
   const drafts: EventInstanceDraft[] = [];
   /** Resolved rule text → its validated form (fresh object per instance, as before). */
   const validatedRules = new Map<string, string>();
   for (const definition of catalogueFor(eventDatabaseVersion)) {
+    if (only && !only(definition)) continue;
     // New v5 careers establish themselves after the initial Q-School window.
     // Do not move the clock, invent results, or rewrite any v1–v4 edition.
     if(eventDatabaseVersion>=5 && season===1 && definition.circuit==="Q_SCHOOL")continue;

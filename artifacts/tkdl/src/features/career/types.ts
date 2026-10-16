@@ -31,6 +31,8 @@ export type EventFinancePreview = {
   sponsorCoverage: { entryFeePence: number; travelPence: number; accommodationPence: number };
   estimatedPlayerCostPence: number; balancePence: number; availablePence: number;
   prizeProfile: string; topPrizePence: number; rankingEligible: boolean;
+  /** Prize by finishing position (1 winner, 2 runner-up, 4 semi-finalist, 8 quarter-finalist, ...). */
+  prizeBands?: { upToPosition: number; amountPence: number }[];
   commitment: { status: string; entryFeePaidPence: number; entryFeeCoveredPence: number; tripId: string | null } | null;
 };
 export type EventFormat = { gameType: string; startingScore?: number; matchContext: string; structure: string; stages: { key: string; kind: string; bestOfByRound?: number[] }[];

@@ -12,7 +12,7 @@ import {
   OFFER_LIFETIME_WEEKS, MAX_OFFERS_PER_EVALUATION, WEEKS, prizeForPosition, type FeeProfile, type PrizeProfile, type RefundPolicy,
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
-import { groupTrips, travelBand, tripCost, type Home } from "./travel.ts";
+import { groupTrips, journey, priceTrip, travelBand, type Home } from "./travel.ts";
 import {CURRENT_SPONSOR_DATABASE_VERSION,SUPPORTED_SPONSOR_DATABASE_VERSIONS,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,validateSponsorActivitySpecification,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
@@ -211,7 +211,8 @@ export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contr
   const feeGross = profile.fee.basis === "PER_SERIES" ? profile.fee.entryFeePence : profile.fee.entryFeePence * siblings.length;
   const start = Math.min(...siblings.map(e => e.start_day)), end = Math.max(...siblings.map(e => e.end_day));
   const band = travelBand(home, primary);
-  const trip = tripCost(band, end - start + 1);
+  const j = journey(home, primary);
+  const trip = priceTrip(band, siblings, start, end, j.miles, j.sea);
   const scratch = new Map(usage);
   const copy=clonePortfolio(contract);
   const fee = portfolioCoverage(copy, scratch, "ENTRY_FEE", primary.circuit, feeGross);
@@ -657,11 +658,31 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
 }
 
 // ------------------------------------------------------------------ hooks (A3 → A4)
+/** Every save, old and new, prices trips by distance (travel v3); trips already paid for keep what they cost. */
+export const TRAVEL_VERSION = 3;
 export function createFinanceHooks(calendarProviders: () => CalendarProviders, factsProvider: () => SponsorFactsProvider): CalendarFinanceHooks {
   const home = (root: RootRow): Home => { const h = calendarProviders().sportingStatus.human(root); return { locality: h.locality, country: h.country, zone: h.zone,
-    travelVersion:root.event_database_version>=5&&root.settings_snapshot.travelVersion===2?2:1 }; };
+    travelVersion:TRAVEL_VERSION }; };
   const siblingsOf = async (tx: CareerExecutor, root: RootRow, event: InstanceRow) =>
     event.series_key ? (await tx.execute(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${event.season} AND series_key = ${event.series_key}`)).rows as InstanceRow[] : [event];
+
+  /** Entries made under older travel prices: re-estimate the money set aside for their trip at today's prices (once). */
+  async function refreshReservations(tx: CareerExecutor, root: RootRow, h: Home) {
+    const stale = (await tx.execute(sql`SELECT event_id, snapshot FROM career_event_finance WHERE career_save_id = ${root.id} AND status = 'ENTERED'
+      AND snapshot->>'primaryEventId' = event_id::text AND COALESCE((snapshot->>'travelVersion')::int, 1) <> ${TRAVEL_VERSION}`)).rows;
+    if (!stale.length) return;
+    const contract = await loadCoveragePortfolio(tx, root.id, Number(root.current_season));
+    for (const row of stale) {
+      const snap = row.snapshot as { seriesEventIds?: string[] };
+      const ids = snap.seriesEventIds?.length ? snap.seriesEventIds : [String(row.event_id)];
+      const siblings = (await tx.execute(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${root.id} AND id IN (${sql.join(ids.map(id => sql`${id}::uuid`), sql`, `)})`)).rows as InstanceRow[];
+      if (!siblings.length) continue;
+      const e = estimateUnit(h, siblings, contract, new Map());
+      await tx.execute(sql`UPDATE career_event_finance SET estimated_trip_pence = ${e.estimatedTripPlayerPence},
+        snapshot = snapshot || ${JSON.stringify({ travelVersion: TRAVEL_VERSION, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence } })}::jsonb,
+        updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${row.event_id}`);
+    }
+  }
 
   async function preview(tx: CareerExecutor, root: RootRow, units: InstanceRow[][]) {
     const contract = await loadCoveragePortfolio(tx, root.id, Number(root.current_season));
@@ -803,6 +824,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         WHERE f.career_save_id = ${root.id} AND f.season = ${season} AND f.status = 'ENTERED' ORDER BY i.start_day, i.id`)).rows as InstanceRow[];
       if (!pending.length) return;
       const h = home(root);
+      await refreshReservations(tx, root, h);
       const firstDay = (week - 1) * 7 + 1, lastDay = week * 7;
       // Local events starting this week need no trip.
       for (const e of pending) if (e.start_day >= firstDay && e.start_day <= lastDay && travelBand(h, e) === "LOCAL") {
@@ -910,7 +932,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
           entryFeePence: e.entryFeeGrossPence, entryFeeBasis: e.profile.fee.basis, estimatedTravelPence: e.travelGrossPence, estimatedAccommodationPence: e.accommodationGrossPence,
           sponsorCoverage: { entryFeePence: e.entryFeeCoveredPence, travelPence: e.travelCoveredPence, accommodationPence: e.accommodationCoveredPence },
           estimatedPlayerCostPence: e.estimatedPlayerCostPence, balancePence: balance, availablePence: available,
-          prizeProfile: e.profile.prize.key, topPrizePence: e.profile.prize.bands[0]?.amountPence ?? 0, rankingEligible: e.profile.rankingEligible,
+          prizeProfile: e.profile.prize.key, topPrizePence: e.profile.prize.bands[0]?.amountPence ?? 0, prizeBands: e.profile.prize.bands, rankingEligible: e.profile.rankingEligible,
           commitment: c ? { status: c.status, entryFeePaidPence: Number(c.entry_fee_paid_pence), entryFeeCoveredPence: Number(c.entry_fee_covered_pence), tripId: c.trip_id } : null,
         });
       });

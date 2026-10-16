@@ -351,15 +351,16 @@ test("travel and accommodation commit in the event's week, once per trip; multi-
   const afterEntry = await ledger(save.id);
   assert.deepEqual(afterEntry.filter(r => r.category !== "CAREER_START" && r.category !== "ADJUSTMENT").map(r => [r.category, Number(r.amount_pence)]), [["ENTRY_FEE", -30000]], "fee once per series; no travel yet");
   const s1 = await finance.summary(actor, save.id);
-  assert.equal(s1.reservedForTravelPence, 6000 + 3 * 7000, "trip estimate reserved, not charged");
+  // Travel v3: Kilbirnie to Wolverhampton is about 240 miles, so a long train or flight (£50 + 24p a mile) and a hotel each night.
+  assert.equal(s1.reservedForTravelPence, 10800 + 3 * 7000, "trip estimate reserved, not charged");
   await finance.calendar.advance(actor, save.id, { operationKey: "to-week-two", expectedSeason: 1, expectedWeek: 1, target: { kind: "WEEKS", weeks: 1 } });
   assert.equal((await ledger(save.id)).filter(r => r.category === "TRAVEL").length, 0, "week 1 play-out does not charge week 2 travel");
   await playThrough(save.id, 3, false, "qschool");
   const trip = await rows(sql`SELECT * FROM career_trips WHERE career_save_id = ${save.id}`);
   assert.equal(trip.length, 1);
-  assert.deepEqual([trip[0].band, trip[0].nights, (trip[0].event_ids as string[]).length, Number(trip[0].travel_gross_pence), Number(trip[0].accommodation_gross_pence)], ["DOMESTIC", 3, 3, 6000, 21000]);
+  assert.deepEqual([trip[0].band, trip[0].nights, (trip[0].event_ids as string[]).length, Number(trip[0].travel_gross_pence), Number(trip[0].accommodation_gross_pence)], ["DOMESTIC", 3, 3, 10800, 21000]);
   const costs = (await ledger(save.id)).filter(r => r.category === "TRAVEL" || r.category === "ACCOMMODATION");
-  assert.deepEqual(costs.map(r => [r.category, Number(r.amount_pence), r.trip_id]).sort(), [["ACCOMMODATION", -21000, trip[0].id], ["TRAVEL", -6000, trip[0].id]]);
+  assert.deepEqual(costs.map(r => [r.category, Number(r.amount_pence), r.trip_id]).sort(), [["ACCOMMODATION", -21000, trip[0].id], ["TRAVEL", -10800, trip[0].id]]);
   const s = await finance.summary(actor, save.id);
   assert.equal(s.reservedForTravelPence, 0);
   assert.equal(s.reconciled, true);
@@ -384,6 +385,27 @@ test("trip grouping and travel bands are deterministic geography, not nationalit
   assert.equal(trips.length, 2, "two consecutive European events share one trip; a later one is separate; local never travels");
   assert.deepEqual([trips[0].events.map(e => e.id), trips[0].travelPence, trips[0].nights], [["sat", "sun"], 18000, 3]);
   assert.deepEqual(tripCost("DOMESTIC", 1), { band: "DOMESTIC", travelPence: 6000, nights: 0, accommodationPence: 0 }, "no hotel for a single-day domestic trip");
+});
+
+test("travel v3: only your own area is free; the rest of the UK and Ireland is priced by distance", () => {
+  const home = { locality: "ayrshire", country: "GBR", zone: "UK_IRELAND", travelVersion: 3 };
+  const ev = (city: string, venue: string, locality: string | null = null, country = "GBR", zone = "UK_IRELAND", start = 1, end = 1) =>
+    ({ id: city, start_day: start, end_day: end, locality_key: locality, venue_key: venue, country, zone, city, circuit: "GRASSROOTS", series_key: null });
+  const cost = (e: ReturnType<typeof ev>) => { const [t] = groupTrips(home, [e]); return t ? [t.band, t.travelPence, t.nights, t.accommodationPence] : ["LOCAL", 0, 0, 0]; };
+  assert.deepEqual(cost(ev("Kilbirnie", "club-ayrshire", "ayrshire")), ["LOCAL", 0, 0, 0]);
+  assert.deepEqual(cost(ev("Glasgow", "club-glasgow-clyde", "glasgow-clyde")), ["DOMESTIC", 700, 0, 0], "Kilbirnie to Glasgow: about £7, home the same night");
+  assert.deepEqual(cost(ev("Glasgow", "glasgow-hall")), ["DOMESTIC", 700, 0, 0], "a Glasgow arena is no longer free");
+  assert.deepEqual(cost(ev("Glasgow", "glasgow-hall", null, "GBR", "UK_IRELAND", 1, 2)), ["DOMESTIC", 1500, 0, 0], "two days in Glasgow: home each night, two return trips");
+  assert.deepEqual(cost(ev("Edinburgh", "castle-exchange-edinburgh")), ["DOMESTIC", 2400, 0, 0]);
+  assert.deepEqual(cost(ev("Edinburgh", "castle-exchange-edinburgh", null, "GBR", "UK_IRELAND", 1, 2)), ["DOMESTIC", 2400, 1, 7000], "a two-day event 75 road miles away: stay over between days");
+  assert.deepEqual(cost(ev("Newcastle", "northern-forum-newcastle", null, "GBR", "UK_IRELAND", 1, 2)), ["DOMESTIC", 5300, 2, 14000], "over 150 road miles: stay each night");
+  assert.deepEqual(cost(ev("London", "the-palace-london")), ["DOMESTIC", 13300, 1, 7000], "London: a long train or a flight and a hotel");
+  assert.deepEqual(cost(ev("Belfast", "x")), ["DOMESTIC", 7300, 1, 7000], "over the Irish Sea");
+  assert.deepEqual(cost(ev("Berlin", "x", null, "DEU", "EUROPE")).slice(0, 2), ["EUROPE", 18000], "abroad keeps its fares");
+  const league = { ...ev("Manchester", "the-foundry-manchester", null, "GBR", "UK_IRELAND", 4, 4 + 7 * 15), snapshot: { format: { structure: "LEAGUE" } } };
+  const [nights] = groupTrips(home, [league as never]);
+  const one = cost(ev("Manchester", "the-foundry-manchester"));
+  assert.deepEqual([nights.travelPence, nights.nights, nights.accommodationPence], [Number(one[1]) * 16, Number(one[2]) * 16, Number(one[3]) * 16], "a weekly league: sixteen one-night trips, not a season-long stay");
 });
 
 test("a blocked advance resumes only from where it stopped; retried later it never moves time or money", async () => {
@@ -483,13 +505,23 @@ test("cancelled events refund entry once; unsupported events can never be charge
   assert.equal((await finance.summary(actor, save.id)).reconciled, true);
 });
 
+test("a broke Career on the current edition has a free, prize-paying night at home at least every four weeks", async () => {
+  const save = await careerWithCurrentCatalogue();
+  const free = (await events(save.id)).filter(e => e.capability.executable && e.finance.estimatedPlayerCostPence === 0 && e.human!.eligible && e.finance.topPrizePence > 0);
+  const weeks = [...new Set(free.map(e => e.dates.startWeek))].sort((a, b) => a - b);
+  assert.ok(weeks.length >= 12, `weeks with a free night: ${weeks.length}`);
+  assert.ok(weeks.every((w, i) => i === 0 || w - weeks[i - 1] <= 4), `no gap over four weeks: ${weeks.join(",")}`);
+});
+
 test("a broke Career still has a legitimate sporting recovery route (free local events)", async () => {
   const save = await career();
   await adjust(save.id, "broke", -25000);
   assert.equal((await finance.summary(actor, save.id)).balancePence, 0);
   const season = (await events(save.id)).filter(e => e.capability.executable && e.finance.estimatedPlayerCostPence === 0 && e.human!.eligible)
     .sort((a, b) => a.dates.startDay - b.dates.startDay);
-  assert.ok(season.length >= 8, `free, no-travel, prize-paying events this season: ${season.length}`);
+  // Travel v3: only your own area is free to reach (v1's shared Ayrshire/Highlands catchment no longer makes Inverness free).
+  // The v1 edition still leaves six free nights at home; current editions add a Free Entry Night every four weeks (below).
+  assert.ok(season.length >= 6, `free, no-travel, prize-paying events this season: ${season.length}`);
   assert.ok(season.every(e => e.finance.topPrizePence > 0), "every free route can actually pay");
   const paid = (await events(save.id)).find(e => e.definitionKey === "friday-night-501" && e.status === "REGISTRATION_OPEN")!;
   assert.ok(paid.human!.denials.includes("INSUFFICIENT_FUNDS"), "paid events are refused, not entered on credit");

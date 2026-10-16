@@ -987,3 +987,12 @@
 .career-attention-group > a small { flex:0 0 auto; font-size:.66rem; color:#ffffff80; }
 .career-attention-group > a.is-action { border-color:#ff005c66 !important; background:#ff005c14 !important; }
 .career-attention-group > a.is-action svg { color:#ff7aa8; }
+
+/* Is it worth the trip? Cost against the prize ladder. */
+.career-worth { color: rgba(255,255,255,0.62); }
+.career-worth[data-tone="good"] { color: #7ee0a1; }
+.career-worth[data-tone="fair"] { color: #e9d9a8; }
+.career-worth[data-tone="poor"] { color: #ff9a8a; }
+.career-prize-ladder { display: flex; flex-wrap: wrap; gap: 4px 14px; list-style: none; margin: 0; color: rgba(255,255,255,0.62); }
+.career-prize-ladder li { display: inline-flex; gap: 6px; }
+.career-prize-ladder b { color: #fff; font-weight: 600; }

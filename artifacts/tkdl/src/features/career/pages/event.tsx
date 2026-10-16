@@ -4,7 +4,7 @@ import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
-import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText } from "../model";
+import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
@@ -263,10 +263,15 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
           </> : p ? <><F label="Entry fee (est.)" value={formatPence(p.entryFeePence)} /><F label="Travel + stay (est.)" value={formatPence(p.estimatedTravelPence + p.estimatedAccommodationPence)} /></> : null}
         </dl>
       )}
+      {!actuals && worthIt(p) && <p className="career-worth px-4 pb-1 text-sm" data-tone={worthIt(p)!.tone}><strong>{worthIt(p)!.label}</strong> · {worthIt(p)!.detail}</p>}
+      {p?.prizeBands && p.prizeBands.some(b => b.amountPence > 0) && <ul className="career-prize-ladder px-4 pb-2 text-xs">
+        {p.prizeBands.filter(b => b.amountPence > 0).map(b => <li key={b.upToPosition}><span>{prizeStage(b.upToPosition)}</span><b>{formatPence(b.amountPence)}</b></li>)}
+      </ul>}
       <p className="px-4 pb-3 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Prize bands by finishing position are set by the event's prize profile; amounts shown are the official figures.</p>
     </CareerSection>
   );
 }
+const prizeStage = (upTo: number) => upTo === 1 ? "Winner" : upTo === 2 ? "Runner-up" : upTo === 4 ? "Semi-finalist" : upTo === 8 ? "Quarter-finalist" : `Last ${upTo}`;
 function RankingTab({ saveId, detail, retired }: { saveId: string; detail: EventDetail; retired: boolean }) {
   const qual = useQualification(saveId, { eventId: detail.event.id }, !retired);
   const e = detail.event;

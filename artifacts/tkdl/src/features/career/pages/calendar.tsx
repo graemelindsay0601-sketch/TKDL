@@ -7,7 +7,7 @@ import {
 import { useCalendar, useCareerProfile, useEnterEvent, errorMessage, type CalendarQuery } from "../api";
 import {
   CALENDAR_STATUS_FILTERS, TIER_STYLES, circuitLabel, country as countryInfo, eventCircuitLabel, viabilityText, denialLabel, eventDateLabel, homeCountryOf,
-  eventStatus, formatLabel, formatPence, matchesStatusFilter, primaryAction, titleCase,
+  eventStatus, formatLabel, formatPence, matchesStatusFilter, primaryAction, titleCase, worthIt,
 } from "../model";
 import {
   CareerEmptyState, CareerError, CareerLoading, Label, OSWALD, SeasonProgress, Segmented,
@@ -181,6 +181,7 @@ function SelectedEvent({
             <span>Sponsor covers travel <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.travelPence)}</b></span>
             <span>Sponsor covers stay <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.accommodationPence)}</b></span>
           </div>
+          {worthIt(event.finance) && <p className="career-worth cc-cost-worth" data-tone={worthIt(event.finance)!.tone}><strong>{worthIt(event.finance)!.label}</strong> <small>{worthIt(event.finance)!.detail}</small></p>}
           <div className="cc-cost-foot"><span>Top prize</span><strong>{event.finance.topPrizePence ? formatPence(event.finance.topPrizePence) : "None"}</strong>
             <span>Ranking</span><strong>{event.finance.rankingEligible ? "Ranking event" : "Non-ranking"}</strong>
           </div>
