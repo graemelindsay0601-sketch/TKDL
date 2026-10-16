@@ -1,4 +1,4 @@
-import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary } from "./types";
+import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, EventFinancePreview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary } from "./types";
 
 /**
  * Pure Career view-model helpers. They only translate authoritative A1–A5 facts
@@ -149,6 +149,25 @@ export function primaryAction(e: CareerEvent, opts: { awaitingMatch?: boolean; r
 }
 
 /** Home's dominant card: pending human match > my next entered event > best open entry > next world event. */
+const STAGE_BY_POSITION: Record<number, string> = { 1: "win it", 2: "reach the final", 4: "reach the semi-finals", 8: "reach the quarter-finals" };
+const stageFor = (upTo: number) => STAGE_BY_POSITION[upTo] ?? `reach the last ${upTo}`;
+/**
+ * Is an event worth the trip? Your estimated cost (entry + travel + stay, after sponsor cover) against its prize ladder:
+ * the earliest round whose prize pays it back. Public prize money only; it never guesses how far you will go.
+ */
+export function worthIt(f: EventFinancePreview | null | undefined): { tone: "good" | "fair" | "poor" | "neutral"; label: string; detail: string } | null {
+  if (!f) return null;
+  const cost = f.estimatedPlayerCostPence;
+  const bands = [...(f.prizeBands ?? (f.topPrizePence ? [{ upToPosition: 1, amountPence: f.topPrizePence }] : []))].filter(b => b.amountPence > 0).sort((a, b) => b.upToPosition - a.upToPosition);
+  const costText = cost > 0 ? `Costs ${formatPence(cost)}` : "Free to play";
+  if (!bands.length) return { tone: "neutral", label: cost > 0 ? `${costText} · no prize money` : "Free · no prize money", detail: "Played for experience, form and ranking or club points." };
+  if (cost === 0) return { tone: "good", label: `Free · win ${formatPence(bands[bands.length - 1].amountPence)}`, detail: "Nothing to lose: any prize money is profit." };
+  const pays = bands.find(b => b.amountPence >= cost);
+  if (!pays) return { tone: "poor", label: `${costText} · even a win loses ${formatPence(cost - bands[bands.length - 1].amountPence)}`, detail: `The winner gets ${formatPence(bands[bands.length - 1].amountPence)}.` };
+  const deep = pays.upToPosition >= 8 ? "good" : pays.upToPosition >= 2 ? "fair" : "poor";
+  return { tone: deep, label: `${costText} · break even if you ${stageFor(pays.upToPosition)}`, detail: `${stageFor(pays.upToPosition).replace(/^./, c => c.toUpperCase())}: ${formatPence(pays.amountPence)}.` };
+}
+
 export function pickNextEvent(events: CareerEvent[], overview: Pick<CalendarOverview, "pendingHumanMatches" | "week" | "season">): { event: CareerEvent; reason: string } | null {
   const pending = new Set(overview.pendingHumanMatches.map(p => p.eventId));
   const upcoming = [...events].filter(e => e.season === overview.season).sort((a, b) => a.dates.startDay - b.dates.startDay || b.presentation.calendarPriority - a.presentation.calendarPriority);

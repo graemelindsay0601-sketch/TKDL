@@ -1,4 +1,5 @@
 import { COUNTY_CATCHMENTS, LOCALITIES, VENUES } from "../calendar/geography.ts";
+import { milesBetween } from "../calendar/coordinates.ts";
 import { NEARBY_VENUES, TRAVEL_PROFILE, TRIP_MAX_GAP_DAYS, type TravelBand } from "./config.ts";
 
 /**
@@ -10,9 +11,13 @@ export type Home = { locality: string; country: string; zone: string; travelVers
 export type EventPlace = { id: string; start_day: number; end_day: number; locality_key: string | null; venue_key: string; country: string; zone: string; city: string; circuit: string; series_key: string | null };
 
 export function travelBand(home: Home, event: Pick<EventPlace, "locality_key" | "venue_key" | "country" | "zone">): TravelBand {
-  // County sporting catchments are NOT travel catchments: old Ayrshire/Highlands
-  // and country-wide Australian/Canadian fields must not imply free travel.
-  if(home.travelVersion===2) {
+  if (home.travelVersion === 3) {
+    // Only your own area is free; everywhere else in the UK and Ireland is priced by distance (tripCost).
+    const locality = LOCALITIES.find(l => l.key === home.locality), venue = VENUES.find(v => v.key === event.venue_key);
+    if (event.country === home.country && (event.locality_key === home.locality || (venue && locality && venue.region === locality.region))) return "LOCAL";
+  } else if(home.travelVersion===2) {
+    // County sporting catchments are NOT travel catchments: old Ayrshire/Highlands
+    // and country-wide Australian/Canadian fields must not imply free travel.
     const locality=LOCALITIES.find(l=>l.key===home.locality);
     const venue=VENUES.find(v=>v.key===event.venue_key);
     if(event.country===home.country && (event.locality_key===home.locality ||
@@ -40,10 +45,48 @@ export const NEARBY_VENUES_V2:Record<string,readonly string[]> = {
 export const destinationOf = (band: TravelBand, event: Pick<EventPlace, "country" | "city">) => band === "LOCAL" ? "HOME" : band === "DOMESTIC" ? `${event.country}:${event.city}` : event.country;
 
 /** Trip cost for a span of consecutive competition days (one outbound + one return). */
-export function tripCost(band: TravelBand, spanDays: number) {
+export function tripCost(band: TravelBand, spanDays: number, miles: number | null = null, seaCrossing = false) {
   const p = TRAVEL_PROFILE[band];
+  if (miles !== null && (band === "DOMESTIC" || band === "UK_IRELAND")) return { band, ...distanceTrip(miles, spanDays, seaCrossing, p.nightlyPence) };
   const nights = spanDays >= p.overnightFromDays ? spanDays + p.extraNights : 0;
   return { band, travelPence: p.roundTripPence, nights, accommodationPence: nights * p.nightlyPence };
+}
+
+/**
+ * Travel v3 (UK and Ireland): by road distance (straight line x1.25). Up to 250 road miles you drive or take the
+ * train at about 16p a mile there and back (Kilbirnie to Glasgow is about £7); further, or over the Irish Sea, you
+ * fly or take a long train (about £50 plus 24p a straight-line mile). Within 60 road miles you go home each night;
+ * up to 150 you stay over between days; beyond that, or over the sea, you stay every night.
+ */
+export const TRAVEL_V3 = Object.freeze({ roadFactor: 1.25, carPencePerMile: 16, minimumPence: 400, driveUpToRoadMiles: 250,
+  farePence: 5000, farePencePerMile: 24, commuteUpToRoadMiles: 60, overnightFromRoadMiles: 150 });
+export function distanceTrip(straightMiles: number, spanDays: number, seaCrossing: boolean, nightlyPence: number) {
+  const v = TRAVEL_V3, road = straightMiles * v.roadFactor;
+  const fly = seaCrossing || road > v.driveUpToRoadMiles;
+  const roundTrip = fly ? v.farePence + straightMiles * v.farePencePerMile : Math.max(v.minimumPence, road * 2 * v.carPencePerMile);
+  const commute = !fly && road <= v.commuteUpToRoadMiles;
+  const nights = fly || road > v.overnightFromRoadMiles ? spanDays : commute ? 0 : Math.max(0, spanDays - 1);
+  const travelPence = Math.round((commute ? roundTrip * spanDays : roundTrip) / 100) * 100;
+  return { travelPence, nights, accommodationPence: nights * nightlyPence, miles: Math.round(road) };
+}
+/** Weekly league nights: one evening a week, not a stay for the whole season. */
+const leagueNights = (e: { start_day: number; end_day: number; snapshot?: { format?: { structure?: string } } }) =>
+  e.snapshot?.format?.structure === "LEAGUE" ? Math.floor((e.end_day - e.start_day) / 7) + 1 : null;
+/** A trip's cost; a league is a separate one-night trip for each of its weekly nights. */
+export function priceTrip(band: TravelBand, events: readonly { start_day: number; end_day: number; snapshot?: unknown }[], start: number, end: number,
+  miles: number | null, sea: boolean) {
+  const nights = events.length === 1 ? leagueNights(events[0] as Parameters<typeof leagueNights>[0]) : null;
+  if (nights === null) return tripCost(band, end - start + 1, miles, sea);
+  const one = tripCost(band, 1, miles, sea);
+  return { band, travelPence: one.travelPence * nights, nights: one.nights * nights, accommodationPence: one.accommodationPence * nights };
+}
+const IRELAND_ISLAND = new Set(["IRL:Dublin", "IRL:Cork", "IRL:Galway", "GBR:Belfast"]);
+/** Miles from home to the event's town and whether the trip crosses the Irish Sea (null distance: unknown town). */
+export function journey(home: Home, event: Pick<EventPlace, "country" | "city">) {
+  const town = LOCALITIES.find(l => l.key === home.locality);
+  if (!town || home.travelVersion !== 3) return { miles: null, sea: false };
+  const from = `${town.country}:${town.city}`, to = `${event.country}:${event.city}`;
+  return { miles: milesBetween(town, event), sea: IRELAND_ISLAND.has(from) !== IRELAND_ISLAND.has(to) };
 }
 
 /**
@@ -63,5 +106,5 @@ export function groupTrips(home: Home, events: readonly EventPlace[]) {
       last.end = Math.max(last.end, event.end_day); last.events.push(event);
     } else trips.push({ band, destination, start: event.start_day, end: event.end_day, events: [event] });
   }
-  return trips.map(t => ({ ...t, ...tripCost(t.band, t.end - t.start + 1) }));
+  return trips.map(t => { const j = journey(home, t.events[0]); return { ...t, ...priceTrip(t.band, t.events, t.start, t.end, j.miles, j.sea) }; });
 }

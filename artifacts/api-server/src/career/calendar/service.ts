@@ -26,7 +26,7 @@ import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
 import type { Npc } from "../world/types.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
-  insertBookings, exclusiveConflicts, insertEntitlements, lastDayOfWeek, refreshCapabilities, matchKeyFor, simulateBullUp, type InstanceRow, type RootRow, type MatchRow,
+  insertBookings, exclusiveConflicts, ensureMidweekCircuit, insertEntitlements, lastDayOfWeek, refreshCapabilities, matchKeyFor, simulateBullUp, type InstanceRow, type RootRow, type MatchRow,
 } from "./engine.ts";
 
 const eventRefSchema = z.object({ eventId: z.string().uuid() }).strict();
@@ -241,6 +241,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
   async function runAdvance(actor: CareerActor, saveId: string, request: z.infer<typeof advanceSchema>) {
     const started = await database.transaction(async tx => {
       const { root } = await open(tx, actor, saveId);
+      await ensureMidweekCircuit(tx, root);
       // A2 commits its off-season separately. Recover only an unfinished,
       // demonstrably processed boundary, never backfill awards for old closed seasons.
       if(providers.history&&Number(root.current_season)>1) {
@@ -635,6 +636,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       const q = calendarQuerySchema.parse(query);
       return database.transaction(async tx => {
         const { root, season: seasonRow } = await requireSeason(tx, actor, saveId, false);
+        await ensureMidweekCircuit(tx, root);
         // Sponsor activity upkeep in one round trip (the three updates touch disjoint rows).
         await tx.execute(sql`WITH available AS (UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
             WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'

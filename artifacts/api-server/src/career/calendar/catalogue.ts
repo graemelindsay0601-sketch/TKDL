@@ -15,6 +15,7 @@ import { buildCatalogueV11 } from "../content/season-v11.ts";
 import { buildCatalogueV12 } from "../content/season-v12.ts";
 import { buildCatalogueV13 } from "../content/season-v13.ts";
 import { buildCatalogueV14 } from "../content/season-v14.ts";
+import { buildCatalogueV15 } from "../content/season-v15.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -456,6 +457,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 12) return EVENT_CATALOGUE_V12;
   if (version === 13) return EVENT_CATALOGUE_V13;
   if (version === 14) return EVENT_CATALOGUE_V14;
+  if (version === 15) return EVENT_CATALOGUE_V15;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -479,5 +481,7 @@ export const EVENT_CATALOGUE_V12: readonly EventDefinition[] = buildCatalogueV12
 export const EVENT_CATALOGUE_V13: readonly EventDefinition[] = buildCatalogueV13(EVENT_CATALOGUE_V12);
 /** v14: Free Entry Nights — a free, local way to earn in every home area every four weeks. */
 export const EVENT_CATALOGUE_V14: readonly EventDefinition[] = buildCatalogueV14(EVENT_CATALOGUE_V13);
+/** v15: the midweek pub circuit — Monday League and Wednesday Flier nights in the UK and Ireland (added to older saves too). */
+export const EVENT_CATALOGUE_V15: readonly EventDefinition[] = buildCatalogueV15(EVENT_CATALOGUE_V14);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

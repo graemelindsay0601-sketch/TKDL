@@ -18,6 +18,7 @@ import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
 import { substitutesFor } from "./substitutes.ts";
 import { simulatedNineDarters } from "../records/model.ts";
+import { MIDWEEK_FROM_EVENT_DATABASE, MIDWEEK_KEYS } from "../content/season-v15.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -113,6 +114,34 @@ export async function ensureSeason(tx: CareerExecutor, root: RootRow, season: nu
   const drafts = generateSeason(root.world_seed, version, season);
   await tx.execute(sql`INSERT INTO career_seasons (career_save_id, season, event_database_version, calendar_generation_version, status, instance_count, calendar_hash)
     VALUES (${root.id}, ${season}, ${version}, ${CALENDAR_GENERATION_VERSION}, 'ACTIVE', ${drafts.length}, ${calendarHash(drafts)})`);
+  await insertDrafts(tx, root, season, drafts);
+  // Older editions get the v15 midweek circuit added to every new season (the season's own hash stays its edition's).
+  if (version < MIDWEEK_FROM_EVENT_DATABASE) await addMidweek(tx, root, season, 1);
+  const created = (await tx.execute(sql`SELECT * FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows[0];
+  return { season: created, created: true };
+}
+
+/**
+ * The v15 midweek pub circuit (Monday League, Wednesday Flier) for a Career on an older edition: added once per season,
+ * only in weeks still ahead, so nothing already played or entered changes. Idempotent (marker row + instance key).
+ */
+export async function ensureMidweekCircuit(tx: CareerExecutor, root: RootRow) {
+  if (Number(root.event_database_version) >= MIDWEEK_FROM_EVENT_DATABASE) return;
+  const season = Number(root.current_season);
+  if (!(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length) return;
+  await addMidweek(tx, root, season, Number(root.current_week) + 1);
+  await openRegistrations(tx, root.id, season, Number(root.current_week));
+}
+async function addMidweek(tx: CareerExecutor, root: RootRow, season: number, fromWeek: number) {
+  const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon) VALUES (${root.id}, ${season}, 'midweek-v15')
+    ON CONFLICT DO NOTHING RETURNING season`)).rows.length;
+  if (!claimed) return;
+  const keys = new Set<string>(MIDWEEK_KEYS);
+  const drafts = generateSeason(root.world_seed, MIDWEEK_FROM_EVENT_DATABASE, season, d => keys.has(d.key)).filter(d => d.startWeek >= fromWeek);
+  await insertDrafts(tx, root, season, drafts);
+}
+
+async function insertDrafts(tx: CareerExecutor, root: RootRow, season: number, drafts: readonly EventInstanceDraft[]) {
   const rows = drafts.map(d => ({ id: d.id, season, instance_key: d.instanceKey, ordinal: d.ordinal, event_database_version: d.eventDatabaseVersion, definition_key: d.definitionKey,
     name: d.name, family: d.family, circuit: d.circuit, classification: d.classification, ranking_category: d.rankingCategory, presentation_tier: d.presentationTier,
     featured: d.featured, calendar_priority: d.calendarPriority, venue_key: d.venueKey, city: d.city, country: d.country, region: d.region, zone: d.zone,
@@ -133,10 +162,9 @@ export async function ensureSeason(tx: CareerExecutor, root: RootRow, season: nu
         event_database_version integer, definition_key text, name text, family text, circuit text, classification text, ranking_category text,
         presentation_tier text, featured boolean, calendar_priority integer, venue_key text, city text, country text, region text, zone text, locality_key text,
         start_week integer, end_week integer, start_day integer, end_day integer, registration_opens_week integer, registration_closes_week integer,
-        field_size integer, minimum_entrants integer, executable boolean, series_key text, series_day integer, snapshot jsonb)`);
+        field_size integer, minimum_entrants integer, executable boolean, series_key text, series_day integer, snapshot jsonb)
+      ON CONFLICT DO NOTHING`);
   }
-  const created = (await tx.execute(sql`SELECT * FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows[0];
-  return { season: created, created: true };
 }
 
 /** Open registration for every SCHEDULED instance whose window has begun. */

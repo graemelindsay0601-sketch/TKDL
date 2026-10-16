@@ -396,3 +396,4 @@
 }
 @media (prefers-reduced-motion: reduce) { .cc-country-chevron { transition: none; } }
 .cc-detail-summary { margin: 2px 0 10px; color: #b9c8d7; font-size: 12px; line-height: 1.55; }
+.cc-cost-worth { margin: 8px 0 0; font-size: .78rem; } .cc-cost-worth small { display:block; color: rgba(255,255,255,.55); }

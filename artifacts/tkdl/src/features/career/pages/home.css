@@ -297,3 +297,20 @@
 .career-continue-outcome__results li b { color:#fff; }
 .career-continue-outcome__results li small { color:#9aaebe; }
 .career-continue-outcome__results li.is-you { color:#ffe28a; }
+
+/* Week planner: Monday to Sunday, this week and next. */
+.week-planner { display:grid; gap:8px; }
+.week-planner__tabs { display:flex; gap:6px; }
+.week-planner__tab { padding:5px 10px; border:1px solid #ffffff1f; border-radius:999px; background:transparent; color:#c5d9e8; font:600 .74rem system-ui,sans-serif; cursor:pointer; }
+.week-planner__tab small { color:#ffffff80; font-weight:400; }
+.week-planner__tab[aria-selected="true"] { border-color:#d9b96f88; background:#d9b96f1a; color:#ffe28a; }
+.week-planner__days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+.week-planner__day { display:grid; gap:2px; min-width:0; padding:6px 4px; border:1px solid #ffffff14; border-radius:8px; background:#ffffff05; color:#adbdca; text-align:center; cursor:pointer; }
+.week-planner__day[aria-pressed="true"] { outline:2px solid #ff005c; outline-offset:1px; }
+.week-planner__day[data-state="booked"] { border-color:#d9b96f99; background:#d9b96f1f; color:#ffe28a; }
+.week-planner__day[data-state="open"] { border-color:#7ee0a155; color:#bff0cf; }
+.week-planner__day[data-state="played"] { opacity:.6; }
+.week-planner__dow { font:700 .66rem Oswald,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase; }
+.week-planner__what { overflow:hidden; font-size:.62rem; line-height:1.15; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word; }
+.week-planner__sum { margin:0; color:#adbdca; font-size:.76rem; }
+.week-planner__clear { padding:0; border:0; background:none; color:#c5d9e8; text-decoration:underline; cursor:pointer; font-size:inherit; }

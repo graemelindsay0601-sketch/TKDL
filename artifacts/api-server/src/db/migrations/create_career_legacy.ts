@@ -23,6 +23,7 @@ export async function createCareerLegacy(tx:CareerExecutor):Promise<void> {
   await ensureLegacySeasonTotals(tx);
   await ensureWorldRecords(tx);
   await ensureClubSeasons(tx);
+  await ensureCalendarAddons(tx);
   for(const table of ["career_legacy_reviews","career_legacy_inductions","career_legacy_retirements"]) {
     await tx.execute(sql`DROP TRIGGER IF EXISTS career_legacy_history_guard ON ${sql.identifier(table)}`);
     await tx.execute(sql`CREATE TRIGGER career_legacy_history_guard BEFORE UPDATE ON ${sql.identifier(table)}
@@ -66,4 +67,12 @@ export async function ensureClubSeasons(tx:CareerExecutor):Promise<void> {
     season integer NOT NULL CHECK(season>0),country text NOT NULL,locality_key text NOT NULL,
     division integer NOT NULL CHECK(division>0),points integer NOT NULL,position integer NOT NULL CHECK(position>0),captain_key text,
     PRIMARY KEY(career_save_id,season,locality_key))`);
+}
+
+/** Additions made to an existing season's calendar (the v15 midweek circuit for older saves), once each. Every boot. */
+export async function ensureCalendarAddons(tx:CareerExecutor):Promise<void> {
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_calendar_addons (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL CHECK(season>0),addon text NOT NULL,created_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(career_save_id,season,addon))`);
 }

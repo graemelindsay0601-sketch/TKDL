@@ -105,7 +105,7 @@ test("vector generation is deterministic (regenerated files are byte-identical)"
 // ---------------------------------------------------------------- policy
 const rows = auditRows();
 test("every event definition in every catalogue version has an explicit award mapping", () => {
-  assert.equal(rows.length, 158);
+  assert.equal(rows.length, 160);
   const missing = rows.filter(r => resolveAward({ definitionKey: r.key }).source !== "EXPLICIT").map(r => r.key);
   assert.deepEqual(missing, []);
   assert.deepEqual(Object.keys(EVENT_AWARDS).filter(k => !rows.some(r => r.key === k)), [], "no stale policy rows");
@@ -223,7 +223,7 @@ test("presentation boundary: policy is frozen, pure and unknown to sporting, fin
 test("the committed audit report is current and lists every definition", () => {
   const report = readFileSync(path.join(ROOT, "../../docs/career/e2-trophy-award-report.md"), "utf8");
   for (const r of rows) assert.ok(report.includes(`| \`${r.key}\` |`), r.key);
-  assert.match(report, /distinct event definitions: \*\*158\*\*/);
+  assert.match(report, /distinct event definitions: \*\*160\*\*/);
   assert.match(report, /## Reachability through normal Career scheduling/); assert.match(report, /Designs a new Career can actually award: \*\*25\*\* of 30/);
   for (const k of ["snooker-darts-cup", "noughts-and-crosses-trophy", "treble-out-trophy", "national-cricket"]) assert.match(report, new RegExp(`\\(\`${k}\`\\) \\| [^\\n]*\\*\\*benched\\*\\*`), k);
 });

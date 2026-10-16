@@ -157,6 +157,8 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "sunday-league-sprint": N("WEEKLY", WEEKLY),
   "pub-doubles": N("WEEKLY", WEEKLY),
   "free-entry-night": N("WEEKLY", WEEKLY),
+  "monday-league-night": N("WEEKLY", WEEKLY),
+  "wednesday-flier": N("WEEKLY", WEEKLY),
   "town-open": T("SPECIAL_LOCAL_CHAMPIONSHIP", "wood-silver-shield", "TOWN OPEN"),
   "new-year-open": T("SPECIAL_LOCAL_CHAMPIONSHIP", "wood-silver-shield", "NEW YEAR OPEN"),
   "festive-open": T("SPECIAL_LOCAL_CHAMPIONSHIP", "wood-silver-shield", "FESTIVE OPEN"),

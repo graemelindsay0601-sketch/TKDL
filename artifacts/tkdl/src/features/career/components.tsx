@@ -3,7 +3,7 @@ import { type ReactNode, useState, useId } from "react";
 import { Link } from "wouter";
 import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-react";
 import type { CareerEvent } from "./types";
-import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, eventCircuitLabel, movementLabel, formatPence, isJuniorEvent } from "./model";
+import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, eventCircuitLabel, movementLabel, formatPence, isJuniorEvent, worthIt } from "./model";
 import { errorMessage } from "./api";
 import {CareerEventIdentity} from "./identity";
 
@@ -135,6 +135,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
   const status = eventStatus(event, { awaitingMatch });
   const action = primaryAction(event, { awaitingMatch, retired });
   const href = `/career/${saveId}/events/${event.id}`;
+  const worth = event.status !== "COMPLETED" && event.status !== "CANCELLED" && (event.human?.canEnter || ["ENTERED", "CONFIRMED"].includes(event.human?.relationship ?? "")) ? worthIt(event.finance) : null;
   return (
     <CareerEventIdentity eventKey={event.definitionKey} circuit={event.circuit} level={event.presentation.tier}>
     <div className="relative flex flex-wrap sm:flex-nowrap items-stretch gap-x-3 gap-y-2 px-3 py-2.5 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.05)", background: tier.emphasis >= 4 ? tier.surface : undefined }}>
@@ -149,6 +150,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
           {event.finance && event.finance.topPrizePence > 0 && <><span aria-hidden>·</span><span>Top prize {formatPence(event.finance.topPrizePence, { compact: true })}</span></>}
           <StatusBadge label={status.label} tone={status.tone} />
         </div>
+        {worth && <div className="career-worth mt-0.5 text-xs" data-tone={worth.tone} title={worth.detail}>{worth.label}</div>}
       </Link>
       <div className={`shrink-0 flex items-center ${action.kind === "ENTER" && onEnter ? "w-full sm:w-auto pl-[4.25rem] sm:pl-0" : ""}`}>
         {action.kind === "ENTER" && onEnter ? (
