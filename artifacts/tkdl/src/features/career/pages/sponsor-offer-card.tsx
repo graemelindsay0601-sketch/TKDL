@@ -72,6 +72,21 @@ export function SponsorOfferCard({
   const selected = negotiableTerms.find(term => term.value === selectedTerm) ?? negotiableTerms[0];
   const journey = offer.journey ?? null;
   const canNegotiate = !retired && journey && ["OFFERED", "NEGOTIATING"].includes(journey.status) && journey.negotiationRounds < journey.maxRounds;
+  const requestedNumber = Number(requestedValue);
+  const minRequested = selected.kind === "percent" ? 1
+    : selected.kind === "duration" ? (terms.duration.kind === "REMAINDER_OF_SEASON" ? 2 : 1)
+    : selected.value.startsWith("PERFORMANCE:") ? 1 : 0;
+  const maxRequested = selected.kind === "duration" ? 5
+    : selected.kind === "percent" ? 100
+    : 20_000_000;
+  const sameAsCurrent = selected.kind === "duration" && terms.duration.kind === "REMAINDER_OF_SEASON"
+    ? false
+    : Number.isFinite(requestedNumber) && requestedNumber === selected.current;
+  const validProposal = requestedValue.trim() !== ""
+    && Number.isInteger(requestedNumber)
+    && requestedNumber >= minRequested
+    && requestedNumber <= maxRequested
+    && !sameAsCurrent;
   const activeConflicts = activeContracts.filter(contract => offer.conflictingContractIds?.includes(contract.id));
   const replacementRequired = offer.portfolioFull || activeConflicts.length > 0;
   const acceptBlockedByReplacement = replacementDisabled && replacementRequired;
@@ -82,8 +97,8 @@ export function SponsorOfferCard({
     if (next) setRequestedValue(String(next.current));
   };
   const submitNegotiation = () => {
-    const amount = Number(requestedValue);
-    if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount < 0) return;
+    if (!validProposal) return;
+    const amount = requestedNumber;
     if (selected.kind === "percent") {
       const index = Number(selected.value.split(":")[1]);
       onNegotiate({ kind: "COVERAGE_PERCENT", index, percent: amount });
@@ -197,17 +212,26 @@ export function SponsorOfferCard({
                     <span>Requested value {selected.kind === "money" ? "(£)" : `(${selected.unit})`}</span>
                     <input
                       type="number"
-                      min={selected.kind === "duration" && terms.duration.kind === "REMAINDER_OF_SEASON" ? 2 : 0}
-                      max={selected.kind === "duration" ? 5 : selected.kind === "percent" ? 100 : 20_000_000}
+                      min={minRequested}
+                      max={maxRequested}
                       step="1"
                       value={requestedValue}
                       onChange={event => setRequestedValue(event.target.value)}
                     />
                   </label>
-                  <button type="button" className="career-btn career-btn-ghost" disabled={negotiateBusy} onClick={submitNegotiation}>
+                  <button type="button" className="career-btn career-btn-ghost" disabled={negotiateBusy || !validProposal} onClick={submitNegotiation}>
                     {negotiateBusy ? "Sending…" : "Send proposal"}
                   </button>
                 </div>
+                {!validProposal && (
+                  <small role="status" className="career-sponsor-offer__validation">
+                    {requestedValue.trim() === "" || !Number.isInteger(requestedNumber)
+                      ? "Enter a whole-number value."
+                      : requestedNumber < minRequested || requestedNumber > maxRequested
+                        ? `Choose a value from ${minRequested.toLocaleString("en-GB")} to ${maxRequested.toLocaleString("en-GB")} ${selected.unit}.`
+                        : "Choose a different value from the current offer before sending."}
+                  </small>
+                )}
                 <small>Only terms already in this offer can change. The sponsor can agree, counter, reject, or withdraw; at most two rounds.</small>
               </div>
             )}

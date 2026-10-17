@@ -228,7 +228,7 @@ function askPressure(before: SponsorTerms, after: SponsorTerms, change: Negotiat
   }
 }
 
-function responseProfile(tier: SponsorTier, personality: string) {
+export function responseProfile(tier: SponsorTier, personality: string) {
   const base = {
     LOCAL: { accept: 0.12, ceiling: 0.38 },
     REGIONAL: { accept: 0.16, ceiling: 0.48 },
