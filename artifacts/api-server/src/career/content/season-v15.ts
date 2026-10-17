@@ -19,6 +19,11 @@ export const MIDWEEK_EVERY_WEEKS = 2;
 export const MIDWEEK_COUNTRIES = ["GBR", "IRL"];
 export const MIDWEEK_KEYS = ["monday-league-night", "wednesday-flier"] as const;
 export const MIDWEEK_FROM_EVENT_DATABASE = 15;
+/** Event descriptions since prizes became pots (the stored v15/v16 text predates them; shown in place of it). */
+export const MIDWEEK_SUMMARIES: Readonly<Record<string, string>> = {
+  "monday-league-night": "The club league night at your local social club, every other Monday: £2 to play, short 501 matches, and the pot is everyone's entry money plus £10 from the club (half to the winner). For amateurs from the area. No ranking points, but every win counts for your club.",
+  "wednesday-flier": "A quick-fire flier every other Wednesday: £3 to play, every match best of three legs, and the pot is everyone's entry money plus £10 from the club (half to the winner). Open to anyone from the area. No ranking points.",
+};
 /** A good midweek turnout: 70–100% of the 16 places (the pot grows with it). Applies to every midweek night, old saves included. */
 export const MIDWEEK_FIELD_FILL: [number, number] = [0.7, 1];
 

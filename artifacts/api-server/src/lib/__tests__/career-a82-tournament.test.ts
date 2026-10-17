@@ -263,7 +263,7 @@ test("human circular tie persists real bull throws, restores exact revision, blo
   });
   let v=await tournaments.read(actor,f.saveId,f.eventId);
   assert.equal(v.phase,"GROUP_BULL");assert.ok(v.groupBull?.row);
-  assert.equal((await calendar.calendar(actor,f.saveId)).overview.pendingTournamentActions[0].kind,"GROUP_BULL_UP");
+  assert.equal((await calendar.calendar(actor,f.saveId)).overview!.pendingTournamentActions[0].kind,"GROUP_BULL_UP");
   const first=v.groupBull!,body={group:first.group,tieKey:first.tieKey,ordinal:first.ordinal,expectedRevision:first.row!.revision,throw:"INNER"};
   const restored=await tournaments.read(actor,f.saveId,f.eventId);assert.deepEqual(restored.groupBull,v.groupBull);
   await calendar.groupBull(actor,f.saveId,f.eventId,body);

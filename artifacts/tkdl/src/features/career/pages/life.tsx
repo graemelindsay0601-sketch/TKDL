@@ -112,7 +112,7 @@ export function StoriesPage({ctx,initialTab="News"}:{ctx:ShellContext;initialTab
     {d0&&<CareerPageHero kicker="Living darts world" title="News & Stories" accent="#d1a65c" stage={{venue:{venueType:"conference"},eventClass:"PROFESSIONAL_TOUR"}}
       subtitle={<p>Stories written from what actually happened in your Career and the world around it.</p>}
       actions={<Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/world/news`}><Newspaper size={15} aria-hidden/> Open the newsroom</Link>}
-      stats={[{label:"Stories",value:d0.news.length,tone:"gold"},{label:"Story threads",value:d0.threads.length},
+      stats={[{label:"Stories",value:d0.news.length,tone:"gold"},{label:"Story threads",value:d0.threadCount??d0.threads.length},
         {label:"Major scenes",value:d0.news.filter(s=>s.significance==="MAJOR").length},{label:"Latest",value:d0.news[0]?`S${d0.news[0].season}${d0.news[0].week?` W${d0.news[0].week}`:""}`:"—"}]}/>}
   <CareerSection title="Living darts world — News & Stories" icon={<Newspaper size={15}/>} accent="#d1a65c">
     <div className="p-4"><div className="tkdl-tab-rail" role="group" aria-label="Story views">{["News","Story Threads"].map(t=><button type="button" className="tkdl-tab-trigger career-btn career-btn-ghost" aria-pressed={tab===t} aria-selected={tab===t} key={t} onClick={()=>setTab(t)}>{t}</button>)}</div></div>

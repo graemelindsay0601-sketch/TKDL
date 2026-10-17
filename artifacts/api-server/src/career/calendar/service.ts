@@ -1,3 +1,4 @@
+import { MIDWEEK_SUMMARIES } from "../content/season-v15.ts";
 import { viabilityOf } from "./viability.ts";
 import { sql } from "drizzle-orm";
 import { opportunity } from "../content/opportunities.ts";
@@ -203,7 +204,7 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
     registration: { opensWeek: event.registration_opens_week, closesWeek: event.registration_closes_week },
     venue: { key: venue.key, name: s.content?.venue?.displayName??venue.name, city: event.city, country: event.country, region: event.region, zone: event.zone, localityKey: event.locality_key,
       venueType: venueIdentity.venueType, capacityBand: venueIdentity.capacityBand },
-    content:s.content??null,opportunity:opportunity({status:event.status,classification:event.classification,human:human??null}),
+    content:s.content?(MIDWEEK_SUMMARIES[event.definition_key]?{...s.content,summary:MIDWEEK_SUMMARIES[event.definition_key]}:s.content):null,opportunity:opportunity({status:event.status,classification:event.classification,human:human??null}),
     format: s.format, capability: s.capability,
     field: { size: event.field_size, minimum: event.minimum_entrants, entrants: event.entrant_count, policy: s.fieldPolicy },
     viability: viabilityOf(event),
@@ -632,7 +633,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       });
     },
 
-    async calendar(actor: CareerActor, saveId: string, query: unknown = {}) {
+    /** options.overview=false: callers that only want the events (Goals) skip the season overview and its read of every week ahead. */
+    async calendar(actor: CareerActor, saveId: string, query: unknown = {}, options: { overview?: boolean } = {}) {
       const q = calendarQuerySchema.parse(query);
       return database.transaction(async tx => {
         const { root, season: seasonRow } = await requireSeason(tx, actor, saveId, false);
@@ -660,8 +662,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         if (q.scope === "FEATURED") filters.push(sql`featured`);
         const events = (await loadInstances(tx, root.id, sql.join(filters, sql` AND `))).sort((a, b) => a.start_day - b.start_day || b.calendar_priority - a.calendar_priority || (a.instance_key < b.instance_key ? -1 : 1));
         // For the current season, one human context covers both the requested events and the overview's weeks ahead.
-        const current = season === Number(root.current_season);
-        const ahead = current ? await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${Number(root.current_week)}`) : [];
+        const current = season === Number(root.current_season) && options.overview !== false;
+        // Reuse the requested events when they already cover every week from now on (the whole-season and map reads).
+        const coversAhead = (!q.fromWeek || q.fromWeek <= Number(root.current_week)) && (!q.toWeek || q.toWeek >= 52) && !q.circuit && !q.classification && !q.family && q.scope !== "FEATURED";
+        const ahead = !current ? [] : coversAhead ? events.filter(e => e.start_week >= Number(root.current_week))
+          : await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${Number(root.current_week)}`);
         const seen = new Set(events.map(e => e.id));
         const human = await loadHumanContext(tx, root, season, [...events, ...ahead.filter(e => !seen.has(e.id))], await bind(tx, root));
         const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
@@ -679,7 +684,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           WHERE career_save_id=${root.id} AND season=${season} AND status NOT IN ('COMPLETED','DECLINED','EXPIRED','CANCELLED')
           AND COALESCE(scheduled_week,available_from_week) BETWEEN ${q.fromWeek??1} AND ${q.toWeek??52}
           ORDER BY COALESCE(scheduled_week,available_from_week),id`)).rows;
-        return { overview: await overview(tx, root, seasonRow, current ? { events: ahead, human, windows } : undefined), season, scope: q.scope, events: rows,
+        return { overview: options.overview === false ? null : await overview(tx, root, seasonRow, current ? { events: ahead, human, windows } : undefined), season, scope: q.scope, events: rows,
           sponsorActivities:[...sponsorCommitments,...sponsorOpportunities] };
       });
     },

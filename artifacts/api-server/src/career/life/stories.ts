@@ -12,11 +12,17 @@ const familyOf=(r:EventFact)=>!publicMain(r) && r.circuit==="Q_SCHOOL" ? "q-scho
 
 export function storyEngine(s:LifeSources):Story[] {
   const out:Story[]=[],results=[...s.facts.results].sort((a,b)=>when(a)-when(b)||a.id.localeCompare(b.id));
+  // Lookups built once (a long save has ~10,000 events in the window and a story each for hundreds of facts).
+  const eventById=new Map(s.events.map(e=>[e.id,e] as const));
+  const opponentById=new Map(s.relationships.opponents.map(o=>[o.player.id,o] as const));
+  const firstResultByEvent=new Map<string,EventFact>();for(const r of results)if(!firstResultByEvent.has(r.eventId))firstResultByEvent.set(r.eventId,r);
+  const resultsByDefinition=new Map<string,EventFact[]>();for(const r of results)resultsByDefinition.set(r.definitionKey,[...(resultsByDefinition.get(r.definitionKey)??[]),r]);
+  const resultsByVenue=new Map<string,EventFact[]>();for(const r of results){const v=eventById.get(r.eventId)?.venueKey;if(v)resultsByVenue.set(v,[...(resultsByVenue.get(v)??[]),r]);}
   const add=(kind:string,f:Fact,detail:string,family:string,thread:string,significance:Story["significance"]="NEWS",scope:Story["scope"]="HUMAN",opponentId?:string,extraIds:string[]=[])=>{
     const id=contentId(s.saveId,`${kind}:${f.id}`),copy=COPY[family]??COPY.breakthrough;
     const callbacks:Callback[]=[];
     if(opponentId) {
-      const o=s.relationships.opponents.find(o=>o.player.id===opponentId);
+      const o=opponentById.get(opponentId);
       const previous=o?.history.filter(m=>when({season:m.season,day:m.day,week:null})<when(f));
       if(previous?.length) {
         const wins=previous.filter(m=>m.won).length;
@@ -29,14 +35,14 @@ export function storyEngine(s:LifeSources):Story[] {
         }
       }
     }
-    const result=results.find(r=>r.eventId===f.eventId),event=s.events.find(e=>e.id===f.eventId);
-    const earlier=result ? results.filter(r=>r.definitionKey===result.definitionKey && when(r)<when(f)) :
-      event ? results.filter(r=>r.definitionKey===event.key && when(r)<when(f)) : [];
+    const result=f.eventId?firstResultByEvent.get(f.eventId):undefined,event=f.eventId?eventById.get(f.eventId):undefined;
+    const earlier=result ? (resultsByDefinition.get(result.definitionKey)??[]).filter(r=>when(r)<when(f)) :
+      event ? (resultsByDefinition.get(event.key)??[]).filter(r=>when(r)<when(f)) : [];
     if(earlier.length) {
       const prior=earlier.at(-1)!;
       callbacks.push({text:`Previously at ${prior.name}: ${prior.champion ? "champion" : prior.stageReached.toLowerCase().replaceAll("_"," ")} in season ${prior.season}.`,sourceIds:[prior.id]});
     } else if(event?.venueKey) {
-      const place=results.filter(r=>when(r)<when(f)&&s.events.find(e=>e.id===r.eventId)?.venueKey===event.venueKey).at(-1);
+      const place=(resultsByVenue.get(event.venueKey)??[]).filter(r=>when(r)<when(f)).at(-1);
       if(place)callbacks.push({text:`Previously at this same venue: ${place.name}, ${place.champion?"champion":place.stageReached.toLowerCase().replaceAll("_"," ")} in season ${place.season}.`,
         sourceIds:[place.id,`event:${event.id}`]});
     }
@@ -73,7 +79,7 @@ export function storyEngine(s:LifeSources):Story[] {
     ["first-palace-appearance",(e:LifeSources["events"][number])=>e.circuit==="WORLD_CHAMPIONSHIP"&&e.classification!=="QUALIFIER"],
     ["first-professional-win",(e:LifeSources["events"][number])=>["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(e.circuit)&&e.classification!=="QUALIFIER"],
   ] as const) {
-    const m=meetings.find(m=>{const e=s.events.find(e=>e.id===m.eventId);return e&&test(e)&&(kind!=="first-professional-win"||m.won);});
+    const m=meetings.find(m=>{const e=eventById.get(m.eventId);return e&&test(e)&&(kind!=="first-professional-win"||m.won);});
     if(m)add(kind,{id:m.id,source:"A7.2 played meeting",label:m.name,season:m.season,day:m.day,week:Math.ceil(m.day/7),date:m.date,age:m.humanAge,eventId:m.eventId},
       `${kind.replaceAll("-"," ")} is supported by an actual played match.` ,kind.includes("palace")?"palace":kind.includes("major")?"major":"professional",kind.includes("palace")?"palace":"breakthrough",kind.includes("palace")?"MAJOR":"MOMENT","HUMAN",m.opponentId);
   }
@@ -102,10 +108,10 @@ export function storyEngine(s:LifeSources):Story[] {
   }
   for(const draw of s.draws??[]) {
     if(draw.classification==="QUALIFIER")continue;
-    const opponent=s.relationships.opponents.find(o=>o.player.id===draw.opponentId);
-    const palace=draw.circuit==="WORLD_CHAMPIONSHIP",firstPalace=palace&&!meetings.some(m=>s.events.find(e=>e.id===m.eventId)?.circuit==="WORLD_CHAMPIONSHIP");
-    const firstPro=["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(draw.circuit)&&!meetings.some(m=>["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(s.events.find(e=>e.id===m.eventId)?.circuit??""));
-    const firstMajor=["MAJOR","WORLD"].includes(draw.tier)&&!meetings.some(m=>["MAJOR","WORLD"].includes(s.events.find(e=>e.id===m.eventId)?.tier??""));
+    const opponent=opponentById.get(draw.opponentId);
+    const palace=draw.circuit==="WORLD_CHAMPIONSHIP",firstPalace=palace&&!meetings.some(m=>eventById.get(m.eventId)?.circuit==="WORLD_CHAMPIONSHIP");
+    const firstPro=["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(draw.circuit)&&!meetings.some(m=>["PRO_CIRCUIT","EUROPEAN_SERIES"].includes(eventById.get(m.eventId)?.circuit??""));
+    const firstMajor=["MAJOR","WORLD"].includes(draw.tier)&&!meetings.some(m=>["MAJOR","WORLD"].includes(eventById.get(m.eventId)?.tier??""));
     if(!(firstPalace||firstPro||firstMajor||opponent?.labels.includes("Career Rival")))continue;
     add(firstPalace?"palace-draw-arrival":firstPro?"pro-draw-arrival":firstMajor?"major-draw-arrival":"rival-drawn",
       {id:`draw:${draw.id}`,source:"A3 actual draw",label:draw.name,season:draw.season,day:draw.day,week:Math.ceil(draw.day/7),date:null,age:null,eventId:draw.eventId},

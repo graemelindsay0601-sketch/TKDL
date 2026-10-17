@@ -51,7 +51,7 @@ export type PublicProfile = {
 };
 export type LifeView = {
   careerSaveId:string;retired:boolean;profile:PublicProfile;
-  news:Story[];threads:{id:string;title:string;stories:Story[]}[];moments:Moment[];
+  news:Story[];threads:{id:string;title:string;stories:Story[]}[];/** All threads (only the most recent are sent). */ threadCount:number;moments:Moment[];
   opportunities:Opportunity[];history:Decision[];commitments:Commitment[];
   relationshipTones:{opponentId:string;name:string;tone:Tone;sportingLabels:string[]}[];
   merchandise:{demand:string;incomePence:number;agreement:string|null;royaltyPence:number|null;offerRoyaltyPence:number;canOptIn:boolean;canStop:boolean};
