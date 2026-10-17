@@ -40,7 +40,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -815,4 +815,28 @@ test("small local events say whether they go ahead, without predicting", async (
   assert.deepEqual(viabilityText({ status: "PENDING", minimum: 4, fieldSetWeek: 12, entrants: null }), { label: "Needs 4+ players", detail: "Field set in week 12", tone: "neutral" });
   assert.deepEqual(viabilityText({ status: "CONFIRMED", minimum: 4, fieldSetWeek: 12, entrants: 9 }), { label: "Going ahead", detail: "9 players", tone: "good" });
   assert.equal(viabilityText({ status: "CANCELLED", minimum: 4, fieldSetWeek: 12, entrants: null })!.label, "Cancelled");
+});
+
+test("Manager panel: your manager's cut and what they brought in; firms say what they need before they sign you", () => {
+  const firm = (key: string, over: Record<string, unknown> = {}) => ({ key, name: `${key} Management`, kind: "Firm", blurb: "Blurb.", commission: 0.15, signingBonusBoost: 0.3, appearanceBoost: 0.4,
+    extraOffers: 1, available: false, unmet: [], leftThisSeason: false, current: false, ...over });
+  const view = { season: 3, careerPrizePence: 450000, tourCard: false,
+    current: { key: "northgate", name: "Northgate Sports Management", kind: "Regional management", commission: 0.15, signedSeason: 2, signedWeek: 30,
+      commissionThisSeasonPence: 4500, commissionTotalPence: 21000, extraSigningBonusPence: 30000 },
+    firms: [firm("backroom", { available: true }), firm("northgate", { current: true }), firm("oche-elite", { unmet: ["Hold a Tour Card"] })] };
+  const t = text(render(h(M.ManagerPanel, { saveId: SAVE_ID, retired: false }), [[key("manager"), view]]));
+  for (const fact of ["Northgate Sports Management", "15% of prize money", "£45", "£210", "£300", "Your manager", "Will sign you once you hold a Tour Card", "Switch to backroom Management"])
+    assert.ok(t.includes(fact), fact);
+});
+
+test("Money matches: a challenge to answer, members with their form and odds, and your record", () => {
+  const member = (key: string, over: Record<string, unknown> = {}) => ({ key, name: `Member ${key}`, professional: false, average: 50, odds: "EVEN", stakes: [500, 1000, 2000], maxStakePence: 5000, thisWeek: null, ...over });
+  const played = { id: "m1", season: 1, week: 4, opponentKey: "b", opponentName: "Member b", stakePence: 2000, origin: "YOU_CHALLENGED", status: "PLAYED", won: true, legs: [4, 2], averages: [51.2, 47.9], highestCheckout: 96, maximums: 1 };
+  const view = { season: 1, week: 4, club: "Ayr Darts Club", availablePence: 6000, perWeek: 3, playedThisWeek: 1, bestOf: 7, yourAverage: 49.5,
+    members: [member("a", { odds: "UNDERDOG", average: 58.1, professional: true }), member("b", { thisWeek: played })],
+    challenge: { opponentKey: "a", name: "Member a", stakePence: 1000, odds: "UNDERDOG", average: 58.1 },
+    record: { played: 1, won: 1, netPence: 2000 }, recent: [played] };
+  const t = text(render(h(M.MoneyMatches, { saveId: SAVE_ID, retired: false }), [[key("money-matches"), view]]));
+  for (const fact of ["Member a fancies a game for £10", "You're the underdog", "Play for £10", "Turn it down", "Averaging 58.1", "Won 4-2", "+£20", "won 1 of 1"])
+    assert.ok(t.includes(fact), fact);
 });

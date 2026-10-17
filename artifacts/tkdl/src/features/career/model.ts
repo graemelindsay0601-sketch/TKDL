@@ -274,7 +274,7 @@ export const ledgerLabel = (c: string) => LEDGER[c] ?? titleCase(c);
 export const LEDGER_FILTERS = [{ key: "ALL", label: "All", categories: null }, { key: "PRIZE", label: "Prize", categories: ["PRIZE"] },
   { key: "MONEY_MATCH", label: "Money matches", categories: ["MONEY_MATCH_WIN", "MONEY_MATCH_STAKE"] },
   { key: "SPONSOR", label: "Sponsor / Commercial", categories: ["SPONSOR_SIGNING_BONUS", "SPONSOR_GUARANTEED_PAYMENT", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS", "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY"] },
-  { key: "COSTS", label: "Costs", categories: ["ENTRY_FEE", "TRAVEL", "ACCOMMODATION"] }, { key: "REFUND", label: "Refunds", categories: ["REFUND"] }] as const;
+  { key: "COSTS", label: "Costs", categories: ["ENTRY_FEE", "TRAVEL", "ACCOMMODATION", "MANAGER_COMMISSION"] }, { key: "REFUND", label: "Refunds", categories: ["REFUND"] }] as const;
 
 // ---------------------------------------------------------------- milestones (A5 facts, neutral labels; no prose)
 const MILESTONES: Record<string, string> = {

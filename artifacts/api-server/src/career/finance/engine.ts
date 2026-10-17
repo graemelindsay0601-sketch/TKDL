@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import { fansForEffects } from "../fans/service.ts";
 import { fanSponsorPremium } from "../fans/model.ts";
+import { activeManager } from "../manager/state.ts";
+import { boosted, commissionOn } from "../manager/model.ts";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { stableUuid } from "../world/random.ts";
@@ -285,8 +287,12 @@ async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: stri
   const expires = expiry ?? fromIndex(timeIndex(season, week) + OFFER_LIFETIME_WEEKS);
   // Player database v7: a big following earns a bigger signing bonus (up to +50%, rounded to £10); recorded on the offer.
   const fans = await fansForEffects(tx, root.id), premium = fans === null ? 0 : fanSponsorPremium(fans);
-  const terms = premium > 0 ? { ...baseTerms, signingBonusPence: Math.round(baseTerms.signingBonusPence * (1 + premium) / 1000) * 1000 } : baseTerms;
-  const source = premium > 0 ? { ...baseSource, fanPremium: { fans, premium, baseSigningBonusPence: baseTerms.signingBonusPence } } : baseSource;
+  const fanTerms = premium > 0 ? { ...baseTerms, signingBonusPence: Math.round(baseTerms.signingBonusPence * (1 + premium) / 1000) * 1000 } : baseTerms;
+  const fanSource = premium > 0 ? { ...baseSource, fanPremium: { fans, premium, baseSigningBonusPence: baseTerms.signingBonusPence } } : baseSource;
+  // Your manager negotiates a bigger signing bonus on top (recorded on the offer, like the fan premium).
+  const manager = await activeManager(tx, root.id);
+  const terms = manager && fanTerms.signingBonusPence > 0 ? { ...fanTerms, signingBonusPence: boosted(fanTerms.signingBonusPence, manager.signingBonusBoost) } : fanTerms;
+  const source = terms !== fanTerms && manager ? { ...fanSource, managerPremium: { managerKey: manager.key, boost: manager.signingBonusBoost, beforePence: fanTerms.signingBonusPence } } : fanSource;
   const result = await tx.execute(sql`INSERT INTO career_sponsor_offers (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
       offered_season, offered_week, expires_season, expires_week, status)
     VALUES (${root.id}, ${stableUuid(root.world_seed, terms.sponsorDatabaseVersion, "sponsor-offer", operationKey)}, ${operationKey}, ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},
@@ -322,7 +328,7 @@ export async function evaluateOffers(
     .filter(d => {const replacing=conflicts(d.terms,active);return replacing.length>0 || active.length<portfolioLimit(facts);})
     .filter(d => !blocked.has(d.key))
     .sort((a, b) => tierRank(b.terms.tier) - tierRank(a.terms.tier) || (a.key < b.key ? -1 : 1))
-    .slice(0, MAX_OFFERS_PER_EVALUATION);
+    .slice(0, MAX_OFFERS_PER_EVALUATION + ((await activeManager(tx, root.id))?.extraOffers ?? 0));
   const created: string[] = [];
   for (const d of candidates) {
     const operationKey = `offer:${triggerKey}:${d.key}`;
@@ -719,6 +725,13 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
     let ledgerId: string | null = null;
     if (cash > 0) ledgerId = (await post(tx, root, { operationKey: `prize:${event.id}`, category: "PRIZE", amountPence: cash, reason: `Prize money — ${event.name}`,
       season, week, eventId: event.id, detail: { finishingPosition: mine.finishing_position, prizeProfile: profile.prize.key, rankingEligiblePence: ranking } })).row.id;
+    if (cash > 0) {
+      // Your manager's cut of the prize (cash prizes only), posted next to it.
+      const manager = await activeManager(tx, root.id), cut = manager ? commissionOn(cash, manager) : 0;
+      if (manager && cut > 0) await post(tx, root, { operationKey: `manager-commission:${event.id}`, category: "MANAGER_COMMISSION", amountPence: -cut,
+        reason: `${manager.name} commission (${Math.round(manager.commission * 100)}%) — ${event.name}`, season, week, eventId: event.id,
+        detail: { managerKey: manager.key, contractId: manager.contractId, rate: manager.commission, prizePence: cash } });
+    }
     await tx.execute(sql`INSERT INTO career_prize_awards (career_save_id, event_id, participant_key, season, finishing_position, cash_award_pence, ranking_eligible_pence, classification, ledger_entry_id)
       VALUES (${root.id}, ${event.id}, ${HUMAN}, ${event.season}, ${mine.finishing_position}, ${cash}, ${ranking}, ${event.classification}, ${ledgerId}) ON CONFLICT DO NOTHING`);
     await tx.execute(sql`UPDATE career_event_finance SET status = 'COMPLETED', estimated_trip_pence = 0, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND status IN ('ENTERED','TRAVEL_COMMITTED')`);
