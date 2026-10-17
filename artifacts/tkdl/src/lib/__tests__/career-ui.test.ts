@@ -879,19 +879,25 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     next: { name: "Partner", followers: 1000, perks: "Subs." }, tiers: [{ key: "NEWCOMER", name: "Newcomer", followers: 0, perks: "Go live.", reached: true },
       { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Bits and super chats.", reached: true }, { key: "PARTNER", name: "Partner", followers: 1000, perks: "Subs.", reached: false }],
     streamsThisWeek: 1, perWeek: 3, freeNights: [2, 5, 6], live: null, totals: { streams: 14, earnedPence: 18450, won: 9 },
-    videos: [{ id: "v1", season: 2, week: 8, dayOfWeek: 6, challenger: "OcheGremlin12", result: "WON", peak: 41, followersGained: 12, incomePence: 2350 }],
-    subscribers: 0, renewsWeek: 12, dealOffer: null, deal: null, invitations: false };
+    videos: [{ id: "v1", season: 2, week: 8, dayOfWeek: 6, format: "CHALLENGER", title: "Stream vs OcheGremlin12", challenger: "OcheGremlin12", result: "WON", peak: 41, followersGained: 12, incomePence: 2350 }],
+    subscribers: 0, renewsWeek: 12, dealOffer: null, deal: null, invitations: false,
+    formats: [{ key: "CHALLENGER", name: "Play a viewer", blurb: "A viewer steps up.", crowd: 1 }, { key: "KING", name: "King of the Oche", blurb: "Viewer after viewer.", crowd: 1.5 },
+      { key: "BOBS_27", name: "Bob's 27 live", blurb: "Every double.", crowd: 0.68 }], pollPick: "KING", lastFormat: "BOBS_27", subGoal: null, goalOptions: null };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
   for (const fact of ["Dart Cast", "AyrDarts", "640 followers", "Affiliate", "14 streams", "£184.50 earned", "beat 9 challengers", "Go live on Tue", "(1 so far)",
-    "360 more followers to Partner", "Stream vs OcheGremlin12", "41 peak", "+12", "£23.50"]) assert.ok(t.includes(fact), fact);
+    "360 more followers to Partner", "Stream vs OcheGremlin12", "41 peak", "+12", "£23.50",
+    "King of the Oche · chat's pick", "Big crowd", "Quiet night (you did this last time)", "Normal crowd"]) assert.ok(t.includes(fact), fact);
 });
 
 test("DartCast channel money: subs that renew, a brand's offer to answer, and a Star's invitations", () => {
   const view = { season: 3, week: 10, handle: "AyrDarts", followers: 1450, tier: { key: "PARTNER", name: "Partner", perks: "Subs." }, next: { name: "Star", followers: 25000, perks: "Big." },
     tiers: [], streamsThisWeek: 0, perWeek: 3, freeNights: [1], live: null, totals: { streams: 40, earnedPence: 90000, won: 25 }, videos: [],
     subscribers: 14, renewsWeek: 12, dealOffer: { id: "d1", brand: "FlightDeck", what: "flights and stems", perStreamPence: 6900, streamsTotal: 6, streamsDone: 0, expiresWeek: 13 },
-    deal: null, invitations: true };
+    deal: null, invitations: true, formats: [], pollPick: null, lastFormat: null,
+    subGoal: { season: 3, month: 3, endsWeek: 12, target: 10, promise: "Throw in fancy dress", progress: 4, status: "ON" },
+    goalOptions: { targets: [5, 10, 20, 50], promises: ["Throw in fancy dress"] } };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
   for (const fact of ["Channel money", "14 subscribers renew at the end of week 12", "£17.50 if they all stay", "FlightDeck (flights and stems)", "£69 a stream", "next 6 streams",
-    "Answer by week 13", "Take the deal", "No thanks", "televised invitationals send you invitations"]) assert.ok(t.includes(fact), fact);
+    "Answer by week 13", "Take the deal", "No thanks", "televised invitationals send you invitations",
+    "Sub goal", "4 of 10 subs", "Your promise: Throw in fancy dress"]) assert.ok(t.includes(fact), fact);
 });

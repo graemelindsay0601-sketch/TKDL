@@ -8,3 +8,4 @@ export * from "./bull-up.ts";
 export * from "./bot.ts";
 export * from "./random.ts";
 export * from "./pairs.ts";
+export * from "./drills.ts";

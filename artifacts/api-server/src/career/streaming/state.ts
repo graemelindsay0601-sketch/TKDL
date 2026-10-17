@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { stableUuid } from "../world/random.ts";
-import { STREAM, STREAM_MONEY, brandFor, dealFee, renewals, subPayout, tierFor, type TierKey } from "./model.ts";
+import { STREAM, STREAM_MONEY, brandFor, dealFee, goalBonus, renewals, subPayout, tierFor, type TierKey } from "./model.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
 let seen = false;
@@ -31,9 +31,17 @@ type Root = { id: string; world_seed: string };
  */
 export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season: number, week: number) {
   if (!await ready(tx)) return;
-  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
+  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through, sub_goal FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
   if (!ch) return;
   const month = `${season}:${week}`;
+  // The month's sub goal: hit it and the buzz wins followers; either way it's settled once.
+  const goal = ch.sub_goal as { season: number; month: number; target: number; status: string } | null;
+  if (week % STREAM_MONEY.monthWeeks === 0 && goal && goal.status === "ON" && goal.season === season && goal.month === week / STREAM_MONEY.monthWeeks) {
+    const hit = await subsThisMonth(tx, root.id, season, goal.month) >= goal.target;
+    await tx.execute(sql`UPDATE career_stream_channels SET sub_goal = sub_goal || ${JSON.stringify({ status: hit ? "HIT" : "MISSED" })}::jsonb,
+      followers = followers + ${hit ? goalBonus(goal.target) : 0} WHERE career_save_id=${root.id}`);
+    if (hit) ch.followers = Number(ch.followers) + goalBonus(goal.target);
+  }
   if (week % STREAM_MONEY.monthWeeks === 0 && ch.renewed_through !== month && Number(ch.subscribers) > 0) {
     const streamed = (await tx.execute(sql`SELECT 1 FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND status='ENDED'
       AND week BETWEEN ${week - STREAM_MONEY.monthWeeks + 1} AND ${week} LIMIT 1`)).rows.length > 0;
@@ -53,3 +61,10 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
     VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-deal", root.id, season, thisSeason)}, ${season}, ${week}, ${week + STREAM_MONEY.dealOfferWeeks},
       ${brand.key}, ${brand.name}, ${dealFee(followers)}, ${STREAM_MONEY.dealStreams}, 'OFFERED') ON CONFLICT DO NOTHING`);
 }
+/** New subs from streams that ended in this month's weeks. */
+export async function subsThisMonth(tx: CareerExecutor, saveId: string, season: number, month: number) {
+  const last = month * STREAM_MONEY.monthWeeks;
+  return Number((await tx.execute(sql`SELECT COALESCE(SUM((tally->>'subs')::int),0)::int AS n FROM career_streams WHERE career_save_id=${saveId} AND season=${season}
+    AND status='ENDED' AND week BETWEEN ${last - STREAM_MONEY.monthWeeks + 1} AND ${last}`)).rows[0].n);
+}
+

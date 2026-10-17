@@ -71,7 +71,7 @@ test("going live: a free night this week, a challenger from chat, chat for every
   const v = await streaming.read(actor, id);
   assert.equal(v.tier.key, "AFFILIATE"); assert.equal(v.next!.name, "Partner"); assert.equal(v.freeNights.length, 7);
   const s = await streaming.goLive(actor, id, { dayOfWeek: 5 });
-  assert.equal(s.status, "LIVE"); assert.ok(s.challenger.name && s.challenger.bot.seed); assert.ok(s.tally.viewers >= 1);
+  assert.equal(s.status, "LIVE"); assert.ok(s.challenger.name && s.challenger.bot!.seed); assert.ok(s.tally.viewers >= 1);
   await status(streaming.goLive(actor, id, { dayOfWeek: 6 }), 409);
   const after = await streaming.read(actor, id);
   assert.equal(after.live, s.id); assert.ok(!after.freeNights.includes(5), "the night is taken");

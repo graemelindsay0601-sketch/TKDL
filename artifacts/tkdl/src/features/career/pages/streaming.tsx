@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Check, Eye, Loader2, Radio, Search, Trophy, Users } from "lucide-react";
-import { useAnswerBrandDeal, useGoLive, useStreaming, errorMessage } from "../api";
+import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
@@ -9,7 +9,10 @@ import "./streaming.css";
 
 /** DartCast: a made-up darts streaming site. Your channel, the streamer route, going live and your past streams. */
 export function StreamingPage({ ctx }: { ctx: ShellContext }) {
-  const id = ctx.save.id, q = useStreaming(id), live = useGoLive(id), answer = useAnswerBrandDeal(id);
+  const id = ctx.save.id, q = useStreaming(id), live = useGoLive(id), answer = useAnswerBrandDeal(id), goal = useSetSubGoal(id);
+  const [format, setFormat] = useState<StreamFormat | null>(null);
+  const [goalTarget, setGoalTarget] = useState<number | null>(null);
+  const [promise, setPromise] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const [night, setNight] = useState<number | null>(null);
   const [message, setMessage] = useState("");
@@ -18,6 +21,9 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const d = q.data, retired = !!ctx.save.retiredAt;
   const pick = night ?? d.freeNights[0] ?? null;
   const progress = d.next ? Math.min(100, Math.round(d.followers / d.next.followers * 100)) : 100;
+  const chosen = format ?? d.pollPick ?? "CHALLENGER";
+  const crowd = (c: number) => c >= 1.15 ? "Big crowd" : c >= 0.95 ? "Normal crowd" : c >= 0.8 ? "Smaller crowd" : "Quiet night";
+  const goalThisMonth = d.subGoal && d.subGoal.season === d.season && d.subGoal.endsWeek >= d.week;
   const canGo = !retired && !d.live && d.streamsThisWeek < d.perWeek && pick !== null;
   return (
     <div className="dc">
@@ -47,15 +53,33 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
         {d.deal && <p className="dc__note">Brand deal with <b>{d.deal.brand}</b>: {formatPence(d.deal.perStreamPence)} a stream, {d.deal.streamsDone} of {d.deal.streamsTotal} streams done.</p>}
         {d.invitations && <p className="dc__note">You're a DartCast Star: the televised invitationals send you invitations. Look for them in the calendar.</p>}
       </section>}
+      {d.goalOptions && <section className="dc__panel">
+        <h2>Sub goal</h2>
+        {d.subGoal && <p className="dc__note">{d.subGoal.status === "ON" ? <>This month (to week {d.subGoal.endsWeek}): <b>{d.subGoal.progress} of {d.subGoal.target} subs</b>. Your promise: {d.subGoal.promise}.</>
+          : d.subGoal.status === "HIT" ? <>Goal hit: {d.subGoal.target} subs, and the buzz won you followers. Time to keep that promise: {d.subGoal.promise}.</>
+          : <>Last month's goal of {d.subGoal.target} subs was missed ({d.subGoal.progress}).</>}</p>}
+        {!goalThisMonth && <div className="dc__goal">
+          <p className="dc__note">Set a goal for this month: hit it and the buzz wins you followers.</p>
+          <div className="dc__nights" role="radiogroup" aria-label="Sub target">{d.goalOptions.targets.map(t => <button key={t} type="button" role="radio" aria-checked={goalTarget === t} className="dc__night" onClick={() => setGoalTarget(t)}>{t} subs</button>)}</div>
+          <div className="dc__nights" role="radiogroup" aria-label="Your promise">{d.goalOptions.promises.map(p => <button key={p} type="button" role="radio" aria-checked={promise === p} className="dc__night" onClick={() => setPromise(p)}>{p}</button>)}</div>
+          <button type="button" className="dc__go" disabled={goalTarget === null || promise === null || goal.isPending}
+            onClick={() => goal.mutate({ target: goalTarget!, promise: promise! }, { onError: e => setMessage(errorMessage(e)) })}>Set the goal</button>
+        </div>}
+      </section>}
       <section className="dc__panel">
         <h2>Go live</h2>
-        <p className="dc__note">Pick a free night this week. A viewer steps up to play you, first to 2 legs of 501, and chat reacts to every visit. A stream night is booked like any other: no events that night.
+        <p className="dc__note">Pick what to stream and a free night this week. Chat reacts to every visit. A stream night is booked like any other: no events that night.
           {" "}Up to {d.perWeek} a week ({d.streamsThisWeek} so far).</p>
+        <div className="dc__formats" role="radiogroup" aria-label="What to stream">
+          {d.formats.map(f => <button key={f.key} type="button" role="radio" aria-checked={chosen === f.key} className="dc__format" onClick={() => setFormat(f.key)}>
+            <b>{f.name}{d.pollPick === f.key ? " · chat's pick" : ""}</b><span>{f.blurb}</span>
+            <small data-crowd={f.crowd >= 1.15 ? "big" : f.crowd < 0.8 ? "quiet" : undefined}>{crowd(f.crowd)}{d.lastFormat === f.key ? " (you did this last time)" : ""}</small></button>)}
+        </div>
         {d.freeNights.length ? <div className="dc__nights" role="radiogroup" aria-label="Night to stream">
           {d.freeNights.map(n => <button key={n} type="button" role="radio" aria-checked={pick === n} className="dc__night" onClick={() => setNight(n)}>{dayLabel(n)}</button>)}
         </div> : <p className="dc__note">No free nights left this week.</p>}
         <button type="button" className="dc__go" disabled={!canGo || live.isPending}
-          onClick={() => live.mutate(pick!, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>
+          onClick={() => live.mutate({ dayOfWeek: pick!, format: chosen }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>
           {live.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Radio aria-hidden />} Go live{pick ? ` on ${dayLabel(pick)}` : ""}</button>
         {message && <p className="dc__warn" role="alert">{message}</p>}
       </section>
@@ -69,8 +93,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
       <section className="dc__panel">
         <h2>Videos</h2>
         {d.videos.length ? <ul className="dc__videos">{d.videos.map(v => <li key={v.id}>
-          <div className="dc__thumb" data-result={v.result ?? "NONE"}><span>vs {v.challenger}</span><em>{v.result === "WON" ? "WON" : v.result === "LOST" ? "LOST" : "ENDED"}</em></div>
-          <p><b>{v.result === "WON" ? <Trophy aria-hidden /> : null}Stream vs {v.challenger}</b>
+          <div className="dc__thumb" data-result={v.result ?? "NONE"}><span>{v.format === "CHALLENGER" ? `vs ${v.challenger}` : v.title}</span><em>{v.result === "WON" ? "WON" : v.result === "LOST" ? "LOST" : "ENDED"}</em></div>
+          <p><b>{v.result === "WON" ? <Trophy aria-hidden /> : null}{v.title}</b>
             <small>S{v.season} Wk {v.week} · {dayLabel(v.dayOfWeek)} · <Eye aria-hidden /> {v.peak} peak · <Users aria-hidden /> +{v.followersGained} · {formatPence(v.incomePence)}</small></p>
         </li>)}</ul> : <p className="dc__note">No streams yet. Your first one starts above.</p>}
       </section>
