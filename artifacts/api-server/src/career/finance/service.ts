@@ -83,6 +83,44 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
   }
   const now = (root: RootRow) => ({ season: Number(root.current_season), week: Number(root.current_week) });
 
+  /**
+   * Progress towards the savings goal: the money free to spend (balance less what is set aside for entered events)
+   * against the target. An event goal follows the event: entered means done, gone without you means missed, and while
+   * it is open the target is its current estimated cost. "Weeks to go" uses your average weekly money over the last four weeks.
+   */
+  async function goalView(tx: CareerExecutor, root: RootRow) {
+    const row = (await tx.execute(sql`SELECT * FROM career_savings_goals WHERE career_save_id = ${root.id}`)).rows[0];
+    if (!row) return null;
+    const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${root.id}`)).rows[0].balance_pence);
+    const available = balance - await reservedPence(tx, root.id);
+    let target = Number(row.target_pence), status: "SAVING" | "READY" | "ENTERED" | "MISSED" = "SAVING", event: { week: number; closesWeek: number } | null = null;
+    if (row.event_id) {
+      const e = (await loadInstances(tx, root.id, sql`id = ${String(row.event_id)}`))[0];
+      const entry = (await tx.execute(sql`SELECT status FROM career_event_entries WHERE career_save_id = ${root.id} AND event_id = ${String(row.event_id)} AND participant_key = 'HUMAN'`)).rows[0];
+      if (e) event = { week: e.start_week, closesWeek: e.registration_closes_week };
+      if (entry && entry.status !== "WITHDRAWN") status = "ENTERED";
+      else if (!e || ["COMPLETED", "CANCELLED"].includes(e.status) || e.season !== Number(root.current_season) || e.registration_closes_week < Number(root.current_week)) status = "MISSED";
+      else {
+        const preview = (await hooks.previews(tx, root, e.season, [e])).get(e.id) as { estimatedPlayerCostPence: number } | undefined;
+        if (preview) target = Math.max(100, preview.estimatedPlayerCostPence);
+      }
+    }
+    if (status === "SAVING" && available >= target) status = "READY";
+    if ((status === "READY" || status === "ENTERED") && row.reached_season === null) await tx.execute(sql`UPDATE career_savings_goals
+      SET reached_season = ${root.current_season}, reached_week = ${root.current_week} WHERE career_save_id = ${root.id}`);
+    const week = Number(root.current_week), season = Number(root.current_season), from = Math.max(1, week - 4);
+    const recent = Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence), 0)::bigint AS n FROM career_finance_entries
+      WHERE career_save_id = ${root.id} AND season = ${season} AND week >= ${from} AND week < ${week} AND headline IN ('EARNINGS', 'SPONSOR', 'EXPENSE')`)).rows[0].n);
+    const weeksCounted = week - from, averageWeeklyPence = weeksCounted > 0 ? Math.round(recent / weeksCounted) : 0;
+    const remainingPence = Math.max(0, target - available);
+    return {
+      kind: String(row.kind) as "EVENT" | "AMOUNT", label: String(row.label), eventId: row.event_id ? String(row.event_id) : null, event,
+      targetPence: target, availablePence: available, remainingPence, progress: Math.max(0, Math.min(1, available / target)), status,
+      averageWeeklyPence, weeksToGo: status === "SAVING" && averageWeeklyPence > 0 ? Math.ceil(remainingPence / averageWeeklyPence) : null,
+      setSeason: Number(row.set_season), setWeek: Number(row.set_week),
+    };
+  }
+
   return {
     calendar,
     hooks,
@@ -143,6 +181,42 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
           return { week, events: played.get(week) ?? 0, spentPence, wonPence, sponsorPence, dartsNetPence: wonPence - spentPence };
         });
         return { season, currentWeek: Number(root.current_week), weeks };
+      });
+    },
+
+    /** The savings goal with its progress (null when none is set). */
+    async savingsGoal(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId, false);
+        return { goal: await goalView(tx, root) };
+      });
+    },
+    /** Save for an event (its full estimated cost: entry, travel, stay) or for an amount you name. Replaces any current goal. */
+    async setSavingsGoal(actor: CareerActor, saveId: string, input: unknown) {
+      const q = z.union([z.object({ eventId: careerIdSchema }).strict(),
+        z.object({ label: z.string().trim().min(1).max(60), targetPence: z.number().int().min(100).max(100_000_000) }).strict()]).parse(input);
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId);
+        let goal: { kind: "EVENT" | "AMOUNT"; label: string; target: number; eventId: string | null };
+        if ("eventId" in q) {
+          const event = (await loadInstances(tx, root.id, sql`id = ${q.eventId}`))[0];
+          if (!event || event.season !== Number(root.current_season) || ["COMPLETED", "CANCELLED"].includes(event.status) || event.registration_closes_week < Number(root.current_week))
+            throw new CareerError(409, "Pick an event you can still enter this season");
+          const preview = (await hooks.previews(tx, root, event.season, [event])).get(event.id) as { estimatedPlayerCostPence: number } | undefined;
+          goal = { kind: "EVENT", label: event.name, target: Math.max(100, preview?.estimatedPlayerCostPence ?? 0), eventId: event.id };
+        } else goal = { kind: "AMOUNT", label: q.label, target: q.targetPence, eventId: null };
+        await tx.execute(sql`INSERT INTO career_savings_goals (career_save_id, kind, label, target_pence, event_id, set_season, set_week)
+          VALUES (${root.id}, ${goal.kind}, ${goal.label}, ${goal.target}, ${goal.eventId}, ${root.current_season}, ${root.current_week})
+          ON CONFLICT (career_save_id) DO UPDATE SET kind = EXCLUDED.kind, label = EXCLUDED.label, target_pence = EXCLUDED.target_pence, event_id = EXCLUDED.event_id,
+            set_season = EXCLUDED.set_season, set_week = EXCLUDED.set_week, reached_season = NULL, reached_week = NULL, created_at = NOW()`);
+        return { goal: await goalView(tx, root) };
+      });
+    },
+    async clearSavingsGoal(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId);
+        await tx.execute(sql`DELETE FROM career_savings_goals WHERE career_save_id = ${root.id}`);
+        return { goal: null };
       });
     },
 
