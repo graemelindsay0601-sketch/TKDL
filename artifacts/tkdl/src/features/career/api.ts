@@ -78,6 +78,11 @@ export type CalendarQuery = { scope?: "WORLD" | "MY_SCHEDULE" | "AVAILABLE" | "F
 export const useCalendar = (saveId: string, q: CalendarQuery, enabled = true) => useQuery({ queryKey: careerKey(saveId, "calendar", q), enabled, staleTime: STALE,
   queryFn: () => get<CalendarResponse>(`/saves/${saveId}/calendar${qs(q)}`) });
 export const useEvent = (saveId: string, eventId: string) => useQuery({ queryKey: careerKey(saveId, "event", eventId), queryFn: () => get<EventDetail>(`/saves/${saveId}/events/${eventId}`), staleTime: STALE });
+export type EventMoneyHistory = { eventId: string; visits: { eventId: string; name: string; season: number; week: number; finishingPosition: number; stageReached: string; champion: boolean; spentPence: number; wonPence: number }[];
+  totals: { visits: number; titles: number; spentPence: number; wonPence: number; netPence: number };
+  best: { finishingPosition: number; stageReached: string; champion: boolean; season: number } | null };
+export const useEventHistory = (saveId: string, eventId: string) => useQuery({ queryKey: careerKey(saveId, "event-history", eventId), staleTime: STALE,
+  queryFn: () => get<EventMoneyHistory>(`/saves/${saveId}/events/${eventId}/history`) });
 export const useEventFinance = (saveId: string, eventId: string) => useQuery({ queryKey: careerKey(saveId, "event-finance", eventId), staleTime: STALE,
   queryFn: () => get<{ eventId: string; status: string; preview: unknown; actuals: Record<string, unknown> | null }>(`/saves/${saveId}/events/${eventId}/finance`) });
 export const useHistory = (saveId: string, q: { participant?: string; season?: number; definition?: string } = { participant: "HUMAN" }) => useQuery({ queryKey: careerKey(saveId, "history", q), staleTime: STALE,

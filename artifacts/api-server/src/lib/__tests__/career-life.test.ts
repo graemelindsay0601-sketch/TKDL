@@ -228,6 +228,16 @@ test("nine-darters from the records book: yours is a major career moment, anyone
   assert.match(world.body,/Nina Perfect threw a nine-dart leg at Pro Tour 7 \(2 in the match\)\./);
 });
 
+test("a savings goal reached is a story: what you saved for, how much, and when",()=>{
+  const s=source();s.season=2;
+  s.savingsGoals=[{id:"g1",kind:"EVENT",label:"UK Open",targetPence:23800,eventId:"e-open",season:2,week:14},
+    {id:"g2",kind:"AMOUNT",label:"New darts",targetPence:15000,eventId:null,season:2,week:20}];
+  const goals=storyEngine(s).filter(st=>st.kind==="goal-reached");
+  assert.equal(goals.length,2);
+  assert.match(goals.find(g=>g.body.includes("UK Open"))!.body,/You saved the £238 it takes to play UK Open \(entry, travel and stay\), in week 14 of season 2\./);
+  assert.match(goals.find(g=>g.body.includes("New darts"))!.body,/You reached your savings goal: £150 for New darts, in week 20 of season 2\./);
+});
+
 test("county and national selection: picked, dropped, Inter-County titles and World Cup call-ups make the news",()=>{
   const s=source();s.season=3;
   s.club={club:{localityKey:"ayrshire",name:"Kilbirnie Darts Club",city:"Kilbirnie",region:"Ayrshire",country:"GBR"},season:3,captain:{key:"HUMAN",name:"You",you:true},

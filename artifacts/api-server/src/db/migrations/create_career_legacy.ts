@@ -86,4 +86,9 @@ export async function ensureSavingsGoals(tx:CareerExecutor):Promise<void> {
     target_pence bigint NOT NULL CHECK(target_pence>0),event_id uuid,
     set_season integer NOT NULL,set_week integer NOT NULL,reached_season integer,reached_week integer,
     created_at timestamptz NOT NULL DEFAULT NOW())`);
+  // Goals reached, kept after the goal changes (news stories read these).
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_savings_goals_reached (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL DEFAULT gen_random_uuid(),kind text NOT NULL,label text NOT NULL,target_pence bigint NOT NULL,event_id uuid,
+    season integer NOT NULL,week integer NOT NULL,created_at timestamptz NOT NULL DEFAULT NOW(),PRIMARY KEY(career_save_id,id))`);
 }

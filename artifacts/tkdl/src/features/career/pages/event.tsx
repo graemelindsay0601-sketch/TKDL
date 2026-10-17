@@ -3,7 +3,7 @@ import {CareerEventIdentity, CareerShirt} from "../identity";
 import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
-import { useEnterEvent, useEvent, useEventFinance, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
+import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
 import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
@@ -271,9 +271,26 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
       {p?.prizeBands && p.prizeBands.some(b => b.amountPence > 0) && <ul className="career-prize-ladder px-4 pb-2 text-xs">
         {p.prizeBands.filter(b => b.amountPence > 0).map(b => <li key={b.upToPosition}><span>{prizeStage(b.upToPosition)}</span><b>{formatPence(b.amountPence)}</b></li>)}
       </ul>}
+      <EventMoneyHistory saveId={saveId} eventId={detail.event.id} />
       <p className="px-4 pb-3 text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Prize bands by finishing position are set by the event's prize profile; amounts shown are the official figures.</p>
     </CareerSection>
   );
+}
+/** Your record at this event in earlier editions: visits, best finish, and money spent and won each time. */
+function EventMoneyHistory({ saveId, eventId }: { saveId: string; eventId: string }) {
+  const q = useEventHistory(saveId, eventId);
+  const h = q.data;
+  if (!h || !h.totals.visits) return null;
+  const net = h.totals.netPence, sign = net > 0 ? "+" : net < 0 ? "−" : "";
+  const finish = (v: { champion: boolean; stageReached: string }) => v.champion ? "Winner" : stageLabel(v.stageReached);
+  return <div className="event-history px-4 pb-3">
+    <p className="event-history__title">Your record here</p>
+    <p className="event-history__sum">{h.totals.visits} visit{h.totals.visits === 1 ? "" : "s"}{h.totals.titles ? ` · ${h.totals.titles} title${h.totals.titles === 1 ? "" : "s"}` : ""}
+      {" "}· spent {formatPence(h.totals.spentPence)} · won {formatPence(h.totals.wonPence)} <strong>({sign}{formatPence(Math.abs(net))})</strong>
+      {h.best ? <> · best: {finish(h.best)} (season {h.best.season})</> : null}</p>
+    <ul className="event-history__list">{h.visits.slice(0, 8).map(v => <li key={v.eventId}>
+      <span>S{v.season} wk {v.week}</span><span>{finish(v)}</span><span>−{formatPence(v.spentPence)} / +{formatPence(v.wonPence)}</span></li>)}</ul>
+  </div>;
 }
 const prizeStage = (upTo: number) => upTo === 1 ? "Winner" : upTo === 2 ? "Runner-up" : upTo === 4 ? "Semi-finalist" : upTo === 8 ? "Quarter-finalist" : `Last ${upTo}`;
 function RankingTab({ saveId, detail, retired }: { saveId: string; detail: EventDetail; retired: boolean }) {

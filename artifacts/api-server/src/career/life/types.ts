@@ -24,6 +24,8 @@ export type LifeSources = {
   /** Player database v6: players tipped for a breakthrough in each close season (published at the new season's start). */
   tips?:{npcId:string;name:string;band:"ELITE"|"TOUR";season:number;order:number}[];
   fans?:import("../fans/model.ts").FanFollowing;
+  /** Savings goals reached (the week the money was there, or the event was entered), within the news window. */
+  savingsGoals?:{id:string;kind:"EVENT"|"AMOUNT";label:string;targetPence:number;eventId:string|null;season:number;week:number}[];
   /** Your home club: its name, this season's captain and its league history (promotions, titles). */
   club?:Pick<import("../club/service.ts").ClubView,"club"|"captain"|"history"|"season"|"county"|"nation">;
   /** Nine-dart legs from the records book (recorded match statistics), within the news window. */

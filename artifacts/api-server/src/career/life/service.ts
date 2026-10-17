@@ -97,6 +97,8 @@ export function createCareerLifeService(database:CareerDatabase) {
       FROM career_world_periods p CROSS JOIN LATERAL jsonb_array_elements(COALESCE(p.summary->'breakthroughs','[]'::jsonb)) WITH ORDINALITY t
       JOIN career_world_players n ON n.career_save_id=p.career_save_id AND n.id::text=t.value->>'id'
       WHERE p.career_save_id=${saveId} AND p.kind='OFF_SEASON' ORDER BY p.season,t.ordinality`)).rows;
+    const goals=(await tx.execute(sql`SELECT id,kind,label,target_pence,event_id,season,week FROM career_savings_goals_reached
+      WHERE career_save_id=${saveId} AND season>=${recentFrom} ORDER BY season,week,created_at`)).rows;
     const nineDarters=(await tx.execute(sql`SELECT w.match_id,w.event_id,i.name AS event_name,w.participant_key,w.season,w.day,w.value,w.source,
         CASE WHEN w.participant_key='HUMAN' THEN 'You' ELSE concat(n.first_name,' ',n.surname) END AS name
       FROM career_world_records w JOIN career_event_instances i ON i.career_save_id=w.career_save_id AND i.id=w.event_id
@@ -130,6 +132,8 @@ export function createCareerLifeService(database:CareerDatabase) {
     return {saveId,season:Number(root.current_season),week:Number(root.current_week),active:root.status==="ACTIVE",ready:Boolean(root.identity_dob)&&events.length>0,
       facts,relationships,recognition,decisions,commitments,publicChanges,
       fans:await loadFanFollowing(tx,saveId),
+      savingsGoals:goals.map(r=>({id:String(r.id),kind:String(r.kind) as "EVENT"|"AMOUNT",label:String(r.label),targetPence:Number(r.target_pence),
+        eventId:r.event_id?String(r.event_id):null,season:Number(r.season),week:Number(r.week)})),
       club:await createCareerClubService(db).read(actor,saveId),
       nineDarters:nineDarters.map(r=>({matchId:String(r.match_id),eventId:String(r.event_id),eventName:String(r.event_name),participantKey:String(r.participant_key),
         name:String(r.name),season:Number(r.season),day:Number(r.day),count:Number(r.value),source:String(r.source)})),
