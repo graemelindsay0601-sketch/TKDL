@@ -404,11 +404,9 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
         region:z.string().max(100).optional(),city:z.string().max(100).optional(),fromWeek:z.coerce.number().int().min(1).max(52).default(1),
         toWeek:z.coerce.number().int().min(1).max(52).default(52)}).strict().refine(v=>v.toWeek>=v.fromWeek).parse(query);
       const calendar=await sporting.calendar.calendar(actor,saveId,{scope:"WORLD",fromWeek:q.fromWeek,toWeek:q.toWeek});
-      const qualification=await sporting.qualification(actor,saveId,{fromWeek:q.fromWeek,weeks:q.toWeek-q.fromWeek+1});
       const root=await database.transaction(async tx=>await lockRoot(tx,actor,saveId,false) as RootRow);
       const home=sporting.calendar.providers.sportingStatus.human(root);
       const locality=LOCALITIES.find(l=>l.key===home.locality);
-      const qualifyingFor=new Map(qualification.season===calendar.season?qualification.events.map(x=>[x.eventId,x] as const):[]);
       const events=calendar.events.filter(e=>(!q.country||e.venue.country===q.country)&&(!q.region||e.venue.region===q.region)&&(!q.city||e.venue.city===q.city)&&
         (q.scope!=="REGION"||(e.venue.country===(q.country??home.country)&&e.venue.region===(q.region??locality?.region)))&&
         (q.scope!=="LOCAL"||(e.venue.country===(q.country??home.country)&&e.venue.city===(q.city??locality?.city))));
@@ -417,7 +415,8 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
         events:events.map(e=>({id:e.id,name:e.name,definitionId:e.definitionKey,canonicalEventId:e.content?.canonicalEventId??e.definitionKey,
           // The venue once (content.venue repeated it for every event: about a third of a 12MB season map).
           venue:venueContent(e.venue.key),dates:e.dates,status:e.status,content:withoutVenue(e.content??{...identity(catalogueFor(e.eventDatabaseVersion).find(d=>d.key===e.definitionKey)!),titleSponsorId:null}),
-          opportunity:e.opportunity,financialCommitment:e.finance,qualification:qualifyingFor.get(e.id)??null,
+          // Only the figures the map's travel plan shows; the full preview and the sporting routes are read for the inspected event alone.
+          opportunity:e.opportunity,financialCommitment:mapCosts(e.finance),
           fieldDescriptor:e.content?.fieldDescription??identity(catalogueFor(e.eventDatabaseVersion).find(d=>d.key===e.definitionKey)!).fieldDescription,
           seeding:e.seedingPolicy,field:e.field,capability:e.capability}))};
     },
@@ -489,6 +488,12 @@ export type CareerContentService=ReturnType<typeof createCareerContentService>;
 export type WorldContent=Awaited<ReturnType<CareerContentService["read"]>>;
 export type WorldLocalitiesContent=ReturnType<CareerContentService["localities"]>;
 const withoutVenue=<T extends object>(content:T)=>{const {venue:_venue,...rest}=content as T&{venue?:unknown};return rest;};
+const mapCosts=(f:unknown)=>{
+  if(!f||typeof f!=="object")return null;
+  const v=f as {entryFeePence:number;estimatedTravelPence:number;estimatedAccommodationPence:number;estimatedPlayerCostPence:number;sponsorCoverage:{entryFeePence:number;travelPence:number;accommodationPence:number}};
+  return {entryFeePence:v.entryFeePence,estimatedTravelPence:v.estimatedTravelPence,estimatedAccommodationPence:v.estimatedAccommodationPence,
+    estimatedPlayerCostPence:v.estimatedPlayerCostPence,sponsorCoverage:v.sponsorCoverage};
+};
 export type MapContent=Awaited<ReturnType<CareerContentService["map"]>>;
 export type PresentationContent=Awaited<ReturnType<CareerContentService["presentation"]>>;
 export type WorldPlayersContent=Awaited<ReturnType<CareerContentService["players"]>>;

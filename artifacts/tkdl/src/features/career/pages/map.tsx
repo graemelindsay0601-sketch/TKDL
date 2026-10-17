@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { Link, useSearch } from "wouter";
 import landMap from "./world-land.svg";
-import { useWorldMap } from "../api";
+import { useQualification, useWorldMap } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { MAP_VIEWS, clusterLocations, filterMap, mapState, planningCosts } from "../presentation";
 import { denialLabel, formatPence, routeLines, titleCase } from "../model";
@@ -51,7 +51,9 @@ function EventInspector({
   onInspect: (id: string) => void;
 }) {
   const costs = planningCosts(event?.financialCommitment);
-  const routes = event?.qualification?.routes;
+  // Sporting routes for this event only (the map list leaves them out: they were a sixth of its size and a quarter of its load time).
+  const qualification = useQualification(saveId, { eventId: event?.id }, !!event);
+  const routes = event && qualification.data?.events.find(item => item.eventId === event.id)?.routes;
   const entered = !!event && ["ENTERED", "CONFIRMED", "PLAYING"].includes(event.opportunity.state);
   const eventPath = event
     ? event.status === "IN_PROGRESS" && event.opportunity.state === "ENTERED"

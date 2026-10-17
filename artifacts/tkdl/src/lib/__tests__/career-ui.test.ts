@@ -169,7 +169,7 @@ test("A7.5 public NPC identity exposes only presentation and sporting standing, 
 const homeSeed = (s: ReturnType<typeof save>, events: ReturnType<typeof event>[], sp = sporting("UNRANKED_AMATEUR"), fin = finance()): [unknown[], unknown][] => [
   [key("sporting"), sp], [key("finance"), fin], [key("history", { participant: "HUMAN" }), []],
   [key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}],
-  [key("calendar", { scope: "WORLD", fromWeek: Math.max(1,s.currentWeek-2), toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],
+  [key("calendar", { scope: "RELEVANT", fromWeek: Math.max(1,s.currentWeek-2), toWeek: Math.min(52, s.currentWeek + 8) }), { overview: overview({ week: s.currentWeek }), season: 1, scope: "WORLD", events }],
 ];
 
 const goalsFixture=():GoalsView=>({careerSaveId:SAVE_ID,focus:"OPEN_SCHEDULE",focusOptions:Object.entries(FOCUSES).map(([value,d])=>({value:value as GoalsView["focus"],...d})),
@@ -641,7 +641,7 @@ const a83MapFixture=()=>{
   const d=worldFixture().eventFamilies.find(e=>e.id==="world-darts-championship")!;
   return {home:{city:"Ayr",region:"Scotland"},events:[{id:"palace",name:"The Palace World Championship",definitionId:d.id,status:"SCHEDULED",
     dates:{startWeek:50},venue:venueContent("the-palace-london"),content:d,fieldDescriptor:"World Championship Field",
-    opportunity:{state:"NOT_QUALIFIED",canEnter:false,reasons:["REQUIRES_RANKING"]},qualification:{routes:{type:"RANKING",met:false,list:"pro-world",maxPosition:32,position:null}},
+    opportunity:{state:"NOT_QUALIFIED",canEnter:false,reasons:["REQUIRES_RANKING"]},
     financialCommitment:{entryFeePence:0,estimatedTravelPence:10000,estimatedAccommodationPence:15000,estimatedPlayerCostPence:17500,sponsorCoverage:{entryFeePence:0,travelPence:2500,accommodationPence:5000}}}]};
 };
 test("A8.3 navigation has five compact destinations and only the current section's tabs",()=>{
@@ -681,7 +681,9 @@ test("Career Home presents verified progression, eligibility and personal focus"
   assert.ok(html.includes(`/career/${SAVE_ID}/rankings`));
 });
 test("A8.3 All Events map deep link exposes the inaccessible Palace and authoritative cost split",()=>{
-  const seed:[[unknown[],unknown]]=[[key("world-map"),a83MapFixture()]];
+  const seed:[unknown[],unknown][]=[[key("world-map"),a83MapFixture()],
+    // The inspector reads the sporting routes for the event it shows.
+    [key("qualification",{eventId:"palace"}),{events:[{eventId:"palace",routes:{type:"RANKING",met:false,list:"pro-world",maxPosition:32,position:null}}]}]];
   const html=render(h(M.CareerMapPage,{ctx:ctx()}),seed,`/career/${SAVE_ID}/map?filter=ALL&event=palace`);
   for(const fact of ["The Palace World Championship","Not Qualified","Ranking position required","Top 32","Commitment (estimated)","£250","Sponsor coverage","£75","Your cost (estimated)","£175"])assert.ok(text(html).includes(fact),fact);
   assert.match(html,/aria-label="Actual sporting routes"/);
@@ -734,7 +736,7 @@ test("A8.3 Q-School session evidence is not portrayed as a championship trophy",
   assert.doesNotMatch(html,/data-trophy=/);assert.doesNotMatch(html,/aria-label="Session Cup"/);
 });
 test("A9 establishment copy is new-save-only; Career Calendar fixture remains bounded",()=>{
-  const seed:[unknown[],unknown][]=[[key("calendar",{scope:"WORLD",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
+  const seed:[unknown[],unknown][]=[[key("calendar",{scope:"RELEVANT",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
     [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}]];
   const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5}))}),seed);
   assert.match(text(html),/Establishment season/);assert.match(text(html),/Turning professional is optional/);

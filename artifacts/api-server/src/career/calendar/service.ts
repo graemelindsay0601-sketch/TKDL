@@ -58,7 +58,8 @@ type HumanResultInput = z.infer<typeof humanResultSchema>;
 const calendarQuerySchema = z.object({
   season: z.number().int().positive().optional(),
   fromWeek: z.number().int().min(1).max(52).optional(), toWeek: z.number().int().min(1).max(52).optional(),
-  scope: z.enum(["WORLD", "MY_SCHEDULE", "AVAILABLE", "FEATURED"]).default("WORLD"),
+  // RELEVANT: events you can enter, are eligible for, or are booked into or played (Home: a few hundred, not the whole world).
+  scope: z.enum(["WORLD", "MY_SCHEDULE", "AVAILABLE", "FEATURED", "RELEVANT"]).default("WORLD"),
   circuit: z.enum(CIRCUITS).optional(), classification: z.enum(CLASSIFICATIONS).optional(), family: z.string().max(80).optional(),
 }).strict();
 const providerEntitlementSchema = z.object({
@@ -670,10 +671,16 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const seen = new Set(events.map(e => e.id));
         const human = await loadHumanContext(tx, root, season, [...events, ...ahead.filter(e => !seen.has(e.id))], await bind(tx, root));
         const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
-        const previews = providers.finance ? await providers.finance.previews(tx, root, season, events) : null;
-        let rows = events.map(event => withFinance(presentEvent(event, humanView(event, human, windows)), previews?.get(event.id)));
-        if (q.scope === "MY_SCHEDULE") rows = rows.filter(r => r.human && ["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED", "WITHDRAWN"].includes(r.human.relationship));
-        if (q.scope === "AVAILABLE") rows = rows.filter(r => r.human?.canEnter);
+        // Scope filters run before the money previews (the costly part), so a filtered view only prices what it shows.
+        const views = events.map(event => ({ event, human: humanView(event, human, windows) }));
+        const shown = views.filter(({ human: h }) => q.scope === "MY_SCHEDULE" ? !!h && ["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED", "WITHDRAWN"].includes(h.relationship)
+          : q.scope === "AVAILABLE" ? !!h?.canEnter
+          : q.scope === "RELEVANT" ? !!h && (h.canEnter || h.eligible || !["AVAILABLE", "NOT_ELIGIBLE"].includes(h.relationship))
+          : true);
+        const previews = providers.finance ? await providers.finance.previews(tx, root, season, shown.map(v => v.event)) : null;
+        const priced = shown.map(({ event, human: h }) => withFinance(presentEvent(event, h), previews?.get(event.id)));
+        // Pricing can still close an entry (INSUFFICIENT_FUNDS), so AVAILABLE is checked again once the money is known.
+        const rows = q.scope === "AVAILABLE" ? priced.filter(e => e.human?.canEnter) : priced;
         const sponsorCommitments=(await tx.execute(sql`SELECT id,contract_id,sponsor_key,commitment_type AS kind,season,available_from_week,
           due_week AS to_week,scheduled_week,status,true AS required FROM career_sponsor_commitments
           WHERE career_save_id=${root.id} AND season=${season} AND status NOT IN ('COMPLETED','MISSED','CANCELLED')

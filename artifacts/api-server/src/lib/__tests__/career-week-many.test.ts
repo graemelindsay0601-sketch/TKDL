@@ -66,3 +66,13 @@ test("the human enters events on three different days of one week and plays them
   }
   assert.fail("not every entered event was played");
 });
+
+test("Home's RELEVANT scope keeps every event you can enter or are booked into, and drops the rest of the world", async () => {
+  const q = { fromWeek: 1, toWeek: 52 };
+  const ids = async (scope: string) => new Set(((await career.calendar.calendar(actor, id, { ...q, scope })).events as any[]).map(e => e.id));
+  const [world, relevant, available, mine] = await Promise.all(["WORLD", "RELEVANT", "AVAILABLE", "MY_SCHEDULE"].map(ids));
+  assert.ok(mine.size > 0 && available.size > 0);
+  for (const e of [...available, ...mine]) assert.ok(relevant.has(e), "kept");
+  for (const e of relevant) assert.ok(world.has(e));
+  assert.ok(relevant.size < world.size, `${relevant.size} of ${world.size}`);
+});

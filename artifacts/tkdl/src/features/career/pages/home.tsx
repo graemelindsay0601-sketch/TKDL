@@ -33,7 +33,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
   const profile = useCareerProfile(id);
   const life = useCareerLife(id);
   const legacy = useCareerLegacySummary(id, !retired);
-  const calendar = useCalendar(id, { scope: "WORLD", fromWeek: Math.max(1, save.currentWeek - 2), toWeek: Math.min(52, save.currentWeek + 8) }, !retired);
+  const calendar = useCalendar(id, { scope: "RELEVANT", fromWeek: Math.max(1, save.currentWeek - 2), toWeek: Math.min(52, save.currentWeek + 8) }, !retired);
   const history = useHistory(id, { participant: "HUMAN" });
   const tournaments = useActiveTournament(id, !retired);
   const milestones = useMilestones(id, 12);
