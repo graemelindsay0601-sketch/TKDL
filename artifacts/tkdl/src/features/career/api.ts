@@ -102,6 +102,8 @@ export type MoneyMatchResult = import("../../../../api-server/src/career/money/s
 /** Money matches at your club: this week's members, any challenge, your record. */
 export const useMoneyMatches = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "money-matches"),
   queryFn: () => get<MoneyMatchesView>(`/saves/${saveId}/money-matches`), enabled, staleTime: STALE });
+export const useOfferMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
+  send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/offer`, input));
 export const usePlayMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
   send<{ match: MoneyMatchResult; created: boolean }>("POST", `/saves/${saveId}/money-matches/play`, input));
 export const useDeclineMoneyMatch = (saveId: string) => useSaveMutation(saveId, () => send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/decline`));

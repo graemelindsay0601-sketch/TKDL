@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { Coins, Loader2 } from "lucide-react";
-import { useDeclineMoneyMatch, useMoneyMatches, usePlayMoneyMatch, errorMessage, type MoneyMatchResult, type MoneyMatchesView } from "./api";
+import { useDeclineMoneyMatch, useMoneyMatches, useOfferMoneyMatch, usePlayMoneyMatch, errorMessage, type MoneyMatchResult, type MoneyMatchesView } from "./api";
 import { formatPence } from "./model";
 
 type Odds = MoneyMatchesView["members"][number]["odds"];
@@ -16,59 +16,74 @@ function Outcome({ m }: { m: MoneyMatchResult }) {
   </span>;
 }
 
+type Member = MoneyMatchesView["members"][number];
+
+/** One member: their form, the haggling so far, and what you can do next (offer, take their figure, play the agreed stake). */
+function MemberRow({ m, busy, canPlay, perWeek, available, onOffer, onPlay }: { m: Member; busy: boolean; canPlay: boolean; perWeek: number; available: number;
+  onOffer: (pence: number) => void; onPlay: (pence: number) => void }) {
+  const [pounds, setPounds] = useState("");
+  const value = Math.round(Number(pounds) * 100);
+  const valid = Number.isInteger(Number(pounds)) && value >= 500 && value <= available;
+  const t = m.talk;
+  return <li>
+    <div className="money-match__who"><b>{m.name}</b>{m.professional && <small className="career-club__pro"> · Pro</small>}
+      <small>{m.average ? `Averaging ${m.average.toFixed(1)} · ` : ""}{ODDS[m.odds]}</small></div>
+    {t && t.log.length > 0 && <ol className="money-match__talk">{t.log.map((line, i) => <li key={i} data-who={line.who}><b>{line.who === "YOU" ? "You" : m.name.split(" ")[0]}:</b> {line.text}</li>)}</ol>}
+    {m.thisWeek ? <Outcome m={m.thisWeek} />
+      : t?.status === "WALKED" ? <span className="money-match__outcome"><small>{m.name.split(" ")[0]} has walked away for this week.</small></span>
+      : !canPlay ? <span className="money-match__outcome"><small>That's your {perWeek} for this week</small></span>
+      : t?.status === "AGREED" ? <div className="money-match__play"><button type="button" className="career-btn career-btn-gold" disabled={busy} onClick={() => onPlay(t.agreedPence!)}>Play for {formatPence(t.agreedPence!)}</button></div>
+      : available < 500 ? <span className="money-match__outcome"><small>Not enough money free for a stake</small></span>
+      : <div className="money-match__play">
+        {t?.theirOfferPence ? <button type="button" className="career-btn career-btn-gold" disabled={busy || t.theirOfferPence > available} onClick={() => onPlay(t.theirOfferPence!)}>
+          Take {formatPence(t.theirOfferPence)} and play</button> : null}
+        <label className="money-match__offer"><span className="sr-only">Your stake against {m.name}, in pounds</span>£
+          <input inputMode="numeric" placeholder={t?.theirOfferPence ? "Counter" : "Stake"} value={pounds} disabled={busy} onChange={e => setPounds(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+        <button type="button" className="career-btn career-btn-primary" disabled={busy || !valid} onClick={() => { onOffer(value); setPounds(""); }}>{t ? "Offer again" : "Offer"}</button>
+        {t && <small className="money-match__asks">{t.asksLeft} more {t.asksLeft === 1 ? "ask" : "asks"} before they lose patience</small>}
+      </div>}
+  </li>;
+}
+
 /**
- * Club page: money matches. Challenge a member for a stake (first to four legs, played out like a quick-sim with your
- * form), or answer the member who challenged you this week. The winner takes the stake; it shows in your finances.
+ * Club page: money matches. Haggle with a member over the stake (they put up more when they fancy their chances), or answer the
+ * member who challenged you. First to four legs, played out like a quick-sim with your form. The winner takes the stake.
  */
 export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boolean }) {
   const q = useMoneyMatches(saveId);
-  const play = usePlayMoneyMatch(saveId), decline = useDeclineMoneyMatch(saveId);
-  const [stakes, setStakes] = useState<Record<string, number>>({});
+  const offer = useOfferMoneyMatch(saveId), play = usePlayMoneyMatch(saveId), decline = useDeclineMoneyMatch(saveId);
   const [last, setLast] = useState<MoneyMatchResult | null>(null);
   const [message, setMessage] = useState("");
   if (!q.data) return q.isLoading ? <p className="money-match__note">Loading money matches…</p> : null;
   const d = q.data;
-  const busy = play.isPending || decline.isPending;
-  const full = d.playedThisWeek >= d.perWeek;
-  const go = (opponentKey: string, stakePence: number) => { setMessage(""); play.mutate({ opponentKey, stakePence }, {
-    onSuccess: r => setLast(r.match), onError: e => setMessage(errorMessage(e)) }); };
+  const busy = play.isPending || decline.isPending || offer.isPending;
+  const canPlay = d.playedThisWeek < d.perWeek && !retired;
+  const fail = (e: unknown) => setMessage(errorMessage(e));
+  const go = (opponentKey: string, stakePence: number) => { setMessage(""); play.mutate({ opponentKey, stakePence }, { onSuccess: r => setLast(r.match), onError: fail }); };
+  const ask = (opponentKey: string, stakePence: number) => { setMessage(""); offer.mutate({ opponentKey, stakePence }, { onError: fail }); };
 
   return (
     <div className="money-match">
-      <p className="money-match__intro">One-off games at the club, first to {(d.bestOf + 1) / 2} legs, for a stake each. The winner takes the lot. Up to {d.perWeek} a week, one against each member.
+      <p className="money-match__intro">One-off games at the club, first to {(d.bestOf + 1) / 2} legs, winner takes the stake. Name your price: they'll put more up when they fancy
+        their chances, haggle when it's too rich, and walk away if you push too often. Up to {d.perWeek} a week.
         {" "}You have <b>{formatPence(d.availablePence)}</b> free{d.yourAverage ? <> and you're averaging about <b>{d.yourAverage.toFixed(1)}</b></> : null}.</p>
       {last && <p className="money-match__result" role="status" data-tone={last.won ? "up" : "down"}>
         {last.won ? `You beat ${last.opponentName}` : `${last.opponentName} beat you`} {last.legs![0]}-{last.legs![1]} and {last.won ? "you take" : "takes"} {formatPence(last.stakePence)}.
         {last.highestCheckout ? ` Your best finish: ${last.highestCheckout}.` : ""}</p>}
       {d.challenge && !retired && <div className="money-match__challenge">
-        <p><Coins aria-hidden /> <b>{d.challenge.name}</b> fancies a game for <b>{formatPence(d.challenge.stakePence)}</b>.
+        <p><Coins aria-hidden /> <b>{d.challenge.name}</b>: "Fancy a game? <b>{formatPence(d.challenge.stakePence)}</b>, first to four."
           <small> {ODDS[d.challenge.odds]}{d.challenge.average ? ` (they average ${d.challenge.average.toFixed(1)})` : ""}.</small></p>
         <div className="money-match__actions">
           <button type="button" className="career-btn career-btn-gold" disabled={busy} onClick={() => go(d.challenge!.opponentKey, d.challenge!.stakePence)}>
             {play.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null} Play for {formatPence(d.challenge.stakePence)}</button>
-          <button type="button" className="career-btn career-btn-ghost" disabled={busy} onClick={() => decline.mutate(undefined, { onError: e => setMessage(errorMessage(e)) })}>Turn it down</button>
+          <button type="button" className="career-btn career-btn-ghost" disabled={busy} onClick={() => decline.mutate(undefined, { onError: fail })}>Turn it down</button>
         </div>
+        <small className="money-match__note">Want a different stake? Make them an offer below.</small>
       </div>}
       {message && <p className="money-match__message" role="alert">{message}</p>}
       {d.members.length ? <ul className="money-match__members">
-        {d.members.map(m => {
-          const stake = stakes[m.key] ?? m.stakes[Math.min(1, m.stakes.length - 1)];
-          return <li key={m.key}>
-            <div className="money-match__who"><b>{m.name}</b>{m.professional && <small className="career-club__pro"> · Pro</small>}
-              <small>{m.average ? `Averaging ${m.average.toFixed(1)} · ` : ""}{ODDS[m.odds]}</small></div>
-            {m.thisWeek ? <Outcome m={m.thisWeek} />
-              : retired ? null
-              : !m.stakes.length ? <span className="money-match__outcome"><small>Not enough money free for a stake</small></span>
-              : full ? <span className="money-match__outcome"><small>That's your {d.perWeek} for this week</small></span>
-              : <div className="money-match__play">
-                <label className="sr-only" htmlFor={`stake-${m.key}`}>Stake against {m.name}</label>
-                <select id={`stake-${m.key}`} value={stake} disabled={busy} onChange={e => setStakes(s => ({ ...s, [m.key]: Number(e.target.value) }))}>
-                  {m.stakes.map(s => <option key={s} value={s}>{formatPence(s)}</option>)}
-                </select>
-                <button type="button" className="career-btn career-btn-primary" disabled={busy} onClick={() => go(m.key, stake)}>Play</button>
-              </div>}
-          </li>;
-        })}
+        {d.members.map(m => <MemberRow key={m.key} m={m} busy={busy} canPlay={canPlay} perWeek={d.perWeek} available={d.availablePence}
+          onOffer={p => ask(m.key, p)} onPlay={p => go(m.key, p)} />)}
       </ul> : <p className="money-match__note">Nobody at the club to play yet.</p>}
       <p className="money-match__record">{d.record.played
         ? <>Money matches so far: won {d.record.won} of {d.record.played} · <b>{signed(d.record.netPence)}</b></>

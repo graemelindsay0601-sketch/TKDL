@@ -18,6 +18,15 @@ export async function ensureMoneyMatches(tx: CareerExecutor): Promise<void> {
     detail jsonb NOT NULL DEFAULT '{}'::jsonb CHECK(jsonb_typeof(detail)='object'),
     created_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY(career_save_id,id), UNIQUE(career_save_id,season,week,opponent_key))`);
+  // This week's haggling with each member: what was said, any figure they have put to you, and where it stands.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_money_talks (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL, week integer NOT NULL, opponent_key text NOT NULL,
+    status text NOT NULL CHECK(status IN ('OPEN','AGREED','WALKED')),
+    asks integer NOT NULL DEFAULT 0, their_offer_pence bigint, agreed_pence bigint,
+    log jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(log)='array'),
+    updated_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(career_save_id,season,week,opponent_key))`);
   if (await constraintAlreadyAdmits(tx, "career_finance_entries_category_check", "MANAGER_COMMISSION")) return;
   await tx.execute(sql`ALTER TABLE career_finance_entries DROP CONSTRAINT IF EXISTS career_finance_entries_category_check`);
   await tx.execute(sql`ALTER TABLE career_finance_entries ADD CONSTRAINT career_finance_entries_category_check CHECK (

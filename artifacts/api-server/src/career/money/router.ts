@@ -6,10 +6,10 @@ import { careerIdSchema } from "../validation.ts";
 import { authedWriteRateLimit } from "../../middleware/writeRateLimit.ts";
 import type { createCareerMoneyService } from "./service.ts";
 
-/** Money matches at your club: this week's members and challenge, play one, or turn a challenge down. */
+/** Money matches at your club: this week's members and challenge, haggle over a stake, play, or turn a challenge down. */
 export function createCareerMoneyRouter(service: ReturnType<typeof createCareerMoneyService>) {
   const router = Router();
-  const paths = ["/saves/:id/money-matches", "/saves/:id/money-matches/play", "/saves/:id/money-matches/decline"];
+  const paths = ["/saves/:id/money-matches", "/saves/:id/money-matches/offer", "/saves/:id/money-matches/play", "/saves/:id/money-matches/decline"];
   router.use(paths, (req: Request, res: Response, next: NextFunction) => {
     res.set("Cache-Control", "no-store");
     const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
@@ -19,6 +19,7 @@ export function createCareerMoneyRouter(service: ReturnType<typeof createCareerM
   });
   const id = (req: Request) => careerIdSchema.parse(String(req.params.id));
   router.get("/saves/:id/money-matches", async (req, res) => { res.json(await service.read(res.locals.careerActor, id(req))); });
+  router.post("/saves/:id/money-matches/offer", authedWriteRateLimit, async (req, res) => { res.json(await service.offer(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/money-matches/play", authedWriteRateLimit, async (req, res) => { res.json(await service.play(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/money-matches/decline", authedWriteRateLimit, async (req, res) => { res.json(await service.decline(res.locals.careerActor, id(req))); });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
