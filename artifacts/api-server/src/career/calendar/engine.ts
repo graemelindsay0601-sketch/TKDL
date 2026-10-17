@@ -146,7 +146,7 @@ async function addMidweek(tx: CareerExecutor, root: RootRow, season: number, fro
   await insertDrafts(tx, root, season, drafts);
 }
 
-async function insertDrafts(tx: CareerExecutor, root: RootRow, season: number, drafts: readonly EventInstanceDraft[]) {
+export async function insertDrafts(tx: CareerExecutor, root: RootRow, season: number, drafts: readonly EventInstanceDraft[]) {
   const rows = drafts.map(d => ({ id: d.id, season, instance_key: d.instanceKey, ordinal: d.ordinal, event_database_version: d.eventDatabaseVersion, definition_key: d.definitionKey,
     name: d.name, family: d.family, circuit: d.circuit, classification: d.classification, ranking_category: d.rankingCategory, presentation_tier: d.presentationTier,
     featured: d.featured, calendar_priority: d.calendarPriority, venue_key: d.venueKey, city: d.city, country: d.country, region: d.region, zone: d.zone,

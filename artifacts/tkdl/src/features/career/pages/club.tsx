@@ -1,11 +1,12 @@
 import { Link } from "wouter";
-import { Coins, Crown, Flag, Shield, Users } from "lucide-react";
+import { Coins, Crown, Flag, Shield, Trophy, Users } from "lucide-react";
 import { useHomeClub, type ClubView } from "../api";
 import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../components";
 import { CareerPageHero } from "../page-hero";
 import type { ShellContext } from "../shell";
 import { MoneyMatches } from "../money-matches";
 import { TeamNights } from "../team-nights";
+import { HostTournament } from "../hosting";
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
@@ -29,6 +30,9 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
     </CareerSection>
     <div id="team-nights"><CareerSection title="Team nights" icon={<Users aria-hidden />} accent="#69b8ec">
       <TeamNights saveId={ctx.save.id} />
+    </CareerSection></div>
+    <div id="host-tournament"><CareerSection title="Run your own tournament" icon={<Trophy aria-hidden />} accent="#ffd24a">
+      <HostTournament saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
     </CareerSection></div>
     <div id="money-matches"><CareerSection title="Money matches" icon={<Coins aria-hidden />} accent="#d9b96f">
       <MoneyMatches saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />

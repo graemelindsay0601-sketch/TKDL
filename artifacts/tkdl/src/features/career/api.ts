@@ -48,6 +48,15 @@ export type WorldRecordsView = import("../../../../api-server/src/career/records
 /** The darts world's records book (best recorded match statistics and every nine-darter). */
 export const useWorldRecords = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "records"), queryFn: () => get<WorldRecordsView>(`/saves/${saveId}/records`), staleTime: STALE });
 export type ClubView = import("../../../../api-server/src/career/club/service").ClubView;
+export type HostingView = import("../../../../api-server/src/career/hosting/service").HostingView;
+export type HostingPreview = ReturnType<typeof import("../../../../api-server/src/career/hosting/service").hostingPreview>;
+/** Your own tournaments: what you've run and the booking rules. */
+export const useHosting = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "hosting"), queryFn: () => get<HostingView>(`/saves/${saveId}/hosting`), staleTime: STALE });
+export const useHostingPreview = (saveId: string, q: { feePence: number; topUpPence: number; fieldSize: number; fans: number }, enabled: boolean) =>
+  useQuery({ queryKey: careerKey(saveId, "hosting", "preview", q), enabled, staleTime: STALE,
+    queryFn: () => get<HostingPreview>(`/saves/${saveId}/hosting/preview${qs(q)}`) });
+export const useBookHosting = (saveId: string) => useSaveMutation(saveId, (input: { name?: string; week: number; dayOfWeek: number; fieldSize: number; feePence: number; topUpPence: number }) =>
+  send<{ eventId: string; turnout: number; view: HostingView }>("POST", `/saves/${saveId}/hosting`, input));
 export type TeamNightsView = import("../../../../api-server/src/career/club/team-service").TeamNightsView;
 /** Club team nights: the league table, your next fixture (and whether you're free for it) and the last result. */
 export const useTeamNights = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club", "team-nights"),

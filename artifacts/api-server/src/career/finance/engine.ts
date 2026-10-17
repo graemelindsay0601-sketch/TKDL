@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { fansForEffects } from "../fans/service.ts";
 import { fanSponsorPremium } from "../fans/model.ts";
 import { activeManager, managerInviteFor } from "../manager/state.ts";
+import { hostedPrize, organiserTake, type HostedTerms } from "../hosting/model.ts";
 import { boosted, commissionOn } from "../manager/model.ts";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
@@ -32,6 +33,11 @@ export interface SponsorFactsProvider { readonly id: string; facts(tx: CareerExe
 export type EventFinanceProfile = { fee: FeeProfile; prize: PrizeProfile; refund: RefundPolicy; rankingEligible: boolean; financeVersion: number };
 export function profileFor(event: Pick<InstanceRow, "definition_key" | "classification" | "snapshot"> & Partial<Pick<InstanceRow, "entrant_count" | "field_locked_at">>): EventFinanceProfile {
   const refs = event.snapshot.profiles;
+  // Your own tournament: the fee you set, and a pot of the players' fees (less your share) plus your top-up.
+  const hosted = (event.snapshot as { hosted?: HostedTerms }).hosted;
+  if (hosted) return { fee: { key: "fee:hosted", entryFeePence: hosted.feePence, basis: "PER_EVENT", refundPolicy: "local" },
+    prize: hostedPrize(hosted, event.field_locked_at ? Number(event.entrant_count ?? 0) : Math.max(Number(event.entrant_count ?? 0), Math.round(hosted.fieldSize * 0.6))),
+    refund: REFUND_POLICIES.local, rankingEligible: false, financeVersion: FINANCE_VERSION };
   const fee = FEE_OVERRIDES[event.definition_key] ?? FEE_PROFILES[refs.entryFee];
   // Pot nights: the real field once it is locked, a typical turnout before.
   const pot = PRIZE_POTS[event.definition_key]
@@ -713,7 +719,15 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       SELECT ${root.id}::uuid, t.event_id, t.season, ${FINANCE_VERSION}, t.prize_profile_key, t.classification, t.ranking_eligible, t.bands
       FROM jsonb_to_recordset(${JSON.stringify(tables)}::jsonb) AS t(event_id uuid, season integer, prize_profile_key text, classification text, ranking_eligible boolean, bands jsonb)
       ON CONFLICT DO NOTHING`);
-    for (const { event, results } of batch) await humanEventMoney(tx, root, event, results);
+    for (const { event, results } of batch) {
+      await humanEventMoney(tx, root, event, results);
+      // Your own tournament: the organiser's share of the entry fees, once it's played.
+      const hosted = (event.snapshot as { hosted?: HostedTerms }).hosted;
+      const take = hosted ? organiserTake(hosted, results.length) : 0;
+      if (hosted && take > 0) await post(tx, root, { operationKey: `hosting-income:${event.id}`, category: "HOSTING_INCOME", amountPence: take,
+        reason: `Organiser's share of the entry fees — ${event.name} (${results.length} players)`, season: Number(root.current_season), week: Number(root.current_week), eventId: event.id,
+        detail: { entrants: results.length, feePence: hosted.feePence, share: hosted.organiserShare } });
+    }
   }
 
   /** The human's prize, prize award and sponsor event money for one completed event (no-op when they did not play). */
@@ -912,6 +926,10 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
     },
 
     async onEventCancelled(tx, root, event, reason) {
+      // Your own tournament called off: the prize money you put up comes back (the room was booked and paid for).
+      const hosted = (event.snapshot as { hosted?: HostedTerms }).hosted;
+      if (hosted && hosted.topUpPence > 0) await post(tx, root, { operationKey: `hosting-refund:${event.id}`, category: "HOSTING_INCOME", amountPence: hosted.topUpPence,
+        reason: `Prize money returned — ${event.name} was called off`, season: Number(root.current_season), week: Number(root.current_week), eventId: event.id, detail: { reason } });
       const row = (await tx.execute(sql`SELECT * FROM career_event_finance WHERE career_save_id = ${root.id} AND event_id = ${event.id}`)).rows[0];
       if (!row || !["ENTERED", "TRAVEL_COMMITTED"].includes(String(row.status))) return;
       const policy = (row.snapshot as { profile: EventFinanceProfile }).profile.refund;
