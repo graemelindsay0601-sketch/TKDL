@@ -40,7 +40,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -845,4 +845,18 @@ test("Money matches: a challenge with their price, the haggling so far, form and
   for (const fact of ["Name your price", "Member c : \"Fancy a game? £130", "Play for £130", "Turn it down", "Averaging 58.1", "You're the underdog",
     "Make it £110", "Take £110 and play", "2 more asks before they lose patience", "Won 4-2", "+£120", "won 1 of 1"])
     assert.ok(t.includes(fact.replace('\\"', '"')), fact);
+});
+
+test("Team nights: next fixture (and a clash with a booked event), last result singles by singles, and the league table", () => {
+  const row = (club: string, position: number, points: number, you = false) => ({ club, name: `${club} Darts Club`, played: 2, won: points / 2, drawn: 0, lost: 2 - points / 2, singlesFor: 7, singlesAgainst: 5, points, position, you });
+  const view = { season: 1, week: 9, club: "Ayr Darts Club", nation: "SCO", available: true, firstWeek: 4, lastWeek: 46,
+    next: { week: 10, home: false, opponent: "Glasgow Darts Club", youFree: false, clash: "Glasgow Open" },
+    last: { week: 7, home: true, opponent: "Dundee Darts Club", us: 4, them: 2, youPlayed: true, youUnavailable: false,
+      singles: [{ us: "You", them: "Ian Reid", usLegs: 3, themLegs: 1, you: true }, { us: "Jo Bell", them: "Al Kerr", usLegs: 2, themLegs: 3, you: false }] },
+    table: [row("Ayr", 1, 4, true), row("Dundee", 2, 2)], you: { played: 2, won: 1 } };
+  const t = text(render(h(M.TeamNights, { saveId: SAVE_ID }), [[key("club", "team-nights"), view]]));
+  for (const fact of ["Next: week 10", "away at Glasgow Darts Club", "booked into Glasgow Open that night, so a clubmate will play instead", "Week 7", "at home to Dundee Darts Club",
+    "Won 4-2", "You 3-1 Ian Reid", "Ayr Darts Club", "P2 W2 D0 L0", "won 1 of 2"]) assert.ok(t.includes(fact), fact);
+  const home = text(render(h(M.TeamNightLine, { saveId: SAVE_ID, week: 9 }), [[key("club", "team-nights"), view]]));
+  assert.ok(home.includes("Next Wednesday: club night away at Glasgow Darts Club. You're booked into Glasgow Open, so a clubmate plays."), home);
 });
