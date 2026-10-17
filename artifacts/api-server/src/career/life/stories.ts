@@ -195,6 +195,13 @@ export function storyEngine(s:LifeSources):Story[] {
   for(const m of s.fans?.milestones??[]) add(`fans-${m.fans}`,{id:`fans:${m.fans}`,source:"Fan following / A3 results",label:`${m.fans.toLocaleString("en-GB")} fans`,
     season:m.season,week:null,day:null,date:null,age:null},`Your following passed ${m.fans.toLocaleString("en-GB")} fans in season ${m.season}.`,
     "fans","fans",m.fans>=100_000?"MAJOR":"NEWS");
+  // Savings goals reached: the money was there (or you entered the event you saved for).
+  const pounds=(p:number)=>`£${(p/100).toLocaleString("en-GB",{maximumFractionDigits:p%100?2:0})}`;
+  for(const g of s.savingsGoals??[]) add("goal-reached",{id:`goal:${g.id}`,source:"Career ledger / savings goal",label:g.label,season:g.season,week:g.week,day:null,date:null,age:null,
+      ...(g.eventId?{eventId:g.eventId}:{})},
+    g.kind==="EVENT"?`You saved the ${pounds(g.targetPence)} it takes to play ${g.label} (entry, travel and stay), in week ${g.week} of season ${g.season}.`
+      :`You reached your savings goal: ${pounds(g.targetPence)} for ${g.label}, in week ${g.week} of season ${g.season}.`,
+    "savings","savings");
   const rivalOfPlayer=(id:string)=>s.relationships.opponents.some(o=>o.player.id===id&&o.meetings>=3);
   // Nine-dart legs from the records book: the human's is a career moment, anyone else's is world news.
   for(const n of s.nineDarters??[]) {

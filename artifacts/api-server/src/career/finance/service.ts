@@ -106,8 +106,15 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
       }
     }
     if (status === "SAVING" && available >= target) status = "READY";
-    if ((status === "READY" || status === "ENTERED") && row.reached_season === null) await tx.execute(sql`UPDATE career_savings_goals
-      SET reached_season = ${root.current_season}, reached_week = ${root.current_week} WHERE career_save_id = ${root.id}`);
+    if ((status === "READY" || status === "ENTERED") && row.reached_season === null) {
+      const first = (await tx.execute(sql`UPDATE career_savings_goals SET reached_season = ${root.current_season}, reached_week = ${root.current_week}
+        WHERE career_save_id = ${root.id} AND reached_season IS NULL RETURNING career_save_id`)).rows.length;
+      // Setting the same goal again (same event, or same name and amount) this season is not a second achievement.
+      if (first) await tx.execute(sql`INSERT INTO career_savings_goals_reached (career_save_id, kind, label, target_pence, event_id, season, week)
+        SELECT ${root.id}, ${row.kind}, ${row.label}, ${target}, ${row.event_id}, ${root.current_season}, ${root.current_week}
+        WHERE NOT EXISTS (SELECT 1 FROM career_savings_goals_reached WHERE career_save_id = ${root.id} AND season = ${root.current_season}
+          AND (event_id = ${row.event_id} OR (event_id IS NULL AND ${row.event_id}::uuid IS NULL AND label = ${row.label} AND target_pence = ${target})))`);
+    }
     const week = Number(root.current_week), season = Number(root.current_season), from = Math.max(1, week - 4);
     const recent = Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence), 0)::bigint AS n FROM career_finance_entries
       WHERE career_save_id = ${root.id} AND season = ${season} AND week >= ${from} AND week < ${week} AND headline IN ('EARNINGS', 'SPONSOR', 'EXPENSE')`)).rows[0].n);
@@ -217,6 +224,33 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const root = await open(tx, actor, saveId);
         await tx.execute(sql`DELETE FROM career_savings_goals WHERE career_save_id = ${root.id}`);
         return { goal: null };
+      });
+    },
+
+    /**
+     * Your record at this event in earlier editions: each visit's finish and the money spent (entry, travel, stay, net of
+     * refunds) and won. "This event" is the same definition at the same home area (local nights rotate by area).
+     */
+    async eventHistory(actor: CareerActor, saveId: string, eventId: string) {
+      careerIdSchema.parse(eventId);
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId, false);
+        const event = (await loadInstances(tx, root.id, sql`id = ${eventId}`))[0];
+        if (!event) throw new CareerError(404, "Career event not found");
+        const area = event.locality_key ? sql`AND i.locality_key = ${event.locality_key}` : sql`AND i.locality_key IS NULL`;
+        const rows = (await tx.execute(sql`SELECT i.id, i.name, i.season, i.start_week, r.finishing_position, r.stage_reached, r.is_champion,
+            COALESCE((SELECT -SUM(f.amount_pence) FROM career_finance_entries f WHERE f.career_save_id = r.career_save_id AND f.event_id = i.id AND f.headline = 'EXPENSE'), 0)::bigint AS spent,
+            COALESCE((SELECT SUM(f.amount_pence) FROM career_finance_entries f WHERE f.career_save_id = r.career_save_id AND f.event_id = i.id AND f.category = 'PRIZE'), 0)::bigint AS won
+          FROM career_event_results r JOIN career_event_instances i ON i.career_save_id = r.career_save_id AND i.id = r.event_id
+          WHERE r.career_save_id = ${root.id} AND r.participant_key = 'HUMAN' AND i.definition_key = ${event.definition_key} ${area} AND i.id <> ${eventId}
+          ORDER BY i.season DESC, i.start_day DESC LIMIT 25`)).rows;
+        const visits = rows.map(r => ({ eventId: String(r.id), name: String(r.name), season: Number(r.season), week: Number(r.start_week),
+          finishingPosition: Number(r.finishing_position), stageReached: String(r.stage_reached), champion: r.is_champion === true,
+          spentPence: Number(r.spent), wonPence: Number(r.won) }));
+        const spentPence = visits.reduce((n, v) => n + v.spentPence, 0), wonPence = visits.reduce((n, v) => n + v.wonPence, 0);
+        const best = visits.length ? visits.reduce((a, b) => b.finishingPosition < a.finishingPosition ? b : a) : null;
+        return { eventId, visits, totals: { visits: visits.length, titles: visits.filter(v => v.champion).length, spentPence, wonPence, netPence: wonPence - spentPence },
+          best: best ? { finishingPosition: best.finishingPosition, stageReached: best.stageReached, champion: best.champion, season: best.season } : null };
       });
     },
 

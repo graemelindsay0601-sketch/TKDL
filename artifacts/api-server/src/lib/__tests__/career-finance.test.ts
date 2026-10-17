@@ -453,6 +453,11 @@ test("savings goal: an amount or an event's full cost, progress from free money,
   assert.deepEqual([amount.kind, amount.status, amount.targetPence, amount.progress, amount.remainingPence], ["AMOUNT", "SAVING", free * 2, 0.5, free]);
   await adjust(save.id, "goal-gift", free);
   assert.equal((await finance.savingsGoal(actor, save.id)).goal!.status, "READY", "free money covers it");
+  await finance.savingsGoal(actor, save.id);
+  const reached = await rows(sql`SELECT label, target_pence FROM career_savings_goals_reached WHERE career_save_id = ${save.id}`);
+  assert.deepEqual(reached.map(r => [r.label, Number(r.target_pence)]), [["New darts", free * 2]], "recorded once for the news, however often it is read");
+  await finance.setSavingsGoal(actor, save.id, { label: "New darts", targetPence: free * 2 });
+  assert.equal((await rows(sql`SELECT 1 FROM career_savings_goals_reached WHERE career_save_id = ${save.id}`)).length, 1, "setting the same goal again is not a second story");
   const away = (await events(save.id, { scope: "AVAILABLE" })).filter(e => e.human!.canEnter && e.finance.estimatedPlayerCostPence > 0 && !e.series)
     .sort((a, b) => b.finance.estimatedPlayerCostPence - a.finance.estimatedPlayerCostPence)[0];
   const goal = (await finance.setSavingsGoal(actor, save.id, { eventId: away.id })).goal!;
@@ -463,6 +468,24 @@ test("savings goal: an amount or an event's full cost, progress from free money,
   await assert.rejects(finance.setSavingsGoal(actor, save.id, { label: "", targetPence: 50 }));
   assert.equal((await finance.clearSavingsGoal(actor, save.id)).goal, null);
   assert.equal((await finance.savingsGoal(actor, save.id)).goal, null);
+});
+
+test("event money history: earlier visits to the same night at the same club, with what each cost and paid", async () => {
+  const save = await careerWithCurrentCatalogue();
+  await adjust(save.id, "history-funds", 20000);
+  const fliers = (await events(save.id, { scope: "WORLD" })).filter(e => e.definitionKey === "wednesday-flier" && e.venue.localityKey === "ayrshire" && e.dates.startWeek >= 2)
+    .sort((a, b) => a.dates.startDay - b.dates.startDay);
+  const [first, second] = fliers;
+  assert.ok(first && second, "two Kilbirnie Wednesday Fliers");
+  await playThrough(save.id, first.registration.opensWeek, false, "history-open");
+  assert.equal((await finance.calendar.enter(actor, save.id, { eventId: first.id })).entered, true);
+  await playThrough(save.id, first.dates.startWeek + 1, true, "history-play");
+  const h = await finance.eventHistory(actor, save.id, second.id);
+  assert.equal(h.totals.visits, 1);
+  const prize = (await ledger(save.id)).filter(r => r.category === "PRIZE" && r.event_id === first.id).reduce((n, r) => n + Number(r.amount_pence), 0);
+  assert.deepEqual([h.visits[0].eventId, h.visits[0].spentPence, h.visits[0].wonPence, h.visits[0].champion], [first.id, 300, prize, true], "entry £3, the pot won");
+  assert.equal(h.totals.netPence, prize - 300);
+  assert.equal((await finance.eventHistory(actor, save.id, first.id)).totals.visits, 0, "an event is not its own history");
 });
 
 test("a blocked advance resumes only from where it stopped; retried later it never moves time or money", async () => {

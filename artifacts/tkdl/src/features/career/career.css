@@ -1045,3 +1045,12 @@
 .savings-goal-line { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid #d9b96f33; border-radius: 10px; background: #d9b96f0a; color: #adbdca; font-size: .78rem; text-decoration: none; }
 .savings-goal-line b { color: #e9eef3; font-weight: 600; }
 .savings-goal-line small { color: rgba(255,255,255,.6); }
+.savings-goal-line--ready { border-color: #7ee0a166; background: #7ee0a10f; }
+.savings-goal-line--ready b { color: #7ee0a1; }
+.savings-goal-line--ready .career-btn { justify-self: start; }
+.event-history { display: grid; gap: 4px; }
+.event-history__title { margin: 4px 0 0; color: #d2b677; font: 700 .66rem Oswald, system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.event-history__sum { margin: 0; color: rgba(255,255,255,.8); font-size: .82rem; }
+.event-history__sum strong { color: #fff; }
+.event-history__list { display: grid; gap: 2px; margin: 2px 0 0; padding: 0; list-style: none; font-size: .76rem; color: rgba(255,255,255,.7); }
+.event-history__list li { display: grid; grid-template-columns: 5.5em 1fr auto; gap: 8px; }

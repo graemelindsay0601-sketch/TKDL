@@ -15,7 +15,7 @@ const str = (value: unknown) => typeof value === "string" && value !== "" ? valu
  */
 export function createCareerFinanceRouter(service: CareerFinanceService, isAvailable: (isAdmin: boolean) => Promise<boolean>) {
   const router = Router();
-  router.use(["/saves/:id/finance", "/saves/:id/sponsors", "/saves/:id/events/:eventId/finance"], async (req, res, next) => {
+  router.use(["/saves/:id/finance", "/saves/:id/sponsors", "/saves/:id/events/:eventId/finance", "/saves/:id/events/:eventId/history"], async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const session = req.session as PlayerSession | undefined;
     if (!Number.isSafeInteger(session?.playerId) || (session?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
@@ -33,6 +33,7 @@ export function createCareerFinanceRouter(service: CareerFinanceService, isAvail
   router.put("/saves/:id/finance/goal", authedWriteRateLimit, async (req, res) => { res.json(await service.setSavingsGoal(res.locals.careerActor, id(req), req.body)); });
   router.delete("/saves/:id/finance/goal", authedWriteRateLimit, async (req, res) => { res.json(await service.clearSavingsGoal(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/finance/weeks", async (req, res) => { res.json(await service.weeks(res.locals.careerActor, id(req), { season: str(req.query.season) })); });
+  router.get("/saves/:id/events/:eventId/history", async (req, res) => { res.json(await service.eventHistory(res.locals.careerActor, id(req), String(req.params.eventId))); });
   router.get("/saves/:id/events/:eventId/finance", async (req, res) => { res.json(await service.eventFinance(res.locals.careerActor, id(req), String(req.params.eventId))); });
   router.get("/saves/:id/sponsors", async (req, res) => { res.json(await service.sponsors(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/sponsors/market", async (req, res) => { res.json(await service.sponsorMarket(res.locals.careerActor, id(req))); });

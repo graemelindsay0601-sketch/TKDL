@@ -28,6 +28,12 @@ export function SavingsGoalLine({ saveId }: { saveId: string }) {
   const q = useSavingsGoal(saveId);
   const goal = q.data?.goal;
   if (!goal) return null;
+  // The moment it pays off: you can afford the event you saved for, so say so and point at the entry.
+  if (goal.status === "READY" && goal.kind === "EVENT" && goal.eventId) return <div className="savings-goal-line savings-goal-line--ready" role="status">
+    <span><b>Goal reached:</b> you can afford {goal.label} ({formatPence(goal.targetPence)} with travel).</span>
+    <small>{goal.event ? `Entries close in week ${goal.event.closesWeek}.` : "Enter while entries are open."}</small>
+    <Link href={`/career/${saveId}/events/${goal.eventId}`} className="career-btn career-btn-gold">Enter now</Link>
+  </div>;
   return <Link href={`/career/${saveId}/finances#savings-goal`} className="savings-goal-line">
     <span><b>Saving for:</b> {goal.label}</span>
     <Progress goal={goal} />

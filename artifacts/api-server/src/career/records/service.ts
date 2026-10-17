@@ -36,9 +36,11 @@ async function replaceRecords(tx: CareerExecutor, saveId: string, candidates: Re
 export async function updateWorldRecords(tx: CareerExecutor, saveId: string, events: readonly { id: string }[]) {
   if (!events.length) return;
   await ensureBook(tx, saveId, events.map(e => e.id));
+  const ids = sql.join(events.map(e => sql`${e.id}::uuid`), sql`,`);
+  // Both sides limited to these events: without i.id the planner reads every instance in the save (its JSON included) each week.
   const rows = (await tx.execute(sql`SELECT ${MATCH_COLUMNS} FROM career_tournament_matches m
     JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
-    WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND ${STEEL_TIP} AND m.event_id IN (${sql.join(events.map(e => sql`${e.id}::uuid`), sql`,`)})`)).rows;
+    WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND ${STEEL_TIP} AND m.event_id IN (${ids}) AND i.id IN (${ids})`)).rows;
   const matches = rows.map(matchFrom), candidates = candidatesFrom(matches);
   await replaceRecords(tx, saveId, candidates);
   await payNineDartBonuses(tx, saveId, candidates, matches);
