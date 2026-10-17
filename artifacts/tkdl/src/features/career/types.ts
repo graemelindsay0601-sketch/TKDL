@@ -21,6 +21,8 @@ export type HumanView = {
   relationship: "AVAILABLE" | "QUALIFIED" | "ENTERED" | "CONFIRMED" | "PLAYING" | "COMPLETED" | "WITHDRAWN" | "MISSED" | "NOT_ELIGIBLE";
   eligible: boolean; eligibilityReasons: DenialReason[]; canEnter: boolean; denials: DenialReason[]; conflictsWith: string[]; commercialConflicts?:string[];
   entryStatus: string | null; result: { finishingPosition: number; stageReached: string; champion: boolean } | null;
+  /** In through your manager's invitation (you would not get in on your own): they take this share of its prize money. */
+  managerInvite?: { name: string; commission: number } | null;
   /** A6.5: age bounds for this event (authored AGE rules + circuit policy) and the human's age on its start date. */
   age?: { minAge: number | null; maxAgeExclusive: number | null; policyMin: number | null; junior: boolean; ageOnEventDate: number | null;
     eligibleFrom: { season: number; week: number; date: string } | null } | null;

@@ -107,6 +107,11 @@ export const useOfferMoneyMatch = (saveId: string) => useSaveMutation(saveId, (i
 export const usePlayMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
   send<{ match: MoneyMatchResult; created: boolean }>("POST", `/saves/${saveId}/money-matches/play`, input));
 export const useDeclineMoneyMatch = (saveId: string) => useSaveMutation(saveId, () => send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/decline`));
+export type ManagerView = import("../../../../api-server/src/career/manager/service").ManagerView;
+/** Your manager and the firms that would (or would not yet) sign you. */
+export const useManager = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "manager"), queryFn: () => get<ManagerView>(`/saves/${saveId}/manager`), staleTime: STALE });
+export const useSignManager = (saveId: string) => useSaveMutation(saveId, (managerKey: string) => send<ManagerView>("POST", `/saves/${saveId}/manager/sign`, { managerKey }));
+export const useLeaveManager = (saveId: string) => useSaveMutation(saveId, () => send<ManagerView>("POST", `/saves/${saveId}/manager/leave`));
 export const useClearSavingsGoal = (saveId: string) => useSaveMutation(saveId, () => send<{ goal: null }>("DELETE", `/saves/${saveId}/finance/goal`));
 export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "finance"), queryFn: () => get<FinanceSummary>(`/saves/${saveId}/finance`), enabled, staleTime: STALE });
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
