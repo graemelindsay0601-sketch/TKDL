@@ -145,7 +145,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
         </div>
         {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} hubAction={!!overview?.pendingTournamentActions?.length} nextEntry={overview?.nextHumanEntry ?? null} />}
       </div>
-      <div className="career-header-tools">{!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><Gamepad2 aria-hidden /> Play mode</Link>}<WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link></div>
+      <div className="career-header-tools">{!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><Gamepad2 aria-hidden /> Play mode</Link>}<WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link><Link href={`/career/${save.id}/health`}>Save health</Link></div>
     </header>
   );
 }

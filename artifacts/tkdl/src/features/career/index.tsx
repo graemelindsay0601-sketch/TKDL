@@ -29,6 +29,7 @@ import {PlayPage} from "./pages/play";
 import {SponsorHQPage} from "./pages/sponsor-hq";
 import {NewsroomPage,StoryArticle} from "./pages/newsroom";
 import {WorldPlayerProfile,RivalryPage} from "./pages/player-profile";
+import { SaveHealthPage } from "./pages/save-health";
 
 /**
  * TKDL Career (A6). Stable URLs under /career (not /tour/career: /tour/:runId is the
@@ -68,6 +69,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/my-career"><MyCareerPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/play"><PlayPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/health"><SaveHealthPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/sponsors"><SponsorHQPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/tournaments/:eventId/matches/:matchId">{(p:{eventId:string;matchId:string})=><TournamentPage ctx={ctx} eventId={p.eventId} matchId={p.matchId}/>}</Route>
           <Route path="/career/:saveId/tournaments/:eventId">{(p:{eventId:string})=><TournamentPage ctx={ctx} eventId={p.eventId}/>}</Route>
