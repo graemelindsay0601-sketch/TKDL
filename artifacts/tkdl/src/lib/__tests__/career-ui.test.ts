@@ -832,14 +832,17 @@ test("Manager panel: what your manager brought in and took for it; firms say wha
     assert.ok(t.includes(fact), fact);
 });
 
-test("Money matches: a challenge to answer, members with their form and odds, and your record", () => {
-  const member = (key: string, over: Record<string, unknown> = {}) => ({ key, name: `Member ${key}`, professional: false, average: 50, odds: "EVEN", stakes: [500, 1000, 2000], maxStakePence: 5000, thisWeek: null, ...over });
-  const played = { id: "m1", season: 1, week: 4, opponentKey: "b", opponentName: "Member b", stakePence: 2000, origin: "YOU_CHALLENGED", status: "PLAYED", won: true, legs: [4, 2], averages: [51.2, 47.9], highestCheckout: 96, maximums: 1 };
-  const view = { season: 1, week: 4, club: "Ayr Darts Club", availablePence: 6000, perWeek: 3, playedThisWeek: 1, bestOf: 7, yourAverage: 49.5,
-    members: [member("a", { odds: "UNDERDOG", average: 58.1, professional: true }), member("b", { thisWeek: played })],
-    challenge: { opponentKey: "a", name: "Member a", stakePence: 1000, odds: "UNDERDOG", average: 58.1 },
-    record: { played: 1, won: 1, netPence: 2000 }, recent: [played] };
+test("Money matches: a challenge with their price, the haggling so far, form and odds, and your record", () => {
+  const member = (key: string, over: Record<string, unknown> = {}) => ({ key, name: `Member ${key}`, professional: false, average: 50, odds: "EVEN", thisWeek: null, talk: null, ...over });
+  const played = { id: "m1", season: 1, week: 4, opponentKey: "b", opponentName: "Member b", stakePence: 12000, origin: "YOU_CHALLENGED", status: "PLAYED", won: true, legs: [4, 2], averages: [51.2, 47.9], highestCheckout: 96, maximums: 1 };
+  const haggling = { status: "OPEN", asksLeft: 2, theirOfferPence: 11000, agreedPence: null,
+    log: [{ who: "YOU", text: "£10, first to four?", pence: 1000 }, { who: "THEM", text: "For £10 I'd not take my coat off. Make it £110.", pence: 11000 }] };
+  const view = { season: 1, week: 4, club: "Ayr Darts Club", availablePence: 30000, perWeek: 3, playedThisWeek: 1, bestOf: 7, yourAverage: 49.5,
+    members: [member("a", { odds: "UNDERDOG", average: 58.1, professional: true, talk: haggling }), member("b", { thisWeek: played }), member("c")],
+    challenge: { opponentKey: "c", name: "Member c", stakePence: 13000, odds: "EVEN", average: 50 },
+    record: { played: 1, won: 1, netPence: 12000 }, recent: [played] };
   const t = text(render(h(M.MoneyMatches, { saveId: SAVE_ID, retired: false }), [[key("money-matches"), view]]));
-  for (const fact of ["Member a fancies a game for £10", "You're the underdog", "Play for £10", "Turn it down", "Averaging 58.1", "Won 4-2", "+£20", "won 1 of 1"])
-    assert.ok(t.includes(fact), fact);
+  for (const fact of ["Name your price", "Member c : \"Fancy a game? £130", "Play for £130", "Turn it down", "Averaging 58.1", "You're the underdog",
+    "Make it £110", "Take £110 and play", "2 more asks before they lose patience", "Won 4-2", "+£120", "won 1 of 1"])
+    assert.ok(t.includes(fact.replace('\\"', '"')), fact);
 });
