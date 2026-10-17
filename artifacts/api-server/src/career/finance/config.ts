@@ -15,6 +15,7 @@ export const LEDGER_CATEGORIES = [
   "SPONSOR_SIGNING_BONUS", "SPONSOR_GUARANTEED_PAYMENT", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS",
   "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY", "SPONSOR_RELEASE_SETTLEMENT",
   "MONEY_MATCH_WIN", "MONEY_MATCH_STAKE", "MANAGER_COMMISSION",
+  "HOSTING_COST", "HOSTING_INCOME", "STREAM_INCOME",
   "REFUND", "ADJUSTMENT",
 ] as const;
 export type LedgerCategory = typeof LEDGER_CATEGORIES[number];
@@ -28,8 +29,12 @@ export const HEADLINE_OF: Record<Exclude<LedgerCategory, "ADJUSTMENT" | "REFUND"
   SPONSOR_RELEASE_SETTLEMENT: "EXPENSE",
   /** Money matches at your club: a stake won is darts earnings, a stake lost is a darts expense. */
   MONEY_MATCH_WIN: "EARNINGS", MONEY_MATCH_STAKE: "EXPENSE",
-  /** Your manager's cut of your prize money. */
+  /** Your manager's cut of what they bring in. */
   MANAGER_COMMISSION: "EXPENSE",
+  /** Running your own tournament: the room and your prize top-up out, the organiser's share of the fees in. */
+  HOSTING_COST: "EXPENSE", HOSTING_INCOME: "EARNINGS",
+  /** Streaming: subscriptions, bits and super chats. */
+  STREAM_INCOME: "EARNINGS",
 };
 
 // ------------------------------------------------------------------ entry fees

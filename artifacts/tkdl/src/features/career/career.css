@@ -1130,3 +1130,17 @@
 .team-night__table { padding: 0; }
 .team-night-line { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #69b8ec33; border-radius: 10px; background: #69b8ec0a; color: #e8eef3; font-size: .8rem; text-decoration: none; }
 .team-night-line svg { flex: none; width: 15px; height: 15px; color: #69b8ec; }
+/* Run your own tournament (club page). */
+.host { display: grid; gap: 10px; padding: 12px 16px 14px; }
+.host__note { margin: 0; color: #adbdca; font-size: .8rem; }
+.host__form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; align-items: end; }
+.host__form label { display: grid; gap: 3px; color: rgba(255,255,255,.65); font-size: .72rem; }
+.host__form input, .host__form select { min-height: 36px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; background: rgba(0,0,0,.25); color: #fff; font-size: .88rem; }
+.host__preview { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid #ffd24a44; background: #ffd24a10; font-size: .82rem; color: #f3dfaa; }
+.host__warn { color: #ff9a8a; font-size: .8rem; grid-column: 1 / -1; margin: 0; }
+.host__form .career-btn { justify-self: start; }
+.host__message { margin: 0; color: #c5d9e8; font-size: .8rem; }
+.host__events { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.host__events li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.03); }
+.host__events a { color: #ffd24a; }
+.host__events small { color: rgba(255,255,255,.6); font-size: .74rem; }

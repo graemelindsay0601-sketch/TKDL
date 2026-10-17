@@ -40,7 +40,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -859,4 +859,17 @@ test("Team nights: next fixture (and a clash with a booked event), last result s
     "Won 4-2", "You 3-1 Ian Reid", "Ayr Darts Club", "P2 W2 D0 L0", "won 1 of 2"]) assert.ok(t.includes(fact), fact);
   const home = text(render(h(M.TeamNightLine, { saveId: SAVE_ID, week: 9 }), [[key("club", "team-nights"), view]]));
   assert.ok(home.includes("Next Wednesday: club night away at Glasgow Darts Club. You're booked into Glasgow Open, so a clubmate plays."), home);
+});
+
+test("Run your own tournament: the booking form with a preview, and your tournaments with their turnout and your share", () => {
+  const rules = { leadWeeks: 2, lastWeek: 50, fieldSizes: [16, 32], roomHirePence: { 16: 4000, 32: 7500 }, maxFeePence: 5000, maxTopUpPence: 200000, organiserShare: 0.2 };
+  const played = { eventId: "e1", name: "Ayr Darts Club Open", week: 6, day: 41, dayOfWeek: 6, status: "COMPLETED", fieldSize: 16, entrants: 12, feePence: 1000, topUpPence: 5000,
+    roomHirePence: 4000, potPence: 14600, takePence: 2400, youPlayed: true, yourPosition: 1 };
+  const view = { season: 1, week: 9, club: "Ayr Darts Club", availablePence: 30000, hostedThisSeason: 1, maxPerSeason: 4, fans: 120, rules, events: [played] };
+  const preview = { turnout: 0.5, entrants: 8, prize: { key: "prize:hosted", bands: [{ upToPosition: 1, amountPence: 5700 }, { upToPosition: 2, amountPence: 2850 }, { upToPosition: 4, amountPence: 1420 }] },
+    takePence: 1600, costPence: 9000 };
+  const t = text(render(h(M.HostTournament, { saveId: SAVE_ID, retired: false }), [[key("hosting"), view],
+    [key("hosting", "preview", { feePence: 1000, topUpPence: 5000, fieldSize: 16, fans: 120 }), preview]]));
+  for (const fact of ["Book the back room at Ayr Darts Club", "you keep 20%", "Week 11", "16 players (room £40)", "Expect about 8 players", "winner £57", "You pay £90 now", "keep about £16",
+    "Book it", "Ayr Darts Club Open", "12 players", "you kept £24", "you won it"]) assert.ok(t.includes(fact), fact);
 });
