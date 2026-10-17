@@ -19,6 +19,8 @@ export const MIDWEEK_EVERY_WEEKS = 2;
 export const MIDWEEK_COUNTRIES = ["GBR", "IRL"];
 export const MIDWEEK_KEYS = ["monday-league-night", "wednesday-flier"] as const;
 export const MIDWEEK_FROM_EVENT_DATABASE = 15;
+/** A good midweek turnout: 70–100% of the 16 places (the pot grows with it). Applies to every midweek night, old saves included. */
+export const MIDWEEK_FIELD_FILL: [number, number] = [0.7, 1];
 
 export function buildCatalogueV15(v14: readonly EventDefinition[]): readonly EventDefinition[] {
   const out: EventDefinition[] = v14.map(original => ({ ...structuredClone(original), eventDatabaseVersion: 15 }));

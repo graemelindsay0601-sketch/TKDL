@@ -408,6 +408,43 @@ test("travel v3: only your own area is free; the rest of the UK and Ireland is p
   assert.deepEqual([nights.travelPence, nights.nights, nights.accommodationPence], [Number(one[1]) * 16, Number(one[2]) * 16, Number(one[3]) * 16], "a weekly league: sixteen one-night trips, not a season-long stay");
 });
 
+test("a weekly league away from home pays its travel night by night, in the week of each night", async () => {
+  const save = await careerWithCurrentCatalogue();
+  await adjust(save.id, "league-funds", 500000);
+  const league = (await events(save.id, { scope: "WORLD" })).find(e => e.definitionKey === "thursday-night-darts")!;
+  assert.ok(league, "a Thursday Night Darts league this season");
+  // Fixture: open the league to the human (it is normally by invitation) and make its entry window open now.
+  await db.execute(sql`UPDATE career_event_instances SET snapshot = jsonb_set(snapshot, '{eligibility}', '{"type":"OPEN"}'::jsonb), status = 'REGISTRATION_OPEN', registration_opens_week = 1
+    WHERE career_save_id = ${save.id} AND id = ${league.id}`);
+  const entered = await finance.calendar.enter(actor, save.id, { eventId: league.id });
+  assert.equal(entered.entered, true, entered.denials?.join(","));
+  const nights = (league.dates.endDay - league.dates.startDay) / 7 + 1;
+  const reserved = (await finance.summary(actor, save.id)).reservedForTravelPence;
+  assert.ok(reserved > 0, "the whole league's travel is set aside at entry");
+  await playThrough(save.id, league.dates.startWeek + 2, false, "league-nights");
+  const travel = (await ledger(save.id)).filter(r => r.category === "TRAVEL" && r.event_id === league.id);
+  assert.equal(travel.length, 2, "two nights played, two nights paid");
+  assert.deepEqual(travel.map(r => Number(r.week)), [league.dates.startWeek, league.dates.startWeek + 1], "each in its own week");
+  const left = (await finance.summary(actor, save.id)).reservedForTravelPence;
+  assert.ok(left > 0 && left < reserved, `the rest stays set aside (${left} of ${reserved}, ${nights} nights)`);
+});
+
+test("week by week: darts money spent and won, sponsor money apart, events played", async () => {
+  const save = await careerWithCurrentCatalogue();
+  const night = (await events(save.id, { scope: "AVAILABLE" })).filter(e => e.finance.travelBand === "LOCAL" && e.finance.entryFeePence > 0 && e.human!.canEnter
+      && e.capability.executable && !e.series && e.dates.startDay === e.dates.endDay)
+    .sort((a, b) => a.dates.startDay - b.dates.startDay)[0];
+  assert.equal((await finance.calendar.enter(actor, save.id, { eventId: night.id })).entered, true);
+  await playThrough(save.id, night.dates.startWeek + 1, true, "weeks");
+  const { weeks } = await finance.weeks(actor, save.id);
+  const week = weeks.find(w => w.week === night.dates.startWeek)!;
+  const prize = (await ledger(save.id)).filter(r => r.category === "PRIZE").reduce((n, r) => n + Number(r.amount_pence), 0);
+  assert.equal(week.events, 1);
+  assert.ok(weeks.find(w => w.spentPence === night.finance.entryFeePence), "the entry fee is spent in the week it was paid");
+  assert.equal(weeks.reduce((n, w) => n + w.wonPence, 0), prize, "prize money is won in the week the event finished");
+  assert.ok(prize > 0 && week.dartsNetPence === week.wonPence - week.spentPence);
+});
+
 test("a blocked advance resumes only from where it stopped; retried later it never moves time or money", async () => {
   const save = await career();
   const local = (await events(save.id, { scope: "AVAILABLE" })).filter(e => e.definitionKey === "friday-night-501" && e.finance.travelBand === "LOCAL").sort((a, b) => a.dates.startDay - b.dates.startDay)[0];

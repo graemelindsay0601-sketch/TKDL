@@ -33,6 +33,8 @@ export type EventFinancePreview = {
   prizeProfile: string; topPrizePence: number; rankingEligible: boolean;
   /** Prize by finishing position (1 winner, 2 runner-up, 4 semi-finalist, 8 quarter-finalist, ...). */
   prizeBands?: { upToPosition: number; amountPence: number }[];
+  /** Pot nights: prizes come from the entry money (feePence a player) plus a club top-up; entrants once the field is set. */
+  prizePot?: { feePence: number; housePence: number; entrants: number | null; typicalField: number } | null;
   commitment: { status: string; entryFeePaidPence: number; entryFeeCoveredPence: number; tripId: string | null } | null;
 };
 export type EventFormat = { gameType: string; startingScore?: number; matchContext: string; structure: string; stages: { key: string; kind: string; bestOfByRound?: number[] }[];

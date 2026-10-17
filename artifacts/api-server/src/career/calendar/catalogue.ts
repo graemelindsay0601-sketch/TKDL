@@ -16,6 +16,7 @@ import { buildCatalogueV12 } from "../content/season-v12.ts";
 import { buildCatalogueV13 } from "../content/season-v13.ts";
 import { buildCatalogueV14 } from "../content/season-v14.ts";
 import { buildCatalogueV15 } from "../content/season-v15.ts";
+import { buildCatalogueV16 } from "../content/season-v16.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -458,6 +459,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 13) return EVENT_CATALOGUE_V13;
   if (version === 14) return EVENT_CATALOGUE_V14;
   if (version === 15) return EVENT_CATALOGUE_V15;
+  if (version === 16) return EVENT_CATALOGUE_V16;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -483,5 +485,7 @@ export const EVENT_CATALOGUE_V13: readonly EventDefinition[] = buildCatalogueV13
 export const EVENT_CATALOGUE_V14: readonly EventDefinition[] = buildCatalogueV14(EVENT_CATALOGUE_V13);
 /** v15: the midweek pub circuit — Monday League and Wednesday Flier nights in the UK and Ireland (added to older saves too). */
 export const EVENT_CATALOGUE_V15: readonly EventDefinition[] = buildCatalogueV15(EVENT_CATALOGUE_V14);
+/** v16: the midweek circuit in every home area (added to older saves too). */
+export const EVENT_CATALOGUE_V16: readonly EventDefinition[] = buildCatalogueV16(EVENT_CATALOGUE_V15);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

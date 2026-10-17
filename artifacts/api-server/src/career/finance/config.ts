@@ -132,14 +132,27 @@ export const PRIZE_PROFILES: Record<string, PrizeProfile> = {
 export const PRIZE_OVERRIDES: Record<string, PrizeProfile> = {
   "sunday-league-sprint": prize("prize:sunday-league", 1000),
   "free-entry-night": prize("prize:free-entry", 4000, 2000, 1000),
-  "monday-league-night": prize("prize:monday-league", 2000, 800, 400),
-  "wednesday-flier": prize("prize:wednesday-flier", 3000, 1200, 500),
   "open-championship-qualifier": prize("prize:qualifier-small", 5000, 2500),
   "european-series-qualifier": prize("prize:qualifier-small", 5000, 2500),
   "world-championship-qualifier": prize("prize:qualifier-medium", 10000, 5000, 2500),
   "amateur-world-qualifier": prize("prize:qualifier-medium", 10000, 5000, 2500),
   "vault-qualifier": prize("prize:qualifier-small", 5000, 2500),
 };
+/**
+ * Midweek pub nights pay out of the pot, like a real flier: every player's entry money plus a small top-up from the club,
+ * split 50% to the winner, 25% to the runner-up and 12.5% to each beaten semi-finalist. Before the field is known the
+ * pot is estimated from a typical turnout.
+ */
+export const PRIZE_POTS: Record<string, { feePence: number; housePence: number }> = {
+  "monday-league-night": { feePence: FEE_OVERRIDES["monday-league-night"].entryFeePence, housePence: 1000 },
+  "wednesday-flier": { feePence: FEE_OVERRIDES["wednesday-flier"].entryFeePence, housePence: 1000 },
+};
+export const POT_SPLIT = [[1, 0.5], [2, 0.25], [4, 0.125]] as const;
+export const POT_TYPICAL_FIELD = 14;
+export function potPrize(key: string, entrants: number): PrizeProfile {
+  const pot = PRIZE_POTS[key], total = pot.feePence * entrants + pot.housePence;
+  return { key: `prize:pot:${key}`, bands: POT_SPLIT.map(([upToPosition, share]) => ({ upToPosition, amountPence: Math.floor(total * share / 10) * 10 })) };
+}
 export const prizeForPosition = (profile: PrizeProfile, position: number) =>
   profile.bands.find(b => position <= b.upToPosition)?.amountPence ?? 0;
 

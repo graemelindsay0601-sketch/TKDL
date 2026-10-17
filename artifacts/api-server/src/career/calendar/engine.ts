@@ -18,7 +18,8 @@ import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
 import { substitutesFor } from "./substitutes.ts";
 import { simulatedNineDarters } from "../records/model.ts";
-import { MIDWEEK_FROM_EVENT_DATABASE, MIDWEEK_KEYS } from "../content/season-v15.ts";
+import { MIDWEEK_FIELD_FILL, MIDWEEK_KEYS } from "../content/season-v15.ts";
+import { MIDWEEK_WORLD_EVENT_DATABASE } from "../content/season-v16.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -115,29 +116,33 @@ export async function ensureSeason(tx: CareerExecutor, root: RootRow, season: nu
   await tx.execute(sql`INSERT INTO career_seasons (career_save_id, season, event_database_version, calendar_generation_version, status, instance_count, calendar_hash)
     VALUES (${root.id}, ${season}, ${version}, ${CALENDAR_GENERATION_VERSION}, 'ACTIVE', ${drafts.length}, ${calendarHash(drafts)})`);
   await insertDrafts(tx, root, season, drafts);
-  // Older editions get the v15 midweek circuit added to every new season (the season's own hash stays its edition's).
-  if (version < MIDWEEK_FROM_EVENT_DATABASE) await addMidweek(tx, root, season, 1);
+  // Older editions get the midweek circuit (v16: every home area) added to every new season (the season's own hash stays its edition's).
+  if (version < MIDWEEK_WORLD_EVENT_DATABASE) await addMidweek(tx, root, season, 1);
   const created = (await tx.execute(sql`SELECT * FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows[0];
   return { season: created, created: true };
 }
 
 /**
- * The v15 midweek pub circuit (Monday League, Wednesday Flier) for a Career on an older edition: added once per season,
- * only in weeks still ahead, so nothing already played or entered changes. Idempotent (marker row + instance key).
+ * The midweek pub circuit (Monday League, Wednesday Flier; v15 UK and Ireland, v16 every home area) for a Career on an older
+ * edition: added once per season, only in weeks still ahead and only in areas that do not have it yet, so nothing already
+ * played or entered changes. Idempotent (marker row + instance key).
  */
 export async function ensureMidweekCircuit(tx: CareerExecutor, root: RootRow) {
-  if (Number(root.event_database_version) >= MIDWEEK_FROM_EVENT_DATABASE) return;
+  if (Number(root.event_database_version) >= MIDWEEK_WORLD_EVENT_DATABASE) return;
   const season = Number(root.current_season);
   if (!(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length) return;
   await addMidweek(tx, root, season, Number(root.current_week) + 1);
   await openRegistrations(tx, root.id, season, Number(root.current_week));
 }
 async function addMidweek(tx: CareerExecutor, root: RootRow, season: number, fromWeek: number) {
-  const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon) VALUES (${root.id}, ${season}, 'midweek-v15')
+  const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon) VALUES (${root.id}, ${season}, 'midweek-v16')
     ON CONFLICT DO NOTHING RETURNING season`)).rows.length;
   if (!claimed) return;
   const keys = new Set<string>(MIDWEEK_KEYS);
-  const drafts = generateSeason(root.world_seed, MIDWEEK_FROM_EVENT_DATABASE, season, d => keys.has(d.key)).filter(d => d.startWeek >= fromWeek);
+  const covered = new Set((await tx.execute(sql`SELECT DISTINCT locality_key FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${season}
+    AND definition_key IN (${sql.join(MIDWEEK_KEYS.map(k => sql`${k}`), sql`, `)})`)).rows.map(r => String(r.locality_key)));
+  const drafts = generateSeason(root.world_seed, MIDWEEK_WORLD_EVENT_DATABASE, season, d => keys.has(d.key))
+    .filter(d => d.startWeek >= fromWeek && !covered.has(String(d.localityKey)));
   await insertDrafts(tx, root, season, drafts);
 }
 
@@ -453,7 +458,8 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     }
     teams = selected.teams;
   } else if (snapshot.fieldPolicy === "SELECTION") {
-    const target = Math.max(taken.size, fillTarget(capacity, snapshot.npcFill, rng));
+    const fill = (MIDWEEK_KEYS as readonly string[]).includes(event.definition_key) ? MIDWEEK_FIELD_FILL : snapshot.npcFill;
+    const target = Math.max(taken.size, fillTarget(capacity, fill, rng));
     const pool = npcs.filter(npc => free(npc) && eligible(npc));
     const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
     for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc), target - taken.size, rng)) add(npc, "SELECTION");
