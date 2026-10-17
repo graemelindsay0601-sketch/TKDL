@@ -29,6 +29,9 @@ export function createCareerFinanceRouter(service: CareerFinanceService, isAvail
     res.json(await service.ledger(res.locals.careerActor, id(req), Object.fromEntries(Object.entries({
       limit: num(req.query.limit), beforeCreatedAt: str(req.query.beforeCreatedAt), beforeId: str(req.query.beforeId) }).filter(([, v]) => v !== undefined))));
   });
+  router.get("/saves/:id/finance/goal", async (req, res) => { res.json(await service.savingsGoal(res.locals.careerActor, id(req))); });
+  router.put("/saves/:id/finance/goal", authedWriteRateLimit, async (req, res) => { res.json(await service.setSavingsGoal(res.locals.careerActor, id(req), req.body)); });
+  router.delete("/saves/:id/finance/goal", authedWriteRateLimit, async (req, res) => { res.json(await service.clearSavingsGoal(res.locals.careerActor, id(req))); });
   router.get("/saves/:id/finance/weeks", async (req, res) => { res.json(await service.weeks(res.locals.careerActor, id(req), { season: str(req.query.season) })); });
   router.get("/saves/:id/events/:eventId/finance", async (req, res) => { res.json(await service.eventFinance(res.locals.careerActor, id(req), String(req.params.eventId))); });
   router.get("/saves/:id/sponsors", async (req, res) => { res.json(await service.sponsors(res.locals.careerActor, id(req))); });

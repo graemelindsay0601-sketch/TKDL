@@ -445,6 +445,26 @@ test("week by week: darts money spent and won, sponsor money apart, events playe
   assert.ok(prize > 0 && week.dartsNetPence === week.wonPence - week.spentPence);
 });
 
+test("savings goal: an amount or an event's full cost, progress from free money, met on entry, cleared on request", async () => {
+  const save = await careerWithCurrentCatalogue();
+  assert.equal((await finance.savingsGoal(actor, save.id)).goal, null);
+  const free = (await finance.summary(actor, save.id)).availablePence;
+  const amount = (await finance.setSavingsGoal(actor, save.id, { label: "New darts", targetPence: free * 2 })).goal!;
+  assert.deepEqual([amount.kind, amount.status, amount.targetPence, amount.progress, amount.remainingPence], ["AMOUNT", "SAVING", free * 2, 0.5, free]);
+  await adjust(save.id, "goal-gift", free);
+  assert.equal((await finance.savingsGoal(actor, save.id)).goal!.status, "READY", "free money covers it");
+  const away = (await events(save.id, { scope: "AVAILABLE" })).filter(e => e.human!.canEnter && e.finance.estimatedPlayerCostPence > 0 && !e.series)
+    .sort((a, b) => b.finance.estimatedPlayerCostPence - a.finance.estimatedPlayerCostPence)[0];
+  const goal = (await finance.setSavingsGoal(actor, save.id, { eventId: away.id })).goal!;
+  assert.deepEqual([goal.kind, goal.label, goal.targetPence, goal.eventId], ["EVENT", away.name, away.finance.estimatedPlayerCostPence, away.id], "target = entry, travel and stay");
+  await adjust(save.id, "goal-top-up", away.finance.estimatedPlayerCostPence);
+  assert.equal((await finance.calendar.enter(actor, save.id, { eventId: away.id })).entered, true);
+  assert.equal((await finance.savingsGoal(actor, save.id)).goal!.status, "ENTERED");
+  await assert.rejects(finance.setSavingsGoal(actor, save.id, { label: "", targetPence: 50 }));
+  assert.equal((await finance.clearSavingsGoal(actor, save.id)).goal, null);
+  assert.equal((await finance.savingsGoal(actor, save.id)).goal, null);
+});
+
 test("a blocked advance resumes only from where it stopped; retried later it never moves time or money", async () => {
   const save = await career();
   const local = (await events(save.id, { scope: "AVAILABLE" })).filter(e => e.definitionKey === "friday-night-501" && e.finance.travelBand === "LOCAL").sort((a, b) => a.dates.startDay - b.dates.startDay)[0];

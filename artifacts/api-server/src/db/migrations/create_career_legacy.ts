@@ -24,6 +24,7 @@ export async function createCareerLegacy(tx:CareerExecutor):Promise<void> {
   await ensureWorldRecords(tx);
   await ensureClubSeasons(tx);
   await ensureCalendarAddons(tx);
+  await ensureSavingsGoals(tx);
   for(const table of ["career_legacy_reviews","career_legacy_inductions","career_legacy_retirements"]) {
     await tx.execute(sql`DROP TRIGGER IF EXISTS career_legacy_history_guard ON ${sql.identifier(table)}`);
     await tx.execute(sql`CREATE TRIGGER career_legacy_history_guard BEFORE UPDATE ON ${sql.identifier(table)}
@@ -75,4 +76,14 @@ export async function ensureCalendarAddons(tx:CareerExecutor):Promise<void> {
     career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
     season integer NOT NULL CHECK(season>0),addon text NOT NULL,created_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY(career_save_id,season,addon))`);
+}
+
+/** One savings goal per Career (an event's full cost, or an amount the player names). Every boot. */
+export async function ensureSavingsGoals(tx:CareerExecutor):Promise<void> {
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_savings_goals (
+    career_save_id uuid PRIMARY KEY REFERENCES career_saves(id) ON DELETE CASCADE,
+    kind text NOT NULL CHECK(kind IN ('EVENT','AMOUNT')),label text NOT NULL CHECK(length(label) BETWEEN 1 AND 120),
+    target_pence bigint NOT NULL CHECK(target_pence>0),event_id uuid,
+    set_season integer NOT NULL,set_week integer NOT NULL,reached_season integer,reached_week integer,
+    created_at timestamptz NOT NULL DEFAULT NOW())`);
 }

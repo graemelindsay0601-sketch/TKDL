@@ -9,6 +9,7 @@ import { CareerPageHero } from "../page-hero";
 import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorSigningReveal, SponsorTerms } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SeasonMoneyChart } from "../week-money";
+import { SavingsGoalPanel } from "../savings-goal";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
 
@@ -49,6 +50,9 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
+      <CareerSection title="Savings goal" icon={<Wallet className="w-3.5 h-3.5" />} accent="#d9b96f">
+        <SavingsGoalPanel saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired} />
+      </CareerSection>
       <CareerSection title={`Darts money by week · season ${save.currentSeason}`} icon={<Coins className="w-3.5 h-3.5" />} accent="#3987e5">
         <SeasonMoneyChart saveId={save.id} />
       </CareerSection>

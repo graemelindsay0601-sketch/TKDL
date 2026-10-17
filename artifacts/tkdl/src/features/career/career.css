@@ -1018,3 +1018,30 @@
 .season-money__table th, .season-money__table td { padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,.06); text-align: right; }
 .season-money__table th:first-child, .season-money__table td:first-child { text-align: left; }
 .season-money__empty { margin: 0; padding: 12px 16px; color: rgba(255,255,255,.6); font-size: .82rem; }
+
+/* Savings goal (Finances panel and the Home line). */
+.savings-goal { display: grid; gap: 10px; padding: 12px 16px 14px; }
+.savings-goal__head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; }
+.savings-goal__head strong { color: #fff; font: 600 1rem Oswald, system-ui, sans-serif; }
+.savings-goal__head span { color: rgba(255,255,255,.7); font-size: .76rem; }
+.savings-goal__head span[data-status="READY"], .savings-goal__head span[data-status="ENTERED"] { color: #7ee0a1; }
+.savings-goal__head span[data-status="MISSED"] { color: #ff9a8a; }
+.savings-goal__bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; }
+.savings-goal__bar span { display: block; height: 100%; border-radius: 999px; background: #d9b96f; }
+.savings-goal__bar span[data-done] { background: #7ee0a1; }
+.savings-goal__figures, .savings-goal__outlook, .savings-goal__none, .savings-goal__message { margin: 0; color: rgba(255,255,255,.75); font-size: .8rem; }
+.savings-goal__outlook { color: #e9d9a8; }
+.savings-goal__link { color: #c5d9e8; font-size: .78rem; }
+.savings-goal__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.savings-goal__picker { display: grid; gap: 8px; }
+.savings-goal__picker-title { margin: 4px 0 0; color: #d2b677; font: 700 .66rem Oswald, system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.savings-goal__picker ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.savings-goal__picker li button { display: grid; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; background: rgba(255,255,255,.03); color: #fff; text-align: left; cursor: pointer; }
+.savings-goal__picker li button:hover, .savings-goal__picker li button:focus-visible { border-color: #d9b96f88; }
+.savings-goal__picker li small { color: rgba(255,255,255,.6); }
+.savings-goal__custom { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.savings-goal__custom label { display: grid; gap: 3px; flex: 1 1 120px; color: rgba(255,255,255,.65); font-size: .72rem; }
+.savings-goal__custom input { min-width: 0; padding: 7px 9px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; background: rgba(0,0,0,.25); color: #fff; font-size: .9rem; }
+.savings-goal-line { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid #d9b96f33; border-radius: 10px; background: #d9b96f0a; color: #adbdca; font-size: .78rem; text-decoration: none; }
+.savings-goal-line b { color: #e9eef3; font-weight: 600; }
+.savings-goal-line small { color: rgba(255,255,255,.6); }
