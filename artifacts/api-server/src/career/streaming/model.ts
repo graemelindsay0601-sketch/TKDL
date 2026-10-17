@@ -1,4 +1,5 @@
 import { pick, scopedRandom } from "../world/random.ts";
+import { NOT_FOR_SALE } from "../manager/model.ts";
 
 /**
  * Streaming on DartCast (a fictional platform). You go live on a free night: a viewer from chat steps up and you play them,
@@ -119,3 +120,44 @@ export function chatForVisit(seed: string, streamKey: string, index: number, v: 
 
 /** What the stream pays: bits and super chats in full, half of each new subscription's first month. */
 export const streamIncome = (t: Pick<Tally, "bitsPence" | "superchatsPence" | "subs">) => t.bitsPence + t.superchatsPence + Math.round(t.subs * STREAM.subPence * STREAM.subShare);
+
+/**
+ * Phase 2 of the streamer route. Subscribers renew every four weeks (half of each £2.50 to you) and some drift away each
+ * month, more when you haven't streamed; Partners get brand deals (a fee for every stream, for a run of streams); Stars get
+ * invitations to the televised invitationals on the strength of their audience.
+ */
+export const STREAM_MONEY = Object.freeze({
+  /** Subs renew at the end of every fourth week. */
+  monthWeeks: 4,
+  /** Share of subscribers who renew: you streamed that month / you didn't. */
+  renewal: { streamed: 0.85, quiet: 0.6 },
+  /** Brand deals: from Partner up, at most this many a season, each for a run of streams. */
+  dealsPerSeason: 2, dealStreams: 6, dealOfferWeeks: 3,
+  /** Fee per stream: a floor plus so much per follower, to the pound. */
+  dealFloorPence: 2500, dealPencePerFollower: 3,
+});
+
+export const BRANDS = [
+  { key: "flightdeck", name: "FlightDeck", what: "flights and stems" },
+  { key: "oche-energy", name: "Oche Energy", what: "an energy drink" },
+  { key: "tungsten-toms", name: "Tungsten Tom's", what: "darts and barrels" },
+  { key: "gripline", name: "GripLine", what: "finger wax and grips" },
+  { key: "boardroom-gaming", name: "Boardroom Gaming", what: "a gaming chair maker" },
+  { key: "double-top-kebabs", name: "Double Top Kebabs", what: "a late-night takeaway chain" },
+] as const;
+
+/** Whole subscriptions that renew this month (deterministic: floor of the renewal share). */
+export const renewals = (subscribers: number, streamed: boolean) =>
+  Math.floor(Math.max(0, subscribers) * (streamed ? STREAM_MONEY.renewal.streamed : STREAM_MONEY.renewal.quiet));
+/** What a month's renewals pay you. */
+export const subPayout = (renewed: number) => Math.round(renewed * STREAM.subPence * STREAM.subShare);
+/** A brand's fee for each stream, to the pound. */
+export const dealFee = (followers: number) => Math.round((STREAM_MONEY.dealFloorPence + Math.max(0, followers) * STREAM_MONEY.dealPencePerFollower) / 100) * 100;
+/** Which brand comes calling (the n-th deal of the season, picked from the seed). */
+export function brandFor(seed: string, season: number, n: number) {
+  const rng = scopedRandom(seed, STREAM.version, "stream-brand", season, n);
+  return BRANDS[Math.floor(rng() * BRANDS.length)];
+}
+/** Stars get invitations to televised invitationals; nobody streams their way into a national team. */
+export const streamerCanBeInvited = (tier: TierKey | null, event: { circuit: string; definitionKey: string; takesInvitations: boolean }) =>
+  tier === "STAR" && event.takesInvitations && event.circuit === "INVITATIONAL" && !NOT_FOR_SALE.has(event.definitionKey);

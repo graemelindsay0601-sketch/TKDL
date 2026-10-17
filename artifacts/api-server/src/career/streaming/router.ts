@@ -23,6 +23,8 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.get("/saves/:id/streaming/streams/:streamId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), stream(req))); });
   router.post("/saves/:id/streaming/streams/:streamId/darts", async (req, res) => { res.json(await service.darts(res.locals.careerActor, id(req), stream(req), req.body)); });
   router.post("/saves/:id/streaming/streams/:streamId/end", authedWriteRateLimit, async (req, res) => { res.json(await service.end(res.locals.careerActor, id(req), stream(req))); });
+  router.post("/saves/:id/streaming/deals/:dealId", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.answerDeal(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.dealId)), req.body)); });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     if (!req.path.includes("/streaming")) { next(error); return; }
     if (error instanceof CareerError) res.status(error.status).json({ error: error.message });

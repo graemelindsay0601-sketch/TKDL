@@ -1,10 +1,55 @@
 import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
+import { post } from "../finance/ledger.ts";
+import { stableUuid } from "../world/random.ts";
+import { STREAM, STREAM_MONEY, brandFor, dealFee, renewals, subPayout, tierFor, type TierKey } from "./model.ts";
 
-/** Once the table is known to exist it always will (the schema repair adds it at startup; some test databases skip it). */
+/** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
 let seen = false;
+async function ready(tx: CareerExecutor) {
+  if (!seen) seen = (await tx.execute(sql`SELECT to_regclass('career_stream_deals') IS NOT NULL AS ok`)).rows[0]?.ok === true;
+  return seen;
+}
+
 /** Your stream nights this season (absolute day to stream id): a stream night is booked like any other night. */
 export async function streamNights(tx: CareerExecutor, saveId: string, season: number): Promise<Map<number, string>> {
-  if (!seen) { seen = (await tx.execute(sql`SELECT to_regclass('career_streams') IS NOT NULL AS ok`)).rows[0]?.ok === true; if (!seen) return new Map(); }
+  if (!await ready(tx)) return new Map();
   return new Map((await tx.execute(sql`SELECT day, id FROM career_streams WHERE career_save_id=${saveId} AND season=${season}`)).rows.map(r => [Number(r.day), String(r.id)]));
+}
+
+/** Your step on the streamer route (null with no channel yet). */
+export async function streamTier(tx: CareerExecutor, saveId: string): Promise<TierKey | null> {
+  if (!await ready(tx)) return null;
+  const row = (await tx.execute(sql`SELECT followers FROM career_stream_channels WHERE career_save_id=${saveId}`)).rows[0];
+  return row ? tierFor(Number(row.followers)).key : null;
+}
+
+type Root = { id: string; world_seed: string };
+/**
+ * The channel's week, after the week is played: at the end of every fourth week subscribers renew (fewer if you didn't
+ * stream that month) and pay; unanswered brand offers lapse; a Partner with no deal on the go may get a new one.
+ */
+export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season: number, week: number) {
+  if (!await ready(tx)) return;
+  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
+  if (!ch) return;
+  const month = `${season}:${week}`;
+  if (week % STREAM_MONEY.monthWeeks === 0 && ch.renewed_through !== month && Number(ch.subscribers) > 0) {
+    const streamed = (await tx.execute(sql`SELECT 1 FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND status='ENDED'
+      AND week BETWEEN ${week - STREAM_MONEY.monthWeeks + 1} AND ${week} LIMIT 1`)).rows.length > 0;
+    const renewed = renewals(Number(ch.subscribers), streamed), pay = subPayout(renewed);
+    if (pay > 0) await post(tx, root, { operationKey: `stream-subs:${month}`, category: "STREAM_INCOME", amountPence: pay,
+      reason: `DartCast subscriptions: ${renewed} renewed this month`, season, week, detail: { renewed, before: Number(ch.subscribers), streamed } });
+    await tx.execute(sql`UPDATE career_stream_channels SET subscribers=${renewed}, renewed_through=${month} WHERE career_save_id=${root.id}`);
+  }
+  await tx.execute(sql`UPDATE career_stream_deals SET status='EXPIRED' WHERE career_save_id=${root.id} AND status='OFFERED' AND (season < ${season} OR expires_week <= ${week})`);
+  const followers = Number(ch.followers), tier = tierFor(followers).key;
+  if (tier !== "PARTNER" && tier !== "STAR") return;
+  const open = (await tx.execute(sql`SELECT 1 FROM career_stream_deals WHERE career_save_id=${root.id} AND status IN ('OFFERED','ACTIVE') LIMIT 1`)).rows.length > 0;
+  const thisSeason = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_deals WHERE career_save_id=${root.id} AND season=${season}`)).rows[0].n);
+  if (open || thisSeason >= STREAM_MONEY.dealsPerSeason || week > 46) return;
+  const brand = brandFor(root.world_seed, season, thisSeason);
+  await tx.execute(sql`INSERT INTO career_stream_deals (career_save_id, id, season, offered_week, expires_week, brand_key, brand_name, per_stream_pence, streams_total, status)
+    VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-deal", root.id, season, thisSeason)}, ${season}, ${week}, ${week + STREAM_MONEY.dealOfferWeeks},
+      ${brand.key}, ${brand.name}, ${dealFee(followers)}, ${STREAM_MONEY.dealStreams}, 'OFFERED') ON CONFLICT DO NOTHING`);
 }

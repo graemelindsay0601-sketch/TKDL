@@ -16,5 +16,15 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     PRIMARY KEY(career_save_id,id))`);
   // The dart log so far, so a stream picks up where it left off after a refresh.
   await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS darts jsonb NOT NULL DEFAULT '[]'::jsonb`);
+  // Phase 2: subscribers who renew monthly (and the last month paid), and brand deals.
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS subscribers integer NOT NULL DEFAULT 0`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS renewed_through text`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_deals (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, season integer NOT NULL, offered_week integer NOT NULL, expires_week integer NOT NULL,
+    brand_key text NOT NULL, brand_name text NOT NULL, per_stream_pence bigint NOT NULL CHECK(per_stream_pence > 0),
+    streams_total integer NOT NULL, streams_done integer NOT NULL DEFAULT 0,
+    status text NOT NULL CHECK(status IN ('OFFERED','ACTIVE','COMPLETED','DECLINED','EXPIRED')),
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id,id))`);
   await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_streams_night_idx ON career_streams(career_save_id, season, day)`);
 }

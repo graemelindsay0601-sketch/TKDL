@@ -879,8 +879,19 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     next: { name: "Partner", followers: 1000, perks: "Subs." }, tiers: [{ key: "NEWCOMER", name: "Newcomer", followers: 0, perks: "Go live.", reached: true },
       { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Bits and super chats.", reached: true }, { key: "PARTNER", name: "Partner", followers: 1000, perks: "Subs.", reached: false }],
     streamsThisWeek: 1, perWeek: 3, freeNights: [2, 5, 6], live: null, totals: { streams: 14, earnedPence: 18450, won: 9 },
-    videos: [{ id: "v1", season: 2, week: 8, dayOfWeek: 6, challenger: "OcheGremlin12", result: "WON", peak: 41, followersGained: 12, incomePence: 2350 }] };
+    videos: [{ id: "v1", season: 2, week: 8, dayOfWeek: 6, challenger: "OcheGremlin12", result: "WON", peak: 41, followersGained: 12, incomePence: 2350 }],
+    subscribers: 0, renewsWeek: 12, dealOffer: null, deal: null, invitations: false };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
   for (const fact of ["Dart Cast", "AyrDarts", "640 followers", "Affiliate", "14 streams", "£184.50 earned", "beat 9 challengers", "Go live on Tue", "(1 so far)",
     "360 more followers to Partner", "Stream vs OcheGremlin12", "41 peak", "+12", "£23.50"]) assert.ok(t.includes(fact), fact);
+});
+
+test("DartCast channel money: subs that renew, a brand's offer to answer, and a Star's invitations", () => {
+  const view = { season: 3, week: 10, handle: "AyrDarts", followers: 1450, tier: { key: "PARTNER", name: "Partner", perks: "Subs." }, next: { name: "Star", followers: 25000, perks: "Big." },
+    tiers: [], streamsThisWeek: 0, perWeek: 3, freeNights: [1], live: null, totals: { streams: 40, earnedPence: 90000, won: 25 }, videos: [],
+    subscribers: 14, renewsWeek: 12, dealOffer: { id: "d1", brand: "FlightDeck", what: "flights and stems", perStreamPence: 6900, streamsTotal: 6, streamsDone: 0, expiresWeek: 13 },
+    deal: null, invitations: true };
+  const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
+  for (const fact of ["Channel money", "14 subscribers renew at the end of week 12", "£17.50 if they all stay", "FlightDeck (flights and stems)", "£69 a stream", "next 6 streams",
+    "Answer by week 13", "Take the deal", "No thanks", "televised invitationals send you invitations"]) assert.ok(t.includes(fact), fact);
 });

@@ -22,7 +22,8 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerStreamingService } from "../../career/streaming/service.ts";
 import { createCareerHostingService } from "../../career/hosting/service.ts";
-import { STREAM, chatForVisit, streamIncome, tierFor, type Tally } from "../../career/streaming/model.ts";
+import { STREAM, STREAM_MONEY, chatForVisit, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
+import { settleStreamingWeek } from "../../career/streaming/state.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), streaming = createCareerStreamingService(db), hosting = createCareerHostingService(db);
@@ -110,4 +111,62 @@ test("a stream night is booked like any other: an event that night can't be ente
   const last = await streaming.goLive(actor, id, { dayOfWeek: v.freeNights[0] });
   await streaming.end(actor, id, last.id);
   await status(streaming.goLive(actor, id, { dayOfWeek: (await streaming.read(actor, id)).freeNights[0] ?? 1 }), 409);
+});
+
+test("phase 2 rules: subs renew monthly (fewer when you go quiet), Partner brand fees grow with followers, Stars get invitational invitations", () => {
+  assert.equal(renewals(20, true), 17); assert.equal(renewals(20, false), 12);
+  assert.equal(subPayout(8), 8 * 125);
+  assert.equal(dealFee(1000), 5500); assert.equal(dealFee(25000), 77500);
+  const inv = (circuit: string, definitionKey = "thursday-night-darts", takesInvitations = true) => ({ circuit, definitionKey, takesInvitations });
+  assert.equal(streamerCanBeInvited("STAR", inv("INVITATIONAL")), true);
+  assert.equal(streamerCanBeInvited("PARTNER", inv("INVITATIONAL")), false, "only Stars");
+  assert.equal(streamerCanBeInvited("STAR", inv("INVITATIONAL", "world-cup-of-darts")), false, "national teams are picked, not invited");
+  assert.equal(streamerCanBeInvited("STAR", inv("WORLD_SERIES")), false);
+  assert.equal(streamerCanBeInvited("STAR", inv("INVITATIONAL", "champions-masters", false)), false);
+});
+
+test("a Partner channel: subs renew and pay at the month's end, a brand offers a deal, and it pays for each stream", async () => {
+  const root = { id, world_seed: String((await rows(sql`SELECT world_seed FROM career_saves WHERE id=${id}`))[0].world_seed) };
+  const s = await saves.read(1, id), month = Math.ceil(s.currentWeek / STREAM_MONEY.monthWeeks) * STREAM_MONEY.monthWeeks;
+  await db.execute(sql`UPDATE career_stream_channels SET followers=1200, subscribers=10 WHERE career_save_id=${id}`);
+  // You streamed this month (the earlier tests), so most subs renew.
+  await settleStreamingWeek(db, root, s.currentSeason, month);
+  await settleStreamingWeek(db, root, s.currentSeason, month);
+  const paid = await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-subs:${s.currentSeason}:${month}`}`);
+  assert.equal(paid.length, 1, "paid once, however often the week is settled");
+  assert.equal(Number(paid[0].amount_pence), subPayout(renewals(10, true)));
+  let v = await streaming.read(actor, id);
+  assert.equal(v.subscribers, renewals(10, true));
+  assert.ok(v.dealOffer, "a Partner gets a brand offer");
+  assert.equal(v.dealOffer!.perStreamPence, dealFee(1200)); assert.equal(v.dealOffer!.streamsTotal, STREAM_MONEY.dealStreams);
+  await settleStreamingWeek(db, root, s.currentSeason, month);
+  assert.equal(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_stream_deals WHERE career_save_id=${id}`))[0].n), 1, "one offer at a time");
+  v = await streaming.answerDeal(actor, id, v.dealOffer!.id, { accept: true });
+  assert.equal(v.dealOffer, null); assert.equal(v.deal!.streamsDone, 0);
+  await status(streaming.answerDeal(actor, id, v.deal!.id, { accept: false }), 409);
+  // Move this week's streams back a week so there's a night free, then stream: the brand pays for it.
+  await db.execute(sql`UPDATE career_streams SET week=week-1, day=day-7 WHERE career_save_id=${id} AND season=${s.currentSeason} AND week=${s.currentWeek}`);
+  const live = await streaming.goLive(actor, id, { dayOfWeek: (await streaming.read(actor, id)).freeNights[0] });
+  const done = await streaming.darts(actor, id, live.id, { darts: twoNil });
+  const fee = await rows(sql`SELECT amount_pence, reason FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-deal:${live.id}`}`);
+  assert.equal(Number(fee[0].amount_pence), dealFee(1200)); assert.match(String(fee[0].reason), /stream 1 of 6/);
+  v = await streaming.read(actor, id);
+  assert.equal(v.deal!.streamsDone, 1);
+  assert.equal(v.subscribers, renewals(10, true) + done.session.tally.subs, "new subs join the monthly list");
+  // An offer nobody answers lapses after three weeks.
+  await db.execute(sql`UPDATE career_stream_deals SET status='OFFERED', expires_week=${month + 1} WHERE career_save_id=${id}`);
+  await settleStreamingWeek(db, root, s.currentSeason, month + 1);
+  assert.equal((await rows(sql`SELECT status FROM career_stream_deals WHERE career_save_id=${id}`))[0].status, "EXPIRED");
+});
+
+test("a DartCast Star is invited to the televised invitationals, without a manager", async () => {
+  const invitational = (evs: any[]) => evs.filter(e => e.circuit === "INVITATIONAL" && e.definitionKey !== "world-cup-of-darts");
+  const before = invitational((await career.calendar.calendar(actor, id, {})).events as any[]);
+  assert.ok(before.length && before.every(e => !e.human.streamInvite));
+  await db.execute(sql`UPDATE career_stream_channels SET followers=25000 WHERE career_save_id=${id}`);
+  const after = invitational((await career.calendar.calendar(actor, id, {})).events as any[]);
+  const invited = after.filter(e => e.human.streamInvite);
+  assert.ok(invited.length, "invitations come in");
+  assert.ok(invited.every(e => e.human.eligible && e.human.managerInvite === null));
+  await db.execute(sql`UPDATE career_stream_channels SET followers=1200 WHERE career_save_id=${id}`);
 });
