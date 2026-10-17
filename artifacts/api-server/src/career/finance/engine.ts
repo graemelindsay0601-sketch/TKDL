@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { fansForEffects } from "../fans/service.ts";
 import { fanSponsorPremium } from "../fans/model.ts";
-import { activeManager } from "../manager/state.ts";
+import { activeManager, managerInviteFor } from "../manager/state.ts";
 import { boosted, commissionOn } from "../manager/model.ts";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
@@ -292,7 +292,9 @@ async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: stri
   // Your manager negotiates a bigger signing bonus on top (recorded on the offer, like the fan premium).
   const manager = await activeManager(tx, root.id);
   const terms = manager && fanTerms.signingBonusPence > 0 ? { ...fanTerms, signingBonusPence: boosted(fanTerms.signingBonusPence, manager.signingBonusBoost) } : fanTerms;
-  const source = terms !== fanTerms && manager ? { ...fanSource, managerPremium: { managerKey: manager.key, boost: manager.signingBonusBoost, beforePence: fanTerms.signingBonusPence } } : fanSource;
+  // The offer carries the manager who brought it: they take their cut of this deal's payments (see ledger post).
+  const source = !manager ? fanSource : { ...fanSource, manager: { key: manager.key, contractId: manager.contractId },
+    ...(terms !== fanTerms ? { managerPremium: { managerKey: manager.key, boost: manager.signingBonusBoost, beforePence: fanTerms.signingBonusPence } } : {}) };
   const result = await tx.execute(sql`INSERT INTO career_sponsor_offers (career_save_id, id, operation_key, sponsor_key, sponsor_database_version, tier, kind, terms, source,
       offered_season, offered_week, expires_season, expires_week, status)
     VALUES (${root.id}, ${stableUuid(root.world_seed, terms.sponsorDatabaseVersion, "sponsor-offer", operationKey)}, ${operationKey}, ${terms.sponsorKey}, ${terms.sponsorDatabaseVersion},
@@ -726,11 +728,11 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
     if (cash > 0) ledgerId = (await post(tx, root, { operationKey: `prize:${event.id}`, category: "PRIZE", amountPence: cash, reason: `Prize money — ${event.name}`,
       season, week, eventId: event.id, detail: { finishingPosition: mine.finishing_position, prizeProfile: profile.prize.key, rankingEligiblePence: ranking } })).row.id;
     if (cash > 0) {
-      // Your manager's cut of the prize (cash prizes only), posted next to it.
-      const manager = await activeManager(tx, root.id), cut = manager ? commissionOn(cash, manager) : 0;
+      // A manager takes a cut only of prize money from an event they got you into (an invitation you would not have had).
+      const manager = await managerInviteFor(tx, root.id, event.id), cut = manager ? commissionOn(cash, manager) : 0;
       if (manager && cut > 0) await post(tx, root, { operationKey: `manager-commission:${event.id}`, category: "MANAGER_COMMISSION", amountPence: -cut,
-        reason: `${manager.name} commission (${Math.round(manager.commission * 100)}%) — ${event.name}`, season, week, eventId: event.id,
-        detail: { managerKey: manager.key, contractId: manager.contractId, rate: manager.commission, prizePence: cash } });
+        reason: `${manager.name} commission (${Math.round(manager.commission * 100)}%) — ${event.name}, the invitation they got you`, season, week, eventId: event.id,
+        detail: { managerKey: manager.key, contractId: manager.contractId, source: "INVITATION", rate: manager.commission, prizePence: cash } });
     }
     await tx.execute(sql`INSERT INTO career_prize_awards (career_save_id, event_id, participant_key, season, finishing_position, cash_award_pence, ranking_eligible_pence, classification, ledger_entry_id)
       VALUES (${root.id}, ${event.id}, ${HUMAN}, ${event.season}, ${mine.finishing_position}, ${cash}, ${ranking}, ${event.classification}, ${ledgerId}) ON CONFLICT DO NOTHING`);

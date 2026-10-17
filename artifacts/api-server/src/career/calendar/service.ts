@@ -20,6 +20,8 @@ import { settleLifeCommitments } from "../life/commitments.ts";
 import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-engine.ts";
 import { isGroupedStructure, isGroupMatch, layoutFor } from "./groups.ts";
 import { a2MatchFormat } from "./formats.ts";
+import { activeManager, recordManagerInvites } from "../manager/state.ts";
+import { canInvite } from "../manager/model.ts";
 import { loadHumanForm, attributeForAverage, type HumanForm } from "../form/human.ts";
 import { simulateNpcMatch } from "../world/simulation.ts";
 import { loadNpcs } from "../world/repository.ts";
@@ -90,7 +92,8 @@ async function loadHumanContext(tx: CareerExecutor, root: RootRow, season: numbe
   for (const row of (await tx.execute(sql`SELECT i.snapshot->'exclusiveGroup'->>'key' AS k, i.snapshot->'exclusiveGroup'->>'variant' AS v FROM career_event_entries e JOIN career_event_instances i
       ON i.career_save_id = e.career_save_id AND i.id = e.event_id WHERE e.career_save_id = ${root.id} AND e.participant_key = ${HUMAN} AND e.status <> 'WITHDRAWN' AND i.season = ${season}
       AND i.snapshot ? 'exclusiveGroup' AND jsonb_typeof(i.snapshot->'exclusiveGroup') = 'object'`)).rows) groups.set(String(row.k), String(row.v));
-  return { participant: humanParticipant(root, providers), entries, bookings, results, ctx, groups, active: root.status === "ACTIVE", week: Number(root.current_week), season: Number(root.current_season) };
+  return { participant: humanParticipant(root, providers), entries, bookings, results, ctx, groups, active: root.status === "ACTIVE", week: Number(root.current_week), season: Number(root.current_season),
+    manager: await activeManager(tx, root.id) };
 }
 
 /** Structured, actionable view of one event for the human. Pure over loaded context. */
@@ -106,9 +109,19 @@ export function ageRequirement(event: InstanceRow) {
     junior: maxes.some(n => n <= AGE_POLICY.juniorMaxAgeExclusive) };
 }
 
+/** Does this event take invitations at all (an INVITATION rule anywhere in its eligibility)? */
+const takesInvitations = (r: Rule): boolean => "all" in r ? r.all.some(takesInvitations) : "any" in r ? r.any.some(takesInvitations) : "not" in r ? false : r.type === "INVITATION";
+
 function humanView(event: InstanceRow, human: HumanContext, seriesWindows: SeriesWindows) {
   const facts = factsFor(human.participant, human.ctx, event);
-  const authored = evaluateRule(event.snapshot.eligibility, facts);
+  let authored = evaluateRule(event.snapshot.eligibility, facts);
+  // Not in on your own? Your manager may get you an invitation (and takes their cut of this event's prize money for it).
+  let managerInvite = false;
+  if (!authored.eligible && human.manager && canInvite(human.manager, { circuit: event.circuit, definitionKey: event.definition_key,
+    invitationCount: event.snapshot.invitationPolicy?.count ?? null, takesInvitations: takesInvitations(event.snapshot.eligibility) }, facts.rankings["pro-world"])) {
+    const invited = evaluateRule(event.snapshot.eligibility, { ...facts, invited: true });
+    if (invited.eligible) { authored = invited; managerInvite = true; }
+  }
   const ages = ageRequirement(event);
   // The circuit age policy applies whenever the age is known (a save without a DOB is gated at the API).
   const underPolicy = ages.policyMin !== null && facts.age !== null && facts.age !== undefined && facts.age < ages.policyMin;
@@ -154,6 +167,7 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   else relationship = entitlement ? "QUALIFIED" : "AVAILABLE";
   return {
     relationship, eligible: rule.eligible, eligibilityReasons: rule.reasons, age: ageInfo,
+    managerInvite: managerInvite ? { name: human.manager!.name, commission: human.manager!.commission } : null,
     canEnter: denials.length === 0, denials: [...new Set(denials)], conflictsWith: [...conflicts].filter(id=>!id.startsWith("life:")),
     commercialConflicts: [...conflicts].filter(id=>id.startsWith("life:")).map(()=>"Accepted off-board commitment"),
     entryStatus: entry?.status ?? null, result: result ? { finishingPosition: Number(result.finishing_position), stageReached: String(result.stage_reached), champion: Boolean(result.is_champion) } : null,
@@ -525,6 +539,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         WHERE career_event_entries.status = 'WITHDRAWN'`);
       await insertBookings(tx, root.id, season, target, [HUMAN]);
     }
+    // In through your manager's invitation: record it (their cut of the prize money comes from these events alone).
+    const manager = view.managerInvite ? await activeManager(tx, root.id) : null;
+    if (manager) await recordManagerInvites(tx, root.id, manager, siblings.map(t => t.id));
     // A4: the entry fee is charged in this same transaction; a failure rolls the entry back.
     await providers.finance?.onHumanEntry(tx, root, event, siblings);
     await tx.execute(sql`UPDATE career_saves SET updated_at = NOW() WHERE id = ${root.id}`);

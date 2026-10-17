@@ -817,15 +817,18 @@ test("small local events say whether they go ahead, without predicting", async (
   assert.equal(viabilityText({ status: "CANCELLED", minimum: 4, fieldSetWeek: 12, entrants: null })!.label, "Cancelled");
 });
 
-test("Manager panel: your manager's cut and what they brought in; firms say what they need before they sign you", () => {
-  const firm = (key: string, over: Record<string, unknown> = {}) => ({ key, name: `${key} Management`, kind: "Firm", blurb: "Blurb.", commission: 0.15, signingBonusBoost: 0.3, appearanceBoost: 0.4,
-    extraOffers: 1, available: false, unmet: [], leftThisSeason: false, current: false, ...over });
+test("Manager panel: what your manager brought in and took for it; firms say what they need and which doors they open", () => {
+  const firm = (key: string, over: Record<string, unknown> = {}) => ({ key, name: `${key} Management`, kind: "Firm", blurb: "Blurb.", commission: 0.15, signingBonusBoost: 0.3,
+    extraOffers: 1, doors: ["World Dart Series invitations"], available: false, unmet: [], leftThisSeason: false, current: false, ...over });
   const view = { season: 3, careerPrizePence: 450000, tourCard: false,
-    current: { key: "northgate", name: "Northgate Sports Management", kind: "Regional management", commission: 0.15, signedSeason: 2, signedWeek: 30,
-      commissionThisSeasonPence: 4500, commissionTotalPence: 21000, extraSigningBonusPence: 30000 },
-    firms: [firm("backroom", { available: true }), firm("northgate", { current: true }), firm("oche-elite", { unmet: ["Hold a Tour Card"] })] };
+    current: { key: "northgate", name: "Northgate Sports Management", kind: "Regional management", commission: 0.15, signedSeason: 2, signedWeek: 30, doors: ["World Dart Series invitations"] },
+    earned: { fromDealsPence: 4500, fromInvitationsPence: 1500, thisSeasonPence: 6000, totalPence: 21000, extraSigningBonusPence: 30000,
+      deals: [{ sponsor: "Fixture Brewing", managerName: "Northgate Sports Management", active: true }],
+      invitations: [{ eventId: "e1", name: "World Dart Series — Oslo", season: 3, managerName: "Northgate Sports Management", prizePence: 10000, cutPence: 1500 }] },
+    firms: [firm("backroom", { available: true, doors: [] }), firm("northgate", { current: true }), firm("oche-elite", { unmet: ["Hold a Tour Card"] })] };
   const t = text(render(h(M.ManagerPanel, { saveId: SAVE_ID, retired: false }), [[key("manager"), view]]));
-  for (const fact of ["Northgate Sports Management", "15% of prize money", "£45", "£210", "£300", "Your manager", "Will sign you once you hold a Tour Card", "Switch to backroom Management"])
+  for (const fact of ["only earns from what they bring you", "Northgate Sports Management", "takes 15%", "£45", "£15", "£300", "Fixture Brewing", "World Dart Series — Oslo",
+    "their cut £15", "Your manager", "Will sign you once you hold a Tour Card", "sponsor deals only", "invitations: World Dart Series invitations", "Switch to backroom Management"])
     assert.ok(t.includes(fact), fact);
 });
 

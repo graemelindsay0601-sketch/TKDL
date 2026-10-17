@@ -3,6 +3,7 @@ import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { stableUuid } from "../world/random.ts";
 import { FINANCE_VERSION, HEADLINE_OF, type Headline, type LedgerCategory } from "./config.ts";
+import { commissionOn, managerByKey } from "../manager/model.ts";
 
 export type LedgerPosting = {
   operationKey: string; category: LedgerCategory; amountPence: number; reason: string;
@@ -58,6 +59,7 @@ export async function post(tx: CareerExecutor, root: { id: string; world_seed: s
       ${entry.eventId ?? null}, ${entry.tripId ?? null}, ${entry.contractId ?? null}, ${entry.reversesEntryId ?? null}, ${entry.grossAmountPence ?? null},
       ${entry.sponsorCoveredPence ?? 0}, ${FINANCE_VERSION}, ${entry.reason}, ${JSON.stringify(entry.detail ?? {})}::jsonb)
     RETURNING *`)).rows[0] as LedgerRow;
+  await managerCutOfSponsorPayment(tx, root, entry, headline);
   return { row, created: true };
 }
 
@@ -110,3 +112,19 @@ export const presentEntry = (r: LedgerRow) => ({
   contractId: r.contract_id, reversesEntryId: r.reverses_entry_id, grossAmountPence: r.gross_amount_pence === null ? null : Number(r.gross_amount_pence),
   sponsorCoveredPence: Number(r.sponsor_covered_pence), reason: r.reason, detail: r.detail, createdAt: r.created_at,
 });
+
+/**
+ * A sponsor deal your manager set up (the offer carries their name) pays them their cut of every payment from it, for as
+ * long as the deal runs, even if you have since parted company. Sponsor money from deals you found yourself is all yours.
+ */
+async function managerCutOfSponsorPayment(tx: CareerExecutor, root: { id: string; world_seed: string }, entry: LedgerPosting, headline: Headline) {
+  if (headline !== "SPONSOR" || entry.amountPence <= 0 || !entry.contractId) return;
+  const brought = (await tx.execute(sql`SELECT o.source->'manager' AS m FROM career_sponsor_contracts c
+    JOIN career_sponsor_offers o ON o.career_save_id = c.career_save_id AND o.id = c.offer_id
+    WHERE c.career_save_id = ${root.id} AND c.id = ${entry.contractId} AND o.source ? 'manager'`)).rows[0]?.m as { key: string; contractId: string } | undefined;
+  const manager = brought ? managerByKey(brought.key) : null, cut = manager ? commissionOn(entry.amountPence, manager) : 0;
+  if (!manager || cut <= 0) return;
+  await post(tx, root, { operationKey: `manager-commission:${entry.operationKey}`, category: "MANAGER_COMMISSION", amountPence: -cut,
+    reason: `${manager.name} commission (${Math.round(manager.commission * 100)}%) — the sponsor deal they set up`, season: entry.season, week: entry.week,
+    contractId: entry.contractId, detail: { managerKey: manager.key, contractId: brought!.contractId, source: "SPONSOR_DEAL", rate: manager.commission, paymentPence: entry.amountPence } });
+}

@@ -15,8 +15,6 @@ import { crowdSupport } from "../fans/model.ts";
 import { storyEngine, newsSelection, currentMoments, storyThreads } from "./stories.ts";
 import { publicProfile, relationshipTones } from "./profile.ts";
 import { opportunities } from "./opportunities.ts";
-import { activeManager } from "../manager/state.ts";
-import { boosted } from "../manager/model.ts";
 import { LEVELS } from "../recognition/types.ts";
 import type { Commitment, Decision, LifeSources, LifeView, NpcLifeView } from "./types.ts";
 
@@ -208,9 +206,6 @@ export function createCareerLifeService(database:CareerDatabase) {
       ORDER BY p.launch_season,p.id`)).rows;
     const booked=(await tx.execute(sql`SELECT day,event_id FROM career_participant_bookings WHERE career_save_id=${saveId}
       AND participant_key='HUMAN' AND season=${s.season}`)).rows;
-    // Your manager books better-paid appearances (the fee shown is the fee paid).
-    const manager=await activeManager(tx,saveId);
-    if(manager)for(const o of offers)if(o.feePence>0)o.feePence=boosted(o.feePence,manager.appearanceBoost);
     for(const o of offers) {
       o.conflicts.push(...booked.filter(b=>Number(b.day)===o.day).map(b=>s.events.find(e=>e.id===b.event_id)?.name??"Entered tournament"));
       o.canAccept=o.conflicts.length===0;

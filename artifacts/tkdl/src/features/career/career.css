@@ -1100,3 +1100,9 @@
 .manager__state { color: #adbdca; font-size: .76rem; }
 .manager__state[data-tone="good"] { color: #d8b4fe; font-weight: 700; }
 .manager__message { margin: 0; color: #c5d9e8; font-size: .8rem; }
+.manager__earned { display: grid; gap: 8px; }
+.manager__list { margin: 0; color: #e8eef3; font-size: .78rem; }
+.manager__invites { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: .78rem; }
+.manager__invites a { color: #d8b4fe; }
+.manager__invites small { color: rgba(255,255,255,.6); }
+.career-manager-invite { color: #d8b4fe; }
