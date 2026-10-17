@@ -223,7 +223,7 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
  * mutate -> persist deterministic result. Reads lock the root too (A2 convention).
  */
 /** The human as a simulation player: their live level (difficulty-neutral), form and confidence on the opponent's frame. */
-function humanSimulationPlayer(root: RootRow, frame: Npc, form: HumanForm): Npc {
+export function humanSimulationPlayer(root: RootRow, frame: Npc, form: HumanForm): Npc {
   const level = attributeForAverage(form.skillAverage) - CAREER_DIFFICULTY_CONFIG[root.difficulty as keyof typeof CAREER_DIFFICULTY_CONFIG].abilityOffset;
   const nerve = (form.confidence - 50) / 5;
   const at = (n: number) => Math.min(100, Math.max(1, Math.round(n * 10) / 10));

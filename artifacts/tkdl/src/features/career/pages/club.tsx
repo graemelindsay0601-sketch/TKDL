@@ -1,9 +1,10 @@
 import { Link } from "wouter";
-import { Crown, Flag, Shield, Users } from "lucide-react";
+import { Coins, Crown, Flag, Shield, Users } from "lucide-react";
 import { useHomeClub, type ClubView } from "../api";
 import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../components";
 import { CareerPageHero } from "../page-hero";
 import type { ShellContext } from "../shell";
+import { MoneyMatches } from "../money-matches";
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
@@ -25,6 +26,9 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
         <b>{r.position}</b><span>{r.name}</span><em>{r.points}</em></li>)}</ol>
       <p className="px-4 pb-3 text-xs text-white/60">The top two go up and the bottom two go down at the end of the season. Points: winner 5, runner-up 3, semi-final 2, quarter-final 1.</p>
     </CareerSection>
+    <div id="money-matches"><CareerSection title="Money matches" icon={<Coins aria-hidden />} accent="#d9b96f">
+      <MoneyMatches saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
+    </CareerSection></div>
     <CareerSection title="Members" icon={<Users aria-hidden />} accent="#7ec8a4">
       <ol className="career-club__table">{d.members.filter(m => m.active).slice(0, 25).map(m => <li key={m.key} className={m.you ? "is-you" : undefined}>
         <b>{d.captain?.key === m.key ? <Crown size={14} aria-label="Captain" /> : ""}</b>

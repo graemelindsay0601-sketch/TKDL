@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { CareerDatabase } from "../../career/database.ts";
+import { constraintAlreadyAdmits } from "./career_constraint_guard.ts";
 
 /** Additive SP-E2 records. Existing signed contract snapshots are never rewritten. */
 export async function createCareerSponsorContractActionsSPE2(database: CareerDatabase): Promise<void> {
@@ -41,6 +42,8 @@ export async function createCareerSponsorContractActionsSPE2(database: CareerDat
     `);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_sponsor_release_cases_contract_idx
       ON career_sponsor_release_cases(career_save_id,contract_id,created_at DESC)`);
+    // A later repair (money matches, managers) widens this constraint; a replay of this step must not narrow it again.
+    if (await constraintAlreadyAdmits(tx, "career_finance_entries_category_check", "MONEY_MATCH_WIN")) return;
     await tx.execute(sql`ALTER TABLE career_finance_entries DROP CONSTRAINT IF EXISTS career_finance_entries_category_check`);
     await tx.execute(sql`ALTER TABLE career_finance_entries ADD CONSTRAINT career_finance_entries_category_check CHECK (
       category IN ('CAREER_START','ENTRY_FEE','TRAVEL','ACCOMMODATION','PRIZE','SPONSOR_SIGNING_BONUS','SPONSOR_GUARANTEED_PAYMENT','SPONSOR_EVENT_PAYMENT','SPONSOR_PERFORMANCE_BONUS','COMMERCIAL_APPEARANCE','MERCHANDISE_ROYALTY','SPONSOR_RELEASE_SETTLEMENT','REFUND','ADJUSTMENT')

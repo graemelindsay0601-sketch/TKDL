@@ -4,6 +4,7 @@ import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
 import { ensureDevelopmentCardSource } from "./create_career_sporting.ts";
 import { createCareerContent } from "./create_career_content.ts";
+import { ensureMoneyMatches } from "./create_career_money.ts";
 import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensureCalendarAddons, ensureSavingsGoals } from "./create_career_legacy.ts";
 
 /**
@@ -29,6 +30,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureClubSeasons(tx);
     await ensureCalendarAddons(tx);
     await ensureSavingsGoals(tx);
+    await ensureMoneyMatches(tx);
     // SP-G (signature products, equipment) tables were added to createCareerContent after its ledgered
     // caller (createCareerFinanceA4 / the A9 upgrade) had already run in production. All IF NOT EXISTS.
     await createCareerContent(tx);
