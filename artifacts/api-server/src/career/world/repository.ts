@@ -48,11 +48,12 @@ export async function persistNpcs(tx: CareerExecutor, saveId: string, players: r
       ${sql.raw(keys.filter(key => key !== "id").map(key => `${key} = EXCLUDED.${key}`).join(", "))}
   `);
 }
-export async function loadNpcs(tx: CareerExecutor, saveId: string, options: { ids?: readonly string[]; activeOnly?: boolean } = {}): Promise<Npc[]> {
+export async function loadNpcs(tx: CareerExecutor, saveId: string, options: { ids?: readonly string[]; activeOnly?: boolean; nationality?: string } = {}): Promise<Npc[]> {
   if (options.ids?.length === 0) return [];
   return (await tx.execute(sql`SELECT * FROM career_world_players WHERE career_save_id = ${saveId}
     ${options.ids ? sql`AND id IN (${sql.join(options.ids.map(id => sql`${id}::uuid`), sql`, `)})` : sql``}
     ${options.activeOnly ? sql`AND status = 'ACTIVE'` : sql``}
+    ${options.nationality ? sql`AND nationality = ${options.nationality}` : sql``}
     ORDER BY world_key`)).rows.map(fromRow);
 }
 

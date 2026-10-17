@@ -5,6 +5,7 @@ import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../
 import { CareerPageHero } from "../page-hero";
 import type { ShellContext } from "../shell";
 import { MoneyMatches } from "../money-matches";
+import { TeamNights } from "../team-nights";
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
@@ -26,6 +27,9 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
         <b>{r.position}</b><span>{r.name}</span><em>{r.points}</em></li>)}</ol>
       <p className="px-4 pb-3 text-xs text-white/60">The top two go up and the bottom two go down at the end of the season. Points: winner 5, runner-up 3, semi-final 2, quarter-final 1.</p>
     </CareerSection>
+    <div id="team-nights"><CareerSection title="Team nights" icon={<Users aria-hidden />} accent="#69b8ec">
+      <TeamNights saveId={ctx.save.id} />
+    </CareerSection></div>
     <div id="money-matches"><CareerSection title="Money matches" icon={<Coins aria-hidden />} accent="#d9b96f">
       <MoneyMatches saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
     </CareerSection></div>

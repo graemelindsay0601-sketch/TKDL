@@ -17,12 +17,13 @@ import { canonicalJson } from "./generation.ts";
 import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
 import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
 import { settleLifeCommitments } from "../life/commitments.ts";
+import { playTeamNights } from "../club/team-service.ts";
 import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-engine.ts";
 import { isGroupedStructure, isGroupMatch, layoutFor } from "./groups.ts";
 import { a2MatchFormat } from "./formats.ts";
 import { activeManager, recordManagerInvites } from "../manager/state.ts";
 import { canInvite } from "../manager/model.ts";
-import { loadHumanForm, attributeForAverage, type HumanForm } from "../form/human.ts";
+import { loadHumanForm, humanSimulationPlayer } from "../form/human.ts";
 import { simulateNpcMatch } from "../world/simulation.ts";
 import { loadNpcs } from "../world/repository.ts";
 import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
@@ -236,16 +237,6 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
  * locate owned save -> require ACTIVE -> lock root FOR UPDATE (A2 lockRoot) ->
  * mutate -> persist deterministic result. Reads lock the root too (A2 convention).
  */
-/** The human as a simulation player: their live level (difficulty-neutral), form and confidence on the opponent's frame. */
-export function humanSimulationPlayer(root: RootRow, frame: Npc, form: HumanForm): Npc {
-  const level = attributeForAverage(form.skillAverage) - CAREER_DIFFICULTY_CONFIG[root.difficulty as keyof typeof CAREER_DIFFICULTY_CONFIG].abilityOffset;
-  const nerve = (form.confidence - 50) / 5;
-  const at = (n: number) => Math.min(100, Math.max(1, Math.round(n * 10) / 10));
-  return { ...structuredClone(frame), id: stableUuid(root.world_seed, 1, "quick-sim-human", root.id), worldKey: "human:quick-sim", firstName: "You", surname: "Player",
-    nickname: null, templateKey: null, status: "ACTIVE", retiredSeason: null, stage: "PRIME",
-    ability: { scoring: at(level), finishing: at(level), consistency: at(level), powerScoring: at(level), pressure: at(level + nerve), clutch: at(level + nerve) },
-    form: Math.max(-1, Math.min(1, form.form)), tendencies: { local: 0, floor: 0, stage: 0, qualifier: 0, major: 0 } };
-}
 
 /** Advances running in this process, by save (see advance). */
 const ADVANCES_IN_FLIGHT = new Map<string, { operationKey: string; playerId: number; result: Promise<unknown> }>();
@@ -471,6 +462,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       // A5: ranking publication / Q-School allocation / season review for the completed week (same transaction).
       await providers.sporting?.afterWeek(tx, root, s, w);
       await settleLifeCommitments(tx,root,s,w);
+      // Club team nights (Wednesday): played after the week's events, so anyone booked into one sits the team night out.
+      await playTeamNights(tx, root, s, w);
       return { season: s, week: w, summary, blocked: false };
     });
     if (played.blocked) return { ...played, advancedTo: null };

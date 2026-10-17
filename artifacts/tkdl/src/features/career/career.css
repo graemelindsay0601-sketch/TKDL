@@ -1114,3 +1114,19 @@
 .manager__invites a { color: #d8b4fe; }
 .manager__invites small { color: rgba(255,255,255,.6); }
 .career-manager-invite { color: #d8b4fe; }
+/* Club team nights. */
+.team-night { display: grid; gap: 10px; padding: 12px 16px 14px; }
+.team-night__note { margin: 0; color: #adbdca; font-size: .8rem; }
+.team-night__next { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: .84rem; border: 1px solid #69b8ec55; background: #69b8ec12; }
+.team-night__next[data-free="false"] { border-color: #e9d9a855; background: #e9d9a812; }
+.team-night__last p { margin: 0 0 6px; font-size: .84rem; }
+.team-night__last strong[data-tone="up"] { color: #7ee0a1; }
+.team-night__last strong[data-tone="down"] { color: #ff9a8a; }
+.team-night__singles { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; font-size: .78rem; }
+.team-night__singles li { display: grid; grid-template-columns: minmax(0,1fr) 3rem minmax(0,1fr); gap: 6px; padding: 4px 8px; border-radius: 8px; background: rgba(255,255,255,.03); }
+.team-night__singles li span:last-child { text-align: right; }
+.team-night__singles li b { text-align: center; font-variant-numeric: tabular-nums; }
+.team-night__singles li[data-you] { border: 1px solid #69b8ec66; }
+.team-night__table { padding: 0; }
+.team-night-line { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #69b8ec33; border-radius: 10px; background: #69b8ec0a; color: #e8eef3; font-size: .8rem; text-decoration: none; }
+.team-night-line svg { flex: none; width: 15px; height: 15px; color: #69b8ec; }

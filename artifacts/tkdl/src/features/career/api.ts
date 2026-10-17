@@ -48,6 +48,10 @@ export type WorldRecordsView = import("../../../../api-server/src/career/records
 /** The darts world's records book (best recorded match statistics and every nine-darter). */
 export const useWorldRecords = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "records"), queryFn: () => get<WorldRecordsView>(`/saves/${saveId}/records`), staleTime: STALE });
 export type ClubView = import("../../../../api-server/src/career/club/service").ClubView;
+export type TeamNightsView = import("../../../../api-server/src/career/club/team-service").TeamNightsView;
+/** Club team nights: the league table, your next fixture (and whether you're free for it) and the last result. */
+export const useTeamNights = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club", "team-nights"),
+  queryFn: () => get<TeamNightsView>(`/saves/${saveId}/club/team-nights`), staleTime: STALE });
 /** Your home club: members, captain, county league table and history. */
 export const useHomeClub = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club"), queryFn: () => get<ClubView>(`/saves/${saveId}/club`), staleTime: STALE });
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
