@@ -14,5 +14,7 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     processed_visits integer NOT NULL DEFAULT 0, result text CHECK(result IN ('WON','LOST')),
     income_pence bigint, followers_gained integer, created_at timestamptz NOT NULL DEFAULT NOW(), ended_at timestamptz,
     PRIMARY KEY(career_save_id,id))`);
+  // The dart log so far, so a stream picks up where it left off after a refresh.
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS darts jsonb NOT NULL DEFAULT '[]'::jsonb`);
   await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_streams_night_idx ON career_streams(career_save_id, season, day)`);
 }

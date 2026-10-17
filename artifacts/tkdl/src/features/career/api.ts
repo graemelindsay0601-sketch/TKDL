@@ -57,6 +57,18 @@ export const useHostingPreview = (saveId: string, q: { feePence: number; topUpPe
     queryFn: () => get<HostingPreview>(`/saves/${saveId}/hosting/preview${qs(q)}`) });
 export const useBookHosting = (saveId: string) => useSaveMutation(saveId, (input: { name?: string; week: number; dayOfWeek: number; fieldSize: number; feePence: number; topUpPence: number }) =>
   send<{ eventId: string; turnout: number; view: HostingView }>("POST", `/saves/${saveId}/hosting`, input));
+export type StreamingView = import("../../../../api-server/src/career/streaming/service").StreamingView;
+export type StreamSession = import("../../../../api-server/src/career/streaming/service").StreamSession;
+export type ChatEvent = import("../../../../api-server/src/career/streaming/model").ChatEvent;
+/** Your DartCast channel: followers, the streamer route, nights you can go live, past streams. */
+export const useStreaming = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "streaming"), queryFn: () => get<StreamingView>(`/saves/${saveId}/streaming`), staleTime: STALE });
+export const useStreamSession = (saveId: string, streamId: string) => useQuery({ queryKey: careerKey(saveId, "streaming", "stream", streamId),
+  queryFn: () => get<StreamSession>(`/saves/${saveId}/streaming/streams/${streamId}`), staleTime: Infinity });
+export const useGoLive = (saveId: string) => useSaveMutation(saveId, (dayOfWeek: number) => send<StreamSession>("POST", `/saves/${saveId}/streaming/live`, { dayOfWeek }));
+export const streamingApi = {
+  darts: (saveId: string, streamId: string, darts: unknown[]) => send<{ session: StreamSession; events: ChatEvent[] }>("POST", `/saves/${saveId}/streaming/streams/${streamId}/darts`, { darts }),
+  end: (saveId: string, streamId: string) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/end`),
+};
 export type TeamNightsView = import("../../../../api-server/src/career/club/team-service").TeamNightsView;
 /** Club team nights: the league table, your next fixture (and whether you're free for it) and the last result. */
 export const useTeamNights = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club", "team-nights"),

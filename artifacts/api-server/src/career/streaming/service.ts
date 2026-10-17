@@ -17,7 +17,7 @@ const FORMAT: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DO
 export type StreamSession = { id: string; status: "LIVE" | "ENDED"; season: number; week: number; dayOfWeek: number; handle: string; tier: TierKey;
   challenger: { name: string; avg: number; bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string } };
   format: X01Format; firstThrower: 0 | 1; tally: Tally; processedVisits: number; result: "WON" | "LOST" | null; incomePence: number | null; followersGained: number | null;
-  chat: ChatEvent[] };
+  chat: ChatEvent[]; darts: unknown[] };
 export type StreamingView = {
   season: number; week: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
@@ -52,7 +52,7 @@ const sessionFrom = (r: Record<string, unknown>, handle: string, tier: TierKey):
   challenger: r.challenger as StreamSession["challenger"], format: FORMAT, firstThrower: Number(r.first_thrower) as 0 | 1, tally: r.tally as Tally,
   processedVisits: Number(r.processed_visits), result: (r.result as StreamSession["result"]) ?? null,
   incomePence: r.income_pence === null ? null : Number(r.income_pence), followersGained: r.followers_gained === null ? null : Number(r.followers_gained),
-  chat: ((r.chat as ChatEvent[]) ?? []).slice(-60) });
+  chat: ((r.chat as ChatEvent[]) ?? []).slice(-60), darts: (r.darts as unknown[]) ?? [] });
 
 export function createCareerStreamingService(database: CareerDatabase) {
   async function view(tx: CareerExecutor, root: Root): Promise<StreamingView> {
@@ -75,7 +75,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
 
   /** Finish a stream: followers banked (a bonus for beating the challenger), the night's money paid. */
   async function finish(tx: CareerExecutor, root: Root, row: Record<string, unknown>, result: "WON" | "LOST" | null, tally: Tally, chat: ChatEvent[], processed: number) {
-    const bonus = result === "WON" ? Math.round(tally.peak * 0.05) : 0;
+    // Beating the challenger on stream: a couple of follows even in a small room, more in a big one.
+    const bonus = result === "WON" ? 2 + Math.round(tally.peak * 0.05) : 0;
     const gained = tally.followersGained + bonus, income = streamIncome(tally);
     await tx.execute(sql`UPDATE career_streams SET status='ENDED', result=${result}, tally=${JSON.stringify(tally)}::jsonb, chat=${JSON.stringify(chat)}::jsonb,
       processed_visits=${processed}, income_pence=${income}, followers_gained=${gained}, ended_at=NOW() WHERE career_save_id=${root.id} AND id=${String(row.id)} AND status='LIVE'`);
@@ -158,7 +159,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
         }
         const chat = [...(row.chat as ChatEvent[]), ...fresh].slice(-200);
         if (state.complete) await finish(tx, root, row, state.winner === 0 ? "WON" : "LOST", tally, chat, visits.length);
-        else await tx.execute(sql`UPDATE career_streams SET tally=${JSON.stringify(tally)}::jsonb, chat=${JSON.stringify(chat)}::jsonb, processed_visits=${Math.max(processed, visits.length)}
+        await tx.execute(sql`UPDATE career_streams SET darts=${JSON.stringify(darts)}::jsonb WHERE career_save_id=${root.id} AND id=${streamId}`);
+        if (!state.complete) await tx.execute(sql`UPDATE career_streams SET tally=${JSON.stringify(tally)}::jsonb, chat=${JSON.stringify(chat)}::jsonb, processed_visits=${Math.max(processed, visits.length)}
           WHERE career_save_id=${root.id} AND id=${streamId}`);
         return { session: sessionFrom(await live(tx, root, streamId), ch.handle, tier), events: fresh };
       });

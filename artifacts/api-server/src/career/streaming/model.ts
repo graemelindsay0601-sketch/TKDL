@@ -86,7 +86,10 @@ export function chatForVisit(seed: string, streamKey: string, index: number, v: 
   const lift = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CHECKOUT: 0.5, YOU_TON: 0.25, WON: 1, THEM_180: 0.3, YOU_BUST: 0.1, LOST: 0.2, THEM_CHECKOUT: 0.1, YOU_LOW: -0.05, IDLE: 0 }[moment] ?? 0;
   const hype = Math.max(0, Math.min(3, tally.hype * 0.85 + lift));
   const events: ChatEvent[] = [];
-  const say = (pool: string) => events.push({ kind: "CHAT", user: handleFor(rng), text: pick(rng, LINES[pool]) });
+  // The room's regulars: a crowd the size of the audience (a three-viewer stream is three or four names, not twenty).
+  const crowd = Array.from({ length: Math.max(2, Math.min(40, Math.round(tally.peak * 1.5))) }, (_, i) => handleFor(scopedRandom(seed, STREAM.version, "stream-user", streamKey, i)));
+  const someone = () => pick(rng, crowd);
+  const say = (pool: string) => events.push({ kind: "CHAT", user: someone(), text: pick(rng, LINES[pool]) });
   const messages = Math.max(1, Math.min(6, Math.round(Math.sqrt(tally.viewers) / 2 * (0.6 + hype))));
   for (let i = 0; i < messages; i++) say(i === 0 || rng() < 0.6 ? moment : "IDLE");
   // Cheers: bits and super chats from Affiliate up, more likely on a big moment and in a bigger room.
@@ -95,18 +98,18 @@ export function chatForVisit(seed: string, streamKey: string, index: number, v: 
   if (tier !== "NEWCOMER") {
     if (rng() < Math.min(0.6, 0.04 + room * 0.25 + lift * 0.2)) {
       const pence = Math.round((1 + rng() * (2 + hype * 4) * (1 + room * 4))) * 100;
-      bits += pence; events.push({ kind: "BITS", user: handleFor(rng), pence, text: pick(rng, ["for the 180s", "love the stream", "buy some new flights", "gg", "for the next ton"]) });
+      bits += pence; events.push({ kind: "BITS", user: someone(), pence, text: pick(rng, ["for the 180s", "love the stream", "buy some new flights", "gg", "for the next ton"]) });
     }
     if (rng() < Math.min(0.25, 0.01 + room * 0.08 + lift * 0.08)) {
       const pence = Math.round(2 + rng() * (3 + hype * 6) * (1 + room * 3)) * 100;
-      supers += pence; events.push({ kind: "SUPERCHAT", user: handleFor(rng), pence, text: pick(rng, ["What a player. Keep it up!", "Watching from the pub, cheers mate", "Get that tour card!", "Best darts stream going", "One more leg!"]) });
+      supers += pence; events.push({ kind: "SUPERCHAT", user: someone(), pence, text: pick(rng, ["What a player. Keep it up!", "Watching from the pub, cheers mate", "Get that tour card!", "Best darts stream going", "One more leg!"]) });
     }
   }
   if ((tier === "PARTNER" || tier === "STAR") && rng() < Math.min(0.3, 0.02 + room * 0.1 + lift * 0.06)) {
-    subs++; events.push({ kind: "SUB", user: handleFor(rng), months: 1 + Math.floor(rng() * 6) });
+    subs++; events.push({ kind: "SUB", user: someone(), months: 1 + Math.floor(rng() * 6) });
   }
-  // Follows: a share of the room on every visit, far more on a big moment; whole follows carry over.
-  const carry = tally.followerCarry + tally.viewers * (0.004 + Math.max(0, lift) * 0.02);
+  // Follows: a share of the room on every visit, and a big moment wins one or two even in a tiny room; whole follows carry over.
+  const carry = tally.followerCarry + tally.viewers * 0.01 + Math.max(0, lift) * (0.8 + tally.viewers * 0.04);
   const follows = Math.floor(carry);
   for (let i = 0; i < Math.min(follows, 3); i++) events.push({ kind: "FOLLOW", user: handleFor(rng) });
   const viewers = Math.max(1, Math.round(tally.viewers * (1 + (hype - 0.6) * 0.04) + (rng() - 0.45) * 2));
