@@ -589,6 +589,10 @@
   line-height: 1.45;
 }
 
+.career-sponsor-offer__negotiation > .career-sponsor-offer__validation {
+  color: #f4cf87;
+}
+
 .career-sponsor-offer__timeline {
   display: grid;
   gap: 5px;

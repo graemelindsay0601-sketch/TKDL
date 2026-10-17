@@ -20,6 +20,7 @@ import { addScheduledSponsorRenewalsSPE1B } from "../../db/migrations/add_schedu
 import { createCareerSponsorContractActionsSPE2 } from "../../db/migrations/create_career_sponsor_contract_actions_spe2.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
+import { responseProfile } from "../../career/finance/sponsor-negotiation.ts";
 import { materializeSponsorActivities } from "../../career/finance/sponsor-activities.ts";
 import { post } from "../../career/finance/ledger.ts";
 import { activeContracts, advanceSponsorLifecycle, applyCoverage, evaluateOffers, postDueGuaranteedPayments, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
@@ -1044,6 +1045,66 @@ test("SP-B3 season-length agreements signed mid-season receive their full promis
   const signed = await finance.acceptOffer(actor, save.id, { offerId: String(offer.id) });
   assert.deepEqual([signed.signingReveal?.start, signed.signingReveal?.end],
     [{ season: 1, week: 20 }, { season: 2, week: 19 }]);
+});
+
+test("SP-B local sponsor negotiations validate each visible term and reject unchanged proposals", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  const scenarios = [
+    [{ kind: "SIGNING_BONUS", amountPence: 10_100 }, { kind: "EVENT_PAYMENT", amountPence: 1_001 }],
+    [{ kind: "DURATION", seasons: 2 }, { kind: "COVERAGE_PERCENT", index: 0, percent: 51 }],
+    [{ kind: "PERFORMANCE_BONUS", key: "title", amountPence: 2_501 }],
+  ] as const;
+
+  for (const [scenarioIndex, changes] of scenarios.entries()) {
+    const save = await career(1, scenarioIndex + 1);
+    await finance.evaluateOffers(actor, save.id, { triggerKey: `local-terms-${scenarioIndex}` });
+    let offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.sponsorKey === "forge-workwear")!;
+    assert.equal(offer.tier, "LOCAL", "the entry-level offer is used for this end-to-end term check");
+
+    if (scenarioIndex === 0) {
+      await rejectsStatus(finance.negotiateOffer(actor, save.id, String(offer.id), {
+        requestKey: "local-same-signing-value", expectedRevision: 0,
+        change: { kind: "SIGNING_BONUS", amountPence: offer.terms.signingBonusPence },
+      }), 400);
+      assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_negotiations WHERE career_save_id=${save.id}`))[0].n, 0);
+    }
+
+    let expectedRevision = 0;
+    for (const [roundIndex, change] of changes.entries()) {
+      const result = await finance.negotiateOffer(actor, save.id, String(offer.id), {
+        requestKey: `local-visible-term-${scenarioIndex}-${roundIndex}`, expectedRevision, change,
+      });
+      assert.ok(result.offerId, `${change.kind} produces a revised offer`);
+      assert.ok(["ACCEPTED", "COUNTERED"].includes(result.outcome), `${change.kind} is negotiated, not rejected`);
+      offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.id === result.offerId)!;
+      assert.ok(offer, `${change.kind} revision is returned in the sponsor portfolio`);
+      if (change.kind === "SIGNING_BONUS") assert.equal(offer.terms.signingBonusPence, change.amountPence);
+      if (change.kind === "EVENT_PAYMENT") assert.equal(offer.terms.eventPayment?.amountPence, change.amountPence);
+      if (change.kind === "COVERAGE_PERCENT") assert.equal(offer.terms.coverage[change.index].percent, change.percent);
+      if (change.kind === "DURATION") assert.equal(offer.terms.duration.kind, "SEASONS");
+      if (change.kind === "PERFORMANCE_BONUS") {
+        assert.equal(offer.terms.performanceBonuses.find(bonus => bonus.key === change.key)?.amountPence, change.amountPence);
+      }
+      expectedRevision = result.revision;
+    }
+  }
+});
+
+test("SP-B negotiation responses use a valid tolerance profile at every sponsor tier", () => {
+  const tiers = [
+    ["LOCAL", 0.12, 0.38],
+    ["REGIONAL", 0.16, 0.48],
+    ["PROFESSIONAL", 0.2, 0.58],
+    ["ELITE", 0.24, 0.68],
+  ] as const;
+  for (const [tier, accept, ceiling] of tiers) {
+    assert.deepEqual(responseProfile(tier, "neutral"), { accept, ceiling }, `${tier} base response profile`);
+    assert.deepEqual(
+      responseProfile(tier, "practical"),
+      { accept: accept + 0.04, ceiling: ceiling + 0.04 },
+      `${tier} relationship-focused response adjustment`,
+    );
+  }
 });
 
 test("SP-B3 zero-value terms are either rejected or removed explicitly, never posted as £0 ledger rows", async () => {

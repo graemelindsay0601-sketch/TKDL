@@ -55,8 +55,16 @@ export async function apiFetchJson<T>(input: string, init: RequestInit = {}): Pr
       continue;
     }
 
-    const body = await response.json().catch(() => null) as { error?: string; message?: string } | null;
-    throw new ApiRequestError(body?.error ?? body?.message ?? `Request failed (${response.status})`, response.status, input);
+    const body = await response.json().catch(() => null) as {
+      error?: string;
+      message?: string;
+      issues?: { message?: string; path?: (string | number)[] }[];
+    } | null;
+    const issue = body?.issues?.[0];
+    const issuePath = issue?.path?.length ? ` (${issue.path.join(".")})` : "";
+    const detail = issue?.message ? `${issue.message}${issuePath}` : null;
+    const message = body?.error && detail ? `${body.error}: ${detail}` : body?.error ?? body?.message ?? `Request failed (${response.status})`;
+    throw new ApiRequestError(message, response.status, input);
   }
 
   throw lastNetworkError instanceof Error ? lastNetworkError : new Error(`Could not reach ${input}`);
