@@ -996,3 +996,25 @@
 .career-prize-ladder { display: flex; flex-wrap: wrap; gap: 4px 14px; list-style: none; margin: 0; color: rgba(255,255,255,0.62); }
 .career-prize-ladder li { display: inline-flex; gap: 6px; }
 .career-prize-ladder b { color: #fff; font-weight: 600; }
+
+/* Darts money: last week's line and the season chart. Text stays in text colours; colour marks the bars only. */
+.week-money-line { margin: 0; color: #adbdca; font-size: .78rem; }
+.week-money-line b { color: #e9eef3; font-weight: 600; }
+.week-money-line strong { color: #fff; }
+.season-money { display: grid; gap: 10px; padding: 12px 16px 14px; }
+.season-money__tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.season-money__tiles div { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(255,255,255,.02); }
+.season-money__tiles small { color: rgba(255,255,255,.6); font-size: .7rem; }
+.season-money__tiles strong { color: #fff; font: 600 1.05rem Oswald, system-ui, sans-serif; }
+.season-money__legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: rgba(255,255,255,.7); font-size: .72rem; }
+.season-money__legend li { display: inline-flex; align-items: center; gap: 6px; }
+.season-money__legend i { width: 10px; height: 10px; border-radius: 2px; }
+.season-money__plot svg { display: block; width: 100%; height: auto; }
+.season-money__plot rect:focus-visible { outline: 2px solid #ff005c; }
+.season-money__tip { min-height: 1.2em; margin: 4px 0 0; color: rgba(255,255,255,.7); font-size: .76rem; }
+.season-money__tip b, .season-money__tip strong { color: #fff; }
+.season-money__table summary { cursor: pointer; color: #c5d9e8; font-size: .76rem; }
+.season-money__table table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: .76rem; color: rgba(255,255,255,.8); }
+.season-money__table th, .season-money__table td { padding: 3px 6px; border-bottom: 1px solid rgba(255,255,255,.06); text-align: right; }
+.season-money__table th:first-child, .season-money__table td:first-child { text-align: left; }
+.season-money__empty { margin: 0; padding: 12px 16px; color: rgba(255,255,255,.6); font-size: .82rem; }

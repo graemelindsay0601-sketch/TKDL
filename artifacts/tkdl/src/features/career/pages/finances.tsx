@@ -8,6 +8,7 @@ import type { ShellContext } from "../shell";
 import { CareerPageHero } from "../page-hero";
 import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorSigningReveal, SponsorTerms } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
+import { SeasonMoneyChart } from "../week-money";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
 
@@ -48,6 +49,9 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
+      <CareerSection title={`Darts money by week · season ${save.currentSeason}`} icon={<Coins className="w-3.5 h-3.5" />} accent="#3987e5">
+        <SeasonMoneyChart saveId={save.id} />
+      </CareerSection>
       {pendingOffers > 0 && <a href="#career-finance-offers" className="pdc-card flex items-center gap-3 px-4 py-3 text-sm no-underline" style={{ borderColor: "rgba(255,210,74,0.42)", color: "#f3dfaa", background: "linear-gradient(90deg,rgba(255,210,74,0.11),rgba(255,255,255,0.025))" }}>
         <Briefcase className="shrink-0" size={16} aria-hidden="true" />
         <span><strong>{pendingOffers} sponsor {pendingOffers === 1 ? "offer" : "offers"} to review</strong><span className="block text-xs opacity-75">Review proposed terms separately from signed agreements.</span></span>

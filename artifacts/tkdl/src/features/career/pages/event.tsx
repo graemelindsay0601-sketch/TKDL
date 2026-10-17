@@ -263,6 +263,10 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
           </> : p ? <><F label="Entry fee (est.)" value={formatPence(p.entryFeePence)} /><F label="Travel + stay (est.)" value={formatPence(p.estimatedTravelPence + p.estimatedAccommodationPence)} /></> : null}
         </dl>
       )}
+      {p?.prizePot && <p className="px-4 pb-1 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
+        <strong style={{ color: "#fff" }}>Prize pot:</strong> {formatPence(p.prizePot.feePence)} from every player plus {formatPence(p.prizePot.housePence)} from the club
+        {p.prizePot.entrants !== null ? ` — ${p.prizePot.entrants} players, ${formatPence(p.prizePot.feePence * p.prizePot.entrants + p.prizePot.housePence)} in the pot.`
+          : ` — about ${formatPence(p.prizePot.feePence * p.prizePot.typicalField + p.prizePot.housePence)} on a typical night of ${p.prizePot.typicalField}. Half to the winner.`}</p>}
       {!actuals && worthIt(p) && <p className="career-worth px-4 pb-1 text-sm" data-tone={worthIt(p)!.tone}><strong>{worthIt(p)!.label}</strong> · {worthIt(p)!.detail}</p>}
       {p?.prizeBands && p.prizeBands.some(b => b.amountPence > 0) && <ul className="career-prize-ladder px-4 pb-2 text-xs">
         {p.prizeBands.filter(b => b.amountPence > 0).map(b => <li key={b.upToPosition}><span>{prizeStage(b.upToPosition)}</span><b>{formatPence(b.amountPence)}</b></li>)}

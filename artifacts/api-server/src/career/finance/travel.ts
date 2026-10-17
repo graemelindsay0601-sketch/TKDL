@@ -72,6 +72,11 @@ export function distanceTrip(straightMiles: number, spanDays: number, seaCrossin
 /** Weekly league nights: one evening a week, not a stay for the whole season. */
 const leagueNights = (e: { start_day: number; end_day: number; snapshot?: { format?: { structure?: string } } }) =>
   e.snapshot?.format?.structure === "LEAGUE" ? Math.floor((e.end_day - e.start_day) / 7) + 1 : null;
+/** A weekly league (one event, a night each week): its travel is paid night by night, in the week of each night. */
+export const isWeeklyLeague = (e: { start_day: number; end_day: number; series_key?: string | null; snapshot?: unknown }) =>
+  !e.series_key && leagueNights(e as Parameters<typeof leagueNights>[0]) !== null;
+export const leagueNightDays = (e: { start_day: number; end_day: number }) =>
+  Array.from({ length: Math.floor((e.end_day - e.start_day) / 7) + 1 }, (_, i) => e.start_day + i * 7);
 /** A trip's cost; a league is a separate one-night trip for each of its weekly nights. */
 export function priceTrip(band: TravelBand, events: readonly { start_day: number; end_day: number; snapshot?: unknown }[], start: number, end: number,
   miles: number | null, sea: boolean) {

@@ -82,6 +82,9 @@ export const useEventFinance = (saveId: string, eventId: string) => useQuery({ q
   queryFn: () => get<{ eventId: string; status: string; preview: unknown; actuals: Record<string, unknown> | null }>(`/saves/${saveId}/events/${eventId}/finance`) });
 export const useHistory = (saveId: string, q: { participant?: string; season?: number; definition?: string } = { participant: "HUMAN" }) => useQuery({ queryKey: careerKey(saveId, "history", q), staleTime: STALE,
   queryFn: () => get<HistoryRow[]>(`/saves/${saveId}/history${qs(q)}`) });
+export type FinanceWeek = { week: number; events: number; spentPence: number; wonPence: number; sponsorPence: number; dartsNetPence: number };
+export const useFinanceWeeks = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "finance", "weeks"),
+  queryFn: () => get<{ season: number; currentWeek: number; weeks: FinanceWeek[] }>(`/saves/${saveId}/finance/weeks`), enabled, staleTime: STALE });
 export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "finance"), queryFn: () => get<FinanceSummary>(`/saves/${saveId}/finance`), enabled, staleTime: STALE });
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });

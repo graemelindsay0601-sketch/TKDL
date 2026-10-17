@@ -119,6 +119,33 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
       });
     },
 
+    /**
+     * Week by week this season: darts money spent (entries, travel, stays, net of refunds), darts money won (prizes, bonuses),
+     * sponsor money, and how many events you played. From the ledger and your recorded results only.
+     */
+    async weeks(actor: CareerActor, saveId: string, query: unknown = {}) {
+      const q = z.object({ season: z.coerce.number().int().positive().optional() }).parse(query);
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId, false);
+        const season = q.season ?? Number(root.current_season);
+        const last = season === Number(root.current_season) ? Number(root.current_week) : 52;
+        const money = new Map((await tx.execute(sql`SELECT week,
+            COALESCE(-SUM(amount_pence) FILTER (WHERE headline = 'EXPENSE'), 0)::bigint AS spent,
+            COALESCE(SUM(amount_pence) FILTER (WHERE headline = 'EARNINGS'), 0)::bigint AS won,
+            COALESCE(SUM(amount_pence) FILTER (WHERE headline = 'SPONSOR'), 0)::bigint AS sponsor
+          FROM career_finance_entries WHERE career_save_id = ${root.id} AND season = ${season} GROUP BY week`)).rows.map(r => [Number(r.week), r]));
+        const played = new Map((await tx.execute(sql`SELECT i.end_week AS week, COUNT(*)::int AS n FROM career_event_results r
+            JOIN career_event_instances i ON i.career_save_id = r.career_save_id AND i.id = r.event_id
+          WHERE r.career_save_id = ${root.id} AND r.participant_key = 'HUMAN' AND i.season = ${season} GROUP BY i.end_week`)).rows.map(r => [Number(r.week), Number(r.n)]));
+        const weeks = Array.from({ length: Math.max(0, last) }, (_, i) => {
+          const week = i + 1, m = money.get(week);
+          const spentPence = Number(m?.spent ?? 0), wonPence = Number(m?.won ?? 0), sponsorPence = Number(m?.sponsor ?? 0);
+          return { week, events: played.get(week) ?? 0, spentPence, wonPence, sponsorPence, dartsNetPence: wonPence - spentPence };
+        });
+        return { season, currentWeek: Number(root.current_week), weeks };
+      });
+    },
+
     /** Preview (before entry) and actuals (after commitment) for one event. */
     async eventFinance(actor: CareerActor, saveId: string, eventId: string) {
       careerIdSchema.parse(eventId);

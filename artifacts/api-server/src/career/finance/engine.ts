@@ -9,10 +9,10 @@ import type { CalendarProviders, CalendarFinanceHooks } from "../calendar/provid
 import type { DenialReason } from "../calendar/eligibility.ts";
 import {
   FINANCE_VERSION, FEE_PROFILES, FEE_OVERRIDES, PRIZE_PROFILES, PRIZE_OVERRIDES, REFUND_POLICIES,
-  OFFER_LIFETIME_WEEKS, MAX_OFFERS_PER_EVALUATION, WEEKS, prizeForPosition, type FeeProfile, type PrizeProfile, type RefundPolicy,
+  OFFER_LIFETIME_WEEKS, MAX_OFFERS_PER_EVALUATION, WEEKS, prizeForPosition, PRIZE_POTS, potPrize, POT_TYPICAL_FIELD, type FeeProfile, type PrizeProfile, type RefundPolicy,
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
-import { groupTrips, journey, priceTrip, travelBand, type Home } from "./travel.ts";
+import { groupTrips, isWeeklyLeague, journey, leagueNightDays, priceTrip, travelBand, tripCost, type Home } from "./travel.ts";
 import {CURRENT_SPONSOR_DATABASE_VERSION,SUPPORTED_SPONSOR_DATABASE_VERSIONS,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,validateSponsorActivitySpecification,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
@@ -28,10 +28,13 @@ export interface SponsorFactsProvider { readonly id: string; facts(tx: CareerExe
 
 // ------------------------------------------------------------------ profiles
 export type EventFinanceProfile = { fee: FeeProfile; prize: PrizeProfile; refund: RefundPolicy; rankingEligible: boolean; financeVersion: number };
-export function profileFor(event: Pick<InstanceRow, "definition_key" | "classification" | "snapshot">): EventFinanceProfile {
+export function profileFor(event: Pick<InstanceRow, "definition_key" | "classification" | "snapshot"> & Partial<Pick<InstanceRow, "entrant_count" | "field_locked_at">>): EventFinanceProfile {
   const refs = event.snapshot.profiles;
   const fee = FEE_OVERRIDES[event.definition_key] ?? FEE_PROFILES[refs.entryFee];
-  const prize = PRIZE_OVERRIDES[event.definition_key] ?? PRIZE_PROFILES[refs.prize];
+  // Pot nights: the real field once it is locked, a typical turnout before.
+  const pot = PRIZE_POTS[event.definition_key]
+    ? potPrize(event.definition_key, event.field_locked_at ? Number(event.entrant_count ?? 0) : Math.max(Number(event.entrant_count ?? 0), POT_TYPICAL_FIELD)) : null;
+  const prize = pot ?? PRIZE_OVERRIDES[event.definition_key] ?? PRIZE_PROFILES[refs.prize];
   if (!fee || !prize) throw new Error(`No finance profile for ${event.definition_key}`);
   // A4 provides the ranking-eligible money fact only; A5 decides what it means.
   return { fee, prize, refund: REFUND_POLICIES[fee.refundPolicy], rankingEligible: event.classification === "RANKING", financeVersion: FINANCE_VERSION };
@@ -830,7 +833,35 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       for (const e of pending) if (e.start_day >= firstDay && e.start_day <= lastDay && travelBand(h, e) === "LOCAL") {
         await tx.execute(sql`UPDATE career_event_finance SET status = 'TRAVEL_COMMITTED', estimated_trip_pence = 0, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${e.id}`);
       }
-      for (const trip of groupTrips(h, pending)) {
+      // Weekly leagues travel night by night: each night this week is its own one-night trip, paid this week.
+      for (const e of pending.filter(e => isWeeklyLeague(e) && travelBand(h, e) !== "LOCAL")) {
+        const band = travelBand(h, e), j = journey(h, e), night = tripCost(band, 1, j.miles, j.sea);
+        const contract = await loadCoveragePortfolio(tx, root.id, season);
+        for (const day of leagueNightDays(e).filter(d => d >= firstDay && d <= lastDay)) {
+          const tripKey = `s${season}:${e.id}:d${day}`, tripId = stableUuid(root.world_seed, FINANCE_VERSION, "trip", tripKey);
+          const travel = portfolioCoverage(contract, new Map(), "TRAVEL", e.circuit, night.travelPence);
+          const stay = portfolioCoverage(contract, new Map(), "ACCOMMODATION", e.circuit, night.accommodationPence);
+          const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${root.id}`)).rows[0].balance_pence);
+          // The whole league's travel was set aside at entry; never charge into debt if that money has since gone.
+          const share = Math.min(1, Math.max(0, balance) / Math.max(1, night.travelPence - travel.covered + night.accommodationPence - stay.covered));
+          const destination = `${e.country}:${e.city}`;
+          await tx.execute(sql`INSERT INTO career_trips (career_save_id, id, season, trip_key, band, destination, start_day, end_day, nights, event_ids, travel_gross_pence, travel_covered_pence,
+              accommodation_gross_pence, accommodation_covered_pence, committed_season, committed_week)
+            VALUES (${root.id}, ${tripId}, ${season}, ${tripKey}, ${band}, ${destination}, ${day}, ${day}, ${night.nights}, ${JSON.stringify([e.id])}::jsonb,
+              ${night.travelPence}, ${travel.covered}, ${night.accommodationPence}, ${stay.covered}, ${season}, ${week}) ON CONFLICT DO NOTHING`);
+          const travelPaid = Math.floor((night.travelPence - travel.covered) * share), stayPaid = Math.floor((night.accommodationPence - stay.covered) * share);
+          if (night.travelPence > 0) await post(tx, root, { operationKey: `travel:${tripKey}`, category: "TRAVEL", amountPence: -travelPaid,
+            reason: `Travel (${band}) — ${e.name}, league night`, season, week, eventId: e.id, tripId, grossAmountPence: night.travelPence, sponsorCoveredPence: travel.covered,
+            contractId: travel.covered > 0 ? travel.contractId : null, detail: { band, events: [e.id], leagueNight: day, ...(travel.rule !== null ? { coverageRule: travel.rule } : {}) } });
+          if (night.accommodationPence > 0) await post(tx, root, { operationKey: `accommodation:${tripKey}`, category: "ACCOMMODATION", amountPence: -stayPaid,
+            reason: `Accommodation (1 night) — ${e.name}, league night`, season, week, eventId: e.id, tripId, grossAmountPence: night.accommodationPence, sponsorCoveredPence: stay.covered,
+            contractId: stay.covered > 0 ? stay.contractId : null, detail: { band, nights: night.nights, leagueNight: day, ...(stay.rule !== null ? { coverageRule: stay.rule } : {}) } });
+          const last = day === leagueNightDays(e).at(-1);
+          await tx.execute(sql`UPDATE career_event_finance SET estimated_trip_pence = ${last ? 0 : sql`GREATEST(0, estimated_trip_pence - ${travelPaid + stayPaid})`},
+            status = ${last ? "TRAVEL_COMMITTED" : "ENTERED"}, trip_id = ${tripId}, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${e.id}`);
+        }
+      }
+      for (const trip of groupTrips(h, pending.filter(e => !isWeeklyLeague(e)))) {
         if (trip.start < firstDay || trip.start > lastDay) continue; // commits in the week its first event starts
         const first = trip.events[0];
         const tripKey = `s${season}:${first.id}`;
@@ -933,6 +964,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
           sponsorCoverage: { entryFeePence: e.entryFeeCoveredPence, travelPence: e.travelCoveredPence, accommodationPence: e.accommodationCoveredPence },
           estimatedPlayerCostPence: e.estimatedPlayerCostPence, balancePence: balance, availablePence: available,
           prizeProfile: e.profile.prize.key, topPrizePence: e.profile.prize.bands[0]?.amountPence ?? 0, prizeBands: e.profile.prize.bands, rankingEligible: e.profile.rankingEligible,
+          prizePot: PRIZE_POTS[event.definition_key] ? { ...PRIZE_POTS[event.definition_key], entrants: event.field_locked_at ? Number(event.entrant_count) : null, typicalField: POT_TYPICAL_FIELD } : null,
           commitment: c ? { status: c.status, entryFeePaidPence: Number(c.entry_fee_paid_pence), entryFeeCoveredPence: Number(c.entry_fee_covered_pence), tripId: c.trip_id } : null,
         });
       });
