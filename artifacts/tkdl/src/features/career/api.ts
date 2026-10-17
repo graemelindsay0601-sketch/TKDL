@@ -74,7 +74,7 @@ export const useAbandonCareerGoal = (saveId: string) => useSaveMutation(saveId, 
 export const useCareerSaves = (enabled = true) => useQuery({ queryKey: ["career", "saves"], queryFn: () => get<CareerSaveList>("/saves"), enabled, staleTime: STALE, retry: false });
 export const useCareerSave = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "save"), queryFn: () => get<CareerSave>(`/saves/${saveId}`), staleTime: STALE });
 export const useSporting = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "sporting"), queryFn: () => get<SportingSummary>(`/saves/${saveId}/sporting`), enabled, staleTime: STALE });
-export type CalendarQuery = { scope?: "WORLD" | "MY_SCHEDULE" | "AVAILABLE" | "FEATURED"; season?: number; fromWeek?: number; toWeek?: number; circuit?: string; classification?: string };
+export type CalendarQuery = { scope?: "WORLD" | "MY_SCHEDULE" | "AVAILABLE" | "FEATURED" | "RELEVANT"; season?: number; fromWeek?: number; toWeek?: number; circuit?: string; classification?: string };
 export const useCalendar = (saveId: string, q: CalendarQuery, enabled = true) => useQuery({ queryKey: careerKey(saveId, "calendar", q), enabled, staleTime: STALE,
   queryFn: () => get<CalendarResponse>(`/saves/${saveId}/calendar${qs(q)}`) });
 export const useEvent = (saveId: string, eventId: string) => useQuery({ queryKey: careerKey(saveId, "event", eventId), queryFn: () => get<EventDetail>(`/saves/${saveId}/events/${eventId}`), staleTime: STALE });

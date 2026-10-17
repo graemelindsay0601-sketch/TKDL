@@ -92,7 +92,9 @@ test("women/category and safe palette change no identities, ability, RNG, clock,
 test("map includes inaccessible Palace/majors, actual qualifications, city anchors and finances",async()=>{
   const map=await content.map(actor,saveId);
   const palace=map.events.find(e=>e.definitionId==="world-darts-championship")!;
-  assert.equal(palace.opportunity.state,"NOT_QUALIFIED");assert.ok(palace.qualification?.routes);assert.ok(palace.financialCommitment);
+  assert.equal(palace.opportunity.state,"NOT_QUALIFIED");assert.ok(palace.financialCommitment?.sponsorCoverage);
+  // The map's inspector reads the sporting routes for the one event it shows.
+  assert.ok((await sporting.qualification(actor,saveId,{eventId:palace.id})).events[0]?.routes);
   assert.equal(palace.venue.displayName,"Alexandra Grand Hall");
   assert.equal(map.events.filter(e=>e.definitionId==="vault-nights").length,5);
   const local=await content.map(actor,saveId,{scope:"LOCAL"});assert.ok(local.total>0);
