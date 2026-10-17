@@ -269,9 +269,10 @@ export function financeHeadlines(f: FinanceSummary): Headline[] {
   ];
 }
 const LEDGER: Record<string, string> = { CAREER_START: "Starting funds", ENTRY_FEE: "Entry fee", TRAVEL: "Travel", ACCOMMODATION: "Accommodation", PRIZE: "Prize money",
-  SPONSOR_SIGNING_BONUS: "Sponsor signing bonus", SPONSOR_GUARANTEED_PAYMENT: "Sponsor guaranteed payment", SPONSOR_EVENT_PAYMENT: "Sponsor event payment", SPONSOR_PERFORMANCE_BONUS: "Sponsor performance bonus", REFUND: "Refund", ADJUSTMENT: "Adjustment" };
+  SPONSOR_SIGNING_BONUS: "Sponsor signing bonus", SPONSOR_GUARANTEED_PAYMENT: "Sponsor guaranteed payment", SPONSOR_EVENT_PAYMENT: "Sponsor event payment", SPONSOR_PERFORMANCE_BONUS: "Sponsor performance bonus", MONEY_MATCH_WIN: "Money match won", MONEY_MATCH_STAKE: "Money match lost", MANAGER_COMMISSION: "Manager's commission", REFUND: "Refund", ADJUSTMENT: "Adjustment" };
 export const ledgerLabel = (c: string) => LEDGER[c] ?? titleCase(c);
 export const LEDGER_FILTERS = [{ key: "ALL", label: "All", categories: null }, { key: "PRIZE", label: "Prize", categories: ["PRIZE"] },
+  { key: "MONEY_MATCH", label: "Money matches", categories: ["MONEY_MATCH_WIN", "MONEY_MATCH_STAKE"] },
   { key: "SPONSOR", label: "Sponsor / Commercial", categories: ["SPONSOR_SIGNING_BONUS", "SPONSOR_GUARANTEED_PAYMENT", "SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS", "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY"] },
   { key: "COSTS", label: "Costs", categories: ["ENTRY_FEE", "TRAVEL", "ACCOMMODATION"] }, { key: "REFUND", label: "Refunds", categories: ["REFUND"] }] as const;
 

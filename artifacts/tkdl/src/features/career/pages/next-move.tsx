@@ -10,6 +10,7 @@ import { dayLabel, formatPence } from "../model";
 import { LastWeekMoney } from "../week-money";
 import { SavingsGoalLine } from "../savings-goal";
 import { PlanMyWeek } from "../plan-week";
+import { MoneyChallengeLine } from "../money-matches";
 
 /**
  * Home's first panel: the one thing to do next, without reading the rest of the page.
@@ -57,6 +58,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
           <Link href={`/career/${id}/calendar`} className="next-move__link"><CalendarDays aria-hidden /> Full calendar</Link></div>
         <LastWeekMoney saveId={id} currentWeek={save.currentWeek} />
         <SavingsGoalLine saveId={id} />
+        <MoneyChallengeLine saveId={id} />
         <WeekPlanner events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
         {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
         {enterable.length ? <div className="next-move__events">

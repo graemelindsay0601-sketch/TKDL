@@ -1054,3 +1054,30 @@
 .event-history__sum strong { color: #fff; }
 .event-history__list { display: grid; gap: 2px; margin: 2px 0 0; padding: 0; list-style: none; font-size: .76rem; color: rgba(255,255,255,.7); }
 .event-history__list li { display: grid; grid-template-columns: 5.5em 1fr auto; gap: 8px; }
+/* Money matches (club page) and the Home line when someone challenges you. */
+.money-match { display: grid; gap: 10px; padding: 12px 16px 14px; }
+.money-match__intro, .money-match__note, .money-match__record { margin: 0; color: #adbdca; font-size: .8rem; }
+.money-match__intro b, .money-match__record b { color: #fff; }
+.money-match__result { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: .84rem; background: rgba(255,255,255,.04); }
+.money-match__result[data-tone="up"] { border: 1px solid #7ee0a155; color: #c9f3d6; }
+.money-match__result[data-tone="down"] { border: 1px solid #ff9a8a55; color: #ffd2cb; }
+.money-match__challenge { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid #d9b96f55; border-radius: 12px; background: #d9b96f12; }
+.money-match__challenge p { margin: 0; font-size: .86rem; }
+.money-match__challenge svg { width: 15px; height: 15px; vertical-align: -2px; color: #d9b96f; }
+.money-match__challenge small { color: #adbdca; }
+.money-match__actions, .money-match__play { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.money-match__message { margin: 0; color: #ff9a8a; font-size: .8rem; }
+.money-match__members { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.money-match__members li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.03); }
+.money-match__who { display: grid; gap: 2px; min-width: 0; }
+.money-match__who small { color: rgba(255,255,255,.6); font-size: .74rem; }
+.money-match__play select { min-height: 36px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(0,0,0,.3); color: #fff; }
+.money-match__outcome { font-size: .8rem; color: #e8eef3; }
+.money-match__outcome[data-tone="up"] b { color: #7ee0a1; }
+.money-match__outcome[data-tone="down"] b { color: #ff9a8a; }
+.money-match__outcome small { color: rgba(255,255,255,.6); }
+.money-match__history summary { cursor: pointer; color: #c5d9e8; font-size: .8rem; }
+.money-match__history ul { display: grid; gap: 4px; margin: 6px 0 0; padding: 0; list-style: none; }
+.money-match__history li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: .78rem; color: #adbdca; }
+.money-match-line { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #d9b96f33; border-radius: 10px; background: #d9b96f0a; color: #e8eef3; font-size: .8rem; text-decoration: none; }
+.money-match-line svg { flex: none; width: 15px; height: 15px; color: #d9b96f; }

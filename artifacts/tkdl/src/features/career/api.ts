@@ -97,6 +97,14 @@ export const useSavingsGoal = (saveId: string, enabled = true) => useQuery({ que
   queryFn: () => get<{ goal: SavingsGoal | null }>(`/saves/${saveId}/finance/goal`), enabled, staleTime: STALE });
 export const useSetSavingsGoal = (saveId: string) => useSaveMutation(saveId, (input: { eventId: string } | { label: string; targetPence: number }) =>
   send<{ goal: SavingsGoal | null }>("PUT", `/saves/${saveId}/finance/goal`, input));
+export type MoneyMatchesView = import("../../../../api-server/src/career/money/service").MoneyMatchesView;
+export type MoneyMatchResult = import("../../../../api-server/src/career/money/service").MoneyMatchResult;
+/** Money matches at your club: this week's members, any challenge, your record. */
+export const useMoneyMatches = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "money-matches"),
+  queryFn: () => get<MoneyMatchesView>(`/saves/${saveId}/money-matches`), enabled, staleTime: STALE });
+export const usePlayMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
+  send<{ match: MoneyMatchResult; created: boolean }>("POST", `/saves/${saveId}/money-matches/play`, input));
+export const useDeclineMoneyMatch = (saveId: string) => useSaveMutation(saveId, () => send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/decline`));
 export const useClearSavingsGoal = (saveId: string) => useSaveMutation(saveId, () => send<{ goal: null }>("DELETE", `/saves/${saveId}/finance/goal`));
 export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "finance"), queryFn: () => get<FinanceSummary>(`/saves/${saveId}/finance`), enabled, staleTime: STALE });
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
