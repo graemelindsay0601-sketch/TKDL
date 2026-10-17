@@ -1081,3 +1081,11 @@
 .money-match__history li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; font-size: .78rem; color: #adbdca; }
 .money-match-line { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #d9b96f33; border-radius: 10px; background: #d9b96f0a; color: #e8eef3; font-size: .8rem; text-decoration: none; }
 .money-match-line svg { flex: none; width: 15px; height: 15px; color: #d9b96f; }
+.money-match__members > li { flex-direction: column; align-items: stretch; }
+.money-match__talk { display: grid; gap: 3px; margin: 0; padding: 6px 8px; list-style: none; border-radius: 8px; background: rgba(0,0,0,.2); font-size: .78rem; }
+.money-match__talk li[data-who="YOU"] { color: #c5d9e8; }
+.money-match__talk li[data-who="THEM"] { color: #f3dfaa; }
+.money-match__offer { display: inline-flex; align-items: center; gap: 4px; color: #e8eef3; }
+.money-match__offer input { width: 5.5rem; min-height: 36px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(0,0,0,.3); color: #fff; }
+.money-match__asks { color: rgba(255,255,255,.55); font-size: .72rem; }
+.money-match__members .money-match__talk li { display: block; padding: 0; border-radius: 0; background: none; }

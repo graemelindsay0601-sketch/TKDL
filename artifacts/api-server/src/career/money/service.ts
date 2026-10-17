@@ -13,7 +13,7 @@ import { attributeForAverage, loadHumanForm } from "../form/human.ts";
 import { post } from "../finance/ledger.ts";
 import { reservedPence } from "../finance/engine.ts";
 import type { RootRow } from "../calendar/engine.ts";
-import { MONEY, averageForLevel, maxStakeFor, oddsFor, stakesFor, weeklyChallenge, type Odds } from "./model.ts";
+import { MONEY, appetiteFor, averageForLevel, lineFor, oddsFor, replyTo, weeklyChallenge, willingFor, type Odds } from "./model.ts";
 
 type Row = Record<string, unknown>;
 type Member = { key: string; name: string; professional: boolean; average: number | null };
@@ -25,11 +25,19 @@ export type MoneyMatchResult = { id: string; season: number; week: number; oppon
 export type MoneyMatchesView = {
   season: number; week: number; club: string | null; availablePence: number; perWeek: number; playedThisWeek: number; bestOf: number;
   yourAverage: number;
-  members: { key: string; name: string; professional: boolean; average: number | null; odds: Odds; stakes: number[]; maxStakePence: number; thisWeek: MoneyMatchResult | null }[];
+  members: { key: string; name: string; professional: boolean; average: number | null; odds: Odds; thisWeek: MoneyMatchResult | null; talk: MoneyTalk | null }[];
   challenge: { opponentKey: string; name: string; stakePence: number; odds: Odds; average: number | null } | null;
   record: { played: number; won: number; netPence: number };
   recent: MoneyMatchResult[];
 };
+
+/** This week's haggling with one member: what was said, their figure on the table, and the agreed stake once you shake on it. */
+export type MoneyTalk = { status: "OPEN" | "AGREED" | "WALKED"; asksLeft: number; theirOfferPence: number | null; agreedPence: number | null;
+  log: { who: "YOU" | "THEM"; text: string; pence: number | null }[] };
+const talkFrom = (r: Row): MoneyTalk => ({ status: r.status as MoneyTalk["status"], asksLeft: Math.max(0, MONEY.asks - Number(r.asks)),
+  theirOfferPence: r.their_offer_pence === null ? null : Number(r.their_offer_pence), agreedPence: r.agreed_pence === null ? null : Number(r.agreed_pence),
+  log: r.log as MoneyTalk["log"] });
+const fmt = (p: number) => `£${(p / 100).toLocaleString("en-GB")}`;
 
 const nameOf = (p: Row | undefined) => p ? `${p.first_name} ${p.surname}` : "A club member";
 const resultFrom = (r: Row, names: Map<string, string>): MoneyMatchResult => {
@@ -86,14 +94,17 @@ export function createCareerMoneyService(database: CareerDatabase) {
     // The odds use the level you actually play money matches at (your difficulty's handicap included).
     const offset = CAREER_DIFFICULTY_CONFIG[root.difficulty as keyof typeof CAREER_DIFFICULTY_CONFIG]?.abilityOffset ?? 0;
     const yourPlaying = averageForLevel(attributeForAverage(form.skillAverage) - offset);
-    const offer = weeklyChallenge(root.world_seed, season, week, members, available);
-    const challenger = offer && !thisWeek.some(r => r.opponentKey === offer.opponentKey) && thisWeek.filter(r => r.status === "PLAYED").length < MONEY.perWeek
+    // What each member will put up this week: their appetite, cut to how they rate their chances against you.
+    const priced = members.map(m => { const odds = oddsFor(yourPlaying, m.average); return { ...m, odds, willing: willingFor(appetiteFor(root.world_seed, season, m), odds) }; });
+    const talks = new Map((await tx.execute(sql`SELECT * FROM career_money_talks WHERE career_save_id=${root.id} AND season=${season} AND week=${week}`)).rows
+      .map(r => [String(r.opponent_key), talkFrom(r)]));
+    const offer = weeklyChallenge(root.world_seed, season, week, priced, available);
+    const challenger = offer && !thisWeek.some(r => r.opponentKey === offer.opponentKey) && !talks.has(offer.opponentKey) && thisWeek.filter(r => r.status === "PLAYED").length < MONEY.perWeek
       ? members.find(m => m.key === offer.opponentKey) : undefined;
     return {
       season, week, club: locality ? `${locality.city} Darts Club` : null, availablePence: available, perWeek: MONEY.perWeek, bestOf: MONEY.bestOf,
       playedThisWeek: thisWeek.filter(r => r.status === "PLAYED").length, yourAverage,
-      members: members.map(m => ({ ...m, odds: oddsFor(yourPlaying, m.average), stakes: stakesFor(m.professional, available), maxStakePence: maxStakeFor(m.professional),
-        thisWeek: thisWeek.find(r => r.opponentKey === m.key) ?? null })),
+      members: priced.map(({ willing: _hidden, ...m }) => ({ ...m, thisWeek: thisWeek.find(r => r.opponentKey === m.key) ?? null, talk: talks.get(m.key) ?? null })),
       challenge: challenger && offer ? { opponentKey: challenger.key, name: challenger.name, stakePence: offer.stakePence, odds: oddsFor(yourPlaying, challenger.average), average: challenger.average } : null,
       record: { played: played.length, won: played.filter(r => r.won).length, netPence: played.reduce((n, r) => n + (r.won ? r.stakePence : -r.stakePence), 0) },
       recent: all.filter(r => r.status === "PLAYED").slice(0, 10),
@@ -124,8 +135,12 @@ export function createCareerMoneyService(database: CareerDatabase) {
         const member = before.members.find(m => m.key === input.opponentKey);
         if (!member) throw new CareerError(404, "That player is not a member of your club");
         if (before.playedThisWeek >= MONEY.perWeek) throw new CareerError(409, `You have played ${MONEY.perWeek} money matches this week`);
+        // Only for a stake you have both agreed: their challenge, their figure on the table, or the stake you shook on.
         const theirs = before.challenge?.opponentKey === member.key && before.challenge.stakePence === input.stakePence;
-        if (!theirs && !member.stakes.includes(input.stakePence)) throw new CareerError(409, input.stakePence > before.availablePence ? "You do not have that much money free" : "They will not play for that stake");
+        const talk = member.talk;
+        const agreed = talk?.status === "AGREED" && talk.agreedPence === input.stakePence;
+        const takingTheirs = talk?.status === "OPEN" && talk.theirOfferPence === input.stakePence;
+        if (!theirs && !agreed && !takingTheirs) throw new CareerError(409, talk?.status === "WALKED" ? `${member.name} has walked away for this week` : "You have not agreed that stake with them");
         if (input.stakePence > before.availablePence) throw new CareerError(409, "You do not have that much money free");
 
         const opponent = (await loadNpcs(tx, root.id, { ids: [member.key] }))[0];
@@ -144,10 +159,51 @@ export function createCareerMoneyService(database: CareerDatabase) {
         const row = (await tx.execute(sql`INSERT INTO career_money_matches (career_save_id,season,week,opponent_key,stake_pence,origin,status,won,legs_you,legs_them,detail)
           VALUES (${root.id},${season},${week},${member.key},${input.stakePence},${theirs ? "THEY_CHALLENGED" : "YOU_CHALLENGED"},'PLAYED',${won},${mine.legsWon},${other.legsWon},${JSON.stringify(detail)}::jsonb)
           RETURNING *`)).rows[0];
+        if (talk) await tx.execute(sql`UPDATE career_money_talks SET status='AGREED', agreed_pence=${input.stakePence}, updated_at=NOW()
+          WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND opponent_key=${member.key}`);
         await post(tx, root, { operationKey: `money-match:${row.id}`, category: won ? "MONEY_MATCH_WIN" : "MONEY_MATCH_STAKE", amountPence: won ? input.stakePence : -input.stakePence,
           reason: `Money match ${won ? "won" : "lost"} against ${member.name} (${mine.legsWon}-${other.legsWon})`, season, week,
           detail: { moneyMatchId: String(row.id), opponentKey: member.key } });
         return { match: resultFrom(row, new Map([[member.key, member.name]])), created: true };
+      });
+    },
+
+    /**
+     * Put a stake to a member. They take it if it's within what they'll risk this week, come back with their own figure if
+     * it's too rich (or, if they fancy it and you offer peanuts, ask for more), and walk away for the week once you've
+     * asked three times. Whole pounds, at least £5, never more than you have free.
+     */
+    async offer(actor: CareerActor, saveId: string, body: unknown) {
+      const input = z.object({ opponentKey: z.string().uuid(), stakePence: z.number().int().positive() }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        const season = Number(root.current_season), week = Number(root.current_week);
+        const before = await view(tx, root);
+        const member = before.members.find(m => m.key === input.opponentKey);
+        if (!member) throw new CareerError(404, "That player is not a member of your club");
+        if (member.thisWeek) throw new CareerError(409, "You have already settled things with this player this week");
+        if (before.playedThisWeek >= MONEY.perWeek) throw new CareerError(409, `You have played ${MONEY.perWeek} money matches this week`);
+        if (member.talk && member.talk.status !== "OPEN") throw new CareerError(409, member.talk.status === "WALKED" ? `${member.name} has walked away for this week` : "You have already shaken on a stake");
+        if (input.stakePence < MONEY.minimumPence || input.stakePence % MONEY.stepPence) throw new CareerError(400, "Offer a whole number of pounds, at least £5");
+        if (input.stakePence > before.availablePence) throw new CareerError(409, "You do not have that much money free");
+        const { members } = await clubMembers(tx, root);
+        const form = await loadHumanForm(tx, root);
+        const offset = CAREER_DIFFICULTY_CONFIG[root.difficulty as keyof typeof CAREER_DIFFICULTY_CONFIG]?.abilityOffset ?? 0;
+        const yourPlaying = averageForLevel(attributeForAverage(form.skillAverage) - offset);
+        const m = members.find(x => x.key === member.key)!;
+        const willing = willingFor(appetiteFor(root.world_seed, season, m), oddsFor(yourPlaying, m.average));
+        const ask = (member.talk ? MONEY.asks - member.talk.asksLeft : 0) + 1;
+        const reply = replyTo(input.stakePence, Math.min(willing, Math.max(MONEY.minimumPence, before.availablePence)), member.odds, ask,
+          (kind, pence) => lineFor(root.world_seed, season, week, member.key, ask, kind, pence, input.stakePence));
+        const log = [...(member.talk?.log ?? []), { who: "YOU" as const, text: `${fmt(input.stakePence)}, first to four?`, pence: input.stakePence },
+          { who: "THEM" as const, text: reply.line, pence: reply.pence }];
+        const status = reply.kind === "ACCEPT" ? "AGREED" : reply.kind === "WALK" ? "WALKED" : "OPEN";
+        await tx.execute(sql`INSERT INTO career_money_talks (career_save_id,season,week,opponent_key,status,asks,their_offer_pence,agreed_pence,log)
+          VALUES (${root.id},${season},${week},${member.key},${status},${ask},${reply.kind === "COUNTER" || reply.kind === "RAISE" ? reply.pence : null},
+            ${reply.kind === "ACCEPT" ? reply.pence : null},${JSON.stringify(log)}::jsonb)
+          ON CONFLICT (career_save_id,season,week,opponent_key) DO UPDATE SET status=EXCLUDED.status, asks=EXCLUDED.asks, their_offer_pence=EXCLUDED.their_offer_pence,
+            agreed_pence=EXCLUDED.agreed_pence, log=EXCLUDED.log, updated_at=NOW()`);
+        return view(tx, root);
       });
     },
 

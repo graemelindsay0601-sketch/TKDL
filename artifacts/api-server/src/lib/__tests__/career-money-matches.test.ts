@@ -1,4 +1,4 @@
-/** Money matches at your club: the stake moves through the ledger, once per member a week, never for money you have not got. */
+/** Money matches at your club: haggle over the stake, the stake moves through the ledger, once per member a week, never for money you have not got. */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -21,7 +21,7 @@ import { repairCareerSchema } from "../../db/migrations/repair_career_schema.ts"
 import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerMoneyService } from "../../career/money/service.ts";
-import { MONEY, oddsFor, stakesFor, weeklyChallenge } from "../../career/money/model.ts";
+import { MONEY, appetiteFor, oddsFor, replyTo, weeklyChallenge, willingFor } from "../../career/money/model.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), money = createCareerMoneyService(db);
@@ -43,71 +43,90 @@ before(async () => {
 });
 after(async () => { await pg.close(); });
 
-test("rules: stakes a member will play for, odds from averages, and a weekly challenge that never asks for money you have not got", () => {
-  assert.deepEqual(stakesFor(false, 100000), [500, 1000, 2000, 5000]);
-  assert.deepEqual(stakesFor(true, 100000), MONEY.stakes);
-  assert.deepEqual(stakesFor(false, 1500), [500, 1000]);
-  assert.equal(oddsFor(55, 50), "FAVOURITE"); assert.equal(oddsFor(50, 52), "EVEN"); assert.equal(oddsFor(45, 50), "UNDERDOG");
-  const members = Array.from({ length: 6 }, (_, i) => ({ key: `m${i}`, professional: false }));
-  const weeks = Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 3000));
+test("rules: what members will risk, how much of it by who they think wins, and how they answer an offer", () => {
+  const amateur = (average: number | null) => appetiteFor(SEED, 1, { key: "m1", professional: false, average });
+  assert.ok(amateur(35) >= 8000 && amateur(35) <= 12500 && amateur(65) >= 40000 && amateur(65) <= 62500, `club amateurs risk £100–£500 (${amateur(35)}, ${amateur(65)})`);
+  assert.ok(appetiteFor(SEED, 1, { key: "m1", professional: true, average: 80 }) >= 200000, "a top professional will play for thousands");
+  assert.equal(amateur(50), amateur(50), "the same all season");
+  assert.equal(amateur(50) % 500, 0, "in £5 steps");
+  assert.equal(willingFor(40000, "UNDERDOG"), 40000, "if they fancy it they'll put it all up");
+  assert.equal(willingFor(40000, "EVEN"), 24000);
+  assert.equal(willingFor(40000, "FAVOURITE"), 12000, "an underdog risks a third");
+  const line = (k: string) => k;
+  assert.equal(replyTo(10000, 24000, "EVEN", 1, line).kind, "ACCEPT");
+  assert.deepEqual([replyTo(30000, 24000, "EVEN", 1, line).kind, replyTo(30000, 24000, "EVEN", 1, line).pence], ["COUNTER", 24000], "too rich: their figure");
+  assert.equal(replyTo(30000, 24000, "EVEN", MONEY.asks, line).kind, "WALK", "push once too often and they walk");
+  assert.deepEqual([replyTo(1000, 40000, "UNDERDOG", 1, line).kind, replyTo(1000, 40000, "UNDERDOG", 1, line).pence], ["RAISE", 20000], "a favourite offered peanuts asks for more");
+  assert.equal(replyTo(1000, 40000, "UNDERDOG", 2, line).kind, "ACCEPT", "but takes it if you insist");
+  assert.equal(oddsFor(55, 50), "FAVOURITE"); assert.equal(oddsFor(50, 52), "EVEN"); assert.equal(oddsFor(45, 50), "UNDERDOG"); assert.equal(oddsFor(45, null), "UNKNOWN");
+  const members = Array.from({ length: 6 }, (_, i) => ({ key: `m${i}`, professional: false, willing: 20000 }));
+  const weeks = Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 30000));
   assert.ok(weeks.some(Boolean) && weeks.some(c => !c), "some weeks bring a challenge, some do not");
-  assert.ok(weeks.every(c => !c || c.stakePence <= 3000));
-  assert.deepEqual(weeklyChallenge(SEED, 1, 9, members, 3000), weeklyChallenge(SEED, 1, 9, members, 3000), "the same week always brings the same challenge");
-  assert.ok(Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 100)).every(c => c === null), "nobody challenges you for money you have not got");
+  assert.ok(weeks.every(c => !c || (c.stakePence <= 20000 && c.stakePence >= 10000)), "they open with some of what they'd risk");
+  assert.ok(Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 400)).every(c => c === null), "nobody challenges you for money you have not got");
 });
 
-test("a money match is played against a club member and the stake moves through the ledger", async () => {
+test("haggle, shake on it, play: the agreed stake moves through the ledger", async () => {
   const view = await money.read(actor, id);
   assert.ok(view.club && view.members.length >= 2, `club members to play: ${view.members.length}`);
-  assert.equal(view.availablePence, 20000);
-  const member = view.members[0], stake = member.stakes[member.stakes.length - 1];
+  const member = view.members[0];
+  // Too much for anyone at the club: they come back with their figure.
+  const first = (await money.offer(actor, id, { opponentKey: member.key, stakePence: 20000 })).members.find(m => m.key === member.key)!;
+  const talk = first.talk!;
+  assert.equal(talk.log.length, 2);
+  assert.equal(talk.log[0].who, "YOU"); assert.equal(talk.log[1].who, "THEM");
+  let stake: number;
+  if (talk.status === "AGREED") stake = talk.agreedPence!;
+  else { assert.equal(talk.status, "OPEN"); assert.ok(talk.theirOfferPence! > 0 && talk.theirOfferPence! < 20000); stake = talk.theirOfferPence!; }
+  await assert.rejects(money.play(actor, id, { opponentKey: member.key, stakePence: stake + 500 }), (e: { status: number }) => e.status === 409, "only the stake you both agreed");
   const before = await balance();
   const { match, created } = await money.play(actor, id, { opponentKey: member.key, stakePence: stake });
-  assert.equal(created, true); assert.equal(match.status, "PLAYED");
+  assert.equal(created, true); assert.equal(match.stakePence, stake);
   assert.equal(Math.max(...match.legs!), (MONEY.bestOf + 1) / 2, "first to four legs");
   assert.equal(await balance(), before + (match.won ? stake : -stake));
-  const entry = (await db.execute(sql`SELECT category, headline, amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`money-match:${match.id}`}`)).rows[0];
-  assert.deepEqual([entry.category, entry.headline, Number(entry.amount_pence)], match.won ? ["MONEY_MATCH_WIN", "EARNINGS", stake] : ["MONEY_MATCH_STAKE", "EXPENSE", -stake]);
-  // Pressing play again returns the match already played and moves no more money.
+  const entry = (await db.execute(sql`SELECT category, amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`money-match:${match.id}`}`)).rows[0];
+  assert.deepEqual([entry.category, Number(entry.amount_pence)], match.won ? ["MONEY_MATCH_WIN", stake] : ["MONEY_MATCH_STAKE", -stake]);
   const again = await money.play(actor, id, { opponentKey: member.key, stakePence: stake });
-  assert.equal(again.created, false); assert.equal(again.match.id, match.id);
-  assert.equal(await balance(), before + (match.won ? stake : -stake));
-  await assert.rejects(money.play(actor, id, { opponentKey: member.key, stakePence: 500 }), (e: { status: number }) => e.status === 409);
+  assert.equal(again.created, false, "pressing play again moves no more money");
+  await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 500 }), (e: { status: number }) => e.status === 409, "settled for the week");
   const after = await money.read(actor, id);
-  assert.equal(after.playedThisWeek, 1);
-  assert.deepEqual(after.record, { played: 1, won: match.won ? 1 : 0, netPence: match.won ? stake : -stake });
-  assert.equal(after.members.find(m => m.key === member.key)!.thisWeek!.id, match.id);
+  assert.equal(after.record.played, 1);
+  assert.equal(after.members.find(m => m.key === member.key)!.talk!.status, "AGREED");
 });
 
-test("stakes are limited to what they will play for and what you have free, and three a week", async () => {
-  const view = await money.read(actor, id);
-  const amateur = view.members.find(m => !m.professional && !m.thisWeek)!;
-  await assert.rejects(money.play(actor, id, { opponentKey: amateur.key, stakePence: 25000 }), (e: { status: number }) => e.status === 409);
-  await assert.rejects(money.play(actor, id, { opponentKey: "00000000-0000-4000-8000-000000000000", stakePence: 500 }), (e: { status: number }) => e.status === 404);
-  await db.execute(sql`UPDATE career_saves SET balance_pence = 700 WHERE id = ${id}`);
-  await assert.rejects(money.play(actor, id, { opponentKey: amateur.key, stakePence: 1000 }), (e: { status: number }) => e.status === 409);
-  await db.execute(sql`UPDATE career_saves SET balance_pence = 20000 WHERE id = ${id}`);
-  const free = (await money.read(actor, id)).members.filter(m => !m.thisWeek);
-  for (const m of free.slice(0, MONEY.perWeek - 1)) await money.play(actor, id, { opponentKey: m.key, stakePence: 500 });
-  const full = await money.read(actor, id);
-  assert.equal(full.playedThisWeek, MONEY.perWeek);
-  assert.equal(full.challenge, null, "no challenge once you have played your three");
-  const left = full.members.find(m => !m.thisWeek);
-  if (left) await assert.rejects(money.play(actor, id, { opponentKey: left.key, stakePence: 500 }), (e: { status: number }) => e.status === 409);
+test("offers must be whole pounds you have free, and push too often and they walk away", async () => {
+  const member = (await money.read(actor, id)).members.find(m => !m.thisWeek && !m.talk)!;
+  await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 250 }), (e: { status: number }) => e.status === 400);
+  await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 1050 }), (e: { status: number }) => e.status === 400);
+  await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 10_000_000 }), (e: { status: number }) => e.status === 409);
+  await assert.rejects(money.offer(actor, id, { opponentKey: "00000000-0000-4000-8000-000000000000", stakePence: 500 }), (e: { status: number }) => e.status === 404);
+  const free = await balance();
+  let talk = null;
+  for (let i = 0; i < MONEY.asks && talk?.status !== "AGREED"; i++)
+    talk = (await money.offer(actor, id, { opponentKey: member.key, stakePence: Math.floor(free / 100) * 100 })).members.find(m => m.key === member.key)!.talk;
+  if (talk!.status !== "AGREED") {
+    assert.equal(talk!.status, "WALKED", "three asks above their figure and they walk away");
+    assert.equal(talk!.asksLeft, 0);
+    await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 500 }), (e: { status: number }) => e.status === 409);
+  }
 });
 
-test("a challenge can be turned down, and it stays turned down", async () => {
-  // Find a week with a challenge by moving the Career's clock (no matches played in these weeks yet).
-  for (let week = 20; week <= 40; week++) {
+test("a challenge comes with their price: play it, or turn it down and it stays turned down", async () => {
+  let declined = false, played = false;
+  for (let week = 20; week <= 45 && !(declined && played); week++) {
     await db.execute(sql`UPDATE career_saves SET current_week = ${week} WHERE id = ${id}`);
     const v = await money.read(actor, id);
     if (!v.challenge) continue;
-    assert.ok(v.challenge.stakePence <= v.availablePence);
-    const declined = await money.decline(actor, id);
-    assert.equal(declined.challenge, null);
-    assert.equal((await money.read(actor, id)).challenge, null);
-    assert.equal(declined.record.played, (await money.read(actor, id)).record.played, "declining plays nothing");
-    return;
+    assert.ok(v.challenge.stakePence <= v.availablePence && v.challenge.stakePence >= MONEY.minimumPence);
+    if (!declined) {
+      const after = await money.decline(actor, id);
+      assert.equal(after.challenge, null); assert.equal((await money.read(actor, id)).challenge, null);
+      declined = true;
+    } else {
+      const { match } = await money.play(actor, id, { opponentKey: v.challenge.opponentKey, stakePence: v.challenge.stakePence });
+      assert.equal(match.origin, "THEY_CHALLENGED"); assert.equal(match.stakePence, v.challenge.stakePence);
+      played = true;
+    }
   }
-  assert.fail("no challenge in twenty weeks");
+  assert.ok(declined && played, "found challenges to turn down and to play");
 });
