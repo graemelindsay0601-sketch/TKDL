@@ -10,6 +10,7 @@ import { insertDrafts, openRegistrations, type RootRow } from "../calendar/engin
 import { post } from "../finance/ledger.ts";
 import { reservedPence } from "../finance/engine.ts";
 import { fansForEffects } from "../fans/service.ts";
+import { streamNights } from "../streaming/state.ts";
 import { HOSTING, expectedTurnout, hostedPrize, organiserTake, type HostedTerms } from "./model.ts";
 
 type Root = RootRow & { career_name?: string | null };
@@ -91,7 +92,7 @@ export function createCareerHostingService(database: CareerDatabase) {
         const day = absoluteDay(input.week, input.dayOfWeek);
         const clash = (await tx.execute(sql`SELECT 1 FROM career_participant_bookings WHERE career_save_id=${root.id} AND season=${season} AND day=${day} AND participant_key=${HUMAN}
           UNION ALL SELECT 1 FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season} AND day=${day} AND status='ACCEPTED' LIMIT 1`)).rows.length;
-        if (clash) throw new CareerError(409, "You're already booked that night");
+        if (clash || (await streamNights(tx, root.id, season)).has(day)) throw new CareerError(409, "You're already booked that night");
         const tmpl = template(root, season, home);
         if (!tmpl) throw new CareerError(409, "Your club has no back room to hire (no local open to model it on)");
         const roomHirePence = HOSTING.roomHirePence[input.fieldSize];
