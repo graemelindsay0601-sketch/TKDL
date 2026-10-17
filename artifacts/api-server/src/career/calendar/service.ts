@@ -22,6 +22,7 @@ import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-eng
 import { isGroupedStructure, isGroupMatch, layoutFor } from "./groups.ts";
 import { a2MatchFormat } from "./formats.ts";
 import { activeManager, recordManagerInvites } from "../manager/state.ts";
+import { streamNights } from "../streaming/state.ts";
 import { canInvite } from "../manager/model.ts";
 import { loadHumanForm, humanSimulationPlayer } from "../form/human.ts";
 import { simulateNpcMatch } from "../world/simulation.ts";
@@ -87,6 +88,8 @@ async function loadHumanContext(tx: CareerExecutor, root: RootRow, season: numbe
   for (const row of (await tx.execute(sql`SELECT day, event_id FROM career_participant_bookings WHERE career_save_id = ${root.id} AND season = ${season} AND participant_key = ${HUMAN}`)).rows) bookings.set(Number(row.day), String(row.event_id));
   for (const row of (await tx.execute(sql`SELECT day,id FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season} AND status='ACCEPTED'`)).rows)
     bookings.set(Number(row.day),`life:${row.id}`);
+  // A stream night is booked like an off-board commitment.
+  for (const [day, id] of await streamNights(tx, root.id, season)) if (!bookings.has(day)) bookings.set(day, `stream:${id}`);
   const results = new Map((await tx.execute(sql`SELECT r.event_id, r.finishing_position, r.stage_reached, r.is_champion FROM career_event_results r WHERE r.career_save_id = ${root.id} AND r.participant_key = ${HUMAN} AND r.season = ${season}`)).rows.map(r => [String(r.event_id), r]));
   const ctx = await loadFactsContext(tx, root.id, season, events.map(e => e.snapshot.eligibility), [HUMAN]);
   const groups = new Map<string, string>();
@@ -169,8 +172,8 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   return {
     relationship, eligible: rule.eligible, eligibilityReasons: rule.reasons, age: ageInfo,
     managerInvite: managerInvite ? { name: human.manager!.name, commission: human.manager!.commission } : null,
-    canEnter: denials.length === 0, denials: [...new Set(denials)], conflictsWith: [...conflicts].filter(id=>!id.startsWith("life:")),
-    commercialConflicts: [...conflicts].filter(id=>id.startsWith("life:")).map(()=>"Accepted off-board commitment"),
+    canEnter: denials.length === 0, denials: [...new Set(denials)], conflictsWith: [...conflicts].filter(id=>!id.startsWith("life:")&&!id.startsWith("stream:")),
+    commercialConflicts: [...conflicts].filter(id=>id.startsWith("life:")||id.startsWith("stream:")).map(id=>id.startsWith("stream:")?"Streaming night":"Accepted off-board commitment"),
     entryStatus: entry?.status ?? null, result: result ? { finishingPosition: Number(result.finishing_position), stageReached: String(result.stage_reached), champion: Boolean(result.is_champion) } : null,
   };
 }
