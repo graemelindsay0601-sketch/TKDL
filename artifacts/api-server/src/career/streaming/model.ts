@@ -56,8 +56,12 @@ export type ChatEvent =
   | { kind: "BITS"; user: string; pence: number; text: string }
   | { kind: "SUPERCHAT"; user: string; pence: number; text: string }
   | { kind: "SUB"; user: string; months: number }
-  | { kind: "FOLLOW"; user: string };
-export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number };
+  | { kind: "FOLLOW"; user: string }
+  /** The scoring challenge: bits pledged that pay only if you beat the target average. */
+  | { kind: "PLEDGE"; user: string; pence: number; text: string };
+export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number;
+  /** Scoring challenge pledges (paid only on a win). */
+  pledgedPence?: number };
 
 const LINES: Record<string, readonly string[]> = {
   YOU_180: ["ONE HUNDRED AND EIGHTYYYY", "180!!! 🎯🎯🎯", "MAXIMUM", "clip it!!", "he's on fire", "absolute scenes"],
@@ -70,6 +74,13 @@ const LINES: Record<string, readonly string[]> = {
   THEM_CHECKOUT: ["leg to the challenger", "they took that out", "gg on that leg", "you'll get the next one"],
   WON: ["GG!! 🏆", "too good", "who's next?", "next challenger pls", "streamer diff"],
   LOST: ["the chat wins this one", "rematch!!", "gg wp challenger", "tough night", "we go again next stream"],
+  DRILL_HIT: ["got it!", "lovely double", "ice cold", "that's the one", "keep going", "D-D-DOUBLE"],
+  DRILL_MISS: ["so close", "next one", "unlucky", "the wire!!", "shake it off"],
+  DRILL_OUT: ["OUT 😭", "noooo", "run it back", "the doubles betrayed us", "next stream we go again"],
+  DRILL_SCORE: ["nice scoring", "steady", "keep the average up", "lovely rhythm", "that'll do"],
+  DRILL_BIG: ["MAXIMUM", "180!!", "that's the average sorted", "huge", "clip it"],
+  KING_DOWN: ["another one bites the dust 👑", "NEXT!", "who's brave enough?", "the King stays the King", "line's open, who's next"],
+  PLEDGE: ["pledged, don't let me down", "you've got this", "beat that average!", "my bits are on you"],
   IDLE: ["love the stream", "first time here", "what darts do you use?", "where are you from?", "hi from Ayr", "this is relaxing", "lurking 👀", "nice setup", "good luck tonight", "LETS GO"],
 };
 
@@ -79,12 +90,29 @@ const LINES: Record<string, readonly string[]> = {
  */
 export function chatForVisit(seed: string, streamKey: string, index: number, v: Visit, tally: Tally, tier: TierKey, matchOver: "WON" | "LOST" | null):
   { events: ChatEvent[]; tally: Tally } {
-  const rng = scopedRandom(seed, STREAM.version, "stream-visit", streamKey, index);
   const you = v.thrower === 0;
   const moment = matchOver ?? (you
     ? v.checkout ? (v.startScore >= 100 ? "YOU_BIG_CHECKOUT" : "YOU_CHECKOUT") : v.bust ? "YOU_BUST" : v.points === 180 ? "YOU_180" : v.points >= 100 ? "YOU_TON" : v.points < 30 ? "YOU_LOW" : "IDLE"
     : v.points === 180 ? "THEM_180" : v.checkout ? "THEM_CHECKOUT" : "IDLE");
-  const lift = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CHECKOUT: 0.5, YOU_TON: 0.25, WON: 1, THEM_180: 0.3, YOU_BUST: 0.1, LOST: 0.2, THEM_CHECKOUT: 0.1, YOU_LOW: -0.05, IDLE: 0 }[moment] ?? 0;
+  return chatForMoment(seed, streamKey, index, moment, tally, tier);
+}
+
+const LIFT: Record<string, number> = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CHECKOUT: 0.5, YOU_TON: 0.25, WON: 1, THEM_180: 0.3, YOU_BUST: 0.1, LOST: 0.2, THEM_CHECKOUT: 0.1,
+  YOU_LOW: -0.05, IDLE: 0, DRILL_HIT: 0.45, DRILL_MISS: 0, DRILL_OUT: 0.2, DRILL_SCORE: 0.05, DRILL_BIG: 1, KING_DOWN: 0.8 };
+
+/** Chat for one visit of a drill format (Bob's 27, checkouts, scoring). On the scoring challenge, bits come in as pledges. */
+export function chatForDrillVisit(seed: string, streamKey: string, index: number, v: { note: string; points: number; startScore?: number }, tally: Tally, tier: TierKey,
+  over: "WON" | "LOST" | null, pledges = false) {
+  const moment = over ?? (v.note === "HIT" ? "DRILL_HIT" : v.note === "CHECKOUT" ? ((v.startScore ?? 0) >= 100 ? "YOU_BIG_CHECKOUT" : "DRILL_HIT") : v.note === "OUT" ? "DRILL_OUT"
+    : v.note === "MISS" || v.note === "BUST" || v.note === "FAILED" ? "DRILL_MISS" : v.points === 180 ? "DRILL_BIG" : v.points >= 100 ? "YOU_TON" : v.points < 30 ? "YOU_LOW" : "DRILL_SCORE");
+  return chatForMoment(seed, streamKey, index, moment, tally, tier, pledges);
+}
+
+/** The heart of the chat: a moment's reaction, cheers, follows and subs, and the viewer count after it. */
+export function chatForMoment(seed: string, streamKey: string, index: number, moment: string, tally: Tally, tier: TierKey, pledges = false):
+  { events: ChatEvent[]; tally: Tally } {
+  const rng = scopedRandom(seed, STREAM.version, "stream-visit", streamKey, index);
+  const lift = LIFT[moment] ?? 0;
   const hype = Math.max(0, Math.min(3, tally.hype * 0.85 + lift));
   const events: ChatEvent[] = [];
   // The room's regulars: a crowd the size of the audience (a three-viewer stream is three or four names, not twenty).
@@ -95,11 +123,12 @@ export function chatForVisit(seed: string, streamKey: string, index: number, v: 
   for (let i = 0; i < messages; i++) say(i === 0 || rng() < 0.6 ? moment : "IDLE");
   // Cheers: bits and super chats from Affiliate up, more likely on a big moment and in a bigger room.
   const room = Math.min(1, tally.viewers / 300);
-  let bits = 0, supers = 0, subs = 0;
+  let bits = 0, supers = 0, subs = 0, pledged = 0;
   if (tier !== "NEWCOMER") {
     if (rng() < Math.min(0.6, 0.04 + room * 0.25 + lift * 0.2)) {
       const pence = Math.round((1 + rng() * (2 + hype * 4) * (1 + room * 4))) * 100;
-      bits += pence; events.push({ kind: "BITS", user: someone(), pence, text: pick(rng, ["for the 180s", "love the stream", "buy some new flights", "gg", "for the next ton"]) });
+      if (pledges) { pledged += pence; events.push({ kind: "PLEDGE", user: someone(), pence, text: pick(rng, LINES.PLEDGE) }); }
+      else { bits += pence; events.push({ kind: "BITS", user: someone(), pence, text: pick(rng, ["for the 180s", "love the stream", "buy some new flights", "gg", "for the next ton"]) }); }
     }
     if (rng() < Math.min(0.25, 0.01 + room * 0.08 + lift * 0.08)) {
       const pence = Math.round(2 + rng() * (3 + hype * 6) * (1 + room * 3)) * 100;
@@ -115,7 +144,8 @@ export function chatForVisit(seed: string, streamKey: string, index: number, v: 
   for (let i = 0; i < Math.min(follows, 3); i++) events.push({ kind: "FOLLOW", user: handleFor(rng) });
   const viewers = Math.max(1, Math.round(tally.viewers * (1 + (hype - 0.6) * 0.04) + (rng() - 0.45) * 2));
   return { events, tally: { viewers, peak: Math.max(tally.peak, viewers), hype, followersGained: tally.followersGained + follows, followerCarry: carry - follows,
-    bitsPence: tally.bitsPence + bits, superchatsPence: tally.superchatsPence + supers, subs: tally.subs + subs } };
+    bitsPence: tally.bitsPence + bits, superchatsPence: tally.superchatsPence + supers, subs: tally.subs + subs,
+    ...(pledges || tally.pledgedPence ? { pledgedPence: (tally.pledgedPence ?? 0) + pledged } : {}) } };
 }
 
 /** What the stream pays: bits and super chats in full, half of each new subscription's first month. */
@@ -161,3 +191,48 @@ export function brandFor(seed: string, season: number, n: number) {
 /** Stars get invitations to televised invitationals; nobody streams their way into a national team. */
 export const streamerCanBeInvited = (tier: TierKey | null, event: { circuit: string; definitionKey: string; takesInvitations: boolean }) =>
   tier === "STAR" && event.takesInvitations && event.circuit === "INVITATIONAL" && !NOT_FOR_SALE.has(event.definitionKey);
+
+/**
+ * Stream formats. Each draws its own crowd: King of the Oche (viewer after viewer until one beats you) pulls the most, the
+ * solo drills a little less. Playing the same format stream after stream wears thin; playing what chat voted for brings
+ * them back.
+ */
+export const FORMATS = [
+  { key: "CHALLENGER", name: "Play a viewer", blurb: "A viewer steps up: first to 2 legs of 501.", crowd: 1 },
+  { key: "KING", name: "King of the Oche", blurb: "One leg of 501 against viewer after viewer, up to 5. One loss and you're dethroned.", crowd: 1.25 },
+  { key: "CHECKOUTS", name: "Checkout Challenge", blurb: "Chat picks 5 finishes: three visits at each. Hit 3 to win.", crowd: 0.9 },
+  { key: "BOBS_27", name: "Bob's 27 live", blurb: "Every double from 1 to the bull, starting on 27. Don't drop to zero.", crowd: 0.8 },
+  { key: "SCORING", name: "Average challenge", blurb: "33 visits of pure scoring against a target average. Chat pledges bits that pay only if you beat it.", crowd: 0.9 },
+] as const;
+export type StreamFormat = typeof FORMATS[number]["key"];
+export const formatByKey = (key: string) => FORMATS.find(f => f.key === key) ?? FORMATS[0];
+export const KING_ROUNDS = 5;
+/** Same format as last time: the room thins. Chat's pick: they turn up. */
+export const VARIETY = Object.freeze({ repeat: 0.85, pollPick: 1.2 });
+export const crowdFor = (format: StreamFormat, lastFormat: string | null, pollPick: string | null) =>
+  formatByKey(format).crowd * (lastFormat === format ? VARIETY.repeat : 1) * (pollPick === format ? VARIETY.pollPick : 1);
+
+const FINISHES = [61, 64, 68, 72, 76, 81, 84, 88, 91, 96, 100, 104, 107, 110, 116, 121, 124, 130, 136, 141, 150, 161, 164, 167, 170];
+/** The five finishes chat picks for a checkout challenge: mostly gettable, the odd big one. */
+export function checkoutTargets(seed: string, streamKey: string) {
+  const rng = scopedRandom(seed, STREAM.version, "stream-checkouts", streamKey);
+  const pool = [...FINISHES], out: number[] = [];
+  while (out.length < 5) out.push(pool.splice(Math.floor(Math.pow(rng(), 1.4) * pool.length), 1)[0]);
+  return out;
+}
+/** The target average for the scoring challenge: a bit above your last one (or 45 the first time), to the half point. */
+export const scoringTarget = (lastAverage: number | null) => Math.round(((lastAverage ?? 43) + 2) * 2) / 2;
+
+/** End-of-stream poll: chat votes on what you play next time (the format played tonight rarely wins). */
+export function pollFor(seed: string, streamKey: string, played: StreamFormat) {
+  const rng = scopedRandom(seed, STREAM.version, "stream-poll", streamKey);
+  const votes = FORMATS.map(f => ({ key: f.key as StreamFormat, name: f.name, votes: Math.round((f.key === played ? 4 : 10 + rng() * 30) * f.crowd) }));
+  const total = votes.reduce((n, v) => n + v.votes, 0);
+  const winner = [...votes].sort((a, b) => b.votes - a.votes)[0];
+  return { options: votes.map(v => ({ ...v, share: Math.round(v.votes / total * 100) })), winner: winner.key };
+}
+
+/** Monthly sub goals (Partner up): hit the target in a month and you keep the promise; the buzz wins followers. */
+export const SUB_GOAL = Object.freeze({ targets: [5, 10, 20, 50], followerBonusPerSub: 4,
+  promises: ["A Bob's 27 stream", "Throw in fancy dress", "A charity night", "Answer every question in chat", "Play left-handed for a leg"] as const });
+export const goalBonus = (target: number) => target * SUB_GOAL.followerBonusPerSub;

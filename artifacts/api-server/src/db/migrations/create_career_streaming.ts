@@ -26,5 +26,14 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     streams_total integer NOT NULL, streams_done integer NOT NULL DEFAULT 0,
     status text NOT NULL CHECK(status IN ('OFFERED','ACTIVE','COMPLETED','DECLINED','EXPIRED')),
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id,id))`);
+  // Stream formats: which one, King of the Oche's round and the challengers beaten, a drill's spec, and the end-of-stream poll.
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'CHALLENGER'`);
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS round integer NOT NULL DEFAULT 0`);
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS rounds jsonb NOT NULL DEFAULT '[]'::jsonb`);
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS drill jsonb`);
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS poll jsonb`);
+  // Chat's pick for the next stream, and this month's sub goal.
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS poll_pick text`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS sub_goal jsonb`);
   await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_streams_night_idx ON career_streams(career_save_id, season, day)`);
 }
