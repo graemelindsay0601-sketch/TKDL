@@ -40,7 +40,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -872,4 +872,15 @@ test("Run your own tournament: the booking form with a preview, and your tournam
     [key("hosting", "preview", { feePence: 1000, topUpPence: 5000, fieldSize: 16, fans: 120 }), preview]]));
   for (const fact of ["Book the back room at Ayr Darts Club", "you keep 20%", "Week 11", "16 players (room £40)", "Expect about 8 players", "winner £57", "You pay £90 now", "keep about £16",
     "Book it", "Ayr Darts Club Open", "12 players", "you kept £24", "you won it"]) assert.ok(t.includes(fact), fact);
+});
+
+test("DartCast channel: followers and the streamer route, nights to go live, and past streams", () => {
+  const view = { season: 2, week: 9, handle: "AyrDarts", followers: 640, tier: { key: "AFFILIATE", name: "Affiliate", perks: "Bits and super chats." },
+    next: { name: "Partner", followers: 1000, perks: "Subs." }, tiers: [{ key: "NEWCOMER", name: "Newcomer", followers: 0, perks: "Go live.", reached: true },
+      { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Bits and super chats.", reached: true }, { key: "PARTNER", name: "Partner", followers: 1000, perks: "Subs.", reached: false }],
+    streamsThisWeek: 1, perWeek: 3, freeNights: [2, 5, 6], live: null, totals: { streams: 14, earnedPence: 18450, won: 9 },
+    videos: [{ id: "v1", season: 2, week: 8, dayOfWeek: 6, challenger: "OcheGremlin12", result: "WON", peak: 41, followersGained: 12, incomePence: 2350 }] };
+  const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
+  for (const fact of ["Dart Cast", "AyrDarts", "640 followers", "Affiliate", "14 streams", "£184.50 earned", "beat 9 challengers", "Go live on Tue", "(1 so far)",
+    "360 more followers to Partner", "Stream vs OcheGremlin12", "41 peak", "+12", "£23.50"]) assert.ok(t.includes(fact), fact);
 });
