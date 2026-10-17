@@ -21,6 +21,12 @@ import type { Commitment, Decision, LifeSources, LifeView, NpcLifeView } from ".
 type Row=Record<string,unknown>;
 /** Seasons of public world results and upsets the news draws on (the current one and the two before it). */
 export const NEWS_SEASONS=3;
+/** Threads with the newest chapters first, at most this many (a long save has ~1,000, mostly one-story world threads: ~1MB a read). */
+export const THREADS_SHOWN=120;
+const recentThreads=(threads:ReturnType<typeof storyThreads>)=>{
+  const latest=(t:(typeof threads)[number])=>Math.max(...t.stories.map(s=>s.season*100+(s.week??0)));
+  return {threads:[...threads].sort((a,b)=>latest(b)-latest(a)||a.id.localeCompare(b.id)).slice(0,THREADS_SHOWN),threadCount:threads.length};
+};
 const adapter=(tx:CareerExecutor):CareerDatabase=>({execute:q=>tx.execute(q),transaction:w=>w(tx)});
 const choiceSchema=z.object({choice:z.string().min(1).max(40)}).strict();
 const merchandiseSchema=z.object({choice:z.enum(["REPLICA_SHIRT","SIGNED_ITEMS","SPONSOR_LINKED","STOP"])}).strict();
@@ -29,8 +35,37 @@ const decisionsFrom=(rows:Row[]):Decision[]=>rows.map(r=>({id:String(r.id),kind:
 const commitmentsFrom=(rows:Row[]):Commitment[]=>rows.map(r=>({id:String(r.id),family:String(r.family),title:String(r.title),
   season:Number(r.season),day:Number(r.day),feePence:Number(r.fee_pence),status:r.status as Commitment["status"],contractId:r.contract_id?String(r.contract_id):null}));
 
+/**
+ * Life sources are the heaviest Career read (facts, relationships, recognition and recent world news), and Home shows the
+ * top headlines on every visit. They only change when matches are played, a week passes, or you make a choice, so they are
+ * kept per save behind a fingerprint of exactly those things (a few index lookups), for at most five minutes.
+ */
+const SOURCE_CACHE=new Map<string,{key:string;at:number;value:LifeSources}>();
+const SOURCE_CACHE_MS=5*60_000,SOURCE_CACHE_SIZE=50;
+async function sourceFingerprint(tx:CareerExecutor,saveId:string,root:Row) {
+  const f=(await tx.execute(sql`SELECT
+    (SELECT concat_ws('|',s.current_season,s.current_week,s.status,s.updated_at,s.balance_pence) FROM career_saves s WHERE s.id=${saveId}) AS s,
+    (SELECT concat_ws('|',COUNT(*),MAX(created_at)) FROM career_life_decisions WHERE career_save_id=${saveId}) AS d,
+    (SELECT concat_ws('|',COUNT(*),COUNT(*) FILTER (WHERE status='COMPLETED')) FROM career_life_commitments WHERE career_save_id=${saveId}) AS c,
+    (SELECT COUNT(*) FROM career_tournament_matches WHERE career_save_id=${saveId} AND (a_key='HUMAN' OR b_key='HUMAN') AND status='COMPLETED') AS m,
+    (SELECT concat_ws('|',COUNT(*),COUNT(*) FILTER (WHERE status='COMPLETED')) FROM career_event_instances WHERE career_save_id=${saveId} AND season=${root.current_season}
+      AND status IN ('COMPLETED','CANCELLED','DRAW_PENDING','DRAWN','IN_PROGRESS')) AS e,
+    (SELECT COUNT(*) FROM career_savings_goals_reached WHERE career_save_id=${saveId}) AS g,
+    (SELECT md5(row_to_json(p)::text) FROM career_profiles p WHERE p.career_save_id=${saveId}) AS p,
+    (SELECT string_agg(id::text,',' ORDER BY id) FROM career_sponsor_contracts WHERE career_save_id=${saveId} AND status='ACTIVE') AS k`)).rows[0];
+  return JSON.stringify(f);
+}
+
 export function createCareerLifeService(database:CareerDatabase) {
   async function sources(tx:CareerExecutor,actor:CareerActor,saveId:string,root:Row):Promise<LifeSources> {
+    const key=await sourceFingerprint(tx,saveId,root),hit=SOURCE_CACHE.get(saveId);
+    if(hit&&hit.key===key&&Date.now()-hit.at<SOURCE_CACHE_MS)return hit.value;
+    const value=await loadSources(tx,actor,saveId,root);
+    SOURCE_CACHE.delete(saveId);SOURCE_CACHE.set(saveId,{key,at:Date.now(),value});
+    if(SOURCE_CACHE.size>SOURCE_CACHE_SIZE)SOURCE_CACHE.delete(SOURCE_CACHE.keys().next().value!);
+    return value;
+  }
+  async function loadSources(tx:CareerExecutor,actor:CareerActor,saveId:string,root:Row):Promise<LifeSources> {
     const db=adapter(tx),facts=await createCareerFactsService(db).read(actor,saveId);
     const relationships=await createCareerRelationshipsService(db).read(actor,saveId);
     const recognition=await createCareerRecognitionService(db).read(actor,saveId);
@@ -43,14 +78,19 @@ export function createCareerLifeService(database:CareerDatabase) {
         OR id IN (SELECT event_id FROM career_event_results WHERE career_save_id=${saveId} AND participant_key='HUMAN')
         OR id IN (SELECT event_id FROM career_tournament_matches WHERE career_save_id=${saveId} AND (a_key='HUMAN' OR b_key='HUMAN')))
       ORDER BY season,start_day,id`)).rows;
-    const world=(await tx.execute(sql`SELECT r.event_id,r.participant_key,r.finishing_position,r.stage_reached,r.is_champion,r.wins,r.losses,
-      i.definition_key,i.name,i.circuit,i.classification,i.presentation_tier,i.country,i.season,i.end_day,concat(n.first_name,' ',n.surname) AS participant_name
-      FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
-      JOIN career_world_players n ON n.career_save_id=r.career_save_id AND n.id::text=r.participant_key
-      WHERE r.career_save_id=${saveId} AND i.status='COMPLETED' AND (r.is_champion=true OR r.stage_reached='FINAL'
-        OR (r.participant_key,i.definition_key,i.season-1) IN (SELECT participant_key,definition_key,season FROM career_event_results
-          WHERE career_save_id=${saveId} AND is_champion=true AND season>=${recentFrom-1}))
-      AND i.classification<>'QUALIFIER' AND i.season>=${recentFrom} ORDER BY i.season DESC,i.end_day DESC,r.participant_key LIMIT 1200`)).rows;
+    // World news covers events above club level: local nights (two midweek nights in every area) would otherwise fill the
+    // 1,200 most recent finals and push the opens, tours and majors out. Recent champions and finalists, plus defending champions.
+    const world=(await tx.execute(sql`WITH ev AS MATERIALIZED (SELECT id,definition_key,name,circuit,classification,presentation_tier,country,season,end_day
+        FROM career_event_instances WHERE career_save_id=${saveId} AND season>=${recentFrom} AND status='COMPLETED' AND presentation_tier<>'LOCAL' AND classification<>'QUALIFIER'),
+      champs AS MATERIALIZED (SELECT DISTINCT participant_key,definition_key,season FROM career_event_results WHERE career_save_id=${saveId} AND is_champion AND season>=${recentFrom-1})
+      SELECT r.event_id,r.participant_key,r.finishing_position,r.stage_reached,r.is_champion,r.wins,r.losses,
+        i.definition_key,i.name,i.circuit,i.classification,i.presentation_tier,i.country,i.season,i.end_day,concat(n.first_name,' ',n.surname) AS participant_name
+      -- Per event through the results key (OFFSET 0 keeps the planner from hashing every result in the save instead).
+      FROM ev i CROSS JOIN LATERAL (SELECT * FROM career_event_results r WHERE r.career_save_id=${saveId} AND r.event_id=i.id OFFSET 0) r
+      JOIN career_world_players n ON n.career_save_id=${saveId} AND n.id=r.npc_id
+      LEFT JOIN champs c ON c.participant_key=r.participant_key AND c.definition_key=i.definition_key AND c.season=i.season-1
+      WHERE r.is_champion OR r.stage_reached='FINAL' OR c.participant_key IS NOT NULL
+      ORDER BY i.season DESC,i.end_day DESC,r.participant_key LIMIT 1200`)).rows;
     const contract=(await tx.execute(sql`SELECT id,sponsor_key FROM career_sponsor_contracts WHERE career_save_id=${saveId} AND status='ACTIVE' LIMIT 1`)).rows[0];
     const decisions=decisionsFrom((await tx.execute(sql`SELECT * FROM career_life_decisions WHERE career_save_id=${saveId} ORDER BY season,week,created_at,id`)).rows);
     const commitments=commitmentsFrom((await tx.execute(sql`SELECT * FROM career_life_commitments WHERE career_save_id=${saveId} ORDER BY season,day,id`)).rows);
@@ -73,7 +113,8 @@ export function createCareerLifeService(database:CareerDatabase) {
       SELECT DISTINCT r.npc_id FROM career_ranking_snapshot_rows r JOIN career_ranking_snapshots p ON p.career_save_id=r.career_save_id AND p.id=r.snapshot_id
       WHERE r.career_save_id=${saveId} AND p.list_key='pro-world' AND p.season>=${recentFrom-1} AND r.position<=8 AND r.npc_id IS NOT NULL
     ), recent AS (
-      SELECT m.id,m.event_id,m.scheduled_day,m.winner_key,CASE WHEN m.winner_key=m.a_key THEN m.b_key ELSE m.a_key END AS loser_key,i.season,i.name
+      SELECT m.id,m.event_id,m.scheduled_day,m.winner_key,CASE WHEN m.winner_key=m.a_key THEN m.b_key ELSE m.a_key END AS loser_key,i.season,i.name,
+        CASE WHEN m.winner_key=m.a_key THEN m.a_npc_id ELSE m.b_npc_id END AS winner_npc,CASE WHEN m.winner_key=m.a_key THEN m.b_npc_id ELSE m.a_npc_id END AS loser_npc
       FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
       WHERE m.career_save_id=${saveId} AND m.status='COMPLETED' AND i.classification<>'QUALIFIER' AND i.season>=${recentFrom}
         AND ((m.a_npc_id=ANY(ARRAY(SELECT npc_id FROM top)) AND m.winner_key<>m.a_key) OR (m.b_npc_id=ANY(ARRAY(SELECT npc_id FROM top)) AND m.winner_key<>m.b_key)
@@ -87,8 +128,8 @@ export function createCareerLifeService(database:CareerDatabase) {
         ORDER BY p.season DESC,p.week DESC LIMIT 1) p ON true
       JOIN career_ranking_snapshot_rows w ON w.career_save_id=${saveId} AND w.snapshot_id=p.id AND w.participant_key=m.winner_key
       JOIN career_ranking_snapshot_rows l ON l.career_save_id=${saveId} AND l.snapshot_id=p.id AND l.participant_key=m.loser_key
-      LEFT JOIN career_world_players wn ON wn.career_save_id=${saveId} AND wn.id::text=m.winner_key
-      LEFT JOIN career_world_players ln ON ln.career_save_id=${saveId} AND ln.id::text=m.loser_key
+      LEFT JOIN career_world_players wn ON wn.career_save_id=${saveId} AND wn.id=m.winner_npc
+      LEFT JOIN career_world_players ln ON ln.career_save_id=${saveId} AND ln.id=m.loser_npc
       WHERE l.position<=8 AND w.position>=32
         -- A scalar lookup per candidate (a pairs match is a team meeting); as EXISTS it read every event's snapshot.
         AND (SELECT COALESCE((e.snapshot->'format'->>'sideSize')::int,1) FROM career_event_instances e WHERE e.career_save_id=${saveId} AND e.id=m.event_id)=1 ORDER BY m.season DESC,m.scheduled_day DESC,m.id LIMIT 40`)).rows;
@@ -170,7 +211,7 @@ export function createCareerLifeService(database:CareerDatabase) {
       o.canAccept=o.conflicts.length===0;
     }
     const fans=s.fans?{...s.fans,crowd:crowdSupport(s.fans,profile.reception==="Divisive")}:undefined;
-    return {careerSaveId:saveId,retired:!s.active,profile,...(fans?{fans}:{}),news:newsSelection(stories),threads:storyThreads(stories),moments:currentMoments(s,stories),
+    return {careerSaveId:saveId,retired:!s.active,profile,...(fans?{fans}:{}),news:newsSelection(stories),...recentThreads(storyThreads(stories)),moments:currentMoments(s,stories),
       opportunities:offers,history:s.decisions,commitments:s.commitments,relationshipTones:relationshipTones(s),
       merchandise:{demand:profile.commercial.demand,incomePence:Number(entries.find(e=>e.category==="MERCHANDISE_ROYALTY")?.total??0),
         royaltyPence:merch?Number(merch.royalty_pence):null,offerRoyaltyPence:2500*Math.max(...s.recognition.contexts.map(c=>LEVELS.indexOf(c.level))),

@@ -174,7 +174,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
             AND c.status='ACTIVE' AND c.terms->'contractFoundation'->'productRights'->'productTypes' ? p.product_type
             ORDER BY c.start_season DESC,c.start_week DESC,c.id LIMIT 1) holder ON true
           LEFT JOIN career_signature_product_sales s ON s.career_save_id=p.career_save_id AND s.product_id=p.id
-          WHERE p.career_save_id=${saveId} GROUP BY p.id,d.status,holder.id`)).rows;
+          WHERE p.career_save_id=${saveId} GROUP BY p.career_save_id,p.id,d.status,holder.id`)).rows;
         const active=await activeContracts(tx,saveId);
         const contracts=active.filter(c=>relationship(c.terms).slot==="EQUIPMENT_PARTNER");
         const apparelEndorsements=active.filter(c=>relationship(c.terms).slot==="APPAREL_PARTNER").map(c=>({brand:c.terms.displayName}));
@@ -408,14 +408,16 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
       const root=await database.transaction(async tx=>await lockRoot(tx,actor,saveId,false) as RootRow);
       const home=sporting.calendar.providers.sportingStatus.human(root);
       const locality=LOCALITIES.find(l=>l.key===home.locality);
+      const qualifyingFor=new Map(qualification.season===calendar.season?qualification.events.map(x=>[x.eventId,x] as const):[]);
       const events=calendar.events.filter(e=>(!q.country||e.venue.country===q.country)&&(!q.region||e.venue.region===q.region)&&(!q.city||e.venue.city===q.city)&&
         (q.scope!=="REGION"||(e.venue.country===(q.country??home.country)&&e.venue.region===(q.region??locality?.region)))&&
         (q.scope!=="LOCAL"||(e.venue.country===(q.country??home.country)&&e.venue.city===(q.city??locality?.city))));
       return {season:calendar.season,scope:q.scope,home:{country:home.country,region:locality?.region??null,city:locality?.city??null},
         fromWeek:q.fromWeek,toWeek:q.toWeek,total:events.length,
         events:events.map(e=>({id:e.id,name:e.name,definitionId:e.definitionKey,canonicalEventId:e.content?.canonicalEventId??e.definitionKey,
-          venue:venueContent(e.venue.key),dates:e.dates,status:e.status,content:e.content??{...identity(catalogueFor(e.eventDatabaseVersion).find(d=>d.key===e.definitionKey)!),titleSponsorId:null},
-          opportunity:e.opportunity,financialCommitment:e.finance,qualification:qualification.season===calendar.season?qualification.events.find(x=>x.eventId===e.id)??null:null,
+          // The venue once (content.venue repeated it for every event: about a third of a 12MB season map).
+          venue:venueContent(e.venue.key),dates:e.dates,status:e.status,content:withoutVenue(e.content??{...identity(catalogueFor(e.eventDatabaseVersion).find(d=>d.key===e.definitionKey)!),titleSponsorId:null}),
+          opportunity:e.opportunity,financialCommitment:e.finance,qualification:qualifyingFor.get(e.id)??null,
           fieldDescriptor:e.content?.fieldDescription??identity(catalogueFor(e.eventDatabaseVersion).find(d=>d.key===e.definitionKey)!).fieldDescription,
           seeding:e.seedingPolicy,field:e.field,capability:e.capability}))};
     },
@@ -486,6 +488,7 @@ export function createCareerContentService(database:CareerDatabase,sporting:Care
 export type CareerContentService=ReturnType<typeof createCareerContentService>;
 export type WorldContent=Awaited<ReturnType<CareerContentService["read"]>>;
 export type WorldLocalitiesContent=ReturnType<CareerContentService["localities"]>;
+const withoutVenue=<T extends object>(content:T)=>{const {venue:_venue,...rest}=content as T&{venue?:unknown};return rest;};
 export type MapContent=Awaited<ReturnType<CareerContentService["map"]>>;
 export type PresentationContent=Awaited<ReturnType<CareerContentService["presentation"]>>;
 export type WorldPlayersContent=Awaited<ReturnType<CareerContentService["players"]>>;

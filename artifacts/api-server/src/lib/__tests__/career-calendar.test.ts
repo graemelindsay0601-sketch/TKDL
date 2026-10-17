@@ -327,7 +327,7 @@ test("next-meaningful-date advancement stops at the human's events and never ski
   }
   assert.equal(week, target.dates.startWeek);
   const view = await calendar.calendar(actor, save.id, {});
-  assert.ok(view.overview.currentWeekActions.some(a => a.eventId === target.id));
+  assert.ok(view.overview!.currentWeekActions.some(a => a.eventId === target.id));
 });
 
 // ------------------------------------------------------------------ isolation / cascade / Classic Tour

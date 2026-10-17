@@ -42,7 +42,7 @@ export function createCareerGoalsService(database: CareerDatabase) {
     let events: Opportunity[]=[];
     const initialized=(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id=${saveId} AND season=${root.current_season} LIMIT 1`)).rows.length>0;
     if (initialized && rr.status==="ACTIVE" && rr.identity_dob && rr.identity_start) {
-      const cal=await createCareerSportingService(db).calendar.calendar(actor,saveId,{scope:"WORLD",fromWeek:Number(rr.current_week),toWeek:Math.min(52,Number(rr.current_week)+8)});
+      const cal=await createCareerSportingService(db).calendar.calendar(actor,saveId,{scope:"WORLD",fromWeek:Number(rr.current_week),toWeek:Math.min(52,Number(rr.current_week)+8)},{overview:false});
       const majors=new Set(catalogueFor(Number(rr.event_database_version)).filter(d=>["MAJOR","WORLD"].includes(d.presentation.tier)).map(d=>d.key));
       events=cal.events.filter(e=>e.dates.endDay>=(Number(rr.current_week)-1)*7+1).map(e=>{
         const f=e.finance as {topPrizePence?:number;estimatedPlayerCostPence?:number}|null;
