@@ -314,3 +314,18 @@
 .week-planner__what { overflow:hidden; font-size:.62rem; line-height:1.15; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-word; }
 .week-planner__sum { margin:0; color:#adbdca; font-size:.76rem; }
 .week-planner__clear { padding:0; border:0; background:none; color:#c5d9e8; text-decoration:underline; cursor:pointer; font-size:inherit; }
+.plan-week { display:grid; gap:8px; }
+.plan-week__start { justify-self:start; }
+.plan-week--open { padding:10px 12px; border:1px solid #d9b96f33; border-radius:12px; background:#d9b96f0a; }
+.plan-week__title { margin:0; color:#d2b677; font:700 .66rem Oswald, system-ui, sans-serif; letter-spacing:.12em; text-transform:uppercase; }
+.plan-week__list { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
+.plan-week__list label { display:grid; grid-template-columns:auto 2.6rem minmax(0,1fr); align-items:start; gap:8px; padding:8px 10px; border:1px solid rgba(255,255,255,.1); border-radius:10px; background:rgba(255,255,255,.03); color:#fff; cursor:pointer; }
+.plan-week__list input { margin-top:3px; accent-color:#d9b96f; }
+.plan-week__day { color:#adbdca; font:700 .72rem Oswald, system-ui, sans-serif; letter-spacing:.06em; text-transform:uppercase; padding-top:2px; }
+.plan-week__what { display:grid; gap:2px; min-width:0; }
+.plan-week__what b { overflow-wrap:anywhere; }
+.plan-week__what small { color:rgba(255,255,255,.6); font-size:.74rem; }
+.plan-week__sum { margin:0; color:#e8eef3; font-size:.78rem; }
+.plan-week__note { margin:0; color:#adbdca; font-size:.74rem; }
+.plan-week__message { margin:0; color:#c5d9e8; font-size:.78rem; }
+.plan-week__actions { display:flex; flex-wrap:wrap; gap:8px; }

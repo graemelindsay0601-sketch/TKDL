@@ -250,6 +250,15 @@ function useSaveMutation<TArgs, TOut>(saveId: string, fn: (args: TArgs) => Promi
   return useMutation({ mutationFn: fn, onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); await client.invalidateQueries({ queryKey: ["career", "saves"] }); } });
 }
 export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.enter(saveId, eventId));
+/** "Plan my week": enter each chosen event in turn (each is checked by the server as a normal entry), stopping at none. */
+export const useEnterEvents = (saveId: string) => useSaveMutation(saveId, async (eventIds: string[]) => {
+  const results: { eventId: string; result: EntryResult | null; error: unknown }[] = [];
+  for (const eventId of eventIds) {
+    try { results.push({ eventId, result: await careerRequests.enter(saveId, eventId), error: null }); }
+    catch (error) { results.push({ eventId, result: null, error }); }
+  }
+  return results;
+});
 export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.withdraw(saveId, eventId));
 export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (input: string|{offerId:string;replaceContractIds:string[]}) => typeof input==="string"?careerRequests.acceptOffer(saveId,input):careerRequests.acceptOffer(saveId,input.offerId,input.replaceContractIds));
 export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));

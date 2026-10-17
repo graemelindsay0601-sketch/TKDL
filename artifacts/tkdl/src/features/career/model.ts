@@ -148,6 +148,41 @@ export function primaryAction(e: CareerEvent, opts: { awaitingMatch?: boolean; r
   return { kind: "VIEW", label: s.key === "IN_PROGRESS" ? "Continue event" : e.status === "IN_PROGRESS" || e.status === "DRAWN" ? "View draw" : "View event", enabled: true };
 }
 
+/** "Plan my week": at most this many events, so the plan stays a sensible week rather than every night going. */
+export const PLAN_MAX_EVENTS = 4;
+const PLAN_TONE_RANK: Record<string, number> = { good: 0, fair: 1 };
+export type WeekPlan = { events: CareerEvent[]; costPence: number; upToPence: number; leftPence: number; availablePence: number; skippedForMoney: number };
+/**
+ * A suggested week: events you can enter that pay back their cost early (worth it "good" or "fair", or free with prize money),
+ * one per day around what you have already booked, best first, while the total stays within the money you have free.
+ * Series that run over several weeks are left out (one entry commits you to all of them), and nothing is entered until you confirm.
+ */
+export function planWeek(events: CareerEvent[], week: number): WeekPlan {
+  const booked = events.filter(e => e.human && ["ENTERED", "CONFIRMED", "PLAYING"].includes(e.human.relationship) && e.status !== "CANCELLED");
+  const taken = new Set<number>();
+  for (const e of booked) for (let d = e.dates.startDay; d <= e.dates.endDay; d++) taken.add(d);
+  const candidates = events
+    .filter(e => e.human?.canEnter && !e.series && e.finance && e.dates.startWeek === week && e.status !== "COMPLETED" && e.status !== "CANCELLED")
+    .map(e => ({ e, worth: worthIt(e.finance)! }))
+    .filter(({ worth }) => worth.tone in PLAN_TONE_RANK)
+    .sort((a, b) => PLAN_TONE_RANK[a.worth.tone] - PLAN_TONE_RANK[b.worth.tone]
+      || (b.e.finance!.topPrizePence - b.e.finance!.estimatedPlayerCostPence) - (a.e.finance!.topPrizePence - a.e.finance!.estimatedPlayerCostPence)
+      || a.e.finance!.estimatedPlayerCostPence - b.e.finance!.estimatedPlayerCostPence || a.e.dates.startDay - b.e.dates.startDay);
+  const availablePence = Math.max(0, events.find(e => e.finance)?.finance?.availablePence ?? 0);
+  const picked: CareerEvent[] = [];
+  let costPence = 0, skippedForMoney = 0;
+  for (const { e } of candidates) {
+    if (picked.length + booked.filter(b => b.dates.startWeek === week).length >= PLAN_MAX_EVENTS) break;
+    const days = Array.from({ length: e.dates.endDay - e.dates.startDay + 1 }, (_, i) => e.dates.startDay + i);
+    if (days.some(d => taken.has(d))) continue;
+    const cost = e.finance!.estimatedPlayerCostPence;
+    if (costPence + cost > availablePence) { skippedForMoney++; continue; }
+    picked.push(e); costPence += cost; days.forEach(d => taken.add(d));
+  }
+  picked.sort((a, b) => a.dates.startDay - b.dates.startDay);
+  return { events: picked, costPence, upToPence: picked.reduce((n, e) => n + e.finance!.topPrizePence, 0), leftPence: availablePence - costPence, availablePence, skippedForMoney };
+}
+
 /** Home's dominant card: pending human match > my next entered event > best open entry > next world event. */
 const STAGE_BY_POSITION: Record<number, string> = { 1: "win it", 2: "reach the final", 4: "reach the semi-finals", 8: "reach the quarter-finals" };
 const stageFor = (upTo: number) => STAGE_BY_POSITION[upTo] ?? `reach the last ${upTo}`;
