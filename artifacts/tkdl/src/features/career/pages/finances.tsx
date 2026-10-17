@@ -10,6 +10,7 @@ import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorSignin
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SeasonMoneyChart } from "../week-money";
 import { SavingsGoalPanel } from "../savings-goal";
+import { ManagerPanel } from "../manager";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
 
@@ -55,6 +56,9 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       </CareerSection>
       <CareerSection title={`Darts money by week · season ${save.currentSeason}`} icon={<Coins className="w-3.5 h-3.5" />} accent="#3987e5">
         <SeasonMoneyChart saveId={save.id} />
+      </CareerSection>
+      <CareerSection title="Your manager" icon={<Briefcase className="w-3.5 h-3.5" />} accent="#c084fc">
+        <ManagerPanel saveId={save.id} retired={retired} />
       </CareerSection>
       {pendingOffers > 0 && <a href="#career-finance-offers" className="pdc-card flex items-center gap-3 px-4 py-3 text-sm no-underline" style={{ borderColor: "rgba(255,210,74,0.42)", color: "#f3dfaa", background: "linear-gradient(90deg,rgba(255,210,74,0.11),rgba(255,255,255,0.025))" }}>
         <Briefcase className="shrink-0" size={16} aria-hidden="true" />

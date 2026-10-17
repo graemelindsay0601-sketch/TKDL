@@ -151,6 +151,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
           <StatusBadge label={status.label} tone={status.tone} />
         </div>
         {worth && <div className="career-worth mt-0.5 text-xs" data-tone={worth.tone} title={worth.detail}>{worth.label}</div>}
+        {event.human?.managerInvite && !event.human.result && <div className="career-manager-invite mt-0.5 text-xs">Invitation through {event.human.managerInvite.name} · they take {Math.round(event.human.managerInvite.commission * 100)}% of any prize money</div>}
       </Link>
       <div className={`shrink-0 flex items-center ${action.kind === "ENTER" && onEnter ? "w-full sm:w-auto pl-[4.25rem] sm:pl-0" : ""}`}>
         {action.kind === "ENTER" && onEnter ? (
