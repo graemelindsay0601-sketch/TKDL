@@ -1,6 +1,6 @@
 /**
  * Your fan following: how many people follow your darts, worked out only from what happened in your Career
- * (results by stage and level, nine-darters, and how you present yourself in interviews). Wins at home build a
+ * (results by stage and level, nine-darters, viral stream clips, and how you present yourself in interviews). Wins at home build a
  * home following; wins abroad build an international one. A core of fans stays with you; casual fans drift away
  * in seasons when you are out of the spotlight. It is never spent and never changes how you throw.
  */
@@ -17,7 +17,9 @@ export const FANS = Object.freeze({
 
 export type FanResult = { season: number; tier: string; country: string; champion: boolean; final: boolean; qualifier: boolean };
 export type FanEvidence = { currentSeason: number; homeCountry: string | null; results: readonly FanResult[];
-  nineDarters: readonly { season: number; televised: boolean; country: string }[]; showmanAnswers: number };
+  nineDarters: readonly { season: number; televised: boolean; country: string }[]; showmanAnswers: number;
+  /** Fans won by viral stream clips, by season (they fade like any other fans). */
+  streamFans?: readonly { season: number; fans: number }[] };
 export type FanFollowing = {
   total: number; home: number; international: number;
   /** New fans won this season (before any fading). */
@@ -43,6 +45,7 @@ export function fanFollowing(e: FanEvidence): FanFollowing {
     const [appear, final, title] = FANS.byTier[r.tier] ?? FANS.byTier.LOCAL;
     gain(r.season, r.country === e.homeCountry, (r.champion ? title : r.final ? final : appear) * multiplier);
   }
+  for (const c of e.streamFans ?? []) gain(c.season, true, c.fans);
   for (const n of e.nineDarters) gain(n.season, n.country === e.homeCountry, (n.televised ? FANS.nineDarter.televised : FANS.nineDarter.base) * multiplier);
   // Followers at the end of season s: every season's gains, the faded casual share shrinking each later season.
   const at = (s: number) => {

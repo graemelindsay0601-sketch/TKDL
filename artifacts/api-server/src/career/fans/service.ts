@@ -22,11 +22,20 @@ export async function loadFanEvidence(tx: CareerExecutor, saveId: string): Promi
   const showman = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_life_decisions
     WHERE career_save_id=${saveId} AND kind='DIALOGUE' AND choice IN ('SHOWMAN','CONFIDENT')`)).rows[0]?.n ?? 0);
   return {
-    currentSeason: Number(root?.current_season ?? 1), homeCountry, showmanAnswers: showman,
+    currentSeason: Number(root?.current_season ?? 1), homeCountry, showmanAnswers: showman, streamFans: await viralFans(tx, saveId),
     results: results.map(r => ({ season: Number(r.season), tier: String(r.presentation_tier), country: String(r.country), champion: r.is_champion === true,
       final: r.stage_reached === "FINAL", qualifier: r.classification === "QUALIFIER" })),
     nineDarters: nines.map(r => ({ season: Number(r.season), televised: ["TELEVISED", "MAJOR", "WORLD"].includes(String(r.presentation_tier)), country: String(r.country) })),
   };
+}
+
+/** Fans won by viral DartCast clips, by season (none on a database without streaming). */
+let clipsSeen = false;
+async function viralFans(tx: CareerExecutor, saveId: string) {
+  if (!clipsSeen) clipsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_clips') IS NOT NULL AS ok`)).rows[0]?.ok === true;
+  if (!clipsSeen) return [];
+  return (await tx.execute(sql`SELECT season, SUM(fans_gained)::int AS n FROM career_stream_clips WHERE career_save_id=${saveId} AND status='VIRAL' GROUP BY season`)).rows
+    .map(r => ({ season: Number(r.season), fans: Number(r.n) }));
 }
 
 /** Saves from this player database version on feel their following in sponsor offers and product sales. */

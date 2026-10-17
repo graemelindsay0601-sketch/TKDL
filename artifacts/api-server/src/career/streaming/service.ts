@@ -10,8 +10,8 @@ import { absoluteDay } from "../calendar/generation.ts";
 import { post } from "../finance/ledger.ts";
 import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
-  formatByKey, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type StreamFormat, type Tally, type TierKey } from "./model.ts";
+import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+  formatByKey, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null };
 const HUMAN = "HUMAN";
@@ -21,7 +21,9 @@ const KING_LEG: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "
 const x01For = (format: string) => format === "KING" ? KING_LEG : MATCH;
 const isDrill = (format: string) => format === "CHECKOUTS" || format === "BOBS_27" || format === "SCORING";
 
-type Challenger = { name: string; avg: number; bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string } | null };
+type Challenger = { name: string; avg: number; bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string } | null;
+  /** A collab: the streamer and their audience when you went live. */
+  streamer?: { key: string; followers: number } };
 export type StreamSession = { id: string; status: "LIVE" | "ENDED"; season: number; week: number; dayOfWeek: number; handle: string; tier: TierKey;
   streamFormat: StreamFormat; formatName: string;
   /** The viewer you're playing (null on a drill). */
@@ -48,6 +50,10 @@ export type StreamingView = {
   formats: { key: StreamFormat; name: string; blurb: string; crowd: number }[]; pollPick: StreamFormat | null; lastFormat: StreamFormat | null;
   /** This month's sub goal (Partner up), the targets and promises to choose from. */
   subGoal: SubGoal | null; goalOptions: { targets: readonly number[]; promises: readonly string[] } | null;
+  /** Streamers you could collab with (their audience now, and whether they'd say yes). */
+  collabs: { key: string; handle: string; followers: number; avg: number; blurb: string; ok: boolean; why: string | null }[];
+  /** Your clips, the viral ones first. */
+  clips: { id: string; season: number; week: number; kind: ClipKind; title: string; status: "NEW" | "VIRAL" | "SETTLED"; views: number; followersGained: number; fansGained: number }[];
   videos: { id: string; season: number; week: number; dayOfWeek: number; format: StreamFormat; title: string; challenger: string; result: "WON" | "LOST" | null; peak: number; followersGained: number; incomePence: number }[];
 };
 
@@ -78,13 +84,15 @@ async function freeNights(tx: CareerExecutor, root: Root) {
   return [1, 2, 3, 4, 5, 6, 7].filter(d => !taken.has(absoluteDay(week, d)));
 }
 
-const titleOf = (format: string, challenger: string) => format === "CHALLENGER" ? `Stream vs ${challenger}` : formatByKey(format).name;
+const titleOf = (format: string, challenger: string) => format === "CHALLENGER" ? `Stream vs ${challenger}` : format === "COLLAB" ? `Collab with ${challenger}` : formatByKey(format).name;
+/** Keep the stream's best clip-worthy moment. */
+const bestClip = (tally: Tally, kind: ClipKind | null): Tally => kind && (!tally.clip || CLIPS[kind].weight > CLIPS[tally.clip].weight) ? { ...tally, clip: kind } : tally;
 
 const sessionFrom = (r: Record<string, unknown>, handle: string, tier: TierKey): StreamSession => {
   const format = String(r.format ?? "CHALLENGER") as StreamFormat;
   return {
     id: String(r.id), status: r.status as StreamSession["status"], season: Number(r.season), week: Number(r.week), dayOfWeek: ((Number(r.day) - 1) % 7) + 1, handle, tier,
-    streamFormat: format, formatName: formatByKey(format).name,
+    streamFormat: format, formatName: titleOf(format, (r.challenger as Challenger).name),
     challenger: r.challenger as Challenger, format: x01For(format), drill: (r.drill as DrillSpec | null) ?? null, firstThrower: Number(r.first_thrower) as 0 | 1,
     round: Number(r.round ?? 0), kingRounds: KING_ROUNDS, rounds: (r.rounds as StreamSession["rounds"]) ?? [],
     tally: r.tally as Tally, processedVisits: Number(r.processed_visits), result: (r.result as StreamSession["result"]) ?? null,
@@ -111,6 +119,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const deals = (await tx.execute(sql`SELECT * FROM career_stream_deals WHERE career_save_id=${root.id} AND status IN ('OFFERED','ACTIVE')`)).rows;
     const offer = deals.find(d => d.status === "OFFERED"), deal = deals.find(d => d.status === "ACTIVE");
     const lastFormat = (ended[0]?.format as StreamFormat | undefined) ?? null;
+    const collabbed = new Set((await tx.execute(sql`SELECT DISTINCT challenger->'streamer'->>'key' AS k FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND format='COLLAB'`)).rows.map(r => String(r.k)));
+    const clips = (await tx.execute(sql`SELECT * FROM career_stream_clips WHERE career_save_id=${root.id} ORDER BY (status='VIRAL') DESC, views DESC, season DESC, week DESC LIMIT 8`)).rows;
     const partner = tier.key === "PARTNER" || tier.key === "STAR";
     const g = ch.subGoal, goalMonth = g && g.season === season ? g.month : null;
     const subGoal: SubGoal | null = g && goalMonth !== null && goalMonth >= monthOf(week) - 1
@@ -128,6 +138,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
       }),
       subscribers: ch.subscribers, renewsWeek: monthOf(week) * STREAM_MONEY.monthWeeks,
       dealOffer: offer ? dealFrom(offer) : null, deal: deal ? dealFrom(deal) : null, invitations: tier.key === "STAR",
+      collabs: STREAMERS.map(st => { const followers = streamerFollowers(st.followers, season, week), a = collabAnswer(followers, ch.followers, collabbed.has(st.key));
+        return { key: st.key, handle: st.handle, followers, avg: st.avg, blurb: st.blurb, ok: a.ok, why: a.ok ? null : a.why }; }),
+      clips: clips.map(c => ({ id: String(c.id), season: Number(c.season), week: Number(c.week), kind: c.kind as ClipKind, title: String(c.title), status: c.status as "NEW" | "VIRAL" | "SETTLED",
+        views: Number(c.views), followersGained: Number(c.followers_gained), fansGained: Number(c.fans_gained) })),
       formats: FORMATS.map(f => ({ key: f.key, name: f.name, blurb: f.blurb, crowd: Math.round(crowdFor(f.key, lastFormat, ch.pollPick) * 100) / 100 })),
       pollPick: ch.pollPick, lastFormat,
       subGoal, goalOptions: partner ? { targets: SUB_GOAL.targets, promises: SUB_GOAL.promises } : null };
@@ -136,7 +150,9 @@ export function createCareerStreamingService(database: CareerDatabase) {
   /** Finish a stream: followers banked (a bonus for wins), the night's money paid, and chat votes on what you play next. */
   async function finish(tx: CareerExecutor, root: Root, row: Record<string, unknown>, result: "WON" | "LOST" | null, tally: Tally, chat: ChatEvent[], processed: number, wins = result === "WON" ? 1 : 0) {
     // Each win on stream (a challenger beaten, a drill passed): a couple of follows even in a small room, more in a big one.
-    const bonus = wins * (2 + Math.round(tally.peak * 0.05));
+    const streamer = (row.challenger as Challenger).streamer;
+    // A collab: the winner takes a share of the other's audience (a little even in defeat).
+    const bonus = wins * (2 + Math.round(tally.peak * 0.05)) + (streamer && result ? collabFollowers(streamer.followers, result === "WON") : 0);
     const pledges = result === "WON" ? tally.pledgedPence ?? 0 : 0;
     const gained = tally.followersGained + bonus, income = streamIncome(tally) + pledges;
     const format = String(row.format ?? "CHALLENGER") as StreamFormat;
@@ -146,6 +162,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
       WHERE career_save_id=${root.id} AND id=${String(row.id)} AND status='LIVE'`);
     await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${gained}, subscribers = subscribers + ${tally.subs}
       ${poll ? sql`, poll_pick = ${poll.winner}` : sql``} WHERE career_save_id=${root.id}`);
+    // The night's best moment is clipped (it may go viral when the week is settled).
+    if (tally.clip) await tx.execute(sql`INSERT INTO career_stream_clips (career_save_id, id, stream_id, season, week, kind, title, peak, status)
+      VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-clip", String(row.id))}, ${String(row.id)}, ${Number(row.season)}, ${Number(row.week)}, ${tally.clip},
+        ${CLIPS[tally.clip].title}, ${tally.peak}, 'NEW') ON CONFLICT DO NOTHING`);
     // A brand deal pays for every stream that got going (at least one visit thrown).
     const deal = processed > 0 ? (await tx.execute(sql`SELECT * FROM career_stream_deals WHERE career_save_id=${root.id} AND status='ACTIVE'`)).rows[0] : undefined;
     if (deal) {
@@ -178,6 +198,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
     for (let i = processed; i < visits.length; i++) {
       const v = visits[i], last = state.complete && i === visits.length - 1;
       const over = last ? (state.winner === 0 ? (king && round + 1 < KING_ROUNDS ? null : "WON") : "LOST") : null;
+      if (v.thrower === 0) {
+        const dartsInLeg = v.checkout ? visits.filter(x => x.thrower === 0 && x.legNo === v.legNo && x.setNo === v.setNo).reduce((n, x) => n + x.darts.length, 0) : undefined;
+        tally = bestClip(tally, clipFor({ points: v.points, checkout: v.checkout, startScore: v.startScore, dartsInLeg }));
+      }
       const out = last && king && state.winner === 0 && round + 1 < KING_ROUNDS
         ? chatForMoment(root.world_seed, key, i, "KING_DOWN", tally, tier)
         : chatForVisit(root.world_seed, key, i, { thrower: v.thrower, points: v.points, bust: v.bust, checkout: v.checkout, startScore: v.startScore, legNo: v.legNo }, tally, tier, over);
@@ -221,6 +245,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const fresh: ChatEvent[] = [];
     for (let i = processed; i < state.visits.length; i++) {
       const v = state.visits[i], over = state.complete && i === state.visits.length - 1 ? state.result : null;
+      tally = bestClip(tally, v.note === "CHECKOUT" ? clipFor({ points: v.points, checkout: true, startScore: v.points }) : v.note === "HIT" && v.target === "Bull" ? "BOBS_BULL"
+        : v.points === 180 ? "MAX" : null);
       const out = chatForDrillVisit(root.world_seed, String(row.id), i, { note: v.note, points: v.points, startScore: v.note === "CHECKOUT" ? v.points : undefined },
         tally, tier, over, spec.kind === "SCORING");
       tally = out.tally; fresh.push(...out.events);
@@ -246,8 +272,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
 
     /** Go live on a free night this week (up to three a week, one at a time) in the format of your choice. */
     async goLive(actor: CareerActor, saveId: string, body: unknown) {
-      const { dayOfWeek, format = "CHALLENGER" } = z.object({ dayOfWeek: z.number().int().min(1).max(7),
-        format: z.enum(FORMATS.map(f => f.key) as [StreamFormat, ...StreamFormat[]]).optional() }).strict().parse(body);
+      const { dayOfWeek, format = "CHALLENGER", streamer: streamerKey } = z.object({ dayOfWeek: z.number().int().min(1).max(7),
+        format: z.enum(["COLLAB", ...FORMATS.map(f => f.key)] as [StreamFormat, ...StreamFormat[]]).optional(), streamer: z.string().max(40).optional() }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
         const season = Number(root.current_season), week = Number(root.current_week);
@@ -255,17 +281,26 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (v.live) throw new CareerError(409, "You're already live: finish that stream first");
         if (v.streamsThisWeek >= STREAM.perWeek) throw new CareerError(409, `You've streamed ${STREAM.perWeek} times this week`);
         if (!v.freeNights.includes(dayOfWeek)) throw new CareerError(409, "You're booked that night");
+        const partner = format === "COLLAB" ? v.collabs.find(c => c.key === streamerKey) : undefined;
+        if (format === "COLLAB" && !partner) throw new CareerError(400, "Pick a streamer to collab with");
+        if (partner && !partner.ok) throw new CareerError(409, `${partner.handle}: ${partner.why}`);
         const n = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_streams WHERE career_save_id=${root.id}`)).rows[0].n) + 1;
         const key = `${season}:${week}:${n}`;
         const last = (await tx.execute(sql`SELECT season, day FROM career_streams WHERE career_save_id=${root.id} ORDER BY season DESC, day DESC LIMIT 1`)).rows[0];
         const day = absoluteDay(week, dayOfWeek);
         const since = last && Number(last.season) === season ? Math.max(0, day - Number(last.day)) : null;
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
-        const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * crowdFor(format, v.lastFormat, v.pollPick)));
+        const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : crowdFor(format, v.lastFormat, v.pollPick))
+          + (partner ? partner.followers * COLLAB.tuneIn : 0)));
         const id = stableUuid(root.world_seed, STREAM.version, "stream", root.id, key);
         const tally: Tally = { viewers, peak: viewers, hype: 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0 };
         let challenger: Challenger, drill: DrillSpec | null = null, hello: ChatEvent[];
-        if (format === "CHALLENGER" || format === "KING") {
+        if (partner) {
+          challenger = { name: partner.handle, avg: partner.avg, bot: { config: collabBot(partner.avg), seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) },
+            streamer: { key: partner.key, followers: partner.followers } };
+          hello = [{ kind: "CHAT", user: partner.handle, text: `Collab night! My lot vs yours, first to ${STREAM.legsToWin}. You throw first` },
+            { kind: "CHAT", user: "DartCast", text: `${partner.handle}'s viewers are joining the stream` }];
+        } else if (format === "CHALLENGER" || format === "KING") {
           if (format === "KING") challenger = kingChallenger(root.world_seed, id, v.followers, 0);
           else { const c = challengerFor(root.world_seed, key, v.followers); challenger = { name: c.name, avg: c.avg, bot: { config: c.config, seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) } }; }
           hello = [{ kind: "CHAT", user: challenger.name, text: format === "KING" ? "I'll be first up. One leg, you throw first" : `I'll have a go! First to ${STREAM.legsToWin}, you throw first` }];
