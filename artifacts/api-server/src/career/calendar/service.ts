@@ -22,7 +22,8 @@ import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-eng
 import { isGroupedStructure, isGroupMatch, layoutFor } from "./groups.ts";
 import { a2MatchFormat } from "./formats.ts";
 import { activeManager, recordManagerInvites } from "../manager/state.ts";
-import { streamNights } from "../streaming/state.ts";
+import { settleStreamingWeek, streamNights, streamTier } from "../streaming/state.ts";
+import { streamerCanBeInvited } from "../streaming/model.ts";
 import { canInvite } from "../manager/model.ts";
 import { loadHumanForm, humanSimulationPlayer } from "../form/human.ts";
 import { simulateNpcMatch } from "../world/simulation.ts";
@@ -97,7 +98,7 @@ async function loadHumanContext(tx: CareerExecutor, root: RootRow, season: numbe
       ON i.career_save_id = e.career_save_id AND i.id = e.event_id WHERE e.career_save_id = ${root.id} AND e.participant_key = ${HUMAN} AND e.status <> 'WITHDRAWN' AND i.season = ${season}
       AND i.snapshot ? 'exclusiveGroup' AND jsonb_typeof(i.snapshot->'exclusiveGroup') = 'object'`)).rows) groups.set(String(row.k), String(row.v));
   return { participant: humanParticipant(root, providers), entries, bookings, results, ctx, groups, active: root.status === "ACTIVE", week: Number(root.current_week), season: Number(root.current_season),
-    manager: await activeManager(tx, root.id) };
+    manager: await activeManager(tx, root.id), streamTier: await streamTier(tx, root.id) };
 }
 
 /** Structured, actionable view of one event for the human. Pure over loaded context. */
@@ -119,6 +120,12 @@ const takesInvitations = (r: Rule): boolean => "all" in r ? r.all.some(takesInvi
 function humanView(event: InstanceRow, human: HumanContext, seriesWindows: SeriesWindows) {
   const facts = factsFor(human.participant, human.ctx, event);
   let authored = evaluateRule(event.snapshot.eligibility, facts);
+  // A DartCast Star gets invitations to the televised invitationals on the strength of their audience (no one takes a cut, so this comes before a manager's).
+  let streamInvite = false;
+  if (!authored.eligible && streamerCanBeInvited(human.streamTier, { circuit: event.circuit, definitionKey: event.definition_key, takesInvitations: takesInvitations(event.snapshot.eligibility) })) {
+    const invited = evaluateRule(event.snapshot.eligibility, { ...facts, invited: true });
+    if (invited.eligible) { authored = invited; streamInvite = true; }
+  }
   // Not in on your own? Your manager may get you an invitation (and takes their cut of this event's prize money for it).
   let managerInvite = false;
   if (!authored.eligible && human.manager && canInvite(human.manager, { circuit: event.circuit, definitionKey: event.definition_key,
@@ -171,7 +178,7 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   else relationship = entitlement ? "QUALIFIED" : "AVAILABLE";
   return {
     relationship, eligible: rule.eligible, eligibilityReasons: rule.reasons, age: ageInfo,
-    managerInvite: managerInvite ? { name: human.manager!.name, commission: human.manager!.commission } : null,
+    managerInvite: managerInvite ? { name: human.manager!.name, commission: human.manager!.commission } : null, streamInvite,
     canEnter: denials.length === 0, denials: [...new Set(denials)], conflictsWith: [...conflicts].filter(id=>!id.startsWith("life:")&&!id.startsWith("stream:")),
     commercialConflicts: [...conflicts].filter(id=>id.startsWith("life:")||id.startsWith("stream:")).map(id=>id.startsWith("stream:")?"Streaming night":"Accepted off-board commitment"),
     entryStatus: entry?.status ?? null, result: result ? { finishingPosition: Number(result.finishing_position), stageReached: String(result.stage_reached), champion: Boolean(result.is_champion) } : null,
@@ -467,6 +474,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await settleLifeCommitments(tx,root,s,w);
       // Club team nights (Wednesday): played after the week's events, so anyone booked into one sits the team night out.
       await playTeamNights(tx, root, s, w);
+      // DartCast: monthly sub renewals and brand offers.
+      await settleStreamingWeek(tx, root, s, w);
       return { season: s, week: w, summary, blocked: false };
     });
     if (played.blocked) return { ...played, advancedTo: null };

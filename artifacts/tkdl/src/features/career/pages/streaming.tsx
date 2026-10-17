@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Check, Eye, Loader2, Radio, Search, Trophy, Users } from "lucide-react";
-import { useGoLive, useStreaming, errorMessage } from "../api";
+import { useAnswerBrandDeal, useGoLive, useStreaming, errorMessage } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
@@ -9,7 +9,7 @@ import "./streaming.css";
 
 /** DartCast: a made-up darts streaming site. Your channel, the streamer route, going live and your past streams. */
 export function StreamingPage({ ctx }: { ctx: ShellContext }) {
-  const id = ctx.save.id, q = useStreaming(id), live = useGoLive(id);
+  const id = ctx.save.id, q = useStreaming(id), live = useGoLive(id), answer = useAnswerBrandDeal(id);
   const [, navigate] = useLocation();
   const [night, setNight] = useState<number | null>(null);
   const [message, setMessage] = useState("");
@@ -34,6 +34,19 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             {" "}· {d.totals.streams} stream{d.totals.streams === 1 ? "" : "s"} · {formatPence(d.totals.earnedPence)} earned · beat {d.totals.won} challenger{d.totals.won === 1 ? "" : "s"}</p>
         </div>
       </section>
+      {(d.subscribers > 0 || d.deal || d.dealOffer || d.invitations) && <section className="dc__panel">
+        <h2>Channel money</h2>
+        {d.subscribers > 0 && <p className="dc__note"><b>{d.subscribers.toLocaleString("en-GB")}</b> subscriber{d.subscribers === 1 ? "" : "s"} renew at the end of week {d.renewsWeek} ({formatPence(Math.round(d.subscribers * 125))} if they all stay).
+          {" "}Stream at least once a month or more of them drift away.</p>}
+        {d.dealOffer && <div className="dc__deal" role="group" aria-label="Brand offer">
+          <p><b>{d.dealOffer.brand}</b> ({d.dealOffer.what}) wants their name on your stream: <b>{formatPence(d.dealOffer.perStreamPence)} a stream</b> for your next {d.dealOffer.streamsTotal} streams.
+            {" "}Answer by week {d.dealOffer.expiresWeek}.</p>
+          <button type="button" className="dc__go" disabled={answer.isPending} onClick={() => answer.mutate({ dealId: d.dealOffer!.id, accept: true }, { onError: e => setMessage(errorMessage(e)) })}>Take the deal</button>
+          <button type="button" className="dc__link" disabled={answer.isPending} onClick={() => answer.mutate({ dealId: d.dealOffer!.id, accept: false }, { onError: e => setMessage(errorMessage(e)) })}>No thanks</button>
+        </div>}
+        {d.deal && <p className="dc__note">Brand deal with <b>{d.deal.brand}</b>: {formatPence(d.deal.perStreamPence)} a stream, {d.deal.streamsDone} of {d.deal.streamsTotal} streams done.</p>}
+        {d.invitations && <p className="dc__note">You're a DartCast Star: the televised invitationals send you invitations. Look for them in the calendar.</p>}
+      </section>}
       <section className="dc__panel">
         <h2>Go live</h2>
         <p className="dc__note">Pick a free night this week. A viewer steps up to play you, first to 2 legs of 501, and chat reacts to every visit. A stream night is booked like any other: no events that night.

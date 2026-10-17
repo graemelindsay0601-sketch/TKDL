@@ -65,6 +65,8 @@ export const useStreaming = (saveId: string) => useQuery({ queryKey: careerKey(s
 export const useStreamSession = (saveId: string, streamId: string) => useQuery({ queryKey: careerKey(saveId, "streaming", "stream", streamId),
   queryFn: () => get<StreamSession>(`/saves/${saveId}/streaming/streams/${streamId}`), staleTime: Infinity });
 export const useGoLive = (saveId: string) => useSaveMutation(saveId, (dayOfWeek: number) => send<StreamSession>("POST", `/saves/${saveId}/streaming/live`, { dayOfWeek }));
+export const useAnswerBrandDeal = (saveId: string) => useSaveMutation(saveId, ({ dealId, accept }: { dealId: string; accept: boolean }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/deals/${dealId}`, { accept }));
 export const streamingApi = {
   darts: (saveId: string, streamId: string, darts: unknown[]) => send<{ session: StreamSession; events: ChatEvent[] }>("POST", `/saves/${saveId}/streaming/streams/${streamId}/darts`, { darts }),
   end: (saveId: string, streamId: string) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/end`),
