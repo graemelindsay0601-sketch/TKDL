@@ -1238,3 +1238,16 @@
   .career-hero__extra { display:none; }
   .career-hero__portrait { display:none; }
 }
+
+/* First-season checklist */
+.career-welcome h3 .career-welcome__count { margin-left:auto; font-size:.75rem; font-weight:700; color:#ffd24a; }
+.career-welcome__steps { list-style:none; margin:8px 0 10px; padding:0; display:grid; gap:6px; }
+.career-welcome__steps li { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:6px 8px; border-radius:10px; }
+.career-welcome__steps li[data-next] { background:#ffffff0d; border:1px solid #ffd24a40; }
+.career-welcome__steps li[data-done] b { color:#ffffff99; text-decoration:line-through; text-decoration-color:#ffffff40; }
+.career-welcome__steps li > span:nth-child(2) { display:grid; gap:2px; flex:1 1 180px; min-width:0; }
+.career-welcome__steps small { color:#e8eef3cc; font-size:.82rem; line-height:1.35; }
+.career-welcome__tick { flex:none; width:20px; height:20px; border-radius:50%; border:2px solid #ffffff40; display:grid; place-items:center; }
+.career-welcome__steps li[data-done] .career-welcome__tick { background:#4ade80; border-color:#4ade80; color:#0b1a12; }
+.career-welcome__tick svg { width:13px; height:13px; }
+.career-welcome__go { padding:6px 12px !important; font-size:.8rem !important; }

@@ -1,4 +1,5 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, type CSSProperties, type ReactNode } from "react";
+import { markVisited } from "../welcome";
 import { Link } from "wouter";
 import { Car, Coins, Moon, Radio, Shield, Star, Video } from "lucide-react";
 import { useCamLeague, useMoneyMatches, useProAm, useRoadTrips, useStreaming, useTeamNights, useWeekNights } from "../api";
@@ -37,6 +38,7 @@ function Card({ href, icon, title, accent, status, action }: { href: string; ico
  */
 export function NightsPage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, base = `/career/${id}`;
+  useEffect(() => { markVisited(id, "nights"); }, [id]);
   const { loaded, week, days, free, team, teamNight } = useNightsWeek(id, ctx.save.currentWeek);
   const money = useMoneyMatches(id), road = useRoadTrips(id), proam = useProAm(id),
     cam = useCamLeague(id), stream = useStreaming(id);

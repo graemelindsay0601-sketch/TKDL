@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { markVisited } from "../welcome";
 import { Link } from "wouter";
 import { BadgeCheck, Crown, GraduationCap, Route, Sparkles, Ticket, Vault } from "lucide-react";
 import { usePathways, useTourCard, useDecideTourCard, errorMessage, type PathwaysView } from "../api";
@@ -93,6 +94,7 @@ function Routes({ saveId, p }: { saveId: string; p: PathwaysView }) {
 /** Road to the Tour: every way to a Tour Card and to the World Championship, and where you stand on each. */
 export function RoadToTourPage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, q = usePathways(id), p = q.data;
+  useEffect(() => { markVisited(id, "road"); }, [id]);
   const pro = !!p?.tourCard && !p.tourCard.offer;
   return <div className="space-y-3">
     <CareerPageHero kicker="Road to the Tour" title={pro ? "You're on the Tour" : "Every way in"} accent="#4ade80"

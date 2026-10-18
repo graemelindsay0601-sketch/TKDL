@@ -63,7 +63,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
     <section className="next-move panel" aria-labelledby="next-move-title">
       <div className="next-move__kicker"><span className="live-indicator" aria-hidden /> Play</div>
       <h2 id="next-move-title" className="next-move__title">Your next move</h2>
-      <CareerWelcome save={save} />
+      <CareerWelcome save={save} entered={!!booked} />
       <TourCardOffer saveId={id} />
       {lead}
       {!match && !activeTournament && !pendingReview && <>
