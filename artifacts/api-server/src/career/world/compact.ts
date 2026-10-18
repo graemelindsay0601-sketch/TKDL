@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { CareerDatabase } from "../database.ts";
+import { ensureCareerMaintenance } from "../../db/migrations/create_career_world.ts";
 
 /** Recorded once every simulated match stored in the old, full form has been slimmed down. */
 const DONE_KEY = "compact-simulated-matches-v1";
@@ -12,7 +13,7 @@ const DONE_KEY = "compact-simulated-matches-v1";
  */
 export async function compactSimulatedMatches(database: CareerDatabase, options: { batch?: number; pauseMs?: number } = {}): Promise<number> {
   const batch = options.batch ?? 1000, pauseMs = options.pauseMs ?? 50;
-  await database.execute(sql`CREATE TABLE IF NOT EXISTS career_maintenance (key TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  await database.transaction(ensureCareerMaintenance);
   if ((await database.execute(sql`SELECT 1 FROM career_maintenance WHERE key = ${DONE_KEY}`)).rows.length) return 0;
   let after = { save: "00000000-0000-0000-0000-000000000000", id: "00000000-0000-0000-0000-000000000000" }, compacted = 0;
   for (;;) {

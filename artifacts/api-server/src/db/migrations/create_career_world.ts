@@ -114,6 +114,11 @@ export async function createCareerWorld(database: CareerDatabase): Promise<void>
  * NPC matches writes thousands of them, and lz4 compresses them in about two thirds of the time of the default (pglz)
  * at much the same size. Only new rows are affected; old rows read either way. Skipped where the server lacks lz4. Idempotent.
  */
+/** One-off maintenance jobs that run after startup record here when they are done (see career/world/compact.ts). Idempotent. */
+export async function ensureCareerMaintenance(tx: CareerExecutor): Promise<void> {
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_maintenance (key TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+}
+
 export async function ensureFastMatchCompression(tx: CareerExecutor): Promise<void> {
   const lz4 = (await tx.execute(sql`SELECT 1 FROM pg_settings WHERE name = 'default_toast_compression' AND 'lz4' = ANY(enumvals)`)).rows.length > 0;
   if (!lz4) return;
