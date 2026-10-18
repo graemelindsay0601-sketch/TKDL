@@ -86,18 +86,21 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
+      {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
+        <SeasonOneGuidance saveId={id} />
+        <details className="career-note" open>
+          <summary>Tour Card routes this season</summary>
+          <p>{(save.eventDatabaseVersion ?? 0) >= 17
+            ? "Play wherever suits you. Q-School runs in weeks 2–4 if you can afford it, and the Challenger Tour is open to anyone without a Tour Card this season: finish in its top 2 for a Tour Card. Turning professional is up to you."
+            : (save.eventDatabaseVersion ?? 0) >= 6
+              ? `Play wherever suits you. This season the Challenger Tour is open to anyone without a Tour Card: finish in its top 2 for a Tour Card, or ${(save.eventDatabaseVersion ?? 0) >= 8 ? "3rd–16th" : "3rd–10th"} to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–4 of season 2. Turning professional is up to you.`
+              : "Play wherever suits you. Your first Q-School is at the start of season 2. Turning professional is up to you."}</p>
+        </details>
+      </>}
       <details className="home-more" open={retired}>
       <summary className="home-more__summary">More about your Career <span>Guidance, route ahead, goals, schedule and results</span></summary>
       <div className="home-more__body">
       <ContextHelp saveId={id} topic="home" />
-      {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
-        <SeasonOneGuidance saveId={id} />
-                <details className="career-note" open><summary>Your first season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 17
-          ? "Play wherever suits you. Q-School runs in weeks 2–4 if you can afford it, and the Challenger Tour is open to anyone without a Tour Card this season: finish in its top 2 for a Tour Card. Turning professional is up to you."
-          : (save.eventDatabaseVersion ?? 0) >= 6
-          ? `Play wherever suits you. This season the Challenger Tour is open to anyone without a Tour Card: finish in its top 2 for a Tour Card, or ${(save.eventDatabaseVersion ?? 0) >= 8 ? "3rd–16th" : "3rd–10th"} to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–4 of season 2. Turning professional is up to you.`
-          : "Play wherever suits you. Your first Q-School is at the start of season 2. Turning professional is up to you."}</p></details>
-      </>}
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
         <div className="home-section-kicker"><span className="live-indicator" aria-hidden /> PRIORITY DESK</div>
