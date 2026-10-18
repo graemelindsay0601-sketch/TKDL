@@ -344,6 +344,9 @@ export async function ensureCareerForeignKeyIndexes(tx: CareerExecutor): Promise
     // The human's own matches: a few hundred rows however long the save, read by facts, relationships, recognition and life.
     ["career_tournament_matches_human_idx", "career_tournament_matches", "career_save_id, event_id) WHERE a_key = 'HUMAN' OR b_key = 'HUMAN'"],
     // Champions and finalists of recent seasons (news, legacy): a few per event instead of every result in the save.
+    // A player's latest completed matches (public form for money matches, road trips, Pro-Am): ten index rows, not their whole history.
+    ["career_tournament_matches_a_form_idx", "career_tournament_matches", "career_save_id, a_npc_id, completed_at DESC) WHERE a_npc_id IS NOT NULL AND status = 'COMPLETED'"],
+    ["career_tournament_matches_b_form_idx", "career_tournament_matches", "career_save_id, b_npc_id, completed_at DESC) WHERE b_npc_id IS NOT NULL AND status = 'COMPLETED'"],
     ["career_event_results_podium_idx", "career_event_results", "career_save_id, season) WHERE is_champion OR stage_reached = 'FINAL'"],
   ];
   for (const [name, table, cols] of indexes) await tx.execute(sql.raw(`CREATE INDEX IF NOT EXISTS ${name} ON ${table} (${cols}`));

@@ -62,21 +62,28 @@ async function clubMembers(tx: CareerExecutor, root: Root): Promise<{ locality: 
 
 /** A town's active players (from that area), strongest first by their recent recorded average. */
 export async function playersOf(tx: CareerExecutor, root: Pick<Root, "id">, locality: typeof LOCALITIES[number]): Promise<Member[]> {
+  return (await playersOfMany(tx, root, [locality])).get(locality.key) ?? [];
+}
+
+/** playersOf for several towns at once (two queries in all, however many towns): locality key to its players, best form first. */
+export async function playersOfMany(tx: CareerExecutor, root: Pick<Root, "id">, localities: readonly typeof LOCALITIES[number][]): Promise<Map<string, Member[]>> {
+  const out = new Map<string, Member[]>(localities.map(l => [l.key, []]));
+  const countries = [...new Set(localities.map(l => l.country))];
+  if (!countries.length) return out;
   const players = (await tx.execute(sql`SELECT id,first_name,surname,home_region,professional_status FROM career_world_players
-    WHERE career_save_id=${root.id} AND nationality=${locality.country} AND status='ACTIVE'`)).rows
-    .filter(p => localityByRegion(String(p.home_region))?.key === locality.key);
+    WHERE career_save_id=${root.id} AND nationality IN (${sql.join(countries.map(c => sql`${c}`), sql`,`)}) AND status='ACTIVE'`)).rows
+    .map(p => ({ p, town: localityByRegion(String(p.home_region))?.key })).filter(x => x.town && out.has(x.town));
   // Their form is public: the average over their last ten recorded matches (abilities stay hidden, as everywhere else).
-  const keys = players.map(p => String(p.id));
-  const averages = new Map(keys.length ? (await tx.execute(sql`WITH m AS (
-      SELECT a_npc_id::text AS k, (summary->'averages'->>0)::float AS avg, completed_at FROM career_tournament_matches
-        WHERE career_save_id=${root.id} AND a_npc_id IN (${sql.join(keys.map(k => sql`${k}::uuid`), sql`,`)}) AND status='COMPLETED' AND summary ? 'averages'
-      UNION ALL
-      SELECT b_npc_id::text, (summary->'averages'->>1)::float, completed_at FROM career_tournament_matches
-        WHERE career_save_id=${root.id} AND b_npc_id IN (${sql.join(keys.map(k => sql`${k}::uuid`), sql`,`)}) AND status='COMPLETED' AND summary ? 'averages')
-    SELECT k, AVG(avg)::float AS avg FROM (SELECT k, avg, row_number() OVER (PARTITION BY k ORDER BY completed_at DESC) AS rn FROM m WHERE avg > 0) x
-    WHERE rn <= ${MONEY.formMatches} GROUP BY k`)).rows.map(r => [String(r.k), Math.round(Number(r.avg) * 10) / 10] as const) : []);
-  return players.map(p => ({ key: String(p.id), name: nameOf(p), professional: p.professional_status === "PROFESSIONAL", average: averages.get(String(p.id)) ?? null }))
-    .sort((a, b) => (b.average ?? 0) - (a.average ?? 0) || a.name.localeCompare(b.name));
+  const keys = players.map(x => String(x.p.id));
+  const latest = (side: "a" | "b", k: ReturnType<typeof sql>) => sql`SELECT (summary->'averages'->>${sql.raw(side === "a" ? "0" : "1")})::float AS avg, completed_at
+    FROM career_tournament_matches WHERE career_save_id=${root.id} AND ${sql.raw(`${side}_npc_id`)}=${k} AND status='COMPLETED' AND summary ? 'averages'
+      AND (summary->'averages'->>${sql.raw(side === "a" ? "0" : "1")})::float > 0 ORDER BY completed_at DESC LIMIT ${MONEY.formMatches}`;
+  const averages = new Map(keys.length ? (await tx.execute(sql`SELECT k.id::text AS k, (SELECT AVG(avg) FROM (SELECT avg FROM ((${latest("a", sql`k.id`)}) UNION ALL (${latest("b", sql`k.id`)})) u
+      ORDER BY completed_at DESC LIMIT ${MONEY.formMatches}) v)::float AS avg FROM unnest(ARRAY[${sql.join(keys.map(k => sql`${k}`), sql`,`)}]::uuid[]) AS k(id)`)).rows
+    .filter(r => r.avg !== null).map(r => [String(r.k), Math.round(Number(r.avg) * 10) / 10] as const) : []);
+  for (const { p, town } of players) out.get(town!)!.push({ key: String(p.id), name: nameOf(p), professional: p.professional_status === "PROFESSIONAL", average: averages.get(String(p.id)) ?? null });
+  for (const list of out.values()) list.sort((a, b) => (b.average ?? 0) - (a.average ?? 0) || a.name.localeCompare(b.name));
+  return out;
 }
 
 export async function availableOf(tx: CareerExecutor, saveId: string) {
