@@ -1251,3 +1251,9 @@
 .career-welcome__steps li[data-done] .career-welcome__tick { background:#4ade80; border-color:#4ade80; color:#0b1a12; }
 .career-welcome__tick svg { width:13px; height:13px; }
 .career-welcome__go { padding:6px 12px !important; font-size:.8rem !important; }
+
+/* Unlock as you go */
+.career-new-badge { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:999px; background:#ffd24a; color:#1a1300; font-size:.62rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; vertical-align:middle; }
+.nights-coming { margin:10px 4px 2px; font-size:.85rem; color:#e8eef3b3; }
+.career-later-note { display:flex; gap:10px; align-items:flex-start; color:#e8eef3cc; }
+.career-later-note svg { flex:none; margin-top:2px; color:#38bdf8; }

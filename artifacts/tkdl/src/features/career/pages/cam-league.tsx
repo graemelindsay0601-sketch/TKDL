@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
+import { markSeen } from "../unlocks";
 import { Loader2, MonitorPlay, Trophy, Video } from "lucide-react";
 import { GameScorer } from "@/components/game-scorer";
 import type { Dart } from "@/lib/darts-rules";
@@ -20,6 +21,7 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
  */
 export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, q = useCamLeague(id), join = useJoinCamLeague(id), book = useBookCamMatch(id), sim = useSimulateCamMatch(id);
+  useEffect(() => { markSeen(id, "cam-league"); }, [id]);
   const [night, setNight] = useState<number | null>(null), [message, setMessage] = useState("");
   const [, navigate] = useLocation();
   if (q.isLoading) return <CareerLoading />;

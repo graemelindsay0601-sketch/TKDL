@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { markSeen } from "../unlocks";
 import { Link, useLocation } from "wouter";
 import { Check, Eye, Loader2, Radio, Search, Trophy, Users } from "lucide-react";
 import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, errorMessage, type StreamFormat } from "../api";
@@ -10,6 +11,7 @@ import "./streaming.css";
 /** DartCast: a made-up darts streaming site. Your channel, the streamer route, going live and your past streams. */
 export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, q = useStreaming(id), live = useGoLive(id), answer = useAnswerBrandDeal(id), goal = useSetSubGoal(id);
+  useEffect(() => { markSeen(id, "streaming"); }, [id]);
   const [format, setFormat] = useState<StreamFormat | null>(null);
   const [goalTarget, setGoalTarget] = useState<number | null>(null);
   const [promise, setPromise] = useState<string | null>(null);

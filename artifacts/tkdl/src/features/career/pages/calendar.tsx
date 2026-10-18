@@ -251,7 +251,8 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const [hostCountry, setHostCountry] = useState("");
   const homeCountry = homeCountryOf(useCareerProfile(save.id).data?.homeLocality);
   const [tier, setTier] = useState("");
-  const [status, setStatus] = useState("ALL");
+  // A first-season calendar opens on what you can enter now; everything else is one tap away.
+  const [status, setStatus] = useState(save.currentSeason === 1 && !retired ? "OPEN" : "ALL");
   const [season, setSeason] = useState(save.currentSeason);
   const [focusWeek, setFocusWeek] = useState(save.currentWeek);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -388,6 +389,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
 
       <div className="cc-content-grid">
         <section className="cc-agenda" aria-label="Event schedule">
+          {status === "OPEN" && view !== "MY_SCHEDULE" && <p className="cc-showing-open">Showing events you can enter now. <button type="button" className="cc-link-button" onClick={() => { setStatus("ALL"); setPage(0); }}>Show all events</button></p>}
           <div className="cc-agenda-header">
             <div><span className="cc-kicker">{view === "MY_SCHEDULE" ? "YOUR COMMITMENTS" : view === "SEASON" ? "THE CAMPAIGN" : "NEXT ON THE TOUR"}</span>
               <h3>{view === "MY_SCHEDULE" ? "My Entries" : view === "SEASON" ? "Season events" : "Upcoming events"} <span>{events.length.toString().padStart(2, "0")}</span></h3>

@@ -1,5 +1,6 @@
 import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { markVisited } from "../welcome";
+import { markSeen, nextUnlockLine, useUnlocks, type UnlockKey } from "../unlocks";
 import { Link } from "wouter";
 import { Car, Coins, Moon, Radio, Shield, Star, Video } from "lucide-react";
 import { useCamLeague, useMoneyMatches, useProAm, useRoadTrips, useStreaming, useTeamNights, useWeekNights } from "../api";
@@ -25,10 +26,10 @@ function useNightsWeek(saveId: string, fallbackWeek: number) {
 }
 
 /** One activity: where it lives and what it needs from you this week. */
-function Card({ href, icon, title, accent, status, action }: { href: string; icon: ReactNode; title: string; accent: string; status: ReactNode; action?: boolean }) {
+function Card({ href, icon, title, accent, status, action, isNew }: { href: string; icon: ReactNode; title: string; accent: string; status: ReactNode; action?: boolean; isNew?: boolean }) {
   return <Link href={href} className="nights-card" style={{ "--accent": accent } as CSSProperties} data-action={action || undefined}>
     <span className="nights-card__icon" aria-hidden>{icon}</span>
-    <span className="nights-card__body"><b>{title}</b><small>{status}</small></span>
+    <span className="nights-card__body"><b>{title}{isNew && <span className="career-new-badge">New</span>}</b><small>{status}</small></span>
   </Link>;
 }
 
@@ -39,6 +40,8 @@ function Card({ href, icon, title, accent, status, action }: { href: string; ico
 export function NightsPage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, base = `/career/${id}`;
   useEffect(() => { markVisited(id, "nights"); }, [id]);
+  const unlocks = useUnlocks(ctx.save);
+  const comingNext = nextUnlockLine(unlocks.next, unlocks.played);
   const { loaded, week, days, free, team, teamNight } = useNightsWeek(id, ctx.save.currentWeek);
   const money = useMoneyMatches(id), road = useRoadTrips(id), proam = useProAm(id),
     cam = useCamLeague(id), stream = useStreaming(id);
@@ -48,9 +51,10 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
   const streamsLeft = s ? s.perWeek - s.streamsThisWeek : 0;
   return <div className="space-y-3 nights">
     <CareerPageHero kicker="Nights Out" title={`Week ${week}`} accent="#e08a5b" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}
-      subtitle={<p>Your club, money matches, road trips, Pro-Am nights, the webcam league and DartCast. Each takes a night, so plan them around your events.</p>}
+      subtitle={<p>{unlocks.everything ? "Your club, money matches, road trips, Pro-Am nights, the webcam league and DartCast. Each takes a night, so plan them around your events."
+        : "What to do with your free weeknights. Each activity takes a night, so plan them around your events."}</p>}
       stats={[{ label: "Free nights", value: loaded ? free : "…", tone: "gold" }, { label: "Money matches left", value: m ? moneyLeft : "…" },
-        { label: "Streams left", value: s ? streamsLeft : "…" }]} />
+        ...(unlocks.isOpen("streaming") ? [{ label: "Streams left", value: s ? streamsLeft : "…" }] : [])]} />
     <ol className="nights-week" aria-label={`Week ${week}, night by night`}>
       {days.map(d => <li key={d.dayOfWeek} data-free={!d.items.length || undefined}>
         <b>{dayLabel(d.dayOfWeek)}</b>
@@ -64,24 +68,26 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
             : team.data?.next ? `Next team night week ${team.data.next.week}` : "Table, members and your own tournament"} />
         <Card href={`${base}/money-matches`} icon={<Coins />} title="Money matches" accent="#d9b96f" action={!!m?.challenge}
           status={!m ? "…" : m.challenge ? `${m.challenge.name} has challenged you for ${formatPence(m.challenge.stakePence)}` : moneyLeft > 0 ? `${moneyLeft} left to play this week` : "Done for this week"} />
-        <Card href={`${base}/road-trips`} icon={<Car />} title="Road trips" accent="#e08a5b" action={!!r?.visitor}
+        {unlocks.isOpen("road-trips") && <Card isNew={unlocks.isNew("road-trips")} href={`${base}/road-trips`} icon={<Car />} title="Road trips" accent="#e08a5b" action={!!r?.visitor}
           status={!r ? "…" : r.trip ? `${dayLabel(r.trip.dayOfWeek)} in ${r.trip.town} · ${r.trip.played} of ${r.trip.maxMatches} played` : r.visitor ? `${r.visitor.name} from ${r.visitor.town} is at your club`
-            : r.canTravel ? `${r.towns.length} towns on your road · ${r.reputation.title}` : r.why ?? "No trip this week"} />
-        <Card href={`${base}/pro-am`} icon={<Star />} title="Pro-Am nights" accent="#c77dff" action={p?.booking?.status === "BOOKED"}
+            : r.canTravel ? `${r.towns.length} towns on your road · ${r.reputation.title}` : r.why ?? "No trip this week"} />}
+        {unlocks.isOpen("pro-am") && <Card isNew={unlocks.isNew("pro-am")} href={`${base}/pro-am`} icon={<Star />} title="Pro-Am nights" accent="#c77dff" action={p?.booking?.status === "BOOKED"}
           status={!p ? "…" : p.booking ? `${dayLabel(p.booking.dayOfWeek)} in ${p.booking.town} · ${p.booking.status === "BOOKED" ? (p.booking.role === "PRO" ? "you're the pro" : `against ${p.booking.pro?.name}`) : p.booking.status.toLowerCase()}`
-            : p.nights.length ? `${p.nights.length} night${p.nights.length === 1 ? "" : "s"} this week${p.side === "PRO" ? " looking for a pro" : ""}` : "None this week"} />
-        <Card href={`${base}/cam-league`} icon={<Video />} title="Webcam league" accent="#5bc0eb" action={fixture?.status === "SCHEDULED" || fixture?.status === "BOOKED"}
+            : p.nights.length ? `${p.nights.length} night${p.nights.length === 1 ? "" : "s"} this week${p.side === "PRO" ? " looking for a pro" : ""}` : "None this week"} />}
+        {unlocks.isOpen("cam-league") && <Card isNew={unlocks.isNew("cam-league")} href={`${base}/cam-league`} icon={<Video />} title="Webcam league" accent="#5bc0eb" action={fixture?.status === "SCHEDULED" || fixture?.status === "BOOKED"}
           status={!c ? "…" : fixture ? (fixture.status === "SCHEDULED" ? `Book a night to play ${fixture.opponent.name}` : fixture.status === "BOOKED" ? `${dayLabel(fixture.dayOfWeek!)} v ${fixture.opponent.name}`
-            : `Played ${fixture.opponent.name}${fixture.legs ? ` ${fixture.legs[0]}-${fixture.legs[1]}` : ""}`) : c.league ? "No match this week" : c.join.ok ? `Join ${c.division.name} · next league from week ${c.join.startsWeek}` : c.join.why ?? c.division.name} />
-        <Card href={`${base}/streaming`} icon={<Radio />} title="DartCast" accent="#9b6bff"
-          status={!s ? "…" : s.live ? "You're live now" : `${streamsLeft > 0 ? `${streamsLeft} stream${streamsLeft === 1 ? "" : "s"} left this week` : "Streamed out this week"} · ${s.followers.toLocaleString("en-GB")} followers`} />
+            : `Played ${fixture.opponent.name}${fixture.legs ? ` ${fixture.legs[0]}-${fixture.legs[1]}` : ""}`) : c.league ? "No match this week" : c.join.ok ? `Join ${c.division.name} · next league from week ${c.join.startsWeek}` : c.join.why ?? c.division.name} />}
+        {unlocks.isOpen("streaming") && <Card isNew={unlocks.isNew("streaming")} href={`${base}/streaming`} icon={<Radio />} title="DartCast" accent="#9b6bff"
+          status={!s ? "…" : s.live ? "You're live now" : `${streamsLeft > 0 ? `${streamsLeft} stream${streamsLeft === 1 ? "" : "s"} left this week` : "Streamed out this week"} · ${s.followers.toLocaleString("en-GB")} followers`} />}
       </div>
+      {comingNext && <p className="nights-coming">{comingNext} New things to do on your free nights open up as you play.</p>}
     </CareerSection>
   </div>;
 }
 
 /** A page of its own for an activity that used to sit at the bottom of the club page. */
-function ActivityPage({ ctx, kicker, title, accent, blurb, icon, children }: { ctx: ShellContext; kicker: string; title: string; accent: string; blurb: string; icon: ReactNode; children: ReactNode }) {
+function ActivityPage({ ctx, kicker, title, accent, blurb, icon, children, unlock }: { ctx: ShellContext; kicker: string; title: string; accent: string; blurb: string; icon: ReactNode; children: ReactNode; unlock?: UnlockKey }) {
+  useEffect(() => { if (unlock) markSeen(ctx.save.id, unlock); }, [ctx.save.id, unlock]);
   return <div className="space-y-3">
     <CareerPageHero kicker={kicker} title={title} accent={accent} stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }} subtitle={<p>{blurb}</p>} />
     <CareerSection title="This week" icon={icon} accent={accent}>{children}</CareerSection>
@@ -91,16 +97,20 @@ function ActivityPage({ ctx, kicker, title, accent, blurb, icon, children }: { c
 
 export const MoneyMatchesPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage ctx={ctx} kicker="Nights Out · at your club" title="Money matches" accent="#d9b96f" icon={<Coins aria-hidden />}
   blurb="Put money on a game against a club member. Haggle over the stake; the winner takes it."><MoneyMatches saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></ActivityPage>;
-export const RoadTripsPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage ctx={ctx} kicker="Nights Out · on the road" title="Road trips" accent="#e08a5b" icon={<Car aria-hidden />}
+export const RoadTripsPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage unlock="road-trips" ctx={ctx} kicker="Nights Out · on the road" title="Road trips" accent="#e08a5b" icon={<Car aria-hidden />}
   blurb="Drive to another town's club for a night and take on their locals for money. Beat a town's champion to make your name there."><RoadTrips saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></ActivityPage>;
-export const ProAmPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage ctx={ctx} kicker="Nights Out · exhibitions" title="Pro-Am nights" accent="#c77dff" icon={<Star aria-hidden />}
+export const ProAmPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage unlock="pro-am" ctx={ctx} kicker="Nights Out · exhibitions" title="Pro-Am nights" accent="#c77dff" icon={<Star aria-hidden />}
   blurb="Pay for a leg against a touring pro and win twenty times your fee if you beat them. With a Tour Card, you're the pro and you're paid to turn up."><ProAmNights saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></ActivityPage>;
 
 /** Home: how many nights are still free this week, and the way into Nights Out. */
-export function NightsLine({ saveId, week }: { saveId: string; week: number }) {
+export function NightsLine({ saveId, week, save }: { saveId: string; week: number; save?: ShellContext["save"] }) {
   const { loaded, free } = useNightsWeek(saveId, week);
+  const unlocks = useUnlocks(save ?? { id: saveId, currentSeason: 99, status: "ACTIVE" });
   if (!loaded) return null;
+  const open = ["your club", "money matches", ...(unlocks.isOpen("road-trips") ? ["road trips"] : []), ...(unlocks.isOpen("pro-am") ? ["Pro-Am nights"] : []),
+    ...(unlocks.isOpen("cam-league") ? ["the webcam league"] : []), ...(unlocks.isOpen("streaming") ? ["DartCast"] : [])];
+  const list = open.length > 1 ? `${open.slice(0, -1).join(", ")} and ${open.at(-1)}` : open[0];
   return <Link href={`/career/${saveId}/nights`} className="money-match-line nights-line"><Moon aria-hidden />
-    <span>{free ? <><b>{free} free night{free === 1 ? "" : "s"}</b> this week · club, money matches, road trips, Pro-Am, webcam league and DartCast</> : "Every night this week is booked"}</span>
+    <span>{free ? <><b>{free} free night{free === 1 ? "" : "s"}</b> this week for {list}</> : "Every night this week is booked"}</span>
   </Link>;
 }

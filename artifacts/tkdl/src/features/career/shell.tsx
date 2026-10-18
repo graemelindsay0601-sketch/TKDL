@@ -4,6 +4,7 @@ import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays
   Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, Moon, Shield, Coins, Car, Star, Video, Radio, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
+import { UNLOCKS, useUnlocks, type UnlockKey } from "./unlocks";
 import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -36,7 +37,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
       <a href="#career-content" className="career-skip">Skip to Career content</a>
       {focused ? <PlayBar save={save.data} /> : <>
         <CareerHeader save={save.data} overview={overview} retired={retired} />
-        {!location.includes("/play")&&<CareerNav saveId={saveId} />}
+        {!location.includes("/play")&&<CareerNav saveId={saveId} save={save.data} />}
       </>}
       {!retired && <ProfileIncompleteBanner saveId={saveId} />}
       {retired && (
@@ -222,8 +223,11 @@ const SUB_ICONS: Record<string, LucideIcon> = {
   nights: Moon, club: Shield, "money-matches": Coins, "road-trips": Car, "pro-am": Star, "cam-league": Video, streaming: Radio,
   overview: LayoutGrid, performance: Activity, achievements: Medal, "career-life": Sparkles, history: BookOpen, sponsors: Briefcase,
 };
-export function CareerNav({ saveId }: { saveId: string }) {
+export function CareerNav({ saveId, save }: { saveId: string; save?: CareerSave }) {
   const [location] = useLocation();
+  // Unlock as you go: Nights Out extras are listed once they're useful (their pages still open from any link).
+  const unlocks = useUnlocks(save ?? { id: saveId, currentSeason: 99, status: "ACTIVE" });
+  const listed = (key: string) => !(UNLOCKS as readonly { key: string }[]).some(u => u.key === key) || unlocks.isOpen(key as UnlockKey);
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
   return (
@@ -242,8 +246,8 @@ export function CareerNav({ saveId }: { saveId: string }) {
       </div>
       {layer.items.length > 1 && (
         <div className="career-context-nav" aria-label={`${layer.label} pages`} role="group">
-          {layer.items.map(item => {const Sub=SUB_ICONS[item.key];return (
-            <Link key={item.key} href={`/career/${saveId}${item.path}`} className="career-subnav-link" aria-current={active === item.key ? "page" : undefined}>{Sub && <Sub size={14} aria-hidden className="career-subnav-icon"/>}{item.label}</Link>
+          {layer.items.filter(item => listed(item.key) || active === item.key).map(item => {const Sub=SUB_ICONS[item.key];return (
+            <Link key={item.key} href={`/career/${saveId}${item.path}`} className="career-subnav-link" aria-current={active === item.key ? "page" : undefined}>{Sub && <Sub size={14} aria-hidden className="career-subnav-icon"/>}{item.label}{unlocks.isNew(item.key as UnlockKey) && <span className="career-new-badge">New</span>}</Link>
           );})}
         </div>
       )}

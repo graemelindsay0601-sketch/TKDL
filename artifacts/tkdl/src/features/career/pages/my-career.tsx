@@ -24,7 +24,7 @@ export function MyCareerPage({ctx,section="overview"}:{ctx:ShellContext;section?
   const shirt=presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>:undefined;
   return <div className="space-y-3"><h2 className="sr-only">My Career · {section==="life"?"Career Life":section==="remembered"?"A Career Remembered":section[0].toUpperCase()+section.slice(1)}</h2>
     {section==="overview"&&<><PlayerLegacyProfile ctx={ctx}/><GoalsSummary saveId={id}/><RecognitionSummary saveId={id}/>
-      {links([["Your journey so far","/journey"],["Nights out this week","/nights"],["Money & sponsors","/finances"],["Your shirt & profile","/presentation"]])}</>}
+</>}
     {section==="performance"&&<><CareerPageHero kicker="My Career" title="Performance" accent="#69b8ec" stage={{venue:{venueType:"professional-floor"},eventClass:"PROFESSIONAL_TOUR"}}
       subtitle={<p>Every completed match, event and ranking in your Career, from the scorer and the results record.</p>} portrait={shirt}/>{links([["Results & statistics","/history/facts"],["Ranking history & races","/journey"],["Played opponents & H2H","/relationships"]])}<HistoryPage ctx={ctx}/></>}
     {section==="achievements"&&<><TrophyCabinet ctx={ctx}/>{links([["Finals, milestones & recorded honours","/history/facts"],["Season awards & supported records","/history"]])}</>}

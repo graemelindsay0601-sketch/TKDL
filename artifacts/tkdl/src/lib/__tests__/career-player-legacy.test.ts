@@ -78,7 +78,7 @@ const profileSeed = (v: Any, titles: Any[] = [], rank: number | null = null, car
 test("new Career with no honours: honest empty profile, no trophies, no documentary call-to-action", () => {
   const html = render(h(M.PlayerLegacyProfile, { ctx: ctx() }), profileSeed(fresh()));
   const t = text(html);
-  for (const x of ["Ayr Arrow", "“The Ayr Arrow”", "Open circuit", "Unranked", "No landmarks yet", "No titles yet. Your first one will show here.", "Age 22"]) assert.ok(t.includes(x), x);
+  for (const x of ["Ayr Arrow", "“The Ayr Arrow”", "Open circuit", "Unranked", "Nothing here yet. Your first event, final, title", "Age 22"]) assert.ok(t.includes(x), x);
   assert.doesNotMatch(html, /career-trophy-svg/); assert.doesNotMatch(t, /Watch A Career Remembered/);
   scene("profile-new", html);
 });

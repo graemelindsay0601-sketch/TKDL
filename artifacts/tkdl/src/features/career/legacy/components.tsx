@@ -61,6 +61,10 @@ export function PlayerLegacyProfile({ ctx }: { ctx: ShellContext }) {
         </div>
       </section>
 
+      {/* A new career has nothing to show yet: one line instead of two empty panels. */}
+      {!firsts.length && !v.totals.titles && !v.totals.finals ? <section className="pl-panel" aria-label="Career landmarks">
+        <p className="pl-empty">Nothing here yet. Your first event, final, title, ranking and Tour Card will show here as they happen.</p>
+      </section> : <>
       <section className="pl-panel" aria-label="Career landmarks">
         <h2 className="pl-panel__title"><Flag size={15} aria-hidden /> Career landmarks</h2>
         {firsts.length ? <ol className="pl-landmarks">{firsts.map(m => (
@@ -69,6 +73,7 @@ export function PlayerLegacyProfile({ ctx }: { ctx: ShellContext }) {
       </section>
 
       <HonoursShelf saveId={id} legacy={v} />
+      </>}
 
       <nav className="pl-links" aria-label="Career record">
         <Link href={`/career/${id}/my-career/achievements`} className="career-surface"><Trophy size={16} aria-hidden /> Trophy cabinet</Link>

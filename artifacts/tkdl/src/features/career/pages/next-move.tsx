@@ -74,7 +74,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         <MoneyChallengeLine saveId={id} />
         <RoadVisitorLine saveId={id} />
         <TeamNightLine saveId={id} week={save.currentWeek} />
-        <NightsLine saveId={id} week={save.currentWeek} />
+        <NightsLine saveId={id} week={save.currentWeek} save={save} />
         <WeekPlanner events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
         {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
         {enterable.length ? <div className="next-move__events">
