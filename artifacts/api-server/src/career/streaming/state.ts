@@ -14,7 +14,7 @@ async function ready(tx: CareerExecutor) {
 /** Your stream nights this season (absolute day to stream id): a stream night is booked like any other night. */
 export async function streamNights(tx: CareerExecutor, saveId: string, season: number): Promise<Map<number, string>> {
   if (!await ready(tx)) return new Map();
-  return new Map((await tx.execute(sql`SELECT day, id FROM career_streams WHERE career_save_id=${saveId} AND season=${season}`)).rows.map(r => [Number(r.day), String(r.id)]));
+  return new Map((await tx.execute(sql`SELECT day, id FROM career_streams WHERE career_save_id=${saveId} AND season=${season} AND format <> 'MATCH'`)).rows.map(r => [Number(r.day), String(r.id)]));
 }
 
 /** Your step on the streamer route (null with no channel yet). */

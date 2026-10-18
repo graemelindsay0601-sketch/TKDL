@@ -68,11 +68,15 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
 
   if (q.isLoading || (!session && !q.error)) return <CareerLoading />;
   if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
-  const t = session.tally, over = session.status === "ENDED", king = session.streamFormat === "KING", drill = session.drill;
+  const t = session.tally, over = session.status === "ENDED", king = session.streamFormat === "KING", inv = session.streamFormat === "INVITATIONAL", drill = session.drill;
+  const ROUND_NAMES = ["Quarter-final", "Semi-final", "Final"];
+  const invWins = session.rounds.filter(r => r.result === "WON").length;
   const title = drill ? <><b>{session.formatName}</b> <small>{drill.kind === "SCORING" ? `target average ${drill.targetAverage}` : drill.kind === "CHECKOUTS" ? `finishes ${drill.targets.join(", ")}` : "D1 to the bull"}</small></>
     : king ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>King of the Oche · viewer {session.round + 1} of {session.kingRounds} · one leg · they average about {session.challenger.avg}</small></>
+    : inv ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>DartCast Invitational · {ROUND_NAMES[session.round]} · first to 2 · they average about {session.challenger.avg}</small></>
     : <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>first to 2 · they average about {session.challenger.avg}</small></>;
   const headline = drill ? (session.result === "WON" ? `${session.formatName}: done it!` : session.result === "LOST" ? `${session.formatName}: not this time` : "Stream ended")
+    : inv ? (invWins >= 3 ? "DartCast Invitational champion!" : `Out in the ${ROUND_NAMES[Math.min(2, invWins)].toLowerCase()}`)
     : king ? (session.result === "WON" ? `King of the Oche: all ${session.kingRounds} seen off` : `${session.rounds.filter(r => r.result === "WON").length} viewer${session.rounds.filter(r => r.result === "WON").length === 1 ? "" : "s"} seen off`)
     : session.result === "WON" ? `You beat ${session.challenger.name}` : session.result === "LOST" ? `${session.challenger.name} beat you` : "Stream ended";
   return (
@@ -85,7 +89,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
       <div className="dc-live">
         <section className="dc-live__stage" aria-label="Stream">
           <div className="dc-live__title">{title}</div>
-          {king && session.rounds.length > 0 && <ol className="dc-live__rounds" aria-label="Viewers so far">{session.rounds.map((r, i) => <li key={i} data-result={r.result}>{r.challenger} {r.result === "WON" ? "seen off" : "won"}</li>)}</ol>}
+          {(king || inv) && session.rounds.length > 0 && <ol className="dc-live__rounds" aria-label="Viewers so far">{session.rounds.map((r, i) => <li key={i} data-result={r.result}>{inv ? `${ROUND_NAMES[i]}: ` : ""}{r.challenger} {r.result === "WON" ? (inv ? "beaten" : "seen off") : "won"}</li>)}</ol>}
           {alert && <div className="dc-live__toast" role="status"><ChatLine e={alert} /></div>}
           {!over && drill ? <div className="dc-live__scorer">
             <DrillScorer key={session.id} spec={drill} initialDarts={session.darts as Dart[]} onVisit={send} />
@@ -101,6 +105,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
               <div><dt>New followers</dt><dd>+{session.followersGained ?? 0}</dd></div>
               <div><dt>Bits</dt><dd>{money(t.bitsPence)}</dd></div>
               <div><dt>Super chats</dt><dd>{money(t.superchatsPence)}</dd></div>
+              {t.raisedPence !== undefined ? <div><dt>Raised for charity</dt><dd>{money(t.raisedPence)}</dd></div> : null}
               {t.pledgedPence ? <div><dt>Pledges</dt><dd>{money(t.pledgedPence)}{session.result === "WON" ? "" : " (not paid)"}</dd></div> : null}
               <div><dt>New subs</dt><dd>{t.subs}</dd></div>
               <div><dt>Earned</dt><dd>{money(session.incomePence ?? 0)}</dd></div>

@@ -883,6 +883,8 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     subscribers: 0, renewsWeek: 12, dealOffer: null, deal: null, invitations: false,
     formats: [{ key: "CHALLENGER", name: "Play a viewer", blurb: "A viewer steps up.", crowd: 1 }, { key: "KING", name: "King of the Oche", blurb: "Viewer after viewer.", crowd: 1.5 },
       { key: "BOBS_27", name: "Bob's 27 live", blurb: "Every double.", crowd: 0.68 }], pollPick: "KING", lastFormat: "BOBS_27", subGoal: null, goalOptions: null,
+    invitational: { open: true, why: null, fromWeek: 40, field: [{ handle: "TheOcheShow", followers: 95000, avg: 80 }, { handle: "NineDartNick", followers: 50000, avg: 82 }],
+      prizePence: [25000, 75000, 150000, 400000], result: null }, charity: { doneThisMonth: false, raisedPence: 0 },
     collabs: [{ key: "checkoutqueen", handle: "CheckoutQueen", followers: 3300, avg: 66, blurb: "Any finish in 9.", ok: true, why: null },
       { key: "oche-official", handle: "TheOcheShow", followers: 95000, avg: 80, blurb: "The biggest.", ok: false, why: "Too big for you yet" }],
     clips: [{ id: "c1", season: 2, week: 8, kind: "NINE", title: "NINE-DARTER LIVE ON STREAM", status: "VIRAL", views: 182000, followersGained: 2900, fansGained: 5800 },
@@ -892,18 +894,22 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     "360 more followers to Partner", "Stream vs OcheGremlin12", "41 peak", "+12", "£23.50",
     "King of the Oche · chat's pick", "Big crowd", "Quiet night (you did this last time)", "Normal crowd",
     "Collabs", "CheckoutQueen", "3,300 followers · averages about 66", "Too big for you yet", "Clips", "NINE-DARTER LIVE ON STREAM", "VIRAL", "182,000 views",
-    "+2,900 followers · +5,800 fans", "out this week: will it go viral?"]) assert.ok(t.includes(fact), fact);
+    "+2,900 followers · +5,800 fans", "out this week: will it go viral?",
+    "DartCast Invitational", "£250 / £750 / £1,500 / £4,000", "TheOcheShow 95,000 followers · averages 80", "Play the Invitational on Tue"]) assert.ok(t.includes(fact), fact);
 });
 
 test("DartCast channel money: subs that renew, a brand's offer to answer, and a Star's invitations", () => {
   const view = { season: 3, week: 10, handle: "AyrDarts", followers: 1450, tier: { key: "PARTNER", name: "Partner", perks: "Subs." }, next: { name: "Star", followers: 25000, perks: "Big." },
     tiers: [], streamsThisWeek: 0, perWeek: 3, freeNights: [1], live: null, totals: { streams: 40, earnedPence: 90000, won: 25 }, videos: [],
     subscribers: 14, renewsWeek: 12, dealOffer: { id: "d1", brand: "FlightDeck", what: "flights and stems", perStreamPence: 6900, streamsTotal: 6, streamsDone: 0, expiresWeek: 13 },
-    deal: null, invitations: true, formats: [], pollPick: null, lastFormat: null, collabs: [], clips: [],
+    deal: null, invitations: true, formats: [{ key: "CHARITY", name: "Charity stream", blurb: "For a good cause.", crowd: 1.1, why: "Done this month" }], pollPick: null, lastFormat: null, collabs: [], clips: [],
+    invitational: { open: false, why: null, fromWeek: 40, field: [], prizePence: [25000, 75000, 150000, 400000], result: { wins: 3, prizePence: 400000 } },
+    charity: { doneThisMonth: true, raisedPence: 12345 },
     subGoal: { season: 3, month: 3, endsWeek: 12, target: 10, promise: "Throw in fancy dress", progress: 4, status: "ON" },
     goalOptions: { targets: [5, 10, 20, 50], promises: ["Throw in fancy dress"] } };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
   for (const fact of ["Channel money", "14 subscribers renew at the end of week 12", "£17.50 if they all stay", "FlightDeck (flights and stems)", "£69 a stream", "next 6 streams",
     "Answer by week 13", "Take the deal", "No thanks", "televised invitationals send you invitations",
-    "Sub goal", "4 of 10 subs", "Your promise: Throw in fancy dress"]) assert.ok(t.includes(fact), fact);
+    "Sub goal", "4 of 10 subs", "Your promise: Throw in fancy dress", "You won the Invitational!", "Prize: £4,000", "Raised for charity on stream: £123.45",
+    "Charity stream", "Done this month"]) assert.ok(t.includes(fact), fact);
 });

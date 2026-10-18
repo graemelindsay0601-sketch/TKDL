@@ -41,5 +41,9 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     id uuid NOT NULL, stream_id uuid NOT NULL, season integer NOT NULL, week integer NOT NULL, kind text NOT NULL, title text NOT NULL, peak integer NOT NULL,
     status text NOT NULL CHECK(status IN ('NEW','VIRAL','SETTLED')), views integer NOT NULL DEFAULT 0, followers_gained integer NOT NULL DEFAULT 0, fans_gained integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id,id))`);
+  // A real match streamed from an event: which match, and its own format.
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS match_id uuid`);
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS match_format jsonb`);
+  await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_streams_match_idx ON career_streams(career_save_id, match_id) WHERE match_id IS NOT NULL`);
   await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_streams_night_idx ON career_streams(career_save_id, season, day)`);
 }
