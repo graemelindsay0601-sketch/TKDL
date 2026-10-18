@@ -135,6 +135,16 @@ export const useSetSavingsGoal = (saveId: string) => useSaveMutation(saveId, (in
 export type MoneyMatchesView = import("../../../../api-server/src/career/money/service").MoneyMatchesView;
 export type MoneyMatchResult = import("../../../../api-server/src/career/money/service").MoneyMatchResult;
 /** Money matches at your club: this week's members, any challenge, your record. */
+export type CamLeagueView = import("../../../../api-server/src/career/camleague/service").CamLeagueView;
+export type CamMatchSession = import("../../../../api-server/src/career/camleague/service").CamMatchSession;
+/** Webcam leagues: your division, this league's table and fixtures, and joining the next one. */
+export const useCamLeague = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "cam-league"), queryFn: () => get<CamLeagueView>(`/saves/${saveId}/cam-league`), staleTime: STALE });
+export const useJoinCamLeague = (saveId: string) => useSaveMutation(saveId, () => send<CamLeagueView>("POST", `/saves/${saveId}/cam-league/join`));
+export const useBookCamMatch = (saveId: string) => useSaveMutation(saveId, (input: { fixtureId: string; dayOfWeek: number }) => send<CamLeagueView>("POST", `/saves/${saveId}/cam-league/book`, input));
+export const useSimulateCamMatch = (saveId: string) => useSaveMutation(saveId, (fixtureId: string) => send<CamLeagueView>("POST", `/saves/${saveId}/cam-league/fixtures/${fixtureId}/simulate`));
+export const useCamMatch = (saveId: string, fixtureId: string) => useQuery({ queryKey: careerKey(saveId, "cam-league", "match", fixtureId),
+  queryFn: () => get<CamMatchSession>(`/saves/${saveId}/cam-league/fixtures/${fixtureId}`), staleTime: Infinity });
+export const camLeagueApi = { darts: (saveId: string, fixtureId: string, darts: unknown[]) => send<CamMatchSession>("POST", `/saves/${saveId}/cam-league/fixtures/${fixtureId}/darts`, { darts }) };
 export type RoadTripsView = import("../../../../api-server/src/career/roadtrip/service").RoadTripsView;
 /** Road trips: towns on your road, this week's trip, your name on the road, and a visitor at your club. */
 export const useRoadTrips = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "road-trips"), queryFn: () => get<RoadTripsView>(`/saves/${saveId}/road-trips`), staleTime: STALE });

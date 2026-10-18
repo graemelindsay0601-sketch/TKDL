@@ -269,7 +269,7 @@ export function financeHeadlines(f: FinanceSummary): Headline[] {
   ];
 }
 const LEDGER: Record<string, string> = { CAREER_START: "Starting funds", ENTRY_FEE: "Entry fee", TRAVEL: "Travel", ACCOMMODATION: "Accommodation", PRIZE: "Prize money",
-  SPONSOR_SIGNING_BONUS: "Sponsor signing bonus", SPONSOR_GUARANTEED_PAYMENT: "Sponsor guaranteed payment", SPONSOR_EVENT_PAYMENT: "Sponsor event payment", SPONSOR_PERFORMANCE_BONUS: "Sponsor performance bonus", MONEY_MATCH_WIN: "Money match won", MONEY_MATCH_STAKE: "Money match lost", MANAGER_COMMISSION: "Manager's commission", HOSTING_COST: "Running your tournament", HOSTING_INCOME: "Organiser's share", STREAM_INCOME: "Streaming", REFUND: "Refund", ADJUSTMENT: "Adjustment" };
+  SPONSOR_SIGNING_BONUS: "Sponsor signing bonus", SPONSOR_GUARANTEED_PAYMENT: "Sponsor guaranteed payment", SPONSOR_EVENT_PAYMENT: "Sponsor event payment", SPONSOR_PERFORMANCE_BONUS: "Sponsor performance bonus", MONEY_MATCH_WIN: "Money match won", MONEY_MATCH_STAKE: "Money match lost", MANAGER_COMMISSION: "Manager's commission", HOSTING_COST: "Running your tournament", HOSTING_INCOME: "Organiser's share", STREAM_INCOME: "Streaming", CAM_LEAGUE_FEE: "Webcam league fee", CAM_LEAGUE_PRIZE: "Webcam league prize", PROAM_FEE: "Pro-Am entry", PROAM_WIN: "Pro-Am prize", PROAM_APPEARANCE: "Pro-Am appearance", REFUND: "Refund", ADJUSTMENT: "Adjustment" };
 export const ledgerLabel = (c: string) => LEDGER[c] ?? titleCase(c);
 export const LEDGER_FILTERS = [{ key: "ALL", label: "All", categories: null }, { key: "PRIZE", label: "Prize", categories: ["PRIZE"] },
   { key: "MONEY_MATCH", label: "Money matches", categories: ["MONEY_MATCH_WIN", "MONEY_MATCH_STAKE"] },
