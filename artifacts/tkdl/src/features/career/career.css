@@ -1135,7 +1135,7 @@
 .host__note { margin: 0; color: #adbdca; font-size: .8rem; }
 .host__form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; align-items: end; }
 .host__form label { display: grid; gap: 3px; color: rgba(255,255,255,.65); font-size: .72rem; }
-.host__form input, .host__form select { min-height: 36px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; background: rgba(0,0,0,.25); color: #fff; font-size: .88rem; }
+.host__form input, .host__form select { width: 100%; min-width: 0; box-sizing: border-box; min-height: 36px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; background: rgba(0,0,0,.25); color: #fff; font-size: .88rem; }
 .host__preview { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid #ffd24a44; background: #ffd24a10; font-size: .82rem; color: #f3dfaa; }
 .host__warn { color: #ff9a8a; font-size: .8rem; grid-column: 1 / -1; margin: 0; }
 .host__form .career-btn { justify-self: start; }
@@ -1207,7 +1207,7 @@
   .career-root .career-nav-label-full { display:none; }
   .career-root .career-nav-label-short { display:inline; }
 }
-@media (max-width:420px) { .career-root .career-primary-nav .career-nav-link { font-size:.56rem; letter-spacing:0; } }
+@media (max-width:420px) { .career-root .career-navigation--premium .career-primary-nav .career-nav-link { font-size:.54rem; letter-spacing:0; padding-inline:1px; } }
 .money-match__members > li[data-compact] { display: flex; flex-direction: row; align-items: center; text-align: left; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .money-match__members > li[data-compact] .money-match__play { margin: 0; }
 .nights-line { border-color: #e08a5b33; background: #e08a5b0a; }
@@ -1222,3 +1222,9 @@
 .career-welcome li::marker { color: #ffd24a; font-weight: 800; }
 .career-welcome li b { color: #fff; }
 .career-welcome__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* Touch screens: text links in lists and tables (player names, "view" links) are ~17px tall. Vertical padding on an
+   inline link widens what a thumb can hit without moving any text. */
+@media (pointer: coarse) {
+  .career-root main :is(li, td, p, span, dd) > a:not(.career-btn) { padding-block: 5px; }
+}
