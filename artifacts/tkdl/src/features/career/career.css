@@ -132,7 +132,7 @@
 .surface-focus h2 { color:#ff92b9; margin-bottom:10px; }.surface-focus h3 { font-size:1.65rem; margin-bottom:8px; }
 .surface-context { background:var(--career-context); }.surface-prestige { background:var(--career-prestige); border-color:#7c7355; }
 .career-surface p { line-height:1.55; margin:6px 0; }
-.career-primary-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; background:#111925; padding:5px; border:1px solid var(--career-line); border-radius:10px; }
+.career-primary-nav { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; background:#111925; padding:5px; border:1px solid var(--career-line); border-radius:10px; }
 .career-primary-nav .career-nav-link { min-height:48px; font-size:.9rem; white-space:normal; text-align:center; }
 .career-destination-icon { font-size:1.15rem; line-height:1; margin-right:7px; }
 .career-primary-nav [aria-current] { color:white; background:#9f1749; border-color:#e98aac; box-shadow:none; }
@@ -229,7 +229,7 @@
 .career-root { --career-line:rgba(155,185,215,.14); padding-bottom:24px; }
 .career-root .career-hero { border-radius:20px; box-shadow:0 18px 45px #0003,inset 0 1px 0 #ffffff0d; }
 .career-root .career-navigation { padding:6px; border:1px solid var(--career-line); border-radius:18px; background:linear-gradient(135deg,#182333f5,#101927f5); box-shadow:0 10px 30px #0002; }
-.career-root .career-primary-nav { position:static; inset:auto; z-index:auto; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; padding:0; border:0; border-radius:12px; background:transparent; }
+.career-root .career-primary-nav { position:static; inset:auto; z-index:auto; display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:5px; padding:0; border:0; border-radius:12px; background:transparent; }
 .career-root .career-primary-nav .career-nav-link { min-width:0; min-height:56px; padding:8px 6px; flex-direction:row; gap:7px; border-radius:12px; font-family:inherit; font-size:.8rem; font-weight:600; letter-spacing:0; text-transform:none; white-space:normal; text-align:center; color:#aabacd; transition:background .15s,color .15s; }
 .career-root .career-primary-nav .career-nav-link:hover { color:#f3f7fc; background:#ffffff08; }
 .career-root .career-primary-nav [aria-current] { background:linear-gradient(135deg,#b32659,#7e2149); color:#fff; border-color:#e77aa050; box-shadow:0 4px 15px #9e164c25,inset 0 1px 0 #ffffff15; }
@@ -1171,3 +1171,44 @@
 .pro-am__legs { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .2rem .6rem; font-size: .75rem; color: #e5a8a3; }
 .pro-am__legs li[data-won] { color: #9fe0b0; }
 .pro-am .money-match__challenge svg, .pro-am .career-btn svg { width: 15px; height: 15px; vertical-align: -2px; }
+
+/* Nights Out: the week strip and the activity cards. */
+.nights-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.nights-week li { display: flex; flex-direction: column; gap: 4px; min-height: 76px; padding: 8px; border: 1px solid #ffffff1a; border-radius: 10px; background: #ffffff08; font-size: .72rem; color: #e8eef3; min-width: 0; }
+.nights-week li > b { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: #ffffffb3; }
+.nights-week li[data-free] { border-style: dashed; }
+.nights-week li small { color: #ffffff66; }
+.nights-week li span { padding: 3px 6px; border-radius: 6px; background: #e08a5b22; border-left: 3px solid #e08a5b; overflow-wrap: anywhere; line-height: 1.25; }
+.nights-week li span[data-kind="event"] { background: #ff005c1f; border-color: #ff005c; }
+.nights-week li span[data-kind="life"] { background: #c99bff1f; border-color: #c99bff; }
+.nights-week li span[data-kind="team"] { background: #69b8ec1f; border-color: #69b8ec; }
+.nights-week li span[data-kind="league"] { background: #5bc0eb1f; border-color: #5bc0eb; }
+.nights-week li span[data-kind="stream"] { background: #9b6bff1f; border-color: #9b6bff; }
+.nights-week li span[data-kind="proam"] { background: #c77dff1f; border-color: #c77dff; }
+@media (max-width: 640px) {
+  .nights-week { grid-template-columns: 1fr; }
+  .nights-week li { flex-direction: row; flex-wrap: wrap; align-items: center; min-height: 0; }
+  .nights-week li > b { width: 2.5rem; }
+}
+.nights-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; padding: 12px; }
+.nights-card { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent); color: #e8eef3; text-decoration: none; }
+.nights-card:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.nights-card[data-action] { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+.nights-card__icon svg { width: 20px; height: 20px; color: var(--accent); }
+.nights-card__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nights-card__body small { color: #ffffffb3; font-size: .78rem; }
+.nights-back { font-size: .85rem; }
+.nights-back a { color: #e08a5b; }
+.money-match__more { margin: 0 0 8px; }
+/* Six destinations: short labels until there is room for the full ones beside the app sidebar. */
+@media (min-width:601px) and (max-width:1439px) {
+  .career-root .career-navigation--premium .career-primary-nav .career-nav-link { gap:7px; padding-inline:6px; }
+  .career-root .career-nav-label-full { display:none; }
+  .career-root .career-nav-label-short { display:inline; }
+}
+@media (max-width:420px) { .career-root .career-primary-nav .career-nav-link { font-size:.56rem; letter-spacing:0; } }
+.money-match__members > li[data-compact] { display: flex; flex-direction: row; align-items: center; text-align: left; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.money-match__members > li[data-compact] .money-match__play { margin: 0; }
+.nights-line { border-color: #e08a5b33; background: #e08a5b0a; }
+.nights-line svg { color: #e08a5b; }

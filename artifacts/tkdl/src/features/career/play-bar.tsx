@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Menu, X, Gamepad2, House, BookOpen, CalendarDays, Map as MapIcon, ListOrdered, Users, Trophy, Landmark, ScrollText, LayoutGrid, Activity, Medal, Sparkles, Briefcase, Coins, Target, GraduationCap, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Menu, X, Gamepad2, House, BookOpen, CalendarDays, Map as MapIcon, ListOrdered, Users, Trophy, Landmark, ScrollText, LayoutGrid, Activity, Medal, Sparkles, Briefcase, Coins, Target, GraduationCap, Moon, Shield, Car, Star, Video, Radio, type LucideIcon } from "lucide-react";
 import { useFinance, usePresentation } from "./api";
 import { CareerShirt } from "./identity";
 import { FormBadge } from "./quick-sim";
@@ -42,9 +42,10 @@ const TILES: Tile[] = [
 ];
 const ICONS: Record<string, LucideIcon> = {
   rankings: ListOrdered, players: Users, "world-events": Trophy, venues: Landmark, "world-history": ScrollText,
+  nights: Moon, club: Shield, "money-matches": Coins, "road-trips": Car, "pro-am": Star, "cam-league": Video, streaming: Radio,
   overview: LayoutGrid, performance: Activity, achievements: Medal, "career-life": Sparkles, history: BookOpen, sponsors: Briefcase,
 };
-const ACCENT: Record<string, string> = { DARTS_WORLD: "#5ee39b", MY_CAREER: "#c99bff" };
+const ACCENT: Record<string, string> = { NIGHTS: "#e08a5b", DARTS_WORLD: "#5ee39b", MY_CAREER: "#c99bff" };
 
 /** Every Career screen in one side panel: big venue tiles for where you go most, then grouped pages. */
 export function CareerMenu({ save, onClose }: { save: CareerSave; onClose: () => void }) {

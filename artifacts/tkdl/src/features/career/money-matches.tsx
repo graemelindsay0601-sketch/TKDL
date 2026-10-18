@@ -17,15 +17,18 @@ function Outcome({ m }: { m: MoneyMatchResult }) {
 }
 
 type Member = MoneyMatchesView["members"][number];
+/** Members listed before "Show all". */
+const SHORT_LIST = 8;
 
 /** One member: their form, the haggling so far, and what you can do next (offer, take their figure, play the agreed stake). */
 function MemberRow({ m, busy, canPlay, perWeek, available, onOffer, onPlay }: { m: Member; busy: boolean; canPlay: boolean; perWeek: number; available: number;
   onOffer: (pence: number) => void; onPlay: (pence: number) => void }) {
   const [pounds, setPounds] = useState("");
+  const [open, setOpen] = useState(false);
   const value = Math.round(Number(pounds) * 100);
   const valid = Number.isInteger(Number(pounds)) && value >= 500 && value <= available;
   const t = m.talk;
-  return <li>
+  return <li data-compact={(!open && !t && !m.thisWeek) || undefined}>
     <div className="money-match__who"><b>{m.name}</b>{m.professional && <small className="career-club__pro"> · Pro</small>}
       <small>{m.average ? `Averaging ${m.average.toFixed(1)} · ` : ""}{ODDS[m.odds]}</small></div>
     {t && t.log.length > 0 && <ol className="money-match__talk">{t.log.map((line, i) => <li key={i} data-who={line.who}><b>{line.who === "YOU" ? "You" : m.name.split(" ")[0]}:</b> {line.text}</li>)}</ol>}
@@ -34,6 +37,7 @@ function MemberRow({ m, busy, canPlay, perWeek, available, onOffer, onPlay }: { 
       : !canPlay ? <span className="money-match__outcome"><small>That's your {perWeek} for this week</small></span>
       : t?.status === "AGREED" ? <div className="money-match__play"><button type="button" className="career-btn career-btn-gold" disabled={busy} onClick={() => onPlay(t.agreedPence!)}>Play for {formatPence(t.agreedPence!)}</button></div>
       : available < 500 ? <span className="money-match__outcome"><small>Not enough money free for a stake</small></span>
+      : !open && !t ? <div className="money-match__play"><button type="button" className="career-btn career-btn-ghost" onClick={() => setOpen(true)}>Haggle</button></div>
       : <div className="money-match__play">
         {t?.theirOfferPence ? <button type="button" className="career-btn career-btn-gold" disabled={busy || t.theirOfferPence > available} onClick={() => onPlay(t.theirOfferPence!)}>
           Take {formatPence(t.theirOfferPence)} and play</button> : null}
@@ -46,7 +50,7 @@ function MemberRow({ m, busy, canPlay, perWeek, available, onOffer, onPlay }: { 
 }
 
 /**
- * Club page: money matches. Haggle with a member over the stake (they put up more when they fancy their chances), or answer the
+ * Money matches. Haggle with a member over the stake (they put up more when they fancy their chances), or answer the
  * member who challenged you. First to four legs, played out like a quick-sim with your form. The winner takes the stake.
  */
 export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boolean }) {
@@ -54,6 +58,7 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
   const offer = useOfferMoneyMatch(saveId), play = usePlayMoneyMatch(saveId), decline = useDeclineMoneyMatch(saveId);
   const [last, setLast] = useState<MoneyMatchResult | null>(null);
   const [message, setMessage] = useState("");
+  const [showAll, setShowAll] = useState(false);
   if (!q.data) return q.isLoading ? <p className="money-match__note">Loading money matches…</p> : null;
   const d = q.data;
   const busy = play.isPending || decline.isPending || offer.isPending;
@@ -62,6 +67,10 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
   const go = (opponentKey: string, stakePence: number) => { setMessage(""); play.mutate({ opponentKey, stakePence }, { onSuccess: r => setLast(r.match), onError: fail }); };
   const ask = (opponentKey: string, stakePence: number) => { setMessage(""); offer.mutate({ opponentKey, stakePence }, { onError: fail }); };
 
+  // The members nearest your level first (the games worth a stake); anyone you've talked to or played this week stays in view.
+  const near = (m: Member) => m.average === null || !d.yourAverage ? 99 : Math.abs(m.average - d.yourAverage);
+  const sorted = [...d.members].sort((a, b) => Number(!!b.talk || !!b.thisWeek) - Number(!!a.talk || !!a.thisWeek) || near(a) - near(b));
+  const shown = showAll ? sorted : sorted.filter((m, i) => i < SHORT_LIST || m.talk || m.thisWeek);
   return (
     <div className="money-match">
       <p className="money-match__intro">One-off games at the club, first to {(d.bestOf + 1) / 2} legs, winner takes the stake. Name your price: they'll put more up when they fancy
@@ -82,9 +91,11 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
       </div>}
       {message && <p className="money-match__message" role="alert">{message}</p>}
       {d.members.length ? <ul className="money-match__members">
-        {d.members.map(m => <MemberRow key={m.key} m={m} busy={busy} canPlay={canPlay} perWeek={d.perWeek} available={d.availablePence}
+        {shown.map(m => <MemberRow key={m.key} m={m} busy={busy} canPlay={canPlay} perWeek={d.perWeek} available={d.availablePence}
           onOffer={p => ask(m.key, p)} onPlay={p => go(m.key, p)} />)}
       </ul> : <p className="money-match__note">Nobody at the club to play yet.</p>}
+      {shown.length < d.members.length && <button type="button" className="career-btn career-btn-ghost money-match__more" onClick={() => setShowAll(true)}>
+        Show all {d.members.length} members</button>}
       <p className="money-match__record">{d.record.played
         ? <>Money matches so far: won {d.record.won} of {d.record.played} · <b>{signed(d.record.netPence)}</b></>
         : "No money matches played yet."}</p>
@@ -99,7 +110,7 @@ export function MoneyChallengeLine({ saveId }: { saveId: string }) {
   const q = useMoneyMatches(saveId);
   const c = q.data?.challenge;
   if (!c) return null;
-  return <Link href={`/career/${saveId}/club#money-matches`} className="money-match-line">
+  return <Link href={`/career/${saveId}/money-matches`} className="money-match-line">
     <Coins aria-hidden /><span><b>{c.name}</b> fancies a money match for <b>{formatPence(c.stakePence)}</b> · {ODDS[c.odds].toLowerCase()}</span>
   </Link>;
 }

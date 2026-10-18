@@ -53,3 +53,22 @@ export async function freeOn(tx: CareerExecutor, saveId: string, season: number,
     UNION ALL SELECT 1 FROM career_life_commitments WHERE career_save_id=${saveId} AND season=${season} AND day=${day} AND status='ACCEPTED' LIMIT 1`)).rows;
   return booked.length === 0 && !(await offBoardNights(tx, saveId, season)).has(day);
 }
+
+export type WeekNight = { dayOfWeek: number; items: { kind: "EVENT" | "LIFE" | NightKind; label: string; id: string }[] };
+/** What each night of a week holds: events you're entered in, off-board commitments, and your own nights. */
+export async function weekPlan(tx: CareerExecutor, saveId: string, season: number, week: number): Promise<WeekNight[]> {
+  const from = absoluteDay(week, 1), to = absoluteDay(week, 7);
+  const days: WeekNight[] = [1, 2, 3, 4, 5, 6, 7].map(d => ({ dayOfWeek: d, items: [] }));
+  const at = (day: number) => days[day - from];
+  for (const r of (await tx.execute(sql`SELECT DISTINCT b.day, i.id, i.name FROM career_participant_bookings b JOIN career_event_instances i ON i.career_save_id=b.career_save_id AND i.id=b.event_id
+      WHERE b.career_save_id=${saveId} AND b.season=${season} AND b.participant_key='HUMAN' AND b.day BETWEEN ${from} AND ${to} ORDER BY b.day`)).rows)
+    at(Number(r.day)).items.push({ kind: "EVENT", label: String(r.name), id: String(r.id) });
+  for (const r of (await tx.execute(sql`SELECT day, id, title FROM career_life_commitments WHERE career_save_id=${saveId} AND season=${season} AND status='ACCEPTED'
+      AND day BETWEEN ${from} AND ${to}`)).rows)
+    at(Number(r.day)).items.push({ kind: "LIFE", label: String(r.title), id: String(r.id) });
+  for (const [day, key] of await offBoardNights(tx, saveId, season)) if (day >= from && day <= to) {
+    const [kind, id] = key.split(":") as [NightKind, string];
+    at(day).items.push({ kind, label: nightLabel(key)!, id });
+  }
+  return days;
+}

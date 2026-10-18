@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import {MAP_VIEWS,projectCoordinate,clusterLocations,filterMap,mapState,eventIdentity,planningCosts} from "../../features/career/presentation.ts";
 import {npcShirt} from "../../../../api-server/src/career/content/visual.ts";
 import {CAREER_NAV,activeNavKey,navLayerOf} from "../../features/career/model.ts";
-test("A8.3 five destinations own all current and preserved deep routes",()=>{
-  assert.deepEqual(CAREER_NAV.map(s=>s.label),["Home","Map","Calendar","Darts World","My Career"]);
-  for(const [route,layer] of [["/events/e","CALENDAR"],["/tournaments/e","CALENDAR"],["/matches/m/play","CALENDAR"],["/world/players/p","DARTS_WORLD"],["/world/events/world-darts-championship","DARTS_WORLD"],["/map","MAP"],["/my-career/achievements","MY_CAREER"],["/finances","MY_CAREER"],["/history/npcs/p","DARTS_WORLD"],["/history","MY_CAREER"]])assert.equal(navLayerOf(activeNavKey(`/career/save${route}`)).layer,layer);
+test("A8.3 six destinations own all current and preserved deep routes",()=>{
+  assert.deepEqual(CAREER_NAV.map(s=>s.label),["Home","Map","Calendar","Nights Out","Darts World","My Career"]);
+  for(const [route,layer] of [["/events/e","CALENDAR"],["/tournaments/e","CALENDAR"],["/matches/m/play","CALENDAR"],["/world/players/p","DARTS_WORLD"],["/world/events/world-darts-championship","DARTS_WORLD"],["/map","MAP"],["/my-career/achievements","MY_CAREER"],["/finances","MY_CAREER"],["/history/npcs/p","DARTS_WORLD"],["/history","MY_CAREER"],["/club","NIGHTS"],["/streaming","NIGHTS"],["/road-trips","NIGHTS"]])assert.equal(navLayerOf(activeNavKey(`/career/save${route}`)).layer,layer);
 });
 test("A8.3 coordinates are geographic, deterministic and region views include home anchors",()=>{
   assert.deepEqual(projectCoordinate(0,0),{x:360,y:180});

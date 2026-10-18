@@ -13,6 +13,7 @@ import { PlanMyWeek } from "../plan-week";
 import { MoneyChallengeLine } from "../money-matches";
 import { RoadVisitorLine } from "../road-trips";
 import { TeamNightLine } from "../team-nights";
+import { NightsLine } from "./nights";
 
 /**
  * Home's first panel: the one thing to do next, without reading the rest of the page.
@@ -63,6 +64,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         <MoneyChallengeLine saveId={id} />
         <RoadVisitorLine saveId={id} />
         <TeamNightLine saveId={id} week={save.currentWeek} />
+        <NightsLine saveId={id} week={save.currentWeek} />
         <WeekPlanner events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
         {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
         {enterable.length ? <div className="next-move__events">

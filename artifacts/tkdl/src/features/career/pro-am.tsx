@@ -69,7 +69,7 @@ export function ProAmLegPage({ ctx, nightId }: { ctx: ShellContext; nightId: str
   const recovery = useMemo(() => session && (session.darts as Dart[]).length ? recoveryFromLog(session.format, session.firstThrower, session.darts as Dart[]) : null, [session?.id]);
   if (q.isLoading || (!session && !q.error)) return <CareerLoading />;
   if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
-  const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/club#pro-am`}>Back to the club</Link>;
+  const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/pro-am`}>Back to Pro-Am nights</Link>;
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3"><h2>{session.won ? `You beat ${session.pro.name}!` : `${session.pro.name} took the leg`}</h2>{back}</div>;
   return <div className="cam-league__live">
     <p className="cam-league__live-title"><Star aria-hidden /> <b>{session.you}</b> vs <b>{session.pro.name}</b> <small>Pro-Am · one leg · you throw first</small></p>

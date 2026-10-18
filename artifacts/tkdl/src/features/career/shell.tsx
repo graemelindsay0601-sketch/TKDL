@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
-  Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, type LucideIcon } from "lucide-react";
+  Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, Moon, Shield, Coins, Car, Star, Video, Radio, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
 import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
@@ -208,11 +208,13 @@ const DESTINATIONS: Record<string, { icon: LucideIcon | typeof DartboardIcon; ac
   HOME: { icon: House, accent: "#ff3d7f", plate: "pub-club" },
   MAP: { icon: Map, accent: "#4fc3f7", plate: "conference" },
   CALENDAR: { icon: CalendarDays, accent: "#ffb547", plate: "professional-floor" },
+  NIGHTS: { icon: Moon, accent: "#e08a5b", plate: "pub-club" },
   DARTS_WORLD: { icon: DartboardIcon, accent: "#5ee39b", plate: "small-arena" },
   MY_CAREER: { icon: UserRound, accent: "#c99bff", plate: "historic-theatre" },
 };
 const SUB_ICONS: Record<string, LucideIcon> = {
   rankings: ListOrdered, players: Users, "world-events": Trophy, venues: Landmark, "world-history": ScrollText,
+  nights: Moon, club: Shield, "money-matches": Coins, "road-trips": Car, "pro-am": Star, "cam-league": Video, streaming: Radio,
   overview: LayoutGrid, performance: Activity, achievements: Medal, "career-life": Sparkles, history: BookOpen, sponsors: Briefcase,
 };
 export function CareerNav({ saveId }: { saveId: string }) {
@@ -229,7 +231,7 @@ export function CareerNav({ saveId }: { saveId: string }) {
             {current && <img className="career-nav-plate" src={plate.src} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={e => { e.currentTarget.style.display = "none"; }} />}
             <span className="career-destination-icon" aria-hidden><Icon size={18}/></span>
             <span className="career-nav-label-full">{section.label}</span>
-            <span className="career-nav-label-short">{section.layer === "DARTS_WORLD" ? "World" : section.layer === "MY_CAREER" ? "Career" : section.label}</span>
+            <span className="career-nav-label-short">{section.layer === "DARTS_WORLD" ? "World" : section.layer === "MY_CAREER" ? "Career" : section.layer === "NIGHTS" ? "Nights" : section.label}</span>
           </Link>
         );})}
       </div>

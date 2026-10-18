@@ -24,6 +24,7 @@ import { createCareerProAmService, settleProAmWeek } from "../../career/proam/se
 import { createMatch, throwDart } from "../../shared/darts-rules/x01.ts";
 import { PROAM, appearanceFor, feeFor, prizeFor, weekNights } from "../../career/proam/model.ts";
 import { settleStreamingWeek } from "../../career/streaming/state.ts";
+import { weekPlan } from "../../career/nights.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), proam = createCareerProAmService(db);
@@ -74,6 +75,11 @@ test("as an amateur: take a slot (fee and travel paid), throw your leg on the sc
   v = await proam.book(actor, id, { nightKey: night.key });
   assert.equal(v.booking!.status, "BOOKED"); assert.equal(v.booking!.pro!.name, night.pro!.name);
   await status(proam.book(actor, id, { nightKey: night.key }), 409);
+  // Nights Out's week strip shows the booked night as a Pro-Am night on its day.
+  const { season, week } = await thisWeek();
+  const plan = await weekPlan(db, id, season, week);
+  assert.equal(plan.length, 7);
+  assert.deepEqual(plan[night.dayOfWeek - 1].items.filter(i => i.kind === "proam"), [{ kind: "proam", label: "Pro-Am night", id: v.booking!.id }]);
   const fee = await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`proam-fee:${v.booking!.id}`}`);
   assert.equal(Number(fee[0].amount_pence), -night.feePence);
   const s = await proam.session(actor, id, v.booking!.id);
