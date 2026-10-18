@@ -329,7 +329,9 @@ export const SPONSOR_CATALOGUE_V2: readonly SponsorDefinition[] = Object.freeze(
   const template = original ?? SPONSOR_CATALOGUE_V1.find(d => d.terms.tier === b.commercialTier)!;
   const requirement: Requirement = original?.offerRequirement ?? (b.commercialTier === "LOCAL" ? { fact: "titles", min: 1 } :
     b.commercialTier === "REGIONAL" ? { fact: "titles", min: 3 } : b.commercialTier === "PROFESSIONAL" ?
-      { any: [{ fact: "tourCard" }, { fact: "titles", min: 10 }] } : { any: [{ fact: "worldRanking", maxPosition: 16 },
+      // A professional main partner wants a professional-level name: a Tour Card, a world ranking, or a win on the
+      // Challenger Tour or Vault. (Ten titles of any kind let ten pub-night wins bring a professional retainer.)
+      { any: [{ fact: "tourCard" }, { fact: "worldRanking", maxPosition: 128 }, { fact: "circuitFinish", circuits: ["CHALLENGER", "VAULT"], maxPosition: 1 }] } : { any: [{ fact: "worldRanking", maxPosition: 16 },
         {fact:"circuitFinish",circuits:["MAJOR","WORLD_CHAMPIONSHIP"],maxPosition:2}] });
   const terms: SponsorTerms = { ...structuredClone(template.terms), sponsorKey: b.id, displayName: b.name,
     sponsorDatabaseVersion: 2, relationshipSlot: b.slot, exclusivityGroups: b.exclusivityGroups,
