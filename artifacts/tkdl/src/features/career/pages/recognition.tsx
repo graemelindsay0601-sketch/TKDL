@@ -36,7 +36,7 @@ export function RecognitionDetails({data,saveId,hideStanding=false}: {data:Recog
       <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">{c.label}</h3><StatusBadge label={c.levelLabel} tone={tone(c.level)} /></div>
       <h4 className="text-xs text-white/60 mt-3">Why you're recognised</h4>
       {c.evidence.length ? <ul>{c.evidence.map(f=><FactLine key={f.id} fact={f} saveId={saveId}/>)}</ul>
-        : <p className="mt-2 text-sm text-white/60">No qualifying sporting evidence recorded in this context yet.</p>}
+        : <p className="mt-2 text-sm text-white/60">Nothing here yet.</p>}
     </section>)}</div>
     <details className="career-note"><summary>How recognition history is dated</summary><p>{data.historyNote}</p></details>
     <MilestoneList data={data} saveId={saveId}/>
@@ -49,7 +49,7 @@ export function RecognitionDetails({data,saveId,hideStanding=false}: {data:Recog
 function MilestoneList({data,saveId}: {data:RecognitionView;saveId:string}) {
   return <section><h3 className="font-bold">Recent recognition milestones</h3>
     {data.milestones.length ? <ul>{[...data.milestones].reverse().slice(0,6).map(f=><FactLine key={f.id} fact={f} saveId={saveId}/>)}</ul>
-      : <CareerEmptyState title="No dated recognition milestones">Current standing still uses all evidenced achievements. Missing chronology is not replaced with invented dates.</CareerEmptyState>}
+      : <CareerEmptyState title="No dated recognition milestones">Some older results have no date, so they don't appear on the timeline, but they still count.</CareerEmptyState>}
   </section>;
 }
 export function RecognitionSummary({saveId}: {saveId:string}) {

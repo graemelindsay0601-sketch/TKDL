@@ -4,6 +4,7 @@ import { Briefcase, CalendarClock, Coins, Handshake, Receipt, ShieldCheck, Spark
 import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useNegotiateOffer, useSponsors, errorMessage } from "../api";
 import { LEDGER_FILTERS, circuitLabel, publicText, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
+import { useUnlocks } from "../unlocks";
 import type { ShellContext } from "../shell";
 import { CareerPageHero } from "../page-hero";
 import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorSigningReveal, SponsorTerms } from "../types";
@@ -39,13 +40,17 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
     .slice(0, 12);
   const commitments = (schedule.data?.events ?? []).filter(e => e.finance?.commitment && ["ENTERED", "TRAVEL_COMMITTED"].includes(e.finance.commitment.status) && e.status !== "COMPLETED");
   const pendingOffers = sponsors.data?.offers.length ?? 0;
+  // Unlock as you go: sponsors and managers appear after a few events (or as soon as anything sponsor-related exists).
+  const unlocks = useUnlocks(save);
+  const showSponsors = unlocks.isOpen("sponsors") || active.length > 0 || pendingOffers > 0 || sponsorInterests.length > 0
+    || (sponsors.data?.history.contracts.length ?? 0) > 0 || (sponsors.data?.history.offers.length ?? 0) > 0;
 
   return (
     <div className="space-y-3">
       {fin.isLoading ? <div className="pdc-card"><CareerLoading label="Loading finances" /></div> : fin.error || !fin.data ? <CareerError error={fin.error} onRetry={() => fin.refetch()} /> : (
         <CareerPageHero kicker={`Career finances · season ${save.currentSeason}, week ${save.currentWeek}`} title="Finances" accent="#ffd24a"
           stage={{ venue: { venueType: "conference" }, eventClass: "REGIONAL" }} archival={retired}
-          subtitle="Every figure is posted to your Career ledger: prize money, sponsor income and costs are kept separate."
+          subtitle="What you've won, what sponsors pay you and what you've spent."
           stats={financeHeadlines(fin.data).map(h => ({ label: h.label, value: formatPence(h.pence), sub: h.hint, tone: h.key === "BALANCE" ? "gold" as const : "neutral" as const }))} />
       )}
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
@@ -57,16 +62,17 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       <CareerSection title={`Darts money by week · season ${save.currentSeason}`} icon={<Coins className="w-3.5 h-3.5" />} accent="#3987e5">
         <SeasonMoneyChart saveId={save.id} />
       </CareerSection>
-      <CareerSection title="Your manager" icon={<Briefcase className="w-3.5 h-3.5" />} accent="#c084fc">
+      {showSponsors ? <CareerSection title="Your manager" icon={<Briefcase className="w-3.5 h-3.5" />} accent="#c084fc">
         <ManagerPanel saveId={save.id} retired={retired} />
-      </CareerSection>
+      </CareerSection> : <div className="pdc-card px-4 py-3 text-sm career-later-note"><Handshake aria-hidden size={16} />
+        <span><strong>Sponsors and managers come later.</strong> Play a few events and brands start to notice you; their offers, and managers who want to sign you, will show up here.</span></div>}
       {pendingOffers > 0 && <a href="#career-finance-offers" className="pdc-card flex items-center gap-3 px-4 py-3 text-sm no-underline" style={{ borderColor: "rgba(255,210,74,0.42)", color: "#f3dfaa", background: "linear-gradient(90deg,rgba(255,210,74,0.11),rgba(255,255,255,0.025))" }}>
         <Briefcase className="shrink-0" size={16} aria-hidden="true" />
         <span><strong>{pendingOffers} sponsor {pendingOffers === 1 ? "offer" : "offers"} to review</strong><span className="block text-xs opacity-75">Review proposed terms separately from signed agreements.</span></span>
         <span className="ml-auto" aria-hidden="true">View →</span>
       </a>}
-      {sponsors.data?.commercial && <CommercialOverview commercial={sponsors.data.commercial} />}
-      {sponsors.data?.guaranteeConfiguration?.status === "APPROVED" && (
+      {showSponsors && sponsors.data?.commercial && <CommercialOverview commercial={sponsors.data.commercial} />}
+      {showSponsors && sponsors.data?.guaranteeConfiguration?.status === "APPROVED" && (
         <details className="career-note">
           <summary>How sponsor guarantees pay</summary>
           <p><strong style={{ color: "#ffd24a" }}>Approved annual sponsor guarantees · catalogue v{sponsors.data.guaranteeConfiguration.catalogueVersion}</strong>{" "}
@@ -92,7 +98,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
         </CareerSection>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      {showSponsors && <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <CareerSection title="Sponsor portfolio" icon={<Handshake className="w-3.5 h-3.5" />} accent="#4ade80">
           {sponsors.isLoading ? <CareerLoading /> : sponsors.error || !sponsors.data ? <CareerError error={sponsors.error} onRetry={() => sponsors.refetch()} />
             : active.length ? (
@@ -158,7 +164,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
           ) : sponsors.isLoading ? <CareerLoading /> : <CareerEmptyState title="No offers right now" />}
         </CareerSection>
         </div>
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
       {sponsorActivity.length > 0 && (
@@ -254,12 +260,12 @@ function CommercialOverview({ commercial }: { commercial: SponsorCommercialOverv
   const cash = commercial.cashReceivedPence;
   const bonusCount = commercial.potentialBonuses.length;
   return (
-    <CareerSection title={`Commercial position · Season ${commercial.season}, Week ${commercial.week}`} icon={<Handshake className="w-3.5 h-3.5" />} accent="#ffd24a">
+    <CareerSection title={`Sponsor money · Season ${commercial.season}`} icon={<Handshake className="w-3.5 h-3.5" />} accent="#ffd24a">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 p-3">
-        <StatTile icon={<Coins size={16}/>} label="Cash received this season" value={formatPence(cash.total)} sub="Only posted sponsor cash is included" tone="gold" />
-        <StatTile icon={<ShieldCheck size={16}/>} label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Applied to eligible costs; not cash" tone="neutral" />
-        <StatTile icon={<CalendarClock size={16}/>} label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Future payments; not in your balance yet" tone="neutral" />
-        <StatTile icon={<Sparkles size={16}/>} label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Not guaranteed and not counted as cash" tone="neutral" />
+        <StatTile icon={<Coins size={16}/>} label="Cash received this season" value={formatPence(cash.total)} sub="Paid into your balance" tone="gold" />
+        <StatTile icon={<ShieldCheck size={16}/>} label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Travel and fees your sponsors paid for you" tone="neutral" />
+        <StatTile icon={<CalendarClock size={16}/>} label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Still to come this season" tone="neutral" />
+        <StatTile icon={<Sparkles size={16}/>} label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Paid only if you hit the target" tone="neutral" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
         <div className="px-4 py-3 border-b lg:border-b-0 lg:border-r" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
@@ -345,7 +351,7 @@ function Ledger({ saveId }: { saveId: string }) {
       )}
       <div className="flex justify-between px-3 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <button className="career-btn career-btn-ghost" disabled={cursors.length === 1} onClick={() => setCursors(cursors.slice(0, -1))}>Newer</button>
-        <Label>Immutable ledger · filter applies to this page</Label>
+        <Label>Every payment in and out</Label>
         <button className="career-btn career-btn-ghost" disabled={!ledger.data?.next} onClick={() => ledger.data?.next && setCursors([...cursors, ledger.data.next])}>Older</button>
       </div>
     </CareerSection>

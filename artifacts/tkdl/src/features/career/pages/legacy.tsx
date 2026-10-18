@@ -23,7 +23,7 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
       kicker={world?"Darts World · Champions & records":`The record you build · Season ${ctx.save.currentSeason}`} title={world?"World history":"Career archive"}
       stage={{venue:{venueType:world?"exhibition":"historic-theatre"},eventClass:"MAJOR"}} accent="#e8c66a" archival={ctx.retired}
       watermark={world?`S${ctx.save.currentSeason}`:`${d.overview.titles}`}
-      subtitle={<p>{d.descriptors.join(" · ")||"Every result, partnership and turning point recorded across your darts career."}</p>}
+      subtitle={<p>{d.descriptors.join(" · ")||"Every result, sponsor and big moment from your darts career."}</p>}
       portrait={!world&&presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>:undefined}
       stats={world?[
         {label:"Completed seasons",value:d.completedSeasons.length,tone:"gold"},
@@ -63,7 +63,7 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
               <strong>{sponsorName(s.name)}</strong><em>Signed term · {titleCase(s.status)}</em></div>}</BoundedList>
             <BoundedList rows={d.commercial}>{c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip">S{c.season}</span><strong>{c.title}</strong><em>{titleCase(c.status)}</em></div>}</BoundedList>
             {d.merchandise&&<div className="career-archive__row"><span className="career-archive__chip">Merch</span><strong>{d.merchandise.category}</strong><em>{d.merchandise.active?"Active":"Stopped"}</em></div>}
-          </>:<p className="career-archive__empty">No sponsor agreements or commercial work recorded yet.</p>}</section>
+          </>:<p className="career-archive__empty">No sponsors or off-the-oche work yet.</p>}</section>
         </div>
         <div className="career-archive__links"><Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/relationships`}>Sporting H2H & Rivalries</Link>
           <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/life`}>Public profile, tone & commercial decisions</Link>
@@ -74,7 +74,7 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
           <b>S{r.season}</b><span>{r.identity}</span><small>{titleCase(r.provenance)}</small></button>}</BoundedList></div>
         {season!==null&&<QueryState query={seasonQuery} label="Reading Season Review">{r=><SeasonReviewPanel review={r} saveId={ctx.save.id}/>}</QueryState>}</>}
       {tab==="Honours"&&<><h2>Season awards</h2><Awards rows={d.honours}/><p className="career-fineprint">Main-event title honours remain in the trophy and result history below.</p></>}
-      {tab==="World History"&&<><h2>Career world history</h2>{!d.world.length&&<ArchiveEmpty icon={<Landmark size={18}/>} title="No completed world season yet">Champions, Tour Card changes, retirements and new entrants are recorded here at the end of each season.</ArchiveEmpty>}
+      {tab==="World History"&&<><h2>Career world history</h2>{!d.world.length&&<ArchiveEmpty icon={<Landmark size={18}/>} title="No completed world season yet">Champions, Tour Card changes, retirements and new players appear here at the end of each season.</ArchiveEmpty>}
         <BoundedList rows={d.world} size={5}>{(w,i)=><section key={d.completedSeasons[i]} className="career-archive__world-season">
         <header><span>Season {d.completedSeasons[i]}</span><strong>World #1: {w.numberOne?`${w.numberOne.name}`:"not recorded"}</strong>{w.numberOne&&<small>Week {w.numberOne.week}</small>}</header>
         {w.champions.length>0&&<><h3>Champions</h3><BoundedList rows={w.champions}>{r=><div className="career-archive__row" key={r.id}><span className="career-archive__chip"><Trophy size={11}/> {titleCase(r.tier)}</span><strong>{r.name}</strong><em>{playerName(d,r.participant)}</em></div>}</BoundedList></>}
@@ -85,12 +85,12 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
         <NpcSearch data={d} saveId={ctx.save.id}/></>}
       {tab==="Event Legends"&&<><h2>Event history &amp; Palace legends</h2>
         <label className="career-archive__select"><span>Recurring event</span><select value={event??""} onChange={e=>setEvent(e.target.value||null)} aria-label="Recurring event">
-          <option value="">Choose a recorded event</option>{d.eventKeys.map(e=><option key={e.key} value={e.key}>{e.name}</option>)}</select></label>
+          <option value="">Choose an event</option>{d.eventKeys.map(e=><option key={e.key} value={e.key}>{e.name}</option>)}</select></label>
         {!d.eventKeys.length&&<ArchiveEmpty icon={<Crown size={18}/>} title="No recurring event history yet">Each event's champions, record holders and your own finishes appear once it has been played.</ArchiveEmpty>}
         {event!==null&&<QueryState query={eventQuery} label="Reading event lineage">{e=><div className="career-archive__legend">
-          <div className="career-archive__defending"><Crown size={18}/><div><small>Defending champion</small><strong>{e.defendingChampion?playerName(d,e.defendingChampion.participant):"No previous-season champion recorded"}</strong></div></div>
+          <div className="career-archive__defending"><Crown size={18}/><div><small>Defending champion</small><strong>{e.defendingChampion?playerName(d,e.defendingChampion.participant):"No champion last season"}</strong></div></div>
           <div className="career-archive__cols">
-            <section><h3>Previous champions</h3>{e.champions.length?<BoundedList rows={e.champions}>{r=><div className="career-archive__row" key={r.id}><span className="career-archive__chip">S{r.season}</span><strong>{playerName(d,r.participant)}</strong><em className="is-gold">Champion</em></div>}</BoundedList>:<p className="career-archive__empty">No champions recorded yet.</p>}</section>
+            <section><h3>Previous champions</h3>{e.champions.length?<BoundedList rows={e.champions}>{r=><div className="career-archive__row" key={r.id}><span className="career-archive__chip">S{r.season}</span><strong>{playerName(d,r.participant)}</strong><em className="is-gold">Champion</em></div>}</BoundedList>:<p className="career-archive__empty">No champions yet.</p>}</section>
             <section><h3>Your event history</h3>{e.human.length?<BoundedList rows={e.human}>{r=><div className="career-archive__row" key={r.id}><span className="career-archive__chip">S{r.season}</span><strong>{r.champion?"Champion":`Position ${r.position}`}</strong><em className={r.champion?"is-gold":""}>{r.champion?"Title":"Finish"}</em></div>}</BoundedList>:<p className="career-archive__empty">You have not played this event yet.</p>}</section>
             <section><h3>Most titles</h3>{e.mostTitles.slice(0,10).map(p=><div className="career-archive__row" key={p.id}><span className="career-archive__chip">×{p.count}</span><strong>{p.name}</strong><em /></div>)}</section>
             <section><h3>Most finals</h3>{e.mostFinals.slice(0,10).map(p=><div className="career-archive__row" key={p.id}><span className="career-archive__chip">×{p.count}</span><strong>{p.name}</strong><em /></div>)}</section>
@@ -101,14 +101,14 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
         {d.comparisons.length>0&&<><h3>Historical comparisons</h3><ul className="career-archive__comparisons">{d.comparisons.map(c=><li key={c}><Star size={13}/>{publicText(c)}</li>)}</ul></>}
         {d.recordEvents.length>0&&<><h3>Recorded breakthroughs</h3><BoundedList rows={d.recordEvents}>{(r,i)=><div className="career-archive__row" key={i}><span className="career-archive__chip">S{r.season}</span><strong>{recordLabel(r.metric)}: {r.previousValue} → {r.value}</strong><em>{r.holders.map(h=>h.name).join(", ")}</em></div>}</BoundedList></>}
         <p className="career-fineprint">No NPC 180s/checkouts or simulated cash are compared with your scored darts or ledger. No World #1 duration is inferred across snapshot gaps.</p></>}
-      {tab==="Hall of Fame"&&<><h2>Career-universe Hall of Fame</h2>{!d.hallOfFame.length&&<ArchiveEmpty icon={<Medal size={18}/>} title="No inductees yet">No qualifying retired Career recorded yet. Longevity alone is insufficient.</ArchiveEmpty>}
+      {tab==="Hall of Fame"&&<><h2>Career-universe Hall of Fame</h2>{!d.hallOfFame.length&&<ArchiveEmpty icon={<Medal size={18}/>} title="No inductees yet">No retired legends yet. A long career alone isn't enough to get in.</ArchiveEmpty>}
         <div className="career-archive__cols"><BoundedList rows={d.hallOfFame}>{h=><section className="career-archive__inductee" key={h.participant}><header><Medal size={18}/><div><strong>{h.name}</strong><small>{h.route}</small></div></header>
           <ul>{h.reasons.map(r=><li key={r}>{publicText(r)}</li>)}</ul>
           {h.inductedSeason&&<p className="career-fineprint">Inducted in season {h.inductedSeason}</p>}
           {h.participant!=="HUMAN"&&<Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/history/npcs/${h.participant}`}>View historical Career</Link>}</section>}</BoundedList></div>
         <p className="career-fineprint">No Legacy Score, currency or gameplay effect. Professional status is not mandatory.</p></>}
       {tab==="Retirement"&&<Retirement data={d} saveId={ctx.save.id}/>}
-      {d.notes.length>0&&<details className="career-note"><summary>How this archive is recorded</summary>{d.notes.map(n=><p key={n}>{publicText(n)}</p>)}</details>}
+      {d.notes.length>0&&<details className="career-note"><summary>How this works</summary>{d.notes.map(n=><p key={n}>{publicText(n)}</p>)}</details>}
     </div>}</QueryState></CareerSection>
     {tab==="Career Record"&&<HistoryPage ctx={ctx}/>}
   </div>;
@@ -145,7 +145,7 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
   const highlights:[string,string][]=[
     ...(r.bestMajor?[["Best major",`${r.bestMajor.name} · position ${r.bestMajor.position}`] as [string,string]]:[]),
     ...(r.worldResult?[["World Championship",`${r.worldResult.name} · position ${r.worldResult.position}`] as [string,string]]:[]),
-    ...(r.biggestMoment?[["Defining recorded result",`${r.biggestMoment.name} · position ${r.biggestMoment.position}`] as [string,string]]:[]),
+    ...(r.biggestMoment?[["Defining result",`${r.biggestMoment.name} · position ${r.biggestMoment.position}`] as [string,string]]:[]),
     ...(r.definingRival?[["Most-met season opponent",`${r.definingRival.name}; ${r.definingRival.meetings} meetings, ${r.definingRival.wins}–${r.definingRival.losses}.`] as [string,string]]:[]),
   ];
   return <section className="career-review space-y-4" aria-label={`Season ${r.season} Review`}>
@@ -172,7 +172,7 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
     <p className="career-fineprint">{r.publicLife.decisions} remembered Career Life decisions · {r.publicLife.completedWork} completed off-board commitments.
       {r.publicLife.profile&&<> Public profile at transition: {r.publicLife.profile.persona.label} · {r.publicLife.profile.awareness} · {r.publicLife.profile.reception}</>}</p>
     <Link className="career-btn career-btn-ghost" href={`/career/${saveId}/stories`}>Established Career Story Threads</Link>
-    {r.notes.length>0&&<details className="career-note"><summary>How this review is recorded</summary>{r.notes.map(n=><p key={n}>{publicText(n)}</p>)}</details>}
+    {r.notes.length>0&&<details className="career-note"><summary>How this works</summary>{r.notes.map(n=><p key={n}>{publicText(n)}</p>)}</details>}
   </section>;
 }
 const TRANSITION_STEPS=["Season Review","Awards & Champions","Career Changes","New Season"];
@@ -220,7 +220,7 @@ export function NpcLegacyPage({ctx,npcId}:{ctx:ShellContext;npcId:string}) {
       <div><dt>World Championships</dt><dd>{d.totals?.worlds??0}</dd></div>{d.hallOfFame&&<div><dt>Hall of Fame</dt><dd>{d.hallOfFame.route}</dd></div>}
     </dl>
     <div className="career-archive__cols">
-      <section><h3>Titles</h3>{d.titles.length?<BoundedList rows={d.titles}>{t=><div className="career-archive__row" key={t.id}><span className="career-archive__chip">S{t.season}</span><strong>{t.name}</strong><em className="is-gold">Champion</em></div>}</BoundedList>:<p className="career-archive__empty">No titles recorded in this Career yet.</p>}</section>
+      <section><h3>Titles</h3>{d.titles.length?<BoundedList rows={d.titles}>{t=><div className="career-archive__row" key={t.id}><span className="career-archive__chip">S{t.season}</span><strong>{t.name}</strong><em className="is-gold">Champion</em></div>}</BoundedList>:<p className="career-archive__empty">No titles yet.</p>}</section>
       <section><h3>Meetings with you</h3>{(d.meetings??[]).length?<BoundedList rows={d.meetings??[]}>{(m,i)=><div className="career-archive__row" key={i}><span className="career-archive__chip">S{m.season}</span><strong>{m.name}</strong><em className={m.won?"is-gold":""}>{m.won?"You won":"They won"}</em></div>}</BoundedList>:<p className="career-archive__empty">You have not played this player yet.</p>}</section>
       <section><h3>Published World Ranking</h3>{d.rankings.length?<BoundedList rows={d.rankings}>{r=><div className="career-archive__row" key={`${r.id}:${r.participant}`}><span className="career-archive__chip">S{r.season} W{r.week}</span><strong>#{r.position}</strong><em /></div>}</BoundedList>:<p className="career-archive__empty">No published World Ranking position yet.</p>}
         <p className="career-fineprint">Season endpoints and #1 observations, not every weekly position or an inferred reign length.</p></section>

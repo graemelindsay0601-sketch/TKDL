@@ -72,7 +72,7 @@ test("trivial anonymous grassroots NPC results do not flood world news",()=>{
 });
 test("callbacks use real previous meetings/finals, capped at two; no fabricated hatred",()=>{
   const s=source();rival(s);const stories=storyEngine(s),last=stories.find(st=>st.kind==="three-meeting-losses")!;
-  assert.match(last.body,/last three played meetings/);assert.ok(last.callbacks.length<=2);
+  assert.match(last.body,/won the last three matches/);assert.ok(last.callbacks.length<=2);
   assert.ok(last.callbacks.some(c=>c.sourceIds.includes("meeting-0")));assert.doesNotMatch(JSON.stringify(stories),/despises|hates|injur|scandal/i);
 });
 test("thread chapters derive persistently from actual meeting IDs, not scripted objectives",()=>{
@@ -90,13 +90,13 @@ test("place memory across different events requires an exact owned authored venu
   const first=result("old","NATIONAL_AMATEUR","FEATURED",1,7),next=result("new","MAJOR","MAJOR",2,7);next.definitionKey="other-event";
   const s=source([first,next]);s.events=[first,next].map(r=>({id:r.eventId,key:r.definitionKey,name:r.name,circuit:r.circuit,tier:r.presentationTier,
     classification:r.classification,season:r.season,day:r.day!,endDay:r.day!,status:"COMPLETED",venueKey:"same-owned-venue"}));
-  assert.ok(storyEngine(s).some(st=>st.eventId===next.eventId&&st.callbacks.some(c=>c.text.includes("same venue")&&c.sourceIds.includes(first.id))));
-  s.events[1].venueKey="different";assert.ok(!storyEngine(s).some(st=>st.callbacks.some(c=>c.text.includes("same venue"))));
+  assert.ok(storyEngine(s).some(st=>st.eventId===next.eventId&&st.callbacks.some(c=>c.text.includes("this venue")&&c.sourceIds.includes(first.id))));
+  s.events[1].venueKey="different";assert.ok(!storyEngine(s).some(st=>st.callbacks.some(c=>c.text.includes("this venue"))));
 });
 test("a real earlier Palace statement can be quoted by a later factual achievement",()=>{
   const s=source([result("palace","WORLD_CHAMPIONSHIP","WORLD",1,28)]);s.week=4;s.decisions=[decision("real-choice","CONFIDENT",1)];
   const st=storyEngine(s).find(st=>st.kind==="first-world-title")!;
-  assert.ok(st.callbacks.some(c=>c.sourceIds.includes("decision:real-choice")&&c.text.includes("previously said")));
+  assert.ok(st.callbacks.some(c=>c.sourceIds.includes("decision:real-choice")&&c.text.includes("You said at the time")));
   s.decisions=[];assert.ok(!storyEngine(s).some(st=>st.callbacks.some(c=>c.sourceIds.includes("decision:real-choice"))));
 });
 test("persona emerges only from actual choices, evolves after long history and is not selected by sporting results",()=>{

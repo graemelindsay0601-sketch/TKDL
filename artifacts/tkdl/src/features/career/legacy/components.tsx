@@ -61,6 +61,10 @@ export function PlayerLegacyProfile({ ctx }: { ctx: ShellContext }) {
         </div>
       </section>
 
+      {/* A new career has nothing to show yet: one line instead of two empty panels. */}
+      {!firsts.length && !v.totals.titles && !v.totals.finals ? <section className="pl-panel" aria-label="Career landmarks">
+        <p className="pl-empty">Nothing here yet. Your first event, final, title, ranking and Tour Card will show here as they happen.</p>
+      </section> : <>
       <section className="pl-panel" aria-label="Career landmarks">
         <h2 className="pl-panel__title"><Flag size={15} aria-hidden /> Career landmarks</h2>
         {firsts.length ? <ol className="pl-landmarks">{firsts.map(m => (
@@ -69,6 +73,7 @@ export function PlayerLegacyProfile({ ctx }: { ctx: ShellContext }) {
       </section>
 
       <HonoursShelf saveId={id} legacy={v} />
+      </>}
 
       <nav className="pl-links" aria-label="Career record">
         <Link href={`/career/${id}/my-career/achievements`} className="career-surface"><Trophy size={16} aria-hidden /> Trophy cabinet</Link>
@@ -103,7 +108,7 @@ function HonoursShelf({ saveId, legacy }: { saveId: string; legacy: PlayerLegacy
               : <span className="pl-shelf__venue" aria-hidden="true"><img src={plate.src} alt="" loading="lazy" style={{ objectPosition: `${plate.focal.x * 100}% ${plate.focal.y * 100}%` }} /><b><Crown size={12} /> Title</b></span>}
             <strong>{t.name}</strong><small>Season {t.season} · {silver ? (award.designId ? trophyArt(award.designId)?.name ?? awardLabel(award) : awardLabel(award)) : "Champion · no trophy awarded"}</small>
           </Link>;})}</div>
-        : <p className="pl-empty">{legacy.totals.finals ? `${legacy.totals.finals} final${legacy.totals.finals === 1 ? "" : "s"} reached — the first title is still to come.` : "No titles yet. Nothing is shown until you actually win one."}</p>}
+        : <p className="pl-empty">{legacy.totals.finals ? `${legacy.totals.finals} final${legacy.totals.finals === 1 ? "" : "s"} reached — the first title is still to come.` : "No titles yet. Your first one will show here."}</p>}
     </section>
   );
 }
@@ -142,26 +147,26 @@ export function TrophyCabinet({ ctx }: { ctx: ShellContext }) {
       <Shelf title="Tournament titles" tone="silver" empty={major.length ? "No other titles on this page." : "No tournament titles yet."} items={other} saveId={id} />
       {plain.length > 0 && <section className="pl-panel" aria-label="Titles without silverware">
         <h2 className="pl-panel__title"><Medal size={15} aria-hidden /> Titles without silverware</h2>
-        <p className="pl-dim pl-small">Weekly club nights and other result-only events are recorded titles with result and prize; they award no trophy.</p>
+        <p className="pl-dim pl-small">Weekly club nights and other small events count as titles and pay prize money, but there's no trophy for them.</p>
         <ul className="pl-list">{[...plain.reduce((m, t) => m.set(t.canonicalEventId + t.name, [...(m.get(t.canonicalEventId + t.name) ?? []), t]), new Map<string, typeof plain>()).values()].map(group =>
           <li key={group[0].eventId}><Link href={`/career/${id}/events/${group[0].eventId}`}>{group[0].name}</Link>
             <span>{group.length > 1 ? `×${group.length} · ` : ""}Season {[...new Set(group.map(t => t.season))].join(", ")}</span></li>)}</ul>
       </section>}
       {sessions.length > 0 && <section className="pl-panel" aria-label="Qualifier and session wins">
         <h2 className="pl-panel__title"><BadgeCheck size={15} aria-hidden /> Qualifier & session wins</h2>
-        <p className="pl-dim pl-small">Session and qualifier wins are recorded achievements, not championship titles, so no trophy is shown.</p>
+        <p className="pl-dim pl-small">Winning a qualifier or a Q-School day counts, but it isn't a championship, so there's no trophy.</p>
         <ul className="pl-list">{sessions.map(t => <li key={t.eventId}><Link href={`/career/${id}/events/${t.eventId}`}>{t.name}</Link><span>Season {t.season}</span></li>)}</ul>
       </section>}
       <section className="pl-panel" aria-label="Finals">
         <h2 className="pl-panel__title"><Medal size={15} aria-hidden /> Runner-up finishes</h2>
         {finals.length ? <div className="pl-list" role="list"><BoundedList rows={finals} size={12}>{m => <div role="listitem" key={`${m.eventId}`}>{eventHref(id, m) ? <Link href={eventHref(id, m)!}>{m.label}</Link> : m.label}<span>{m.detail}</span></div>}</BoundedList></div>
-          : <p className="pl-empty">No lost finals recorded.</p>}
+          : <p className="pl-empty">No lost finals.</p>}
       </section>
       <section className="pl-panel" aria-label="Season awards">
         <h2 className="pl-panel__title"><Award size={15} aria-hidden /> Season awards</h2>
         {archive.isLoading ? <CareerLoading /> : awards.length ? <ul className="pl-awards">{awards.map(a => <li key={`${a.season}:${a.kind}`}><Award size={18} aria-hidden />
           <div><strong>{a.kind.replace(/_/g, " ").toLowerCase().replace(/^\w/, x => x.toUpperCase())} · season {a.season}</strong><small>{a.reason}</small></div></li>)}</ul>
-          : <p className="pl-empty">No season awards recorded. Awards are given only at the end of a completed season.</p>}
+          : <p className="pl-empty">No season awards yet. They're handed out at the end of each season.</p>}
       </section>
       {(offset > 0 || cabinet.data.nextOffset !== null) && <div className="pl-pager">
         <button className="career-btn career-btn-ghost" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Newer titles</button>
@@ -203,7 +208,7 @@ export function CareerTimeline({ ctx }: { ctx: ShellContext }) {
   return (
     <section className="pl-panel" aria-label="Season by season">
       <h2 className="pl-panel__title"><Award size={15} aria-hidden /> Season by season</h2>
-      <QueryState query={legacy} label="Reading season history">{v => !v.seasons.length ? <p className="pl-empty">No seasons recorded yet.</p> :
+      <QueryState query={legacy} label="Reading season history">{v => !v.seasons.length ? <p className="pl-empty">No finished seasons yet.</p> :
         <div className="pl-timeline" role="list">
           <BoundedList rows={[...v.seasons].reverse()} size={10}>{s => (
             <div role="listitem" key={s.season} className={`pl-season${s.titles ? " has-title" : ""}${s.partial ? " is-partial" : ""}`}>
@@ -237,7 +242,7 @@ function SeasonDetail({ saveId, row: s }: { saveId: string; row: SeasonRow }) {
       {s.titleNames.length > 0 && <p><Label>Titles</Label> {s.titleNames.join(" · ")}</p>}
       {s.rival && <p><Label>Most-met opponent</Label> {s.rival.name} · {s.rival.meetings} meetings · {s.rival.wins}–{s.rival.losses}</p>}
       {s.sponsors.length > 0 && <p><Label>Sponsors</Label> {s.sponsors.join(" · ")}</p>}
-      {!s.reviewed ? <p className="pl-dim pl-small">{s.partial ? "This season has no end-of-season review yet; partial seasons are never given awards." : "No end-of-season review was recorded for this season; the figures above come from permanent results."}</p> :
+      {!s.reviewed ? <p className="pl-dim pl-small">{s.partial ? "This season has no end-of-season review yet; partial seasons are never given awards." : "There's no season review for this season; the figures above come from your results."}</p> :
         review.isLoading ? <CareerLoading label="Reading season review" /> : review.error ? <CareerError error={review.error} onRetry={() => review.refetch()} /> : review.data && <>
           {review.data.story.length > 0 && <div className="pl-story">{review.data.story.map(t => <p key={t}>{t}</p>)}</div>}
           {review.data.awards.filter(a => a.participant === "HUMAN").map(a => <p key={a.kind}><Award size={14} className="inline" aria-hidden /> {a.kind.replace(/_/g, " ").toLowerCase()} — {a.reason}</p>)}
@@ -290,7 +295,7 @@ export function Documentary({ v, saveId, preview, initialStep = -1 }: { v: Playe
         <span className="pl-doc__brand"><Clapperboard size={15} aria-hidden /> A Career Remembered{preview ? " · so far" : ""}</span>
         <nav className="pl-doc__chapters" aria-label="Chapters">{v.chapters.map((c, i) => (
           <button key={c.key} type="button" aria-current={step === i ? "step" : undefined} className={c.available ? "" : "is-missing"} onClick={() => go(i)}
-            aria-label={`Chapter ${c.number}: ${c.title}${c.available ? "" : " (no recorded evidence)"}`}>{c.number}</button>))}</nav>
+            aria-label={`Chapter ${c.number}: ${c.title}${c.available ? "" : " (nothing here yet)"}`}>{c.number}</button>))}</nav>
         <Link href={exit} className="pl-doc__exit" aria-label="Exit documentary"><X size={18} aria-hidden /></Link>
       </header>
       <div ref={stage} className="pl-doc__stage" tabIndex={-1} onKeyDown={onKey} aria-live="polite">

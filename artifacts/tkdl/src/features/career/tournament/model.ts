@@ -204,7 +204,7 @@ function baseMoment(v: Pick<TView, "matches" | "phase" | "event" | "achievements
   }
   if (m.round === rounds) return v.achievements.tournamentChampion || v.phase === "CHAMPION"
     ? { significance: "TITLE", headline: v.event.level >= 5 ? "World Champion" : v.event.qSchool ? "Session winner" : "Champion",
-      detail: v.event.qSchool ? "Q-School session won — Tour Cards remain an A5 decision." : "The title is yours — recorded in your Career history.", milestone: true }
+      detail: v.event.qSchool ? "Q-School session won — Tour Cards remain an A5 decision." : "The title is yours.", milestone: true }
     : { significance: "WIN", headline: "Final won", detail: "Awaiting the event's official settlement.", milestone: true };
   const nextLabel = roundLabel(m.round + 1, rounds);
   const sig: Significance = nextLabel === "Final" ? "FINAL_REACHED" : nextLabel === "Semi-final" ? "SEMI_REACHED" : nextLabel === "Quarter-final" ? "QUARTER_REACHED" : "WIN";

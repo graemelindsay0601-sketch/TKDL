@@ -218,9 +218,9 @@ export function TaleOfTheTape({ v, match }: { v: TView; match: TMatch }) {
             <span style={{ flexGrow: Math.max(meetings.humanWins, 0.0001) }} className="tb-h2h__me">{meetings.humanWins}</span>
             <span style={{ flexGrow: Math.max(meetings.npcWins, 0.0001) }} className="tb-h2h__them">{meetings.npcWins}</span>
           </div>
-          <p className="tb-small tb-dim">{meetings.played} played meeting{meetings.played === 1 ? "" : "s"}{total < meetings.played ? " (some undecided)" : ""}{meetings.latest ? ` · last: ${meetings.latest}` : ""}</p>
+          <p className="tb-small tb-dim">Played {meetings.played} time{meetings.played === 1 ? "" : "s"}{total < meetings.played ? " (some undecided)" : ""}{meetings.latest ? ` · last: ${meetings.latest}` : ""}</p>
           {meetings.labels.length > 0 && <div className="tb-badges">{meetings.labels.map(l => <StatusBadge key={l} label={l} tone="info" />)}</div>}
-        </> : <p className="tb-small tb-dim">First recorded meeting. Byes and walkovers never count as a meeting.</p>}
+        </> : <p className="tb-small tb-dim">First time you've played each other.</p>}
       </div>
       {them && them.thisEvent.length > 0 && (
         <div className="tb-tape__form"><Label>{them.player.name.split(" ")[0]}'s run this event</Label>

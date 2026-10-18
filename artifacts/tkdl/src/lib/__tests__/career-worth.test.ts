@@ -12,16 +12,16 @@ const f = (cost: number, bands: [number, number][]): EventFinancePreview => ({
 
 test("worth it: the earliest round whose prize pays back your costs", () => {
   const ladder: [number, number][] = [[1, 50000], [2, 20000], [4, 10000], [8, 5000], [16, 2500]];
-  assert.deepEqual([worthIt(f(1500, ladder))!.tone, worthIt(f(1500, ladder))!.label], ["good", "Costs £15 · break even if you reach the last 16"]);
-  assert.equal(worthIt(f(8000, ladder))!.label, "Costs £80 · break even if you reach the semi-finals");
+  assert.deepEqual([worthIt(f(1500, ladder))!.tone, worthIt(f(1500, ladder))!.label], ["good", "£15 to play. You get it back if you reach the last 16."]);
+  assert.equal(worthIt(f(8000, ladder))!.label, "£80 to play. You get it back if you reach the semi-finals.");
   assert.equal(worthIt(f(30000, ladder))!.tone, "poor", "only a win pays");
-  assert.equal(worthIt(f(30000, ladder))!.label, "Costs £300 · break even if you win it");
+  assert.equal(worthIt(f(30000, ladder))!.label, "£300 to play. Only the winner gets it back.");
 });
 
 test("worth it: a trip the winner's prize cannot cover, free nights and prize-less nights", () => {
   const night: [number, number][] = [[1, 2500], [2, 1000]];
-  assert.deepEqual([worthIt(f(6500, night))!.tone, worthIt(f(6500, night))!.label], ["poor", "Costs £65 · even a win loses £40"]);
-  assert.equal(worthIt(f(0, night))!.label, "Free · win £25");
-  assert.equal(worthIt(f(500, []))!.label, "Costs £5 · no prize money");
+  assert.deepEqual([worthIt(f(6500, night))!.tone, worthIt(f(6500, night))!.label], ["poor", "£65 to play. Even the winner ends up £40 down."]);
+  assert.equal(worthIt(f(0, night))!.label, "Free to play. The winner gets £25.");
+  assert.equal(worthIt(f(500, []))!.label, "£5 to play. No prize money.");
   assert.equal(worthIt(null), null);
 });

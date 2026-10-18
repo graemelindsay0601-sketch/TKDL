@@ -108,7 +108,7 @@ export function createCareerRecognitionService(database: CareerDatabase) {
       const related=npcId ? [] : relationships.opponents.filter(o=>o.labels.some(l=>l==="Career Rival" || l==="Nemesis"))
         .sort((a,b)=>b.meetings-a.meetings || a.player.id.localeCompare(b.player.id)).slice(0,3)
         .map(o=>({opponentId:o.player.id,name:o.player.name,labels:o.labels,
-          description:`${o.meetings} played meetings across ${o.eventCount} events and ${o.seasonCount} seasons.`}));
+          description:`Played ${o.meetings} times at ${o.eventCount} events over ${o.seasonCount} season${o.seasonCount===1?"":"s"}.`}));
       return {careerSaveId:saveId,subject:{kind:npcId ? "NPC" : "HUMAN",id:participant,
         name:npc?.name ?? (str(rr,"career_name") || "Your Career"),retired:npc ? npc.status==="RETIRED" : rr.status==="RETIRED"},
         ...recognitionModel(sources),relationships:related};

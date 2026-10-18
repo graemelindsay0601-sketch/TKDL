@@ -59,7 +59,7 @@ export function NewsroomPage({ ctx }: NewsroomProps) {
           <header className="news-masthead">
             <div className="news-kicker">TKDL Career · Darts World</div>
             <h1>On the record.</h1>
-            <p>A player-facing view of the stories your Career has actually produced. Every report comes from the Career Life record; no results or colour are added between the facts.</p>
+            <p>News from your career and the darts world around you.</p>
             <div className="news-rule" />
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="news-meta">{life.data ? `${stories.length} recorded ${stories.length === 1 ? "story" : "stories"}` : "Career Life feed"}</span>
@@ -107,7 +107,7 @@ export function NewsroomPage({ ctx }: NewsroomProps) {
                 </Link>)}
               </div> : <div className="news-empty mt-3" role="status">
                 <h2>{stories.length ? "No reports match these filters" : "The record is quiet"}</h2>
-                <p>{stories.length ? "Change the category, season or search to see other recorded stories." : "Career Life has not returned any newsroom stories for this save yet. New reports appear only when the Career record supplies them."}</p>
+                <p>{stories.length ? "Try another category, season or search." : "Career Life has not returned any newsroom stories for this save yet. New reports appear only when the Career record supplies them."}</p>
                 {stories.length > 0 && <button className="news-action mt-3" type="button" onClick={() => { setSearch(""); setCategory("All categories"); setSeason("All seasons"); }}>Clear filters</button>}
               </div>}
               {filtered.length > visibleCount && <button type="button" className="news-action mt-3" onClick={() => setVisibleCount(count => Math.min(count + 12, filtered.length))} aria-label={`Show ${Math.min(12, filtered.length - visibleCount)} more reports`}>
@@ -192,7 +192,7 @@ function OpponentEvidence({ ctx, opponentId }: { ctx: ShellContext; opponentId: 
     <p><strong>Opponent record</strong></p>
     {opponent.isLoading && <p role="status">Checking known player identity…</p>}
     {knownOpponent && <>
-      <p>{knownOpponent.name}{relationship ? ` · ${relationship.meetings} played meeting${relationship.meetings === 1 ? "" : "s"}` : " · identity confirmed"}</p>
+      <p>{knownOpponent.name}{relationship ? ` · played ${relationship.meetings} time${relationship.meetings === 1 ? "" : "s"}` : ""}</p>
       <Link className="news-action" href={`/career/${ctx.save.id}/recognition/npcs/${encodeURIComponent(knownOpponent.id)}`}>Opponent profile <ArrowUpRight size={14} aria-hidden /></Link>
     </>}
     {!opponent.isLoading && opponent.error && <p role="status">Opponent route not linked: identity could not be confirmed.</p>}

@@ -1228,3 +1228,32 @@
 @media (pointer: coarse) {
   .career-root main :is(li, td, p, span, dd) > a:not(.career-btn) { padding-block: 5px; }
 }
+
+/* Phones: a slimmer Career header. Attention and "More" stay; search, Play mode, the guide and save health open on demand. */
+.career-header-more { display:none; }
+@media (max-width: 640px) {
+  .career-root .career-header-tools > :not(.career-attention-trigger):not(.career-header-more) { display:none; }
+  .career-root .career-header-tools[data-open] > * { display:flex; }
+  .career-header-more { display:inline-flex; align-items:center; margin-left:auto; padding:6px 12px; border-radius:999px; border:1px solid #ffffff26; background:#ffffff0d; color:#fff; font-size:.8rem; font-weight:700; }
+  .career-hero__extra { display:none; }
+  .career-hero__portrait { display:none; }
+}
+
+/* First-season checklist */
+.career-welcome h3 .career-welcome__count { margin-left:auto; font-size:.75rem; font-weight:700; color:#ffd24a; }
+.career-welcome__steps { list-style:none; margin:8px 0 10px; padding:0; display:grid; gap:6px; }
+.career-welcome__steps li { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:6px 8px; border-radius:10px; }
+.career-welcome__steps li[data-next] { background:#ffffff0d; border:1px solid #ffd24a40; }
+.career-welcome__steps li[data-done] b { color:#ffffff99; text-decoration:line-through; text-decoration-color:#ffffff40; }
+.career-welcome__steps li > span:nth-child(2) { display:grid; gap:2px; flex:1 1 180px; min-width:0; }
+.career-welcome__steps small { color:#e8eef3cc; font-size:.82rem; line-height:1.35; }
+.career-welcome__tick { flex:none; width:20px; height:20px; border-radius:50%; border:2px solid #ffffff40; display:grid; place-items:center; }
+.career-welcome__steps li[data-done] .career-welcome__tick { background:#4ade80; border-color:#4ade80; color:#0b1a12; }
+.career-welcome__tick svg { width:13px; height:13px; }
+.career-welcome__go { padding:6px 12px !important; font-size:.8rem !important; }
+
+/* Unlock as you go */
+.career-new-badge { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:999px; background:#ffd24a; color:#1a1300; font-size:.62rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; vertical-align:middle; }
+.nights-coming { margin:10px 4px 2px; font-size:.85rem; color:#e8eef3b3; }
+.career-later-note { display:flex; gap:10px; align-items:flex-start; color:#e8eef3cc; }
+.career-later-note svg { flex:none; margin-top:2px; color:#38bdf8; }

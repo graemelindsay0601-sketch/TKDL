@@ -63,7 +63,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
     <section className="next-move panel" aria-labelledby="next-move-title">
       <div className="next-move__kicker"><span className="live-indicator" aria-hidden /> Play</div>
       <h2 id="next-move-title" className="next-move__title">Your next move</h2>
-      <CareerWelcome save={save} />
+      <CareerWelcome save={save} entered={!!booked} />
       <TourCardOffer saveId={id} />
       {lead}
       {!match && !activeTournament && !pendingReview && <>
@@ -74,7 +74,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         <MoneyChallengeLine saveId={id} />
         <RoadVisitorLine saveId={id} />
         <TeamNightLine saveId={id} week={save.currentWeek} />
-        <NightsLine saveId={id} week={save.currentWeek} />
+        <NightsLine saveId={id} week={save.currentWeek} save={save} />
         <WeekPlanner events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
         {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
         {enterable.length ? <div className="next-move__events">

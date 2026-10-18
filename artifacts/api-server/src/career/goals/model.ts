@@ -138,12 +138,13 @@ export function recommend(focus: Focus, events: Opportunity[], mainGoal: GoalDef
   const relevant=upcoming.filter(e=>focus==="OPEN_SCHEDULE" || focus==="PRIZE_MONEY" ||
     (focus==="AMATEUR_CIRCUIT" ? amateur(e.circuit) : focus==="MAJOR_QUALIFICATION" ? e.majorRoute || ["MAJOR","WORLD"].includes(e.tier) :
       ["Q_SCHOOL","PRO_CIRCUIT","CHALLENGER"].includes(e.circuit) || e.classification==="RANKING"));
-  const sorted=focus==="OPEN_SCHEDULE" ? relevant : [...relevant].sort((a,b)=>Number(b.canEnter)-Number(a.canEnter) ||
+  // Events you can enter come first (an open schedule still shouldn't suggest a league night on another continent).
+  const sorted=[...relevant].sort((a,b)=>Number(b.canEnter)-Number(a.canEnter) ||
     (focus==="PRIZE_MONEY" ? (b.firstPrizePence??-1)-(a.firstPrizePence??-1) || (a.estimatedCostPence??Infinity)-(b.estimatedCostPence??Infinity) : a.startDay-b.startDay) || a.id.localeCompare(b.id));
-  const baseReason=(e: Opportunity)=>focus==="OPEN_SCHEDULE" ? "Normal upcoming calendar" : focus==="PRIZE_MONEY" ?
-    "Published first prize and estimated costs; winning and profit are not guaranteed" : e.circuit==="Q_SCHOOL" ? "Q-School pathway — optional" :
-    e.majorRoute ? "Authored qualification output to a major/world event" : focus==="MAJOR_QUALIFICATION" ? "Major/world event; existing eligibility applies" :
-    focus==="AMATEUR_CIRCUIT" ? "Amateur / open / secondary-circuit competition" : "Published ranking or professional opportunity; see its existing route";
+  const baseReason=(e: Opportunity)=>focus==="OPEN_SCHEDULE" ? (e.canEnter ? "Coming up soon, and you can enter it" : "Coming up soon") : focus==="PRIZE_MONEY" ?
+    "A good first prize for what it costs. Winning isn't guaranteed." : e.circuit==="Q_SCHOOL" ? "Q-School: a route to a Tour Card, if you want one" :
+    e.majorRoute ? "Do well here and you qualify for a major" : focus==="MAJOR_QUALIFICATION" ? "A major event: you'll need to qualify first" :
+    focus==="AMATEUR_CIRCUIT" ? "An amateur event" : "A ranking event";
   const candidates=mainGoal ? upcoming.map(event=>({event,alignment:goalRoute(mainGoal,event)})).sort((a,b)=>
     b.alignment.score-a.alignment.score || Number(b.event.canEnter)-Number(a.event.canEnter) ||
     (focus==="PRIZE_MONEY" ? (b.event.firstPrizePence??-1)-(a.event.firstPrizePence??-1) : a.event.startDay-b.event.startDay) ||

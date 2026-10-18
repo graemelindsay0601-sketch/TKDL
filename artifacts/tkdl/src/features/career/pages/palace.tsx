@@ -50,10 +50,10 @@ export function PalacePage({ ctx }: { ctx: ShellContext }) {
             <CareerSection title="Your qualification" icon={<Star className="w-3.5 h-3.5" />} accent="#ffd24a">
               {retired ? <CareerEmptyState title="Retired Career" /> : qual.isLoading ? <CareerLoading /> : qual.data?.events[0] ? (
                 <div className="px-4 py-3 space-y-2">
-                  <StatusBadge label={qual.data.events[0].eligible ? "Qualified on current facts" : "Not qualified yet"} tone={qual.data.events[0].eligible ? "gold" : "muted"} />
+                  <StatusBadge label={qual.data.events[0].eligible ? "You're in" : "Not qualified yet"} tone={qual.data.events[0].eligible ? "gold" : "muted"} />
                   <ul className="space-y-1 text-sm">{routeLines(qual.data.events[0].routes).map((l, i) => <li key={i} className="flex gap-2"><span aria-hidden style={{ color: l.met ? TONES.success : TONES.muted }}>{l.met ? "✓" : "✗"}</span><span style={{ color: "rgba(255,255,255,0.85)" }}>{l.text}</span></li>)}</ul>
                 </div>) : qual.error ? <CareerError error={qual.error} onRetry={() => qual.refetch()} />
-                : <CareerEmptyState title="No qualification facts">The World Championship is not among this season's upcoming events.</CareerEmptyState>}
+                : <CareerEmptyState title="Not qualified">The World Championship is not among this season's upcoming events.</CareerEmptyState>}
               {wcMilestones.map((m, i) => <p key={i} className="px-4 pb-3 text-xs" style={{ color: "#ffd24a" }}>{milestoneLabel(m).title} · S{m.season} W{m.week}</p>)}
             </CareerSection>
             <CareerSection title="Previous champions" icon={<Crown className="w-3.5 h-3.5" />} accent="#ffd24a">

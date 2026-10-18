@@ -183,14 +183,14 @@ test("A7.4 Recognition: elite amateur standing, independent contexts, factual ev
   const data=recognitionFixture(true),html=render(h(M.RecognitionPage,{ctx:ctx()}),[[key("recognition"),data]]),t=text(html);
   for(const s of ["Elite amateur","Local","Amateur","Professional","Major / Stage","International","Why you're recognised","National amateur title","2026-01-07","Age 20","Event result","Recent recognition milestones"])assert.ok(t.includes(s),s);
   assert.doesNotMatch(t,/\bA[1-9](\.\d)?\b/,"internal authority labels are not shown to players");
-  assert.match(t,/turning professional is optional/);assert.match(t,/Focus and personal goals do not grant recognition/);
+  assert.match(t,/turning professional is up to you/);assert.match(t,/Focus and personal goals do not grant recognition/);
   assert.ok(html.includes(`/career/${SAVE_ID}/events/event-0`));
   assert.doesNotMatch(html,/<progress|role="progressbar"|\d+\/100/);
   assert.doesNotMatch(t,/reputation points|XP|potential|current ability|level up|fame currency/i);
 });
 test("A7.4 empty and retired Recognition remain meaningful, readable and without mutation controls",()=>{
   const data=recognitionFixture(),empty=text(render(h(M.RecognitionPage,{ctx:ctx()}),[[key("recognition"),data]]));
-  assert.match(empty,/Building a sporting record/);assert.match(empty,/No qualifying sporting evidence/);assert.match(empty,/No dated recognition milestones/);
+  assert.match(empty,/Building a sporting record/);assert.match(empty,/Nothing here yet/);assert.match(empty,/No dated recognition milestones/);
   data.subject.retired=true;
   const retired=text(render(h(M.RecognitionPage,{ctx:ctx(save({status:"RETIRED"}))}),[[key("recognition"),data]]));
   assert.match(retired,/Retired Career/);assert.match(retired,/creates no further progression/);assert.doesNotMatch(retired,/Enter event|Select goal|Spend|Upgrade/);
@@ -249,7 +249,7 @@ test("A7.3 retired Careers retain readable goals/focus but no new-goal or abando
   assert.match(t,/Retired Career/);assert.match(t,/no further sporting progress/);
   assert.doesNotMatch(t,/Select goal|Abandon without penalty/);assert.match(html,/<select[^>]*disabled/);
   const summary=text(render(h(M.GoalsSummary,{saveId:SAVE_ID}),[[key("goals"),data]]));
-  assert.match(summary,/Open Schedule/);assert.match(summary,/Main ambition/);assert.match(summary,/Win a Career title/);assert.match(summary,/Manage/);
+  assert.match(summary,/Anything goes/);assert.match(summary,/Main ambition/);assert.match(summary,/Win a Career title/);assert.match(summary,/Manage/);
 });
 
 test("A7.2 relationships render factual retired identity, H2H, cohorts, meetings, world context and no gameplay effects",()=>{
@@ -676,7 +676,7 @@ test("Career Home presents verified progression, eligibility and personal focus"
   ];
   const html=render(h(M.HomePage,{ctx:ctx(s)}),seed);
   const t=text(html);
-  for(const label of ["Your next decision","The route ahead","Regional Championship","Top 32","Entry windows","Open Entry","Focus & goals","Latest sporting evidence","First ranking entry","no rewards or progression shortcuts"]) assert.ok(t.includes(label),label);
+  for(const label of ["Your next decision","The route ahead","Regional Championship","Top 32","Entry windows","Open Entry","Focus & goals","Latest milestones","First ranking entry","never give you rewards or shortcuts"]) assert.ok(t.includes(label),label);
   assert.ok(html.includes(`/career/${SAVE_ID}/calendar`));
   assert.ok(html.includes(`/career/${SAVE_ID}/rankings`));
 });
@@ -739,8 +739,8 @@ test("A9 establishment copy is new-save-only; Career Calendar fixture remains bo
   const seed:[unknown[],unknown][]=[[key("calendar",{scope:"RELEVANT",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
     [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}]];
   const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5}))}),seed);
-  assert.match(text(html),/Establishment season/);assert.match(text(html),/Turning professional is optional/);
-  assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Establishment season/);
+  assert.match(text(html),/Your first season/);assert.match(text(html),/Turning professional is up to you/);
+  assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Your first season/);
   if(process.env.A9_BROWSER_DIR){
     const q={scope:"WORLD",season:1,fromWeek:1,toWeek:9,circuit:undefined};
     const markup=render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.CalendarPage,{ctx:ctx()})),
@@ -794,7 +794,7 @@ test("Career Compass presents one selected ambition and evidence instead of a pr
   const t=text(html);
   assert.match(t,/Main ambition/);
   assert.match(t,/Win a Career title/);
-  assert.match(t,/No confirmed milestone yet/);
+  assert.match(t,/Not done yet/);
   assert.doesNotMatch(t,/0 \/ 1|0%/);
 });
 

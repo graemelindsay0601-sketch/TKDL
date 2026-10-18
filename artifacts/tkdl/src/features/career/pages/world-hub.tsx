@@ -49,7 +49,7 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
       return <>
         <CareerPageHero kicker={`The darts world · season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title="Darts World" accent="#38bdf8"
           stage={{ venue: { venueType: "major-arena" }, eventClass: "MAJOR" }}
-          subtitle="Standings, championships, players and stories from your saved world. Every name and result here was recorded in your Career."
+          subtitle="Rankings, the big championships, players and news from your darts world."
           stats={[
             { label: "Published World #1", value: leader, tone: "gold" },
             { label: "Last World Champion", value: champion },

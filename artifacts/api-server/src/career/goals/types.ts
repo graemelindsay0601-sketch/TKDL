@@ -2,11 +2,11 @@ import type { Fact, CareerFacts } from "../facts/types.ts";
 import type { CareerRelationships } from "../relationships/types.ts";
 
 export const FOCUSES = {
-  OPEN_SCHEDULE: { label: "Open Schedule", description: "Normal calendar, without a strategic preference. Every pathway remains yours to choose." },
-  PROFESSIONAL_PATHWAY: { label: "Professional Pathway", description: "Q-School and published ranking/pro opportunities. Turning professional is optional." },
-  AMATEUR_CIRCUIT: { label: "Amateur Circuit", description: "Local, county, open and secondary competition. Q-School remains available where eligible." },
-  PRIZE_MONEY: { label: "Prize-Money Focus", description: "Published first prizes and estimated Career costs. No guaranteed profit or financial bonus." },
-  MAJOR_QUALIFICATION: { label: "Major Qualification", description: "Major/world events and their authored qualification routes. No invitation or eligibility shortcuts." },
+  OPEN_SCHEDULE: { label: "Anything goes", description: "No preference: suggestions from the whole calendar, nearest and soonest first." },
+  PROFESSIONAL_PATHWAY: { label: "Going pro", description: "Q-School, the Challenger Tour and ranking events. Turning professional is still up to you." },
+  AMATEUR_CIRCUIT: { label: "Amateur darts", description: "Local, county and open events, and the Vault. You can still try Q-School whenever you like." },
+  PRIZE_MONEY: { label: "Prize money", description: "The best first prizes for what they cost. Winning isn't guaranteed." },
+  MAJOR_QUALIFICATION: { label: "Big events", description: "The majors and the World Championship, and the qualifiers that lead to them." },
 } as const;
 export type Focus = keyof typeof FOCUSES;
 export type GoalDefinition =

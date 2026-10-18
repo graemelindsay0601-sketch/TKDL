@@ -98,7 +98,7 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
               <Metric label="Finals" value={legacyQuery.data.totals.finals} />
               <Metric label="Wins / losses" value={`${legacyQuery.data.totals.wins} / ${legacyQuery.data.totals.losses}`} />
             </div>}
-            {!legacyQuery.isLoading && !legacyQuery.error && !legacyQuery.data?.totals && <Empty text="No career totals have been recorded for this player." />}
+            {!legacyQuery.isLoading && !legacyQuery.error && !legacyQuery.data?.totals && <Empty text="No results for this player yet." />}
             {legacyQuery.data?.rankings.length ? <div className="player-record-row mt-3">
               <strong>Recorded ranking snapshots</strong>
               <small>{legacyQuery.data.rankings.slice().sort((a, b) => b.season - a.season || b.week - a.week).slice(0, 5).map(rank => `S${rank.season} W${rank.week}: #${rank.position}`).join(" · ")}</small>
@@ -126,7 +126,7 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
                 <strong>{award.name}</strong><small>{award.kind.replaceAll("_", " ")} · Season {award.season}{award.reason ? ` · ${award.reason}` : ""}</small>
               </div>)}
             </div> : null}
-            {!legacyQuery.isLoading && !legacyQuery.error && !legacyQuery.data?.awards.length && <Empty text="No recorded honours are listed for this player." />}
+            {!legacyQuery.isLoading && !legacyQuery.error && !legacyQuery.data?.awards.length && <Empty text="No titles yet." />}
             {!!legacyQuery.data?.titles.length && <div className="player-record-row mt-3">
               <h3>Recorded championships</h3>
               <ul className="player-row-list">{legacyQuery.data.titles.slice(0, 6).map(result => <li className="player-record-row" key={result.id}>
@@ -140,14 +140,14 @@ export function WorldPlayerProfile({ ctx, npcId }: ProfileProps) {
           <section className="player-panel player-panel--wide">
             <h2>Sponsor relationships</h2>
             {player.sponsorshipFoundation?.source === "PERSISTED_SP_A" && persistedSponsors.length > 0 ? <>
-              <p>Saved Career sponsorship records, including their recorded status and term dates.</p>
+              <p>Who sponsors this player, and for how long.</p>
               <div className="player-row-list">{persistedSponsors.map(record => <div className="player-record-row" key={record.id}>
                 <strong>{record.sponsor?.displayName ?? record.sponsorKey}</strong>
                 <small>{record.category.replaceAll("_", " ")} · {record.status.toLowerCase()} · Began {seasonWeek(record.start)}{record.end ? ` · Ended ${seasonWeek(record.end)}` : ""}</small>
                 {record.sponsor?.commercialTier && <small>{record.sponsor.commercialTier.toLowerCase()} tier</small>}
                 {record.sponsor?.representative?.displayName && <small>Recorded representative: {record.sponsor.representative.displayName}</small>}
               </div>)}</div>
-            </> : player.sponsorshipFoundation?.source === "PERSISTED_SP_A" ? <Empty text="No persisted sponsor relationships are recorded for this player in this Career save." /> :
+            </> : player.sponsorshipFoundation?.source === "PERSISTED_SP_A" ? <Empty text="No sponsors." /> :
               <Empty text="This Career save has no persisted sponsor-history record for this player. No commercial portfolio is substituted for saved agreement history." />}
           </section>
 
@@ -213,7 +213,7 @@ export function RivalryProfile({ ctx, npcId, compact = false }: ProfileProps & {
   if (!relationship) return <Empty text="No played head-to-head or relationship record is returned for this opponent. No rivalry is inferred." />;
 
   return <div>
-    {relationship.labels.length ? <div className="player-tag-list mb-3">{relationship.labels.map(label => <span className="player-tag" key={label}>{label}</span>)}</div> : <p>No relationship label is recorded.</p>}
+    {relationship.labels.length ? <div className="player-tag-list mb-3">{relationship.labels.map(label => <span className="player-tag" key={label}>{label}</span>)}</div> : <p>Nothing special between you yet.</p>}
     {!compact && <><div className="player-metric-grid">
       <Metric label="Meetings" value={relationship.meetings} />
       <Metric label="Wins" value={relationship.humanWins} />
@@ -230,7 +230,7 @@ export function RivalryProfile({ ctx, npcId, compact = false }: ProfileProps & {
           {meeting.legsHuman === null || meeting.legsNpc === null ? "" : ` · Legs ${meeting.legsHuman}–${meeting.legsNpc}`}
           {meeting.setsHuman === null || meeting.setsNpc === null ? "" : ` · Sets ${meeting.setsHuman}–${meeting.setsNpc}`}</small>
       </div>)}
-    </div> : <Empty text="A relationship record exists, but it contains no played meeting rows." />}
+    </div> : <Empty text="You haven't played each other yet." />}
   </div>;
 }
 

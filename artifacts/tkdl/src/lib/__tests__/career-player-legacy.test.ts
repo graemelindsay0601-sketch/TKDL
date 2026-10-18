@@ -78,7 +78,7 @@ const profileSeed = (v: Any, titles: Any[] = [], rank: number | null = null, car
 test("new Career with no honours: honest empty profile, no trophies, no documentary call-to-action", () => {
   const html = render(h(M.PlayerLegacyProfile, { ctx: ctx() }), profileSeed(fresh()));
   const t = text(html);
-  for (const x of ["Ayr Arrow", "“The Ayr Arrow”", "Open circuit", "Unranked", "No landmarks yet", "No titles yet. Nothing is shown until you actually win one.", "Age 22"]) assert.ok(t.includes(x), x);
+  for (const x of ["Ayr Arrow", "“The Ayr Arrow”", "Open circuit", "Unranked", "Nothing here yet. Your first event, final, title", "Age 22"]) assert.ok(t.includes(x), x);
   assert.doesNotMatch(html, /career-trophy-svg/); assert.doesNotMatch(t, /Watch A Career Remembered/);
   scene("profile-new", html);
 });
@@ -131,7 +131,7 @@ test("trophy cabinet: majors shelf, grouped repeat wins, qualifier wins without 
 
 test("empty cabinet says so plainly", () => {
   const t = text(render(h(M.TrophyCabinet, { ctx: ctx() }), [[key("trophy-cabinet", 0), cabinet([])], [key("legacy-player"), fresh()], [key("legacy"), { honours: [] }]]));
-  for (const x of ["0 titles won", "No major or World title yet.", "No tournament titles yet.", "No lost finals recorded.", "No season awards recorded."]) assert.ok(t.includes(x), x);
+  for (const x of ["0 titles won", "No major or World title yet.", "No tournament titles yet.", "No lost finals.", "No season awards yet."]) assert.ok(t.includes(x), x);
 });
 
 // ---------------------------------------------------------------- D3 timeline

@@ -59,6 +59,9 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <main className="career-home">
+      {/* Your next move comes first: the rest of Home is reference you can scroll to. */}
+      {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
+        onEnter={onEnter} entering={enter.isPending} message={message} />}
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#ff005c" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}
@@ -77,13 +80,11 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
             value: sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.worldRanking.standing?.position ? ordinal(sporting.data.worldRanking.standing.position) : "Unranked" },
           { label: "Tour Card", tone: sporting.data?.tourCard.holdsCard ? "good" : "neutral",
             value: sporting.isLoading ? "…" : sporting.error ? "Unavailable" : sporting.data?.tourCard.holdsCard ? "Active" : "No Tour Card",
-            sub: sporting.data?.tourCard.current ? `Review end of S${sporting.data.tourCard.current.reviewSeason}` : "Q-School or Challenger ranking" },
+            sub: sporting.data?.tourCard.current ? `Review end of S${sporting.data.tourCard.current.reviewSeason}` : "Win one at Q-School or on the Challenger Tour" },
           { label: "Career balance", value: finance.isLoading ? "…" : finance.error ? "Unavailable" : formatPence(finance.data?.balancePence ?? save.balancePence),
             sub: finance.data ? `${formatPence(finance.data.availablePence)} available` : undefined },
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
-      {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
-        onEnter={onEnter} entering={enter.isPending} message={message} />}
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
       <details className="home-more" open={retired}>
       <summary className="home-more__summary">More about your Career <span>Guidance, route ahead, goals, schedule and results</span></summary>
@@ -91,9 +92,11 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       <ContextHelp saveId={id} topic="home" />
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
         <SeasonOneGuidance saveId={id} />
-                <details className="career-note" open><summary>Establishment season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 6
-          ? `Choose your own amateur path. This season the Challenger Tour is open to every player without a Tour Card: finish in its top 2 to earn a Tour Card for Season 2, or ${(save.eventDatabaseVersion ?? 0) >= 8 ? "3rd–16th" : "3rd–10th"} to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–3 of Season 2. Turning professional is optional.`
-          : "Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional."}</p></details>
+                <details className="career-note" open><summary>Your first season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 17
+          ? "Play wherever suits you. Q-School runs in weeks 2–4 if you can afford it, and the Challenger Tour is open to anyone without a Tour Card this season: finish in its top 2 for a Tour Card. Turning professional is up to you."
+          : (save.eventDatabaseVersion ?? 0) >= 6
+          ? `Play wherever suits you. This season the Challenger Tour is open to anyone without a Tour Card: finish in its top 2 for a Tour Card, or ${(save.eventDatabaseVersion ?? 0) >= 8 ? "3rd–16th" : "3rd–10th"} to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–4 of season 2. Turning professional is up to you.`
+          : "Play wherever suits you. Your first Q-School is at the start of season 2. Turning professional is up to you."}</p></details>
       </>}
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
@@ -104,7 +107,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
         {retired ? (
           <div className="home-next-empty"><h3>Your permanent Career record</h3><p>Retired. Results, relationships, sponsors, reviews and honours remain readable.</p><Link className="career-btn career-btn-primary" href={`/career/${id}/my-career/history`}>Explore your history</Link></div>
         ) : legacy.data?.pendingReview ? (
-          <div className="home-next-empty"><p>Review the season’s recorded results and changes before continuing.</p><Link className="career-btn career-btn-primary" href={`/career/${id}/my-career/history`}>Continue Season Review</Link></div>
+          <div className="home-next-empty"><p>Read how your season went before the next one starts.</p><Link className="career-btn career-btn-primary" href={`/career/${id}/my-career/history`}>Continue Season Review</Link></div>
         ) : active ? (
           <div className="home-active-match">
             <div className="home-active-copy"><h3>Tournament in progress</h3><strong>{active.name}</strong><Link className="career-btn career-btn-primary" href={`/career/${id}/tournaments/${active.eventId}`}>Return to Tournament <ArrowUpRight aria-hidden /></Link><p>Your place is saved. Leaving a screen never withdraws you.</p></div>
@@ -163,7 +166,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
                  return mainGoal ? <div className="home-main-ambition">
                    <strong>{mainGoal.label}</strong><span>{mainGoal.status==="COMPLETED"?"Achieved":"Main ambition"}</span>
                    {mainGoal.evidence && <p>Confirmed: {mainGoal.evidence.label} · Season {mainGoal.evidence.season}</p>}
-                   {mainGoal.status==="ACTIVE" && !mainGoal.evidence && <p>No confirmed milestone yet. Follow the recommended next step below.</p>}
+                   {mainGoal.status==="ACTIVE" && !mainGoal.evidence && <p>Not done yet. Your next step is below.</p>}
                  </div> : <NoGoalNudge saveId={id} retired={goals.data!.retired} />;
                 })()}
                {goals.data.nearTermEventId && <p className="home-route-choice">
@@ -176,7 +179,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
                 onEnter={onEnter}
                 entering={enter.isPending}
               />
-               <p className="home-goal-foot">Evidence-based guidance <span aria-hidden>·</span> no rewards or progression shortcuts</p>
+               <p className="home-goal-foot">Suggestions only: goals never give you rewards or shortcuts.</p>
             </div> : <CareerEmptyState title="No goals available" />}
         </CareerSection>
 
@@ -194,7 +197,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
       <div className="home-two-column home-records">
         <CareerSection title="Recent results" icon={<Medal aria-hidden />} accent="#d8b76a" action={<Link className="home-text-link" href={`/career/${id}/my-career/history`}>Full history <ArrowUpRight aria-hidden /></Link>}>
-          {history.isLoading ? <CareerLoading label="Reading recorded results" /> : history.error ? <CareerError error={history.error} onRetry={() => void history.refetch()} /> :
+          {history.isLoading ? <CareerLoading label="Loading your results" /> : history.error ? <CareerError error={history.error} onRetry={() => void history.refetch()} /> :
             history.data?.length ? <ul className="home-result-list">{history.data.slice(0, 4).map(row => <li key={row.eventId}>
               <CareerEventIdentity eventKey={row.definitionKey} circuit={row.circuit}><Link href={`/career/${id}/events/${row.eventId}`} className="home-result-link">
                 <EventPlateTile atmosphere={{ circuit: row.circuit, classification: row.classification }} label={<>S{row.season} · WK {row.week}</>} />
@@ -203,7 +206,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
               </Link></CareerEventIdentity>
             </li>)}</ul> : <CareerEmptyState title="No results yet">Your first finished event will appear here with its verified result.</CareerEmptyState>}
         </CareerSection>
-        <CareerSection title="Latest sporting evidence" icon={<Award aria-hidden />} accent="#c9a96e" action={<Link className="home-text-link" href={`/career/${id}/my-career/achievements`}>Achievements <ArrowUpRight aria-hidden /></Link>}>
+        <CareerSection title="Latest milestones" icon={<Award aria-hidden />} accent="#c9a96e" action={<Link className="home-text-link" href={`/career/${id}/my-career/achievements`}>Achievements <ArrowUpRight aria-hidden /></Link>}>
           {milestones.isLoading ? <CareerLoading label="Checking dated achievements" /> : milestones.error ? <CareerError error={milestones.error} onRetry={() => void milestones.refetch()} /> :
             milestones.data?.milestones.length ? <ol className="home-milestones">{milestones.data.milestones.slice(0, 4).map((milestone, index) => {
               const label = milestoneLabel(milestone);
@@ -212,7 +215,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
                 <span className="home-milestone-mark" aria-hidden />
                 <span><strong>{label.title}</strong>{label.detail && <small>{label.detail}</small>}</span>
               </li>;
-            })}</ol> : <CareerEmptyState title="No milestones recorded yet">Dated ranking and Tour Card milestones appear here when supported by sporting evidence.</CareerEmptyState>}
+            })}</ol> : <CareerEmptyState title="No milestones yet">Your first ranking, Tour Card and other big moments will show here.</CareerEmptyState>}
         </CareerSection>
       </div>
 
@@ -221,12 +224,12 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           {legacy.isLoading ? <CareerLoading label="Checking Career changes" /> : legacy.error ? <CareerError error={legacy.error} onRetry={() => void legacy.refetch()} /> :
             legacy.data?.recentReviews?.length ? <div className="home-change-list">
               {legacy.data.recentReviews.slice(0,3).map((review, index) => <p key={`${review.season}-${index}`}><span>S{review.season}</span>{review.identity}<small>{review.provenance === "CAPTURED" ? "Recorded season review" : "Reconstructed historical review"}</small><Link href={`/career/${id}/my-career/history`} aria-label={`Open season ${review.season} history`}><ArrowUpRight aria-hidden /></Link></p>)}
-            </div> : <CareerEmptyState title="No season changes to report">Important changes and season reviews will be recorded here.</CareerEmptyState>}
+            </div> : <CareerEmptyState title="No season changes to report">Important changes and season reviews will show here.</CareerEmptyState>}
         </CareerSection>
         <CareerSection title="Darts world" icon={<TrendingUp aria-hidden />} accent="#7ebbd3" action={<Link className="home-text-link" href={`/career/${id}/world`}>Explore world <ArrowUpRight aria-hidden /></Link>}>
           {life.isLoading ? <CareerLoading label="Checking the darts world" /> : life.error ? <CareerError error={life.error} onRetry={() => void life.refetch()} /> :
             life.data?.news.length ? <ul className="home-news">{life.data.news.slice(0, 3).map(n => <li key={n.id}><Link href={`/career/${id}/stories`}>{n.title}<ArrowUpRight aria-hidden /></Link></li>)}</ul> :
-              <CareerEmptyState title="No recent developments">No new world news has been recorded. Results and standings remain available in Darts World.</CareerEmptyState>}
+              <CareerEmptyState title="No recent developments">No news yet. Results and rankings are in Darts World.</CareerEmptyState>}
         </CareerSection>
       </div>
 
@@ -289,7 +292,7 @@ function SeasonOneGuidance({ saveId }: { saveId: string }) {
   const edit = useEditGuidance(saveId);
   if (!guidance.data || guidance.data.mode === "MINIMAL" || guidance.data.dismissed.includes("establishment")) return null;
   return <aside className="career-home-note" aria-label="Season 1 guidance">
-    <div><strong>Establishment season · Season 1</strong><p>Amateur competition is a valid route. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional.</p></div>
+    <div><strong>Your first season</strong><p>Amateur darts is a full career on its own. When you want a Tour Card, Road to the Tour shows every way to get one. Turning professional is up to you.</p></div>
     {guidance.data.canEdit && <button type="button" className="home-guidance-dismiss" disabled={edit.isPending} onClick={() => edit.mutate({ dismiss: "establishment" })} aria-label="Dismiss Season 1 guidance"><X aria-hidden /><span>Later</span></button>}
     {edit.error && <p role="alert">{errorMessage(edit.error)}</p>}
   </aside>;

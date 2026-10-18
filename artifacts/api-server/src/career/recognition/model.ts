@@ -95,11 +95,11 @@ function milestoneHistory(context: RecognitionContext, items: Contribution[]): R
 export function careerStanding(states: Record<RecognitionContext, RecognitionLevel>): RecognitionView["standing"] {
   const rank=(c:RecognitionContext)=>LEVELS.indexOf(states[c]);
   if (rank("MAJOR_STAGE") >= 3 && rank("INTERNATIONAL") >= 3)
-    return {label:"International stage performer",description:"Significant major-stage and international achievements remain part of this Career's standing."};
+    return {label:"International stage performer",description:"Big results on the major stages and abroad have made your name."};
   const strongest=(Object.keys(CONTEXTS) as RecognitionContext[]).sort((a,b)=>rank(b)-rank(a) || Object.keys(CONTEXTS).indexOf(a)-Object.keys(CONTEXTS).indexOf(b))[0];
-  if (rank(strongest) === 0) return {label:"Building a sporting record",description:"Recognition follows evidenced sporting achievements. Every eligible Career pathway remains open."};
+  if (rank(strongest) === 0) return {label:"Building a sporting record",description:"Win events and climb the rankings and your reputation will grow. Every route is still open to you."};
   const domain={LOCAL:"local competitor",AMATEUR:"amateur",PROFESSIONAL:"professional",MAJOR_STAGE:"stage performer",INTERNATIONAL:"international competitor"}[strongest];
-  return {label:`${LEVEL_LABELS[states[strongest]]} ${domain}`,description:`Earned recognition is strongest in the ${CONTEXTS[strongest].toLowerCase()} context. Other contexts develop independently; turning professional is optional.`};
+  return {label:`${LEVEL_LABELS[states[strongest]]} ${domain}`,description:`You're best known in ${CONTEXTS[strongest].toLowerCase()} darts. Your name grows separately everywhere else, and turning professional is up to you.`};
 }
 /** Pure read model; no writes, RNG, wall clock, economy or gameplay dependencies. */
 export function recognitionModel(s: RecognitionSources): Pick<RecognitionView,"standing"|"contexts"|"strongest"|"milestones"|"historyNote"> {
