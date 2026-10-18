@@ -129,7 +129,7 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
         </CareerSection>
         <CareerSection title="Why this ranking?" icon={<HelpCircle className="w-3.5 h-3.5" />} accent="#38bdf8"
           action={<button className="career-btn career-btn-ghost" aria-expanded={showExplain} onClick={() => setShowExplain(!showExplain)}>{showExplain ? "Hide" : "Show"}</button>}>
-          {!showExplain ? <p className="px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Every ranking value is the sum of counting prize money from specific results ({windowLabel.toLowerCase()}).</p>
+          {!showExplain ? <p className="px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Your ranking is the prize money you've won at ranking events ({windowLabel.toLowerCase()}).</p>
             : explain.isLoading ? <CareerLoading /> : explain.error || !explain.data ? <CareerError error={explain.error} onRetry={() => explain.refetch()} /> : explain.data.counting.length === 0 ? <CareerEmptyState title="No counting results" /> : (
               <div className="px-4 py-3 space-y-1.5">
                 {explain.data.counting.map(c => (

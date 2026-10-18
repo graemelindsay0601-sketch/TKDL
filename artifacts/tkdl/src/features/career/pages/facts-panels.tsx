@@ -7,7 +7,7 @@ import type { CareerFacts, Fact } from "../../../../../api-server/src/career/fac
 const value = (n: number | null | undefined) => n == null ? "Unavailable" : n;
 export function FactsOverview({ facts }: { facts: CareerFacts }) {
   const s = facts.statistics;
-  return <><p className="text-xs text-muted-foreground">Complete Career totals from completed matches and event results. Byes and walkovers are not played matches. Events entered counts completed events with a human result.</p>
+  return <><p className="text-xs text-muted-foreground">Your totals from every match and event you've finished. Byes and walkovers don't count as matches played.</p>
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
       <StatTile icon={<Swords size={16}/>} label="Matches played" value={s.matchesPlayed} /><StatTile icon={<Scale size={16}/>} label="Won / lost" value={`${s.wins} / ${s.losses}`} />
       <StatTile icon={<Percent size={16}/>} label="Win percentage" value={s.winPercentage == null ? '—' : `${s.winPercentage}%`} />

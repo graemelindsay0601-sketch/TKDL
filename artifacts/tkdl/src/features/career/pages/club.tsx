@@ -37,7 +37,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
       <ol className="career-club__table">{d.members.filter(m => m.active).slice(0, 25).map(m => <li key={m.key} className={m.you ? "is-you" : undefined}>
         <b>{d.captain?.key === m.key ? <Crown size={14} aria-label="Captain" /> : ""}</b>
         <span>{m.you ? <strong>You</strong> : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}{m.professional && <small className="career-club__pro"> · Pro</small>}</span>
-        <em>{m.seasonPoints}</em><small>Last season {m.lastSeasonPoints} pts · {m.titles} title{m.titles === 1 ? "" : "s"}</small></li>)}</ol>
+        <em>{m.seasonPoints}</em>{ctx.save.currentSeason > 1 || m.titles > 0 ? <small>{ctx.save.currentSeason > 1 ? `Last season ${m.lastSeasonPoints} pts · ` : ""}{m.titles} title{m.titles === 1 ? "" : "s"}</small> : null}</li>)}</ol>
     </CareerSection>
     {d.county && <CareerSection title={`${d.county.name} A team`} icon={<Shield aria-hidden />} accent="#69b8ec">
       <p className="px-4 pt-3 text-sm">{d.county.youSelected ? "You are in the A team this season." : d.county.youSelectedLastSeason ? "You lost your A-team place this season." : "The A team is last season's six best scorers in the county."}

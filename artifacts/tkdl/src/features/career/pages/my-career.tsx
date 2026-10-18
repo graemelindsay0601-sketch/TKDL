@@ -27,7 +27,7 @@ export function MyCareerPage({ctx,section="overview"}:{ctx:ShellContext;section?
 </>}
     {section==="performance"&&<><CareerPageHero kicker="My Career" title="Performance" accent="#69b8ec" stage={{venue:{venueType:"professional-floor"},eventClass:"PROFESSIONAL_TOUR"}}
       subtitle={<p>Every completed match, event and ranking in your Career, from the scorer and the results record.</p>} portrait={shirt}/>{links([["Results & statistics","/history/facts"],["Ranking history & races","/journey"],["Played opponents & H2H","/relationships"]])}<HistoryPage ctx={ctx}/></>}
-    {section==="achievements"&&<><TrophyCabinet ctx={ctx}/>{links([["Finals, milestones & recorded honours","/history/facts"],["Season awards & supported records","/history"]])}</>}
+    {section==="achievements"&&<><TrophyCabinet ctx={ctx}/>{links([["Finals and milestones","/history/facts"],["Season awards and records","/history"]])}</>}
     {section==="life"&&<><CareerPageHero kicker="My Career" title="Career Life" accent="#c99bff" stage={{venue:{venueType:"studio"},eventClass:"PROFESSIONAL_TOUR"}}
       subtitle={<p>Your rivals, partners, public profile, stories and goals: the life around the oche.</p>} portrait={shirt}/>{links([["Nights out: club, streaming & leagues","/nights"],["Sporting rivals & relationships","/relationships"],["Finances & sponsor contracts","/finances"],["Public profile & commercial decisions","/life"],["Reputation & recognition","/recognition"],["Career stories","/stories"],["Current focus & goals","/goals"],["Profile & shirt customisation","/presentation"]])}<LifeSummary saveId={id}/></>}
     {section==="history"&&<><CareerTimeline ctx={ctx}/><LegacyPage ctx={ctx}/></>}
