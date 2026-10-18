@@ -116,6 +116,11 @@ export async function seedNotificationTables() {
       ALTER TABLE notification_preferences
         ADD COLUMN IF NOT EXISTS threat_alerts BOOLEAN DEFAULT true
     `);
+    // Career reminders (careerReminderScheduler.ts): something is waiting in a Career the player has left for a few days.
+    await db.execute(sql`
+      ALTER TABLE notification_preferences
+        ADD COLUMN IF NOT EXISTS career_reminders BOOLEAN DEFAULT true
+    `);
 
     // direct_messages — DM notifications (routes/messages.ts) originally
     // went through a second, parallel createNotification() that used to

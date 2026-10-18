@@ -29,6 +29,7 @@ interface NotificationPreferences {
   direct_messages: boolean;
   achievements: boolean;
   community_activity: boolean;
+  career_reminders?: boolean;
   daily_push_limit: 0 | 3 | 5 | 10;
 }
 
@@ -292,6 +293,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
             { key: "direct_messages", label: "Direct Messages", detail: "Another player sends you a message." },
             { key: "achievements", label: "Achievement Unlocks", detail: "You unlock an achievement, in any system (league, Master-501, Shadow Bot, Boss Battle, Doubles, Shift Wars, Practice, Board Curse)." },
             { key: "community_activity", label: "Community Activity", detail: "Someone likes or comments on your post, or your post is approved." },
+            { key: "career_reminders", label: "Career Reminders", detail: "You haven't played your Career for a few days and something is waiting: a match, a booked event or a sponsor offer." },
             { key: "coach_tips", label: "Coach Tips", detail: "The scheduled daily coaching tip goes out." },
             { key: "announcements", label: "League Announcements", detail: "An admin sends a league-wide announcement." },
           ].map(({ key, label, detail }) => (
@@ -312,7 +314,7 @@ export function NotificationCenter({ playerId }: { playerId: number }) {
               </label>
               <input
                 type="checkbox"
-                checked={(preferences as any)[key]}
+                checked={(preferences as any)[key] ?? true}
                 onChange={(e) =>
                   setPreferences({
                     ...preferences,

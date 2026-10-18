@@ -30,7 +30,9 @@ export interface NotificationPayload {
     // Time-boxed like threat_alert: the request expires once the live
     // window it was asked for has passed, so it needs to actually reach the
     // player rather than sit queued behind batching/quiet-hours.
-    | "interview_invite";
+    | "interview_invite"
+    // Career (careerReminderScheduler.ts): something is waiting in a Career left alone for a few days.
+    | "career_reminder";
   title: string;
   body: string;
   data?: Record<string, any>;
@@ -179,6 +181,7 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     // able to silence.
     post_mentioned:        "community_activity",
     top_post_reward:       "community_activity",
+    career_reminder:       "career_reminders",
   };
   const typeKey = TYPE_TO_PREF_COLUMN[payload.type];
   if (typeKey && typeKey in prefs && !prefs[typeKey]) {
