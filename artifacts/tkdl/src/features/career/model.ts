@@ -7,6 +7,23 @@ import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, EventFin
  */
 
 // ---------------------------------------------------------------- money / time
+const STAKE_TARGETS: Record<string, string> = {
+  "challenger-tour": "Challenger Tour access",
+  "vault-series": "Vault Series access",
+  "european-dart-series": "European Dart Series access",
+  "open-championship": "Open Championship entry",
+  "world-championship": "a World Championship place",
+};
+export function qualificationStakeLines(stakes: CareerEvent["qualificationStakes"]): string[] {
+  return (stakes ?? []).map(stake => {
+    const finish = stake.maxPosition <= 1 ? "Win" : stake.maxPosition === 2 ? "Reach the final"
+      : stake.maxPosition >= 1000 ? "Finish the event" : `Finish in the top ${stake.maxPosition}`;
+    const target = stake.targetKey.startsWith("q-school-final:") ? "a Q-School Final Stage place"
+      : STAKE_TARGETS[stake.targetKey] ?? `${titleCase(stake.targetKey.replaceAll("-", " "))} qualification`;
+    return `${finish} to earn ${target}${stake.targetSeason === "NEXT" ? " next season" : " this season"}.`;
+  });
+}
+
 export function formatPence(pence: number | null | undefined, opts: { compact?: boolean; signed?: boolean } = {}): string {
   if (pence === null || pence === undefined || !Number.isFinite(pence)) return "—";
   const sign = pence < 0 ? "−" : opts.signed && pence > 0 ? "+" : "";
