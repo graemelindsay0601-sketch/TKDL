@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 /* DartCast: a made-up darts streaming site (its own look; not any real platform's). */
 .dc { --dc-bg: #0e0f13; --dc-panel: #17191f; --dc-line: #262a33; --dc-text: #e9ecf1; --dc-dim: #9aa3b2; --dc-accent: #ff4d5e; --dc-cool: #39d0c8;
   display: grid; gap: 12px; color: var(--dc-text); }
@@ -128,3 +129,168 @@
 .dc-match__chip svg { width: 14px; height: 14px; }
 .dc-match__panel { width: 100%; max-height: 40vh; display: flex; flex-direction: column; background: rgba(14, 10, 24, .94); border: 1px solid rgba(145, 70, 255, .35); border-radius: .6rem; padding: .4rem .5rem; color: #fff; }
 .dc-match__panel ol { list-style: none; margin: 0; padding: 0; overflow-y: auto; font-size: .75rem; display: flex; flex-direction: column; gap: .2rem; }
+
+/* Approved channel header structure and mobile sizing. */
+    .dc__channel-ident { display: flex; align-items: center; gap: 10px; min-width: 0; margin-right: auto; }
+    .dc__channel-mark { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border: 1px solid #a46bd0; border-radius: 11px; background: linear-gradient(145deg, #553378, #241531); color: #f0d8ff; font: 700 1rem/1 "Space Grotesk", sans-serif; }
+    .dc__channel-ident > span:last-child { display: grid; gap: 3px; min-width: 0; }
+    .dc__channel-ident b { overflow: hidden; color: var(--dc-text); font-size: .84rem; text-overflow: ellipsis; white-space: nowrap; }
+    .dc__channel-ident small { color: var(--dc-dim); font: 500 .59rem/1 "DM Mono", monospace; letter-spacing: .11em; }
+    .dc__broadcast-status { display: flex; align-items: center; gap: clamp(12px, 2vw, 28px); }
+    .dc__badge i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .dc-live__eyebrow { color: #ffc66f; font: 500 .6rem/1 "DM Mono", monospace; letter-spacing: .18em; }
+    @media (max-width: 560px) {
+      .dc__channel-mark { width: 32px; height: 32px; border-radius: 9px; }
+      .dc__channel-ident { gap: 7px; }
+      .dc__channel-ident b { max-width: 132px; font-size: .74rem; }
+      .dc__channel-ident small { font-size: .51rem; letter-spacing: .06em; }
+      .dc__broadcast-status { gap: 8px; }
+    }
+
+    /* The approved Arena Live Show palette, carried into the real Career stream. */
+.dc__logo svg, .dc__logo b, .dc-chat__line b { color: var(--dc-cool); }
+.dc__live-btn, .dc__go { background: linear-gradient(105deg, #8e54e9, #cf52d7 62%, #ff668e); }
+.dc__progress span { background: linear-gradient(90deg, #8e54e9, #72efff 55%, #ff668e); }
+.dc__channel {
+  background:
+    radial-gradient(ellipse at 90% 0, #9348d23b, transparent 48%),
+    linear-gradient(120deg, #28143c, #151323 62%, #142633);
+  border-color: #875ca1;
+}
+.dc__avatar { background: linear-gradient(145deg, #8e54e9, #ff668e); }
+.dc__deal { border-color: #a176bd; background: #251831; }
+.dc__chat__alert[data-kind="SUPERCHAT"] { background: #392c19; border-left-color: #ffc66f; }
+.dc__chat__alert[data-kind="SUB"] { background: #3c1b38; border-left-color: #ff668e; }
+.dc__chat__alert em { color: #ffc66f; }
+.dc__viewer-queue__invite, .dc__viewer-queue__invited {
+  border-color: #67d7ed; background: #1a3845; color: #a7f4ff;
+}
+.dc__viewer-queue__invite:hover:not(:disabled) { background: #215366; }
+
+/* Live scorer room: keep the real scorer central, with a vivid broadcast shell around it. */
+.dc--live {
+  --dc-bg: #120b1c;
+  --dc-panel: #1c1328;
+  --dc-line: #684c7f;
+  --dc-text: #f7edfc;
+  --dc-dim: #bfa7cf;
+  --dc-accent: #ff668e;
+  --dc-cool: #72efff;
+  background:
+    radial-gradient(ellipse at 10% -10%, #8e54e933, transparent 40%),
+    radial-gradient(ellipse at 100% 15%, #167b9b22, transparent 38%),
+    linear-gradient(145deg, #160d22, #100b18 72%);
+}
+.dc--live .dc__bar {
+  border-color: #704a89;
+  background: linear-gradient(100deg, #21152eeb, #171222f2);
+  box-shadow: 0 8px 28px #07030c66, inset 0 1px #ffffff0c;
+}
+.dc--live .dc__logo svg, .dc--live .dc__logo b { color: var(--dc-cool); }
+.dc--live .dc__channel-mark {
+  border-color: #a46bd0;
+  background: linear-gradient(145deg, #553378, #241531);
+  color: #f0d8ff;
+}
+.dc--live .dc__badge[data-live] { background: #57243d; color: #ff9ab4; border-color: #f06e9a88; }
+.dc--live .dc__viewers { color: var(--dc-cyan, #72efff); }
+.dc--live .dc-live__stage {
+  border-color: #76528e;
+  background:
+    radial-gradient(ellipse at 100% 0, #864bd322, transparent 48%),
+    linear-gradient(150deg, #24172f, #15101f 90%);
+  box-shadow: 0 14px 40px #07030c55, inset 0 1px #ffffff0a;
+}
+.dc--live .dc-live__eyebrow { color: #ffc66f; }
+.dc--live .dc-live__scorer { border-color: #9560b5; background: #0d0914; box-shadow: 0 0 0 3px #9b5ad51c; }
+.dc--live .dc-live__meta { color: #cbb6d8; }
+.dc--live .dc__link { color: #8defff; }
+.dc--live .dc-chat, .dc--live .dc-viewer-queue {
+  border-color: #684c7f;
+  background:
+    radial-gradient(ellipse at 100% 0, #7835a21c, transparent 45%),
+    #1c1328f5;
+  box-shadow: 0 10px 28px #07030c55, inset 0 1px #ffffff09;
+}
+.dc--live .dc-chat h2, .dc--live .dc-viewer-queue h2 { color: #f0d8ff; }
+.dc--live .dc-chat ol { scrollbar-color: #875ca1 transparent; }
+.dc--live .dc-chat__line { color: #f2e8f8; }
+.dc--live .dc-chat__line b { color: #8defff; }
+.dc--live .dc-chat__note { color: #cbb6d8; }
+.dc--live .dc-chat__alert { background: #26313f; border-left-color: #72efff; color: #f7edfc; }
+.dc--live .dc-chat__alert[data-kind="SUPERCHAT"] { background: #3c2d1c; border-left-color: #ffc66f; }
+.dc--live .dc-chat__alert[data-kind="SUB"] { background: #3d1e3a; border-left-color: #ff668e; }
+.dc--live .dc-chat__alert em { color: #ffd27e; }
+.dc--live .dc-chat__wait { border-color: #ffffff18; }
+.dc--live .dc-viewer-queue header > span { background: #72efff1d; color: #9bf2ff; }
+.dc--live .dc-viewer-queue h2 svg { color: #ffc66f; }
+.dc--live .dc-viewer-queue li { border-color: #ffffff20; background: #261a33; }
+.dc--live .dc-viewer-queue__avatar { background: #50316c; color: #e4c4ff; }
+.dc--live .dc-viewer-queue__details b { color: #fff; }
+.dc--live .dc-viewer-queue__details small { color: #c0accb; }
+.dc--live .dc-viewer-queue__invite, .dc--live .dc-viewer-queue__invited {
+  border-color: #72efff88; background: #183a48; color: #a9f4ff;
+}
+.dc--live .dc-viewer-queue__invite:hover:not(:disabled) { background: #205366; }
+.dc--live .dc-viewer-queue__hint { border-color: #ffffff20; color: #d0bedb; }
+.dc--live :focus-visible { outline-color: #72efff; }
+.dc--live .dc-live__poll { border-color: #704a89; background: #20152b; }
+.dc--live .dc-live__bar span { background: linear-gradient(90deg, #8e54e9, #72efff 55%, #ff668e); }
+.dc--live .dc-live__summary { border-color: #704a89; background: #1c1328; }
+.dc--live .dc-live__summary dd { color: #8defff; }
+
+/* Local event broadcast dock. It sits outside the scoring surface and collapses on demand. */
+.dc-match {
+  top: 12px;
+  right: 12px;
+  width: min(360px, calc(100vw - 24px));
+  max-width: min(360px, calc(100vw - 24px));
+  gap: 7px;
+  filter: drop-shadow(0 12px 26px #07030c88);
+}
+.dc-match__chip {
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid #ad70d8;
+  border-radius: 7px;
+  background: linear-gradient(110deg, #281538f5, #171020f5);
+  color: #f7edfc;
+  font: 700 .72rem/1.1 "DM Mono", monospace;
+  letter-spacing: .04em;
+  box-shadow: inset 0 1px #ffffff12;
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.dc-match__chip:hover { border-color: #72efff; transform: translateY(-1px); box-shadow: 0 0 18px #72efff2a; }
+.dc-match__chip:focus-visible { outline: 2px solid #72efff; outline-offset: 3px; }
+.dc-match__chip .dc__badge { padding: 4px 6px; border-radius: 3px; background: #453459; color: #dcc5ec; font: 700 .57rem/1 "DM Mono", monospace; letter-spacing: .08em; }
+.dc-match__chip .dc__badge[data-live] { background: #5b2440; color: #ff9ab4; }
+.dc-match__panel {
+  max-height: min(42vh, 420px);
+  padding: 8px;
+  gap: 7px;
+  border: 1px solid #8a5da5;
+  border-radius: 9px;
+  background:
+    radial-gradient(ellipse at 100% 0, #853cc62a, transparent 48%),
+    #171020f5;
+  box-shadow: inset 0 1px #ffffff10;
+  backdrop-filter: blur(14px);
+}
+.dc-match__panel ol { gap: 5px; padding: 1px; font-size: .72rem; }
+.dc-match__panel .dc-chat__line { padding: 5px 7px; border-radius: 5px; color: #f0e6f6; background: #ffffff08; line-height: 1.35; }
+.dc-match__panel .dc-chat__line b { color: #8defff; }
+.dc-match__panel .dc-chat__note { padding: 5px 7px; border-radius: 5px; color: #e7d6f1; background: #69335a44; }
+.dc-match__panel .dc-chat__note svg { color: #ff83a6; }
+.dc-match__panel .dc-chat__alert { padding: 7px 8px; border-radius: 6px; background: #193544; border-left: 3px solid #72efff; color: #f7edfc; }
+.dc-match__panel .dc-chat__alert[data-kind="SUPERCHAT"] { background: #46321c; border-left-color: #ffc66f; }
+.dc-match__panel .dc-chat__alert[data-kind="SUB"] { background: #44203f; border-left-color: #ff668e; }
+.dc-match__panel .dc-chat__alert em { color: #ffd27e; }
+.dc-match__panel .dc__note { flex: none; margin: 0; padding: 7px 8px; border: 1px solid #ffc66f55; border-radius: 5px; background: #ffc66f12; color: #ffe1a8; font-size: .72rem; }
+.dc-match__panel + .dc__warn { padding: 7px 9px; border: 1px solid #ff668e77; border-radius: 6px; background: #321a2c; }
+@media (max-width: 560px) {
+  .dc-match { top: auto; right: 8px; bottom: 8px; width: min(360px, calc(100vw - 16px)); max-width: min(360px, calc(100vw - 16px)); }
+  .dc-match__panel { max-height: 34vh; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dc-match__chip { transition: none; }
+}

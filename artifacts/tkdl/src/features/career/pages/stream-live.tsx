@@ -82,9 +82,15 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
   return (
     <div className="dc dc--live">
       <header className="dc__bar">
-        <Link className="dc__logo" href={`/career/${id}/streaming`}><Radio aria-hidden /> Dart<b>Cast</b></Link>
-        <span className="dc__badge" data-live={!over || undefined}>{over ? "ENDED" : "LIVE"}</span>
-        <span className="dc__viewers"><Eye aria-hidden /> {t.viewers.toLocaleString("en-GB")}</span>
+        <Link className="dc__logo" href={`/career/${id}/streaming`}><Radio aria-hidden /><span>Dart<b>Cast</b></span></Link>
+        <div className="dc__channel-ident">
+          <span className="dc__channel-mark" aria-hidden>{session.handle.slice(0, 1).toUpperCase()}</span>
+          <span><b>{session.handle}</b><small>THE OCHE · LIVE MATCH NIGHT</small></span>
+        </div>
+        <div className="dc__broadcast-status">
+          <span className="dc__badge" data-live={!over || undefined}><i aria-hidden />{over ? "ENDED" : "LIVE"}</span>
+          <span className="dc__viewers"><Eye aria-hidden /> {t.viewers.toLocaleString("en-GB")} <small>watching</small></span>
+        </div>
       </header>
       <div className="dc-live">
         <section className="dc-live__stage" aria-label="Stream">
