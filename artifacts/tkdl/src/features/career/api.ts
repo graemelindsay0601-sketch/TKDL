@@ -397,7 +397,7 @@ export const useSetCareerProfile = (saveId: string) => {
 /** Existing session for a match, or null (404 = none yet). Never creates one. */
 export const useLiveSession = (saveId: string, matchId: string | null | undefined) => useQuery({
   queryKey: careerKey(saveId, "live", matchId ?? "none"), enabled: !!matchId, staleTime: 2_000, retry: false,
-  queryFn: async () => { try { return await get<LiveSession>(`/saves/${saveId}/matches/${matchId}/session`); } catch (e) { if (errorStatus(e) === 404) return null; throw e; } },
+  queryFn: async () => { try { return await get<LiveSession | null>(`/saves/${saveId}/matches/${matchId}/session?ifExists=1`); } catch (e) { if (errorStatus(e) === 404) return null; throw e; } },
 });
 export const liveApi = {
   open: (saveId: string, matchId: string) => send<LiveSession>("POST", `/saves/${saveId}/matches/${matchId}/session`, {}),

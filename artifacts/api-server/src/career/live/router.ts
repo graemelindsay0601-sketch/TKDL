@@ -26,6 +26,12 @@ export function createCareerLiveRouter(service: CareerLiveMatchService, isAvaila
     res.json(await service.open(res.locals.careerActor, ...ids(req)));
   });
   router.get("/saves/:id/matches/:matchId/session", async (req, res) => {
+    // ?ifExists=1: "is there a session yet?" (the header asks on every page while a match waits); none is a null, not a 404.
+    if (req.query.ifExists === "1") {
+      try { res.json(await service.read(res.locals.careerActor, ...ids(req))); }
+      catch (error) { if (error instanceof CareerError && error.status === 404) res.json(null); else throw error; }
+      return;
+    }
     res.json(await service.read(res.locals.careerActor, ...ids(req)));
   });
   router.post("/saves/:id/matches/:matchId/session/bull", authedWriteRateLimit, async (req, res) => {
