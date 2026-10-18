@@ -14,3 +14,10 @@ test("unlock as you go: extras open with events played; season 2 opens everythin
   assert.equal(unlockState({ currentSeason: 2, status: "ACTIVE" }, 0).isOpen("streaming"), true);
   assert.equal(unlockState({ currentSeason: 2, status: "ACTIVE" }, 0).next, null);
 });
+
+import { matchFormatLine } from "../../features/career/model.ts";
+test("a match's format reads as one plain line", () => {
+  assert.equal(matchFormatLine({ startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: 5 }), "501, best of 5 legs. Finish on a double.");
+  assert.equal(matchFormatLine({ startingScore: 501, inRule: "DOUBLE", outRule: "DOUBLE", unit: "SETS", bestOfSets: 7, bestOfLegsPerSet: 5 }),
+    "501, best of 7 sets (each set best of 5 legs). Finish on a double. Start each leg with a double.");
+});

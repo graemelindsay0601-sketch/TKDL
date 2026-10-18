@@ -523,3 +523,11 @@ export function viabilityText(v: { status: "PENDING" | "CONFIRMED" | "CANCELLED"
   if (v.status === "CANCELLED") return { label: "Cancelled", detail: `Fewer than ${v.minimum} players entered`, tone: "danger" as const };
   return { label: `Needs ${v.minimum}+ players`, detail: `Field set in week ${v.fieldSetWeek}`, tone: "neutral" as const };
 }
+
+/** One plain line about a match: "501, best of 5 legs. Finish on a double." */
+export function matchFormatLine(f: { startingScore: number; inRule: string; outRule: string; unit: "LEGS" | "SETS"; bestOfLegs?: number; bestOfSets?: number; bestOfLegsPerSet?: number }): string {
+  const length = f.unit === "SETS" ? `best of ${f.bestOfSets} sets (each set best of ${f.bestOfLegsPerSet} legs)` : `best of ${f.bestOfLegs} leg${f.bestOfLegs === 1 ? "" : "s"}`;
+  const finish = { DOUBLE: "Finish on a double.", MASTER: "Finish on a double or treble.", TREBLE: "Finish on a treble.", BULL: "Finish on the bull.", STRAIGHT: "Any dart can finish." }[f.outRule] ?? "";
+  const start = f.inRule === "DOUBLE" ? " Start each leg with a double." : "";
+  return `${f.startingScore}, ${length}. ${finish}${start}`.trim();
+}

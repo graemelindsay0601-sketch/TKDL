@@ -125,7 +125,7 @@ export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, 
                   <h2>{names[idx]}</h2>
                   <div className="bullup-result">
                     <strong>{t ? (t === "INNER" ? "50" : t === "OUTER" ? "25" : "—") : "—"}</strong>
-                    <span><b>{t ? throwLabel(t).toUpperCase() : active ? "YOUR THROW" : "WAITING"}</b><small>{t === "INNER" ? "Closest to centre" : t === "OUTER" ? "Outer ring" : t === "MISS" ? "Outside the scoring area" : active ? "Choose where your dart landed" : "Awaiting throw"}</small></span>
+                    <span><b>{t ? throwLabel(t).toUpperCase() : active ? "YOUR THROW" : "WAITING"}</b><small>{t === "INNER" ? "Closest to centre" : t === "OUTER" ? "Outer ring" : t === "MISS" ? "Missed the bull" : active ? "Choose where your dart landed" : "Awaiting throw"}</small></span>
                   </div>
                 </article>
               );
@@ -139,7 +139,7 @@ export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, 
               </div>
               <div className="bullup-verdict-copy">
                 <b>{statusCopy}</b>
-                <small>{state.winner !== null ? "Nearest to the centre earns the opening throw." : thrower !== null && isHuman(thrower) ? "Record your dart to resolve the opener." : "The opening throw is decided by the bull."}</small>
+                <small>{state.winner !== null ? "Nearest to the centre earns the opening throw." : thrower !== null && isHuman(thrower) ? "Throw one dart at the bull, then tap where it landed." : "Closest to the bull throws first."}</small>
               </div>
             </div>
           </section>
@@ -154,7 +154,7 @@ export function BullUpBoard({ names, state, isHuman, onThrow, onContinue, busy, 
                 {THROW_OPTS.map((opt) => (
                   <button key={opt.t} className={`bullup-throw-option bullup-throw-option--${opt.t.toLowerCase()}`} disabled={busy} onClick={() => onThrow(thrower, opt.t)}>
                     <span className="bullup-option-marker" aria-hidden="true" />
-                    <span className="bullup-option-copy"><b>{opt.label}</b><small>{opt.t === "INNER" ? "Inside the outer ring" : opt.t === "OUTER" ? "In the outer bull" : "Missed the board"}</small></span>
+                    <span className="bullup-option-copy"><b>{opt.label}</b><small>{opt.t === "INNER" ? "The bullseye, right in the middle" : opt.t === "OUTER" ? "The ring around the bullseye" : "Anywhere outside the bull"}</small></span>
                     <strong>{opt.pts}</strong>
                     <ArrowRight size={16} aria-hidden="true" />
                   </button>
