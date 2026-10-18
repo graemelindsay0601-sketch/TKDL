@@ -50,7 +50,7 @@ export function HistoryPage({ ctx, initialTab = "OVERVIEW" }: { ctx: ShellContex
           <div>
             <Label className="career-history-kicker" color="#ef8aa9">THE RECORD, SEASON BY SEASON</Label>
             <h1>A career<br className="career-history-desktop-break" /> in the making.</h1>
-            <p>Completed results, personal records and honours — a record to return to, built from your Career.</p>
+            <p>Your results, personal bests and honours, season by season.</p>
           </div>
           <div className="career-history-season-mark">
             <span>{ctx.retired ? "CAREER COMPLETE" : "YOUR PLACE IN THE RECORD"}</span>

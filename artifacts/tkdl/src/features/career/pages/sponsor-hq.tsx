@@ -38,6 +38,8 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
     (offer.conflictingContractIds??[]).some(id=>portfolio.some(contract=>contract.id===id)));
   const journeys=query.data.journeys??[];
   const commercial=query.data.commercial;
+  // No sponsor yet: one plain card instead of empty contract, compliance and history sections.
+  const nothingYet=portfolio.length===0&&history.length===0&&journeys.length===0&&decisionOffers.length===0&&(query.data.offers??[]).length===0;
   // Sponsor keys are internal identifiers; show the signed brand name wherever one is known.
   const brandNames=new Map<string,string>([...history,...portfolio].map(contract=>[contract.sponsorKey,contract.terms.displayName]));
   const brand=(key:string|undefined|null,fallback?:string|null)=>(key&&brandNames.get(key))??fallback??key??"Sponsor";
@@ -76,15 +78,15 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       <nav className="sponsor-hq__cross-nav" aria-label="Commercial career tools">
         <Link href={`/career/${save.id}/finances`}>Finances &amp; ledger</Link>
         <Link href={`/career/${save.id}/presentation`}>Equipment &amp; products</Link>
-        <Link href={`/career/${save.id}/world/players`}>Player commercial market</Link>
+        <Link href={`/career/${save.id}/world/players`}>Who other players are sponsored by</Link>
         <Link href={`/career/${save.id}/history`}>Commercial legacy</Link>
       </nav>
     </CareerPageHero>
 
     <CareerSection title="Active sponsor portfolio" id="sponsor-portfolio" icon={<Briefcase size={15}/>} accent="#d8b669">
       {portfolio.length===0?<div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5">
-        <h3 className="text-base text-white" style={OSWALD}>The first partnership is still ahead</h3>
-        <p className="mt-1 text-sm text-white/55">When a sponsor agreement is signed, its brand, representative, contract term and commercial terms will appear here. Older contracts with no explicit activity clauses have no duties.</p>
+        <h3 className="text-base text-white" style={OSWALD}>No sponsors yet</h3>
+        <p className="mt-1 text-sm text-white/55">Win events and climb the rankings and brands will start to notice you. Offers show up on your Finances page; once you sign one, its details, what it pays and anything it asks of you will be here.</p>
       </div>:<div className="sponsor-hq__portfolio sponsor-hq__grid">{portfolio.map(contract=>{
         const representative=contract.representative;
         const category=contract.category??"Partnership";
@@ -112,13 +114,14 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       })}</div>}
     </CareerSection>
 
+    {!nothingYet&&<>
     <CareerSection title="Contract decisions" id="sponsor-decisions" icon={<FileSignature size={15}/>} accent="#69b8ec">
       <div className="px-4 py-3">
         <details className="career-note"><summary>How expiry and renewals are shown</summary><p>Expiry is calculated from your current Career week to each signed end week. Renewal status below reflects persisted offers only; no offer is assumed from an approaching end date.</p></details>
         {portfolio.length===0
           ? <div className="mt-3 rounded-lg border border-dashed border-white/15 p-4">
               <h3 className="text-base text-white" style={OSWALD}>No active contracts to review</h3>
-              <p className="mt-1 text-sm text-white/55">When a partnership is signed, its expiry and any persisted renewal or rival proposal will appear here.</p>
+              <p className="mt-1 text-sm text-white/55">When you sign a sponsor, when the deal ends and any renewal offer will show here.</p>
             </div>
           : <div className="mt-3 sponsor-hq__grid">{portfolio.map(contract=>{
               const remaining=contractWeeksRemaining(save.currentSeason,save.currentWeek,contract.end.season,contract.end.week);
@@ -155,7 +158,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         <p className="mt-1 text-xs text-white/45">Your current agreement remains active until its scheduled end. No renewal income or activities are active yet.</p>
       </article>)}
       {decisionOffers.length===0
-        ?<p className="border-t border-white/[.07] px-4 py-3 text-sm text-white/55">No available renewal or rival proposals are recorded for your active agreements.</p>
+        ?<p className="border-t border-white/[.07] px-4 py-3 text-sm text-white/55">No renewal or rival offers right now.</p>
         :<div className="career-sponsor-offers__stack border-t border-white/[.07]">
           {decisionOffers.map(offer=><SponsorOfferCard key={`decision-${offer.id}`} offer={offer} activeContracts={portfolio} retired={ctx.retired}
             replacementIds={replace[offer.id]??[]} replacementDisabled
@@ -178,7 +181,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="rounded-lg border border-white/10 bg-black/20 p-3" aria-label="Compliance notices">
           <h3 className="text-sm text-white" style={OSWALD}>Compliance notices</h3>
-          {(query.data.sponsorHQ?.notices??[]).length===0?<p className="mt-2 text-xs text-white/55">No contract-authorised compliance notices are recorded.</p>:
+          {(query.data.sponsorHQ?.notices??[]).length===0?<p className="mt-2 text-xs text-white/55">No warnings from your sponsors.</p>:
             <div className="mt-2 space-y-2">{query.data.sponsorHQ!.notices!.map(item=><article key={item.id} className="rounded border border-amber-200/20 bg-amber-300/[.04] p-3">
               <p className="text-xs text-amber-100">Missed required activity · {label(String(item.status))}</p>
               <p className="mt-1 text-[11px] text-white/55">Career season {String(item.details.season??"—")}, due week {String(item.details.dueWeek??"—")}. No penalty or termination has been applied.</p>
@@ -224,7 +227,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       <details className="career-note mb-3"><summary>Duties and optional activities</summary><p>Required duties are included in the agreement. Optional activities are unpaid and declining them has no penalty.</p></details>
       {activities.length===0?<div className="rounded-lg border border-dashed border-white/15 p-5">
         <h3 className="text-base text-white" style={OSWALD}>No sponsor activities due</h3>
-        <p className="mt-1 text-sm text-white/55">{portfolio.length?"Your signed contracts have no configured duties or opportunities.":"Existing v1–v3 contracts stay obligation-free; no duties are backfilled."}</p>
+        <p className="mt-1 text-sm text-white/55">{portfolio.length?"Your signed contracts have no configured duties or opportunities.":"Your sponsor deals don't ask anything of you."}</p>
       </div>:<div className="sponsor-hq__grid">{activities.map(item=>{
         const week=weeks[item.id]??Math.max(item.from,save.currentWeek);
         const canSchedule=item.required?["AVAILABLE","CONFIRMED"].includes(item.status):["ACCEPTED","CONFIRMED"].includes(item.status);
@@ -254,7 +257,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
     </CareerSection>
 
     <CareerSection title="Representative communications and sponsor history" id="sponsor-history" icon={<HistoryIcon size={15}/>} accent="#a98bff">
-      {journeys.length===0&&history.length===0?<p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/55">Sponsor conversations and signed partnership history will appear here as they happen.</p>:
+      {journeys.length===0&&history.length===0?<p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/55">Your talks with sponsors and past deals will show here.</p>:
         <div className="grid gap-3 lg:grid-cols-2">
           {journeys.map(journey=><article key={journey.id} className="pdc-card p-4">
             <div className="flex items-start justify-between gap-2"><div><p className="text-[10px] uppercase tracking-widest text-cyan-200">{journey.representative?.role??"Sponsor representative"}</p>
@@ -273,6 +276,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </article>)}
         </div>}
     </CareerSection>
+    </>}
     {notice&&<p role="status" className="pdc-card p-3 text-sm text-white">{notice}</p>}
   </div>;
 }

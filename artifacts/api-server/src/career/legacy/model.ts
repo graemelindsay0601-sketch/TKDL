@@ -115,18 +115,18 @@ export function review(e:Evidence,season:number,provenance:SeasonReview["provena
   const numberOne=e.rankings.filter(r=>r.season===season&&r.position===1).sort((a,b)=>b.week-a.week||a.id.localeCompare(b.id))[0];
   // No retroactive award ceremony is invented for seasons predating this phase.
   const awards=provenance==="CAPTURED"?seasonAwards(e,season):[],decisions=e.decisions.filter(d=>d.season===season),work=e.commitments.filter(c=>c.season===season&&c.status==="COMPLETED");
-  const changes=[...cardChanges.filter(c=>c.participant==="HUMAN").map(c=>`Tour Card ${c.id}: ${c.awardedSeason===season?`awarded (${c.source})`:""}${c.endedSeason===season?` ended (${c.status})`:""}`),
-    ...e.qualifications.filter(q=>q.participant==="HUMAN"&&q.season===season).map(q=>`Recorded qualification: ${q.target}`)];
-  const story=[`${human.appearances} completed tournament results; ${human.titles} main-event titles and ${human.finals} final appearances.`,
-    ...(start&&end?[`Published World position: #${start.position} before this season; last recorded position #${end.position} (week ${end.week}).`]:[]),
-    ...(world?[`${world.name}: ${world.champion?"champion":`finishing position ${world.position}`}.`]:[]),
-    ...changes.slice(0,3),...(work.length?[`${work.length} accepted off-board commitments completed.`]:[])];
+  const changes=[...cardChanges.filter(c=>c.participant==="HUMAN").map(c=>c.awardedSeason===season&&c.endedSeason===season?"Won a Tour Card and lost it again this season":c.awardedSeason===season?"Won a Tour Card":"Your Tour Card ended"),
+    ...e.qualifications.filter(q=>q.participant==="HUMAN"&&q.season===season).map(q=>`Qualified for ${q.target.replaceAll("-"," ")}`)];
+  const story=[human.appearances?`You played ${human.appearances} event${human.appearances===1?"":"s"}, won ${human.titles} title${human.titles===1?"":"s"} and reached ${human.finals} final${human.finals===1?"":"s"}.`:"You didn't play any events this season.",
+    ...(start&&end?[`World Ranking: #${start.position} at the start of the season, #${end.position} at the end.`]:[]),
+    ...(world?[`${world.name}: ${world.champion?"you won it":`you finished ${world.position}${["th","st","nd","rd"][(world.position%100-20)%10]||["th","st","nd","rd"][world.position%100]||"th"}`}.`]:[]),
+    ...changes.slice(0,3),...(work.length?[`You did ${work.length} sponsor job${work.length===1?"":"s"} off the oche.`]:[])];
   return {version:1,season,provenance,identity,story,human,startingRank:start,finalRank:end,rankingMovement:start&&end?start.position-end.position:null,
     prizePence:money?.prizePence??0,commercialPence:money?.commercialPence??0,bestMajor:major,worldResult:world,
-    cardStatus:active?"Card held at season close":cards.some(c=>c.endedSeason===season)?"Recorded Card ended this season":"No recorded active Card at season close",
+    cardStatus:active?"Tour Card held at the end of the season":cards.some(c=>c.endedSeason===season)?"Your Tour Card ended this season":"No Tour Card",
     changes,definingRival: rivalry,biggestMoment:results[0]??null,
     publicLife:{decisions:decisions.length,completedWork:work.length,threads:[...new Set(decisions.flatMap(d=>d.thread?[d.thread]:[]))]},
-    sponsors:e.sponsors.filter(s=>s.startSeason<=season&&s.endSeason>=season).map(s=>({...s,status:provenance==="CAPTURED"?s.status:"Historical state not reconstructed"})),
+    sponsors:e.sponsors.filter(s=>s.startSeason<=season&&s.endSeason>=season).map(s=>({...s,status:provenance==="CAPTURED"?s.status:"Not known for this season"})),
     awards,world:{numberOne:numberOne?{id:numberOne.participant,name:nameOf(e,numberOne.participant),snapshot:numberOne.id,week:numberOne.week}:null,
       champions,leadingAmateur:awards.find(a=>a.kind==="Amateur Player of the Season")??null,
       retirements:e.players.filter(p=>p.retiredSeason===season),newEntrants:e.players.filter(p=>p.createdSeason===season+1),cardChanges:cardChanges.map(c=>c.endedSeason!==null&&c.endedSeason>season?
@@ -137,14 +137,13 @@ export function review(e:Evidence,season:number,provenance:SeasonReview["provena
      }),
       sponsorActivities:(e.sponsorActivities??[]).filter(a=>a.season===season).map(({id,contractId,sponsorKey,kind,status,required,scheduledWeek})=>
         ({id,contractId,sponsorKey,kind,status,required,scheduledWeek})),
-     notes:["Rankings are the previous season's last and this season's last published snapshots, not invented January/December ranks.",
-      provenance==="RECONSTRUCTED"?"Reconstructed from retained authorities; missing historical context is not invented.":"Captured after the existing season-transition authorities completed.",
-      "No NPC cash/scoring comparison; no Legacy Score, XP or gameplay effect."]};
+     notes:["Rankings are the last ones published in each season.",
+      ...(provenance==="RECONSTRUCTED"?["This season was rebuilt from your saved results, so some details are missing."]:[])]};
 }
 export function eraLabel(r:SeasonReview):string {
   return r.human.worlds?"World Championship Years":r.human.majorTitles?"Major Championship Years":
     r.human.amateurTitles?"Amateur Achievement Years":r.human.proTitles?"Professional Title Years":
-    r.cardStatus==="Card held at season close"?"Tour Professional Years":r.human.appearances?"Competing Years":"Quiet Years";
+    (r.cardStatus==="Card held at season close"||r.cardStatus==="Tour Card held at the end of the season")?"Tour Professional Years":r.human.appearances?"Competing Years":"Quiet Years";
 }
 export function legacy(e:Evidence,reviews:SeasonReview[],inductions:Induction[],pendingReview:number|null):LegacyView {
   const overview=aggregate(e).find(t=>t.id==="HUMAN")??zero("HUMAN");
@@ -159,10 +158,10 @@ export function legacy(e:Evidence,reviews:SeasonReview[],inductions:Induction[],
   const all=aggregate(e);
   for(const metric of ["titles","majorTitles","worlds","amateurTitles"] as const)if(overview[metric]>0) {
     const place=1+all.filter(t=>t[metric]>overview[metric]).length;
-    comparisons.push(`Joint rank ${place} for ${metric.replace(/([A-Z])/g," $1").toLowerCase()} in this recorded Career universe (${overview[metric]}).`);
+    comparisons.push(`${place===1?"Most":`${place}${["th","st","nd","rd"][(place%100-20)%10]||["th","st","nd","rd"][place%100]||"th"} most`} ${{titles:"titles",majorTitles:"major titles",worlds:"World titles",amateurTitles:"amateur titles"}[metric]} of anyone in your darts world (${overview[metric]}).`);
   }
   const ones=[...new Set(e.rankings.filter(r=>r.position===1).map(r=>r.participant))];
-  if(ones.includes("HUMAN"))comparisons.push(`One of ${ones.length} players recorded at World #1; snapshot gaps are not counted as weeks.`);
+  if(ones.includes("HUMAN"))comparisons.push(`One of ${ones.length} players to reach World #1.`);
   const prize=e.money.reduce((n,m)=>n+m.prizePence,0),commercial=e.money.reduce((n,m)=>n+m.commercialPence,0);
   return {careerSaveId:e.saveId,retired:e.retired,completedSeasons:reviews.map(r=>r.season),reviews:reviews.map(r=>({season:r.season,identity:r.identity,provenance:r.provenance})),
     overview,bestRanking:best,prizePence:prize,commercialPence:commercial,
@@ -172,12 +171,11 @@ export function legacy(e:Evidence,reviews:SeasonReview[],inductions:Induction[],
     players:e.players,eventKeys:[...new Map(e.results.map(r=>[r.key,{key:r.key,name:r.name}])).values()],
      cards:e.cards.filter(c=>c.participant==="HUMAN"),sponsors:e.sponsors,commercial:e.commitments,merchandise:e.merchandise,productArchive:e.productArchive,
     storiesLink:`/career/${e.saveId}/stories`,pendingReview,
-    finalSummary:[ds.length?ds.join(" · "):"A recorded darts Career",`${reviews.length} completed seasons; ${e.retired?`retired in season ${e.currentSeason}, week ${e.currentWeek}`:"Career active"}.`,
-      `${overview.wins} wins and ${overview.losses} losses in completed tournament results; ${overview.titles} main-event titles, ${overview.finals} finals.`,
-      `${overview.amateurTitles} amateur titles; ${overview.proTitles} pro titles; ${overview.majorTitles} major/World titles; ${overview.worlds} World Championships.`,
-      ...(best?[`Highest recorded World ranking: #${best.position}.`]:[]),`${prize} pence prize income and ${commercial} pence sponsor/commercial income (A4).`],
-    notes:["Results/awards explain achievement, not an optimal route. Professional status is not required for a successful Career.",
-      "World records cover retained completed tournament results, not invented pre-save biographies. Final appearances include champions.",
-      "Human match totals here are completed-result aggregates; A7.1 remains the live-match/scoring authority.",
-      "Partial retirement seasons remain partial and are not given end-of-season awards."]};
+    finalSummary:[ds.length?ds.join(" · "):"A darts career",`${reviews.length} season${reviews.length===1?"":"s"} played${e.retired?`; retired in season ${e.currentSeason}, week ${e.currentWeek}`:""}.`,
+      `${overview.wins} matches won and ${overview.losses} lost; ${overview.titles} title${overview.titles===1?"":"s"} and ${overview.finals} final${overview.finals===1?"":"s"}.`,
+      `${overview.amateurTitles} amateur titles, ${overview.proTitles} pro titles, ${overview.majorTitles} major titles and ${overview.worlds} World Championships.`,
+      ...(best?[`Best World Ranking: #${best.position}.`]:[]),`£${(prize/100).toLocaleString("en-GB",{maximumFractionDigits:0})} in prize money and £${(commercial/100).toLocaleString("en-GB",{maximumFractionDigits:0})} from sponsors.`],
+    notes:["You don't have to turn professional to have a great career.",
+      "Finals include the ones you won.",
+      "A season you retire part-way through doesn't get end-of-season awards."]};
 }

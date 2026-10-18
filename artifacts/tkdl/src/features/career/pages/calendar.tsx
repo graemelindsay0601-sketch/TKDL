@@ -249,7 +249,10 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const [circuit, setCircuit] = useState("");
   const [groupBy, setGroupBy] = useState<"COUNTRY" | "PHASE">("COUNTRY");
   const [hostCountry, setHostCountry] = useState("");
-  const homeCountry = homeCountryOf(useCareerProfile(save.id).data?.homeLocality);
+  const homeLocality = useCareerProfile(save.id).data?.homeLocality ?? null;
+  const homeCountry = homeCountryOf(homeLocality);
+  // Season 1 also starts near home: your own area's local events plus the big ones (other towns' club nights are one tap away).
+  const [nearby, setNearby] = useState(save.currentSeason === 1 && !retired);
   const [tier, setTier] = useState("");
   // A first-season calendar opens on what you can enter now; everything else is one tap away.
   const [status, setStatus] = useState(save.currentSeason === 1 && !retired ? "OPEN" : "ALL");
@@ -271,7 +274,8 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
     && (!tier || event.presentation.tier === tier)
     && matchesStatusFilter(event, status)
     && (!hostCountry || event.venue.country === hostCountry)
-  ), [calendar.data, tier, status, view, hostCountry]);
+    && (!nearby || view === "MY_SCHEDULE" || !event.venue.localityKey || event.venue.localityKey === homeLocality || !!event.human?.entryStatus)
+  ), [calendar.data, tier, status, view, hostCountry, nearby, homeLocality]);
   const hostCountries = useMemo(() => [...new Set((calendar.data?.events ?? []).map(event => event.venue.country))]
     .sort((a, b) => (countryInfo(a)?.name ?? a).localeCompare(countryInfo(b)?.name ?? b)), [calendar.data]);
   // Host-country sections: home first, then countries with your entries, then the busiest.
@@ -302,7 +306,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   };
   // Default dossier: the first event of the top section (home country first when grouping by country).
   const shownEvent = selectedEvent ?? (groupBy === "COUNTRY" ? countryGroups[0]?.events[0] : events[0]);
-  const resetFilters = () => { setCircuit(""); setTier(""); setStatus("ALL"); setHostCountry(""); setPage(0); };
+  const resetFilters = () => { setCircuit(""); setTier(""); setStatus("ALL"); setHostCountry(""); setNearby(false); setPage(0); };
 
   return (
     <div className="career-calendar-page cc-root">
@@ -389,7 +393,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
 
       <div className="cc-content-grid">
         <section className="cc-agenda" aria-label="Event schedule">
-          {status === "OPEN" && view !== "MY_SCHEDULE" && <p className="cc-showing-open">Showing events you can enter now. <button type="button" className="cc-link-button" onClick={() => { setStatus("ALL"); setPage(0); }}>Show all events</button></p>}
+          {(status === "OPEN" || nearby) && view !== "MY_SCHEDULE" && <p className="cc-showing-open">Showing {nearby ? "events near home and the big national events" : "events"}{status === "OPEN" ? " you can enter now" : ""}. <button type="button" className="cc-link-button" onClick={() => { setStatus("ALL"); setNearby(false); setPage(0); }}>Show all events</button></p>}
           <div className="cc-agenda-header">
             <div><span className="cc-kicker">{view === "MY_SCHEDULE" ? "YOUR COMMITMENTS" : view === "SEASON" ? "THE CAMPAIGN" : "NEXT ON THE TOUR"}</span>
               <h3>{view === "MY_SCHEDULE" ? "My Entries" : view === "SEASON" ? "Season events" : "Upcoming events"} <span>{events.length.toString().padStart(2, "0")}</span></h3>

@@ -406,5 +406,5 @@
   .cc-agenda-header button { white-space: nowrap; }
 }
 
-.cc-showing-open { margin:0 0 10px; font-size:.85rem; color:#e8eef3cc; }
+.cc-showing-open { margin:0; padding:12px 16px 4px; font-size:.85rem; color:#e8eef3cc; }
 .cc-link-button { background:none; border:0; padding:0; color:#8fd3ff; text-decoration:underline; text-underline-offset:2px; font:inherit; cursor:pointer; }

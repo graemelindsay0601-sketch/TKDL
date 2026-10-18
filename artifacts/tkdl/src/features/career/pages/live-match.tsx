@@ -12,7 +12,7 @@ import { liveApi, errorMessage, useTournament, useAdvance, useTournamentAction }
 import { MatchStreamPanel } from "./match-stream";
 import { MatchContextStrip, ResultBanner } from "../tournament/components";
 import { resultMoment } from "../tournament/model";
-import { formatPence } from "../model";
+import { formatPence, matchFormatLine } from "../model";
 import { OSWALD, Label, StatusBadge } from "../components";
 import { adoptLiveCursor, careerGameType, careerBotVisit, careerBotCork, careerPartnerVisit, recoveryFromLog, scorerLength, scoreLine, shouldCheckpoint } from "../live-model";
 import type { ShellContext } from "../shell";
@@ -137,7 +137,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e", overflowY: "auto" }}>
         <MatchContextStrip saveId={saveId} eventId={session.eventId} matchId={session.matchId} />
         <BullUpBoard names={[session.player.name, session.opponent.name]} state={state} isHuman={idx => idx === 0} busy={busy} error={error}
-          subtitle={state.rounds.length > 1 ? undefined : "Nearest the bull throws first"}
+          subtitle={`${matchFormatLine(session.format as never)} ${state.rounds.length > 1 ? "Tied, so throw again." : "Closest to the bull throws first."}`}
           onThrow={async (_, t) => {
             setBusy(true); setError(null);
             try { adopt(await liveApi.bull(saveId, matchId, { throw: t, expectedRevision: session.revision })); setPhase("bull"); }
