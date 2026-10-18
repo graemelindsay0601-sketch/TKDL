@@ -3,7 +3,7 @@ import { type ReactNode, useState, useId } from "react";
 import { Link } from "wouter";
 import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-react";
 import type { CareerEvent } from "./types";
-import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, eventCircuitLabel, movementLabel, formatPence, isJuniorEvent, worthIt } from "./model";
+import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, eventCircuitLabel, movementLabel, formatPence, isJuniorEvent, worthIt, titleCase, qualificationStakeLines } from "./model";
 import { errorMessage } from "./api";
 import {CareerEventIdentity} from "./identity";
 
@@ -151,6 +151,7 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
           <StatusBadge label={status.label} tone={status.tone} />
         </div>
         {worth && <div className="career-worth mt-0.5 text-xs" data-tone={worth.tone} title={worth.detail}>{worth.label}</div>}
+        <CareerEventStakes event={event} compact />
         {event.human?.streamInvite && !event.human.result && <div className="career-manager-invite mt-0.5 text-xs">Invitation as a DartCast Star · no one takes a cut</div>}
         {event.human?.managerInvite && !event.human.result && <div className="career-manager-invite mt-0.5 text-xs">Invitation through {event.human.managerInvite.name} · they take {Math.round(event.human.managerInvite.commission * 100)}% of any prize money</div>}
       </Link>
@@ -167,6 +168,18 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
       </div>
     </div></CareerEventIdentity>
   );
+}
+
+export function CareerEventStakes({ event, compact = false }: { event: CareerEvent; compact?: boolean }) {
+  if (event.status === "COMPLETED" || event.status === "CANCELLED" || !event.capability.executable) return null;
+  const lines = qualificationStakeLines(event.qualificationStakes);
+  if (!lines.length && event.rankingCategory) lines.push(`Prize money counts toward the ${titleCase(event.rankingCategory.replaceAll("_", " "))} ranking.`);
+  if (!lines.length) return null;
+  return <div className={`career-event-stakes${compact ? " career-event-stakes--compact" : ""}`} aria-label="Event stakes"
+    style={{ marginTop: compact ? ".2rem" : 0, borderLeft: "2px solid rgba(243,215,127,.55)", paddingLeft: ".5rem" }}>
+    {!compact && <strong style={{ display: "block", color: "#f3d77f", ...OSWALD, fontSize: ".72rem", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: ".2rem" }}>What’s at stake</strong>}
+    {lines.map((line, index) => <p key={`${event.id}-${index}`} style={{ margin: compact ? 0 : ".18rem 0 0", color: "rgba(255,255,255,.68)", fontSize: compact ? ".68rem" : ".82rem", lineHeight: 1.4 }}>{line}</p>)}
+  </div>;
 }
 
 /** The event's real venue plate (F1 manifest) as a small tile carrying a label. Decorative image; the label is text. */
