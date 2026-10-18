@@ -1153,3 +1153,17 @@
 .road-trip__nights { display: flex; flex-wrap: wrap; gap: .35rem; }
 .road-trip .money-match__members li[data-role="CHAMPION"] { border-color: rgba(255, 210, 74, .45); }
 .road-trip .money-match__intro svg, .road-trip__plan .career-btn svg { width: 15px; height: 15px; vertical-align: -2px; }
+/* Webcam leagues */
+.cam-league__match { padding: .75rem 1rem; display: flex; flex-direction: column; gap: .5rem; font-size: .85rem; }
+.cam-league__table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.cam-league__table th, .cam-league__table td { padding: .35rem .5rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,.06); }
+.cam-league__table td:nth-child(n+3), .cam-league__table th:nth-child(n+3) { text-align: right; }
+.cam-league__table tr.is-you { background: rgba(91, 192, 235, .12); }
+.cam-league__table tr[data-zone="up"] td:first-child { box-shadow: inset 3px 0 #46d369; }
+.cam-league__table tr[data-zone="down"] td:first-child { box-shadow: inset 3px 0 #e5534b; }
+.cam-league__table small, .cam-league__fixtures small { color: #8fa3b3; }
+.cam-league__fixtures { list-style: none; margin: 0; padding: .5rem 1rem; display: flex; flex-direction: column; gap: .3rem; font-size: .8rem; }
+.cam-league__fixtures li { display: flex; justify-content: space-between; gap: .5rem; }
+.cam-league__live { display: flex; flex-direction: column; gap: .5rem; }
+.cam-league__live-title { margin: 0; font-size: .9rem; }
+.cam-league__live-title svg, .cam-league__match svg { width: 15px; height: 15px; vertical-align: -2px; }

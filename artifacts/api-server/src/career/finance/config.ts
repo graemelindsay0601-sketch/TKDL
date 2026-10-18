@@ -16,6 +16,7 @@ export const LEDGER_CATEGORIES = [
   "COMMERCIAL_APPEARANCE", "MERCHANDISE_ROYALTY", "SPONSOR_RELEASE_SETTLEMENT",
   "MONEY_MATCH_WIN", "MONEY_MATCH_STAKE", "MANAGER_COMMISSION",
   "HOSTING_COST", "HOSTING_INCOME", "STREAM_INCOME",
+  "CAM_LEAGUE_FEE", "CAM_LEAGUE_PRIZE", "PROAM_FEE", "PROAM_WIN", "PROAM_APPEARANCE",
   "REFUND", "ADJUSTMENT",
 ] as const;
 export type LedgerCategory = typeof LEDGER_CATEGORIES[number];
@@ -35,6 +36,10 @@ export const HEADLINE_OF: Record<Exclude<LedgerCategory, "ADJUSTMENT" | "REFUND"
   HOSTING_COST: "EXPENSE", HOSTING_INCOME: "EARNINGS",
   /** Streaming: subscriptions, bits and super chats. */
   STREAM_INCOME: "EARNINGS",
+  /** Webcam leagues: the season's entry fee out, prize money for the top of the division in. */
+  CAM_LEAGUE_FEE: "EXPENSE", CAM_LEAGUE_PRIZE: "EARNINGS",
+  /** Pro-Am nights: your fee to take on the pro, the prize if you beat them, and (once you're the pro) your appearance money. */
+  PROAM_FEE: "EXPENSE", PROAM_WIN: "EARNINGS", PROAM_APPEARANCE: "EARNINGS",
 };
 
 // ------------------------------------------------------------------ entry fees

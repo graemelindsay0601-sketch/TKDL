@@ -40,7 +40,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")),...(await load("/src/features/career/road-trips.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")),...(await load("/src/features/career/road-trips.tsx")),...(await load("/src/features/career/pages/cam-league.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -928,4 +928,19 @@ test("Road trips: your name on the road, tonight's town with a locked champion, 
   for (const fact of ["Known on the circuit", "1 town taken", "2 more to be a feared hustler", "Glasgow · Wed night", "Travel paid: £7", "1 of 3 games played",
     "Jimmy Craig", "Town champion", "Beat one of Glasgow's locals first", "Lost 2-4", "−£40", "Too rich for me. £30 and you're on.", "Take £30 and play", "2 more asks",
     "Rab Nesbitt from Inverness is at your club", "Play for their £40", "won 4 of 7", "+£65", "towns taken: Stirling"]) assert.ok(t.includes(fact), fact);
+});
+
+test("Webcam league: the table with promotion and relegation places, this week's booked match, fixtures and past leagues", () => {
+  const row = (key: string, name: string, country: string, points: number, you = false) => ({ key, name, country, you, played: 3, won: points / 2, lost: 3 - points / 2, legsFor: 7, legsAgainst: 6, points });
+  const f = (i: number, x: object) => ({ id: `f${i}`, round: i, week: 9 + i, opponent: { key: `o${i}`, name: `Opp ${i}`, country: "NLD", avg: 51.2 }, status: "PLAYED", dayOfWeek: null, legs: [3, 1], source: "LIVE", ...x });
+  const view = { season: 2, week: 13, division: { level: 3, name: "Division One", feePence: 1200 }, join: { ok: false, why: "You're in a league already", startsWeek: 13, endsWeek: 19, feePence: 1200, prizes: [12000, 6000, 3600] },
+    availablePence: 50000, freeNights: [2, 4],
+    league: { id: "l1", level: 3, name: "Division One", weekStart: 10, weekEnd: 16, round: 4, prizes: [12000, 6000, 3600],
+      table: [row("a", "Jan de Vries", "NLD", 6), row("HUMAN", "Long", "", 4, true), row("b", "Mike Rowe", "USA", 4), row("c", "Tom Byrne", "IRL", 2)],
+      fixtures: [f(1, {}), f(2, { status: "FORFEIT", legs: [0, 3], source: "FORFEIT" }), f(3, { legs: [2, 3], source: "SIM" }), f(4, { status: "BOOKED", dayOfWeek: 4, legs: null, source: null })],
+      thisWeek: f(4, { status: "BOOKED", dayOfWeek: 4, legs: null, source: null }) },
+    history: [{ season: 1, level: 4, name: "Division Two", position: 2, prizePence: 4000, nextLevel: 3 }] };
+  const t = text(render(h(M.CamLeaguePage, { ctx: ctx() }), [[key("cam-league"), view]], `/career/${SAVE_ID}/cam-league`));
+  for (const fact of ["Division One", "2nd", "4 of 7", "This week's match", "Opp 4", "averages about 51.2", "Booked for Thu", "Play on camera", "Quick-sim it",
+    "Jan de Vries", "You", "£120 / £60 / £36", "Forfeit 0-3", "Booked Thu", "Past leagues", "Division Two", "£40 · promoted"]) assert.ok(t.includes(fact), fact);
 });
