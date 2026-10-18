@@ -61,7 +61,9 @@ export type ChatEvent =
   | { kind: "PLEDGE"; user: string; pence: number; text: string };
 export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number;
   /** Scoring challenge pledges (paid only on a win). */
-  pledgedPence?: number };
+  pledgedPence?: number;
+  /** The best clip-worthy moment so far. */
+  clip?: ClipKind };
 
 const LINES: Record<string, readonly string[]> = {
   YOU_180: ["ONE HUNDRED AND EIGHTYYYY", "180!!! 🎯🎯🎯", "MAXIMUM", "clip it!!", "he's on fire", "absolute scenes"],
@@ -143,7 +145,7 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
   const follows = Math.floor(carry);
   for (let i = 0; i < Math.min(follows, 3); i++) events.push({ kind: "FOLLOW", user: handleFor(rng) });
   const viewers = Math.max(1, Math.round(tally.viewers * (1 + (hype - 0.6) * 0.04) + (rng() - 0.45) * 2));
-  return { events, tally: { viewers, peak: Math.max(tally.peak, viewers), hype, followersGained: tally.followersGained + follows, followerCarry: carry - follows,
+  return { events, tally: { ...tally, viewers, peak: Math.max(tally.peak, viewers), hype, followersGained: tally.followersGained + follows, followerCarry: carry - follows,
     bitsPence: tally.bitsPence + bits, superchatsPence: tally.superchatsPence + supers, subs: tally.subs + subs,
     ...(pledges || tally.pledgedPence ? { pledgedPence: (tally.pledgedPence ?? 0) + pledged } : {}) } };
 }
@@ -204,8 +206,10 @@ export const FORMATS = [
   { key: "BOBS_27", name: "Bob's 27 live", blurb: "Every double from 1 to the bull, starting on 27. Don't drop to zero.", crowd: 0.8 },
   { key: "SCORING", name: "Average challenge", blurb: "33 visits of pure scoring against a target average. Chat pledges bits that pay only if you beat it.", crowd: 0.9 },
 ] as const;
-export type StreamFormat = typeof FORMATS[number]["key"];
-export const formatByKey = (key: string) => FORMATS.find(f => f.key === key) ?? FORMATS[0];
+/** The formats on the picker, plus a collab (picked from the streamers list). */
+export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB";
+const COLLAB_FORMAT = { key: "COLLAB", name: "Collab", blurb: "A match against another streamer, on both channels.", crowd: 1 } as const;
+export const formatByKey = (key: string) => key === "COLLAB" ? COLLAB_FORMAT : FORMATS.find(f => f.key === key) ?? FORMATS[0];
 export const KING_ROUNDS = 5;
 /** Same format as last time: the room thins. Chat's pick: they turn up. */
 export const VARIETY = Object.freeze({ repeat: 0.85, pollPick: 1.2 });
@@ -236,3 +240,67 @@ export function pollFor(seed: string, streamKey: string, played: StreamFormat) {
 export const SUB_GOAL = Object.freeze({ targets: [5, 10, 20, 50], followerBonusPerSub: 4,
   promises: ["A Bob's 27 stream", "Throw in fancy dress", "A charity night", "Answer every question in chat", "Play left-handed for a leg"] as const });
 export const goalBonus = (target: number) => target * SUB_GOAL.followerBonusPerSub;
+
+/**
+ * Other DartCast streamers (made up): each with an audience that grows week by week and a level they throw at. A collab
+ * is a match against one of them on both channels: their viewers tune in, and the winner takes a share of the other's
+ * audience. They'll only collab with a channel somewhere near their size, and once a season each.
+ */
+export const STREAMERS = [
+  { key: "doubletrouble", handle: "DoubleTroubleDan", followers: 120, avg: 48, blurb: "Pub player, all heart, can't find a double." },
+  { key: "oche-sophie", handle: "OcheSophie", followers: 450, avg: 55, blurb: "County ladies' player, streams every Sunday." },
+  { key: "tungsten-tom", handle: "TungstenTomTV", followers: 900, avg: 58, blurb: "Reviews every set of darts on the market." },
+  { key: "bullbarry", handle: "BullseyeBarry", followers: 1600, avg: 52, blurb: "The comedian of darts streaming." },
+  { key: "checkoutqueen", handle: "CheckoutQueen", followers: 3200, avg: 66, blurb: "Famous for her 'any finish in 9' challenges." },
+  { key: "arrowsandale", handle: "ArrowsAndAle", followers: 5200, avg: 61, blurb: "Darts and craft beer, every Friday." },
+  { key: "the-maximiser", handle: "TheMaximiser", followers: 9000, avg: 72, blurb: "Ex-pro, now the king of the 180 compilation." },
+  { key: "dartsdaddy", handle: "DartsDaddyLive", followers: 15000, avg: 64, blurb: "Family-friendly darts with his three kids." },
+  { key: "shanghai-sam", handle: "ShanghaiSam", followers: 26000, avg: 75, blurb: "Trick shots and big personality." },
+  { key: "ninedartnick", handle: "NineDartNick", followers: 48000, avg: 82, blurb: "Hit a nine-darter live in 2019 and never looked back." },
+  { key: "oche-official", handle: "TheOcheShow", followers: 90000, avg: 80, blurb: "The biggest darts channel on DartCast." },
+] as const;
+export type StreamerKey = typeof STREAMERS[number]["key"];
+export const COLLAB = Object.freeze({ weeklyGrowth: 0.004, minShare: 0.2, maxShare: 5, minFollowers: 50,
+  /** Share of their audience that tunes in, and the share of it that follows you if you win / lose. */
+  tuneIn: 0.04, winShare: 0.02, loseShare: 0.005 });
+/** A streamer's audience now (it grows a little every week of the career). */
+export const streamerFollowers = (base: number, season: number, week: number) => Math.round(base * Math.pow(1 + COLLAB.weeklyGrowth, (season - 1) * 52 + week));
+/** Will they collab with you? Near your size, you're an Affiliate or above, and not already this season. */
+export function collabAnswer(theirs: number, yours: number, doneThisSeason: boolean): { ok: true } | { ok: false; why: string } {
+  if (yours < COLLAB.minFollowers) return { ok: false, why: "Get to Affiliate first" };
+  if (doneThisSeason) return { ok: false, why: "Already collabed this season" };
+  if (theirs > yours * COLLAB.maxShare) return { ok: false, why: "Too big for you yet" };
+  if (theirs < yours * COLLAB.minShare) return { ok: false, why: "Too small for your channel" };
+  return { ok: true };
+}
+export const collabFollowers = (theirs: number, won: boolean) => Math.round(theirs * (won ? COLLAB.winShare : COLLAB.loseShare));
+export const collabBot = (avg: number) => ({ avg, sd: 22, checkoutPct: Math.min(0.45, 0.12 + (avg - 30) * 0.008), hitAcc: Math.min(0.92, 0.45 + (avg - 30) * 0.012) });
+
+/**
+ * Clips: the best moment of each stream is clipped. At the end of the week a clip may go viral (a nine-darter almost
+ * always does, a 180 rarely), bringing followers on DartCast and new fans for your darts.
+ */
+export const CLIPS = {
+  NINE: { title: "NINE-DARTER LIVE ON STREAM", weight: 100, chance: 0.9, followers: 1500 },
+  BIG_FISH: { title: "The Big Fish! 170 checkout", weight: 40, chance: 0.5, followers: 600 },
+  BIG_FINISH: { title: "Ton-plus finish", weight: 15, chance: 0.15, followers: 200 },
+  BOBS_BULL: { title: "Bull to finish Bob's 27", weight: 8, chance: 0.08, followers: 120 },
+  MAX: { title: "Maximum!", weight: 5, chance: 0.04, followers: 80 },
+} as const;
+export type ClipKind = keyof typeof CLIPS;
+/** Does this visit make a clip? (`dartsInLeg` counts your darts in the leg, for a nine-darter.) */
+export function clipFor(v: { points: number; checkout: boolean; startScore: number; dartsInLeg?: number }): ClipKind | null {
+  if (v.checkout && v.dartsInLeg !== undefined && v.dartsInLeg <= 9) return "NINE";
+  if (v.checkout && v.startScore === 170) return "BIG_FISH";
+  if (v.checkout && v.startScore >= 100) return "BIG_FINISH";
+  if (v.points === 180) return "MAX";
+  return null;
+}
+/** The clip's fate at the end of the week: viral or not, its views, and the followers and fans it brings. */
+export function clipOutcome(seed: string, clipId: string, kind: ClipKind, peak: number, followers: number) {
+  const rng = scopedRandom(seed, STREAM.version, "stream-clip", clipId);
+  const c = CLIPS[kind], viral = rng() < Math.min(0.95, c.chance * (1 + Math.min(1, peak / 200)));
+  const gained = viral ? Math.round(c.followers * (1 + followers / 2000) * (0.7 + rng() * 0.6)) : 0;
+  const views = viral ? Math.round(gained * (25 + rng() * 40)) : Math.round(peak * (2 + rng() * 4));
+  return { viral, views, followers: gained, fans: gained * 2 };
+}

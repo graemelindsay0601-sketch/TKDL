@@ -84,6 +84,25 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
         {message && <p className="dc__warn" role="alert">{message}</p>}
       </section>
       <section className="dc__panel">
+        <h2>Collabs</h2>
+        <p className="dc__note">Play another streamer live on both channels: their viewers tune in, and the winner takes a share of the other's audience. They'll only collab with a channel near their size, once a season.
+          {pick ? ` Goes out on ${dayLabel(pick)}.` : ""}</p>
+        <ul className="dc__collabs">{d.collabs.map(c => <li key={c.key} data-ok={c.ok || undefined}>
+          <div><b>{c.handle}</b><small>{c.followers.toLocaleString("en-GB")} followers · averages about {c.avg}</small><span>{c.blurb}</span></div>
+          {c.ok ? <button type="button" className="dc__go" disabled={!canGo || live.isPending}
+            onClick={() => live.mutate({ dayOfWeek: pick!, format: "COLLAB", streamer: c.key }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>Collab</button>
+            : <em>{c.why}</em>}
+        </li>)}</ul>
+      </section>
+      {d.clips.length > 0 && <section className="dc__panel">
+        <h2>Clips</h2>
+        <ul className="dc__clips">{d.clips.map(c => <li key={c.id} data-status={c.status}>
+          <div className="dc__thumb" data-result={c.status === "VIRAL" ? "WON" : "NONE"}><span>{c.title}</span>{c.status === "VIRAL" ? <em>VIRAL</em> : null}</div>
+          <p><b>{c.title}</b><small>S{c.season} Wk {c.week} · {c.status === "NEW" ? "out this week: will it go viral?" : `${c.views.toLocaleString("en-GB")} views`}
+            {c.followersGained ? ` · +${c.followersGained.toLocaleString("en-GB")} followers · +${c.fansGained.toLocaleString("en-GB")} fans` : ""}</small></p>
+        </li>)}</ul>
+      </section>}
+      <section className="dc__panel">
         <h2>The streamer route</h2>
         <p className="dc__note">Another way up in darts: build an audience. {d.next ? `${(d.next.followers - d.followers).toLocaleString("en-GB")} more followers to ${d.next.name}.` : "You've made it to the top."}</p>
         <div className="dc__progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progress to the next step"><span style={{ width: `${progress}%` }} /></div>

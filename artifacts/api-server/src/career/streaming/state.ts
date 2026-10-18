@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { stableUuid } from "../world/random.ts";
-import { STREAM, STREAM_MONEY, brandFor, dealFee, goalBonus, renewals, subPayout, tierFor, type TierKey } from "./model.ts";
+import { STREAM, STREAM_MONEY, brandFor, clipOutcome, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
 let seen = false;
@@ -49,6 +49,14 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
     if (pay > 0) await post(tx, root, { operationKey: `stream-subs:${month}`, category: "STREAM_INCOME", amountPence: pay,
       reason: `DartCast subscriptions: ${renewed} renewed this month`, season, week, detail: { renewed, before: Number(ch.subscribers), streamed } });
     await tx.execute(sql`UPDATE career_stream_channels SET subscribers=${renewed}, renewed_through=${month} WHERE career_save_id=${root.id}`);
+  }
+  // This week's clips: some go viral, bringing followers (and fans for your darts, counted in your fan following).
+  for (const c of (await tx.execute(sql`SELECT id, kind, peak FROM career_stream_clips WHERE career_save_id=${root.id} AND status='NEW'
+      AND (season < ${season} OR week <= ${week}) ORDER BY season, week, id`)).rows) {
+    const o = clipOutcome(root.world_seed, String(c.id), c.kind as ClipKind, Number(c.peak), Number(ch.followers));
+    await tx.execute(sql`UPDATE career_stream_clips SET status=${o.viral ? "VIRAL" : "SETTLED"}, views=${o.views}, followers_gained=${o.followers}, fans_gained=${o.fans}
+      WHERE career_save_id=${root.id} AND id=${String(c.id)} AND status='NEW'`);
+    if (o.followers) { await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${o.followers} WHERE career_save_id=${root.id}`); ch.followers = Number(ch.followers) + o.followers; }
   }
   await tx.execute(sql`UPDATE career_stream_deals SET status='EXPIRED' WHERE career_save_id=${root.id} AND status='OFFERED' AND (season < ${season} OR expires_week <= ${week})`);
   const followers = Number(ch.followers), tier = tierFor(followers).key;

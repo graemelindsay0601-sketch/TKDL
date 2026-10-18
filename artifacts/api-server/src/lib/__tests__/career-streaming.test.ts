@@ -129,6 +129,8 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   const root = { id, world_seed: String((await rows(sql`SELECT world_seed FROM career_saves WHERE id=${id}`))[0].world_seed) };
   const s = await saves.read(1, id), month = Math.ceil(s.currentWeek / STREAM_MONEY.monthWeeks) * STREAM_MONEY.monthWeeks;
   await db.execute(sql`UPDATE career_stream_channels SET followers=1200, subscribers=10 WHERE career_save_id=${id}`);
+  // Earlier streams' clips are settled already (a viral one would add followers here).
+  await db.execute(sql`UPDATE career_stream_clips SET status='SETTLED' WHERE career_save_id=${id}`);
   // You streamed this month (the earlier tests), so most subs renew.
   await settleStreamingWeek(db, root, s.currentSeason, month);
   await settleStreamingWeek(db, root, s.currentSeason, month);

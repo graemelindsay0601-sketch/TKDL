@@ -35,5 +35,11 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
   // Chat's pick for the next stream, and this month's sub goal.
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS poll_pick text`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS sub_goal jsonb`);
+  // Clips: each stream's best moment, which may go viral at the end of the week.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_clips (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, stream_id uuid NOT NULL, season integer NOT NULL, week integer NOT NULL, kind text NOT NULL, title text NOT NULL, peak integer NOT NULL,
+    status text NOT NULL CHECK(status IN ('NEW','VIRAL','SETTLED')), views integer NOT NULL DEFAULT 0, followers_gained integer NOT NULL DEFAULT 0, fans_gained integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id,id))`);
   await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_streams_night_idx ON career_streams(career_save_id, season, day)`);
 }

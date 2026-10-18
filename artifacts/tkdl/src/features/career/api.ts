@@ -65,8 +65,8 @@ export const useStreaming = (saveId: string) => useQuery({ queryKey: careerKey(s
 export const useStreamSession = (saveId: string, streamId: string) => useQuery({ queryKey: careerKey(saveId, "streaming", "stream", streamId),
   queryFn: () => get<StreamSession>(`/saves/${saveId}/streaming/streams/${streamId}`), staleTime: Infinity });
 export type StreamFormat = import("../../../../api-server/src/career/streaming/model").StreamFormat;
-export const useGoLive = (saveId: string) => useSaveMutation(saveId, ({ dayOfWeek, format }: { dayOfWeek: number; format: StreamFormat }) =>
-  send<StreamSession>("POST", `/saves/${saveId}/streaming/live`, { dayOfWeek, format }));
+export const useGoLive = (saveId: string) => useSaveMutation(saveId, ({ dayOfWeek, format, streamer }: { dayOfWeek: number; format: StreamFormat; streamer?: string }) =>
+  send<StreamSession>("POST", `/saves/${saveId}/streaming/live`, { dayOfWeek, format, ...(streamer ? { streamer } : {}) }));
 export const useSetSubGoal = (saveId: string) => useSaveMutation(saveId, (goal: { target: number; promise: string }) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/sub-goal`, goal));
 export const useAnswerBrandDeal = (saveId: string) => useSaveMutation(saveId, ({ dealId, accept }: { dealId: string; accept: boolean }) =>
