@@ -149,6 +149,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
       )
     `);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_event_entries_participant_idx ON career_event_entries(career_save_id, participant_key, status)`);
+    await ensureEntryTier(tx);
     // One row per participant per occupied day: a hard database guarantee against double-booking.
     await tx.execute(sql`
       CREATE TABLE IF NOT EXISTS career_participant_bookings (
@@ -188,7 +189,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
         FOREIGN KEY (career_save_id, event_id) REFERENCES career_event_instances(career_save_id, id) ON DELETE CASCADE,
         FOREIGN KEY (career_save_id, a_npc_id) REFERENCES career_world_players(career_save_id, id),
         FOREIGN KEY (career_save_id, b_npc_id) REFERENCES career_world_players(career_save_id, id),
-        FOREIGN KEY (career_save_id, simulated_match_key) REFERENCES career_simulated_matches(career_save_id, match_key),
+        -- simulated_match_key names the simulation the match ran under; no stored copy is kept (see ensureSimulatedMatchCopiesOptional).
         CONSTRAINT career_tournament_matches_result_check CHECK (
           (status IN ('COMPLETED','BYE','WALKOVER')) = (winner_key IS NOT NULL)
           AND (winner_key IS NULL OR winner_key IN (a_key, b_key))
@@ -403,3 +404,9 @@ export async function syncEventDefinitions(tx: CareerExecutor): Promise<void> {
     `);
   }
 }
+
+/** An NPC entrant's tier when entered (a season's fields can be checked against the tiers they were drawn from). Idempotent. */
+export async function ensureEntryTier(tx: CareerExecutor): Promise<void> {
+  await tx.execute(sql`ALTER TABLE career_event_entries ADD COLUMN IF NOT EXISTS entered_tier TEXT`);
+}
+

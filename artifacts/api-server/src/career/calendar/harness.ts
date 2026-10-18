@@ -115,8 +115,8 @@ export async function seasonReport(db: CareerDatabase, saveId: string, season: n
         AND (SELECT COUNT(*) FROM career_tournament_matches m WHERE m.career_save_id = i.career_save_id AND m.event_id = i.id AND m.status NOT IN ('COMPLETED','BYE','WALKOVER')) = 0
         THEN 1 ELSE 0 END)::int AS valid
     FROM career_event_instances i WHERE i.career_save_id = ${saveId} AND i.season = ${season} AND i.status = 'COMPLETED'`))[0];
-  const simulatedViaA2 = (await q(sql`SELECT COUNT(*)::int AS matches, COUNT(s.match_key)::int AS linked FROM career_tournament_matches m
-    LEFT JOIN career_simulated_matches s ON s.career_save_id = m.career_save_id AND s.match_key = m.simulated_match_key
+  // Every simulated match names the A2 simulation it ran under (no separate copy of it is stored).
+  const simulatedViaA2 = (await q(sql`SELECT COUNT(*)::int AS matches, COUNT(m.simulated_match_key)::int AS linked FROM career_tournament_matches m
     JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
     WHERE m.career_save_id = ${saveId} AND i.season = ${season} AND m.status = 'COMPLETED' AND m.result_source = 'A2_SIMULATION'`))[0];
   const nationality = async (circuits: string[], champions: boolean) => Object.fromEntries((await q(sql`SELECT p.nationality, COUNT(*)::int AS n

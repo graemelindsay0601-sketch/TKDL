@@ -260,6 +260,7 @@ export async function createCareerSporting(database: CareerDatabase): Promise<vo
       await tx.execute(sql`CREATE TRIGGER ${sql.raw(`${table}_immutable`)} BEFORE UPDATE ON ${sql.raw(table)} FOR EACH ROW EXECUTE FUNCTION career_sporting_reject_update()`);
     }
     await ensureDevelopmentCardSource(tx);
+    await ensureRankingArchive(tx);
   });
 }
 
@@ -275,3 +276,20 @@ export async function ensureDevelopmentCardSource(tx: CareerExecutor): Promise<v
   await tx.execute(sql`ALTER TABLE career_tour_cards ADD CONSTRAINT career_tour_cards_source_check CHECK (source IN ('FOUNDING','Q_SCHOOL_DIRECT','Q_SCHOOL_ORDER_OF_MERIT',
     'RANKING_RETENTION','CHALLENGER_RANKING','DEVELOPMENT_RANKING'))`);
 }
+
+/**
+ * Ranking history archive (see career/sporting/archive.ts): each participant's best, worst and number of published
+ * weeks in a season, kept once that season's weekly tables are thinned, and which seasons have been thinned. Idempotent.
+ */
+export async function ensureRankingArchive(tx: CareerExecutor): Promise<void> {
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_ranking_season_summaries (
+    career_save_id UUID NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    list_key TEXT NOT NULL, participant_key TEXT NOT NULL, season INTEGER NOT NULL,
+    best INTEGER NOT NULL, worst INTEGER NOT NULL, snapshots INTEGER NOT NULL,
+    PRIMARY KEY (career_save_id, list_key, participant_key, season))`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_ranking_archives (
+    career_save_id UUID NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season INTEGER NOT NULL, archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (career_save_id, season))`);
+}
+

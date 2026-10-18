@@ -1,8 +1,8 @@
 import type { CareerDatabase } from "../../career/database.ts";
-import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, syncEventDefinitions } from "./create_career_calendar.ts";
+import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions } from "./create_career_calendar.ts";
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
-import { ensureDevelopmentCardSource } from "./create_career_sporting.ts";
+import { ensureDevelopmentCardSource, ensureRankingArchive } from "./create_career_sporting.ts";
 import { createCareerContent } from "./create_career_content.ts";
 import { ensureMoneyMatches } from "./create_career_money.ts";
 import { ensureClubTeams } from "./create_career_club_teams.ts";
@@ -12,7 +12,7 @@ import { ensureRoadTrips } from "./create_career_road_trips.ts";
 import { ensureCamLeagues } from "./create_career_cam_leagues.ts";
 import { ensureProAm } from "./create_career_proam.ts";
 import { ensureManagers } from "./create_career_manager.ts";
-import { ensureCareerMaintenance, ensureFastMatchCompression } from "./create_career_world.ts";
+import { ensureCareerMaintenance, ensureFastMatchCompression, ensureSimulatedMatchCopiesOptional } from "./create_career_world.ts";
 import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensureCalendarAddons, ensureSavingsGoals } from "./create_career_legacy.ts";
 
 /**
@@ -30,11 +30,14 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureEventPairs(tx);
     await ensureQuickSimSource(tx);
     await ensureCareerForeignKeyIndexes(tx);
+    await ensureEntryTier(tx);
     await ensureFastMatchCompression(tx);
     await ensureCareerMaintenance(tx);
+    await ensureSimulatedMatchCopiesOptional(tx);
     await ensureCareerMatchSessionSchema(tx);
     await ensureCareerGroupSchema(tx);
     await ensureDevelopmentCardSource(tx);
+    await ensureRankingArchive(tx);
     await ensureLegacySeasonTotals(tx);
     await ensureWorldRecords(tx);
     await ensureClubSeasons(tx);

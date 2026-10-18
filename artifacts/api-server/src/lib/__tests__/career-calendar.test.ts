@@ -283,7 +283,7 @@ test("multi-week advance processes each A2 week exactly once and retries return 
   const periods = await rows(sql`SELECT sequence, request FROM career_world_periods WHERE career_save_id = ${save.id} AND kind = 'PERIOD' ORDER BY sequence`);
   assert.deepEqual(periods.map(p => p.sequence), [1, 2, 3, 4]);
   for (const p of periods) assert.equal((p.request as { elapsedYears: number }).elapsedYears, DEVELOPMENT_CADENCE.elapsedYearsPerPeriod);
-  const matches = Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_simulated_matches WHERE career_save_id = ${save.id}`))[0].n);
+  const matches = Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_tournament_matches WHERE career_save_id = ${save.id} AND result_source = 'A2_SIMULATION'`))[0].n);
   assert.ok(matches > 50, "many matches were played");
   const world = (await rows(sql`SELECT period FROM career_world_state WHERE career_save_id = ${save.id}`))[0];
   assert.equal(world.period, 4, "matches never advance development; only weeks do");
