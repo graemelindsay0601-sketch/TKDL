@@ -5,6 +5,7 @@ import { BadgeCheck, Crown, GraduationCap, Route, Sparkles, Ticket, Vault } from
 import { usePathways, useTourCard, useDecideTourCard, errorMessage, type PathwaysView } from "../api";
 import { CareerError, CareerLoading, CareerSection } from "../components";
 import { CareerPageHero } from "../page-hero";
+import { PLATES } from "../atmosphere";
 import { BREAKOUT_ROUTES, formatPence, ordinal, sourceLabel } from "../model";
 import type { ShellContext } from "../shell";
 import "./road.css";
@@ -57,7 +58,43 @@ export function TourCardOffer({ saveId }: { saveId: string }) {
 function Routes({ saveId, p }: { saveId: string; p: PathwaysView }) {
   const pro = !!p.tourCard && !p.tourCard.offer;
   const c = p.challenger, q = p.qSchool, w = p.worlds;
-  return <div className="road-routes">
+  const cardWon = pro || !!p.tourCard?.offer;
+  const currentPlate = PLATES[pro ? "professional-floor" : "community-hall"];
+  return <>
+    <div className="road-map" aria-label="Progression map from amateur routes to Tour Card and World Championship">
+      <div className="road-map__head">
+        <div><span>THE CAMPAIGN ROUTE</span><strong>Many ways forward. One career.</strong></div>
+        <p>Qualification routes can run in parallel. Your current positions and places are shown below.</p>
+      </div>
+      <div className="road-map__track">
+        <article className="road-map__stage road-map__stage--routes">
+          <div className="road-map__index">01 <span>AMATEUR ROUTES</span></div>
+          {pro ? <div className="road-map__route-list">
+            <span>World Ranking <b>{p.worlds.worldRanking !== null ? ordinal(p.worlds.worldRanking) : "Not ranked"}</b></span>
+            <span>Card retention <b>Top 64</b></span>
+          </div> : <div className="road-map__route-list">
+            <span>Q-School <b>{q.finalStage ? "Final Stage" : "Entry route"}</b></span>
+            <span>Challenger <b>{rank(c.position)}</b></span>
+            {p.development && <span>Development Tour <b>{p.development.eligible ? rank(p.development.position) : "Age restricted"}</b></span>}
+            <span>Vault Series <b>{rank(p.vault.position)}</b></span>
+          </div>}
+          <small>{pro ? "Keep your card by finishing inside the World Ranking top 64." : "Results here can award a card or a Worlds place."}</small>
+        </article>
+        <div className={`road-map__connector${cardWon ? " is-earned" : ""}`} aria-hidden="true"><i /></div>
+        <article className={`road-map__stage road-map__stage--card${cardWon ? " is-earned" : ""}`} style={{ backgroundImage: `linear-gradient(90deg,rgba(7,10,14,.95),rgba(7,10,14,.67)),url("${currentPlate.src}")` }}>
+          <div className="road-map__index">02 <span>TOUR CARD</span></div>
+          <strong>{pro ? "On the Tour" : p.tourCard?.offer ? "Card earned · decision pending" : "Card line"}</strong>
+          <small>{pro ? "World top 64 retains the card" : p.tourCard?.offer ? "Accept to turn professional" : `Challenger card places: top ${c.cards}; Q-School Final Stage also awards cards`}</small>
+        </article>
+        <div className={`road-map__connector${!!w.place ? " is-earned" : ""}`} aria-hidden="true"><i /></div>
+        <article className={`road-map__stage road-map__stage--world${w.place ? " is-earned" : ""}`}>
+          <div className="road-map__index">03 <span>WORLD CHAMPIONSHIP</span></div>
+          <strong>{w.place ? "Place secured" : "Earn your place"}</strong>
+          <small>{w.place ? BREAKOUT_ROUTES[w.place.route] ?? "Qualified" : `World Ranking, qualifiers, route rankings, Amateur World Masters or ${w.fanFavouriteFans.toLocaleString("en-GB")} fans`}</small>
+        </article>
+      </div>
+    </div>
+    <div className="road-routes">
     {!pro && <RouteCard icon={<GraduationCap />} title="Q-School" done={q.finalStage}
       gives={`Win a day at the Final Stage, or finish near the top overall, and you get a Tour Card. ${formatPence(q.firstStageFeePence)} to enter, plus ${formatPence(q.finalStageFeePence)} if you reach the Final Stage.`}>
       {q.finalStage ? <p>You're in this season's Final Stage.</p> : q.next ? <p>Next: <EventLink saveId={saveId} e={q.next} />.</p>
@@ -88,7 +125,8 @@ function Routes({ saveId, p }: { saveId: string; p: PathwaysView }) {
         <p>Fans: <b>{w.fans.toLocaleString("en-GB")}</b> of {w.fanFavouriteFans.toLocaleString("en-GB")} for a fan favourite place.</p>
       </>}
     </RouteCard>
-  </div>;
+    </div>
+  </>;
 }
 
 /** Road to the Tour: every way to a Tour Card and to the World Championship, and where you stand on each. */
