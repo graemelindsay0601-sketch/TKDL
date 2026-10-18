@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useLegacy, useSeasonReview, useEventLegacy, useNpcLegacy, useBeginSeason, useSaveLifecycle, usePresentation, errorMessage } from "../api";
 import { CareerSection, QueryState, ConfirmButton, BoundedList } from "../components";
 import { circuitLabel, formatPence, publicText, titleCase } from "../model";
@@ -177,7 +177,7 @@ export function SeasonReviewPanel({review:r,saveId}:{review:SeasonReview;saveId:
 }
 const TRANSITION_STEPS=["Season Review","Awards & Champions","Career Changes","New Season"];
 export function Transition({saveId,season}:{saveId:string;season:number}) {
-  const query=useSeasonReview(saveId,season),begin=useBeginSeason(saveId),[step,setStep]=useState(0),[message,setMessage]=useState<string|null>(null);
+  const query=useSeasonReview(saveId,season),[,navigate]=useLocation(),begin=useBeginSeason(saveId,()=>navigate(`/career/${saveId}`)),[step,setStep]=useState(0),[message,setMessage]=useState<string|null>(null);
   return <section className="career-transition" aria-label="Season-end transition">
     <img className="career-transition__plate" src={PLATES.palace.src} alt="" aria-hidden="true" loading="lazy"/>
     <header><p className="career-review__kicker">Season {season} · End of season</p><h2>Season Complete</h2>
@@ -191,12 +191,26 @@ export function Transition({saveId,season}:{saveId:string;season:number}) {
         {r.world.retirements.map(x=><div className="career-archive__row" key={x.id}><span className="career-archive__chip">Retired</span><strong>{x.name}</strong><em /></div>)}
         {r.world.cardChanges.map(c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip">Card</span><strong>Tour Card: {c.participantName??"Recorded participant"}</strong><em>{titleCase(c.source)}</em></div>)}
         <p className="career-fineprint">{r.world.newEntrants.length} recorded next-season entrants.</p></>}
-      {step===3&&<><h3>New Season</h3><p>Season {season+1} is ready. Beginning it acknowledges this review; it does not rerun development, rankings or payments.</p></>}
+      {step===3&&<><h3>New Season</h3><p>Season {season+1} is ready. Beginning it acknowledges this review; it does not rerun development, rankings or payments.</p>
+        <NewSeasonPlan saveId={saveId} season={season+1} cardStatus={r.cardStatus} /></>}
       <div className="career-transition__actions">{step>0&&<button className="career-btn career-btn-ghost" onClick={()=>setStep(step-1)}>Back</button>}
       {step<3?<button className="career-btn career-btn-primary" onClick={()=>setStep(step+1)}>Next section</button>:
         <button className="career-btn career-btn-primary" disabled={begin.isPending} onClick={()=>begin.mutate(season,{onError:e=>setMessage(errorMessage(e))})}>Begin Season {season+1}</button>}</div>
       {message&&<p role="alert">{message}</p>}
     </div>}</QueryState>
+  </section>;
+}
+export function NewSeasonPlan({saveId,season,cardStatus}:{saveId:string;season:number;cardStatus:string}) {
+  const base=`/career/${saveId}`;
+  return <section className="career-transition__next-season" aria-label={`Season ${season} priorities`}>
+    <p><strong>Your starting point:</strong> {publicText(cardStatus)}</p>
+    <p>After you begin, choose what matters first. There is no required order:</p>
+    <ul className="career-transition__plan">
+      <li><Link href={`${base}/calendar`}><strong>Choose your events</strong><span>Plan entries, dates and travel around your budget.</span></Link></li>
+      <li><Link href={`${base}/road-to-the-tour`}><strong>Review your route</strong><span>See the current paths to a Tour Card.</span></Link></li>
+      <li><Link href={`${base}/goals`}><strong>Set a personal focus</strong><span>Choose an optional ambition for the season.</span></Link></li>
+      <li><Link href={`${base}/finances`}><strong>Check your finances</strong><span>Review your balance and sponsor commitments.</span></Link></li>
+    </ul>
   </section>;
 }
 function Retirement({data:d,saveId}:{data:LegacyView;saveId:string}) {
