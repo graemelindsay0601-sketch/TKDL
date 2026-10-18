@@ -6,6 +6,7 @@ import { assessCapability, eventFormatSchema, type Capability } from "./formats.
 import { R, ruleSchema, type Rule } from "./eligibility.ts";
 import { LOCALITIES, LOCALITIES_V1, venueByKey, localVenue, zoneOf, COUNTRIES, COUNTY_CATCHMENTS } from "./geography.ts";
 import { venueContent } from "../content/world.ts";
+import { PATHWAYS_EVENT_DATABASE, CHALLENGER_QUALIFIER_KEY } from "../content/season-v17.ts";
 
 /** Everything a season instance needs to stay historically truthful. */
 export type InstanceSnapshot = Omit<EventDefinition, "schedule" | "eligibility"> & {
@@ -95,7 +96,10 @@ export function generateSeason(seed: string, eventDatabaseVersion: number, seaso
     if (only && !only(definition)) continue;
     // New v5 careers establish themselves after the initial Q-School window.
     // Do not move the clock, invent results, or rewrite any v1–v4 edition.
-    if(eventDatabaseVersion>=5 && season===1 && definition.circuit==="Q_SCHOOL")continue;
+    // v17: Q-School runs in season 1 again, so anyone who can pay can try it straight away.
+    if(eventDatabaseVersion>=5 && eventDatabaseVersion<PATHWAYS_EVENT_DATABASE && season===1 && definition.circuit==="Q_SCHOOL")continue;
+    // The season-1 Challenger Tour is open to everyone, so its qualifiers start in season 2.
+    if(season===1 && definition.key===CHALLENGER_QUALIFIER_KEY)continue;
     const hash = definitionHash(definition);
     const { schedule: _schedule, eligibility: authoredEligibility, ...rest } = definition;
     // v6: with no Q-School in season 1, the season-1 Challenger Tour is open to every player without

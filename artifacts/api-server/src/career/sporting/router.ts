@@ -15,7 +15,7 @@ const defined = (o: Record<string, unknown>) => Object.fromEntries(Object.entrie
  */
 export function createCareerSportingRouter(service: CareerSportingService, isAvailable: (isAdmin: boolean) => Promise<boolean>) {
   const router = Router();
-  router.use(["/saves/:id/initialize", "/saves/:id/sporting", "/saves/:id/rankings", "/saves/:id/rankings-movers", "/saves/:id/tour-card", "/saves/:id/q-school", "/saves/:id/qualification", "/saves/:id/milestones"], async (req, res, next) => {
+  router.use(["/saves/:id/initialize", "/saves/:id/sporting", "/saves/:id/rankings", "/saves/:id/rankings-movers", "/saves/:id/tour-card", "/saves/:id/pathways", "/saves/:id/q-school", "/saves/:id/qualification", "/saves/:id/milestones"], async (req, res, next) => {
     res.set("Cache-Control", "no-store");
     const session = req.session as PlayerSession | undefined;
     if (!Number.isSafeInteger(session?.playerId) || (session?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
@@ -65,6 +65,8 @@ export function createCareerSportingRouter(service: CareerSportingService, isAva
     res.json(await service.rankingExplain(res.locals.careerActor, id(req), String(req.params.list), str(req.query.participant)));
   });
   router.get("/saves/:id/rankings-movers", async (req, res) => { res.json(await service.movers(res.locals.careerActor, id(req))); });
+  router.get("/saves/:id/pathways", async (req, res) => { res.json(await service.pathways(res.locals.careerActor, id(req))); });
+  router.post("/saves/:id/tour-card/decision", authedWriteRateLimit, async (req, res) => { res.json(await service.decideTourCard(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/tour-card", async (req, res) => { res.json(await service.tourCard(res.locals.careerActor, id(req), str(req.query.participant))); });
   router.get("/saves/:id/q-school", async (req, res) => {
     res.json(await service.qSchool(res.locals.careerActor, id(req), defined({ season: num(req.query.season), participant: str(req.query.participant) }) as { season?: number; participant?: string }));

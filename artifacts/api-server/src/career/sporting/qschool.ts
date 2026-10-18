@@ -5,7 +5,13 @@ import type { SportingResult } from "../calendar/providers.ts";
 import type { QSchoolPathway } from "../calendar/eligibility.ts";
 import { stableUuid } from "../world/random.ts";
 import { Q_SCHOOL_RULES_V1, TOUR_CARD_RULES_V1, qSchoolPoints } from "./config.ts";
-import { awardCard } from "./cards.ts";
+import { awardCard, OFFER_RESERVE } from "./cards.ts";
+import { insertEntitlements } from "../calendar/engine.ts";
+import { CALENDAR_GENERATION_VERSION } from "../calendar/config.ts";
+
+/** Pro Circuit associate places per pathway: the next best on the Q-School Order of Merit without a card. */
+export const PRO_CIRCUIT_ASSOCIATES: Record<QSchoolPathway, number> = { UK_IRELAND: 16, EUROPE: 8 };
+export const PRO_CIRCUIT_ASSOCIATE_TARGET = "pro-circuit-associate";
 
 export const PATHWAYS: readonly QSchoolPathway[] = ["UK_IRELAND", "EUROPE"];
 
@@ -104,10 +110,22 @@ export async function allocateQSchool(tx: CareerExecutor, root: RootRow, rulesVe
     const result = await awardCard(tx, root, tourCardVersion, { operationKey: `q-school:${season}:${pathway}:${p.participantKey}`, participantKey: p.participantKey,
       participantKind: p.participantKind, npcId: p.npcId, source: a.route === "DIRECT" ? "Q_SCHOOL_DIRECT" : "Q_SCHOOL_ORDER_OF_MERIT",
       detail: { pathway, seriesDay: a.day, orderOfMeritPosition: a.oomPosition, points: p.points }, sourceEventId: a.eventId, season, week,
-      startSeason: season, endSeason: season + TOUR_CARD_RULES_V1.termSeasons - 1 });
+      startSeason: season, endSeason: season + TOUR_CARD_RULES_V1.termSeasons - 1,
+      reserve: entries.filter(e => !carded.has(e.participantKey) && !holders.has(e.participantKey) && e.participantKey !== "HUMAN" && e.points >= rules.minimumPointsForCard)
+        .slice(0, OFFER_RESERVE).map(e => ({ participantKey: e.participantKey, participantKind: e.participantKind, npcId: e.npcId, position: e.position })) });
     if (!result) throw new Error("Q-School allocation would create an overlapping Tour Card");
     await tx.execute(sql`INSERT INTO career_qschool_card_awards (career_save_id, season, pathway, participant_key, route, series_day, order_of_merit_position, points, card_id)
       VALUES (${root.id}, ${season}, ${pathway}, ${p.participantKey}, ${a.route}, ${a.day}, ${a.oomPosition}, ${p.points}, ${result.card.id})`);
   }
+  // Pathways: the best of the rest (no card) become Pro Circuit associates for the season, as Q-School's top non-qualifiers
+  // fill real Pro Tour fields, so a near miss still opens the professional floor events.
+  const associates = entries.filter(e => !carded.has(e.participantKey) && !holders.has(e.participantKey) && e.points > 0).slice(0, PRO_CIRCUIT_ASSOCIATES[pathway]).map(e => {
+    const idempotency = `provider:a5-pro-circuit-associate:${season}:${e.participantKey}`;
+    return { id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "entitlement", idempotency), idempotency_key: idempotency, recipient_key: e.participantKey,
+      recipient_kind: e.participantKind, npc_id: e.npcId, entitlement_type: "SERIES_ACCESS", source_event_id: null, source_position: null,
+      source_detail: { providerId: "A5_SPORTING", reason: "Q_SCHOOL_ORDER_OF_MERIT", pathway, position: e.position, points: e.points },
+      target_key: PRO_CIRCUIT_ASSOCIATE_TARGET, target_season: season, consumption: "SEASON_PASS" };
+  });
+  if (associates.length) await insertEntitlements(tx, root.id, season, associates, "PROVIDER");
   return { created: true, allocation: { season, pathway, direct: awards.filter(a => a.route === "DIRECT").length, orderOfMerit: awards.filter(a => a.route === "ORDER_OF_MERIT").length, unused } };
 }

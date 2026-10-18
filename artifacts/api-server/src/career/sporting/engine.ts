@@ -13,6 +13,8 @@ import { cardHoldersIn, issueFoundingCards, seasonReview, processRetirements, sy
 import { recordQSchoolResults, allocateQSchool, PATHWAYS } from "./qschool.ts";
 import { archiveRankingSeason, seasonsToArchive } from "./archive.ts";
 import { ensureRankingArchive } from "../../db/migrations/create_career_sporting.ts";
+import { acceptLapsedOffers } from "./offers.ts";
+import { awardBreakoutPlaces } from "./breakout.ts";
 
 /** State + founding cards, once per save (idempotent; inside the caller's locked transaction). */
 export async function ensureSporting(tx: CareerExecutor, root: RootRow): Promise<SportingState> {
@@ -156,6 +158,8 @@ export function createSportingHooks(): CalendarSportingHooks {
       await publishRankings(tx, root, Number(state.ranking_rules_version), season, week, state.force_publish);
       if (state.force_publish) await tx.execute(sql`UPDATE career_sporting_state SET force_publish = FALSE WHERE career_save_id = ${root.id}`);
       if (week === 52) await seasonReview(tx, root, Number(state.tour_card_rules_version), season);
+      await acceptLapsedOffers(tx, root.id, season, week);
+      await awardBreakoutPlaces(tx, root, season, week);
       await syncHumanCardCache(tx, root, season);
     },
     async onCalendarMoved(tx, root, season, week) {

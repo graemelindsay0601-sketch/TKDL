@@ -235,6 +235,12 @@ export const useRankingHistory = (saveId: string, list: string, participant = "H
   queryFn: () => get<RankingHistory>(`/saves/${saveId}/rankings/${encodeURIComponent(list)}/history${qs({ participant, limit })}`) });
 export const useRankingExplain = (saveId: string, list: string, participant = "HUMAN", enabled = true) => useQuery({ queryKey: careerKey(saveId, "ranking-explain", list, participant), enabled, staleTime: STALE,
   queryFn: () => get<RankingExplain>(`/saves/${saveId}/rankings/${encodeURIComponent(list)}/explain${qs({ participant })}`) });
+export type PathwaysView = Awaited<ReturnType<typeof import("../../../../api-server/src/career/sporting/pathways").pathwaysView>>;
+/** Road to the Tour: every route to a card and to the Worlds, and where you stand. */
+export const usePathways = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "pathways"), queryFn: () => get<PathwaysView>(`/saves/${saveId}/pathways`), staleTime: STALE });
+/** Accept or decline a Tour Card offer (declining keeps you amateur; the card passes down). */
+export const useDecideTourCard = (saveId: string) => useSaveMutation(saveId, (decision: "ACCEPT" | "DECLINE") =>
+  send<{ decision: string; passedTo: string | null }>("POST", `/saves/${saveId}/tour-card/decision`, { decision }));
 export const useTourCard = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "tour-card"), queryFn: () => get<TourCardView>(`/saves/${saveId}/tour-card`), staleTime: STALE });
 export const useQSchool = (saveId: string, season?: number) => useQuery({ queryKey: careerKey(saveId, "q-school", season ?? null), staleTime: STALE,
   queryFn: () => get<QSchoolView>(`/saves/${saveId}/q-school${qs({ season })}`) });

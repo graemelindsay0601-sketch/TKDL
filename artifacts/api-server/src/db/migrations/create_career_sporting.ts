@@ -261,7 +261,16 @@ export async function createCareerSporting(database: CareerDatabase): Promise<vo
     }
     await ensureDevelopmentCardSource(tx);
     await ensureRankingArchive(tx);
+    await ensureTourCardOffers(tx);
   });
+}
+
+/**
+ * A Tour Card won by the human is an offer: { status: PENDING | ACCEPTED | DECLINED, decideBy: { season, week }, reserve: [...] }.
+ * Declining passes the card to the next eligible player (see career/sporting/offers.ts). Null for every other card. Idempotent.
+ */
+export async function ensureTourCardOffers(tx: CareerExecutor): Promise<void> {
+  await tx.execute(sql`ALTER TABLE career_tour_cards ADD COLUMN IF NOT EXISTS human_offer JSONB`);
 }
 
 /**

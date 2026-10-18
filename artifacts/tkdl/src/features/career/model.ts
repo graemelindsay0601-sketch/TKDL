@@ -281,9 +281,13 @@ const MILESTONES: Record<string, string> = {
   FIRST_RANKING_ENTRY: "First ranking entry", CAREER_HIGH_RANK: "Career-high ranking", WORLD_NUMBER_ONE: "World No.1", RANKING_NUMBER_ONE: "No.1 on a ranking list",
   ENTERED_TOP_100: "Entered top 100", ENTERED_TOP_64: "Entered top 64", ENTERED_TOP_32: "Entered top 32", ENTERED_TOP_16: "Entered top 16", ENTERED_TOP_8: "Entered top 8",
   Q_SCHOOL_FINAL_STAGE_REACHED: "Q-School Final Stage reached", TOUR_CARD_WON: "Tour Card won", TOUR_CARD_RETAINED: "Tour Card retained", TOUR_CARD_LOST: "Tour Card lost",
-  TOUR_CARD_REGAINED: "Tour Card regained", TOUR_CARD_SURRENDERED: "Tour Card surrendered", FIRST_PROFESSIONAL_EVENT: "First professional event",
+  TOUR_CARD_REGAINED: "Tour Card regained", TOUR_CARD_SURRENDERED: "Tour Card surrendered", TOUR_CARD_DECLINED: "Tour Card turned down",
+  WORLDS_BREAKOUT_PLACE: "World Championship place", FIRST_PROFESSIONAL_EVENT: "First professional event",
   FIRST_MAJOR: "First major qualification", FIRST_WORLD_CHAMPIONSHIP: "First World Championship qualification",
 };
+/** How a World Championship breakout place was earned. */
+export const BREAKOUT_ROUTES: Record<string, string> = { CHALLENGER_RANKING: "Challenger ranking", DEVELOPMENT_RANKING: "Development Tour ranking",
+  VAULT_RANKING: "Vault ranking leader", WOMEN_RANKING: "Women's Order of Merit leader", AMATEUR_WORLD_MASTERS: "Amateur World Masters champion", FAN_FAVOURITE: "Fan favourite" };
 const LISTS: Record<string, string> = { "pro-world": "World Ranking", "pro-circuit": "Pro Circuit", "european-series": "European Series", challenger: "Challenger", development: "Development Tour", vault: "Vault", amateur: "Amateur", "open-world": "Open World Ranking", "soft-tip": "Soft-Tip World Ranking" };
 export const listLabel = (key: string | null | undefined) => key ? LISTS[key] ?? titleCase(key) : "";
 export function milestoneLabel(m: Pick<Milestone, "kind" | "list_key" | "detail">): { title: string; detail: string | null; tone: Tone } {
@@ -295,7 +299,8 @@ export function milestoneLabel(m: Pick<Milestone, "kind" | "list_key" | "detail"
   if (typeof d.eventName === "string") bits.push(d.eventName);
   if (typeof d.pathway === "string") bits.push(d.pathway === "UK_IRELAND" ? "UK & Ireland" : titleCase(d.pathway));
   if (typeof d.source === "string") bits.push(sourceLabel(d.source));
-  const tone: Tone = /LOST|SURRENDERED/.test(m.kind) ? "danger" : /WON|REGAINED|NUMBER_ONE|TOP_8|WORLD_CHAMPIONSHIP/.test(m.kind) ? "gold" : "info";
+  if (typeof d.route === "string") bits.push(BREAKOUT_ROUTES[d.route] ?? titleCase(d.route));
+  const tone: Tone = /LOST|SURRENDERED/.test(m.kind) ? "danger" : /WON|REGAINED|NUMBER_ONE|TOP_8|WORLD_CHAMPIONSHIP|WORLDS_BREAKOUT/.test(m.kind) ? "gold" : "info";
   return { title, detail: bits.length ? bits.join(" · ") : null, tone };
 }
 const SOURCES: Record<string, string> = { FOUNDING: "Founding member", Q_SCHOOL_DIRECT: "Q-School day winner", Q_SCHOOL_ORDER_OF_MERIT: "Q-School Order of Merit",
@@ -368,7 +373,7 @@ export const CAREER_NAV = [
     {key:"world-events",label:"Events & Circuits",path:"/world/events"},{key:"venues",label:"Venues",path:"/world/venues"},
     {key:"world-history",label:"History",path:"/world/history"}]},
   { layer: "MY_CAREER", label: "My Career", path:"/my-career", icon:"♙", items:[
-    {key:"overview",label:"Overview",path:"/my-career"},{key:"performance",label:"Performance",path:"/my-career/performance"},
+    {key:"overview",label:"Overview",path:"/my-career"},{key:"road",label:"Road to the Tour",path:"/road-to-the-tour"},{key:"performance",label:"Performance",path:"/my-career/performance"},
     {key:"achievements",label:"Achievements",path:"/my-career/achievements"},{key:"career-life",label:"Career Life",path:"/my-career/life"},
     {key:"history",label:"History",path:"/my-career/history"},{key:"sponsors",label:"Sponsor HQ",path:"/sponsors"}]},
 ];

@@ -2,7 +2,7 @@ import type { CareerDatabase } from "../../career/database.ts";
 import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions } from "./create_career_calendar.ts";
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
-import { ensureDevelopmentCardSource, ensureRankingArchive } from "./create_career_sporting.ts";
+import { ensureDevelopmentCardSource, ensureRankingArchive, ensureTourCardOffers } from "./create_career_sporting.ts";
 import { createCareerContent } from "./create_career_content.ts";
 import { ensureMoneyMatches } from "./create_career_money.ts";
 import { ensureClubTeams } from "./create_career_club_teams.ts";
@@ -38,6 +38,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureCareerGroupSchema(tx);
     await ensureDevelopmentCardSource(tx);
     await ensureRankingArchive(tx);
+    await ensureTourCardOffers(tx);
     await ensureLegacySeasonTotals(tx);
     await ensureWorldRecords(tx);
     await ensureClubSeasons(tx);

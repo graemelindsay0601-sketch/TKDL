@@ -31,6 +31,7 @@ import {NightsPage,MoneyMatchesPage,RoadTripsPage,ProAmPage} from "./pages/night
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
 import {PlayPage} from "./pages/play";
+import { RoadToTourPage } from "./pages/road";
 import {SponsorHQPage} from "./pages/sponsor-hq";
 import {NewsroomPage,StoryArticle} from "./pages/newsroom";
 import {WorldPlayerProfile,RivalryPage} from "./pages/player-profile";
@@ -112,6 +113,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/q-school"><QSchoolPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/world-championship"><PalacePage ctx={ctx} /></Route>
           <Route path="/career/:saveId/journey"><JourneyPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/road-to-the-tour"><RoadToTourPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/finances"><FinancesPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/history/npcs/:npcId">{(p:{npcId:string})=><NpcLegacyPage ctx={ctx} npcId={p.npcId}/>}</Route>
           <Route path="/career/:saveId/history/facts"><HistoryPage ctx={ctx} /></Route>

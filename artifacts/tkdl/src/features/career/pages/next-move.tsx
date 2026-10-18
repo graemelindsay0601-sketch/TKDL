@@ -8,6 +8,7 @@ import { FormBadge, QuickSim } from "../quick-sim";
 import type { CareerEvent, CareerSave, CalendarOverview } from "../types";
 import { dayLabel, formatPence, worthIt } from "../model";
 import { CareerWelcome } from "../welcome";
+import { TourCardOffer } from "./road";
 import { LastWeekMoney } from "../week-money";
 import { SavingsGoalLine } from "../savings-goal";
 import { PlanMyWeek } from "../plan-week";
@@ -63,6 +64,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
       <div className="next-move__kicker"><span className="live-indicator" aria-hidden /> Play</div>
       <h2 id="next-move-title" className="next-move__title">Your next move</h2>
       <CareerWelcome save={save} />
+      <TourCardOffer saveId={id} />
       {lead}
       {!match && !activeTournament && !pendingReview && <>
         <div className="next-move__subhead"><span>{booked ? "Add another event" : "Pick an event to play"}</span>

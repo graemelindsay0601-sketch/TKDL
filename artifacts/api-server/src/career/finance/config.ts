@@ -78,6 +78,8 @@ export const FEE_OVERRIDES: Record<string, FeeProfile> = {
   "world-championship-qualifier": fee("fee:wc-qualifier", 7500),
   "amateur-world-qualifier": fee("fee:amateur-wc-qualifier", 4000),
   "vault-qualifier": fee("fee:vault-qualifier", 4000),
+  /** v17: an open day for a season's Challenger Tour pass. */
+  "challenger-qualifier": fee("fee:challenger-qualifier", 5000),
   "q-school-final-uk_ireland-d1": fee("fee:q-school-final", 45000, "q_school", "PER_SERIES"),
   "q-school-final-uk_ireland-d2": fee("fee:q-school-final", 45000, "q_school", "PER_SERIES"),
   "q-school-final-uk_ireland-d3": fee("fee:q-school-final", 45000, "q_school", "PER_SERIES"),

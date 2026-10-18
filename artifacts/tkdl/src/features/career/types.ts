@@ -228,7 +228,9 @@ export type Standing = { list: string; published: { season: number; week: number
   standing: RankingRow | null; careerHighPosition: number | null; seasonHighPosition: number | null; cutLines: CutGap[] };
 export type TourCard = { id: string; source: string; sourceDetail: Record<string, unknown>; awarded: { season: number; week: number }; term: { startSeason: number; endSeason: number };
   status: string; endReason: string | null; ended: { season: number; week: number } | null };
-export type TourCardView = { participantKey: string; holdsCard: boolean; current: (TourCard & { reviewSeason: number; retention: { list: string; maxPosition: number }; termSeasons?: number; inFinalSeason?: boolean }) | null; history: TourCard[] };
+export type TourCardView = { participantKey: string; holdsCard: boolean; current: (TourCard & { reviewSeason: number; retention: { list: string; maxPosition: number }; termSeasons?: number; inFinalSeason?: boolean }) | null; history: TourCard[];
+  /** A card won but not yet accepted: decline it by decideBy to stay amateur (it passes down). */
+  offer?: { cardId: string; source: string; decideBy: { season: number; week: number }; startSeason: number; endSeason: number } | null };
 export type Milestone = { id?: string; kind: string; list_key: string | null; season: number; week: number; detail: Record<string, unknown> };
 export type SportingSummary = {
   season: number; week: number; professionalStatus: "AMATEUR" | "PROFESSIONAL"; tourCard: { holdsCard: boolean; current: TourCardView["current"] };
