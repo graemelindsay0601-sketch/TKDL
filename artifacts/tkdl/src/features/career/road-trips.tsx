@@ -90,6 +90,6 @@ export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolea
 export function RoadVisitorLine({ saveId }: { saveId: string }) {
   const v = useRoadTrips(saveId).data?.visitor;
   if (!v || v.result) return null;
-  return <Link href={`/career/${saveId}/club#road-trips`} className="money-match-line"><MapPin aria-hidden />
+  return <Link href={`/career/${saveId}/road-trips`} className="money-match-line"><MapPin aria-hidden />
     <span><b>{v.name}</b> has come from {v.town} for a money match · {formatPence(v.askingPence)}</span></Link>;
 }

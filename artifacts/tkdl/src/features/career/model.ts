@@ -353,12 +353,16 @@ export const TIER_STYLES: Record<PresentationTier, TierStyle> = {
 export const tierStyle = (t: PresentationTier | string | undefined) => TIER_STYLES[(t as PresentationTier)] ?? TIER_STYLES.STANDARD;
 export const TONES: Record<Tone, string> = { neutral: "#cbd5e1", info: "#80b6fa", success: "#8bddad", warning: "#f5be72", danger: "#fb8a92", gold: "#e9c77a", muted: "rgba(255,255,255,0.65)" };
 
-// ---------------------------------------------------------------- A8.3: five destinations, contextual sections
+// ---------------------------------------------------------------- A8.3: six destinations, contextual sections (Nights Out: everything you do with a night that isn't an event)
 export type NavItem = { key: string; label: string; path: string };
 export const CAREER_NAV = [
   { layer: "HOME", label: "Home", path:"", icon:"⌂", items: [{ key: "home", label: "Home", path: "" }] },
   { layer: "MAP", label: "Map", path:"/map", icon:"◎", items:[{key:"map",label:"Map",path:"/map"}] },
   { layer: "CALENDAR", label: "Calendar", path:"/calendar", icon:"▦", items:[{key:"calendar",label:"Calendar",path:"/calendar"}] },
+  { layer: "NIGHTS", label: "Nights Out", path:"/nights", icon:"☾", items:[
+    {key:"nights",label:"This week",path:"/nights"},{key:"club",label:"Club",path:"/club"},{key:"money-matches",label:"Money matches",path:"/money-matches"},
+    {key:"road-trips",label:"Road trips",path:"/road-trips"},{key:"pro-am",label:"Pro-Am",path:"/pro-am"},{key:"cam-league",label:"Webcam league",path:"/cam-league"},
+    {key:"streaming",label:"DartCast",path:"/streaming"}]},
   { layer: "DARTS_WORLD", label: "Darts World", path:"/world", icon:"◉", items:[
     {key:"rankings",label:"Rankings",path:"/rankings"},{key:"players",label:"Players",path:"/world/players"},
     {key:"world-events",label:"Events & Circuits",path:"/world/events"},{key:"venues",label:"Venues",path:"/world/venues"},

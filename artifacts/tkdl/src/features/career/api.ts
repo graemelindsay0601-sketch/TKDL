@@ -79,6 +79,9 @@ export const streamingApi = {
   darts: (saveId: string, streamId: string, darts: unknown[]) => send<{ session: StreamSession; events: ChatEvent[] }>("POST", `/saves/${saveId}/streaming/streams/${streamId}/darts`, { darts }),
   end: (saveId: string, streamId: string) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/end`),
 };
+export type WeekNights = { season: number; week: number; days: import("../../../../api-server/src/career/nights").WeekNight[] };
+/** What each night of this week holds: events, commitments and your own nights out. */
+export const useWeekNights = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "nights"), queryFn: () => get<WeekNights>(`/saves/${saveId}/nights`), staleTime: STALE });
 export type TeamNightsView = import("../../../../api-server/src/career/club/team-service").TeamNightsView;
 /** Club team nights: the league table, your next fixture (and whether you're free for it) and the last result. */
 export const useTeamNights = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club", "team-nights"),

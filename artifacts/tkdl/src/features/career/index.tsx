@@ -27,6 +27,7 @@ import {StreamingPage} from "./pages/streaming";
 import {StreamLivePage} from "./pages/stream-live";
 import {CamLeaguePage,CamMatchPage} from "./pages/cam-league";
 import {ProAmLegPage} from "./pro-am";
+import {NightsPage,MoneyMatchesPage,RoadTripsPage,ProAmPage} from "./pages/nights";
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
 import {PlayPage} from "./pages/play";
@@ -94,6 +95,10 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/world/search"><WorldHub ctx={ctx} section="search"/></Route>
           <Route path="/career/:saveId/world/trophies"><TrophyPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/world/records"><RecordsPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/nights"><NightsPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/money-matches"><MoneyMatchesPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/road-trips"><RoadTripsPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/pro-am"><ProAmPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/club"><ClubPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/streaming/:streamId">{(p:{streamId:string})=><StreamLivePage key={p.streamId} ctx={ctx} streamId={p.streamId}/>}</Route>
           <Route path="/career/:saveId/streaming"><StreamingPage ctx={ctx}/></Route>

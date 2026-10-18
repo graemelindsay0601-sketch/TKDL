@@ -1,14 +1,11 @@
 import { Link } from "wouter";
-import { Car, Coins, Crown, Flag, Shield, Star, Trophy, Users } from "lucide-react";
+import { Crown, Flag, Shield, Trophy, Users } from "lucide-react";
 import { useHomeClub, type ClubView } from "../api";
 import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../components";
 import { CareerPageHero } from "../page-hero";
 import type { ShellContext } from "../shell";
-import { MoneyMatches } from "../money-matches";
 import { TeamNights } from "../team-nights";
 import { HostTournament } from "../hosting";
-import { RoadTrips } from "../road-trips";
-import { ProAmNights } from "../pro-am";
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
 
@@ -35,15 +32,6 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
     </CareerSection></div>
     <div id="host-tournament"><CareerSection title="Run your own tournament" icon={<Trophy aria-hidden />} accent="#ffd24a">
       <HostTournament saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
-    </CareerSection></div>
-    <div id="money-matches"><CareerSection title="Money matches" icon={<Coins aria-hidden />} accent="#d9b96f">
-      <MoneyMatches saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
-    </CareerSection></div>
-    <div id="road-trips"><CareerSection title="Road trips" icon={<Car aria-hidden />} accent="#e08a5b">
-      <RoadTrips saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
-    </CareerSection></div>
-    <div id="pro-am"><CareerSection title="Pro-Am nights" icon={<Star aria-hidden />} accent="#c77dff">
-      <ProAmNights saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
     </CareerSection></div>
     <CareerSection title="Members" icon={<Users aria-hidden />} accent="#7ec8a4">
       <ol className="career-club__table">{d.members.filter(m => m.active).slice(0, 25).map(m => <li key={m.key} className={m.you ? "is-you" : undefined}>
