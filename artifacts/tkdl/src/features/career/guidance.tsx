@@ -1,16 +1,16 @@
 import {Link} from "wouter";
 import {useGuidance,useEditGuidance,errorMessage} from "./api";
 const HELP:Record<string,[string,string]>={
-  home:["Build a darts career your way","Local, open and Vault darts can be a lifelong career. Professional darts is an opportunity, not a compulsory objective. Next Up shows the current decision."],
-  event:["Plan before committing","Qualified is not the same as entered. Check the deadline, clashes, commitment, sponsor coverage and your cost. The server decides eligibility."],
-  tournament:["Your tournament, safely saved","Leaving the screen pauses play; it never withdraws you. Resume uses the verified dart log. Concession loses a match; tournament withdrawal ends participation."],
-  sponsors:["Your commercial choices","Coverage comes from your active sponsor contracts. Shirt marks are cosmetic; signing a deal never improves darts or bot performance."],
-  rankings:["Sporting routes, not levels","Ranking values and cut lines come from published standings. Only sporting rules decide access; no ability boosts or invented qualification probabilities."],
-  review:["Review your season","The recorded season closes before the next one begins. Read the actual results and decisions; a poor season is not a failed career."],
-  "q-school":["Q-School is a real sporting route","First Stage and Final Stage are separate. Winning a session is not automatically a Tour Card. Read the confirmed allocation and Order of Merit."],
-  "tour-card":["Tour Card status","An active card opens eligible professional schedules. Retention, loss and return follow the existing sporting rules; local and open darts remain valid careers."],
-  major:["Your first championship opportunity","Qualification, ranking and invitation routes are different. Check the actual cut line and deadline; qualification never enters an event for you."],
-  palace:["The Palace World Championship","The winter pinnacle uses its own longer set-play format and legitimate sporting routes. The Sovereign Trophy is earned only by the actual champion."],
+  home:["Build a darts career your way","Local, open and Vault darts can be a lifelong career. Turning professional is an option, not a must. Your next move shows what to decide now."],
+  event:["Plan before committing","Qualified isn't the same as entered. Check the entry deadline, clashes with your other plans, what a sponsor covers and what it costs you."],
+  tournament:["Your tournament, safely saved","Leaving the screen just pauses your match; you're never withdrawn for it, and every dart is saved. Conceding loses that match; withdrawing ends your tournament."],
+  sponsors:["Your commercial choices","What sponsors pay and cover comes from your active contracts. Logos on your shirt are just for show; no deal makes you play better."],
+  rankings:["Sporting routes, not levels","Ranking values and cut-off lines come from the published standings. Only the sporting rules decide who gets in; nothing boosts your ability."],
+  review:["Review your season","Each season is closed off before the next begins. Look back at your results and decisions; a poor season isn't a failed career."],
+  "q-school":["Q-School is a real sporting route","Q-School has a First Stage and a Final Stage. Winning a day doesn't automatically earn a Tour Card; the Order of Merit decides who gets one."],
+  "tour-card":["Tour Card status","A Tour Card opens the professional tour to you. Keeping it, losing it and winning it back follow the sporting rules; local and open darts stay open to you either way."],
+  major:["Your first championship opportunity","You can get in by ranking, qualifier or invitation. Check the cut-off and deadline; qualifying never enters you, so remember to enter."],
+  palace:["The Palace World Championship","The biggest event of the winter: longer matches played in sets, entered through the rankings or qualifiers. The Sovereign Trophy goes to the champion."],
 };
 export function ContextHelp({saveId,topic}:{saveId:string;topic:string}) {
   const q=useGuidance(saveId),edit=useEditGuidance(saveId),help=HELP[topic];

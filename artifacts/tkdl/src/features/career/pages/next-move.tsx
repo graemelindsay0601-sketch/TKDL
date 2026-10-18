@@ -6,7 +6,8 @@ import { CareerEventAtmosphere, atmosphereFromCalendarEvent } from "../atmospher
 import { useContinueCareer, ContinueOutcomeCard, ContinueProgress } from "../continue-career";
 import { FormBadge, QuickSim } from "../quick-sim";
 import type { CareerEvent, CareerSave, CalendarOverview } from "../types";
-import { dayLabel, formatPence } from "../model";
+import { dayLabel, formatPence, worthIt } from "../model";
+import { CareerWelcome } from "../welcome";
 import { LastWeekMoney } from "../week-money";
 import { SavingsGoalLine } from "../savings-goal";
 import { PlanMyWeek } from "../plan-week";
@@ -20,6 +21,9 @@ import { NightsLine } from "./nights";
  * A waiting match or tournament → go there. Otherwise: the booked event (play on to it),
  * up to four events you can enter right now (one tap), and a way to skip ahead.
  */
+const VALUE_RANK = { good: 0, fair: 1, neutral: 2, poor: 3 } as const;
+const valueRank = (e: CareerEvent) => VALUE_RANK[worthIt(e.finance)?.tone ?? "neutral"];
+
 export function NextMove({ save, overview, events, activeTournament, pendingReview, onEnter, entering, message }: {
   save: CareerSave; overview: CalendarOverview | null; events: CareerEvent[];
   activeTournament: { eventId: string; name: string } | undefined; pendingReview: boolean;
@@ -35,7 +39,10 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
     // Day by day; on a busy night the cheapest (usually nearest) first.
     .sort((a, b) => a.dates.startDay - b.dates.startDay || (a.finance?.estimatedPlayerCostPence ?? 0) - (b.finance?.estimatedPlayerCostPence ?? 0)
       || b.presentation.calendarPriority - a.presentation.calendarPriority);
-  const enterable = open.filter(e => e.dates.startWeek === planWeek && (plan.day === null || e.dates.startDayOfWeek === plan.day)).slice(0, 6);
+  // The best value first (a newcomer's first tap should not be a trip where even winning loses money), then the cheapest.
+  const enterable = open.filter(e => e.dates.startWeek === planWeek && (plan.day === null || e.dates.startDayOfWeek === plan.day))
+    .sort((a, b) => valueRank(a) - valueRank(b) || (a.finance?.estimatedPlayerCostPence ?? 0) - (b.finance?.estimatedPlayerCostPence ?? 0) || a.dates.startDay - b.dates.startDay)
+    .slice(0, 6);
   const id = save.id;
   const byId = (eventId: string) => events.find(e => e.id === eventId);
 
@@ -55,6 +62,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
     <section className="next-move panel" aria-labelledby="next-move-title">
       <div className="next-move__kicker"><span className="live-indicator" aria-hidden /> Play</div>
       <h2 id="next-move-title" className="next-move__title">Your next move</h2>
+      <CareerWelcome save={save} />
       {lead}
       {!match && !activeTournament && !pendingReview && <>
         <div className="next-move__subhead"><span>{booked ? "Add another event" : "Pick an event to play"}</span>

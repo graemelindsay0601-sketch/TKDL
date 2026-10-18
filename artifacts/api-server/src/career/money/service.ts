@@ -113,7 +113,10 @@ export function createCareerMoneyService(database: CareerDatabase) {
     const priced = members.map(m => { const odds = oddsFor(yourPlaying, m.average); return { ...m, odds, willing: willingFor(appetiteFor(root.world_seed, season, m), odds) }; });
     const talks = new Map((await tx.execute(sql`SELECT * FROM career_money_talks WHERE career_save_id=${root.id} AND season=${season} AND week=${week}`)).rows
       .map(r => [String(r.opponent_key), talkFrom(r)]));
-    const offer = weeklyChallenge(root.world_seed, season, week, priced, available);
+    // A newcomer is left to settle in: no challenges until their first event or the end of their first month.
+    const settled = season > 1 || week > MONEY.settleInWeeks
+      || (await tx.execute(sql`SELECT 1 FROM career_event_results WHERE career_save_id=${root.id} AND participant_key='HUMAN' LIMIT 1`)).rows.length > 0;
+    const offer = settled ? weeklyChallenge(root.world_seed, season, week, priced, available) : null;
     const challenger = offer && !thisWeek.some(r => r.opponentKey === offer.opponentKey) && !talks.has(offer.opponentKey) && thisWeek.filter(r => r.status === "PLAYED").length < MONEY.perWeek
       ? members.find(m => m.key === offer.opponentKey) : undefined;
     return {

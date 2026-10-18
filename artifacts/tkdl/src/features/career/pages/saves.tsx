@@ -161,7 +161,7 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
             <select value={home} onChange={e => setHome(e.target.value)} className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
               {HOME_REGIONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
             </select>
-            <span className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Used for travel costs to events.</span>
+            <span className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Sets your home club, your local events, your county and national team, and how far you travel to everything else.</span>
           </label>
           <label className="flex flex-col gap-1"><Label>Opposition difficulty</Label>
             <select value={difficulty} onChange={e => setDifficulty(e.target.value)} className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
@@ -177,7 +177,7 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
             <div className="career-new-career__confirm-shirt"><CareerShirt name={name||"Your player"} identity={shirt} scale="featured"/></div>
             <div><h3 style={OSWALD}>{name||"My Career"}</h3>{nickname&&<p className="career-new-career__nick">“{nickname}”</p>}
               <dl>{[["Born",dob],["Starts aged",startAge===null?"—":String(startAge)],["Home region",HOME_REGIONS.find(r=>r.key===home)?.label??home],["Opposition",difficulty[0]+difficulty.slice(1).toLowerCase()]].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Date of birth is permanent once created. Shirt colours can be edited during the supported opening-week window.</p></div>
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Your date of birth and home region can't be changed later. Your shirt can be changed in the first week of any season. You start as an amateur at your local club: pick an event, play it, and work up from there.</p></div>
           </div>}
           <div className="career-new-career__actions">{step>0&&<button type="button" className="career-btn" onClick={()=>setStep(step-1)} disabled={busy}>Back</button>}<button type="submit" className="career-btn career-btn-primary flex-1" disabled={busy || !dob || tooYoung}>{busy ? "Creating world…" : step===2?"Start Career":step===0?"Choose shirt":"Review Career"}</button>
             <button type="button" className="career-btn career-btn-ghost" onClick={() => setOpen(false)}>Cancel</button></div>

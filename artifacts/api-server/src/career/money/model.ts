@@ -27,6 +27,8 @@ export const MONEY = Object.freeze({
   challengeChance: 0.5,
   /** A member's form: their average over this many recent matches. */
   formMatches: 10,
+  /** No one challenges a brand-new player before their first event or the end of these opening weeks. */
+  settleInWeeks: 4,
   /** Within this many points of three-dart average it is an even game. */
   evenWithin: 3,
 });
