@@ -12,6 +12,7 @@ import { ensureRoadTrips } from "./create_career_road_trips.ts";
 import { ensureCamLeagues } from "./create_career_cam_leagues.ts";
 import { ensureProAm } from "./create_career_proam.ts";
 import { ensureManagers } from "./create_career_manager.ts";
+import { ensureFastMatchCompression } from "./create_career_world.ts";
 import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensureCalendarAddons, ensureSavingsGoals } from "./create_career_legacy.ts";
 
 /**
@@ -29,6 +30,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureEventPairs(tx);
     await ensureQuickSimSource(tx);
     await ensureCareerForeignKeyIndexes(tx);
+    await ensureFastMatchCompression(tx);
     await ensureCareerMatchSessionSchema(tx);
     await ensureCareerGroupSchema(tx);
     await ensureDevelopmentCardSource(tx);

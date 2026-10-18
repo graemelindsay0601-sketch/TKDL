@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { CareerDatabase } from "../../career/database.ts";
+import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 
 /** Additive A2/v1 schema. No existing save versions/seeds or Tour data are rewritten. */
 export async function createCareerWorld(database: CareerDatabase): Promise<void> {
@@ -108,3 +108,17 @@ export async function createCareerWorld(database: CareerDatabase): Promise<void>
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_simulated_matches_b_idx ON career_simulated_matches(career_save_id, player_b_id, completed_at)`);
   });
 }
+
+/**
+ * Simulated matches keep each match's request, input and result (a few KB of JSON, compressed on write). Every week of
+ * NPC matches writes thousands of them, and lz4 compresses them in about two thirds of the time of the default (pglz)
+ * at much the same size. Only new rows are affected; old rows read either way. Skipped where the server lacks lz4. Idempotent.
+ */
+export async function ensureFastMatchCompression(tx: CareerExecutor): Promise<void> {
+  const lz4 = (await tx.execute(sql`SELECT 1 FROM pg_settings WHERE name = 'default_toast_compression' AND 'lz4' = ANY(enumvals)`)).rows.length > 0;
+  if (!lz4) return;
+  const pending = (await tx.execute(sql`SELECT attname FROM pg_attribute WHERE attrelid = to_regclass('career_simulated_matches')
+    AND attname IN ('request', 'input_snapshot', 'result') AND attcompression <> 'l'`)).rows.map(r => String(r.attname));
+  for (const column of pending) await tx.execute(sql.raw(`ALTER TABLE career_simulated_matches ALTER COLUMN ${column} SET COMPRESSION lz4`));
+}
+
