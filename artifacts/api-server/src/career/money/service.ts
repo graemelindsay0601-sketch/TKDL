@@ -23,7 +23,8 @@ export type MoneyMatchResult = { id: string; season: number; week: number; oppon
   averages: [number, number] | null; highestCheckout: number | null; maximums: number | null };
 export type MoneyMatchesView = {
   season: number; week: number; club: string | null; availablePence: number; perWeek: number; playedThisWeek: number; bestOf: number;
-  yourAverage: number;
+  /** Your Career average (null until enough live darts are thrown). */
+  yourAverage: number | null;
   members: { key: string; name: string; professional: boolean; average: number | null; odds: Odds; thisWeek: MoneyMatchResult | null; talk: MoneyTalk | null }[];
   challenge: { opponentKey: string; name: string; stakePence: number; odds: Odds; average: number | null } | null;
   record: { played: number; won: number; netPence: number };
@@ -105,7 +106,7 @@ export function createCareerMoneyService(database: CareerDatabase) {
     const all = rows.map(r => resultFrom(r, names));
     const thisWeek = all.filter(r => r.season === season && r.week === week);
     const played = all.filter(r => r.status === "PLAYED");
-    const yourAverage = Math.round(form.skillAverage * 10) / 10;
+    const yourAverage = form.average;
     // The odds use the level you actually play money matches at (your difficulty's handicap included).
     const offset = CAREER_DIFFICULTY_CONFIG[root.difficulty as keyof typeof CAREER_DIFFICULTY_CONFIG]?.abilityOffset ?? 0;
     const yourPlaying = averageForLevel(attributeForAverage(form.skillAverage) - offset);

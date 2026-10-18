@@ -653,7 +653,7 @@ test("A7.1 factual read model: actual live evidence, isolation, age, lifecycle a
   assert.ok(first.performance.recordedMatches>0);
   const source = (await q(sql`SELECT result FROM career_match_sessions WHERE career_save_id=${ids[0]} AND status='COMPLETED'`)).map(r=>r.result.facts.human);
   const points = source.reduce((n,r)=>n+r.points,0), darts=source.reduce((n,r)=>n+r.darts,0);
-  assert.equal(first.performance.threeDartAverage,Math.round(points/darts*300)/100);
+  assert.equal(first.performance.threeDartAverage,darts>=300?Math.round(points/darts*300)/100:null);
   assert.equal((await call('GET',`/saves/${ids[0]}/facts`,undefined,2)).status,404);
   assert.equal((await call('GET',`/saves/${ids[0]}/facts`,undefined,0)).status,401);
   const results = await q(sql`SELECT r.event_id,r.metadata FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id WHERE r.career_save_id=${ids[0]} AND r.participant_key='HUMAN' AND i.status='COMPLETED'`);

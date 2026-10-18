@@ -1,12 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formFrom, attributeForAverage, DEFAULT_SKILL_AVERAGE } from "../../career/form/human.ts";
+import { formFrom, attributeForAverage, DEFAULT_SKILL_AVERAGE, AVERAGE_NEEDS_DARTS } from "../../career/form/human.ts";
 
 const none = { sessions: 0, darts: 0, average: null };
 
 test("no history: an estimated pub-level skill, steady form, settled confidence", () => {
   const f = formFrom({ liveAverages: [], results: [], practice: none });
   assert.deepEqual([f.skillAverage, f.estimated, f.formLabel, f.confidence], [DEFAULT_SKILL_AVERAGE, true, "Steady", 50]);
+  assert.equal(f.average, null, "a new Career shows no average");
+});
+
+test("the average only shows once enough live darts are thrown", () => {
+  const few = formFrom({ liveAverages: [60, 62], liveDarts: AVERAGE_NEEDS_DARTS - 1, results: [], practice: { sessions: 3, darts: 900, average: 70 } });
+  assert.equal(few.average, null);
+  assert.deepEqual(few.averageDarts, { thrown: AVERAGE_NEEDS_DARTS - 1, needed: AVERAGE_NEEDS_DARTS });
+  const enough = formFrom({ liveAverages: [60, 62], liveDarts: AVERAGE_NEEDS_DARTS, results: [], practice: none });
+  assert.equal(enough.average, enough.skillAverage);
+  assert.equal(formFrom({ liveAverages: [], liveDarts: 0, results: [], practice: { sessions: 5, darts: 900, average: 70 } }).average, null, "practice alone never makes a Career average");
 });
 
 test("skill follows recent live averages over the longer run", () => {
