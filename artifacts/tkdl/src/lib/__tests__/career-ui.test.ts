@@ -546,6 +546,13 @@ test("A7.6 season-end transition starts at review and cannot offer Begin before 
   assert.match(t,/Step 1 of 4/);assert.match(t,/Next section/);assert.doesNotMatch(t,/Begin Season 2/);
   assert.match(t,/Awards & Champions/);assert.match(t,/New Season/);
 });
+test("A7.6 next-season handoff gives clear first choices and their destinations",()=>{
+  const html=render(h(M.NewSeasonPlan,{saveId:SAVE_ID,season:2,cardStatus:"No Tour Card"}),[]);
+  const t=text(html);
+  assert.ok(html.includes('aria-label="Season 2 priorities"'));
+  for(const label of ["Your starting point: No Tour Card","Choose your events","Review your route","Set a personal focus","Check your finances"])assert.ok(t.includes(label),label);
+  for(const path of ["/calendar","/road-to-the-tour","/goals","/finances"])assert.ok(html.includes(path),path);
+});
 test("A7.6 retirement summary is archived, readable and has no progression control",()=>{
   const e={...legacyEvidence(),retired:true};e.players[0].retiredSeason=2;
   const d=projectLegacy(e,[projectReview(e,1,"CAPTURED")],[],null);
