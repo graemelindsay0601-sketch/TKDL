@@ -76,19 +76,19 @@ function waitForApi(child, port) {
     };
     const check = async () => {
       try {
-        const identityResponse = await fetch("http://127.0.0.1:${port}/api/local-preview/identity");
+        const identityResponse = await fetch(`http://127.0.0.1:${port}/api/local-preview/identity`);
         const identity = await identityResponse.json();
         if (!identityResponse.ok || identity.service !== "tkdl-api" || identity.environment !== "local-development" || identity.port !== port) {
           return fail(new Error(`Port ${port} is not serving the verified TKDL local-development API.`));
         }
-        const startupResponse = await fetch("http://127.0.0.1:${port}/api/startup");
+        const startupResponse = await fetch(`http://127.0.0.1:${port}/api/startup`);
         const startup = await startupResponse.json();
         if (startup.phase === "failed") {
           return fail(new Error(`TKDL API startup failed: ${startup.message}`));
         }
         if (!startup.ready) return;
 
-        const response = await fetch("http://127.0.0.1:${port}/api/leaderboard");
+        const response = await fetch(`http://127.0.0.1:${port}/api/leaderboard`);
         if (!response.ok) {
           return fail(new Error(`TKDL API is marked ready but /api/leaderboard returned HTTP ${response.status}.`));
         }
