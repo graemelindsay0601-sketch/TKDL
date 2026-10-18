@@ -331,9 +331,9 @@ export const careerRequests = {
   },
 };
 
-function useSaveMutation<TArgs, TOut>(saveId: string, fn: (args: TArgs) => Promise<TOut>) {
+function useSaveMutation<TArgs, TOut>(saveId: string, fn: (args: TArgs) => Promise<TOut>, onSuccess?: () => void) {
   const client = useQueryClient();
-  return useMutation({ mutationFn: fn, onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); await client.invalidateQueries({ queryKey: ["career", "saves"] }); } });
+  return useMutation({ mutationFn: fn, onSuccess, onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); await client.invalidateQueries({ queryKey: ["career", "saves"] }); } });
 }
 export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.enter(saveId, eventId));
 /** "Plan my week": enter each chosen event in turn (each is checked by the server as a normal entry), stopping at none. */
@@ -390,7 +390,7 @@ export const useEventLegacy=(id:string,key:string|null)=>useQuery({queryKey:care
   queryFn:()=>get<EventHistory>(`/saves/${id}/legacy/events/${encodeURIComponent(key!)}`)});
 export const useNpcLegacy=(id:string,npc:string)=>useQuery({queryKey:careerKey(id,"legacy-npc",npc),staleTime:STALE,
   queryFn:()=>get<NpcHistory>(`/saves/${id}/legacy/npcs/${npc}`)});
-export const useBeginSeason=(id:string)=>useSaveMutation(id,(season:number)=>send<{acknowledged:boolean}>("POST",`/saves/${id}/legacy/seasons/${season}/begin`,{confirmation:"BEGIN SEASON"}));
+export const useBeginSeason=(id:string,onSuccess?:()=>void)=>useSaveMutation(id,(season:number)=>send<{acknowledged:boolean}>("POST",`/saves/${id}/legacy/seasons/${season}/begin`,{confirmation:"BEGIN SEASON"}),onSuccess);
 
 // ---------------------------------------------------------------- A6.5 identity + live matches
 export const useCareerProfile = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "profile"), queryFn: () => get<CareerProfile>(`/saves/${saveId}/profile`), staleTime: STALE });
