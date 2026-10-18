@@ -1,5 +1,6 @@
 import { MIDWEEK_SUMMARIES } from "../content/season-v15.ts";
 import { viabilityOf } from "./viability.ts";
+import type { QualificationOutput } from "./catalogue.ts";
 import { sql } from "drizzle-orm";
 import { opportunity } from "../content/opportunities.ts";
 import { venueContent } from "../content/world.ts";
@@ -209,6 +210,9 @@ function qualificationKeys(rule: Rule): string[] {
 
 /** The content fields calendar lists display (the full venue/history content stays on the event, map and tournament views). */
 const LIST_CONTENT = ["circuitId", "circuitName", "summary", "eventClass", "fieldDescription", "trophyId"] as const;
+function qualificationStakesOf(outputs: readonly QualificationOutput[]) {
+  return outputs.map(({ maxPosition, entitlementType, targetKey, targetSeason }) => ({ maxPosition, entitlementType, targetKey, targetSeason }));
+}
 /**
  * The calendar list's event: everything the list screens read, without the per-event venue history and map
  * content, prize/travel profile keys and qualification outputs (about a third of each event; a full season's
@@ -216,12 +220,13 @@ const LIST_CONTENT = ["circuitId", "circuitName", "summary", "eventClass", "fiel
  */
 export function listEvent<E extends { content?: unknown; profiles?: unknown; qualificationOutputs?: unknown; opportunity?: unknown }>(event: E) {
   const { profiles: _profiles, qualificationOutputs: _outputs, ...rest } = event;
+  const qualificationStakes = Array.isArray(_outputs) ? qualificationStakesOf(_outputs as QualificationOutput[]) : [];
   const content = event.content && typeof event.content === "object"
     ? Object.fromEntries(LIST_CONTENT.flatMap(key => key in (event.content as object) ? [[key, (event.content as Record<string, unknown>)[key]]] : []))
     : event.content ?? null;
   const opportunity = event.opportunity && typeof event.opportunity === "object"
     ? (({ authority: _authority, ...o }) => o)(event.opportunity as Record<string, unknown>) : event.opportunity;
-  return { ...rest, content, opportunity };
+  return { ...rest, content, opportunity, qualificationStakes };
 }
 
 function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) {
@@ -240,7 +245,7 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
     field: { size: event.field_size, minimum: event.minimum_entrants, entrants: event.entrant_count, policy: s.fieldPolicy },
     viability: viabilityOf(event),
     series: event.series_key ? { key: event.series_key, day: event.series_day } : null, qSchool: s.qSchool,
-    profiles: s.profiles, seedingPolicy: s.seedingPolicy, qualificationOutputs: s.qualificationOutputs,
+    profiles: s.profiles, seedingPolicy: s.seedingPolicy, qualificationOutputs: s.qualificationOutputs, qualificationStakes: qualificationStakesOf(s.qualificationOutputs),
     status: event.status, statusReason: event.status_reason,
     champion: event.champion_participant_key ? { participantKey: event.champion_participant_key, npcId: event.champion_npc_id } : null,
     human: human ?? null,
