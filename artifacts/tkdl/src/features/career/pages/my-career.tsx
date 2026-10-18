@@ -12,6 +12,7 @@ import {PLATES} from "../atmosphere";
 import {CareerPageHero} from "../page-hero";
 import {CareerShirt} from "../identity";
 import {usePresentation} from "../api";
+import {CareerPerformanceTrend} from "./career-trends";
 
 /** Discovery links render as venue-plate tiles (decorative art; same destinations as before). */
 const TILE_PLATES=["professional-floor","studio","conference","small-arena","historic-theatre","exhibition","hotel-ballroom"] as const;
@@ -26,7 +27,7 @@ export function MyCareerPage({ctx,section="overview"}:{ctx:ShellContext;section?
     {section==="overview"&&<><PlayerLegacyProfile ctx={ctx}/><GoalsSummary saveId={id}/><RecognitionSummary saveId={id}/>
 </>}
     {section==="performance"&&<><CareerPageHero kicker="My Career" title="Performance" accent="#69b8ec" stage={{venue:{venueType:"professional-floor"},eventClass:"PROFESSIONAL_TOUR"}}
-      subtitle={<p>Every completed match, event and ranking in your Career, from the scorer and the results record.</p>} portrait={shirt}/>{links([["Results & statistics","/history/facts"],["Ranking history & races","/journey"],["Played opponents & H2H","/relationships"]])}<HistoryPage ctx={ctx}/></>}
+      subtitle={<p>Every completed match, event and ranking in your Career, from the scorer and the results record.</p>} portrait={shirt}/><CareerPerformanceTrend saveId={id}/>{links([["Results & statistics","/history/facts"],["Ranking history & races","/journey"],["Played opponents & H2H","/relationships"]])}<HistoryPage ctx={ctx}/></>}
     {section==="achievements"&&<><TrophyCabinet ctx={ctx}/>{links([["Finals and milestones","/history/facts"],["Season awards and records","/history"]])}</>}
     {section==="life"&&<><CareerPageHero kicker="My Career" title="Career Life" accent="#c99bff" stage={{venue:{venueType:"studio"},eventClass:"PROFESSIONAL_TOUR"}}
       subtitle={<p>Your rivals, partners, public profile, stories and goals: the life around the oche.</p>} portrait={shirt}/>{links([["Nights out: club, streaming & leagues","/nights"],["Sporting rivals & relationships","/relationships"],["Finances & sponsor contracts","/finances"],["Public profile & commercial decisions","/life"],["Reputation & recognition","/recognition"],["Career stories","/stories"],["Current focus & goals","/goals"],["Profile & shirt customisation","/presentation"]])}<LifeSummary saveId={id}/></>}
