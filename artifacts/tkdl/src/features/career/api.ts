@@ -135,6 +135,12 @@ export const useSetSavingsGoal = (saveId: string) => useSaveMutation(saveId, (in
 export type MoneyMatchesView = import("../../../../api-server/src/career/money/service").MoneyMatchesView;
 export type MoneyMatchResult = import("../../../../api-server/src/career/money/service").MoneyMatchResult;
 /** Money matches at your club: this week's members, any challenge, your record. */
+export type RoadTripsView = import("../../../../api-server/src/career/roadtrip/service").RoadTripsView;
+/** Road trips: towns on your road, this week's trip, your name on the road, and a visitor at your club. */
+export const useRoadTrips = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "road-trips"), queryFn: () => get<RoadTripsView>(`/saves/${saveId}/road-trips`), staleTime: STALE });
+export const useGoOnRoadTrip = (saveId: string) => useSaveMutation(saveId, (input: { localityKey: string; dayOfWeek: number }) => send<RoadTripsView>("POST", `/saves/${saveId}/road-trips`, input));
+export const useOfferRoadMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) => send<RoadTripsView>("POST", `/saves/${saveId}/road-trips/offer`, input));
+export const usePlayRoadMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) => send<RoadTripsView>("POST", `/saves/${saveId}/road-trips/play`, input));
 export const useMoneyMatches = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "money-matches"),
   queryFn: () => get<MoneyMatchesView>(`/saves/${saveId}/money-matches`), enabled, staleTime: STALE });
 export const useOfferMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>

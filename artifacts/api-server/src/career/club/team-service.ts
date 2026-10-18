@@ -10,7 +10,7 @@ import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
 import { attributeForAverage, humanSimulationPlayer, loadHumanForm } from "../form/human.ts";
 import type { Npc } from "../world/types.ts";
 import { clubName } from "./model.ts";
-import { streamNights } from "../streaming/state.ts";
+import { freeOn } from "../nights.ts";
 import { TEAMS, fixturesFor, leagueTable, teamNightDay, type FixtureResult } from "./teams.ts";
 
 type Root = { id: string; world_seed: string; world_generation_version: number | string; difficulty: string; current_season: number | string; current_week: number | string;
@@ -30,11 +30,7 @@ async function league(tx: CareerExecutor, root: Root) {
 }
 
 /** Is the human free on this day (no event booking, no off-board commitment)? */
-async function humanFree(tx: CareerExecutor, saveId: string, season: number, day: number) {
-  const booked = (await tx.execute(sql`SELECT 1 FROM career_participant_bookings WHERE career_save_id=${saveId} AND season=${season} AND day=${day} AND participant_key=${HUMAN}
-    UNION ALL SELECT 1 FROM career_life_commitments WHERE career_save_id=${saveId} AND season=${season} AND day=${day} AND status='ACCEPTED' LIMIT 1`)).rows;
-  return booked.length === 0 && !(await streamNights(tx, saveId, season)).has(day);
-}
+const humanFree = (tx: CareerExecutor, saveId: string, season: number, day: number) => freeOn(tx, saveId, season, day);
 
 /**
  * Play this week's team nights (idempotent: a fixture is played once). Each side is its six strongest members free that

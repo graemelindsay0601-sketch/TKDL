@@ -10,6 +10,7 @@ import { absoluteDay } from "../calendar/generation.ts";
 import { post } from "../finance/ledger.ts";
 import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
+import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
 import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
@@ -89,12 +90,7 @@ const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), bran
 
 /** Nights this week you're free to stream (no event, commitment or other stream booked). */
 async function freeNights(tx: CareerExecutor, root: Root) {
-  const season = Number(root.current_season), week = Number(root.current_week);
-  const taken = new Set((await tx.execute(sql`SELECT day FROM career_participant_bookings WHERE career_save_id=${root.id} AND season=${season} AND participant_key=${HUMAN}
-      AND day BETWEEN ${absoluteDay(week, 1)} AND ${absoluteDay(week, 7)}
-    UNION SELECT day FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season} AND status='ACCEPTED' AND day BETWEEN ${absoluteDay(week, 1)} AND ${absoluteDay(week, 7)}
-    UNION SELECT day FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND format <> 'MATCH'`)).rows.map(r => Number(r.day)));
-  return [1, 2, 3, 4, 5, 6, 7].filter(d => !taken.has(absoluteDay(week, d)));
+  return freeNightsInWeek(tx, root.id, Number(root.current_season), Number(root.current_week));
 }
 
 const titleOf = (format: string, challenger: string) => format === "CHALLENGER" ? `Stream vs ${challenger}` : format === "COLLAB" ? `Collab with ${challenger}` : formatByKey(format).name;

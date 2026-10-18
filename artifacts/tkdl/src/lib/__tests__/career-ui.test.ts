@@ -40,7 +40,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")),...(await load("/src/features/career/road-trips.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -912,4 +912,20 @@ test("DartCast channel money: subs that renew, a brand's offer to answer, and a 
     "Answer by week 13", "Take the deal", "No thanks", "televised invitationals send you invitations",
     "Sub goal", "4 of 10 subs", "Your promise: Throw in fancy dress", "You won the Invitational!", "Prize: £4,000", "Raised for charity on stream: £123.45",
     "Charity stream", "Done this month"]) assert.ok(t.includes(fact), fact);
+});
+
+test("Road trips: your name on the road, tonight's town with a locked champion, haggling, and a visitor at your club", () => {
+  const o = (x: object) => ({ key: "k", name: "Big Tam", role: "LOCAL", average: 52.3, odds: "EVEN", askingPence: 4000, greeting: "Fancy a game, stranger?", locked: null, talk: null, result: null, ...x });
+  const view = { season: 2, week: 9, home: "Kilbirnie", availablePence: 50000, freeNights: [3, 5],
+    reputation: { towns: 1, title: "Known on the circuit", note: "Word's getting round.", next: { title: "Feared hustler", towns: 3 } },
+    trip: { id: "t1", town: "Glasgow", region: "Greater Glasgow/Clyde", dayOfWeek: 3, costPence: 700, played: 1, maxMatches: 3, opponents: [
+      o({ key: "c", name: "Jimmy Craig", role: "CHAMPION", average: 61.2, odds: "UNDERDOG", locked: "Beat one of Glasgow's locals first" }),
+      o({ key: "l1", result: { won: false, legs: [2, 4], stakePence: 4000, averages: [48.1, 53.9] } }),
+      o({ key: "l2", name: "Wee Shug", talk: { status: "OPEN", asksLeft: 2, theirOfferPence: 3000, agreedPence: null, log: [{ who: "YOU", text: "£60, first to four?", pence: 6000 }, { who: "THEM", text: "Too rich for me. £30 and you're on.", pence: 3000 }] } })] },
+    canTravel: false, why: "One road trip a week", towns: [], visitor: { ...o({ key: "v", name: "Rab Nesbitt", role: "VISITOR" }), town: "Inverness" },
+    record: { trips: 3, played: 7, won: 4, netPence: 6500, conquered: ["Stirling"] }, recent: [] };
+  const t = text(render(h(M.RoadTrips, { saveId: SAVE_ID, retired: false }), [[key("road-trips"), view]]));
+  for (const fact of ["Known on the circuit", "1 town taken", "2 more to be a feared hustler", "Glasgow · Wed night", "Travel paid: £7", "1 of 3 games played",
+    "Jimmy Craig", "Town champion", "Beat one of Glasgow's locals first", "Lost 2-4", "−£40", "Too rich for me. £30 and you're on.", "Take £30 and play", "2 more asks",
+    "Rab Nesbitt from Inverness is at your club", "Play for their £40", "won 4 of 7", "+£65", "towns taken: Stirling"]) assert.ok(t.includes(fact), fact);
 });

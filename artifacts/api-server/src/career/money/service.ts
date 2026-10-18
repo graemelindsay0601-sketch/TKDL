@@ -15,7 +15,7 @@ import type { RootRow } from "../calendar/engine.ts";
 import { MONEY, appetiteFor, averageForLevel, lineFor, oddsFor, replyTo, weeklyChallenge, willingFor, type Odds } from "./model.ts";
 
 type Row = Record<string, unknown>;
-type Member = { key: string; name: string; professional: boolean; average: number | null };
+export type Member = { key: string; name: string; professional: boolean; average: number | null };
 type Root = RootRow & { player_id?: number };
 
 export type MoneyMatchResult = { id: string; season: number; week: number; opponentKey: string; opponentName: string; stakePence: number;
@@ -47,12 +47,21 @@ const resultFrom = (r: Row, names: Map<string, string>): MoneyMatchResult => {
     averages: d.averages ?? null, highestCheckout: d.highestCheckout ?? null, maximums: d.maximums ?? null };
 };
 
+/** Your home area's key (from your profile, else the save's settings). */
+export async function homeLocalityOf(tx: CareerExecutor, root: Pick<Root, "id" | "settings_snapshot">) {
+  return String((await tx.execute(sql`SELECT home_locality FROM career_profiles WHERE career_save_id=${root.id}`)).rows[0]?.home_locality
+    ?? (root.settings_snapshot as { homeLocality?: string } | undefined)?.homeLocality ?? "");
+}
+
 /** The members of your home club you can play (active players from your home area), with their typical average. */
 async function clubMembers(tx: CareerExecutor, root: Root): Promise<{ locality: typeof LOCALITIES[number] | null; members: Member[] }> {
-  const home = String((await tx.execute(sql`SELECT home_locality FROM career_profiles WHERE career_save_id=${root.id}`)).rows[0]?.home_locality
-    ?? (root.settings_snapshot as { homeLocality?: string } | undefined)?.homeLocality ?? "");
-  const locality = LOCALITIES.find(l => l.key === home);
+  const home = await homeLocalityOf(tx, root), locality = LOCALITIES.find(l => l.key === home);
   if (!locality) return { locality: null, members: [] as Member[] };
+  return { locality, members: await playersOf(tx, root, locality) };
+}
+
+/** A town's active players (from that area), strongest first by their recent recorded average. */
+export async function playersOf(tx: CareerExecutor, root: Pick<Root, "id">, locality: typeof LOCALITIES[number]): Promise<Member[]> {
   const players = (await tx.execute(sql`SELECT id,first_name,surname,home_region,professional_status FROM career_world_players
     WHERE career_save_id=${root.id} AND nationality=${locality.country} AND status='ACTIVE'`)).rows
     .filter(p => localityByRegion(String(p.home_region))?.key === locality.key);
@@ -66,11 +75,11 @@ async function clubMembers(tx: CareerExecutor, root: Root): Promise<{ locality: 
         WHERE career_save_id=${root.id} AND b_npc_id IN (${sql.join(keys.map(k => sql`${k}::uuid`), sql`,`)}) AND status='COMPLETED' AND summary ? 'averages')
     SELECT k, AVG(avg)::float AS avg FROM (SELECT k, avg, row_number() OVER (PARTITION BY k ORDER BY completed_at DESC) AS rn FROM m WHERE avg > 0) x
     WHERE rn <= ${MONEY.formMatches} GROUP BY k`)).rows.map(r => [String(r.k), Math.round(Number(r.avg) * 10) / 10] as const) : []);
-  return { locality, members: players.map(p => ({ key: String(p.id), name: nameOf(p), professional: p.professional_status === "PROFESSIONAL", average: averages.get(String(p.id)) ?? null }))
-    .sort((a, b) => (b.average ?? 0) - (a.average ?? 0) || a.name.localeCompare(b.name)) };
+  return players.map(p => ({ key: String(p.id), name: nameOf(p), professional: p.professional_status === "PROFESSIONAL", average: averages.get(String(p.id)) ?? null }))
+    .sort((a, b) => (b.average ?? 0) - (a.average ?? 0) || a.name.localeCompare(b.name));
 }
 
-async function availableOf(tx: CareerExecutor, saveId: string) {
+export async function availableOf(tx: CareerExecutor, saveId: string) {
   const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${saveId}`)).rows[0]?.balance_pence ?? 0);
   return Math.max(0, balance - await reservedPence(tx, saveId));
 }
