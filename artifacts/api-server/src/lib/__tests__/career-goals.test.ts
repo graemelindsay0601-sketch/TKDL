@@ -108,7 +108,8 @@ test("recommendations are deterministic, preserve blocked-state denials and leav
   const before=structuredClone(events);
   assert.deepEqual(recommend("MAJOR_QUALIFICATION",events).map(e=>e.id),["route"]);
   assert.deepEqual(recommend("AMATEUR_CIRCUIT",events).map(e=>e.id),["county","local-qualifier","route"]);
-  assert.deepEqual(recommend("OPEN_SCHEDULE",events).map(e=>e.id),["county","q","route","local-qualifier"]);
+  // Events you can enter come first, so an open schedule never leads with one you are barred from.
+  assert.deepEqual(recommend("OPEN_SCHEDULE",events).map(e=>e.id),["county","local-qualifier","route","q"]);
   assert.deepEqual(recommend("PROFESSIONAL_PATHWAY",events),recommend("PROFESSIONAL_PATHWAY",events));
   assert.deepEqual(recommend("PROFESSIONAL_PATHWAY",events).find(e=>e.id==="q")?.denials,["BELOW_MINIMUM_AGE"]);
   assert.deepEqual(events,before);
@@ -135,7 +136,7 @@ test("active ambitions rank only authored or evidence-backed event routes and ex
 });
 test("prize focus ranks factual prizes/costs, not probabilities, profit or monetary rewards",()=>{
   const list=recommend("PRIZE_MONEY",[event("cheap",{firstPrizePence:1000}),event("high",{firstPrizePence:100000,estimatedCostPence:50000})]);
-  assert.equal(list[0].id,"high");assert.match(list[0].reason,/not guaranteed/);
+  assert.equal(list[0].id,"high");assert.match(list[0].reason,/isn't guaranteed/);
   assert.equal(list[0].estimatedCostPence,50000);
 });
 test("missing dart evidence stays unavailable, and verified aggregates do not invent exact crossing dates",()=>{

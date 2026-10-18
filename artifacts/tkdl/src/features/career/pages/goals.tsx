@@ -42,10 +42,10 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
             {main ? <>
               <p className="career-goals__ambition-title">{main.label} <span>{main.status==="COMPLETED"?"Achieved":main.status.toLowerCase()}</span></p>
               {main.evidence && <p className="career-goals__evidence">Confirmed: {main.evidence.label} · Season {main.evidence.season}{main.evidence.date?` · ${main.evidence.date}`:""}</p>}
-              {main.status==="ACTIVE" && !main.evidence && <p className="career-goals__evidence">No confirmed milestone yet. Your next practical step is shown below.</p>}
+              {main.status==="ACTIVE" && !main.evidence && <p className="career-goals__evidence">Not done yet. Your next step is below.</p>}
               {main.status==="COMPLETED" && main.completion && <p className="career-goals__evidence">Completed in Season {main.completion.season}{main.completion.date?` · ${main.completion.date}`:""} · {main.completion.source}</p>}
               <button type="button" className="career-btn career-btn-ghost" disabled={busy} onClick={()=>setMain.mutate(null,{onSuccess:()=>setMessage("Main ambition cleared. Your other goals remain unchanged."),onError:e=>setMessage(errorMessage(e))})}>Clear main ambition</button>
-            </> : <p className="text-sm text-white/70">No main ambition selected. Choose one from your recorded goals below.</p>}
+            </> : <p className="text-sm text-white/70">No main goal yet. Pick one from the list below.</p>}
           </section>
           </div>
           <section className="career-goals__routes-panel">
@@ -70,7 +70,7 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
           </section>
           <div className="career-goals__history">
           <div className="career-goals__route-heading"><div><span>RECORDED AMBITIONS</span><h3>Goal history <small>{active.length} active</small></h3></div></div>
-          <p className="career-goals__section-copy">Other recorded goals remain available without becoming your main priority. Milestones use confirmed Career evidence.</p>
+          <p className="career-goals__section-copy">Your other goals still count; they just aren't your main one. Each ticks off when you actually achieve it.</p>
           {!data.retired && available.length>0 && <form className="career-goals__add-form" onSubmit={e=>{
             e.preventDefault();if(!choice)return;setMessage(null);
             if (request.current?.definition!==choice) request.current={definition:choice,key:crypto.randomUUID()};
@@ -89,7 +89,7 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
             <h4>{status==="ACTIVE"?"Active":status==="COMPLETED"?"Completed accomplishments":"Abandoned — no penalty"}</h4>
             {!data.goals.some(g=>g.status===status) && <p className="career-goals__empty">{status==="ACTIVE"?"No active goals. You can continue Career normally.":"None recorded."}</p>}
             {data.goals.filter(g=>g.status===status).map(g=><GoalCard key={g.id} goal={g} saveId={ctx.save.id} isMain={g.id===data.mainGoalId}
-              onSetMain={!data.retired && g.id!==data.mainGoalId && status!=="ABANDONED" ? ()=>setMain.mutate(g.id,{onSuccess:()=>setMessage("Main ambition updated. Your other goals remain recorded."),onError:e=>setMessage(errorMessage(e))}) : undefined}
+              onSetMain={!data.retired && g.id!==data.mainGoalId && status!=="ABANDONED" ? ()=>setMain.mutate(g.id,{onSuccess:()=>setMessage("Main goal updated. Your other goals are still there."),onError:e=>setMessage(errorMessage(e))}) : undefined}
               onAbandon={!data.retired && status==="ACTIVE" ? ()=>{
                 setMessage(null);abandon.mutate(g.id,{onSuccess:()=>setMessage("Goal updated. No penalty or reward."),onError:e=>setMessage(errorMessage(e))});
               }:undefined} busy={busy}/>)}
@@ -119,7 +119,7 @@ export function GoalsSummary({saveId}: {saveId:string}) {
   return <CareerSection title="Your focus & goals" action={<Link href={`/career/${saveId}/goals`} className="career-btn career-btn-ghost">Manage</Link>}>
     <QueryState query={query} label="Reading focus">{data=><div className="p-4 space-y-2 text-sm">
       <p className="font-bold">{data.focusOptions.find(f=>f.value===data.focus)?.label}</p>
-      <p className="text-xs text-white/60">Near-term opportunity preference · optional, no rewards</p>
+      <p className="text-xs text-white/60">Which kind of events to suggest to you. Optional: it changes suggestions, not rewards.</p>
       {data.mainGoalId && data.goals.find(g=>g.id===data.mainGoalId) ?
         <p><strong>Main ambition:</strong> {data.goals.find(g=>g.id===data.mainGoalId)!.label}</p> :
         <p>No main ambition selected.</p>}

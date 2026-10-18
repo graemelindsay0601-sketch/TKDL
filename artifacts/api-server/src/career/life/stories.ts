@@ -26,12 +26,12 @@ export function storyEngine(s:LifeSources):Story[] {
       const previous=o?.history.filter(m=>when({season:m.season,day:m.day,week:null})<when(f));
       if(previous?.length) {
         const wins=previous.filter(m=>m.won).length;
-        callbacks.push({text:`Before this occasion: ${previous.length} played meetings with ${o!.player.name}, ${wins} wins and ${previous.length-wins} defeats.`,sourceIds:previous.map(m=>m.id)});
+        callbacks.push({text:`You'd played ${o!.player.name} ${previous.length} time${previous.length===1?"":"s"} before: ${wins} won, ${previous.length-wins} lost.`,sourceIds:previous.map(m=>m.id)});
         const final=[...previous].reverse().find(m=>m.final);
-        if(final)callbacks.push({text:`An earlier final together was at ${final.name}.`,sourceIds:[final.id]});
+        if(final)callbacks.push({text:`You met in the final of ${final.name}.`,sourceIds:[final.id]});
         else {
           const cohort=o!.cohorts.find(c=>c.season<=f.season);
-          if(cohort)callbacks.push({text:`Shared ${cohort.kind} history: ${cohort.name}, season ${cohort.season}.`,sourceIds:[`cohort:${cohort.kind}:${cohort.season}:${cohort.session}:${opponentId}`]});
+          if(cohort)callbacks.push({text:`You came through together: ${cohort.name}, season ${cohort.season}.`,sourceIds:[`cohort:${cohort.kind}:${cohort.season}:${cohort.session}:${opponentId}`]});
         }
       }
     }
@@ -40,17 +40,17 @@ export function storyEngine(s:LifeSources):Story[] {
       event ? (resultsByDefinition.get(event.key)??[]).filter(r=>when(r)<when(f)) : [];
     if(earlier.length) {
       const prior=earlier.at(-1)!;
-      callbacks.push({text:`Previously at ${prior.name}: ${prior.champion ? "champion" : prior.stageReached.toLowerCase().replaceAll("_"," ")} in season ${prior.season}.`,sourceIds:[prior.id]});
+      callbacks.push({text:`Last time at ${prior.name} (season ${prior.season}): ${prior.champion ? "you won it" : prior.stageReached.toLowerCase().replaceAll("_"," ")}.`,sourceIds:[prior.id]});
     } else if(event?.venueKey) {
       const place=(resultsByVenue.get(event.venueKey)??[]).filter(r=>when(r)<when(f)).at(-1);
-      if(place)callbacks.push({text:`Previously at this same venue: ${place.name}, ${place.champion?"champion":place.stageReached.toLowerCase().replaceAll("_"," ")} in season ${place.season}.`,
+      if(place)callbacks.push({text:`Last time at this venue: ${place.name}, season ${place.season} (${place.champion?"you won it":place.stageReached.toLowerCase().replaceAll("_"," ")}).`,
         sourceIds:[place.id,`event:${event.id}`]});
     }
     const statement=s.decisions.filter(d=>d.kind==="DIALOGUE" && d.data.thread===thread &&
       when({season:d.season,day:null,week:d.week})<when(f)).at(-1);
-    if(statement)callbacks.unshift({text:`You previously said: “${response(statement.choice as Persona,String(statement.data.statementFamily??"breakthrough"),statement.id)}”`,
+    if(statement)callbacks.unshift({text:`You said at the time: “${response(statement.choice as Persona,String(statement.data.statementFamily??"breakthrough"),statement.id)}”`,
       sourceIds:[`decision:${statement.id}`]});
-    out.push({id,kind,scope,significance,title:`${copy.heads[variant(id,copy.heads.length)]}: ${f.label}`,
+    out.push({id,kind,scope,significance,title:f.label.includes(":")?f.label:`${copy.heads[variant(id,copy.heads.length)]}: ${f.label}`,
       body:`${copy.intro[variant(id+"intro",copy.intro.length)]} ${detail}`,season:f.season,week:f.week,day:f.day,date:f.date,
       ...(f.eventId ? {eventId:f.eventId} : {}),...(opponentId ? {opponentId} : {}),thread,sourceIds:[f.id,...extraIds],callbacks:callbacks.slice(0,2)});
   };
@@ -144,12 +144,12 @@ export function storyEngine(s:LifeSources):Story[] {
       if(!(firstFinal||landmark||m.major||revenge||streak))return;
       const fact:Fact={id:m.id,source:"A7.2 played meeting",label:`${o.player.name} at ${m.name}`,season:m.season,day:m.day,week:Math.ceil(m.day/7),date:m.date,age:m.humanAge,eventId:m.eventId};
       add(firstFinal?"first-shared-final":streak?"three-meeting-losses":landmark?`meeting-${i+1}`:revenge?"rematch-win":"major-meeting",fact,
-        streak?`${o.player.name} won the last three played meetings up to this result.`:`Played meeting ${i+1}: ${m.won?"human win":"opponent win"}.`,
+        streak?`${o.player.name} has now won the last three matches between you.`:`Match ${i+1} between you: ${m.won?"you won":"they won"}.`,
         o.cohorts.length&&landmark?"generation":"rivalry",`rival:${o.player.id}`,firstFinal&&m.major?"MOMENT":"NEWS","RIVAL",o.player.id,recent.map(p=>p.id));
     });
     if(o.player.status==="RETIRED"&&o.meetings>=3&&o.player.retiredSeason)
       add("rival-retirement",{id:`retirement:${o.player.id}:${o.player.retiredSeason}`,source:"A2 public retirement / A7.2",label:o.player.name,
-        season:o.player.retiredSeason,week:null,day:null,date:null,age:null},`${o.meetings} played meetings remain in the shared record.`,"retirement",`rival:${o.player.id}`,"MAJOR","RIVAL",o.player.id);
+        season:o.player.retiredSeason,week:null,day:null,date:null,age:null},`You played each other ${o.meetings} time${o.meetings===1?"":"s"}.`,"retirement",`rival:${o.player.id}`,"MAJOR","RIVAL",o.player.id);
   }
   for(const e of s.events.filter(e=>["DRAW_PENDING","DRAWN","IN_PROGRESS"].includes(e.status))) {
     const previous=results.filter(r=>r.definitionKey===e.key&&r.season<e.season).at(-1);
@@ -297,7 +297,7 @@ export function currentMoments(s:LifeSources,stories:Story[]):Moment[] {
     chosen.kind.includes("amateur")?"amateur":chosen.kind.includes("major")?"major":chosen.kind.includes("pro-")?"professional":chosen.kind.includes("rank")?"ranking":"breakthrough";
   const personas:Persona[]=["PROFESSIONAL","RESERVED",...(variant(chosen.id,2)===0?["CONFIDENT","FIERY"]:["SHOWMAN","CONFIDENT"]) as Persona[]];
   return [{id:chosen.id,storyId:chosen.id,kind:atmosphere?"ATMOSPHERE":"DIALOGUE",title:chosen.title,
-    prompt:atmosphere?"Take a moment to recognise this sporting occasion.":COPY[family].question,
+    prompt:atmosphere?"Take a moment to enjoy this one.":COPY[family].question,
     steps:[chosen.body,...(chosen.opponentId?[`Opponent public presentation: ${npcPersonality(chosen.opponentId).primary.toLowerCase()}.`]:[]),...chosen.callbacks.map(c=>c.text)].slice(0,3),
     choices:atmosphere?[]:personas.map(p=>({id:p,text:response(p,family,chosen.id)})),opponentId:chosen.opponentId,thread:chosen.thread,statementFamily:family}];
 }

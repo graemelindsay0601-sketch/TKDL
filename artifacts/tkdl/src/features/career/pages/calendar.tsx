@@ -310,7 +310,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
         <div className="cc-hero-copy">
           <span className="cc-eyebrow"><CalendarDays size={14} /> CAREER / SEASON PLANNER</span>
           <h2>Calendar <em>&amp;</em> Planning</h2>
-          <p>Plan the season around the events, entry windows and travel costs that matter to your career.</p>
+          <p>Every event in your season. Start with the ones near home: they're cheap and you can enter them now.</p>
           <div className="cc-hero-tags">
             <span className="cc-season-tag">SEASON {season}</span>
             <span className="cc-week-tag"><i /> CURRENTLY AT WEEK {String(save.currentWeek).padStart(2, "0")}</span>
@@ -325,14 +325,14 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
           <span className="cc-balance-icon"><CircleDollarSign size={17} /></span>
           <span>CAREER BALANCE</span>
           <strong>{formatPence(save.balancePence)}</strong>
-          <small>Available for your next stop</small>
+          <small>Free to spend</small>
         </div>
         <span className="cc-hero-orbit" aria-hidden="true" />
       </header>
 
       <section className="cc-controls" aria-label="Calendar controls">
         <div className="cc-control-main">
-          <div className="cc-view-heading"><span className="cc-control-icon"><CalendarDays size={16} /></span><span><strong>Tour planner</strong><small>Choose how you want to explore the season</small></span></div>
+          <div className="cc-view-heading"><span className="cc-control-icon"><CalendarDays size={16} /></span><span><strong>Tour planner</strong><small>How do you want to see the season?</small></span></div>
           <Segmented label="Calendar view" value={view} onChange={next => { setView(next); setPage(0); setSelectedId(null); }} wrap options={[
             { value: "UPCOMING", label: "Timeline" },
             { value: "SEASON", label: "Season" },
@@ -426,7 +426,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
                 </section>)}
               </div>
             )}
-          <div className="cc-agenda-footer"><span>{events.length} event{events.length === 1 ? "" : "s"} match your view</span><span>Showing events from your Career save</span></div>
+          <div className="cc-agenda-footer"><span>{events.length} event{events.length === 1 ? "" : "s"} match your view</span></div>
         </section>
 
         {shownEvent ? <SelectedEvent event={shownEvent} saveId={save.id} awaitingMatch={pending.has(shownEvent.id)} retired={retired} currentSeason={isCurrentSeason} entering={enter.isPending} onEnter={onEnter} />

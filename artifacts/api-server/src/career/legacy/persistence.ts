@@ -196,7 +196,7 @@ export async function captureRetirement(tx:CareerExecutor,root:LegacyRoot) {
     snapshot.finalSummary.push(`A7.1 actual played matches: ${facts.statistics.matchesPlayed}; ${facts.statistics.wins} wins, ${facts.statistics.losses} defeats.`);
     const rival=[...relationships.opponents].sort((a,b)=>b.meetings-a.meetings||a.player.id.localeCompare(b.player.id))[0];
     if(rival) {
-      snapshot.finalSummary.push(`Most-met opponent: ${rival.player.name}, ${rival.meetings} played meetings; ${rival.humanWins} human wins and ${rival.npcWins} opponent wins.`);
+      snapshot.finalSummary.push(`Most-played opponent: ${rival.player.name}, ${rival.meetings} matches (you won ${rival.humanWins}, they won ${rival.npcWins}).`);
       const ordered=[...rival.history].sort((a,b)=>a.season-b.season||a.day-b.day);
       const first=ordered[0],last=ordered.at(-1);
       if(first&&last)snapshot.finalSummary.push(`First meeting: ${first.name}, season ${first.season}. Final meeting: ${last.name}, season ${last.season}.`);

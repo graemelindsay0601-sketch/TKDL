@@ -15,39 +15,39 @@ export function npcPersonality(id:string) {
   const primary=traits[variant(`primary:${id}`,traits.length)],second=traits[variant(`secondary:${id}`,traits.length)];
   return {primary,secondary:second!==primary && variant(`two:${id}`,3)===0 ? second : null};
 }
-export const threadTitle=(key:string)=>key==="q-school" ? "The Q-School journey" : key==="card" ? "Tour Card Career" : key==="palace" ? "The Palace" :
-  key.startsWith("rival:") ? "A recurring sporting relationship" : key==="commercial" ? "Off-board Career" : key.startsWith("event:") ? "Event / place memory" : "Sporting breakthroughs";
+export const threadTitle=(key:string)=>key==="q-school" ? "Q-School" : key==="card" ? "Your Tour Card" : key==="palace" ? "The Palace" :
+  key.startsWith("rival:") ? "A rivalry" : key==="commercial" ? "Off the oche" : key.startsWith("event:") ? "Events you keep going back to" : "Career firsts";
 
 /** Composable context families, not attributed invented NPC statements or generated private lives. */
 export const COPY:Record<string,{heads:string[];intro:string[];question:string}> = {
-  breakthrough:{heads:["A new step in this Career","A sporting first"],intro:["A first has been recorded.","This result adds a new entry to the Career record."],question:"What does this first mean to you?"},
-  amateur:{heads:["An amateur breakthrough","Success on the amateur circuit"],intro:["Amateur achievements have their own standing.","This result matters without a professional pathway."],question:"How would you describe your amateur success?"},
-  professional:{heads:["A professional milestone","A new mark on tour"],intro:["The professional record has moved forward.","A new professional achievement is now on record."],question:"What do you take from this step on tour?"},
-  major:{heads:["On the major stage","A significant stage result"],intro:["A major-stage result deserves a moment.","The sporting record now includes this major milestone."],question:"How do you view this major-stage result?"},
-  palace:{heads:["A Palace chapter","A World Championship milestone"],intro:["The World Championship adds a significant chapter.","This is a new part of the World Championship record."],question:"What would you say about this World Championship chapter?"},
-  card:{heads:["The Tour Card chapter changes","A Tour Card milestone"],intro:["Professional status has changed in the official record.","This is an important point in the Tour Card journey."],question:"How do you approach this change in your Tour Card journey?"},
-  "q-school":{heads:["A Q-School chapter","Another step through Q-School"],intro:["Q-School has produced a recorded outcome.","The qualification journey has another factual chapter."],question:"What would you say about this Q-School experience?"},
-  rivalry:{heads:["A familiar contest","Another chapter across the oche"],intro:["Another played meeting is part of the shared record.","The recurring sporting relationship has new evidence."],question:"How would you describe this meeting with your opponent?"},
-  adversity:{heads:["A difficult sporting result","A setback in the record"],intro:["The result is recorded without assumptions about emotion.","The next chapter is not predetermined by this outcome."],question:"How do you approach what comes next?"},
-  ranking:{heads:["A published ranking milestone","Movement in the official table"],intro:["The published table provides the evidence.","This ranking story comes from the official snapshot."],question:"What do you take from this published position?"},
-  return:{heads:["Returning to a familiar event","An event with Career history"],intro:["There is real previous history at this event.","This return connects with an earlier sporting result."],question:"What does returning to this event mean to you?"},
-  generation:{heads:["Careers cross again","A generational connection"],intro:["The shared cohort is part of the factual history.","A played meeting connects two Career pathways."],question:"How do you see this shared sporting history?"},
-  retirement:{heads:["A Career reaches retirement","A sporting farewell"],intro:["The public sporting status is now retired.","The recorded achievements remain part of the darts world."],question:"What would you say about this sporting Career?"},
-  world:{heads:["Across the darts world","A result elsewhere on tour"],intro:["A significant world result has been recorded.","The wider darts world has a new result to report."],question:"What do you take from the wider darts world?"},
-  commercial:{heads:["Life away from the match board","An optional off-board chapter"],intro:["A legitimate darts commitment has been completed.","Commercial history is separate from sporting results."],question:"How do you approach this part of your Career?"},
-  draw:{heads:["An actual draw","An upcoming contest"],intro:["The authored draw provides the upcoming match.","This is draw evidence, not a played result."],question:"What do you take from this draw?"},
-  qualification:{heads:["A qualification chapter","A recorded entry entitlement"],intro:["A public qualification has been awarded.","A recorded entitlement is not a claim of a played appearance."],question:"How do you approach this qualification opportunity?"},
+  breakthrough:{heads:["A first","A new first"],intro:["It's the first time this has happened in your career.","One for the scrapbook: a career first."],question:"What does this first mean to you?"},
+  amateur:{heads:["Amateur success","A win on the amateur circuit"],intro:["Amateur darts is a career in its own right, and this is a good day in it.","A result to be proud of, Tour Card or not."],question:"How would you describe your amateur success?"},
+  professional:{heads:["A professional milestone","A step forward on tour"],intro:["Another step forward as a professional.","A new high on tour."],question:"What do you take from this step on tour?"},
+  major:{heads:["On the big stage","A big stage result"],intro:["A result on one of the big stages.","The big stage, and you made your mark on it."],question:"How do you view this big-stage result?"},
+  palace:{heads:["The Palace","World Championship news"],intro:["The World Championship is the one everyone wants.","News from the biggest event of the year."],question:"What would you say about the World Championship?"},
+  card:{heads:["Tour Card news","On the Tour Card list"],intro:["A change on the list of Tour Card holders.","Tour Cards are the ticket to the professional tour."],question:"How do you feel about your Tour Card news?"},
+  "q-school":{heads:["Q-School","Q-School news"],intro:["Another day at Q-School is done.","Q-School is where Tour Cards are won and lost."],question:"What would you say about your time at Q-School?"},
+  rivalry:{heads:["A familiar opponent","Another meeting"],intro:["You two have met before.","Another chapter between two players who know each other well."],question:"How would you describe this meeting with your opponent?"},
+  adversity:{heads:["A tough result","A setback"],intro:["Not the result you wanted.","A bad day, but the next event is never far away."],question:"How do you approach what comes next?"},
+  ranking:{heads:["Ranking news","On the move in the rankings"],intro:["The new rankings are out.","This week's rankings have you on the move."],question:"What do you make of your ranking?"},
+  return:{heads:["Back again","A return visit"],intro:["You've been here before.","A familiar event, with history behind it."],question:"What does returning to this event mean to you?"},
+  generation:{heads:["Paths cross again","Old faces"],intro:["Two players who came through together meet again.","You started out around the same time."],question:"How do you see your shared history?"},
+  retirement:{heads:["Retirement","A farewell"],intro:["A career comes to an end.","The darts world says goodbye, but the results stay in the record books."],question:"What would you say about this career?"},
+  world:{heads:["Around the darts world","Elsewhere on tour"],intro:["Big news from elsewhere in the darts world.","Meanwhile, elsewhere on tour."],question:"What do you make of the news?"},
+  commercial:{heads:["Off the oche","Away from the board"],intro:["A job done away from the board.","Business off the oche, separate from your results."],question:"How do you approach this part of your career?"},
+  draw:{heads:["The draw is out","Coming up"],intro:["The draw has been made.","Your next opponent is set."],question:"What do you make of the draw?"},
+  qualification:{heads:["Qualified","You're in"],intro:["You've earned your place.","Your place is booked; you still need to enter."],question:"How do you feel about qualifying?"},
   club:{heads:["Club news","At your home club"],intro:["News from your home club's county league.","Your club has news."],question:"What does your club mean to you?"},
   fans:{heads:["A growing following","The crowd is with you"],intro:["More people are following your darts than ever.","Your results have built a following."],question:"What do your supporters mean to you?"},
   savings:{heads:["Money in the bank","Saved up"],intro:["The small nights have paid for something bigger.","Week by week, the money has added up."],question:"Was it worth all those midweek nights?"},
   perfect:{heads:["Perfection","A nine-dart finish"],intro:["The darts world has a perfect leg to talk about.","Nine darts, one leg: the rarest feat in the game."],question:"What does a perfect leg mean to you?"},
   tipped:{heads:["Tipped for the top","One to watch this season"],intro:["The close season has the circuit talking about a player on the rise.","A name is doing the rounds on the circuit this close season."],question:"Who do you see coming through?"},
   watch:{heads:["Names to watch","Rising through the ranks"],intro:["A few players are being tipped to step up a level this season.","The close season has produced some names to follow."],question:"Who do you see coming through?"},
-  arrival:{heads:["The tip comes good","A rise confirmed"],intro:["A player tipped in the close season has backed it up with a public result.","The talk has turned into a result."],question:"What do you make of this player's rise?"},
-  prospect:{heads:["A younger public Career","A young player's recorded result"],intro:["A younger player has produced a public sporting result.","This young player's result comes from the same darts world."],question:"What do you take from this public sporting result?"},
+  arrival:{heads:["The tip comes good","A rise confirmed"],intro:["A player tipped in the close season has backed it up with a result.","The talk has turned into a result."],question:"What do you make of this player's rise?"},
+  prospect:{heads:["One for the future","A young player makes a name"],intro:["A young player has made people sit up.","A good result from one of the game's young players."],question:"What do you make of this young player's result?"},
 };
 export function response(persona:Persona,family:string,key:string) {
-  const subject=family==="rivalry" ? "the contest" : family==="palace" ? "this World Championship chapter" : family==="card" ? "the next step" : "this part of the Career";
+  const subject=family==="rivalry" ? "this rivalry" : family==="palace" ? "the World Championship" : family==="card" ? "the next step" : "this part of my career";
   const lines:Record<Persona,string[]> = {
     PROFESSIONAL:[`I respect the work that goes into ${subject}. I'll keep approaching it properly.`,`There are good players here. I'll give ${subject} the respect it deserves.`],
     CONFIDENT:[`I believe I belong in ${subject}. I'll back myself.`,`I set high expectations for myself in ${subject}, and that hasn't changed.`],

@@ -59,7 +59,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
     <CareerPageHero kicker="Commercial office" title="The partner portfolio"
       stage={{ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" }} accent="#d8b669"
       watermark={`S${commercial?.season??save.currentSeason} · W${commercial?.week??save.currentWeek}`}
-      subtitle={<p>Your sporting record, represented off the oche. Signed terms, people and history in one place.</p>}
+      subtitle={<p>Your sponsors: what they pay, what they want from you and who might sign you next.</p>}
       portrait={presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={save.careerName??"Player"} scale="featured"/>:undefined}
       stats={[
         {label:"Active partners",value:portfolio.length,sub:`Season ${commercial?.season??save.currentSeason} · Week ${commercial?.week??save.currentWeek}`,tone:portfolio.length?"gold":"neutral"},

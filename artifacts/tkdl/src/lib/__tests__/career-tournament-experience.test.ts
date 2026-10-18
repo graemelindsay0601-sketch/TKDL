@@ -201,7 +201,7 @@ test("major hub: broadcast identity, tale of the tape, your path, prize ladder �
   const t = text(html);
   for (const x of ["Major championship", "Fixture Masters", "Northgate Arena", "Wide Championship Cup", "The season's leading players",
     "Semi-final · Fixture Player vs Callan Thistledown", "Head to head", "World #3", "9 recorded titles", "“The Thistle”",
-    "Defending champion", "3 played meetings", "last: Fixture Open, season 1", "Callan's run this event", "Won 6–2 v Bram Visser",
+    "Defending champion", "Played 3 times", "last: Fixture Open, season 1", "Callan's run this event", "Won 6–2 v Bram Visser",
     "Your path", "vs Arno Auenberg", "6–4", "Winner of Elias Brandt v To be decided", "Prize ladder", "Semi-finalists", "Current position · estimate", "£60,000",
     "Prepare match", "Concede this match", "Withdraw from tournament", "Official draw locked"]) assert.ok(t.includes(x), x);
   assert.match(html, /aria-label="Tale of the tape"/);
@@ -215,7 +215,7 @@ test("grassroots hub is modest and skips ceremonies; no invented head-to-head", 
     depth: { arrival: false, drawReveal: false, walkOn: false, fullCeremony: false, animate: false, skippable: true, sportingEffects: false }, opponents: [] });
   const t = text(render(h(M.TournamentPage, { ctx: ctx(), eventId: "major" }), [[key("tournament", "major"), v]]));
   assert.match(t, /Grassroots Club & community darts/);
-  assert.match(t, /First recorded meeting/);
+  assert.match(t, /First time you've played each other/);
   assert.doesNotMatch(t, /Event arrival|Reveal official draw|Major championship/);
 });
 

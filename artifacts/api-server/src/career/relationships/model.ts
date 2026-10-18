@@ -27,7 +27,7 @@ export function relationshipModel(saveId: string, players: WorldIdentity[], meet
     const events = new Set(history.map(m=>m.eventId)).size, seasons = new Set(history.map(m=>m.season)).size;
     const meaningful = history.filter(m=>m.final || m.major || m.qualification).length;
     const labels: RelationshipLabel[] = [], evidence: string[] = [];
-    if (count >= R.familiarMeetings && events >= R.familiarEvents) { labels.push("Familiar Opponent"); evidence.push(`${count} played meetings across ${events} events.`); }
+    if (count >= R.familiarMeetings && events >= R.familiarEvents) { labels.push("Familiar Opponent"); evidence.push(`Played ${count} times at ${events} events.`); }
     if (count >= R.dominanceMeetings && events >= R.dominanceEvents && fraction !== null) {
       if (fraction <= 1-R.dominanceFraction + Number.EPSILON) { labels.push("Nemesis"); evidence.push(`Lost ${count-wins} of ${count} meetings (at least ${R.dominanceFraction*100}%).`); }
       else if (fraction >= R.dominanceFraction) { labels.push("Favourite Opponent"); evidence.push(`Won ${wins} of ${count} meetings (at least ${R.dominanceFraction*100}%).`); }

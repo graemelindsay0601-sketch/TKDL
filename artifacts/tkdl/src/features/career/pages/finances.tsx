@@ -45,7 +45,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       {fin.isLoading ? <div className="pdc-card"><CareerLoading label="Loading finances" /></div> : fin.error || !fin.data ? <CareerError error={fin.error} onRetry={() => fin.refetch()} /> : (
         <CareerPageHero kicker={`Career finances · season ${save.currentSeason}, week ${save.currentWeek}`} title="Finances" accent="#ffd24a"
           stage={{ venue: { venueType: "conference" }, eventClass: "REGIONAL" }} archival={retired}
-          subtitle="Every figure is posted to your Career ledger: prize money, sponsor income and costs are kept separate."
+          subtitle="What you've won, what sponsors pay you and what you've spent."
           stats={financeHeadlines(fin.data).map(h => ({ label: h.label, value: formatPence(h.pence), sub: h.hint, tone: h.key === "BALANCE" ? "gold" as const : "neutral" as const }))} />
       )}
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
@@ -254,12 +254,12 @@ function CommercialOverview({ commercial }: { commercial: SponsorCommercialOverv
   const cash = commercial.cashReceivedPence;
   const bonusCount = commercial.potentialBonuses.length;
   return (
-    <CareerSection title={`Commercial position · Season ${commercial.season}, Week ${commercial.week}`} icon={<Handshake className="w-3.5 h-3.5" />} accent="#ffd24a">
+    <CareerSection title={`Sponsor money · Season ${commercial.season}`} icon={<Handshake className="w-3.5 h-3.5" />} accent="#ffd24a">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5 p-3">
-        <StatTile icon={<Coins size={16}/>} label="Cash received this season" value={formatPence(cash.total)} sub="Only posted sponsor cash is included" tone="gold" />
-        <StatTile icon={<ShieldCheck size={16}/>} label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Applied to eligible costs; not cash" tone="neutral" />
-        <StatTile icon={<CalendarClock size={16}/>} label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Future payments; not in your balance yet" tone="neutral" />
-        <StatTile icon={<Sparkles size={16}/>} label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Not guaranteed and not counted as cash" tone="neutral" />
+        <StatTile icon={<Coins size={16}/>} label="Cash received this season" value={formatPence(cash.total)} sub="Paid into your balance" tone="gold" />
+        <StatTile icon={<ShieldCheck size={16}/>} label="Costs covered" value={formatPence(commercial.costsCoveredPence)} sub="Travel and fees your sponsors paid for you" tone="neutral" />
+        <StatTile icon={<CalendarClock size={16}/>} label="Guaranteed still scheduled" value={formatPence(commercial.remainingGuaranteesPence)} sub="Still to come this season" tone="neutral" />
+        <StatTile icon={<Sparkles size={16}/>} label="Potential performance bonuses" value={`${bonusCount} conditional term${bonusCount === 1 ? "" : "s"}`} sub="Paid only if you hit the target" tone="neutral" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
         <div className="px-4 py-3 border-b lg:border-b-0 lg:border-r" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
@@ -345,7 +345,7 @@ function Ledger({ saveId }: { saveId: string }) {
       )}
       <div className="flex justify-between px-3 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         <button className="career-btn career-btn-ghost" disabled={cursors.length === 1} onClick={() => setCursors(cursors.slice(0, -1))}>Newer</button>
-        <Label>Immutable ledger · filter applies to this page</Label>
+        <Label>Every payment in and out</Label>
         <button className="career-btn career-btn-ghost" disabled={!ledger.data?.next} onClick={() => ledger.data?.next && setCursors([...cursors, ledger.data.next])}>Older</button>
       </div>
     </CareerSection>

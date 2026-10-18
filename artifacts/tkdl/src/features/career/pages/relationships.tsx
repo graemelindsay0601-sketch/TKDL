@@ -8,7 +8,7 @@ import { CareerPageHero } from "../page-hero";
 import type { ShellContext } from "../shell";
 import type { Meeting, OpponentRelationship, WorldIdentity } from "../../../../../api-server/src/career/relationships/types";
 
-const when = (m: Meeting | null) => m ? `${m.date ?? `Season ${m.season}, day ${m.day}`} · ${m.name}` : "No played meeting";
+const when = (m: Meeting | null) => m ? `${m.date ?? `Season ${m.season}, day ${m.day}`} · ${m.name}` : "Not played yet";
 const identity = (p: WorldIdentity) => `${p.homeRegion} · Age ${p.age}${p.status === "RETIRED" ? " at retirement" : ""} · ${p.status === "RETIRED" ? `Retired (season ${p.retiredSeason})` : "Active"} · ${p.worldRanking === null ? "No current World Ranking" : `World #${p.worldRanking}`}`;
 const FILTERS = ["All opponents", "Career Rival", "Nemesis", "Favourite Opponent", "Familiar Opponent", "Generation Rival", "Q-School Class", "Junior Contemporary"] as const;
 export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {

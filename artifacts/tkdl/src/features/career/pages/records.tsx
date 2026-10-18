@@ -19,7 +19,7 @@ export function RecordsPage({ ctx }: { ctx: ShellContext }) {
   const name = (e: Entry) => e.you ? <strong>{e.name} (you)</strong> : <Link href={`${base}/world/players/${e.participantKey}/profile`}>{e.name}</Link>;
   return <div className="space-y-3 career-records">
     <CareerPageHero kicker="Darts World" title="Records Book" accent="#e9c77a" stage={{ venue: { venueType: "exhibition" }, eventClass: "MAJOR" }}
-      subtitle={<p>The best performances recorded in this Career's darts world, from every match played. Steel-tip only; averages count from six legs.</p>}
+      subtitle={<p>The best performances in your darts world, from every match played. Steel-tip only; averages need at least six legs.</p>}
       stats={[{ label: "Nine-darters", value: nines.length, tone: "gold" }, { label: "Your entries", value: yours }]} />
     <CareerSection title="Nine-dart finishes" icon={<Crosshair aria-hidden />} accent="#ffd24a">
       {nines.length ? <ol className="career-records__list">{nines.map(e => <li key={`${e.matchId}:${e.participantKey}`} className={e.you ? "is-you" : undefined}>
@@ -30,7 +30,7 @@ export function RecordsPage({ ctx }: { ctx: ShellContext }) {
     {all.filter(r => r.key !== "nine-darter").map(r => <CareerSection key={r.key} title={r.label} icon={<Trophy aria-hidden />} accent="#e9c77a">
       {r.entries.length ? <ol className="career-records__list">{r.entries.map((e, i) => <li key={`${e.matchId}:${e.participantKey}`} className={e.you ? "is-you" : undefined}>
         <b>{i + 1}</b><span>{name(e)}</span><em>{value(r.unit, e.value)}</em><small>{e.eventName} · Season {e.season} · {SOURCE[e.source]}</small></li>)}</ol>
-        : <p className="p-4 text-sm text-white/70">Nothing recorded yet.</p>}
+        : <p className="p-4 text-sm text-white/70">Nothing yet.</p>}
     </CareerSection>)}
   </div>;
 }

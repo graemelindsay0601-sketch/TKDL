@@ -144,7 +144,7 @@ export function primaryAction(e: CareerEvent, opts: { awaitingMatch?: boolean; r
   if (opts.retired) return { kind: "VIEW", label: "View event", enabled: true };
   if (e.human?.canEnter) return { kind: "ENTER", label: e.finance && e.finance.estimatedPlayerCostPence > 0 ? `Enter · ${formatPence(e.finance.estimatedPlayerCostPence)}` : "Enter", enabled: true };
   if (s.key === "CANNOT_AFFORD") return { kind: "CANNOT_AFFORD", label: "Cannot afford", enabled: false };
-  if (s.key === "NOT_QUALIFIED") return { kind: "NOT_QUALIFIED", label: "Not qualified", enabled: false };
+  if (s.key === "NOT_QUALIFIED") return { kind: "NOT_QUALIFIED", label: "Can't enter", enabled: false };
   return { kind: "VIEW", label: s.key === "IN_PROGRESS" ? "Continue event" : e.status === "IN_PROGRESS" || e.status === "DRAWN" ? "View draw" : "View event", enabled: true };
 }
 
@@ -184,23 +184,27 @@ export function planWeek(events: CareerEvent[], week: number): WeekPlan {
 }
 
 /** Home's dominant card: pending human match > my next entered event > best open entry > next world event. */
-const STAGE_BY_POSITION: Record<number, string> = { 1: "win it", 2: "reach the final", 4: "reach the semi-finals", 8: "reach the quarter-finals" };
+const STAGE_BY_POSITION: Record<number, string> = { 2: "reach the final", 4: "reach the semi-finals", 8: "reach the quarter-finals" };
 const stageFor = (upTo: number) => STAGE_BY_POSITION[upTo] ?? `reach the last ${upTo}`;
 /**
  * Is an event worth the trip? Your estimated cost (entry + travel + stay, after sponsor cover) against its prize ladder:
  * the earliest round whose prize pays it back. Public prize money only; it never guesses how far you will go.
+ * Labels are short plain sentences: what it costs, then when you get your money back.
  */
 export function worthIt(f: EventFinancePreview | null | undefined): { tone: "good" | "fair" | "poor" | "neutral"; label: string; detail: string } | null {
   if (!f) return null;
   const cost = f.estimatedPlayerCostPence;
   const bands = [...(f.prizeBands ?? (f.topPrizePence ? [{ upToPosition: 1, amountPence: f.topPrizePence }] : []))].filter(b => b.amountPence > 0).sort((a, b) => b.upToPosition - a.upToPosition);
-  const costText = cost > 0 ? `Costs ${formatPence(cost)}` : "Free to play";
-  if (!bands.length) return { tone: "neutral", label: cost > 0 ? `${costText} · no prize money` : "Free · no prize money", detail: "Played for experience, form and ranking or club points." };
-  if (cost === 0) return { tone: "good", label: `Free · win ${formatPence(bands[bands.length - 1].amountPence)}`, detail: "Nothing to lose: any prize money is profit." };
+  const travels = (f.estimatedTravelPence ?? 0) + (f.estimatedAccommodationPence ?? 0) > 0;
+  const costText = cost > 0 ? `${formatPence(cost)} ${travels ? "with travel" : "to play"}` : "Free to play";
+  if (!bands.length) return { tone: "neutral", label: `${costText}. No prize money.`, detail: "You play for experience, form and ranking or club points." };
+  const top = bands[bands.length - 1].amountPence;
+  if (cost === 0) return { tone: "good", label: `Free to play. The winner gets ${formatPence(top)}.`, detail: "Nothing to lose: any prize money is profit." };
   const pays = bands.find(b => b.amountPence >= cost);
-  if (!pays) return { tone: "poor", label: `${costText} · even a win loses ${formatPence(cost - bands[bands.length - 1].amountPence)}`, detail: `The winner gets ${formatPence(bands[bands.length - 1].amountPence)}.` };
+  if (!pays) return { tone: "poor", label: `${costText}. Even the winner ends up ${formatPence(cost - top)} down.`, detail: `The winner gets ${formatPence(top)}.` };
   const deep = pays.upToPosition >= 8 ? "good" : pays.upToPosition >= 2 ? "fair" : "poor";
-  return { tone: deep, label: `${costText} · break even if you ${stageFor(pays.upToPosition)}`, detail: `${stageFor(pays.upToPosition).replace(/^./, c => c.toUpperCase())}: ${formatPence(pays.amountPence)}.` };
+  const back = pays.upToPosition === 1 ? "Only the winner gets it back." : `You get it back if you ${stageFor(pays.upToPosition)}.`;
+  return { tone: deep, label: `${costText}. ${back}`, detail: `${pays.upToPosition === 1 ? "The winner gets" : `${stageFor(pays.upToPosition).replace(/^./, c => c.toUpperCase())} and you get`} ${formatPence(pays.amountPence)}.` };
 }
 
 export function pickNextEvent(events: CareerEvent[], overview: Pick<CalendarOverview, "pendingHumanMatches" | "week" | "season">): { event: CareerEvent; reason: string } | null {
@@ -262,9 +266,9 @@ export function qSchoolState(p: QSchoolPathwayView, participant = "HUMAN"): QSch
 export type Headline = { key: "BALANCE" | "EARNINGS" | "SPONSOR" | "EXPENSES"; label: string; pence: number; hint: string };
 export function financeHeadlines(f: FinanceSummary): Headline[] {
   return [
-    { key: "BALANCE", label: "Balance", pence: f.balancePence, hint: f.reservedForTravelPence > 0 ? `${formatPence(f.availablePence)} available after reserved travel` : "Spendable Career cash" },
+    { key: "BALANCE", label: "Balance", pence: f.balancePence, hint: f.reservedForTravelPence > 0 ? `${formatPence(f.availablePence)} available after reserved travel` : "Money you can spend" },
     { key: "EARNINGS", label: "Career Earnings", pence: f.careerEarningsPence, hint: "Prize money only" },
-    { key: "SPONSOR", label: "Sponsor Earnings", pence: f.sponsorEarningsPence, hint: "Sponsor cash actually posted; not future guarantees, cost cover or prizes" },
+    { key: "SPONSOR", label: "Sponsor Earnings", pence: f.sponsorEarningsPence, hint: "Money your sponsors have paid you so far" },
     { key: "EXPENSES", label: "Career Expenses", pence: f.careerExpensesPence, hint: f.sponsorCoveredExpensesPence > 0 ? `${formatPence(f.sponsorCoveredExpensesPence)} more covered by sponsors` : "Fees, travel and accommodation you paid" },
   ];
 }
@@ -452,7 +456,7 @@ export function roundName(round: number, rounds: number) {
 }
 export const CALENDAR_STATUS_FILTERS = [
   { key: "ALL", label: "Any status" }, { key: "MINE", label: "Entered" }, { key: "OPEN", label: "Can enter" },
-  { key: "BLOCKED", label: "Not qualified" }, { key: "AFFORD", label: "Cannot afford" }, { key: "DONE", label: "Completed" },
+  { key: "BLOCKED", label: "Can't enter" }, { key: "AFFORD", label: "Cannot afford" }, { key: "DONE", label: "Completed" },
 ] as const;
 export function matchesStatusFilter(e: CareerEvent, filter: string): boolean {
   const s = eventStatus(e);
@@ -514,7 +518,7 @@ export const homeCountryOf = (locality: string | null | undefined) => (locality 
 /** Plain words for a small local event's "will it go ahead" facts (no prediction: the field decides). */
 export function viabilityText(v: { status: "PENDING" | "CONFIRMED" | "CANCELLED"; minimum: number; fieldSetWeek: number; entrants: number | null; byes?: true } | null | undefined) {
   if (!v) return null;
-  if (v.byes && v.status === "PENDING") return { label: "Goes ahead", detail: `Plays whoever enters; byes fill the draw · field set in week ${v.fieldSetWeek}`, tone: "good" as const };
+  if (v.byes && v.status === "PENDING") return { label: "Goes ahead", detail: `It runs with however many players enter. The draw is made in week ${v.fieldSetWeek}.`, tone: "good" as const };
   if (v.status === "CONFIRMED") return { label: "Going ahead", detail: v.entrants ? `${v.entrants} players` : "Field set", tone: "good" as const };
   if (v.status === "CANCELLED") return { label: "Cancelled", detail: `Fewer than ${v.minimum} players entered`, tone: "danger" as const };
   return { label: `Needs ${v.minimum}+ players`, detail: `Field set in week ${v.fieldSetWeek}`, tone: "neutral" as const };
