@@ -55,6 +55,8 @@ export type CareerEvent = {
   field: { size: number; minimum: number; entrants: number; policy: string };
   /** Small local events: whether the field is set yet, and the minimum it needs to go ahead. */
   viability?: { status: "PENDING" | "CONFIRMED" | "CANCELLED"; minimum: number; fieldSetWeek: number; entrants: number | null } | null;
+  /** Compact, authored rewards for finishing positions; exposed on event cards and event detail. */
+  qualificationStakes?: { maxPosition: number; entitlementType: "EVENT_ENTRY" | "STAGE_ENTRY" | "SERIES_ACCESS"; targetKey: string; targetSeason: "SAME" | "NEXT" }[];
   series: { key: string; day: number } | null; qSchool: { pathway: string; stage: "FIRST" | "FINAL"; day: number } | null;
   seedingPolicy: { list: string | null; seeds: number };
   status: EventStatus; statusReason: string | null;
