@@ -24,6 +24,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const chosen = format ?? d.pollPick ?? "CHALLENGER";
   const crowd = (c: number) => c >= 1.15 ? "Big crowd" : c >= 0.95 ? "Normal crowd" : c >= 0.8 ? "Smaller crowd" : "Quiet night";
   const goalThisMonth = d.subGoal && d.subGoal.season === d.season && d.subGoal.endsWeek >= d.week;
+  const chosenOk = !d.formats.find(f => f.key === chosen)?.why;
   const canGo = !retired && !d.live && d.streamsThisWeek < d.perWeek && pick !== null;
   return (
     <div className="dc">
@@ -40,7 +41,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             {" "}· {d.totals.streams} stream{d.totals.streams === 1 ? "" : "s"} · {formatPence(d.totals.earnedPence)} earned · beat {d.totals.won} challenger{d.totals.won === 1 ? "" : "s"}</p>
         </div>
       </section>
-      {(d.subscribers > 0 || d.deal || d.dealOffer || d.invitations) && <section className="dc__panel">
+      {(d.subscribers > 0 || d.deal || d.dealOffer || d.invitations || d.charity.raisedPence > 0) && <section className="dc__panel">
         <h2>Channel money</h2>
         {d.subscribers > 0 && <p className="dc__note"><b>{d.subscribers.toLocaleString("en-GB")}</b> subscriber{d.subscribers === 1 ? "" : "s"} renew at the end of week {d.renewsWeek} ({formatPence(Math.round(d.subscribers * 125))} if they all stay).
           {" "}Stream at least once a month or more of them drift away.</p>}
@@ -51,6 +52,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
           <button type="button" className="dc__link" disabled={answer.isPending} onClick={() => answer.mutate({ dealId: d.dealOffer!.id, accept: false }, { onError: e => setMessage(errorMessage(e)) })}>No thanks</button>
         </div>}
         {d.deal && <p className="dc__note">Brand deal with <b>{d.deal.brand}</b>: {formatPence(d.deal.perStreamPence)} a stream, {d.deal.streamsDone} of {d.deal.streamsTotal} streams done.</p>}
+        {d.charity.raisedPence > 0 && <p className="dc__note">Raised for charity on stream: <b>{formatPence(d.charity.raisedPence)}</b>.</p>}
         {d.invitations && <p className="dc__note">You're a DartCast Star: the televised invitationals send you invitations. Look for them in the calendar.</p>}
       </section>}
       {d.goalOptions && <section className="dc__panel">
@@ -71,17 +73,28 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
         <p className="dc__note">Pick what to stream and a free night this week. Chat reacts to every visit. A stream night is booked like any other: no events that night.
           {" "}Up to {d.perWeek} a week ({d.streamsThisWeek} so far).</p>
         <div className="dc__formats" role="radiogroup" aria-label="What to stream">
-          {d.formats.map(f => <button key={f.key} type="button" role="radio" aria-checked={chosen === f.key} className="dc__format" onClick={() => setFormat(f.key)}>
+          {d.formats.map(f => <button key={f.key} type="button" role="radio" aria-checked={chosen === f.key} className="dc__format" disabled={!!f.why} onClick={() => setFormat(f.key)}>
             <b>{f.name}{d.pollPick === f.key ? " · chat's pick" : ""}</b><span>{f.blurb}</span>
-            <small data-crowd={f.crowd >= 1.15 ? "big" : f.crowd < 0.8 ? "quiet" : undefined}>{crowd(f.crowd)}{d.lastFormat === f.key ? " (you did this last time)" : ""}</small></button>)}
+            <small data-crowd={f.crowd >= 1.15 ? "big" : f.crowd < 0.8 ? "quiet" : undefined}>{f.why ?? `${crowd(f.crowd)}${d.lastFormat === f.key ? " (you did this last time)" : ""}`}</small></button>)}
         </div>
         {d.freeNights.length ? <div className="dc__nights" role="radiogroup" aria-label="Night to stream">
           {d.freeNights.map(n => <button key={n} type="button" role="radio" aria-checked={pick === n} className="dc__night" onClick={() => setNight(n)}>{dayLabel(n)}</button>)}
         </div> : <p className="dc__note">No free nights left this week.</p>}
-        <button type="button" className="dc__go" disabled={!canGo || live.isPending}
+        <button type="button" className="dc__go" disabled={!canGo || !chosenOk || live.isPending}
           onClick={() => live.mutate({ dayOfWeek: pick!, format: chosen }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>
           {live.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Radio aria-hidden />} Go live{pick ? ` on ${dayLabel(pick)}` : ""}</button>
         {message && <p className="dc__warn" role="alert">{message}</p>}
+      </section>
+      <section className="dc__panel">
+        <h2>DartCast Invitational</h2>
+        <p className="dc__note">Once a season, from week {d.invitational.fromWeek}: the season's top seven streamers and you, knockout, first to 2 legs, on one big stream.
+          {" "}Prize money: {d.invitational.prizePence.map(p => formatPence(p)).join(" / ")} (out in the quarters / semis / final / winner).</p>
+        <ol className="dc__field">{d.invitational.field.map(f => <li key={f.handle}><b>{f.handle}</b> <small>{f.followers.toLocaleString("en-GB")} followers · averages {f.avg}</small></li>)}</ol>
+        {d.invitational.result ? <p className="dc__note"><b>{d.invitational.result.wins >= 3 ? "You won the Invitational!" : `You won ${d.invitational.result.wins} match${d.invitational.result.wins === 1 ? "" : "es"}.`}</b> Prize: {formatPence(d.invitational.result.prizePence)}.</p>
+          : d.invitational.open ? <button type="button" className="dc__go" disabled={!canGo || live.isPending}
+            onClick={() => live.mutate({ dayOfWeek: pick!, format: "INVITATIONAL" }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>
+            Play the Invitational{pick ? ` on ${dayLabel(pick)}` : ""}</button>
+          : <p className="dc__note">{d.invitational.why}</p>}
       </section>
       <section className="dc__panel">
         <h2>Collabs</h2>

@@ -95,6 +95,13 @@ export async function loadHumanForm(tx: CareerExecutor, root: { id: string; play
       practice = { sessions: Number(row?.sessions ?? 0), darts, average: darts > 0 && score > 0 ? score * 3 / darts : null };
     }
   }
+  // Streaming counts as practice too: your own darts on DartCast in the last two Career weeks (a real match streamed from an event is already a live match).
+  const streamed = await streamPractice(tx, root.id);
+  if (streamed.sessions) {
+    const darts = practice.darts + streamed.darts, scoredDarts = (practice.average !== null ? practice.darts : 0) + streamed.scoredDarts;
+    const points = (practice.average !== null ? practice.average * practice.darts / 3 : 0) + streamed.points;
+    practice = { sessions: practice.sessions + streamed.sessions, darts, average: scoredDarts > 0 && points > 0 ? points * 3 / scoredDarts : null };
+  }
   return formFrom({ liveAverages, results, practice });
 }
 
@@ -107,4 +114,16 @@ export function humanSimulationPlayer(root: { id: string; world_seed: string; di
     nickname: null, templateKey: null, status: "ACTIVE", retiredSeason: null, stage: "PRIME",
     ability: { scoring: at(level), finishing: at(level), consistency: at(level), powerScoring: at(level), pressure: at(level + nerve), clutch: at(level + nerve) },
     form: Math.max(-1, Math.min(1, form.form)), tendencies: { local: 0, floor: 0, stage: 0, qualifier: 0, major: 0 } };
+}
+
+let streamsSeen = false;
+async function streamPractice(tx: CareerExecutor, saveId: string) {
+  if (!streamsSeen) streamsSeen = (await tx.execute(sql`SELECT to_regclass('career_streams') IS NOT NULL AS ok`)).rows[0]?.ok === true;
+  if (!streamsSeen) return { sessions: 0, darts: 0, scoredDarts: 0, points: 0 };
+  const row = (await tx.execute(sql`SELECT COUNT(*)::int AS n, COALESCE(SUM((t.tally->>'myDarts')::int),0)::int AS darts,
+      COALESCE(SUM((t.tally->>'myScoredDarts')::int),0)::int AS scored, COALESCE(SUM((t.tally->>'myPoints')::int),0)::int AS points
+    FROM career_streams t JOIN career_saves s ON s.id = t.career_save_id
+    WHERE t.career_save_id=${saveId} AND t.status='ENDED' AND t.format <> 'MATCH' AND t.season = s.current_season AND t.week >= s.current_week - 1
+      AND COALESCE((t.tally->>'myDarts')::int, 0) > 0`)).rows[0];
+  return { sessions: Number(row?.n ?? 0), darts: Number(row?.darts ?? 0), scoredDarts: Number(row?.scored ?? 0), points: Number(row?.points ?? 0) };
 }

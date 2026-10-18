@@ -63,7 +63,11 @@ export type Tally = { viewers: number; peak: number; hype: number; followersGain
   /** Scoring challenge pledges (paid only on a win). */
   pledgedPence?: number;
   /** The best clip-worthy moment so far. */
-  clip?: ClipKind };
+  clip?: ClipKind;
+  /** Your own darts on stream (all), and the darts and points that count toward a scoring average (x01 and the average challenge). */
+  myDarts?: number; myScoredDarts?: number; myPoints?: number;
+  /** A charity stream: what the night raised. */
+  raisedPence?: number };
 
 const LINES: Record<string, readonly string[]> = {
   YOU_180: ["ONE HUNDRED AND EIGHTYYYY", "180!!! 🎯🎯🎯", "MAXIMUM", "clip it!!", "he's on fire", "absolute scenes"],
@@ -81,6 +85,7 @@ const LINES: Record<string, readonly string[]> = {
   DRILL_OUT: ["OUT 😭", "noooo", "run it back", "the doubles betrayed us", "next stream we go again"],
   DRILL_SCORE: ["nice scoring", "steady", "keep the average up", "lovely rhythm", "that'll do"],
   DRILL_BIG: ["MAXIMUM", "180!!", "that's the average sorted", "huge", "clip it"],
+  THROUGH: ["THROUGH TO THE NEXT ROUND", "what a win 🏆", "the dream is alive", "on to the next one", "you can win this thing"],
   KING_DOWN: ["another one bites the dust 👑", "NEXT!", "who's brave enough?", "the King stays the King", "line's open, who's next"],
   PLEDGE: ["pledged, don't let me down", "you've got this", "beat that average!", "my bits are on you"],
   IDLE: ["love the stream", "first time here", "what darts do you use?", "where are you from?", "hi from Ayr", "this is relaxing", "lurking 👀", "nice setup", "good luck tonight", "LETS GO"],
@@ -100,7 +105,7 @@ export function chatForVisit(seed: string, streamKey: string, index: number, v: 
 }
 
 const LIFT: Record<string, number> = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CHECKOUT: 0.5, YOU_TON: 0.25, WON: 1, THEM_180: 0.3, YOU_BUST: 0.1, LOST: 0.2, THEM_CHECKOUT: 0.1,
-  YOU_LOW: -0.05, IDLE: 0, DRILL_HIT: 0.45, DRILL_MISS: 0, DRILL_OUT: 0.2, DRILL_SCORE: 0.05, DRILL_BIG: 1, KING_DOWN: 0.8 };
+  YOU_LOW: -0.05, IDLE: 0, DRILL_HIT: 0.45, DRILL_MISS: 0, DRILL_OUT: 0.2, DRILL_SCORE: 0.05, DRILL_BIG: 1, KING_DOWN: 0.8, THROUGH: 1 };
 
 /** Chat for one visit of a drill format (Bob's 27, checkouts, scoring). On the scoring challenge, bits come in as pledges. */
 export function chatForDrillVisit(seed: string, streamKey: string, index: number, v: { note: string; points: number; startScore?: number }, tally: Tally, tier: TierKey,
@@ -205,11 +210,17 @@ export const FORMATS = [
   { key: "CHECKOUTS", name: "Checkout Challenge", blurb: "Chat picks 5 finishes: three visits at each. Hit 3 to win.", crowd: 0.9 },
   { key: "BOBS_27", name: "Bob's 27 live", blurb: "Every double from 1 to the bull, starting on 27. Don't drop to zero.", crowd: 0.8 },
   { key: "SCORING", name: "Average challenge", blurb: "33 visits of pure scoring against a target average. Chat pledges bits that pay only if you beat it.", crowd: 0.9 },
+  { key: "CHARITY", name: "Charity stream", blurb: "Play a viewer for a good cause: every bit and super chat goes to charity. Generous crowds, and fans remember it. Once a month.", crowd: 1.1 },
 ] as const;
-/** The formats on the picker, plus a collab (picked from the streamers list). */
-export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB";
+/** The formats on the picker, plus a collab (picked from the streamers list), the DartCast Invitational and a real match streamed from an event. */
+export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH";
 const COLLAB_FORMAT = { key: "COLLAB", name: "Collab", blurb: "A match against another streamer, on both channels.", crowd: 1 } as const;
-export const formatByKey = (key: string) => key === "COLLAB" ? COLLAB_FORMAT : FORMATS.find(f => f.key === key) ?? FORMATS[0];
+const SPECIAL_FORMATS = {
+  COLLAB: COLLAB_FORMAT,
+  INVITATIONAL: { key: "INVITATIONAL", name: "DartCast Invitational", blurb: "The season's top streamers, knockout, first to 2 legs.", crowd: 2 },
+  MATCH: { key: "MATCH", name: "Live from the event", blurb: "Your real match, streamed from the venue.", crowd: 1.3 },
+} as const;
+export const formatByKey = (key: string) => (SPECIAL_FORMATS as Record<string, typeof FORMATS[number] | typeof SPECIAL_FORMATS[keyof typeof SPECIAL_FORMATS]>)[key] ?? FORMATS.find(f => f.key === key) ?? FORMATS[0];
 export const KING_ROUNDS = 5;
 /** Same format as last time: the room thins. Chat's pick: they turn up. */
 export const VARIETY = Object.freeze({ repeat: 0.85, pollPick: 1.2 });
@@ -304,3 +315,24 @@ export function clipOutcome(seed: string, clipId: string, kind: ClipKind, peak: 
   const views = viral ? Math.round(gained * (25 + rng() * 40)) : Math.round(peak * (2 + rng() * 4));
   return { viral, views, followers: gained, fans: gained * 2 };
 }
+
+/**
+ * The DartCast Invitational: once a season, from week 40, the top seven streamers and you (a Partner or above), knockout,
+ * first to 2 legs. Real prize money for every round reached.
+ */
+export const INVITATIONAL = Object.freeze({ fromWeek: 40, toWeek: 50, field: 7,
+  /** Prize by round reached: out in the quarter-finals, semi-finals, the final, or the winner. */
+  prizePence: [25_000, 75_000, 150_000, 400_000] as const, rounds: ["Quarter-final", "Semi-final", "Final"] as const });
+/** Your opponents round by round: the field's lowest seed first, the biggest streamer in the final. */
+export function invitationalField(season: number, week: number) {
+  return [...STREAMERS].map(st => ({ ...st, now: streamerFollowers(st.followers, season, week) })).sort((a, b) => b.now - a.now).slice(0, INVITATIONAL.field);
+}
+export const invitationalOpponent = (field: ReturnType<typeof invitationalField>, round: number) => field[[6, 3, 0][round] ?? 0];
+export const invitationalPrize = (wins: number) => INVITATIONAL.prizePence[Math.min(3, wins)];
+
+/** Charity streams: the night's cheers go to the cause, a bigger follower bonus, and fans who remember it. */
+export const CHARITY = Object.freeze({ followerBonus: 1.5, penceForAFan: 50 });
+export const charityFans = (raisedPence: number) => Math.floor(raisedPence / CHARITY.penceForAFan);
+
+/** Streaming and your career: followers gained on DartCast bring fans for your darts (they fade like any fans). */
+export const FOLLOWER_FANS = 0.3;

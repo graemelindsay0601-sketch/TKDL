@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { LOCALITIES } from "../calendar/geography.ts";
 import { fanFollowing, type FanEvidence, type FanFollowing } from "./model.ts";
+import { FOLLOWER_FANS, charityFans } from "../streaming/model.ts";
 
 /** Fan following from the human's own recorded results, nine-darters and interview answers (small, per-save reads). */
 export async function loadFanFollowing(tx: CareerExecutor, saveId: string): Promise<FanFollowing> {
@@ -22,20 +23,29 @@ export async function loadFanEvidence(tx: CareerExecutor, saveId: string): Promi
   const showman = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_life_decisions
     WHERE career_save_id=${saveId} AND kind='DIALOGUE' AND choice IN ('SHOWMAN','CONFIDENT')`)).rows[0]?.n ?? 0);
   return {
-    currentSeason: Number(root?.current_season ?? 1), homeCountry, showmanAnswers: showman, streamFans: await viralFans(tx, saveId),
+    currentSeason: Number(root?.current_season ?? 1), homeCountry, showmanAnswers: showman, streamFans: await streamFans(tx, saveId),
     results: results.map(r => ({ season: Number(r.season), tier: String(r.presentation_tier), country: String(r.country), champion: r.is_champion === true,
       final: r.stage_reached === "FINAL", qualifier: r.classification === "QUALIFIER" })),
     nineDarters: nines.map(r => ({ season: Number(r.season), televised: ["TELEVISED", "MAJOR", "WORLD"].includes(String(r.presentation_tier)), country: String(r.country) })),
   };
 }
 
-/** Fans won by viral DartCast clips, by season (none on a database without streaming). */
+/**
+ * Fans won on DartCast, by season (none on a database without streaming): viral clips, a share of the followers your
+ * streams won, and the goodwill of charity streams.
+ */
 let clipsSeen = false;
-async function viralFans(tx: CareerExecutor, saveId: string) {
+async function streamFans(tx: CareerExecutor, saveId: string) {
   if (!clipsSeen) clipsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_clips') IS NOT NULL AS ok`)).rows[0]?.ok === true;
   if (!clipsSeen) return [];
-  return (await tx.execute(sql`SELECT season, SUM(fans_gained)::int AS n FROM career_stream_clips WHERE career_save_id=${saveId} AND status='VIRAL' GROUP BY season`)).rows
-    .map(r => ({ season: Number(r.season), fans: Number(r.n) }));
+  const bySeason = new Map<number, number>();
+  const add = (season: number, n: number) => bySeason.set(season, (bySeason.get(season) ?? 0) + n);
+  for (const r of (await tx.execute(sql`SELECT season, SUM(fans_gained)::int AS n FROM career_stream_clips WHERE career_save_id=${saveId} AND status='VIRAL' GROUP BY season`)).rows)
+    add(Number(r.season), Number(r.n));
+  for (const r of (await tx.execute(sql`SELECT season, SUM(followers_gained)::int AS f, SUM(COALESCE((tally->>'raisedPence')::int, 0))::int AS raised
+      FROM career_streams WHERE career_save_id=${saveId} AND status='ENDED' GROUP BY season`)).rows)
+    add(Number(r.season), Math.floor(Number(r.f) * FOLLOWER_FANS) + charityFans(Number(r.raised)));
+  return [...bySeason].filter(([, fans]) => fans > 0).map(([season, fans]) => ({ season, fans }));
 }
 
 /** Saves from this player database version on feel their following in sponsor offers and product sales. */
