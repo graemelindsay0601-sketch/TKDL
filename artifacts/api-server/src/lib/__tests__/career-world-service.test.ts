@@ -12,7 +12,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerWorldService } from "../../career/world/service.ts";
 import { loadNpcs } from "../../career/world/repository.ts";
 import { generateInitialWorld } from "../../career/world/generation.ts";
-import { simulateNpcMatch } from "../../career/world/simulation.ts";
+import { compactSimulatedMatches } from "../../career/world/compact.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
 import { targetPopulation } from "../../career/world/config.ts";
 
@@ -111,7 +111,7 @@ test("feature gate and owner scoping protect internal world operations including
   assert.deepEqual(await snapshot(save.id), before);
 });
 
-test("completed simulations persist inputs and actual stats; retries never reapply form or reroll", async () => {
+test("completed simulations persist who played and actual stats; retries never reapply form or reroll", async () => {
   const save = await initialized();
   const request = await requestFor(save.id);
   const [first, retry] = await Promise.all([worlds.simulateMatch(actor, save.id, request), worlds.simulateMatch(actor, save.id, request)]);
@@ -119,7 +119,10 @@ test("completed simulations persist inputs and actual stats; retries never reapp
   const before = await snapshot(save.id);
   assert.equal(before.matches.length, 1);
   assert.deepEqual(before.matches[0].result, first);
-  assert.deepEqual(simulateNpcMatch(before.matches[0].input_snapshot as Parameters<typeof simulateNpcMatch>[0]), first);
+  // Kept small: who played (and their tier), the request and the result; not the full simulation input or performance draws.
+  const players = await loadNpcs(db, save.id), tierOf = (id: string) => players.find(p => p.id === id)!.tier;
+  assert.deepEqual(before.matches[0].input_snapshot, { players: [request.playerAId, request.playerBId].map(id => ({ id, tier: tierOf(id) })) });
+  assert.ok(!("performance" in first) && !("format" in first) && !("context" in first) && first.stats.length === 2 && first.legs.length > 0);
   assert.deepEqual(await worlds.simulateMatch(actor, save.id, request), first);
   assert.deepEqual(await snapshot(save.id), before);
   await rejectsStatus(worlds.simulateMatch(actor, save.id, { ...request, format: { bestOf: 31, firstThrow: 0 } }), 409);
@@ -295,3 +298,21 @@ test("A2 migration rolls back its new tables when a late DDL step fails", async 
     assert.deepEqual(tables.rows.map(row => row.tablename), ["career_saves", "career_simulated_matches"]);
   } finally { await isolated.close(); }
 });
+
+test("matches stored in full before slimming are slimmed once, in batches, and the job then stays done", async () => {
+  const save = await initialized();
+  const request = await requestFor(save.id);
+  await worlds.simulateMatch(actor, save.id, request);
+  // Put back the old, full shape: the whole input (with its seed) and the performance draws.
+  await db.execute(sql`UPDATE career_simulated_matches SET input_snapshot = jsonb_build_object('seed', 'abc', 'players',
+      jsonb_build_array(jsonb_build_object('id', player_a_id, 'tier', 'PROFESSIONAL', 'scoring', 70), jsonb_build_object('id', player_b_id, 'tier', 'AMATEUR', 'scoring', 50))),
+    result = result || '{"performance":[{},{}],"format":{},"context":{}}'::jsonb WHERE career_save_id = ${save.id}`);
+  const kept = (await db.execute(sql`SELECT result FROM career_simulated_matches WHERE career_save_id = ${save.id}`)).rows[0].result as Record<string, unknown>;
+  assert.equal(await compactSimulatedMatches(db, { batch: 1, pauseMs: 0 }), 1);
+  const row = (await db.execute(sql`SELECT player_a_id, player_b_id, input_snapshot, result FROM career_simulated_matches WHERE career_save_id = ${save.id}`)).rows[0];
+  assert.deepEqual(row.input_snapshot, { players: [{ id: row.player_a_id, tier: "PROFESSIONAL" }, { id: row.player_b_id, tier: "AMATEUR" }] });
+  const { performance: _p, format: _f, context: _c, ...slim } = kept;
+  assert.deepEqual(row.result, slim);
+  assert.equal(await compactSimulatedMatches(db, { batch: 1, pauseMs: 0 }), 0, "recorded as done");
+});
+

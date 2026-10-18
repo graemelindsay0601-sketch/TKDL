@@ -65,7 +65,16 @@ function checkRetry(saved: unknown, requested: unknown): void {
  * Behaviour per request is identical to the original simulateMatch body:
  * stored retries return the stored result; reused keys with different inputs fail.
  */
-export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Root, world: World, requests: readonly z.infer<typeof simulationSchema>[]): Promise<SimulatedMatch[]> {
+/**
+ * What is kept of a simulated match: who played, the winner, each side's stats and the legs. The request (format,
+ * context) is stored beside it; each player's performance draw only feeds the form update made at the time. Every
+ * week writes thousands of these, so the full simulation input and performance are not kept (they were most of a
+ * long save's database).
+ */
+export type StoredMatch = Omit<SimulatedMatch, "performance" | "format" | "context">;
+const storedMatch = ({ performance: _p, format: _f, context: _c, ...kept }: SimulatedMatch): StoredMatch => kept;
+
+export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Root, world: World, requests: readonly z.infer<typeof simulationSchema>[]): Promise<StoredMatch[]> {
   if (!requests.length) return [];
   const parsed = requests.map(request => simulationSchema.parse(request));
   const keys = parsed.map(request => request.matchKey);
@@ -75,12 +84,12 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
     AND match_key IN (${sql.join(keys.map(key => sql`${key}`), sql`, `)})`)).rows.map(row => [String(row.match_key), row]));
   const ids = [...new Set(parsed.flatMap(request => [request.playerAId, request.playerBId, ...(request.partners ?? [])]))];
   const players = new Map((await loadNpcs(tx, saveId, { ids })).map(player => [player.id, player]));
-  const results: SimulatedMatch[] = [];
+  const results: StoredMatch[] = [];
   const inserts: unknown[] = [];
   const touched = new Set<string>();
   for (const request of parsed) {
     const existing = stored.get(request.matchKey);
-    if (existing) { checkRetry(existing.request, request); results.push(existing.result as SimulatedMatch); continue; }
+    if (existing) { checkRetry(existing.request, request); results.push(existing.result as StoredMatch); continue; }
     const a = players.get(request.playerAId), b = players.get(request.playerBId);
     if (!a || !b) throw new CareerError(404, "Career opponent not found");
     if (a.status !== "ACTIVE" || b.status !== "ACTIVE" || a.id === b.id) throw new CareerError(409, "Match requires two active distinct NPCs");
@@ -90,14 +99,15 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
     const input = { players: sides, seed: root.world_seed, generationVersion: root.world_generation_version,
       matchKey: request.matchKey, difficulty: root.difficulty, context: request.context, format: request.format };
     const result = simulateNpcMatch(input);
+    const kept = storedMatch(result);
     inserts.push({ id: stableUuid(root.world_seed, root.world_generation_version, "match", request.matchKey), match_key: request.matchKey,
       season: world.season, period: world.period, simulation_version: SIMULATION_VERSION, player_a_id: a.id, player_b_id: b.id, winner_id: result.winnerId,
-      request, input_snapshot: input, result });
+      request, input_snapshot: { players: sides.map(p => ({ id: p.id, tier: p.tier })) }, result: kept });
     a.form = formAfterMatch(a.form, result.performance[0], result.stats[0], result.performance[1]);
     b.form = formAfterMatch(b.form, result.performance[1], result.stats[1], result.performance[0]);
     touched.add(a.id); touched.add(b.id);
     if (partners) partners.forEach((p, i) => { p!.form = formAfterMatch(p!.form, result.performance[i], result.stats[i], result.performance[1 - i]); touched.add(p!.id); });
-    results.push(result);
+    results.push(kept);
   }
   if (inserts.length) {
     await tx.execute(sql`INSERT INTO career_simulated_matches (career_save_id, id, match_key, season, period, simulation_version, player_a_id, player_b_id, winner_id, request, input_snapshot, result)
@@ -145,7 +155,7 @@ export function createCareerWorldService(database: CareerDatabase) {
         return (await loadNpcs(tx, saveId)).map(presentNpc);
       });
     },
-    async simulateMatch(actor: CareerActor, saveId: string, body: unknown): Promise<SimulatedMatch> {
+    async simulateMatch(actor: CareerActor, saveId: string, body: unknown): Promise<StoredMatch> {
       const request = simulationSchema.parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId);

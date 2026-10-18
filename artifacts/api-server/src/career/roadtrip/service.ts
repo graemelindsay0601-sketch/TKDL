@@ -13,7 +13,7 @@ import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
 import { attributeForAverage, humanSimulationPlayer, loadHumanForm } from "../form/human.ts";
 import { post } from "../finance/ledger.ts";
 import { freeNightsInWeek } from "../nights.ts";
-import { availableOf, homeLocalityOf, playersOf, type Member } from "../money/service.ts";
+import { availableOf, homeLocalityOf, playersOf, playersOfMany, type Member } from "../money/service.ts";
 import { MONEY, appetiteFor, averageForLevel, lineFor, oddsFor, replyTo, willingFor, type Odds } from "../money/model.ts";
 import { ROAD, appetiteBoost, destinationsFrom, greetingFor, reputationFor, REPUTATION, tripCostTo, weeklyVisitor } from "./model.ts";
 
@@ -47,12 +47,11 @@ const talkFrom = (r: Row): RoadTalk => ({ status: r.status === "WALKED" ? "WALKE
 const resultFrom = (r: Row): RoadResult | null => r.status !== "PLAYED" ? null : { won: r.won === true, legs: [Number(r.legs_you), Number(r.legs_them)],
   stakePence: Number(r.stake_pence), averages: ((r.detail as { averages?: [number, number] })?.averages) ?? [0, 0] };
 
+/** A town's champion and locals (its best four players), or nobody if the town has no players. */
+const split = (players: Member[]) => ({ champion: players[0] ?? null, locals: players.slice(1, 1 + ROAD.locals) });
+
 export function createCareerRoadTripService(database: CareerDatabase) {
-  /** A town's champion and locals (its best four players), or nobody if the town has no players. */
-  async function townPlayers(tx: CareerExecutor, root: Root, town: Locality) {
-    const players = await playersOf(tx, root, town);
-    return { champion: players[0] ?? null, locals: players.slice(1, 1 + ROAD.locals) };
-  }
+  const townPlayers = async (tx: CareerExecutor, root: Root, town: Locality) => split(await playersOf(tx, root, town));
 
   async function view(tx: CareerExecutor, root: Root): Promise<RoadTripsView> {
     const season = Number(root.current_season), week = Number(root.current_week);
@@ -79,10 +78,16 @@ export function createCareerRoadTripService(database: CareerDatabase) {
     };
 
     const tripRow = trips.find(t => Number(t.season) === season && Number(t.week) === week);
+    // Everyone the page needs (each town on your road, tonight's town, the towns you've conquered) in one look-up.
+    const destinations = home ? destinationsFrom(home.key) : [];
+    const needed = new Map<string, Locality>(destinations.map(t => [t.key, t]));
+    for (const key of [...conquered, ...(tripRow ? [String(tripRow.locality_key)] : [])]) { const l = LOCALITIES.find(x => x.key === key); if (l) needed.set(key, l); }
+    const playersByTown = await playersOfMany(tx, root, [...needed.values()]);
+    const playersIn = (town: Locality) => split(playersByTown.get(town.key) ?? []);
     let trip: RoadTripsView["trip"] = null;
     if (tripRow) {
       const town = LOCALITIES.find(l => l.key === tripRow.locality_key)!;
-      const { champion, locals } = await townPlayers(tx, root, town);
+      const { champion, locals } = playersIn(town);
       const tonight = thisWeek.filter(m => m.trip_id === tripRow.id);
       const beatenLocal = tonight.some(m => m.role === "LOCAL" && m.status === "PLAYED" && m.won === true);
       const known = conquered.includes(town.key) || played.some(m => m.locality_key === town.key && m.role === "LOCAL" && m.won === true);
@@ -96,8 +101,8 @@ export function createCareerRoadTripService(database: CareerDatabase) {
       : tripRow ? "One road trip a week" : !freeNights.length ? "No free nights this week" : null;
 
     const towns: RoadTripsView["towns"] = [];
-    for (const t of home ? destinationsFrom(home.key) : []) {
-      const cost = tripCostTo(home!.key, t), { champion } = await townPlayers(tx, root, t);
+    for (const t of destinations) {
+      const cost = tripCostTo(home!.key, t), { champion } = playersIn(t);
       const here = played.filter(m => m.locality_key === t.key);
       towns.push({ key: t.key, city: t.city, region: t.region, country: t.country, miles: cost.miles, costPence: cost.pence, overnight: cost.overnight,
         champion: champion ? { name: champion.name, average: champion.average } : null, conquered: conquered.includes(t.key),
@@ -109,7 +114,7 @@ export function createCareerRoadTripService(database: CareerDatabase) {
     let visitor: RoadTripsView["visitor"] = null;
     if (conquered.length && !tripRow) {
       const candidates: (Member & { town: Locality })[] = [];
-      for (const key of conquered) { const town = LOCALITIES.find(l => l.key === key)!; const p = await townPlayers(tx, root, town);
+      for (const key of conquered) { const town = LOCALITIES.find(l => l.key === key)!; const p = playersIn(town);
         for (const m of [p.champion, ...p.locals]) if (m) candidates.push({ ...m, town }); }
       const v = weeklyVisitor(root.world_seed, season, week, candidates);
       if (v) visitor = { ...opponentOf(v, "VISITOR", null, ROAD.visitorStake), town: v.town.city };

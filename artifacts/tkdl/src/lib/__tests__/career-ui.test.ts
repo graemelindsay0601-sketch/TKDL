@@ -330,7 +330,7 @@ test("retired Career Home is read-only: no next-event hero, no Enter, no Continu
 test("retired Career shell shows the read-only notice and no advance control", () => {
   const s = save({ status: "RETIRED", retiredAt: "2026-10-04" });
   const t = text(render(h(M.CareerShell, { saveId: SAVE_ID, children: () => h("p", null, "child") }),
-    [[key("save"), s], [key("calendar", { scope: "WORLD", fromWeek: 1, toWeek: 1 }), { overview: overview(), season: 1, scope: "WORLD", events: [] }]]));
+    [[key("save"), s], [key("calendar", { scope: "WORLD", fromWeek: 1, toWeek: 1, view: "overview" }), { overview: overview(), season: 1, scope: "WORLD", events: [] }]]));
   assert.ok(t.includes("This Career is retired"));
   assert.ok(!t.includes("Continue"));
   assert.ok(t.includes("child"));

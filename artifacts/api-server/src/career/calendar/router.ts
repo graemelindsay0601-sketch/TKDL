@@ -34,7 +34,8 @@ export function createCareerCalendarRouter(service: CareerCalendarService, isAva
     const calendar = await service.calendar(res.locals.careerActor, id(req), Object.fromEntries(Object.entries({
       season: num(q.season), fromWeek: num(q.fromWeek), toWeek: num(q.toWeek), scope: str(q.scope), circuit: str(q.circuit), classification: str(q.classification), family: str(q.family),
     }).filter(([, v]) => v !== undefined)));
-    res.json({ ...calendar, events: calendar.events.map(listEvent) });
+    // view=overview: just the season overview (the Career header on every page), without the week's event list.
+    res.json({ ...calendar, events: str(q.view) === "overview" ? [] : calendar.events.map(listEvent) });
   });
   router.post("/saves/:id/calendar/advance", authedWriteRateLimit, async (req, res) => {
     res.json(await service.advance(res.locals.careerActor, id(req), req.body));

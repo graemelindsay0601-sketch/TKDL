@@ -24,7 +24,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
   const [location]=useLocation();
   const save = useCareerSave(saveId);
   const week = save.data?.currentWeek ?? 1;
-  const header = useCalendar(saveId, { scope: "WORLD", fromWeek: week, toWeek: week }, !!save.data);
+  const header = useCalendar(saveId, { scope: "WORLD", fromWeek: week, toWeek: week, view: "overview" }, !!save.data);
   if (save.isLoading) return <CareerLoading label="Opening Career" />;
   if (save.error || !save.data) return <div className="space-y-3"><BackToSaves /><CareerError error={save.error ?? new Error("Career not found")} onRetry={() => save.refetch()} /></div>;
   const retired = save.data.status === "RETIRED";
