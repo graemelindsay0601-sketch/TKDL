@@ -155,3 +155,29 @@ test("a tampered partner visit is refused by the session boundary", async () => 
   }
   assert.fail("partner never came to throw");
 });
+
+test("a pairs match can be quick-simmed: your pair against theirs, recorded once like a live result", async () => {
+  const save = await saves.create(1, { slot: 2, careerName: "Pairs Sim", dateOfBirth: "1990-01-01", homeLocality: "ayrshire" });
+  await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${save.id}`);
+  await sporting.initialize(actor, save.id);
+  const e = (await rows(sql`SELECT id, start_week, start_day FROM career_event_instances WHERE career_save_id=${save.id} AND definition_key='pub-doubles' AND country='GBR' AND executable ORDER BY start_day LIMIT 1`))[0];
+  const event = String(e.id);
+  await db.execute(sql`UPDATE career_saves SET current_week=${Number(e.start_week)} WHERE id=${save.id}`);
+  await db.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_OPEN' WHERE career_save_id=${save.id} AND id=${event}`);
+  assert.equal((await calendar.enter(actor, save.id, { eventId: event })).entered, true);
+  await db.transaction(async tx => {
+    const root = await lockRoot(tx, actor, save.id) as RootRow;
+    await tx.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_CLOSED' WHERE career_save_id=${save.id} AND id=${event}`);
+    const instance = (await loadInstances(tx, save.id, sql`id=${event}`))[0], providers = await calendar.bind(tx, root);
+    await lockField(tx, root, instance, await loadNpcs(tx, root.id, { activeOnly: true }), providers, Number(e.start_week));
+    await makeDraw(tx, root, instance, providers);
+    await progressEvent(tx, root, await worldState(tx, root), instance, Number(e.start_day), providers);
+  });
+  const matchId = (await tournaments.read(actor, save.id, event)).nextMatchId!;
+  const sim = await calendar.quickSimMatch(actor, save.id, event, { matchId, confirmation: "QUICK_SIM" });
+  assert.match(sim.quickSim.opponent, / & /, "against the other pair");
+  const [m] = await rows(sql`SELECT status, winner_key, legs_a, legs_b FROM career_tournament_matches WHERE career_save_id=${save.id} AND id=${matchId}`);
+  assert.equal(m.status, "COMPLETED");
+  assert.equal(m.winner_key === "HUMAN", sim.quickSim.won);
+  await assert.rejects(calendar.quickSimMatch(actor, save.id, event, { matchId, confirmation: "QUICK_SIM" }), (err: { status?: number }) => err.status === 409, "once only");
+});

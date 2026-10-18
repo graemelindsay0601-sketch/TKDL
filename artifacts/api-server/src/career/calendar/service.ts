@@ -19,6 +19,8 @@ import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
 import { settleLifeCommitments } from "../life/commitments.ts";
 import { playTeamNights } from "../club/team-service.ts";
 import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-engine.ts";
+import { loadPairs } from "./pairs.ts";
+import { teamComposite } from "../world/team.ts";
 import { isGroupedStructure, isGroupMatch, layoutFor } from "./groups.ts";
 import { a2MatchFormat } from "./formats.ts";
 import { activeManager, recordManagerInvites } from "../manager/state.ts";
@@ -613,15 +615,24 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const m = matches.find(x => x.id === input.matchId);
         if (!m || ![m.a_key, m.b_key].includes(HUMAN)) throw new CareerError(404, "Your tournament match was not found");
         if (event.status !== "IN_PROGRESS" || m.status !== "AWAITING_HUMAN") throw new CareerError(409, "Match is no longer awaiting you");
-        if (event.snapshot.format.sideSize === 2) throw new CareerError(409, "Pairs matches are played live with your partner");
         const live = (await tx.execute(sql`SELECT status, jsonb_array_length(darts)::int AS darts FROM career_match_sessions WHERE career_save_id = ${root.id} AND match_id = ${m.id}`)).rows[0];
         if (live && (live.status === "COMPLETED" || Number(live.darts) > 0)) throw new CareerError(409, "You have started this match live; finish it at the oche");
         const humanSide = m.a_key === HUMAN ? 0 : 1, opponentKey = humanSide === 0 ? m.b_key : m.a_key;
         const opponent = opponentKey ? (await loadNpcs(tx, root.id, { ids: [opponentKey] }))[0] : undefined;
         if (!opponent || opponent.status !== "ACTIVE") throw new CareerError(409, "Opponent is not known");
         const form = await loadHumanForm(tx, root as RootRow & { player_id?: number });
-        const you = humanSimulationPlayer(root, opponent, form);
-        const sides = (humanSide === 0 ? [you, opponent] : [opponent, you]) as [Npc, Npc];
+        let you = humanSimulationPlayer(root, opponent, form), them = opponent, opponentName = `${opponent.firstName} ${opponent.surname}`;
+        // Pairs: each side plays as its team (you and your partner, the other captain and theirs), as NPC pairs matches do.
+        if (event.snapshot.format.sideSize === 2) {
+          const teams = await loadPairs(tx, root.id, [eventId]), mine = teams.get(`${eventId}|${HUMAN}`), theirs = teams.get(`${eventId}|${opponentKey}`);
+          if (!mine || !theirs) throw new CareerError(409, "Pairs match has no recorded team");
+          const partners = new Map((await loadNpcs(tx, root.id, { ids: [mine.partner_npc_id, theirs.partner_npc_id] })).map(n => [n.id, n]));
+          const myPartner = partners.get(mine.partner_npc_id), theirPartner = partners.get(theirs.partner_npc_id);
+          if (!myPartner || !theirPartner) throw new CareerError(409, "Pairs partner is not known");
+          you = teamComposite(you, myPartner); them = teamComposite(opponent, theirPartner);
+          opponentName = `${opponentName} & ${theirPartner.firstName} ${theirPartner.surname}`;
+        }
+        const sides = (humanSide === 0 ? [you, them] : [them, you]) as [Npc, Npc];
         const key = `${matchKeyFor(event, m.stage_key, m.round, m.slot)}:quick-sim`;
         const bull = simulateBullUp(sides[0], sides[1], root.world_seed, key);
         const knockout = matches.filter(x => !isGroupMatch(x)), rounds = Math.max(1, ...knockout.map(x => x.round));
@@ -640,7 +651,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
             ...((nines => nines[0] || nines[1] ? { nineDarters: nines } : {})(simulatedNineDarters(result.legs, event.snapshot.format))) },
           firstThrowDetail: { method: "SIMULATED_BULL_UP", throws: bull.throws } });
         return { ...recorded, quickSim: { won: recorded.winnerKey === HUMAN, legs: [mine.legsWon, theirs.legsWon], sets: mine.setsWon !== undefined ? [mine.setsWon, theirs.setsWon] : null,
-          yourAverage: Math.round(mine.average * 100) / 100, opponentAverage: Math.round(theirs.average * 100) / 100, opponent: `${opponent.firstName} ${opponent.surname}`,
+          yourAverage: Math.round(mine.average * 100) / 100, opponentAverage: Math.round(theirs.average * 100) / 100, opponent: opponentName,
           maximums: mine.maximums, highestCheckout: mine.highestCheckout, form } };
       });
     },
