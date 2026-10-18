@@ -95,6 +95,8 @@ test("haggle, shake on it, play: the agreed stake moves through the ledger", asy
 });
 
 test("offers must be whole pounds you have free, and push too often and they walk away", async () => {
+  // The test before stakes everything on one game: start with money whichever way it went.
+  await db.execute(sql`UPDATE career_saves SET balance_pence = 20000 WHERE id = ${id}`);
   const member = (await money.read(actor, id)).members.find(m => !m.thisWeek && !m.talk)!;
   await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 250 }), (e: { status: number }) => e.status === 400);
   await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 1050 }), (e: { status: number }) => e.status === 400);
@@ -112,6 +114,8 @@ test("offers must be whole pounds you have free, and push too often and they wal
 });
 
 test("a challenge comes with their price: play it, or turn it down and it stays turned down", async () => {
+  // The test before stakes everything on one game: start with money whichever way it went.
+  await db.execute(sql`UPDATE career_saves SET balance_pence = 20000 WHERE id = ${id}`);
   let declined = false, played = false;
   for (let week = 20; week <= 45 && !(declined && played); week++) {
     await db.execute(sql`UPDATE career_saves SET current_week = ${week} WHERE id = ${id}`);
