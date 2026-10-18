@@ -1167,3 +1167,7 @@
 .cam-league__live { display: flex; flex-direction: column; gap: .5rem; }
 .cam-league__live-title { margin: 0; font-size: .9rem; }
 .cam-league__live-title svg, .cam-league__match svg { width: 15px; height: 15px; vertical-align: -2px; }
+/* Pro-Am nights */
+.pro-am__legs { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .2rem .6rem; font-size: .75rem; color: #e5a8a3; }
+.pro-am__legs li[data-won] { color: #9fe0b0; }
+.pro-am .money-match__challenge svg, .pro-am .career-btn svg { width: 15px; height: 15px; vertical-align: -2px; }

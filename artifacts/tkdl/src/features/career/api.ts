@@ -135,6 +135,15 @@ export const useSetSavingsGoal = (saveId: string) => useSaveMutation(saveId, (in
 export type MoneyMatchesView = import("../../../../api-server/src/career/money/service").MoneyMatchesView;
 export type MoneyMatchResult = import("../../../../api-server/src/career/money/service").MoneyMatchResult;
 /** Money matches at your club: this week's members, any challenge, your record. */
+export type ProAmView = import("../../../../api-server/src/career/proam/service").ProAmView;
+export type ProAmSession = import("../../../../api-server/src/career/proam/service").ProAmSession;
+/** Pro-Am nights: this week's nights (as an amateur or, with a Tour Card, as the pro), your booking and record. */
+export const useProAm = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "pro-am"), queryFn: () => get<ProAmView>(`/saves/${saveId}/pro-am`), staleTime: STALE });
+export const useBookProAm = (saveId: string) => useSaveMutation(saveId, (nightKey: string) => send<ProAmView>("POST", `/saves/${saveId}/pro-am/book`, { nightKey }));
+export const useSimulateProAm = (saveId: string) => useSaveMutation(saveId, (nightId: string) => send<ProAmView>("POST", `/saves/${saveId}/pro-am/nights/${nightId}/simulate`));
+export const useProAmLeg = (saveId: string, nightId: string) => useQuery({ queryKey: careerKey(saveId, "pro-am", "leg", nightId),
+  queryFn: () => get<ProAmSession>(`/saves/${saveId}/pro-am/nights/${nightId}`), staleTime: Infinity });
+export const proAmApi = { darts: (saveId: string, nightId: string, darts: unknown[]) => send<ProAmSession>("POST", `/saves/${saveId}/pro-am/nights/${nightId}/darts`, { darts }) };
 export type CamLeagueView = import("../../../../api-server/src/career/camleague/service").CamLeagueView;
 export type CamMatchSession = import("../../../../api-server/src/career/camleague/service").CamMatchSession;
 /** Webcam leagues: your division, this league's table and fixtures, and joining the next one. */
