@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
 import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
-import { CareerEmptyState, CareerError, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
+import { CareerEmptyState, CareerError, CareerEventStakes, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
 import { MatchBoundaryNotice } from "./match-boundary";
@@ -60,6 +60,7 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
           {e.content?.summary && <p className="text-sm max-w-3xl" style={{ color: "rgba(255,255,255,0.78)" }}>{e.content.summary}</p>}
         </div>
       </section>
+      <CareerEventStakes event={e} />
       {/* F2: guidance loads asynchronously; placed after the hero so it never pushes the event identity down (CLS). */}
       <ContextHelp saveId={save.id} topic="event"/>
       {(e.circuit==="Q_SCHOOL"||["WORLD","MAJOR"].includes(e.presentation.tier))&&<ContextHelp saveId={save.id} topic={e.circuit==="Q_SCHOOL"?"q-school":e.presentation.tier==="WORLD"?"palace":"major"}/>}
