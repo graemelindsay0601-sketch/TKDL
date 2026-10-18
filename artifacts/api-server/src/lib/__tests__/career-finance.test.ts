@@ -29,7 +29,7 @@ import type { SponsorApproachSource } from "../../career/finance/sponsor-journey
 import { groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
 import {
   CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, evaluateRequirement,
-  SPONSOR_CATALOGUE_V1, sponsorCatalogue, type SportingFacts,
+  SPONSOR_CATALOGUE_V1, SPONSOR_CATALOGUE_V2, sponsorCatalogue, type SportingFacts,
 } from "../../career/finance/sponsors.catalogue.ts";
 import { PRIZE_PROFILES, prizeForPosition, FEE_PROFILES } from "../../career/finance/config.ts";
 import { lockRoot } from "../../career/world/service.ts";
@@ -624,6 +624,13 @@ test("sponsor requirements: unknown authority never grants; offers are determini
   assert.equal(evaluateRequirement(ironflight.offerRequirement, base), null, "unknown Tour Card authority");
   assert.equal(evaluateRequirement(ironflight.offerRequirement, { ...base, tourCard: true }), true);
   assert.equal(evaluateRequirement({ fact: "worldRanking", maxPosition: 16 }, base), null);
+  // Professional main partners want a professional-level name, not a pile of pub-night titles.
+  const pro = SPONSOR_CATALOGUE_V2.find(s => s.terms.tier === "PROFESSIONAL" && !SPONSOR_CATALOGUE_V1.some(v => v.key === s.key))!;
+  const amateur = { ...base, tourCard: false, worldRanking: Number.MAX_SAFE_INTEGER, titles: 12, bestFinishByCircuit: { GRASSROOTS: 1, COUNTY: 1, VAULT: 5, CHALLENGER: 17 } };
+  assert.equal(evaluateRequirement(pro.offerRequirement, amateur), false, "twelve local titles are not a professional name");
+  assert.equal(evaluateRequirement(pro.offerRequirement, { ...amateur, bestFinishByCircuit: { ...amateur.bestFinishByCircuit, VAULT: 1 } }), true, "a Vault win is");
+  assert.equal(evaluateRequirement(pro.offerRequirement, { ...amateur, worldRanking: 120 }), true, "a world ranking is");
+  assert.equal(evaluateRequirement(pro.offerRequirement, { ...amateur, tourCard: true }), true, "a Tour Card is");
   const save = await career();
   const other = await career(1, 2);
   assert.deepEqual((await finance.sponsors(actor, save.id)).offers, [], "self-funded start");
