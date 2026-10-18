@@ -1,5 +1,6 @@
 import { replay } from "../../shared/darts-rules/x01.ts";
 import type { DartEvidence, MatchEvidence, EventFact, Performance } from "./types.ts";
+import { AVERAGE_NEEDS_DARTS } from "../form/human.ts";
 
 export const chronological = (a: { season: number; day: number | null; id: string }, b: { season: number; day: number | null; id: string }) => a.season - b.season || (a.day ?? 365) - (b.day ?? 365) || a.id.localeCompare(b.id);
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -40,7 +41,7 @@ export function performanceStatistics(evidence: DartEvidence[], sportingMatchCou
   const best = [...measured].sort((a,b)=>b.points/b.darts-a.points/a.darts)[0];
   const maximum = [...measured].sort((a,b)=>b.maximums-a.maximums)[0];
   return { recordedMatches:measured.length, unavailableMatches:Math.max(0,sportingMatchCount-measured.length), darts: measured.length ? total('darts') : null,
-    threeDartAverage:measured.length ? round2(total('points')*3/total('darts')) : null,
+    threeDartAverage:measured.length && total('darts') >= AVERAGE_NEEDS_DARTS ? round2(total('points')*3/total('darts')) : null,
     highestCheckout:measured.length ? Math.max(...measured.map(m=>m.highestCheckout)) : null, checkoutsCompleted:measured.length ? total('checkouts') : null,
     checkoutAttempts:null, checkoutPercentage:null, maximums:measured.length ? total('maximums') : null,
     visits140Plus:measured.length ? total('visits140Plus') : null, visits100Plus:measured.length ? total('visits100Plus') : null,

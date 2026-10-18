@@ -27,12 +27,15 @@ test('actual dart replay gives weighted averages, visits and checkouts without i
   const e:DartEvidence={matchId:'a',eventId:'e',format:{startingScore:501,inRule:'STRAIGHT',outRule:'DOUBLE',unit:'LEGS',bestOfLegs:1},firstThrower:0,
     darts:[d(20,3),d(20,3),d(20,3),d(0),d(0),d(0),d(20,3),d(20,3),d(20,3),d(0),d(0),d(0),d(20,3),d(19,3),d(12,2)]};
   const p=performanceStatistics([e,e],2);
-  assert.equal(p.recordedMatches,1); assert.equal(p.unavailableMatches,1); assert.equal(p.darts,9); assert.equal(p.threeDartAverage,167);
+  assert.equal(p.recordedMatches,1); assert.equal(p.unavailableMatches,1); assert.equal(p.darts,9); assert.equal(p.threeDartAverage,null,'nine darts are not enough for a Career average');
   assert.equal(p.maximums,2); assert.equal(p.visits140Plus,3); assert.equal(p.visits100Plus,3); assert.equal(p.highestCheckout,141); assert.equal(p.checkoutsCompleted,1);
   assert.equal(p.checkoutAttempts,null); assert.equal(p.checkoutPercentage,null); assert.equal(p.bestMatchAverage?.value,167);
   // Bust visit contributes zero points but its actual two darts still count.
   const b:DartEvidence={...e,matchId:'b',format:{...e.format,startingScore:40},darts:[d(20),d(20),d(0),d(0),d(0),d(20,2)]};
-  const bust=performanceStatistics([b],1); assert.equal(bust.darts,3); assert.equal(bust.threeDartAverage,40); assert.equal(bust.maximums,0);
-  assert.equal(performanceStatistics([e,b],2).threeDartAverage,135.25);
+  const bust=performanceStatistics([b],1); assert.equal(bust.darts,3); assert.equal(bust.threeDartAverage,null); assert.equal(bust.maximums,0);
+  assert.equal(performanceStatistics([e,b],2).threeDartAverage,null);
+  // Enough darts: 33 nine-dart legs and the bust (300 darts) give the weighted average.
+  const many=[...Array.from({length:33},(_,i)=>({...e,matchId:`n${i}`})),b];
+  assert.equal(performanceStatistics(many,many.length).threeDartAverage,Math.round((33*501+40)*3/300*100)/100);
   assert.equal(performanceStatistics([{...e,darts:e.darts.slice(0,-1)}],1).recordedMatches,0);
 });

@@ -17,6 +17,8 @@ import type { Npc } from "../world/types.ts";
 export type HumanForm = {
   /** Three-dart average quick-sim plays at (recent live matches weighted over the longer run). */
   skillAverage: number; estimated: boolean;
+  /** Your Career average, shown once enough live darts back it up (null until then). */
+  average: number | null; averageDarts: { thrown: number; needed: number };
   /** -1 (struggling) … +1 (on fire). */
   form: number; formLabel: "On fire" | "In form" | "Steady" | "Out of form" | "Struggling";
   /** 0 … 100. */
@@ -26,12 +28,14 @@ export type HumanForm = {
 };
 
 export const DEFAULT_SKILL_AVERAGE = 45;
+/** A Career average means nothing on a handful of darts: none is shown until this many live Career darts are thrown. */
+export const AVERAGE_NEEDS_DARTS = 300;
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const mean = (xs: readonly number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
 /** Pure model (oldest first in every list). */
-export function formFrom(input: { liveAverages: readonly number[]; results: readonly boolean[]; practice: { sessions: number; darts: number; average: number | null } }): HumanForm {
+export function formFrom(input: { liveAverages: readonly number[]; liveDarts?: number; results: readonly boolean[]; practice: { sessions: number; darts: number; average: number | null } }): HumanForm {
   const live = input.liveAverages.slice(-30), recent = live.slice(-5), latest = live.slice(-3);
   const longRun = live.length ? mean(live) : null;
   const practiceAvg = input.practice.darts >= 90 ? input.practice.average : null;
@@ -52,6 +56,8 @@ export function formFrom(input: { liveAverages: readonly number[]; results: read
   const confidence = Math.round(clamp(50 + clamp(signedStreak, -5, 5) * 5 + (winRate - 0.5) * 50 * evidence + form * 10, 5, 95));
   return {
     skillAverage: round1(skill), estimated, form,
+    average: live.length && (input.liveDarts ?? 0) >= AVERAGE_NEEDS_DARTS ? round1(skill) : null,
+    averageDarts: { thrown: input.liveDarts ?? 0, needed: AVERAGE_NEEDS_DARTS },
     formLabel: form >= 0.5 ? "On fire" : form >= 0.2 ? "In form" : form > -0.2 ? "Steady" : form > -0.5 ? "Out of form" : "Struggling",
     confidence, confidenceLabel: confidence >= 80 ? "Brimming" : confidence >= 62 ? "Assured" : confidence >= 40 ? "Settled" : confidence >= 22 ? "Shaky" : "Fragile",
     recentAverages: live.slice(-8).map(round1), longRunAverage: longRun === null ? null : round1(longRun),
@@ -70,11 +76,12 @@ export async function loadHumanForm(tx: CareerExecutor, root: { id: string; play
     WHERE s.career_save_id = ${root.id} AND s.status = 'COMPLETED' AND m.status = 'COMPLETED' AND s.team IS NULL
     ORDER BY s.completed_at DESC LIMIT 30`)).rows.reverse();
   const liveAverages: number[] = [];
+  let liveDarts = 0;
   for (const s of sessions) {
     try {
       const state = replay(s.format as never, Number(s.first_thrower) as 0 | 1, s.darts as never);
       const mine = state.visits.filter(v => v.thrower === 0), darts = mine.reduce((n, v) => n + v.darts.length, 0);
-      if (state.complete && darts >= 9) liveAverages.push(mine.reduce((n, v) => n + v.points, 0) * 3 / darts);
+      if (state.complete && darts >= 9) { liveAverages.push(mine.reduce((n, v) => n + v.points, 0) * 3 / darts); liveDarts += darts; }
     } catch { /* evidence from an incompatible format is not measured */ }
   }
   const results = (await tx.execute(sql`SELECT m.winner_key = 'HUMAN' AS won FROM career_tournament_matches m
@@ -102,7 +109,7 @@ export async function loadHumanForm(tx: CareerExecutor, root: { id: string; play
     const points = (practice.average !== null ? practice.average * practice.darts / 3 : 0) + streamed.points;
     practice = { sessions: practice.sessions + streamed.sessions, darts, average: scoredDarts > 0 && points > 0 ? points * 3 / scoredDarts : null };
   }
-  return formFrom({ liveAverages, results, practice });
+  return formFrom({ liveAverages, liveDarts, results, practice });
 }
 
 /** The human as a simulation player: their live level (difficulty-neutral), form and confidence on the opponent's frame. */
