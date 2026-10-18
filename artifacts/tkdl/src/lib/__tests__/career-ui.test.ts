@@ -737,9 +737,11 @@ test("A8.3 Q-School session evidence is not portrayed as a championship trophy",
 });
 test("A9 establishment copy is new-save-only; Career Calendar fixture remains bounded",()=>{
   const seed:[unknown[],unknown][]=[[key("calendar",{scope:"RELEVANT",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
-    [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}]];
+    [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}],
+    [key("guidance"),{mode:"GUIDED",dismissed:[],canEdit:false}]];
   const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5}))}),seed);
-  assert.match(text(html),/Your first season/);assert.match(text(html),/Turning professional is up to you/);
+  assert.match(text(html),/Your first season/);assert.match(text(html),/Tour Card routes this season/);assert.match(text(html),/Turning professional is up to you/);
+  assert.ok(html.indexOf("Your first season") < html.indexOf('class="home-more"'),"first-season guidance stays outside the collapsed Career details");
   assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Your first season/);
   if(process.env.A9_BROWSER_DIR){
     const q={scope:"WORLD",season:1,fromWeek:1,toWeek:9,circuit:undefined};
