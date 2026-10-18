@@ -134,3 +134,12 @@ test("a challenge comes with their price: play it, or turn it down and it stays 
   }
   assert.ok(declined && played, "found challenges to turn down and to play");
 });
+
+test("a brand-new player is left to settle in: no challenge in the opening weeks before their first event", async () => {
+  await db.execute(sql`UPDATE career_saves SET balance_pence = 20000, current_season = 1 WHERE id = ${id}`);
+  assert.equal((await db.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_results WHERE career_save_id = ${id} AND participant_key = 'HUMAN'`)).rows[0].n, 0);
+  for (let week = 1; week <= MONEY.settleInWeeks; week++) {
+    await db.execute(sql`UPDATE career_saves SET current_week = ${week} WHERE id = ${id}`);
+    assert.equal((await money.read(actor, id)).challenge, null, `week ${week}`);
+  }
+});

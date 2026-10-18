@@ -124,6 +124,7 @@ import { seedBroadcastSettings } from "./broadcast/config";
 import { seedCardDefinitions } from "./services/card-definitions-service";
 import { challengeService } from "./services/challenge-service";
 import { initializeCoachTipsScheduler } from "./services/coachTipsScheduler";
+import { initializeCareerReminderScheduler } from "./services/careerReminderScheduler";
 import { initializeRankSnapshotScheduler } from "./services/rankSnapshotScheduler";
 import { initializePushBatchScheduler } from "./services/pushBatchScheduler";
 import { initializeFeaturedCardScheduler } from "./services/featured-card-shop-service";
@@ -1747,6 +1748,7 @@ async function initRuntime() {
     await rotateFeatureCards();
   });
   await runInitStep("initializeCoachTipsScheduler", initializeCoachTipsScheduler);
+  await runInitStep("initializeCareerReminderScheduler", initializeCareerReminderScheduler);
   await runInitStep("initializeRankSnapshotScheduler", initializeRankSnapshotScheduler);
   await runInitStep("initializePushBatchScheduler", initializePushBatchScheduler);
   await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);

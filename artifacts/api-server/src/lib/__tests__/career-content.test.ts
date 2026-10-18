@@ -154,7 +154,7 @@ test("opportunities are factual projections; inaccessible pinnacles are not hidd
 test("presentation schema cannot set abilities, logos, ranks, money or malformed colours",()=>{
   assert.throws(()=>cosmeticSchema.parse({ability:100}));assert.throws(()=>cosmeticSchema.parse({primaryColour:"url(script)"}));
   assert.throws(()=>cosmeticSchema.parse({nickname:"<script>"}));assert.doesNotThrow(()=>cosmeticSchema.parse({nickname:"The Quiet One",primaryColour:"#112233",competitionCategory:"WOMEN"}));
-  assert.equal(GUIDE.length,19);
+  assert.equal(GUIDE.length,21);
   assert.ok(catalogueFor(3).filter(d=>d.classification==="SPECIAL").every(d=>["OCCASIONAL","RETIRABLE_MINOR"].includes(d.content!.longevity)));
   assert.equal(catalogueFor(3).find(d=>d.key==="sudden-death-night")!.content!.longevity,"RETIRABLE_MINOR");
 });

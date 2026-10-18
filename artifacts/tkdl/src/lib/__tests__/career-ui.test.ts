@@ -566,8 +566,8 @@ test("A8.1 world directory shows real authored identities and paths without inve
 });
 test("A8.1 guide preserves optional amateur, women's and youth pathways, not XP gates",()=>{
   const t=text(render(h(M.WorldPage,{ctx:ctx(),guide:true}),[[key("world-content"),worldFixture()]]));
-  assert.match(t,/Turning professional is an opportunity/);assert.match(t,/Declared women's-category eligibility/);
-  assert.match(t,/Foundation events are under 18/);assert.match(t,/never XP/);
+  assert.match(t,/Turning professional is an opportunity/);assert.match(t,/never stops you entering mixed, open/);
+  assert.match(t,/Foundation events are for under-18s/);assert.match(t,/There is no XP/);
 });
 test("Premium ordinary reads cache briefly; deferred summaries stay disabled and live freshness is unchanged",()=>{
   const client=new QueryClient({defaultOptions:{queries:{retry:false}}});

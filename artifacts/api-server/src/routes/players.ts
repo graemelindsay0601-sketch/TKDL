@@ -1266,14 +1266,14 @@ router.get("/players/:id/notification-prefs", async (req, res): Promise<void> =>
 
   try {
     const rows = await db.execute(sql`
-      SELECT push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages, achievements, community_activity, daily_push_limit
+      SELECT push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages, achievements, community_activity, COALESCE(career_reminders, true) AS career_reminders, daily_push_limit
       FROM notification_preferences WHERE player_id = ${params.data.id}
     `);
     const row = (rows.rows as any[])[0];
     res.json(row ?? {
       push_enabled: true, match_results: true, rank_changes: true, threat_alerts: true,
       coach_tips: true, announcements: true, private_mode: false, direct_messages: true,
-      achievements: true, community_activity: true, daily_push_limit: 0,
+      achievements: true, community_activity: true, career_reminders: true, daily_push_limit: 0,
     });
   } catch (err) {
     req.log.error({ err }, "GET /players/:id/notification-prefs failed");
@@ -1292,6 +1292,7 @@ const NotificationPrefsBody = z.object({
   direct_messages:    z.boolean().optional(),
   achievements:       z.boolean().optional(),
   community_activity: z.boolean().optional(),
+  career_reminders:   z.boolean().optional(),
   daily_push_limit:   z.union([z.literal(0), z.literal(3), z.literal(5), z.literal(10)]).optional(),
 });
 
@@ -1314,12 +1315,12 @@ router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> 
 
   try {
     await db.execute(sql`
-      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages, achievements, community_activity, daily_push_limit)
+      INSERT INTO notification_preferences (player_id, push_enabled, match_results, rank_changes, threat_alerts, coach_tips, announcements, private_mode, direct_messages, achievements, community_activity, career_reminders, daily_push_limit)
       VALUES (
         ${id},
         ${p.push_enabled ?? true}, ${p.match_results ?? true}, ${p.rank_changes ?? true}, ${p.threat_alerts ?? true},
         ${p.coach_tips ?? true}, ${p.announcements ?? true}, ${p.private_mode ?? false}, ${p.direct_messages ?? true},
-        ${p.achievements ?? true}, ${p.community_activity ?? true}, ${p.daily_push_limit ?? 0}
+        ${p.achievements ?? true}, ${p.community_activity ?? true}, ${p.career_reminders ?? true}, ${p.daily_push_limit ?? 0}
       )
       ON CONFLICT (player_id) DO UPDATE SET
         push_enabled        = COALESCE(${p.push_enabled ?? null}, notification_preferences.push_enabled),
@@ -1332,6 +1333,7 @@ router.patch("/players/:id/notification-prefs", async (req, res): Promise<void> 
         direct_messages     = COALESCE(${p.direct_messages ?? null}, notification_preferences.direct_messages),
         achievements        = COALESCE(${p.achievements ?? null}, notification_preferences.achievements),
         community_activity  = COALESCE(${p.community_activity ?? null}, notification_preferences.community_activity),
+        career_reminders    = COALESCE(${p.career_reminders ?? null}, notification_preferences.career_reminders),
         daily_push_limit     = COALESCE(${p.daily_push_limit ?? null}, notification_preferences.daily_push_limit),
         updated_at          = NOW()
     `);
