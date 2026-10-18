@@ -70,7 +70,7 @@ test("quick-sim records the match as a simulation at the player's level and the 
   assert.equal((await live.read(actor, id, matchId)).status, "SUPERSEDED", "the open session steps aside");
   await assert.rejects(career.calendar.quickSimMatch(actor, id, eventId, { matchId, confirmation: "QUICK_SIM" }), /no longer awaiting/);
   const form = await career.calendar.form(actor, id);
-  assert.equal(form.recentResults.length, 1);
+  assert.equal(form.recentResults.length, 0, "a simmed result never moves your form or confidence");
   assert.equal(form.estimated, true, "quick-sims never count as live evidence for the average");
 });
 

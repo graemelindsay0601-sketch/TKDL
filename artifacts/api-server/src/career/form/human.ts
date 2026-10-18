@@ -8,7 +8,8 @@ import type { Npc } from "../world/types.ts";
 /**
  * The human's form and confidence, from what they have actually done:
  *  - live Career matches (every dart is stored, so each match average is exact),
- *  - recent results (live, quick-simmed or walkover wins and losses),
+ *  - recent results of matches you threw yourself (quick-sims and walkovers never count: nothing you didn't throw
+ *    changes your form, confidence or level),
  *  - real-world practice in the last week (Practice tab sessions).
  * Form compares the latest live averages with the player's own longer run and adds recent results;
  * confidence follows streaks and recent results. Neither changes a live match (you throw your own darts):
@@ -86,7 +87,7 @@ export async function loadHumanForm(tx: CareerExecutor, root: { id: string; play
   }
   const results = (await tx.execute(sql`SELECT m.winner_key = 'HUMAN' AS won FROM career_tournament_matches m
     JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
-    WHERE m.career_save_id = ${root.id} AND m.status IN ('COMPLETED','WALKOVER') AND (m.a_key = 'HUMAN' OR m.b_key = 'HUMAN')
+    WHERE m.career_save_id = ${root.id} AND m.status = 'COMPLETED' AND m.result_source = 'HUMAN_LIVE' AND (m.a_key = 'HUMAN' OR m.b_key = 'HUMAN')
     ORDER BY i.season DESC, m.scheduled_day DESC, m.round DESC, m.id DESC LIMIT 10`)).rows.map(r => r.won === true).reverse();
   let practice = { sessions: 0, darts: 0, average: null as number | null };
   const playerId = Number(root.player_id ?? (await tx.execute(sql`SELECT player_id FROM career_saves WHERE id = ${root.id}`)).rows[0]?.player_id);
