@@ -228,8 +228,15 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const rows = (await tx.execute(sql`SELECT r.*, s.season AS s_season, s.week AS s_week, s.sequence FROM career_ranking_snapshot_rows r
           JOIN career_ranking_snapshots s ON s.career_save_id = r.career_save_id AND s.id = r.snapshot_id
           WHERE r.career_save_id = ${root.id} AND r.list_key = ${list.key} AND r.participant_key = ${q.participant} ORDER BY r.publication_index DESC LIMIT ${q.limit}`)).rows;
-        const seasons = (await tx.execute(sql`SELECT season, MIN(position)::int AS best, MAX(position)::int AS worst, COUNT(*)::int AS snapshots FROM career_ranking_snapshot_rows
-          WHERE career_save_id = ${root.id} AND list_key = ${list.key} AND participant_key = ${q.participant} GROUP BY season ORDER BY season`)).rows;
+        // Archived seasons keep a summary; their weekly tables are thinned (see archive.ts).
+        const seasons = (await tx.execute(sql`SELECT season, best, worst, snapshots FROM career_ranking_season_summaries
+            WHERE career_save_id = ${root.id} AND list_key = ${list.key} AND participant_key = ${q.participant}
+          UNION ALL
+          SELECT season, MIN(position)::int AS best, MAX(position)::int AS worst, COUNT(*)::int AS snapshots FROM career_ranking_snapshot_rows r
+            WHERE career_save_id = ${root.id} AND list_key = ${list.key} AND participant_key = ${q.participant}
+              AND NOT EXISTS (SELECT 1 FROM career_ranking_archives a WHERE a.career_save_id = r.career_save_id AND a.season = r.season)
+            GROUP BY season
+          ORDER BY season`)).rows;
         const cache = (await tx.execute(sql`SELECT * FROM career_ranking_participants WHERE career_save_id = ${root.id} AND list_key = ${list.key} AND participant_key = ${q.participant}`)).rows[0];
         return { list: list.key, participantKey: q.participant, careerHigh: cache ? { position: cache.career_high_position, publicationIndex: cache.career_high_index } : null,
           seasonHighs: seasons, snapshots: rows.map(r => ({ season: r.s_season, week: r.s_week, sequence: r.sequence, ...presentRow(r) })) };

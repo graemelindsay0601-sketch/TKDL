@@ -135,15 +135,11 @@ test("knockout brackets are internally consistent from first round to champion",
 test("NPC fields are plausible by tier and genuinely international at the top", async () => {
   const report = await seasonReport(db, world.id, 1);
   const tiers = await rows(sql`SELECT i.circuit || CASE WHEN i.classification = 'QUALIFIER' THEN ':Q' ELSE '' END AS circuit, p.tier, COUNT(*)::int AS n FROM career_event_entries e JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
-    JOIN LATERAL (
-      SELECT player.value->>'tier' AS tier FROM career_tournament_matches m
-      JOIN career_simulated_matches s ON s.career_save_id=m.career_save_id AND s.match_key=m.simulated_match_key
-      CROSS JOIN LATERAL jsonb_array_elements(s.input_snapshot->'players') player(value)
-      WHERE m.career_save_id=e.career_save_id AND m.event_id=e.event_id AND player.value->>'id'=e.participant_key
-      ORDER BY m.scheduled_day,m.round,m.slot LIMIT 1
-    ) p ON true WHERE e.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' GROUP BY 1, 2`);
+    JOIN career_world_players p ON p.career_save_id = e.career_save_id AND p.id::text = e.participant_key WHERE e.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' GROUP BY 1, 2`);
   const share = (circuit: string, tier: string) => { const all = tiers.filter(t => t.circuit === circuit); return all.filter(t => t.tier === tier).reduce((a, t) => a + Number(t.n), 0) / Math.max(1, all.reduce((a, t) => a + Number(t.n), 0)); };
-  assert.equal(share("GRASSROOTS", "ELITE"), 0, "elite players do not fill pub nights");
+  // Tiers are read at the end of the season (no copy of each match's players is kept), so a player who rose to elite
+  // during the season counts against the pub nights they played earlier: allow a handful in tens of thousands.
+  assert.ok(share("GRASSROOTS", "ELITE") < 0.001, "elite players do not fill pub nights");
   assert.ok(share("PRO_CIRCUIT", "GRASSROOTS") === 0 && share("PRO_CIRCUIT", "AMATEUR") === 0, "Pro Circuit uses the professional placeholder status");
   assert.ok(share("MAJOR", "ELITE") + share("MAJOR", "PROFESSIONAL") > 0.85, "ranking majors are professional fields");
   assert.ok(share("MAJOR", "ELITE") > share("PRO_CIRCUIT", "ELITE"), "majors are stronger than the floor circuit");
@@ -204,17 +200,19 @@ test("completed history is immutable and stable as the world moves on", async ()
   assert.ok(history.length >= 250 && history.every(h => h.champion));
 });
 
-test("persisted match operations replay identically; a reused key with new inputs fails", async () => {
-  const [stored] = await rows(sql`SELECT match_key, request, result FROM career_simulated_matches WHERE career_save_id = ${world.id} AND match_key LIKE 'a3:%' ORDER BY match_key LIMIT 1`);
+test("tournament matches keep no separate simulation copy; recorded simulations replay identically and a reused key with new inputs fails", async () => {
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_simulated_matches WHERE career_save_id = ${world.id} AND match_key LIKE 'a3:%'`))[0].n, 0);
+  const [a, b] = await rows(sql`SELECT id FROM career_world_players WHERE career_save_id = ${world.id} AND status = 'ACTIVE' ORDER BY id LIMIT 2`);
+  const request = { matchKey: "replay-check", playerAId: String(a.id), playerBId: String(b.id), context: { category: "floor", roundImportance: 0.2, elimination: false }, format: { bestOf: 7, firstThrow: 0 } };
   await db.transaction(async tx => {
     const root = await lockRoot(tx, actor, world.id);
     const state = await worldState(tx, root);
-    const [again] = await simulateMatchesInTransaction(tx, root, state, [stored.request as never]);
-    assert.deepEqual(again, stored.result);
-    const altered = { ...(stored.request as Record<string, unknown>), format: { bestOf: 3, firstThrow: 0 } };
-    await rejectsStatus(simulateMatchesInTransaction(tx, root, state, [altered as never]), 409);
-  }).catch(error => { if ((error as { status?: number }).status !== 409) throw error; });
-  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_simulated_matches WHERE career_save_id = ${world.id} AND match_key = ${stored.match_key}`))[0].n, 1);
+    const [first] = await simulateMatchesInTransaction(tx, root, state, [request as never]);
+    const [again] = await simulateMatchesInTransaction(tx, root, state, [request as never]);
+    assert.deepEqual(again, first);
+    await rejectsStatus(simulateMatchesInTransaction(tx, root, state, [{ ...request, format: { bestOf: 3, firstThrow: 0 } } as never]), 409);
+  });
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_simulated_matches WHERE career_save_id = ${world.id} AND match_key = 'replay-check'`))[0].n, 1);
 });
 
 test("the official draw is locked: no regeneration and no duplicate bracket slots", async () => {

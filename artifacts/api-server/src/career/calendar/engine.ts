@@ -807,7 +807,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
         format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow),
         ...(event.snapshot.format.sideSize === 2 ? { partners: [partnerOf(event.id, m.a_key!), partnerOf(event.id, m.b_key!)] as [string, string] } : {}) };
     });
-    const results = await simulateMatchesInTransaction(tx, root, world, requests);
+    const results = await simulateMatchesInTransaction(tx, root, world, requests, { record: false });
     simulated += results.length;
     const done = npcReady.map(({ match: m }, i) => {
       const r = results[i];

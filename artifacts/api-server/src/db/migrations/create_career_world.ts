@@ -114,6 +114,17 @@ export async function createCareerWorld(database: CareerDatabase): Promise<void>
  * NPC matches writes thousands of them, and lz4 compresses them in about two thirds of the time of the default (pglz)
  * at much the same size. Only new rows are affected; old rows read either way. Skipped where the server lacks lz4. Idempotent.
  */
+/**
+ * Tournament matches keep the key their simulation ran under, but no longer need a stored copy of it: the tournament
+ * match is the record. Drops the link to career_simulated_matches so those copies can stop and old ones be removed.
+ * Idempotent.
+ */
+export async function ensureSimulatedMatchCopiesOptional(tx: CareerExecutor): Promise<void> {
+  const links = (await tx.execute(sql`SELECT conname FROM pg_constraint WHERE conrelid = to_regclass('career_tournament_matches')
+    AND confrelid = to_regclass('career_simulated_matches') AND contype = 'f'`)).rows.map(r => String(r.conname));
+  for (const name of links) await tx.execute(sql.raw(`ALTER TABLE career_tournament_matches DROP CONSTRAINT "${name.replace(/"/g, "")}"`));
+}
+
 /** One-off maintenance jobs that run after startup record here when they are done (see career/world/compact.ts). Idempotent. */
 export async function ensureCareerMaintenance(tx: CareerExecutor): Promise<void> {
   await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_maintenance (key TEXT PRIMARY KEY, done_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);

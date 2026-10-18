@@ -188,7 +188,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
         FOREIGN KEY (career_save_id, event_id) REFERENCES career_event_instances(career_save_id, id) ON DELETE CASCADE,
         FOREIGN KEY (career_save_id, a_npc_id) REFERENCES career_world_players(career_save_id, id),
         FOREIGN KEY (career_save_id, b_npc_id) REFERENCES career_world_players(career_save_id, id),
-        FOREIGN KEY (career_save_id, simulated_match_key) REFERENCES career_simulated_matches(career_save_id, match_key),
+        -- simulated_match_key names the simulation the match ran under; no stored copy is kept (see ensureSimulatedMatchCopiesOptional).
         CONSTRAINT career_tournament_matches_result_check CHECK (
           (status IN ('COMPLETED','BYE','WALKOVER')) = (winner_key IS NOT NULL)
           AND (winner_key IS NULL OR winner_key IN (a_key, b_key))

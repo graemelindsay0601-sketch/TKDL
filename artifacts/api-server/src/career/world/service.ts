@@ -59,13 +59,6 @@ function checkRetry(saved: unknown, requested: unknown): void {
 }
 
 /**
- * Transaction-level A2 simulation boundary (added for A3 batching).
- * Caller must already hold the locked root. Requests run sequentially in the
- * supplied order so form carries between matches exactly as single calls would.
- * Behaviour per request is identical to the original simulateMatch body:
- * stored retries return the stored result; reused keys with different inputs fail.
- */
-/**
  * What is kept of a simulated match: who played, the winner, each side's stats and the legs. The request (format,
  * context) is stored beside it; each player's performance draw only feeds the form update made at the time. Every
  * week writes thousands of these, so the full simulation input and performance are not kept (they were most of a
@@ -74,13 +67,23 @@ function checkRetry(saved: unknown, requested: unknown): void {
 export type StoredMatch = Omit<SimulatedMatch, "performance" | "format" | "context">;
 const storedMatch = ({ performance: _p, format: _f, context: _c, ...kept }: SimulatedMatch): StoredMatch => kept;
 
-export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Root, world: World, requests: readonly z.infer<typeof simulationSchema>[]): Promise<StoredMatch[]> {
+/**
+ * Transaction-level A2 simulation boundary (added for A3 batching).
+ * Caller must already hold the locked root. Requests run sequentially in the
+ * supplied order so form carries between matches exactly as single calls would.
+ * Recorded (the default): stored retries return the stored result; reused keys with different inputs fail.
+ * Tournament matches pass record: false: the tournament match itself is the record (it is only simulated while
+ * PENDING, in the same transaction that completes it), so a separate copy would only duplicate it.
+ */
+export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Root, world: World, requests: readonly z.infer<typeof simulationSchema>[],
+  options: { record?: boolean } = {}): Promise<StoredMatch[]> {
+  const record = options.record ?? true;
   if (!requests.length) return [];
   const parsed = requests.map(request => simulationSchema.parse(request));
   const keys = parsed.map(request => request.matchKey);
   if (new Set(keys).size !== keys.length) throw new CareerError(409, "Duplicate match identity in one batch");
   const saveId = root.id;
-  const stored = new Map((await tx.execute(sql`SELECT match_key, request, result FROM career_simulated_matches WHERE career_save_id = ${saveId}
+  const stored = new Map(!record ? [] : (await tx.execute(sql`SELECT match_key, request, result FROM career_simulated_matches WHERE career_save_id = ${saveId}
     AND match_key IN (${sql.join(keys.map(key => sql`${key}`), sql`, `)})`)).rows.map(row => [String(row.match_key), row]));
   const ids = [...new Set(parsed.flatMap(request => [request.playerAId, request.playerBId, ...(request.partners ?? [])]))];
   const players = new Map((await loadNpcs(tx, saveId, { ids })).map(player => [player.id, player]));
@@ -110,7 +113,7 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
     results.push(kept);
   }
   if (inserts.length) {
-    await tx.execute(sql`INSERT INTO career_simulated_matches (career_save_id, id, match_key, season, period, simulation_version, player_a_id, player_b_id, winner_id, request, input_snapshot, result)
+    if (record) await tx.execute(sql`INSERT INTO career_simulated_matches (career_save_id, id, match_key, season, period, simulation_version, player_a_id, player_b_id, winner_id, request, input_snapshot, result)
       SELECT ${saveId}::uuid, m.id, m.match_key, m.season, m.period, m.simulation_version, m.player_a_id, m.player_b_id, m.winner_id, m.request, m.input_snapshot, m.result
       FROM jsonb_to_recordset(${JSON.stringify(inserts)}::jsonb) AS m(id uuid, match_key text, season integer, period integer, simulation_version integer,
         player_a_id uuid, player_b_id uuid, winner_id uuid, request jsonb, input_snapshot jsonb, result jsonb)`);

@@ -12,7 +12,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerWorldService } from "../../career/world/service.ts";
 import { loadNpcs } from "../../career/world/repository.ts";
 import { generateInitialWorld } from "../../career/world/generation.ts";
-import { compactSimulatedMatches } from "../../career/world/compact.ts";
+import { removeTournamentMatchCopies } from "../../career/world/compact.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
 import { targetPopulation } from "../../career/world/config.ts";
 
@@ -299,20 +299,13 @@ test("A2 migration rolls back its new tables when a late DDL step fails", async 
   } finally { await isolated.close(); }
 });
 
-test("matches stored in full before slimming are slimmed once, in batches, and the job then stays done", async () => {
+test("stored copies of tournament match simulations are removed once, in batches; other recorded simulations stay", async () => {
   const save = await initialized();
-  const request = await requestFor(save.id);
-  await worlds.simulateMatch(actor, save.id, request);
-  // Put back the old, full shape: the whole input (with its seed) and the performance draws.
-  await db.execute(sql`UPDATE career_simulated_matches SET input_snapshot = jsonb_build_object('seed', 'abc', 'players',
-      jsonb_build_array(jsonb_build_object('id', player_a_id, 'tier', 'PROFESSIONAL', 'scoring', 70), jsonb_build_object('id', player_b_id, 'tier', 'AMATEUR', 'scoring', 50))),
-    result = result || '{"performance":[{},{}],"format":{},"context":{}}'::jsonb WHERE career_save_id = ${save.id}`);
-  const kept = (await db.execute(sql`SELECT result FROM career_simulated_matches WHERE career_save_id = ${save.id}`)).rows[0].result as Record<string, unknown>;
-  assert.equal(await compactSimulatedMatches(db, { batch: 1, pauseMs: 0 }), 1);
-  const row = (await db.execute(sql`SELECT player_a_id, player_b_id, input_snapshot, result FROM career_simulated_matches WHERE career_save_id = ${save.id}`)).rows[0];
-  assert.deepEqual(row.input_snapshot, { players: [{ id: row.player_a_id, tier: "PROFESSIONAL" }, { id: row.player_b_id, tier: "AMATEUR" }] });
-  const { performance: _p, format: _f, context: _c, ...slim } = kept;
-  assert.deepEqual(row.result, slim);
-  assert.equal(await compactSimulatedMatches(db, { batch: 1, pauseMs: 0 }), 0, "recorded as done");
+  await worlds.simulateMatch(actor, save.id, await requestFor(save.id, "a3:event:main:r1:m1"));
+  await worlds.simulateMatch(actor, save.id, await requestFor(save.id, "a3:event:main:r1:m2"));
+  await worlds.simulateMatch(actor, save.id, await requestFor(save.id, "kept-simulation"));
+  assert.equal(await removeTournamentMatchCopies(db, { batch: 1, pauseMs: 0 }), 2);
+  assert.deepEqual((await db.execute(sql`SELECT match_key FROM career_simulated_matches WHERE career_save_id = ${save.id}`)).rows.map(r => r.match_key), ["kept-simulation"]);
+  await worlds.simulateMatch(actor, save.id, await requestFor(save.id, "a3:event:main:r1:m3"));
+  assert.equal(await removeTournamentMatchCopies(db, { batch: 1, pauseMs: 0 }), 0, "recorded as done");
 });
-

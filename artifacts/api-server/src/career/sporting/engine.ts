@@ -11,6 +11,8 @@ import { loadSportingState, createSportingState, recordMilestones, type Sporting
 import { recordRankingContributions, recordRankingContributionsBatch, publishRankings, currentPositions } from "./rankings.ts";
 import { cardHoldersIn, issueFoundingCards, seasonReview, processRetirements, syncHumanCardCache } from "./cards.ts";
 import { recordQSchoolResults, allocateQSchool, PATHWAYS } from "./qschool.ts";
+import { archiveRankingSeason, seasonsToArchive } from "./archive.ts";
+import { ensureRankingArchive } from "../../db/migrations/create_career_sporting.ts";
 
 /** State + founding cards, once per save (idempotent; inside the caller's locked transaction). */
 export async function ensureSporting(tx: CareerExecutor, root: RootRow): Promise<SportingState> {
@@ -159,6 +161,9 @@ export function createSportingHooks(): CalendarSportingHooks {
     async onCalendarMoved(tx, root, season, week) {
       await ensureSporting(tx, root);
       if (week !== 1) return;
+      // A new season: the season that has just left the full weekly window is thinned (see archive.ts).
+      await ensureRankingArchive(tx);
+      for (const old of await seasonsToArchive(tx, root.id, season)) await archiveRankingSeason(tx, root.id, old);
       // New season: retired NPCs surrender cards; force a publication so they leave the active tables.
       await processRetirements(tx, root, season, week);
       await tx.execute(sql`UPDATE career_sporting_state SET force_publish = TRUE WHERE career_save_id = ${root.id}`);

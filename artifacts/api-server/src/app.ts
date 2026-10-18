@@ -1752,9 +1752,15 @@ async function initRuntime() {
   await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
   await runInitStep("initializeCommunityTopPostScheduler", initializeCommunityTopPostScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
-  void import("./career/world/compact").then(({ compactSimulatedMatches }) => compactSimulatedMatches(db))
-    .then(n => { if (n) logger.info({ compacted: n }, "Slimmed stored simulated matches"); })
-    .catch(err => logger.error({ err }, "compactSimulatedMatches failed (non-blocking; retried next start)"));
+  // One-off storage clean-ups for long careers, after startup and one after the other (each records when it is done).
+  void (async () => {
+    const { removeTournamentMatchCopies } = await import("./career/world/compact");
+    const removed = await removeTournamentMatchCopies(db);
+    if (removed) logger.info({ removed }, "Removed stored copies of tournament match simulations");
+    const { archiveExistingRankingHistory } = await import("./career/sporting/archive");
+    const thinned = await archiveExistingRankingHistory(db);
+    if (thinned) logger.info({ thinned }, "Thinned old seasons' weekly ranking tables");
+  })().catch(err => logger.error({ err }, "Career storage clean-up failed (non-blocking; retried next start)"));
   void sweepAllPlayerTitles().catch((err) => // grant any titles earned via existing achievements — fire-and-forget, but caught so a rejection can't become an unhandled crash
     logger.error({ err }, "sweepAllPlayerTitles failed (non-blocking)"));
 
