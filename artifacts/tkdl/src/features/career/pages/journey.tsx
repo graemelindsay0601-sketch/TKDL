@@ -7,6 +7,7 @@ import { careerChapter, circuitLabel, milestoneLabel, ordinal, sourceLabel, stag
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, StatusBadge } from "../components";
 import type { ShellContext } from "../shell";
 import { AgeLine } from "./home";
+import { CareerEras } from "./career-trends";
 
 const BIG = new Set(["MAJOR", "WORLD_CHAMPIONSHIP", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL"]);
 
@@ -45,6 +46,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
       )}
       {/* A7 extension point: narrative/news renders here later. A6 renders nothing in its place. */}
       <JourneyStoryExtension />
+      <CareerEras ctx={ctx} />
       <Link className="career-row-link block pdc-card p-3 text-sm" href={`/career/${id}/history`}>Career facts, playing statistics, records and full history →</Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
