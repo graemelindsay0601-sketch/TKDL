@@ -1,0 +1,19 @@
+.road-routes { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr)); }
+.road-route { border: 1px solid rgba(255,255,255,.1); border-radius: .75rem; padding: .85rem .95rem; background: rgba(255,255,255,.03); min-width: 0; }
+.road-route[data-done] { border-color: rgba(74,222,128,.45); }
+.road-route header { display: flex; align-items: center; gap: .5rem; font-size: 1rem; }
+.road-route header svg { width: 1.1rem; height: 1.1rem; color: #4ade80; }
+.road-route__done { margin-left: auto; }
+.road-route__gives { margin: .45rem 0 .6rem; font-size: .85rem; line-height: 1.45; color: rgba(255,255,255,.72); }
+.road-route__you { display: grid; gap: .35rem; font-size: .88rem; }
+.road-route__you p { margin: 0; }
+.road-route__you a { color: #8fd3ff; text-decoration: underline; text-underline-offset: 2px; }
+.road-good { color: #4ade80; }
+.road-offer { display: flex; gap: .8rem; align-items: flex-start; border: 1px solid rgba(250,204,21,.5); background: rgba(250,204,21,.08); border-radius: .75rem; padding: .9rem 1rem; }
+.road-offer > svg { flex: none; width: 1.6rem; height: 1.6rem; color: #facc15; margin-top: .1rem; }
+.road-offer b { font-size: 1.05rem; }
+.road-offer p { margin: .35rem 0 0; font-size: .88rem; line-height: 1.45; }
+.road-offer__by { color: rgba(255,255,255,.7); }
+.road-offer__error { color: #f87171; }
+.road-offer__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .7rem; }
+.road-offer__actions span { flex-basis: 100%; font-size: .88rem; }

@@ -71,6 +71,8 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "vault-series-night": N("SERIES_ROUND", "Vault series night: result and prize only."),
   "vault-tour": N("TOUR_ROUND", ROUND),
   "vault-qualifier": N("QUALIFIER", QUAL),
+  // v17: an open day for a season's Challenger Tour pass.
+  "challenger-qualifier": N("QUALIFIER", QUAL),
   // ---- Q-School
   ...Object.fromEntries(["europe", "uk_ireland"].flatMap(p => [
     ...[1, 2, 3, 4].map(d => [`q-school-final-${p}-d${d}`, N("Q_SCHOOL_SESSION", QSCHOOL)]),

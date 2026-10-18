@@ -180,7 +180,7 @@ test("milestones are neutral labels from A5 facts (no prose)", () => {
 
 test("five-destination navigation and stable legacy routes", () => {
   assert.deepEqual(CAREER_NAV.map(s => s.layer), ["HOME","MAP","CALENDAR","NIGHTS","DARTS_WORLD","MY_CAREER"]);
-  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 21); // 13 + SP-D Sponsor HQ (a98a841) + 7 Nights Out
+  assert.equal(CAREER_NAV.flatMap(s => s.items).length, 22); // 13 + SP-D Sponsor HQ (a98a841) + 7 Nights Out + Road to the Tour
   for (const [path, key] of [["/club", "club"], ["/streaming/s1", "streaming"], ["/cam-league/f1", "cam-league"], ["/pro-am/n1", "pro-am"], ["/money-matches", "money-matches"], ["/nights", "nights"]])
     assert.equal(activeNavKey(`/career/abc${path}`), key, `${path} highlights Nights Out, not Home`);
 

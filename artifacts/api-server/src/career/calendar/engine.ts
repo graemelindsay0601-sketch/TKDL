@@ -20,6 +20,7 @@ import { substitutesFor } from "./substitutes.ts";
 import { simulatedNineDarters } from "../records/model.ts";
 import { MIDWEEK_FIELD_FILL, MIDWEEK_KEYS } from "../content/season-v15.ts";
 import { MIDWEEK_WORLD_EVENT_DATABASE } from "../content/season-v16.ts";
+import { PATHWAYS_EVENT_DATABASE, CHALLENGER_QUALIFIER_KEY, PRO_CIRCUIT_RULE } from "../content/season-v17.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -118,6 +119,7 @@ export async function ensureSeason(tx: CareerExecutor, root: RootRow, season: nu
   await insertDrafts(tx, root, season, drafts);
   // Older editions get the midweek circuit (v16: every home area) added to every new season (the season's own hash stays its edition's).
   if (version < MIDWEEK_WORLD_EVENT_DATABASE) await addMidweek(tx, root, season, 1);
+  if (version < PATHWAYS_EVENT_DATABASE) await addPathwayEvents(tx, root, season, 1);
   const created = (await tx.execute(sql`SELECT * FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows[0];
   return { season: created, created: true };
 }
@@ -133,6 +135,28 @@ export async function ensureMidweekCircuit(tx: CareerExecutor, root: RootRow) {
   if (!(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length) return;
   await addMidweek(tx, root, season, Number(root.current_week) + 1);
   await openRegistrations(tx, root.id, season, Number(root.current_week));
+}
+/**
+ * v17 Challenger Tour Qualifiers for a Career on an older edition: added once per season, only in weeks still ahead
+ * (and never in season 1, whose Challenger Tour is open to everyone). Idempotent (marker row + instance key).
+ */
+export async function ensurePathwayEvents(tx: CareerExecutor, root: RootRow) {
+  if (Number(root.event_database_version) >= PATHWAYS_EVENT_DATABASE) return;
+  const season = Number(root.current_season);
+  if (!(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length) return;
+  await addPathwayEvents(tx, root, season, Number(root.current_week) + 1);
+  await openRegistrations(tx, root.id, season, Number(root.current_week));
+}
+async function addPathwayEvents(tx: CareerExecutor, root: RootRow, season: number, fromWeek: number) {
+  const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon) VALUES (${root.id}, ${season}, 'pathways-v17')
+    ON CONFLICT DO NOTHING RETURNING season`)).rows.length;
+  if (!claimed) return;
+  const drafts = generateSeason(root.world_seed, PATHWAYS_EVENT_DATABASE, season, d => d.key === CHALLENGER_QUALIFIER_KEY).filter(d => d.startWeek >= fromWeek);
+  await insertDrafts(tx, root, season, drafts);
+  // Pro Circuit events still ahead let this season's Q-School associates in (nothing played or entered changes).
+  await tx.execute(sql`UPDATE career_event_instances SET snapshot = jsonb_set(snapshot, '{eligibility}', ${JSON.stringify(PRO_CIRCUIT_RULE)}::jsonb)
+    WHERE career_save_id = ${root.id} AND season = ${season} AND definition_key = 'pro-circuit-championship' AND start_week >= ${fromWeek}
+      AND status IN ('SCHEDULED','REGISTRATION_OPEN') AND snapshot->'eligibility' = ${JSON.stringify({ type: "TOUR_CARD" })}::jsonb`);
 }
 async function addMidweek(tx: CareerExecutor, root: RootRow, season: number, fromWeek: number) {
   const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon) VALUES (${root.id}, ${season}, 'midweek-v16')

@@ -17,6 +17,7 @@ import { buildCatalogueV13 } from "../content/season-v13.ts";
 import { buildCatalogueV14 } from "../content/season-v14.ts";
 import { buildCatalogueV15 } from "../content/season-v15.ts";
 import { buildCatalogueV16 } from "../content/season-v16.ts";
+import { buildCatalogueV17 } from "../content/season-v17.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -460,6 +461,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 14) return EVENT_CATALOGUE_V14;
   if (version === 15) return EVENT_CATALOGUE_V15;
   if (version === 16) return EVENT_CATALOGUE_V16;
+  if (version === 17) return EVENT_CATALOGUE_V17;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -487,5 +489,7 @@ export const EVENT_CATALOGUE_V14: readonly EventDefinition[] = buildCatalogueV14
 export const EVENT_CATALOGUE_V15: readonly EventDefinition[] = buildCatalogueV15(EVENT_CATALOGUE_V14);
 /** v16: the midweek circuit in every home area (added to older saves too). */
 export const EVENT_CATALOGUE_V16: readonly EventDefinition[] = buildCatalogueV16(EVENT_CATALOGUE_V15);
+/** v17: Q-School in season 1; Challenger Tour Qualifiers mid-season (added to older saves too). */
+export const EVENT_CATALOGUE_V17: readonly EventDefinition[] = buildCatalogueV17(EVENT_CATALOGUE_V16);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

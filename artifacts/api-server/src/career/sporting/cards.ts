@@ -8,9 +8,14 @@ import { stableUuid } from "../world/random.ts";
 import { TOUR_CARD_RULES_V1, PATHWAY_FOR_ZONE, tourCardRulesFor } from "./config.ts";
 import { recordMilestones, type Milestone } from "./state.ts";
 
+/** Challenger ranking places (without a card for next season) that keep the Challenger Tour pass into next season. */
+export const CHALLENGER_ACCESS_KEPT = 64;
+
 export type CardSource = "FOUNDING" | "Q_SCHOOL_DIRECT" | "Q_SCHOOL_ORDER_OF_MERIT" | "RANKING_RETENTION" | "CHALLENGER_RANKING" | "DEVELOPMENT_RANKING";
 export type CardRow = { id: string; participant_key: string; participant_kind: string; npc_id: string | null; source: CardSource; source_detail: Record<string, unknown>;
-  awarded_season: number; awarded_week: number; start_season: number; end_season: number; status: string; end_reason: string | null; previous_card_id: string | null };
+  awarded_season: number; awarded_week: number; start_season: number; end_season: number; status: string; end_reason: string | null; previous_card_id: string | null;
+  tour_card_rules_version?: number;
+  human_offer?: { status: "PENDING" | "ACCEPTED" | "DECLINED"; decideBy: { season: number; week: number }; reserve: Reserve[] } | null };
 
 /** Participants holding a card valid in `season` (ACTIVE and inside its term). */
 export async function cardHoldersIn(tx: CareerExecutor, saveId: string, season: number): Promise<Set<string>> {
@@ -22,7 +27,18 @@ export async function activeCard(tx: CareerExecutor, saveId: string, participant
 }
 
 export type CardAward = { operationKey: string; participantKey: string; participantKind: string; npcId: string | null; source: CardSource; detail: Record<string, unknown>;
-  sourceEventId?: string | null; season: number; week: number; startSeason: number; endSeason: number; previousCardId?: string | null };
+  sourceEventId?: string | null; season: number; week: number; startSeason: number; endSeason: number; previousCardId?: string | null;
+  /** Players next in line (best first). A new card won by the human becomes an offer they can decline in favour of the first of these. */
+  reserve?: Reserve[] };
+export type Reserve = { participantKey: string; participantKind: string; npcId: string | null; position: number | null };
+/** How many players next in line an offer keeps (a decline goes to the first of them still without a card). */
+export const OFFER_RESERVE = 6;
+/**
+ * When an offered card is accepted anyway: before the first Pro Circuit week of its first season (week 4), or the week
+ * after it is won when that is later (a Q-School card is won in weeks 3–4 and starts at once).
+ */
+export const offerDecideBy = (award: { season: number; week: number; startSeason: number }) =>
+  award.startSeason > award.season ? { season: award.startSeason, week: 4 } : { season: award.season, week: Math.max(4, award.week + 1) };
 
 /**
  * Award a Tour Card. Idempotent per operation key; refuses to create a second
@@ -43,6 +59,11 @@ export async function awardCard(tx: CareerExecutor, root: RootRow, rulesVersion:
     VALUES (${root.id}, ${id}, ${award.operationKey}, ${award.participantKey}, ${award.participantKind}, ${award.npcId}, ${award.source}, ${JSON.stringify(award.detail)}::jsonb,
       ${award.sourceEventId ?? null}, ${award.season}, ${award.week}, ${award.startSeason}, ${award.endSeason}, 'ACTIVE', ${award.previousCardId ?? null}, ${rulesVersion})
     RETURNING *`)).rows[0] as CardRow;
+  if (award.participantKey === HUMAN && award.reserve) {
+    const offer = { status: "PENDING" as const, decideBy: offerDecideBy(award), reserve: award.reserve.slice(0, OFFER_RESERVE) };
+    await tx.execute(sql`UPDATE career_tour_cards SET human_offer = ${JSON.stringify(offer)}::jsonb WHERE career_save_id = ${root.id} AND id = ${id}`);
+    card.human_offer = offer;
+  }
   if (award.source !== "FOUNDING") {
     const prior = (await tx.execute(sql`SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE status IN ('LOST','SURRENDERED') OR end_reason = 'TERM_COMPLETED')::int AS gone
       FROM career_tour_cards WHERE career_save_id = ${root.id} AND participant_key = ${award.participantKey} AND id <> ${id}`)).rows[0];
@@ -57,7 +78,7 @@ export async function endCard(tx: CareerExecutor, root: RootRow, card: CardRow, 
   const updated = await tx.execute(sql`UPDATE career_tour_cards SET status = ${status}, end_reason = ${reason}, ended_season = ${season}, ended_week = ${week}
     WHERE career_save_id = ${root.id} AND id = ${card.id} AND status = 'ACTIVE' RETURNING id`);
   if (!updated.rows.length) return false;
-  const kind = status === "LOST" ? "TOUR_CARD_LOST" : status === "SURRENDERED" ? "TOUR_CARD_SURRENDERED" : null;
+  const kind = status === "LOST" ? "TOUR_CARD_LOST" : status === "SURRENDERED" ? (reason === "DECLINED" ? "TOUR_CARD_DECLINED" : "TOUR_CARD_SURRENDERED") : null;
   if (kind) await recordMilestones(tx, root, [{ operationKey: `card:${card.id}:${kind}`, participantKey: card.participant_key, participantKind: card.participant_kind, npcId: card.npc_id,
     kind, season, week, detail: { cardId: card.id, reason, ...detail } }]);
   return true;
@@ -101,6 +122,12 @@ export async function issueFoundingCards(tx: CareerExecutor, root: RootRow, rule
   return rows.length;
 }
 
+/** The next players down a ranking without a card for next season (the human's offer passes to the first still without one). */
+function reserveAfter(ranked: readonly [string, number][], rank: number, holders: ReadonlySet<string>, kinds: ReadonlyMap<string, { kind: string; npc: string | null }>): Reserve[] {
+  return ranked.filter(([p, r]) => r > rank && p !== HUMAN && !holders.has(p) && kinds.has(p)).slice(0, OFFER_RESERVE)
+    .map(([p, r]) => ({ participantKey: p, participantKind: kinds.get(p)!.kind, npcId: kinds.get(p)!.npc, position: r }));
+}
+
 /**
  * Season review at the end of season S (after the final ranking publication):
  *  1. cards ending in S: holders inside the retention cut of the season-end World
@@ -116,7 +143,7 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
   const position = async (list: string) => new Map((await tx.execute(sql`SELECT participant_key, current_position FROM career_ranking_participants
     WHERE career_save_id = ${root.id} AND list_key = ${list} AND current_position IS NOT NULL`)).rows.map(r => [String(r.participant_key), Number(r.current_position)]));
   const world = await position(rules.retention.list);
-  const summary = { season, retained: 0, lost: 0, challengerCards: 0, developmentCards: 0, exemptions: 0 };
+  const summary = { season, retained: 0, lost: 0, challengerCards: 0, developmentCards: 0, exemptions: 0, challengerAccess: 0 };
   const losers: CardRow[] = [];
   const expiring = (await tx.execute(sql`SELECT * FROM career_tour_cards WHERE career_save_id = ${root.id} AND status = 'ACTIVE' AND end_season <= ${season}
     ORDER BY participant_key`)).rows as CardRow[];
@@ -142,7 +169,8 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
     if (holdersNext.has(participant)) continue;
     const who = kinds.get(participant)!;
     const result = await awardCard(tx, root, rulesVersion, { operationKey: `challenger:${season}:${participant}`, participantKey: participant, participantKind: who.kind, npcId: who.npc,
-      source: "CHALLENGER_RANKING", detail: { list: rules.challengerCards.list, position: rank }, season, week, startSeason: season + 1, endSeason: season + rules.termSeasons });
+      source: "CHALLENGER_RANKING", detail: { list: rules.challengerCards.list, position: rank }, season, week, startSeason: season + 1, endSeason: season + rules.termSeasons,
+      reserve: reserveAfter(challenger, rank, holdersNext, kinds) });
     if (result) { holdersNext.add(participant); summary.challengerCards++; }
   }
   // v3: the Development Tour Order of Merit top two without a card for next season (after the Challenger cards).
@@ -157,7 +185,8 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
       if (holdersNext.has(participant)) continue;
       const who = kinds.get(participant)!;
       const result = await awardCard(tx, root, rulesVersion, { operationKey: `development:${season}:${participant}`, participantKey: participant, participantKind: who.kind, npcId: who.npc,
-        source: "DEVELOPMENT_RANKING", detail: { list: devRules.list, position: rank }, season, week, startSeason: season + 1, endSeason: season + rules.termSeasons });
+        source: "DEVELOPMENT_RANKING", detail: { list: devRules.list, position: rank }, season, week, startSeason: season + 1, endSeason: season + rules.termSeasons,
+        reserve: reserveAfter(development, rank, holdersNext, kinds) });
       if (result) { holdersNext.add(participant); awarded++; summary.developmentCards++; }
     }
   }
@@ -208,6 +237,16 @@ export async function seasonReview(tx: CareerExecutor, root: RootRow, rulesVersi
     if (grants.length) await insertEntitlements(tx, root.id, season, grants, "PROVIDER");
     summary.exemptions = grants.length;
   }
+  // Pathways: the Challenger ranking top 64 without a card keep their Challenger Tour pass for next season, so a good
+  // Challenger year is never wasted by missing the next Q-School (every save; earlier seasons already reviewed are untouched).
+  const keep = challenger.filter(([participant, rank]) => rank <= CHALLENGER_ACCESS_KEPT && !holdersNext.has(participant)).map(([participant, rank]) => {
+    const who = kinds.get(participant)!, idempotency = `provider:a5-challenger-access:${season + 1}:${participant}`;
+    return { id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "entitlement", idempotency), idempotency_key: idempotency, recipient_key: participant,
+      recipient_kind: who.kind, npc_id: who.npc, entitlement_type: "SERIES_ACCESS", source_event_id: null, source_position: null,
+      source_detail: { providerId: "A5_SPORTING", reason: "CHALLENGER_RANKING", position: rank }, target_key: "challenger-tour", target_season: season + 1, consumption: "SEASON_PASS" };
+  });
+  if (keep.length) await insertEntitlements(tx, root.id, season, keep, "PROVIDER");
+  summary.challengerAccess = keep.length;
   await tx.execute(sql`UPDATE career_sporting_state SET reviewed_season = ${season} WHERE career_save_id = ${root.id}`);
   await syncHumanCardCache(tx, root, season);
   return summary;

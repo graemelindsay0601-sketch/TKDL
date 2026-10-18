@@ -14,6 +14,8 @@ import type { SponsorFactsProvider } from "../finance/engine.ts";
 import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, rankingRulesVersionFor, tourCardRulesVersionFor, timeIndex } from "./config.ts";
 import { createSportingHooks, createSportingFactsProvider, bindSporting, ensureSporting, UNBOUND_STATUS, UNBOUND_SEEDING } from "./engine.ts";
 import { orderOfMerit, finalStageDays, PATHWAYS } from "./qschool.ts";
+import { decideOffer } from "./offers.ts";
+import { pathwaysView } from "./pathways.ts";
 import { captureSeasonReview } from "../legacy/persistence.ts";
 
 const participantSchema = z.union([z.literal(HUMAN), z.string().uuid()]);
@@ -95,7 +97,11 @@ export function createCareerSportingService(database: CareerDatabase, options: {
       previousCardId: c.previous_card_id, rulesVersion: c.tour_card_rules_version });
     return { participantKey: participant, holdsCard: !!current && Number(current.start_season) <= season && Number(current.end_season) >= season,
       current: current ? { ...present(current), reviewSeason: Number(current.end_season), retention: TOUR_CARD_RULES_V1.retention,
-        termSeasons: TOUR_CARD_RULES_V1.termSeasons, inFinalSeason: Number(current.end_season) <= season } : null, history: cards.map(present) };
+        termSeasons: TOUR_CARD_RULES_V1.termSeasons, inFinalSeason: Number(current.end_season) <= season } : null, history: cards.map(present),
+      // A card the human has won but not yet accepted (accepted automatically after decideBy).
+      offer: current && (current.human_offer as { status?: string } | null)?.status === "PENDING"
+        ? { cardId: String(current.id), source: String(current.source), decideBy: (current.human_offer as { decideBy: { season: number; week: number } }).decideBy,
+          startSeason: Number(current.start_season), endSeason: Number(current.end_season) } : null };
   }
 
   async function qSchoolView(tx: CareerExecutor, root: RootRow, season: number, participant: string) {
@@ -261,6 +267,21 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         return { list: list.key, window: list.window, participantKey: participant, publicationIndex: P, position: standing ? Number(standing.position) : null,
           valuePence: standing ? Number(standing.value_pence) : 0, contributionTotalPence: total, explained: !standing || Number(standing.value_pence) === total,
           counting: counting.map(present), expired: rows.filter(c => Number(c.expires_index) <= P).slice(0, 50).map(present), pending: rows.filter(c => Number(c.completion_index) > P).map(present) };
+      });
+    },
+
+    /** Road to the Tour: every route to a card and to the Worlds, and where the human stands. */
+    async pathways(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => { const root = await open(tx, actor, saveId); return pathwaysView(tx, root); });
+    },
+
+    /** Accept or decline a Tour Card offer (declining passes it down and keeps you amateur). */
+    async decideTourCard(actor: CareerActor, saveId: string, body: unknown) {
+      const { decision } = z.object({ decision: z.enum(["ACCEPT", "DECLINE"]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as RootRow;
+        const result = await decideOffer(tx, root, decision);
+        return { ...result, tourCard: await cardView(tx, root, HUMAN) };
       });
     },
 

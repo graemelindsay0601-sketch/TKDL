@@ -191,7 +191,7 @@ test("milestones render as neutral factual labels (no prose)", () => {
 
 test("navigation: six destinations, legacy screens remain reachable, events belong to Calendar", () => {
   assert.deepEqual(CAREER_NAV.map(l => l.label), ["Home","Map","Calendar","Nights Out","Darts World","My Career"]);
-  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 21); // 13 + SP-D Sponsor HQ (a98a841) + 7 Nights Out
+  assert.equal(CAREER_NAV.flatMap(l => l.items).length, 22); // 13 + SP-D Sponsor HQ (a98a841) + 7 Nights Out + Road to the Tour
   assert.equal(navLayerOf(activeNavKey("/career/abc/club")).label, "Nights Out", "the club lives under Nights Out");
 
   assert.equal(navLayerOf(activeNavKey("/career/abc/sponsors")).label, "My Career", "SP-D Sponsor HQ lives under My Career");
