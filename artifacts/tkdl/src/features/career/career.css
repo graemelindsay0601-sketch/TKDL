@@ -1228,3 +1228,13 @@
 @media (pointer: coarse) {
   .career-root main :is(li, td, p, span, dd) > a:not(.career-btn) { padding-block: 5px; }
 }
+
+/* Phones: a slimmer Career header. Attention and "More" stay; search, Play mode, the guide and save health open on demand. */
+.career-header-more { display:none; }
+@media (max-width: 640px) {
+  .career-root .career-header-tools > :not(.career-attention-trigger):not(.career-header-more) { display:none; }
+  .career-root .career-header-tools[data-open] > * { display:flex; }
+  .career-header-more { display:inline-flex; align-items:center; margin-left:auto; padding:6px 12px; border-radius:999px; border:1px solid #ffffff26; background:#ffffff0d; color:#fff; font-size:.8rem; font-weight:700; }
+  .career-hero__extra { display:none; }
+  .career-hero__portrait { display:none; }
+}

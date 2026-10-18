@@ -739,8 +739,8 @@ test("A9 establishment copy is new-save-only; Career Calendar fixture remains bo
   const seed:[unknown[],unknown][]=[[key("calendar",{scope:"RELEVANT",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
     [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}]];
   const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5}))}),seed);
-  assert.match(text(html),/Establishment season/);assert.match(text(html),/Turning professional is optional/);
-  assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Establishment season/);
+  assert.match(text(html),/Your first season/);assert.match(text(html),/Turning professional is up to you/);
+  assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Your first season/);
   if(process.env.A9_BROWSER_DIR){
     const q={scope:"WORLD",season:1,fromWeek:1,toWeek:9,circuit:undefined};
     const markup=render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.CalendarPage,{ctx:ctx()})),

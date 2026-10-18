@@ -124,6 +124,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
   // G1: the header stands on the player's real stage — club room as an amateur, the professional floor with a
   // Tour Card, archival grade once retired. Decorative only; nothing here names a venue or claims a result.
   const stage = resolveAtmosphere({ eventClass: save.hasTourCard ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
+  const [toolsOpen, setToolsOpen] = useState(false);
   return (
     <header className="pdc-card career-hero career-hero--stage px-4 py-3 space-y-2.5">
       <CareerStageBackdrop atmosphere={stage} spectacle={spectacleFor("ARRIVAL", stage.level)} documentary={retired} animate={false} eager className="career-hero__stage" />
@@ -139,13 +140,17 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
               {save.careerName ?? "My Career"}
             </h1>
             <div className="text-xs mt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em" }}>
-              {weekLabel(save.currentSeason, save.currentWeek)}{overview ? ` · ${overview.grouping.name}` : ""}<HeaderAge saveId={save.id} />
+              {weekLabel(save.currentSeason, save.currentWeek)}<span className="career-hero__extra">{overview ? ` · ${overview.grouping.name}` : ""}</span><HeaderAge saveId={save.id} />
             </div>
           </div>
         </div>
         {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} hubAction={!!overview?.pendingTournamentActions?.length} nextEntry={overview?.nextHumanEntry ?? null} />}
       </div>
-      <div className="career-header-tools">{!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><Gamepad2 aria-hidden /> Play mode</Link>}<WorldSearch saveId={save.id}/><CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link><Link href={`/career/${save.id}/health`}>Save health</Link></div>
+      {/* Phones: Attention and a "More" toggle; the rest of the tools open beneath it. */}
+      <div className="career-header-tools" data-open={toolsOpen || undefined}>
+        <CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/>
+        <button type="button" className="career-header-more" aria-expanded={toolsOpen} onClick={() => setToolsOpen(o => !o)}>{toolsOpen ? "Less" : "More"}</button>
+        {!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><Gamepad2 aria-hidden /> Play mode</Link>}<WorldSearch saveId={save.id}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link><Link href={`/career/${save.id}/health`}>Save health</Link></div>
     </header>
   );
 }
@@ -153,7 +158,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
 function HeaderAge({ saveId }: { saveId: string }) {
   const p = useCareerProfile(saveId).data;
   if (p?.status !== "COMPLETE") return null;
-  return <>{` · ${p.careerDate} · Age ${p.age}`}{p.junior ? " · Junior" : ""}</>;
+  return <><span className="career-hero__extra">{` · ${p.careerDate}`}</span>{` · Age ${p.age}`}{p.junior ? " · Junior" : ""}</>;
 }
 
 /**

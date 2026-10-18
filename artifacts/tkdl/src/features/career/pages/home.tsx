@@ -59,6 +59,9 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <main className="career-home">
+      {/* Your next move comes first: the rest of Home is reference you can scroll to. */}
+      {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
+        onEnter={onEnter} entering={enter.isPending} message={message} />}
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#ff005c" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}
@@ -82,8 +85,6 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
             sub: finance.data ? `${formatPence(finance.data.availablePence)} available` : undefined },
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
-      {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
-        onEnter={onEnter} entering={enter.isPending} message={message} />}
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
       <details className="home-more" open={retired}>
       <summary className="home-more__summary">More about your Career <span>Guidance, route ahead, goals, schedule and results</span></summary>
@@ -91,9 +92,11 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       <ContextHelp saveId={id} topic="home" />
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
         <SeasonOneGuidance saveId={id} />
-                <details className="career-note" open><summary>Establishment season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 6
-          ? `Choose your own amateur path. This season the Challenger Tour is open to every player without a Tour Card: finish in its top 2 to earn a Tour Card for Season 2, or ${(save.eventDatabaseVersion ?? 0) >= 8 ? "3rd–16th" : "3rd–10th"} to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–3 of Season 2. Turning professional is optional.`
-          : "Choose your own amateur path. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional."}</p></details>
+                <details className="career-note" open><summary>Your first season</summary><p>{(save.eventDatabaseVersion ?? 0) >= 17
+          ? "Play wherever suits you. Q-School runs in weeks 2–4 if you can afford it, and the Challenger Tour is open to anyone without a Tour Card this season: finish in its top 2 for a Tour Card. Turning professional is up to you."
+          : (save.eventDatabaseVersion ?? 0) >= 6
+          ? `Play wherever suits you. This season the Challenger Tour is open to anyone without a Tour Card: finish in its top 2 for a Tour Card, or ${(save.eventDatabaseVersion ?? 0) >= 8 ? "3rd–16th" : "3rd–10th"} to go straight to the Q-School Final Stage. Q-School first runs in weeks 2–4 of season 2. Turning professional is up to you.`
+          : "Play wherever suits you. Your first Q-School is at the start of season 2. Turning professional is up to you."}</p></details>
       </>}
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
@@ -289,7 +292,7 @@ function SeasonOneGuidance({ saveId }: { saveId: string }) {
   const edit = useEditGuidance(saveId);
   if (!guidance.data || guidance.data.mode === "MINIMAL" || guidance.data.dismissed.includes("establishment")) return null;
   return <aside className="career-home-note" aria-label="Season 1 guidance">
-    <div><strong>Establishment season · Season 1</strong><p>Amateur competition is a valid route. Your first normal Q-School opportunity opens at the Season 1 → 2 boundary. Turning professional is optional.</p></div>
+    <div><strong>Your first season</strong><p>Amateur darts is a full career on its own. When you want a Tour Card, Road to the Tour shows every way to get one. Turning professional is up to you.</p></div>
     {guidance.data.canEdit && <button type="button" className="home-guidance-dismiss" disabled={edit.isPending} onClick={() => edit.mutate({ dismiss: "establishment" })} aria-label="Dismiss Season 1 guidance"><X aria-hidden /><span>Later</span></button>}
     {edit.error && <p role="alert">{errorMessage(edit.error)}</p>}
   </aside>;
