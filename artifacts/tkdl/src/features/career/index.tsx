@@ -26,6 +26,7 @@ import {ClubPage} from "./pages/club";
 import {StreamingPage} from "./pages/streaming";
 import {StreamLivePage} from "./pages/stream-live";
 import {CamLeaguePage,CamMatchPage} from "./pages/cam-league";
+import {ProAmLegPage} from "./pro-am";
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
 import {PlayPage} from "./pages/play";
@@ -98,6 +99,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/streaming"><StreamingPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/cam-league/:fixtureId">{(p:{fixtureId:string})=><CamMatchPage key={p.fixtureId} ctx={ctx} fixtureId={p.fixtureId}/>}</Route>
           <Route path="/career/:saveId/cam-league"><CamLeaguePage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/pro-am/:nightId">{(p:{nightId:string})=><ProAmLegPage key={p.nightId} ctx={ctx} nightId={p.nightId}/>}</Route>
           <Route path="/career/:saveId/world"><WorldHub ctx={ctx}/></Route>
           <Route path="/career/:saveId/map"><CareerMapPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/guide"><WorldPage ctx={ctx} guide/></Route>

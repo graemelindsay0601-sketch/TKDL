@@ -25,6 +25,7 @@ import { activeManager, recordManagerInvites } from "../manager/state.ts";
 import { settleStreamingWeek, streamTier } from "../streaming/state.ts";
 import { nightLabel, offBoardNights } from "../nights.ts";
 import { settleCamWeek } from "../camleague/service.ts";
+import { settleProAmWeek } from "../proam/service.ts";
 import { streamerCanBeInvited } from "../streaming/model.ts";
 import { canInvite } from "../manager/model.ts";
 import { loadHumanForm, humanSimulationPlayer } from "../form/human.ts";
@@ -480,6 +481,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await settleStreamingWeek(tx, root, s, w);
       // Webcam leagues: the round plays out (an unplayed match of yours is forfeited); prizes at the end.
       await settleCamWeek(tx, root, s, w);
+      // Pro-Am nights: a missed slot, or the night you were booked to be the pro.
+      await settleProAmWeek(tx, root, s, w);
       return { season: s, week: w, summary, blocked: false };
     });
     if (played.blocked) return { ...played, advancedTo: null };

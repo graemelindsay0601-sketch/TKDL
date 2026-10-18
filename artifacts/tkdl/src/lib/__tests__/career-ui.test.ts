@@ -40,7 +40,7 @@ before(async () => {
     load("/src/features/career/pages/saves.tsx"), load("/src/features/career/pages/home.tsx"), load("/src/features/career/pages/rankings.tsx"),
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
-   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")),...(await load("/src/features/career/road-trips.tsx")),...(await load("/src/features/career/pages/cam-league.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
+   M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")),...(await load("/src/features/career/road-trips.tsx")),...(await load("/src/features/career/pages/cam-league.tsx")),...(await load("/src/features/career/pro-am.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -943,4 +943,20 @@ test("Webcam league: the table with promotion and relegation places, this week's
   const t = text(render(h(M.CamLeaguePage, { ctx: ctx() }), [[key("cam-league"), view]], `/career/${SAVE_ID}/cam-league`));
   for (const fact of ["Division One", "2nd", "4 of 7", "This week's match", "Opp 4", "averages about 51.2", "Booked for Thu", "Play on camera", "Quick-sim it",
     "Jan de Vries", "You", "£120 / £60 / £36", "Forfeit 0-3", "Booked Thu", "Past leagues", "Division Two", "£40 · promoted"]) assert.ok(t.includes(fact), fact);
+});
+
+test("Pro-Am nights: slots against touring pros as an amateur, and a paid night as the pro", () => {
+  const am = { season: 2, week: 9, side: "AMATEUR", availablePence: 30000, booking: null, history: [],
+    record: { slots: 3, prosBeaten: 1, prizePence: 30000, nightsAsPro: 0, appearancePence: 0, amateursBeatYou: 0 },
+    nights: [{ key: "n0", town: "Kilbirnie", dayOfWeek: 2, travelPence: 0, free: true, pro: { name: "Rob Cross", rank: 12, avg: 96.1 }, feePence: 2500, prizePence: 50000, appearancePence: 0 },
+      { key: "n1", town: "Glasgow", dayOfWeek: 4, travelPence: 700, free: false, pro: { name: "Joe Bloggs", rank: null, avg: 88.4 }, feePence: 1000, prizePence: 20000, appearancePence: 0 }] };
+  let t = text(render(h(M.ProAmNights, { saveId: SAVE_ID, retired: false }), [[key("pro-am"), am]]));
+  for (const fact of ["you throw first", "Kilbirnie · Tue", "Rob Cross (world no. 12)", "averages about 96.1", "slot £25", "prize £500", "Take a slot (£25)",
+    "Glasgow · Thu", "travel £7", "You're booked that night", "Pros beaten: 1 of 3", "prizes £300"]) assert.ok(t.includes(fact), fact);
+  const pro = { ...am, side: "PRO", nights: [], record: { slots: 0, prosBeaten: 0, prizePence: 0, nightsAsPro: 2, appearancePence: 180000, amateursBeatYou: 3 },
+    booking: { id: "b", role: "PRO", town: "Stirling", dayOfWeek: 5, status: "PLAYED", pro: null, feePence: 0, prizePence: 0, appearancePence: 90000,
+      result: { legs: [{ name: "Al Day", youWon: true }, { name: "Bo Hill", youWon: false }], beatenBy: 1, source: "SIM" } } };
+  t = text(render(h(M.ProAmNights, { saveId: SAVE_ID, retired: false }), [[key("pro-am"), pro]]));
+  for (const fact of ["you're the pro now", "You're the pro in Stirling on Fri", "Paid £900", "1 of 2 amateurs beaten", "Bo Hill: beat you", "Nights as the pro: 2", "paid £1,800", "amateurs who beat you: 3"])
+    assert.ok(t.includes(fact), fact);
 });

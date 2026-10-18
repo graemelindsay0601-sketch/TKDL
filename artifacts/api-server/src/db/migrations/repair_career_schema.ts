@@ -10,6 +10,7 @@ import { ensureHostingLedger } from "./create_career_hosting.ts";
 import { ensureStreaming } from "./create_career_streaming.ts";
 import { ensureRoadTrips } from "./create_career_road_trips.ts";
 import { ensureCamLeagues } from "./create_career_cam_leagues.ts";
+import { ensureProAm } from "./create_career_proam.ts";
 import { ensureManagers } from "./create_career_manager.ts";
 import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensureCalendarAddons, ensureSavingsGoals } from "./create_career_legacy.ts";
 
@@ -42,6 +43,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureStreaming(tx);
     await ensureRoadTrips(tx);
     await ensureCamLeagues(tx);
+    await ensureProAm(tx);
     await ensureManagers(tx);
     // SP-G (signature products, equipment) tables were added to createCareerContent after its ledgered
     // caller (createCareerFinanceA4 / the A9 upgrade) had already run in production. All IF NOT EXISTS.
