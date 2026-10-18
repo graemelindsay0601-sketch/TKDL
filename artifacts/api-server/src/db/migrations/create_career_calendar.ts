@@ -149,6 +149,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
       )
     `);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_event_entries_participant_idx ON career_event_entries(career_save_id, participant_key, status)`);
+    await ensureEntryTier(tx);
     // One row per participant per occupied day: a hard database guarantee against double-booking.
     await tx.execute(sql`
       CREATE TABLE IF NOT EXISTS career_participant_bookings (
@@ -403,3 +404,9 @@ export async function syncEventDefinitions(tx: CareerExecutor): Promise<void> {
     `);
   }
 }
+
+/** An NPC entrant's tier when entered (a season's fields can be checked against the tiers they were drawn from). Idempotent. */
+export async function ensureEntryTier(tx: CareerExecutor): Promise<void> {
+  await tx.execute(sql`ALTER TABLE career_event_entries ADD COLUMN IF NOT EXISTS entered_tier TEXT`);
+}
+

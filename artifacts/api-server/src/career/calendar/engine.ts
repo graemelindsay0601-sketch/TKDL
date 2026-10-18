@@ -368,7 +368,8 @@ export function forgetBookings(pre: LockPreload | undefined, eventId: string) {
 }
 
 // ------------------------------------------------------------------ field assembly
-type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; npc_id: string | null; source: string; entitlement_id: string | null };
+/** tier: the NPC's tier when entered (it can change during a season; nothing else records it at the time). */
+type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; npc_id: string | null; source: string; entitlement_id: string | null; tier?: string | null };
 
 /**
  * Lock the field: human entries, series carry-over, entitlement intake,
@@ -392,7 +393,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   const ctx = pre ? await factsFromPreload(tx, saveId, pre) : await loadFactsContext(tx, saveId, event.season, [snapshot.eligibility]);
   const free = (npc: Npc) => !taken.has(npc.id) && !booked.has(npc.id) && !excluded.has(npc.id);
   const add = (npc: Npc, source: string, entitlementId: string | null = null) => {
-    taken.add(npc.id); additions.push({ participant_key: npc.id, participant_kind: "NPC", npc_id: npc.id, source, entitlement_id: entitlementId });
+    taken.add(npc.id); additions.push({ participant_key: npc.id, participant_kind: "NPC", npc_id: npc.id, source, entitlement_id: entitlementId, tier: npc.tier });
   };
   const eligible = (npc: Npc, invited = false) => evaluate(event, factsFor(npcParticipant(npc, providers), ctx, event, invited)).eligible;
   const byId = new Map(npcs.map(npc => [npc.id, npc]));
@@ -512,9 +513,9 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   }
   if (additions.length) {
     // Entries and their bookings in one statement (independent rows; both inserts always run).
-    await tx.execute(sql`WITH entries AS (INSERT INTO career_event_entries (career_save_id, event_id, participant_key, participant_kind, npc_id, source, entitlement_id, status, entered_season, entered_week)
-      SELECT ${saveId}::uuid, ${event.id}::uuid, a.participant_key, a.participant_kind, a.npc_id, a.source, a.entitlement_id, 'CONFIRMED', ${event.season}, ${week}
-      FROM jsonb_to_recordset(${JSON.stringify(additions)}::jsonb) AS a(participant_key text, participant_kind text, npc_id uuid, source text, entitlement_id uuid) RETURNING 1)
+    await tx.execute(sql`WITH entries AS (INSERT INTO career_event_entries (career_save_id, event_id, participant_key, participant_kind, npc_id, source, entitlement_id, status, entered_season, entered_week, entered_tier)
+      SELECT ${saveId}::uuid, ${event.id}::uuid, a.participant_key, a.participant_kind, a.npc_id, a.source, a.entitlement_id, 'CONFIRMED', ${event.season}, ${week}, a.tier
+      FROM jsonb_to_recordset(${JSON.stringify(additions)}::jsonb) AS a(participant_key text, participant_kind text, npc_id uuid, source text, entitlement_id uuid, tier text) RETURNING 1)
       ${bookingsInsert(saveId, event.season, event, additions.map(a => a.participant_key))}`);
     if (pre) rememberBookings(pre, event, additions.map(a => a.participant_key));
   }

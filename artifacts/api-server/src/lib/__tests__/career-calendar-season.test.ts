@@ -134,12 +134,10 @@ test("knockout brackets are internally consistent from first round to champion",
 
 test("NPC fields are plausible by tier and genuinely international at the top", async () => {
   const report = await seasonReport(db, world.id, 1);
-  const tiers = await rows(sql`SELECT i.circuit || CASE WHEN i.classification = 'QUALIFIER' THEN ':Q' ELSE '' END AS circuit, p.tier, COUNT(*)::int AS n FROM career_event_entries e JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
-    JOIN career_world_players p ON p.career_save_id = e.career_save_id AND p.id::text = e.participant_key WHERE e.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' GROUP BY 1, 2`);
+  const tiers = await rows(sql`SELECT i.circuit || CASE WHEN i.classification = 'QUALIFIER' THEN ':Q' ELSE '' END AS circuit, e.entered_tier AS tier, COUNT(*)::int AS n FROM career_event_entries e JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
+    WHERE e.participant_kind = 'NPC' AND e.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' GROUP BY 1, 2`);
   const share = (circuit: string, tier: string) => { const all = tiers.filter(t => t.circuit === circuit); return all.filter(t => t.tier === tier).reduce((a, t) => a + Number(t.n), 0) / Math.max(1, all.reduce((a, t) => a + Number(t.n), 0)); };
-  // Tiers are read at the end of the season (no copy of each match's players is kept), so a player who rose to elite
-  // during the season counts against the pub nights they played earlier: allow a handful in tens of thousands.
-  assert.ok(share("GRASSROOTS", "ELITE") < 0.001, "elite players do not fill pub nights");
+  assert.equal(share("GRASSROOTS", "ELITE"), 0, "elite players do not fill pub nights");
   assert.ok(share("PRO_CIRCUIT", "GRASSROOTS") === 0 && share("PRO_CIRCUIT", "AMATEUR") === 0, "Pro Circuit uses the professional placeholder status");
   assert.ok(share("MAJOR", "ELITE") + share("MAJOR", "PROFESSIONAL") > 0.85, "ranking majors are professional fields");
   assert.ok(share("MAJOR", "ELITE") > share("PRO_CIRCUIT", "ELITE"), "majors are stronger than the floor circuit");

@@ -33,6 +33,9 @@ export async function removeTournamentMatchCopies(database: CareerDatabase, opti
     after = { save: String(last.career_save_id), id: String(last.id) };
     if (pauseMs) await new Promise(resolve => setTimeout(resolve, pauseMs));
   }
+  // The table is now (nearly) empty: rewriting it is instant and gives the space back, which plain vacuuming would not.
+  if (Number((await database.execute(sql`SELECT COUNT(*)::int AS n FROM career_simulated_matches`)).rows[0]?.n ?? 0) < 10_000)
+    await database.execute(sql`VACUUM FULL career_simulated_matches`);
   await database.execute(sql`INSERT INTO career_maintenance (key) VALUES (${DONE_KEY}) ON CONFLICT DO NOTHING`);
   return removed;
 }
