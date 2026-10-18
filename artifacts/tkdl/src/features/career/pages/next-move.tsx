@@ -11,6 +11,7 @@ import { LastWeekMoney } from "../week-money";
 import { SavingsGoalLine } from "../savings-goal";
 import { PlanMyWeek } from "../plan-week";
 import { MoneyChallengeLine } from "../money-matches";
+import { RoadVisitorLine } from "../road-trips";
 import { TeamNightLine } from "../team-nights";
 
 /**
@@ -60,6 +61,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         <LastWeekMoney saveId={id} currentWeek={save.currentWeek} />
         <SavingsGoalLine saveId={id} />
         <MoneyChallengeLine saveId={id} />
+        <RoadVisitorLine saveId={id} />
         <TeamNightLine saveId={id} week={save.currentWeek} />
         <WeekPlanner events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
         {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}

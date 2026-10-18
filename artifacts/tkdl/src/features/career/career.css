@@ -1144,3 +1144,12 @@
 .host__events li { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.03); }
 .host__events a { color: #ffd24a; }
 .host__events small { color: rgba(255,255,255,.6); font-size: .74rem; }
+/* Road trips */
+.road-trip__greeting { margin: .2rem 0 0; font-size: .78rem; font-style: italic; color: #d7c7a4; }
+.road-trip__tonight h3 { margin: .25rem 0; font-size: .95rem; color: #fff; }
+.road-trip__plan { display: flex; flex-direction: column; gap: .5rem; }
+.road-trip__field { display: flex; flex-direction: column; gap: .2rem; font-size: .75rem; color: #adbdca; }
+.road-trip__field select { max-width: 100%; padding: .4rem .5rem; border-radius: .4rem; background: rgba(255,255,255,.06); color: #fff; border: 1px solid rgba(255,255,255,.15); }
+.road-trip__nights { display: flex; flex-wrap: wrap; gap: .35rem; }
+.road-trip .money-match__members li[data-role="CHAMPION"] { border-color: rgba(255, 210, 74, .45); }
+.road-trip .money-match__intro svg, .road-trip__plan .career-btn svg { width: 15px; height: 15px; vertical-align: -2px; }
