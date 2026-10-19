@@ -22,6 +22,7 @@ import { buildCatalogueV18 } from "../content/season-v18.ts";
 import { buildCatalogueV19 } from "../content/season-v19.ts";
 import { buildCatalogueV20 } from "../content/season-v20.ts";
 import { buildCatalogueV21 } from "../content/season-v21.ts";
+import { buildCatalogueV22 } from "../content/season-v22.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -470,6 +471,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 19) return EVENT_CATALOGUE_V19;
   if (version === 20) return EVENT_CATALOGUE_V20;
   if (version === 21) return EVENT_CATALOGUE_V21;
+  if (version === 22) return EVENT_CATALOGUE_V22;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -508,5 +510,7 @@ export const EVENT_CATALOGUE_V20: readonly EventDefinition[] = buildCatalogueV20
 /** v21: restores the optional Vault route with dates spaced around headline events. */
 export const EVENT_CATALOGUE_V21: readonly EventDefinition[] =
   buildCatalogueV21(EVENT_CATALOGUE_V20, EVENT_CATALOGUE_V18);
+/** v22: adds executable youth singles and pairs divisions for the current WDF Europe Cup Youth. */
+export const EVENT_CATALOGUE_V22: readonly EventDefinition[] = buildCatalogueV22(EVENT_CATALOGUE_V21);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

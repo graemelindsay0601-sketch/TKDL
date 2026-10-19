@@ -124,8 +124,15 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   await calendar.calendar(actor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
-    { event_database_version: 21, world_seed: before[0].world_seed },
+    { event_database_version: 22, world_seed: before[0].world_seed },
   ]);
+  const youthCupDivisions = await rows(sql`SELECT definition_key, executable FROM career_event_instances
+    WHERE career_save_id = ${save.id} AND definition_key IN (
+      'continental-youth-cup-singles', 'continental-youth-cup-pairs',
+      'continental-girls-youth-cup-singles', 'continental-girls-youth-cup-pairs'
+    ) ORDER BY definition_key`);
+  assert.equal(youthCupDivisions.length, 4, "an existing save receives all future playable youth cup divisions");
+  assert.ok(youthCupDivisions.every(row => row.executable === true), "each added division is executable");
   await db.execute(sql`UPDATE career_saves SET event_database_version = 99 WHERE id = ${save.id}`);
   await rejectsStatus(calendar.calendar(actor, save.id, {}), 409);
   assert.equal((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version, 99);
