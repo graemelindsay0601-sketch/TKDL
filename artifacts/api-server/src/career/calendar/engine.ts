@@ -18,6 +18,7 @@ import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
 import { substitutesFor } from "./substitutes.ts";
 import { simulatedNineDarters } from "../records/model.ts";
+import { anzLegsWonAgainstThrow, anzTournamentAverage } from "./anz-stats.ts";
 import { MIDWEEK_FIELD_FILL, MIDWEEK_KEYS } from "../content/season-v15.ts";
 import { MIDWEEK_WORLD_EVENT_DATABASE } from "../content/season-v16.ts";
 import { PATHWAYS_EVENT_DATABASE, CHALLENGER_QUALIFIER_KEY, PRO_CIRCUIT_RULE } from "../content/season-v17.ts";
@@ -27,6 +28,7 @@ import { V21_CALENDAR_REFRESH_KEYS } from "../content/season-v21.ts";
 import { V22_CALENDAR_REFRESH_KEYS } from "../content/season-v22.ts";
 import { V23_CALENDAR_REFRESH_KEYS } from "../content/season-v23.ts";
 import { V24_CALENDAR_REFRESH_KEYS } from "../content/season-v24.ts";
+import { V25_CALENDAR_REFRESH_KEYS } from "../content/season-v25.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -170,10 +172,10 @@ export async function ensureCurrentEventCatalogue(tx: CareerExecutor, root: Root
     WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length > 0;
   if (hasSeason) {
     const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon)
-      VALUES (${root.id}, ${season}, 'career-events-v24')
+      VALUES (${root.id}, ${season}, 'career-events-v25')
       ON CONFLICT DO NOTHING RETURNING season`)).rows.length > 0;
     if (claimed) {
-      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS];
+      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS];
       await tx.execute(sql`DELETE FROM career_event_instances i
         WHERE i.career_save_id = ${root.id} AND i.season = ${season}
           AND i.start_week > ${Number(root.current_week)}
@@ -675,7 +677,11 @@ export async function makeDraws(tx: CareerExecutor, root: RootRow, events: reado
     const keys = entries.map(row => String(row.participant_key));
     const npcOf = new Map(entries.map(row => [String(row.participant_key), row.npc_id ? String(row.npc_id) : null]));
     const policy = event.snapshot.seedingPolicy;
-    const seeded = policy.list ? providers.seeding.order(policy.list, keys) : [];
+    const anzRanked = event.definition_key === "anz-premier-night-5" || event.definition_key === "anz-premier-finals";
+    const seeded = anzRanked
+      ? (await anzLeagueStandings(tx, root.id, event.season, event.definition_key === "anz-premier-night-5" ? 4 : 5))
+        .map(row => row.participant_key).filter(key => keys.includes(key))
+      : policy.list ? providers.seeding.order(policy.list, keys) : [];
     const draw = generateKnockoutDraw(keys, seeded, policy.seeds, scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "draw", event.season, event.instance_key));
     const groups = isGroupedStructure(event.snapshot.format.structure), layout = layoutFor(event.snapshot.format.structure);
     const stage = groups ? "knockout" : event.snapshot.format.stages[0].key;
@@ -900,6 +906,8 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       return { id: m.id, winner_key: r.winnerId, legs_a: r.stats[0].legsWon, legs_b: r.stats[1].legsWon, first_throw: m.first_throw,
         first_throw_detail: m.first_throw_detail, simulated_match_key: requests[i].matchKey,
         summary: { averages: [round2(r.stats[0].average), round2(r.stats[1].average)], checkoutPercentages: [round2(r.stats[0].checkoutPercentage), round2(r.stats[1].checkoutPercentage)],
+          anzCountback: { legsWonAgainstThrow: anzLegsWonAgainstThrow(r.legs), points: r.stats.map(s => s.points), darts: r.stats.map(s => s.darts),
+            averages: r.stats.map(s => anzTournamentAverage(s.points, s.darts)), legLog: r.legs.map(l => ({ winner: l.winner, firstThrow: l.firstThrow, darts: l.darts, points: l.points, checkout: l.checkout, ...(l.set !== undefined ? { set: l.set } : {}) })) },
           maximums: [r.stats[0].maximums, r.stats[1].maximums], highestCheckouts: [r.stats[0].highestCheckout, r.stats[1].highestCheckout], simulationVersion: r.simulationVersion,
           ...(r.stats[0].setsWon !== undefined ? { sets: [r.stats[0].setsWon, r.stats[1].setsWon] } : {}), ...nineDartersOf(r.legs, npcReady[i].event) } };
     });
@@ -950,6 +958,8 @@ async function completeEvents(tx: CareerExecutor, root: RootRow, finished: reado
     const grants = done.filter(d => d.event.season === season).flatMap(({ event, results }) => eventGrants(root, event, results));
     if (grants.length) await insertEntitlements(tx, root.id, season, grants, "EVENT_RESULT");
   }
+  for (const { event } of done.filter(d => d.event.definition_key === "anz-premier-night-5"))
+    await awardAnzFinalists(tx, root, event);
   for (const { event } of done) assertTransition(event.status, "COMPLETED");
   const champions = done.map(d => ({ id: d.event.id, from: d.event.status, champion: d.champion, npc: d.champion === HUMAN ? null : d.champion }));
   const moved = await tx.execute(sql`UPDATE career_event_instances e SET status = 'COMPLETED', status_reason = NULL, champion_participant_key = c.champion,
@@ -966,6 +976,68 @@ async function completeEvents(tx: CareerExecutor, root: RootRow, finished: reado
   else for (const d of batch) await providers?.finance?.onEventCompleted(tx, root, d.event, d.results);
   if (providers?.sporting?.onEventsCompleted) await providers.sporting.onEventsCompleted(tx, root, batch);
   else for (const d of batch) await providers?.sporting?.onEventCompleted(tx, root, d.event, d.results);
+}
+
+type AnzStanding = { participant_key: string; participant_kind: string; npc_id: string | null; points: number; nightsWon: number; wins: number; legDifference: number; legsFor: number;
+  legsWonAgainstThrow: number | null; tournamentAverage: number | null };
+type AnzResultRow = { participant_key: string; participant_kind: string; npc_id: string | null; finishing_position: number; wins: number; legs_for: number; legs_against: number; metadata: unknown };
+export async function anzLeagueStandings(tx: CareerExecutor, saveId: string, season: number, throughNight: number): Promise<AnzStanding[]> {
+  const keys = Array.from({ length: throughNight }, (_, i) => `anz-premier-night-${i + 1}`);
+  const keyList = sql.join(keys.map(key => sql`${key}`), sql`, `);
+  const rows = (await tx.execute(sql`SELECT participant_key, participant_kind, npc_id, finishing_position, wins, legs_for, legs_against, metadata
+    FROM career_event_results WHERE career_save_id = ${saveId} AND season = ${season}
+      AND definition_key IN (${keyList})`)).rows as AnzResultRow[];
+  return calculateAnzStandings(rows);
+}
+
+export function calculateAnzStandings(rows: readonly AnzResultRow[]): (AnzStanding & { legsWonAgainstThrow: number | null; tournamentAverage: number | null })[] {
+  const table = new Map<string, AnzStanding>();
+  const countback = new Map<string, { breaks: number; points: number; darts: number; complete: boolean }>();
+  for (const row of rows) {
+    const key = row.participant_key;
+    const current = table.get(key) ?? { participant_key: key, participant_kind: row.participant_kind, npc_id: row.npc_id, points: 0, nightsWon: 0, wins: 0, legDifference: 0, legsFor: 0,
+      legsWonAgainstThrow: null, tournamentAverage: null };
+    const cb = countback.get(key) ?? { breaks: 0, points: 0, darts: 0, complete: true };
+    const position = row.finishing_position;
+    current.points += position === 1 ? 5 : position === 2 ? 3 : position <= 4 ? 2 : 0;
+    current.nightsWon += position === 1 ? 1 : 0;
+    current.wins += row.wins;
+    current.legDifference += row.legs_for - row.legs_against;
+    current.legsFor += row.legs_for;
+    const meta = row.metadata && typeof row.metadata === "object" ? row.metadata as { anzCountback?: { complete?: boolean; legsWonAgainstThrow?: number; points?: number; darts?: number } } : {};
+    const stats = meta.anzCountback;
+    if (stats?.complete === true && Number.isFinite(stats.legsWonAgainstThrow) && Number.isFinite(stats.points) && Number.isFinite(stats.darts)) {
+      cb.breaks += Number(stats.legsWonAgainstThrow);
+      cb.points += Number(stats.points);
+      cb.darts += Number(stats.darts);
+    } else cb.complete = false;
+    countback.set(key, cb);
+    table.set(key, current);
+  }
+  const values = [...table.values()].map(row => {
+    const cb = countback.get(row.participant_key)!;
+    row.legsWonAgainstThrow = cb.complete ? cb.breaks : null;
+    row.tournamentAverage = cb.complete ? anzTournamentAverage(cb.points, cb.darts) : null;
+    return row;
+  });
+  return values.sort((a, b) => b.points - a.points || b.nightsWon - a.nightsWon || b.wins - a.wins ||
+    b.legDifference - a.legDifference ||
+    (a.legsWonAgainstThrow !== null && b.legsWonAgainstThrow !== null ? b.legsWonAgainstThrow - a.legsWonAgainstThrow : 0) ||
+    (a.tournamentAverage !== null && b.tournamentAverage !== null ? b.tournamentAverage - a.tournamentAverage : 0) ||
+    a.participant_key.localeCompare(b.participant_key));
+}
+
+async function awardAnzFinalists(tx: CareerExecutor, root: RootRow, sourceEvent: InstanceRow) {
+  const topFour = await anzLeagueStandings(tx, root.id, sourceEvent.season, 5);
+  const grants = topFour.slice(0, 4).map((row, index) => ({
+    id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "anz-finalist", sourceEvent.id, row.participant_key),
+    idempotency_key: `anz-finalist:${sourceEvent.season}:${row.participant_key}`,
+    recipient_key: row.participant_key, recipient_kind: row.participant_kind, npc_id: row.npc_id,
+    entitlement_type: "EVENT_ENTRY", source_event_id: sourceEvent.id, source_position: index + 1,
+    source_detail: { definitionKey: sourceEvent.definition_key, series: "anz-premier-league", leaguePoints: row.points },
+    target_key: "anz-premier-finals", target_season: sourceEvent.season, consumption: "SINGLE_USE",
+  }));
+  if (grants.length) await insertEntitlements(tx, root.id, sourceEvent.season, grants, "PROVIDER");
 }
 
 function eventResults(root: RootRow, event: InstanceRow, matches: MatchRow[], rounds: number, entries: readonly Record<string, unknown>[], teams: Awaited<ReturnType<typeof loadPairs>>) {
@@ -992,6 +1064,18 @@ function eventResults(root: RootRow, event: InstanceRow, matches: MatchRow[], ro
       matches_played: completed.length, wins: completed.filter(m => m.winner_key === key).length, losses: completed.filter(m => m.winner_key !== key).length,
       legs_for: legs[0], legs_against: legs[1],
       metadata: { byes: played.filter(m => m.status === "BYE").length, walkovers: played.filter(m => m.status === "WALKOVER").map(m => ({ round: m.round, won: m.winner_key === key })),
+          ...(event.definition_key.startsWith("anz-premier-night-") ? { anzCountback: completed.reduce((acc, m) => {
+          const side = m.a_key === key ? 0 : 1;
+          const stats = (m.summary as { anzCountback?: { legsWonAgainstThrow?: number[]; points?: number[]; darts?: number[] } } | null)?.anzCountback;
+          if (!stats || stats.legsWonAgainstThrow?.[side] === undefined || stats.points?.[side] === undefined || stats.darts?.[side] === undefined) {
+            acc.complete = false;
+          } else {
+            acc.legsWonAgainstThrow += stats.legsWonAgainstThrow[side];
+            acc.points += stats.points[side];
+            acc.darts += stats.darts[side];
+          }
+          return acc;
+        }, { legsWonAgainstThrow: 0, points: 0, darts: 0, complete: true }) } : {}),
         ...(isGroupedStructure(event.snapshot.format.structure)?{structure:event.snapshot.format.structure,groupLosses:completed.filter(m=>isGroupMatch(m)&&m.winner_key!==key).length}:{}),
         ...(team ? { pairs: { partnerKey: team.partner_key, partnerNpcId: team.partner_npc_id, nation: team.nation } } : {}),
         qSchool: event.snapshot.qSchool ?? null, rankingCategory: event.ranking_category, classification: event.classification, roundLost: lost?.round ?? null, rounds,

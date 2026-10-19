@@ -169,6 +169,9 @@ export const VENUES: readonly Venue[] = [
   V("cape-horizon", "Cape Horizon Arena", "Cape Town", "ZAF", "Western Cape", "ARENA"),
   V("southern-cross-hall", "Southern Cross Hall", "Melbourne", "AUS", "Victoria", "HALL"),
   V("pacific-assembly", "Pacific Assembly Hall", "Brisbane", "AUS", "Queensland", "HALL"),
+  V("anz-canberra-hall", "Capital Darts Hall", "Canberra", "AUS", "Australian Capital Territory", "ARENA"),
+  V("anz-adelaide-hall", "Southern Darts Arena", "Adelaide", "AUS", "South Australia", "ARENA"),
+  V("anz-newcastle-hall", "Hunter Darts Centre", "Newcastle NSW", "AUS", "New South Wales", "ARENA"),
   V("prairie-forum", "Prairie Forum", "Calgary", "CAN", "Alberta", "HALL"),
   // Event database v7: regional ladders and tours for every starting country (additive keys only).
   V("osaka-bay-hall", "Osaka Bay Hall", "Osaka", "JPN", "Kansai", "HALL"),

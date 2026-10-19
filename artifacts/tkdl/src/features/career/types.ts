@@ -89,6 +89,9 @@ export type CareerMatch = {
 };
 export type EventDetail = {
   event: CareerEvent;
+  seriesFinalsDecided?: boolean;
+  seriesStandings?: { position: number; participantKey: string; name: string | null; points: number; nightsWon: number; wins: number; legDifference: number; legsFor: number;
+    legsWonAgainstThrow: number | null; tournamentAverage: number | null; qualified: boolean }[] | null;
   field: { participantKey: string; kind: string; name: string; nationality: string | null; tier: string | null; source: string; status: string; seed: number | null }[];
   draw: { rounds: number; matches: CareerMatch[] };
   progress: { totalMatches: number; completedMatches: number; currentRound: number };

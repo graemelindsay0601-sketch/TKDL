@@ -20,7 +20,8 @@ import { EVENT_CATALOGUE_V1, catalogueFor } from "../../career/calendar/catalogu
 import { assessCapability, knockout501, setsKnockout501, groupKnockout501, league501, x01Variant, specialGame, pairs501 } from "../../career/calendar/formats.ts";
 import { evaluateRule, R, type ParticipantFacts } from "../../career/calendar/eligibility.ts";
 import { bracketOrder, generateKnockoutDraw, finishingPosition } from "../../career/calendar/draw.ts";
-import { assertTransition, canTransition } from "../../career/calendar/engine.ts";
+import { assertTransition, canTransition, calculateAnzStandings } from "../../career/calendar/engine.ts";
+import { anzLegsWonAgainstThrow, anzTournamentAverage } from "../../career/calendar/anz-stats.ts";
 import { CURRENT_EVENT_DATABASE_VERSION, SEASON_GROUPINGS, WEEKS_PER_SEASON, DEVELOPMENT_CADENCE } from "../../career/calendar/config.ts";
 import { scopedRandom } from "../../career/world/random.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
@@ -167,8 +168,16 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   await calendar.calendar(actor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
-    { event_database_version: 24, world_seed: before[0].world_seed },
+    { event_database_version: 25, world_seed: before[0].world_seed },
   ]);
+  const anz = await rows(sql`SELECT definition_key, executable, start_week FROM career_event_instances
+    WHERE career_save_id = ${save.id} AND definition_key IN (
+      'anz-premier-night-1','anz-premier-night-2','anz-premier-night-3',
+      'anz-premier-night-4','anz-premier-night-5','anz-premier-finals'
+    ) ORDER BY start_week`);
+  assert.equal(anz.length, 6, "an existing Career save receives the complete six-night Oceania series");
+  assert.ok(anz.every(row => row.executable === true), "every ANZ series night is playable");
+  assert.deepEqual(anz.map(row => Number(row.start_week)), [39,40,41,42,43,44]);
   const youthCupDivisions = await rows(sql`SELECT definition_key, executable FROM career_event_instances
     WHERE career_save_id = ${save.id} AND definition_key IN (
       'continental-youth-cup-singles', 'continental-youth-cup-pairs',
@@ -326,6 +335,41 @@ test("A6.5 capability: 501 double-out knockouts (straight/double-in, legs or set
 });
 
 // ------------------------------------------------------------------ draws
+test("Oceania Premier League awards the official nightly points and orders series standings", () => {
+  const rows = [
+    { participant_key: "p1", participant_kind: "NPC", npc_id: "n1", finishing_position: 1, wins: 3, legs_for: 18, legs_against: 10, metadata: { anzCountback: { complete: true, legsWonAgainstThrow: 4, points: 3000, darts: 100 } } },
+    { participant_key: "p1", participant_kind: "NPC", npc_id: "n1", finishing_position: 3, wins: 2, legs_for: 16, legs_against: 12, metadata: { anzCountback: { complete: true, legsWonAgainstThrow: 2, points: 3000, darts: 100 } } },
+    { participant_key: "p2", participant_kind: "NPC", npc_id: "n2", finishing_position: 2, wins: 2, legs_for: 15, legs_against: 12, metadata: { anzCountback: { complete: true, legsWonAgainstThrow: 3, points: 3000, darts: 100 } } },
+    { participant_key: "p2", participant_kind: "NPC", npc_id: "n2", finishing_position: 1, wins: 3, legs_for: 19, legs_against: 9, metadata: { anzCountback: { complete: true, legsWonAgainstThrow: 5, points: 3000, darts: 100 } } },
+    { participant_key: "p3", participant_kind: "NPC", npc_id: "n3", finishing_position: 4, wins: 1, legs_for: 10, legs_against: 14, metadata: { anzCountback: { complete: true, legsWonAgainstThrow: 1, points: 1800, darts: 100 } } },
+  ];
+  const standings = calculateAnzStandings(rows);
+  assert.deepEqual(standings.map(row => [row.participant_key, row.points, row.nightsWon]), [
+    ["p2", 8, 1], ["p1", 7, 1], ["p3", 2, 0],
+  ]);
+});
+
+test("ANZ count-back orders tied points through legs won against throw and weighted average", () => {
+  const base = (participant_key: string, legsWonAgainstThrow: number, points: number, darts: number) => ({
+    participant_key, participant_kind: "NPC", npc_id: participant_key, finishing_position: 2, wins: 3, legs_for: 12, legs_against: 9,
+    metadata: { anzCountback: { complete: true, legsWonAgainstThrow, points, darts } },
+  });
+  const rows = [base("average", 4, 6000, 200), base("breaks", 5, 5000, 200), base("lower-average", 4, 4500, 200)];
+  const standings = calculateAnzStandings(rows);
+  assert.deepEqual(standings.map(row => row.participant_key), ["breaks", "average", "lower-average"]);
+  assert.equal(standings[0].legsWonAgainstThrow, 5);
+  assert.equal(standings[1].tournamentAverage, 90);
+});
+
+test("ANZ match count-back records breaks of throw and weighted three-dart averages", () => {
+  assert.deepEqual(anzLegsWonAgainstThrow([
+    { firstThrow: 0, winner: 0 }, { firstThrow: 1, winner: 0 },
+    { firstThrow: 0, winner: 1 }, { firstThrow: 1, winner: 1 },
+  ]), [1, 1]);
+  assert.equal(anzTournamentAverage(3000, 100), 90);
+  assert.equal(anzTournamentAverage(0, 0), null);
+});
+
 test("draws are deterministic, give byes to the top seed numbers and never pair two byes", () => {
   assert.deepEqual(bracketOrder(8), [1, 8, 4, 5, 2, 7, 3, 6]);
   for (let n = 2; n <= 128; n++) {

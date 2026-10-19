@@ -61,6 +61,16 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
         </div>
       </section>
       <CareerEventStakes event={e} />
+      {!!detail.seriesStandings?.length && <CareerSection title="Oceania Premier League standings" icon={<Trophy className="w-3.5 h-3.5" />} accent="#ffd24a">
+        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left opacity-70">
+          <th className="p-2">#</th><th className="p-2">Player</th><th className="p-2">Pts</th><th className="p-2">Night wins</th><th className="p-2">Matches</th><th className="p-2">Leg diff</th><th className="p-2">Legs against throw</th><th className="p-2">Avg</th><th className="p-2">Finals</th>
+        </tr></thead><tbody>{detail.seriesStandings.map(row => <tr key={row.participantKey} className="border-t border-white/10">
+          <td className="p-2">{row.position}</td><td className="p-2 font-semibold">{row.name ?? row.participantKey}</td><td className="p-2">{row.points}</td>
+          <td className="p-2">{row.nightsWon}</td><td className="p-2">{row.wins}</td><td className="p-2">{row.legDifference > 0 ? `+${row.legDifference}` : row.legDifference}</td>
+          <td className="p-2">{row.legsWonAgainstThrow ?? "—"}</td><td className="p-2">{row.tournamentAverage?.toFixed(2) ?? "—"}</td>
+          <td className="p-2">{row.qualified ? "Qualified" : !detail.seriesFinalsDecided && row.position <= 4 ? "In top four" : "—"}</td>
+        </tr>)}</tbody></table></div>
+      </CareerSection>}
       {/* F2: guidance loads asynchronously; placed after the hero so it never pushes the event identity down (CLS). */}
       <ContextHelp saveId={save.id} topic="event"/>
       {(e.circuit==="Q_SCHOOL"||["WORLD","MAJOR"].includes(e.presentation.tier))&&<ContextHelp saveId={save.id} topic={e.circuit==="Q_SCHOOL"?"q-school":e.presentation.tier==="WORLD"?"palace":"major"}/>}

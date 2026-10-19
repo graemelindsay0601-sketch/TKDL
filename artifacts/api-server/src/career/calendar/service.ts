@@ -6,6 +6,7 @@ import { opportunity } from "../content/opportunities.ts";
 import { venueContent } from "../content/world.ts";
 import { z } from "zod";
 import { simulatedNineDarters } from "../records/model.ts";
+import { anzLegsWonAgainstThrow, anzTournamentAverage, type AnzLegFact } from "./anz-stats.ts";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { careerIdSchema } from "../validation.ts";
@@ -38,7 +39,7 @@ import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
 import type { Npc } from "../world/types.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
-  insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, refreshCapabilities, matchKeyFor, simulateBullUp, type InstanceRow, type RootRow, type MatchRow,
+  insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, refreshCapabilities, matchKeyFor, simulateBullUp, anzLeagueStandings, type InstanceRow, type RootRow, type MatchRow,
 } from "./engine.ts";
 
 const eventRefSchema = z.object({ eventId: z.string().uuid() }).strict();
@@ -401,8 +402,24 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const legs = humanSide === 0 ? [input.humanLegs, input.opponentLegs] : [input.opponentLegs, input.humanLegs];
     const winner = humanWon ? HUMAN : (humanSide === 0 ? match.b_key : match.a_key);
     const firstThrow = input.humanThrewFirst ? humanSide : 1 - humanSide;
+    const liveFacts = input.live?.facts as { legLog?: { starter?: number; winner?: number }[]; human?: { points?: number; darts?: number }; opponent?: { points?: number; darts?: number } } | undefined;
+    const legLog = liveFacts?.legLog;
+    const liveLegFacts: AnzLegFact[] | null = legLog && legLog.length === input.humanLegs + input.opponentLegs &&
+      legLog.every(l => (l.starter === 0 || l.starter === 1) && (l.winner === 0 || l.winner === 1))
+      ? legLog.map(l => ({ firstThrow: (humanSide === 0 ? l.starter! : 1 - l.starter!) as 0 | 1,
+          winner: (humanSide === 0 ? l.winner! : 1 - l.winner!) as 0 | 1 })) : null;
+    const livePoints = liveFacts?.human?.points !== undefined && liveFacts?.opponent?.points !== undefined
+      ? (humanSide === 0 ? [liveFacts.human.points, liveFacts.opponent.points] : [liveFacts.opponent.points, liveFacts.human.points]) : null;
+    const liveDarts = liveFacts?.human?.darts !== undefined && liveFacts?.opponent?.darts !== undefined
+      ? (humanSide === 0 ? [liveFacts.human.darts, liveFacts.opponent.darts] : [liveFacts.opponent.darts, liveFacts.human.darts]) : null;
+    const suppliedCountback = simulated?.summary.anzCountback as Record<string, unknown> | undefined;
+    const anzCountback = suppliedCountback ?? (liveLegFacts && livePoints && liveDarts ? {
+      legsWonAgainstThrow: anzLegsWonAgainstThrow(liveLegFacts), points: livePoints, darts: liveDarts,
+      averages: livePoints.map((points, side) => anzTournamentAverage(points, liveDarts[side])),
+      legLog: liveLegFacts.map(l => ({ winner: l.winner, firstThrow: l.firstThrow })),
+    } : undefined);
     const summary = { ...(sets ? { sets: humanSide === 0 ? [input.humanSets, input.opponentSets] : [input.opponentSets, input.humanSets] } : {}), ...(input.live ? { live: input.live } : {}),
-      ...(simulated?.summary ?? {}) };
+      ...(anzCountback ? { anzCountback } : {}), ...(simulated?.summary ?? {}) };
     const firstThrowDetail = simulated?.firstThrowDetail ?? (input.live?.bullUp ? { method: "LIVE_BULL_UP", bullUp: input.live.bullUp } : { method: "LIVE_BULL_UP" });
     // A quick-simmed match is honestly recorded as a simulation, never as live darts.
     const source = simulated ? "QUICK_SIM" : "HUMAN_LIVE";
@@ -652,6 +669,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const recorded = await recordHumanResultTx(tx, actor, saveId, { matchId: m.id, humanLegs: mine.legsWon, opponentLegs: theirs.legsWon,
           humanThrewFirst: bull.firstThrow === humanSide, ...(mine.setsWon !== undefined ? { humanSets: mine.setsWon, opponentSets: theirs.setsWon } : {}) }, {
           summary: { quickSim: { skillAverage: form.skillAverage, form: form.form, confidence: form.confidence }, averages,
+            anzCountback: { legsWonAgainstThrow: anzLegsWonAgainstThrow(result.legs), points: result.stats.map(s => s.points), darts: result.stats.map(s => s.darts),
+              averages: result.stats.map(s => anzTournamentAverage(s.points, s.darts)),
+              legLog: result.legs.map(l => ({ winner: l.winner, firstThrow: l.firstThrow, darts: l.darts, points: l.points, checkout: l.checkout, ...(l.set !== undefined ? { set: l.set } : {}) })) },
             checkoutPercentages: [result.stats[0].checkoutPercentage, result.stats[1].checkoutPercentage].map(n => Math.round(n * 100) / 100),
             maximums: [result.stats[0].maximums, result.stats[1].maximums], highestCheckouts: [result.stats[0].highestCheckout, result.stats[1].highestCheckout],
             simulationVersion: result.simulationVersion,
@@ -759,6 +779,12 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const matches = await loadMatches(tx, root.id, eventId);
         const results = (await tx.execute(sql`SELECT participant_key, finishing_position, stage_reached, is_champion, wins, losses, legs_for, legs_against, matches_played
           FROM career_event_results WHERE career_save_id = ${root.id} AND event_id = ${eventId} ORDER BY finishing_position, participant_key`)).rows;
+        const seriesStandings = event.definition_key.startsWith("anz-premier-")
+          ? await anzLeagueStandings(tx, root.id, event.season, 5) : null;
+        const seriesFinalsDecided = seriesStandings
+          ? Boolean((await tx.execute(sql`SELECT EXISTS (SELECT 1 FROM career_event_results
+              WHERE career_save_id = ${root.id} AND season = ${event.season} AND definition_key = 'anz-premier-night-5') AS decided`)).rows[0]?.decided)
+          : false;
         const rounds = matches.length ? Math.max(...matches.map(m => m.round)) : 0;
         const humanNext = matches.find(m => (m.a_key === HUMAN || m.b_key === HUMAN) && ["PENDING", "AWAITING_HUMAN"].includes(m.status)) ?? null;
         const present = (m: MatchRow) => ({ id: m.id, stage: m.stage_key, round: m.round, roundName: m.stage_key.startsWith("groups:") ? `GROUP_ROUND_${m.round}` : rounds ? stageNameFor(m.round, rounds) : null, slot: m.slot, bestOf: m.best_of, scheduledDay: m.scheduled_day,
@@ -775,6 +801,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           human: { nextMatch: humanNext ? present(humanNext) : null, result: human.results.get(eventId) ?? null },
           results: results.map(r => ({ participantKey: String(r.participant_key), name: name.get(String(r.participant_key)) ?? null, position: Number(r.finishing_position), stageReached: r.stage_reached,
             champion: r.is_champion, wins: r.wins, losses: r.losses, legsFor: r.legs_for, legsAgainst: r.legs_against, matchesPlayed: r.matches_played })),
+          seriesStandings: seriesStandings?.map((row, index) => ({ position: index + 1, participantKey: row.participant_key,
+            name: name.get(row.participant_key) ?? null, points: row.points, nightsWon: row.nightsWon, wins: row.wins,
+            legDifference: row.legDifference, legsFor: row.legsFor, legsWonAgainstThrow: row.legsWonAgainstThrow,
+            tournamentAverage: row.tournamentAverage, qualified: seriesFinalsDecided && index < 4 })) ?? null,
+          seriesFinalsDecided,
         };
       });
     },
