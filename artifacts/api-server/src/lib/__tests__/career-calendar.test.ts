@@ -84,6 +84,34 @@ test("season generation is deterministic, 52-week bounded and hundreds of instan
   assert.deepEqual(SEASON_GROUPINGS.map(g => [g.fromWeek, g.toWeek]), [[1, 6], [7, 17], [18, 28], [29, 38], [39, 46], [47, 52]]);
 });
 
+test("2026 WDF World Open and qualifying divisions are playable and connect to world entries", () => {
+  const definitions = catalogueFor(23);
+  const expected = [
+    "world-ranking-open", "women-world-ranking-open", "youth-world-ranking-open", "girls-world-ranking-open",
+    "lakeside-qualifier-open", "lakeside-qualifier-women", "lakeside-qualifier-youth", "lakeside-qualifier-girls",
+    "uk-lakeside-qualifier-open", "uk-lakeside-qualifier-women", "uk-lakeside-qualifier-youth", "uk-lakeside-qualifier-girls",
+  ];
+  const drafts = generateSeason(HARNESS_SEED, 23, 1);
+  const eventDrafts = drafts.filter(d => expected.includes(d.definitionKey));
+  assert.equal(eventDrafts.length, expected.length);
+  assert.ok(eventDrafts.every(d => d.executable), "all WDF divisions must run in the Career tournament engine");
+  const qualifiers = definitions.filter(d => expected.some(key => key.includes("qualifier") && d.key === key));
+  assert.equal(qualifiers.length, 8);
+  for (const qualifier of qualifiers) {
+    const output = qualifier.qualificationOutputs[0];
+    assert.ok(output, `${qualifier.key} must grant a world-championship place`);
+    const target = definitions.find(d => d.key === output.targetKey);
+    assert.ok(target, `${qualifier.key} must point to a real event definition`);
+    assert.ok(target!.entitlementIntake.includes(output.targetKey), `${output.targetKey} must accept qualifier entries`);
+  }
+});
+
+test("the verified PDC Women's Series 21–24 events are present and playable", () => {
+  const womenEvents = generateSeason(HARNESS_SEED, 23, 1).filter(d => d.definitionKey === "women-tour");
+  assert.equal(womenEvents.length, 24);
+  assert.ok(womenEvents.every(d => d.executable), "all 24 events must be playable");
+});
+
 test("static harness reports a broad, international, non-flat calendar", () => {
   const report = staticCalendarReport(HARNESS_SEED);
   assert.equal(report.duplicateStableIds, 0);
@@ -124,7 +152,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   await calendar.calendar(actor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
-    { event_database_version: 22, world_seed: before[0].world_seed },
+    { event_database_version: 23, world_seed: before[0].world_seed },
   ]);
   const youthCupDivisions = await rows(sql`SELECT definition_key, executable FROM career_event_instances
     WHERE career_save_id = ${save.id} AND definition_key IN (
@@ -133,6 +161,14 @@ test("calendar reads migrate old event editions but preserve the world seed", as
     ) ORDER BY definition_key`);
   assert.equal(youthCupDivisions.length, 4, "an existing save receives all future playable youth cup divisions");
   assert.ok(youthCupDivisions.every(row => row.executable === true), "each added division is executable");
+  const additionalWdf = await rows(sql`SELECT definition_key, executable FROM career_event_instances
+    WHERE career_save_id = ${save.id} AND definition_key IN (
+      'world-ranking-open', 'women-world-ranking-open', 'youth-world-ranking-open', 'girls-world-ranking-open',
+      'lakeside-qualifier-open', 'lakeside-qualifier-women', 'lakeside-qualifier-youth', 'lakeside-qualifier-girls',
+      'uk-lakeside-qualifier-open', 'uk-lakeside-qualifier-women', 'uk-lakeside-qualifier-youth', 'uk-lakeside-qualifier-girls'
+    )`);
+  assert.equal(additionalWdf.length, 12, "existing saves receive all verified World Open and qualifier divisions");
+  assert.ok(additionalWdf.every(row => row.executable === true), "all World Open and qualifier divisions are executable");
   await db.execute(sql`UPDATE career_saves SET event_database_version = 99 WHERE id = ${save.id}`);
   await rejectsStatus(calendar.calendar(actor, save.id, {}), 409);
   assert.equal((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version, 99);
