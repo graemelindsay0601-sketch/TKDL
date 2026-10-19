@@ -18,6 +18,10 @@ import { buildCatalogueV14 } from "../content/season-v14.ts";
 import { buildCatalogueV15 } from "../content/season-v15.ts";
 import { buildCatalogueV16 } from "../content/season-v16.ts";
 import { buildCatalogueV17 } from "../content/season-v17.ts";
+import { buildCatalogueV18 } from "../content/season-v18.ts";
+import { buildCatalogueV19 } from "../content/season-v19.ts";
+import { buildCatalogueV20 } from "../content/season-v20.ts";
+import { buildCatalogueV21 } from "../content/season-v21.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -462,6 +466,10 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 15) return EVENT_CATALOGUE_V15;
   if (version === 16) return EVENT_CATALOGUE_V16;
   if (version === 17) return EVENT_CATALOGUE_V17;
+  if (version === 18) return EVENT_CATALOGUE_V18;
+  if (version === 19) return EVENT_CATALOGUE_V19;
+  if (version === 20) return EVENT_CATALOGUE_V20;
+  if (version === 21) return EVENT_CATALOGUE_V21;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -491,5 +499,14 @@ export const EVENT_CATALOGUE_V15: readonly EventDefinition[] = buildCatalogueV15
 export const EVENT_CATALOGUE_V16: readonly EventDefinition[] = buildCatalogueV16(EVENT_CATALOGUE_V15);
 /** v17: Q-School in season 1; Challenger Tour Qualifiers mid-season (added to older saves too). */
 export const EVENT_CATALOGUE_V17: readonly EventDefinition[] = buildCatalogueV17(EVENT_CATALOGUE_V16);
+/** v18: playable PDC/WDF-shaped formats, with the casual and amateur ladder retained. */
+export const EVENT_CATALOGUE_V18: readonly EventDefinition[] = buildCatalogueV18(EVENT_CATALOGUE_V17);
+/** v19: explicit PDC major/tour naming and WDF world, continental, ranked, women's and youth events. */
+export const EVENT_CATALOGUE_V19: readonly EventDefinition[] = buildCatalogueV19(EVENT_CATALOGUE_V18);
+/** v20: distinct in-game names for the PDC/WDF-inspired events. */
+export const EVENT_CATALOGUE_V20: readonly EventDefinition[] = buildCatalogueV20(EVENT_CATALOGUE_V19);
+/** v21: restores the optional Vault route with dates spaced around headline events. */
+export const EVENT_CATALOGUE_V21: readonly EventDefinition[] =
+  buildCatalogueV21(EVENT_CATALOGUE_V20, EVENT_CATALOGUE_V18);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

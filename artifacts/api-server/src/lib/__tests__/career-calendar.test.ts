@@ -119,11 +119,13 @@ test("instance snapshots preserve the definition they were generated from", asyn
   assert.deepEqual(after.snapshot, instance.snapshot);
 });
 
-test("event database version is honoured, not silently rewritten", async () => {
+test("calendar reads migrate old event editions but preserve the world seed", async () => {
   const save = await careerFor();
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   await calendar.calendar(actor, save.id, {});
-  assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), before);
+  assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
+    { event_database_version: 21, world_seed: before[0].world_seed },
+  ]);
   await db.execute(sql`UPDATE career_saves SET event_database_version = 99 WHERE id = ${save.id}`);
   await rejectsStatus(calendar.calendar(actor, save.id, {}), 409);
   assert.equal((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version, 99);

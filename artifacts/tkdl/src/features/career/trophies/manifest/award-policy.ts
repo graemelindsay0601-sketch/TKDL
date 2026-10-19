@@ -64,6 +64,21 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "thursday-night-darts": N("WEEKLY", "Weekly league night: result and prize only."),
   // v13 pairs: the nation's pair lifts the World Cup.
   "world-cup-of-darts": T("INVITATIONAL", "international-globe", "WORLD CUP OF DARTS"),
+  // v18–v21 PDC/WDF circuit additions. Ranked opens award results and points;
+  // headline championships use their authored family identity.
+  "pdc-womens-matchplay": T("MAJOR", "cut-glass", "WOMEN'S MATCHPLAY"),
+  "pdc-youth-world-championship": T("WORLD_CHAMPIONSHIP", "youth-rising-star", "YOUTH WORLD CHAMPION"),
+  "wdf-world-championship": T("WORLD_CHAMPIONSHIP", "silver-cup", "WDF WORLD CHAMPION"),
+  "wdf-world-masters": T("CHAMPIONSHIP", "silver-cup", "WDF WORLD MASTERS"),
+  "wdf-world-cup": T("CHAMPIONSHIP", "silver-cup", "WDF WORLD CUP"),
+  "wdf-europe-cup": T("CHAMPIONSHIP", "silver-cup", "EUROPE CUP"),
+  "wdf-asia-pacific-cup": T("CHAMPIONSHIP", "silver-cup", "ASIA-PACIFIC CUP"),
+  ...Object.fromEntries([
+    "wdf-baltic-open", "wdf-bohemian-open", "wdf-britannia-open", "wdf-caledonian-open",
+    "wdf-danube-masters", "wdf-emerald-open", "wdf-low-countries-open", "wdf-manx-open",
+    "wdf-mediterranean-masters", "wdf-nevada-open", "wdf-southern-cross-open", "wdf-ulster-open",
+    "wdf-bronze-open", "wdf-gold-open", "wdf-silver-open",
+  ].map(k => [k, N("TOUR_ROUND", ROUND)])),
   // ---- Vault
   "vault-championship": T("CHAMPIONSHIP", "vault-geometric", "VAULT CHAMPION"),
   "vault-masters": T("CHAMPIONSHIP", "vault-geometric", "VAULT MASTERS"),
@@ -219,6 +234,10 @@ export const EVENT_DESIGNS_V2: Readonly<Record<string, DesignAllocation>> = Obje
   ...Object.fromEntries(["international-open", "northern-open", "north-american-open", "asia-pacific-open", "australasian-open", "premier-open"]
     .map(k => [k, S("international-globe", "International open series")])),
   "world-cup-of-darts": S("international-globe", "International team event"),
+  ...Object.fromEntries([
+    "pdc-womens-matchplay", "pdc-youth-world-championship", "wdf-world-championship",
+    "wdf-world-masters", "wdf-world-cup", "wdf-europe-cup", "wdf-asia-pacific-cup",
+  ].map(k => [k, S("silver-cup", "PDC and WDF championship circuit")])),
   "soft-tip-masters": S("silver-cup", "Soft-tip championships"),
   "pro-super-series-finals": S("silver-cup", "Pro Super Series"),
   "vault-championship": S("vault-geometric", "Vault championship lineage"),

@@ -1,6 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {catalogueFor} from "../../career/calendar/catalogue.ts";
+import {generateSeason} from "../../career/calendar/generation.ts";
 import {assessCapability,a2MatchFormat,liveMatchFormat,bestOfForRound} from "../../career/calendar/formats.ts";
 import {SEASON_GROUPINGS,groupingForWeek} from "../../career/calendar/config.ts";
 import {SEASON_RHYTHM} from "../../career/content/world.ts";
@@ -29,6 +30,67 @@ test("every current definition classified with safe format/adapter agreement",()
       assert.equal(live.unit,npc.unit??"LEGS");
     }
   }
+});
+test("v18 keeps grassroots and amateur routes playable and removes novelty-game fixtures",()=>{
+  const definitions=catalogueFor(18);
+  assert.ok(definitions.some(d=>d.key==="friday-night-501"));
+  assert.ok(definitions.some(d=>d.key==="county-501-open"));
+  assert.ok(definitions.some(d=>d.key==="national-amateur-gbr"));
+  assert.ok(definitions.some(d=>d.key==="sudden-death-night" && d.circuit==="GRASSROOTS"));
+  assert.ok(definitions.some(d=>d.key==="regional-champions-league" && assessCapability(d.format,true).executable));
+  assert.ok(!definitions.some(d=>["cricket-classic","national-cricket","halve-it-night","killer-night","football-darts","golf-night","count-up-challenge",
+    "shanghai-showdown","bobs-27-challenge","scram-shootout","baseball-darts-classic","fives-festival","snooker-darts-cup",
+    "noughts-and-crosses-trophy","treble-out-trophy"].includes(d.key)));
+  const unplayable=definitions.filter(d=>!assessCapability(d.format,true).executable);
+  assert.deepEqual(unplayable.map(d=>d.key),[]);
+});
+test("v19 covers the major PDC and WDF routes with playable 501 events",()=>{
+  const definitions=catalogueFor(19);
+  const keys=new Set(definitions.map(d=>d.key));
+  for(const key of ["thursday-night-darts","open-championship","long-format-matchplay","double-crown",
+    "european-championship","grand-slam-of-champions","pro-circuit-finals","world-darts-championship",
+    "pro-circuit-championship","european-dart-series","world-dart-series","challenger-event",
+    "development-tour","women-tour","wdf-world-championship","wdf-world-masters","wdf-world-cup",
+    "wdf-europe-cup","wdf-asia-pacific-cup","wdf-gold-open","wdf-silver-open","wdf-bronze-open",
+    "wdf-nevada-open","wdf-low-countries-open","wdf-caledonian-open","wdf-manx-open","wdf-ulster-open",
+    "wdf-baltic-open","wdf-britannia-open","wdf-danube-masters","wdf-emerald-open","wdf-bohemian-open",
+    "wdf-mediterranean-masters","wdf-southern-cross-open","pdc-womens-matchplay","pdc-youth-world-championship"]) {
+    assert.ok(keys.has(key),`missing circuit event ${key}`);
+  }
+  assert.equal(definitions.find(d=>d.key==="thursday-night-darts")?.name,"Premier Darts League");
+  assert.ok(!definitions.some(d=>d.circuit==="VAULT"),"fictional Vault circuit must not be in the real-world calendar");
+  assert.ok(!keys.has("pro-super-series"),"the discontinued pandemic-era series is not a regular circuit");
+  assert.deepEqual(definitions.filter(d=>!assessCapability(d.format,true).executable).map(d=>d.key),[]);
+});
+test("v20 keeps event names distinct from official PDC/WDF branding",()=>{
+  const definitions=catalogueFor(20);
+  const names=new Map(definitions.map(d=>[d.key,d.name]));
+  assert.equal(names.get("pdc-youth-world-championship"),"Pro Youth World Championship");
+  assert.equal(names.get("wdf-world-championship"),"Lakeside World Championship");
+  assert.equal(names.get("wdf-gold-open"),"Gold-Ranked International Open");
+  assert.equal(names.get("women-world-championship"),"Women's World Championship");
+  assert.deepEqual(definitions.filter(d=>!assessCapability(d.format,true).executable).map(d=>d.key),[]);
+});
+test("v21 restores Vault as an optional tour without same-day clashes with headline circuits",()=>{
+  const rows=generateSeason(seed,21,1);
+  const vault=rows.filter(e=>e.circuit==="VAULT");
+  assert.equal(vault.length,23);
+  const highCircuits=new Set(["MAJOR","WORLD_CHAMPIONSHIP","WORLD_SERIES","EUROPEAN_SERIES","PRO_CIRCUIT","INVITATIONAL","Q_SCHOOL","CHALLENGER"]);
+  const headlines=rows.filter(e=>highCircuits.has(e.circuit)&&e.definitionKey!=="thursday-night-darts");
+  const clashes=vault.flatMap(v=>headlines.filter(h=>v.startDay<=h.endDay&&h.startDay<=v.endDay)
+    .map(h=>`${v.name} clashes with ${h.name}`));
+  assert.deepEqual(clashes,[]);
+  const premierLeagueNights=Array.from({length:16},(_,i)=>(6+i-1)*7+4);
+  assert.deepEqual(vault.filter(v=>premierLeagueNights.some(day=>v.startDay<=day&&day<=v.endDay)),[]);
+  assert.deepEqual(vault.filter(e=>e.definitionKey==="vault-tour").map(e=>Math.floor((e.startDay-1)/7)+1).filter((w,i,a)=>a.indexOf(w)===i),
+    [7,13,19,25,33,37,45]);
+  const keyEvents=rows.filter(e=>["world-dart-series","world-dart-series-finals","european-dart-series","world-cup-of-darts",
+    "long-format-matchplay","double-crown","european-championship","grand-slam-of-champions","pro-circuit-finals",
+    "world-darts-championship","pdc-womens-matchplay","pdc-youth-world-championship","open-championship","champions-masters",
+    "wdf-world-championship","wdf-world-masters","wdf-world-cup","wdf-europe-cup","wdf-asia-pacific-cup"].includes(e.definitionKey));
+  const collisions=keyEvents.flatMap((a,i)=>keyEvents.slice(i+1).filter(b=>a.startDay<=b.endDay&&b.startDay<=a.endDay)
+    .map(b=>`${a.definitionKey}:${a.startDay}-${a.endDay} / ${b.definitionKey}:${b.startDay}-${b.endDay}`));
+  assert.deepEqual(collisions,[]);
 });
 for(const key of ["world-darts-championship","double-crown","county-301-sprint","county-701-open"]){
   test(`${key}: real shared scorer and real NPC darts complete with matching authored rules`,()=>{

@@ -6,7 +6,7 @@ import { loadNpcs, persistNpcs } from "../world/repository.ts";
 import { scopedRandom, stableUuid, normal } from "../world/random.ts";
 import { simulateMatchesInTransaction, type Root, type World } from "../world/service.ts";
 import type { Npc } from "../world/types.ts";
-import { CALENDAR_GENERATION_VERSION, WEEKS_PER_SEASON, DAYS_PER_WEEK, type EventStatus } from "./config.ts";
+import { CALENDAR_GENERATION_VERSION, CURRENT_EVENT_DATABASE_VERSION, WEEKS_PER_SEASON, DAYS_PER_WEEK, type EventStatus } from "./config.ts";
 import { generateSeason, canonicalJson, type EventInstanceDraft, type InstanceSnapshot } from "./generation.ts";
 import { bestOfForRound, a2MatchFormat, assessCapability, CAPABILITY_ENGINE_VERSION } from "./formats.ts";
 import { evaluateRule, type ParticipantFacts, type Rule, type RuleOutcome } from "./eligibility.ts";
@@ -21,6 +21,9 @@ import { simulatedNineDarters } from "../records/model.ts";
 import { MIDWEEK_FIELD_FILL, MIDWEEK_KEYS } from "../content/season-v15.ts";
 import { MIDWEEK_WORLD_EVENT_DATABASE } from "../content/season-v16.ts";
 import { PATHWAYS_EVENT_DATABASE, CHALLENGER_QUALIFIER_KEY, PRO_CIRCUIT_RULE } from "../content/season-v17.ts";
+import { V19_ADDED_EVENT_KEYS } from "../content/season-v19.ts";
+import { V20_RENAMED_EVENT_KEYS } from "../content/season-v20.ts";
+import { V21_CALENDAR_REFRESH_KEYS } from "../content/season-v21.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -146,6 +149,60 @@ export async function ensurePathwayEvents(tx: CareerExecutor, root: RootRow) {
   if (!(await tx.execute(sql`SELECT 1 FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length) return;
   await addPathwayEvents(tx, root, season, Number(root.current_week) + 1);
   await openRegistrations(tx, root.id, season, Number(root.current_week));
+}
+
+/**
+ * Move active saves to the current event catalogue without touching completed,
+ * entered, or already-started events. Future unentered SPECIAL fixtures are
+ * replaced with the playable v18 local 501 open; unsupported regional league
+ * fixtures are replaced with the v18 league format. All other historical
+ * snapshots remain pinned as they were played or entered.
+ */
+export async function ensureCurrentEventCatalogue(tx: CareerExecutor, root: RootRow) {
+  const version = Number(root.event_database_version);
+  if (version >= CURRENT_EVENT_DATABASE_VERSION) return;
+
+  const season = Number(root.current_season);
+  const hasSeason = (await tx.execute(sql`SELECT 1 FROM career_seasons
+    WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length > 0;
+  if (hasSeason) {
+    const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon)
+      VALUES (${root.id}, ${season}, 'career-events-v20')
+      ON CONFLICT DO NOTHING RETURNING season`)).rows.length > 0;
+    if (claimed) {
+      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS];
+      await tx.execute(sql`DELETE FROM career_event_instances i
+        WHERE i.career_save_id = ${root.id} AND i.season = ${season}
+          AND i.start_week > ${Number(root.current_week)}
+          AND i.status IN ('SCHEDULED','REGISTRATION_OPEN')
+          AND (i.circuit IN ('SPECIAL','VAULT') OR i.definition_key IN ('regional-champions-league','pro-super-series','pro-super-series-finals')
+            OR i.definition_key IN (${sql.join(refreshedKeys.map(key => sql`${key}`), sql`, `)}))
+          AND NOT EXISTS (SELECT 1 FROM career_event_entries e
+            WHERE e.career_save_id = i.career_save_id AND e.event_id = i.id)
+          AND i.status IN ('SCHEDULED','REGISTRATION_OPEN')`);
+
+      const replacements = generateSeason(root.world_seed, CURRENT_EVENT_DATABASE_VERSION, season,
+        d => d.circuit === "VAULT" || d.key === "sudden-death-night" || d.key === "regional-champions-league" ||
+          refreshedKeys.some(key => key === d.key))
+        .filter(d => d.startWeek > Number(root.current_week));
+      const present = new Set((await tx.execute(sql`SELECT instance_key FROM career_event_instances
+        WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.map((r: any) => String(r.instance_key)));
+      await insertDrafts(tx, root, season, replacements.filter(d => !present.has(d.instanceKey)));
+
+      const rows = (await tx.execute(sql`SELECT id, instance_key, start_day, snapshot
+        FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${season}
+        ORDER BY ordinal`)).rows as { id: string; instance_key: string; start_day: number; snapshot: InstanceSnapshot }[];
+      const hash = createHash("sha256").update(canonicalJson(rows.map(r => [
+        r.id, r.instance_key, Number(r.start_day), r.snapshot.resolvedFrom.definitionHash,
+      ]))).digest("hex");
+      await tx.execute(sql`UPDATE career_seasons SET instance_count = ${rows.length}, calendar_hash = ${hash}
+        WHERE career_save_id = ${root.id} AND season = ${season}`);
+    }
+  }
+
+  await tx.execute(sql`UPDATE career_saves SET event_database_version = ${CURRENT_EVENT_DATABASE_VERSION}
+    WHERE id = ${root.id} AND event_database_version = ${version}`);
+  root.event_database_version = CURRENT_EVENT_DATABASE_VERSION;
 }
 async function addPathwayEvents(tx: CareerExecutor, root: RootRow, season: number, fromWeek: number) {
   const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon) VALUES (${root.id}, ${season}, 'pathways-v17')
