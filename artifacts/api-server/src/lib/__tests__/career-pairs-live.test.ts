@@ -130,8 +130,31 @@ test("World Cup: published national rankings select your pair and the draw opens
   assert.equal(mine.nation, "SCO");
   const view = await tournaments.read(actor, save.id, eventId);
   assert.ok(view.nextMatchId, "the selected national pair reaches the tournament draw");
-  const session = await live.open(actor, save.id, view.nextMatchId!);
+  let session = await live.open(actor, save.id, view.nextMatchId!);
   assert.ok(session.team?.partner.name && session.team.opponentPartner.name, "the World Cup tie opens with both pairs in the live scorer");
+  while (session.status === "BULL_UP")
+    session = await live.bull(actor, save.id, view.nextMatchId!, { throw: "INNER", expectedRevision: session.revision });
+  const first = session.firstThrower as 0 | 1, format = session.format as X01Format;
+  let state: X01MatchState = createMatch(format, first);
+  const darts: Dart[] = [];
+  let humanVisit = 0;
+  while (!state.complete) {
+    const ctx = { remaining: state.scores[state.turn], opened: state.opened[state.turn] };
+    const partnerPlan = state.turn === 0 ? careerPartnerVisit(session as never, first, darts, ctx) : null;
+    const plan = state.turn === 1 ? careerBotVisit(session as never, first, darts, ctx)
+      : partnerPlan ?? planBotX01Visit(ctx.remaining, { avg: 95, sd: 12, checkoutPct: 45, hitAcc: 0.6 },
+        { ...botOptionsFor(format), opened: ctx.opened, rng: seededRandom("world-cup-human", "v", humanVisit++) });
+    const turn = state.turn, visits = state.visits.length;
+    for (const d of plan) {
+      const dart = { segment: d.segment, multiplier: d.multiplier, value: d.value } as Dart;
+      state = throwDart(state, dart).state; darts.push(dart);
+      if (shouldCheckpoint(format, first, darts, true) && !state.complete)
+        session = await live.darts(actor, save.id, view.nextMatchId!, { darts, expectedRevision: session.revision });
+      if (state.complete || state.visits.length > visits || state.turn !== turn) break;
+    }
+  }
+  const completed = await live.darts(actor, save.id, view.nextMatchId!, { darts, expectedRevision: session.revision });
+  assert.equal(completed.status, "COMPLETED", "a World Cup call-up can finish through the live scorer");
 });
 
 test("a live pairs match: partner and both opponents are seeded bots, your darts are yours, the server records the result once", async () => {
