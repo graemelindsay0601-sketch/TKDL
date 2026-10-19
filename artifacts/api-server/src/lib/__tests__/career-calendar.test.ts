@@ -166,8 +166,9 @@ test("instance snapshots preserve the definition they were generated from", asyn
 });
 
 test("calendar reads migrate old event editions but preserve the world seed", async () => {
-  const save = await careerFor();
-  await calendar.calendar(actor, save.id, {});
+  const migrationActor = { playerId: 2 };
+  const save = await careerFor(migrationActor.playerId);
+  await calendar.calendar(migrationActor, save.id, {});
   const stale = (await rows(sql`SELECT id FROM career_event_instances WHERE career_save_id=${save.id} AND definition_key='club-league-night'
     AND country='NZL' AND start_week>(SELECT current_week FROM career_saves WHERE id=${save.id})
     AND status IN ('SCHEDULED','REGISTRATION_OPEN') LIMIT 1`))[0];
@@ -183,7 +184,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   }
   await db.execute(sql`UPDATE career_saves SET event_database_version=26 WHERE id=${save.id}`);
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
-  const upgradedCalendar = await calendar.calendar(actor, save.id, {});
+  const upgradedCalendar = await calendar.calendar(migrationActor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
     { event_database_version: 27, world_seed: before[0].world_seed },
   ]);
@@ -239,7 +240,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   assert.equal(pdcCounts["women-tour"], 24, "existing saves keep the completed Women's Series calendar");
   assert.ok(refreshedPdc.every(row => row.playable === true), "all migrated PDC fixtures remain playable");
   await db.execute(sql`UPDATE career_saves SET event_database_version = 99 WHERE id = ${save.id}`);
-  await rejectsStatus(calendar.calendar(actor, save.id, {}), 409);
+  await rejectsStatus(calendar.calendar(migrationActor, save.id, {}), 409);
   assert.equal((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version, 99);
 });
 
