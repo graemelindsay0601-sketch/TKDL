@@ -24,6 +24,7 @@ import { createCareerStreamingService } from "../../career/streaming/service.ts"
 import { createCareerHostingService } from "../../career/hosting/service.ts";
 import { STREAM, STREAM_MONEY, chatForVisit, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
 import { settleStreamingWeek } from "../../career/streaming/state.ts";
+import { settleLifeCommitments } from "../../career/life/commitments.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), streaming = createCareerStreamingService(db), hosting = createCareerHostingService(db);
@@ -171,4 +172,35 @@ test("a DartCast Star is invited to the televised invitationals, without a manag
   assert.ok(invited.length, "invitations come in");
   assert.ok(invited.every(e => e.human.eligible && e.human.managerInvite === null));
   await db.execute(sql`UPDATE career_stream_channels SET followers=1200 WHERE career_save_id=${id}`);
+});
+
+test("choosing DartCast focus reserves the selected weekly frequency and lets the player start a reserved stream", async () => {
+  await db.execute(sql`UPDATE career_saves SET current_week=current_week+1 WHERE id=${id}`);
+  const selected = await streaming.setPathway(actor, id, { focus: "DARTCAST", weeklyFrequency: 2 });
+  assert.equal(selected.pathway.focus, "DARTCAST");
+  assert.equal(selected.pathway.weeklyFrequency, 2);
+  assert.equal(selected.pathway.scheduledNights.length, 2);
+  for (const day of selected.pathway.scheduledNights) assert.ok(!selected.freeNights.includes(day), "a scheduled night is reserved");
+  const day = selected.pathway.scheduledNights[0];
+  const live = await streaming.goLive(actor, id, { dayOfWeek: day });
+  assert.equal(live.status, "LIVE", "the player can start a previously reserved stream");
+  assert.ok(!(await streaming.read(actor, id)).pathway.scheduledNights.includes(day), "the live stream replaces the reservation");
+  await streaming.end(actor, id, live.id);
+  const seasonWeek = await saves.read(1, id);
+  await settleLifeCommitments(db, { id, world_seed: SEED }, seasonWeek.currentSeason, seasonWeek.currentWeek);
+  const missed = await rows(sql`SELECT id FROM career_life_commitments WHERE career_save_id=${id} AND family='DARTCAST' AND status='ACCEPTED'`);
+  assert.equal(missed.length, 0, "an unplayed reserved stream is released when its week passes");
+  const lowerFrequency = await streaming.setPathway(actor, id, { focus: "DARTCAST", weeklyFrequency: 1 });
+  assert.equal(lowerFrequency.pathway.weeklyFrequency, 1);
+  assert.equal(lowerFrequency.pathway.scheduledNights.length, 0, "the completed stream satisfies a one-night weekly target");
+  const stopped = await streaming.setPathway(actor, id, { focus: "OPEN", weeklyFrequency: 0 });
+  assert.equal(stopped.pathway.focus, "OPEN");
+  assert.deepEqual(stopped.pathway.scheduledNights, []);
+});
+
+test("a new Career stores the chosen streamer focus and weekly frequency", async () => {
+  const created = await saves.create(1, { slot: 2, careerName: "DartCast route", dateOfBirth: "1998-03-02", homeLocality: "ayrshire",
+    careerPathway: { focus: "DARTCAST", weeklyFrequency: 2 } });
+  const row = (await rows(sql`SELECT settings_snapshot->'careerPathway' AS pathway FROM career_saves WHERE id=${created.id}`))[0];
+  assert.deepEqual(row.pathway, { focus: "DARTCAST", weeklyFrequency: 2 });
 });

@@ -18,6 +18,12 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   });
   const id = (req: Request) => careerIdSchema.parse(String(req.params.id));
   const stream = (req: Request) => careerIdSchema.parse(String(req.params.streamId));
+  router.put("/saves/:id/streaming/pathway", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.setPathway(res.locals.careerActor, id(req), req.body));
+  });
+  router.post("/saves/:id/streaming/schedule", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.schedulePathway(res.locals.careerActor, id(req)));
+  });
   router.get("/saves/:id/streaming", async (req, res) => { res.json(await service.read(res.locals.careerActor, id(req))); });
   router.post("/saves/:id/streaming/live", authedWriteRateLimit, async (req, res) => { res.json(await service.goLive(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/streaming/streams/:streamId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), stream(req))); });

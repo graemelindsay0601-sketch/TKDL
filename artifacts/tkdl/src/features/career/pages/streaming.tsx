@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation } from "wouter";
 import { Check, Eye, Loader2, Radio, Search, Trophy, Users } from "lucide-react";
-import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, errorMessage, type StreamFormat } from "../api";
+import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
@@ -11,6 +11,7 @@ import "./streaming.css";
 /** DartCast: a made-up darts streaming site. Your channel, the streamer route, going live and your past streams. */
 export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, q = useStreaming(id), live = useGoLive(id), answer = useAnswerBrandDeal(id), goal = useSetSubGoal(id);
+  const setPathway = useSetStreamingPathway(id), schedulePathway = useScheduleStreamingPathway(id);
   useEffect(() => { markSeen(id, "streaming"); }, [id]);
   const [format, setFormat] = useState<StreamFormat | null>(null);
   const [goalTarget, setGoalTarget] = useState<number | null>(null);
@@ -18,10 +19,19 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const [, navigate] = useLocation();
   const [night, setNight] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const scheduledWeek = useRef("");
+  useEffect(() => {
+    const data = q.data;
+    if (ctx.save.retiredAt || !data || data.pathway.focus !== "DARTCAST" || data.pathway.scheduledNights.length) return;
+    const key = `${id}:${data.season}:${data.week}`;
+    if (scheduledWeek.current === key) return;
+    scheduledWeek.current = key;
+    schedulePathway.mutate(undefined);
+  }, [id, q.data, schedulePathway]);
   if (q.isLoading) return <CareerLoading />;
   if (q.error || !q.data) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data, retired = !!ctx.save.retiredAt;
-  const pick = night ?? d.freeNights[0] ?? null;
+  const pick = night ?? d.pathway.scheduledNights[0] ?? d.freeNights[0] ?? null;
   const progress = d.next ? Math.min(100, Math.round(d.followers / d.next.followers * 100)) : 100;
   const chosen = format ?? d.pollPick ?? "CHALLENGER";
   const crowd = (c: number) => c >= 1.15 ? "Big crowd" : c >= 0.95 ? "Normal crowd" : c >= 0.8 ? "Smaller crowd" : "Quiet night";
@@ -42,6 +52,33 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
           <p><b>{d.followers.toLocaleString("en-GB")}</b> followers · <span className="dc__tier" data-tier={d.tier.key}>{d.tier.name}</span>
             {" "}· {d.totals.streams} stream{d.totals.streams === 1 ? "" : "s"} · {formatPence(d.totals.earnedPence)} earned · beat {d.totals.won} challenger{d.totals.won === 1 ? "" : "s"}</p>
         </div>
+      </section>
+      <section className="dc__panel">
+        <h2>The streamer route</h2>
+        {d.pathway.focus === "DARTCAST" ? <>
+          <p className="dc__note">DartCast is your active Career focus. Your chosen weekly frequency is reserved on free nights; starting a stream is still your choice.</p>
+          <label className="dc__note">Streams to schedule each week{" "}
+            <select aria-label="Streams to schedule each week" value={d.pathway.weeklyFrequency}
+              disabled={setPathway.isPending || retired}
+              onChange={e => setPathway.mutate({ focus: "DARTCAST", weeklyFrequency: Number(e.target.value) }, { onError: err => setMessage(errorMessage(err)) })}>
+              {[1, 2, 3].map(n => <option key={n} value={n}>{n} night{n === 1 ? "" : "s"} a week</option>)}
+            </select>
+          </label>
+          <p className="dc__note">{d.pathway.scheduledNights.length
+            ? `Scheduled this week: ${d.pathway.scheduledNights.map(dayLabel).join(", ")}.`
+            : "No free nights could be reserved this week."}</p>
+          {!d.pathway.scheduledNights.length && d.streamsThisWeek < d.pathway.weeklyFrequency && d.freeNights.length > 0 &&
+            <button type="button" className="dc__link" disabled={schedulePathway.isPending}
+              onClick={() => schedulePathway.mutate(undefined, { onError: err => setMessage(errorMessage(err)) })}>
+              {schedulePathway.isPending ? "Checking free nights…" : "Try scheduling this week again"}
+            </button>}
+          <button type="button" className="dc__link" disabled={setPathway.isPending || retired}
+            onClick={() => setPathway.mutate({ focus: "OPEN", weeklyFrequency: 0 }, { onError: err => setMessage(errorMessage(err)) })}>Stop pursuing this route</button>
+        </> : <>
+          <p className="dc__note">Choose DartCast to reserve your preferred number of stream nights each week. You can change or stop this focus at any time.</p>
+          <button type="button" className="dc__go" disabled={setPathway.isPending || retired}
+            onClick={() => setPathway.mutate({ focus: "DARTCAST", weeklyFrequency: 1 }, { onError: err => setMessage(errorMessage(err)) })}>Pursue the streamer route</button>
+        </>}
       </section>
       {(d.subscribers > 0 || d.deal || d.dealOffer || d.invitations || d.charity.raisedPence > 0) && <section className="dc__panel">
         <h2>Channel money</h2>
@@ -79,8 +116,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             <b>{f.name}{d.pollPick === f.key ? " · chat's pick" : ""}</b><span>{f.blurb}</span>
             <small data-crowd={f.crowd >= 1.15 ? "big" : f.crowd < 0.8 ? "quiet" : undefined}>{f.why ?? `${crowd(f.crowd)}${d.lastFormat === f.key ? " (you did this last time)" : ""}`}</small></button>)}
         </div>
-        {d.freeNights.length ? <div className="dc__nights" role="radiogroup" aria-label="Night to stream">
-          {d.freeNights.map(n => <button key={n} type="button" role="radio" aria-checked={pick === n} className="dc__night" onClick={() => setNight(n)}>{dayLabel(n)}</button>)}
+        {(d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights).length ? <div className="dc__nights" role="radiogroup" aria-label="Night to stream">
+          {(d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights).map(n => <button key={n} type="button" role="radio" aria-checked={pick === n} className="dc__night" onClick={() => setNight(n)}>{dayLabel(n)}{d.pathway.scheduledNights.includes(n) ? " · scheduled" : ""}</button>)}
         </div> : <p className="dc__note">No free nights left this week.</p>}
         <button type="button" className="dc__go" disabled={!canGo || !chosenOk || live.isPending}
           onClick={() => live.mutate({ dayOfWeek: pick!, format: chosen }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>

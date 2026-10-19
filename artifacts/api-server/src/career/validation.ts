@@ -9,6 +9,7 @@ export const createCareerSchema = z.object({
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   homeLocality: z.string().min(1).max(80).optional(),
   competitionCategory: z.enum(["OPEN","WOMEN"]).optional(),
+  careerPathway: z.object({ focus: z.enum(["OPEN","DARTCAST"]), weeklyFrequency: z.number().int().min(0).max(3) }).optional(),
 }).strict();
 
 export const careerIdSchema = z.string().uuid();

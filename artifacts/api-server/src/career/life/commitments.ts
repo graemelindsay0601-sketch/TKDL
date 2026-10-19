@@ -10,6 +10,10 @@ export async function settleLifeCommitments(tx:CareerExecutor,root:{id:string;wo
   const due=(await tx.execute(sql`SELECT * FROM career_life_commitments WHERE career_save_id=${root.id}
     AND status='ACCEPTED' AND (season<${season} OR (season=${season} AND day<=${week*7})) ORDER BY season,day,id`)).rows;
   for(const c of due) {
+    if(String(c.family)==="DARTCAST") {
+      await tx.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${root.id} AND id=${c.id} AND status='ACCEPTED'`);
+      continue;
+    }
     if(Number(c.fee_pence)>0)await post(tx,root,{operationKey:`life:appearance:${c.id}`,category:"COMMERCIAL_APPEARANCE",
       amountPence:Number(c.fee_pence),reason:String(c.title),season:Number(c.season),week:Math.ceil(Number(c.day)/7),
       contractId:c.contract_id?String(c.contract_id):null,detail:{commitmentId:c.id,family:c.family,contentVersion:1}});

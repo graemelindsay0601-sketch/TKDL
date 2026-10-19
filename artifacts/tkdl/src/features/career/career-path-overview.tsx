@@ -28,9 +28,9 @@ const paths = [
   {
     label: "04 · BUILD AN AUDIENCE",
     title: "DartCast",
-    description: "Streaming is its own route. Stream regularly to grow an audience; subscriptions and brand deals can follow.",
+    description: "Streaming is its own route. From DartCast, choose this focus and how many nights to reserve each week; streams only start when you choose to go live.",
     destination: "/streaming",
-    action: "Open DartCast",
+    action: "Open DartCast & set a schedule",
   },
   {
     label: "05 · TOWARD A TOUR CARD",
@@ -55,7 +55,7 @@ export function CareerPathOverview({ saveId, headingId = "career-paths-overview-
       <div className="career-new-career__paths-intro">
         <span className="career-path-overview__eyebrow">Career paths · orientation</span>
         <h3 id={headingId} style={OSWALD}>There is more than one way to play</h3>
-        <p>These routes can overlap. This is only an overview: it does not lock a route, change eligibility or game rules, or affect recommendations. You can change direction any time.</p>
+        <p>Routes can overlap. Choosing DartCast focus reserves stream nights but does not close sporting routes or change event eligibility. You can change direction any time.</p>
       </div>
       <div className="career-new-career__path-grid">
         {paths.map(path => (

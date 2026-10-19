@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Loader2, Moon, Radio, Sparkles } from "lucide-react";
-import { useEnterEvents, useStreaming, useWeekNights, useTeamNights, errorMessage } from "./api";
+import { useEnterEvents, useStreaming, useWeekNights, useTeamNights, useScheduleStreamingPathway, errorMessage } from "./api";
 import type { CareerEvent } from "./types";
 import { dayLabel, denialLabel, formatPence, planWeek, worthIt } from "./model";
 
@@ -15,9 +15,15 @@ export function PlanMyWeek({ saveId, events, week }: { saveId: string; events: C
   const [message, setMessage] = useState("");
   const enter = useEnterEvents(saveId);
   const streaming = useStreaming(saveId);
+  const scheduleStreaming = useScheduleStreamingPathway(saveId);
   const nights = useWeekNights(saveId);
   const team = useTeamNights(saveId);
-  const plan = useMemo(() => planWeek(events, week), [events, week]);
+  const scheduledKey = useRef("");
+  const reservedDays = useMemo(() => new Set((nights.data?.days ?? []).filter(d => d.items.some(item =>
+    item.kind === "LIFE" && item.label === "DartCast stream")).map(d => d.dayOfWeek)), [nights.data]);
+  const plan = useMemo(() => planWeek(events.filter(e => e.dates.startWeek !== week ||
+    !Array.from({ length: e.dates.endDay - e.dates.startDay + 1 }, (_, i) => ((e.dates.startDay + i - 1) % 7) + 1)
+      .some(day => reservedDays.has(day))), week), [events, reservedDays, week]);
   const chosen = plan.events.filter(e => !off.has(e.id));
   const cost = chosen.reduce((n, e) => n + e.finance!.estimatedPlayerCostPence, 0);
   const upTo = chosen.reduce((n, e) => n + e.finance!.topPrizePence, 0);
@@ -36,6 +42,15 @@ export function PlanMyWeek({ saveId, events, week }: { saveId: string; events: C
   const streamNights = streaming.data?.week === week
     ? streaming.data.freeNights.filter(day => !bookedDays.has(day) && !suggestedDays.has(day))
     : [];
+
+  useEffect(() => {
+    const data = streaming.data;
+    if (!data || data.week !== week || data.pathway.focus !== "DARTCAST" || data.pathway.scheduledNights.length) return;
+    const key = `${saveId}:${data.season}:${week}`;
+    if (scheduledKey.current === key) return;
+    scheduledKey.current = key;
+    scheduleStreaming.mutate(undefined);
+  }, [saveId, week, streaming.data, scheduleStreaming]);
 
   const start = () => { setOff(new Set()); setMessage(""); setOpen(true); };
   const confirm = () => enter.mutate(chosen.map(e => e.id), {
@@ -82,7 +97,15 @@ export function PlanMyWeek({ saveId, events, week }: { saveId: string; events: C
       <p className="plan-week__note">Picks events that pay back their cost early, one a day, at most four in a week including what you have booked. Series that run over several weeks are entered from their own event page.</p>
       <section className="plan-week__options" aria-labelledby="plan-week-options-title">
         <h3 id="plan-week-options-title">Optional free-night ideas</h3>
-        <p>These are options only. They are not scheduled or reserved here; open a feature to choose an activity.</p>
+        <p>Club and Nights Out are options only; the DartCast route slots below are reserved. Open a feature to choose other activities.</p>
+        {streaming.data?.week === week && streaming.data.pathway.focus === "DARTCAST" && <>
+          <h3>Streamer route · {streaming.data.pathway.weeklyFrequency} night{streaming.data.pathway.weeklyFrequency === 1 ? "" : "s"} planned per week</h3>
+          {streaming.data.pathway.scheduledNights.length
+            ? <ul className="plan-week__options-list">{streaming.data.pathway.scheduledNights.map(day => <li key={day}><b>{dayLabel(day)}</b>
+              <span><Link href={`/career/${saveId}/streaming`}><Radio aria-hidden /> Start scheduled stream</Link></span></li>)}</ul>
+            : <p className="plan-week__note">No stream night could be reserved this week. Your chosen frequency stays in place for next week.</p>}
+          <p className="plan-week__note">These nights are reserved in the Career schedule. They are not live until you start a stream.</p>
+        </>}
         {nights.isLoading && <p className="plan-week__note" role="status">Checking booked nights…</p>}
         {nights.isError && <p className="plan-week__note" role="status">Night availability could not be checked. No day is marked free.</p>}
         {!nights.isLoading && !nights.isError && !nightsAreForWeek && <p className="plan-week__note">Free-night details are available for the current week only. Browse Nights Out for other weeks.</p>}

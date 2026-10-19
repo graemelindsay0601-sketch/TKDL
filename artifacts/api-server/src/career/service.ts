@@ -90,6 +90,7 @@ async function insertCareer(tx: CareerExecutor, playerId: number, input: CreateC
   const snapshot = { ...defaults, difficulty: input.difficulty, competitionCategory:input.competitionCategory??"OPEN",
     careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2,
     sponsorDatabaseVersionAtCreation:CURRENT_SPONSOR_DATABASE_VERSION,
+    ...(input.careerPathway ? { careerPathway: input.careerPathway } : {}),
     ...(homeLocality ? { homeLocality } : {}) };
   const result = await tx.execute(sql`
     INSERT INTO career_saves (

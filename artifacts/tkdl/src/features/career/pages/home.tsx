@@ -10,7 +10,7 @@ import {
   CareerSection, CareerEventCard, CareerEmptyState, CareerError, CareerLoading, EventPlateTile, Label, OSWALD, StatusBadge,
 } from "../components";
 import {
-  pickNextEvent, formatPence, ordinal, circuitLabel, denialLabel, eventStatus, careerChapter,
+  pickNextEvent, formatPence, ordinal, dayLabel, circuitLabel, denialLabel, eventStatus, careerChapter,
   routeLines, milestoneLabel, pathwayLabel,
 } from "../model";
 import { CareerShirt, CareerEventIdentity } from "../identity";
@@ -304,12 +304,16 @@ function PathwayTracker({ saveId, events, week, calendarLoading, calendarError, 
         {streaming.isLoading ? <p role="status">Checking your channel and available stream nights…</p>
           : streaming.error || !streaming.data ? <p role="status">Channel status is temporarily unavailable.</p>
           : <p>{streaming.data.live ? "You are live now."
+            : streaming.data.pathway.focus === "DARTCAST" ? `${streaming.data.pathway.scheduledNights.length
+              ? `Streamer focus · ${streaming.data.pathway.scheduledNights.map(dayLabel).join(", ")} reserved this week`
+              : streaming.data.freeNights.length ? "Streamer focus · no night reserved yet; open DartCast to check this week"
+                : "Streamer focus · no free night available this week"}. ${streaming.data.pathway.weeklyFrequency} stream night${streaming.data.pathway.weeklyFrequency === 1 ? "" : "s"} requested per week.`
             : streaming.data.freeNights.length ? `${streaming.data.freeNights.length} free night${streaming.data.freeNights.length === 1 ? "" : "s"} reported for streaming this week.`
               : "No free stream night reported this week."} {streaming.data.next
               ? `${streaming.data.followers.toLocaleString("en-GB")} followers · ${Math.max(0, streaming.data.next.followers - streaming.data.followers).toLocaleString("en-GB")} to ${streaming.data.next.name}.`
               : "Top channel tier reached."}</p>}
         <div className="pathway-tracker__actions">
-          <Link href={`${base}/streaming`}>{streaming.data?.live ? "Return to DartCast" : "Open DartCast"} <ArrowUpRight aria-hidden /></Link>
+          <Link href={`${base}/streaming`}>{streaming.data?.live ? "Return to DartCast" : streaming.data?.pathway.focus === "DARTCAST" ? "Manage stream schedule" : "Open DartCast"} <ArrowUpRight aria-hidden /></Link>
           {streaming.error && <button type="button" onClick={() => void streaming.refetch()}>Retry</button>}
         </div>
       </article>

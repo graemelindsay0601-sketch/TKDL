@@ -1274,6 +1274,13 @@
 .pathway-tracker__route a svg { width:14px; height:14px; }
 .pathway-tracker__actions { display:flex; align-items:center; flex-wrap:wrap; gap:5px; }
 @media (max-width:600px) { .pathway-tracker__grid { grid-template-columns:1fr; } .pathway-tracker { padding:12px; } }
+.career-new-career__path-choice { display:grid; gap:10px; margin-top:14px; padding:14px; border:1px solid #91adc333; border-radius:12px; color:#eef5fc; }
+.career-new-career__path-choice legend { padding:0 6px; color:#ff8caf; font-weight:800; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; }
+.career-new-career__path-choice > label { display:flex; align-items:flex-start; gap:9px; font-size:.85rem; }
+.career-new-career__path-choice input { margin-top:4px; accent-color:#ff005c; }
+.career-new-career__path-choice span { display:grid; gap:4px; }
+.career-new-career__path-choice small { color:#aebfd0; font-size:.72rem; line-height:1.45; }
+.career-new-career__frequency select { padding:7px 9px; border:1px solid #91adc344; border-radius:8px; background:#101b28; color:#eef5fc; }
 
 /* First-season checklist */
 .career-welcome h3 .career-welcome__count { margin-left:auto; font-size:.75rem; font-weight:700; color:#ffd24a; }

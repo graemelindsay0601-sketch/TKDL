@@ -52,7 +52,7 @@ export function SavesPage() {
                   onRetire={() => life.retire.mutate(slot.career!.id, { onError: e => setError(errorMessage(e)) })}
                   onDelete={() => life.remove.mutate(slot.career!.id, { onError: e => setError(errorMessage(e)) })} />
               : <EmptySlot key={slot.slotNumber} slot={slot.slotNumber} busy={life.create.isPending}
-                  onCreate={(name, difficulty, dateOfBirth, homeLocality,shirt,nickname) => { setError(null); life.create.mutate({ slot: slot.slotNumber, careerName: name || undefined, difficulty, dateOfBirth, homeLocality, shirt: { ...shirt, nickname: nickname.trim() || null } },
+                  onCreate={(name, difficulty, dateOfBirth, homeLocality,shirt,nickname,careerPathway) => { setError(null); life.create.mutate({ slot: slot.slotNumber, careerName: name || undefined, difficulty, dateOfBirth, homeLocality, careerPathway, shirt: { ...shirt, nickname: nickname.trim() || null } },
                     { onSuccess: s => navigate(s.shirtSaved ? `/career/${s.id}/play` : `/career/${s.id}/presentation?setup=needed`), onError: e => setError(errorMessage(e)) }); }} />)}
           </div>
           <section className="pdc-card overflow-hidden" aria-label="Retired Careers">
@@ -115,13 +115,14 @@ function SaveStage({ save }: { save: CareerSave }) {
   </div>;
 }
 
-function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: string, difficulty: string, dateOfBirth: string, homeLocality: string,shirt:ShirtIdentity,nickname:string) => void; busy: boolean }) {
+function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: string, difficulty: string, dateOfBirth: string, homeLocality: string,shirt:ShirtIdentity,nickname:string,careerPathway:{focus:"OPEN"|"DARTCAST";weeklyFrequency:number}) => void; busy: boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [difficulty, setDifficulty] = useState("STANDARD");
   const [dob, setDob] = useState("");
   const [home, setHome] = useState("ayrshire");
   const [step,setStep]=useState(0),[nickname,setNickname]=useState("");
+  const [streamerPath,setStreamerPath]=useState(false),[streamFrequency,setStreamFrequency]=useState(1);
   const formRef=useRef<HTMLFormElement|null>(null);
   // The wizard spans the full row below the other slots: bring each step into view.
   useEffect(()=>{if(open)formRef.current?.scrollIntoView?.({behavior:"smooth",block:"start"});},[open,step]);
@@ -139,7 +140,7 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
           <p>Start at your local club night and build a darts career your way.</p></div>
         <button className="career-btn career-btn-primary w-full" onClick={() => setOpen(true)}><Plus className="w-4 h-4" aria-hidden /> New Career</button>
       </div> : (
-        <form ref={formRef} className="career-new-career__form" onSubmit={e => { e.preventDefault(); if (!dob || tooYoung) return;if(step<3){setStep(step+1);return;}onCreate(name.trim(), difficulty, dob, home,shirt,nickname); }}>
+        <form ref={formRef} className="career-new-career__form" onSubmit={e => { e.preventDefault(); if (!dob || tooYoung) return;if(step<3){setStep(step+1);return;}onCreate(name.trim(), difficulty, dob, home,shirt,nickname,{focus:streamerPath?"DARTCAST":"OPEN",weeklyFrequency:streamerPath?streamFrequency:0}); }}>
           <header className="career-new-career__head">
             <div><Label>Slot {slot} · New Career</Label><h2 style={OSWALD}>{step===0?"Your player":step===1?"Your shirt":step===2?"Choose your first direction":"Ready to start"}</h2>
               <p>Build a darts career your way. Professional darts is optional. Career cash and fictional-world achievements are separate from your real TKDL league profile and coins.</p></div>
@@ -174,11 +175,24 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
           {step===1&&<><CareerKitCustomizer identity={shirt} playerName={name||"Your player"} embedded onChange={patch=>setShirt(current=>({...current,...patch}))}/>
             <div className="career-new-career__fields career-new-career__fields--row"><label className="flex flex-col gap-1"><Label>Nickname (optional)</Label><input maxLength={32} value={nickname} placeholder="e.g. The Anchor" onChange={e=>setNickname(e.target.value)}/></label>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Appearance only. No ability, seeding, sponsorship or results effect.</p></div></>}
-          {step===2&&<CareerPathOverview headingId={`career-paths-title-${slot}`} />}
+          {step===2&&<>
+            <CareerPathOverview headingId={`career-paths-title-${slot}`} />
+            <fieldset className="career-new-career__path-choice">
+              <legend>Choose a starting focus (optional)</legend>
+              <label><input type="checkbox" checked={streamerPath} onChange={e=>setStreamerPath(e.target.checked)} />
+                <span><b>Pursue the DartCast streamer route</b><small>Reserve stream nights around booked events. This won’t close sporting routes or start a stream automatically.</small></span>
+              </label>
+              {streamerPath&&<label className="career-new-career__frequency"><span>How often should the week include DartCast?</span>
+                <select value={streamFrequency} onChange={e=>setStreamFrequency(Number(e.target.value))}>
+                  {[1,2,3].map(n=><option key={n} value={n}>{n} stream night{n===1?"":"s"} per week</option>)}
+                </select>
+              </label>}
+            </fieldset>
+          </>}
           {step===3&&<div className="career-new-career__confirm">
             <div className="career-new-career__confirm-shirt"><CareerShirt name={name||"Your player"} identity={shirt} scale="featured"/></div>
             <div><h3 style={OSWALD}>{name||"My Career"}</h3>{nickname&&<p className="career-new-career__nick">“{nickname}”</p>}
-              <dl>{[["Born",dob],["Starts aged",startAge===null?"—":String(startAge)],["Home region",HOME_REGIONS.find(r=>r.key===home)?.label??home],["Opposition",difficulty[0]+difficulty.slice(1).toLowerCase()]].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+              <dl>{[["Born",dob],["Starts aged",startAge===null?"—":String(startAge)],["Home region",HOME_REGIONS.find(r=>r.key===home)?.label??home],["Opposition",difficulty[0]+difficulty.slice(1).toLowerCase()],["Route focus",streamerPath?`DartCast · ${streamFrequency} stream night${streamFrequency===1?"":"s"} per week`:"Open schedule"]].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
               <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Your date of birth and home region can't be changed later. Your shirt can be changed in the first week of any season. You start as an amateur at your local club: pick an event, play it, and work up from there.</p></div>
           </div>}
           <div className="career-new-career__actions">{step>0&&<button type="button" className="career-btn" onClick={()=>setStep(step-1)} disabled={busy}>Back</button>}<button type="submit" className="career-btn career-btn-primary flex-1" disabled={busy || !dob || tooYoung}>{busy ? "Creating world…" : step===3?"Start Career":step===0?"Choose shirt":step===1?"Review paths":"Review Career"}</button>

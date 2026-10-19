@@ -15,7 +15,7 @@ import { loadNpcs } from "../world/repository.ts";
 import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
-type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null };
+type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
 const HUMAN = "HUMAN";
 const MATCH: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: STREAM.legsToWin * 2 - 1 };
 /** King of the Oche: one leg against each viewer. */
@@ -48,6 +48,7 @@ export type StreamingView = {
   season: number; week: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
+  pathway: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number; scheduledNights: number[] };
   totals: { streams: number; earnedPence: number; won: number };
   /** Subscribers who renew every four weeks (half of each £2.50 to you), and the week the next renewals are paid. */
   subscribers: number; renewsWeek: number;
@@ -91,6 +92,48 @@ const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), bran
 /** Nights this week you're free to stream (no event, commitment or other stream booked). */
 async function freeNights(tx: CareerExecutor, root: Root) {
   return freeNightsInWeek(tx, root.id, Number(root.current_season), Number(root.current_week));
+}
+
+function pathwaySettings(root: Root) {
+  const saved = root.settings_snapshot?.careerPathway as { focus?: string; weeklyFrequency?: number } | undefined;
+  return { focus: saved?.focus === "DARTCAST" ? "DARTCAST" as const : "OPEN" as const,
+    weeklyFrequency: Math.max(0, Math.min(STREAM.perWeek, Math.trunc(Number(saved?.weeklyFrequency) || 0))) };
+}
+
+/** Reserve this week's chosen DartCast nights as ordinary Career commitments, so every activity and event sees them. */
+async function schedulePathwayWeek(tx: CareerExecutor, root: Root, replace = false): Promise<number[]> {
+  const season = Number(root.current_season), week = Number(root.current_week), cfg = pathwaySettings(root);
+  const from = absoluteDay(week, 1), to = absoluteDay(week, 7);
+  await tx.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season}
+    AND family='DARTCAST' AND status='ACCEPTED' AND day < ${from}`);
+  const existing = (await tx.execute(sql`SELECT day FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season}
+    AND family='DARTCAST' AND status='ACCEPTED' AND day BETWEEN ${from} AND ${to} ORDER BY day`)).rows.map(r => Number(r.day));
+  if (replace) {
+    await tx.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season}
+      AND family='DARTCAST' AND status='ACCEPTED' AND day BETWEEN ${from} AND ${to}`);
+  } else if (existing.length) return existing.map(day => ((day - 1) % 7) + 1);
+  if (root.status !== "ACTIVE" || cfg.focus !== "DARTCAST" || cfg.weeklyFrequency === 0) return [];
+  const completedOrLive = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_streams
+    WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND format <> 'MATCH'`)).rows[0]?.n ?? 0);
+  const remaining = Math.max(0, cfg.weeklyFrequency - completedOrLive);
+  const free = await freeNightsInWeek(tx, root.id, season, week);
+  const ordered = [2, 4, 6, 1, 5, 7, 3].filter(day => free.includes(day)).slice(0, remaining);
+  for (const dayOfWeek of ordered) {
+    const day = absoluteDay(week, dayOfWeek);
+    const id = stableUuid(root.world_seed, STREAM.version, "dartcast-week-plan", root.id, season, week, dayOfWeek);
+    await tx.execute(sql`INSERT INTO career_life_commitments (career_save_id,id,family,title,season,day,fee_pence,contract_id,status)
+      VALUES (${root.id},${id},'DARTCAST','DartCast stream',${season},${day},0,NULL,'ACCEPTED') ON CONFLICT DO NOTHING`);
+  }
+  return ordered;
+}
+
+async function pathwaySchedule(tx: CareerExecutor, root: Root) {
+  const cfg = pathwaySettings(root);
+  const days = (await tx.execute(sql`SELECT day FROM career_life_commitments WHERE career_save_id=${root.id}
+    AND season=${Number(root.current_season)} AND family='DARTCAST' AND status='ACCEPTED'
+    AND day BETWEEN ${absoluteDay(Number(root.current_week), 1)} AND ${absoluteDay(Number(root.current_week), 7)} ORDER BY day`)).rows
+    .map(r => ((Number(r.day) - 1) % 7) + 1);
+  return { focus: cfg.focus, weeklyFrequency: cfg.weeklyFrequency, scheduledNights: days };
 }
 
 const titleOf = (format: string, challenger: string) => format === "CHALLENGER" ? `Stream vs ${challenger}` : format === "COLLAB" ? `Collab with ${challenger}` : formatByKey(format).name;
@@ -147,6 +190,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: STREAM.perWeek,
       freeNights: root.status === "ACTIVE" ? await freeNights(tx, root) : [], live: nights.find(r => r.status === "LIVE")?.id as string ?? null,
+      pathway: await pathwaySchedule(tx, root),
       totals: { streams: ended.length, earnedPence: ended.reduce((n, r) => n + Number(r.income_pence ?? 0), 0), won: ended.filter(r => r.result === "WON").length },
       videos: ended.slice(0, 24).map(r => {
         const format = String(r.format ?? "CHALLENGER") as StreamFormat, challenger = String((r.challenger as { name: string }).name);
@@ -300,6 +344,26 @@ export function createCareerStreamingService(database: CareerDatabase) {
   }
 
   return {
+    async setPathway(actor: CareerActor, saveId: string, body: unknown) {
+      const input = z.object({ focus: z.enum(["OPEN", "DARTCAST"]), weeklyFrequency: z.number().int().min(0).max(STREAM.perWeek) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const settings = { ...(root.settings_snapshot ?? {}),
+          careerPathway: { focus: input.focus, weeklyFrequency: input.focus === "DARTCAST" ? input.weeklyFrequency : 0 } };
+        await tx.execute(sql`UPDATE career_saves SET settings_snapshot=${JSON.stringify(settings)}::jsonb WHERE id=${root.id}`);
+        const updated = { ...root, settings_snapshot: settings };
+        await schedulePathwayWeek(tx, updated, true);
+        return view(tx, updated);
+      });
+    },
+    async schedulePathway(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        await schedulePathwayWeek(tx, root);
+        return view(tx, root);
+      });
+    },
     async read(actor: CareerActor, saveId: string) {
       return database.transaction(async tx => view(tx, await lockRoot(tx, actor, saveId, false) as unknown as Root));
     },
@@ -321,7 +385,9 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const v = await view(tx, root);
         if (v.live) throw new CareerError(409, "You're already live: finish that stream first");
         if (v.streamsThisWeek >= STREAM.perWeek) throw new CareerError(409, `You've streamed ${STREAM.perWeek} times this week`);
-        if (!v.freeNights.includes(dayOfWeek)) throw new CareerError(409, "You're booked that night");
+        const planned = (await tx.execute(sql`SELECT id FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season}
+          AND family='DARTCAST' AND status='ACCEPTED' AND day=${absoluteDay(week, dayOfWeek)}`)).rows[0];
+        if (!v.freeNights.includes(dayOfWeek) && !planned) throw new CareerError(409, "You're booked that night");
         const partner = format === "COLLAB" ? v.collabs.find(c => c.key === streamerKey) : undefined;
         if (format === "COLLAB" && !partner) throw new CareerError(400, "Pick a streamer to collab with");
         if (partner && !partner.ok) throw new CareerError(409, `${partner.handle}: ${partner.why}`);
@@ -368,6 +434,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         await tx.execute(sql`INSERT INTO career_streams (career_save_id, id, season, week, day, status, format, challenger, drill, first_thrower, tally, chat, processed_visits)
           VALUES (${root.id}, ${id}, ${season}, ${week}, ${day}, 'LIVE', ${format}, ${JSON.stringify(challenger)}::jsonb, ${drill ? JSON.stringify(drill) : null}::jsonb, 0,
             ${JSON.stringify(tally)}::jsonb, ${JSON.stringify(hello)}::jsonb, 0)`);
+        if (planned) await tx.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${root.id} AND id=${String(planned.id)}`);
         return sessionFrom((await live(tx, root, id)), v.handle, v.tier.key);
       });
     },

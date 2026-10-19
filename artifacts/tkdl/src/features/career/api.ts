@@ -62,6 +62,10 @@ export type StreamSession = import("../../../../api-server/src/career/streaming/
 export type ChatEvent = import("../../../../api-server/src/career/streaming/model").ChatEvent;
 /** Your DartCast channel: followers, the streamer route, nights you can go live, past streams. */
 export const useStreaming = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "streaming"), queryFn: () => get<StreamingView>(`/saves/${saveId}/streaming`), staleTime: STALE });
+export const useSetStreamingPathway = (saveId: string) => useSaveMutation(saveId, (input: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number }) =>
+  send<StreamingView>("PUT", `/saves/${saveId}/streaming/pathway`, input));
+export const useScheduleStreamingPathway = (saveId: string) => useSaveMutation(saveId, () =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/schedule`, {}));
 export const useStreamSession = (saveId: string, streamId: string) => useQuery({ queryKey: careerKey(saveId, "streaming", "stream", streamId),
   queryFn: () => get<StreamSession>(`/saves/${saveId}/streaming/streams/${streamId}`), staleTime: Infinity });
 export type StreamFormat = import("../../../../api-server/src/career/streaming/model").StreamFormat;
@@ -316,11 +320,14 @@ export const careerRequests = {
    * first so a slow or dropped world setup (a phone losing signal mid-request) can never lose it. Setup is
    * idempotent: one retry here, and the Career shell finishes it on open if it still did not complete.
    */
-  create: async (body: { slot: number; careerName?: string; difficulty?: string; dateOfBirth?: string; homeLocality?: string; shirt?: Record<string, unknown> }) => {
+  create: async (body: { slot: number; careerName?: string; difficulty?: string; dateOfBirth?: string; homeLocality?: string;
+    careerPathway?: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number }; shirt?: Record<string, unknown> }) => {
     const { shirt, ...input } = body;
     const save = await send<CareerSave>("POST", "/saves", input);
     const shirtSaved = shirt ? await twice(() => send("POST", `/saves/${save.id}/presentation`, shirt)).then(() => true, () => false) : true;
     await twice(() => careerRequests.initialize(save.id)).catch(() => undefined);
+    if (body.careerPathway?.focus === "DARTCAST")
+      await twice(() => send("PUT", `/saves/${save.id}/streaming/pathway`, body.careerPathway)).catch(() => undefined);
     return { ...save, shirtSaved };
   },
   /** A1 restart returns a NEW save id in the same slot; the client must adopt it. */
