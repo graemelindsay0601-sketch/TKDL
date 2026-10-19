@@ -12,13 +12,24 @@ import {CORE_BRANDS,LOCAL_SPONSORS} from "../../career/content/brands.ts";
 import {npcCommercial,cosmeticSchema} from "../../career/content/service.ts";
 import {opportunity} from "../../career/content/opportunities.ts";
 import {portfolioLimit,conflicts,relationship} from "../../career/finance/portfolio.ts";
-import {SPONSOR_CATALOGUE_V1,sponsorCatalogue,type SportingFacts} from "../../career/finance/sponsors.catalogue.ts";
+import {SPONSOR_CATALOGUE_V1,SPONSOR_CATALOGUE_V6,sponsorCatalogue,type SportingFacts} from "../../career/finance/sponsors.catalogue.ts";
 import {portfolioCoverage,type ContractRow} from "../../career/finance/engine.ts";
 import {rankingListsFor} from "../../career/sporting/config.ts";
 const seed="a".repeat(64),season=generateSeason(seed,3,1);
 const facts:SportingFacts={careerStarted:true,titles:20,tourCard:true,professionalStatus:"PROFESSIONAL",worldRanking:8,bestFinishByCircuit:{},qualifications:[]};
 const terms=(key:string)=>sponsorCatalogue(2).find(s=>s.key===key)!.terms;
 const contract=(key:string):ContractRow=>({id:key,offer_id:key,sponsor_key:key,tier:terms(key).tier,terms:terms(key),start_season:1,start_week:1,end_season:2,end_week:52,status:"ACTIVE"});
+test("SP-F1 same-tier sponsor offers have distinct commercial terms",()=>{
+  const local=SPONSOR_CATALOGUE_V6.filter(definition=>definition.terms.tier==="LOCAL");
+  const signatures=new Set(local.map(({terms})=>JSON.stringify({
+    category:terms.category,
+    guarantee:terms.contractFoundation?.guaranteedPayments[0]?.amountPence,
+    signing:terms.signingBonusPence,
+    event:terms.eventPayment?.amountPence,
+    coverage:terms.coverage.map(rule=>[rule.costTypes,rule.percent]),
+  })));
+  assert.ok(signatures.size>1,"local brands must not be name-only copies of one offer template");
+});
 test("v1/v2 immutable authored seasons are checkpoint-identical; only future execution capability may change",()=>{
   // Derived independently from the approved 75c679a detached worktree, NOT this implementation.
   // The old full hashes included mutable execution support and therefore cannot

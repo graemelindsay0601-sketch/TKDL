@@ -18,6 +18,7 @@ import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_spon
 import { addContractConcludedSponsorEventSPE1 } from "../../db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
 import { addScheduledSponsorRenewalsSPE1B } from "../../db/migrations/add_scheduled_sponsor_renewals_spe1b.ts";
 import { createCareerSponsorContractActionsSPE2 } from "../../db/migrations/create_career_sponsor_contract_actions_spe2.ts";
+import { ensureCareerCountyTeams } from "../../db/migrations/create_career_county_teams.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
 import { responseProfile } from "../../career/finance/sponsor-negotiation.ts";
@@ -31,7 +32,7 @@ import {
   CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, evaluateRequirement,
   SPONSOR_CATALOGUE_V1, SPONSOR_CATALOGUE_V2, sponsorCatalogue, type SportingFacts,
 } from "../../career/finance/sponsors.catalogue.ts";
-import { PRIZE_PROFILES, prizeForPosition, FEE_PROFILES } from "../../career/finance/config.ts";
+import { FINANCE_VERSION, PRIZE_PROFILES, PRIZE_PROFILES_V1, prizeForPosition, FEE_PROFILES } from "../../career/finance/config.ts";
 import { lockRoot } from "../../career/world/service.ts";
 import type { RootRow } from "../../career/calendar/engine.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
@@ -52,6 +53,7 @@ before(async () => {
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db); await createCareerCalendar(db);
+  await db.transaction(tx => ensureCareerCountyTeams(tx));
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db);
   await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); // idempotent re-run
   await createCareerFinanceSPC(db); await createCareerFinanceSPC(db); // additive A4/SP-B3 migration is idempotent
@@ -82,6 +84,30 @@ async function careerWithCurrentCatalogue(player = 1, slot = 1) {
   await finance.initialize({ playerId: player }, save.id);
   return save;
 }
+test("finance v2 improves amateur purses, retains v1 event values, and upgrades existing saves", async () => {
+  assert.equal(FINANCE_VERSION, 2);
+  assert.equal(prizeForPosition(PRIZE_PROFILES_V1["prize:regional"], 1), 15000);
+  assert.equal(prizeForPosition(PRIZE_PROFILES["prize:regional"], 1), 75000);
+  assert.equal(prizeForPosition(PRIZE_PROFILES_V1["prize:national_amateur"], 1), 50000);
+  assert.equal(prizeForPosition(PRIZE_PROFILES["prize:national_amateur"], 1), 250000);
+  const regionalEvent = {
+    definition_key: "regional-open",
+    classification: "RANKING",
+    snapshot: { profiles: { entryFee: "fee:regional", prize: "prize:regional" } },
+  } as Parameters<typeof profileFor>[0];
+  assert.equal(profileFor(regionalEvent, 1).prize.bands[0]?.amountPence, 15000);
+  assert.equal(profileFor(regionalEvent, 2).prize.bands[0]?.amountPence, 75000);
+
+  const save = await saves.create(1, { slot: 2 });
+  await db.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
+    VALUES (${save.id}, 1, 1)`);
+  await finance.initialize({ playerId: 1 }, save.id);
+  assert.equal((await finance.summary({ playerId: 1 }, save.id)).financeVersion, 2);
+  const migrated=(await rows(sql`SELECT finance_version,sponsor_database_version FROM career_finance_state WHERE career_save_id=${save.id}`))[0]!;
+  assert.equal(Number(migrated.finance_version), 2);
+  assert.equal(Number(migrated.sponsor_database_version), 1,
+    "finance-only upgrades must preserve the legacy sponsor catalogue pin");
+});
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 const rejectsStatus = (p: Promise<unknown>, status: number) => assert.rejects(p, (e: unknown) => (e as { status?: number }).status === status);
 const rejectsWith = (p: Promise<unknown>, pattern: RegExp) => assert.rejects(p, (error: unknown) => {
@@ -162,7 +188,7 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 
 // ------------------------------------------------------------------ ledger authority
 test("SP-Economy preserves v1-v4 and enables approved v5 guarantees only for new Career saves", async () => {
-  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 5);
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 6);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
   assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "APPROVED");
   for (const version of [1, 2, 3, 4]) {
@@ -170,9 +196,10 @@ test("SP-Economy preserves v1-v4 and enables approved v5 guarantees only for new
       (definition.terms.contractFoundation?.guaranteedPayments.length ?? 0) === 0),
     `catalogue v${version} must retain its historical guarantee terms`);
   }
-  const expectedByTier = { LOCAL: 25_000, REGIONAL: 125_000, PROFESSIONAL: 800_000, ELITE: 2_000_000 };
-  for (const [tier, annualPence] of Object.entries(expectedByTier)) {
-    const definition = sponsorCatalogue(5).find(item => item.terms.tier === tier)!;
+  for (const tier of ["LOCAL", "REGIONAL", "PROFESSIONAL", "ELITE"]) {
+    const definition = sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).find(item => item.terms.tier === tier)!;
+    const annualPence = definition.terms.contractFoundation!.guaranteedPayments[0]!.amountPence;
+    assert.ok(annualPence > 0 && annualPence % 4 === 0, `${tier} guarantees must be positive and split into four equal payments`);
     assert.deepEqual(definition.terms.contractFoundation?.guaranteedPayments, [
       { amountPence: annualPence, cadence: "PER_SEASON", installments: 4 },
     ]);
@@ -193,7 +220,7 @@ test("SP-Economy preserves v1-v4 and enables approved v5 guarantees only for new
     status: "APPROVED",
     catalogueVersion: CURRENT_SPONSOR_DATABASE_VERSION,
   });
-  assert.equal(((await rows(sql`SELECT settings_snapshot FROM career_saves WHERE id=${save.id}`))[0]!.settings_snapshot as Record<string,unknown>).sponsorDatabaseVersionAtCreation,5);
+  assert.equal(((await rows(sql`SELECT settings_snapshot FROM career_saves WHERE id=${save.id}`))[0]!.settings_snapshot as Record<string,unknown>).sponsorDatabaseVersionAtCreation,CURRENT_SPONSOR_DATABASE_VERSION);
   const legacy=await careerWithCurrentCatalogue(1,2);
   await db.execute(sql`UPDATE career_saves SET settings_snapshot=settings_snapshot-'sponsorDatabaseVersionAtCreation' WHERE id=${legacy.id}`);
   await db.execute(sql`DELETE FROM career_finance_state WHERE career_save_id=${legacy.id}`);
@@ -1069,6 +1096,9 @@ test("SP-B local sponsor negotiations validate each visible term and reject unch
     assert.equal(offer.tier, "LOCAL", "the entry-level offer is used for this end-to-end term check");
 
     if (scenarioIndex === 0) {
+      await rows(sql`DELETE FROM career_sponsor_journeys WHERE career_save_id=${save.id} AND current_offer_id=${offer.id}`);
+      offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.id === offer.id)!;
+      assert.equal(offer.journey?.status, "OFFERED", "an existing offer without negotiation history is made negotiable");
       await rejectsStatus(finance.negotiateOffer(actor, save.id, String(offer.id), {
         requestKey: "local-same-signing-value", expectedRevision: 0,
         change: { kind: "SIGNING_BONUS", amountPence: offer.terms.signingBonusPence },
@@ -1095,6 +1125,40 @@ test("SP-B local sponsor negotiations validate each visible term and reject unch
       expectedRevision = result.revision;
     }
   }
+});
+
+test("SP-F1 reissues pending legacy offers with visible v6 terms and preserves the old offer", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  const save=await career();
+  await db.execute(sql`UPDATE career_finance_state SET sponsor_database_version=5 WHERE career_save_id=${save.id}`);
+  await finance.evaluateOffers(actor,save.id,{triggerKey:"legacy-sponsor-catalogue"});
+  const old=(await rows(sql`SELECT * FROM career_sponsor_offers
+    WHERE career_save_id=${save.id} AND sponsor_key='forge-workwear' AND status='AVAILABLE' LIMIT 1`))[0]!;
+  assert.ok(old,"fixture creates a pending v5 offer");
+  const oldTerms=old.terms as Record<string,unknown>;
+  assert.equal(oldTerms.sponsorDatabaseVersion,5);
+
+  await db.execute(sql`UPDATE career_saves SET event_database_version=5 WHERE id=${save.id}`);
+  const refreshed=await finance.sponsors(actor,save.id);
+  const offer=refreshed.offers.find(candidate=>candidate.sponsorKey==="forge-workwear")!;
+  assert.ok(offer,"the updated offer is visible");
+  assert.notEqual(offer.id,old.id);
+  assert.equal(offer.terms.sponsorDatabaseVersion,6);
+  const refresh=(offer.source as Record<string,unknown>).catalogueRefresh as {fromVersion:number;toVersion:number};
+  assert.equal(refresh.fromVersion,5);
+  assert.notEqual(offer.terms.signingBonusPence,oldTerms.signingBonusPence);
+  const preserved=(await rows(sql`SELECT status,status_reason,terms FROM career_sponsor_offers
+    WHERE career_save_id=${save.id} AND id=${old.id}`))[0]!;
+  assert.equal(preserved.status,"WITHDRAWN");
+  assert.equal(preserved.status_reason,"CATALOGUE_REFRESH");
+  assert.deepEqual(preserved.terms,oldTerms,"old offer terms stay intact in the save history");
+  assert.ok(offer.journey?.timeline.some(event=>(event.details as Record<string,unknown>).headline==="Updated sponsor terms available"));
+
+  const proposal=await finance.negotiateOffer(actor,save.id,String(offer.id),{
+    requestKey:"post-refresh-counter",expectedRevision:offer.journey!.revision,
+    change:{kind:"SIGNING_BONUS",amountPence:offer.terms.signingBonusPence+100},
+  });
+  assert.ok(["ACCEPTED","COUNTERED"].includes(proposal.outcome));
 });
 
 test("SP-B negotiation responses use a valid tolerance profile at every sponsor tier", () => {

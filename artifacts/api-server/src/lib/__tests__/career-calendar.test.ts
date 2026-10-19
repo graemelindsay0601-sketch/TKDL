@@ -13,6 +13,7 @@ import { createCareerCalendar, syncEventDefinitions } from "../../db/migrations/
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSporting } from "../../db/migrations/create_career_sporting.ts";
 import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
+import { ensureCareerCountyTeams } from "../../db/migrations/create_career_county_teams.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerCalendarService } from "../../career/calendar/service.ts";
 import { generateSeason, calendarHashOf, definitionHash } from "../../career/calendar/generation.ts";
@@ -44,6 +45,7 @@ before(async () => {
   await createCareerWorld(db);
   await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db);
   await createCareerCalendar(db);
+  await db.transaction(tx => ensureCareerCountyTeams(tx));
   await createCareerFinance(db); await createCareerSporting(db); // A3 weekly settlement reads A5 ranking tables via life commitments (SP-G/SP-H)
   await createCareerSponsorHQSPD(db);
 });

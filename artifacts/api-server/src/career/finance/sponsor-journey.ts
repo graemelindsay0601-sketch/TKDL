@@ -9,6 +9,7 @@ import type { Requirement, SponsorTerms, SportingFacts } from "./sponsors.catalo
 export type SponsorApproachSource =
   | { kind: "RESULT"; eventId: string; eventName: string; circuit: string; season: number; week: number; finishingPosition: number; isChampion: boolean; classification?: string }
   | { kind: "RENEWAL"; previousContractId: string; season: number; week: number }
+  | { kind: "LEGACY_OFFER"; season: number; week: number }
   | { kind: "SPORTING_ELIGIBILITY"; triggerKey: string; season: number; week: number; facts: SportingFacts; offerRequirement: Requirement };
 
 export type SponsorJourneyEventType =
@@ -150,13 +151,15 @@ export async function createSponsorJourney(
       : `Your ${ordinal(result.finishingPosition)}-place finish at ${result.eventName} meets ${input.terms.displayName}'s recorded criteria for a formal offer.`
     : input.source.kind === "RENEWAL"
       ? `Your existing partnership has reached its renewal review and the sporting criteria are met.`
+      : input.source.kind === "LEGACY_OFFER"
+        ? "This offer was already in your save before sponsor negotiations were introduced. Its original terms are preserved and can now be negotiated."
       : `Your recorded sporting eligibility meets ${input.terms.displayName}'s criteria for a formal offer.`;
   const introduction = approachIntroduction(input.terms.tier, input.source);
   const contact = input.terms.representative
     ? { name: input.terms.representative.displayName, role: input.terms.representative.role, representativeId: input.terms.representative.id }
     : { name: `${input.terms.displayName} partnership team`, role: "Partnership contact", representativeId: null };
 
-  if (priorInterest) {
+  if (priorInterest && input.source.kind !== "LEGACY_OFFER") {
     await appendSponsorJourneyEvent(tx, root, {
       journeyId, eventKey: `approach:${input.offerId}`, eventType: "APPROACH", offerId: input.offerId,
       season: input.source.season, week: input.source.week,
@@ -203,6 +206,9 @@ function ordinal(position: number) {
 }
 
 function approachIntroduction(tier: SponsorTerms["tier"], source: SponsorApproachSource) {
+  if (source.kind === "LEGACY_OFFER") {
+    return "This offer was already active in your save. Its terms have been preserved, and you can now negotiate them.";
+  }
   if (source.kind === "RENEWAL") {
     return "Your current partnership has reached its renewal review. We would like to discuss whether a new term makes sense.";
   }

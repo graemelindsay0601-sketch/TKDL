@@ -22,3 +22,4 @@
 - [County team competition](county-team-competition.md) — county representation must be a playable UKDA-style men’s/women’s A/B team competition, not only selection and computed standings
 - [Career event version compatibility](career-event-versioning.md) — preserve historical event-definition rows as stored; enforce hash immutability on the current edition and migrate saves forward
 - [PDC calendar sourcing](pdc-calendar-sourcing.md) — when the PDC fixture API is unavailable, use its sitemap to locate official event notices; treat third-party calendars as leads
+- [Career sponsor trade-offs](career-sponsor-tradeoffs.md) — sponsor offers need real pros/cons, and player counter-proposals must work on existing saves

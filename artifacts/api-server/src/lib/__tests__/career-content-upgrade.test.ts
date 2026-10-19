@@ -18,6 +18,7 @@ import {createCareerLegacy} from "../../db/migrations/create_career_legacy.ts";
 import {CAREER_CONTENT_UPGRADE_A9_V1,upgradeCareerContentA9V1} from "../../db/migrations/upgrade_career_content_a9_v1.ts";
 import {createCareerService} from "../../career/service.ts";
 import {createCareerSportingService} from "../../career/sporting/service.ts";
+import {CURRENT_EVENT_DATABASE_VERSION} from "../../career/calendar/config.ts";
 
 const oldKeys=["createCareerSavesA1","createCareerWorldA2","createCareerCalendarA3",
   "createCareerFinanceA4","createCareerSportingA5","createCareerGoalsA73","createCareerLifeA75","createCareerLegacyA76"];
@@ -70,14 +71,15 @@ async function newSave(db:CareerDatabase){
   return createCareerService(db).create(1,{slot:1,careerName:"Isolated repair test",dateOfBirth:"1990-06-15"});
 }
 
-test("new migration independently installs the full Career schema and v1-v7 catalogue",async()=>{
+test("new migration independently installs the full Career schema and all shipped event catalogues",async()=>{
   const pg=new PGlite(),db=drizzle(pg);
   try{
     await foundation(pg);await upgradeCareerContentA9V1(db);
     const versions=await pg.query<{event_database_version:number;count:number}>(
       "SELECT event_database_version,count(*)::int AS count FROM career_event_definitions GROUP BY 1 ORDER BY 1");
     assert.deepEqual(versions.rows,[{event_database_version:1,count:73},{event_database_version:2,count:75},
-      {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94},{event_database_version:7,count:153},{event_database_version:8,count:153},{event_database_version:9,count:153},{event_database_version:10,count:153},{event_database_version:11,count:153},{event_database_version:12,count:153},{event_database_version:13,count:154},{event_database_version:14,count:155},{event_database_version:15,count:157},{event_database_version:16,count:157},{event_database_version:17,count:158}]);
+      {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94},{event_database_version:7,count:153},{event_database_version:8,count:153},{event_database_version:9,count:153},{event_database_version:10,count:153},{event_database_version:11,count:153},{event_database_version:12,count:153},{event_database_version:13,count:154},{event_database_version:14,count:155},{event_database_version:15,count:157},{event_database_version:16,count:157},{event_database_version:17,count:158},
+      {event_database_version:18,count:141},{event_database_version:19,count:157},{event_database_version:20,count:157},{event_database_version:21,count:161},{event_database_version:22,count:165},{event_database_version:23,count:178},{event_database_version:24,count:178},{event_database_version:25,count:184}]);
     assert.equal((await marker(pg)).length,1);
     const before=await contents(pg),beforeSchema=await schema(pg);
     await upgradeCareerContentA9V1(db);
@@ -142,9 +144,10 @@ test("failure after the completion insert rolls back EVERY schema/data/ledger ch
 test("conflicting shipped definition hashes abort rather than silently rewriting authored content",async()=>{
   const pg=new PGlite(),db=drizzle(pg);
   try{
-    await prepare(pg,db,true);
+    await prepare(pg,db);
     await db.execute(sql`UPDATE career_event_definitions SET definition_hash=${"0".repeat(64)}
-      WHERE event_database_version=1 AND definition_key='friday-night-501'`);
+      WHERE event_database_version=${CURRENT_EVENT_DATABASE_VERSION}
+      AND definition_key=(SELECT definition_key FROM career_event_definitions WHERE event_database_version=${CURRENT_EVENT_DATABASE_VERSION} LIMIT 1)`);
     const before=await contents(pg),beforeSchema=await schema(pg);
     await assert.rejects(()=>upgradeCareerContentA9V1(db),/publish a new version/);
     assert.deepEqual(await contents(pg),before);assert.deepEqual(await schema(pg),beforeSchema);

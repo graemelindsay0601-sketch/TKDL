@@ -114,7 +114,8 @@ export type FinanceSummary = {
 export type LedgerEntry = { id: string; category: string; headline: string; amountPence: number; direction: "CREDIT" | "DEBIT"; season: number | null; week: number | null;
   eventId: string | null; grossAmountPence: number | null; sponsorCoveredPence: number; reason: string | null; createdAt: string };
 export type SponsorTerms = {
-  sponsorKey: string; displayName: string; tier: string; duration: { kind: "REMAINDER_OF_SEASON" } | { kind: "SEASONS"; seasons: number };
+  sponsorKey: string; displayName: string; tier: string; sponsorDatabaseVersion: number;
+  duration: { kind: "REMAINDER_OF_SEASON" } | { kind: "SEASONS"; seasons: number };
   category?: string;
   signingBonusPence: number; eventPayment: { amountPence: number; circuits: string[]; maxEventsPerSeason: number } | null;
   coverage: { costTypes: string[]; percent: number; perEventCapPence: number | null; seasonCapPence: number | null; circuits: string[] | null }[];

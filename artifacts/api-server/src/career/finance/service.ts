@@ -10,7 +10,7 @@ import type { CalendarProviders } from "../calendar/providers.ts";
 import { BRANDS } from "../content/brands.ts";
 import { representativeForSponsor } from "../content/sponsor-representatives.ts";
 import { getNpcSponsorMarket } from "../sponsorship/npc-market.ts";
-import { FINANCE_VERSION } from "./config.ts";
+import { FINANCE_VERSION, OFFER_LIFETIME_WEEKS, WEEKS } from "./config.ts";
 import { summary, recentEntries, presentEntry, post, type LedgerRow } from "./ledger.ts";
 import {
   createFinanceHooks, defaultFactsProvider, ensureFinanceState, evaluateOffers, acceptOffer, declineOffer, reservedPence, activeContracts,
@@ -20,15 +20,84 @@ import {
 import { projectGuaranteePaymentStatus, scheduleContractGuarantees } from "./sponsor-guarantees.ts";
 import { relationship, conflicts, portfolioLimit } from "./portfolio.ts";
 import {
-  CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, parseSponsorTerms,
+  CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, parseSponsorTerms, sponsorCatalogue,
 } from "./sponsors.catalogue.ts";
-import { appendSponsorJourneyEvent, syncExpiredSponsorJourneys } from "./sponsor-journey.ts";
+import { appendSponsorJourneyEvent, createSponsorJourney, syncExpiredSponsorJourneys } from "./sponsor-journey.ts";
 import { negotiateSponsorOffer } from "./sponsor-negotiation.ts";
 import { stableUuid } from "../world/random.ts";
 import { cancelInactiveSponsorActivities } from "./sponsor-activities.ts";
 
 const offerRefSchema = z.object({ offerId: z.string().uuid() }).strict();
 const acceptOfferSchema = offerRefSchema.extend({replaceContractIds:z.array(z.string().uuid()).max(5).refine(ids=>new Set(ids).size===ids.length).optional()});
+
+async function ensureSponsorOfferJourney(tx: CareerExecutor, root: RootRow, offer: Record<string, unknown>) {
+  const terms = parseSponsorTerms(offer.terms);
+  await createSponsorJourney(tx, root, {
+    offerId: String(offer.id),
+    operationKey: `journey:${String(offer.id)}`,
+    terms,
+    source: {
+      kind: "LEGACY_OFFER",
+      season: Number(offer.offered_season),
+      week: Number(offer.offered_week),
+    },
+  });
+}
+
+/** Reissue pending old-catalogue offers without rewriting their historical snapshots. */
+async function refreshOpenSponsorOffers(tx: CareerExecutor, root: RootRow, season: number, week: number) {
+  const state=(await tx.execute(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${root.id}`)).rows[0];
+  if(root.event_database_version<5||Number(state?.sponsor_database_version)>=CURRENT_SPONSOR_DATABASE_VERSION)return;
+  const pending=(await tx.execute(sql`SELECT * FROM career_sponsor_offers
+    WHERE career_save_id=${root.id} AND status='AVAILABLE' AND sponsor_database_version<${CURRENT_SPONSOR_DATABASE_VERSION}
+    ORDER BY offered_season,offered_week,id FOR UPDATE`)).rows;
+  if(!pending.length)return;
+  await tx.execute(sql`UPDATE career_finance_state SET sponsor_database_version=${CURRENT_SPONSOR_DATABASE_VERSION}
+    WHERE career_save_id=${root.id} AND sponsor_database_version<${CURRENT_SPONSOR_DATABASE_VERSION}`);
+  const currentCatalogue=sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION);
+  for(const old of pending){
+    const oldTerms=parseSponsorTerms(old.terms);
+    const definition=currentCatalogue.find(item=>item.key===String(old.sponsor_key));
+    if(!definition)continue;
+    await ensureSponsorOfferJourney(tx,root,old as Record<string,unknown>);
+    const journey=(await tx.execute(sql`SELECT id FROM career_sponsor_journeys
+      WHERE career_save_id=${root.id} AND current_offer_id=${old.id} AND status IN ('OFFERED','NEGOTIATING')
+      LIMIT 1 FOR UPDATE`)).rows[0];
+    if(!journey)continue;
+    const operationKey=`catalogue-refresh:${String(old.id)}:v${CURRENT_SPONSOR_DATABASE_VERSION}`;
+    const newId=stableUuid(root.world_seed,CURRENT_SPONSOR_DATABASE_VERSION,"sponsor-offer",operationKey);
+    const source=(old.source??{}) as Record<string,unknown>;
+    const priorFanPremium=(source.fanPremium??{}) as Record<string,unknown>;
+    const oldBase=Number(priorFanPremium.baseSigningBonusPence??oldTerms.signingBonusPence);
+    const signingMultiplier=oldBase>0?oldTerms.signingBonusPence/oldBase:1;
+    const terms=structuredClone(definition.terms);
+    terms.signingBonusPence=Math.round(terms.signingBonusPence*signingMultiplier/1000)*1000;
+    const expiryIndex=(season-1)*WEEKS+week+OFFER_LIFETIME_WEEKS;
+    const expiresSeason=Math.floor((expiryIndex-1)/WEEKS)+1;
+    const expiresWeek=((expiryIndex-1)%WEEKS)+1;
+    const refresh={previousOfferId:String(old.id),fromVersion:Number(old.sponsor_database_version),toVersion:CURRENT_SPONSOR_DATABASE_VERSION};
+    await tx.execute(sql`UPDATE career_sponsor_offers SET status='WITHDRAWN',status_reason='CATALOGUE_REFRESH',resolved_at=NOW()
+      WHERE career_save_id=${root.id} AND id=${old.id} AND status='AVAILABLE'`);
+    await tx.execute(sql`INSERT INTO career_sponsor_offers
+      (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,
+       offered_season,offered_week,expires_season,expires_week,status)
+      VALUES (${root.id},${newId},${operationKey},${terms.sponsorKey},${CURRENT_SPONSOR_DATABASE_VERSION},${terms.tier},${old.kind},
+        ${JSON.stringify(terms)}::jsonb,${JSON.stringify({...source,catalogueRefresh:refresh})}::jsonb,
+        ${season},${week},${expiresSeason},${expiresWeek},'AVAILABLE')
+      ON CONFLICT (career_save_id,operation_key) DO NOTHING`);
+    await tx.execute(sql`UPDATE career_sponsor_journeys SET current_offer_id=${newId},
+      sponsor_database_version=${CURRENT_SPONSOR_DATABASE_VERSION},status='OFFERED',
+      revision=revision+1,negotiation_rounds=0,
+      source=source||${JSON.stringify({catalogueRefresh:refresh})}::jsonb,updated_at=NOW()
+      WHERE career_save_id=${root.id} AND id=${journey.id}`);
+    await appendSponsorJourneyEvent(tx,root,{
+      journeyId:String(journey.id),eventKey:`catalogue-refresh:${old.id}:v${CURRENT_SPONSOR_DATABASE_VERSION}`,
+      eventType:"OFFER_RECEIVED",offerId:newId,season,week,
+      details:{headline:"Updated sponsor terms available",
+        summary:`This v${CURRENT_SPONSOR_DATABASE_VERSION} offer replaces the pending v${old.sponsor_database_version} terms. The earlier offer remains in your history.`},
+    });
+  }
+}
 
 async function recordSponsorActivityUpdate(tx:CareerExecutor,root:RootRow,row:Record<string,unknown>,status:string,season:number,week:number){
   const contractId=String(row.contract_id??"");
@@ -287,11 +356,16 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
     async sponsors(actor: CareerActor, saveId: string) {
       return database.transaction(async tx => {
         const root = await open(tx, actor, saveId, false);
+        await ensureFinanceState(tx,root.id);
+        const current=now(root);
+        await refreshOpenSponsorOffers(tx,root,current.season,current.week);
         const active=await activeContracts(tx,root.id), sporting=await facts!.facts(tx,root);
         const contracts = (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} ORDER BY signed_at DESC, id LIMIT 50`)).rows;
         const offers = (await tx.execute(sql`SELECT * FROM career_sponsor_offers WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 50`)).rows;
+        for (const offer of offers.filter(row => row.status === "AVAILABLE")) {
+          await ensureSponsorOfferJourney(tx, root, offer as Record<string, unknown>);
+        }
         const journeys = (await tx.execute(sql`SELECT * FROM career_sponsor_journeys WHERE career_save_id = ${root.id} ORDER BY created_at DESC, id LIMIT 100`)).rows;
-        const current = now(root);
         const commitments = (await tx.execute(sql`SELECT c.*,s.terms->>'displayName' AS sponsor_name,s.terms AS contract_terms
           FROM career_sponsor_commitments c LEFT JOIN career_sponsor_contracts s
             ON s.career_save_id=c.career_save_id AND s.id=c.contract_id
@@ -709,7 +783,13 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
     },
 
     async negotiateOffer(actor: CareerActor, saveId: string, offerId: string, body: unknown) {
-      return database.transaction(async tx => negotiateSponsorOffer(tx, await open(tx, actor, saveId), offerId, body));
+      return database.transaction(async tx => {
+        const root = await open(tx, actor, saveId);
+        const offer = (await tx.execute(sql`SELECT * FROM career_sponsor_offers
+          WHERE career_save_id = ${root.id} AND id = ${offerId} AND status = 'AVAILABLE'`)).rows[0];
+        if (offer) await ensureSponsorOfferJourney(tx, root, offer as Record<string, unknown>);
+        return negotiateSponsorOffer(tx, root, offerId, body);
+      });
     },
 
     /** Internal milestone boundary (A5/A7 or server flows supply factual triggers). Idempotent per triggerKey. */

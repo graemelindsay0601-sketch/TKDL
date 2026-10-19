@@ -11,7 +11,8 @@ import type { InstanceRow, RootRow } from "../calendar/engine.ts";
 import type { CalendarProviders, CalendarFinanceHooks } from "../calendar/providers.ts";
 import type { DenialReason } from "../calendar/eligibility.ts";
 import {
-  FINANCE_VERSION, FEE_PROFILES, FEE_OVERRIDES, PRIZE_PROFILES, PRIZE_OVERRIDES, REFUND_POLICIES,
+  FINANCE_VERSION, SUPPORTED_FINANCE_VERSIONS, FEE_PROFILES, FEE_OVERRIDES, PRIZE_PROFILES, PRIZE_PROFILES_V1,
+  PRIZE_OVERRIDES, PRIZE_OVERRIDES_V1, REFUND_POLICIES,
   OFFER_LIFETIME_WEEKS, MAX_OFFERS_PER_EVALUATION, WEEKS, prizeForPosition, PRIZE_POTS, potPrize, POT_TYPICAL_FIELD, type FeeProfile, type PrizeProfile, type RefundPolicy,
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
@@ -31,32 +32,34 @@ export interface SponsorFactsProvider { readonly id: string; facts(tx: CareerExe
 
 // ------------------------------------------------------------------ profiles
 export type EventFinanceProfile = { fee: FeeProfile; prize: PrizeProfile; refund: RefundPolicy; rankingEligible: boolean; financeVersion: number };
-export function profileFor(event: Pick<InstanceRow, "definition_key" | "classification" | "snapshot"> & Partial<Pick<InstanceRow, "entrant_count" | "field_locked_at">>): EventFinanceProfile {
+export function profileFor(
+  event: Pick<InstanceRow, "definition_key" | "classification" | "snapshot"> & Partial<Pick<InstanceRow, "entrant_count" | "field_locked_at">>,
+  financeVersion = FINANCE_VERSION,
+): EventFinanceProfile {
   const refs = event.snapshot.profiles;
   // Your own tournament: the fee you set, and a pot of the players' fees (less your share) plus your top-up.
   const hosted = (event.snapshot as { hosted?: HostedTerms }).hosted;
   if (hosted) return { fee: { key: "fee:hosted", entryFeePence: hosted.feePence, basis: "PER_EVENT", refundPolicy: "local" },
     prize: hostedPrize(hosted, event.field_locked_at ? Number(event.entrant_count ?? 0) : Math.max(Number(event.entrant_count ?? 0), Math.round(hosted.fieldSize * 0.6))),
-    refund: REFUND_POLICIES.local, rankingEligible: false, financeVersion: FINANCE_VERSION };
+    refund: REFUND_POLICIES.local, rankingEligible: false, financeVersion };
   const fee = FEE_OVERRIDES[event.definition_key] ?? FEE_PROFILES[refs.entryFee];
   // Pot nights: the real field once it is locked, a typical turnout before.
   const pot = PRIZE_POTS[event.definition_key]
     ? potPrize(event.definition_key, event.field_locked_at ? Number(event.entrant_count ?? 0) : Math.max(Number(event.entrant_count ?? 0), POT_TYPICAL_FIELD)) : null;
-  const prize = pot ?? PRIZE_OVERRIDES[event.definition_key] ?? PRIZE_PROFILES[refs.prize];
+  const prizeOverrides = financeVersion === 1 ? PRIZE_OVERRIDES_V1 : PRIZE_OVERRIDES;
+  const prizeProfiles = financeVersion === 1 ? PRIZE_PROFILES_V1 : PRIZE_PROFILES;
+  const prize = pot ?? prizeOverrides[event.definition_key] ?? prizeProfiles[refs.prize];
   if (!fee || !prize) throw new Error(`No finance profile for ${event.definition_key}`);
   // A4 provides the ranking-eligible money fact only; A5 decides what it means.
-  return { fee, prize, refund: REFUND_POLICIES[fee.refundPolicy], rankingEligible: event.classification === "RANKING", financeVersion: FINANCE_VERSION };
+  return { fee, prize, refund: REFUND_POLICIES[fee.refundPolicy], rankingEligible: event.classification === "RANKING", financeVersion };
 }
 
 // ------------------------------------------------------------------ state / contract / coverage
-// Checked once per transaction: within one transaction the state row, once present and supported, cannot change.
-const financeStateChecked = new WeakMap<CareerExecutor, Set<string>>();
 export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
-  if (financeStateChecked.get(tx)?.has(saveId)) return;
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
     SELECT ${saveId}, ${FINANCE_VERSION},
       CASE
-        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-5]$'
+        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-6]$'
           THEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation')::integer
         WHEN event_database_version >= 5 THEN 3
         WHEN event_database_version >= 3 THEN 2
@@ -64,10 +67,18 @@ export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
       END
     FROM career_saves WHERE id=${saveId}
     ON CONFLICT (career_save_id) DO NOTHING`);
-  const row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
-  if (Number(row.finance_version) !== FINANCE_VERSION || !(SUPPORTED_SPONSOR_DATABASE_VERSIONS as readonly number[]).includes(Number(row.sponsor_database_version))) throw new CareerError(409, "Career finance requires a version migration");
-  if (!financeStateChecked.has(tx)) financeStateChecked.set(tx, new Set());
-  financeStateChecked.get(tx)!.add(saveId);
+  let row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
+  // Finance v2 changes only future amateur prize tables. Historical ledger rows,
+  // entered-event costs, and already-snapshotted prize tables remain untouched.
+  if (Number(row.finance_version) === 1 && FINANCE_VERSION === 2) {
+    await tx.execute(sql`UPDATE career_finance_state SET finance_version = 2 WHERE career_save_id = ${saveId} AND finance_version = 1`);
+    row = (await tx.execute(sql`SELECT * FROM career_finance_state WHERE career_save_id = ${saveId}`)).rows[0];
+  }
+  if (!(SUPPORTED_FINANCE_VERSIONS as readonly number[]).includes(Number(row.finance_version))
+    || Number(row.finance_version) !== FINANCE_VERSION
+    || !(SUPPORTED_SPONSOR_DATABASE_VERSIONS as readonly number[]).includes(Number(row.sponsor_database_version))) {
+    throw new CareerError(409, "Career finance requires a version migration");
+  }
 }
 export type ContractRow = { id: string; offer_id: string; sponsor_key: string; tier: SponsorTier; terms: SponsorTerms; start_season: number; start_week: number; end_season: number; end_week: number; status: string };
 export async function activeContracts(tx: CareerExecutor, saveId: string): Promise<ContractRow[]> {
@@ -713,11 +724,17 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
   async function eventsCompleted(tx: CareerExecutor, root: RootRow, batch: readonly { event: InstanceRow; results: readonly { participant_key: string; finishing_position: number; is_champion: boolean }[] }[]) {
     if (!batch.length) return;
     await ensureFinanceState(tx, root.id);
-    const tables = batch.map(({ event }) => { const profile = profileFor(event);
-      return { event_id: event.id, season: event.season, prize_profile_key: profile.prize.key, classification: event.classification, ranking_eligible: profile.rankingEligible, bands: profile.prize.bands }; });
+    const eventVersions = new Map((await tx.execute(sql`SELECT event_id, MIN(finance_version)::int AS finance_version
+      FROM career_event_finance WHERE career_save_id = ${root.id}
+        AND status NOT IN ('WITHDRAWN', 'CANCELLED')
+        AND event_id IN (${sql.join(batch.map(({ event }) => sql`${event.id}`), sql`, `)})
+      GROUP BY event_id`)).rows.map(row => [String(row.event_id), Number(row.finance_version)]));
+    const tables = batch.map(({ event }) => { const profile = profileFor(event, eventVersions.get(event.id) ?? FINANCE_VERSION);
+      return { event_id: event.id, season: event.season, prize_profile_key: profile.prize.key, classification: event.classification, ranking_eligible: profile.rankingEligible, bands: profile.prize.bands,
+        finance_version: eventVersions.get(event.id) ?? FINANCE_VERSION }; });
     await tx.execute(sql`INSERT INTO career_event_prize_tables (career_save_id, event_id, season, finance_version, prize_profile_key, classification, ranking_eligible, bands)
-      SELECT ${root.id}::uuid, t.event_id, t.season, ${FINANCE_VERSION}, t.prize_profile_key, t.classification, t.ranking_eligible, t.bands
-      FROM jsonb_to_recordset(${JSON.stringify(tables)}::jsonb) AS t(event_id uuid, season integer, prize_profile_key text, classification text, ranking_eligible boolean, bands jsonb)
+      SELECT ${root.id}::uuid, t.event_id, t.season, t.finance_version, t.prize_profile_key, t.classification, t.ranking_eligible, t.bands
+      FROM jsonb_to_recordset(${JSON.stringify(tables)}::jsonb) AS t(event_id uuid, season integer, prize_profile_key text, classification text, ranking_eligible boolean, bands jsonb, finance_version integer)
       ON CONFLICT DO NOTHING`);
     for (const { event, results } of batch) {
       await humanEventMoney(tx, root, event, results);
@@ -986,17 +1003,18 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         AND series_key IN (${sql.join(seriesKeys.map(k => sql`${k}`), sql`, `)})`)).rows as InstanceRow[] : [];
       const units = events.map(e => e.series_key ? series.filter(s => s.series_key === e.series_key) : [e]);
       const { available, balance, estimates } = await preview(tx, root, units);
-      const committed = new Map((await tx.execute(sql`SELECT event_id, status, entry_fee_paid_pence, entry_fee_covered_pence, trip_id FROM career_event_finance WHERE career_save_id = ${root.id} AND season = ${season}`)).rows
+      const committed = new Map((await tx.execute(sql`SELECT event_id, status, finance_version, entry_fee_paid_pence, entry_fee_covered_pence, trip_id FROM career_event_finance WHERE career_save_id = ${root.id} AND season = ${season}`)).rows
         .map(r => [String(r.event_id), r]));
       events.forEach((event, i) => {
         const e = estimates[i];
         const c = committed.get(event.id);
+        const prizeProfile = profileFor(event, Number(c?.finance_version ?? FINANCE_VERSION)).prize;
         out.set(event.id, {
           affordable: e.estimatedPlayerCostPence <= available, currency: "GBP", travelBand: e.band, nights: e.nights,
           entryFeePence: e.entryFeeGrossPence, entryFeeBasis: e.profile.fee.basis, estimatedTravelPence: e.travelGrossPence, estimatedAccommodationPence: e.accommodationGrossPence,
           sponsorCoverage: { entryFeePence: e.entryFeeCoveredPence, travelPence: e.travelCoveredPence, accommodationPence: e.accommodationCoveredPence },
           estimatedPlayerCostPence: e.estimatedPlayerCostPence, balancePence: balance, availablePence: available,
-          prizeProfile: e.profile.prize.key, topPrizePence: e.profile.prize.bands[0]?.amountPence ?? 0, prizeBands: e.profile.prize.bands, rankingEligible: e.profile.rankingEligible,
+          prizeProfile: prizeProfile.key, topPrizePence: prizeProfile.bands[0]?.amountPence ?? 0, prizeBands: prizeProfile.bands, rankingEligible: e.profile.rankingEligible,
           prizePot: PRIZE_POTS[event.definition_key] ? { ...PRIZE_POTS[event.definition_key], entrants: event.field_locked_at ? Number(event.entrant_count) : null, typicalField: POT_TYPICAL_FIELD } : null,
           commitment: c ? { status: c.status, entryFeePaidPence: Number(c.entry_fee_paid_pence), entryFeeCoveredPence: Number(c.entry_fee_covered_pence), tripId: c.trip_id } : null,
         });

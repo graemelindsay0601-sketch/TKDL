@@ -55,6 +55,10 @@ export function SponsorOfferCard({
   const [requestedValue, setRequestedValue] = useState(String(Math.round(terms.signingBonusPence / 100)));
   const accent = isHexColour(terms.presentation.colour) ? terms.presentation.colour : "#d8b669";
   const monogram = getMonogram(terms.displayName);
+  const catalogueRefresh = offer.source?.catalogueRefresh as { fromVersion?: number; toVersion?: number } | undefined;
+  const offerEdition = catalogueRefresh
+    ? `Updated terms · v${catalogueRefresh.toVersion ?? terms.sponsorDatabaseVersion} (from v${catalogueRefresh.fromVersion ?? "?"})`
+    : `Offer terms · v${terms.sponsorDatabaseVersion}`;
   const duration = terms.duration.kind === "SEASONS"
     ? `${terms.duration.seasons} season${terms.duration.seasons === 1 ? "" : "s"}`
     : "Rest of this season";
@@ -135,6 +139,7 @@ export function SponsorOfferCard({
               {offer.kind === "RENEWAL" ? "Renewal offer" : "New partnership"}
             </span>
             {terms.category && <span className="career-sponsor-offer__category">{titleCase(terms.category.replaceAll("_", " "))}</span>}
+            <span className="career-sponsor-offer__category">{offerEdition}</span>
           </div>
         </div>
 

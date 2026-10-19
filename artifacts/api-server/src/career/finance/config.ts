@@ -1,12 +1,11 @@
 /**
- * A4 finance content, version 1. Every value is integer pence (GBP), matching A1.
- * Shipped versions are immutable: retune by publishing FINANCE_VERSION 2 and
- * pinning saves explicitly. Historic events keep the snapshot they were charged
- * and paid under (career_event_finance / career_prize_awards / prize tables).
+ * A4 finance content. Every value is integer pence (GBP), matching A1.
+ * Shipped versions are immutable. Finance v2 retunes the amateur prize ladder;
+ * historic events keep the snapshot they were charged and paid under.
  */
-export const FINANCE_VERSION = 1;
+export const FINANCE_VERSION = 2;
 export const SPONSOR_DATABASE_VERSION = 1;
-export const SUPPORTED_FINANCE_VERSIONS = [1] as const;
+export const SUPPORTED_FINANCE_VERSIONS = [1, 2] as const;
 export const CURRENCY = "GBP";
 export const WEEKS = 52;
 
@@ -130,7 +129,8 @@ const prize = (key: string, ...amounts: number[]): PrizeProfile => {
   const positions = [1, 2, 4, 8, 16, 32, 64, 128];
   return { key, bands: amounts.map((amountPence, i) => ({ upToPosition: positions[i], amountPence })).filter(b => b.amountPence > 0) };
 };
-export const PRIZE_PROFILES: Record<string, PrizeProfile> = {
+/** Finance v1 is retained for events entered before a save is upgraded. */
+export const PRIZE_PROFILES_V1: Record<string, PrizeProfile> = {
   "prize:grassroots": prize("prize:grassroots", 2500, 1000),
   "prize:special": prize("prize:special", 2000, 500),
   "prize:county": prize("prize:county", 7500, 3000, 1500),
@@ -146,7 +146,14 @@ export const PRIZE_PROFILES: Record<string, PrizeProfile> = {
   "prize:major": prize("prize:major", 10000000, 5000000, 2500000, 1500000, 750000, 500000, 250000, 100000),
   "prize:world_championship": prize("prize:world_championship", 50000000, 20000000, 10000000, 5000000, 3500000, 2500000, 1500000),
 };
-export const PRIZE_OVERRIDES: Record<string, PrizeProfile> = {
+/** v2 improves the amateur ladder so traveling events can fund genuine progression. */
+export const PRIZE_PROFILES: Record<string, PrizeProfile> = {
+  ...PRIZE_PROFILES_V1,
+  "prize:county": prize("prize:county", 10000, 5000, 2500),
+  "prize:regional": prize("prize:regional", 75000, 40000, 20000, 10000, 5000, 2500),
+  "prize:national_amateur": prize("prize:national_amateur", 250000, 125000, 60000, 30000, 15000, 7500),
+};
+export const PRIZE_OVERRIDES_V1: Record<string, PrizeProfile> = {
   "sunday-league-sprint": prize("prize:sunday-league", 1000),
   "free-entry-night": prize("prize:free-entry", 4000, 2000, 1000),
   "open-championship-qualifier": prize("prize:qualifier-small", 5000, 2500),
@@ -154,6 +161,14 @@ export const PRIZE_OVERRIDES: Record<string, PrizeProfile> = {
   "world-championship-qualifier": prize("prize:qualifier-medium", 10000, 5000, 2500),
   "amateur-world-qualifier": prize("prize:qualifier-medium", 10000, 5000, 2500),
   "vault-qualifier": prize("prize:qualifier-small", 5000, 2500),
+};
+export const PRIZE_OVERRIDES: Record<string, PrizeProfile> = {
+  ...PRIZE_OVERRIDES_V1,
+  "open-championship-qualifier": prize("prize:qualifier-small", 15000, 7500),
+  "european-series-qualifier": prize("prize:qualifier-small", 15000, 7500),
+  "world-championship-qualifier": prize("prize:qualifier-medium", 30000, 15000, 7500),
+  "amateur-world-qualifier": prize("prize:qualifier-medium", 30000, 15000, 7500),
+  "vault-qualifier": prize("prize:qualifier-small", 10000, 5000),
 };
 /**
  * Midweek pub nights pay out of the pot, like a real flier: every player's entry money plus a small top-up from the club,
