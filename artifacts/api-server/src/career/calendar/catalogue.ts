@@ -27,6 +27,7 @@ import { buildCatalogueV23 } from "../content/season-v23.ts";
 import { buildCatalogueV24 } from "../content/season-v24.ts";
 import { buildCatalogueV25 } from "../content/season-v25.ts";
 import { buildCatalogueV26 } from "../content/season-v26.ts";
+import { buildCatalogueV27 } from "../content/season-v27.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -480,6 +481,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 24) return EVENT_CATALOGUE_V24;
   if (version === 25) return EVENT_CATALOGUE_V25;
   if (version === 26) return EVENT_CATALOGUE_V26;
+  if (version === 27) return EVENT_CATALOGUE_V27;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -528,5 +530,6 @@ export const EVENT_CATALOGUE_V24: readonly EventDefinition[] = buildCatalogueV24
 export const EVENT_CATALOGUE_V25: readonly EventDefinition[] = buildCatalogueV25(EVENT_CATALOGUE_V24);
 /** v26: local club league nights are country-locked so grassroots purses are not cross-continent travel bait. */
 export const EVENT_CATALOGUE_V26: readonly EventDefinition[] = buildCatalogueV26(EVENT_CATALOGUE_V25);
+export const EVENT_CATALOGUE_V27: readonly EventDefinition[] = buildCatalogueV27(EVENT_CATALOGUE_V26);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

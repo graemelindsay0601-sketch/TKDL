@@ -167,11 +167,37 @@ test("instance snapshots preserve the definition they were generated from", asyn
 
 test("calendar reads migrate old event editions but preserve the world seed", async () => {
   const save = await careerFor();
-  const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   await calendar.calendar(actor, save.id, {});
+  const stale = (await rows(sql`SELECT id FROM career_event_instances WHERE career_save_id=${save.id} AND definition_key='club-league-night'
+    AND country='NZL' AND start_week>(SELECT current_week FROM career_saves WHERE id=${save.id})
+    AND status IN ('SCHEDULED','REGISTRATION_OPEN') LIMIT 1`))[0];
+  assert.ok(stale, "a future Auckland club night exists in the old save");
+  // Recreate the stale persisted snapshot from a pre-v26 save. Production
+  // updates remain guarded; only this isolated migration fixture bypasses it.
+  await db.execute(sql`ALTER TABLE career_event_instances DISABLE TRIGGER career_event_instances_history_guard`);
+  try {
+    await db.execute(sql`UPDATE career_event_instances SET event_database_version=25,
+      snapshot=jsonb_set(snapshot,'{eligibility}','{"type":"PRO_STATUS","status":"AMATEUR"}'::jsonb) WHERE id=${stale.id}`);
+  } finally {
+    await db.execute(sql`ALTER TABLE career_event_instances ENABLE TRIGGER career_event_instances_history_guard`);
+  }
+  await db.execute(sql`UPDATE career_saves SET event_database_version=26 WHERE id=${save.id}`);
+  const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
+  const upgradedCalendar = await calendar.calendar(actor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
-    { event_database_version: 26, world_seed: before[0].world_seed },
+    { event_database_version: 27, world_seed: before[0].world_seed },
   ]);
+  const visibleAuckland = (upgradedCalendar.events as Array<{ definitionKey: string; venue: { country: string }; human: { eligible: boolean } }>)
+    .find(event => event.definitionKey === "club-league-night" && event.venue.country === "NZL");
+  assert.ok(visibleAuckland, "the migrated Auckland club night is visible in the calendar");
+  assert.equal(visibleAuckland.human.eligible, false, "the live calendar blocks this Scottish player from Auckland");
+  const migrated = (await rows(sql`SELECT event_database_version,snapshot FROM career_event_instances WHERE career_save_id=${save.id}
+    AND definition_key='club-league-night' AND country='NZL' AND start_week>(SELECT current_week FROM career_saves WHERE id=${save.id})
+    AND status IN ('SCHEDULED','REGISTRATION_OPEN') LIMIT 1`))[0];
+  assert.equal(Number(migrated.event_database_version), 27, "the future fixture is rebuilt from the new immutable edition");
+  const migratedSnapshot = migrated.snapshot as { eligibility: Parameters<typeof evaluateRule>[0] };
+  assert.equal(evaluateRule(migratedSnapshot.eligibility, facts({ country: "GBR", zone: "UK_IRELAND", locality: "ayrshire" })).eligible, false,
+    "existing Scottish saves cannot enter the retained Auckland fixture");
   const nzClubNight = generateSeason(String(before[0].world_seed), CURRENT_EVENT_DATABASE_VERSION, 1)
     .find(event => event.definitionKey === "club-league-night" && event.country === "NZL");
   assert.ok(nzClubNight, "the upgraded calendar edition includes the New Zealand club fixture");
