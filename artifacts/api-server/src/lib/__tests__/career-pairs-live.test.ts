@@ -25,6 +25,7 @@ import { loadInstances, lockField, makeDraw, progressEvent, type RootRow } from 
 import { loadNpcs } from "../../career/world/repository.ts";
 import { lockRoot, worldState } from "../../career/world/service.ts";
 import { localityByRegion } from "../../career/calendar/geography.ts";
+import { dartsNation } from "../../career/calendar/pairs.ts";
 import { createMatch, throwDart, planBotX01Visit, seededRandom, botOptionsFor, type Dart, type X01Format, type X01MatchState } from "../../shared/darts-rules/index.ts";
 // The browser's own planners (artifacts/tkdl), loaded by URL so this package's typecheck stays inside its root.
 type LiveModel = { careerBotVisit: (...a: unknown[]) => Dart[]; careerPartnerVisit: (...a: unknown[]) => Dart[] | null; shouldCheckpoint: (...a: unknown[]) => boolean };
@@ -81,6 +82,56 @@ test("Pub Doubles: you enter, the field locks into pairs, you captain a pair wit
   const me = view.field.find(f => f.key === "HUMAN")!;
   assert.equal(me.partner?.key, String(mine.partner_key)); assert.match(me.name, / & /);
   void localityByRegion;
+});
+
+test("World Cup: published national rankings select your pair and the draw opens a live match", async () => {
+  const save = await saves.create(1, { slot: 3, careerName: "World Cup Player", dateOfBirth: "1990-01-01", homeLocality: "ayrshire" });
+  await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${save.id}`);
+  await sporting.initialize(actor, save.id);
+  const e = (await rows(sql`SELECT id,start_week,start_day FROM career_event_instances
+    WHERE career_save_id=${save.id} AND definition_key='world-cup-of-darts' AND executable LIMIT 1`))[0];
+  assert.ok(e, "the authored World Cup exists in the Career calendar");
+  const eventId = String(e.id);
+  await db.execute(sql`UPDATE career_saves SET current_week=${Number(e.start_week)} WHERE id=${save.id}`);
+  await db.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_OPEN' WHERE career_save_id=${save.id} AND id=${eventId}`);
+
+  await db.transaction(async tx => {
+    const root = await lockRoot(tx, actor, save.id) as RootRow;
+    await tx.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_CLOSED' WHERE career_save_id=${save.id} AND id=${eventId}`);
+    const event = (await loadInstances(tx, save.id, sql`id=${eventId}`))[0];
+    const base = await calendar.bind(tx, root);
+    const candidates = await loadNpcs(tx, root.id, { activeOnly: true });
+    const grouped = new Map<string, typeof candidates>();
+    for (const npc of candidates) {
+      const nation = dartsNation(npc.nationality, localityByRegion(npc.homeRegion)?.key ?? null);
+      grouped.set(nation, [...(grouped.get(nation) ?? []), npc]);
+    }
+    const scots = grouped.get("SCO") ?? [];
+    assert.ok(scots.length, "an active Scottish partner is available");
+    const ranks = new Map<string, number>([["HUMAN", 1], [scots[0].id, 2]]);
+    let nextRank = 3;
+    for (const [nation, players] of grouped) {
+      if (nation === "SCO") continue;
+      for (const npc of players.slice(0, 2)) ranks.set(npc.id, nextRank++);
+    }
+    const providers = { ...base, sportingStatus: { ...base.sportingStatus,
+      rankings: (key: string): Record<string, number> => {
+        const rank = ranks.get(key);
+        return rank === undefined ? {} : { "pro-world": rank };
+      } } };
+    const locked = await lockField(tx, root, event, candidates, providers, Number(e.start_week));
+    assert.equal(locked.locked, true);
+    await makeDraw(tx, root, event, providers);
+    await progressEvent(tx, root, await worldState(tx, root), event, Number(e.start_day), providers);
+  });
+
+  const mine = (await rows(sql`SELECT nation,partner_key FROM career_event_pairs
+    WHERE career_save_id=${save.id} AND event_id=${eventId} AND captain_key='HUMAN'`))[0];
+  assert.equal(mine.nation, "SCO");
+  const view = await tournaments.read(actor, save.id, eventId);
+  assert.ok(view.nextMatchId, "the selected national pair reaches the tournament draw");
+  const session = await live.open(actor, save.id, view.nextMatchId!);
+  assert.ok(session.team?.partner.name && session.team.opponentPartner.name, "the World Cup tie opens with both pairs in the live scorer");
 });
 
 test("a live pairs match: partner and both opponents are seeded bots, your darts are yours, the server records the result once", async () => {

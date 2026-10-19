@@ -25,8 +25,11 @@ import { playCountyFixtures } from "../../career/club/county-team-service.ts";
 import { createCareerCountyLiveService } from "../../career/club/county-live-service.ts";
 import { countyTables } from "../../career/club/county-squads.ts";
 import { createCareerClubService } from "../../career/club/service.ts";
+import { CLUB } from "../../career/club/model.ts";
 import { TEAMS, fixturesFor, leagueTable, teamNightDay } from "../../career/club/teams.ts";
+import { loadNpcs } from "../../career/world/repository.ts";
 import { lockRoot } from "../../career/world/service.ts";
+import { localityByRegion } from "../../career/calendar/geography.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), teams = createCareerTeamNightsService(db);
@@ -119,6 +122,65 @@ test("county rounds persist a season schedule, play four separate squads once, a
   }
   const all = played.flatMap(r => r.matches as never[]);
   assert.ok(countyTables(["ayrshire", "highlands", "north-east", "midlands", "south-wales"], all as never).length > 0);
+});
+
+test("calendar-generated county single selects you from last season and opens the live scorer", async () => {
+  const save = await saves.create(1, { slot: 2, careerName: "County Test", dateOfBirth: "1990-01-01", homeLocality: "ayrshire" });
+  await career.initialize(actor, save.id);
+  await clubs.setCountyCategory(actor, save.id, { category: "MEN" });
+  await db.transaction(async tx => playCountyFixtures(tx, await lockRoot(tx, actor, save.id) as never, 2, 1));
+  const fixture = (await rows(sql`SELECT * FROM career_county_fixtures WHERE career_save_id=${save.id} AND season=2 AND week=4
+    AND (home_key='ayrshire' OR away_key='ayrshire') LIMIT 1`))[0];
+  assert.ok(fixture, "the county calendar generated Ayrshire's week-four fixture");
+  const awayLocality = String(fixture.home_key) === "ayrshire" ? String(fixture.away_key) : String(fixture.home_key);
+  const npcs = await loadNpcs(db as never, save.id, { activeOnly: true, nationality: "GBR" });
+  const men = npcs.filter(n => !n.worldKey.startsWith("women:"));
+  const sameCounty = men.find(n => localityByRegion(n.homeRegion)?.key === "ayrshire");
+  const opponent = men.find(n => localityByRegion(n.homeRegion)?.key === awayLocality);
+  assert.ok(sameCounty && opponent, "the selected counties have active men's players");
+
+  const event = (await rows(sql`SELECT id,start_week FROM career_event_instances WHERE career_save_id=${save.id} AND season=1
+    AND country='GBR' AND circuit=${CLUB.circuits[0]} AND classification<>'QUALIFIER' LIMIT 1`))[0];
+  assert.ok(event, "a prior-season county-points event exists");
+  const eventId = String(event.id);
+  const transitions = ["REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS","COMPLETED"];
+  await db.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_OPEN' WHERE career_save_id=${save.id} AND id=${eventId}`);
+  for (const status of transitions.slice(1, -2))
+    await db.execute(sql`UPDATE career_event_instances SET status=${status} WHERE career_save_id=${save.id} AND id=${eventId}`);
+  for (const [key, kind, npcId, source] of [
+    ["HUMAN","HUMAN",null,"HUMAN_ENTRY"],
+    [sameCounty.id,"NPC",sameCounty.id,"SELECTION"],
+    [opponent.id,"NPC",opponent.id,"SELECTION"],
+  ] as const) {
+    await db.execute(sql`INSERT INTO career_event_entries
+      (career_save_id,event_id,participant_key,participant_kind,npc_id,source,status,entered_season,entered_week)
+      VALUES (${save.id},${eventId},${key},${kind},${npcId},${source},'CONFIRMED',1,${Number(event.start_week)})`);
+  }
+  await db.execute(sql`UPDATE career_event_instances SET status='IN_PROGRESS' WHERE career_save_id=${save.id} AND id=${eventId}`);
+  await db.execute(sql`UPDATE career_event_instances SET status='COMPLETED',champion_participant_key='HUMAN'
+    WHERE career_save_id=${save.id} AND id=${eventId}`);
+  for (const [key, kind, npcId, position] of [
+    ["HUMAN","HUMAN",null,1],
+    [sameCounty.id,"NPC",sameCounty.id,2],
+    [opponent.id,"NPC",opponent.id,3],
+  ] as const) {
+    await db.execute(sql`INSERT INTO career_event_results
+      (career_save_id,event_id,participant_key,participant_kind,npc_id,season,definition_key,finishing_position,stage_reached,is_champion,
+       matches_played,wins,losses,legs_for,legs_against,metadata)
+      VALUES (${save.id},${eventId},${key},${kind},${npcId},1,'county-points-fixture',${position},'FINAL',${position===1},
+       3,${position===1?3:1},${position===1?0:2},6,4,'{}'::jsonb)`);
+  }
+
+  await db.transaction(async tx => playCountyFixtures(tx, await lockRoot(tx, actor, save.id) as never, 2, 4));
+  const played = (await rows(sql`SELECT status,matches FROM career_county_fixtures WHERE career_save_id=${save.id} AND season=2
+    AND week=4 AND (home_key='ayrshire' OR away_key='ayrshire') LIMIT 1`))[0];
+  assert.equal(played.status, "IN_PROGRESS");
+  const single = (played.matches as {category:string;team:string;humanMatch?:{id:string;status:string}}[])
+    .find(m => m.category === "MEN" && m.team === "A" && m.humanMatch);
+  assert.ok(single?.humanMatch, "calendar selection generated a human A-squad single");
+  const session = await countyLive.read(actor, save.id, single.humanMatch.id);
+  assert.equal(session.status, "LIVE");
+  assert.ok(session.opponent.name);
 });
 
 test("county squad category is save-scoped and the season schedule is visible before round one", async () => {
