@@ -83,7 +83,7 @@ const COORDS: Record<string, [number, number]> = {
   Melbourne: [-37.81, 144.96], Brisbane: [-27.47, 153.03], Calgary: [51.05, -114.07],
   Kilbirnie: [55.75, -4.69], Maastricht: [50.85, 5.69], Leeuwarden: [53.2, 5.8],
   Frankfurt: [50.11, 8.68], Leipzig: [51.34, 12.37], Bremen: [53.08, 8.8],
-  Ghent: [51.05, 3.72], Liège: [50.63, 5.58], Perth: [-31.95, 115.86], Halifax: [44.65, -63.57],
+  Ghent: [51.05, 3.72], Liège: [50.63, 5.58], Basel: [47.56, 7.59], Perth: [-31.95, 115.86], Halifax: [44.65, -63.57],
 };
 export const slug = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 export const regionId = (country: string, region: string) => `region:${country.toLowerCase()}:${slug(region)}`;

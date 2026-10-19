@@ -85,13 +85,13 @@ test("season generation is deterministic, 52-week bounded and hundreds of instan
 });
 
 test("2026 WDF World Open and qualifying divisions are playable and connect to world entries", () => {
-  const definitions = catalogueFor(23);
+  const definitions = catalogueFor(24);
   const expected = [
     "world-ranking-open", "women-world-ranking-open", "youth-world-ranking-open", "girls-world-ranking-open",
     "lakeside-qualifier-open", "lakeside-qualifier-women", "lakeside-qualifier-youth", "lakeside-qualifier-girls",
     "uk-lakeside-qualifier-open", "uk-lakeside-qualifier-women", "uk-lakeside-qualifier-youth", "uk-lakeside-qualifier-girls",
   ];
-  const drafts = generateSeason(HARNESS_SEED, 23, 1);
+  const drafts = generateSeason(HARNESS_SEED, 24, 1);
   const eventDrafts = drafts.filter(d => expected.includes(d.definitionKey));
   assert.equal(eventDrafts.length, expected.length);
   assert.ok(eventDrafts.every(d => d.executable), "all WDF divisions must run in the Career tournament engine");
@@ -107,9 +107,20 @@ test("2026 WDF World Open and qualifying divisions are playable and connect to w
 });
 
 test("the verified PDC Women's Series 21–24 events are present and playable", () => {
-  const womenEvents = generateSeason(HARNESS_SEED, 23, 1).filter(d => d.definitionKey === "women-tour");
+  const womenEvents = generateSeason(HARNESS_SEED, 24, 1).filter(d => d.definitionKey === "women-tour");
   assert.equal(womenEvents.length, 24);
   assert.ok(womenEvents.every(d => d.executable), "all 24 events must be playable");
+});
+
+test("confirmed PDC annual tour coverage includes 24 Development and 15 European events", () => {
+  const drafts = generateSeason(HARNESS_SEED, 24, 1);
+  const development = drafts.filter(d => d.definitionKey === "development-tour");
+  const european = drafts.filter(d => d.definitionKey === "european-dart-series");
+  assert.equal(development.length, 24);
+  assert.ok(development.every(d => d.executable));
+  assert.equal(european.length, 15);
+  assert.ok(european.every(d => d.executable));
+  assert.ok(catalogueFor(24).find(d => d.key === "development-tour")!.eligibility);
 });
 
 test("static harness reports a broad, international, non-flat calendar", () => {
@@ -152,7 +163,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   await calendar.calendar(actor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
-    { event_database_version: 23, world_seed: before[0].world_seed },
+    { event_database_version: 24, world_seed: before[0].world_seed },
   ]);
   const youthCupDivisions = await rows(sql`SELECT definition_key, executable FROM career_event_instances
     WHERE career_save_id = ${save.id} AND definition_key IN (
@@ -169,6 +180,15 @@ test("calendar reads migrate old event editions but preserve the world seed", as
     )`);
   assert.equal(additionalWdf.length, 12, "existing saves receive all verified World Open and qualifier divisions");
   assert.ok(additionalWdf.every(row => row.executable === true), "all World Open and qualifier divisions are executable");
+  const refreshedPdc = await rows(sql`SELECT definition_key, count(*)::int AS count, bool_and(executable) AS playable
+    FROM career_event_instances
+    WHERE career_save_id = ${save.id} AND definition_key IN ('development-tour', 'european-dart-series', 'women-tour')
+    GROUP BY definition_key`);
+  const pdcCounts = Object.fromEntries(refreshedPdc.map(row => [row.definition_key, Number(row.count)]));
+  assert.equal(pdcCounts["development-tour"], 24, "existing saves receive the completed Development Tour calendar");
+  assert.equal(pdcCounts["european-dart-series"], 15, "existing saves receive all stops through ET15");
+  assert.equal(pdcCounts["women-tour"], 24, "existing saves keep the completed Women's Series calendar");
+  assert.ok(refreshedPdc.every(row => row.playable === true), "all migrated PDC fixtures remain playable");
   await db.execute(sql`UPDATE career_saves SET event_database_version = 99 WHERE id = ${save.id}`);
   await rejectsStatus(calendar.calendar(actor, save.id, {}), 409);
   assert.equal((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version, 99);

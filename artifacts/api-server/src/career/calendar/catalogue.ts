@@ -24,6 +24,7 @@ import { buildCatalogueV20 } from "../content/season-v20.ts";
 import { buildCatalogueV21 } from "../content/season-v21.ts";
 import { buildCatalogueV22 } from "../content/season-v22.ts";
 import { buildCatalogueV23 } from "../content/season-v23.ts";
+import { buildCatalogueV24 } from "../content/season-v24.ts";
 import type { EventContent } from "../content/world.ts";
 
 /**
@@ -474,6 +475,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 21) return EVENT_CATALOGUE_V21;
   if (version === 22) return EVENT_CATALOGUE_V22;
   if (version === 23) return EVENT_CATALOGUE_V23;
+  if (version === 24) return EVENT_CATALOGUE_V24;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -516,5 +518,7 @@ export const EVENT_CATALOGUE_V21: readonly EventDefinition[] =
 export const EVENT_CATALOGUE_V22: readonly EventDefinition[] = buildCatalogueV22(EVENT_CATALOGUE_V21);
 /** v23: adds the active WDF World Open and both World Championship qualifier programmes. */
 export const EVENT_CATALOGUE_V23: readonly EventDefinition[] = buildCatalogueV23(EVENT_CATALOGUE_V22);
+/** v24: completes the confirmed PDC European Tour calendar through ET15 and Development Tour field. */
+export const EVENT_CATALOGUE_V24: readonly EventDefinition[] = buildCatalogueV24(EVENT_CATALOGUE_V23);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

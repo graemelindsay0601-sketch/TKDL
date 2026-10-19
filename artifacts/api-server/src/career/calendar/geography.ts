@@ -182,6 +182,7 @@ export const VENUES: readonly Venue[] = [
   V("gota-hall-gothenburg", "Göta Hall", "Gothenburg", "SWE", "Västra Götaland", "HALL"),
   V("maas-valley-hall-maastricht", "Maas Valley Hall", "Maastricht", "NLD", "Limburg", "HALL"),
   V("meuse-hall-liege", "Meuse Hall", "Liège", "BEL", "Wallonia", "HALL"),
+  V("rhein-hall-basel", "Rhine Hall", "Basel", "CHE", "Basel-Stadt", "ARENA"),
 ];
 
 /** Grassroots/county clubs are generated per locality with stable keys. */
