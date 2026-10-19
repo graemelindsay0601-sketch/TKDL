@@ -19,6 +19,9 @@ const negotiationChangeSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("PERFORMANCE_BONUS"), key: z.string().min(1).max(80), amountPence: positivePenceSchema }).strict(),
 ]);
 export const sponsorNegotiationSchema = z.object({
+  // Older clients sent the offer ID in the body as well as in the URL. Accept
+  // that shape for compatibility, then verify it matches the route parameter.
+  offerId: z.string().uuid().optional(),
   requestKey: z.string().min(8).max(80).regex(/^[A-Za-z0-9:_-]+$/),
   expectedRevision: z.number().int().min(0).max(10),
   change: negotiationChangeSchema,
@@ -48,6 +51,7 @@ export async function negotiateSponsorOffer(
   body: unknown,
 ): Promise<SponsorNegotiationResult> {
   const input = sponsorNegotiationSchema.parse(body);
+  if (input.offerId && input.offerId !== offerId) throw new CareerError(409, "Sponsor offer ID does not match the request URL");
   const request = { offerId, expectedRevision: input.expectedRevision, change: input.change };
   const previous = (await tx.execute(sql`SELECT request, response FROM career_sponsor_negotiations
     WHERE career_save_id = ${root.id} AND request_key = ${input.requestKey}`)).rows[0];

@@ -170,8 +170,16 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   await calendar.calendar(actor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
-    { event_database_version: 25, world_seed: before[0].world_seed },
+    { event_database_version: 26, world_seed: before[0].world_seed },
   ]);
+  const nzClubNight = generateSeason(String(before[0].world_seed), CURRENT_EVENT_DATABASE_VERSION, 1)
+    .find(event => event.definitionKey === "club-league-night" && event.country === "NZL");
+  assert.ok(nzClubNight, "the upgraded calendar edition includes the New Zealand club fixture");
+  const clubEligibility = nzClubNight.snapshot.eligibility;
+  assert.equal(evaluateRule(clubEligibility, facts({ country: "GBR", zone: "UK_IRELAND", locality: "ayrshire" })).eligible, false,
+    "an existing Scottish save cannot enter a New Zealand grassroots night");
+  assert.equal(evaluateRule(clubEligibility, facts({ country: "NZL", zone: "REST_OF_WORLD", locality: "auckland" })).eligible, true,
+    "players local to the host country can enter");
   const anz = await rows(sql`SELECT definition_key, executable, start_week FROM career_event_instances
     WHERE career_save_id = ${save.id} AND definition_key IN (
       'anz-premier-night-1','anz-premier-night-2','anz-premier-night-3',
@@ -207,6 +215,22 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   await db.execute(sql`UPDATE career_saves SET event_database_version = 99 WHERE id = ${save.id}`);
   await rejectsStatus(calendar.calendar(actor, save.id, {}), 409);
   assert.equal((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version, 99);
+});
+
+test("every current qualification grant has a matching eligible event consumer", () => {
+  const definitions = catalogueFor(CURRENT_EVENT_DATABASE_VERSION);
+  const hasQualification = (rule: Parameters<typeof evaluateRule>[0], key: string): boolean => {
+    if ("all" in rule) return rule.all.some(child => hasQualification(child, key));
+    if ("any" in rule) return rule.any.some(child => hasQualification(child, key));
+    if ("not" in rule) return false;
+    return rule.type === "QUALIFICATION" && rule.targetKey === key;
+  };
+  const grants = definitions.flatMap(source => source.qualificationOutputs.map(output => ({ source, output })));
+  assert.ok(grants.length > 0, "the current edition has qualification paths");
+  for (const { source, output } of grants) {
+    const consumers = definitions.filter(target => hasQualification(target.eligibility, output.targetKey));
+    assert.ok(consumers.length > 0, `${source.key} grants ${output.targetKey}, which must unlock an event`);
+  }
 });
 
 // ------------------------------------------------------------------ lifecycle / immutability

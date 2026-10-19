@@ -1,4 +1,5 @@
-import type { CareerDatabase } from "../../career/database.ts";
+import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
+import { sql } from "drizzle-orm";
 import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions } from "./create_career_calendar.ts";
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
@@ -12,6 +13,15 @@ import { ensureStreaming } from "./create_career_streaming.ts";
 import { ensureRoadTrips } from "./create_career_road_trips.ts";
 import { ensureCamLeagues } from "./create_career_cam_leagues.ts";
 import { ensureProAm } from "./create_career_proam.ts";
+
+async function ensureQualificationEntitlementSourceConstraint(tx: CareerExecutor): Promise<void> {
+  const row = (await tx.execute(sql`SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
+    WHERE conrelid='career_qualification_entitlements'::regclass AND conname='career_qualification_entitlements_source_check'`)).rows[0];
+  if (String(row?.definition ?? "").includes("source_kind <> 'EVENT_RESULT'")) return;
+  await tx.execute(sql`ALTER TABLE career_qualification_entitlements DROP CONSTRAINT IF EXISTS career_qualification_entitlements_source_check`);
+  await tx.execute(sql`ALTER TABLE career_qualification_entitlements ADD CONSTRAINT career_qualification_entitlements_source_check
+    CHECK (source_kind <> 'EVENT_RESULT' OR source_event_id IS NOT NULL)`);
+}
 import { ensureManagers } from "./create_career_manager.ts";
 import { ensureCareerMaintenance, ensureFastMatchCompression, ensureSimulatedMatchCopiesOptional } from "./create_career_world.ts";
 import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensureCalendarAddons, ensureSavingsGoals } from "./create_career_legacy.ts";
@@ -27,6 +37,7 @@ import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensure
 export async function repairCareerSchema(database: CareerDatabase): Promise<void> {
   await database.transaction(async tx => {
     await ensureSoftTipCircuit(tx);
+    await ensureQualificationEntitlementSourceConstraint(tx);
     await ensureLeagueRounds(tx);
     await ensureEventPairs(tx);
     await ensureQuickSimSource(tx);

@@ -302,9 +302,10 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
             WHERE career_save_id=${saveId} AND operation_key=${request.operationKey} AND completed_at IS NULL`);
           return {stored:recovered};
         }
-        // A blocked (human-match) advance may resume only from the exact position it stopped at;
+        // A blocked live activity may resume only from the exact position it stopped at;
         // once the Career has moved on, retrying it returns the stored result and never moves time.
-        if (stored?.stop?.reason === "HUMAN_MATCH_PENDING" && stored.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
+        if (["HUMAN_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(String(stored?.stop?.reason))
+          && stored?.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
         return { stored: (stored ?? null) as unknown };
       }
       if (Number(root.current_season) !== request.expectedSeason || Number(root.current_week) !== request.expectedWeek) throw new CareerError(409, "Career calendar has moved; refresh before advancing");
@@ -321,7 +322,12 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     for (let i = 0; i < MAX_WEEKS_PER_ADVANCE; i++) {
       const step = await stepWeek(actor, saveId);
       if (step.blocked) {
-        stop = { reason: "HUMAN_MATCH_PENDING", detail: { season: step.season, week: step.week, matchIds: (step.summary as { awaitingHuman: string[] }).awaitingHuman } };
+        const blocker = step.blocker;
+        stop = blocker?.kind === "MONEY_MATCH"
+          ? { reason: "MONEY_MATCH_PENDING", detail: { matchId: blocker.id } }
+          : blocker?.kind === "STREAM"
+            ? { reason: "STREAM_PENDING", detail: { day: blocker.day } }
+            : { reason: "HUMAN_MATCH_PENDING", detail: { season: step.season, week: step.week, matchIds: (step.summary as { awaitingHuman: string[] }).awaitingHuman } };
         break;
       }
       steps.push({ season: step.season, week: step.week, summary: step.summary, offSeason: "offSeason" in step ? step.offSeason : undefined });
@@ -353,7 +359,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
       // Blocked advances are recorded (resumable from the same position); completed ones are final.
       await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
-          completed_at = ${stop.reason === "HUMAN_MATCH_PENDING" ? null : sql`NOW()`}
+        completed_at = ${["HUMAN_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
         WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
       return result;
     });
@@ -500,6 +506,24 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           AND EXISTS (SELECT 1 FROM jsonb_array_elements(f.matches) AS elem(value) WHERE elem.value->'humanMatch'->>'status'='LIVE')
         LIMIT 1`)).rows.length) throw new CareerError(409, "Finish your county singles on the scorer before advancing the Career");
       const s = Number(root.current_season), w = Number(root.current_week);
+      const hasMoneySessions = (await tx.execute(sql`SELECT to_regclass('career_money_match_sessions') IS NOT NULL AS ok`)).rows[0]?.ok;
+      const liveMoney = hasMoneySessions ? (await tx.execute(sql`SELECT id FROM career_money_match_sessions
+        WHERE career_save_id=${saveId} AND status='LIVE' ORDER BY created_at,id LIMIT 1`)).rows[0] : undefined;
+      if (liveMoney) return { season: s, week: w, summary: null as unknown, blocked: true,
+        blocker: { kind: "MONEY_MATCH" as const, id: String(liveMoney.id) } };
+      const hasStreams = (await tx.execute(sql`SELECT to_regclass('career_streams') IS NOT NULL AS ok`)).rows[0]?.ok;
+      const liveStream = hasStreams ? (await tx.execute(sql`SELECT day FROM career_streams
+        WHERE career_save_id=${saveId} AND season=${s} AND week=${w} AND status='LIVE' AND format<>'MATCH'
+        ORDER BY day,id LIMIT 1`)).rows[0] : undefined;
+      if (liveStream) return { season: s, week: w, summary: null as unknown, blocked: true,
+        blocker: { kind: "STREAM" as const, day: Number(liveStream.day) } };
+      const hasCommitments = (await tx.execute(sql`SELECT to_regclass('career_life_commitments') IS NOT NULL AS ok`)).rows[0]?.ok;
+      const plannedStream = hasCommitments ? (await tx.execute(sql`SELECT l.day FROM career_life_commitments l
+        WHERE l.career_save_id=${saveId} AND l.season=${s} AND l.family='DARTCAST' AND l.status='ACCEPTED'
+          AND l.day BETWEEN ${(w - 1) * 7 + 1} AND ${w * 7}
+        ORDER BY l.day LIMIT 1`)).rows[0] : undefined;
+      if (plannedStream) return { season: s, week: w, summary: null as unknown, blocked: true,
+        blocker: { kind: "STREAM" as const, day: Number(plannedStream.day) } };
       if (Number(season.played_week) >= w) return { season: s, week: w, summary: null as unknown, blocked: false };
       const summary = await playWeek(tx, root, state, s, w, await bind(tx, root));
       if (summary.awaitingHuman.length) return { season: s, week: w, summary, blocked: true };

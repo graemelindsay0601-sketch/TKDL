@@ -270,7 +270,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
         CONSTRAINT career_qualification_entitlements_recipient_check CHECK (
           (recipient_kind = 'HUMAN' AND npc_id IS NULL AND recipient_key = 'HUMAN')
           OR (recipient_kind = 'NPC' AND npc_id IS NOT NULL AND recipient_key = npc_id::text)),
-        CONSTRAINT career_qualification_entitlements_source_check CHECK ((source_kind = 'EVENT_RESULT') = (source_event_id IS NOT NULL)),
+        CONSTRAINT career_qualification_entitlements_source_check CHECK (source_kind <> 'EVENT_RESULT' OR source_event_id IS NOT NULL),
         CONSTRAINT career_qualification_entitlements_state_check CHECK (
           (status = 'CONSUMED') = (consumed_by_event_id IS NOT NULL) AND (status = 'ACTIVE') = (resolved_at IS NULL)
           AND (status <> 'CONSUMED' OR consumption = 'SINGLE_USE'))

@@ -42,7 +42,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
     </CareerSection>
     {d.county && <CareerSection title={`${d.county.name} representative squads`} icon={<Shield aria-hidden />} accent="#69b8ec">
       <div className="px-4 pt-3 space-y-2">
-        <p className="text-sm">Choose the county squad category you’re eligible for. UKDA-style format: 12 singles in each men’s team and 6 in each women’s team; A matches are best of 7 legs, women’s and lower-division men’s B matches best of 5. Your single is Career-simulated when selected and free; county fixtures resolve on their scheduled week.</p>
+        <p className="text-sm">Choose the county squad category you’re eligible for. UKDA-style format: 12 singles in each men’s team and 6 in each women’s team; A matches are best of 7 legs, women’s and lower-division men’s B matches best of 5. When selected and available, you play your own single in the live scorer; the other singles are simulated. The fixture completes after your match is finished.</p>
         <div className="flex gap-2">
           {(["MEN", "WOMEN"] as const).map(category => <button key={category} type="button"
             className={`career-btn ${d.county!.category === category ? "career-btn-gold" : "career-btn-ghost"}`}

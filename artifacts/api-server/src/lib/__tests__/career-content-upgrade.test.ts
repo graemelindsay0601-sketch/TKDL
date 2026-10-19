@@ -79,7 +79,7 @@ test("new migration independently installs the full Career schema and all shippe
       "SELECT event_database_version,count(*)::int AS count FROM career_event_definitions GROUP BY 1 ORDER BY 1");
     assert.deepEqual(versions.rows,[{event_database_version:1,count:73},{event_database_version:2,count:75},
       {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94},{event_database_version:7,count:153},{event_database_version:8,count:153},{event_database_version:9,count:153},{event_database_version:10,count:153},{event_database_version:11,count:153},{event_database_version:12,count:153},{event_database_version:13,count:154},{event_database_version:14,count:155},{event_database_version:15,count:157},{event_database_version:16,count:157},{event_database_version:17,count:158},
-      {event_database_version:18,count:141},{event_database_version:19,count:157},{event_database_version:20,count:157},{event_database_version:21,count:161},{event_database_version:22,count:165},{event_database_version:23,count:178},{event_database_version:24,count:178},{event_database_version:25,count:184}]);
+      {event_database_version:18,count:141},{event_database_version:19,count:157},{event_database_version:20,count:157},{event_database_version:21,count:161},{event_database_version:22,count:165},{event_database_version:23,count:178},{event_database_version:24,count:178},{event_database_version:25,count:184},{event_database_version:26,count:184}]);
     assert.equal((await marker(pg)).length,1);
     const before=await contents(pg),beforeSchema=await schema(pg);
     await upgradeCareerContentA9V1(db);

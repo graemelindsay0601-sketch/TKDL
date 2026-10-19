@@ -1155,10 +1155,15 @@ test("SP-F1 reissues pending legacy offers with visible v6 terms and preserves t
   assert.ok(offer.journey?.timeline.some(event=>(event.details as Record<string,unknown>).headline==="Updated sponsor terms available"));
 
   const proposal=await finance.negotiateOffer(actor,save.id,String(offer.id),{
+    offerId:String(offer.id),
     requestKey:"post-refresh-counter",expectedRevision:offer.journey!.revision,
     change:{kind:"SIGNING_BONUS",amountPence:offer.terms.signingBonusPence+100},
   });
   assert.ok(["ACCEPTED","COUNTERED"].includes(proposal.outcome));
+  await rejectsStatus(finance.negotiateOffer(actor,save.id,String(offer.id),{
+    offerId:String(old.id),requestKey:"post-refresh-wrong-offer",expectedRevision:offer.journey!.revision,
+    change:{kind:"SIGNING_BONUS",amountPence:offer.terms.signingBonusPence+200},
+  }),409);
 });
 
 test("SP-B negotiation responses use a valid tolerance profile at every sponsor tier", () => {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { planWeek, PLAN_MAX_EVENTS } from "../../features/career/model.ts";
+import { planWeek } from "../../features/career/model.ts";
 import { event, human } from "./career-fixtures.ts";
 
 // Week 2 runs days 8 to 14. A night on `day` costing `cost` that pays `win` to the winner, `semi` to semi-finalists and `last16` to the last 16.
@@ -39,8 +39,10 @@ test("plan my week: stays within the money you have free and says how many it le
   assert.equal(plan.skippedForMoney, 1);
 });
 
-test("plan my week: at most four events in a week, counting what is already booked", () => {
+test("plan my week: can fill all seven days while respecting an existing booking", () => {
   const booked = night(8, 300, 9000, { human: human({ relationship: "ENTERED", canEnter: false }) });
-  const open = [9, 10, 11, 12, 13, 14].map(d => night(d, 100, 10000));
-  assert.equal(planWeek([booked, ...open], 2).events.length, PLAN_MAX_EVENTS - 1);
+  const open = [8, 9, 10, 11, 12, 13, 14].map(d => night(d, 100, 10000));
+  const plan = planWeek([booked, ...open], 2);
+  assert.equal(plan.events.length, 6);
+  assert.equal(new Set(plan.events.map(e => e.dates.startDayOfWeek)).size, 6);
 });

@@ -18,6 +18,18 @@ export async function ensureMoneyMatches(tx: CareerExecutor): Promise<void> {
     detail jsonb NOT NULL DEFAULT '{}'::jsonb CHECK(jsonb_typeof(detail)='object'),
     created_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY(career_save_id,id), UNIQUE(career_save_id,season,week,opponent_key))`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_money_match_sessions (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    season integer NOT NULL CHECK(season>0), week integer NOT NULL CHECK(week BETWEEN 1 AND 52),
+    opponent_key text NOT NULL, opponent_name text NOT NULL, stake_pence bigint NOT NULL CHECK(stake_pence>0),
+    origin text NOT NULL CHECK(origin IN ('YOU_CHALLENGED','THEY_CHALLENGED')),
+    bot jsonb NOT NULL CHECK(jsonb_typeof(bot)='object'), bot_seed text NOT NULL,
+    darts jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(darts)='array'),
+    status text NOT NULL CHECK(status IN ('LIVE','PLAYED')), won boolean,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(career_save_id,id), UNIQUE(career_save_id,season,week,opponent_key))`);
+  await tx.execute(sql`ALTER TABLE career_money_match_sessions ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()`);
   // This week's haggling with each member: what was said, any figure they have put to you, and where it stands.
   await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_money_talks (
     career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,

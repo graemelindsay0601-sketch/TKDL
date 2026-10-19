@@ -28,6 +28,7 @@ import {StreamLivePage} from "./pages/stream-live";
 import {CamLeaguePage,CamMatchPage} from "./pages/cam-league";
 import {ProAmLegPage} from "./pro-am";
 import {CountyMatchPage} from "./county-match";
+import {MoneyMatchLivePage} from "./money-match-live";
 import {NightsPage,MoneyMatchesPage,RoadTripsPage,ProAmPage} from "./pages/nights";
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
@@ -98,6 +99,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/world/trophies"><TrophyPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/world/records"><RecordsPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/nights"><NightsPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/money-matches/:matchId/play">{(p:{matchId:string})=><MoneyMatchLivePage ctx={ctx} matchId={p.matchId}/>}</Route>
           <Route path="/career/:saveId/money-matches"><MoneyMatchesPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/road-trips"><RoadTripsPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/pro-am"><ProAmPage ctx={ctx}/></Route>

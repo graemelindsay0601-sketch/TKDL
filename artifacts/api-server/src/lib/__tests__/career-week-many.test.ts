@@ -76,3 +76,18 @@ test("Home's RELEVANT scope keeps every event you can enter or are booked into, 
   for (const e of relevant) assert.ok(world.has(e));
   assert.ok(relevant.size < world.size, `${relevant.size} of ${world.size}`);
 });
+
+test("Continue stops on a reserved DartCast night and resumes the same week when it is cleared", async () => {
+  const save = await saves.read(1, id);
+  const commitmentId = "f40af938-4fe3-40af-9f4f-cbf0dcdb5900";
+  await db.execute(sql`INSERT INTO career_life_commitments (career_save_id,id,family,title,season,day,fee_pence,status)
+    VALUES (${id},${commitmentId},'DARTCAST','DartCast stream',${save.currentSeason},${(save.currentWeek - 1) * 7 + 2},0,'ACCEPTED')`);
+  const request = { operationKey: "reserved-stream-do-not-skip", expectedSeason: save.currentSeason,
+    expectedWeek: save.currentWeek, target: { kind: "WEEKS" as const, weeks: 1 } };
+  const paused = await career.calendar.advance(actor, id, request) as any;
+  assert.equal(paused.stop.reason, "STREAM_PENDING");
+  assert.equal(paused.to.week, save.currentWeek);
+  await db.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${id} AND id=${commitmentId}`);
+  const resumed = await career.calendar.advance(actor, id, request) as any;
+  assert.equal(resumed.to.week, save.currentWeek + 1, "retrying the blocked advance continues after the stream is handled");
+});

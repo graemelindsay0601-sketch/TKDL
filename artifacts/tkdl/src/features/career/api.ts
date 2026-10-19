@@ -151,6 +151,11 @@ export const useSetSavingsGoal = (saveId: string) => useSaveMutation(saveId, (in
   send<{ goal: SavingsGoal | null }>("PUT", `/saves/${saveId}/finance/goal`, input));
 export type MoneyMatchesView = import("../../../../api-server/src/career/money/service").MoneyMatchesView;
 export type MoneyMatchResult = import("../../../../api-server/src/career/money/service").MoneyMatchResult;
+export type MoneyMatchSession = import("../../../../api-server/src/career/money/service").MoneyMatchSession;
+export const useMoneyMatchSession = (saveId: string, matchId: string) => useQuery({ queryKey: careerKey(saveId,"money-match",matchId),
+  queryFn: () => get<MoneyMatchSession>(`/saves/${saveId}/money-matches/${matchId}`), enabled: !!matchId, staleTime: Infinity });
+export const moneyMatchApi = { darts: (saveId: string, matchId: string, darts: unknown[]) =>
+  send<MoneyMatchSession>("POST", `/saves/${saveId}/money-matches/${matchId}/darts`, { darts }) };
 /** Money matches at your club: this week's members, any challenge, your record. */
 export type ProAmView = import("../../../../api-server/src/career/proam/service").ProAmView;
 export type ProAmSession = import("../../../../api-server/src/career/proam/service").ProAmSession;
@@ -182,7 +187,7 @@ export const useMoneyMatches = (saveId: string, enabled = true) => useQuery({ qu
 export const useOfferMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
   send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/offer`, input));
 export const usePlayMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
-  send<{ match: MoneyMatchResult; created: boolean }>("POST", `/saves/${saveId}/money-matches/play`, input));
+  send<{ session: MoneyMatchSession | null; match: MoneyMatchResult | null; created: boolean }>("POST", `/saves/${saveId}/money-matches/play`, input));
 export const useDeclineMoneyMatch = (saveId: string) => useSaveMutation(saveId, () => send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/decline`));
 export type ManagerView = import("../../../../api-server/src/career/manager/service").ManagerView;
 /** Your manager and the firms that would (or would not yet) sign you. */
@@ -363,8 +368,10 @@ export const useEnterEvents = (saveId: string) => useSaveMutation(saveId, async 
 export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.withdraw(saveId, eventId));
 export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (input: string|{offerId:string;replaceContractIds:string[]}) => typeof input==="string"?careerRequests.acceptOffer(saveId,input):careerRequests.acceptOffer(saveId,input.offerId,input.replaceContractIds));
 export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));
-export const useNegotiateOffer = (saveId: string) => useSaveMutation(saveId, (input: { offerId: string; requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) =>
-  careerRequests.negotiateOffer(saveId, input.offerId, input));
+export const useNegotiateOffer = (saveId: string) => useSaveMutation(saveId, (input: { offerId: string; requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) => {
+  const { offerId, ...body } = input;
+  return careerRequests.negotiateOffer(saveId, offerId, body);
+});
 export const useUpdateSponsorActivity=(saveId:string)=>useSaveMutation(saveId,(input:{activityId:string;action:"ACCEPT"|"DECLINE"|"SCHEDULE"|"COMPLETE";week?:number})=>
   updateSponsorActivity(saveId,input.activityId,input.action,input.week));
 export const useRequestSponsorRelease=(saveId:string)=>useSaveMutation(saveId,(input:{contractId:string;operationKey:string;releaseType:"IMMEDIATE_NO_COST"|"MUTUAL"|"PRICED_BUYOUT"})=>

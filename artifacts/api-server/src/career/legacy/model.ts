@@ -53,6 +53,23 @@ export function seasonAwards(e:Evidence,season:number):Award[] {
     return [];
   }).sort((a,b)=>a.priority-b.priority||sportingOrder(a.t,b.t))[0];
   add("Breakthrough Player",breakthroughs?.t,breakthroughs?.reason??"",breakthroughs?.sources??[]);
+  const countyResults=e.results.filter(r=>r.season===season&&r.circuit==="COUNTY"&&r.classification!=="QUALIFIER");
+  const countyStats=new Map<string,{titles:number;finals:number;topEight:number}>();
+  for(const r of countyResults){
+    const s=countyStats.get(r.participant)??{titles:0,finals:0,topEight:0};
+    s.titles+=Number(r.champion);s.finals+=Number(r.final);s.topEight+=Number(r.position<=8);countyStats.set(r.participant,s);
+  }
+  const countyWinner=[...countyStats].sort((a,b)=>b[1].titles-a[1].titles||b[1].finals-a[1].finals||b[1].topEight-a[1].topEight||a[0].localeCompare(b[0]))[0];
+  if(countyWinner){
+    const [participant,score]=countyWinner;
+    out.push({kind:"County Player of the Year",season,participant,name:nameOf(e,participant),
+      reason:`County circuit: ${score.titles} titles, ${score.finals} finals and ${score.topEight} top-eight finishes; ties use public ID.`,
+      sources:countyResults.filter(r=>r.participant===participant).map(r=>r.id).sort()});
+  }
+  const localRun=e.results.filter(r=>r.season===season&&r.circuit==="GRASSROOTS"&&r.classification!=="QUALIFIER")
+    .sort((a,b)=>a.position-b.position||tier(b)-tier(a)||a.day-b.day||a.id.localeCompare(b.id))[0];
+  if(localRun)out.push({kind:"Best Local Run",season,participant:localRun.participant,name:nameOf(e,localRun.participant),
+    reason:`Finished ${localRun.position===1?"as champion":`#${localRun.position}`} at ${localRun.name}.`,sources:[localRun.id]});
   const performance=e.results.filter(r=>r.season===season&&r.champion&&r.classification!=="QUALIFIER").sort(resultOrder)[0];
   if(performance)out.push({kind:"Performance of the Season",season,participant:performance.participant,name:nameOf(e,performance.participant),
     reason:`Champion at ${performance.name}; ordered by recorded stage tier, finishing position, event date and source ID.`,sources:[performance.id]});

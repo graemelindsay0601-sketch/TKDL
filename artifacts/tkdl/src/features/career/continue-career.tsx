@@ -44,6 +44,13 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
       const r = await advance.mutateAsync({ season: save.currentSeason, week: save.currentWeek, target: { kind: nextEntry ? "NEXT_MATCH" : "NEXT_MEANINGFUL" } });
       const matchId = r.stop.reason === "HUMAN_MATCH_PENDING" ? (r.stop.detail as { matchIds?: string[] } | undefined)?.matchIds?.[0] : undefined;
       if (matchId) navigate(`/career/${save.id}/matches/${matchId}/play`);
+      else if (r.stop.reason === "MONEY_MATCH_PENDING") {
+        const id = (r.stop.detail as { matchId?: string } | undefined)?.matchId;
+        if (id) navigate(`/career/${save.id}/money-matches/${id}/play`);
+        else setOutcome({ tone: "error", headline: "Money match needs attention", detail: "Open Money Matches to resume it before continuing." });
+      } else if (r.stop.reason === "STREAM_PENDING") {
+        navigate(`/career/${save.id}/streaming`);
+      }
       else setOutcome({ ...continueOutcome(r, dismissWarning), results: r.headlines });
     } catch (e) {
       setOutcome({ tone: "error", headline: "Couldn't continue",

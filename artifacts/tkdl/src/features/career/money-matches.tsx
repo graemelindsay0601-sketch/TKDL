@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Coins, Loader2 } from "lucide-react";
 import { useDeclineMoneyMatch, useMoneyMatches, useOfferMoneyMatch, usePlayMoneyMatch, errorMessage, type MoneyMatchResult, type MoneyMatchesView } from "./api";
 import { formatPence } from "./model";
@@ -54,6 +54,7 @@ function MemberRow({ m, busy, canPlay, perWeek, available, onOffer, onPlay }: { 
  * member who challenged you. First to four legs, played out like a quick-sim with your form. The winner takes the stake.
  */
 export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boolean }) {
+  const [, navigate] = useLocation();
   const q = useMoneyMatches(saveId);
   const offer = useOfferMoneyMatch(saveId), play = usePlayMoneyMatch(saveId), decline = useDeclineMoneyMatch(saveId);
   const [last, setLast] = useState<MoneyMatchResult | null>(null);
@@ -64,7 +65,13 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
   const busy = play.isPending || decline.isPending || offer.isPending;
   const canPlay = d.playedThisWeek < d.perWeek && !retired;
   const fail = (e: unknown) => setMessage(errorMessage(e));
-  const go = (opponentKey: string, stakePence: number) => { setMessage(""); play.mutate({ opponentKey, stakePence }, { onSuccess: r => setLast(r.match), onError: fail }); };
+  const go = (opponentKey: string, stakePence: number) => { setMessage(""); play.mutate({ opponentKey, stakePence }, {
+    onSuccess: r => {
+      if (r.session) navigate(`/career/${saveId}/money-matches/${r.session.id}/play`);
+      else if (r.match) setLast(r.match);
+    },
+    onError: fail,
+  }); };
   const ask = (opponentKey: string, stakePence: number) => { setMessage(""); offer.mutate({ opponentKey, stakePence }, { onError: fail }); };
 
   // The members nearest your level first (the games worth a stake); anyone you've talked to or played this week stays in view.
@@ -90,6 +97,11 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
         <small className="money-match__note">Want a different stake? Make them an offer below.</small>
       </div>}
       {message && <p className="money-match__message" role="alert">{message}</p>}
+      {d.liveMatches.length > 0 && <section className="money-match__challenge" aria-label="Unfinished money matches">
+        <p><b>Resume an unfinished match</b></p>
+        {d.liveMatches.map(m => <Link key={m.id} className="career-btn career-btn-gold"
+          href={`/career/${saveId}/money-matches/${m.id}/play`}>{m.opponentName} · Season {m.season}, week {m.week} · {formatPence(m.stakePence)}</Link>)}
+      </section>}
       {d.members.length ? <ul className="money-match__members">
         {shown.map(m => <MemberRow key={m.key} m={m} busy={busy} canPlay={canPlay} perWeek={d.perWeek} available={d.availablePence}
           onOffer={p => ask(m.key, p)} onPlay={p => go(m.key, p)} />)}

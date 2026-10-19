@@ -20,6 +20,16 @@ test("season scope, deterministic identity/story, actual money and published end
   assert.equal(r.human.titles,1);assert.equal(r.prizePence,500);assert.equal(r.commercialPence,100);assert.equal(r.rankingMovement,56);
   assert.equal(r.finalRank?.week,50);assert.equal(r.worldResult?.id,"result:event:HUMAN");
 });
+test("season awards include county honours and the best local finish",()=>{
+  const awards=seasonAwards(evidence({results:[
+    result({id:"county-runner",participant:"npc",circuit:"COUNTY",tier:"LOCAL",champion:false,final:true,position:2}),
+    result({id:"county-win",participant:"HUMAN",circuit:"COUNTY",tier:"LOCAL",champion:true,final:true,position:1}),
+    result({id:"local-win",participant:"npc",key:"local-open",name:"Ayrshire Open",circuit:"GRASSROOTS",tier:"LOCAL",champion:true,final:true,position:1}),
+  ]}),1);
+  assert.equal(awards.find(a=>a.kind==="County Player of the Year")?.participant,"HUMAN");
+  assert.equal(awards.find(a=>a.kind==="Best Local Run")?.participant,"npc");
+  assert.deepEqual(awards.find(a=>a.kind==="Best Local Run")?.sources,["local-win"]);
+});
 test("captured season review includes only persisted sponsor activity outcomes from that season",()=>{
   const e=evidence({sponsorActivities:[
     {id:"required-1",contractId:"contract-a",sponsorKey:"apex",kind:"COMMUNITY_SESSION",status:"COMPLETED",required:true,season:1,scheduledWeek:18},
