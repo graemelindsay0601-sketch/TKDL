@@ -14,7 +14,7 @@ export function TeamNights({ saveId }: { saveId: string }) {
   return (
     <div className="team-night">
       <p className="team-night__note">Wednesday nights, weeks {d.firstWeek}–{d.lastWeek}: your nation's clubs play each other home and away, six singles a side (best of five legs).
-        You play whenever you're free. If you're booked into an event that night, a clubmate stands in.</p>
+        You play whenever you're free. If you're booked into an event that night, a clubmate stands in. After the league, the top four play semi-finals and a final; league seeding breaks a tied knockout match.</p>
       {d.next && <p className="team-night__next" data-free={d.next.youFree ? "true" : "false"}>
         <b>Next: week {d.next.week}</b>, {venue(d.next.home, d.next.opponent)}.{" "}
         {d.next.youFree ? "You're in the team." : `You're booked into ${d.next.clash} that night, so a clubmate will play instead.`}</p>}

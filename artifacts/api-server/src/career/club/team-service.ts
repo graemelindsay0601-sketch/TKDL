@@ -11,7 +11,7 @@ import { attributeForAverage, humanSimulationPlayer, loadHumanForm } from "../fo
 import type { Npc } from "../world/types.ts";
 import { clubName } from "./model.ts";
 import { freeOn } from "../nights.ts";
-import { TEAMS, fixturesFor, leagueTable, teamNightDay, type FixtureResult } from "./teams.ts";
+import { TEAMS, fixturesFor, leagueTable, playoffFixtures, teamNightDay, type FixtureResult } from "./teams.ts";
 
 type Root = { id: string; world_seed: string; world_generation_version: number | string; difficulty: string; current_season: number | string; current_week: number | string;
   settings_snapshot?: unknown; player_id?: number };
@@ -40,10 +40,12 @@ export async function playTeamNights(tx: CareerExecutor, root: Root, season: num
   if (!(await tx.execute(sql`SELECT to_regclass('career_club_fixtures') IS NOT NULL AS ok`)).rows[0]?.ok) return;
   const lg = await league(tx, root);
   if (!lg) return;
-  const fixtures = fixturesFor(lg.clubs).filter(f => f.week === week);
+  const prior = (await tx.execute(sql`SELECT round,week,home_key,away_key,home_score,away_score FROM career_club_fixtures WHERE career_save_id=${root.id} AND season=${season}`)).rows;
+  const results: FixtureResult[] = prior.map(r => ({ round: Number(r.round), week: Number(r.week), home: String(r.home_key), away: String(r.away_key), homeScore: Number(r.home_score), awayScore: Number(r.away_score) }));
+  const fixtures = [...fixturesFor(lg.clubs), ...playoffFixtures(lg.clubs, results)]
+    .filter(f => f.round >= 15 ? f.week <= week : f.week === week);
   if (!fixtures.length) return;
-  const done = new Set((await tx.execute(sql`SELECT round, home_key FROM career_club_fixtures WHERE career_save_id=${root.id} AND season=${season} AND week=${week}`)).rows
-    .map(r => `${r.round}:${r.home_key}`));
+  const done = new Set(prior.filter(r => Number(r.week) === week).map(r => `${r.round}:${r.home_key}`));
   const todo = fixtures.filter(f => !done.has(`${f.round}:${f.home}`));
   if (!todo.length) return;
   const day = teamNightDay(week);
@@ -110,16 +112,18 @@ export function createCareerTeamNightsService(database: CareerDatabase) {
         if (!lg || lg.clubs.length < 2) return { ...base, club: lg ? clubNameOf(lg.home) : null, nation: lg?.nation ?? null, available: false, next: null, last: null, table: [], you: { played: 0, won: 0 } };
         const rows = (await tx.execute(sql`SELECT * FROM career_club_fixtures WHERE career_save_id=${root.id} AND season=${season} ORDER BY week, round`)).rows;
         const results: FixtureResult[] = rows.map(r => ({ round: Number(r.round), week: Number(r.week), home: String(r.home_key), away: String(r.away_key), homeScore: Number(r.home_score), awayScore: Number(r.away_score) }));
-        const mine = fixturesFor(lg.clubs).filter(f => f.home === lg.home || f.away === lg.home);
+        const postseason = playoffFixtures(lg.clubs, results);
+        const mine = [...fixturesFor(lg.clubs), ...postseason].filter(f => f.home === lg.home || f.away === lg.home);
         const played = new Set(results.map(r => `${r.round}:${r.home}`));
-        const upcoming = mine.find(f => f.week >= week && !played.has(`${f.round}:${f.home}`));
+        const upcoming = mine.find(f => (f.week >= week || f.round >= 15) && !played.has(`${f.round}:${f.home}`));
         let next: TeamNightsView["next"] = null;
         if (upcoming) {
-          const day = teamNightDay(upcoming.week);
+          const displayWeek = Math.max(upcoming.week, week);
+          const day = teamNightDay(displayWeek);
           const clash = (await tx.execute(sql`SELECT i.name FROM career_participant_bookings b JOIN career_event_instances i ON i.career_save_id=b.career_save_id AND i.id=b.event_id
               WHERE b.career_save_id=${root.id} AND b.season=${season} AND b.day=${day} AND b.participant_key=${HUMAN}
             UNION ALL SELECT title FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season} AND day=${day} AND status='ACCEPTED' LIMIT 1`)).rows[0];
-          next = { week: upcoming.week, home: upcoming.home === lg.home, opponent: clubNameOf(upcoming.home === lg.home ? upcoming.away : upcoming.home),
+          next = { week: displayWeek, home: upcoming.home === lg.home, opponent: clubNameOf(upcoming.home === lg.home ? upcoming.away : upcoming.home),
             youFree: !clash, clash: clash ? String(clash.name) : null };
         }
         const lastRow = [...rows].reverse().find(r => r.home_key === lg.home || r.away_key === lg.home);
@@ -142,7 +146,7 @@ export function createCareerTeamNightsService(database: CareerDatabase) {
           if (x.away === HUMAN) { you.played++; if (x.awayLegs > x.homeLegs) you.won++; }
         }
         return { ...base, club: clubNameOf(lg.home), nation: lg.nation, available: true, next, last,
-          table: leagueTable(lg.clubs, results).map(t => ({ ...t, name: clubNameOf(t.club), you: t.club === lg.home })), you };
+          table: leagueTable(lg.clubs, results.filter(r => r.round < 15)).map(t => ({ ...t, name: clubNameOf(t.club), you: t.club === lg.home })), you };
       });
     },
   };

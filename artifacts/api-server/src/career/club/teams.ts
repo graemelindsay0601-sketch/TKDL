@@ -15,6 +15,7 @@ export const TEAMS = Object.freeze({
 });
 
 export const teamNightDay = (week: number) => (week - 1) * 7 + TEAMS.dayOfWeek;
+export const TEAM_PLAYOFFS = Object.freeze({ semiWeek: 48, finalWeek: 50, semiRound: 15, finalRound: 16 });
 
 /**
  * Double round-robin (the circle method, then the same again with home and away swapped), spread evenly across the
@@ -52,4 +53,24 @@ export function leagueTable(clubs: readonly string[], results: readonly FixtureR
   }
   return [...rows.values()].sort((a, b) => b.points - a.points || (b.singlesFor - b.singlesAgainst) - (a.singlesFor - a.singlesAgainst) || b.singlesFor - a.singlesFor || a.club.localeCompare(b.club))
     .map((r, i) => ({ ...r, position: i + 1 }));
+}
+
+/** The top four qualify once the full double round-robin is complete; regular-season seed breaks tied knockout matches. */
+export function playoffFixtures(clubs: readonly string[], results: readonly FixtureResult[]) {
+  const regular = fixturesFor(clubs);
+  if (clubs.length < 4 || regular.some(f => !results.some(r => r.round === f.round && r.home === f.home))) return [];
+  const table = leagueTable(clubs, results.filter(r => r.round < TEAM_PLAYOFFS.semiRound));
+  const seeds = table.slice(0, 4);
+  const semis = [
+    { round: TEAM_PLAYOFFS.semiRound, week: TEAM_PLAYOFFS.semiWeek, home: seeds[0].club, away: seeds[3].club },
+    { round: TEAM_PLAYOFFS.semiRound, week: TEAM_PLAYOFFS.semiWeek, home: seeds[1].club, away: seeds[2].club },
+  ];
+  const semisPlayed = semis.map(f => results.find(r => r.round === f.round && r.home === f.home));
+  if (semisPlayed.some(r => !r)) return semis;
+  const winner = (f: typeof semis[number], result: FixtureResult) => result.homeScore > result.awayScore ? f.home
+    : result.awayScore > result.homeScore ? f.away
+    : f.home; // the higher regular-season seed is at home
+  const final = { round: TEAM_PLAYOFFS.finalRound, week: TEAM_PLAYOFFS.finalWeek,
+    home: winner(semis[0], semisPlayed[0]!), away: winner(semis[1], semisPlayed[1]!) };
+  return [final];
 }

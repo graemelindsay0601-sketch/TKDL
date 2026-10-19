@@ -26,7 +26,7 @@ import { createCareerCountyLiveService } from "../../career/club/county-live-ser
 import { countyTables } from "../../career/club/county-squads.ts";
 import { createCareerClubService } from "../../career/club/service.ts";
 import { CLUB } from "../../career/club/model.ts";
-import { TEAMS, fixturesFor, leagueTable, teamNightDay } from "../../career/club/teams.ts";
+import { TEAMS, fixturesFor, leagueTable, playoffFixtures, teamNightDay } from "../../career/club/teams.ts";
 import { loadNpcs } from "../../career/world/repository.ts";
 import { lockRoot } from "../../career/world/service.ts";
 import { localityByRegion } from "../../career/calendar/geography.ts";
@@ -66,6 +66,21 @@ test("fixtures: every club meets every other home and away, one fixture a club a
   assert.deepEqual(fixturesFor(["solo"]), [], "one club: no league");
   const table = leagueTable(["a", "b", "c"], [{ round: 1, week: 4, home: "a", away: "b", homeScore: 4, awayScore: 2 }, { round: 2, week: 7, home: "c", away: "a", homeScore: 3, awayScore: 3 }]);
   assert.deepEqual(table.map(t => [t.club, t.points, t.played]), [["a", 3, 2], ["c", 1, 1], ["b", 0, 1]]);
+});
+
+test("top four enter seeded semi-finals and a final; tied knockouts go to the higher seed", () => {
+  const clubs = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const regular = fixturesFor(clubs).map(f => ({ ...f, homeScore: 4, awayScore: 2 }));
+  assert.deepEqual(playoffFixtures(clubs, regular.slice(1)), [], "playoffs wait until the league is complete");
+  const semis = playoffFixtures(clubs, regular);
+  assert.equal(semis.length, 2);
+  assert.ok(semis.every(f => f.week === 48 && f.round === 15));
+  const completed = [...regular, ...semis.map(f => ({ ...f, homeScore: 3, awayScore: 3 }))];
+  const final = playoffFixtures(clubs, completed);
+  assert.equal(final.length, 1);
+  assert.equal(final[0].week, 50);
+  assert.equal(final[0].round, 16);
+  assert.equal(final[0].home, semis[0].home, "higher regular-season seed wins a tied semi");
 });
 
 test("a team night: six singles for each side, you play when you're free", async () => {
