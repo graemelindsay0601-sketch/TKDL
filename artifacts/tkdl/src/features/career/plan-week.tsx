@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
-import { useEnterEvents, errorMessage } from "./api";
+import { Link } from "wouter";
+import { Loader2, Moon, Radio, Sparkles } from "lucide-react";
+import { useEnterEvents, useStreaming, useWeekNights, useTeamNights, errorMessage } from "./api";
 import type { CareerEvent } from "./types";
 import { dayLabel, denialLabel, formatPence, planWeek, worthIt } from "./model";
 
@@ -13,10 +14,28 @@ export function PlanMyWeek({ saveId, events, week }: { saveId: string; events: C
   const [off, setOff] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
   const enter = useEnterEvents(saveId);
+  const streaming = useStreaming(saveId);
+  const nights = useWeekNights(saveId);
+  const team = useTeamNights(saveId);
   const plan = useMemo(() => planWeek(events, week), [events, week]);
   const chosen = plan.events.filter(e => !off.has(e.id));
   const cost = chosen.reduce((n, e) => n + e.finance!.estimatedPlayerCostPence, 0);
   const upTo = chosen.reduce((n, e) => n + e.finance!.topPrizePence, 0);
+  const bookedDays = new Set(events.filter(e => e.human && ["ENTERED", "CONFIRMED", "PLAYING"].includes(e.human.relationship)
+    && e.status !== "CANCELLED" && e.dates.startWeek <= week && e.dates.endWeek >= week)
+    .flatMap(e => Array.from({ length: e.dates.endDay - e.dates.startDay + 1 }, (_, i) => e.dates.startDay + i))
+    .map(day => ((day - 1) % 7) + 1));
+  const suggestedDays = new Set(chosen.flatMap(e => Array.from({ length: e.dates.endDay - e.dates.startDay + 1 }, (_, i) => e.dates.startDay + i))
+    .map(day => ((day - 1) % 7) + 1));
+  const nightsAreForWeek = nights.data?.week === week;
+  const freeNights = nightsAreForWeek
+    ? nights.data!.days.filter(d => d.items.length === 0 && !(team.data?.next?.week === week && d.dayOfWeek === 3)
+      && !(team.isLoading && d.dayOfWeek === 3) && !(team.isError && d.dayOfWeek === 3)
+      && !bookedDays.has(d.dayOfWeek) && !suggestedDays.has(d.dayOfWeek)).map(d => d.dayOfWeek)
+    : [];
+  const streamNights = streaming.data?.week === week
+    ? streaming.data.freeNights.filter(day => !bookedDays.has(day) && !suggestedDays.has(day))
+    : [];
 
   const start = () => { setOff(new Set()); setMessage(""); setOpen(true); };
   const confirm = () => enter.mutate(chosen.map(e => e.id), {
@@ -61,6 +80,24 @@ export function PlanMyWeek({ saveId, events, week }: { saveId: string; events: C
         ? "The worth-it events this week cost more than the money you have free. Try the free nights below, or next week."
         : "Nothing worth the trip left to enter this week."}</p>}
       <p className="plan-week__note">Picks events that pay back their cost early, one a day, at most four in a week including what you have booked. Series that run over several weeks are entered from their own event page.</p>
+      <section className="plan-week__options" aria-labelledby="plan-week-options-title">
+        <h3 id="plan-week-options-title">Optional free-night ideas</h3>
+        <p>These are options only. They are not scheduled or reserved here; open a feature to choose an activity.</p>
+        {nights.isLoading && <p className="plan-week__note" role="status">Checking booked nights…</p>}
+        {nights.isError && <p className="plan-week__note" role="status">Night availability could not be checked. No day is marked free.</p>}
+        {!nights.isLoading && !nights.isError && !nightsAreForWeek && <p className="plan-week__note">Free-night details are available for the current week only. Browse Nights Out for other weeks.</p>}
+        {nightsAreForWeek && (team.isLoading || team.isError) && <p className="plan-week__note" role="status">
+          {team.isLoading ? "Checking the Wednesday team-night schedule." : "Wednesday availability could not be confirmed, so no Wednesday option is shown."}</p>}
+        {nightsAreForWeek && freeNights.length ? <ul className="plan-week__options-list">
+          {freeNights.map(day => <li key={day}><b>{dayLabel(day)}</b><span>
+            <Link href={`/career/${saveId}/club`}><Moon aria-hidden /> Club</Link>
+            <Link href={`/career/${saveId}/nights`}><Moon aria-hidden /> Nights Out</Link>
+            {streamNights.includes(day) && <Link href={`/career/${saveId}/streaming`}><Radio aria-hidden /> DartCast</Link>}
+          </span></li>)}
+        </ul> : nightsAreForWeek ? <p className="plan-week__note">{team.isLoading || team.isError ? "No other unbooked nights are confirmed." : "No unbooked nights remain after the event suggestions."}</p> : null}
+        {streaming.isError && <p className="plan-week__note" role="status">DartCast availability is unavailable; no stream night is suggested.</p>}
+        {nightsAreForWeek && streaming.data?.week === week && streaming.data.freeNights.length === 0 && <p className="plan-week__note">DartCast reports no free stream nights this week.</p>}
+      </section>
       <div className="plan-week__actions">
         {plan.events.length > 0 && <button type="button" className="career-btn career-btn-primary" disabled={!chosen.length || enter.isPending} onClick={confirm}>
           {enter.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null} Enter {chosen.length || ""} event{chosen.length === 1 ? "" : "s"}</button>}

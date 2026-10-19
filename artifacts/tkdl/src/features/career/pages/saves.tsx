@@ -7,6 +7,7 @@ import { PLATES } from "../atmosphere";
 import type { PlateKey } from "../atmosphere/model";
 import {CareerShirt,type ShirtIdentity} from "../identity";
 import {CareerKitCustomizer} from "../kit-customizer";
+import { CareerPathOverview } from "../career-path-overview";
 import { slotLines, ageOnDate, careerStartDateForToday, HOME_REGIONS, MINIMUM_CAREER_START_AGE } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, ConfirmButton, Label, OSWALD, StatusBadge } from "../components";
 import type { CareerSave } from "../types";
@@ -138,11 +139,11 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
           <p>Start at your local club night and build a darts career your way.</p></div>
         <button className="career-btn career-btn-primary w-full" onClick={() => setOpen(true)}><Plus className="w-4 h-4" aria-hidden /> New Career</button>
       </div> : (
-        <form ref={formRef} className="career-new-career__form" onSubmit={e => { e.preventDefault(); if (!dob || tooYoung) return;if(step<2){setStep(step+1);return;}onCreate(name.trim(), difficulty, dob, home,shirt,nickname); }}>
+        <form ref={formRef} className="career-new-career__form" onSubmit={e => { e.preventDefault(); if (!dob || tooYoung) return;if(step<3){setStep(step+1);return;}onCreate(name.trim(), difficulty, dob, home,shirt,nickname); }}>
           <header className="career-new-career__head">
-            <div><Label>Slot {slot} · New Career</Label><h2 style={OSWALD}>{step===0?"Your player":step===1?"Your shirt":"Ready to start"}</h2>
+            <div><Label>Slot {slot} · New Career</Label><h2 style={OSWALD}>{step===0?"Your player":step===1?"Your shirt":step===2?"Choose your first direction":"Ready to start"}</h2>
               <p>Build a darts career your way. Professional darts is optional. Career cash and fictional-world achievements are separate from your real TKDL league profile and coins.</p></div>
-            <ol className="career-new-career__steps" aria-label="New Career steps">{["Player","Shirt","Confirm"].map((label,i)=><li key={label} className={i===step?"is-current":i<step?"is-done":""} aria-current={i===step?"step":undefined}><b>{i+1}</b>{label}</li>)}</ol>
+            <ol className="career-new-career__steps" aria-label="New Career steps">{["Player","Shirt","Paths","Confirm"].map((label,i)=><li key={label} className={i===step?"is-current":i<step?"is-done":""} aria-current={i===step?"step":undefined}><b>{i+1}</b>{label}</li>)}</ol>
           </header>
           <div hidden={step!==0} className="career-new-career__fields">
           <label className="flex flex-col gap-1"><Label>Career name (optional)</Label>
@@ -173,13 +174,14 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
           {step===1&&<><CareerKitCustomizer identity={shirt} playerName={name||"Your player"} embedded onChange={patch=>setShirt(current=>({...current,...patch}))}/>
             <div className="career-new-career__fields career-new-career__fields--row"><label className="flex flex-col gap-1"><Label>Nickname (optional)</Label><input maxLength={32} value={nickname} placeholder="e.g. The Anchor" onChange={e=>setNickname(e.target.value)}/></label>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Appearance only. No ability, seeding, sponsorship or results effect.</p></div></>}
-          {step===2&&<div className="career-new-career__confirm">
+          {step===2&&<CareerPathOverview headingId={`career-paths-title-${slot}`} />}
+          {step===3&&<div className="career-new-career__confirm">
             <div className="career-new-career__confirm-shirt"><CareerShirt name={name||"Your player"} identity={shirt} scale="featured"/></div>
             <div><h3 style={OSWALD}>{name||"My Career"}</h3>{nickname&&<p className="career-new-career__nick">“{nickname}”</p>}
               <dl>{[["Born",dob],["Starts aged",startAge===null?"—":String(startAge)],["Home region",HOME_REGIONS.find(r=>r.key===home)?.label??home],["Opposition",difficulty[0]+difficulty.slice(1).toLowerCase()]].map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
               <p className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>Your date of birth and home region can't be changed later. Your shirt can be changed in the first week of any season. You start as an amateur at your local club: pick an event, play it, and work up from there.</p></div>
           </div>}
-          <div className="career-new-career__actions">{step>0&&<button type="button" className="career-btn" onClick={()=>setStep(step-1)} disabled={busy}>Back</button>}<button type="submit" className="career-btn career-btn-primary flex-1" disabled={busy || !dob || tooYoung}>{busy ? "Creating world…" : step===2?"Start Career":step===0?"Choose shirt":"Review Career"}</button>
+          <div className="career-new-career__actions">{step>0&&<button type="button" className="career-btn" onClick={()=>setStep(step-1)} disabled={busy}>Back</button>}<button type="submit" className="career-btn career-btn-primary flex-1" disabled={busy || !dob || tooYoung}>{busy ? "Creating world…" : step===3?"Start Career":step===0?"Choose shirt":step===1?"Review paths":"Review Career"}</button>
             <button type="button" className="career-btn career-btn-ghost" onClick={() => setOpen(false)}>Cancel</button></div>
         </form>
       )}

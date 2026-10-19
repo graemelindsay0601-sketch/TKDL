@@ -289,6 +289,23 @@
 .career-map-empty>svg { margin:0 auto 16px; color:#7097b0; }
 .career-map-empty small { color:#839eb5; font-size:.7rem; }
 .career-root .career-map-list-row { min-height:48px; border-color:#ffffff0d; color:#c9dbec; font-size:.8rem; }
+
+/* Save-creation route orientation: informational only, with no selected state. */
+.career-new-career__paths { display:grid; gap:16px; padding:16px 0 4px; }
+.career-new-career__paths-intro { max-width:68ch; }
+.career-new-career__paths-intro h3 { margin:5px 0 6px; color:#f1f6fc; font:600 1.35rem Oswald,system-ui,sans-serif; }
+.career-new-career__paths-intro p { margin:0; color:#aebed0; font-size:.8rem; line-height:1.6; }
+.career-path-overview__eyebrow { color:#91b1cb; font:700 .62rem Oswald,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase; }
+.career-new-career__path-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.career-new-career__path-grid article { min-width:0; padding:13px 14px; border:1px solid #91adc32b; border-radius:12px; background:linear-gradient(140deg,#1a2939,#111d2a); }
+.career-new-career__path-grid article > span { color:#91b1cb; font-size:.58rem; font-weight:800; letter-spacing:.11em; }
+.career-new-career__path-grid h4 { margin:5px 0 4px; color:#f1f6fc; font:600 1rem Oswald,system-ui,sans-serif; }
+.career-new-career__path-grid p { margin:0; color:#b7c5d4; font-size:.74rem; line-height:1.55; }
+.career-new-career__path-grid a { display:inline-block; margin-top:8px; color:#93ceff; font-size:.72rem; font-weight:700; text-decoration:underline; text-underline-offset:3px; }
+.career-new-career__path-grid a:focus-visible { outline:2px solid #ff005c; outline-offset:3px; border-radius:2px; }
+@media(max-width:600px) {
+  .career-new-career__path-grid { grid-template-columns:minmax(0,1fr); }
+}
 @media(max-width:1099px) {
   .career-root .career-map-layout { grid-template-columns:150px minmax(0,1fr); }
   .career-root .career-map-inspector { grid-column:1/-1; }
@@ -1232,12 +1249,31 @@
 /* Phones: a slimmer Career header. Attention and "More" stay; search, Play mode, the guide and save health open on demand. */
 .career-header-more { display:none; }
 @media (max-width: 640px) {
-  .career-root .career-header-tools > :not(.career-attention-trigger):not(.career-header-more) { display:none; }
+  .career-root .career-header-tools > :not(.career-attention-trigger):not(.career-header-more):not(.career-sections-trigger) { display:none; }
   .career-root .career-header-tools[data-open] > * { display:flex; }
   .career-header-more { display:inline-flex; align-items:center; margin-left:auto; padding:6px 12px; border-radius:999px; border:1px solid #ffffff26; background:#ffffff0d; color:#fff; font-size:.8rem; font-weight:700; }
   .career-hero__extra { display:none; }
   .career-hero__portrait { display:none; }
 }
+.career-sections-trigger { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:40px; padding:0 11px; border:1px solid #91adc333; border-radius:11px; background:#ffffff08; color:#dce9f5; font-size:.76rem; font-weight:700; cursor:pointer; }
+.career-sections-trigger svg { width:16px; height:16px; color:#ff8caf; }
+.career-sections-trigger:hover { border-color:#ff005c66; background:#ff005c12; color:#fff; }
+.career-sections-trigger:focus-visible { outline:2px solid #ff7ca4; outline-offset:2px; }
+
+/* One source-backed glance at the routes available in this Career save. */
+.pathway-tracker { display:grid; gap:11px; padding:16px; border:1px solid #91adc329; border-radius:16px; background:linear-gradient(145deg,#172636,#101b28 78%); }
+.pathway-tracker__head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.pathway-tracker__head h2 { margin:3px 0 0; color:#f0f6fc; font:600 1.35rem Oswald,system-ui,sans-serif; }
+.pathway-tracker__note { margin:0; max-width:82ch; color:#aebfd0; font-size:.76rem; line-height:1.5; }
+.pathway-tracker__grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.pathway-tracker__route { display:grid; align-content:start; gap:8px; min-width:0; padding:12px; border:1px solid #91adc321; border-radius:12px; background:#07131f70; }
+.pathway-tracker__route h3 { margin:2px 0 0; color:#edf5fc; font:600 1rem Oswald,system-ui,sans-serif; }
+.pathway-tracker__eyebrow { color:#8eaac3; font-size:.58rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+.pathway-tracker__route p { margin:0; min-height:2.3em; color:#bdcad7; font-size:.75rem; line-height:1.5; }
+.pathway-tracker__route a,.pathway-tracker__route button { display:inline-flex; align-items:center; gap:5px; min-height:38px; padding:5px 7px; border:0; border-radius:8px; background:transparent; color:#9ed0ff; font-size:.72rem; font-weight:700; text-align:left; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+.pathway-tracker__route a svg { width:14px; height:14px; }
+.pathway-tracker__actions { display:flex; align-items:center; flex-wrap:wrap; gap:5px; }
+@media (max-width:600px) { .pathway-tracker__grid { grid-template-columns:1fr; } .pathway-tracker { padding:12px; } }
 
 /* First-season checklist */
 .career-welcome h3 .career-welcome__count { margin-left:auto; font-size:.75rem; font-weight:700; color:#ffd24a; }

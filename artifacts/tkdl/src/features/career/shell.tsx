@@ -9,7 +9,7 @@ import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnD
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
-import { PlayBar } from "./play-bar";
+import { PlayBar, CareerMenu } from "./play-bar";
 import { useContinueCareer, ContinueOutcomeCard, ContinueProgress } from "./continue-career";
 import { CareerStageBackdrop, PLATES, resolveAtmosphere, spectacleFor } from "./atmosphere";
 import type { PlateKey } from "./atmosphere/model";
@@ -126,6 +126,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
   // Tour Card, archival grade once retired. Decorative only; nothing here names a venue or claims a result.
   const stage = resolveAtmosphere({ eventClass: save.hasTourCard ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <header className="pdc-card career-hero career-hero--stage px-4 py-3 space-y-2.5">
       <CareerStageBackdrop atmosphere={stage} spectacle={spectacleFor("ARRIVAL", stage.level)} documentary={retired} animate={false} eager className="career-hero__stage" />
@@ -151,7 +152,10 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
       <div className="career-header-tools" data-open={toolsOpen || undefined}>
         <CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/>
         <button type="button" className="career-header-more" aria-expanded={toolsOpen} onClick={() => setToolsOpen(o => !o)}>{toolsOpen ? "Less" : "More"}</button>
+        <button type="button" className="career-sections-trigger" aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="Career sections"
+          onClick={() => setMenuOpen(true)}><LayoutGrid aria-hidden /><span>Career sections</span></button>
         {!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><Gamepad2 aria-hidden /> Play mode</Link>}<WorldSearch saveId={save.id}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link><Link href={`/career/${save.id}/health`}>Save health</Link></div>
+      {menuOpen && <CareerMenu save={save} onClose={() => setMenuOpen(false)} />}
     </header>
   );
 }

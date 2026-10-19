@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { ArrowUpRight, Award, CalendarDays, CircleDollarSign, Flag, History, Medal, Target, TrendingUp, X } from "lucide-react";
 import {
-  useCalendar, useSporting, useFinance, useHistory, useActiveTournament, usePresentation,
+  useCalendar, useSporting, useFinance, useHistory, useActiveTournament, usePresentation, usePathways, useStreaming, useHomeClub,
   useCareerProfile, useCareerLife, useCareerLegacySummary, useEnterEvent, useQualification, useMilestones,
   useCareerGoals, useGuidance, useEditGuidance, errorMessage,
 } from "../api";
@@ -86,6 +86,8 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
+      {!retired && <PathwayTracker saveId={id} events={events} week={save.currentWeek}
+        calendarLoading={calendar.isLoading} calendarError={calendar.error} retryCalendar={() => void calendar.refetch()} />}
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
         <SeasonOneGuidance saveId={id} />
         <details className="career-note" open>
@@ -240,6 +242,97 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       </details>
     </main>
   );
+}
+
+/**
+ * A live orientation across the routes a player can take. Every status is read
+ * from the Career calendar, pathway service or DartCast service; routes can
+ * overlap, and this tracker does not treat one as a prerequisite for another.
+ */
+function PathwayTracker({ saveId, events, week, calendarLoading, calendarError, retryCalendar }: {
+  saveId: string; events: CareerEvent[]; week: number; calendarLoading: boolean; calendarError: unknown; retryCalendar: () => void;
+}) {
+  const pathways = usePathways(saveId);
+  const streaming = useStreaming(saveId);
+  const club = useHomeClub(saveId);
+  const base = `/career/${saveId}`;
+  const nearest = (predicate: (event: CareerEvent) => boolean) => events
+    .filter(event => predicate(event) && event.status !== "CANCELLED" && event.status !== "COMPLETED")
+    .sort((a, b) => a.dates.startDay - b.dates.startDay)[0] ?? null;
+  const nextLocal = nearest(event => event.circuit === "GRASSROOTS" || event.circuit === "NATIONAL_AMATEUR");
+  const nextCounty = nearest(event => event.circuit === "COUNTY" || event.circuit === "REGIONAL" || event.circuit === "NATIONAL_AMATEUR");
+  const nextSeries = nearest(event => !!event.series);
+  const countyFixture = club.data?.county?.fixtures.find(f => f.week >= week);
+  const countyFacts = club.isLoading ? "Checking county and national selection…"
+    : club.error ? "County and national selection status is temporarily unavailable."
+    : !club.data?.club ? "No home-club or county status is reported for this Career."
+    : [
+      club.data.county?.youSelected ? `Selected for ${club.data.county.name} county.` : club.data.county?.category
+        ? `Not listed in the current ${club.data.county.category.toLowerCase()} county squad.` : "County category or selection is not reported.",
+      countyFixture ? `Next county fixture: week ${countyFixture.week} ${countyFixture.home ? "v" : "at"} ${countyFixture.opponent}.` : "No upcoming county fixture reported.",
+      club.data.nation?.selected ? `Selected for ${club.data.nation.name}.` : "No current national selection reported.",
+    ].join(" ");
+  const eventStatusText = (event: CareerEvent | null) => !event ? "No matching event in this calendar window."
+    : event.human && ["ENTERED", "CONFIRMED", "PLAYING"].includes(event.human.relationship) ? `Booked: ${event.name} · week ${event.dates.startWeek}`
+    : event.human?.canEnter ? `Open for entry: ${event.name} · week ${event.dates.startWeek}`
+    : `Listed: ${event.name} · week ${event.dates.startWeek}. Check event details for your entry status.`;
+  const routeRows = [
+    { title: "Local & amateur", text: eventStatusText(nextLocal), event: nextLocal, href: `${base}/calendar`, action: nextLocal ? "View local event" : "Browse calendar" },
+    { title: "County & national", text: `${eventStatusText(nextCounty)} ${countyFacts}`, event: nextCounty, href: `${base}/club`, action: nextCounty ? "View event" : "Club & selection" },
+    { title: "Modus & series", text: nextSeries
+      ? `${eventStatusText(nextSeries)} Series events appear when they are actually listed; no Modus date is assumed.`
+      : "No series event is listed in this calendar window. No Modus event is assumed.", event: nextSeries, href: `${base}/calendar`, action: nextSeries ? "View series event" : "Browse calendar" },
+  ];
+  return <section className="pathway-tracker panel" aria-labelledby="pathway-tracker-title">
+    <header className="pathway-tracker__head">
+      <div><span className="home-section-kicker">ROUTES THROUGH DARTS</span><h2 id="pathway-tracker-title">Pathway tracker</h2></div>
+      <Link href={`${base}/road-to-the-tour`} className="home-text-link">All Tour Card routes <ArrowUpRight aria-hidden /></Link>
+    </header>
+    <p className="pathway-tracker__note">These routes can overlap. Choosing one does not close the others; DartCast is a parallel route, not a sporting qualification.</p>
+    <div className="pathway-tracker__grid">
+      {routeRows.map(row => <article className="pathway-tracker__route" key={row.title}>
+        <div><span className="pathway-tracker__eyebrow">SPORTING ROUTE</span><h3>{row.title}</h3></div>
+        <p role={calendarLoading || calendarError ? "status" : undefined}>{calendarLoading ? "Loading events in your calendar window…"
+          : calendarError ? "Calendar route status is temporarily unavailable." : row.text}</p>
+        <Link href={row.event ? `${base}/events/${encodeURIComponent(row.event.id)}` : row.href}>{row.action} <ArrowUpRight aria-hidden /></Link>
+        {row.title === "County & national" && <Link href={`${base}/club`}>Club &amp; selection <ArrowUpRight aria-hidden /></Link>}
+        {!!calendarError && <button type="button" onClick={retryCalendar}>Retry calendar</button>}
+        {row.title === "County & national" && club.error && <button type="button" onClick={() => void club.refetch()}>Retry selection</button>}
+      </article>)}
+      <article className="pathway-tracker__route">
+        <div><span className="pathway-tracker__eyebrow">PARALLEL ROUTE</span><h3>DartCast</h3></div>
+        {streaming.isLoading ? <p role="status">Checking your channel and available stream nights…</p>
+          : streaming.error || !streaming.data ? <p role="status">Channel status is temporarily unavailable.</p>
+          : <p>{streaming.data.live ? "You are live now."
+            : streaming.data.freeNights.length ? `${streaming.data.freeNights.length} free night${streaming.data.freeNights.length === 1 ? "" : "s"} reported for streaming this week.`
+              : "No free stream night reported this week."} {streaming.data.next
+              ? `${streaming.data.followers.toLocaleString("en-GB")} followers · ${Math.max(0, streaming.data.next.followers - streaming.data.followers).toLocaleString("en-GB")} to ${streaming.data.next.name}.`
+              : "Top channel tier reached."}</p>}
+        <div className="pathway-tracker__actions">
+          <Link href={`${base}/streaming`}>{streaming.data?.live ? "Return to DartCast" : "Open DartCast"} <ArrowUpRight aria-hidden /></Link>
+          {streaming.error && <button type="button" onClick={() => void streaming.refetch()}>Retry</button>}
+        </div>
+      </article>
+      <article className="pathway-tracker__route">
+        <div><span className="pathway-tracker__eyebrow">PROFESSIONAL ROUTE</span><h3>Tour Card</h3></div>
+        {pathways.isLoading ? <p role="status">Checking Q-School and ranking routes…</p>
+          : pathways.error || !pathways.data ? <p role="status">Tour Card route status is temporarily unavailable.</p>
+          : pathways.data.tourCard ? <p>{pathways.data.tourCard.offer
+            ? `Tour Card offer available; decide by Season ${pathways.data.tourCard.offer.decideBy.season}, week ${pathways.data.tourCard.offer.decideBy.week}.`
+            : `Tour Card held for Seasons ${pathways.data.tourCard.startSeason}–${pathways.data.tourCard.endSeason}.`}</p>
+          : <p>{pathways.data.qSchool.next
+            ? `Next listed Q-School: ${pathways.data.qSchool.next.name}, week ${pathways.data.qSchool.next.week}.`
+            : `No Q-School event listed ahead this season. Next listed season: ${pathways.data.qSchool.nextSeason ?? "not reported"}.`}
+            {pathways.data.challenger.access !== "NONE" ? ` Challenger access: ${pathways.data.challenger.access === "OPEN_SEASON" ? "open this season" : "pass held"}.` : ""}
+          </p>}
+        <div className="pathway-tracker__actions">
+          <Link href={`${base}/road-to-the-tour`}>Review routes <ArrowUpRight aria-hidden /></Link>
+          <Link href={`${base}/q-school`}>Q-School <ArrowUpRight aria-hidden /></Link>
+          {pathways.error && <button type="button" onClick={() => void pathways.refetch()}>Retry</button>}
+        </div>
+      </article>
+    </div>
+  </section>;
 }
 
 /** Where the player stands against the Tour Card retention cut, in plain words. */

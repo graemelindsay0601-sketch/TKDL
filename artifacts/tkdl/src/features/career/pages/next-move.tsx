@@ -75,7 +75,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         <RoadVisitorLine saveId={id} />
         <TeamNightLine saveId={id} week={save.currentWeek} />
         <NightsLine saveId={id} week={save.currentWeek} save={save} />
-        <WeekPlanner events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
+        <WeekPlanner saveId={id} events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
         {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
         {enterable.length ? <div className="next-move__events">
           {enterable.map(e => <CareerEventCard key={e.id} event={e} saveId={id} compact onEnter={onEnter} entering={entering} />)}
@@ -105,8 +105,8 @@ const BOOKED = new Set(["ENTERED", "CONFIRMED", "PLAYING"]);
  * Your week, Monday to Sunday: what you have booked each day and how many events you could still enter,
  * for this week and the next. A league night on Tuesday, a flier on Friday and an open on Saturday all fit.
  */
-function WeekPlanner({ events, open, currentWeek, week, day, onPick }: {
-  events: CareerEvent[]; open: CareerEvent[]; currentWeek: number; week: number; day: number | null;
+function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
+  saveId: string; events: CareerEvent[]; open: CareerEvent[]; currentWeek: number; week: number; day: number | null;
   onPick: (plan: { week: number; day: number | null }) => void;
 }) {
   const booked = events.filter(e => e.human && BOOKED.has(e.human.relationship) && e.status !== "CANCELLED" && e.dates.startWeek <= week && e.dates.endWeek >= week);
@@ -134,6 +134,21 @@ function WeekPlanner({ events, open, currentWeek, week, day, onPick }: {
             <span className="week-planner__dow">{dayLabel(d)}</span>
             <span className="week-planner__what">{mine.length ? mine[0].name : played ? "Played" : free ? `${free} open` : "—"}</span>
           </button>;
+        })}
+      </div>
+      <div className="week-planner__agenda" aria-label={`Day-by-day details for week ${week}`}>
+        {[1, 2, 3, 4, 5, 6, 7].filter(d => day === null || day === d).map(d => {
+          const { mine } = onDay(d);
+          const dayNumber = (week - 1) * 7 + d;
+          const options = open.filter(e => e.dates.startWeek === week && e.dates.startDayOfWeek === d
+            && !mine.some(bookedEvent => bookedEvent.dates.startDay <= e.dates.startDay && bookedEvent.dates.endDay >= e.dates.startDay));
+          return <div className="week-planner__agenda-day" key={d} data-booked={mine.length > 0 || undefined}>
+            <b>{dayLabel(d)}</b>
+            <div>{mine.length ? mine.map(e => <Link key={e.id} href={`/career/${saveId}/events/${encodeURIComponent(e.id)}`}>{e.name}<small>{e.dates.endDay > dayNumber ? ` · through ${dayLabel(((e.dates.endDay - 1) % 7) + 1)}` : " · booked"}</small></Link>)
+              : <span className="week-planner__agenda-empty">No event booked</span>}
+              {options.length > 0 && <small>{options.length} event option{options.length === 1 ? "" : "s"} to review below</small>}
+            </div>
+          </div>;
         })}
       </div>
       <p className="week-planner__sum">{booked.length

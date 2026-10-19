@@ -10,6 +10,7 @@ import {AwardPresentation,awardLabel,resolveAward,trophyArt} from "../trophies";
 import "./trophy-cabinet.css";
 import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
+import {CareerPathOverview} from "../career-path-overview";
 import {CareerMapPage} from "./map";
 import {eligibleKitMakerIds} from "../apparel/brand-mark-identity";
 import {CareerPageHero} from "../page-hero";
@@ -26,7 +27,7 @@ export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
       watermark={`${d.guide.length}`} subtitle={<p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p>}
       stats={[{label:"Guide topics",value:d.guide.length,tone:"gold"},{label:"Organisations",value:d.organisations.length},{label:"Circuits",value:d.circuits.length},{label:"Venues",value:d.venues.length}]}/>
     :<><h1>Darts World / Almanac</h1><p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p></>}
-    {guide?<><GuidanceSettings saveId={ctx.save.id}/>
+    {guide?<><CareerPathOverview saveId={ctx.save.id} headingId="career-guide-paths-title"/><GuidanceSettings saveId={ctx.save.id}/>
       <div className="career-guide-grid">{d.guide.map((g,i)=><details className="career-guide-topic" key={g.id}><summary><span aria-hidden="true">{String(i+1).padStart(2,"0")}</span>{g.title}</summary><p>{publicText(g.body)}</p></details>)}</div></>:<>
       <CareerSection title="Organisations & circuits"><div className="p-4 space-y-2">{d.organisations.map(o=><p key={o.id}><strong>{o.shortName}</strong> — {o.name}: {o.role}</p>)}
         <p>{d.circuits.map(c=>c.name).join(" · ")}</p></div></CareerSection>

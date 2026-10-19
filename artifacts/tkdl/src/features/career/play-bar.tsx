@@ -27,7 +27,7 @@ export function PlayBar({ save }: { save: CareerSave }) {
         <strong>{save.careerName ?? "My Career"}</strong>
         <span className="career-playbar__chips"><i>{formatPence(finance.data?.balancePence ?? save.balancePence)}</i><i>{save.hasTourCard ? "Tour Card" : "Amateur"}</i><FormBadge saveId={save.id} /></span>
       </div>
-      <button type="button" className="career-playbar__menu" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label="Career menu"><Menu aria-hidden /><span className="career-playbar__menu-label">Menu</span></button>
+      <button type="button" className="career-playbar__menu" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-expanded={open} aria-label="Career sections"><Menu aria-hidden /><span className="career-playbar__menu-label">Career sections</span></button>
       {open && <CareerMenu save={save} onClose={() => setOpen(false)} />}
     </header>
   );
@@ -57,7 +57,9 @@ export function CareerMenu({ save, onClose }: { save: CareerSave; onClose: () =>
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
   const base = `/career/${save.id}`;
-  const here = (path: string) => location === `${base}${path}` ? "page" as const : undefined;
+  const here = (path: string) => path
+    ? location === `${base}${path}` || location.startsWith(`${base}${path}/`) ? "page" as const : undefined
+    : location === base ? "page" as const : undefined;
   return createPortal(
     <div className="career-menu" role="dialog" aria-modal="true" aria-label="Career menu" onClick={onClose}>
       <nav className="career-menu__panel" onClick={e => e.stopPropagation()}>

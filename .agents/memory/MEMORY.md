@@ -23,3 +23,4 @@
 - [Career event version compatibility](career-event-versioning.md) — preserve historical event-definition rows as stored; enforce hash immutability on the current edition and migrate saves forward
 - [PDC calendar sourcing](pdc-calendar-sourcing.md) — when the PDC fixture API is unavailable, use its sitemap to locate official event notices; treat third-party calendars as leads
 - [Career sponsor trade-offs](career-sponsor-tradeoffs.md) — sponsor offers need real pros/cons, and player counter-proposals must work on existing saves
+- [Career path onboarding](career-path-onboarding.md) — explain available routes and first steps at save creation; keep routes non-exclusive and grounded in current rules
