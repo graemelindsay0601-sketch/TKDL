@@ -23,7 +23,7 @@ import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerTeamNightsService, playTeamNights } from "../../career/club/team-service.ts";
 import { playCountyFixtures } from "../../career/club/county-team-service.ts";
 import { createCareerCountyLiveService } from "../../career/club/county-live-service.ts";
-import { countyTables } from "../../career/club/county-squads.ts";
+import { countyCupFixtures, countyTables } from "../../career/club/county-squads.ts";
 import { createCareerClubService } from "../../career/club/service.ts";
 import { CLUB } from "../../career/club/model.ts";
 import { TEAMS, fixturesFor, leagueTable, playoffFixtures, teamNightDay } from "../../career/club/teams.ts";
@@ -66,6 +66,22 @@ test("fixtures: every club meets every other home and away, one fixture a club a
   assert.deepEqual(fixturesFor(["solo"]), [], "one club: no league");
   const table = leagueTable(["a", "b", "c"], [{ round: 1, week: 4, home: "a", away: "b", homeScore: 4, awayScore: 2 }, { round: 2, week: 7, home: "c", away: "a", homeScore: 3, awayScore: 3 }]);
   assert.deepEqual(table.map(t => [t.club, t.points, t.played]), [["a", 3, 2], ["c", 1, 1], ["b", 0, 1]]);
+});
+
+test("county cup is a staged knockout, advances aggregate-set winners, and never runs two stages in one week", () => {
+  const counties = ["a", "b", "c", "d", "e"];
+  const first = countyCupFixtures(counties, []);
+  assert.equal(first.length, 2, "five counties produce two ties and one bye");
+  assert.ok(first.every(f => f.round === 101 && f.week === 48));
+  const completedFirst = first.map((f, i) => ({ ...f, status: "COMPLETED", matches: [{ homeSets: i ? 1 : 4, awaySets: i ? 3 : 0 }] }));
+  const second = countyCupFixtures(counties, completedFirst);
+  assert.equal(second.length, 1);
+  assert.equal(second[0].week, 49);
+  const completedSecond = [...completedFirst, { ...second[0], week: 51, status: "COMPLETED", matches: [{ homeSets: 3, awaySets: 1 }] }];
+  const final = countyCupFixtures(counties, completedSecond);
+  assert.equal(final.length, 1);
+  assert.equal(final[0].round, 103);
+  assert.equal(final[0].week, 52, "catch-up fixtures schedule the next round after the actual previous round");
 });
 
 test("top four enter seeded semi-finals and a final; tied knockouts go to the higher seed", () => {
@@ -137,6 +153,18 @@ test("county rounds persist a season schedule, play four separate squads once, a
   }
   const all = played.flatMap(r => r.matches as never[]);
   assert.ok(countyTables(["ayrshire", "highlands", "north-east", "midlands", "south-wales"], all as never).length > 0);
+});
+
+test("County Cup fixtures persist on an existing save and advance to the next week only after ties complete", async () => {
+  await playCounty(7, 48);
+  const opening = await rows(sql`SELECT round,week,status FROM career_county_fixtures
+    WHERE career_save_id=${id} AND season=7 AND round>=100 ORDER BY round`);
+  assert.ok(opening.length > 0, "opening knockout ties were saved");
+  assert.ok(opening.every(r => Number(r.round) === 101 && Number(r.week) === 48 && r.status === "COMPLETED"));
+  await playCounty(7, 49);
+  const nextRound = await rows(sql`SELECT round,week,status FROM career_county_fixtures
+    WHERE career_save_id=${id} AND season=7 AND round>=100 ORDER BY round`);
+  assert.ok(nextRound.some(r => Number(r.round) === 102 && Number(r.week) === 49 && r.status === "COMPLETED"));
 });
 
 test("calendar-generated county single selects you from last season and opens the live scorer", async () => {

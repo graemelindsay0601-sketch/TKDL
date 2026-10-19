@@ -79,7 +79,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
       </div>
       <h3 className="px-4 pt-2 text-sm font-bold">County fixtures</h3>
       {d.county.fixtures.length ? <ul className="career-club__history">{d.county.fixtures.map(f => <li key={`${f.round}-${f.week}`}>
-        <span>Round {f.round} · Week {f.week}</span><span>{f.home ? "vs" : "at"} {f.opponent}</span>
+        <span>{f.round >= 100 ? `County Cup · Round ${f.round - 100}` : `Round ${f.round}`} · Week {f.week}</span><span>{f.home ? "vs" : "at"} {f.opponent}</span>
         <em>{f.matches.length ? <>{f.matches.map(m => `${m.category[0]}${m.team} ${f.home ? m.homeSets : m.awaySets}-${f.home ? m.awaySets : m.homeSets}`).join(" · ")}
           {f.matches.some(m => m.youPlayed) && <small> · You {f.matches.find(m => m.youPlayed)?.humanMatch?.status === "LIVE"
             ? "have a single to play" : f.matches.find(m => m.youPlayed)?.youWon ? "won your single" : "lost your single"}</small>}</> : "Scheduled"}</em>

@@ -60,6 +60,34 @@ export function countyFixtures(counties: readonly string[], weeks: readonly numb
   return rounds;
 }
 
+/** Single-elimination county cup. Completed ties advance the aggregate sets winner; an odd field receives a bye. */
+export function countyCupFixtures(
+  counties: readonly string[],
+  played: readonly { round: number; week?: number; home: string; away: string; status: string; matches: readonly { homeSets: number; awaySets: number }[] }[],
+) {
+  let entrants = [...counties].sort();
+  for (let stage = 1; entrants.length > 1; stage++) {
+    const round = 100 + stage, pairs = Array.from({ length: Math.floor(entrants.length / 2) }, (_, i) => ({
+      home: entrants[i], away: entrants[entrants.length - 1 - i],
+    }));
+    const results = pairs.map(f => played.find(p => p.round === round && p.home === f.home && p.away === f.away));
+    const previousWeek = Math.max(0, ...played.filter(r => r.round === round - 1).map(r => r.week ?? 0));
+    const stageWeek = Math.max(47 + stage, previousWeek + 1);
+    if (results.some(r => !r || r.status !== "COMPLETED")) {
+      return pairs.map(f => ({ ...f, round, week: stageWeek }));
+    }
+    const winners = pairs.map((f, i) => {
+      const r = results[i]!;
+      const homeSets = r.matches.reduce((n, m) => n + m.homeSets, 0);
+      const awaySets = r.matches.reduce((n, m) => n + m.awaySets, 0);
+      return homeSets >= awaySets ? f.home : f.away;
+    });
+    if (entrants.length % 2) winners.push(entrants[Math.floor(entrants.length / 2)]);
+    entrants = winners;
+  }
+  return [];
+}
+
 export type CountyMatchResult = {
   category: CountyCategory; team: CountyTeam; home: string; away: string;
   homeSets: number; awaySets: number; homeLegs: number; awayLegs: number;

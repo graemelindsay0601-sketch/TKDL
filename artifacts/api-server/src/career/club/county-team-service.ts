@@ -15,7 +15,7 @@ import { toCareerBotConfig } from "../world/bot-adapter.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
 import { SIMULATION_VERSION } from "../world/config.ts";
 import { CLUB, memberPoints, type ClubResult } from "./model.ts";
-import { countyFixtures, selectCountySquads, COUNTY_SQUAD_FORMAT, type CountyCategory } from "./county-squads.ts";
+import { countyCupFixtures, countyFixtures, selectCountySquads, COUNTY_SQUAD_FORMAT, type CountyCategory } from "./county-squads.ts";
 
 type Root = { id: string; world_seed: string; world_generation_version: number | string; difficulty: string; settings_snapshot?: unknown };
 export const countyWeeksFor = (rounds: number) => Array.from({ length: rounds }, (_, i) => 4 + i * 3);
@@ -34,13 +34,21 @@ export async function playCountyFixtures(tx: CareerExecutor, root: Root, season:
   if (!home) return;
   const nation = dartsNation(home.country, home.key);
   const localities = LOCALITIES.filter(l => l.country === home.country && dartsNation(l.country, l.key) === nation);
-  const allFixtures = countyFixtures(localities.map(l => l.key), countyWeeksFor(localities.length - 1));
+  const counties = localities.map(l => l.key);
+  const allFixtures = countyFixtures(counties, countyWeeksFor(localities.length - 1));
   const hasSchedule = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_county_fixtures WHERE career_save_id=${root.id} AND season=${season}`)).rows[0]?.n ?? 0) > 0;
   if (!hasSchedule) for (const fixture of allFixtures) await tx.execute(sql`INSERT INTO career_county_fixtures
       (career_save_id,season,round,week,home_key,away_key,status,matches)
       VALUES (${root.id},${season},${fixture.round},${fixture.week},${fixture.home},${fixture.away},'SCHEDULED','[]'::jsonb)
       ON CONFLICT DO NOTHING`);
-  const scheduled = allFixtures.filter(f => f.week === week);
+  const cupRows = (await tx.execute(sql`SELECT round,week,home_key,away_key,status,matches FROM career_county_fixtures
+    WHERE career_save_id=${root.id} AND season=${season} AND round>=100`)).rows;
+  const cup = countyCupFixtures(counties, cupRows.map(r => ({ round: Number(r.round), week: Number(r.week), home: String(r.home_key), away: String(r.away_key),
+    status: String(r.status), matches: (Array.isArray(r.matches) ? r.matches : []) as { homeSets: number; awaySets: number }[] })));
+  for (const f of cup) await tx.execute(sql`INSERT INTO career_county_fixtures
+    (career_save_id,season,round,week,home_key,away_key,status,matches)
+    VALUES (${root.id},${season},${f.round},${f.week},${f.home},${f.away},'SCHEDULED','[]'::jsonb) ON CONFLICT DO NOTHING`);
+  const scheduled = [...allFixtures.filter(f => f.week === week), ...cup.filter(f => f.week <= week)];
   if (!scheduled.length) return;
   const already = new Set((await tx.execute(sql`SELECT round,home_key FROM career_county_fixtures
     WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND status IN ('COMPLETED','IN_PROGRESS')`)).rows
@@ -104,7 +112,7 @@ export async function playCountyFixtures(tx: CareerExecutor, root: Root, season:
         const matchKey = `county:${season}:${fixture.round}:${fixture.home}:${category}:${team}:${i}`;
         const bull = simulateBullUp(pa, pb, root.world_seed, matchKey);
         const match = simulateNpcMatch({ players: [pa, pb], seed: root.world_seed, generationVersion: Number(root.world_generation_version), matchKey,
-          difficulty: root.difficulty as never, context: { category: "local", roundImportance: 0.55, elimination: false }, format: { bestOf, firstThrow: bull.firstThrow } });
+          difficulty: root.difficulty as never, context: { category: "local", roundImportance: fixture.round >= 100 ? 0.85 : 0.55, elimination: fixture.round >= 100 }, format: { bestOf, firstThrow: bull.firstThrow } });
         const ha = match.stats[0].legsWon, aa = match.stats[1].legsWon;
         if (ha > aa) homeSets++; else if (aa > ha) awaySets++;
         if (a === "HUMAN" || b === "HUMAN") { youPlayed = true; youWon = a === "HUMAN" ? ha > aa : aa > ha; }
@@ -114,7 +122,7 @@ export async function playCountyFixtures(tx: CareerExecutor, root: Root, season:
         homeAverage: played ? homeAverage / played : 0, awayAverage: played ? awayAverage / played : 0, youPlayed, ...(youWon === undefined ? {} : { youWon }),
         ...(humanMatch ? { humanMatch } : {}) });
     }
-    await tx.execute(sql`UPDATE career_county_fixtures SET status=${hasLiveRubber ? "IN_PROGRESS" : "COMPLETED"},matches=${JSON.stringify(resultsForFixture)}::jsonb
+    await tx.execute(sql`UPDATE career_county_fixtures SET week=${week},status=${hasLiveRubber ? "IN_PROGRESS" : "COMPLETED"},matches=${JSON.stringify(resultsForFixture)}::jsonb
       WHERE career_save_id=${root.id} AND season=${season} AND round=${fixture.round} AND home_key=${fixture.home} AND status='SCHEDULED'`);
   }
 }

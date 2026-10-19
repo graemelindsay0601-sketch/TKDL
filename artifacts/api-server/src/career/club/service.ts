@@ -6,7 +6,7 @@ import { CareerError } from "../service.ts";
 import { COUNTRIES, LOCALITIES, localityByRegion } from "../calendar/geography.ts";
 import { dartsNation, selectionRank } from "../calendar/pairs.ts";
 import { CLUB, NATION_NAMES, clubName, countyTeam, interCounty, leagueSeason, memberPoints, type ClubResult, type ClubSeason } from "./model.ts";
-import { countyFixtures, countyTables, selectCountySquads, type CountyMatchResult } from "./county-squads.ts";
+import { countyCupFixtures, countyFixtures, countyTables, selectCountySquads, type CountyMatchResult } from "./county-squads.ts";
 import { countyWeeksFor } from "./county-team-service.ts";
 
 type Row = Record<string, unknown>;
@@ -136,9 +136,16 @@ export function createCareerClubService(database: CareerDatabase) {
           WOMEN: { A: presentSquad(pickedSquads.WOMEN.A), B: presentSquad(pickedSquads.WOMEN.B) } };
         const selectedSquad = category ? squads[category] : null;
         const selectedTeam = selectedSquad?.A.some(p => p.you) ? "A" : selectedSquad?.B.some(p => p.you) ? "B" : null;
-        const countyFixtureRows = (await tx.execute(sql`SELECT round,week,home_key,away_key,matches FROM career_county_fixtures
+        const countyFixtureRows = (await tx.execute(sql`SELECT round,week,home_key,away_key,status,matches FROM career_county_fixtures
           WHERE career_save_id=${saveId} AND season=${season} ORDER BY week,round`)).rows;
-        const playedResults = countyFixtureRows.flatMap(r => Array.isArray(r.matches) ? r.matches as CountyMatchResult[] : []);
+        const cupFixtures = countyCupFixtures(countryLocalities.map(l => l.key), countyFixtureRows
+          .filter(r => Number(r.round) >= 100)
+          .map(r => ({ round: Number(r.round), week: Number(r.week), home: String(r.home_key), away: String(r.away_key), status: String(r.status),
+            matches: (Array.isArray(r.matches) ? r.matches : []) as { homeSets: number; awaySets: number }[] })))
+          .filter(f => !countyFixtureRows.some(r => Number(r.round) === f.round && String(r.home_key) === f.home));
+        const visibleCountyFixtures = [...countyFixtureRows, ...cupFixtures.map(f => ({ ...f, home_key: f.home, away_key: f.away, matches: [] as CountyMatchResult[] }))];
+        const playedResults = countyFixtureRows.filter(r => Number(r.round) < 100)
+          .flatMap(r => Array.isArray(r.matches) ? r.matches as CountyMatchResult[] : []);
         const tables = countyTables(countryLocalities.map(l => l.key), playedResults);
         const teamStandings = (["MEN", "WOMEN"] as const).flatMap(c => (["A", "B"] as const).map(t => ({
           category: c, team: t, rows: tables.filter(x => x.category === c && x.team === t).map(x => ({ localityKey: x.county,
@@ -147,7 +154,7 @@ export function createCareerClubService(database: CareerDatabase) {
         const county = {
           name: `${locality.region} County`, aTeam: selectedSquad?.[selectedTeam ?? "A"] ?? [], squads, category,
           youSelected: !!selectedTeam, youSelectedLastSeason: previousTeam.some(m => m.key === "HUMAN"),
-          fixtures: countyFixtureRows.filter(r => String(r.home_key) === locality.key || String(r.away_key) === locality.key).map(r => ({
+          fixtures: visibleCountyFixtures.filter(r => String(r.home_key) === locality.key || String(r.away_key) === locality.key).map(r => ({
             week: Number(r.week), round: Number(r.round), opponent: regionName(String(r.home_key) === locality.key ? String(r.away_key) : String(r.home_key)),
             home: String(r.home_key) === locality.key, matches: Array.isArray(r.matches) ? r.matches as CountyMatchResult[] : [],
           })),
