@@ -19,4 +19,5 @@
 - [Challenge tracking consolidation](challenge-tracking-consolidation.md) — challenge-manager.ts deleted; challenge-service.ts is now sole progress tracker, properly day/week scoped, reward payout gated on wasCompletedBefore
 - [Mechanical timeout-leak fix pattern](safe-timeout-pattern.md) — for a huge file with many components sharing one `setTimeout(fn, ms)` idiom, a drop-in `useSafeTimeout()` hook + scripted find/replace beats manual per-callsite rewrites
 - [Career calendar scope](career-calendar-scope.md) — authentic PDC/WDF-style progression alongside a broad, playable grassroots and amateur route; novelty-game events are not Career tour stops
+- [Career event version compatibility](career-event-versioning.md) — preserve historical event-definition rows as stored; enforce hash immutability on the current edition and migrate saves forward
 - [PDC calendar sourcing](pdc-calendar-sourcing.md) — when the PDC fixture API is unavailable, use its sitemap to locate official event notices; treat third-party calendars as leads

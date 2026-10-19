@@ -21,7 +21,7 @@ import { assessCapability, knockout501, setsKnockout501, groupKnockout501, leagu
 import { evaluateRule, R, type ParticipantFacts } from "../../career/calendar/eligibility.ts";
 import { bracketOrder, generateKnockoutDraw, finishingPosition } from "../../career/calendar/draw.ts";
 import { assertTransition, canTransition } from "../../career/calendar/engine.ts";
-import { SEASON_GROUPINGS, WEEKS_PER_SEASON, DEVELOPMENT_CADENCE } from "../../career/calendar/config.ts";
+import { CURRENT_EVENT_DATABASE_VERSION, SEASON_GROUPINGS, WEEKS_PER_SEASON, DEVELOPMENT_CADENCE } from "../../career/calendar/config.ts";
 import { scopedRandom } from "../../career/world/random.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
 import { staticCalendarReport } from "../../career/calendar/harness.ts";
@@ -139,7 +139,7 @@ test("static harness reports a broad, international, non-flat calendar", () => {
 
 test("instance snapshots preserve the definition they were generated from", async () => {
   const save = await careerFor();
-  // A6.5: new saves use event database v2; the snapshot must match the save's own version.
+  // The original A3 regression fixture intentionally stays on v2; its snapshot must match that edition.
   const version = Number((await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`))[0].event_database_version);
   const [definitionRow] = await rows(sql`SELECT * FROM career_event_definitions WHERE event_database_version = ${version} AND definition_key = 'open-championship'`);
   const definition = catalogueFor(version).find(d => d.key === "open-championship")!;
@@ -150,10 +150,14 @@ test("instance snapshots preserve the definition they were generated from", asyn
   assert.deepEqual(snapshot.format, definition.format);
   assert.deepEqual(snapshot.qualificationOutputs, definition.qualificationOutputs);
   assert.equal(snapshot.schedule, undefined, "schedule is resolved into instance columns, not copied");
-  // A later edit of the catalogue row cannot rewrite the instance; a changed shipped definition is refused.
+  // Legacy definitions remain pinned in the DB; a changed current definition is refused.
   await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${"0".repeat(64)} WHERE definition_key = 'open-championship' AND event_database_version = ${version}`);
-  await assert.rejects(db.transaction(tx => syncEventDefinitions(tx)), /changed inside shipped database version/);
+  await assert.doesNotReject(db.transaction(tx => syncEventDefinitions(tx)));
   await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${definitionHash(definition)} WHERE definition_key = 'open-championship' AND event_database_version = ${version}`);
+  const currentDefinition = catalogueFor(CURRENT_EVENT_DATABASE_VERSION).find(d => d.key === "open-championship")!;
+  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${"0".repeat(64)} WHERE definition_key = 'open-championship' AND event_database_version = ${CURRENT_EVENT_DATABASE_VERSION}`);
+  await assert.rejects(db.transaction(tx => syncEventDefinitions(tx)), /changed inside current shipped database version/);
+  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${definitionHash(currentDefinition)} WHERE definition_key = 'open-championship' AND event_database_version = ${CURRENT_EVENT_DATABASE_VERSION}`);
   const [after] = await rows(sql`SELECT snapshot FROM career_event_instances WHERE career_save_id = ${save.id} AND id = ${instance.id}`);
   assert.deepEqual(after.snapshot, instance.snapshot);
 });

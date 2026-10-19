@@ -6,7 +6,7 @@ import { ensureCareerGroupSchema } from "./create_career_groups.ts";
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { catalogueFor } from "../../career/calendar/catalogue.ts";
 import { definitionHash } from "../../career/calendar/generation.ts";
-import { SUPPORTED_EVENT_DATABASE_VERSIONS } from "../../career/calendar/config.ts";
+import { CURRENT_EVENT_DATABASE_VERSION, SUPPORTED_EVENT_DATABASE_VERSIONS } from "../../career/calendar/config.ts";
 
 /**
  * Additive A3 schema. Every save-owned row has career_save_id NOT NULL with an
@@ -394,7 +394,8 @@ export async function syncEventDefinitions(tx: CareerExecutor): Promise<void> {
       .map(row => [String(row.definition_key), String(row.definition_hash)]));
     for (const row of definitions) {
       const hash = existing.get(row.definition_key);
-      if (hash && hash !== row.definition_hash) throw new Error(`Career event definition ${row.definition_key} changed inside shipped database version ${version}; publish a new version`);
+      if (hash && hash !== row.definition_hash && version === CURRENT_EVENT_DATABASE_VERSION)
+        throw new Error(`Career event definition ${row.definition_key} changed inside current shipped database version ${version}; publish a new version`);
     }
     await tx.execute(sql`
       INSERT INTO career_event_definitions (event_database_version, definition_key, definition_hash, circuit, classification, definition)
