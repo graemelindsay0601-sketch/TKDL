@@ -88,6 +88,14 @@ export const useTeamNights = (saveId: string) => useQuery({ queryKey: careerKey(
   queryFn: () => get<TeamNightsView>(`/saves/${saveId}/club/team-nights`), staleTime: STALE });
 /** Your home club: members, captain, county league table and history. */
 export const useHomeClub = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club"), queryFn: () => get<ClubView>(`/saves/${saveId}/club`), staleTime: STALE });
+export const useSetCountyCategory = (saveId: string) => useSaveMutation(saveId, (category: "MEN" | "WOMEN") =>
+  send("PUT", `/saves/${saveId}/club/county-category`, { category }));
+export type CountyLiveSession = import("../../../../api-server/src/career/club/county-live-service").CountySession;
+export const useCountyLiveMatch = (saveId: string, matchId: string) => useQuery({ queryKey: careerKey(saveId, "county-match", matchId),
+  queryFn: () => get<CountyLiveSession>(`/saves/${saveId}/club/county-matches/${matchId}`), staleTime: 0 });
+export const countyLiveApi = {
+  darts: (saveId: string, matchId: string, darts: unknown[]) => send<CountyLiveSession>("POST", `/saves/${saveId}/club/county-matches/${matchId}/darts`, { darts }),
+};
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
 export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });

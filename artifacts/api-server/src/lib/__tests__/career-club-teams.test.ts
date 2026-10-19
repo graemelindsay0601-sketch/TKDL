@@ -21,15 +21,22 @@ import { repairCareerSchema } from "../../db/migrations/repair_career_schema.ts"
 import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerTeamNightsService, playTeamNights } from "../../career/club/team-service.ts";
+import { playCountyFixtures } from "../../career/club/county-team-service.ts";
+import { createCareerCountyLiveService } from "../../career/club/county-live-service.ts";
+import { countyTables } from "../../career/club/county-squads.ts";
+import { createCareerClubService } from "../../career/club/service.ts";
 import { TEAMS, fixturesFor, leagueTable, teamNightDay } from "../../career/club/teams.ts";
 import { lockRoot } from "../../career/world/service.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), teams = createCareerTeamNightsService(db);
+const clubs = createCareerClubService(db);
+const countyLive = createCareerCountyLiveService(db);
 const actor = { playerId: 1 };
 let id = "";
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 const play = (week: number) => db.transaction(async tx => playTeamNights(tx, await lockRoot(tx, actor, id) as never, 1, week));
+const playCounty = (season: number, week: number) => db.transaction(async tx => playCountyFixtures(tx, await lockRoot(tx, actor, id) as never, season, week));
 
 before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1);
@@ -92,4 +99,61 @@ test("real events come first: booked elsewhere that night, you sit it out and a 
   const v = await teams.read(actor, id);
   assert.equal(v.last!.youUnavailable, true);
   assert.equal(v.you.played, 1, "your record only counts the nights you played");
+});
+
+test("county rounds persist a season schedule, play four separate squads once, and build standings from match results", async () => {
+  await playCounty(2, 1);
+  const scheduled = await rows(sql`SELECT * FROM career_county_fixtures WHERE career_save_id=${id} AND season=2 ORDER BY round`);
+  assert.ok(scheduled.length > 0, "full county schedule is saved ahead of play");
+  const first = scheduled.find(r => Number(r.week) === 4)!;
+  assert.ok(first, "first county round is in the calendar");
+  assert.equal(first.status, "SCHEDULED");
+  await playCounty(2, 4);
+  await playCounty(2, 4);
+  const played = (await rows(sql`SELECT * FROM career_county_fixtures WHERE career_save_id=${id} AND season=2 AND week=4`));
+  assert.equal(played.length, scheduled.filter(r => Number(r.week) === 4).length);
+  assert.ok(played.every(r => r.status === "COMPLETED"), "week progression completes each fixture");
+  for (const fixture of played) {
+    const matches = fixture.matches as { category: string; team: string }[];
+    assert.deepEqual(matches.map(m => `${m.category}:${m.team}`).sort(), ["MEN:A", "MEN:B", "WOMEN:A", "WOMEN:B"]);
+  }
+  const all = played.flatMap(r => r.matches as never[]);
+  assert.ok(countyTables(["ayrshire", "highlands", "north-east", "midlands", "south-wales"], all as never).length > 0);
+});
+
+test("county squad category is save-scoped and the season schedule is visible before round one", async () => {
+  const before = await clubs.read(actor, id);
+  assert.equal(before.county?.category, null);
+  assert.ok((before.county?.fixtures.length ?? 0) > 0, "future fixtures appear when the player opens the club page");
+  await clubs.setCountyCategory(actor, id, { category: "WOMEN" });
+  assert.equal((await clubs.read(actor, id)).county?.category, "WOMEN");
+  await playCounty(1, 4);
+  await assert.rejects(() => clubs.setCountyCategory(actor, id, { category: "MEN" }), /cannot be changed after your county season has started/);
+});
+
+test("county singles use the live scorer log, update the fixture once, and then release Career advance", async () => {
+  const matchId = "00000000-0000-4000-8000-000000000001";
+  const match = { category: "MEN", team: "A", home: "ayrshire", away: "highlands", homeSets: 0, awaySets: 0,
+    homeLegs: 0, awayLegs: 0, homeAverage: 0, awayAverage: 0, youPlayed: true,
+    humanMatch: { id: matchId, category: "MEN", team: "A", homeSide: true, opponentKey: "npc", opponentName: "County Opponent",
+      bot: { avg: 60, sd: 12, checkoutPct: 0.4, hitAcc: 0.6 }, seed: "county-bot-seed", bestOf: 1, darts: [], status: "LIVE" } };
+  await db.execute(sql`INSERT INTO career_county_fixtures (career_save_id,season,round,week,home_key,away_key,status,matches)
+    VALUES (${id},9,99,999,'ayrshire','highlands','IN_PROGRESS',${JSON.stringify([match])}::jsonb)`);
+  const session = await countyLive.read(actor, id, matchId);
+  assert.equal(session.status, "LIVE");
+  assert.equal(session.format.unit, "LEGS");
+  assert.equal(session.opponent.name, "County Opponent");
+  const t20 = { segment: 20, multiplier: 3, value: 60 }, t19 = { segment: 19, multiplier: 3, value: 57 };
+  const miss = { segment: 0, multiplier: 1, value: 0 }, d12 = { segment: 12, multiplier: 2, value: 24 };
+  const darts = [t20,t20,t20, miss,miss,miss, t20,t20,t20, miss,miss,miss, t20,t19,d12];
+  const done = await countyLive.darts(actor, id, matchId, { darts });
+  assert.equal(done.status, "PLAYED"); assert.equal(done.won, true);
+  const row = (await rows(sql`SELECT status,matches FROM career_county_fixtures WHERE career_save_id=${id} AND season=9 AND round=99`))[0];
+  const finalMatches = row.matches as { homeSets: number; humanMatch: { status: string } }[];
+  assert.equal(row.status, "COMPLETED");
+  assert.equal(finalMatches[0].homeSets, 1);
+  assert.equal(finalMatches[0].humanMatch.status, "PLAYED");
+  await countyLive.darts(actor, id, matchId, { darts });
+  const again = (await rows(sql`SELECT matches FROM career_county_fixtures WHERE career_save_id=${id} AND season=9 AND round=99`))[0];
+  assert.equal((again.matches as { homeSets: number }[])[0].homeSets, 1, "retrying the completed scorer log cannot add a second set");
 });

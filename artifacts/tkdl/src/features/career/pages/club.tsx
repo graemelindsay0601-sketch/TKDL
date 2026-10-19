@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Crown, Flag, Shield, Trophy, Users } from "lucide-react";
-import { useHomeClub, type ClubView } from "../api";
+import { errorMessage, useHomeClub, useSetCountyCategory, type ClubView } from "../api";
 import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../components";
 import { CareerPageHero } from "../page-hero";
 import type { ShellContext } from "../shell";
@@ -12,6 +12,7 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 /** Your home club: its members, captain, county league division and the club's league history. */
 export function ClubPage({ ctx }: { ctx: ShellContext }) {
   const club = useHomeClub(ctx.save.id), base = `/career/${ctx.save.id}`;
+  const setCountyCategory = useSetCountyCategory(ctx.save.id);
   if (club.isLoading) return <CareerLoading />;
   if (club.error || !club.data) return <CareerError error={club.error} onRetry={() => club.refetch()} />;
   const d: ClubView = club.data;
@@ -39,13 +40,54 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
         <span>{m.you ? <strong>You</strong> : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}{m.professional && <small className="career-club__pro"> · Pro</small>}</span>
         <em>{m.seasonPoints}</em>{ctx.save.currentSeason > 1 || m.titles > 0 ? <small>{ctx.save.currentSeason > 1 ? `Last season ${m.lastSeasonPoints} pts · ` : ""}{m.titles} title{m.titles === 1 ? "" : "s"}</small> : null}</li>)}</ol>
     </CareerSection>
-    {d.county && <CareerSection title={`${d.county.name} A team`} icon={<Shield aria-hidden />} accent="#69b8ec">
-      <p className="px-4 pt-3 text-sm">{d.county.youSelected ? "You are in the A team this season." : d.county.youSelectedLastSeason ? "You lost your A-team place this season." : "The A team is last season's six best scorers in the county."}
-        {d.county.lastSeasonChampion && <> Inter-County champions last season: <strong>{d.county.lastSeasonChampion.name}</strong>{d.county.lastSeasonChampion.you ? " (your county)" : ""}.</>}</p>
-      {d.county.aTeam.length ? <ol className="career-club__table">{d.county.aTeam.map((m, i) => <li key={m.key} className={m.you ? "is-you" : undefined}>
-        <b>{i + 1}</b><span>{m.you ? <strong>You</strong> : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}</span><em>{m.points}</em></li>)}</ol>
-        : <p className="p-4 text-sm text-white/70">The first A team is picked once a season of local results is in.</p>}
-      <h3 className="px-4 pt-2 text-sm font-bold">Inter-County Championship · Season {d.season}</h3>
+    {d.county && <CareerSection title={`${d.county.name} representative squads`} icon={<Shield aria-hidden />} accent="#69b8ec">
+      <div className="px-4 pt-3 space-y-2">
+        <p className="text-sm">Choose the county squad category you’re eligible for. UKDA-style format: 12 singles in each men’s team and 6 in each women’s team; A matches are best of 7 legs, women’s and lower-division men’s B matches best of 5. Your single is Career-simulated when selected and free; county fixtures resolve on their scheduled week.</p>
+        <div className="flex gap-2">
+          {(["MEN", "WOMEN"] as const).map(category => <button key={category} type="button"
+            className={`career-btn ${d.county!.category === category ? "career-btn-gold" : "career-btn-ghost"}`}
+            aria-pressed={d.county!.category === category} disabled={setCountyCategory.isPending}
+            onClick={() => setCountyCategory.mutate(category)}>
+            {category === "MEN" ? "Men’s squads" : "Women’s squads"}
+          </button>)}
+        </div>
+        {setCountyCategory.error && <p className="text-xs text-rose-300" role="alert">{errorMessage(setCountyCategory.error)}</p>}
+        {!d.county.category && <p className="text-xs text-white/60">Select a category to be considered for county team fixtures.</p>}
+      </div>
+      <p className="px-4 pt-3 text-sm">{d.county.youSelected ? `You are currently selected in the ${d.county.category === "WOMEN" ? "women’s" : "men’s"} ${d.county.aTeam.some(m => m.you) ? "A" : "B"} squad.` : "Squads are selected from last season’s results; you are not currently selected."}</p>
+      <div className="grid gap-3 px-4 py-3 sm:grid-cols-2">
+        {(["MEN", "WOMEN"] as const).flatMap(category => (["A", "B"] as const).map(team => {
+          const roster = d.county!.squads[category][team];
+          const size = category === "MEN" ? 12 : 6;
+          return <section key={`${category}-${team}`} className="rounded-lg border border-white/10 p-3">
+            <h3 className="mb-2 text-sm font-bold">{category === "MEN" ? "Men’s" : "Women’s"} {team} · {roster.length}/{size}</h3>
+            {roster.length ? <ol className="space-y-1 text-sm">{roster.map((m, i) => <li key={m.key} className={m.you ? "font-bold text-amber-200" : ""}>
+              {i + 1}. {m.you ? "You" : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>} <span className="text-white/55">· {m.points} pts</span>
+            </li>)}</ol> : <p className="text-xs text-white/55">No eligible players with county results yet.</p>}
+          </section>;
+        }))}
+      </div>
+      <h3 className="px-4 pt-2 text-sm font-bold">UKDA-style county team standings · Season {d.season}</h3>
+      <p className="px-4 text-xs text-white/60">Separate tables for men’s and women’s A/B teams. Points are sets won in played county fixtures.</p>
+      <div className="grid gap-3 px-4 py-3 sm:grid-cols-2">
+        {d.county.teamStandings.map(table => <section key={`${table.category}-${table.team}`} className="rounded-lg border border-white/10 p-3">
+          <h4 className="mb-2 text-sm font-bold">{table.category === "MEN" ? "Men’s" : "Women’s"} {table.team}</h4>
+          <ol className="career-club__table">{table.rows.slice(0, 10).map(r => <li key={r.localityKey} className={r.localityKey === d.club!.localityKey ? "is-you" : undefined}>
+            <b>{r.position}</b><span>{r.name}<small> · {r.played} played · {r.won}W {r.drawn}D {r.lost}L</small></span><em>{r.points}</em>
+          </li>)}</ol>
+        </section>)}
+      </div>
+      <h3 className="px-4 pt-2 text-sm font-bold">County fixtures</h3>
+      {d.county.fixtures.length ? <ul className="career-club__history">{d.county.fixtures.map(f => <li key={`${f.round}-${f.week}`}>
+        <span>Round {f.round} · Week {f.week}</span><span>{f.home ? "vs" : "at"} {f.opponent}</span>
+        <em>{f.matches.length ? <>{f.matches.map(m => `${m.category[0]}${m.team} ${f.home ? m.homeSets : m.awaySets}-${f.home ? m.awaySets : m.homeSets}`).join(" · ")}
+          {f.matches.some(m => m.youPlayed) && <small> · You {f.matches.find(m => m.youPlayed)?.humanMatch?.status === "LIVE"
+            ? "have a single to play" : f.matches.find(m => m.youPlayed)?.youWon ? "won your single" : "lost your single"}</small>}</> : "Scheduled"}</em>
+        {f.matches.map(m => m.humanMatch?.status === "LIVE" ? <Link key={m.humanMatch.id} className="career-btn career-btn-gold"
+          href={`/career/${ctx.save.id}/county-match/${m.humanMatch.id}`}>Throw your single</Link> : null)}
+      </li>)}</ul> : <p className="p-4 text-sm text-white/70">Fixtures are played as the Career calendar reaches each county round.</p>}
+      <h3 className="px-4 pt-2 text-sm font-bold">Individual county points · Season {d.season}</h3>
+      <p className="px-4 text-xs text-white/60">These individual event finishes select the squads; they do not count as team match results.</p>
       <ol className="career-club__table">{d.county.standings.slice(0, 10).map(c => <li key={c.localityKey} className={c.you ? "is-you" : undefined}>
         <b>{c.position}</b><span>{c.name}</span><em>{c.points}</em></li>)}</ol>
     </CareerSection>}

@@ -27,6 +27,7 @@ import {StreamingPage} from "./pages/streaming";
 import {StreamLivePage} from "./pages/stream-live";
 import {CamLeaguePage,CamMatchPage} from "./pages/cam-league";
 import {ProAmLegPage} from "./pro-am";
+import {CountyMatchPage} from "./county-match";
 import {NightsPage,MoneyMatchesPage,RoadTripsPage,ProAmPage} from "./pages/nights";
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
@@ -101,6 +102,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/road-trips"><RoadTripsPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/pro-am"><ProAmPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/club"><ClubPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/county-match/:matchId">{(p:{matchId:string})=><CountyMatchPage key={p.matchId} ctx={ctx} matchId={p.matchId}/>}</Route>
           <Route path="/career/:saveId/streaming/:streamId">{(p:{streamId:string})=><StreamLivePage key={p.streamId} ctx={ctx} streamId={p.streamId}/>}</Route>
           <Route path="/career/:saveId/streaming"><StreamingPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/cam-league/:fixtureId">{(p:{fixtureId:string})=><CamMatchPage key={p.fixtureId} ctx={ctx} fixtureId={p.fixtureId}/>}</Route>

@@ -1,9 +1,13 @@
 import { sql } from "drizzle-orm";
+import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { lockRoot, type CareerActor } from "../world/service.ts";
+import { CareerError } from "../service.ts";
 import { COUNTRIES, LOCALITIES, localityByRegion } from "../calendar/geography.ts";
 import { dartsNation, selectionRank } from "../calendar/pairs.ts";
 import { CLUB, NATION_NAMES, clubName, countyTeam, interCounty, leagueSeason, memberPoints, type ClubResult, type ClubSeason } from "./model.ts";
+import { countyFixtures, countyTables, selectCountySquads, type CountyMatchResult } from "./county-squads.ts";
+import { countyWeeksFor } from "./county-team-service.ts";
 
 type Row = Record<string, unknown>;
 const seasonFrom = (r: Row): ClubSeason => ({ season: Number(r.season), country: String(r.country), localityKey: String(r.locality_key), division: Number(r.division),
@@ -18,8 +22,12 @@ export type ClubView = {
   table: { division: number; rows: { localityKey: string; name: string; points: number; position: number; you: boolean }[] } | null;
   history: { season: number; division: number; position: number; points: number; champions: boolean; promoted: boolean; relegated: boolean }[];
   legend: boolean;
-  /** Your county's A team (last season's six best scorers) and the Inter-County standings. */
-  county: { name: string; aTeam: { key: string; name: string; you: boolean; points: number }[]; youSelected: boolean; youSelectedLastSeason: boolean;
+  /** County selection is category-specific; displayed squads use last-season results. */
+  county: { name: string; category: "MEN" | "WOMEN" | null; aTeam: { key: string; name: string; you: boolean; points: number }[];
+    squads: Record<"MEN" | "WOMEN", Record<"A" | "B", { key: string; name: string; you: boolean; points: number }[]>>;
+    fixtures: { week: number; round: number; opponent: string; home: boolean; matches: CountyMatchResult[] }[];
+    teamStandings: { category: "MEN" | "WOMEN"; team: "A" | "B"; rows: { localityKey: string; name: string; position: number; played: number; points: number; won: number; drawn: number; lost: number }[] }[];
+    youSelected: boolean; youSelectedLastSeason: boolean;
     standings: { localityKey: string; name: string; points: number; position: number; you: boolean }[];
     lastSeasonChampion: { name: string; you: boolean } | null } | null;
   /** Your darts nation: who would be picked for the World Cup on today's rankings, and who has represented it. */
@@ -30,6 +38,20 @@ export type ClubView = {
 /** Your home club, its county league (finished seasons stored once; the current season live) and its members. */
 export function createCareerClubService(database: CareerDatabase) {
   return {
+    async setCountyCategory(actor: CareerActor, saveId: string, body: unknown) {
+      const { category } = z.object({ category: z.enum(["MEN", "WOMEN"]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Row & { id: string; current_season: number };
+        const existing = (await tx.execute(sql`SELECT category FROM career_county_eligibility WHERE career_save_id=${root.id}`)).rows[0];
+        if (existing && existing.category !== category && (await tx.execute(sql`SELECT 1 FROM career_county_fixtures
+          WHERE career_save_id=${root.id} AND season=${Number(root.current_season)} AND status='COMPLETED' LIMIT 1`)).rows.length) {
+          throw new CareerError(409, "County category cannot be changed after your county season has started");
+        }
+        await tx.execute(sql`INSERT INTO career_county_eligibility(career_save_id,category) VALUES (${root.id},${category})
+          ON CONFLICT(career_save_id) DO UPDATE SET category=EXCLUDED.category,updated_at=NOW()`);
+        return { category };
+      });
+    },
     async read(actor: CareerActor, saveId: string): Promise<ClubView> {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId, false) as unknown as Row & { id: string; current_season: number };
@@ -42,7 +64,7 @@ export function createCareerClubService(database: CareerDatabase) {
         // Leagues and county darts run within each darts nation (Scotland, England, Wales and Northern Ireland separately).
         const code = dartsNation(country, locality.key);
         const leagueLocalities = LOCALITIES.filter(l => l.country === country && dartsNation(l.country, l.key) === code).map(l => ({ ...l, country: code }));
-        const players = (await tx.execute(sql`SELECT id,first_name,surname,home_region,status,professional_status FROM career_world_players
+        const players = (await tx.execute(sql`SELECT id,first_name,surname,home_region,world_key,status,professional_status FROM career_world_players
           WHERE career_save_id=${saveId} AND nationality=${country}`)).rows;
         const localityOf = new Map<string, string | null>(players.map(p => [String(p.id), localityByRegion(String(p.home_region))?.key ?? null]));
         localityOf.set("HUMAN", locality.key);
@@ -90,16 +112,48 @@ export function createCareerClubService(database: CareerDatabase) {
             promoted: !!after && after.division < row.division, relegated: !!after && after.division > row.division }];
         });
         const pro = (await tx.execute(sql`SELECT has_tour_card FROM career_saves WHERE id=${saveId}`)).rows[0]?.has_tour_card === true;
-        // County: last season's six best scorers form the A team; Inter-County adds each area's six best this season.
+        // County squad selection is based on last season's results and stored player category.
         const countryLocalities = leagueLocalities;
+        const scheduleExists = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_county_fixtures WHERE career_save_id=${saveId} AND season=${season}`)).rows[0]?.n ?? 0) > 0;
+        if (!scheduleExists) for (const fixture of countyFixtures(countryLocalities.map(l => l.key), countyWeeksFor(countryLocalities.length - 1))) {
+          await tx.execute(sql`INSERT INTO career_county_fixtures(career_save_id,season,round,week,home_key,away_key,status,matches)
+            VALUES (${saveId},${season},${fixture.round},${fixture.week},${fixture.home},${fixture.away},'SCHEDULED','[]'::jsonb)
+            ON CONFLICT DO NOTHING`);
+        }
         const aTeam = countyTeam(results, season, locality.key), previousTeam = countyTeam(results, season - 1, locality.key);
-        const standings = interCounty(results, season, countryLocalities.map(l => l.key)), lastStandings = season > 1 ? interCounty(results, season - 1, countryLocalities.map(l => l.key)) : [];
+        const standings = interCounty(results, season, countryLocalities.map(l => l.key));
         const regionName = (key: string) => countryLocalities.find(l => l.key === key)!.region;
+        const categoryRow = (await tx.execute(sql`SELECT category FROM career_county_eligibility WHERE career_save_id=${saveId}`)).rows[0];
+        const category = categoryRow?.category === "WOMEN" ? "WOMEN" as const : categoryRow?.category === "MEN" ? "MEN" as const : null;
+        const eligibleForSquad = ["HUMAN", ...players.filter(p => localityOf.get(String(p.id)) === locality.key).map(p => String(p.id))]
+          .map(key => {
+            const player = players.find(p => String(p.id) === key);
+            return { key, points: (last.get(key)?.points ?? 0), women: key === "HUMAN" ? category === "WOMEN" : String(player?.world_key ?? "").startsWith("women:") };
+          });
+        const pickedSquads = selectCountySquads(eligibleForSquad);
+        const presentSquad = (entries: typeof pickedSquads.MEN.A) => entries.map(m => ({ ...m, name: nameOf(m.key), you: m.key === "HUMAN" }));
+        const squads = { MEN: { A: presentSquad(pickedSquads.MEN.A), B: presentSquad(pickedSquads.MEN.B) },
+          WOMEN: { A: presentSquad(pickedSquads.WOMEN.A), B: presentSquad(pickedSquads.WOMEN.B) } };
+        const selectedSquad = category ? squads[category] : null;
+        const selectedTeam = selectedSquad?.A.some(p => p.you) ? "A" : selectedSquad?.B.some(p => p.you) ? "B" : null;
+        const countyFixtureRows = (await tx.execute(sql`SELECT round,week,home_key,away_key,matches FROM career_county_fixtures
+          WHERE career_save_id=${saveId} AND season=${season} ORDER BY week,round`)).rows;
+        const playedResults = countyFixtureRows.flatMap(r => Array.isArray(r.matches) ? r.matches as CountyMatchResult[] : []);
+        const tables = countyTables(countryLocalities.map(l => l.key), playedResults);
+        const teamStandings = (["MEN", "WOMEN"] as const).flatMap(c => (["A", "B"] as const).map(t => ({
+          category: c, team: t, rows: tables.filter(x => x.category === c && x.team === t).map(x => ({ localityKey: x.county,
+            name: regionName(x.county), position: x.position, played: x.played, points: x.points, won: x.won, drawn: x.drawn, lost: x.lost })),
+        })));
         const county = {
-          name: `${locality.region} County`, aTeam: aTeam.map(m => ({ key: m.key, name: nameOf(m.key), you: m.key === "HUMAN", points: m.points })),
-          youSelected: aTeam.some(m => m.key === "HUMAN"), youSelectedLastSeason: previousTeam.some(m => m.key === "HUMAN"),
+          name: `${locality.region} County`, aTeam: selectedSquad?.[selectedTeam ?? "A"] ?? [], squads, category,
+          youSelected: !!selectedTeam, youSelectedLastSeason: previousTeam.some(m => m.key === "HUMAN"),
+          fixtures: countyFixtureRows.filter(r => String(r.home_key) === locality.key || String(r.away_key) === locality.key).map(r => ({
+            week: Number(r.week), round: Number(r.round), opponent: regionName(String(r.home_key) === locality.key ? String(r.away_key) : String(r.home_key)),
+            home: String(r.home_key) === locality.key, matches: Array.isArray(r.matches) ? r.matches as CountyMatchResult[] : [],
+          })),
+          teamStandings,
           standings: standings.map(c => ({ localityKey: c.locality, name: regionName(c.locality), points: c.points, position: c.position, you: c.locality === locality.key })),
-          lastSeasonChampion: lastStandings[0] && lastStandings[0].points > 0 ? { name: regionName(lastStandings[0].locality), you: lastStandings[0].locality === locality.key } : null,
+          lastSeasonChampion: null,
         };
         // Nation: the World Cup's own selection order on the latest published rankings (no hidden ratings).
         const ranks = (await tx.execute(sql`SELECT DISTINCT ON (s.list_key,r.participant_key) s.list_key,r.participant_key,r.position

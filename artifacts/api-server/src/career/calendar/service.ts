@@ -20,6 +20,7 @@ import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
 import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
 import { settleLifeCommitments } from "../life/commitments.ts";
 import { playTeamNights } from "../club/team-service.ts";
+import { playCountyFixtures } from "../club/county-team-service.ts";
 import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-engine.ts";
 import { loadPairs } from "./pairs.ts";
 import { teamComposite } from "../world/team.ts";
@@ -494,6 +495,10 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const played = await database.transaction(async tx => {
       const { root, world: state, season } = await requireSeason(tx, actor, saveId);
       if(await providers.history?.pending(tx,root))throw new CareerError(409,"Read the completed Season Review and begin the new season before advancing");
+      if ((await tx.execute(sql`SELECT 1 FROM career_county_fixtures f
+        WHERE f.career_save_id=${saveId} AND f.status='IN_PROGRESS'
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements(f.matches) AS elem(value) WHERE elem.value->'humanMatch'->>'status'='LIVE')
+        LIMIT 1`)).rows.length) throw new CareerError(409, "Finish your county singles on the scorer before advancing the Career");
       const s = Number(root.current_season), w = Number(root.current_week);
       if (Number(season.played_week) >= w) return { season: s, week: w, summary: null as unknown, blocked: false };
       const summary = await playWeek(tx, root, state, s, w, await bind(tx, root));
@@ -504,6 +509,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await settleLifeCommitments(tx,root,s,w);
       // Club team nights (Wednesday): played after the week's events, so anyone booked into one sits the team night out.
       await playTeamNights(tx, root, s, w);
+      await playCountyFixtures(tx, root, s, w);
       // DartCast: monthly sub renewals and brand offers.
       await settleStreamingWeek(tx, root, s, w);
       // Webcam leagues: the round plays out (an unplayed match of yours is forfeited); prizes at the end.

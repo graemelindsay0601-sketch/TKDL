@@ -6,6 +6,7 @@ import { ensureDevelopmentCardSource, ensureRankingArchive, ensureTourCardOffers
 import { createCareerContent } from "./create_career_content.ts";
 import { ensureMoneyMatches } from "./create_career_money.ts";
 import { ensureClubTeams } from "./create_career_club_teams.ts";
+import { ensureCareerCountyTeams } from "./create_career_county_teams.ts";
 import { ensureHostingLedger } from "./create_career_hosting.ts";
 import { ensureStreaming } from "./create_career_streaming.ts";
 import { ensureRoadTrips } from "./create_career_road_trips.ts";
@@ -46,6 +47,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureSavingsGoals(tx);
     await ensureMoneyMatches(tx);
     await ensureClubTeams(tx);
+    await ensureCareerCountyTeams(tx);
     await ensureHostingLedger(tx);
     await ensureStreaming(tx);
     await ensureRoadTrips(tx);
