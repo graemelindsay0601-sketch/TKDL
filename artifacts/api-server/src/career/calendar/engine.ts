@@ -900,14 +900,17 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
     });
     const results = await simulateMatchesInTransaction(tx, root, world, requests, { record: false });
     simulated += results.length;
-    const done = npcReady.map(({ match: m }, i) => {
+    const done = npcReady.map(({ event, match: m }, i) => {
       const r = results[i];
       // legs_a/legs_b are always total legs; set play also records the set score in the summary.
       return { id: m.id, winner_key: r.winnerId, legs_a: r.stats[0].legsWon, legs_b: r.stats[1].legsWon, first_throw: m.first_throw,
         first_throw_detail: m.first_throw_detail, simulated_match_key: requests[i].matchKey,
         summary: { averages: [round2(r.stats[0].average), round2(r.stats[1].average)], checkoutPercentages: [round2(r.stats[0].checkoutPercentage), round2(r.stats[1].checkoutPercentage)],
-          anzCountback: { legsWonAgainstThrow: anzLegsWonAgainstThrow(r.legs), points: r.stats.map(s => s.points), darts: r.stats.map(s => s.darts),
-            averages: r.stats.map(s => anzTournamentAverage(s.points, s.darts)), legLog: r.legs.map(l => ({ winner: l.winner, firstThrow: l.firstThrow, darts: l.darts, points: l.points, checkout: l.checkout, ...(l.set !== undefined ? { set: l.set } : {}) })) },
+          ...(event.definition_key.startsWith("anz-premier-night-") ? { anzCountback: {
+            legsWonAgainstThrow: anzLegsWonAgainstThrow(r.legs), points: r.stats.map(s => s.points), darts: r.stats.map(s => s.darts),
+            averages: r.stats.map(s => anzTournamentAverage(s.points, s.darts)),
+            legLog: r.legs.map(l => ({ winner: l.winner, firstThrow: l.firstThrow, darts: l.darts, points: l.points, checkout: l.checkout, ...(l.set !== undefined ? { set: l.set } : {}) })),
+          } } : {}),
           maximums: [r.stats[0].maximums, r.stats[1].maximums], highestCheckouts: [r.stats[0].highestCheckout, r.stats[1].highestCheckout], simulationVersion: r.simulationVersion,
           ...(r.stats[0].setsWon !== undefined ? { sets: [r.stats[0].setsWon, r.stats[1].setsWon] } : {}), ...nineDartersOf(r.legs, npcReady[i].event) } };
     });

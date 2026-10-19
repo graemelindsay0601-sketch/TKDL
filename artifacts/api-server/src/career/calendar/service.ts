@@ -412,8 +412,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       ? (humanSide === 0 ? [liveFacts.human.points, liveFacts.opponent.points] : [liveFacts.opponent.points, liveFacts.human.points]) : null;
     const liveDarts = liveFacts?.human?.darts !== undefined && liveFacts?.opponent?.darts !== undefined
       ? (humanSide === 0 ? [liveFacts.human.darts, liveFacts.opponent.darts] : [liveFacts.opponent.darts, liveFacts.human.darts]) : null;
-    const suppliedCountback = simulated?.summary.anzCountback as Record<string, unknown> | undefined;
-    const anzCountback = suppliedCountback ?? (liveLegFacts && livePoints && liveDarts ? {
+    const suppliedCountback = event.definition_key.startsWith("anz-premier-night-")
+      ? simulated?.summary.anzCountback as Record<string, unknown> | undefined : undefined;
+    const anzCountback = !event.definition_key.startsWith("anz-premier-night-") ? undefined : suppliedCountback ?? (liveLegFacts && livePoints && liveDarts ? {
       legsWonAgainstThrow: anzLegsWonAgainstThrow(liveLegFacts), points: livePoints, darts: liveDarts,
       averages: livePoints.map((points, side) => anzTournamentAverage(points, liveDarts[side])),
       legLog: liveLegFacts.map(l => ({ winner: l.winner, firstThrow: l.firstThrow })),
@@ -669,9 +670,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const recorded = await recordHumanResultTx(tx, actor, saveId, { matchId: m.id, humanLegs: mine.legsWon, opponentLegs: theirs.legsWon,
           humanThrewFirst: bull.firstThrow === humanSide, ...(mine.setsWon !== undefined ? { humanSets: mine.setsWon, opponentSets: theirs.setsWon } : {}) }, {
           summary: { quickSim: { skillAverage: form.skillAverage, form: form.form, confidence: form.confidence }, averages,
-            anzCountback: { legsWonAgainstThrow: anzLegsWonAgainstThrow(result.legs), points: result.stats.map(s => s.points), darts: result.stats.map(s => s.darts),
+            ...(event.definition_key.startsWith("anz-premier-night-") ? { anzCountback: { legsWonAgainstThrow: anzLegsWonAgainstThrow(result.legs), points: result.stats.map(s => s.points), darts: result.stats.map(s => s.darts),
               averages: result.stats.map(s => anzTournamentAverage(s.points, s.darts)),
-              legLog: result.legs.map(l => ({ winner: l.winner, firstThrow: l.firstThrow, darts: l.darts, points: l.points, checkout: l.checkout, ...(l.set !== undefined ? { set: l.set } : {}) })) },
+              legLog: result.legs.map(l => ({ winner: l.winner, firstThrow: l.firstThrow, darts: l.darts, points: l.points, checkout: l.checkout, ...(l.set !== undefined ? { set: l.set } : {}) })) } } : {}),
             checkoutPercentages: [result.stats[0].checkoutPercentage, result.stats[1].checkoutPercentage].map(n => Math.round(n * 100) / 100),
             maximums: [result.stats[0].maximums, result.stats[1].maximums], highestCheckouts: [result.stats[0].highestCheckout, result.stats[1].highestCheckout],
             simulationVersion: result.simulationVersion,
