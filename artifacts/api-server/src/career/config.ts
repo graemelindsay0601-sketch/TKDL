@@ -1,9 +1,11 @@
+import { CURRENT_EVENT_DATABASE_VERSION } from "./calendar/config.ts";
+
 /** Persist these independently: application releases are not save versions. */
 export const CAREER_VERSIONS = Object.freeze({
   careerSchemaVersion: 1,
   worldGenerationVersion: 1,
-  /** v7 regional ladders & tours edition for new saves only; existing roots keep their pins. */
-  eventDatabaseVersion: 25,
+  /** New saves use the current catalogue; existing roots migrate forward without rewriting played history. */
+  eventDatabaseVersion: CURRENT_EVENT_DATABASE_VERSION,
   playerDatabaseVersion: 7,
 });
 

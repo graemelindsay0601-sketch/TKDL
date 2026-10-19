@@ -44,12 +44,12 @@ function renderAtlas(detailId?: string, events: unknown[] = []) {
 
 test("Career Venue Atlas covers all authored venues and generated locality identities", () => {
   const html = renderAtlas();
-  assert.match(html, /71 world venues · 70 locality identities/);
+  assert.match(html, /75 world venues · 70 locality identities/);
   assert.match(html, /Find your stage/);
   assert.match(html, /career-palace-arena\.webp/);
   assert.ok(statSync(path.join(PUBLIC_VENUES, "career-palace-arena.webp")).size < 150_000, "Palace plate stays a light WebP (was a 1.2 MB PNG)");
   assert.match(html, /career-venue-.*\.jpg/);
-  assert.equal(data.venues.length, 71);
+  assert.equal(data.venues.length, 75);
   assert.equal(localities.reduce((total, locality) => total + locality.venues.length, 0), 70);
 });
 

@@ -18,6 +18,7 @@ import { venueByKey } from "./geography.ts";
 import { canonicalJson } from "./generation.ts";
 import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
 import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
+import { STREAM } from "../streaming/model.ts";
 import { settleLifeCommitments } from "../life/commitments.ts";
 import { playTeamNights } from "../club/team-service.ts";
 import { playCountyFixtures } from "../club/county-team-service.ts";
@@ -518,6 +519,13 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       if (liveStream) return { season: s, week: w, summary: null as unknown, blocked: true,
         blocker: { kind: "STREAM" as const, day: Number(liveStream.day) } };
       const hasCommitments = (await tx.execute(sql`SELECT to_regclass('career_life_commitments') IS NOT NULL AS ok`)).rows[0]?.ok;
+      if (hasStreams && hasCommitments) {
+        const used = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_streams
+          WHERE career_save_id=${saveId} AND season=${s} AND week=${w} AND format<>'MATCH' AND status='ENDED'`)).rows[0]?.n ?? 0);
+        if (used >= STREAM.perWeek) await tx.execute(sql`DELETE FROM career_life_commitments
+          WHERE career_save_id=${saveId} AND season=${s} AND family='DARTCAST' AND status='ACCEPTED'
+            AND day BETWEEN ${(w - 1) * 7 + 1} AND ${w * 7}`);
+      }
       const plannedStream = hasCommitments ? (await tx.execute(sql`SELECT l.day FROM career_life_commitments l
         WHERE l.career_save_id=${saveId} AND l.season=${s} AND l.family='DARTCAST' AND l.status='ACCEPTED'
           AND l.day BETWEEN ${(w - 1) * 7 + 1} AND ${w * 7}

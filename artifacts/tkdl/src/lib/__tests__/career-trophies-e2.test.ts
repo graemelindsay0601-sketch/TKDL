@@ -105,7 +105,7 @@ test("vector generation is deterministic (regenerated files are byte-identical)"
 // ---------------------------------------------------------------- policy
 const rows = auditRows();
 test("every event definition in every catalogue version has an explicit award mapping", () => {
-  assert.equal(rows.length, 183);
+  assert.equal(rows.length, 206);
   const missing = rows.filter(r => resolveAward({ definitionKey: r.key }).source !== "EXPLICIT").map(r => r.key);
   assert.deepEqual(missing, []);
   assert.deepEqual(Object.keys(EVENT_AWARDS).filter(k => !rows.some(r => r.key === k)), [], "no stale policy rows");
@@ -140,7 +140,7 @@ test("World Championship is the Sovereign Trophy; Double Crown is paired arches;
 
 test("Q-School and qualifiers can never display a championship trophy, explicitly or by rule", () => {
   for (const r of rows.filter(r => r.circuit === "Q_SCHOOL" || r.classification === "QUALIFIER")) {
-    const a = resolveAward({ definitionKey: r.key });
+    const a = resolveAward({ definitionKey: r.key, circuit: r.circuit, classification: r.classification, tier: r.tier });
     assert.equal(a.award, "RESULT_ONLY", r.key); assert.ok(["Q_SCHOOL_SESSION", "QUALIFIER"].includes(a.kind), r.key);
   }
   assert.equal(resolveAward({ definitionKey: "future-q-school-day", circuit: "Q_SCHOOL", tier: "MAJOR" }).award, "RESULT_ONLY");
@@ -193,7 +193,7 @@ test("removed novelty formats remain legacy-only; current regional leagues and s
   for (const k of ["world-darts-championship", "double-crown", "open-championship", "european-championship", "women-world-championship", "youth-world-championship", "amateur-masters", "county-championship", "pro-circuit-championship"])
     assert.equal(reachability(k).status, "SCHEDULED", k);
   const physical = rows.filter(r => resolveAward({ definitionKey: r.key }).award === "PHYSICAL_TROPHY");
-  assert.deepEqual(physical.map(r => reachability(r.key).status).reduce((m, s) => ({ ...m, [s]: (m[s] ?? 0) + 1 }), {} as Record<string, number>), { SCHEDULED: 83, LEGACY: 8 });
+  assert.deepEqual(physical.map(r => reachability(r.key).status).reduce((m, s) => ({ ...m, [s]: (m[s] ?? 0) + 1 }), {} as Record<string, number>), { SCHEDULED: 84, LEGACY: 8 });
   // Unsupported formats survive only as historical catalogue snapshots, never as future fixtures.
   const engine = readFileSync(path.join(ROOT, "../api-server/src/career/calendar/engine.ts"), "utf8");
   assert.match(engine, /CASE WHEN r\.executable THEN 'SCHEDULED' ELSE 'CANCELLED' END/);
@@ -223,7 +223,7 @@ test("presentation boundary: policy is frozen, pure and unknown to sporting, fin
 test("the committed audit report is current and lists every definition", () => {
   const report = readFileSync(path.join(ROOT, "../../docs/career/e2-trophy-award-report.md"), "utf8");
   for (const r of rows) assert.ok(report.includes(`| \`${r.key}\` |`), r.key);
-  assert.match(report, /distinct event definitions: \*\*183\*\*/);
+  assert.match(report, /distinct event definitions: \*\*206\*\*/);
   assert.match(report, /## Reachability through normal Career scheduling/); assert.match(report, /Designs a new Career can actually award: \*\*26\*\* of 30/);
   for (const k of ["snooker-darts-cup", "noughts-and-crosses-trophy", "treble-out-trophy", "national-cricket"]) assert.match(report, new RegExp(`\\(\`${k}\`\\) \\| [^\\n]*\\| legacy`), k);
 });

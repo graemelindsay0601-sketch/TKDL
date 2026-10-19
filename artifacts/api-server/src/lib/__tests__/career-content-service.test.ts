@@ -70,10 +70,13 @@ test("new and old roots are genuinely pinned, initialize idempotently and expose
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${saveId}`))[0].n,804); // v4: 340 + 464 club and international squad players
 });
 test("read-only content/almanac/presentation do not rewrite an old world or Legacy",async()=>{
+  // Calendar reads intentionally migrate old saves forward. Establish the migrated
+  // baseline first so this test measures the content endpoints, not that migration.
+  await sporting.calendar.calendar(actor,oldId,{scope:"WORLD"});
   const snapshot=async()=>calendarHashOf(await rows(sql`SELECT jsonb_build_object('save',s,'players',(SELECT jsonb_agg(p ORDER BY p.id) FROM career_world_players p WHERE p.career_save_id=s.id),
     'events',(SELECT jsonb_agg(i ORDER BY i.id) FROM career_event_instances i WHERE i.career_save_id=s.id)) AS evidence FROM career_saves s WHERE s.id=${oldId}`));
   const before=await snapshot();
-  const catalogue=await content.read(actor,oldId);assert.equal(catalogue.eventDatabaseVersion,2);
+  const catalogue=await content.read(actor,oldId);assert.equal(catalogue.eventDatabaseVersion,CURRENT_EVENT_DATABASE_VERSION);
   await content.presentation(actor,oldId);await content.players(actor,oldId);await content.map(actor,oldId,{fromWeek:1,toWeek:5});
   assert.equal((await content.trophies(actor,oldId)).total,0);
   assert.equal(await snapshot(),before);

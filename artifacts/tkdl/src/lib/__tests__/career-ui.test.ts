@@ -846,7 +846,7 @@ test("Money matches: a challenge with their price, the haggling so far, form and
   const played = { id: "m1", season: 1, week: 4, opponentKey: "b", opponentName: "Member b", stakePence: 12000, origin: "YOU_CHALLENGED", status: "PLAYED", won: true, legs: [4, 2], averages: [51.2, 47.9], highestCheckout: 96, maximums: 1 };
   const haggling = { status: "OPEN", asksLeft: 2, theirOfferPence: 11000, agreedPence: null,
     log: [{ who: "YOU", text: "£10, first to four?", pence: 1000 }, { who: "THEM", text: "For £10 I'd not take my coat off. Make it £110.", pence: 11000 }] };
-  const view = { season: 1, week: 4, club: "Ayr Darts Club", availablePence: 30000, perWeek: 3, playedThisWeek: 1, bestOf: 7, yourAverage: 49.5,
+  const view = { season: 1, week: 4, club: "Ayr Darts Club", availablePence: 30000, perWeek: 3, playedThisWeek: 1, bestOf: 7, yourAverage: 49.5, liveMatches: [],
     members: [member("a", { odds: "UNDERDOG", average: 58.1, professional: true, talk: haggling }), member("b", { thisWeek: played }), member("c")],
     challenge: { opponentKey: "c", name: "Member c", stakePence: 13000, odds: "EVEN", average: 50 },
     record: { played: 1, won: 1, netPence: 12000 }, recent: [played] };
@@ -885,6 +885,7 @@ test("Run your own tournament: the booking form with a preview, and your tournam
 
 test("DartCast channel: followers and the streamer route, nights to go live, and past streams", () => {
   const view = { season: 2, week: 9, handle: "AyrDarts", followers: 640, tier: { key: "AFFILIATE", name: "Affiliate", perks: "Bits and super chats." },
+    pathway: { focus: "DARTCAST", weeklyFrequency: 3, scheduledNights: [2, 5, 6] },
     next: { name: "Partner", followers: 1000, perks: "Subs." }, tiers: [{ key: "NEWCOMER", name: "Newcomer", followers: 0, perks: "Go live.", reached: true },
       { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Bits and super chats.", reached: true }, { key: "PARTNER", name: "Partner", followers: 1000, perks: "Subs.", reached: false }],
     streamsThisWeek: 1, perWeek: 3, freeNights: [2, 5, 6], live: null, totals: { streams: 14, earnedPence: 18450, won: 9 },
@@ -908,7 +909,8 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
 });
 
 test("DartCast channel money: subs that renew, a brand's offer to answer, and a Star's invitations", () => {
-  const view = { season: 3, week: 10, handle: "AyrDarts", followers: 1450, tier: { key: "PARTNER", name: "Partner", perks: "Subs." }, next: { name: "Star", followers: 25000, perks: "Big." },
+  const view = { season: 3, week: 10, handle: "AyrDarts", followers: 1450, tier: { key: "PARTNER", name: "Partner", perks: "Subs." },
+    pathway: { focus: "OPEN", weeklyFrequency: 1, scheduledNights: [] }, next: { name: "Star", followers: 25000, perks: "Big." },
     tiers: [], streamsThisWeek: 0, perWeek: 3, freeNights: [1], live: null, totals: { streams: 40, earnedPence: 90000, won: 25 }, videos: [],
     subscribers: 14, renewsWeek: 12, dealOffer: { id: "d1", brand: "FlightDeck", what: "flights and stems", perStreamPence: 6900, streamsTotal: 6, streamsDone: 0, expiresWeek: 13 },
     deal: null, invitations: true, formats: [{ key: "CHARITY", name: "Charity stream", blurb: "For a good cause.", crowd: 1.1, why: "Done this month" }], pollPick: null, lastFormat: null, collabs: [], clips: [],

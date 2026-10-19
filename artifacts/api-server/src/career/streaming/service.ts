@@ -239,6 +239,12 @@ export function createCareerStreamingService(database: CareerDatabase) {
       WHERE career_save_id=${root.id} AND id=${String(row.id)} AND status='LIVE'`);
     await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${gained}, subscribers = subscribers + ${tally.subs}
       ${poll ? sql`, poll_pick = ${poll.winner}` : sql``} WHERE career_save_id=${root.id}`);
+    const weekStreams = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_streams
+      WHERE career_save_id=${root.id} AND season=${Number(row.season)} AND week=${Number(row.week)}
+        AND format<>'MATCH' AND status IN ('LIVE','ENDED')`)).rows[0]?.n ?? 0);
+    if (weekStreams >= STREAM.perWeek) await tx.execute(sql`DELETE FROM career_life_commitments
+      WHERE career_save_id=${root.id} AND season=${Number(row.season)} AND family='DARTCAST' AND status='ACCEPTED'
+        AND day BETWEEN ${(Number(row.week) - 1) * 7 + 1} AND ${Number(row.week) * 7}`);
     // The night's best moment is clipped (it may go viral when the week is settled).
     if (tally.clip) await tx.execute(sql`INSERT INTO career_stream_clips (career_save_id, id, stream_id, season, week, kind, title, peak, status)
       VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-clip", String(row.id))}, ${String(row.id)}, ${Number(row.season)}, ${Number(row.week)}, ${tally.clip},

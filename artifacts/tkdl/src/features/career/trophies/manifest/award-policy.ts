@@ -69,10 +69,21 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "pdc-womens-matchplay": T("MAJOR", "cut-glass", "WOMEN'S MATCHPLAY"),
   "pdc-youth-world-championship": T("WORLD_CHAMPIONSHIP", "youth-rising-star", "YOUTH WORLD CHAMPION"),
   "wdf-world-championship": T("WORLD_CHAMPIONSHIP", "silver-cup", "WDF WORLD CHAMPION"),
+  "wdf-world-girls-championship": T("WORLD_CHAMPIONSHIP", "youth-rising-star", "WORLD GIRLS CHAMPION"),
   "wdf-world-masters": T("CHAMPIONSHIP", "silver-cup", "WDF WORLD MASTERS"),
   "wdf-world-cup": T("CHAMPIONSHIP", "silver-cup", "WDF WORLD CUP"),
   "wdf-europe-cup": T("CHAMPIONSHIP", "silver-cup", "EUROPE CUP"),
   "wdf-asia-pacific-cup": T("CHAMPIONSHIP", "silver-cup", "ASIA-PACIFIC CUP"),
+  // v22–v27: ranking cups and opens award sporting results, not trophies.
+  ...Object.fromEntries([
+    "continental-girls-youth-cup-pairs", "continental-girls-youth-cup-singles",
+    "continental-youth-cup-pairs", "continental-youth-cup-singles",
+    "girls-world-ranking-open", "women-world-ranking-open", "world-ranking-open", "youth-world-ranking-open",
+  ].map(k => [k, N("TOUR_ROUND", ROUND)])),
+  ...Object.fromEntries(["lakeside", "uk-lakeside"].flatMap(prefix =>
+    ["girls", "open", "women", "youth"].map(category => [`${prefix}-qualifier-${category}`, N("QUALIFIER", QUAL)]))),
+  ...Object.fromEntries(["anz-premier-finals", ...[1, 2, 3, 4, 5].map(n => `anz-premier-night-${n}`)]
+    .map(k => [k, N(k.endsWith("finals") ? "SERIES_FINALS" : "SERIES_ROUND", "Oceania Premier League points and qualification are settled by the series; no separate event trophy.")])),
   ...Object.fromEntries([
     "wdf-baltic-open", "wdf-bohemian-open", "wdf-britannia-open", "wdf-caledonian-open",
     "wdf-danube-masters", "wdf-emerald-open", "wdf-low-countries-open", "wdf-manx-open",
@@ -213,7 +224,8 @@ export const EVENT_DESIGNS_V2: Readonly<Record<string, DesignAllocation>> = Obje
   "women-world-championship": U("wwc-crystal-flame"),
   "women-masters": U("cut-glass"),
   "youth-world-championship": U("ywc-star-orb"),
-  "youth-masters": U("youth-rising-star"),
+  "wdf-world-girls-championship": S("youth-rising-star", "International youth world championships"),
+  "youth-masters": S("youth-rising-star", "International youth world championships"),
   "junior-development-championship": U("junior-star-cup"),
   "open-finals": U("open-finals-compass"),
   "amateur-world-masters": U("awm-globe-cup"),

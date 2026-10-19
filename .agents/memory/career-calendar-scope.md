@@ -9,6 +9,18 @@ Career should reflect a plausible real darts career: players may start through c
 
 **How to apply:** when changing Career calendar content, preserve the playable grassroots ladder, use distinct names inspired by real competitions where needed, keep Vault optional and well-spaced, and preserve history when replacing future unplayed fixtures.
 
+Players may book an event on each available day of a week; keep the one-event-per-day and overlap rules, but do not impose a weekly event-count cap. Continue Career must stop for a live money match or reserved/live DartCast stream so it cannot silently advance past a scheduled activity.
+
+**Why:** the user explicitly asked to build a full seven-day schedule and reported Continue skipping booked activities while trying to arrange streams and money matches.
+
+**How to apply:** preserve daily booking limits and budget checks, and add regression tests whenever the calendar's Continue behavior changes.
+
+After the weekly DartCast stream limit is reached, release any unused reserved stream nights so they cannot trap Continue in a redirect back to DartCast.
+
+**Why:** the user reported that hitting the stream cap left no way to finish the day and move Career forward.
+
+**How to apply:** when ending or advancing after the cap, clear remaining accepted DartCast reservations for that week; retain the blocker only while a stream is live or the cap has not been reached.
+
 Series league points are standings inputs for that series only; do not add them to Career prize-money ranking contributions.
 
 **Why:** competitions such as the ANZ Premier League award table points independently of the prize money used by the Career ranking lists.

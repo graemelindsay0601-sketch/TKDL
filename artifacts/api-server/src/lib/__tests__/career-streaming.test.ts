@@ -198,6 +198,32 @@ test("choosing DartCast focus reserves the selected weekly frequency and lets th
   assert.deepEqual(stopped.pathway.scheduledNights, []);
 });
 
+test("using the weekly stream limit releases unused reserved nights and Continue can advance", async () => {
+  const save = await saves.create(1, { slot: 3, careerName: "Stream limit", dateOfBirth: "1998-03-02", homeLocality: "ayrshire" });
+  await career.initialize(actor, save.id);
+  const selected = await streaming.setPathway(actor, save.id, { focus: "DARTCAST", weeklyFrequency: 1 });
+  const reservedDay = selected.pathway.scheduledNights[0];
+  const freeDays = selected.freeNights.slice(0, STREAM.perWeek);
+  assert.equal(freeDays.length, STREAM.perWeek);
+  for (const dayOfWeek of freeDays) {
+    const live = await streaming.goLive(actor, save.id, { dayOfWeek });
+    await streaming.end(actor, save.id, live.id);
+  }
+  const afterLimit = await streaming.read(actor, save.id);
+  assert.equal(afterLimit.streamsThisWeek, STREAM.perWeek);
+  assert.deepEqual(afterLimit.pathway.scheduledNights, [], "surplus scheduled streams are released once the weekly cap is reached");
+
+  // A reservation left behind by an older save must not keep Continue trapped either.
+  await db.execute(sql`INSERT INTO career_life_commitments (career_save_id,id,family,title,season,day,fee_pence,status)
+    VALUES (${save.id},'7af79385-bb11-49fb-916f-c035751ea15e','DARTCAST','DartCast stream',${save.currentSeason},
+      ${(save.currentWeek - 1) * 7 + reservedDay},0,'ACCEPTED')`);
+  const advanced = await career.calendar.advance(actor, save.id, { operationKey: "stream-cap-continue",
+    expectedSeason: save.currentSeason, expectedWeek: save.currentWeek, target: { kind: "WEEKS", weeks: 1 } }) as { stop: { reason: string } };
+  assert.notEqual(advanced.stop.reason, "STREAM_PENDING");
+  assert.equal(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_life_commitments
+    WHERE career_save_id=${save.id} AND family='DARTCAST' AND status='ACCEPTED'`))[0].n), 0);
+});
+
 test("a new Career stores the chosen streamer focus and weekly frequency", async () => {
   const created = await saves.create(1, { slot: 2, careerName: "DartCast route", dateOfBirth: "1998-03-02", homeLocality: "ayrshire",
     careerPathway: { focus: "DARTCAST", weeklyFrequency: 2 } });

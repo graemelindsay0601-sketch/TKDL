@@ -20,7 +20,9 @@
 - [Mechanical timeout-leak fix pattern](safe-timeout-pattern.md) — for a huge file with many components sharing one `setTimeout(fn, ms)` idiom, a drop-in `useSafeTimeout()` hook + scripted find/replace beats manual per-callsite rewrites
 - [Career calendar scope](career-calendar-scope.md) — authentic PDC/WDF-style progression alongside a broad, playable grassroots and amateur route; novelty-game events are not Career tour stops
 - [County team competition](county-team-competition.md) — county representation must be a playable UKDA-style men’s/women’s A/B team competition, not only selection and computed standings
+- [Career money matches](career-money-matches.md) — money matches must be manually played in the live Career scorer, not settled as simulated results
 - [Career event version compatibility](career-event-versioning.md) — preserve historical event-definition rows as stored; enforce hash immutability on the current edition and migrate saves forward
+- [Existing Career saves](career-save-compatibility.md) — new Career features and fixes must keep existing saves usable, with tested migrations rather than requiring a restart
 - [PDC calendar sourcing](pdc-calendar-sourcing.md) — when the PDC fixture API is unavailable, use its sitemap to locate official event notices; treat third-party calendars as leads
 - [Career sponsor trade-offs](career-sponsor-tradeoffs.md) — sponsor offers need real pros/cons, and player counter-proposals must work on existing saves
 - [Career path onboarding](career-path-onboarding.md) — explain available routes and first steps at save creation; keep routes non-exclusive and grounded in current rules
