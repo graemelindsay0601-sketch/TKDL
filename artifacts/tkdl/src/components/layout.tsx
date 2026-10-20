@@ -586,6 +586,7 @@ export function Layout({ children }: { children: ReactNode }) {
         id="tkdl-navigation-drawer"
         style={{ background: "rgba(3,3,8,0.99)", borderRight: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(24px)" }}>
         <button className="absolute top-4 right-4 lg:hidden z-10 p-1 rounded-lg"
+          aria-label="Close navigation"
           style={{ color: "rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.05)" }}
           onClick={() => setDrawerOpen(false)}>
           <X className="w-4 h-4" />
