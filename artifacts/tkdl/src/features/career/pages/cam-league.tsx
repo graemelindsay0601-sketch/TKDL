@@ -22,13 +22,14 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, q = useCamLeague(id), join = useJoinCamLeague(id), book = useBookCamMatch(id), sim = useSimulateCamMatch(id);
   useEffect(() => { markSeen(id, "cam-league"); }, [id]);
-  const [night, setNight] = useState<number | null>(null), [message, setMessage] = useState("");
+  const requestedDay = typeof window === "undefined" ? null : Number(new URLSearchParams(window.location.search).get("day"));
+  const [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null), [message, setMessage] = useState("");
   const [, navigate] = useLocation();
   if (q.isLoading) return <CareerLoading />;
   if (q.error || !q.data) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data, l = d.league, f = l?.thisWeek ?? null, retired = !!ctx.save.retiredAt;
   const fail = (e: unknown) => setMessage(errorMessage(e));
-  const pick = night ?? d.freeNights[0] ?? null;
+  const pick = night !== null && d.freeNights.includes(night) ? night : d.freeNights[0] ?? null;
   const me = l?.table.findIndex(r => r.you) ?? -1;
   return <div className="space-y-3 cam-league">
     <CareerPageHero kicker="Webcam league · played from your own board" title={l ? l.name : d.division.name} accent="#5bc0eb" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}

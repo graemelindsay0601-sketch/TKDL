@@ -17,7 +17,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const [goalTarget, setGoalTarget] = useState<number | null>(null);
   const [promise, setPromise] = useState<string | null>(null);
   const [, navigate] = useLocation();
-  const [night, setNight] = useState<number | null>(null);
+  const requestedDay = typeof window === "undefined" ? null : Number(new URLSearchParams(window.location.search).get("day"));
+  const [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null);
   const [message, setMessage] = useState("");
   const scheduledWeek = useRef("");
   useEffect(() => {
@@ -31,7 +32,9 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   if (q.isLoading) return <CareerLoading />;
   if (q.error || !q.data) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data, retired = !!ctx.save.retiredAt;
-  const pick = night ?? d.pathway.scheduledNights[0] ?? d.freeNights[0] ?? null;
+  const streamDays = d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights;
+  const preferredNight = night ?? requestedDay;
+  const pick = preferredNight !== null && streamDays.includes(preferredNight) ? preferredNight : streamDays[0] ?? null;
   const progress = d.next ? Math.min(100, Math.round(d.followers / d.next.followers * 100)) : 100;
   const chosen = format ?? d.pollPick ?? "CHALLENGER";
   const crowd = (c: number) => c >= 1.15 ? "Big crowd" : c >= 0.95 ? "Normal crowd" : c >= 0.8 ? "Smaller crowd" : "Quiet night";

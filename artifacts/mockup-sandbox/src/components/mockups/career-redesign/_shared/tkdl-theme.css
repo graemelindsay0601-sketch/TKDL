@@ -1,0 +1,184 @@
+/* TKDL identity: dark match-night navy with the club's red and trophy gold. */
+.tk-career {
+  --ink: #0b1220;
+  --ink2: #121c2d;
+  --ink3: #1a2940;
+  --lime: #ff005c;
+  --red: #ff005c;
+  --gold: #ffd24a;
+  background:
+    radial-gradient(ellipse at 85% 0%, #252139 0, #171c2b 34%, #0c111b 78%);
+}
+.tk-nav { background:#101827e8; border-color:#a7bad21b; }
+.tk-card { background:linear-gradient(145deg,#18243a,#111a29 78%); border-color:#a7bad21d; }
+.overview-hero { background:linear-gradient(105deg,#121b2b 4%,#1b2034 53%,#302338 100%); }
+.overview-hero::before { background:repeating-linear-gradient(115deg,transparent 0 48px,#ffffff04 49px 50px),linear-gradient(90deg,#0b1220 0%,transparent 78%); }
+.player-banner { background:linear-gradient(110deg,#17243a,#141d2d 55%,#252238); }
+.player-art { background:radial-gradient(ellipse at 50% 60%,#ff005c2b,transparent 48%); }
+.art-orbit { border-color:#ff005c48; }
+.club-hero { background:linear-gradient(112deg,#1a2032 0%,#171d30 50%,#121a2b 100%); }
+.club-hero-top .tk-overline { color:#ffd24a; }
+.club-hero-main h1 em { color:#ffd24a; }
+.club-hero-main p { color:#c3cede; }
+.club-hero::after { border-color:#ffd24a27; box-shadow:0 0 0 28px #ffd24a0a,0 0 0 70px #ff005c08; }
+.club-crest { background:linear-gradient(145deg,#18243b,#111827); border-color:#ffd24a; }
+.club-crest::before { border-color:#ffd24a70; }
+.club-crest>i { background:#ff005c; }
+.profile-stat { background:#0c1523b8; border-color:#a7bad222; }
+.profile-stat>.form-positive { color:#ffd24a; }
+.club-hero .club-facts { background:#0c1523b8; border-color:#a7bad21c; }
+.league-list li.you-row { background:#ff005c17; }
+.week-day { background:#111a29; border-color:#a7bad21b; }
+.week-day.selected { background:#381728; }
+.day-focus { background:linear-gradient(100deg,#0d1524,#182039); border-color:#a7bad222; }
+.day-date,.week-day>span,.week-day>small { color:#aebbd0; }
+.day-event { border-color:#ff005c66; background:#ff005c12; }
+.event-copy small { color:#ffd24a; }
+.event-copy>span i { color:#ff5c91; }
+.day-open { border-color:#ff005c59; background:#ff005c08; }
+.day-open>div strong { color:#f0f3fa; }
+.day-open>div small { color:#b6c1d1; }
+.week-snapshot { color:#d2dbea; }
+.snapshot-row span { color:#b6c1d1; }
+.snapshot-note { border-color:#a7bad21c; color:#cad4e2; }
+.week-day.has-green>i { border-color:#3d8bff88; }
+.week-day.has-green>i>span { background:#3d8bff; }
+.event-green .event-mark { color:#68a9ff; background:#3d8bff20; }
+.tk-brand b,
+.tk-section-head h2 svg,
+.hero-copy h1 em,
+.player-info > .tk-overline,
+.identity-chips svg,
+.record-link,
+.next-card > a,
+.quick-links > a > svg:first-child,
+.quick-links > button > svg:first-child,
+.detail-ticket span,
+.journey-stop > i,
+.identity-editor button,
+.league-team small,
+.league-list li.you-row,
+.member-expanded,
+.county-intro .tk-overline,
+.squad-tile li.you > b,
+.history-list em {
+  color: #ff005c !important;
+}
+.season-live i,
+.tk-brand-mark span,
+.week-day > i > span,
+.open-dot,
+.path-node.done > i,
+.path-line > i,
+.callout-dot,
+.form-dots .win,
+.promotion {
+  background-color: #ff005c !important;
+}
+.tk-brand-mark {
+  border-color: #ff005c99;
+  background: repeating-conic-gradient(#ff005c 0 2deg, #202235 2deg 30deg);
+}
+.season-live i { box-shadow: 0 0 0 4px #ff005c24; }
+.tk-attention-button:hover,
+.tk-attention-button.is-open,
+.tk-nav-link.is-active,
+.tk-button.primary {
+  border-color: #ff005c;
+  background: #ff005c;
+  color: #fff !important;
+}
+.tk-nav-link.is-active i { background: #ffffff88; }
+.tk-button.primary:hover { background: #e60052; }
+.tk-button.quiet,
+.tk-ping-head button,
+.fixture-expand,
+.members-all,
+.record-link,
+.identity-editor button {
+  color: #ff5c91;
+}
+.tk-overline,
+.hero-copy .tk-overline,
+.player-info > .tk-overline,
+.county-intro .tk-overline {
+  color: #ffd24a !important;
+}
+.overview-hero::after {
+  border-color: #ff005c36;
+  box-shadow: 0 0 0 36px #ff005c0c, 0 0 0 92px #ff005c08;
+}
+.hero-stamp {
+  border-color: #ff005c80;
+  background: repeating-conic-gradient(from -12deg, #ff005c22 0 1deg, transparent 1deg 15deg);
+  color: #ffd24a;
+  box-shadow: inset 0 0 0 12px #142227, 0 0 0 1px #ff005c45;
+}
+.hero-target,
+.hero-target::before,
+.hero-target::after { border-color: #ff005c; background-color: #ff005c; }
+.hero-ribbon { border-color: #ff005c38; }
+.week-day.selected,
+.week-day.selected > b {
+  border-color: #ff005c;
+  background-color: #381728;
+  color: #ff6b9f;
+  box-shadow: inset 0 0 0 1px #ff005c66;
+}
+.day-event,
+.day-open,
+.fixture-callout,
+.identity-editor {
+  border-color: #ff005c66;
+  background-color: #ff005c12;
+}
+.day-event:hover { border-color: #ff005c; background-color: #ff005c20; }
+.event-mark,
+.choice-icon {
+  background-color: #ff005c20;
+  color: #ff5c91;
+}
+.load-track i,
+.goal-progress > i span {
+  background: linear-gradient(90deg, #ff005c, #ffd24a);
+}
+.snapshot-note svg,
+.decision-meta svg,
+.league-list li.you-row,
+.win-pill,
+.fixture-callout { color: #ffd24a; }
+.path-node.done > i,
+.path-node.current > i,
+.path-line > i,
+.week-day > i > span,
+.open-dot,
+.callout-dot { box-shadow: 0 0 0 4px #ff005c24; }
+.booking-choice.chosen,
+.landmark-icon.highlight,
+.league-list li.you-row,
+.member-card.member-you,
+.squad-tile li.you {
+  border-color: #ff005c99;
+  background-color: #ff005c16;
+}
+.profile-tabs button.active,
+.initial-avatar,
+.squad-switch button.active {
+  border-color: #ff005c;
+  background-color: #ff005c;
+  color: #fff;
+}
+.detail-ticket { border-left-color: #ff005c; }
+.career-root { --career-pink: #ff005c; --career-gold: #ffd24a; }
+.shirt-premium-art {
+  position: relative;
+  z-index: 2;
+  width: min(78%, 240px);
+  height: auto;
+  margin-top: 26px;
+  filter: drop-shadow(0 18px 20px #000b);
+}
+
+@media (max-width: 760px) {
+  .week-day.selected { background-color: #381728; }
+}

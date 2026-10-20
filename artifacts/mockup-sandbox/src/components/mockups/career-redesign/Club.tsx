@@ -1,0 +1,55 @@
+import { useState } from "react";
+import { ArrowUpRight, CalendarDays, Check, ChevronRight, Crown, Flag, MapPin, Medal, Shield, Trophy, Users, X } from "lucide-react";
+import { CareerShell, Eyebrow } from "./_shared/CareerShell";
+import "./_shared/career.css";
+import "./_shared/pages.css";
+import "./_shared/tkdl-theme.css";
+import "./_group.css";
+
+const league = [
+  { pos: 1, name: "Nottingham Trent", score: 53, form: "W W W L W" },
+  { pos: 2, name: "The Robin Hood", score: 48, form: "W W L W W", you: true },
+  { pos: 3, name: "Derbyshire Arrows", score: 41, form: "W L W W L" },
+  { pos: 4, name: "Leicester Doubles", score: 36, form: "L W W L W" },
+  { pos: 5, name: "Lincoln City", score: 31, form: "L W L W L" },
+  { pos: 6, name: "The Steel Tip", score: 27, form: "W L L W L" },
+];
+const members = [
+  { name: "Jack Turner", tag: "CAPTAIN", points: 48, titles: 3, initials: "JT", color: "olive" },
+  { name: "Alex North", tag: "YOU · AMATEUR", points: 42, titles: 2, initials: "AN", color: "red", you: true },
+  { name: "Callum Reed", tag: "FIRST TEAM", points: 35, titles: 1, initials: "CR", color: "blue" },
+  { name: "Tom Walsh", tag: "FIRST TEAM", points: 31, titles: 1, initials: "TW", color: "gold" },
+  { name: "Peter Howard", tag: "SQUAD", points: 24, titles: 0, initials: "PH", color: "olive" },
+];
+
+export function Club() {
+  const [category, setCategory] = useState("Men’s squads");
+  const [showSetup, setShowSetup] = useState(false);
+  const [tournamentName, setTournamentName] = useState("Robin Hood Summer Open");
+  const [week, setWeek] = useState("Week 22");
+  const [field, setField] = useState("16 players · £25 room");
+  const [booked, setBooked] = useState(false);
+  const [notice, setNotice] = useState("");
+  return <CareerShell page="Club">
+    <div className="tk-club">
+      <section className="club-hero">
+        <div className="club-hero-top"><Eyebrow>NOTTINGHAMSHIRE · YOUR HOME CLUB</Eyebrow><span className="member-status"><i /> CLUB LEGEND</span></div>
+        <div className="club-hero-main"><div><div className="club-est">EST. 1987 <span>·</span> NOTTINGHAM</div><h1>The Robin<br /><em>Hood.</em></h1><p>Your first home was a back room and a borrowed set of darts. You still belong here.</p><div className="club-actions"><button className="tk-button primary" onClick={() => document.getElementById("team-nights")?.scrollIntoView({ behavior: "smooth" })}><CalendarDays size={15} /> Team nights</button><button className="tk-button club-ghost" onClick={() => setShowSetup(true)}><Trophy size={15} /> Host a tournament</button></div></div>
+          <div className="club-crest"><div className="crest-top">NOTTINGHAMSHIRE</div><Shield size={62} strokeWidth={1.2} /><strong>RH</strong><span>THE ROBIN HOOD</span><i /></div>
+        </div>
+        <div className="club-facts"><div><span>DIVISION</span><b>01</b><small>TOP FLIGHT</small></div><div><span>LEAGUE PLACE</span><b>2<sup>ND</sup></b><small>5 PTS OFF TOP</small></div><div><span>CLUB POINTS</span><b>48</b><small>+17 THIS SEASON</small></div><div><span>CAPTAIN</span><b className="fact-name">Jack Turner</b><small>THIRD SEASON</small></div></div>
+      </section>
+      <div className="club-main-grid">
+        <section className="tk-card league-card"><div className="tk-section-head"><h2><Shield size={18} /> Division 1 table</h2><span>SEASON 2 · WEEK 18</span></div><div className="league-legend"><span>CLUB</span><span>FORM</span><span>PTS</span></div><ol className="league-list">{league.map(item => <li key={item.name} className={item.you ? "you-row" : ""}><b>{String(item.pos).padStart(2,"0")}</b><span className="league-team"><strong>{item.name}</strong>{item.you && <small>YOUR HOME CLUB</small>}</span><span className="form-dots">{item.form.split(" ").map((v,i)=><i key={i} className={v === "W" ? "win" : "loss"}>{v}</i>)}</span><em>{item.score}</em></li>)}</ol><div className="league-footnote"><span><i className="promotion" />Promotion places</span><span><i className="relegation" />Relegation places</span><small>Top 2 go up · Bottom 2 go down</small></div></section>
+        <section id="team-nights" className="tk-card fixture-card"><div className="tk-section-head"><h2><Users size={18} /> Next team night</h2><span>WEEK 19</span></div><div className="fixture-feature"><div className="fixture-date"><small>WED</small><b>19</b><span>MAR</span></div><div className="fixture-vs"><span>AWAY FIXTURE</span><h3>Derbyshire<br />Arrows</h3><p><MapPin size={13} /> Derby · 19:00</p></div><div className="fixture-shield"><Shield size={34} /><span>VS</span></div></div><div className="fixture-callout"><span className="callout-dot" /><div><strong>You’re in the team.</strong><small>Singles line-up confirmed by captain Jack Turner.</small></div><ChevronRight size={16} /></div><div className="last-result"><div><Eyebrow>LAST RESULT · WEEK 17</Eyebrow><strong>Robin Hood <span>4–2</span> Leicester Doubles</strong><small>Your single · Alex North 3–2 Peter Howard</small></div><span className="win-pill">WIN</span></div><button className="fixture-expand" onClick={() => setNotice(notice === "rules" ? "" : "rules")}>How team nights work <ArrowUpRight size={14} /></button>{notice === "rules" && <p className="fixture-rules">Wednesday nights, weeks 4–44. Six singles a side, best of five legs. If an event takes you away, a clubmate stands in. The top four go to the end-of-season play-offs.</p>}</section>
+      </div>
+      <section className="tk-card members-card"><div className="tk-section-head"><h2><Users size={18} /> The people behind the points</h2><span>5 OF 12 ACTIVE MEMBERS</span></div><div className="member-grid">{members.map(member => <article className={`member-card ${member.you ? "member-you" : ""}`} key={member.name}><div className={`member-initial ${member.color}`}>{member.initials}</div><div className="member-info"><span>{member.tag}</span><strong>{member.name}</strong><small>{member.titles} club title{member.titles === 1 ? "" : "s"} · {member.points} pts</small></div>{member.tag === "CAPTAIN" && <Crown className="captain-mark" size={17} />}</article>)}</div><button className="members-all" onClick={() => setNotice(notice === "members" ? "" : "members")}>View full member table <ArrowUpRight size={14} /></button>{notice === "members" && <div className="member-expanded" role="status">Season standings: Jack Turner 48 · Alex North 42 · Callum Reed 35 · Tom Walsh 31 · Peter Howard 24. Club points are awarded for finishes at club, county and regional events.</div>}</section>
+      <div className="club-bottom-grid">
+        <section className="tk-card county-card"><div className="tk-section-head"><h2><Flag size={18} /> Nottinghamshire county</h2><span>REPRESENTATIVE SQUADS</span></div><div className="county-intro"><div><Eyebrow>SELECTED · {category === "Men’s squads" ? "MEN’S" : "WOMEN’S"} A</Eyebrow><h3>Your county.<br />Your colours.</h3><p>Last season’s individual event finishes determine selection. You earned your place in the A squad.</p></div><div className="county-badge"><Flag size={24} /><b>NOTTS</b><small>{category === "Men’s squads" ? "MEN A" : "WOMEN A"}</small></div></div><div className="squad-switch" role="tablist"><button className={category === "Men’s squads" ? "active" : ""} onClick={() => setCategory("Men’s squads")}>Men’s squads</button><button className={category === "Women’s squads" ? "active" : ""} onClick={() => setCategory("Women’s squads")}>Women’s squads</button></div><div className="squad-tile"><span>{category.toUpperCase()} · {category.startsWith("Men") ? "12 / 12" : "6 / 6"}</span><ol>{(category.startsWith("Men") ? [["01","Jack Turner","21"],["02","You","18"],["03","Callum Reed","16"],["04","Tom Walsh","14"]] : [["01","Rachel Moore","18"],["02","Sarah Green","14"],["03","Lucy Hill","12"],["04","Emma White","9"]]).map(([rank,name,points])=><li key={name} className={name === "You" ? "you" : ""}><b>{rank}</b> {name} <em>{points} pts</em></li>)}</ol></div><div className="county-next"><CalendarDays size={16} /><span><b>Round 5 · Week 21</b><small>At Derbyshire · Fixture scheduled</small></span><ChevronRight size={15} /></div></section>
+        <section className="tk-card club-history"><div className="tk-section-head"><h2><Medal size={18} /> A club with history</h2><span>EST. 1987</span></div><div className="history-highlight"><span className="history-cup"><Trophy size={22} /></span><div><Eyebrow>DIVISION CHAMPIONS</Eyebrow><h3>Season 1</h3><p>Division 2 · 41 points · Promoted</p></div></div><ol className="history-list"><li><span>SEASON 2</span><b>Division 1 · 2nd · 48 pts</b><em>In progress</em></li><li><span>SEASON 1</span><b>Division 2 · 1st · 41 pts</b><em>Champions</em></li></ol><div className="club-ritual"><span>CLUB MOTTO</span><p>“One leg at a time.”</p><small>A JACK TURNER ORIGINAL, PROBABLY.</small></div></section>
+      </div>
+      <section className="host-strip"><div className="host-icon"><Trophy size={20} /></div><div><Eyebrow>YOUR VENUE · YOUR TOURNAMENT</Eyebrow><h2>Bring everyone to your oche.</h2><p>Host a local special in the back room. Set the entry, build the prize pot, play it yourself.</p></div><button className="tk-button primary" onClick={() => setShowSetup(true)}>Set up an open <ArrowUpRight size={15} /></button></section>
+    </div>
+    {showSetup && <div className="tk-modal-scrim" onClick={() => setShowSetup(false)}><section className="tk-modal host-modal" role="dialog" aria-modal="true" aria-labelledby="host-title" onClick={e => e.stopPropagation()}><button className="tk-icon-button modal-close" aria-label="Close setup" onClick={() => setShowSetup(false)}><X size={18} /></button><Eyebrow>ROBIN HOOD BACK ROOM</Eyebrow><h2 id="host-title">Set up your open.</h2><p className="modal-intro">Costs are paid up front. You can book up to two local specials each season.</p><label className="host-field"><span>TOURNAMENT NAME</span><input value={tournamentName} onChange={e => setTournamentName(e.target.value)} /></label><div className="host-fields"><label className="host-field"><span>WEEK</span><select value={week} onChange={e => setWeek(e.target.value)}>{["Week 20","Week 21","Week 22","Week 23","Week 24"].map(v => <option key={v}>{v}</option>)}</select></label><label className="host-field"><span>FIELD / ROOM</span><select value={field} onChange={e => setField(e.target.value)}>{["16 players · £25 room","24 players · £40 room","32 players · £55 room"].map(v => <option key={v}>{v}</option>)}</select></label></div><div className="host-cost-summary"><span>YOUR UP-FRONT COST <b>£75</b></span><span>EST. PRIZE POT <b>£150</b></span><span>YOUR SHARE OF FEES <b>~£24</b></span></div>{booked && <p className="host-success" role="status"><Check size={15} /> {tournamentName || "Your tournament"} reserved for {week}.</p>}<div className="modal-footer"><button className="tk-button" onClick={() => setShowSetup(false)}>Cancel</button><button className="tk-button primary" onClick={() => { setBooked(true); }}><Check size={15} /> {booked ? "Update booking" : "Reserve the room"}</button></div></section></div>}
+  </CareerShell>;
+}

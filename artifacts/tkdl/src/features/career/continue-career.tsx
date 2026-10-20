@@ -9,6 +9,19 @@ import type { AdvanceResult, CareerSave } from "./types";
 export type NextEntry = { name: string; week: number } | null;
 export type ContinueOutcome = { tone: "info" | "error"; headline: string; detail: string; results?: NonNullable<AdvanceResult["headlines"]> };
 
+/** Resolve only genuine server blockers to an activity route; ordinary progress stays on Career. */
+export function continueDestination(saveId: string, stop: AdvanceResult["stop"]): string | null {
+  if (stop.reason === "HUMAN_MATCH_PENDING") {
+    const id = (stop.detail as { matchIds?: string[] } | undefined)?.matchIds?.[0];
+    return id ? `/career/${saveId}/matches/${id}/play` : null;
+  }
+  if (stop.reason === "MONEY_MATCH_PENDING") {
+    const id = (stop.detail as { matchId?: string } | undefined)?.matchId;
+    return id ? `/career/${saveId}/money-matches/${id}/play` : null;
+  }
+  return stop.reason === "STREAM_PENDING" ? `/career/${saveId}/streaming` : null;
+}
+
 /**
  * The one "move time forward" action, shared by the header button and Home's next-move panel.
  * With an event booked it plays on to that event's first match (and opens it); otherwise it stops
@@ -42,15 +55,9 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
     // mutateAsync, not mutate(..., callbacks): per-call callbacks are dropped if the screen remounts mid-advance.
     try {
       const r = await advance.mutateAsync({ season: save.currentSeason, week: save.currentWeek, target: { kind: nextEntry ? "NEXT_MATCH" : "NEXT_MEANINGFUL" } });
-      const matchId = r.stop.reason === "HUMAN_MATCH_PENDING" ? (r.stop.detail as { matchIds?: string[] } | undefined)?.matchIds?.[0] : undefined;
-      if (matchId) navigate(`/career/${save.id}/matches/${matchId}/play`);
-      else if (r.stop.reason === "MONEY_MATCH_PENDING") {
-        const id = (r.stop.detail as { matchId?: string } | undefined)?.matchId;
-        if (id) navigate(`/career/${save.id}/money-matches/${id}/play`);
-        else setOutcome({ tone: "error", headline: "Money match needs attention", detail: "Open Money Matches to resume it before continuing." });
-      } else if (r.stop.reason === "STREAM_PENDING") {
-        navigate(`/career/${save.id}/streaming`);
-      }
+      const destination = continueDestination(save.id, r.stop);
+      if (destination) navigate(destination);
+      else if (r.stop.reason === "MONEY_MATCH_PENDING") setOutcome({ tone: "error", headline: "Money match needs attention", detail: "Open Money Matches to resume it before continuing." });
       else setOutcome({ ...continueOutcome(r, dismissWarning), results: r.headlines });
     } catch (e) {
       setOutcome({ tone: "error", headline: "Couldn't continue",

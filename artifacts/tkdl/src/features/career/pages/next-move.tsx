@@ -16,6 +16,7 @@ import { MoneyChallengeLine } from "../money-matches";
 import { RoadVisitorLine } from "../road-trips";
 import { TeamNightLine } from "../team-nights";
 import { NightsLine } from "./nights";
+import { useCamLeague, useProAm, useRoadTrips, useStreaming, useTeamNights, useWeekNights } from "../api";
 
 /**
  * Home's first panel: the one thing to do next, without reading the rest of the page.
@@ -101,6 +102,7 @@ function Lead({ title, text, event, children }: { title: string; text: string; e
 }
 
 const BOOKED = new Set(["ENTERED", "CONFIRMED", "PLAYING"]);
+type WeekPlannerActivity = { kind: string; id: string; label: string };
 /**
  * Your week, Monday to Sunday: what you have booked each day and how many events you could still enter,
  * for this week and the next. A league night on Tuesday, a flier on Friday and an open on Saturday all fit.
@@ -109,10 +111,60 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
   saveId: string; events: CareerEvent[]; open: CareerEvent[]; currentWeek: number; week: number; day: number | null;
   onPick: (plan: { week: number; day: number | null }) => void;
 }) {
+  const nights = useWeekNights(saveId);
+  const teamNights = useTeamNights(saveId);
+  const streaming = useStreaming(saveId);
+  const camLeague = useCamLeague(saveId);
+  const roadTrips = useRoadTrips(saveId);
+  const proAm = useProAm(saveId);
   const booked = events.filter(e => e.human && BOOKED.has(e.human.relationship) && e.status !== "CANCELLED" && e.dates.startWeek <= week && e.dates.endWeek >= week);
+  const activitiesOnDay = (d: number): WeekPlannerActivity[] => {
+    const activities: WeekPlannerActivity[] = nights.data?.week === week
+      ? nights.data.days.find(item => item.dayOfWeek === d)?.items.filter(item => item.kind !== "EVENT") ?? []
+      : [];
+    const teamNight = teamNights.data?.next;
+    if (d === 3 && teamNight?.week === week) activities.push({
+      kind: "team",
+      id: "team",
+      label: `Team night ${teamNight.home ? "v" : "at"} ${teamNight.opponent}`,
+    });
+    return activities;
+  };
+  const activityHref = (kind: string) => ({
+    LIFE: `/career/${saveId}/life`,
+    stream: `/career/${saveId}/streaming`,
+    trip: `/career/${saveId}/road-trips`,
+    league: `/career/${saveId}/cam-league`,
+    proam: `/career/${saveId}/pro-am`,
+    team: `/career/${saveId}/club#team-nights`,
+  }[kind] ?? `/career/${saveId}/nights`);
+  const activityOptions = (d: number) => {
+    // Availability APIs for these activities describe the current week only.
+    if (week !== currentWeek) return [];
+    const dayIsFree = !onDay(d).mine.length && !activitiesOnDay(d).length;
+    if (!dayIsFree) return [];
+    const day = `?day=${d}`;
+    const options: { label: string; href: string }[] = [];
+    const streamDays = streaming.data?.pathway.scheduledNights.length
+      ? streaming.data.pathway.scheduledNights : streaming.data?.freeNights ?? [];
+    if (streaming.data?.week === week && streamDays.includes(d) && streaming.data.streamsThisWeek < streaming.data.perWeek) {
+      options.push({ label: "Book a DartCast stream", href: `${activityHref("stream")}${day}` });
+    }
+    const fixture = camLeague.data?.league?.thisWeek;
+    if (fixture?.status === "SCHEDULED" && camLeague.data?.freeNights.includes(d)) {
+      options.push({ label: "Book this week’s webcam match", href: `${activityHref("league")}${day}` });
+    }
+    if (roadTrips.data?.canTravel && roadTrips.data.freeNights.includes(d)) {
+      options.push({ label: "Plan a road trip", href: `${activityHref("trip")}${day}` });
+    }
+    if (proAm.data?.nights.some(n => n.dayOfWeek === d && n.free)) {
+      options.push({ label: "Book a Pro-Am night", href: `${activityHref("proam")}${day}` });
+    }
+    return options;
+  };
   const onDay = (d: number) => {
     const n = (week - 1) * 7 + d;
-    return { mine: booked.filter(e => e.dates.startDay <= n && e.dates.endDay >= n), free: open.filter(e => e.dates.startWeek === week && e.dates.startDayOfWeek === d).length,
+    return { mine: booked.filter(e => e.dates.startDay <= n && e.dates.endDay >= n), activities: activitiesOnDay(d), free: open.filter(e => e.dates.startWeek === week && e.dates.startDayOfWeek === d).length,
       played: events.some(e => e.human?.relationship === "COMPLETED" && e.dates.startDay <= n && e.dates.endDay >= n) };
   };
   const cost = booked.filter(e => e.dates.startWeek === week).reduce((n, e) => n + (e.finance?.estimatedPlayerCostPence ?? 0), 0);
@@ -126,27 +178,32 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
       </div>
       <div className="week-planner__days">
         {[1, 2, 3, 4, 5, 6, 7].map(d => {
-          const { mine, free, played } = onDay(d);
-          const state = mine.length ? "booked" : played ? "played" : free ? "open" : "empty";
+          const { mine, activities, free, played } = onDay(d);
+          const state = mine.length || activities.length ? "booked" : played ? "played" : free ? "open" : "empty";
           return <button key={d} type="button" className="week-planner__day" data-state={state} aria-pressed={day === d}
-            aria-label={`${dayLabel(d)}: ${mine.length ? `booked ${mine.map(e => e.name).join(", ")}` : played ? "played" : free ? `${free} you can enter` : "nothing on"}`}
+            aria-label={`${dayLabel(d)}: ${mine.length || activities.length ? `booked ${[...mine.map(e => e.name), ...activities.map(item => item.label)].join(", ")}` : played ? "played" : free ? `${free} you can enter` : "nothing on"}`}
             onClick={() => onPick({ week, day: day === d ? null : d })}>
             <span className="week-planner__dow">{dayLabel(d)}</span>
-            <span className="week-planner__what">{mine.length ? mine[0].name : played ? "Played" : free ? `${free} open` : "—"}</span>
+            <span className="week-planner__what">{mine[0]?.name ?? activities[0]?.label ?? (played ? "Played" : free ? `${free} open` : "—")}</span>
           </button>;
         })}
       </div>
       <div className="week-planner__agenda" aria-label={`Day-by-day details for week ${week}`}>
         {[1, 2, 3, 4, 5, 6, 7].filter(d => day === null || day === d).map(d => {
-          const { mine } = onDay(d);
+          const { mine, activities } = onDay(d);
           const dayNumber = (week - 1) * 7 + d;
           const options = open.filter(e => e.dates.startWeek === week && e.dates.startDayOfWeek === d
             && !mine.some(bookedEvent => bookedEvent.dates.startDay <= e.dates.startDay && bookedEvent.dates.endDay >= e.dates.startDay));
-          return <div className="week-planner__agenda-day" key={d} data-booked={mine.length > 0 || undefined}>
+          return <div className="week-planner__agenda-day" key={d} data-booked={mine.length > 0 || activities.length > 0 || undefined}>
             <b>{dayLabel(d)}</b>
-            <div>{mine.length ? mine.map(e => <Link key={e.id} href={`/career/${saveId}/events/${encodeURIComponent(e.id)}`}>{e.name}<small>{e.dates.endDay > dayNumber ? ` · through ${dayLabel(((e.dates.endDay - 1) % 7) + 1)}` : " · booked"}</small></Link>)
-              : <span className="week-planner__agenda-empty">No event booked</span>}
+            <div>{mine.map(e => <Link key={`event:${e.id}`} href={`/career/${saveId}/events/${encodeURIComponent(e.id)}`}>{e.name}<small>{e.dates.endDay > dayNumber ? ` · through ${dayLabel(((e.dates.endDay - 1) % 7) + 1)}` : " · booked"}</small></Link>)}
+              {activities.map(item => <Link key={`${item.kind}:${item.id}`} href={activityHref(item.kind)}>{item.label}<small> · open activity</small></Link>)}
+              {!mine.length && !activities.length ? <span className="week-planner__agenda-empty">No event booked</span> : null}
               {options.length > 0 && <small>{options.length} event option{options.length === 1 ? "" : "s"} to review below</small>}
+              {!mine.length && !activities.length && activityOptions(d).length > 0 && <div className="week-planner__book-options" aria-label={`Activities available on ${dayLabel(d)}`}>
+                <b>Book something this day</b>
+                {activityOptions(d).map(option => <Link key={option.label} href={option.href}>{option.label}<small> · {dayLabel(d)} selected</small></Link>)}
+              </div>}
             </div>
           </div>;
         })}

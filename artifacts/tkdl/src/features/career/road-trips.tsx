@@ -44,11 +44,14 @@ function OpponentRow({ o, busy, available, full, onOffer, onPlay }: { o: Opponen
  */
 export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolean }) {
   const q = useRoadTrips(saveId), go = useGoOnRoadTrip(saveId), offer = useOfferRoadMatch(saveId), play = usePlayRoadMatch(saveId);
-  const [town, setTown] = useState<string | null>(null), [night, setNight] = useState<number | null>(null), [message, setMessage] = useState("");
+  const requestedDay = typeof window === "undefined" ? null : Number(new URLSearchParams(window.location.search).get("day"));
+  const [town, setTown] = useState<string | null>(null), [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null), [message, setMessage] = useState("");
   if (!q.data) return q.isLoading ? <p className="money-match__note">Loading road trips…</p> : null;
   const d = q.data, busy = go.isPending || offer.isPending || play.isPending;
   const fail = (e: unknown) => setMessage(errorMessage(e));
-  const pickTown = town ?? d.towns.find(t => t.champion)?.key ?? null, pickNight = night ?? d.freeNights[0] ?? null;
+  const pickTown = town ?? d.towns.find(t => t.champion)?.key ?? null;
+  const preferredNight = night ?? requestedDay;
+  const pickNight = preferredNight !== null && d.freeNights.includes(preferredNight) ? preferredNight : d.freeNights[0] ?? null;
   const chosen = d.towns.find(t => t.key === pickTown);
   const act = (kind: "offer" | "play", opponentKey: string, stakePence: number) => { setMessage(""); (kind === "offer" ? offer : play).mutate({ opponentKey, stakePence }, { onError: fail }); };
   return <div className="money-match road-trip">

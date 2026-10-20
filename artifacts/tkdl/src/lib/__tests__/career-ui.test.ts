@@ -42,6 +42,7 @@ before(async () => {
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
    M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")),...(await load("/src/features/career/road-trips.tsx")),...(await load("/src/features/career/pages/cam-league.tsx")),...(await load("/src/features/career/pro-am.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
+  Object.assign(M, await load("/src/features/career/continue-career.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
     M.ordinary={};
@@ -334,6 +335,32 @@ test("retired Career shell shows the read-only notice and no advance control", (
   assert.ok(t.includes("This Career is retired"));
   assert.ok(!t.includes("Continue"));
   assert.ok(t.includes("child"));
+});
+
+test("active Career header presents Continue Career when no match is waiting", () => {
+  const html = render(h(M.CareerShell, { saveId: SAVE_ID, children: () => h("p", null, "child") }),
+    [[key("save"), save()], [key("calendar", { scope: "WORLD", fromWeek: 1, toWeek: 1, view: "overview" }),
+      { overview: overview(), season: 1, scope: "WORLD", events: [] }]]);
+  assert.match(html, /Continue Career/);
+  assert.match(html, /Play simulated weeks until your next important date/);
+  assert.ok(html.includes(`/career/${SAVE_ID}`), "a direct route back to this save's Overview stays visible from Career pages");
+  assert.ok(!text(html).includes("waiting — play it now"), "a normal active save should not look blocked");
+});
+
+test("Continue routes only to an activity the calendar actually stopped for", () => {
+  const destination = M.continueDestination;
+  assert.equal(destination(SAVE_ID, { reason: "STREAM_PENDING", detail: { day: 5 } }), `/career/${SAVE_ID}/streaming`);
+  assert.equal(destination(SAVE_ID, { reason: "HUMAN_MATCH_PENDING", detail: { matchIds: ["match-1"] } }), `/career/${SAVE_ID}/matches/match-1/play`);
+  assert.equal(destination(SAVE_ID, { reason: "MONEY_MATCH_PENDING", detail: { matchId: "money-1" } }), `/career/${SAVE_ID}/money-matches/money-1/play`);
+  assert.equal(destination(SAVE_ID, { reason: "TARGET_REACHED" }), null, "progress after the weekly stream cap stays on Career");
+  assert.equal(destination(SAVE_ID, { reason: "MONEY_MATCH_PENDING" }), null, "a missing money-match ID is surfaced instead of navigating to a broken route");
+});
+
+test("Career attention read state safely handles stored IDs and malformed browser data", () => {
+  const decode = M.decodeCareerAttentionReadIds;
+  assert.deepEqual([...decode(JSON.stringify(["news:1", "event:2", 3]))], ["news:1", "event:2"]);
+  assert.deepEqual([...decode("not-json")], []);
+  assert.deepEqual([...decode(null)], []);
 });
 
 // ---------------------------------------------------------------- rankings

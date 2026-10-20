@@ -19,11 +19,11 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
   if (!d.club || !d.table) return <CareerEmptyState title="No home club yet">Your home club comes from your home area. Set it in your Career profile.</CareerEmptyState>;
   const mine = d.table.rows.find(r => r.you)!, honours = d.history.filter(h => h.champions);
   return <div className="space-y-3 career-club">
-    <CareerPageHero kicker={`${d.club.region} · County league`} title={d.club.name} accent="#7ec8a4" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}
+    <CareerPageHero kicker={`${d.club.region} · County league`} title={d.club.name} accent="#ff005c" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}
       subtitle={<p>Your home club. Members score club points with their finishes at club nights, county and regional events. {d.legend ? "You turned professional and remain the club's legend." : ""}</p>}
       stats={[{ label: "Division", value: d.table.division, tone: "gold" }, { label: "League position", value: ordinal(mine.position) }, { label: "Club points", value: mine.points },
         { label: "Captain", value: d.captain ? (d.captain.you ? "You" : d.captain.name) : "To be decided" }]} />
-    <CareerSection title={`Division ${d.table.division} · Season ${d.season}`} icon={<Shield aria-hidden />} accent="#7ec8a4">
+    <CareerSection title={`Division ${d.table.division} · Season ${d.season}`} icon={<Shield aria-hidden />} accent="#ff005c">
       <ol className="career-club__table">{d.table.rows.map(r => <li key={r.localityKey} className={r.you ? "is-you" : undefined}>
         <b>{r.position}</b><span>{r.name}</span><em>{r.points}</em></li>)}</ol>
       <p className="px-4 pb-3 text-xs text-white/60">The top two go up and the bottom two go down at the end of the season. Points: winner 5, runner-up 3, semi-final 2, quarter-final 1.</p>
@@ -34,7 +34,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
     <div id="host-tournament"><CareerSection title="Run your own tournament" icon={<Trophy aria-hidden />} accent="#ffd24a">
       <HostTournament saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
     </CareerSection></div>
-    <CareerSection title="Members" icon={<Users aria-hidden />} accent="#7ec8a4">
+    <CareerSection title="Members" icon={<Users aria-hidden />} accent="#ff005c">
       <ol className="career-club__table">{d.members.filter(m => m.active).slice(0, 25).map(m => <li key={m.key} className={m.you ? "is-you" : undefined}>
         <b>{d.captain?.key === m.key ? <Crown size={14} aria-label="Captain" /> : ""}</b>
         <span>{m.you ? <strong>You</strong> : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}{m.professional && <small className="career-club__pro"> · Pro</small>}</span>

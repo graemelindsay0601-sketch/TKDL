@@ -136,6 +136,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
           <Link href="/career" className="p-2 -ml-2 rounded-lg hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" aria-label="Back to Career saves">
             <ArrowLeft className="w-4 h-4" style={{ color: "rgba(255,255,255,0.62)" }} />
           </Link>
+          <Link className="career-header-home" href={`/career/${save.id}`}><House aria-hidden /><span>Overview</span></Link>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 whitespace-nowrap"><Label color="#3d8bff">TKDL</Label><Label color="#ff005c">Career</Label><Label>· Slot {save.slotNumber}</Label></div>
             <h1 className="font-black uppercase leading-tight break-words" style={{ ...OSWALD, fontSize: "clamp(1.3rem, 4.5vw, 2rem)", color: "#fff", letterSpacing: "0.04em" }}>
@@ -266,6 +267,8 @@ function WorldSearch({saveId}:{saveId:string}) {
 }
 export function CareerAttention({saveId,season,week,retired=false}:{saveId:string;season:number;week:number;retired?:boolean}) {
   const [open,setOpen]=useState(false);
+  const [readIds,setReadIds]=useState<Set<string>>(()=>readCareerAttention(saveId));
+  useEffect(()=>setReadIds(readCareerAttention(saveId)),[saveId]);
   const t=useActiveTournament(saveId),seasonReview=useCareerLegacySummary(saveId),finance=useFinance(saveId,open),life=useCareerLife(saveId,open),sporting=useSporting(saveId,open);
   const entryCalendar=useCalendar(saveId,{scope:"AVAILABLE",season,fromWeek:week,toWeek:Math.min(52,week+1)},open&&!retired);
   const active=t.data?.tournaments.find(x=>!x.terminal),base=`/career/${saveId}`;
@@ -273,21 +276,34 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
   const actions=!retired?[...(active?[{title:`Return to ${active.name}`,path:`${base}/tournaments/${active.eventId}`}]:[]),
     ...(seasonReview.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
     ...(finance.data?.availableOffers?[{title:"Sponsor decision available",path:`${base}/finances`}]:[])]:[];
-  const attentionCount=actions.length+entryWindows.length;
   const panelId=`career-attention-panel-${saveId}`;
   const milestones=sporting.data?.recentMilestones.slice(0,2)??[];
-  const news=life.data?.news.slice(0,Math.min(3,5-attentionCount))??[];
+  const actionCount=actions.length+entryWindows.length;
+  const news=life.data?.news.slice(0,Math.min(3,5-actionCount))??[];
+  const itemIds=[
+    ...actions.map(a=>`action:${a.path}`),
+    ...entryWindows.slice(0,3).map(e=>`entry:${e.id}`),
+    ...milestones.map(m=>`milestone:${m.kind}:${m.season}`),
+    ...news.map(n=>`news:${n.id}`),
+  ];
+  const unreadCount=itemIds.filter(id=>!readIds.has(id)).length;
+  const markRead=(ids:string[])=>setReadIds(previous=>{
+    const next=new Set(previous);ids.forEach(id=>next.add(id));
+    try{localStorage.setItem(careerAttentionKey(saveId),JSON.stringify([...next].slice(-200)));}catch{/* Per-device convenience; the panel still works when storage is unavailable. */}
+    return next;
+  });
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
       <button type="button" className="career-attention-trigger" data-testid="button-career-attention" aria-expanded={open} aria-controls={panelId}>
-        <Bell size={17} aria-hidden/><span>Attention</span>{attentionCount>0&&<span className="career-inbox-count" title="Known actions — open to check all updates">{attentionCount}</span>}
+        <Bell size={17} aria-hidden/><span>Attention</span>{unreadCount>0&&<span className="career-inbox-count" title={`${unreadCount} unread Career updates`}>{unreadCount}</span>}
       </button>
     </PopoverTrigger>
     <PopoverContent id={panelId} className="career-attention-panel" side="bottom" align="end" sideOffset={10} collisionPadding={12} aria-labelledby={`${panelId}-title`}>
       <header className="career-attention-panel-header">
         <div><span className="career-eyebrow">Career updates</span><h2 id={`${panelId}-title`}>Attention</h2><p>Your next steps and recent activity.</p></div>
         <div className="career-attention-panel-tools">
-          {attentionCount>0&&<span className="career-attention-total" data-testid="text-career-attention-count">{attentionCount} action{attentionCount===1?"":"s"}</span>}
+          {unreadCount>0&&<button type="button" className="career-attention-clear" data-testid="button-clear-career-attention"
+            onClick={()=>markRead(itemIds)}>{unreadCount===itemIds.length?"Mark all read":"Clear unread"}</button>}
           <button type="button" className="career-attention-close" data-testid="button-close-career-attention" aria-label="Close Career attention" onClick={()=>setOpen(false)}><X size={17} aria-hidden/></button>
         </div>
       </header>
@@ -295,19 +311,19 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
         {(finance.isLoading||life.isLoading||sporting.isLoading||entryCalendar.isLoading)&&<p role="status" data-testid="status-career-attention-loading">Loading Career updates…</p>}
         <section className="career-attention-group" aria-labelledby={`${panelId}-actions`}>
           <h3 id={`${panelId}-actions`}>Action required</h3>
-          {actions.map((a,i)=><Link key={a.path} className="is-action" data-testid={`link-career-action-${i}`} href={a.path}><Bell size={14} aria-hidden/><span>{a.title}</span></Link>)}
-          {entryWindows.slice(0,3).map(e=><Link key={e.id} className="is-action" data-testid={`link-registration-alert-${e.id}`} href={`${base}/events/${encodeURIComponent(e.id)}`}><CalendarDays size={14} aria-hidden/><span>{e.name}<small>Entry closes {e.registration.closesWeek===week?"this week":"next week"}</small></span></Link>)}
+          {actions.map((a,i)=>{const id=`action:${a.path}`;return <Link key={a.path} className="is-action" data-read={readIds.has(id)||undefined} data-testid={`link-career-action-${i}`} href={a.path} onClick={()=>markRead([id])}><Bell size={14} aria-hidden/><span>{a.title}</span></Link>;})}
+          {entryWindows.slice(0,3).map(e=>{const id=`entry:${e.id}`;return <Link key={e.id} className="is-action" data-read={readIds.has(id)||undefined} data-testid={`link-registration-alert-${e.id}`} href={`${base}/events/${encodeURIComponent(e.id)}`} onClick={()=>markRead([id])}><CalendarDays size={14} aria-hidden/><span>{e.name}<small>Entry closes {e.registration.closesWeek===week?"this week":"next week"}</small></span></Link>;})}
           {entryWindows.length>3&&<Link href={`${base}/calendar`}>View all {entryWindows.length} entry windows</Link>}
-          {!attentionCount&&<p>{finance.isLoading||entryCalendar.isLoading?"Checking pending decisions and entry windows…":"No pending action reported."}</p>}
+          {!actionCount&&<p>{finance.isLoading||entryCalendar.isLoading?"Checking pending decisions and entry windows…":"No pending action reported."}</p>}
         </section>
         <section className="career-attention-group" aria-labelledby={`${panelId}-career`}>
           <h3 id={`${panelId}-career`}>Career updates</h3>
-          {milestones.map((m,i)=><Link key={`${m.kind}-${m.season}-${i}`} data-testid={`link-career-milestone-${i}`} href={`${base}/journey`}><Trophy size={14} aria-hidden/><span>{milestoneLabel(m).title}</span><small>Season {m.season}</small></Link>)}
+          {milestones.map((m,i)=>{const id=`milestone:${m.kind}:${m.season}`;return <Link key={`${m.kind}-${m.season}-${i}`} data-read={readIds.has(id)||undefined} data-testid={`link-career-milestone-${i}`} href={`${base}/journey`} onClick={()=>markRead([id])}><Trophy size={14} aria-hidden/><span>{milestoneLabel(m).title}</span><small>Season {m.season}</small></Link>;})}
           {sporting.data&&!milestones.length&&<p>No recent Career milestones.</p>}
         </section>
         <section className="career-attention-group" aria-labelledby={`${panelId}-world`}>
           <h3 id={`${panelId}-world`}>World news</h3>
-          {news.map(n=><Link key={n.id} data-testid={`link-career-story-${n.id}`} href={`${base}/stories`}><Newspaper size={14} aria-hidden/><span>{n.title}</span></Link>)}
+          {news.map(n=>{const id=`news:${n.id}`;return <Link key={n.id} data-read={readIds.has(id)||undefined} data-testid={`link-career-story-${n.id}`} href={`${base}/stories`} onClick={()=>markRead([id])}><Newspaper size={14} aria-hidden/><span>{n.title}</span></Link>;})}
           {life.data&&!news.length&&<p>No recent Darts World stories.</p>}
           <Link data-testid="link-explore-darts-world" href={`${base}/world`}>Explore Darts World</Link>
         </section>
@@ -315,4 +331,14 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
       </div>
     </PopoverContent>
   </Popover>;
+}
+
+const careerAttentionKey=(saveId:string)=>`tkdl-career-attention-read-${saveId}`;
+export function decodeCareerAttentionReadIds(raw:string|null):Set<string>{
+  try{const value=JSON.parse(raw??"[]");return new Set(Array.isArray(value)?value.filter((x):x is string=>typeof x==="string"):[]);}
+  catch{return new Set();}
+}
+function readCareerAttention(saveId:string):Set<string>{
+  try{return decodeCareerAttentionReadIds(localStorage.getItem(careerAttentionKey(saveId)));}
+  catch{return new Set();}
 }

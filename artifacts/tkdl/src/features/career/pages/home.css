@@ -323,6 +323,11 @@
 .week-planner__agenda-day a small,.week-planner__agenda-day > div > small { color:#9aaebe; font-size:.66rem; }
 .week-planner__agenda-empty { color:#8999a9; }
 .week-planner__agenda-day[data-booked="true"] { background:#d9b96f08; }
+.week-planner__book-options { display:grid; gap:5px; margin-top:5px; padding:9px; border:1px solid #ff005c44; border-radius:9px; background:linear-gradient(120deg,#ff005c12,#d9b96f08); }
+.week-planner__book-options > b { color:#ffe28a; font:700 .67rem Oswald,system-ui,sans-serif; letter-spacing:.1em; text-transform:uppercase; }
+.week-planner__book-options > a { display:flex; flex-wrap:wrap; align-items:baseline; gap:3px; width:fit-content; max-width:100%; padding:4px 7px; border:1px solid #ffffff17; border-radius:7px; background:#080d18a8; color:#fff; font-size:.72rem; }
+.week-planner__book-options > a:hover { border-color:#ff005c; text-decoration:none; }
+.week-planner__book-options > a small { color:#f3c6d4; }
 .plan-week { display:grid; gap:8px; }
 .plan-week__start { justify-self:start; }
 .plan-week--open { padding:10px 12px; border:1px solid #d9b96f33; border-radius:12px; background:#d9b96f0a; }
