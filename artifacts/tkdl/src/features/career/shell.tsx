@@ -303,7 +303,9 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
       <button type="button" className="career-attention-trigger" data-testid="button-career-attention" aria-expanded={open} aria-controls={panelId}>
-        <Bell size={17} aria-hidden/><span>Attention</span>{unreadCount>0&&<span className="career-inbox-count" title={`${unreadCount} unread Career updates`}>{unreadCount}</span>}
+        <Bell size={17} aria-hidden/><span>Attention</span>
+        <span className="career-inbox-count" aria-hidden={unreadCount === 0 || undefined} data-empty={unreadCount === 0 || undefined}
+          title={unreadCount > 0 ? `${unreadCount} unread Career updates` : undefined}>{unreadCount}</span>
       </button>
     </PopoverTrigger>
     <PopoverContent id={panelId} className="career-attention-panel" side="bottom" align="end" sideOffset={10} collisionPadding={12} aria-labelledby={`${panelId}-title`}>
