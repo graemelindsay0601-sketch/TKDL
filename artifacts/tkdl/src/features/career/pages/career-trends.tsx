@@ -8,7 +8,9 @@ import "./career-trends.css";
 /** Season-level chart from recorded ranking publications and completed event results. */
 export function CareerPerformanceTrend({ saveId }: { saveId: string }) {
   const facts = useCareerFacts(saveId);
-  const ranking = useRankingHistory(saveId, "pro-world", "HUMAN", 250);
+  // The Career API caps one request at 200 snapshots. Season highs are returned
+  // independently of this cap, so 200 keeps this chart complete without a 400.
+  const ranking = useRankingHistory(saveId, "pro-world", "HUMAN", 200);
   const seasonMap = new Map<number, { season: number; events: number; titles: number }>();
   for (const result of facts.data?.results ?? []) {
     const season = seasonMap.get(result.season) ?? { season: result.season, events: 0, titles: 0 };

@@ -44,7 +44,8 @@ async function ids(saveId) {
 }
 
 const routesFor = (s, x) => [
-  ["home", `/career/${s}`], ["calendar", `/career/${s}/calendar`], ["map", `/career/${s}/map`],
+  ["home", `/career/${s}`], ["play", `/career/${s}/play`], ["calendar", `/career/${s}/calendar`],
+  ["health", `/career/${s}/health`], ["map", `/career/${s}/map`], ["guide", `/career/${s}/guide`],
   ...(x.tournament ? [["tournament-hub", `/career/${s}/tournaments/${x.tournament}`]] : []),
   ...(x.title ? [["tournament-won", `/career/${s}/tournaments/${x.title}`]] : []),
   ...(x.lost ? [["tournament-lost", `/career/${s}/tournaments/${x.lost}`]] : []),
@@ -55,9 +56,16 @@ const routesFor = (s, x) => [
   ["players", `/career/${s}/world/players`], ...(x.npc ? [["npc-profile", `/career/${s}/world/players/${x.npc}/profile`]] : []),
   ...(x.rival ? [["rivalry", `/career/${s}/world/rivalries/${x.rival}`]] : []),
   ["sponsors", `/career/${s}/sponsors`], ["kit-room", `/career/${s}/presentation`], ["finances", `/career/${s}/finances`],
+  ["nights", `/career/${s}/nights`], ["club", `/career/${s}/club`], ["money-matches", `/career/${s}/money-matches`],
+  ["road-trips", `/career/${s}/road-trips`], ["pro-am", `/career/${s}/pro-am`], ["cam-league", `/career/${s}/cam-league`],
+  ["streaming", `/career/${s}/streaming`],
   ["my-career", `/career/${s}/my-career`], ["achievements", `/career/${s}/my-career/achievements`], ["performance", `/career/${s}/my-career/performance`],
+  ["my-career-life", `/career/${s}/my-career/life`],
   ["season-history", `/career/${s}/my-career/history`], ["remembered", `/career/${s}/my-career/remembered`], ["legacy", `/career/${s}/history`],
-  ["journey", `/career/${s}/journey`], ["goals", `/career/${s}/goals`], ["relationships", `/career/${s}/relationships`], ["recognition", `/career/${s}/recognition`],
+  ["journey", `/career/${s}/journey`], ["road-to-tour", `/career/${s}/road-to-the-tour`], ["goals", `/career/${s}/goals`],
+  ["relationships", `/career/${s}/relationships`], ["recognition", `/career/${s}/recognition`], ["stories", `/career/${s}/stories`],
+  ["world-search", `/career/${s}/world/search`], ["world-records", `/career/${s}/world/records`],
+  ["history-facts", `/career/${s}/history/facts`],
   ["q-school", `/career/${s}/q-school`], ["palace", `/career/${s}/world-championship`],
 ];
 
@@ -83,8 +91,19 @@ for (const [label, saveId, subset] of plan) {
         if (r.status() >= 400 && !u.includes("favicon")) failed.push(`${r.status()} ${u.replace(BASE, "")}`);
         if (r.request().resourceType() === "image") { let bytes = 0; try { bytes = (await r.body()).length; } catch {} images.push({ url: u.replace(BASE, ""), bytes, status: r.status() }); } });
       const t0 = Date.now();
-      try { await page.goto(`${BASE}${route}`, { waitUntil: "networkidle", timeout: 45000 }); } catch (e) { errors.push(`NAV ${e.message.slice(0, 120)}`); }
-      await page.waitForTimeout(700);
+      // Do not wait for networkidle: the app shell polls notification and live
+      // endpoints, which can keep a page "busy" long after its Career view renders.
+      try { await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded", timeout: 15000 }); } catch (e) { errors.push(`NAV ${e.message.slice(0, 120)}`); }
+      await page.waitForTimeout(1100);
+      // The first-visit push prompt is part of the product, but it obscures the
+      // underlying route in every screenshot. Dismiss it once and measure the
+      // settled page layout separately from its entrance animation.
+      try {
+        const dismiss = page.getByRole("button", { name: "Not now", exact: true });
+        if (await dismiss.count()) await dismiss.first().click({ timeout: 1200 });
+      } catch { /* prompt may not be present on this save or route */ }
+      await page.evaluate(() => { window.__cls = 0; });
+      await page.waitForTimeout(250);
       const info = await page.evaluate(() => {
         const vw = document.documentElement.clientWidth;
         const offenders = [...document.querySelectorAll("body *")].filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && (r.right > vw + 1) && getComputedStyle(el).position !== "fixed"; })

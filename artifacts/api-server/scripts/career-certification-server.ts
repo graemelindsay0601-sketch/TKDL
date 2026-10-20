@@ -53,8 +53,30 @@ import { createCareerLifeRouter } from "../src/career/life/router.ts";
 import { createCareerLegacyService } from "../src/career/legacy/service.ts";
 import { createCareerLegacyRouter } from "../src/career/legacy/router.ts";
 import { captureRetirement } from "../src/career/legacy/persistence.ts";
+import { createCareerRecordsService } from "../src/career/records/service.ts";
+import { createCareerRecordsRouter } from "../src/career/records/router.ts";
+import { createCareerClubService } from "../src/career/club/service.ts";
+import { createCareerClubRouter } from "../src/career/club/router.ts";
+import { createCareerTeamNightsService } from "../src/career/club/team-service.ts";
+import { createCareerCountyLiveService } from "../src/career/club/county-live-service.ts";
+import { createCareerMoneyService } from "../src/career/money/service.ts";
+import { createCareerMoneyRouter } from "../src/career/money/router.ts";
+import { createCareerHostingService } from "../src/career/hosting/service.ts";
+import { createCareerHostingRouter } from "../src/career/hosting/router.ts";
+import { createCareerStreamingService } from "../src/career/streaming/service.ts";
+import { createCareerStreamingRouter } from "../src/career/streaming/router.ts";
+import { createCareerRoadTripService } from "../src/career/roadtrip/service.ts";
+import { createCareerRoadTripRouter } from "../src/career/roadtrip/router.ts";
+import { createCareerCamLeagueService } from "../src/career/camleague/service.ts";
+import { createCareerCamLeagueRouter } from "../src/career/camleague/router.ts";
+import { createCareerProAmService } from "../src/career/proam/service.ts";
+import { createCareerProAmRouter } from "../src/career/proam/router.ts";
+import { createCareerNightsRouter } from "../src/career/nights-router.ts";
+import { createCareerManagerService } from "../src/career/manager/service.ts";
+import { createCareerManagerRouter } from "../src/career/manager/router.ts";
 import { createCareerContentService, createCareerContentRouter } from "../src/career/content/service.ts";
 import { createCareerTournamentService, createCareerTournamentRouter } from "../src/career/tournament/service.ts";
+import { repairCareerSchema } from "../src/db/migrations/repair_career_schema.ts";
 import { lockRoot } from "../src/career/world/service.ts";
 import { post } from "../src/career/finance/ledger.ts";
 import { acceptOffer } from "../src/career/finance/engine.ts";
@@ -206,6 +228,9 @@ if (reuse) {
   if (statePath) writeFileSync(statePath, JSON.stringify(state, null, 2));
   log("Seeded", state);
 }
+// Match app.ts startup repairs: several activity APIs are provisioned there rather
+// than in the ledgered Career startup steps above.
+await repairCareerSchema(db);
 
 // ---------------------------------------------------------------- app
 const app = express();
@@ -220,6 +245,16 @@ router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
 router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
 router.use(createCareerLifeRouter(createCareerLifeService(db)));
 router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
+router.use(createCareerRecordsRouter(createCareerRecordsService(db)));
+router.use(createCareerClubRouter(createCareerClubService(db), createCareerTeamNightsService(db), createCareerCountyLiveService(db)));
+router.use(createCareerMoneyRouter(createCareerMoneyService(db)));
+router.use(createCareerHostingRouter(createCareerHostingService(db)));
+router.use(createCareerStreamingRouter(createCareerStreamingService(db)));
+router.use(createCareerRoadTripRouter(createCareerRoadTripService(db)));
+router.use(createCareerCamLeagueRouter(createCareerCamLeagueService(db)));
+router.use(createCareerProAmRouter(createCareerProAmService(db)));
+router.use(createCareerNightsRouter(db));
+router.use(createCareerManagerRouter(createCareerManagerService(db)));
 router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
 router.use(createCareerLiveRouter(live, available));
 router.use(createCareerSportingRouter(sporting, available));
@@ -239,6 +274,7 @@ app.get("/api/startup", (_req, res) => { res.json({ ready: true, phase: "READY" 
 app.get("/api/auth/me", (_req, res) => { res.json({ id: 1, username: "certification", isAdmin: false, playerId: 1, playerName: "Certification Player", lastLoginAt: null }); });
 app.get("/api/settings", (_req, res) => { res.json({}); });
 app.get("/api/notifications/unread-count", (_req, res) => { res.json({ count: 0, communityCount: 0 }); });
+app.get("/api/feature-status/:feature", (_req, res) => { res.json({ enabled: true }); });
 app.use("/api", (req, res) => { res.status(404).json({ error: `Not served by the certification harness: ${req.path}` }); });
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => { console.error("UNHANDLED", err.message); res.status(500).json({ error: err.message }); });
 app.use(express.static(dist));
