@@ -32,7 +32,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
   return (
     <div className="space-y-3">
       {sporting.isLoading ? <CareerLoading label="Reading your Career chapter" /> : sporting.error ? <CareerError error={sporting.error} onRetry={() => sporting.refetch()} /> : chapter && (
-        <CareerPageHero kicker={`Career journey · Season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title={chapter.label} accent="#4ade80" watermark={`S${String(ctx.save.currentSeason).padStart(2, "0")}`}
+        <CareerPageHero kicker={`Career journey · Season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title={chapter.label} accent="#ff005c" watermark={`S${String(ctx.save.currentSeason).padStart(2, "0")}`}
           archival={ctx.retired}
           stage={cards.data?.history.some(c => c.status === "ACTIVE") ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "community-hall" }, eventClass: "REGIONAL" }}
           subtitle={<><NextObjective ctx={ctx} /><AgeLine saveId={id} /></>}
@@ -50,7 +50,7 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
       <Link className="career-row-link block pdc-card p-3 text-sm" href={`/career/${id}/history`}>Career facts, playing statistics, records and full history →</Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <CareerSection title="Milestones" icon={<MilestoneIcon className="w-3.5 h-3.5" />} accent="#4ade80">
+        <CareerSection title="Milestones" icon={<MilestoneIcon className="w-3.5 h-3.5" />} accent="#ffd24a">
           {milestones.isLoading ? <CareerLoading /> : milestones.error ? <CareerError error={milestones.error} onRetry={() => milestones.refetch()} /> : milestones.data?.milestones.length ? (
             <ol className="px-4 py-2">{milestones.data.milestones.map((m, i) => { const l = milestoneLabel(m); return (
               <li key={m.id ?? i} className="flex items-start gap-3 py-1.5 border-b last:border-b-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
