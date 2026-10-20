@@ -164,6 +164,7 @@
 .career-attention-group > a[data-read="true"] { opacity:.64; }
 .career-attention-group > a[data-read="true"]:hover { opacity:1; }
 .career-attention-group > a:focus-visible { outline:2px solid #ff7ca4; outline-offset:2px; }
+.career-attention-group > a.is-action > span { display:flex; flex-direction:column; gap:2px; }
 .career-attention-group > p,.career-attention-error { color:#9eb0c3; font-size:.75rem; line-height:1.55; }
 .career-attention-error { margin:4px 0 0; padding:10px 12px; border:1px solid #ff7a8340; border-radius:11px; background:#ff57620d; color:#ffc1c6; }
 .career-skip { position:absolute; left:-9999px; }.career-skip:focus { position:fixed; top:12px; left:12px; z-index:100; background:#22374c; padding:12px; }
