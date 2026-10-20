@@ -5,6 +5,7 @@ import { CareerError } from "../service.ts";
 import { lockRoot, type CareerActor } from "../world/service.ts";
 import { LOCALITIES } from "../calendar/geography.ts";
 import { absoluteDay } from "../calendar/generation.ts";
+import { WEEKS_PER_SEASON } from "../calendar/config.ts";
 import type { RootRow } from "../calendar/engine.ts";
 import { loadNpcs } from "../world/repository.ts";
 import { simulateNpcMatch } from "../world/simulation.ts";
@@ -62,8 +63,7 @@ export function createCareerProAmService(database: CareerDatabase) {
     return { avg: c.avg, sd: c.sd, checkoutPct: c.checkoutPct, hitAcc: c.hitAcc };
   };
 
-  async function offers(tx: CareerExecutor, root: Root, side: "AMATEUR" | "PRO") {
-    const season = Number(root.current_season), week = Number(root.current_week);
+  async function offers(tx: CareerExecutor, root: Root, side: "AMATEUR" | "PRO", season = Number(root.current_season), week = Number(root.current_week)) {
     const homeKey = await homeLocalityOf(tx, root), home = LOCALITIES.find(l => l.key === homeKey);
     if (!home) return [];
     // Pro-Am nights near home: your own town and the five nearest.
@@ -87,12 +87,12 @@ export function createCareerProAmService(database: CareerDatabase) {
     pro: (r.pro as ProAmBooking["pro"]) ?? null, feePence: Number(r.fee_pence ?? 0), prizePence: Number(r.prize_pence ?? 0), appearancePence: Number(r.appearance_pence ?? 0),
     result: (r.result as ProAmBooking["result"]) ?? null });
 
-  async function view(tx: CareerExecutor, root: Root): Promise<ProAmView> {
-    const season = Number(root.current_season), week = Number(root.current_week);
+  async function view(tx: CareerExecutor, root: Root, week = Number(root.current_week)): Promise<ProAmView> {
+    const season = Number(root.current_season);
     const side = root.has_tour_card ? "PRO" : "AMATEUR";
     const rows = (await tx.execute(sql`SELECT * FROM career_proam_nights WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC`)).rows;
     const mine = rows.find(r => Number(r.season) === season && Number(r.week) === week);
-    const list = root.status === "ACTIVE" ? (await offers(tx, root, side)).map(({ localityKey: _l, proKey: _p, ...n }) => n) : [];
+    const list = root.status === "ACTIVE" ? (await offers(tx, root, side, season, week)).map(({ localityKey: _l, proKey: _p, ...n }) => n) : [];
     const played = rows.filter(r => r.status === "PLAYED").map(bookingFrom);
     const asAmateur = played.filter(b => b.role === "AMATEUR"), asPro = played.filter(b => b.role === "PRO");
     return { season, week, side, availablePence: await availableOf(tx, root.id), nights: list, booking: mine ? bookingFrom(mine) : null,
@@ -123,8 +123,14 @@ export function createCareerProAmService(database: CareerDatabase) {
   }
 
   const api = {
-    async read(actor: CareerActor, saveId: string) {
-      return database.transaction(async tx => view(tx, await lockRoot(tx, actor, saveId, false) as unknown as Root));
+    async read(actor: CareerActor, saveId: string, requestedWeek?: number) {
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId, false) as unknown as Root;
+        const current = Number(root.current_week), week = requestedWeek ?? current;
+        if (!Number.isInteger(week) || week < current || week > Math.min(current + 1, WEEKS_PER_SEASON))
+          throw new CareerError(400, "You can only plan Pro-Am nights for this week or next week");
+        return view(tx, root, week);
+      });
     },
 
     /**
@@ -132,14 +138,16 @@ export function createCareerProAmService(database: CareerDatabase) {
      * invitation to be the pro (paid on the night). One a week, on a night you're free.
      */
     async book(actor: CareerActor, saveId: string, body: unknown) {
-      const { nightKey } = z.object({ nightKey: z.string().max(40) }).strict().parse(body);
+      const input = z.object({ nightKey: z.string().max(40), week: z.number().int().min(1).max(WEEKS_PER_SEASON).optional() }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
-        const season = Number(root.current_season), week = Number(root.current_week);
-        const v = await view(tx, root);
+        const season = Number(root.current_season), current = Number(root.current_week), week = input.week ?? current;
+        if (week < current || week > Math.min(current + 1, WEEKS_PER_SEASON))
+          throw new CareerError(409, "You can only book a Pro-Am night for this week or next week");
+        const v = await view(tx, root, week);
         if (v.booking) throw new CareerError(409, "One Pro-Am night a week");
-        const night = (await offers(tx, root, v.side)).find(n => n.key === nightKey);
-        if (!night) throw new CareerError(404, "That Pro-Am night isn't on this week");
+        const night = (await offers(tx, root, v.side, season, week)).find(n => n.key === input.nightKey);
+        if (!night) throw new CareerError(404, "That Pro-Am night isn't available for this week");
         if (!night.free) throw new CareerError(409, "You're booked that night");
         const cost = night.feePence + night.travelPence;
         if (cost > v.availablePence) throw new CareerError(409, "You can't afford it");
@@ -147,7 +155,7 @@ export function createCareerProAmService(database: CareerDatabase) {
         let pro: Record<string, unknown> | null = null;
         if (v.side === "AMATEUR") {
           const npc = (await loadNpcs(tx, root.id, { ids: [night.proKey!] }))[0];
-          pro = { key: npc.id, name: night.pro!.name, rank: night.pro!.rank, avg: night.pro!.avg, config: proConfig(root, npc, `proam:${nightKey}`) };
+          pro = { key: npc.id, name: night.pro!.name, rank: night.pro!.rank, avg: night.pro!.avg, config: proConfig(root, npc, `proam:${input.nightKey}`) };
         }
         await tx.execute(sql`INSERT INTO career_proam_nights (career_save_id, id, season, week, day, locality_key, role, status, pro, fee_pence, prize_pence, appearance_pence, travel_pence)
           VALUES (${root.id}, ${id}, ${season}, ${week}, ${absoluteDay(week, night.dayOfWeek)}, ${night.localityKey}, ${v.side}, 'BOOKED', ${pro ? JSON.stringify(pro) : null}::jsonb,
@@ -156,7 +164,7 @@ export function createCareerProAmService(database: CareerDatabase) {
           reason: `Pro-Am slot against ${night.pro!.name} in ${night.town}`, season, week, detail: { proAmId: id } });
         if (night.travelPence > 0) await post(tx, root, { operationKey: `proam-travel:${id}`, category: "TRAVEL", amountPence: -night.travelPence,
           reason: `Travel to a Pro-Am night in ${night.town}`, season, week, detail: { proAmId: id } });
-        return view(tx, root);
+        return view(tx, root, week);
       });
     },
 

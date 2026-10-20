@@ -160,8 +160,10 @@ export const moneyMatchApi = { darts: (saveId: string, matchId: string, darts: u
 export type ProAmView = import("../../../../api-server/src/career/proam/service").ProAmView;
 export type ProAmSession = import("../../../../api-server/src/career/proam/service").ProAmSession;
 /** Pro-Am nights: this week's nights (as an amateur or, with a Tour Card, as the pro), your booking and record. */
-export const useProAm = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "pro-am"), queryFn: () => get<ProAmView>(`/saves/${saveId}/pro-am`), staleTime: STALE });
-export const useBookProAm = (saveId: string) => useSaveMutation(saveId, (nightKey: string) => send<ProAmView>("POST", `/saves/${saveId}/pro-am/book`, { nightKey }));
+export const useProAm = (saveId: string, week?: number) => useQuery({ queryKey: careerKey(saveId, "pro-am", ...(week === undefined ? [] : [week])),
+  queryFn: () => get<ProAmView>(`/saves/${saveId}/pro-am${qs({ week })}`), staleTime: STALE });
+export const useBookProAm = (saveId: string) => useSaveMutation(saveId, (input: { nightKey: string; week?: number }) =>
+  send<ProAmView>("POST", `/saves/${saveId}/pro-am/book`, input));
 export const useSimulateProAm = (saveId: string) => useSaveMutation(saveId, (nightId: string) => send<ProAmView>("POST", `/saves/${saveId}/pro-am/nights/${nightId}/simulate`));
 export const useProAmLeg = (saveId: string, nightId: string) => useQuery({ queryKey: careerKey(saveId, "pro-am", "leg", nightId),
   queryFn: () => get<ProAmSession>(`/saves/${saveId}/pro-am/nights/${nightId}`), staleTime: Infinity });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, MonitorPlay, Star } from "lucide-react";
 import { GameScorer } from "@/components/game-scorer";
@@ -16,7 +16,10 @@ import type { LiveSession } from "./types";
  * beat them. With a Tour Card you're the pro: paid to take on a dozen amateurs.
  */
 export function ProAmNights({ saveId, retired }: { saveId: string; retired: boolean }) {
-  const q = useProAm(saveId), book = useBookProAm(saveId), sim = useSimulateProAm(saveId), [, navigate] = useLocation();
+  const search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week"), dayParam = params.get("day");
+  const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
+  const requestedDay = dayParam === null ? null : Number(dayParam);
+  const q = useProAm(saveId, requestedWeek), book = useBookProAm(saveId), sim = useSimulateProAm(saveId), [, navigate] = useLocation();
   const [message, setMessage] = useState("");
   if (!q.data) return q.isLoading ? <p className="money-match__note">Loading Pro-Am nights…</p> : null;
   const d = q.data, b = d.booking, amateur = d.side === "AMATEUR", fail = (e: unknown) => setMessage(errorMessage(e));
@@ -40,8 +43,10 @@ export function ProAmNights({ saveId, retired }: { saveId: string; retired: bool
       <div className="money-match__who"><b>{n.town} · {dayLabel(n.dayOfWeek)}</b>
         <small>{amateur ? <>{n.pro!.name}{n.pro!.rank ? ` (world no. ${n.pro!.rank})` : ""} · averages about {n.pro!.avg} · slot {formatPence(n.feePence)} · prize {formatPence(n.prizePence)}</>
           : <>Appearance fee {formatPence(n.appearancePence)}</>}{n.travelPence ? ` · travel ${formatPence(n.travelPence)}` : ""}</small></div>
-      {n.free ? <button type="button" className="career-btn career-btn-gold" disabled={book.isPending || n.feePence + n.travelPence > d.availablePence}
-        onClick={() => book.mutate(n.key, { onError: fail })}>{amateur ? `Take a slot (${formatPence(n.feePence + n.travelPence)})` : "Accept"}</button>
+       {n.free ? <button type="button" className="career-btn career-btn-gold" aria-pressed={requestedDay === n.dayOfWeek}
+         disabled={book.isPending || n.feePence + n.travelPence > d.availablePence}
+         onClick={() => book.mutate({ nightKey: n.key, week: d.week }, { onError: fail })}>
+         {requestedDay === n.dayOfWeek ? "Selected · " : ""}{amateur ? `Take a slot (${formatPence(n.feePence + n.travelPence)})` : "Accept"}</button>
         : <span className="money-match__outcome"><small>You're booked that night</small></span>}
     </li>)}</ul> : <p className="money-match__note">No Pro-Am nights near you this week.</p>}
     <p className="money-match__record">{amateur || !d.record.nightsAsPro

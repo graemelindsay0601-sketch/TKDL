@@ -933,6 +933,8 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     "Collabs", "CheckoutQueen", "3,300 followers · averages about 66", "Too big for you yet", "Clips", "NINE-DARTER LIVE ON STREAM", "VIRAL", "182,000 views",
     "+2,900 followers · +5,800 fans", "out this week: will it go viral?",
     "DartCast Invitational", "£250 / £750 / £1,500 / £4,000", "TheOcheShow 95,000 followers · averages 80", "Play the Invitational on Tue"]) assert.ok(t.includes(fact), fact);
+  const selected = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming?day=5`));
+  assert.ok(selected.includes("Go live on Fri"), "DartCast should carry the planner's selected night into the booking screen");
 });
 
 test("DartCast channel money: subs that renew, a brand's offer to answer, and a Star's invitations", () => {
@@ -966,6 +968,11 @@ test("Road trips: your name on the road, tonight's town with a locked champion, 
   for (const fact of ["Known on the circuit", "1 town taken", "2 more to be a feared hustler", "Glasgow · Wed night", "Travel paid: £7", "1 of 3 games played",
     "Jimmy Craig", "Town champion", "Beat one of Glasgow's locals first", "Lost 2-4", "−£40", "Too rich for me. £30 and you're on.", "Take £30 and play", "2 more asks",
     "Rab Nesbitt from Inverness is at your club", "Play for their £40", "won 4 of 7", "+£65", "towns taken: Stirling"]) assert.ok(t.includes(fact), fact);
+  const available = { ...view, freeNights: [3, 5], trip: null, canTravel: true, why: null, visitor: null,
+    towns: [{ key: "glasgow", city: "Glasgow", region: "Scotland", country: "Scotland", miles: 20, costPence: 700, overnight: false,
+      champion: { name: "Jimmy Craig", average: 61.2 }, conquered: false, record: { played: 0, won: 0, netPence: 0 } }] };
+  const selected = text(render(h(M.RoadTrips, { saveId: SAVE_ID, retired: false }), [[key("road-trips"), available]], `/career/${SAVE_ID}/road-trips?day=5`));
+  assert.ok(selected.includes("Head to Glasgow on Fri"), "road trips should keep the planner's selected night");
 });
 
 test("Webcam league: the table with promotion and relegation places, this week's booked match, fixtures and past leagues", () => {
@@ -981,6 +988,11 @@ test("Webcam league: the table with promotion and relegation places, this week's
   const t = text(render(h(M.CamLeaguePage, { ctx: ctx() }), [[key("cam-league"), view]], `/career/${SAVE_ID}/cam-league`));
   for (const fact of ["Division One", "2nd", "4 of 7", "This week's match", "Opp 4", "averages about 51.2", "Booked for Thu", "Play on camera", "Quick-sim it",
     "Jan de Vries", "You", "£120 / £60 / £36", "Forfeit 0-3", "Booked Thu", "Past leagues", "Division Two", "£40 · promoted"]) assert.ok(t.includes(fact), fact);
+  const openView = { ...view, freeNights: [2, 4], league: { ...view.league,
+    fixtures: view.league.fixtures.map((fixture, i) => i === 3 ? { ...fixture, status: "SCHEDULED", dayOfWeek: null } : fixture),
+    thisWeek: { ...view.league.thisWeek, status: "SCHEDULED", dayOfWeek: null } } };
+  const selected = text(render(h(M.CamLeaguePage, { ctx: ctx() }), [[key("cam-league"), openView]], `/career/${SAVE_ID}/cam-league?day=4`));
+  assert.ok(selected.includes("Book it for Thu"), "webcam league should keep the planner's selected night");
 });
 
 test("Pro-Am nights: slots against touring pros as an amateur, and a paid night as the pro", () => {
@@ -991,6 +1003,9 @@ test("Pro-Am nights: slots against touring pros as an amateur, and a paid night 
   let t = text(render(h(M.ProAmNights, { saveId: SAVE_ID, retired: false }), [[key("pro-am"), am]]));
   for (const fact of ["you throw first", "Kilbirnie · Tue", "Rob Cross (world no. 12)", "averages about 96.1", "slot £25", "prize £500", "Take a slot (£25)",
     "Glasgow · Thu", "travel £7", "You're booked that night", "Pros beaten: 1 of 3", "prizes £300"]) assert.ok(t.includes(fact), fact);
+  const futureAm = { ...am, week: 10 };
+  const selected = render(h(M.ProAmNights, { saveId: SAVE_ID, retired: false }), [[key("pro-am", 10), futureAm]], `/career/${SAVE_ID}/pro-am?week=10&day=2`);
+  assert.match(selected, /aria-pressed="true"[^>]*>Selected · Take a slot/);
   const pro = { ...am, side: "PRO", nights: [], record: { slots: 0, prosBeaten: 0, prizePence: 0, nightsAsPro: 2, appearancePence: 180000, amateursBeatYou: 3 },
     booking: { id: "b", role: "PRO", town: "Stirling", dayOfWeek: 5, status: "PLAYED", pro: null, feePence: 0, prizePence: 0, appearancePence: 90000,
       result: { legs: [{ name: "Al Day", youWon: true }, { name: "Bo Hill", youWon: false }], beatenBy: 1, source: "SIM" } } };

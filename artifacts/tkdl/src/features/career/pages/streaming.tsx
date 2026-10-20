@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Check, Eye, Loader2, Radio, Search, Trophy, Users } from "lucide-react";
 import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
@@ -17,7 +17,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const [goalTarget, setGoalTarget] = useState<number | null>(null);
   const [promise, setPromise] = useState<string | null>(null);
   const [, navigate] = useLocation();
-  const requestedDay = typeof window === "undefined" ? null : Number(new URLSearchParams(window.location.search).get("day"));
+  const search = useSearch(), requestedDayValue = new URLSearchParams(search).get("day");
+  const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
   const [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null);
   const [message, setMessage] = useState("");
   const scheduledWeek = useRef("");

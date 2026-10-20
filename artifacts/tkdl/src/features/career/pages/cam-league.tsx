@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { markSeen } from "../unlocks";
 import { Loader2, MonitorPlay, Trophy, Video } from "lucide-react";
@@ -22,7 +22,8 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, q = useCamLeague(id), join = useJoinCamLeague(id), book = useBookCamMatch(id), sim = useSimulateCamMatch(id);
   useEffect(() => { markSeen(id, "cam-league"); }, [id]);
-  const requestedDay = typeof window === "undefined" ? null : Number(new URLSearchParams(window.location.search).get("day"));
+  const search = useSearch(), requestedDayValue = new URLSearchParams(search).get("day");
+  const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
   const [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null), [message, setMessage] = useState("");
   const [, navigate] = useLocation();
   if (q.isLoading) return <CareerLoading />;

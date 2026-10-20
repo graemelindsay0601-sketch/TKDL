@@ -128,3 +128,27 @@ test("with a Tour Card you're the pro: paid to take on a dozen amateurs (anyone 
   await settleProAmWeek(db, root, w.season, w.week + 2);
   assert.equal((await proam.read(actor, id)).booking!.status, "PLAYED");
 });
+
+test("existing saves can read and book a free Pro-Am night next week without changing this week's view", async () => {
+  const futureSave = (await saves.create(1, { slot: 2, careerName: "Future Pro-Am", dateOfBirth: "1998-03-02", homeLocality: "ayrshire" })).id;
+  await career.initialize(actor, futureSave);
+  await db.execute(sql`UPDATE career_saves SET balance_pence=100000 WHERE id=${futureSave}`);
+  const root = (await rows(sql`SELECT current_week,current_season FROM career_saves WHERE id=${futureSave}`))[0];
+  const currentWeek = Number(root.current_week), nextWeek = currentWeek + 1;
+  const future = await proam.read(actor, futureSave, nextWeek);
+  assert.equal(future.week, nextWeek);
+  const night = future.nights.find(n => n.free);
+  assert.ok(night, "the next-week offer should include a genuinely free night");
+  const booked = await proam.book(actor, futureSave, { nightKey: night.key, week: nextWeek });
+  assert.equal(booked.week, nextWeek);
+  assert.equal(booked.booking?.status, "BOOKED");
+  const stored = (await rows(sql`SELECT season,week,day FROM career_proam_nights WHERE career_save_id=${futureSave} AND id=${booked.booking!.id}`))[0];
+  assert.equal(Number(stored.season), Number(root.current_season));
+  assert.equal(Number(stored.week), nextWeek);
+  assert.equal(Number(stored.day), (nextWeek - 1) * 7 + night.dayOfWeek);
+  const current = await proam.read(actor, futureSave);
+  assert.equal(current.week, currentWeek);
+  assert.equal(current.booking, null, "a future booking must not replace this week's booking view");
+  await status(proam.read(actor, futureSave, nextWeek + 1), 400);
+  await status(proam.book(actor, futureSave, { nightKey: night.key, week: nextWeek + 1 }), 409);
+});

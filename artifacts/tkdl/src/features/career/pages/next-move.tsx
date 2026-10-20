@@ -116,7 +116,7 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
   const streaming = useStreaming(saveId);
   const camLeague = useCamLeague(saveId);
   const roadTrips = useRoadTrips(saveId);
-  const proAm = useProAm(saveId);
+  const proAm = useProAm(saveId, week);
   const booked = events.filter(e => e.human && BOOKED.has(e.human.relationship) && e.status !== "CANCELLED" && e.dates.startWeek <= week && e.dates.endWeek >= week);
   const activitiesOnDay = (d: number): WeekPlannerActivity[] => {
     const activities: WeekPlannerActivity[] = nights.data?.week === week
@@ -128,6 +128,9 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
       id: "team",
       label: `Team night ${teamNight.home ? "v" : "at"} ${teamNight.opponent}`,
     });
+    const futureProAm = proAm.data?.booking;
+    if (week !== currentWeek && proAm.data?.week === week && futureProAm?.status === "BOOKED" && futureProAm.dayOfWeek === d)
+      activities.push({ kind: "proam", id: futureProAm.id, label: `Pro-Am night · ${futureProAm.town}` });
     return activities;
   };
   const activityHref = (kind: string) => ({
@@ -137,29 +140,25 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
     league: `/career/${saveId}/cam-league`,
     proam: `/career/${saveId}/pro-am`,
     team: `/career/${saveId}/club#team-nights`,
-  }[kind] ?? `/career/${saveId}/nights`);
+  }[kind] ?? `/career/${saveId}/nights`) + (kind === "proam" && week !== currentWeek ? `?week=${week}` : "");
   const activityOptions = (d: number) => {
-    // Availability APIs for these activities describe the current week only.
-    if (week !== currentWeek) return [];
     const dayIsFree = !onDay(d).mine.length && !activitiesOnDay(d).length;
     if (!dayIsFree) return [];
-    const day = `?day=${d}`;
     const options: { label: string; href: string }[] = [];
-    const streamDays = streaming.data?.pathway.scheduledNights.length
-      ? streaming.data.pathway.scheduledNights : streaming.data?.freeNights ?? [];
-    if (streaming.data?.week === week && streamDays.includes(d) && streaming.data.streamsThisWeek < streaming.data.perWeek) {
-      options.push({ label: "Book a DartCast stream", href: `${activityHref("stream")}${day}` });
+    if (week === currentWeek) {
+      const day = `?day=${d}`;
+      const streamDays = streaming.data?.pathway.scheduledNights.length
+        ? streaming.data.pathway.scheduledNights : streaming.data?.freeNights ?? [];
+      if (streaming.data?.week === week && streamDays.includes(d) && streaming.data.streamsThisWeek < streaming.data.perWeek)
+        options.push({ label: "Book a DartCast stream", href: `${activityHref("stream")}${day}` });
+      const fixture = camLeague.data?.league?.thisWeek;
+      if (fixture?.status === "SCHEDULED" && camLeague.data?.freeNights.includes(d))
+        options.push({ label: "Book this week’s webcam match", href: `${activityHref("league")}${day}` });
+      if (roadTrips.data?.canTravel && roadTrips.data.freeNights.includes(d))
+        options.push({ label: "Plan a road trip", href: `${activityHref("trip")}${day}` });
     }
-    const fixture = camLeague.data?.league?.thisWeek;
-    if (fixture?.status === "SCHEDULED" && camLeague.data?.freeNights.includes(d)) {
-      options.push({ label: "Book this week’s webcam match", href: `${activityHref("league")}${day}` });
-    }
-    if (roadTrips.data?.canTravel && roadTrips.data.freeNights.includes(d)) {
-      options.push({ label: "Plan a road trip", href: `${activityHref("trip")}${day}` });
-    }
-    if (proAm.data?.nights.some(n => n.dayOfWeek === d && n.free)) {
-      options.push({ label: "Book a Pro-Am night", href: `${activityHref("proam")}${day}` });
-    }
+    if (proAm.data?.week === week && proAm.data.nights.some(n => n.dayOfWeek === d && n.free))
+      options.push({ label: "Book a Pro-Am night", href: `${activityHref("proam")}?week=${week}&day=${d}` });
     return options;
   };
   const onDay = (d: number) => {

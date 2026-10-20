@@ -18,7 +18,10 @@ export function createCareerProAmRouter(service: ReturnType<typeof createCareerP
   });
   const id = (req: Request) => careerIdSchema.parse(String(req.params.id));
   const night = (req: Request) => careerIdSchema.parse(String(req.params.nightId));
-  router.get("/saves/:id/pro-am", async (req, res) => { res.json(await service.read(res.locals.careerActor, id(req))); });
+  router.get("/saves/:id/pro-am", async (req, res) => {
+    const week = req.query.week === undefined ? undefined : Number(req.query.week);
+    res.json(await service.read(res.locals.careerActor, id(req), week));
+  });
   router.post("/saves/:id/pro-am/book", authedWriteRateLimit, async (req, res) => { res.json(await service.book(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/pro-am/nights/:nightId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), night(req))); });
   router.post("/saves/:id/pro-am/nights/:nightId/darts", async (req, res) => { res.json(await service.darts(res.locals.careerActor, id(req), night(req), req.body)); });

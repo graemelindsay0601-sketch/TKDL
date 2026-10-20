@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Car, Crown, Loader2, MapPin } from "lucide-react";
 import { useGoOnRoadTrip, useOfferRoadMatch, usePlayRoadMatch, useRoadTrips, errorMessage, type RoadTripsView } from "./api";
 import { dayLabel, formatPence } from "./model";
@@ -44,7 +44,8 @@ function OpponentRow({ o, busy, available, full, onOffer, onPlay }: { o: Opponen
  */
 export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolean }) {
   const q = useRoadTrips(saveId), go = useGoOnRoadTrip(saveId), offer = useOfferRoadMatch(saveId), play = usePlayRoadMatch(saveId);
-  const requestedDay = typeof window === "undefined" ? null : Number(new URLSearchParams(window.location.search).get("day"));
+  const search = useSearch(), requestedDayValue = new URLSearchParams(search).get("day");
+  const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
   const [town, setTown] = useState<string | null>(null), [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null), [message, setMessage] = useState("");
   if (!q.data) return q.isLoading ? <p className="money-match__note">Loading road trips…</p> : null;
   const d = q.data, busy = go.isPending || offer.isPending || play.isPending;
