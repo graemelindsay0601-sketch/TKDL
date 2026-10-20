@@ -8,3 +8,9 @@ Verify the current `main` commit through the GitHub integration/API before relyi
 **Why:** local refs can be stale, and a tree API update that deletes paths already absent from the base tree can fail with `GitRPC::BadObjectState`.
 
 **How to apply:** compare the live API SHA with the branch's common base, inspect overlapping paths, and only update main after validation against the combined tree.
+
+If the Git remote rejects authentication but the GitHub integration is connected, publish through the integration API: build the desired tree from the verified live main tree, confirm it matches the local tree, create a commit with live main as its parent, and update the ref with `force: false`. Recheck the live ref immediately before updating it.
+
+**Why:** Git HTTPS credentials may be unavailable even while the managed GitHub integration can write; a checked tree and fast-forward-only ref update avoid losing concurrent work.
+
+**How to apply:** never ask for or expose credentials to repair a failed push; use the managed connection and stop if the live branch moved or the tree does not match.
