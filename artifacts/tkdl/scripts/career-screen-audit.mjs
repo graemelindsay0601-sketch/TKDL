@@ -95,6 +95,19 @@ for (const [label, saveId, subset] of plan) {
       // endpoints, which can keep a page "busy" long after its Career view renders.
       try { await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded", timeout: 15000 }); } catch (e) { errors.push(`NAV ${e.message.slice(0, 120)}`); }
       await page.waitForTimeout(1100);
+      // Several Career destinations load their main content after the shell.
+      // Wait for blocking skeletons to clear; small inline status messages can
+      // remain while unrelated summaries refresh and should not stall the audit.
+      try {
+        await page.waitForFunction(() => {
+          const busy = [...document.querySelectorAll(".career-loading")].filter(el => {
+            const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none";
+          });
+          return busy.length === 0;
+        }, null, { timeout: 9000 });
+      } catch { /* keep the loading state in the audit and screenshot */ }
+      await page.waitForTimeout(350);
       // The first-visit push prompt is part of the product, but it obscures the
       // underlying route in every screenshot. Dismiss it once and measure the
       // settled page layout separately from its entrance animation.
@@ -115,8 +128,15 @@ for (const [label, saveId, subset] of plan) {
           overflow: document.documentElement.scrollWidth - vw, offenders,
           brokenImages: [...document.images].filter(i => i.complete && i.naturalWidth === 0 && i.src).map(i => i.src.replace(location.origin, "")).slice(0, 8),
           imagesNoAlt: [...document.images].filter(i => !i.hasAttribute("alt")).length,
-          unlabelled: [...document.querySelectorAll("button, a[href]")].filter(b => !(b.textContent?.trim() || b.getAttribute("aria-label") || b.getAttribute("title") || b.querySelector("img[alt]:not([alt=''])"))).length,
-          loadingLeft: /\b(Loading|Gathering|Preparing)\b[^\n]{0,40}…?/.test(text) && text.length < 400,
+          unlabelled: [...document.querySelectorAll("button, a[href]")].filter(b => {
+            const style = getComputedStyle(b), r = b.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 && style.visibility !== "hidden" && style.display !== "none"
+              && !(b.textContent?.trim() || b.getAttribute("aria-label") || b.getAttribute("title") || b.querySelector("img[alt]:not([alt=''])"));
+          }).length,
+          loadingLeft: [...document.querySelectorAll(".career-loading")].some(el => {
+            const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+            return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none";
+          }),
           errorShown: /Something went wrong|couldn.t load|Could not load|Request failed|Unexpected error/i.test(text),
           cls: Math.round((window.__cls ?? 0) * 1000) / 1000, height: document.documentElement.scrollHeight, textLength: text.length,
         };

@@ -35,7 +35,7 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
   const pick = night !== null && d.freeNights.includes(night) ? night : d.freeNights[0] ?? null;
   const me = l?.table.findIndex(r => r.you) ?? -1;
   return <div className="space-y-3 cam-league">
-    <CareerPageHero kicker="Webcam league · played from your own board" title={l ? l.name : d.division.name} accent="#5bc0eb" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}
+    <CareerPageHero kicker="Webcam league · played from your own board" title={l ? l.name : d.division.name} accent="#5bc0eb" stage={{ venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
       subtitle={<p>Eight players from around the world, a match a week for seven weeks, first to three legs. Two points a win; the top two go up, the bottom two go down.</p>}
       stats={l ? [{ label: "Position", value: ordinal(me + 1), tone: "gold" }, { label: "Round", value: `${l.round} of 7` }, { label: "Points", value: l.table[me].points },
         { label: "Weeks", value: `${l.weekStart}–${l.weekEnd}` }] : [{ label: "Division", value: d.division.name, tone: "gold" }, { label: "Entry", value: formatPence(d.division.feePence) }]} />

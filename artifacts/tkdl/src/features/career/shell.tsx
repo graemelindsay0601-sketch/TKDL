@@ -230,11 +230,19 @@ const SUB_ICONS: Record<string, LucideIcon> = {
 };
 export function CareerNav({ saveId, save }: { saveId: string; save?: CareerSave }) {
   const [location] = useLocation();
+  const contextNav = useRef<HTMLDivElement>(null);
   // Unlock as you go: Nights Out extras are listed once they're useful (their pages still open from any link).
   const unlocks = useUnlocks(save ?? { id: saveId, currentSeason: 99, status: "ACTIVE" });
   const listed = (key: string) => !(UNLOCKS as readonly { key: string }[]).some(u => u.key === key) || unlocks.isOpen(key as UnlockKey);
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
+  useEffect(() => {
+    const nav = contextNav.current;
+    const selected = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !selected || nav.scrollWidth <= nav.clientWidth) return;
+    const navRect = nav.getBoundingClientRect(), itemRect = selected.getBoundingClientRect();
+    nav.scrollLeft = Math.max(0, nav.scrollLeft + itemRect.left - navRect.left - (nav.clientWidth - itemRect.width) / 2);
+  }, [active, layer.layer]);
   return (
     <nav aria-label="Career" className="career-navigation career-navigation--premium" style={{ ["--dest-accent" as string]: DESTINATIONS[layer.layer]?.accent ?? "#ff3d7f" }}>
       <div className="career-primary-nav">
@@ -250,7 +258,7 @@ export function CareerNav({ saveId, save }: { saveId: string; save?: CareerSave 
         );})}
       </div>
       {layer.items.length > 1 && (
-        <div className="career-context-nav" aria-label={`${layer.label} pages`} role="group">
+        <div ref={contextNav} className="career-context-nav" aria-label={`${layer.label} pages`} role="group">
           {layer.items.filter(item => listed(item.key) || active === item.key).map(item => {const Sub=SUB_ICONS[item.key];return (
             <Link key={item.key} href={`/career/${saveId}${item.path}`} className="career-subnav-link" aria-current={active === item.key ? "page" : undefined}>{Sub && <Sub size={14} aria-hidden className="career-subnav-icon"/>}{item.label}{unlocks.isNew(item.key as UnlockKey) && <span className="career-new-badge">New</span>}</Link>
           );})}

@@ -19,7 +19,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
   if (!d.club || !d.table) return <CareerEmptyState title="No home club yet">Your home club comes from your home area. Set it in your Career profile.</CareerEmptyState>;
   const mine = d.table.rows.find(r => r.you)!, honours = d.history.filter(h => h.champions);
   return <div className="space-y-3 career-club">
-    <CareerPageHero kicker={`${d.club.region} · County league`} title={d.club.name} accent="#ff005c" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}
+    <CareerPageHero kicker={`${d.club.region} · County league`} title={d.club.name} accent="#ff005c" stage={{ venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
       subtitle={<p>Your home club. Members score club points with their finishes at club nights, county and regional events. {d.legend ? "You turned professional and remain the club's legend." : ""}</p>}
       stats={[{ label: "Division", value: d.table.division, tone: "gold" }, { label: "League position", value: ordinal(mine.position) }, { label: "Club points", value: mine.points },
         { label: "Captain", value: d.captain ? (d.captain.you ? "You" : d.captain.name) : "To be decided" }]} />

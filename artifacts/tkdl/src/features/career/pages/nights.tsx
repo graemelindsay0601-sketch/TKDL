@@ -68,7 +68,7 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
   const moneyLeft = m ? m.perWeek - m.playedThisWeek : 0;
   const streamsLeft = s ? s.perWeek - s.streamsThisWeek : 0;
   return <div className="space-y-3 nights">
-    <CareerPageHero kicker="Nights Out" title={`Week ${week}`} accent="#e08a5b" stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }}
+    <CareerPageHero kicker="Nights Out" title={`Week ${week}`} accent="#e08a5b" stage={{ venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
       subtitle={<p>{unlocks.everything ? "Your club, money matches, road trips, Pro-Am nights, the webcam league and DartCast. Each takes a night, so plan them around your events."
         : "What to do with your free weeknights. Each activity takes a night, so plan them around your events."}</p>}
       stats={[{ label: "Free nights", value: loaded ? free : "…", tone: "gold" }, { label: "Money matches left", value: m ? moneyLeft : "…" },
@@ -112,7 +112,7 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
 function ActivityPage({ ctx, kicker, title, accent, blurb, icon, children, unlock }: { ctx: ShellContext; kicker: string; title: string; accent: string; blurb: string; icon: ReactNode; children: ReactNode; unlock?: UnlockKey }) {
   useEffect(() => { if (unlock) markSeen(ctx.save.id, unlock); }, [ctx.save.id, unlock]);
   return <div className="space-y-3">
-    <CareerPageHero kicker={kicker} title={title} accent={accent} stage={{ venue: { venueType: "social-club" }, eventClass: "LOCAL" }} subtitle={<p>{blurb}</p>} />
+    <CareerPageHero kicker={kicker} title={title} accent={accent} stage={{ venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }} subtitle={<p>{blurb}</p>} />
     <CareerSection title="This week" icon={icon} accent={accent}>{children}</CareerSection>
     <p className="nights-back"><Link href={`/career/${ctx.save.id}/nights`}>Back to this week's nights</Link></p>
   </div>;
