@@ -911,7 +911,7 @@ test("Run your own tournament: the booking form with a preview, and your tournam
 });
 
 test("DartCast channel: followers and the streamer route, nights to go live, and past streams", () => {
-  const view = { season: 2, week: 9, handle: "AyrDarts", followers: 640, tier: { key: "AFFILIATE", name: "Affiliate", perks: "Bits and super chats." },
+  const view = { season: 2, week: 9, currentWeek: 9, handle: "AyrDarts", followers: 640, tier: { key: "AFFILIATE", name: "Affiliate", perks: "Bits and super chats." },
     pathway: { focus: "DARTCAST", weeklyFrequency: 3, scheduledNights: [2, 5, 6] },
     next: { name: "Partner", followers: 1000, perks: "Subs." }, tiers: [{ key: "NEWCOMER", name: "Newcomer", followers: 0, perks: "Go live.", reached: true },
       { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Bits and super chats.", reached: true }, { key: "PARTNER", name: "Partner", followers: 1000, perks: "Subs.", reached: false }],
@@ -935,6 +935,9 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     "DartCast Invitational", "£250 / £750 / £1,500 / £4,000", "TheOcheShow 95,000 followers · averages 80", "Play the Invitational on Tue"]) assert.ok(t.includes(fact), fact);
   const selected = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming?day=5`));
   assert.ok(selected.includes("Go live on Fri"), "DartCast should carry the planner's selected night into the booking screen");
+  const futureStream = { ...view, week: 10, pathway: { ...view.pathway, scheduledNights: [] } };
+  const future = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming", 10), futureStream]], `/career/${SAVE_ID}/streaming?week=10&day=5`));
+  assert.ok(future.includes("Schedule stream on Fri"), "future DartCast links reserve the selected week without going live early");
 });
 
 test("DartCast channel money: subs that renew, a brand's offer to answer, and a Star's invitations", () => {
@@ -956,7 +959,7 @@ test("DartCast channel money: subs that renew, a brand's offer to answer, and a 
 
 test("Road trips: your name on the road, tonight's town with a locked champion, haggling, and a visitor at your club", () => {
   const o = (x: object) => ({ key: "k", name: "Big Tam", role: "LOCAL", average: 52.3, odds: "EVEN", askingPence: 4000, greeting: "Fancy a game, stranger?", locked: null, talk: null, result: null, ...x });
-  const view = { season: 2, week: 9, home: "Kilbirnie", availablePence: 50000, freeNights: [3, 5],
+  const view = { season: 2, week: 9, currentWeek: 9, home: "Kilbirnie", availablePence: 50000, freeNights: [3, 5],
     reputation: { towns: 1, title: "Known on the circuit", note: "Word's getting round.", next: { title: "Feared hustler", towns: 3 } },
     trip: { id: "t1", town: "Glasgow", region: "Greater Glasgow/Clyde", dayOfWeek: 3, costPence: 700, played: 1, maxMatches: 3, opponents: [
       o({ key: "c", name: "Jimmy Craig", role: "CHAMPION", average: 61.2, odds: "UNDERDOG", locked: "Beat one of Glasgow's locals first" }),
@@ -973,12 +976,15 @@ test("Road trips: your name on the road, tonight's town with a locked champion, 
       champion: { name: "Jimmy Craig", average: 61.2 }, conquered: false, record: { played: 0, won: 0, netPence: 0 } }] };
   const selected = text(render(h(M.RoadTrips, { saveId: SAVE_ID, retired: false }), [[key("road-trips"), available]], `/career/${SAVE_ID}/road-trips?day=5`));
   assert.ok(selected.includes("Head to Glasgow on Fri"), "road trips should keep the planner's selected night");
+  const futureRoad = text(render(h(M.RoadTrips, { saveId: SAVE_ID, retired: false }), [[key("road-trips", 10), { ...available, week: 10, currentWeek: 9 }]],
+    `/career/${SAVE_ID}/road-trips?week=10&day=5`));
+  assert.ok(futureRoad.includes("Head to Glasgow on Fri"), "future road trips preserve the planner's selected week and night");
 });
 
 test("Webcam league: the table with promotion and relegation places, this week's booked match, fixtures and past leagues", () => {
   const row = (key: string, name: string, country: string, points: number, you = false) => ({ key, name, country, you, played: 3, won: points / 2, lost: 3 - points / 2, legsFor: 7, legsAgainst: 6, points });
   const f = (i: number, x: object) => ({ id: `f${i}`, round: i, week: 9 + i, opponent: { key: `o${i}`, name: `Opp ${i}`, country: "NLD", avg: 51.2 }, status: "PLAYED", dayOfWeek: null, legs: [3, 1], source: "LIVE", ...x });
-  const view = { season: 2, week: 13, division: { level: 3, name: "Division One", feePence: 1200 }, join: { ok: false, why: "You're in a league already", startsWeek: 13, endsWeek: 19, feePence: 1200, prizes: [12000, 6000, 3600] },
+  const view = { season: 2, week: 13, currentWeek: 13, division: { level: 3, name: "Division One", feePence: 1200 }, join: { ok: false, why: "You're in a league already", startsWeek: 13, endsWeek: 19, feePence: 1200, prizes: [12000, 6000, 3600] },
     availablePence: 50000, freeNights: [2, 4],
     league: { id: "l1", level: 3, name: "Division One", weekStart: 10, weekEnd: 16, round: 4, prizes: [12000, 6000, 3600],
       table: [row("a", "Jan de Vries", "NLD", 6), row("HUMAN", "Long", "", 4, true), row("b", "Mike Rowe", "USA", 4), row("c", "Tom Byrne", "IRL", 2)],
@@ -993,6 +999,10 @@ test("Webcam league: the table with promotion and relegation places, this week's
     thisWeek: { ...view.league.thisWeek, status: "SCHEDULED", dayOfWeek: null } } };
   const selected = text(render(h(M.CamLeaguePage, { ctx: ctx() }), [[key("cam-league"), openView]], `/career/${SAVE_ID}/cam-league?day=4`));
   assert.ok(selected.includes("Book it for Thu"), "webcam league should keep the planner's selected night");
+  const futureFixture = { ...openView.league.thisWeek, week: 14 };
+  const futureCam = { ...openView, week: 14, league: { ...openView.league, fixtures: [...openView.league.fixtures.slice(0, 3), futureFixture], thisWeek: futureFixture } };
+  const futureBooking = text(render(h(M.CamLeaguePage, { ctx: ctx() }), [[key("cam-league", 14), futureCam]], `/career/${SAVE_ID}/cam-league?week=14&day=4`));
+  assert.ok(futureBooking.includes("Next week's match") && futureBooking.includes("Book it for Thu"), "next week's fixture remains bookable on the selected night");
 });
 
 test("Pro-Am nights: slots against touring pros as an amateur, and a paid night as the pro", () => {

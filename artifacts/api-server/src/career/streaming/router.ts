@@ -24,7 +24,13 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/schedule", authedWriteRateLimit, async (req, res) => {
     res.json(await service.schedulePathway(res.locals.careerActor, id(req)));
   });
-  router.get("/saves/:id/streaming", async (req, res) => { res.json(await service.read(res.locals.careerActor, id(req))); });
+  router.get("/saves/:id/streaming", async (req, res) => {
+    const week = req.query.week === undefined ? undefined : Number(req.query.week);
+    res.json(await service.read(res.locals.careerActor, id(req), week));
+  });
+  router.post("/saves/:id/streaming/schedule-night", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.scheduleNight(res.locals.careerActor, id(req), req.body));
+  });
   router.post("/saves/:id/streaming/live", authedWriteRateLimit, async (req, res) => { res.json(await service.goLive(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/streaming/streams/:streamId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), stream(req))); });
   router.post("/saves/:id/streaming/streams/:streamId/darts", async (req, res) => { res.json(await service.darts(res.locals.careerActor, id(req), stream(req), req.body)); });

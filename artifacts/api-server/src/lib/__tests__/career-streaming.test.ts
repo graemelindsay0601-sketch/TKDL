@@ -92,6 +92,21 @@ test("going live: a free night this week, a challenger from chat, chat for every
   assert.equal(end.live, null); assert.equal(end.videos[0].result, "WON"); assert.equal(end.totals.streams, 1);
 });
 
+test("a stream can be reserved next week without going live or changing this week's availability", async () => {
+  const futureSave = id;
+  const current = await streaming.read(actor, futureSave), week = current.week + 1;
+  const dayOfWeek = (await streaming.read(actor, futureSave, week)).freeNights[0];
+  assert.ok(dayOfWeek);
+  const scheduled = await streaming.scheduleNight(actor, futureSave, { week, dayOfWeek });
+  assert.equal(scheduled.week, week);
+  assert.equal(scheduled.currentWeek, current.week);
+  assert.equal(scheduled.live, null);
+  assert.ok(scheduled.pathway.scheduledNights.includes(dayOfWeek));
+  assert.ok(!scheduled.freeNights.includes(dayOfWeek));
+  assert.ok((await streaming.read(actor, futureSave)).freeNights.includes(dayOfWeek));
+  await status(streaming.scheduleNight(actor, futureSave, { week: week + 1, dayOfWeek }), 409);
+});
+
 test("a stream night is booked like any other: an event that night can't be entered, and three streams a week at most", async () => {
   const s = await saves.read(1, id);
   const free = (await streaming.read(actor, id)).freeNights;

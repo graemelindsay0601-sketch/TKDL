@@ -18,7 +18,10 @@ export function createCareerCamLeagueRouter(service: ReturnType<typeof createCar
   });
   const id = (req: Request) => careerIdSchema.parse(String(req.params.id));
   const fixture = (req: Request) => careerIdSchema.parse(String(req.params.fixtureId));
-  router.get("/saves/:id/cam-league", async (req, res) => { res.json(await service.read(res.locals.careerActor, id(req))); });
+  router.get("/saves/:id/cam-league", async (req, res) => {
+    const week = req.query.week === undefined ? undefined : Number(req.query.week);
+    res.json(await service.read(res.locals.careerActor, id(req), week));
+  });
   router.post("/saves/:id/cam-league/join", authedWriteRateLimit, async (req, res) => { res.json(await service.join(res.locals.careerActor, id(req))); });
   router.post("/saves/:id/cam-league/book", authedWriteRateLimit, async (req, res) => { res.json(await service.book(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/cam-league/fixtures/:fixtureId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), fixture(req))); });

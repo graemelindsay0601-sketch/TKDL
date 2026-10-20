@@ -43,8 +43,10 @@ function OpponentRow({ o, busy, available, full, onOffer, onPlay }: { o: Opponen
  * yours, your name grows, and players from the towns you've taken come to your club for a game.
  */
 export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolean }) {
-  const q = useRoadTrips(saveId), go = useGoOnRoadTrip(saveId), offer = useOfferRoadMatch(saveId), play = usePlayRoadMatch(saveId);
-  const search = useSearch(), requestedDayValue = new URLSearchParams(search).get("day");
+  const search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week");
+  const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
+  const q = useRoadTrips(saveId, requestedWeek), go = useGoOnRoadTrip(saveId), offer = useOfferRoadMatch(saveId), play = usePlayRoadMatch(saveId);
+  const requestedDayValue = params.get("day");
   const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
   const [town, setTown] = useState<string | null>(null), [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null), [message, setMessage] = useState("");
   if (!q.data) return q.isLoading ? <p className="money-match__note">Loading road trips…</p> : null;
@@ -66,9 +68,10 @@ export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolea
     </div>}
     {d.trip ? <div className="road-trip__tonight">
       <h3>{d.trip.town} · {dayLabel(d.trip.dayOfWeek)} night</h3>
-      <p className="money-match__note">Travel paid: {formatPence(d.trip.costPence)}. {d.trip.played} of {d.trip.maxMatches} games played. First to four, winner takes the stake.</p>
-      <ul className="money-match__members">{d.trip.opponents.map(o => <OpponentRow key={o.key} o={o} busy={busy} available={d.availablePence} full={d.trip!.played >= d.trip!.maxMatches}
+      <p className="money-match__note">{d.week > d.currentWeek ? `Planned for week ${d.week}. Travel paid: ${formatPence(d.trip.costPence)}. Matches open when that week begins.` : `Travel paid: ${formatPence(d.trip.costPence)}. ${d.trip.played} of ${d.trip.maxMatches} games played. First to four, winner takes the stake.`}</p>
+      {d.week <= d.currentWeek && <ul className="money-match__members">{d.trip.opponents.map(o => <OpponentRow key={o.key} o={o} busy={busy} available={d.availablePence} full={d.trip!.played >= d.trip!.maxMatches}
         onOffer={p => act("offer", o.key, p)} onPlay={p => act("play", o.key, p)} />)}</ul>
+      }
     </div> : d.canTravel && !retired ? <div className="road-trip__plan">
       <label className="road-trip__field"><span>Town</span>
         <select value={pickTown ?? ""} onChange={e => setTown(e.target.value)}>
@@ -79,7 +82,7 @@ export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolea
       {chosen && <p className="money-match__note">{chosen.city}'s champion: <b>{chosen.champion!.name}</b>{chosen.champion!.average ? ` (averaging ${chosen.champion!.average.toFixed(1)})` : ""}.
         {" "}Travel {formatPence(chosen.costPence)}{chosen.overnight ? " with a night's stay" : ""}.{chosen.record.played ? ` Your record there: won ${chosen.record.won} of ${chosen.record.played}.` : ""}</p>}
       <button type="button" className="career-btn career-btn-gold" disabled={busy || !chosen || pickNight === null || chosen.costPence > d.availablePence}
-        onClick={() => go.mutate({ localityKey: pickTown!, dayOfWeek: pickNight! }, { onError: fail })}>
+        onClick={() => go.mutate({ localityKey: pickTown!, dayOfWeek: pickNight!, week: d.week }, { onError: fail })}>
         {go.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Car aria-hidden />} Head to {chosen?.city ?? "town"}{pickNight ? ` on ${dayLabel(pickNight)}` : ""}</button>
     </div> : <p className="money-match__note">{retired ? "Your career is over." : d.why}</p>}
     <p className="money-match__record">{d.record.played ? <>On the road: won {d.record.won} of {d.record.played} · <b>{signed(d.record.netPence)}</b>

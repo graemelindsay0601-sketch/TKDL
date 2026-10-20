@@ -30,7 +30,7 @@ type Player = { key: string; name: string; country: string; avg: number; config:
 export type CamFixture = { id: string; round: number; week: number; opponent: { key: string; name: string; country: string; avg: number };
   status: "SCHEDULED" | "BOOKED" | "PLAYED" | "FORFEIT"; dayOfWeek: number | null; legs: [number, number] | null; source: "LIVE" | "SIM" | "FORFEIT" | null };
 export type CamLeagueView = {
-  season: number; week: number; division: { level: number; name: string; feePence: number };
+  season: number; week: number; currentWeek: number; division: { level: number; name: string; feePence: number };
   join: { ok: boolean; why: string | null; startsWeek: number; endsWeek: number; feePence: number; prizes: number[] };
   availablePence: number; freeNights: number[];
   league: { id: string; level: number; name: string; weekStart: number; weekEnd: number; round: number;
@@ -50,13 +50,14 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
     return divisionFor((await loadHumanForm(tx, root)).skillAverage);
   }
 
-  async function view(tx: CareerExecutor, root: Root): Promise<CamLeagueView> {
-    const season = Number(root.current_season), week = Number(root.current_week);
+  async function view(tx: CareerExecutor, root: Root, week = Number(root.current_week)): Promise<CamLeagueView> {
+    const season = Number(root.current_season), currentWeek = Number(root.current_week);
     const level = await currentLevel(tx, root), d = divisionByLevel(level);
     const active = (await tx.execute(sql`SELECT * FROM career_cam_leagues WHERE career_save_id=${root.id} AND status='ACTIVE' ORDER BY season DESC LIMIT 1`)).rows[0];
     const available = await availableOf(tx, root.id);
     const endsWeek = week + CAM.rounds - 1;
     const why = active ? "You're in a league already" : root.status !== "ACTIVE" ? "Your career is over"
+      : week !== currentWeek ? "You can join a webcam league this week only"
       : endsWeek > WEEKS_PER_SEASON ? "Not enough weeks left this season: the next leagues start in week 1" : d.fee > available ? "You can't afford the entry fee" : null;
     let league: CamLeagueView["league"] = null;
     if (active) {
@@ -71,7 +72,7 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
     }
     const history = (await tx.execute(sql`SELECT * FROM career_cam_leagues WHERE career_save_id=${root.id} AND status='FINISHED' ORDER BY season DESC, week_start DESC LIMIT 12`)).rows
       .map(r => ({ season: Number(r.season), level: Number(r.level), name: divisionByLevel(Number(r.level)).name, position: Number(r.position), prizePence: Number(r.prize_pence ?? 0), nextLevel: Number(r.next_level) }));
-    return { season, week, division: { level, name: d.name, feePence: d.fee },
+    return { season, week, currentWeek, division: { level, name: d.name, feePence: d.fee },
       join: { ok: why === null, why, startsWeek: week, endsWeek, feePence: d.fee, prizes: CAM.prizeMultiple.map((_, i) => prizeFor(level, i + 1)) },
       availablePence: available, freeNights: root.status === "ACTIVE" ? await freeNightsInWeek(tx, root.id, season, week) : [], league, history };
   }
@@ -106,8 +107,14 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
   }
 
   return {
-    async read(actor: CareerActor, saveId: string) {
-      return database.transaction(async tx => view(tx, await lockRoot(tx, actor, saveId, false) as unknown as Root));
+    async read(actor: CareerActor, saveId: string, requestedWeek?: number) {
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId, false) as unknown as Root;
+        const current = Number(root.current_week), week = requestedWeek ?? current;
+        if (!Number.isInteger(week) || week < current || week > Math.min(current + 1, WEEKS_PER_SEASON))
+          throw new CareerError(400, "You can only plan webcam matches for this week or next week");
+        return view(tx, root, week);
+      });
     },
 
     /** Join this week's league in your division: seven others from around the world at your level; the entry fee is paid now. */
@@ -147,16 +154,18 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
 
     /** Book this week's league match on a free night (it's booked like any other night of your own). */
     async book(actor: CareerActor, saveId: string, body: unknown) {
-      const { fixtureId, dayOfWeek } = z.object({ fixtureId: z.string().uuid(), dayOfWeek: z.number().int().min(1).max(7) }).strict().parse(body);
+      const { fixtureId, dayOfWeek, week: requestedWeek } = z.object({ fixtureId: z.string().uuid(), dayOfWeek: z.number().int().min(1).max(7),
+        week: z.number().int().min(1).max(WEEKS_PER_SEASON).optional() }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
-        const season = Number(root.current_season), week = Number(root.current_week);
+        const season = Number(root.current_season), current = Number(root.current_week), week = requestedWeek ?? current;
+        if (week < current || week > Math.min(current + 1, WEEKS_PER_SEASON)) throw new CareerError(409, "You can only book a match for this week or next week");
         const { f } = await myFixture(tx, root, fixtureId);
-        if (Number(f.week) !== week) throw new CareerError(409, "That match isn't this week");
+        if (Number(f.week) !== week) throw new CareerError(409, "That match isn't in the selected week");
         if (f.status !== "SCHEDULED") throw new CareerError(409, "That match is already booked");
         if (!(await freeNightsInWeek(tx, root.id, season, week)).includes(dayOfWeek)) throw new CareerError(409, "You're booked that night");
         await tx.execute(sql`UPDATE career_cam_fixtures SET status='BOOKED', day=${absoluteDay(week, dayOfWeek)} WHERE career_save_id=${root.id} AND id=${fixtureId}`);
-        return view(tx, root);
+        return view(tx, root, week);
       });
     },
 
@@ -165,6 +174,7 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId, false) as unknown as Root;
         const { f, opp, youA } = await myFixture(tx, root, fixtureId);
+        if (f.status === "BOOKED" && Number(f.week) > Number(root.current_week)) throw new CareerError(409, "That match is booked for a future week");
         if (f.status === "SCHEDULED") throw new CareerError(409, "Book a night for it first");
         if (f.status === "FORFEIT") throw new CareerError(409, "That match was forfeited");
         const you = (f.players as Player[]).find(p => p.key === HUMAN)!.name;
@@ -178,6 +188,7 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
         const { f, opp, youA } = await myFixture(tx, root, fixtureId);
+        if (f.status === "BOOKED" && Number(f.week) > Number(root.current_week)) throw new CareerError(409, "That match is booked for a future week");
         const you = (f.players as Player[]).find(p => p.key === HUMAN)!.name;
         if (f.status === "PLAYED") return sessionFrom(root, f, opp, youA, you);
         if (f.status !== "BOOKED") throw new CareerError(409, "Book a night for it first");
@@ -195,6 +206,7 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
         const { f, opp, youA } = await myFixture(tx, root, fixtureId);
+        if (f.status === "BOOKED" && Number(f.week) > Number(root.current_week)) throw new CareerError(409, "That match is booked for a future week");
         if (f.status !== "BOOKED") throw new CareerError(409, f.status === "PLAYED" ? "That match is played" : "Book a night for it first");
         if ((f.darts as unknown[] | null)?.length) throw new CareerError(409, "You've started throwing this one: finish it on the scorer");
         const npc = (await loadNpcs(tx, root.id, { ids: [opp.key] }))[0];

@@ -129,3 +129,18 @@ test("beat a town's champion: it's conquered, your name grows, and its players c
   assert.equal(v.trip, null);
   await db.execute(sql`UPDATE career_saves SET current_week=${s.currentWeek} WHERE id=${id}`);
 });
+
+test("a road trip can be booked next week while this week's plan stays unchanged", async () => {
+  const futureSave = (await saves.create(1, { slot: 2, careerName: "Future Road", dateOfBirth: "1998-03-02", homeLocality: "ayrshire" })).id;
+  await career.initialize(actor, futureSave);
+  await db.execute(sql`UPDATE career_saves SET balance_pence=500000 WHERE id=${futureSave}`);
+  const current = await road.read(actor, futureSave), week = current.week + 1, future = await road.read(actor, futureSave, week);
+  const town = future.towns.find(t => t.champion)!;
+  const dayOfWeek = future.freeNights[0];
+  assert.ok(town && dayOfWeek);
+  const booked = await road.go(actor, futureSave, { localityKey: town.key, dayOfWeek, week });
+  assert.equal(booked.week, week);
+  assert.equal(booked.trip?.town, town.city);
+  assert.equal((await road.read(actor, futureSave)).trip, null);
+  await status(road.read(actor, futureSave, week + 1), 400);
+});

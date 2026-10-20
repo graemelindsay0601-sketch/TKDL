@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation, useSearch } from "wouter";
 import { Check, Eye, Loader2, Radio, Search, Trophy, Users } from "lucide-react";
-import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, errorMessage, type StreamFormat } from "../api";
+import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
@@ -10,21 +10,24 @@ import "./streaming.css";
 
 /** DartCast: a made-up darts streaming site. Your channel, the streamer route, going live and your past streams. */
 export function StreamingPage({ ctx }: { ctx: ShellContext }) {
-  const id = ctx.save.id, q = useStreaming(id), live = useGoLive(id), answer = useAnswerBrandDeal(id), goal = useSetSubGoal(id);
+  const id = ctx.save.id;
+  const search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week");
+  const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
+  const q = useStreaming(id, requestedWeek), live = useGoLive(id), scheduleNight = useScheduleStreamNight(id), answer = useAnswerBrandDeal(id), goal = useSetSubGoal(id);
   const setPathway = useSetStreamingPathway(id), schedulePathway = useScheduleStreamingPathway(id);
   useEffect(() => { markSeen(id, "streaming"); }, [id]);
   const [format, setFormat] = useState<StreamFormat | null>(null);
   const [goalTarget, setGoalTarget] = useState<number | null>(null);
   const [promise, setPromise] = useState<string | null>(null);
   const [, navigate] = useLocation();
-  const search = useSearch(), requestedDayValue = new URLSearchParams(search).get("day");
+  const requestedDayValue = params.get("day");
   const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
   const [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null);
   const [message, setMessage] = useState("");
   const scheduledWeek = useRef("");
   useEffect(() => {
     const data = q.data;
-    if (ctx.save.retiredAt || !data || data.pathway.focus !== "DARTCAST" || data.pathway.scheduledNights.length) return;
+    if (ctx.save.retiredAt || !data || data.week !== data.currentWeek || data.pathway.focus !== "DARTCAST" || data.pathway.scheduledNights.length) return;
     const key = `${id}:${data.season}:${data.week}`;
     if (scheduledWeek.current === key) return;
     scheduledWeek.current = key;
@@ -33,7 +36,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   if (q.isLoading) return <CareerLoading />;
   if (q.error || !q.data) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data, retired = !!ctx.save.retiredAt;
-  const streamDays = d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights;
+  const futureWeek = d.week > d.currentWeek;
+  const streamDays = !futureWeek && d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights;
   const preferredNight = night ?? requestedDay;
   const pick = preferredNight !== null && streamDays.includes(preferredNight) ? preferredNight : streamDays[0] ?? null;
   const progress = d.next ? Math.min(100, Math.round(d.followers / d.next.followers * 100)) : 100;
@@ -41,7 +45,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const crowd = (c: number) => c >= 1.15 ? "Big crowd" : c >= 0.95 ? "Normal crowd" : c >= 0.8 ? "Smaller crowd" : "Quiet night";
   const goalThisMonth = d.subGoal && d.subGoal.season === d.season && d.subGoal.endsWeek >= d.week;
   const chosenOk = !d.formats.find(f => f.key === chosen)?.why;
-  const canGo = !retired && !d.live && d.streamsThisWeek < d.perWeek && pick !== null;
+  const canGo = !futureWeek && !retired && !d.live && d.streamsThisWeek < d.perWeek && pick !== null;
   return (
     <div className="dc">
       <header className="dc__bar">
@@ -112,8 +116,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
         </div>}
       </section>}
       <section className="dc__panel">
-        <h2>Go live</h2>
-        <p className="dc__note">Pick what to stream and a free night this week. Chat reacts to every visit. A stream night is booked like any other: no events that night.
+        <h2>{futureWeek ? "Schedule a stream" : "Go live"}</h2>
+        <p className="dc__note">{futureWeek ? `Choose a free night in week ${d.week}. The stream will be reserved for that week; you can go live when it begins.` : "Pick what to stream and a free night this week. Chat reacts to every visit. A stream night is booked like any other: no events that night."}
           {" "}Up to {d.perWeek} a week ({d.streamsThisWeek} so far).</p>
         <div className="dc__formats" role="radiogroup" aria-label="What to stream">
           {d.formats.map(f => <button key={f.key} type="button" role="radio" aria-checked={chosen === f.key} className="dc__format" disabled={!!f.why} onClick={() => setFormat(f.key)}>
@@ -123,9 +127,15 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
         {(d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights).length ? <div className="dc__nights" role="radiogroup" aria-label="Night to stream">
           {(d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights).map(n => <button key={n} type="button" role="radio" aria-checked={pick === n} className="dc__night" onClick={() => setNight(n)}>{dayLabel(n)}{d.pathway.scheduledNights.includes(n) ? " · scheduled" : ""}</button>)}
         </div> : <p className="dc__note">No free nights left this week.</p>}
-        <button type="button" className="dc__go" disabled={!canGo || !chosenOk || live.isPending}
-          onClick={() => live.mutate({ dayOfWeek: pick!, format: chosen }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>
-          {live.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Radio aria-hidden />} Go live{pick ? ` on ${dayLabel(pick)}` : ""}</button>
+        <button type="button" className="dc__go" disabled={futureWeek
+          ? retired || !pick || scheduleNight.isPending || d.streamsThisWeek >= d.perWeek
+          : !canGo || !chosenOk || live.isPending}
+          onClick={() => futureWeek
+            ? scheduleNight.mutate({ week: d.week, dayOfWeek: pick! }, { onError: e => setMessage(errorMessage(e)) })
+            : live.mutate({ dayOfWeek: pick!, format: chosen }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>
+          {futureWeek ? scheduleNight.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Radio aria-hidden />
+            : live.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Radio aria-hidden />}
+          {futureWeek ? "Schedule stream" : "Go live"}{pick ? ` on ${dayLabel(pick)}` : ""}</button>
         {message && <p className="dc__warn" role="alert">{message}</p>}
       </section>
       <section className="dc__panel">

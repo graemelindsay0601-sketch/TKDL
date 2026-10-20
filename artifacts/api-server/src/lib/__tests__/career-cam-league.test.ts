@@ -135,3 +135,18 @@ test("the week settles: the round plays out, an unplayed match is forfeited, a q
   assert.equal(prize.length ? Number(prize[0].amount_pence) : 0, prizeFor(h.level, h.position), "prize money once, for the top three");
   assert.equal(h.prizePence, prizeFor(h.level, h.position));
 });
+
+test("an active league's next-week fixture can be booked without changing the current fixture", async () => {
+  const futureSave = (await saves.create(1, { slot: 2, careerName: "Future Webcam", dateOfBirth: "1998-03-02", homeLocality: "ayrshire" })).id;
+  await career.initialize(actor, futureSave);
+  await db.execute(sql`UPDATE career_saves SET balance_pence=100000 WHERE id=${futureSave}`);
+  const current = await cam.join(actor, futureSave), nextWeek = current.week + 1;
+  const future = await cam.read(actor, futureSave, nextWeek), fixture = future.league!.thisWeek!, dayOfWeek = future.freeNights[0];
+  assert.equal(fixture.week, nextWeek);
+  assert.equal(fixture.status, "SCHEDULED");
+  assert.ok(dayOfWeek);
+  const booked = await cam.book(actor, futureSave, { fixtureId: fixture.id, dayOfWeek, week: nextWeek });
+  assert.equal(booked.week, nextWeek);
+  assert.equal(booked.league!.thisWeek!.status, "BOOKED");
+  assert.equal((await cam.read(actor, futureSave)).league!.thisWeek!.status, "SCHEDULED");
+});

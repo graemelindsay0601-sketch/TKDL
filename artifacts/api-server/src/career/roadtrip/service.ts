@@ -30,7 +30,7 @@ export type RoadResult = { won: boolean; legs: [number, number]; stakePence: num
 export type RoadOpponent = { key: string; name: string; role: Role; average: number | null; odds: Odds; askingPence: number; greeting: string;
   locked: string | null; talk: RoadTalk | null; result: RoadResult | null };
 export type RoadTripsView = {
-  season: number; week: number; home: string | null; availablePence: number; freeNights: number[];
+  season: number; week: number; currentWeek: number; home: string | null; availablePence: number; freeNights: number[];
   reputation: { towns: number; title: string; note: string; next: { title: string; towns: number } | null };
   trip: { id: string; town: string; region: string; dayOfWeek: number; costPence: number; played: number; maxMatches: number; opponents: RoadOpponent[] } | null;
   canTravel: boolean; why: string | null;
@@ -53,8 +53,8 @@ const split = (players: Member[]) => ({ champion: players[0] ?? null, locals: pl
 export function createCareerRoadTripService(database: CareerDatabase) {
   const townPlayers = async (tx: CareerExecutor, root: Root, town: Locality) => split(await playersOf(tx, root, town));
 
-  async function view(tx: CareerExecutor, root: Root): Promise<RoadTripsView> {
-    const season = Number(root.current_season), week = Number(root.current_week);
+  async function view(tx: CareerExecutor, root: Root, week = Number(root.current_week)): Promise<RoadTripsView> {
+    const season = Number(root.current_season), currentWeek = Number(root.current_week);
     const homeKey = await homeLocalityOf(tx, root), home = LOCALITIES.find(l => l.key === homeKey) ?? null;
     const available = await availableOf(tx, root.id);
     const matches = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC`)).rows;
@@ -125,7 +125,7 @@ export function createCareerRoadTripService(database: CareerDatabase) {
     const npcNames = played.length ? new Map((await tx.execute(sql`SELECT id, first_name, surname FROM career_world_players WHERE career_save_id=${root.id}
       AND id IN (${sql.join([...new Set(played.map(m => String(m.opponent_key)))].map(k => sql`${k}::uuid`), sql`,`)})`)).rows.map(p => [String(p.id), `${p.first_name} ${p.surname}`])) : new Map<string, string>();
     return {
-      season, week, home: home?.city ?? null, availablePence: available, freeNights,
+      season, week, currentWeek, home: home?.city ?? null, availablePence: available, freeNights,
       reputation: { towns: conquered.length, title: rep.title, note: rep.note, next: next ? { title: next.title, towns: next.towns } : null },
       trip, canTravel: why === null, why, towns, visitor,
       record: { trips: trips.length, played: played.length, won: played.filter(m => m.won === true).length,
@@ -146,17 +146,24 @@ export function createCareerRoadTripService(database: CareerDatabase) {
   }
 
   return {
-    async read(actor: CareerActor, saveId: string) {
-      return database.transaction(async tx => view(tx, await lockRoot(tx, actor, saveId, false) as unknown as Root));
+    async read(actor: CareerActor, saveId: string, requestedWeek?: number) {
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId, false) as unknown as Root;
+        const current = Number(root.current_week), week = requestedWeek ?? current;
+        if (!Number.isInteger(week) || week < current || week > Math.min(current + 1, 52))
+          throw new CareerError(400, "You can only plan a road trip for this week or next week");
+        return view(tx, root, week);
+      });
     },
 
     /** Set off: a town and a free night this week (the night is booked; getting there and back is paid now). */
     async go(actor: CareerActor, saveId: string, body: unknown) {
-      const input = z.object({ localityKey: z.string().max(60), dayOfWeek: z.number().int().min(1).max(7) }).strict().parse(body);
+      const input = z.object({ localityKey: z.string().max(60), dayOfWeek: z.number().int().min(1).max(7), week: z.number().int().min(1).max(52).optional() }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
-        const season = Number(root.current_season), week = Number(root.current_week);
-        const v = await view(tx, root);
+        const season = Number(root.current_season), current = Number(root.current_week), week = input.week ?? current;
+        if (week < current || week > Math.min(current + 1, 52)) throw new CareerError(409, "You can only book a trip for this week or next week");
+        const v = await view(tx, root, week);
         if (!v.canTravel) throw new CareerError(409, v.why ?? "You can't travel this week");
         const town = v.towns.find(t => t.key === input.localityKey);
         if (!town) throw new CareerError(404, "That town isn't on your road");
@@ -168,7 +175,7 @@ export function createCareerRoadTripService(database: CareerDatabase) {
           VALUES (${root.id}, ${id}, ${season}, ${week}, ${absoluteDay(week, input.dayOfWeek)}, ${town.key}, ${town.costPence})`);
         if (town.costPence > 0) await post(tx, root, { operationKey: `road-trip:${id}`, category: "TRAVEL", amountPence: -town.costPence,
           reason: `Road trip to ${town.city}${town.overnight ? " (overnight)" : ""}`, season, week, detail: { roadTripId: id, localityKey: town.key, miles: town.miles } });
-        return view(tx, root);
+        return view(tx, root, week);
       });
     },
 

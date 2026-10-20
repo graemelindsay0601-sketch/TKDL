@@ -17,7 +17,10 @@ export function createCareerRoadTripRouter(service: ReturnType<typeof createCare
     next();
   });
   const id = (req: Request) => careerIdSchema.parse(String(req.params.id));
-  router.get("/saves/:id/road-trips", async (req, res) => { res.json(await service.read(res.locals.careerActor, id(req))); });
+  router.get("/saves/:id/road-trips", async (req, res) => {
+    const week = req.query.week === undefined ? undefined : Number(req.query.week);
+    res.json(await service.read(res.locals.careerActor, id(req), week));
+  });
   router.post("/saves/:id/road-trips", authedWriteRateLimit, async (req, res) => { res.json(await service.go(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/road-trips/offer", authedWriteRateLimit, async (req, res) => { res.json(await service.offer(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/road-trips/play", authedWriteRateLimit, async (req, res) => { res.json(await service.play(res.locals.careerActor, id(req), req.body)); });

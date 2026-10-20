@@ -20,15 +20,17 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
  * played on camera from your own board on a night you book. The top two go up, the bottom two go down.
  */
 export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
-  const id = ctx.save.id, q = useCamLeague(id), join = useJoinCamLeague(id), book = useBookCamMatch(id), sim = useSimulateCamMatch(id);
+  const id = ctx.save.id, search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week");
+  const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
+  const q = useCamLeague(id, requestedWeek), join = useJoinCamLeague(id), book = useBookCamMatch(id), sim = useSimulateCamMatch(id);
   useEffect(() => { markSeen(id, "cam-league"); }, [id]);
-  const search = useSearch(), requestedDayValue = new URLSearchParams(search).get("day");
+  const requestedDayValue = params.get("day");
   const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
   const [night, setNight] = useState<number | null>(requestedDay !== null && requestedDay >= 1 && requestedDay <= 7 ? requestedDay : null), [message, setMessage] = useState("");
   const [, navigate] = useLocation();
   if (q.isLoading) return <CareerLoading />;
   if (q.error || !q.data) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
-  const d = q.data, l = d.league, f = l?.thisWeek ?? null, retired = !!ctx.save.retiredAt;
+  const d = q.data, l = d.league, f = l?.thisWeek ?? null, retired = !!ctx.save.retiredAt, futureWeek = d.week > d.currentWeek;
   const fail = (e: unknown) => setMessage(errorMessage(e));
   const pick = night !== null && d.freeNights.includes(night) ? night : d.freeNights[0] ?? null;
   const me = l?.table.findIndex(r => r.you) ?? -1;
@@ -39,7 +41,7 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
         { label: "Weeks", value: `${l.weekStart}–${l.weekEnd}` }] : [{ label: "Division", value: d.division.name, tone: "gold" }, { label: "Entry", value: formatPence(d.division.feePence) }]} />
     {message && <p className="money-match__message" role="alert">{message}</p>}
     {l ? <>
-      <CareerSection title="This week's match" icon={<Video aria-hidden />} accent="#5bc0eb">
+      <CareerSection title={futureWeek ? "Next week's match" : "This week's match"} icon={<Video aria-hidden />} accent="#5bc0eb">
         <div className="cam-league__match">{!f ? <p className="money-match__note">No match this week.</p> : <>
           <p><b>{f.opponent.name}</b> <small>({f.opponent.country}) · averages about {f.opponent.avg}</small></p>
           {f.status === "SCHEDULED" ? retired ? <p className="money-match__note">Your career is over.</p> : d.freeNights.length ? <>
@@ -47,8 +49,9 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
             <div className="road-trip__nights" role="radiogroup" aria-label="Night">{d.freeNights.map(n => <button key={n} type="button" role="radio" aria-checked={pick === n}
               className={`career-btn ${pick === n ? "career-btn-primary" : "career-btn-ghost"}`} onClick={() => setNight(n)}>{dayLabel(n)}</button>)}</div>
             <button type="button" className="career-btn career-btn-gold" disabled={book.isPending || pick === null}
-              onClick={() => book.mutate({ fixtureId: f.id, dayOfWeek: pick! }, { onError: fail })}>Book it for {pick ? dayLabel(pick) : "a night"}</button>
+              onClick={() => book.mutate({ fixtureId: f.id, dayOfWeek: pick!, week: d.week }, { onError: fail })}>Book it for {pick ? dayLabel(pick) : "a night"}</button>
           </> : <p className="money-match__note">No free nights left this week: this one will be forfeited.</p>
+          : f.status === "BOOKED" && futureWeek ? <p className="money-match__note">Booked for {dayLabel(f.dayOfWeek!)} in week {d.week}. Playing opens when that week begins.</p>
           : f.status === "BOOKED" ? <>
             <p className="money-match__note">Booked for {dayLabel(f.dayOfWeek!)}. Throw it on the scorer, or let it play out at your level.</p>
             <div className="money-match__actions">
