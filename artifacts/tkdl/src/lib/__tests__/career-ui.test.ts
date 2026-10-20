@@ -893,6 +893,7 @@ test("Team nights: next fixture (and a clash with a booked event), last result s
   const t = text(render(h(M.TeamNights, { saveId: SAVE_ID }), [[key("club", "team-nights"), view]]));
   for (const fact of ["Next: week 10", "away at Glasgow Darts Club", "booked into Glasgow Open that night, so a clubmate will play instead", "Week 7", "at home to Dundee Darts Club",
     "Won 4-2", "You 3-1 Ian Reid", "Ayr Darts Club", "P2 W2 D0 L0", "won 1 of 2"]) assert.ok(t.includes(fact), fact);
+  for (const fact of ["Match nights", "Wednesdays · Weeks 4–46", "Six singles", "Top four reach finals"]) assert.ok(t.includes(fact), fact);
   const home = text(render(h(M.TeamNightLine, { saveId: SAVE_ID, week: 9 }), [[key("club", "team-nights"), view]]));
   assert.ok(home.includes("Next Wednesday: club night away at Glasgow Darts Club. You're booked into Glasgow Open, so a clubmate plays."), home);
 });

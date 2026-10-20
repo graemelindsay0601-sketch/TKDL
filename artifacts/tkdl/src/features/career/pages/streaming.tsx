@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation, useSearch } from "wouter";
-import { Check, Eye, Loader2, Radio, Search, Trophy, Users } from "lucide-react";
+import { Activity, Check, Crosshair, Crown, Eye, HeartHandshake, Loader2, Radio, Search, Target, TrendingUp, Trophy, Users } from "lucide-react";
 import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
 import "./streaming.css";
+
+function StreamFormatIcon({ format }: { format: StreamFormat }) {
+  switch (format) {
+    case "CHALLENGER": return <Target aria-hidden />;
+    case "KING": return <Crown aria-hidden />;
+    case "CHECKOUTS": return <Crosshair aria-hidden />;
+    case "BOBS_27": return <Activity aria-hidden />;
+    case "SCORING": return <TrendingUp aria-hidden />;
+    case "CHARITY": return <HeartHandshake aria-hidden />;
+    default: return <Radio aria-hidden />;
+  }
+}
 
 /** DartCast: a made-up darts streaming site. Your channel, the streamer route, going live and your past streams. */
 export function StreamingPage({ ctx }: { ctx: ShellContext }) {
@@ -120,9 +132,12 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
         <p className="dc__note">{futureWeek ? `Choose a free night in week ${d.week}. The stream will be reserved for that week; you can go live when it begins.` : "Pick what to stream and a free night this week. Chat reacts to every visit. A stream night is booked like any other: no events that night."}
           {" "}Up to {d.perWeek} a week ({d.streamsThisWeek} so far).</p>
         <div className="dc__formats" role="radiogroup" aria-label="What to stream">
-          {d.formats.map(f => <button key={f.key} type="button" role="radio" aria-checked={chosen === f.key} className="dc__format" disabled={!!f.why} onClick={() => setFormat(f.key)}>
-            <b>{f.name}{d.pollPick === f.key ? " · chat's pick" : ""}</b><span>{f.blurb}</span>
-            <small data-crowd={f.crowd >= 1.15 ? "big" : f.crowd < 0.8 ? "quiet" : undefined}>{f.why ?? `${crowd(f.crowd)}${d.lastFormat === f.key ? " (you did this last time)" : ""}`}</small></button>)}
+          {d.formats.map(f => <button key={f.key} type="button" role="radio" aria-checked={chosen === f.key} className="dc__format" data-format={f.key}
+            disabled={!!f.why} onClick={() => setFormat(f.key)}>
+            <span className="dc__format-icon"><StreamFormatIcon format={f.key} /></span>
+            <span className="dc__format-copy"><b>{f.name}{d.pollPick === f.key ? " · chat's pick" : ""}</b><span>{f.blurb}</span>
+              <small data-crowd={f.crowd >= 1.15 ? "big" : f.crowd < 0.8 ? "quiet" : undefined}>{f.why ?? `${crowd(f.crowd)}${d.lastFormat === f.key ? " (you did this last time)" : ""}`}</small></span>
+          </button>)}
         </div>
         {(d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights).length ? <div className="dc__nights" role="radiogroup" aria-label="Night to stream">
           {(d.pathway.scheduledNights.length ? d.pathway.scheduledNights : d.freeNights).map(n => <button key={n} type="button" role="radio" aria-checked={pick === n} className="dc__night" onClick={() => setNight(n)}>{dayLabel(n)}{d.pathway.scheduledNights.includes(n) ? " · scheduled" : ""}</button>)}

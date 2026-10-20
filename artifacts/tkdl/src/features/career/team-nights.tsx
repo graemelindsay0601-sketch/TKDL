@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Users } from "lucide-react";
+import { CalendarDays, Trophy, Users } from "lucide-react";
 import { useTeamNights, type TeamNightsView } from "./api";
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
@@ -13,8 +13,14 @@ export function TeamNights({ saveId }: { saveId: string }) {
   if (!d.available) return <p className="team-night__note">{d.club ? `${d.club} is the only club in its darts nation, so there's no team league to play in.` : "Team nights need a home club."}</p>;
   return (
     <div className="team-night">
-      <p className="team-night__note">Wednesday nights, weeks {d.firstWeek}–{d.lastWeek}: your nation's clubs play each other home and away, six singles a side (best of five legs).
-        You play whenever you're free. If you're booked into an event that night, a clubmate stands in. After the league, the top four play semi-finals and a final; league seeding breaks a tied knockout match.</p>
+      <div className="team-night__format" aria-label="Team league format">
+        <div className="team-night__facts">
+          <div><CalendarDays aria-hidden /><span><b>Match nights</b><small>Wednesdays · Weeks {d.firstWeek}–{d.lastWeek}</small></span></div>
+          <div><Users aria-hidden /><span><b>Six singles</b><small>Home and away · best of 5 legs</small></span></div>
+          <div><Trophy aria-hidden /><span><b>Top four reach finals</b><small>Semi-finals, then the final</small></span></div>
+        </div>
+        <p className="team-night__note">You play when free; a clubmate stands in if an event clashes. League seeding breaks a tied knockout match.</p>
+      </div>
       {d.next && <p className="team-night__next" data-free={d.next.youFree ? "true" : "false"}>
         <b>Next: week {d.next.week}</b>, {venue(d.next.home, d.next.opponent)}.{" "}
         {d.next.youFree ? "You're in the team." : `You're booked into ${d.next.clash} that night, so a clubmate will play instead.`}</p>}
