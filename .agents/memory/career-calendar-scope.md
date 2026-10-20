@@ -15,6 +15,12 @@ Players may book an event on each available day of a week; keep the one-event-pe
 
 **How to apply:** preserve daily booking limits and budget checks, and add regression tests whenever the calendar's Continue behavior changes.
 
+The week planner may offer a future activity only when its availability and booking paths support that exact week; never reuse current-week availability as a prediction.
+
+**Why:** a future option must lead to a genuinely bookable slot rather than a link that fails or silently books a different week.
+
+**How to apply:** pass the selected week through both the activity read and booking request, and omit activities whose services remain current-week-only.
+
 After the weekly DartCast stream limit is reached, release any unused reserved stream nights so they cannot trap Continue in a redirect back to DartCast.
 
 **Why:** the user reported that hitting the stream cap left no way to finish the day and move Career forward.
