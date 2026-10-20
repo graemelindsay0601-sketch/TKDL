@@ -41,7 +41,7 @@ before(async () => {
     load("/src/features/career/pages/q-school.tsx"), load("/src/features/career/pages/finances.tsx"), load("/src/features/career/pages/event.tsx"),
      load("/src/features/career/pages/history.tsx"), load("/src/features/career/shell.tsx"), load("/src/features/career/api.ts"), load("wouter"), load("/src/lib/api-fetch.ts"), load("/src/features/career/pages/relationships.tsx"), load("/src/features/career/pages/goals.tsx"), load("/src/features/career/pages/recognition.tsx"),load("/src/features/career/pages/life.tsx")]);
    M = { ...saves, ...home, ...rankings, ...qschool, ...finances, ...eventPage, ...history, ...shell, ...api, ...relationships, ...goals, ...recognition,...life,...(await load("/src/features/career/pages/legacy.tsx")),...(await load("/src/features/career/pages/world.tsx")),...(await load("/src/features/career/pages/tournament.tsx")),...(await load("/src/features/career/pages/my-career.tsx")),...(await load("/src/features/career/pages/world-hub.tsx")),...(await load("/src/features/career/identity.tsx")),...(await load("/src/features/career/manager.tsx")),...(await load("/src/features/career/money-matches.tsx")),...(await load("/src/features/career/team-nights.tsx")),...(await load("/src/features/career/hosting.tsx")),...(await load("/src/features/career/pages/streaming.tsx")),...(await load("/src/features/career/road-trips.tsx")),...(await load("/src/features/career/pages/cam-league.tsx")),...(await load("/src/features/career/pro-am.tsx")), Router: wouter.Router, ApiRequestError: fetchMod.ApiRequestError };
-  Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"));
+   Object.assign(M,await load("/src/features/career/components.tsx"),await load("/src/features/career/guidance.tsx"),await load("/src/features/career/pages/map.tsx"),await load("/src/features/career/pages/nights.tsx"));
   Object.assign(M, await load("/src/features/career/continue-career.tsx"));
   if(process.env.A9_BROWSER_DIR){
     Object.assign(M,await load("/src/components/layout.tsx"),await load("/src/features/career/pages/calendar.tsx"));
@@ -908,6 +908,27 @@ test("Run your own tournament: the booking form with a preview, and your tournam
     [key("hosting", "preview", { feePence: 1000, topUpPence: 5000, fieldSize: 16, fans: 120 }), preview]]));
   for (const fact of ["Book the back room at Ayr Darts Club", "you keep 20%", "Week 11", "16 players (room £40)", "Expect about 8 players", "winner £57", "You pay £90 now", "keep about £16",
     "Book it", "Ayr Darts Club Open", "12 players", "you kept £24", "you won it"]) assert.ok(t.includes(fact), fact);
+});
+
+test("Nights week plan sends booked items straight to their Career activity", () => {
+  const href = M.weekPlanItemHref;
+  assert.equal(href(SAVE_ID, "EVENT", "glasgow/open"), `/career/${SAVE_ID}/events/glasgow%2Fopen`);
+  assert.equal(href(SAVE_ID, "LIFE", "commitment-1"), `/career/${SAVE_ID}/life`);
+  assert.equal(href(SAVE_ID, "stream", "stream-1"), `/career/${SAVE_ID}/streaming`);
+  assert.equal(href(SAVE_ID, "trip", "trip-1"), `/career/${SAVE_ID}/road-trips`);
+  assert.equal(href(SAVE_ID, "league", "fixture-1"), `/career/${SAVE_ID}/cam-league`);
+  assert.equal(href(SAVE_ID, "proam", "night-1"), `/career/${SAVE_ID}/pro-am`);
+  assert.equal(href(SAVE_ID, "team", "team"), `/career/${SAVE_ID}/club#team-nights`);
+
+  const page = render(h(M.NightsPage, { ctx: { save: save({ currentWeek: 4 }) } }), [[key("nights"), {
+    season: 1, week: 4, days: [{ dayOfWeek: 2, items: [
+      { kind: "EVENT", id: "glasgow/open", label: "Glasgow Open" },
+      { kind: "stream", id: "stream-1", label: "Streaming night" },
+    ] }],
+  }]]);
+  assert.ok(page.includes(`href="/career/${SAVE_ID}/events/glasgow%2Fopen"`));
+  assert.ok(page.includes(`href="/career/${SAVE_ID}/streaming"`));
+  assert.ok(page.includes('class="nights-week__item"'));
 });
 
 test("DartCast channel: followers and the streamer route, nights to go live, and past streams", () => {

@@ -2,7 +2,7 @@ import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { markVisited } from "../welcome";
 import { markSeen, nextUnlockLine, useUnlocks, type UnlockKey } from "../unlocks";
 import { Link } from "wouter";
-import { Car, Coins, Moon, Radio, Shield, Star, Video } from "lucide-react";
+import { CalendarDays, Car, ChevronRight, Coins, Heart, Moon, Radio, Shield, Star, Video } from "lucide-react";
 import { useCamLeague, useMoneyMatches, useProAm, useRoadTrips, useStreaming, useTeamNights, useWeekNights } from "../api";
 import { CareerSection } from "../components";
 import { CareerPageHero } from "../page-hero";
@@ -14,6 +14,24 @@ import { ProAmNights } from "../pro-am";
 
 /** Calendar items the week strip names (events and commitments come with their own label). */
 const KIND: Record<string, string> = { EVENT: "event", LIFE: "life", stream: "stream", trip: "trip", league: "league", proam: "proam", team: "team" };
+const KIND_LABEL: Record<string, string> = { EVENT: "Tournament", LIFE: "Personal", stream: "DartCast", trip: "Road trip", league: "Webcam league", proam: "Pro-Am", team: "Club night" };
+const KIND_ICON: Record<string, ReactNode> = {
+  EVENT: <CalendarDays aria-hidden />, LIFE: <Heart aria-hidden />, stream: <Radio aria-hidden />, trip: <Car aria-hidden />,
+  league: <Video aria-hidden />, proam: <Star aria-hidden />, team: <Shield aria-hidden />,
+};
+
+export function weekPlanItemHref(saveId: string, kind: string, id: string) {
+  const base = `/career/${saveId}`;
+  if (kind === "EVENT") return `${base}/events/${encodeURIComponent(id)}`;
+  return ({
+    LIFE: `${base}/life`,
+    stream: `${base}/streaming`,
+    trip: `${base}/road-trips`,
+    league: `${base}/cam-league`,
+    proam: `${base}/pro-am`,
+    team: `${base}/club#team-nights`,
+  }[kind] ?? `${base}/nights`);
+}
 
 /** This week night by night, with the club's team night (Wednesday) added to what the server knows you've booked. */
 function useNightsWeek(saveId: string, fallbackWeek: number) {
@@ -58,7 +76,12 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
     <ol className="nights-week" aria-label={`Week ${week}, night by night`}>
       {days.map(d => <li key={d.dayOfWeek} data-free={!d.items.length || undefined}>
         <b>{dayLabel(d.dayOfWeek)}</b>
-        {d.items.length ? d.items.map(i => <span key={`${i.kind}:${i.id}`} data-kind={KIND[i.kind] ?? "event"}>{i.label}</span>) : <small>Free</small>}
+        {d.items.length ? d.items.map(i => <Link key={`${i.kind}:${i.id}`} href={weekPlanItemHref(id, i.kind, i.id)}
+          className="nights-week__item" data-kind={KIND[i.kind] ?? "event"} aria-label={`Open ${i.label}`}>
+          <span className="nights-week__item-icon">{KIND_ICON[i.kind] ?? <CalendarDays aria-hidden />}</span>
+          <span className="nights-week__item-copy"><small>{KIND_LABEL[i.kind] ?? "Booked event"}</small><strong>{i.label}</strong></span>
+          <ChevronRight className="nights-week__item-arrow" aria-hidden />
+        </Link>) : <small>Free</small>}
       </li>)}
     </ol>
     <CareerSection title="This week" icon={<Moon aria-hidden />} accent="#e08a5b">

@@ -1200,17 +1200,27 @@
 .nights-week li > b { font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: #ffffffb3; }
 .nights-week li[data-free] { border-style: dashed; }
 .nights-week li small { color: #ffffff66; }
-.nights-week li span { padding: 3px 6px; border-radius: 6px; background: #e08a5b22; border-left: 3px solid #e08a5b; overflow-wrap: anywhere; line-height: 1.25; }
-.nights-week li span[data-kind="event"] { background: #ff005c1f; border-color: #ff005c; }
-.nights-week li span[data-kind="life"] { background: #c99bff1f; border-color: #c99bff; }
-.nights-week li span[data-kind="team"] { background: #69b8ec1f; border-color: #69b8ec; }
-.nights-week li span[data-kind="league"] { background: #5bc0eb1f; border-color: #5bc0eb; }
-.nights-week li span[data-kind="stream"] { background: #9b6bff1f; border-color: #9b6bff; }
-.nights-week li span[data-kind="proam"] { background: #c77dff1f; border-color: #c77dff; }
+.nights-week__item { --night-accent:#e08a5b; display:flex; align-items:center; gap:7px; min-width:0; padding:6px; border:1px solid color-mix(in srgb,var(--night-accent) 28%,transparent); border-left:3px solid var(--night-accent); border-radius:8px; background:color-mix(in srgb,var(--night-accent) 8%,#101723); color:#f3f5f9; text-decoration:none; transition:background .16s ease,border-color .16s ease,transform .16s ease; }
+.nights-week__item:hover { background:color-mix(in srgb,var(--night-accent) 16%,#101723); border-color:color-mix(in srgb,var(--night-accent) 65%,transparent); transform:translateY(-1px); }
+.nights-week__item:focus-visible { outline:2px solid var(--night-accent); outline-offset:2px; }
+.nights-week__item-icon { display:grid; place-items:center; width:24px; height:24px; flex:0 0 24px; border-radius:7px; background:color-mix(in srgb,var(--night-accent) 16%,transparent); color:var(--night-accent); }
+.nights-week__item-icon svg { width:14px; height:14px; }
+.nights-week__item-copy { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.nights-week__item-copy small { color:#ffffff9c; font-size:.54rem; font-weight:700; letter-spacing:.09em; line-height:1.1; text-transform:uppercase; }
+.nights-week__item-copy strong { font-size:.68rem; font-weight:650; line-height:1.2; overflow-wrap:anywhere; }
+.nights-week__item-arrow { width:14px; height:14px; flex:0 0 14px; margin-left:auto; color:var(--night-accent); opacity:.85; }
+.nights-week__item[data-kind="event"] { --night-accent:#ff005c; }
+.nights-week__item[data-kind="life"] { --night-accent:#c99bff; }
+.nights-week__item[data-kind="team"] { --night-accent:#69b8ec; }
+.nights-week__item[data-kind="league"] { --night-accent:#5bc0eb; }
+.nights-week__item[data-kind="stream"] { --night-accent:#9b6bff; }
+.nights-week__item[data-kind="proam"] { --night-accent:#c77dff; }
+.nights-week__item[data-kind="trip"] { --night-accent:#e08a5b; }
 @media (max-width: 640px) {
   .nights-week { grid-template-columns: 1fr; }
   .nights-week li { flex-direction: row; flex-wrap: wrap; align-items: center; min-height: 0; }
-  .nights-week li > b { width: 2.5rem; }
+  .nights-week li > b { width: 2.5rem; flex:0 0 2.5rem; }
+  .nights-week li > .nights-week__item { flex:1 1 calc(100% - 3.25rem); }
 }
 .nights-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; padding: 12px; }
 .nights-card { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); border-radius: 12px;
