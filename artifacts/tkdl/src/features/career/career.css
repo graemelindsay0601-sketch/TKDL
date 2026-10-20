@@ -1093,9 +1093,17 @@
 .money-match__actions, .money-match__play { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .money-match__message { margin: 0; color: #ff9a8a; font-size: .8rem; }
 .money-match__members { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.money-match__members li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.03); }
-.money-match__who { display: grid; gap: 2px; min-width: 0; }
-.money-match__who small { color: rgba(255,255,255,.6); font-size: .74rem; }
+.money-match__members li { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 12px; border: 1px solid rgba(160,190,215,.1); border-radius: 12px; background: linear-gradient(110deg, rgba(255,255,255,.055), rgba(255,255,255,.02)); }
+.money-match__members li[data-odds="FAVOURITE"] { border-left: 2px solid #ffd24a; }
+.money-match__members li[data-odds="UNDERDOG"] { border-left: 2px solid #e84b76; }
+.money-match__who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.money-match__avatar { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; border: 1px solid #ffd24a66; border-radius: 11px; background: linear-gradient(145deg, #ffd24a24, #e84b7620); color: #ffe08a; font: 800 .76rem/1 var(--font-oswald, "Oswald", sans-serif); letter-spacing: .06em; }
+.money-match__identity { display: grid; gap: 4px; min-width: 0; }
+.money-match__name { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: #f6f8fb; font-weight: 800; line-height: 1.15; }
+.money-match__pro { padding: 2px 5px; border: 1px solid #ffd24a55; border-radius: 4px; color: #ffdb76; font-size: .57rem; font-weight: 800; letter-spacing: .12em; }
+.money-match__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; color: rgba(255,255,255,.62); font-size: .7rem; }
+.money-match__average { color: #cbd9e6; font-weight: 700; letter-spacing: .04em; }
+.money-match__odds { padding-left: 6px; border-left: 1px solid rgba(255,255,255,.2); }
 .money-match__play select { min-height: 36px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(0,0,0,.3); color: #fff; }
 .money-match__outcome { font-size: .8rem; color: #e8eef3; }
 .money-match__outcome[data-tone="up"] b { color: #7ee0a1; }
@@ -1252,7 +1260,8 @@
 }
 @media (max-width:420px) { .career-root .career-navigation--premium .career-primary-nav .career-nav-link { font-size:.54rem; letter-spacing:0; padding-inline:1px; } }
 .money-match__members > li[data-compact] { display: flex; flex-direction: row; align-items: center; text-align: left; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.money-match__members > li[data-compact] .money-match__play { margin: 0; }
+.money-match__members > li[data-compact] .money-match__who { flex: 1 1 210px; }
+.money-match__members > li[data-compact] .money-match__play { margin: 0 0 0 auto; }
 .nights-line { border-color: #e08a5b33; background: #e08a5b0a; }
 .nights-line svg { color: #e08a5b; }
 

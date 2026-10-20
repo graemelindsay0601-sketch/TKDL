@@ -76,13 +76,8 @@ export function CurrentOverview() {
               </div>
             </div>
             <div className="career-page-hero__portrait" aria-hidden="true">
-              <svg className="career-shirt" viewBox="0 0 120 140">
-                <path d="M32 20 53 12 67 12 88 20 112 39 98 62 85 53 85 126 35 126 35 53 22 62 8 39Z" fill="#20334a" stroke="#ffffff50" strokeWidth="1.5" />
-                <path d="M25 50H38V140H25ZM82 50H95V140H82Z" fill="#e9edf0" />
-                <path d="M5 37 27 54M93 54 115 37" stroke="#c8a050" strokeWidth="7" />
-                <path d="M53 12Q60 30 67 12L72 16Q60 38 48 16Z" fill="#c8a050" />
-                <rect x="43" y="61" width="34" height="12" rx="2" fill="#10151e" /><text x="60" y="69" fill="white" fontSize="4.5" textAnchor="middle">NORTHSTAR</text>
-              </svg>
+              <img className="career-premium-shirt-review" src="/__mockup/images/tkdl-premium-kit-redline.webp"
+                alt="The North Star's premium redline darts shirt" />
             </div>
           </div>
         </div>

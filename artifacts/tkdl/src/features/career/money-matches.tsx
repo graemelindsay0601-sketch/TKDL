@@ -28,9 +28,18 @@ function MemberRow({ m, busy, canPlay, perWeek, available, onOffer, onPlay }: { 
   const value = Math.round(Number(pounds) * 100);
   const valid = Number.isInteger(Number(pounds)) && value >= 500 && value <= available;
   const t = m.talk;
-  return <li data-compact={(!open && !t && !m.thisWeek) || undefined}>
-    <div className="money-match__who"><b>{m.name}</b>{m.professional && <small className="career-club__pro"> · Pro</small>}
-      <small>{m.average ? `Averaging ${m.average.toFixed(1)} · ` : ""}{ODDS[m.odds]}</small></div>
+  const initials = m.name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase();
+  return <li data-compact={(!open && !t && !m.thisWeek) || undefined} data-odds={m.odds}>
+    <div className="money-match__who">
+      <span className="money-match__avatar" aria-hidden="true">{initials}</span>
+      <div className="money-match__identity">
+        <div className="money-match__name">{m.name}{m.professional && <span className="money-match__pro">PRO</span>}</div>
+        <div className="money-match__meta">
+          {m.average ? <span className="money-match__average">AVG {m.average.toFixed(1)}</span> : null}
+          <span className="money-match__odds">{ODDS[m.odds]}</span>
+        </div>
+      </div>
+    </div>
     {t && t.log.length > 0 && <ol className="money-match__talk">{t.log.map((line, i) => <li key={i} data-who={line.who}><b>{line.who === "YOU" ? "You" : m.name.split(" ")[0]}:</b> {line.text}</li>)}</ol>}
     {m.thisWeek ? <Outcome m={m.thisWeek} />
       : t?.status === "WALKED" ? <span className="money-match__outcome"><small>{m.name.split(" ")[0]} has walked away for this week.</small></span>

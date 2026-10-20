@@ -878,7 +878,7 @@ test("Money matches: a challenge with their price, the haggling so far, form and
     challenge: { opponentKey: "c", name: "Member c", stakePence: 13000, odds: "EVEN", average: 50 },
     record: { played: 1, won: 1, netPence: 12000 }, recent: [played] };
   const t = text(render(h(M.MoneyMatches, { saveId: SAVE_ID, retired: false }), [[key("money-matches"), view]]));
-  for (const fact of ["Name your price", "Member c : \"Fancy a game? £130", "Play for £130", "Turn it down", "Averaging 58.1", "You're the underdog",
+  for (const fact of ["Name your price", "Member c : \"Fancy a game? £130", "Play for £130", "Turn it down", "MA", "PRO", "AVG 58.1", "You're the underdog",
     "Make it £110", "Take £110 and play", "2 more asks before they lose patience", "Won 4-2", "+£120", "won 1 of 1"])
     assert.ok(t.includes(fact.replace('\\"', '"')), fact);
 });
