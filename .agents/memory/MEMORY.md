@@ -29,3 +29,4 @@
 - [Career visual and navigation standard](career-visual-standard.md) — Career pages should feel premium, avoid text-only sections, and keep clear in-career navigation
 - [Career visual audit](career-visual-audit.md) — wait for route content and inspect Career’s nested scroll panel, not just the document viewport
 - [Career runtime stability](career-runtime-stability.md) — per-dart checkpoints must not rerender the active scorer; crash reports need route/error context
+- [Mockup preview routing](mockup-preview-routing.md) — canvas previews use the `/__mockup` proxy path without an explicit port; check the generated registry when a frame says its component is missing

@@ -6,7 +6,6 @@ import { LEDGER_FILTERS, circuitLabel, publicText, financeHeadlines, formatPence
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
 import { useUnlocks } from "../unlocks";
 import type { ShellContext } from "../shell";
-import { CareerPageHero } from "../page-hero";
 import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorSigningReveal, SponsorTerms } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SeasonMoneyChart } from "../week-money";
@@ -14,6 +13,7 @@ import { SavingsGoalPanel } from "../savings-goal";
 import { ManagerPanel } from "../manager";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
+import "./finances-premium.css";
 
 /**
  * Screen 8 — Finances & Sponsorship, directly over A4. Four separate headlines
@@ -46,12 +46,35 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
     || (sponsors.data?.history.contracts.length ?? 0) > 0 || (sponsors.data?.history.offers.length ?? 0) > 0;
 
   return (
-    <div className="space-y-3">
+    <div className="career-finances-page space-y-3">
       {fin.isLoading ? <div className="pdc-card"><CareerLoading label="Loading finances" /></div> : fin.error || !fin.data ? <CareerError error={fin.error} onRetry={() => fin.refetch()} /> : (
-        <CareerPageHero kicker={`Career finances · season ${save.currentSeason}, week ${save.currentWeek}`} title="Finances" accent="#ffd24a"
-          stage={{ venue: { venueType: "conference" }, eventClass: "REGIONAL" }} archival={retired}
-          subtitle="What you've won, what sponsors pay you and what you've spent."
-          stats={financeHeadlines(fin.data).map(h => ({ label: h.label, value: formatPence(h.pence), sub: h.hint, tone: h.key === "BALANCE" ? "gold" as const : "neutral" as const }))} />
+        <>
+          <header className="cf-premium-hero">
+            <div className="cf-premium-hero__copy">
+              <p className="cf-premium-kicker">CAREER FINANCES <i aria-hidden="true" /> SEASON {save.currentSeason} · WEEK {save.currentWeek}</p>
+              <h1>Built for the next leg<span>.</span></h1>
+              <p className="cf-premium-hero__intro">A clear view of what you’ve earned, what’s committed, and what you can put toward your next goal.</p>
+              <div className="cf-premium-orbit" aria-hidden="true"><span /><span /><b>£</b></div>
+            </div>
+            <section className="cf-balance-display" aria-label="Career balance">
+              <div className="cf-balance-display__top"><span>Balance · available to spend</span><Wallet aria-hidden="true" size={18} /></div>
+              <strong>{formatPence(fin.data.availablePence)}</strong>
+              <p>{formatPence(fin.data.balancePence)} total balance</p>
+              {fin.data.reservedForTravelPence > 0 && <small>{formatPence(fin.data.reservedForTravelPence)} reserved for upcoming travel</small>}
+              <div className="cf-balance-display__dial" aria-hidden="true"><i /><i /><i /></div>
+            </section>
+          </header>
+          <div className="cf-finance-headlines" aria-label="Season financial summary">
+            {financeHeadlines(fin.data).filter(h => h.key !== "BALANCE").map((headline, index) => (
+              <article className={`cf-finance-stat cf-finance-stat--${headline.key.toLowerCase()}`} key={headline.key}>
+                <span className="cf-finance-stat__index">0{index + 1}</span>
+                <span className="cf-finance-stat__label">{headline.label}</span>
+                <strong>{formatPence(headline.pence)}</strong>
+                <small>{headline.hint}</small>
+              </article>
+            ))}
+          </div>
+        </>
       )}
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
