@@ -1,0 +1,206 @@
+.career-root .career-world-hub {
+  color: #e9e4d8;
+  background: radial-gradient(ellipse at 50% -22%, #263448 0, #101a28 38%, #09111c 74%);
+  border: 1px solid #34404a;
+  border-radius: 12px;
+}
+.career-root .career-world-hub,
+.career-root .career-world-hub * { box-sizing: border-box; }
+.career-root .career-world-hub a { color: inherit; text-decoration: none; }
+.career-root .career-world-hub .dw-shell { max-width: 1440px; margin: 0 auto; padding: 20px 22px 38px; }
+.career-root .career-world-hub .dw-hero {
+  position: relative; isolation: isolate; display: grid; grid-template-columns: 1.1fr .9fr; min-height: 390px;
+  margin-top: 4px; overflow: hidden; border: 1px solid #796743; border-radius: 5px;
+  background: linear-gradient(110deg,#182738 0%,#152334 46%,#101a27 100%);
+  box-shadow: 0 8px 0 #080f17,0 15px 28px #0007,inset 0 1px #ffffff24;
+}
+.career-root .career-world-hub .dw-hero::before {
+  position: absolute; z-index: -1; content: ""; inset: 0;
+  background: linear-gradient(90deg,transparent 47%,#0b14201a 58%,#09121bc9 100%),repeating-linear-gradient(0deg,transparent 0 44px,#ffffff05 45px 46px);
+}
+.career-root .career-world-hub .dw-hero-copy { z-index: 2; align-self: center; padding: 42px 26px 60px 42px; }
+.career-root .career-world-hub .dw-kicker {
+  display: flex; align-items: center; gap: 10px; color: #d9bd69;
+  font: 700 10px Oswald,sans-serif; letter-spacing: .2em; text-transform: uppercase;
+}
+.career-root .career-world-hub .dw-kicker::before { width: 25px; height: 2px; content: ""; background: #ba424d; }
+.career-root .career-world-hub .dw-title {
+  margin: 20px 0 16px; color: #f0e9da; font: 700 clamp(54px,6vw,84px)/.82 Oswald,sans-serif;
+  letter-spacing: -.025em; text-transform: uppercase; text-shadow: 0 3px 0 #0b1016;
+}
+.career-root .career-world-hub .dw-title em { display: block; margin-top: 13px; color: #d9bd69; font-style: normal; }
+.career-root .career-world-hub .dw-description { max-width: 430px; margin: 22px 0 0; color: #b5c0c8; font-size: 14px; line-height: 1.65; }
+.career-root .career-world-hub .dw-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.career-root .career-world-hub .dw-btn {
+  display: inline-flex; align-items: center; gap: 10px; min-height: 42px; padding: 0 15px;
+  border: 1px solid #f0d78e; background: linear-gradient(#e0c674,#b18d43); color: #161d25;
+  font-size: 11px; font-weight: 800; letter-spacing: .035em; box-shadow: 0 4px 0 #665126,0 8px 14px #0004;
+  transition: transform .18s,box-shadow .18s;
+}
+.career-root .career-world-hub .dw-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #665126,0 10px 16px #0005; }
+.career-root .career-world-hub .dw-btn--ghost {
+  border-color: #637283; background: linear-gradient(#1b2a3a,#142130); color: #e4e8e8;
+  box-shadow: 0 4px 0 #0b1219,0 8px 14px #0004;
+}
+.career-root .career-world-hub .dw-btn--ghost:hover { box-shadow: 0 6px 0 #0b1219,0 10px 16px #0005; }
+.career-root .career-world-hub .dw-arena {
+  position: relative; display: grid; min-height: 390px; place-items: center; overflow: hidden; perspective: 900px;
+}
+.career-root .career-world-hub .dw-arena-stands {
+  position: absolute; inset: 0 0 37%;
+  background: repeating-linear-gradient(0deg,transparent 0 19px,#aab7c00b 20px 21px),linear-gradient(180deg,#0a121e 0%,#182431 68%,#253340 100%);
+  clip-path: polygon(0 0,100% 0,100% 100%,55% 79%,0 100%);
+}
+.career-root .career-world-hub .dw-light { position: absolute; top: 2%; width: 42%; height: 67%; opacity: .3; clip-path: polygon(47% 0,53% 0,100% 100%,0 100%); background: linear-gradient(180deg,#d9c58155,transparent); }
+.career-root .career-world-hub .dw-light--left { left: 1%; transform: rotate(8deg); }
+.career-root .career-world-hub .dw-light--right { right: 0; transform: rotate(-9deg); }
+.career-root .career-world-hub .dw-arena-floor {
+  position: absolute; left: 5%; right: -8%; bottom: -33%; height: 73%; transform: rotateX(65deg); transform-origin: center top;
+  border: 1px solid #776341; background: repeating-linear-gradient(90deg,#ac8e473c 0 1px,transparent 1px 55px),repeating-linear-gradient(0deg,#a9b0b626 0 1px,transparent 1px 55px),linear-gradient(155deg,#1d2a37,#0a111a 70%);
+  box-shadow: 0 -16px 0 #1a2633,0 -20px 0 #786546;
+}
+.career-root .career-world-hub .dw-board-rig {
+  position: relative; z-index: 1; display: grid; width: min(58%,280px); aspect-ratio: 1; place-items: center;
+  transform: translateY(-8px) rotate(-8deg); border: 9px solid #263340; border-radius: 50%;
+  background: linear-gradient(145deg,#526070,#1c2936 48%,#080f18);
+  box-shadow: 0 10px 0 #111a24,0 21px 24px #0009,inset 2px 3px #ffffff31,inset -5px -8px 13px #0009;
+}
+.career-root .career-world-hub .dw-board {
+  position: relative; width: 84%; aspect-ratio: 1; border: 4px solid #c6a75a; border-radius: 50%;
+  background: repeating-conic-gradient(from -6deg,#bd444d 0deg 1deg,#111a22 1deg 18deg,#c9b888 18deg 19deg,#15212b 19deg 36deg);
+  box-shadow: inset 0 0 0 2px #131c24,inset 0 0 0 15px #19232e,inset 0 0 0 18px #d4b75f,inset 0 0 0 21px #15212b,inset 0 0 0 43px #18232d,inset 0 0 0 47px #bd444d,inset 0 0 0 50px #131d27,inset 0 0 0 72px #d0b15b,inset 0 0 0 76px #17222c,inset 0 0 0 98px #c7a653,inset 0 0 0 102px #111a23;
+}
+.career-root .career-world-hub .dw-board::before,.career-root .career-world-hub .dw-board::after { position: absolute; content: ""; background: #d9bc6d; opacity: .8; }
+.career-root .career-world-hub .dw-board::before { top: 0; left: 50%; width: 1px; height: 100%; }
+.career-root .career-world-hub .dw-board::after { top: 50%; left: 0; width: 100%; height: 1px; }
+.career-root .career-world-hub .dw-board-core { position: absolute; z-index: 2; top: 50%; left: 50%; width: 12px; height: 12px; transform: translate(-50%,-50%); border: 2px solid #e7cf81; border-radius: 50%; background: #cf4350; box-shadow: 0 0 0 4px #14202b; }
+.career-root .career-world-hub .dw-circuit-tag {
+  position: absolute; z-index: 3; right: 7%; bottom: 17%; display: grid; width: 108px; height: 112px; place-items: center;
+  clip-path: polygon(50% 0,94% 19%,90% 77%,50% 100%,10% 77%,6% 19%); background: linear-gradient(145deg,#b94451,#6f2635);
+  color: #f3df9c; text-align: center; font: 700 12px/1.15 Oswald,sans-serif; letter-spacing: .14em; filter: drop-shadow(5px 7px 0 #070d13);
+}
+.career-root .career-world-hub .dw-circuit-tag b { color: #f1d77e; font-size: 27px; line-height: 1; }
+.career-root .career-world-hub .dw-hero-caption { position: absolute; top: 20px; right: 16px; color: #a9b2bb; font: 700 9px Oswald,sans-serif; letter-spacing: .16em; text-transform: uppercase; writing-mode: vertical-rl; }
+.career-root .career-world-hub .dw-stats {
+  position: relative; z-index: 4; grid-column: 1/-1; display: grid; grid-template-columns: 1.2fr 1.2fr .8fr .8fr;
+  margin: -38px 18px 0; border: 1px solid #5a5746; background: linear-gradient(180deg,#202e3c,#121e2a);
+  box-shadow: 0 5px 0 #080f17,0 12px 20px #0006;
+}
+.career-root .career-world-hub .dw-stat { min-width: 0; min-height: 77px; padding: 14px 17px; border-right: 1px solid #ffffff17; }
+.career-root .career-world-hub .dw-stat:last-child { border: 0; }
+.career-root .career-world-hub .dw-stat small { display: block; margin-bottom: 6px; color: #95a0a8; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; }
+.career-root .career-world-hub .dw-stat strong { display: block; color: #f1e6c7; font: 700 clamp(15px,1.6vw,21px)/1.15 Oswald,sans-serif; overflow-wrap: anywhere; }
+.career-root .career-world-hub .dw-stat:first-child strong,.career-root .career-world-hub .dw-count { color: #e0c36c; }
+.career-root .career-world-hub .dw-section { margin-top: 28px; }
+.career-root .career-world-hub .dw-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.career-root .career-world-hub .dw-section-kicker { display: block; margin-bottom: 4px; color: #82909c; font-size: 9px; letter-spacing: .17em; text-transform: uppercase; }
+.career-root .career-world-hub .dw-section-title { display: flex; align-items: center; gap: 10px; margin: 0; color: #ece6d8; font: 700 21px Oswald,sans-serif; letter-spacing: .045em; text-transform: uppercase; }
+.career-root .career-world-hub .dw-section-title svg { flex: 0 0 auto; color: #d5b65d; }
+.career-root .career-world-hub .dw-section-link { display: inline-flex; align-items: center; gap: 7px; color: #d7bc6b; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.career-root .career-world-hub .dw-section-link:hover { color: #f1d87f; }
+.career-root .career-world-hub .dw-championships { display: grid; grid-template-columns: 1.28fr 1fr 1fr; gap: 12px; }
+.career-root .career-world-hub .dw-event {
+  --event:#d5b65d; position: relative; isolation: isolate; display: flex; min-width: 0; min-height: 180px; align-items: flex-end;
+  overflow: hidden; padding: 16px; border: 1px solid #46515b; background: linear-gradient(155deg,#293847,#121d28 75%);
+  box-shadow: 0 4px 0 #080f17,0 10px 20px #0005,inset 0 1px #ffffff1e; transition: transform .2s,border-color .2s;
+}
+.career-root .career-world-hub .dw-event:hover { transform: translateY(-3px); border-color: var(--event); }
+.career-root .career-world-hub .dw-event::before { position: absolute; z-index: -1; inset: 0; content: ""; background: linear-gradient(0deg,#0b1119 1%,#0b1119de 24%,transparent 78%),radial-gradient(ellipse at 72% 20%,color-mix(in srgb,var(--event) 28%,transparent),transparent 55%); }
+.career-root .career-world-hub .dw-event-art { position: absolute; z-index: -1; top: 4%; right: 4%; width: 46%; height: 88%; opacity: .68; }
+.career-root .career-world-hub .dw-event-art::before { position: absolute; inset: 0; content: ""; background: repeating-linear-gradient(0deg,transparent 0 10px,#d8c17a22 11px 12px),linear-gradient(160deg,transparent 40%,#0b111c 100%); clip-path: polygon(8% 0,92% 0,100% 100%,0 100%); }
+.career-root .career-world-hub .dw-event-art::after { position: absolute; top: 17%; left: 25%; width: 52%; height: 51%; content: ""; border: 1px solid color-mix(in srgb,var(--event) 85%,transparent); border-radius: 50%; box-shadow: 0 0 0 10px #0c1521,0 0 0 11px color-mix(in srgb,var(--event) 70%,transparent),0 0 0 23px #0c1521,0 0 0 24px color-mix(in srgb,var(--event) 45%,transparent),0 0 0 36px #0c1521,0 0 0 37px color-mix(in srgb,var(--event) 35%,transparent); }
+.career-root .career-world-hub .dw-event-code { position: absolute; top: 8px; right: 14px; color: #ffffff16; font: 700 84px/.9 Oswald,sans-serif; }
+.career-root .career-world-hub .dw-event-copy { position: relative; max-width: 92%; }
+.career-root .career-world-hub .dw-event-top { display: flex; align-items: center; gap: 7px; color: var(--event); font: 700 9px Oswald,sans-serif; letter-spacing: .13em; text-transform: uppercase; }
+.career-root .career-world-hub .dw-event-top i { width: 4px; height: 4px; border-radius: 50%; background: var(--event); }
+.career-root .career-world-hub .dw-event h3 { margin: 8px 0; color: #f0e9da; font: 700 22px/1.06 Oswald,sans-serif; }
+.career-root .career-world-hub .dw-event:not(.dw-event--wide) h3 { font-size: 19px; }
+.career-root .career-world-hub .dw-event-meta { display: flex; align-items: center; gap: 6px; color: #adb6bc; font-size: 10px; }
+.career-root .career-world-hub .dw-event-meta svg { flex: 0 0 auto; color: var(--event); }
+.career-root .career-world-hub .dw-event-status { position: absolute; right: 12px; bottom: 12px; color: #abb5bc; font: 700 8px Oswald,sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.career-root .career-world-hub .dw-lower { display: grid; grid-template-columns: 1fr 1.1fr; gap: 20px; margin-top: 30px; }
+.career-root .career-world-hub .dw-news-panel,.career-root .career-world-hub .dw-explore-panel { min-width: 0; border: 1px solid #364451; background: linear-gradient(155deg,#182635,#101a26); box-shadow: 0 5px 0 #080f17,0 13px 24px #0005; }
+.career-root .career-world-hub .dw-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 15px 16px; border-bottom: 1px solid #ffffff18; }
+.career-root .career-world-hub .dw-panel-head .dw-section-title { font-size: 16px; }
+.career-root .career-world-hub .dw-head-rule { height: 1px; flex: 1; margin: 0 5px; background: linear-gradient(90deg,#766340,transparent); }
+.career-root .career-world-hub .dw-news-list { margin: 0; padding: 0 16px; list-style: none; }
+.career-root .career-world-hub .dw-news-item { display: grid; grid-template-columns: 30px minmax(0,1fr) auto; gap: 10px; align-items: start; padding: 14px 0; border-bottom: 1px solid #ffffff14; }
+.career-root .career-world-hub .dw-news-item:last-child { border: 0; }
+.career-root .career-world-hub .dw-news-index { color: #7e8993; font: 700 13px Oswald,sans-serif; }
+.career-root .career-world-hub .dw-news-category { display: block; margin-bottom: 4px; color: #d7ba64; font: 700 8px Oswald,sans-serif; letter-spacing: .14em; }
+.career-root .career-world-hub .dw-news-item h3 { margin: 0; color: #e9e5dc; font: 600 13px/1.35 "DM Sans",sans-serif; }
+.career-root .career-world-hub .dw-news-item h3 a:hover { color: #f0d77e; }
+.career-root .career-world-hub .dw-news-item p { margin: 5px 0 0; color: #9aa5ae; font-size: 10px; line-height: 1.5; }
+.career-root .career-world-hub .dw-news-week { color: #81909b; font: 700 8px Oswald,sans-serif; letter-spacing: .07em; white-space: nowrap; }
+.career-root .career-world-hub .dw-destinations { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; padding: 12px; }
+.career-root .career-world-hub .dw-destination {
+  --tone:#d3b45c; position: relative; display: flex; min-width: 0; min-height: 68px; align-items: center; gap: 10px; padding: 10px;
+  border: 1px solid #3b4956; background: linear-gradient(140deg,#1b2b3a,#131f2b);
+  box-shadow: inset 0 1px #ffffff12,0 3px 0 #0a121a; transition: transform .18s,border-color .18s,background .18s;
+}
+.career-root .career-world-hub .dw-destination:hover { transform: translateY(-2px); border-color: var(--tone); background: linear-gradient(140deg,#263847,#182534); }
+.career-root .career-world-hub .dw-destination-icon { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border: 1px solid #58626a; background: linear-gradient(145deg,#344451,#1b2936); color: var(--tone); box-shadow: 0 2px 0 #090f15; }
+.career-root .career-world-hub .dw-destination-copy { min-width: 0; }
+.career-root .career-world-hub .dw-destination strong { display: block; padding-right: 15px; color: #ece7dd; font: 700 13px Oswald,sans-serif; }
+.career-root .career-world-hub .dw-destination small { display: block; margin-top: 3px; color: #96a2ab; font-size: 9px; line-height: 1.35; }
+.career-root .career-world-hub .dw-destination-num { position: absolute; top: 5px; right: 6px; color: #82909b70; font: 700 8px Oswald,sans-serif; }
+.career-root .career-world-hub .dw-destination-arrow { flex: 0 0 auto; margin-left: auto; color: #7d8a94; }
+.career-root .career-world-hub .dw-empty { margin: 0; padding: 18px; color: #aeb7c0; font-size: 13px; }
+.career-root .career-world-hub .dw-footer { display: flex; justify-content: space-between; gap: 16px; padding: 18px 2px 0; margin-top: 23px; border-top: 1px solid #293642; color: #77848e; font-size: 9px; letter-spacing: .09em; text-transform: uppercase; }
+.career-root .career-world-hub .dw-footer a { color: #9f8b55; }
+@media (max-width:900px) {
+  .career-root .career-world-hub .dw-shell { padding: 15px 15px 30px; }
+  .career-root .career-world-hub .dw-hero { grid-template-columns: 1fr .85fr; min-height: 340px; }
+  .career-root .career-world-hub .dw-hero-copy { padding-left: 25px; }
+  .career-root .career-world-hub .dw-arena { min-height: 340px; }
+  .career-root .career-world-hub .dw-stats { grid-template-columns: repeat(4,minmax(0,1fr)); margin-inline: 12px; }
+  .career-root .career-world-hub .dw-stat { padding: 12px 10px; }
+  .career-root .career-world-hub .dw-championships { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .career-root .career-world-hub .dw-event--wide { grid-column: 1/-1; min-height: 190px; }
+  .career-root .career-world-hub .dw-lower { gap: 14px; }
+}
+@media (max-width:700px) {
+  .career-root .career-world-hub { border-radius: 9px; }
+  .career-root .career-world-hub .dw-shell { padding: 11px 10px 24px; }
+  .career-root .career-world-hub .dw-hero { grid-template-columns: 1fr; min-height: 0; margin-top: 2px; }
+  .career-root .career-world-hub .dw-hero-copy { padding: 26px 19px 18px; }
+  .career-root .career-world-hub .dw-title { font-size: 64px; }
+  .career-root .career-world-hub .dw-description { margin-top: 17px; font-size: 13px; }
+  .career-root .career-world-hub .dw-hero-actions { gap: 9px; margin-top: 19px; }
+  .career-root .career-world-hub .dw-btn { min-height: 40px; padding-inline: 11px; font-size: 10px; }
+  .career-root .career-world-hub .dw-arena { min-height: 235px; }
+  .career-root .career-world-hub .dw-arena-floor { bottom: -55%; height: 95%; }
+  .career-root .career-world-hub .dw-board-rig { width: 165px; }
+  .career-root .career-world-hub .dw-circuit-tag { right: 10%; bottom: 12%; width: 77px; height: 82px; font-size: 9px; }
+  .career-root .career-world-hub .dw-circuit-tag b { font-size: 20px; }
+  .career-root .career-world-hub .dw-hero-caption { top: 11px; right: 10px; }
+  .career-root .career-world-hub .dw-stats { grid-template-columns: repeat(2,minmax(0,1fr)); margin: -9px 10px 13px; }
+  .career-root .career-world-hub .dw-stat { min-height: 66px; padding: 11px; border-bottom: 1px solid #ffffff17; }
+  .career-root .career-world-hub .dw-stat:nth-child(2) { border-right: 0; }
+  .career-root .career-world-hub .dw-stat:nth-child(3),.career-root .career-world-hub .dw-stat:nth-child(4) { border-bottom: 0; }
+  .career-root .career-world-hub .dw-stat strong { font-size: 17px; }
+  .career-root .career-world-hub .dw-section { margin-top: 22px; }
+  .career-root .career-world-hub .dw-section-title { font-size: 17px; }
+  .career-root .career-world-hub .dw-section-heading { align-items: center; }
+  .career-root .career-world-hub .dw-championships { grid-template-columns: 1fr; gap: 9px; }
+  .career-root .career-world-hub .dw-event,.career-root .career-world-hub .dw-event--wide { min-height: 160px; padding: 14px; grid-column: auto; }
+  .career-root .career-world-hub .dw-event-status { display: none; }
+  .career-root .career-world-hub .dw-event h3,.career-root .career-world-hub .dw-event:not(.dw-event--wide) h3 { font-size: 19px; }
+  .career-root .career-world-hub .dw-lower { grid-template-columns: 1fr; gap: 16px; margin-top: 22px; }
+  .career-root .career-world-hub .dw-panel-head { padding: 12px; }
+  .career-root .career-world-hub .dw-panel-head .dw-section-title { font-size: 15px; }
+  .career-root .career-world-hub .dw-news-list { padding-inline: 12px; }
+  .career-root .career-world-hub .dw-news-item { grid-template-columns: 25px minmax(0,1fr) auto; gap: 8px; padding: 12px 0; }
+  .career-root .career-world-hub .dw-news-item h3 { font-size: 12px; }
+  .career-root .career-world-hub .dw-news-item p { font-size: 9px; }
+  .career-root .career-world-hub .dw-destination { min-height: 64px; padding: 9px; gap: 8px; }
+  .career-root .career-world-hub .dw-destination-icon { width: 31px; height: 31px; flex-basis: 31px; }
+  .career-root .career-world-hub .dw-destination strong { font-size: 12px; }
+  .career-root .career-world-hub .dw-footer { flex-direction: column; gap: 7px; font-size: 8px; }
+}
+@media (max-width:390px) {
+  .career-root .career-world-hub .dw-hero-actions { flex-direction: column; align-items: stretch; }
+  .career-root .career-world-hub .dw-btn { justify-content: space-between; }
+  .career-root .career-world-hub .dw-destinations { grid-template-columns: 1fr; }
+  .career-root .career-world-hub .dw-news-week { font-size: 7px; }
+}

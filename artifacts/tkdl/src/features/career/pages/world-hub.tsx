@@ -1,8 +1,9 @@
 import {useState,useEffect} from "react";
 import {Link,useSearch} from "wouter";
+import type {CSSProperties} from "react";
 import {useWorldContent,useWorldLocalities,useWorldMap,useWorldPlayers,useRankingTable,useLegacy,useEventLegacy,useCareerLife} from "../api";
 import {CareerLoading,CareerError,CareerSection} from "../components";
-import {CalendarDays,ChevronRight,Crown,Newspaper,Search,Trophy} from "lucide-react";
+import {ArrowDownRight,ArrowRight,ArrowUpRight,CalendarDays,ChevronRight,Crown,MapPin,Medal,Newspaper,Search,Shield,Sparkles,Trophy,Users} from "lucide-react";
 import {CareerPageHero} from "../page-hero";
 import {PLATES,resolveAtmosphere} from "../atmosphere";
 import {CareerEventIdentity,CareerPlayerCard,CareerShirt} from "../identity";
@@ -12,6 +13,7 @@ import {circuitLabel,eventCircuitLabel,familyName,titleCase} from "../model";
 import {NpcLegacyPage,LegacyPage} from "./legacy";
 import type {ShellContext} from "../shell";
 import {CareerVenueAtlas} from "./venue-atlas";
+import "./world-landing.css";
 
 export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;section?:"landing"|"events"|"venues"|"history"|"search";detail?:string}) {
   const querySearch=new URLSearchParams(useSearch()).get("q")??"";
@@ -32,6 +34,86 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
     return <CareerVenueAtlas ctx={ctx} data={{venues:d.venues,countries:d.countries}} localities={localities.data}
       events={map.data?.events??[]} detailId={detail} eventsLoading={map.isLoading} eventsError={map.error} onRetry={()=>map.refetch()}/>;
   }
+  if(section==="landing") {
+    const champs=map.data?.events.filter(e=>["MAJOR","WORLD_CHAMPIONSHIP"].includes(e.content.eventClass)&&!["COMPLETED","CANCELLED"].includes(e.status)).slice(0,4)??[];
+    const headlines=life.data?.news.slice(0,4)??[];
+    const destinations=[
+      {title:"Newsroom",sub:"Stories from your Career",href:`${base}/world/news`,icon:Newspaper,tone:"red"},
+      {title:"Players",sub:"Every saved player",href:`${base}/world/players`,icon:Users,tone:"blue"},
+      {title:"Rivalries & H2H",sub:"Your played meetings",href:`${base}/relationships`,icon:Shield,tone:"gold"},
+      {title:"Events & Circuits",sub:"Every championship family",href:`${base}/world/events`,icon:Trophy,tone:"red"},
+      {title:"Venues",sub:"The world venue atlas",href:`${base}/world/venues`,icon:MapPin,tone:"blue"},
+      {title:"History",sub:"Champions & past seasons",href:`${base}/world/history`,icon:Crown,tone:"gold"},
+      {title:"Records Book",sub:"Nine-darters & best performances",href:`${base}/world/records`,icon:Medal,tone:"red"},
+    ];
+    return <main className="career-world-hub">
+      <div className="dw-shell">
+        <section className="dw-hero">
+          <div className="dw-hero-copy">
+            <span className="dw-kicker">The darts world · season {ctx.save.currentSeason} / week {ctx.save.currentWeek}</span>
+            <h1 className="dw-title">Darts <em>World</em></h1>
+            <p className="dw-description">Every ranking, championship and great name in the circuit. Step inside the world your Career is shaping.</p>
+            <div className="dw-hero-actions">
+              <Link className="dw-btn" href={`${base}/rankings`}>Rankings &amp; races <ArrowRight size={15}/></Link>
+              <Link className="dw-btn dw-btn--ghost" href={`${base}/world/events/world-darts-championship`}>The Palace World Championship <ChevronRight size={15}/></Link>
+            </div>
+          </div>
+          <div className="dw-arena" role="img" aria-label="Illustrated championship darts arena">
+            <div className="dw-arena-stands"/><div className="dw-light dw-light--left"/><div className="dw-light dw-light--right"/>
+            <div className="dw-arena-floor"/><div className="dw-board-rig"><div className="dw-board"><i className="dw-board-core"/></div></div>
+            <div className="dw-circuit-tag">WORLD<br/>CIRCUIT<br/><b>{String(ctx.save.currentSeason).padStart(2,"0")}</b></div>
+            <div className="dw-hero-caption">The stage is set · the season is alive</div>
+          </div>
+          <div className="dw-stats">
+            <div className="dw-stat"><small>Published World #1</small><strong>{rankings.isLoading?"…":rankings.error?"Unavailable":rankings.data?.rows[0]?.name??"Not yet published"}</strong></div>
+            <div className="dw-stat"><small>Last World Champion</small><strong>{legacy.isLoading?"…":legacy.error?"Unavailable":latestWorld?winnerName(latestWorld.participant):"Not yet recorded"}</strong></div>
+            <div className="dw-stat"><small>Championships ahead</small><strong className="dw-count">{map.isLoading?"…":map.error?"—":champs.length}</strong></div>
+            <div className="dw-stat"><small>World news</small><strong className="dw-count">{life.isLoading?"…":life.error?"—":life.data?.news.length??0}</strong></div>
+          </div>
+        </section>
+
+        <section className="dw-section">
+          <div className="dw-section-heading"><div><span className="dw-section-kicker">The next nights that matter</span><h2 className="dw-section-title"><Trophy size={17}/>Upcoming Championships</h2></div>
+            <Link className="dw-section-link" href={`${base}/world/events`}>All events <ArrowUpRight size={14}/></Link></div>
+          {map.isLoading?<CareerLoading label="Reading the championship calendar"/>:map.error?<CareerError error={map.error} onRetry={()=>map.refetch()}/>:
+            !champs.length?<p className="dw-empty">No major or World Championship edition is scheduled ahead this season.</p>:
+            <div className="dw-championships">{champs.map((event,i)=>{
+              const tone=event.content.eventClass==="WORLD_CHAMPIONSHIP"?"#d6b65d":i%2?"#c6535a":"#81a9b8";
+              return <Link key={event.id} href={`${base}/events/${event.id}`} className={`dw-event${i===0?" dw-event--wide":""}`} style={{"--event":tone} as CSSProperties}>
+                <div className="dw-event-art"/><span className="dw-event-code">{String(i+1).padStart(2,"0")}</span>
+                <div className="dw-event-copy"><div className="dw-event-top"><span>{event.content.eventClass==="WORLD_CHAMPIONSHIP"?"World Championship":"Major"}</span><i/>Week {event.dates.startWeek}</div>
+                  <h3>{event.name}</h3><div className="dw-event-meta"><MapPin size={12}/>{event.venue.displayName}{event.venue.city?`, ${event.venue.city}`:""}</div></div>
+                <span className="dw-event-status">{mapState(event)}</span>
+              </Link>;
+            })}</div>}
+        </section>
+
+        <div className="dw-lower">
+          <section className="dw-news-panel">
+            <header className="dw-panel-head"><h2 className="dw-section-title"><Newspaper size={16}/>Around the world</h2><span className="dw-head-rule"/>
+              <Link className="dw-section-link" href={`${base}/world/news`}>Newsroom <ArrowUpRight size={14}/></Link></header>
+            {life.isLoading?<CareerLoading label="Gathering world news"/>:life.error?<CareerError error={life.error} onRetry={()=>life.refetch()}/>:
+              headlines.length?<ul className="dw-news-list">{headlines.map((story,i)=><li className="dw-news-item" key={story.id}>
+                <span className="dw-news-index">{String(i+1).padStart(2,"0")}</span><div><span className="dw-news-category">{story.kind.replaceAll("_"," ")}</span>
+                  <h3><Link href={`${base}/world/news/${story.id}`}>{story.title}</Link></h3>
+                  {story.body&&<p>{story.body}</p>}</div><span className="dw-news-week">S{story.season} · {story.week===null?"—":`W${story.week}`}</span>
+              </li>)}</ul>:<p className="dw-empty">No world news has been recorded yet.</p>}
+          </section>
+          <section className="dw-explore-panel">
+            <header className="dw-panel-head"><h2 className="dw-section-title"><Sparkles size={16}/>Explore the world</h2><span className="dw-head-rule"/>
+              <Link className="dw-section-link" href={`${base}/world/search`}>Search <ArrowUpRight size={14}/></Link></header>
+            <nav className="dw-destinations" aria-label="Explore the darts world">
+              {destinations.map(({title,sub,href,icon:Icon,tone},i)=><Link key={href} className="dw-destination" href={href} style={{"--tone":tone==="red"?"#c6535a":tone==="blue"?"#81a9b8":"#d5b65d"} as CSSProperties}>
+                <span className="dw-destination-icon"><Icon size={17} strokeWidth={1.8}/></span><span className="dw-destination-copy"><strong>{title}</strong><small>{sub}</small></span>
+                <span className="dw-destination-num">{String(i+1).padStart(2,"0")}</span><ArrowDownRight className="dw-destination-arrow" size={14}/>
+              </Link>)}
+            </nav>
+          </section>
+        </div>
+        <footer className="dw-footer"><span>Live Career rankings, calendar and world news</span><Link href={`${base}/world`}>Darts World · Return to hub</Link></footer>
+      </div>
+    </main>;
+  }
   const searchBox=<label className="career-world-search"><Search size={16} aria-hidden="true"/><span className="sr-only">Search</span><input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Names, cities, circuits"/></label>;
   const seasonEditions=map.data?.events??[];
   return <div className="space-y-3">{section==="history"&&<h2 className="sr-only">World History</h2>}
@@ -42,40 +124,6 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
       subtitle={<p>Every championship family in your Career world, from local club nights to the Palace. Each family runs as local editions across the season.</p>}
       stats={[{label:"Championship families",value:d.eventFamilies.length,tone:"gold"},{label:"Organisations",value:d.organisations.length},
         {label:"Circuits",value:d.circuits.length},{label:"Editions this season",value:map.isLoading?"…":seasonEditions.length}]}>{searchBox}</CareerPageHero>}
-    {section==="landing"&&(()=>{
-      const champs=map.data?.events.filter(e=>["MAJOR","WORLD_CHAMPIONSHIP"].includes(e.content.eventClass)&&!["COMPLETED","CANCELLED"].includes(e.status)).slice(0,4)??[];
-      const leader=rankings.isLoading?"…":rankings.error?"Unavailable":rankings.data?.rows[0]?.name??"Not yet published";
-      const champion=legacy.isLoading?"…":legacy.error?"Unavailable":latestWorld?winnerName(latestWorld.participant):"Not yet recorded";
-      return <>
-        <CareerPageHero kicker={`The darts world · season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title="Darts World" accent="#38bdf8"
-          stage={{ venue: { venueType: "major-arena" }, eventClass: "MAJOR" }}
-          subtitle="Rankings, the big championships, players and news from your darts world."
-          stats={[
-            { label: "Published World #1", value: leader, tone: "gold" },
-            { label: "Last World Champion", value: champion },
-            { label: "Championships ahead", value: champs.length },
-            { label: "World news", value: life.data?.news.length ?? "…" },
-          ]}
-          actions={<><Link className="career-btn career-btn-primary" href={`${base}/rankings`}>Rankings & races</Link>
-            <Link className="career-btn career-btn-ghost" href={`${base}/world/events/world-darts-championship`}>The Palace World Championship</Link></>} />
-        <CareerSection title="Upcoming Championships" icon={<Trophy aria-hidden />} accent="#ffd24a" action={<Link href={`${base}/world/events`}>All events</Link>}>
-          {map.isLoading?<CareerLoading label="Reading the championship calendar"/>:!champs.length?<p className="p-4 text-sm text-white/70">No major or World Championship edition is scheduled ahead this season.</p>:
-          <div className="career-world-champs">{champs.map(e=>{
-            const plate=PLATES[resolveAtmosphere({ eventClass: e.content.eventClass, venue: e.venue }).plate]??PLATES.neutral;
-            return <Link key={e.id} href={`${base}/events/${e.id}`} className="career-world-champ">
-              <img src={plate.src} alt="" aria-hidden="true" loading="lazy" style={{ objectPosition: `${plate.focal.x*100}% ${plate.focal.y*100}%` }}/>
-              <span className="career-world-champ__body"><small>{e.content.eventClass==="WORLD_CHAMPIONSHIP"?"World Championship":"Major"} · Week {e.dates.startWeek}</small>
-                <strong>{e.name}</strong><em>{e.venue.displayName}{e.venue.city?`, ${e.venue.city}`:""} · {mapState(e)}</em></span>
-            </Link>;})}</div>}
-        </CareerSection>
-        <CareerSection title="Around the world" icon={<Newspaper aria-hidden />} accent="#7ebbd3" action={<Link href={`${base}/world/news`}>Newsroom</Link>}>
-          {life.data?.news.length?<ul className="career-headlines">{life.data.news.slice(0,4).map(n=><li key={n.id}><Link href={`${base}/stories`}>{n.title}</Link></li>)}</ul>
-            :<p className="p-4 text-sm text-white/70">No world news has been recorded yet.</p>}
-        </CareerSection>
-        <nav className="career-world-tiles" aria-label="Explore the darts world">{([["Newsroom","/world/news","Stories from your Career","conference"],["Players","/world/players","Every saved player","professional-floor"],["Rivalries & H2H","/relationships","Your played meetings","studio"],["Events & Circuits","/world/events","Every championship","small-arena"],["Venues","/world/venues","The venue atlas","historic-theatre"],["History","/world/history","Champions & records","exhibition"],["Records Book","/world/records","Nine-darters & best performances","historic-theatre"]] as const).map(([label,path,sub,venue])=>{
-          const plate=PLATES[venue]??PLATES.neutral;
-          return <Link key={path} href={`${base}${path}`} className="career-world-tile"><img src={plate.src} alt="" aria-hidden="true" loading="lazy"/><span><strong>{label}</strong><small>{sub}</small></span></Link>;})}</nav>
-      </>;})()}
     {section==="search"&&<><WorldPlayerDirectory ctx={ctx} search={search}/><CareerSection title="Events / Championships">{families.slice(0,10).map(f=><Link className="career-directory-row" key={f.id} href={`${base}/world/events/${f.id}`}>{familyName(f.name)}</Link>)}</CareerSection><CareerSection title="Venues">{venues.slice(0,10).map(v=><Link className="career-directory-row" key={v.id} href={`${base}/world/venues/${v.id}`}>{v.displayName}, {v.city}</Link>)}</CareerSection><p>Event and venue search shows up to ten matches; their directories provide full filtered pagination.</p></>}
     {section==="events"&&(selected?(()=>{
       const editions=seasonEditions.filter(e=>e.definitionId===selected.id);
