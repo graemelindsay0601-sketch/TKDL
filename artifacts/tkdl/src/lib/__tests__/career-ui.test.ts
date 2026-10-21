@@ -949,12 +949,13 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     clips: [{ id: "c1", season: 2, week: 8, kind: "NINE", title: "NINE-DARTER LIVE ON STREAM", status: "VIRAL", views: 182000, followersGained: 2900, fansGained: 5800 },
       { id: "c2", season: 2, week: 9, kind: "MAX", title: "Maximum!", status: "NEW", views: 0, followersGained: 0, fansGained: 0 }] };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
-  for (const fact of ["Dart Cast", "AyrDarts", "640 followers", "Affiliate", "14 streams", "£184.50 earned", "beat 9 challengers", "Go live on Tue", "(1 so far)",
+  for (const fact of ["Dart Cast", "AyrDarts", "640", "FOLLOWERS", "Affiliate", "SHOWS", "14", "£184.50", "CAREER EARNED",
+    "CHALLENGERS BEATEN", "Go live on Tue", "1 of 3 streams used this week",
     "360 more followers to Partner", "Stream vs OcheGremlin12", "41 peak", "+12", "£23.50",
-    "King of the Oche · chat's pick", "Big crowd", "Quiet night (you did this last time)", "Normal crowd",
-    "Collabs", "CheckoutQueen", "3,300 followers · averages about 66", "Too big for you yet", "Clips", "NINE-DARTER LIVE ON STREAM", "VIRAL", "182,000 views",
+    "King of the Oche", "CHAT’S PICK", "BIG CROWD", "QUIET NIGHT", "NORMAL CROWD",
+    "COLLAB DESK", "CheckoutQueen", "3,300 followers", "Too big for you yet", "NINE-DARTER LIVE ON STREAM", "VIRAL", "182,000 views",
     "+2,900 followers · +5,800 fans", "out this week: will it go viral?",
-    "DartCast Invitational", "£250 / £750 / £1,500 / £4,000", "TheOcheShow 95,000 followers · averages 80", "Play the Invitational on Tue"]) assert.ok(t.includes(fact), fact);
+    "DartCast Invitational", "£250", "£750", "£1,500", "£4,000", "TheOcheShow", "95,000 followers", "AVG 80", "Play the Invitational on Tue"]) assert.ok(t.includes(fact), fact);
   const selected = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming?day=5`));
   assert.ok(selected.includes("Go live on Fri"), "DartCast should carry the planner's selected night into the booking screen");
   const futureStream = { ...view, week: 10, pathway: { ...view.pathway, scheduledNights: [] } };
@@ -973,9 +974,9 @@ test("DartCast channel money: subs that renew, a brand's offer to answer, and a 
     subGoal: { season: 3, month: 3, endsWeek: 12, target: 10, promise: "Throw in fancy dress", progress: 4, status: "ON" },
     goalOptions: { targets: [5, 10, 20, 50], promises: ["Throw in fancy dress"] } };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
-  for (const fact of ["Channel money", "14 subscribers renew at the end of week 12", "£17.50 if they all stay", "FlightDeck (flights and stems)", "£69 a stream", "next 6 streams",
-    "Answer by week 13", "Take the deal", "No thanks", "televised invitationals send you invitations",
-    "Sub goal", "4 of 10 subs", "Your promise: Throw in fancy dress", "You won the Invitational!", "Prize: £4,000", "Raised for charity on stream: £123.45",
+  for (const fact of ["Channel money", "14", "active subscribers", "Week 12", "£17.50", "FlightDeck", "flights and stems", "£69", "/ STREAM", "Next 6 streams",
+    "WEEK 13", "Take the deal", "No thanks", "Televised invitations are listed in your calendar",
+    "Subscriber goal", "4", "10 subs", "Your promise · Throw in fancy dress", "You won the Invitational!", "£4,000", "RAISED FOR CHARITY ON STREAM", "£123.45",
     "Charity stream", "Done this month"]) assert.ok(t.includes(fact), fact);
 });
 
@@ -1030,18 +1031,18 @@ test("Webcam league: the table with promotion and relegation places, this week's
 test("Pro-Am nights: slots against touring pros as an amateur, and a paid night as the pro", () => {
   const am = { season: 2, week: 9, side: "AMATEUR", availablePence: 30000, booking: null, history: [],
     record: { slots: 3, prosBeaten: 1, prizePence: 30000, nightsAsPro: 0, appearancePence: 0, amateursBeatYou: 0 },
-    nights: [{ key: "n0", town: "Kilbirnie", dayOfWeek: 2, travelPence: 0, free: true, pro: { name: "Rob Cross", rank: 12, avg: 96.1 }, feePence: 2500, prizePence: 50000, appearancePence: 0 },
+    nights: [{ key: "n0", town: "Kilbirnie", dayOfWeek: 2, travelPence: 0, free: true, pro: { name: "Rook Calder", rank: 12, avg: 96.1 }, feePence: 2500, prizePence: 50000, appearancePence: 0 },
       { key: "n1", town: "Glasgow", dayOfWeek: 4, travelPence: 700, free: false, pro: { name: "Joe Bloggs", rank: null, avg: 88.4 }, feePence: 1000, prizePence: 20000, appearancePence: 0 }] };
   let t = text(render(h(M.ProAmNights, { saveId: SAVE_ID, retired: false }), [[key("pro-am"), am]]));
-  for (const fact of ["you throw first", "Kilbirnie · Tue", "Rob Cross (world no. 12)", "averages about 96.1", "slot £25", "prize £500", "Take a slot (£25)",
-    "Glasgow · Thu", "travel £7", "You're booked that night", "Pros beaten: 1 of 3", "prizes £300"]) assert.ok(t.includes(fact), fact);
+  for (const fact of ["you throw first", "Kilbirnie", "Tue", "Rook Calder", "WORLD RANK", "#12", "OPPONENT AVG", "96.1", "Slot fee", "£25", "Prize", "£500", "Take a slot · £25",
+    "Glasgow", "Thu", "Travel", "£7", "You're booked that night", "Pros beaten", "1", "Prize money", "£300"]) assert.ok(t.includes(fact), fact);
   const futureAm = { ...am, week: 10 };
   const selected = render(h(M.ProAmNights, { saveId: SAVE_ID, retired: false }), [[key("pro-am", 10), futureAm]], `/career/${SAVE_ID}/pro-am?week=10&day=2`);
-  assert.match(selected, /aria-pressed="true"[^>]*>Selected · Take a slot/);
+  assert.match(selected, /aria-pressed="true"[^>]*>[\s\S]*?Selected<\/button>/);
   const pro = { ...am, side: "PRO", nights: [], record: { slots: 0, prosBeaten: 0, prizePence: 0, nightsAsPro: 2, appearancePence: 180000, amateursBeatYou: 3 },
     booking: { id: "b", role: "PRO", town: "Stirling", dayOfWeek: 5, status: "PLAYED", pro: null, feePence: 0, prizePence: 0, appearancePence: 90000,
       result: { legs: [{ name: "Al Day", youWon: true }, { name: "Bo Hill", youWon: false }], beatenBy: 1, source: "SIM" } } };
   t = text(render(h(M.ProAmNights, { saveId: SAVE_ID, retired: false }), [[key("pro-am"), pro]]));
-  for (const fact of ["you're the pro now", "You're the pro in Stirling on Fri", "Paid £900", "1 of 2 amateurs beaten", "Bo Hill: beat you", "Nights as the pro: 2", "paid £1,800", "amateurs who beat you: 3"])
+  for (const fact of ["YOU'RE THE PRO", "Stirling", "Fri", "Paid", "£900", "1 of 2 amateurs beaten", "Bo Hill: beat you", "nights as the pro", "2", "£1,800", "Amateurs beat you", "3"])
     assert.ok(t.includes(fact), fact);
 });

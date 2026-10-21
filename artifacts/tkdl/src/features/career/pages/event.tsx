@@ -1,16 +1,17 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {CareerEventIdentity, CareerShirt} from "../identity";
 import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
-import { ArrowLeft, CalendarDays, Coins, MapPin, Swords, Trophy, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Coins, MapPin, ShieldCheck, Swords, Ticket, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
-import { circuitLabel, eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
+import { eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
 import { CareerEmptyState, CareerError, CareerEventStakes, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
 import { MatchBoundaryNotice } from "./match-boundary";
 import { CareerVenueArtwork } from "./venue-atlas";
 import { EntryCase } from "../tournament/components";
+import "./event.css";
 
 type Tab = "OVERVIEW" | "DRAW" | "SCHEDULE" | "MY_MATCHES" | "PLAYERS" | "PRIZE" | "RANKING";
 
@@ -29,6 +30,11 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
   const life = eventLifecycle(detail);
   const awaiting = !!overview?.pendingHumanMatches.some(p => p.eventId === e.id);
   const myMatches = detail.draw.matches.filter(m => m.a?.key === "HUMAN" || m.b?.key === "HUMAN");
+  const fieldPct = e.field.size > 0 ? Math.min(100, Math.max(0, e.field.entrants / e.field.size * 100)) : 0;
+  const fieldMet = e.field.entrants >= e.field.minimum;
+  const entryState = e.human?.entryStatus && e.human.entryStatus !== "WITHDRAWN"
+    ? (e.human.entryStatus === "CONFIRMED" ? "In the field" : "Entered")
+    : e.human?.canEnter ? "Entry open" : e.human?.denials.length ? "Not eligible" : "No entry";
   const tabs: { value: Tab; label: string }[] = [{ value: "OVERVIEW", label: "Overview" }];
   if (detail.draw.matches.length) tabs.push({ value: "DRAW", label: "Draw" }, { value: "SCHEDULE", label: "Schedule" });
   if (myMatches.length) tabs.push({ value: "MY_MATCHES", label: "My matches" });
@@ -37,29 +43,74 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
   const [tab, setTab] = useState<Tab>("OVERVIEW");
 
   return (
-    <CareerEventIdentity eventKey={e.definitionKey} circuit={e.circuit} level={e.presentation.tier}><div className="space-y-3">
-      {!palace && <Link href={`/career/${save.id}/calendar`} className="career-btn career-btn-ghost"><ArrowLeft className="w-4 h-4" aria-hidden /> Calendar</Link>}
+    <CareerEventIdentity eventKey={e.definitionKey} circuit={e.circuit} level={e.presentation.tier}><div className="career-event-page space-y-3">
+      <header className="career-event-masthead">
+        <span className="career-event-brand">TKDL <i>·</i> CAREER TOUR</span>
+        <span className="career-event-edition">SEASON <b>{e.season}</b></span>
+      </header>
+      {!palace && <Link href={`/career/${save.id}/calendar`} className="career-btn career-btn-ghost career-event-back"><ArrowLeft className="w-4 h-4" aria-hidden /> Calendar</Link>}
       <section className="pdc-card overflow-hidden relative career-event-hero" style={{ borderColor: `${tier.accent}${tier.emphasis >= 4 ? "66" : "33"}`, ["--event-accent" as string]: tier.accent }}
         aria-label={`${e.name} at ${e.venue.name}`}>
         {/* The event's own venue art sits behind the title (decorative); the venue name stays in the text below. */}
         <CareerVenueArtwork family={e.venue.venueType} className="career-event-hero__art" />
         <div className="career-event-hero__shade" aria-hidden="true" />
         <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: `radial-gradient(80% 140% at 100% 0%, ${tier.accent}${tier.emphasis >= 4 ? "26" : "12"}, transparent 60%)` }} />
+        <div className="career-event-hero-meta">
+          <span><Trophy size={14} aria-hidden /> {eventCircuitLabel(e)}</span>
+          <span>{titleCase(e.classification)} · {life.label}</span>
+        </div>
         <div className="relative p-4 md:p-6 space-y-2 career-event-hero__copy">
-          <p className="career-event-hero__venue">Venue · {e.venue.venueType.replaceAll("-", " ")}</p>
+          <p className="career-event-hero__venue">{eventCircuitLabel(e)} · Season {e.season}</p>
           <div className="flex flex-wrap items-center gap-2"><TierBadge tier={e.presentation.tier} />{isJuniorEvent(e) && <JuniorBadge />}<StatusBadge label={life.label} tone={life.tone} />
             {ageReason(e) && <StatusBadge label={ageReason(e)!} tone="muted" />}
             {e.qSchool && <StatusBadge label={`Q-School ${e.qSchool.stage === "FIRST" ? "First" : "Final"} Stage · Day ${e.qSchool.day}`} tone="gold" />}</div>
-          <h1 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: `clamp(1.5rem, ${4 + tier.emphasis * 0.4}vw, ${2 + tier.emphasis * 0.18}rem)`, color: palace ? "#ffe79a" : "#fff" }}>{e.name}</h1>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm" style={{ color: "rgba(255,255,255,0.65)" }}>
-            <span>{eventCircuitLabel(e)} · {titleCase(e.classification)}</span>
-            <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" aria-hidden />{e.venue.name}, {e.venue.city} <Flag code={e.venue.country} /></span>
-            <span className="inline-flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" aria-hidden />Season {e.season} · {eventDateLabel(e)}</span>
-            <span>{formatLabel(e.format)}</span>
-          </div>
+          <h1 className="font-black uppercase leading-none" style={{ ...OSWALD, fontSize: `clamp(2.6rem, ${6 + tier.emphasis * 0.5}vw, ${4 + tier.emphasis * 0.22}rem)`, color: palace ? "#ffe79a" : "#fff" }}>{e.name}</h1>
           {e.content?.summary && <p className="text-sm max-w-3xl" style={{ color: "rgba(255,255,255,0.78)" }}>{e.content.summary}</p>}
         </div>
+        <div className="career-event-date-stamp" aria-label={`Season ${e.season}, weeks ${e.dates.startWeek} to ${e.dates.endWeek}`}>
+          <small>SEASON {e.season}</small><strong>{e.dates.startWeek}</strong><span>— {e.dates.endWeek}</span><small>EVENT WEEKS</small>
+        </div>
+        <div className="career-event-hero-venue"><MapPin size={17} aria-hidden />
+          <span><small>THE VENUE · {e.venue.city}</small><strong>{e.venue.name}</strong><em>{e.venue.city}, {e.venue.region} · {eventDateLabel(e)}</em></span>
+        </div>
+        <div className="career-event-hero-live"><span className="career-event-live-dot" /><span><small>YOUR ENTRY</small><strong>{entryState}</strong></span></div>
       </section>
+      <div className="career-event-info-strip">
+        <div><CalendarDays size={17} aria-hidden /><span><small>EVENT DATES</small><strong>Season {e.season} · {eventDateLabel(e)}</strong><em>{formatLabel(e.format)}</em></span></div>
+        <div><MapPin size={17} aria-hidden /><span><small>DESTINATION</small><strong>{e.venue.name}</strong><em>{e.venue.city}, {e.venue.country} <Flag code={e.venue.country} /></em></span></div>
+        <div><ShieldCheck size={17} aria-hidden /><span><small>EVENT STATUS</small><strong>{life.label}</strong><em>{titleCase(e.status)}</em></span></div>
+      </div>
+      <div className="career-event-feature-grid">
+        <section className="career-event-timeline" aria-label="Registration and event timeline">
+          <div className="career-event-feature-heading"><span>THE ROAD TO THE STAGE</span><small>SEASON {e.season}</small></div>
+          <div className="career-event-timeline-track">
+            <div className="career-event-timeline-line" aria-hidden="true" />
+            <div><i>{e.registration.opensWeek}</i><small>REGISTRATION</small><strong>Opens</strong></div>
+            <div><i>{e.registration.closesWeek}</i><small>ENTRY WINDOW</small><strong>Closes</strong></div>
+            <div className="career-event-milestone-final"><i><Trophy size={15} aria-hidden /></i><small>WEEKS {e.dates.startWeek}–{e.dates.endWeek}</small><strong>Event stage</strong></div>
+          </div>
+        </section>
+        <section className="career-event-feature-stakes">
+          <div className="career-event-field">
+            <div className="career-event-feature-heading"><span>{fieldMet ? "FIELD CONFIRMED" : "FIELD BUILDING"}</span><small>01 / 03</small></div>
+            <div className="career-event-field-content">
+              <div className="career-event-field-ring" role="img" aria-label={`${e.field.entrants} entrants out of ${e.field.size} capacity; ${e.field.minimum} required to run`} style={{ "--field-progress": `${fieldPct}%` } as CSSProperties}>
+                <span><strong>{e.field.entrants}</strong><small>OF {e.field.size}</small></span>
+              </div>
+              <div className="career-event-field-copy"><small>ENTRANTS / CAPACITY</small><strong>{fieldMet ? "Minimum field met" : "Field building"}</strong>
+                <div className="career-event-field-threshold"><span><i style={{ width: `${e.field.size > 0 ? Math.min(100, e.field.minimum / e.field.size * 100) : 0}%` }} /></span><b aria-hidden style={{ left: `${e.field.size > 0 ? Math.min(100, e.field.minimum / e.field.size * 100) : 0}%` }} /><small><strong>{e.field.minimum}</strong> required to run</small></div>
+              </div>
+            </div>
+            <p className="career-event-field-foot"><ShieldCheck size={14} aria-hidden /> {e.field.entrants} entrants · {fieldMet ? "minimum met" : `${Math.max(0, e.field.minimum - e.field.entrants)} more needed`}</p>
+          </div>
+          <div className="career-event-prize-format">
+            <div><div className="career-event-feature-heading"><span>THE STAKES</span><small>02 / 03</small></div><small>TOP PRIZE</small><strong>{e.finance?.topPrizePence ? formatPence(e.finance.topPrizePence) : "Not published"}</strong>
+              <span className="career-event-trophy-name"><Trophy size={16} aria-hidden /> {e.finance?.rankingEligible ? "RANKING EVENT" : e.rankingCategory ? titleCase(e.rankingCategory) : "EVENT PRIZE"}</span>
+            </div>
+            <div><div className="career-event-feature-heading"><span>THE FORMAT</span><small>03 / 03</small></div><strong>{formatLabel(e.format)}</strong><small>{e.format.days} {e.format.days === 1 ? "day" : "days"} · {e.format.gameType.replaceAll("_", " ").toLowerCase()}</small></div>
+          </div>
+        </section>
+      </div>
       <CareerEventStakes event={e} />
       {!!detail.seriesStandings?.length && <CareerSection title="Oceania Premier League standings" icon={<Trophy className="w-3.5 h-3.5" />} accent="#ffd24a">
         <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left opacity-70">
@@ -81,10 +132,17 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
           {" intentionally benched — informational only, with no entry, field, draw or invented result."}
         </div>
       )}
-      <Link href={`/career/${save.id}/tournaments/${e.id}`} className="career-btn career-btn-gold"><Trophy className="w-4 h-4" aria-hidden/> Tournament Hub</Link>
-      {awaiting && <MatchBoundaryNotice saveId={save.id} eventId={e.id} />}
-      {!awaiting && !["COMPLETED", "CANCELLED"].includes(e.status) && <EntryCase e={e} />}
-      {!awaiting && <EntryActions ctx={ctx} detail={detail} />}
+      <div className="career-event-registration">
+        <div className="career-event-registration-heading"><span>YOUR PLACE IN THE FIELD</span><StatusBadge label={entryState} tone={e.human?.entryStatus && e.human.entryStatus !== "WITHDRAWN" ? "success" : e.human?.canEnter ? "gold" : "muted"} /></div>
+        <div className="career-event-registration-actions">
+          <div><span className="career-event-registration-icon"><Ticket size={16} aria-hidden /></span><span><small>ENTRY WINDOW</small><strong>Weeks {e.registration.opensWeek}–{e.registration.closesWeek}</strong></span></div>
+          <div><span className="career-event-registration-icon"><ShieldCheck size={16} aria-hidden /></span><span><small>YOUR EVENT</small><strong>{entryState}</strong></span></div>
+        </div>
+        <Link href={`/career/${save.id}/tournaments/${e.id}`} className="career-btn career-btn-gold"><Trophy className="w-4 h-4" aria-hidden/> Tournament Hub</Link>
+        {awaiting && <MatchBoundaryNotice saveId={save.id} eventId={e.id} />}
+        {!awaiting && !["COMPLETED", "CANCELLED"].includes(e.status) && <EntryCase e={e} />}
+        {!awaiting && <EntryActions ctx={ctx} detail={detail} />}
+      </div>
 
       <Segmented label="Event sections" value={tab} onChange={value => setTab(value as Tab)} options={tabs} wrap />
       {tab === "OVERVIEW" && <Overview detail={detail} saveId={save.id} />}

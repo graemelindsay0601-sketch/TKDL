@@ -1,0 +1,414 @@
+.career-root .career-event-page {
+  --event-night: #071321;
+  --event-deep: #0a1728;
+  --event-panel: #101f34;
+  --event-blue: #172942;
+  --event-rule: #d9e4f022;
+  --event-white: #f2f4f2;
+  --event-muted: #a8b4c4;
+  --event-red: #bd394c;
+  --event-gold: #e0bf69;
+  color: var(--event-white);
+}
+.career-root .career-event-masthead {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--event-rule);
+  background: #091727;
+  color: #aebac9;
+  font: 700 .62rem Oswald, sans-serif;
+  letter-spacing: .16em;
+}
+.career-root .career-event-brand { color: #f1f3f2; }
+.career-root .career-event-brand i { padding: 0 5px; color: var(--event-red); font-style: normal; }
+.career-root .career-event-edition b { margin-left: 7px; color: var(--event-gold); }
+.career-root .career-event-back { justify-self: start; }
+.career-root .career-event-hero {
+  min-height: 490px;
+  border-radius: 3px;
+  background: var(--event-deep);
+  box-shadow: 0 22px 55px #02081378, inset 0 1px #ffffff14;
+}
+.career-root .career-event-hero__art img { filter: saturate(.87) contrast(1.12) brightness(.8); }
+.career-root .career-event-hero__shade {
+  background:
+    linear-gradient(90deg,#071321f5 0%,#071321dd 29%,#07132180 57%,#07132105 100%),
+    linear-gradient(0deg,#071321ed 0%,#071321a8 27%,transparent 68%),
+    linear-gradient(180deg,#07132185 0%,transparent 25%);
+}
+.career-root .career-event-hero-meta {
+  position: absolute;
+  z-index: 2;
+  top: 23px;
+  left: 30px;
+  right: 30px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #f0d78f;
+  font: 700 .62rem Oswald, sans-serif;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.career-root .career-event-hero-meta span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+.career-root .career-event-hero-meta span:last-child {
+  padding: 6px 9px;
+  border: 1px solid #e0bf6970;
+  background: #07132172;
+}
+.career-root .career-event-hero__copy {
+  position: absolute;
+  left: 4%;
+  right: 26%;
+  bottom: 118px;
+  z-index: 1;
+  padding: 0 !important;
+}
+.career-root .career-event-hero__venue {
+  margin: 0 0 10px;
+  color: #f0d78f;
+  font: 700 .62rem Oswald, sans-serif;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+.career-root .career-event-hero h1 {
+  max-width: 900px;
+  margin: 10px 0 0;
+  color: #f4efe5 !important;
+  font-size: clamp(3rem, 8vw, 7.5rem) !important;
+  line-height: .88;
+  letter-spacing: -.035em;
+  text-shadow: 0 5px 35px #0009;
+  overflow-wrap: anywhere;
+}
+.career-root .career-event-date-stamp {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  right: 6%;
+  transform: translateY(-53%);
+  width: 140px;
+  min-height: 174px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid #e0bf69b0;
+  color: #f1d98d;
+  background: #07132138;
+  text-shadow: 0 3px 18px #000b;
+}
+.career-root .career-event-date-stamp small { font: 700 .52rem Oswald,sans-serif; letter-spacing: .15em; }
+.career-root .career-event-date-stamp strong { font: 700 5.7rem/.82 Oswald,sans-serif; }
+.career-root .career-event-date-stamp span { margin-top: 7px; font: 500 1.5rem Oswald,sans-serif; }
+.career-root .career-event-date-stamp small:last-child { margin-top: 10px; }
+.career-root .career-event-hero-venue,
+.career-root .career-event-hero-live {
+  position: absolute;
+  z-index: 2;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--event-gold);
+}
+.career-root .career-event-hero-venue { left: 4%; }
+.career-root .career-event-hero-live {
+  right: 4%;
+  min-width: 154px;
+  padding: 10px 14px;
+  border: 1px solid #d9e4f025;
+  background: #071321c9;
+}
+.career-root .career-event-hero-venue > span,
+.career-root .career-event-hero-live > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.career-root .career-event-hero-venue small,
+.career-root .career-event-hero-live small {
+  color: #9eacbd;
+  font: 700 .52rem Oswald,sans-serif;
+  letter-spacing: .14em;
+}
+.career-root .career-event-hero-venue strong { color: #f3f4f1; font-size: .92rem; }
+.career-root .career-event-hero-venue em { color: #b5bfcb; font-size: .68rem; font-style: normal; }
+.career-root .career-event-hero-live strong { color: #d5e6d0; font: 700 .73rem Oswald,sans-serif; }
+.career-root .career-event-live-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: #83b78f;
+  box-shadow: 0 0 0 4px #83b78f22;
+}
+.career-root .career-event-info-strip {
+  display: grid;
+  grid-template-columns: 1fr 1fr .85fr;
+  background: #0d1b2e;
+  border: 1px solid var(--event-rule);
+}
+.career-root .career-event-info-strip > div {
+  min-width: 0;
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-right: 1px solid var(--event-rule);
+  color: var(--event-gold);
+}
+.career-root .career-event-info-strip > div:last-child { border-right: 0; }
+.career-root .career-event-info-strip > div > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.career-root .career-event-info-strip small {
+  color: #8291a5;
+  font: 700 .52rem Oswald,sans-serif;
+  letter-spacing: .13em;
+}
+.career-root .career-event-info-strip strong {
+  overflow: hidden;
+  color: #f0f2f2;
+  font-size: .82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.career-root .career-event-info-strip em { color: #aeb9c7; font-size: .68rem; font-style: normal; }
+.career-root .career-event-feature-grid {
+  display: grid;
+  grid-template-columns: .86fr 1.4fr;
+  gap: 26px;
+  align-items: stretch;
+  padding: 28px 4%;
+  border: 1px solid var(--event-rule);
+  background: #0a1728;
+}
+.career-root .career-event-timeline {
+  min-width: 0;
+  padding: 6px 6px 4px;
+}
+.career-root .career-event-feature-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 22px;
+  color: #d55a66;
+  font: 700 .58rem Oswald,sans-serif;
+  letter-spacing: .14em;
+}
+.career-root .career-event-feature-heading small { color: #8795a8; font: inherit; }
+.career-root .career-event-timeline-track {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 8px;
+}
+.career-root .career-event-timeline-line {
+  position: absolute;
+  top: 14px;
+  left: 9%;
+  right: 16%;
+  height: 1px;
+  background: linear-gradient(90deg,#bd394c,#e0bf69);
+}
+.career-root .career-event-timeline-track > div { position: relative; display: flex; flex-direction: column; align-items: flex-start; }
+.career-root .career-event-timeline-track i {
+  z-index: 1;
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 13px;
+  border: 1px solid #d7b958;
+  border-radius: 50%;
+  background: #101f34;
+  color: #f0d78f;
+  font: 700 .65rem Oswald,sans-serif;
+  font-style: normal;
+}
+.career-root .career-event-timeline-track small {
+  color: #96a3b4;
+  font: 700 .48rem Oswald,sans-serif;
+  letter-spacing: .11em;
+}
+.career-root .career-event-timeline-track strong { margin-top: 4px; color: #e9edf0; font-size: .76rem; }
+.career-root .career-event-milestone-final i { border-color: var(--event-red); color: #fff; background: var(--event-red); }
+.career-root .career-event-feature-stakes {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: .95fr 1.3fr;
+  gap: 22px;
+  padding-left: 24px;
+  border-left: 1px solid var(--event-rule);
+}
+.career-root .career-event-field { min-width: 0; }
+.career-root .career-event-field-content { display: flex; align-items: center; gap: 15px; }
+.career-root .career-event-field-ring {
+  width: 92px;
+  height: 92px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--event-gold) var(--field-progress), #334258 0);
+  position: relative;
+}
+.career-root .career-event-field-ring::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: #0a1728;
+}
+.career-root .career-event-field-ring > span { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; }
+.career-root .career-event-field-ring strong { color: #f2f4f2; font: 700 1.9rem/.95 Oswald,sans-serif; }
+.career-root .career-event-field-ring small { color: #9eacbd; font: 700 .48rem Oswald,sans-serif; letter-spacing: .11em; }
+.career-root .career-event-field-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.career-root .career-event-field-copy > small { color: #8291a5; font: 700 .48rem Oswald,sans-serif; letter-spacing: .1em; }
+.career-root .career-event-field-copy > strong { color: #f1f3f2; font-size: .82rem; }
+.career-root .career-event-field-threshold { position: relative; display: grid; grid-template-columns: 1fr; gap: 5px; margin-top: 4px; }
+.career-root .career-event-field-threshold > span { height: 4px; background: #34435a; }
+.career-root .career-event-field-threshold > span i { display: block; height: 100%; background: linear-gradient(90deg,var(--event-red),var(--event-gold)); }
+.career-root .career-event-field-threshold > b { position: absolute; top: -2px; width: 1px; height: 8px; background: #fff; }
+.career-root .career-event-field-threshold > small { color: #95a2b2; font-size: .59rem; }
+.career-root .career-event-field-threshold > small strong { color: var(--event-gold); }
+.career-root .career-event-field-foot { display: flex; align-items: center; gap: 6px; margin: 11px 0 0; color: #a9b7c6; font-size: .62rem; }
+.career-root .career-event-field-foot svg { color: #a6d1ac; }
+.career-root .career-event-prize-format { min-width: 0; display: grid; grid-template-columns: 1fr .9fr; gap: 16px; }
+.career-root .career-event-prize-format > div { min-width: 0; }
+.career-root .career-event-prize-format > div + div { padding-left: 16px; border-left: 1px solid var(--event-rule); }
+.career-root .career-event-prize-format > div > small { display: block; color: #92a0b1; font: 700 .5rem Oswald,sans-serif; letter-spacing: .12em; }
+.career-root .career-event-prize-format > div > strong { display: block; margin: 4px 0; color: var(--event-gold); font: 700 clamp(1.4rem,2.4vw,2.2rem)/1 Oswald,sans-serif; overflow-wrap: anywhere; }
+.career-root .career-event-prize-format > div + div > strong { color: #f2f4f2; font-size: 1.1rem; line-height: 1.15; }
+.career-root .career-event-prize-format > div + div > small { margin-top: 8px; font-family: Inter,system-ui,sans-serif; font-size: .62rem; letter-spacing: 0; }
+.career-root .career-event-trophy-name { display: flex; align-items: center; gap: 6px; color: #c5d0dd; font: 700 .51rem Oswald,sans-serif; letter-spacing: .08em; }
+.career-root .career-event-trophy-name svg { color: var(--event-gold); }
+.career-root .career-event-registration {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 13px 20px;
+  align-items: center;
+  padding: 20px 4%;
+  border: 1px solid var(--event-rule);
+  background: #101f34;
+}
+.career-root .career-event-registration-heading {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: #d55a66;
+  font: 700 .62rem Oswald,sans-serif;
+  letter-spacing: .14em;
+}
+.career-root .career-event-registration-actions { display: flex; flex-wrap: wrap; gap: 20px; }
+.career-root .career-event-registration-actions > div { display: flex; align-items: center; gap: 10px; }
+.career-root .career-event-registration-actions > div > span:last-child { display: flex; flex-direction: column; gap: 3px; }
+.career-root .career-event-registration-actions small { color: #95a3b4; font: 700 .5rem Oswald,sans-serif; letter-spacing: .12em; }
+.career-root .career-event-registration-actions strong { color: #f0f2f2; font-size: .78rem; }
+.career-root .career-event-registration-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e0bf6952;
+  border-radius: 50%;
+  color: var(--event-gold);
+}
+.career-root .career-event-registration > .career-btn { justify-self: end; }
+.career-root .career-event-registration > .pdc-card,
+.career-root .career-event-registration > .career-event-notice,
+.career-root .career-event-registration > .career-btn { grid-column: 2; }
+.career-root .career-event-registration > .pdc-card { width: 100%; grid-column: 1 / -1; }
+.career-root .career-event-registration .career-event-notice { grid-column: 1 / -1; }
+.career-root .career-event-registration .career-event-notice,
+.career-root .career-event-registration > .pdc-card { border-color: var(--event-rule); background: #0a1728; }
+.career-root .career-event-registration > .tb-entry {
+  grid-column: 1 / -1;
+  width: 100%;
+  border: 1px solid var(--event-rule);
+  background: #0a1728;
+}
+.career-root .career-event-registration .tb-entry__head { color: #f0d78f; }
+.career-root .career-event-registration .tb-entry__points { border-color: var(--event-rule); }
+.career-root .career-event-registration .tb-entry__points li { border-color: var(--event-rule); color: #e1e6eb; }
+.career-root .career-event-registration .tb-entry__points strong { color: #f0f2f2; }
+.career-root .career-event-registration .tb-chip { border-color: #e0bf6952; color: var(--event-gold); background: #e0bf6912; }
+.career-root .career-event-registration .tb-dim { color: #a8b4c4; }
+.career-root .career-event-registration .career-event-notice {
+  grid-column: 1 / -1;
+  color: #e5d8d1;
+}
+.career-root .career-event-page .career-section,
+.career-root .career-event-page .pdc-card:not(.career-event-hero):not(.career-section) {
+  border-color: var(--event-rule);
+  background-color: #101f34;
+}
+.career-root .career-event-page .career-section-head { border-color: var(--event-rule); background: #0d1b2e; }
+.career-root .career-event-page .career-section-head h2 { color: #dbe2ea; }
+.career-root .career-event-page .tkdl-tab-rail { border-color: var(--event-rule); background: #0a1728; }
+.career-root .career-event-page .career-chip { color: #bdc8d5; }
+.career-root .career-event-page .career-chip[data-active="true"] { color: #fff; background: #a92e42; }
+.career-root .career-event-page .career-chip:focus-visible,
+.career-root .career-event-page a:focus-visible,
+.career-root .career-event-page button:focus-visible { outline: 3px solid var(--event-gold); outline-offset: 3px; }
+@media (max-width: 900px) {
+  .career-root .career-event-feature-grid { grid-template-columns: 1fr; gap: 22px; }
+  .career-root .career-event-feature-stakes { padding: 20px 0 0; border-top: 1px solid var(--event-rule); border-left: 0; }
+}
+@media (max-width: 640px) {
+  .career-root .career-event-masthead { height: 42px; padding: 0 13px; font-size: .55rem; }
+  .career-root .career-event-hero { min-height: 480px; }
+  .career-root .career-event-hero__shade {
+    background: linear-gradient(0deg,#071321f5 0%,#071321e6 43%,#07132170 78%,#07132140 100%);
+  }
+  .career-root .career-event-hero-meta { top: 16px; left: 15px; right: 15px; font-size: .5rem; }
+  .career-root .career-event-hero-meta span:last-child { max-width: 46%; text-align: right; }
+  .career-root .career-event-hero__copy { left: 16px; right: 15px; bottom: 132px; }
+  .career-root .career-event-hero h1 { max-width: 80%; font-size: clamp(2.9rem,12vw,4.7rem) !important; }
+  .career-root .career-event-date-stamp { top: 82px; right: 15px; transform: none; width: 76px; min-height: 103px; }
+  .career-root .career-event-date-stamp strong { font-size: 3rem; }
+  .career-root .career-event-date-stamp span { margin-top: 4px; font-size: 1rem; }
+  .career-root .career-event-date-stamp small { font-size: .4rem; }
+  .career-root .career-event-hero-venue { left: 15px; bottom: 17px; max-width: calc(100% - 180px); }
+  .career-root .career-event-hero-venue strong { font-size: .75rem; }
+  .career-root .career-event-hero-venue em { font-size: .57rem; }
+  .career-root .career-event-hero-live { right: 12px; bottom: 14px; min-width: 135px; padding: 9px; }
+  .career-root .career-event-info-strip { grid-template-columns: 1fr 1fr; }
+  .career-root .career-event-info-strip > div { min-height: 75px; padding: 11px; }
+  .career-root .career-event-info-strip > div:nth-child(2) { border-right: 0; }
+  .career-root .career-event-info-strip > div:last-child { grid-column: 1 / -1; min-height: 63px; border-top: 1px solid var(--event-rule); }
+  .career-root .career-event-feature-grid { padding: 22px 16px; }
+  .career-root .career-event-feature-stakes { grid-template-columns: 1fr; }
+  .career-root .career-event-prize-format { padding-top: 18px; border-top: 1px solid var(--event-rule); }
+  .career-root .career-event-registration { grid-template-columns: 1fr; padding: 17px; }
+  .career-root .career-event-registration-heading { grid-column: auto; }
+  .career-root .career-event-registration-actions { gap: 14px; }
+  .career-root .career-event-registration > .career-btn { justify-self: stretch; }
+  .career-root .career-event-registration > .pdc-card,
+  .career-root .career-event-registration > .career-event-notice,
+  .career-root .career-event-registration > .career-btn { grid-column: 1; }
+}
+@media (max-width: 390px) {
+  .career-root .career-event-hero { min-height: 450px; }
+  .career-root .career-event-hero__copy { bottom: 138px; }
+  .career-root .career-event-hero h1 { max-width: 100%; font-size: 2.8rem !important; }
+  .career-root .career-event-date-stamp { top: 72px; width: 64px; min-height: 88px; }
+  .career-root .career-event-date-stamp strong { font-size: 2.5rem; }
+  .career-root .career-event-hero-venue { max-width: 56%; }
+  .career-root .career-event-hero-live { min-width: 0; max-width: 42%; }
+  .career-root .career-event-timeline-track { gap: 4px; }
+  .career-root .career-event-timeline-track small { font-size: .42rem; }
+  .career-root .career-event-timeline-track strong { font-size: .66rem; }
+  .career-root .career-event-prize-format { gap: 10px; }
+  .career-root .career-event-prize-format > div + div { padding-left: 10px; }
+}
