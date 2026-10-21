@@ -1,0 +1,129 @@
+.career-journey-premium {
+  --journey-ink: #fff9ee;
+  --journey-muted: #cbc5b9;
+  --journey-red: #f12b48;
+  --journey-gold: #f2c84e;
+}
+
+.career-journey-premium .career-page-hero__stage {
+  overflow: hidden;
+  border: 1px solid rgba(242, 200, 78, .52);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 83% 20%, rgba(241, 43, 72, .19), transparent 30%),
+    linear-gradient(125deg, #111217 5%, #17151a 56%, #39121c 100%);
+  box-shadow: 0 23px 44px rgba(0, 0, 0, .42), inset 0 1px rgba(255, 255, 245, .16);
+}
+
+.career-journey-premium .career-page-hero__title {
+  color: var(--journey-ink);
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -.045em;
+  text-shadow: 0 3px 20px rgba(0, 0, 0, .38);
+}
+
+.career-journey-premium .career-page-hero__kicker {
+  color: #fff0d4;
+  font-family: "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+}
+
+.career-journey-premium .career-page-hero__stats {
+  border-top: 1px solid rgba(255, 247, 225, .2);
+  background: linear-gradient(90deg, rgba(7, 8, 11, .82), rgba(29, 10, 17, .88));
+}
+
+.career-journey-premium .career-page-hero__stats dt {
+  color: #e5dbc8;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.career-journey-premium .career-page-hero__stats dd {
+  color: var(--journey-ink);
+  font-family: "Source Serif 4", Georgia, serif;
+}
+
+.career-journey-premium .career-page-hero__stats > div:nth-child(1) dd,
+.career-journey-premium .career-page-hero__stats > div:nth-child(4) dd {
+  color: var(--journey-gold);
+}
+
+.career-journey-premium .career-section {
+  overflow: hidden;
+  border: 1px solid rgba(255, 247, 225, .18);
+  border-radius: 20px;
+  background: linear-gradient(145deg, #1c1d23, #15161b 60%, #101116);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, .32), inset 0 1px rgba(255, 255, 245, .12);
+}
+
+.career-journey-premium .career-section-head {
+  min-height: 58px;
+  border-color: rgba(255, 255, 255, .12);
+  background: linear-gradient(90deg, rgba(241, 43, 72, .09), rgba(255, 255, 255, .025) 55%, transparent);
+}
+
+.career-journey-premium .career-section-head h2 {
+  color: var(--journey-ink);
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.career-journey-premium .career-era {
+  min-height: 158px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 247, 225, .2);
+  border-radius: 17px;
+  box-shadow: 0 9px 18px rgba(0, 0, 0, .3), inset 0 1px rgba(255, 255, 255, .18);
+}
+
+.career-journey-premium .career-era strong {
+  color: var(--journey-ink);
+  font-family: "Source Serif 4", Georgia, serif;
+  font-size: 1.28rem;
+  font-weight: 600;
+}
+
+.career-journey-premium .career-era__index,
+.career-journey-premium .career-era b {
+  color: #ffdc70;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.career-journey-premium .career-era small {
+  color: #e2ded6;
+  font-family: "DM Sans", sans-serif;
+}
+
+.career-journey-premium .career-row-link {
+  border: 1px solid rgba(241, 43, 72, .48);
+  border-radius: 14px;
+  background: linear-gradient(100deg, rgba(241, 43, 72, .14), rgba(19, 20, 25, .96) 48%, #15161b);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, .24), inset 0 1px rgba(255, 255, 255, .1);
+  color: var(--journey-ink);
+}
+
+.career-journey-premium .career-section .border-b {
+  border-color: rgba(255, 255, 255, .09);
+}
+
+.career-journey-premium .career-section .career-row-link,
+.career-journey-premium .career-section li > div > div:first-child {
+  font-family: "Plus Jakarta Sans", Inter, sans-serif;
+}
+
+.career-journey-premium .career-section li > div > div:first-child {
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+@media (max-width: 640px) {
+  .career-journey-premium .career-page-hero__stage {
+    border-radius: 20px;
+  }
+
+  .career-journey-premium .career-era {
+    min-height: 132px;
+  }
+}

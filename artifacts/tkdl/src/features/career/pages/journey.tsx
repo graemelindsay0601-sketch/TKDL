@@ -8,6 +8,7 @@ import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSW
 import type { ShellContext } from "../shell";
 import { AgeLine } from "./home";
 import { CareerEras } from "./career-trends";
+import "./journey-premium.css";
 
 const BIG = new Set(["MAJOR", "WORLD_CHAMPIONSHIP", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL"]);
 
@@ -30,9 +31,9 @@ export function JourneyPage({ ctx }: { ctx: ShellContext }) {
   const qSchool = (milestones.data?.milestones ?? []).filter(m => m.kind === "Q_SCHOOL_FINAL_STAGE_REACHED");
 
   return (
-    <div className="space-y-3">
+    <div className="career-journey-premium space-y-3">
       {sporting.isLoading ? <CareerLoading label="Reading your Career chapter" /> : sporting.error ? <CareerError error={sporting.error} onRetry={() => sporting.refetch()} /> : chapter && (
-        <CareerPageHero kicker={`Career journey · Season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title={chapter.label} accent="#ff005c" watermark={`S${String(ctx.save.currentSeason).padStart(2, "0")}`}
+        <CareerPageHero kicker={`Career journey · Season ${ctx.save.currentSeason}, week ${ctx.save.currentWeek}`} title={chapter.label} accent="#f12b48" watermark={`S${String(ctx.save.currentSeason).padStart(2, "0")}`}
           archival={ctx.retired}
           stage={cards.data?.history.some(c => c.status === "ACTIVE") ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "community-hall" }, eventClass: "REGIONAL" }}
           subtitle={<><NextObjective ctx={ctx} /><AgeLine saveId={id} /></>}
