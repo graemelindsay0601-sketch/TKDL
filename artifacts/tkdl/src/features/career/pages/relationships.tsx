@@ -1,120 +1,189 @@
 import { useState } from "react";
+import { ArrowUpRight, ChevronDown, Search, Swords } from "lucide-react";
 import { Link } from "wouter";
-import { useCareerRelationships, usePresentation } from "../api";
-import { Swords } from "lucide-react";
-import { CareerSection, CareerEmptyState, Flag, QueryState } from "../components";
-import { CareerShirt } from "../identity";
-import { CareerPageHero } from "../page-hero";
+import { useCareerRelationships } from "../api";
+import { CareerEmptyState, Flag, QueryState } from "../components";
 import type { ShellContext } from "../shell";
 import type { Meeting, OpponentRelationship, WorldIdentity } from "../../../../../api-server/src/career/relationships/types";
+import "./relationships-premium.css";
 
+const FILTERS = ["All opponents", "Career Rival", "Nemesis", "Favourite Opponent", "Familiar Opponent", "Generation Rival", "Q-School Class", "Junior Contemporary"] as const;
 const when = (m: Meeting | null) => m ? `${m.date ?? `Season ${m.season}, day ${m.day}`} · ${m.name}` : "Not played yet";
 const identity = (p: WorldIdentity) => `${p.homeRegion} · Age ${p.age}${p.status === "RETIRED" ? " at retirement" : ""} · ${p.status === "RETIRED" ? `Retired (season ${p.retiredSeason})` : "Active"} · ${p.worldRanking === null ? "No current World Ranking" : `World #${p.worldRanking}`}`;
-const FILTERS = ["All opponents", "Career Rival", "Nemesis", "Favourite Opponent", "Familiar Opponent", "Generation Rival", "Q-School Class", "Junior Contemporary"] as const;
-export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
-  const query = useCareerRelationships(ctx.save.id);
-  const presentation = usePresentation(ctx.save.id, Boolean(query.data?.opponents.length));
-  const [filter,setFilter] = useState<string>("All opponents"), [search,setSearch] = useState("");
-  const [worldFilter,setWorldFilter] = useState("ACTIVE"), [worldSearch,setWorldSearch] = useState(""), [limit,setLimit] = useState(30);
-  const opponents = query.data?.opponents.filter(o=>(filter==="All opponents" || o.labels.some(l=>l===filter)) && o.player.name.toLowerCase().includes(search.toLowerCase())) ?? [];
-  const featuredOpponent = opponents[0];
-  return <div className="space-y-3">
-    {query.data && <CareerPageHero kicker="Relationships · rivalries" title="Head-to-head" accent="#ff5d5d"
-      stage={{ venue: { venueType: "studio" }, eventClass: "STAGE_SERIES" }} archival={ctx.retired}
-      subtitle="Sporting history, not personality. Labels describe played results and shared cohorts; they never change scoring, draws, rankings or rewards."
-      stats={[
-        { label: "Opponents faced", value: query.data.opponents.length },
-        { label: "Your H2H wins", tone: "good", value: query.data.opponents.reduce((n, o) => n + o.humanWins, 0) },
-        { label: "Their wins", tone: "bad", value: query.data.opponents.reduce((n, o) => n + o.npcWins, 0) },
-        { label: "Labelled rivals", value: query.data.opponents.filter(o => o.labels.length).length, tone: "gold" },
-      ]} />}
-    {featuredOpponent && <section className="career-relationships-showcase" aria-label="Featured head-to-head record">
-      <div className="career-relationships-showcase__eyebrow"><span>Head-to-head spotlight</span><span>Based on played results</span></div>
-      <div className="career-relationships-showcase__matchup">
-        <div className="career-relationships-showcase__side">
-          {presentation.data && <span className="career-relationships-showcase__kit"><CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName ?? "You"} scale="featured" /></span>}
-          <div className="career-relationships-showcase__identity">
-            <span>Your record</span><strong>{ctx.save.careerName ?? "You"}</strong>
-          </div>
-        </div>
-        <div className="career-relationships-showcase__score">
-          <span>{featuredOpponent.meetings ? "Head-to-head" : "Shared sporting history"}</span>
-          {featuredOpponent.meetings
-            ? <strong aria-label={`${featuredOpponent.humanWins} wins to ${featuredOpponent.npcWins}`}>{featuredOpponent.humanWins}<i>–</i>{featuredOpponent.npcWins}</strong>
-            : <strong className="career-relationships-showcase__no-score">No matches yet</strong>}
-          <small>{featuredOpponent.meetings} {featuredOpponent.meetings === 1 ? "meeting" : "meetings"}{featuredOpponent.winPercentage === null ? "" : ` · ${featuredOpponent.winPercentage}% wins`}</small>
-        </div>
-        <div className="career-relationships-showcase__side career-relationships-showcase__side--opponent">
-          <span className="career-relationships-showcase__kit"><CareerShirt playerId={featuredOpponent.player.id} name={featuredOpponent.player.name} scale="featured" /></span>
-          <div className="career-relationships-showcase__identity">
-            <span><Flag code={featuredOpponent.player.nationality} /> Featured opponent</span><strong>{featuredOpponent.player.name}</strong>
-            <div className="career-relationships-showcase__labels">{featuredOpponent.labels.map(label=><i key={label}>{label}</i>)}</div>
-          </div>
-        </div>
-      </div>
-      {featuredOpponent.evidence.length > 0 && <p className="career-relationships-showcase__evidence">{featuredOpponent.evidence[0]}</p>}
-    </section>}
-    <CareerSection title="Opponents" icon={<Swords aria-hidden />} accent="#ff5d5d">
-      <QueryState query={query} label="Reading opponent history">{data=>{
-        const world = data.world.players.filter(p=>p.name.toLowerCase().includes(worldSearch.toLowerCase()) &&
-          (worldFilter==="ALL" || (worldFilter==="YOUNG" ? p.status==="ACTIVE" && p.age<=data.world.youngAgeMaximum : p.status===worldFilter)));
-        return <div className="p-4 pt-0 space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <label className="text-xs">Relationship <select value={filter} onChange={e=>setFilter(e.target.value)} className="block bg-black/60 rounded p-2 border border-white/20">
-              {FILTERS.map(f=><option key={f}>{f}</option>)}</select></label>
-            <label className="text-xs">Find opponent <input type="search" value={search} onChange={e=>setSearch(e.target.value)} className="block bg-black/60 rounded p-2 border border-white/20" /></label>
-          </div>
-          <p className="text-xs text-white/60">{opponents.length} of {data.opponents.length} opponents and historical cohort members. Unlabelled opponents still have factual H2H records.</p>
-          {!opponents.length && <CareerEmptyState title="No opponent history here yet">Played matches build H2H. Shared played Q-School sessions or Junior events establish cohorts; a single match does not establish a rivalry.</CareerEmptyState>}
-          <div className="career-rivals">{opponents.map(o=><OpponentPanel key={o.player.id} opponent={o} saveId={ctx.save.id} />)}</div>
-          <h3 className="career-generations__title">Career generations</h3>
-          <dl className="career-generations__stats">
-            <div><dt>Active</dt><dd>{data.world.active}</dd></div><div><dt>Retired</dt><dd>{data.world.retired}</dd></div>
-            <div><dt>New this season</dt><dd>{data.world.newEntrants}</dd></div><div><dt>Aged {data.world.youngAgeMaximum} or under</dt><dd>{data.world.youngPlayers}</dd></div>
-          </dl>
-          <details className="career-note"><summary>About generations</summary><p>Young age is context, not a promise of future success. New entrants use the existing junior/grassroots pathways. Retired identities and sporting records remain in this save.</p></details>
-          <div className="career-generations__filters">
-            <label>World players <select value={worldFilter} onChange={e=>{setWorldFilter(e.target.value);setLimit(30);}}>
-              <option value="ACTIVE">Active players</option><option value="YOUNG">Young players ({data.world.youngAgeMaximum} or under)</option><option value="RETIRED">Retired players</option><option value="ALL">All generations</option>
-            </select></label>
-            <label>Find world player <input type="search" value={worldSearch} placeholder="Search a name" onChange={e=>{setWorldSearch(e.target.value);setLimit(30);}} /></label>
-          </div>
-          {!world.length && <CareerEmptyState title="No players in this view" />}
-          <ul className="career-generations__grid">{world.slice(0,limit).map(p=><li key={p.id} className="career-generations__card">
-            <span className="career-generations__shirt" aria-hidden="true"><CareerShirt playerId={p.id} name={p.name} scale="compact"/></span>
-            <div className="min-w-0"><strong><Flag code={p.nationality} /> {p.name}</strong><small>{identity(p)} · {p.createdSeason===1 ? "Starting generation" : `Entered in season ${p.createdSeason}`}</small>
-             <div className="career-generations__links"><Link href={`/career/${ctx.save.id}/world/players/${p.id}/profile`}>Player profile</Link><Link href={`/career/${ctx.save.id}/recognition/npcs/${p.id}`}>Public sporting recognition</Link></div></div>
-          </li>)}</ul>
-          {world.length>limit && <button className="career-btn career-btn-ghost" onClick={()=>setLimit(limit+30)}>Show more ({world.length-limit} remaining)</button>}
-        </div>;
-      }}</QueryState>
-    </CareerSection>
-  </div>;
+
+function PlayerLinks({ playerId, saveId, rivalry = false }: { playerId: string; saveId: string; rivalry?: boolean }) {
+  return <nav className="rel3-links" aria-label="Player links">
+    <Link href={`/career/${saveId}/world/players/${playerId}/profile`}>Player profile <ArrowUpRight size={13} aria-hidden /></Link>
+    {rivalry && <Link href={`/career/${saveId}/world/rivalries/${playerId}`}>Rivalry detail <ArrowUpRight size={13} aria-hidden /></Link>}
+    <Link href={`/career/${saveId}/recognition/npcs/${playerId}`}>Public sporting recognition <ArrowUpRight size={13} aria-hidden /></Link>
+  </nav>;
 }
-export function OpponentPanel({ opponent:o, saveId }: { opponent:OpponentRelationship; saveId:string }) {
-  const lead = o.humanWins > o.npcWins ? "is-ahead" : o.humanWins < o.npcWins ? "is-behind" : "is-level";
-  return <details className={`career-rival ${lead}`}>
-    <summary className="cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
-      <span className="career-rival__shirt" aria-hidden="true"><CareerShirt playerId={o.player.id} name={o.player.name} scale="standard" /></span>
-      <span className="career-rival__who"><span><Flag code={o.player.nationality} /> <strong>{o.player.name}</strong></span>
-        <span className="block text-sm">{o.meetings} {o.meetings===1 ? "meeting" : "meetings"}{o.meetings ? ` · H2H ${o.humanWins}–${o.npcWins}` : " · No H2H record"}{o.winPercentage===null ? "" : ` · ${o.winPercentage}% wins`}</span>
-        <span className="career-rival__labels">{o.labels.length ? o.labels.map(l => <i key={l}>{l}</i>) : <em>No special relationship yet</em>}</span></span>
-      <span className="career-rival__score" aria-hidden="true"><b>{o.humanWins}</b><small>–</small><b>{o.npcWins}</b></span>
+
+function RivalRecord({ opponent, saveId }: { opponent: OpponentRelationship; saveId: string }) {
+  const lead = opponent.humanWins > opponent.npcWins ? "ahead" : opponent.humanWins < opponent.npcWins ? "behind" : "level";
+  return <details className={`rel3-rival rel3-rival--${lead}`}>
+    <summary>
+      <span className="rel3-rival__order" aria-hidden="true">01</span>
+      <span className="rel3-rival__name">
+        <span className="rel3-rival__nation"><Flag code={opponent.player.nationality} /></span>
+        <strong>{opponent.player.name}</strong>
+        <small>{opponent.meetings} {opponent.meetings === 1 ? "meeting" : "meetings"} <i>·</i> {opponent.labels[0] ?? "No special relationship yet"}</small>
+      </span>
+      <span className="rel3-rival__labels">{opponent.labels.length ? opponent.labels.map(label => <em key={label}>{label}</em>) : <i>No special relationship yet</i>}</span>
+      <span className="rel3-rival__record" aria-label={`Head-to-head ${opponent.humanWins} wins to ${opponent.npcWins}`}>
+        <b>{opponent.humanWins}</b><i>–</i><b>{opponent.npcWins}</b><small>W—L</small>
+      </span>
+      <span className="rel3-rival__expand" aria-hidden="true"><ChevronDown size={17} /></span>
     </summary>
-    <div className="pt-3 space-y-2 text-sm">
-      <p>{identity(o.player)}</p>
-       <div className="flex flex-wrap gap-3"><Link className="underline text-xs" href={`/career/${saveId}/world/players/${o.player.id}/profile`}>Player profile</Link><Link className="underline text-xs" href={`/career/${saveId}/world/rivalries/${o.player.id}`}>Rivalry detail</Link><Link className="underline text-xs" href={`/career/${saveId}/recognition/npcs/${o.player.id}`}>Public sporting recognition</Link></div>
-      <p>First: {when(o.firstMeeting)}<br />Latest: {when(o.latestMeeting)}</p>
-      <p>{o.eventCount} events · {o.seasonCount} seasons · {o.finals} finals · {o.majorMeetings} major/world meetings · {o.qualificationMeetings} qualification meetings</p>
-      <ul className="text-xs text-white/70">{o.evidence.map(e=><li key={e}>{e}</li>)}</ul>
-      {o.cohorts.length>0 && <ul className="text-xs">{o.cohorts.map(c=><li key={`${c.kind}:${c.season}:${c.session}`}>{c.kind} · Season {c.season} · {c.name} · Both played in this {c.kind==="Q-School Class" ? "session" : "event"}.</li>)}</ul>}
-      <h4 className="font-bold">Played meetings</h4>
-      <ul className="space-y-2">{o.history.map(m=><li key={m.id} className="border-t border-white/10 pt-2">
-        <Link href={`/career/${saveId}/events/${m.eventId}`} className="underline">{when(m)}</Link>
-        <span className="block text-xs">{m.won ? "Won" : "Lost"} · {m.stage} · Round {m.round}{m.final ? " · Final" : ""}{m.major ? " · Major/world" : ""}{m.qualification ? " · Qualification" : ""}
-          {m.legsHuman===null || m.legsNpc===null ? "" : ` · Legs ${m.legsHuman}–${m.legsNpc}`}
-          {m.setsHuman===null || m.setsNpc===null ? "" : ` · Sets ${m.setsHuman}–${m.setsNpc}`}</span>
+    <div className="rel3-rival__details">
+      <div className="rel3-rival__bio">
+        <p>{identity(opponent.player)}</p>
+        <PlayerLinks playerId={opponent.player.id} saveId={saveId} rivalry />
+      </div>
+      <div className="rel3-meetings">
+        <div><span>FIRST MEETING</span><strong>{when(opponent.firstMeeting)}</strong></div>
+        <div><span>LATEST MEETING</span><strong>{when(opponent.latestMeeting)}</strong></div>
+      </div>
+      <p className="rel3-rival__totals">{opponent.eventCount} events <i>·</i> {opponent.seasonCount} seasons <i>·</i> {opponent.finals} finals <i>·</i> {opponent.majorMeetings} major/world meetings <i>·</i> {opponent.qualificationMeetings} qualification meetings</p>
+      {opponent.evidence.length > 0 && <ul className="rel3-evidence">{opponent.evidence.map(item => <li key={item}>{item}</li>)}</ul>}
+      {opponent.cohorts.length > 0 && <ul className="rel3-cohorts">{opponent.cohorts.map(cohort => <li key={`${cohort.kind}:${cohort.season}:${cohort.session}`}><b>{cohort.kind}</b> · Season {cohort.season} · {cohort.name} · Both played in this {cohort.kind === "Q-School Class" ? "session" : "event"}.</li>)}</ul>}
+      <h3 className="rel3-last-match__title">Played meetings</h3>
+      <ul className="rel3-history">{opponent.history.map(meeting => <li key={meeting.id}>
+        <span className="rel3-history__mark" aria-hidden="true">{meeting.won ? "W" : "L"}</span>
+        <div><Link href={`/career/${saveId}/events/${meeting.eventId}`}>{when(meeting)} <ArrowUpRight size={12} aria-hidden /></Link>
+          <small>{meeting.won ? "Won" : "Lost"} · {meeting.stage} · Round {meeting.round}{meeting.final ? " · Final" : ""}{meeting.major ? " · Major/world" : ""}{meeting.qualification ? " · Qualification" : ""}
+            {meeting.legsHuman === null || meeting.legsNpc === null ? "" : ` · Legs ${meeting.legsHuman}–${meeting.legsNpc}`}
+            {meeting.setsHuman === null || meeting.setsNpc === null ? "" : ` · Sets ${meeting.setsHuman}–${meeting.setsNpc}`}</small>
+        </div>
       </li>)}</ul>
     </div>
   </details>;
+}
+
+export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
+  const query = useCareerRelationships(ctx.save.id);
+  const [filter, setFilter] = useState<string>("All opponents");
+  const [search, setSearch] = useState("");
+  const [worldFilter, setWorldFilter] = useState("ACTIVE");
+  const [worldSearch, setWorldSearch] = useState("");
+  const [limit, setLimit] = useState(30);
+
+  return <QueryState query={query} label="Reading opponent history">{data => {
+    const opponents = data.opponents.filter(opponent =>
+      (filter === "All opponents" || opponent.labels.some(label => label === filter)) &&
+      opponent.player.name.toLowerCase().includes(search.toLowerCase())
+    );
+    const featured = opponents[0];
+    const world = data.world.players.filter(player =>
+      player.name.toLowerCase().includes(worldSearch.toLowerCase()) &&
+      (worldFilter === "ALL" || (worldFilter === "YOUNG"
+        ? player.status === "ACTIVE" && player.age <= data.world.youngAgeMaximum
+        : player.status === worldFilter))
+    );
+    const humanWins = data.opponents.reduce((sum, opponent) => sum + opponent.humanWins, 0);
+    const npcWins = data.opponents.reduce((sum, opponent) => sum + opponent.npcWins, 0);
+    const labelled = data.opponents.filter(opponent => opponent.labels.length > 0).length;
+    const leader = featured ? featured.humanWins > featured.npcWins : false;
+
+    return <main className="rel3-page">
+      <div className="rel3-shell">
+        <div className="rel3-topline">
+          <div className="rel3-brand"><span className="rel3-brand__block">TK<span>DL</span></span><span className="rel3-brand__sub">CAREER / COMPETITION RECORD</span></div>
+          <p>Sporting record <i>·</i> {ctx.retired ? "Career archive" : `Season ${ctx.save.currentSeason} · Week ${ctx.save.currentWeek}`}</p>
+        </div>
+
+        <header className="rel3-hero" aria-labelledby="relationships-title">
+          <div className="rel3-hero__content">
+            <p className="rel3-kicker"><span /> THE RIVALRY ARCHIVE <b>—</b> SEASON RECORD</p>
+            <h1 id="relationships-title">Head to<br /><em>head.</em></h1>
+            <p className="rel3-hero__intro">Sporting history, not personality. Every label is earned on the oche, through played results and shared cohorts — never through scoring, rankings or rewards.</p>
+            <div className="rel3-hero__foot">
+              <div className="rel3-hero__mark"><Swords size={17} aria-hidden /><span>Records that<br />remember.</span></div>
+              <div className="rel3-hero__stats">
+                <div><strong>{String(data.opponents.length).padStart(2, "0")}</strong><span>Opponents faced</span></div>
+                <div><strong>{humanWins}</strong><span>Your H2H wins</span></div>
+                <div><strong>{npcWins}</strong><span>Their wins</span></div>
+                <div><strong>{String(labelled).padStart(2, "0")}</strong><span>Labelled rivals</span></div>
+              </div>
+            </div>
+          </div>
+          <div className="rel3-hero__edition" aria-hidden="true"><span>TKDL</span><b>OFFICIAL</b><i>PLAYER RECORD</i></div>
+          <div className="rel3-hero__caption"><span>TOUR FLOOR</span><i>·</i><span>LIGHTS ON</span></div>
+        </header>
+
+        {featured && <section className="rel3-feature" aria-label="Featured head-to-head record">
+          <div className="rel3-feature__masthead"><span><i /> THE CURRENT MATCHUP</span><b>Based on played results</b></div>
+          <div className="rel3-scoreboard">
+            <div className="rel3-contender rel3-contender--home">
+              <span className="rel3-contender__index">YOUR RECORD</span>
+              <strong>{ctx.save.careerName ?? "You"}</strong>
+              <span className="rel3-contender__role">PLAYER 01</span>
+            </div>
+            <div className="rel3-score">
+              <div className="rel3-score__digits">{featured.meetings ? <><strong>{featured.humanWins}</strong><i>–</i><strong>{featured.npcWins}</strong></> : <strong className="rel3-score__empty">—</strong>}</div>
+              <span>{featured.meetings ? "HEAD TO HEAD" : "SHARED SPORTING HISTORY"}</span>
+              <small>{featured.meetings} {featured.meetings === 1 ? "meeting" : "meetings"}{featured.winPercentage === null ? "" : ` · ${featured.winPercentage}% wins`}</small>
+            </div>
+            <div className="rel3-contender rel3-contender--away">
+              <span className="rel3-contender__index"><Flag code={featured.player.nationality} /> OPPONENT</span>
+              <strong>{featured.player.name}</strong>
+              <span className="rel3-labels">{featured.labels.map(label => <em key={label}>{label}</em>)}</span>
+            </div>
+            <div className={`rel3-scoreboard__verdict ${leader ? "is-positive" : featured.humanWins === featured.npcWins ? "is-level" : "is-negative"}`}>
+              <span>{leader ? "ADVANTAGE" : featured.humanWins === featured.npcWins ? "LEVEL" : "TRAILING"}</span><i />
+            </div>
+          </div>
+          {featured.evidence.length > 0 && <p className="rel3-feature__evidence"><span>FORM LINE</span>{featured.evidence[0]}</p>}
+        </section>}
+
+        <section className="rel3-opponents" aria-labelledby="opponents-title">
+          <div className="rel3-section-title">
+            <div><span className="rel3-section-title__number">01</span><div><small>PLAYED HISTORY</small><h2 id="opponents-title">Opponents</h2></div></div>
+            <span className="rel3-section-title__count">{opponents.length}<i> / </i>{data.opponents.length}<small>records</small></span>
+          </div>
+          <div className="rel3-controls">
+            <label><span>Relationship</span><select value={filter} onChange={event => setFilter(event.target.value)}>{FILTERS.map(item => <option key={item}>{item}</option>)}</select><ChevronDown size={15} aria-hidden /></label>
+            <label className="rel3-controls__search"><span>Find opponent</span><div><Search size={16} aria-hidden /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search a name" /></div></label>
+            <p>{opponents.length} of {data.opponents.length} opponents and historical cohort members. Unlabelled opponents still have factual H2H records.</p>
+          </div>
+          <div className="rel3-ledger">
+            {opponents.map((opponent, index) => <RivalRecord key={opponent.player.id} opponent={opponent} saveId={ctx.save.id} />)}
+            {!opponents.length && <CareerEmptyState title="No opponent history here yet">Played matches build head-to-head records. Shared played Q-School sessions or Junior events establish cohorts; a single match does not establish a rivalry.</CareerEmptyState>}
+          </div>
+        </section>
+
+        <section className="rel3-generations" aria-labelledby="generation-summary-title">
+          <div className="rel3-generation-title"><span>02</span><div><small>THE WIDER FIELD</small><h2 id="generation-summary-title">Career generations</h2></div></div>
+          <div className="rel3-generation-metrics">
+            <div className="rel3-metric rel3-metric--red"><strong>{String(data.world.active).padStart(2, "0")}</strong><span>Active</span></div>
+            <div className="rel3-metric rel3-metric--soft"><strong>{String(data.world.retired).padStart(2, "0")}</strong><span>Retired</span></div>
+            <div className="rel3-metric rel3-metric--gold"><strong>{String(data.world.newEntrants).padStart(2, "0")}</strong><span>New this season</span></div>
+            <div className="rel3-metric rel3-metric--cream"><strong>{String(data.world.youngPlayers).padStart(2, "0")}</strong><span>Aged {data.world.youngAgeMaximum} or under</span></div>
+          </div>
+          <details className="rel3-generation-note"><summary>About generations <ChevronDown size={15} aria-hidden /></summary><p>Young age is context, not a promise of future success. New entrants use the existing junior and grassroots pathways. Retired identities and sporting records remain in this save.</p></details>
+        </section>
+
+        <div className="rel3-world-toolbar">
+          <div className="rel3-section-title rel3-section-title--world"><div><span className="rel3-section-title__number">03</span><div><small>ALL ERAS · ALL IDENTITIES</small><h2>The generation</h2></div></div></div>
+          <div className="rel3-controls rel3-controls--world">
+            <label><span>World players</span><select value={worldFilter} onChange={event => { setWorldFilter(event.target.value); setLimit(30); }}>
+              <option value="ACTIVE">Active players</option><option value="YOUNG">Young players ({data.world.youngAgeMaximum} or under)</option><option value="RETIRED">Retired players</option><option value="ALL">All generations</option>
+            </select><ChevronDown size={15} aria-hidden /></label>
+            <label className="rel3-controls__search"><span>Find world player</span><div><Search size={16} aria-hidden /><input type="search" value={worldSearch} onChange={event => { setWorldSearch(event.target.value); setLimit(30); }} placeholder="Search a name" /></div></label>
+          </div>
+        </div>
+        <ul className="rel3-world">
+          {world.slice(0, limit).map((player, index) => <li key={player.id}>
+            <span className="rel3-world__number">{String(index + 1).padStart(2, "0")}</span>
+            <span className="rel3-world__monogram" aria-hidden="true">{player.name.split(" ").map(part => part[0]).join("")}</span>
+            <div className="rel3-world__identity"><strong><Flag code={player.nationality} />{player.name}</strong><small>{identity(player)} · {player.createdSeason === 1 ? "Starting generation" : `Entered in season ${player.createdSeason}`}</small><PlayerLinks playerId={player.id} saveId={ctx.save.id} /></div>
+            <span className={`rel3-status rel3-status--${player.status.toLowerCase()}`}>{player.status === "RETIRED" ? "Retired" : "Active"}</span>
+          </li>)}
+        </ul>
+        {!world.length && <CareerEmptyState title="No players in this view" />}
+        {world.length > limit && <button className="rel3-more" onClick={() => setLimit(limit + 30)}>Show more <span>({world.length - limit} remaining)</span><ChevronDown size={16} aria-hidden /></button>}
+        <footer className="rel3-footer"><span>TKDL <i>/</i> Career archive</span><span>All records are from this save</span></footer>
+      </div>
+    </main>;
+  }}</QueryState>;
 }
