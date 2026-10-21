@@ -55,7 +55,7 @@ function MilestoneList({data,saveId}: {data:RecognitionView;saveId:string}) {
 export function RecognitionSummary({saveId}: {saveId:string}) {
   const query=useCareerRecognition(saveId);
   return <CareerSection title="Career standing" action={<Link className="career-btn career-btn-ghost" href={`/career/${saveId}/recognition`}>Recognition</Link>}>
-    <QueryState query={query} label="Reading Career standing">{data=><div className="px-4 py-3 space-y-2">
+     <QueryState query={query} label="Reading Career standing">{data=><div className="pl-summary-content px-4 py-3 space-y-2">
       <h3 className="font-bold">{data.standing.label}</h3><p className="text-xs text-white/70">{data.standing.description}</p>
       <div className="flex flex-wrap gap-2">{data.strongest.map(context=>{
         const c=data.contexts.find(v=>v.context===context)!;

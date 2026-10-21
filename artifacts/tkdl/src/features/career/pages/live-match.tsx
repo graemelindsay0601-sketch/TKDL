@@ -9,7 +9,7 @@ import { GameScorer, BullUpBoard, type GameTypeOption } from "@/components/game-
 import { resolveBullUp, type Dart, type X01Format } from "@/lib/darts-rules";
 import { useWakeLock, useZoomLock } from "@/lib/nativeParity";
 import { liveApi, errorMessage, useTournament, useAdvance, useTournamentAction } from "../api";
-import { MatchStreamPanel } from "./match-stream";
+import { MatchStreamPanel, type MatchStreamPanelHandle } from "./match-stream";
 import { MatchContextStrip, ResultBanner } from "../tournament/components";
 import { resultMoment } from "../tournament/model";
 import { formatPence, matchFormatLine } from "../model";
@@ -38,8 +38,8 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<"loading" | "bull" | "play" | "submitting" | "done" | "error">("loading");
   const [scorerKey, setScorerKey] = useState(0);
-  /** Bumped after every accepted checkpoint, so a DartCast stream of this match catches up. */
-  const [streamTick, setStreamTick] = useState(0);
+  /** Refresh DartCast locally without rerendering the full live scorer after each saved dart. */
+  const streamPanelRef = useRef<MatchStreamPanelHandle>(null);
   const playing = phase === "play" || phase === "submitting";
   useWakeLock(playing);
   useZoomLock(playing);
@@ -74,7 +74,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
         const res = await liveApi.darts(saveId, matchId, { darts: darts.map(d => ({ segment: d.segment, multiplier: d.multiplier, value: d.value, label: d.label })), expectedRevision: cursorRef.current.revision });
         if (epoch !== epochRef.current) return;
         cursorRef.current.revision = res.revision;
-        setStreamTick(t => t + 1);
+        streamPanelRef.current?.refresh();
         if (res.status === "COMPLETED") {
           setSession(res); setPhase("done");
           await client.invalidateQueries({ queryKey: ["career", saveId] });
@@ -174,7 +174,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
         botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog} partnerVisitPlanner={pairs ? partnerVisitPlanner : undefined}
         onWin={() => setPhase(p => (p === "done" ? p : "submitting"))}
         onAbandon={() => navigate(`/career/${saveId}/tournaments/${session.eventId}`)} />
-      <MatchStreamPanel saveId={saveId} matchId={matchId} tick={streamTick} />
+      <MatchStreamPanel ref={streamPanelRef} saveId={saveId} matchId={matchId} />
       {phase === "submitting" && (
         <div role="status" style={{ position: "fixed", inset: 0, zIndex: 10000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(4,4,10,0.85)" }}>
           <p style={{ ...OSWALD, color: "#fff", letterSpacing: "0.08em" }}>Recording the result…</p>
@@ -223,7 +223,7 @@ function PostMatch({ ctx, session }: { ctx: ShellContext; session: LiveSession }
   const prize = t.data ? (t.data.money.paid ? Number(t.data.money.prize?.cash_award_pence ?? 0) : t.data.money.securedPence) : null;
   return (
     <Overlay>
-      <MatchStreamPanel saveId={saveId} matchId={session.matchId} tick={0} />
+      <MatchStreamPanel saveId={saveId} matchId={session.matchId} />
       <div className="pdc-card career-hero p-5 space-y-4 w-full" style={{ maxWidth: 440 }} role="dialog" aria-label="Match result">
         <div className="flex items-center gap-2"><Swords className="w-4 h-4" style={{ color: "#ffd24a" }} aria-hidden /><Label color="#ffd24a">Match result</Label>
           <StatusBadge label={r.humanWon ? "Won" : "Lost"} tone={r.humanWon ? "success" : "danger"} /></div>

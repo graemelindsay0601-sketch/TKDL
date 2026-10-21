@@ -36,7 +36,7 @@ export function PlayerLegacyProfile({ ctx }: { ctx: ShellContext }) {
   const status = ctx.retired ? "Retired" : card ? "Tour Card professional" : v.seasons.some(s => s.tourCard) ? "Former Tour Card holder" : "Open circuit";
   const firsts = Object.values(v.firsts).filter((m): m is Moment => !!m).sort((a, b) => (a.season ?? 0) - (b.season ?? 0));
   return (
-    <div className="pl-stack">
+    <div className="pl-stack pl-overview-profile">
       <section className={`pl-hero${ctx.retired ? " is-retired" : ""}`} aria-label={`${name} Career profile`}>
         <div className="pl-hero__card">
           <CareerPlayerCard name={name} nickname={presentation.data?.identity.nickname} identity={presentation.data?.identity}

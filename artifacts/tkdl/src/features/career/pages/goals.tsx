@@ -117,7 +117,7 @@ export function GoalCard({goal:g,saveId,onAbandon,onSetMain,isMain=false,busy=fa
 export function GoalsSummary({saveId}: {saveId:string}) {
   const query=useCareerGoals(saveId);
   return <CareerSection title="Your focus & goals" action={<Link href={`/career/${saveId}/goals`} className="career-btn career-btn-ghost">Manage</Link>}>
-    <QueryState query={query} label="Reading focus">{data=><div className="p-4 space-y-2 text-sm">
+    <QueryState query={query} label="Reading focus">{data=><div className="pl-summary-content p-4 space-y-2 text-sm">
       <p className="font-bold">{data.focusOptions.find(f=>f.value===data.focus)?.label}</p>
       <p className="text-xs text-white/60">Which kind of events to suggest to you. Optional: it changes suggestions, not rewards.</p>
       {data.mainGoalId && data.goals.find(g=>g.id===data.mainGoalId) ?

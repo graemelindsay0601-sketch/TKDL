@@ -49,3 +49,5 @@ Thumbs.db
 .cache/
 .local/
 package-lock.json
+/artifacts/mockup-sandbox/public/images/career-signoff/
+/artifacts/tkdl/public/career-signoff/

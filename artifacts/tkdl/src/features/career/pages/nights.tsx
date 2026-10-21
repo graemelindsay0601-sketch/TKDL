@@ -109,9 +109,9 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
 }
 
 /** A page of its own for an activity that used to sit at the bottom of the club page. */
-function ActivityPage({ ctx, kicker, title, accent, blurb, icon, children, unlock }: { ctx: ShellContext; kicker: string; title: string; accent: string; blurb: string; icon: ReactNode; children: ReactNode; unlock?: UnlockKey }) {
+function ActivityPage({ ctx, kicker, title, accent, blurb, icon, children, unlock, pageClass }: { ctx: ShellContext; kicker: string; title: string; accent: string; blurb: string; icon: ReactNode; children: ReactNode; unlock?: UnlockKey; pageClass?: string }) {
   useEffect(() => { if (unlock) markSeen(ctx.save.id, unlock); }, [ctx.save.id, unlock]);
-  return <div className="space-y-3">
+  return <div className={`space-y-3 ${pageClass ?? ""}`}>
     <CareerPageHero kicker={kicker} title={title} accent={accent} stage={{ venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }} subtitle={<p>{blurb}</p>} />
     <CareerSection title="This week" icon={icon} accent={accent}>{children}</CareerSection>
     <p className="nights-back"><Link href={`/career/${ctx.save.id}/nights`}>Back to this week's nights</Link></p>
@@ -122,8 +122,8 @@ export const MoneyMatchesPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPag
   blurb="Put money on a game against a club member. Haggle over the stake; the winner takes it."><MoneyMatches saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></ActivityPage>;
 export const RoadTripsPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage unlock="road-trips" ctx={ctx} kicker="Nights Out · on the road" title="Road trips" accent="#e08a5b" icon={<Car aria-hidden />}
   blurb="Drive to another town's club for a night and take on their locals for money. Beat a town's champion to make your name there."><RoadTrips saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></ActivityPage>;
-export const ProAmPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage unlock="pro-am" ctx={ctx} kicker="Nights Out · exhibitions" title="Pro-Am nights" accent="#c77dff" icon={<Star aria-hidden />}
-  blurb="Pay for a leg against a touring pro and win twenty times your fee if you beat them. With a Tour Card, you're the pro and you're paid to turn up."><ProAmNights saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></ActivityPage>;
+export const ProAmPage = ({ ctx }: { ctx: ShellContext }) => <ActivityPage unlock="pro-am" pageClass="pro-am-page" ctx={ctx} kicker="Nights Out · exhibitions" title="Pro-Am nights" accent="#d9ad57" icon={<Star aria-hidden />}
+  blurb="One leg under the club lights. Meet a touring name, take your shot, and make the result count. With a Tour Card, you're the pro and you're paid to turn up."><ProAmNights saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></ActivityPage>;
 
 /** Home: how many nights are still free this week, and the way into Nights Out. */
 export function NightsLine({ saveId, week, save }: { saveId: string; week: number; save?: ShellContext["save"] }) {

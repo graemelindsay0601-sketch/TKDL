@@ -155,7 +155,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
         <button type="button" className="career-header-more" aria-expanded={toolsOpen} onClick={() => setToolsOpen(o => !o)}>{toolsOpen ? "Less" : "More"}</button>
         <button type="button" className="career-sections-trigger" aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="Career sections"
           onClick={() => setMenuOpen(true)}><LayoutGrid aria-hidden /><span>Career sections</span></button>
-        {!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><Gamepad2 aria-hidden /> Play mode</Link>}<WorldSearch saveId={save.id}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link><Link href={`/career/${save.id}/health`}>Save health</Link></div>
+         {!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><span className="career-header-play-icon" aria-hidden="true"><Gamepad2 /></span> Play mode</Link>}<WorldSearch saveId={save.id}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link><Link href={`/career/${save.id}/health`}>Save health</Link></div>
       {menuOpen && <CareerMenu save={save} onClose={() => setMenuOpen(false)} />}
     </header>
   );
@@ -303,7 +303,7 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
       <button type="button" className="career-attention-trigger" data-testid="button-career-attention" aria-expanded={open} aria-controls={panelId}>
-        <Bell size={17} aria-hidden/><span>Attention</span>
+         <span className="career-attention-bell" aria-hidden="true"><Bell size={17}/></span><span>Attention</span>
         <span className="career-inbox-count" aria-hidden={unreadCount === 0 || undefined} data-empty={unreadCount === 0 || undefined}
           title={unreadCount > 0 ? `${unreadCount} unread Career updates` : undefined}>{unreadCount}</span>
       </button>

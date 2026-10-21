@@ -19,8 +19,10 @@ export function CountyMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: 
     queue.current = queue.current.then(async () => {
       try {
         const s = await countyLiveApi.darts(id, matchId, darts);
-        setSession(s);
-        if (s.status === "PLAYED") await client.invalidateQueries({ queryKey: careerKey(id) });
+        if (s.status === "PLAYED") {
+          setSession(s);
+          await client.invalidateQueries({ queryKey: careerKey(id) });
+        }
       } catch (e) { setMessage(errorMessage(e)); }
     });
   }, [id, matchId, client]);

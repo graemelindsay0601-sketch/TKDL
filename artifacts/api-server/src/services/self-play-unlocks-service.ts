@@ -13,26 +13,17 @@ interface SeedUnlock {
   sortOrder: number;
 }
 
-// Two Elite-tier "Play a Pro" personas, locked behind a purchase — see
-// bot-engine.ts's BOT_PERSONAS for the full roster (every other persona,
-// Elite tier included, stays free/open exactly as it is today). Picked
-// these two specifically because they're the two toughest personas in the
-// app (109 and 107 avg, the top of the whole roster) — locking the very
-// best opponents behind a purchase is the usual shape for this kind of
-// unlock, and it leaves two Elite personas (Mikkel van Garwin, Bill
-// Tailor) still free so "Play a Pro" isn't gutted for anyone who doesn't
-// spend. Priced above a ten-card-pack (350) territory but each still
-// cheaper than a Legendary cosmetic (1000) — a real but not extortionate
-// ask for a permanent, repeatable-use unlock.
+// Two original Elite-tier Play a Pro characters can be unlocked permanently.
+// Internal IDs stay stable so existing saved unlocks continue to resolve.
 const SHADOW_PERSONAS: SeedUnlock[] = [
   {
     id: "persona-luke_harbours", category: "SHADOW_PERSONA",
-    name: "Luke Harbours", description: "Unlock the World No.1 as a permanent Play a Pro opponent — 109 avg, clinical and unstoppable.",
+    name: "Rook Calder", description: "Unlock Rook Calder as a permanent Play a Pro opponent — 109 average, patient and clinical.",
     price: 300, sortOrder: 0,
   },
   {
     id: "persona-luca_scrawler", category: "SHADOW_PERSONA",
-    name: "Luca Scrawler", description: "Unlock The Nuke as a permanent Play a Pro opponent — 107 avg, already terrifying.",
+    name: "Mara Vale", description: "Unlock Mara Vale as a permanent Play a Pro opponent — 107 average, fearless under pressure.",
     price: 275, sortOrder: 1,
   },
 ];

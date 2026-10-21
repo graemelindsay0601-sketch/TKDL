@@ -103,8 +103,7 @@ export const PRACTICE_ACHIEVEMENT_DEFINITIONS: AchievementDef[] = [
   // PRACTICE_BOT_LEVEL_5/10/15/20_WINS_* and PRACTICE_BEAT_<pro>_3 (9 keys)
   // retired 2026-09-25 — same investigation as PRACTICE_BIG_FISH above.
   // practice.tsx's bot-vs-player selection (a numeric level via BOT_LEVELS,
-  // or a named persona via BOT_PERSONAS in bot-engine.ts — Luke Harbours,
-  // Luca Scrawler, Mikkel van Garwin, Perry Wight, etc.) is entirely
+  // or a named fictional persona via BOT_PERSONAS in bot-engine.ts) is entirely
   // client-side state used only to drive the bot's simulated throws. The
   // practice-session submission body (practice.tsx, POST /practice/sessions)
   // never sends which level or persona was played — practice_sessions has no

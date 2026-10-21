@@ -19,8 +19,10 @@ export function MoneyMatchLivePage({ ctx, matchId }: { ctx: ShellContext; matchI
     queue.current = queue.current.then(async () => {
       try {
         const updated = await moneyMatchApi.darts(id, matchId, darts);
-        setSession(updated);
-        if (updated.status === "PLAYED") await client.invalidateQueries({ queryKey: careerKey(id) });
+        if (updated.status === "PLAYED") {
+          setSession(updated);
+          await client.invalidateQueries({ queryKey: careerKey(id) });
+        }
       } catch (e) { setMessage(errorMessage(e)); }
     });
   }, [id, matchId, client]);

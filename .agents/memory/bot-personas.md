@@ -1,6 +1,6 @@
 ---
 name: Bot persona system
-description: Named CPU opponent personas for Solo vs CPU practice mode — fictional alter-egos of real pros, 6 difficulty levels, auto-play hooks in scorers.
+description: CPU opponent personas for Solo vs CPU practice mode — original fictional characters, 6 difficulty levels, and auto-play hooks in scorers.
 ---
 
 ## Architecture
@@ -31,12 +31,11 @@ useEffect(() => {
 - Scorers supported: X01, Cricket, Sequence, HalveIt, CountUp (Killer/Gotcha etc not supported — no botLevel prop)
 
 ## Personas (18 total, sorted hardest to easiest in UI)
-Elite: Mikkel van Garwin (MVG, 105avg), Bill Tailor (Phil Taylor, 101avg)
-Pro: Luca Scrawler (Littler, 98avg), Perry Wight (Wright, 93avg), Gareth Prise (Price, 90avg), Barry Anderson (Anderson, 88avg)
-County: Dmitri Van den Berg (86avg), Ronny Clapton (Clayton, 82avg), Jono de Souza (80avg), Bob Frost (Cross, 79avg)
-Club: Dave Chiselton (Chisnall, 74avg), James Blade (Wade, 70avg), Simon Whitfield (Whitlock, 67avg)
-Amateur: Fallon Sherrick (Sherrock, 62avg), Lisa Ashford (Ashton, 55avg), Ned Bankley (Ted Hankey, 49avg)
-Beginner: Andy Hamish (42avg), Terry Jenkins Jr (28avg)
+Opponent names, nicknames, biographies, and character details must be original fiction. Do not use real players or thinly disguised versions of them.
+
+**Why:** The user explicitly said they do not want real-life pros in the app.
+
+**How to apply:** Keep stable internal IDs where needed for saved selections, but make every user-visible opponent identity and biography wholly fictional.
 
 ## Why ref pattern
 Without `handleDartRef`, the setTimeout callback captures a stale closure of handleDart. The ref ensures each delayed dart call always uses the latest handler with fresh state. This is React's canonical solution to stale-closure-in-timeout.

@@ -24,7 +24,7 @@ export function MyCareerPage({ctx,section="overview"}:{ctx:ShellContext;section?
     return <Link className="career-world-tile" href={`${base}${path}`} key={path}><img src={plate.src} alt="" aria-hidden="true" loading="lazy"/><span><strong>{label}</strong></span></Link>;})}</nav>;
   const shirt=presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>:undefined;
   return <div className="space-y-3"><h2 className="sr-only">My Career · {section==="life"?"Career Life":section==="remembered"?"A Career Remembered":section[0].toUpperCase()+section.slice(1)}</h2>
-    {section==="overview"&&<><PlayerLegacyProfile ctx={ctx}/><GoalsSummary saveId={id}/><RecognitionSummary saveId={id}/>
+     {section==="overview"&&<><PlayerLegacyProfile ctx={ctx}/><div className="pl-overview-briefings"><div className="pl-overview-briefing pl-overview-briefing--focus"><GoalsSummary saveId={id}/></div><div className="pl-overview-briefing pl-overview-briefing--standing"><RecognitionSummary saveId={id}/></div></div>
 </>}
     {section==="performance"&&<><CareerPageHero kicker="My Career" title="Performance" accent="#69b8ec" stage={{venue:{venueType:"professional-floor"},eventClass:"PROFESSIONAL_TOUR"}}
       subtitle={<p>Every completed match, event and ranking in your Career, from the scorer and the results record.</p>} portrait={shirt}/><CareerPerformanceTrend saveId={id}/>{links([["Results & statistics","/history/facts"],["Ranking history & races","/journey"],["Played opponents & H2H","/relationships"]])}<HistoryPage ctx={ctx}/></>}

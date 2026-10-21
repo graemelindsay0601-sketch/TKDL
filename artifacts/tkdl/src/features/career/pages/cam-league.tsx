@@ -97,7 +97,13 @@ export function CamMatchPage({ ctx, fixtureId }: { ctx: ShellContext; fixtureId:
   useEffect(() => { if (q.data && !session) { setSession(q.data); log.current = q.data.darts as Dart[]; } }, [q.data, session]);
   const send = useCallback((darts: Dart[]) => {
     queue.current = queue.current.then(async () => {
-      try { const s = await camLeagueApi.darts(id, fixtureId, darts); setSession(s); if (s.status === "PLAYED") await client.invalidateQueries({ queryKey: careerKey(id) }); }
+      try {
+        const s = await camLeagueApi.darts(id, fixtureId, darts);
+        if (s.status === "PLAYED") {
+          setSession(s);
+          await client.invalidateQueries({ queryKey: careerKey(id) });
+        }
+      }
       catch (e) { setMessage(errorMessage(e)); }
     });
   }, [id, fixtureId, client]);

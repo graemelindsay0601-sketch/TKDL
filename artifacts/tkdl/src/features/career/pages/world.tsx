@@ -22,7 +22,7 @@ export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
   if(world.isLoading)return <CareerLoading/>;
   if(world.error||!world.data)return <CareerError error={world.error} onRetry={()=>world.refetch()}/>;
   const d=world.data;
-  return <div className="space-y-3">
+  return <div className={guide?"career-guide-page":"space-y-3"}>
     {guide?<CareerPageHero kicker="Career Guide" title="How Career works" accent="#69b8ec" stage={{venue:{venueType:"conference"},eventClass:"PROFESSIONAL_TOUR"}}
       watermark={`${d.guide.length}`} subtitle={<p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p>}
       stats={[{label:"Guide topics",value:d.guide.length,tone:"gold"},{label:"Organisations",value:d.organisations.length},{label:"Circuits",value:d.circuits.length},{label:"Venues",value:d.venues.length}]}/>

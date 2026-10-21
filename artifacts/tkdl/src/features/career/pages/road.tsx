@@ -13,11 +13,21 @@ import "./road.css";
 const rank = (n: number | null) => n === null ? "Not ranked yet" : ordinal(n);
 
 /** One route: what it gives, where you stand, and the next step. */
-function RouteCard({ icon, title, gives, children, done }: { icon: ReactNode; title: string; gives: string; children: ReactNode; done?: boolean }) {
+function RouteCard({ icon, title, gives, children, done, standing }: {
+  icon: ReactNode;
+  title: string;
+  gives: string;
+  children?: ReactNode;
+  done?: boolean;
+  standing?: { label: string; value: string; note: string };
+}) {
   return <article className="road-route" data-done={done || undefined}>
     <header><span aria-hidden>{icon}</span><b>{title}</b>{done && <BadgeCheck className="road-route__done" aria-label="Done" />}</header>
+    {standing && <div className="road-route__standing" aria-label={`${standing.label}: ${standing.value}`}>
+      <span>{standing.label}</span><strong>{standing.value}</strong><small>{standing.note}</small>
+    </div>}
     <p className="road-route__gives">{gives}</p>
-    <div className="road-route__you">{children}</div>
+    {children && <div className="road-route__you">{children}</div>}
   </article>;
 }
 const EventLink = ({ saveId, e }: { saveId: string; e: { eventId: string; name: string; week: number; status: string } }) =>
@@ -96,28 +106,31 @@ function Routes({ saveId, p }: { saveId: string; p: PathwaysView }) {
     </div>
     <div className="road-routes">
     {!pro && <RouteCard icon={<GraduationCap />} title="Q-School" done={q.finalStage}
+      standing={{ label: "Your route", value: q.finalStage ? "Final Stage" : "Entry route", note: q.finalStage ? "Final Stage place secured" : "Final Stage is the card stage" }}
       gives={`Win a day at the Final Stage, or finish near the top overall, and you get a Tour Card. ${formatPence(q.firstStageFeePence)} to enter, plus ${formatPence(q.finalStageFeePence)} if you reach the Final Stage.`}>
       {q.finalStage ? <p>You're in this season's Final Stage.</p> : q.next ? <p>Next: <EventLink saveId={saveId} e={q.next} />.</p>
         : <p>This season's Q-School is over. The next one is in season {q.nextSeason}, weeks 2–4.</p>}
       {q.proCircuitAssociate && <p className="road-good">You did well enough at Q-School to play Pro Circuit events this season, even without a card.</p>}
     </RouteCard>}
     {!pro && <RouteCard icon={<Route />} title="Challenger Tour" done={c.position !== null && c.position <= c.cards}
+      standing={{ label: "Current ranking", value: rank(c.position), note: `Top ${c.cards} earn a Tour Card` }}
       gives={`Finish in the top ${c.cards} for a Tour Card and a place at the Worlds. The top ${c.qSchoolFinalStage[1]} skip straight to the next Q-School Final Stage.`}>
-      <p>Your ranking: <b>{rank(c.position)}</b>.</p>
       {c.access === "OPEN_SEASON" ? <p>Anyone without a card can play it this season.</p>
         : c.access === "PASS" ? <p>You can play it this season.</p>
         : <p>To play it this season, enter Q-School or reach the last 16 of a qualifier
           {c.qualifiers.length ? <> (<EventLink saveId={saveId} e={c.qualifiers[0]} />)</> : " (none left this season)"}.</p>}
     </RouteCard>}
     {!pro && p.development && <RouteCard icon={<Sparkles />} title="Development Tour" done={p.development.position !== null && p.development.position <= p.development.cards}
+      standing={{ label: "Current ranking", value: p.development.eligible ? rank(p.development.position) : "Not eligible", note: p.development.eligible ? `Top ${p.development.cards} earn a Tour Card` : "Age restricted" }}
       gives={`For ages ${p.development.minAge} to ${p.development.maxAgeExclusive - 1}. Finish in the top ${p.development.cards} for a Tour Card and a place at the Worlds.`}>
-      {p.development.eligible ? <p>Your ranking: <b>{rank(p.development.position)}</b>.</p> : <p>Not open to you at your age.</p>}
+      {p.development.eligible ? <p>You're eligible to play this season.</p> : <p>Not open to you at your age.</p>}
     </RouteCard>}
     {!pro && <RouteCard icon={<Vault />} title="Vault Series" done={p.vault.position === 1}
+      standing={{ label: "Current ranking", value: rank(p.vault.position), note: "Top the ranking for a Worlds place" }}
       gives="The TV amateur series. Top the ranking and you get a place at the Worlds.">
-      <p>Your ranking: <b>{rank(p.vault.position)}</b>.</p>
     </RouteCard>}
     <RouteCard icon={<Crown />} title="World Championship" done={!!w.place}
+      standing={{ label: "Worlds place", value: w.place ? "Secured" : "Not secured", note: w.place ? (BREAKOUT_ROUTES[w.place.route] ?? "Qualified") : "Multiple qualification routes" }}
       gives={`Get in through the World Ranking, a qualifier, or a big season on one of the routes above. Winning the Amateur World Masters, or ${w.fanFavouriteFans.toLocaleString("en-GB")} fans, also gets you a place.`}>
       {w.place ? <p className="road-good">You have a place: {BREAKOUT_ROUTES[w.place.route] ?? "qualified"}. Enter it from the calendar.</p> : <>
         {w.worldRanking !== null && <p>World Ranking: <b>{ordinal(w.worldRanking)}</b>.</p>}
@@ -135,13 +148,13 @@ export function RoadToTourPage({ ctx }: { ctx: ShellContext }) {
   useEffect(() => { markVisited(id, "road"); }, [id]);
   const pro = !!p?.tourCard && !p.tourCard.offer;
   return <div className="space-y-3">
-    <CareerPageHero kicker="Road to the Tour" title={pro ? "You're on the Tour" : "Every way in"} accent="#4ade80"
+    <CareerPageHero kicker="Road to the Tour" title={pro ? "You're on the Tour" : "Every way in"} accent="#d83b58"
       stage={{ venue: { venueType: "professional-floor" }, circuit: "Q_SCHOOL", classification: "QUALIFIER" }}
       subtitle={<p>{pro ? "Stay in the top 64 of the World Ranking to keep your card." : "There's more than one way to a Tour Card and the World Championship. Try any of them; none rules out the others."}</p>}
       stats={p ? [{ label: "World Ranking", value: p.worlds.worldRanking ? ordinal(p.worlds.worldRanking) : "—" }, { label: "Challenger", value: p.challenger.position ? ordinal(p.challenger.position) : "—" },
         { label: "Vault", value: p.vault.position ? ordinal(p.vault.position) : "—", tone: "gold" }] : []} />
     <TourCardOffer saveId={id} />
     {q.isLoading ? <CareerLoading label="Reading your routes" /> : q.error ? <CareerError error={q.error} onRetry={() => q.refetch()} /> : p &&
-      <CareerSection title={pro ? "Your season" : "Your routes"} icon={<Route aria-hidden />} accent="#4ade80"><Routes saveId={id} p={p} /></CareerSection>}
+      <CareerSection title={pro ? "Your season" : "Your routes"} icon={<Route aria-hidden />} accent="#d83b58"><Routes saveId={id} p={p} /></CareerSection>}
   </div>;
 }

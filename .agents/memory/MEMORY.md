@@ -28,3 +28,4 @@
 - [Career path onboarding](career-path-onboarding.md) — explain available routes and first steps at save creation; keep routes non-exclusive and grounded in current rules
 - [Career visual and navigation standard](career-visual-standard.md) — Career pages should feel premium, avoid text-only sections, and keep clear in-career navigation
 - [Career visual audit](career-visual-audit.md) — wait for route content and inspect Career’s nested scroll panel, not just the document viewport
+- [Career runtime stability](career-runtime-stability.md) — per-dart checkpoints must not rerender the active scorer; crash reports need route/error context

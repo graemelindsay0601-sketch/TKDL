@@ -1,8 +1,791 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "9TONpwxDm9ydM6VJ3IGzY"
 uri = "file://attached_assets/tkdl-icon-512.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "uqt34uX5dYfnlE3YrvkbY"
+uri = "file://.local/reviews/event-dossier-entry-decision.jpg"
+type = "image"
+title = "Event Dossier — Entry Decision (dark palette)"
+description = "Rendered full-page preview of the current dark charcoal, red, and gold Entry Decision concept."
+logical_id = "5112c402-7659-4be6-9bbb-7bc0eb0f4fab"
+content_hash = "sha256:befb3fcda67d27790d2a7b357ff0f66e06a9b087a51d54adbae4b2b33f702a72"
+size = 118398
+mtime_ms = 1792516688090
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/5112c402-7659-4be6-9bbb-7bc0eb0f4fab/129ddd57-f88d-488a-a50d-5ad827097e66"
+storage_version_token = "1792516694405293"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "3U151R-gq8M_9d5tSZEa8"
+uri = "file://.local/reviews/event-dossier-matchday-feature.jpg"
+type = "image"
+title = "Event Dossier — Match-day Feature"
+description = "Rendered full-page preview of the Match-day Feature concept for comparison."
+logical_id = "1b453a8c-fc76-4977-a31e-c64a577397dc"
+content_hash = "sha256:bc4a34a24bc3276eaea4242cf16129a89c3771b5db326362706193c1642f84d5"
+size = 175995
+mtime_ms = 1792516688170
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/1b453a8c-fc76-4977-a31e-c64a577397dc/476c38d9-b686-4130-8abc-02cfe7351d43"
+storage_version_token = "1792516694924387"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "iNLfJQqYoc_LgOL_J_ZVK"
+uri = "file://.local/reviews/event-dossier-matchday-dark.jpg"
+type = "image"
+title = "Event Dossier — Match-day Feature (dark palette)"
+description = "Updated full-page render: dark charcoal surfaces with red and gold accents; no cream page background."
+logical_id = "2e9cc2a4-7060-473f-8c71-8344b44c1bd7"
+content_hash = "sha256:2a2919a6ad7a1486fa9cc0f6df4490c1a751fe582dfbd3d14de847aac779ad16"
+size = 159643
+mtime_ms = 1792517621057
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/2e9cc2a4-7060-473f-8c71-8344b44c1bd7/db555180-d2f7-4190-9d34-48912272d3df"
+storage_version_token = "1792517646968279"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "VHQ4z8CZAgM6mW3Fh8oDh"
+uri = "file://.local/reviews/event-dossier-entry-decision-dark.jpg"
+type = "image"
+title = "Event Dossier — Entry Decision (dark palette)"
+description = "Full-page render of the decision-led layout in the selected dark charcoal, red and gold palette."
+logical_id = "63435db6-c737-4c97-80ed-dc9919532cd3"
+content_hash = "sha256:befb3fcda67d27790d2a7b357ff0f66e06a9b087a51d54adbae4b2b33f702a72"
+size = 118398
+mtime_ms = 1792517622957
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/63435db6-c737-4c97-80ed-dc9919532cd3/8272e843-e61e-4cfe-b0d7-5394c22e1be0"
+storage_version_token = "1792517647445637"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "hC4dkiOx4QLJCaoFYoom8"
+uri = "file://.local/reviews/event-dossier-matchday-midnight-navy.jpg"
+type = "image"
+title = "Event Dossier — Match-day Feature (midnight navy)"
+description = "Updated full-page render using the selected midnight navy, red and gold palette."
+logical_id = "0b4f162b-d57f-4d0d-a99d-bbd041bdf048"
+content_hash = "sha256:1ed6333d23aec54bbe7c856764d27f4764d7c6a8c8478a8c38b1599b2b3a6570"
+size = 163870
+mtime_ms = 1792518113013
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/0b4f162b-d57f-4d0d-a99d-bbd041bdf048/cb406ebf-0e47-4312-afcb-562982bfe10a"
+storage_version_token = "1792518204089589"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "9ycvXxG_amMgjD6eelt3g"
+uri = "file://.local/reviews/event-dossier-entry-decision-midnight-navy.jpg"
+type = "image"
+title = "Event Dossier — Entry Decision (midnight navy)"
+description = "Full-page decision-led render using the selected midnight navy, red and gold palette."
+logical_id = "bcb3e7b3-d3cb-4edb-b727-87ad2a9f093c"
+content_hash = "sha256:50e235f224b5e127f6861a5b41b903c0d29e3fb6d07455aad7ac1e0b9e279c59"
+size = 120840
+mtime_ms = 1792518114989
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/bcb3e7b3-d3cb-4edb-b727-87ad2a9f093c/9524ede3-ef86-434f-979f-c1511e9349c5"
+storage_version_token = "1792518204738656"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "3OgfLLx1Ko28QjpxyQLxg"
+uri = "file://.local/reviews/event-dossier-matchday-refined.jpg"
+type = "image"
+title = "Event Dossier — Match-day Feature, refined"
+description = "Full-page desktop preview in midnight navy with the visual timeline, field-capacity graphic, and scan-friendly cost breakdown."
+logical_id = "79b6034f-d44a-4f55-ab1f-ddbbf0f3f5b6"
+content_hash = "sha256:dfc8416e8a570245824347f40129966394fef2dd3bbc8e45891497a5e4a1baab"
+size = 164287
+mtime_ms = 1792518476549
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/79b6034f-d44a-4f55-ab1f-ddbbf0f3f5b6/e2c43a13-561e-4ff3-a864-3495a4c4efe7"
+storage_version_token = "1792518505161338"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "ViNs31zyDkDVOjr-Jh3d0"
+uri = "file://.local/reviews/event-dossier-matchday-depth.jpg"
+type = "image"
+title = "Event Dossier — Match-day Feature, depth pass"
+description = "Current full-page midnight-navy render with deeper arena lighting, layered timeline and field graphics, and highlighted cost/prize treatment."
+logical_id = "7eebbae2-c847-43aa-9d57-cf263549421f"
+content_hash = "sha256:7653633136ceb6f5d60e228305e77215c395860d2c66f63089e5d960faaea6da"
+size = 169719
+mtime_ms = 1792518695201
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/7eebbae2-c847-43aa-9d57-cf263549421f/9b8c530b-dd7b-4a74-bd60-ea32db4d9ced"
+storage_version_token = "1792518718257879"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "kqXThKTAo2chXuLKG4u5v"
+uri = "file://.local/reviews/event-dossier-matchday-structural.jpg"
+type = "image"
+title = "Event Dossier — Match-day Feature, structural revision"
+description = "Current full-page version with the week rail, prominent tournament scoreboard, more layered venue hero, and raised cost breakdown."
+logical_id = "65a07fe5-209d-44e7-8462-b200b4530723"
+content_hash = "sha256:24fbdc9ab01964bafbfff1ff326c1a7359ad7d3d84b6155e619c9cc2b7e84041"
+size = 169743
+mtime_ms = 1792519125829
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/65a07fe5-209d-44e7-8462-b200b4530723/586b2e37-c10c-404f-bc3f-7b4cd1abc1de"
+storage_version_token = "1792519137876685"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "i--3nAvCfdc62bhntSECB"
+uri = "file://.local/reviews/event-dossier-matchday-3d.jpg"
+type = "image"
+title = "Event Dossier — 3D depth pass"
+description = "Latest full-page preview: layered gold-rimmed week medallion, brighter arena lighting, raised scoreboard, beveled capacity ring, and lifted cost panel."
+logical_id = "4af34db6-a190-4591-af6f-02b765e6596d"
+content_hash = "sha256:fab4c73bfd6f246bf287baf72c231b296b380ee777e7bb1d1caba2c51579af33"
+size = 177173
+mtime_ms = 1792523049912
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/4af34db6-a190-4591-af6f-02b765e6596d/95b8e767-2fdb-47c2-93bc-3fdc9e18db35"
+storage_version_token = "1792523065828999"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "DKSe8CPseUNZe3nskA82M"
+uri = "file://.local/reviews/event-dossier-matchday-clean-desktop.jpg"
+type = "image"
+title = "Event Dossier — Desktop review"
+description = "Updated Match-day Feature with sharper depth and corrected text fit at desktop width."
+logical_id = "6054df24-ae44-404f-a0ce-d46ca0882d49"
+content_hash = "sha256:f58a032b68e0a5fe35aa556d668240a4d35f4d0ff2a7af307ee993536899bfc2"
+size = 181151
+mtime_ms = 1792524198140
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/6054df24-ae44-404f-a0ce-d46ca0882d49/ba9a1fc2-88f7-4aaa-8268-7e3ef6cfd07e"
+storage_version_token = "1792524234301107"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "MQ779XYEu3pVNZ6uhQsyS"
+uri = "file://.local/reviews/event-dossier-matchday-clean-tablet.jpg"
+type = "image"
+title = "Event Dossier — Tablet review"
+description = "Updated layout checked at tablet width, including the hero, field summary, cost breakdown, and actions."
+logical_id = "f895fc11-8548-4222-bf37-72bf2e1c200e"
+content_hash = "sha256:181686dc01e93ba54680fc44202e70b37cf3b0a368daed170a009577c7cedb11"
+size = 141278
+mtime_ms = 1792524199940
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/f895fc11-8548-4222-bf37-72bf2e1c200e/e0484e29-7204-42d5-b745-409cfe7aa4c3"
+storage_version_token = "1792524234739068"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "H6k2-_POcqlAwRrBKHAEF"
+uri = "file://.local/reviews/event-dossier-matchday-clean-mobile.jpg"
+type = "image"
+title = "Event Dossier — Phone review"
+description = "Updated phone layout checked for stacking, legible labels, and no horizontal overflow."
+logical_id = "abeb7ccd-d52d-4d0d-bcbe-7826bec1cda4"
+content_hash = "sha256:0c60b6d9c242a278a2cbcb1db2563b78869f9e059bb10742a69db02fdca7fee4"
+size = 99363
+mtime_ms = 1792524201452
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/abeb7ccd-d52d-4d0d-bcbe-7826bec1cda4/68321eee-69a6-4a01-8527-5816b19f06ee"
+storage_version_token = "1792524235195838"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "62wYcKyvB-KNHuFTNJKdJ"
+uri = "file://.local/reviews/club-full-desktop-20261020.jpg"
+type = "image"
+title = "Club — Desktop review"
+description = "Full-page Club redesign with match-night fixture, standings, county pathway, national selection, history and tournament setup."
+logical_id = "0e3bc59f-53a7-4e79-ae4c-d6b63648ef68"
+content_hash = "sha256:49f97928aa8f07b46c13e76d63448d7f1b3a44aa24526e5c6421daefe5eb2374"
+size = 373462
+mtime_ms = 1792524676576
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/0e3bc59f-53a7-4e79-ae4c-d6b63648ef68/c05f28bb-4dba-4449-9fd7-79f7647ae9ac"
+storage_version_token = "1792524703112130"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "-hCZsnqqeHf8TKF2NEnr6"
+uri = "file://.local/reviews/club-full-tablet-20261020.jpg"
+type = "image"
+title = "Club — Tablet review"
+description = "Full Club page checked at tablet width for layout and section fit."
+logical_id = "18b5a054-9193-4044-9ba7-eb01b2f293bf"
+content_hash = "sha256:1548c1aab72805bcdf87076da04a71ce55edbff2d634c54799b4146aad938b3a"
+size = 313268
+mtime_ms = 1792524678916
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/18b5a054-9193-4044-9ba7-eb01b2f293bf/2d4c9b5b-9800-40d1-bd6b-3d5d4ece7e1a"
+storage_version_token = "1792524703582994"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "ubRLtEIyYw4BwL8NEeizH"
+uri = "file://.local/reviews/club-full-mobile-20261020.jpg"
+type = "image"
+title = "Club — Phone review"
+description = "Full Club page checked at phone width for responsive stacking and text fit."
+logical_id = "7c550e20-2504-46dd-a2bf-e7880a52c4d1"
+content_hash = "sha256:f9126016ba40462a9e44416ffdf24c2b66870d7f0f3b4282aa1f2bdda54baf92"
+size = 265690
+mtime_ms = 1792524680812
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/7c550e20-2504-46dd-a2bf-e7880a52c4d1/cb5c8962-0e63-4e6c-9ae1-7e69298b7255"
+storage_version_token = "1792524704074673"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "OUtVgA0VCAjDMSGY0-JGK"
+uri = "file://.local/reviews/club-pc-viewport-20261020.jpg"
+type = "image"
+title = "Club — PC viewport"
+description = "Desktop-sized 1280×900 capture, showing the actual PC layout at normal scale rather than a shrunken full-page image."
+logical_id = "4ef6fde1-dc75-46ec-8428-769c8be7c370"
+content_hash = "sha256:33283d33b4b267007f95272d65a16988ab6539fd8d48436d858e905fdf8a475a"
+size = 78886
+mtime_ms = 1792524842324
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/4ef6fde1-dc75-46ec-8428-769c8be7c370/2b1cd317-ebe7-46f2-bd2c-c192a874b889"
+storage_version_token = "1792524857159739"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "43yaIQxZesJoUPX8qtXs7"
+uri = "file://.local/reviews/club-3d-pc-fixed-20261020.jpg"
+type = "image"
+title = "Club — PC viewport"
+description = "Updated PC view with the crafted metal-and-enamel club crest and sharper dimensional surfaces across the page."
+logical_id = "ef9a10a7-1a81-4ff4-9cb6-ff125c466973"
+content_hash = "sha256:551b2068de9ab3ff7859184a6e5395714e6dc5d013a532bb55e3b4e6ce60c729"
+size = 107264
+mtime_ms = 1792525447867
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/ef9a10a7-1a81-4ff4-9cb6-ff125c466973/049a3c36-fc94-4227-b199-34bfcefeb544"
+storage_version_token = "1792525501823968"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "2OUMqhaPxvvb-XvEk0NLh"
+uri = "file://.local/reviews/club-3d-full-desktop-fixed-20261020.jpg"
+type = "image"
+title = "Club — Full desktop page"
+description = "Full desktop capture of the complete Club page after tightening its composition."
+logical_id = "bb28de1c-b396-4f1d-bbcb-230a0f5dbd1b"
+content_hash = "sha256:cf8bb4876f6c33bebdb3b9dc9819c8a50ba77e1ce881c96ed68836fb6a4b5da7"
+size = 431066
+mtime_ms = 1792525487848
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/bb28de1c-b396-4f1d-bbcb-230a0f5dbd1b/ed82f3d8-0f0b-4a44-be39-ce8c7b1324a7"
+storage_version_token = "1792525502476669"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "p-1hUIjel0y_KoI4Mks5J"
+uri = "file://.local/reviews/club-3d-tablet-20261020.jpg"
+type = "image"
+title = "Club — Tablet page"
+description = "Responsive tablet review of the Club redesign."
+logical_id = "e6de5396-d32b-48c1-8ceb-c1d4213df011"
+content_hash = "sha256:f115a8df9dbedcaf648d11e5f26a46d1d7212754d2d2312ed320386a765703cc"
+size = 360938
+mtime_ms = 1792525119183
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/e6de5396-d32b-48c1-8ceb-c1d4213df011/b6490c82-9c3c-46b7-b66d-e1fdb278af8b"
+storage_version_token = "1792525503104368"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "_-SaCJ1kjuODZo1nBZDm7"
+uri = "file://.local/reviews/club-3d-mobile-fixed-20261020.jpg"
+type = "image"
+title = "Club — Phone page"
+description = "Full phone capture after fixing the ladder and team-night panels to stack cleanly."
+logical_id = "21cfc75a-26b1-4320-a090-18675c5ab4f8"
+content_hash = "sha256:d29f97b019e6256fa8810c339a68d100458e90e8d1bfeda34d24a169c42530a4"
+size = 302857
+mtime_ms = 1792525445987
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/21cfc75a-26b1-4320-a090-18675c5ab4f8/1602a88b-3f78-4d5e-861c-055e7b14df0e"
+storage_version_token = "1792525503536557"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "BHUHh3HyoAl4FauWycSq6"
+uri = "file://.local/reviews/club-crest-signed-review-pc-20261020.jpg"
+type = "image"
+title = "Club crest — PC view"
+description = "Updated Club page at PC size, showing the redesigned Nottinghamshire shield with hooded archer, crossed darts, and target."
+logical_id = "bb6a0dfb-d2f8-46c6-8649-7e377b39b12d"
+content_hash = "sha256:d53b909c8e7f023fa3a58166d2f0f34cb9d3249afd02e87481cb96a34e0d20a8"
+size = 109165
+mtime_ms = 1792526019287
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/bb6a0dfb-d2f8-46c6-8649-7e377b39b12d/f4337e41-2220-441a-8e46-df8354ac2616"
+storage_version_token = "1792526048793370"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "bevyTvKyjEx5Gn1boxxzh"
+uri = "file://.local/reviews/club-crest-signed-review-mobile-20261020.jpg"
+type = "image"
+title = "Club crest — full phone view"
+description = "Full phone capture showing the revised crest fitting cleanly in the hero and the rest of the Club page unchanged."
+logical_id = "f18907ee-18bf-448b-bb5e-9f6d8da81a8a"
+content_hash = "sha256:171261c4a46557dcf51ac84f8ade07047cd5896ab9f5b13bfa7d60e7cabed036"
+size = 304144
+mtime_ms = 1792526021095
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/f18907ee-18bf-448b-bb5e-9f6d8da81a8a/4c6ea6d5-7a4d-4ce7-a25c-941b5b5c4409"
+storage_version_token = "1792526049492132"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "HUSzjQTknu2OkyBGoDm3-"
+uri = "file://.local/reviews/club-complete-crest-pc-20261020.jpg"
+type = "image"
+title = "Club crest — complete PC view"
+description = "The complete vector shield at PC size, with all artwork and lettering inside the outer contour."
+logical_id = "3be34826-7985-40e9-bf8c-08f6b78a3d2c"
+content_hash = "sha256:9af551e3391e1169151611f128a41b521788d4791568e400459463d72d8c8041"
+size = 116499
+mtime_ms = 1792529457794
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/3be34826-7985-40e9-bf8c-08f6b78a3d2c/93cc1c23-2421-4481-a572-e7d6fa398642"
+storage_version_token = "1792529490767686"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "pz7YVEKDDjkV9oGTT5quf"
+uri = "file://.local/reviews/club-complete-crest-mobile-20261020.jpg"
+type = "image"
+title = "Club crest — complete phone view"
+description = "Phone-sized preview showing the entire shield and ribbon fitting inside the crest boundary."
+logical_id = "96175c74-4ff5-4aa1-ab3a-830ef6beb671"
+content_hash = "sha256:540d9e5544be49e15a32ec681d31755faadd695b896fd40e5bc877f07102e152"
+size = 47933
+mtime_ms = 1792529459430
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/96175c74-4ff5-4aa1-ab3a-830ef6beb671/9c6c1311-349f-4eec-9271-4c87becc4f1b"
+storage_version_token = "1792529491234809"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "THjcMNoP97daw_nqJ2or5"
+uri = "file://.local/reviews/club-ribbon-fit-pc-20261020.jpg"
+type = "image"
+title = "Club ribbon — PC fit"
+description = "The full vector crest at PC size; “NOTTS · DARTS CLUB” now sits within its ribbon."
+logical_id = "7cf07838-56c3-4ede-8039-4fab2abbcb82"
+content_hash = "sha256:ae3c74a0b281919379f7609cb0aad9b699f3007a6757d711803c2ab40b766b6f"
+size = 116453
+mtime_ms = 1792529583134
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/7cf07838-56c3-4ede-8039-4fab2abbcb82/b267d918-ef14-4cc3-a720-d8118e182a18"
+storage_version_token = "1792529608292085"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "BAZlx45ubL1w55fe0EdAX"
+uri = "file://.local/reviews/club-ribbon-fit-mobile-20261020.jpg"
+type = "image"
+title = "Club ribbon — phone fit"
+description = "Phone-size crest showing the club ribbon fitted within the shield."
+logical_id = "91bff442-a00f-4c58-9f2e-fc242576f2f9"
+content_hash = "sha256:382ef200d24166fddb8cc7b74d3d321b32a9b76336a57c62d96872cdccd5494f"
+size = 48023
+mtime_ms = 1792529584810
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/91bff442-a00f-4c58-9f2e-fc242576f2f9/d0e08d26-a679-4c53-9e5b-0ab6308e57d2"
+storage_version_token = "1792529608944353"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "9Z0kZJ_AyEanq2pbmXDbJ"
+uri = "file://.local/reviews/club-crest-alignment-pc-20261020.jpg"
+type = "image"
+title = "Club crest — aligned PC view"
+description = "The “THE ROBIN HOOD” plaque and club ribbon are both raised within the shield at PC size."
+logical_id = "8939f2b4-deae-4a67-958a-c8838e4e17f7"
+content_hash = "sha256:bc2a210dd8834924e6001647b18670e5c3510964b0176c2fad4868a3da45fd46"
+size = 116736
+mtime_ms = 1792529730554
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/8939f2b4-deae-4a67-958a-c8838e4e17f7/31a93ab0-cf21-4d1c-94b5-74354ab4b085"
+storage_version_token = "1792529752737847"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "0V5N60oq0SeO4Y81iwPQD"
+uri = "file://.local/reviews/club-crest-alignment-mobile-20261020.jpg"
+type = "image"
+title = "Club crest — aligned phone view"
+description = "Phone-size view of the same crest alignment; all wording remains inside the shield."
+logical_id = "1827b6d3-d93e-4ac5-a034-bfcadcbe5ffc"
+content_hash = "sha256:51476124489dc0dd8f32c65519a33d706db388ecf8639ae9f85c12c69f4ef3aa"
+size = 47931
+mtime_ms = 1792529732182
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/1827b6d3-d93e-4ac5-a034-bfcadcbe5ffc/46095cbe-b4f7-4d81-8937-8db320ced8b3"
+storage_version_token = "1792529753451218"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "fhC3fJe7JLFCvIDcGkmsl"
+uri = "file://.local/reviews/club-crest-spacing-v2-pc-20261020.jpg"
+type = "image"
+title = "Club crest — revised PC view"
+description = "PC view showing the archer lowered clear of the Nottinghamshire header and the bottom lines lifted above the shield point."
+logical_id = "ce5c27bd-e413-41a0-9be9-3b40da99ea97"
+content_hash = "sha256:89aeeadbe2104059d1d76f4574fc6cc5300f0ccf7bb59777892336a61599e2dd"
+size = 115834
+mtime_ms = 1792530032654
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/ce5c27bd-e413-41a0-9be9-3b40da99ea97/aa3bb4e8-3bde-4ac9-bfb2-3f43fc3b2a8a"
+storage_version_token = "1792530065780519"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "-C7JdkDxHPlv6TYQrlCuB"
+uri = "file://.local/reviews/club-crest-spacing-v2-mobile-20261020.jpg"
+type = "image"
+title = "Club crest — revised phone view"
+description = "Phone view confirming the central artwork and lower wording remain separated and fully inside the shield."
+logical_id = "10d3c4e6-ea7a-48d8-97be-33a22b614c71"
+content_hash = "sha256:cbdcf84b39055a1dad51c713c4654332ba15a20c76f92e653f9176e73e3c564c"
+size = 47632
+mtime_ms = 1792530034330
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/10d3c4e6-ea7a-48d8-97be-33a22b614c71/24c17888-8479-46d7-84cd-93f8a8573559"
+storage_version_token = "1792530066328504"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "US9rr8ecZYwt83pkQst8Q"
+uri = "file://artifacts/tkdl/public/career-signoff/road-to-tour-preview.png"
+type = "image"
+title = "Road to the Tour — desktop preview"
+description = "Desktop screenshot of the updated Career page using the fictional Career certification save."
+logical_id = "980cce44-5286-4cfe-a0f2-57c67b18a855"
+content_hash = "sha256:9924d1bc5e6e082008a2da959d1c0f8896c54970f177d0375073e043c646b4b3"
+size = 910384
+mtime_ms = 1792555462909
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/980cce44-5286-4cfe-a0f2-57c67b18a855/37536bc4-ed49-4c00-855c-5bf4cb4cafc1"
+storage_version_token = "1792555472995619"
+content_type = "image/png"
+
+[[outputs]]
+id = "Shd_K4a69VjxZ-mniX-f-"
+uri = "file://artifacts/tkdl/public/career-signoff/mobile-road-to-tour-preview.png"
+type = "image"
+title = "Road to the Tour — phone preview"
+description = "Phone screenshot of the updated Career page using the fictional Career certification save."
+logical_id = "952eca7b-9a7e-4985-a221-362f26870467"
+content_hash = "sha256:8edb2e4f5f83a817e400e56f4bd6b79828588947f0f993f8ffba453dd8fbfe8e"
+size = 322909
+mtime_ms = 1792555462930
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/952eca7b-9a7e-4985-a221-362f26870467/79cf3fdc-c378-464e-8aa3-0b28ae5b042f"
+storage_version_token = "1792555473815743"
+content_type = "image/png"
+
+[[outputs]]
+id = "GgIJP4JYk02_3VtNJ0YJ1"
+uri = "file://artifacts/tkdl/public/career-signoff/road-to-tour-v2-desktop-top.png"
+type = "image"
+title = "Road to the Tour — desktop overview"
+description = "Second-pass desktop preview of the real Career page with the fictional certification save."
+logical_id = "82d8b5ea-9083-4ada-80e0-019a835dd3b0"
+content_hash = "sha256:ebd395eb00a68daa7f89514b30b77f16993a3c8427de64b62826fd64663e05c6"
+size = 1040471
+mtime_ms = 1792556461244
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/82d8b5ea-9083-4ada-80e0-019a835dd3b0/99c97ba7-c80e-4a83-bee6-e596234a77e3"
+storage_version_token = "1792556473112573"
+content_type = "image/png"
+
+[[outputs]]
+id = "oLqkMiB5oKBCoQ6IRBVHg"
+uri = "file://artifacts/tkdl/public/career-signoff/road-to-tour-v2-desktop-routes.png"
+type = "image"
+title = "Road to the Tour — desktop routes"
+description = "Desktop capture of the standings panels and qualification route details."
+logical_id = "52391e1a-83cc-4682-b229-7cb6c8f53467"
+content_hash = "sha256:f27b25319876b7bf4f366251dc2ed27be421ead2d025b63d5792637ad0d9f254"
+size = 690501
+mtime_ms = 1792556461258
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/52391e1a-83cc-4682-b229-7cb6c8f53467/e830f67d-4d96-46e1-8bdd-d1e927133586"
+storage_version_token = "1792556473621099"
+content_type = "image/png"
+
+[[outputs]]
+id = "BOpgZTZfMQRubIKPrVhWp"
+uri = "file://artifacts/tkdl/public/career-signoff/road-to-tour-v2-phone-top.png"
+type = "image"
+title = "Road to the Tour — phone overview"
+description = "Second-pass phone preview of the real Career page."
+logical_id = "750901b4-314c-49f1-8960-55a9aed133b4"
+content_hash = "sha256:2dfed55144f287e97c2fd53f708e7c92d423501687b7b97048790da898490a76"
+size = 322566
+mtime_ms = 1792556461270
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/750901b4-314c-49f1-8960-55a9aed133b4/cce4c397-3ad7-4a26-a2c8-26c4189ad970"
+storage_version_token = "1792556474086011"
+content_type = "image/png"
+
+[[outputs]]
+id = "Hd9WzYqrPT9Uc0e-Z2732"
+uri = "file://artifacts/tkdl/public/career-signoff/road-to-tour-v2-phone-routes.png"
+type = "image"
+title = "Road to the Tour — phone routes"
+description = "Phone capture of the lower qualification route details and standings panels."
+logical_id = "a08dcdad-ab6f-4e68-a551-a67d745517ae"
+content_hash = "sha256:e174210e7043fc34b230ca1b398c46f03c557119cd101a394c4a1f59a7f9f5f0"
+size = 247446
+mtime_ms = 1792556461277
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/a08dcdad-ab6f-4e68-a551-a67d745517ae/38bc0335-6ea6-4397-86e9-309c40604883"
+storage_version_token = "1792556474585405"
+content_type = "image/png"
+
+[[outputs]]
+id = "myerMWs0tbcsWB1mwr6Wt"
+uri = "file://artifacts/tkdl/public/career-signoff/career-header-depth-desktop.png"
+type = "image"
+title = "Career controls — desktop"
+description = "Updated Attention button, Play mode icon and Career navigation medallions in the signed-in Career shell."
+logical_id = "7eb263e8-aef9-4f06-8014-219e0bb5ce7e"
+content_hash = "sha256:28cca126ca37b5a173ed0d24cbbf356fba136c4993e76c117a5f26df6a4104d7"
+size = 1003663
+mtime_ms = 1792557169326
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/7eb263e8-aef9-4f06-8014-219e0bb5ce7e/8fc656f6-a65e-4711-8e4f-d9314c9d4f92"
+storage_version_token = "1792557176774500"
+content_type = "image/png"
+
+[[outputs]]
+id = "2mKZDNbGL44puMrBLneN0"
+uri = "file://artifacts/tkdl/public/career-signoff/career-header-depth-phone.png"
+type = "image"
+title = "Career controls — phone"
+description = "Mobile layout check for the raised Attention and Career navigation icons."
+logical_id = "3e47571d-a370-429a-b4cf-d240fb77349c"
+content_hash = "sha256:b7c2250022c760b50540b6f2655c3690d3c32e2fa7124069bf2b68075957567a"
+size = 320271
+mtime_ms = 1792557169337
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/3e47571d-a370-429a-b4cf-d240fb77349c/65305f71-3970-4a83-8d59-880005c38522"
+storage_version_token = "1792557177240246"
+content_type = "image/png"
+
+[[outputs]]
+id = "ZP1nbibeZw6KCbFE1M2cL"
+uri = "file://artifacts/tkdl/public/career-signoff/my-career-overview-desktop-top.png"
+type = "image"
+title = "My Career Overview — desktop top"
+description = "Raised profile, statistics, career landmarks and quick links in the desktop shell."
+logical_id = "fbf414ad-8b9f-49da-9def-626f848ed38b"
+content_hash = "sha256:e2bce0fa54419b13833b282ee1b5cef033e8a72f34fd2106c95cb15812b9ed72"
+size = 845492
+mtime_ms = 1792562544329
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/fbf414ad-8b9f-49da-9def-626f848ed38b/16e8d629-97c9-45f2-a24c-1b18bc452660"
+storage_version_token = "1792562561335204"
+content_type = "image/png"
+
+[[outputs]]
+id = "cgq_FcKqQ6-fQ0SLqRLgt"
+uri = "file://artifacts/tkdl/public/career-signoff/my-career-overview-desktop-bottom.png"
+type = "image"
+title = "My Career Overview — desktop lower sections"
+description = "Focus and Career standing summaries in the updated desktop layout."
+logical_id = "47c9e192-caa8-432e-9c52-5b561b05e264"
+content_hash = "sha256:1af961ec2ece593ecb75f6d8dfb01b2a1fa491de5c60b3bf337fab20f5471495"
+size = 712916
+mtime_ms = 1792562544346
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/47c9e192-caa8-432e-9c52-5b561b05e264/19743043-4df3-4293-aa04-53a9a02b6a61"
+storage_version_token = "1792562562144843"
+content_type = "image/png"
+
+[[outputs]]
+id = "rfHGqTfhcshHgSZk3P1va"
+uri = "file://artifacts/tkdl/public/career-signoff/my-career-overview-phone-top.png"
+type = "image"
+title = "My Career Overview — phone top"
+description = "Responsive profile and shirt presentation on a phone viewport."
+logical_id = "7a7b1114-8d53-4b7a-9cd8-0a4708a6ffe6"
+content_hash = "sha256:6af3f3593b6f632e547ef8b5fb538ea1cf3cd7a4829d8302fa77ad270ba41572"
+size = 285006
+mtime_ms = 1792562544361
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/7a7b1114-8d53-4b7a-9cd8-0a4708a6ffe6/1cd88acb-d3e1-4bc6-badb-c4f098dbd549"
+storage_version_token = "1792562562934271"
+content_type = "image/png"
+
+[[outputs]]
+id = "9cpp1IxzFuw9yvIETkgzF"
+uri = "file://artifacts/tkdl/public/career-signoff/my-career-overview-phone-bottom.png"
+type = "image"
+title = "My Career Overview — phone lower sections"
+description = "Focus and Career standing at phone size, captured in the nested Career scroll area."
+logical_id = "ffca36ec-d654-44fe-99e2-bb48b0070b02"
+content_hash = "sha256:02d5960b13524fb590f293de89ede6b96e2b1d63cbd92e7e0fed63da8321100d"
+size = 208998
+mtime_ms = 1792562544369
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/ffca36ec-d654-44fe-99e2-bb48b0070b02/6ef3e4ab-fc87-494a-94fc-51e4049797b6"
+storage_version_token = "1792562563674718"
+content_type = "image/png"
+
+[[outputs]]
+id = "vw3KQiPquUtUCD2Wz1osf"
+uri = "file://artifacts/tkdl/public/career-signoff/depth-refinement/desktop-top.png"
+type = "image"
+title = "My Career Overview — desktop"
+description = "Desktop view of the refined Career Overview."
+logical_id = "ac433edc-d05a-4413-b586-d075a3ada587"
+content_hash = "sha256:d0e2f7d4d94986815db4f16324b425a94706b6289c48d968a25119e4a6b52556"
+size = 949938
+mtime_ms = 1792566257833
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/ac433edc-d05a-4413-b586-d075a3ada587/17406190-719d-4a40-b98f-b9ffa2bae920"
+storage_version_token = "1792566285281691"
+content_type = "image/png"
+
+[[outputs]]
+id = "H52RHKnAsUgkikW9NB929"
+uri = "file://artifacts/tkdl/public/career-signoff/depth-refinement/desktop-briefings.png"
+type = "image"
+title = "My Career Overview — focus and standing"
+description = "Desktop view of the Overview's lower sections."
+logical_id = "7ecc25fd-f068-43fd-831d-90aa0ae91492"
+content_hash = "sha256:f06fd65f554d530de5d6b705119cd04fcf317ef02659cfcfc14b179caa7a8b4b"
+size = 864973
+mtime_ms = 1792566258691
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/7ecc25fd-f068-43fd-831d-90aa0ae91492/1d1c07f7-6b8b-439b-937e-eda0ac964903"
+storage_version_token = "1792566286054874"
+content_type = "image/png"
+
+[[outputs]]
+id = "ANuahpxlszbtVB7v81f3x"
+uri = "file://artifacts/tkdl/public/career-signoff/depth-refinement/phone-top.png"
+type = "image"
+title = "My Career Overview — phone"
+description = "Mobile view of the refined Career Overview."
+logical_id = "2001fdd5-056a-46c2-8fd5-5bf63e6a7c95"
+content_hash = "sha256:1a430e1d2c9325677e0503dfeeee9b53551b9d2d73eba97967eb08ce17cc6002"
+size = 298456
+mtime_ms = 1792566264697
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/2001fdd5-056a-46c2-8fd5-5bf63e6a7c95/6288e859-b58a-45ca-8dd0-26b762205889"
+storage_version_token = "1792566286514935"
+content_type = "image/png"
+
+[[outputs]]
+id = "vOFWhvOm0ulVKADLiZnkv"
+uri = "file://artifacts/tkdl/public/career-signoff/depth-refinement/phone-briefings.png"
+type = "image"
+title = "My Career Overview — phone lower sections"
+description = "Mobile view of focus and standing sections."
+logical_id = "0d220a89-d31d-4586-89fd-8d6ea70d2031"
+content_hash = "sha256:8bac7ca6f386822832818957efd3c860794161b4189907d59a03de2f72d86b52"
+size = 240581
+mtime_ms = 1792566265273
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/0d220a89-d31d-4586-89fd-8d6ea70d2031/b4c729b4-67a9-4f43-8f6a-49be862fa6b5"
+storage_version_token = "1792566287012502"
+content_type = "image/png"
+
+[[outputs]]
+id = "aW4kj_mbSgVFoP5LdyM7R"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide/desktop-routes.png"
+type = "image"
+title = "Career Guide — desktop routes"
+description = "Desktop view of the Guide hero and six career pathways."
+logical_id = "03e8db7d-67a1-4e44-b2fd-a141b08d2a5c"
+content_hash = "sha256:0b5a2c8139846001b094fb976e316d5745db8d653a12b0ceb4210278a1057493"
+size = 885469
+mtime_ms = 1792571412884
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/03e8db7d-67a1-4e44-b2fd-a141b08d2a5c/c2f68fd2-495e-4efe-bf4c-efd71c7a991e"
+storage_version_token = "1792571528618110"
+content_type = "image/png"
+
+[[outputs]]
+id = "ZVlFE26Pm4xvMxOnVmz68"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide/desktop-topics.png"
+type = "image"
+title = "Career Guide — guidance and topics"
+description = "Desktop view of guidance settings and the 21 expandable Guide topics."
+logical_id = "c407f144-6ba0-4d2c-9564-8ca2096b57a7"
+content_hash = "sha256:7e8563311cedc37ecd592f46df7a1e9ca33292ede598e077be63c7861e0e0af3"
+size = 639727
+mtime_ms = 1792571414209
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/c407f144-6ba0-4d2c-9564-8ca2096b57a7/e303be15-6103-4ff0-a90f-5056606891c9"
+storage_version_token = "1792571529213690"
+content_type = "image/png"
+
+[[outputs]]
+id = "fKYsGZ86UDo9OFyON1clQ"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide/phone-top.png"
+type = "image"
+title = "Career Guide — phone overview"
+description = "Mobile view of the Guide hero and route introduction."
+logical_id = "14249077-7d9f-4c7d-9a52-ea58d9a34f98"
+content_hash = "sha256:be22093f3c488b3c4b6cbf3d2061fd45ad499c109f8288d088b66d73423a5a1e"
+size = 304824
+mtime_ms = 1792571420664
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/14249077-7d9f-4c7d-9a52-ea58d9a34f98/584968ff-02ec-470a-aae9-0ae3312332a0"
+storage_version_token = "1792571529900172"
+content_type = "image/png"
+
+[[outputs]]
+id = "KVsJndrqRAwUtcKrTKqNy"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide/phone-routes.png"
+type = "image"
+title = "Career Guide — phone pathways"
+description = "Mobile pathway cards with clear depth and readable actions."
+logical_id = "bd0da65b-f1b6-45ad-8721-a4966b872383"
+content_hash = "sha256:91f76463b45f771a326d6eaa7b114f16bec63a7209df92c78560b6fd0ecb9270"
+size = 229181
+mtime_ms = 1792571421140
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/bd0da65b-f1b6-45ad-8721-a4966b872383/8ad6e226-b1f5-49da-bb4e-42a01c128730"
+storage_version_token = "1792571530358325"
+content_type = "image/png"
+
+[[outputs]]
+id = "vcbKQ1Jfhh_Wf0QBh6gft"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide/phone-topic-expanded.png"
+type = "image"
+title = "Career Guide — expanded topic on phone"
+description = "Mobile disclosure state showing full topic copy and the raised controls."
+logical_id = "a0a7aa39-92d8-4002-99eb-ba7ba327d6df"
+content_hash = "sha256:873e5a969f8eb984d5c71a18deeac643ef5a07fe3fecfe0b8812be2b5acca34f"
+size = 215975
+mtime_ms = 1792571499939
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/a0a7aa39-92d8-4002-99eb-ba7ba327d6df/297b1c31-f4a4-4f02-9262-dbcd198f1590"
+storage_version_token = "1792571530981338"
+content_type = "image/png"
+
+[[outputs]]
+id = "gc2kh7hlETZVxdkB_HNV3"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide-depth-pass2/desktop-top.png"
+type = "image"
+title = "Career Guide — refined desktop hero"
+description = "Updated Guide hero and route overview after the added depth pass."
+logical_id = "2bd66b89-2595-4024-8bb0-f271a6454413"
+content_hash = "sha256:f663a17566b82c8a67966862e6e1ed5898ee6af362f5eb5fe6b97c314db18b38"
+size = 980311
+mtime_ms = 1792571822572
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/2bd66b89-2595-4024-8bb0-f271a6454413/336b2a85-2469-48eb-bd26-3d39f2d28f38"
+storage_version_token = "1792571859625869"
+content_type = "image/png"
+
+[[outputs]]
+id = "Y3GNNaVD7HAvhTWeCRuIB"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide-depth-pass2/desktop-routes.png"
+type = "image"
+title = "Career Guide — desktop pathways and guidance"
+description = "Raised route cards and dimensional guidance controls in the desktop layout."
+logical_id = "af688397-e55e-4c5b-9c3e-b1f9f023310a"
+content_hash = "sha256:9efdcacbcce084626dcc1aecd3149f18287a5a813173208b4fd0f65b4586d221"
+size = 707252
+mtime_ms = 1792571823182
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/af688397-e55e-4c5b-9c3e-b1f9f023310a/b45210a6-77de-4ced-9da8-da0bb2ec86a4"
+storage_version_token = "1792571860323934"
+content_type = "image/png"
+
+[[outputs]]
+id = "-d5yQjEv_npFpI5fn8DRD"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide-depth-pass2/phone-routes.png"
+type = "image"
+title = "Career Guide — phone pathways"
+description = "Updated mobile route cards with stronger beveled edges and contact shadows."
+logical_id = "20565ad0-c50a-4477-9057-6a829d575c76"
+content_hash = "sha256:2d573b37f1178623c35c11f3d7fa97d6a9797d103bb505e2aa0caac08c7ddc08"
+size = 228846
+mtime_ms = 1792571830110
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/20565ad0-c50a-4477-9057-6a829d575c76/4b055fb7-3e30-41b2-b4c9-69481ac522fb"
+storage_version_token = "1792571861415968"
+content_type = "image/png"
+
+[[outputs]]
+id = "tIAI3Tbv5fP51mgJBC4nz"
+uri = "file://artifacts/tkdl/public/career-signoff/career-guide-depth-pass2/phone-topic-expanded.png"
+type = "image"
+title = "Career Guide — phone topic detail"
+description = "Expanded guide topic showing readable copy and the revised dimensional controls."
+logical_id = "05f2312a-94f4-41a7-83d2-e5f543ccfac7"
+content_hash = "sha256:b4a83d5929fd93ec23fa082d4730402903ccaded58272320d9f32ca6c7f61cce"
+size = 215829
+mtime_ms = 1792571830862
+storage_uri = "gcs://replit-rams-assets-worf/rams/assets/repl:c393bfd3-22f5-4bce-bf13-9acf6800d288/05f2312a-94f4-41a7-83d2-e5f543ccfac7/ee0479fd-04a4-487c-9d94-72ea1c6ccdda"
+storage_version_token = "1792571861894525"
+content_type = "image/png"

@@ -136,8 +136,11 @@ function SelectedEvent({
         <span className="cc-kicker">EVENT DOSSIER</span>
         <span className="cc-detail-priority">{event.presentation.featured ? "FEATURED STOP" : TIER_STYLES[event.presentation.tier].label}</span>
       </div>
-      <div className="cc-detail-banner" aria-hidden="true"><img src={eventPlate(event).src} alt="" loading="lazy" decoding="async"
-        style={{ objectPosition: `${eventPlate(event).focal.x * 100}% ${eventPlate(event).focal.y * 100}%` }} /></div>
+      <div className="cc-detail-banner"><img src={eventPlate(event).src} alt="" loading="lazy" decoding="async"
+        style={{ objectPosition: `${eventPlate(event).focal.x * 100}% ${eventPlate(event).focal.y * 100}%` }} />
+        <span className="cc-detail-banner__caption"><Trophy size={13} /> SEASON {event.season} · WEEK {String(event.dates.startWeek).padStart(2, "0")}</span>
+        <span className="cc-detail-banner__tier">{TIER_STYLES[event.presentation.tier].label}</span>
+      </div>
       <div className="cc-detail-heading">
         <EventMark event={event} />
         <div><span className="cc-detail-circuit">{eventCircuitLabel(event)}</span><h2>{event.name}</h2></div>
@@ -147,8 +150,8 @@ function SelectedEvent({
         <span>{event.human?.eligible ? "Eligibility checked" : "Event information"}</span>
       </div>
       <div className="cc-detail-locations">
-        <div><span className="cc-detail-icon"><CalendarDays size={15} /></span><span><small>Event window</small><strong>Season {event.season} · {eventDateLabel(event)}</strong></span></div>
-        <div><span className="cc-detail-icon"><MapPin size={15} /></span><span><small>Venue</small><strong>{event.venue.name}</strong><em>{event.venue.city}, {event.venue.region}</em></span></div>
+        <div><span className="cc-detail-icon"><CalendarDays size={15} /></span><span><small>EVENT WINDOW</small><strong>Season {event.season}</strong><em>{eventDateLabel(event)}</em></span></div>
+        <div><span className="cc-detail-icon"><MapPin size={15} /></span><span><small>VENUE · {event.venue.city}</small><strong>{event.venue.name}</strong><em>{event.venue.region}, {event.venue.country}</em></span></div>
       </div>
       {event.presentation.tier === "WORLD" && (
         <div className="cc-world-note"><Trophy size={16} aria-hidden="true" /><span><strong>World Championship pathway</strong>
@@ -156,30 +159,38 @@ function SelectedEvent({
         </span></div>
       )}
       <section className="cc-detail-section">
-        <div className="cc-detail-section-title"><span>ENTRY &amp; FIELD</span><i /></div>
-        <div className="cc-facts-grid">
-          <div><small>Entry window</small><strong>Weeks {event.registration.opensWeek}–{event.registration.closesWeek}</strong></div>
-          <div><small>Field</small><strong>{event.field.entrants ?? "—"} / {event.field.size}</strong><em>entrants / capacity</em></div>
-          {viabilityText(event.viability) && <div><small>Goes ahead?</small><strong>{viabilityText(event.viability)!.label}</strong><em>{viabilityText(event.viability)!.detail}</em></div>}
-          <div><small>Eligibility</small><strong>{event.human?.eligible ? "Eligible" : event.human ? "Not eligible" : "Details unavailable"}</strong></div>
-          <div><small>Entry status</small><strong>{titleCase(String(event.human?.entryStatus ?? event.human?.relationship ?? "Not entered").replaceAll("_", " "))}</strong></div>
+        <div className="cc-detail-section-title"><span>ENTRY POSITION</span><i /></div>
+        <div className="cc-entry-overview">
+          <div className="cc-entry-field"><small>FIELD</small><strong>{event.field.entrants ?? "—"}<i>/</i>{event.field.size}</strong><span>entrants / capacity</span></div>
+          <div className="cc-entry-side">
+            <div><small>ENTRY WINDOW</small><strong>Weeks {event.registration.opensWeek}–{event.registration.closesWeek}</strong></div>
+            <div><small>ELIGIBILITY</small><strong data-eligible={event.human?.eligible || undefined}>{event.human?.eligible ? "Eligible" : event.human ? "Not eligible" : "Details unavailable"}</strong></div>
+            <div><small>YOUR ENTRY</small><strong>{titleCase(String(event.human?.entryStatus ?? event.human?.relationship ?? "Not entered").replaceAll("_", " "))}</strong></div>
+            {viabilityText(event.viability) && <div className="cc-viability"><small>FIELD STATUS</small><strong>{viabilityText(event.viability)!.label}</strong><span>{viabilityText(event.viability)!.detail}</span></div>}
+          </div>
         </div>
       </section>
       <section className="cc-format-card">
         <span className="cc-format-score">{event.format.startingScore ?? "—"}</span>
-        <span><small>TOURNAMENT FORMAT</small><strong>{formatLabel(event.format)}</strong><em>{event.format.scoringUnit === "SETS" ? "Set play" : "Leg play"} · {event.format.days} day{event.format.days === 1 ? "" : "s"}</em></span>
+        <span className="cc-format-copy"><small>TOURNAMENT FORMAT</small><strong>{formatLabel(event.format)}</strong><em>{event.format.scoringUnit === "SETS" ? "Set play" : "Leg play"} · {event.format.days} day{event.format.days === 1 ? "" : "s"}</em></span>
       </section>
       {event.finance && (
         <section className="cc-cost-card">
-          <div className="cc-cost-heading"><span><CircleDollarSign size={15} /> COST OUTLOOK</span><small>ESTIMATES</small></div>
-          <div className="cc-cost-total"><span>Estimated player cost</span><strong>{formatPence(event.finance.estimatedPlayerCostPence)}</strong></div>
-          <div className="cc-cost-lines">
-            <span>Entry fee <b>{formatPence(event.finance.entryFeePence)}</b></span>
-            <span>Travel estimate <b>{formatPence(event.finance.estimatedTravelPence)}</b></span>
-            <span>Accommodation <b>{formatPence(event.finance.estimatedAccommodationPence)}</b></span>
-            <span>Sponsor covers entry <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.entryFeePence)}</b></span>
-            <span>Sponsor covers travel <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.travelPence)}</b></span>
-            <span>Sponsor covers stay <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.accommodationPence)}</b></span>
+          <div className="cc-cost-header">
+            <div className="cc-cost-heading"><span><CircleDollarSign size={15} /> COST OUTLOOK</span><small>ESTIMATES</small></div>
+            <div className="cc-cost-total"><span>Estimated player cost</span><strong>{formatPence(event.finance.estimatedPlayerCostPence)}</strong></div>
+          </div>
+          <div className="cc-cost-detail">
+            <div className="cc-cost-lines">
+              <span>Entry fee <b>{formatPence(event.finance.entryFeePence)}</b></span>
+              <span>Travel estimate <b>{formatPence(event.finance.estimatedTravelPence)}</b></span>
+              <span>Accommodation <b>{formatPence(event.finance.estimatedAccommodationPence)}</b></span>
+            </div>
+            <div className="cc-cost-lines cc-cost-lines--covered">
+              <span>Sponsor covers entry <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.entryFeePence)}</b></span>
+              <span>Sponsor covers travel <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.travelPence)}</b></span>
+              <span>Sponsor covers stay <b className="cc-covered">{formatPence(event.finance.sponsorCoverage.accommodationPence)}</b></span>
+            </div>
           </div>
           {worthIt(event.finance) && <p className="career-worth cc-cost-worth" data-tone={worthIt(event.finance)!.tone}><strong>{worthIt(event.finance)!.label}</strong> <small>{worthIt(event.finance)!.detail}</small></p>}
           <div className="cc-cost-foot"><span>Top prize</span><strong>{event.finance.topPrizePence ? formatPence(event.finance.topPrizePence) : "None"}</strong>
@@ -225,7 +236,7 @@ function CountrySection({ code, events, entered, home, defaultOpen, children }: 
   return (
     <section className="cc-event-group cc-country-group" data-open={open} aria-label={`${info?.name ?? code}: ${events.length} events`}>
       <button type="button" className="cc-country-heading" aria-expanded={open} aria-controls={panel} onClick={() => setOpen(value => !value)}>
-        <span className="cc-country-flag" aria-hidden="true">{info?.flag || <MapPin size={13} />}</span>
+        <span className="cc-country-flag" aria-hidden="true">{code}</span>
         <strong>{info?.name ?? code}</strong>
         {home && <span className="cc-country-tag">Home</span>}
         {entered > 0 && <span className="cc-country-tag cc-country-tag--entered">{entered} entered</span>}
@@ -355,7 +366,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
             <Select label="Circuit" value={circuit} onChange={value => { setCircuit(value); setPage(0); }} options={[["", "All circuits"], ...CIRCUITS.map(value => [value, circuitLabel(value)] as [string, string])]} />
             <Select label="Event level" value={tier} onChange={value => { setTier(value); setPage(0); }} options={[["", "All levels"], ...(Object.keys(TIER_STYLES) as PresentationTier[]).map(value => [value, TIER_STYLES[value].label] as [string, string])]} />
             <Select label="Entry status" value={status} onChange={value => { setStatus(value); setPage(0); }} options={CALENDAR_STATUS_FILTERS.map(filter => [filter.key, filter.label])} />
-            <Select label="Host country" value={hostCountry} onChange={value => { setHostCountry(value); setPage(0); }} options={[["", "All countries"], ...hostCountries.map(code => [code, `${countryInfo(code)?.flag ?? ""} ${countryInfo(code)?.name ?? code}`.trim()] as [string, string])]} />
+            <Select label="Host country" value={hostCountry} onChange={value => { setHostCountry(value); setPage(0); }} options={[["", "All countries"], ...hostCountries.map(code => [code, `${code} · ${countryInfo(code)?.name ?? code}`] as [string, string])]} />
           </div>
         </div>
         {message && <p role="status" className="cc-action-message">{message}</p>}

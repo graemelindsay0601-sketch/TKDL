@@ -14,7 +14,7 @@ export type TourPersona = {
   avg: number;
 };
 
-export const TOUR_PERSONAS: TourPersona[] = [
+const LEGACY_TOUR_PERSONAS: TourPersona[] = [
   { key: "luke_harbours",       name: "Luke Harbours",       nickname: "The World Beater",   flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "World No.1. Clinical. Composed. Unstoppable.",              level: "elite",    avg: 109 },
   { key: "luca_scrawler",       name: "Luca Scrawler",       nickname: "The Nuke",           flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", tagline: "Teenager. Already terrifying.",                            level: "elite",    avg: 107 },
   { key: "mikkel_van_garwin",   name: "Mikkel van Garwin",   nickname: "Green Machine",      flag: "🇳🇱",  tagline: "Three-time world champ. Still averaging 100+.",             level: "elite",    avg: 104 },
@@ -88,6 +88,48 @@ export const TOUR_PERSONAS: TourPersona[] = [
   { key: "piotr_zak",           name: "Piotr Zak",           nickname: "Polish Eagle",       flag: "🇵🇱",  tagline: "Rising from Eastern Europe. Terrifying scoring power.",             level: "elite",    avg: 97  },
   { key: "faye_brennan",        name: "Faye Brennan",        nickname: "Fireworks",          flag: "🇮🇪",  tagline: "She doesn't just win — she dazzles on the way.",                   level: "elite",    avg: 99  },
 ];
+
+const FICTIONAL_PERSONA_IDENTITY: Record<string, Pick<TourPersona, "name" | "nickname" | "tagline">> = {
+  luke_harbours: { name: "Rook Calder", nickname: "Quiet Storm", tagline: "Patient under pressure. Clinical on the finish." },
+  luca_scrawler: { name: "Mara Vale", nickname: "Deadeye", tagline: "Young, fearless, and quick to punish a miss." },
+  mikkel_van_garwin: { name: "Niko Verdan", nickname: "Iron Tempo", tagline: "A relentless pace that never lets up." },
+  bill_tailor: { name: "Gideon Vale", nickname: "The Architect", tagline: "Every visit planned. Every finish deliberate." },
+  geert_van_veen: { name: "Tomas Verner", nickname: "First Strike", tagline: "Fast hands and fearless first darts." },
+  nathan_aspley: { name: "Callum Rook", nickname: "Quickstep", tagline: "Lightning quick with a sharp counter." },
+  perry_wight: { name: "Ezra Fenwick", nickname: "Redline", tagline: "A sharp scorer who thrives on pressure." },
+  gareth_prise: { name: "Rhys Merritt", nickname: "Cold Front", tagline: "Cool-headed when the match gets tight." },
+  josh_stone: { name: "Jory Flint", nickname: "Stonewall", tagline: "Hard to move once the match gets close." },
+  barry_anderson: { name: "Ewan Drummond", nickname: "North Star", tagline: "Steady aim with a stubborn streak." },
+  steve_bunton: { name: "Owen Hales", nickname: "Quickdraw", tagline: "Gritty, passionate, and very good." },
+  danny_hera: { name: "Kade Mercer", nickname: "Afterburn", tagline: "Turns every leg into a late sprint." },
+  ryan_searsley: { name: "Lennox Shaw", nickname: "Heavy Hitter", tagline: "A big scorer with a streaky finish." },
+  dmitri_van_den_berg: { name: "Soren Valk", nickname: "Night Shift", tagline: "Dreams big. Throws bigger." },
+  ronny_clapton: { name: "Finn Carter", nickname: "Slipstream", tagline: "Small, quick, hard to catch." },
+  jono_de_souza: { name: "Marcel Duarte", nickname: "The Tactician", tagline: "Always thinking two visits ahead." },
+  bob_frost: { name: "Eli Ransom", nickname: "Livewire", tagline: "A dangerous scorer who thrives on momentum." },
+  dave_chiselton: { name: "Kit Morrow", nickname: "The Carpenter", tagline: "Builds a finish one dart at a time." },
+  james_blade: { name: "Silas Ward", nickname: "Clockwork", tagline: "Cold. Calculated. Reliable." },
+  simon_whitfield: { name: "Orion Wells", nickname: "The Showman", tagline: "Turns every visit into a moment." },
+  fallon_sherrick: { name: "Tessa Roe", nickname: "Steel Rose", tagline: "A composed finisher with a point to prove." },
+  lisa_ashford: { name: "Nia Calder", nickname: "Bright Spark", tagline: "All heart, all grit." },
+  ned_bankley: { name: "Cormac Bell", nickname: "Old Hands", tagline: "Old-school patience and a tidy setup shot." },
+  andy_hamish: { name: "Rafe Moore", nickname: "The Starter", tagline: "Hits the board. Mostly." },
+  terry_jenkins_jr: { name: "Halley Barker", nickname: "New Leaf", tagline: "Still learning the board, one visit at a time." },
+  jonny_fallows: { name: "Oskar Fell", nickname: "Long Game", tagline: "Patient, precise, and hard to shake." },
+  max_vandermeer: { name: "Bram van Lorne", nickname: "The Metronome", tagline: "A steady rhythm built for long matches." },
+  shane_connolly: { name: "Declan Frost", nickname: "Headwind", tagline: "Fast visits and fearless finishes." },
+  tommy_hammer: { name: "Cal Redd", nickname: "Hammerfall", tagline: "Still growing into a powerful scoring game." },
+  carla_storm: { name: "Vera Sol", nickname: "Tempest", tagline: "A rising talent with a fearless streak." },
+  hiro_nakashima: { name: "Kenji Arai", nickname: "Precision", tagline: "Quiet focus and clean finishing." },
+  piotr_zak: { name: "Janek Wolski", nickname: "White Eagle", tagline: "A patient builder with a sudden burst of scoring." },
+  faye_brennan: { name: "Isla Byrne", nickname: "Fireworks", tagline: "She dazzles when the pressure rises." },
+};
+
+/** Published persona data uses original fictional identities; stable keys preserve saved unlocks. */
+export const TOUR_PERSONAS: TourPersona[] = LEGACY_TOUR_PERSONAS.map(persona => ({
+  ...persona,
+  ...FICTIONAL_PERSONA_IDENTITY[persona.key],
+}));
 
 const DIFFICULTY_LEVELS: Record<string, string[]> = {
   amateur: ["beginner", "amateur"],
