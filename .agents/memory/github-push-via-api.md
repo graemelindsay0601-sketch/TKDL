@@ -14,3 +14,9 @@ If the Git remote rejects authentication but the GitHub integration is connected
 **Why:** Git HTTPS credentials may be unavailable even while the managed GitHub integration can write; a checked tree and fast-forward-only ref update avoid losing concurrent work.
 
 **How to apply:** never ask for or expose credentials to repair a failed push; use the managed connection and stop if the live branch moved or the tree does not match.
+
+For this project, push each fully completed work step to GitHub `main` instead of accumulating completed steps locally. If direct Git push is unavailable, a verified API snapshot commit is acceptable when it includes the complete merged tree.
+
+**Why:** the user wants completed work on `main` promptly so later integration does not accumulate a large local backlog.
+
+**How to apply:** after each completed step, verify the live `main` SHA, validate the complete intended tree, and publish without force-updating the ref.
