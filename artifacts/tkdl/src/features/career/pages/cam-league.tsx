@@ -42,7 +42,7 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
       <div className="cam-atlas__eyebrow"><span><i /> MATCH NIGHT DESK</span><b><Globe2 aria-hidden /> 8 BOARDS <i>·</i> 7 NATIONS <i>·</i> ONE TABLE</b></div>
       <div className="cam-atlas__lead">
         <div className="cam-atlas__intro">
-          <small>THE INTERNATIONAL WEBCAM LEAGUE · {l ? l.name.toUpperCase() : d.division.name.toUpperCase()}</small>
+          <small>THE INTERNATIONAL WEBCAM LEAGUE · {l ? l.name : d.division.name}</small>
           <h1>Every board<br /><em>has a place.</em></h1>
           <p>Seven weeks. Eight home boards. Your next fixture is one throw away from changing the table.</p>
           <div className="cam-atlas__movement"><span><i /> PROMOTION PLACES</span><b>01—02</b><span><i className="down" /> RELEGATION PLACES</span><b>07—08</b></div>
@@ -66,7 +66,7 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
       </div>
       <div className="cam-atlas__stats">
         <div><small>YOUR PLACE</small><b>{player ? ordinal(me + 1) : "—"}</b></div>
-        <div><small>ROUND</small><b>{l ? String(l.round).padStart(2, "0") : "—"} <span>/ 07</span></b></div>
+        <div><small>ROUND</small><b>{l ? `${l.round} of 7` : "—"}</b></div>
         <div><small>POINTS</small><b>{player?.points ?? "—"}</b></div>
         <div><small>SEASON WINDOW</small><b>{l ? `${l.weekStart}—${l.weekEnd}` : `${d.join.startsWeek}—${d.join.endsWeek}`}</b></div>
         <p>First to three legs <i>·</i> 2 points for a win <i>·</i> played from home</p>
@@ -74,10 +74,10 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
     </section>
     {l ? <>
       <section className="cam-atlas__fixture" aria-label={futureWeek ? "Next week's fixture" : "This week's fixture"}>
-        <div className="cam-atlas__week"><small>WEEK</small><b>{String(f?.week ?? d.week).padStart(2, "0")}</b><i>LIVE FIXTURE</i></div>
+        <div className="cam-atlas__week"><small>{futureWeek ? "Next week's match" : "This week's match"}</small><b>{String(f?.week ?? d.week).padStart(2, "0")}</b><i>LIVE FIXTURE</i></div>
         <div className="cam-atlas__contestant"><small>YOUR BOARD · {player ? ordinal(me + 1).toUpperCase() : "—"}</small><b>{player?.name ?? "You"}</b><span>{player?.points ?? 0} PTS · {player?.country || "HOME"}</span></div>
         <div className="cam-atlas__versus">VS</div>
-        <div className="cam-atlas__contestant"><small>OPPONENT · {futureWeek ? "UP NEXT" : "THIS WEEK"}</small><b>{f?.opponent.name ?? "No fixture"}</b><span>{f ? `${f.opponent.country} · AVG ${f.opponent.avg}` : "Season schedule"}</span></div>
+        <div className="cam-atlas__contestant"><small>OPPONENT · {futureWeek ? "UP NEXT" : "THIS WEEK"}</small><b>{f?.opponent.name ?? "No fixture"}</b><span>{f ? `${f.opponent.country} · averages about ${f.opponent.avg}` : "Season schedule"}</span></div>
         <div className="cam-atlas__format"><small>THE FORMAT</small><b>FIRST TO <em>3</em></b><span>2 POINTS FOR A WIN</span></div>
       </section>
       <section className="cam-atlas__booking">
@@ -92,15 +92,15 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
               </button>)}</div>
               <button type="button" className="cam-atlas__book" disabled={book.isPending || pick === null}
                 onClick={() => book.mutate({ fixtureId: f.id, dayOfWeek: pick!, week: d.week }, { onError: fail })}>
-                {book.isPending ? "BOOKING…" : `BOOK IT FOR ${pick ? dayLabel(pick).toUpperCase() : "A NIGHT"}`} <ChevronRight aria-hidden />
+                {book.isPending ? "Booking…" : `Book it for ${pick ? dayLabel(pick) : "a night"}`} <ChevronRight aria-hidden />
               </button>
             </> : !retired && <p className="cam-atlas__note">No free nights remain this week; this match will be forfeited.</p>}
           </> : f.status === "BOOKED" && futureWeek ? <p className="cam-atlas__note">Booked for {dayLabel(f.dayOfWeek!)} in week {d.week}. Playing opens when that week begins.</p>
             : f.status === "BOOKED" ? <>
               <p className="cam-atlas__note">Booked for {dayLabel(f.dayOfWeek!)}. Play on your camera scorer or quick-sim at your level.</p>
               <div className="cam-atlas__actions">
-                <button type="button" className="cam-atlas__book" onClick={() => navigate(`/career/${id}/cam-league/${f.id}`)}><MonitorPlay aria-hidden /> PLAY ON CAMERA</button>
-                <button type="button" className="cam-atlas__sim" disabled={sim.isPending} onClick={() => sim.mutate(f.id, { onError: fail })}>{sim.isPending && <Loader2 className="animate-spin" aria-hidden />} QUICK-SIM IT</button>
+                <button type="button" className="cam-atlas__book" onClick={() => navigate(`/career/${id}/cam-league/${f.id}`)}><MonitorPlay aria-hidden /> Play on camera</button>
+                <button type="button" className="cam-atlas__sim" disabled={sim.isPending} onClick={() => sim.mutate(f.id, { onError: fail })}>{sim.isPending && <Loader2 className="animate-spin" aria-hidden />} Quick-sim it</button>
               </div>
             </> : <p className="cam-atlas__outcome">{f.status === "FORFEIT" ? "FORFEITED" : f.legs && f.legs[0] > f.legs[1] ? "VICTORY" : "FIXTURE COMPLETE"}{f.legs && ` · ${f.legs[0]}–${f.legs[1]}`}{f.source === "SIM" ? " · QUICK-SIM" : ""}</p>}
         </div>
@@ -126,7 +126,7 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
           <div className="cam-atlas__heading"><div><small>03 · YOUR SEASON</small><h2>Road to the final week</h2></div><span>S{String(d.season).padStart(2, "0")} <ChevronRight aria-hidden /> W{l.weekStart}—{l.weekEnd}</span></div>
           <ol>{l.fixtures.map(x => <li key={x.id} className={x.week === d.week ? "is-current" : x.legs ? "is-played" : ""}>
             <i aria-hidden="true" /><small>W{x.week}</small><span><b>{x.opponent.name}</b><em>{x.opponent.country}</em></span>
-            <strong>{x.legs ? `${x.status === "FORFEIT" ? "FORFEIT " : ""}${x.legs[0]}–${x.legs[1]}` : x.status === "BOOKED" ? `BOOKED ${dayLabel(x.dayOfWeek!)}` : x.week === d.week && x.status === "SCHEDULED" ? "THIS WEEK" : "FIXTURE"}</strong>
+            <strong>{x.legs ? `${x.status === "FORFEIT" ? "Forfeit " : ""}${x.legs[0]}-${x.legs[1]}` : x.status === "BOOKED" ? `Booked ${dayLabel(x.dayOfWeek!)}` : x.week === d.week && x.status === "SCHEDULED" ? "This week" : "Fixture"}</strong>
           </li>)}</ol>
         </aside>
       </section>
@@ -137,8 +137,8 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
         {join.isPending ? "ENTERING…" : `JOIN FOR ${formatPence(d.join.feePence)}`} <ChevronRight aria-hidden /></button>
         : <p className="cam-atlas__note">{retired ? "Your career is over." : d.join.why}</p>}
     </section>}
-    {d.history.length > 0 && <section className="cam-atlas__history"><div><Trophy aria-hidden /><span><small>LEAGUE ARCHIVE</small><b>Past seasons</b></span></div>
-      {d.history.map((h, i) => <p key={`${h.season}-${i}`}><b>S{String(h.season).padStart(2, "0")} · {h.name}</b><span>{ordinal(h.position)}{h.prizePence ? ` · ${formatPence(h.prizePence)}` : ""}{h.nextLevel < h.level ? " · PROMOTED" : h.nextLevel > h.level ? " · RELEGATED" : ""}</span></p>)}
+    {d.history.length > 0 && <section className="cam-atlas__history"><div><Trophy aria-hidden /><span><small>LEAGUE ARCHIVE</small><b>Past leagues</b></span></div>
+      {d.history.map((h, i) => <p key={`${h.season}-${i}`}><b>S{String(h.season).padStart(2, "0")} · {h.name}</b><span>{ordinal(h.position)}{h.prizePence ? ` · ${formatPence(h.prizePence)}` : ""}{h.nextLevel < h.level ? " · promoted" : h.nextLevel > h.level ? " · relegated" : ""}</span></p>)}
     </section>}
     <footer className="cam-atlas__footer"><span><i /> TKDL WEBCAM LEAGUE</span><b>YOUR BOARD AT HOME <i>·</i> YOUR SEASON ON THE LINE</b><span>DIVISION {String(d.division.level).padStart(2, "0")}</span></footer>
   </div>;
