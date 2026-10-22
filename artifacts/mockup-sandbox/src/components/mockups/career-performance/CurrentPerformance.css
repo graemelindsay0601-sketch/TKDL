@@ -1,0 +1,43 @@
+.career-trend-intro,.career-trend-note{margin:.15rem 1rem .7rem;color:rgba(235,240,242,.68);font-size:.8rem;line-height:1.5}
+.career-trend-note{margin:.7rem 1rem 0;font-size:.72rem}
+.career-trend-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:.75rem;padding:.25rem .75rem}
+.career-trend-chart{min-width:0;padding:.8rem;border:1px solid rgba(255,255,255,.09);border-radius:.65rem;background:linear-gradient(145deg,rgba(24,35,42,.72),rgba(10,15,20,.78))}
+.career-trend-chart__heading{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:.4rem;margin-bottom:.6rem}
+.career-trend-chart__heading strong{color:#dbeaf0;font:600 .68rem/1.3 ui-monospace,monospace;letter-spacing:.1em}
+.career-trend-chart__heading span{color:#93a6af;font-size:.68rem}
+.career-trend-svg-wrap{width:100%;overflow-x:auto;overflow-y:hidden}
+.career-trend-svg-wrap svg{display:block;width:100%;height:auto;min-height:150px;overflow:visible}
+.career-chart-axis{stroke:rgba(203,219,225,.26);stroke-width:1}
+.career-chart-line{fill:none;stroke:#77c5dc;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.career-chart-point{fill:#e5c66f;stroke:#17232a;stroke-width:3}
+.career-chart-label{fill:#aebbc0;font:12px ui-monospace,monospace}
+.career-chart-value{fill:#f2d984;font:600 12px ui-monospace,monospace}
+.career-result-bars{display:flex;align-items:flex-end;gap:clamp(.25rem,1.3vw,.8rem);height:178px;overflow-x:auto;padding:.3rem .1rem 0}
+.career-result-season{position:relative;display:flex;flex:1 0 38px;flex-direction:column;align-items:center;justify-content:flex-end;gap:.25rem;height:100%;min-width:38px}
+.career-result-count{color:#dce7ea;font:600 .68rem ui-monospace,monospace}
+.career-result-bar{display:flex;align-items:flex-end;width:min(100%,28px);min-height:8px;background:#5a9aab;border-radius:2px 2px 0 0}
+.career-result-bar i{display:block;width:100%;background:#e5c66f;border-radius:2px 2px 0 0}
+.career-result-season small{color:#b6c2c6;font:.67rem ui-monospace,monospace}
+.career-result-season span{max-width:100%;color:#8e9da2;font-size:.58rem;white-space:nowrap}
+.performance-current{display:grid;gap:14px;max-width:1380px;margin:auto}
+.performance-current__mast{display:flex;justify-content:space-between;align-items:center;color:#b6c4d1;font:700 9px "IBM Plex Mono",monospace;letter-spacing:.12em}
+.performance-current__mast i{color:#e8c66a;font-style:normal}.performance-current__mast b{margin-left:9px;color:#f1d17d}
+.performance-current__hero .career-page-hero__stage{min-height:220px;overflow:hidden;background:radial-gradient(ellipse at 74% 35%,#43637d 0,#1a2b3d 36%,#080d16 75%)}
+.performance-current__hero .career-page-hero__stage:before{position:absolute;inset:0;background:linear-gradient(90deg,#05070cea 0%,#05070c94 58%,#05070c14),linear-gradient(0deg,#05070ccf,transparent 80%);content:""}
+.performance-current__hero .career-page-hero__content{min-height:220px}
+.performance-current__hero-art{position:absolute;right:8%;top:50%;display:grid;place-items:center;width:210px;height:210px;border:1px solid #ffffff20;border-radius:50%;color:#ffffff16;transform:translateY(-50%);box-shadow:0 0 0 18px #ffffff05,0 0 0 42px #ffffff03}
+.performance-current__hero-art span{font:800 104px/1 Oswald,sans-serif}.performance-current__hero-art i{position:absolute;right:3px;bottom:16px;color:#e3cb8b;font:700 10px/1.4 "IBM Plex Mono",monospace;letter-spacing:.16em;text-align:right}
+.performance-current__hero .career-page-hero__kicker{--hero-accent:#69b8ec}.performance-current__hero .career-page-hero__title{font-size:clamp(2rem,5vw,3.4rem)}
+.performance-current__trend,.performance-current__record{color:#edf4fc}.performance-current__helper{margin:0;padding:12px 16px;color:#aebdc9;font-size:12px;line-height:1.55}
+.performance-current__stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:0 14px 14px}
+.performance-current__stat{display:grid;gap:4px;min-height:78px;padding:11px;border:1px solid #ffffff12;border-radius:10px;background:linear-gradient(145deg,#1b2a38,#111b28 80%);box-shadow:inset 0 1px #ffffff0b,0 4px 10px #0003}
+.performance-current__stat>span{color:#a9b8c5;font-size:10px;line-height:1.35}.performance-current__stat strong{color:#f5f7fa;font:700 19px/1.1 Oswald,sans-serif;font-variant-numeric:tabular-nums}
+.performance-current__stat small{color:#8293a3;font-size:9px;line-height:1.3}
+.performance-current__stats--playing{grid-template-columns:repeat(4,minmax(0,1fr))}
+.performance-current__disclaimer{margin:0 14px 14px;padding:10px 12px;border-left:2px solid #69b8ec;background:#ffffff06;color:#aebdc9;font-size:10px;line-height:1.55}
+.performance-current__links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.performance-current__links a{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 13px;border:1px solid #ffffff18;border-radius:999px;background:linear-gradient(180deg,#192635,#101923);color:#dae4ee;font-size:11px;font-weight:700;text-decoration:none;box-shadow:inset 0 1px #ffffff11,0 5px 11px #0004}
+.performance-current__links a span{color:#d9bc72}
+.performance-current__footer{display:flex;justify-content:center;gap:7px;padding:9px;color:#8091a0;font:700 8px "IBM Plex Mono",monospace;letter-spacing:.13em}.performance-current__footer i{color:#d9bc72;font-style:normal}
+@media(max-width:780px){.career-trend-grid{grid-template-columns:1fr;padding:0 .55rem}.performance-current__stats{grid-template-columns:repeat(3,minmax(0,1fr))}.performance-current__stats--playing{grid-template-columns:repeat(2,minmax(0,1fr))}.performance-current__links{grid-template-columns:1fr}.performance-current__hero-art{right:3%;width:160px;height:160px}.performance-current__hero-art span{font-size:78px}}
+@media(max-width:480px){.performance-current__mast{align-items:flex-start;gap:8px;font-size:7px}.performance-current__mast b{display:block;margin:4px 0 0}.performance-current__hero .career-page-hero__stage,.performance-current__hero .career-page-hero__content{min-height:180px}.performance-current__hero-art{right:-32px;top:45%;width:132px;height:132px}.performance-current__hero-art span{font-size:63px}.performance-current__hero-art i{right:6px;bottom:8px;font-size:7px}.performance-current__stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:0 10px 10px}.performance-current__stat{min-height:68px;padding:8px}.performance-current__stat strong{font-size:17px}.performance-current__links a{font-size:10px}}

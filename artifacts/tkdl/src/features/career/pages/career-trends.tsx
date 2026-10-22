@@ -4,12 +4,11 @@ import { PLATES } from "../atmosphere";
 import { ordinal } from "../model";
 import type { ShellContext } from "../shell";
 import "./career-trends.css";
+import "./career-performance-live.css";
 
-/** Season-level chart from recorded ranking publications and completed event results. */
-export function CareerPerformanceTrend({ saveId }: { saveId: string }) {
+/** Match-night performance report, populated only from this save's recorded evidence. */
+export function CareerPerformanceTrend({ saveId, season, week, retired = false }: { saveId: string; season: number; week: number; retired?: boolean }) {
   const facts = useCareerFacts(saveId);
-  // The Career API caps one request at 200 snapshots. Season highs are returned
-  // independently of this cap, so 200 keeps this chart complete without a 400.
   const ranking = useRankingHistory(saveId, "pro-world", "HUMAN", 200);
   const seasonMap = new Map<number, { season: number; events: number; titles: number }>();
   for (const result of facts.data?.results ?? []) {
@@ -23,46 +22,75 @@ export function CareerPerformanceTrend({ saveId }: { saveId: string }) {
   const ranks = highs.map(x => x.best);
   const minRank = ranks.length ? Math.min(...ranks) : 1;
   const maxRank = ranks.length ? Math.max(...ranks) : 1;
-  const chartWidth = Math.max(800, 108 + Math.max(highs.length - 1, 0) * 90);
-  const plotWidth = chartWidth - 108;
   const points = highs.map((x, i) => ({
-    x: 54 + i * (plotWidth / Math.max(highs.length - 1, 1)),
-    y: maxRank === minRank ? 103 : 164 - ((x.best - minRank) / (maxRank - minRank)) * 108,
+    x: 40 + i * (620 / Math.max(highs.length - 1, 1)),
+    y: maxRank === minRank ? 104 : 42 + ((x.best - minRank) / (maxRank - minRank)) * 112,
     season: x.season, rank: x.best,
   }));
-  const line = points.map(p => `${p.x},${p.y}`).join(" ");
+  const stats = facts.data?.statistics;
+  const performance = facts.data?.performance;
   const maxEvents = Math.max(...results.map(x => x.events), 1);
   const loading = facts.isLoading || ranking.isLoading;
-  return <CareerSection title="Performance over time" accent="#69b8ec">
-    <p className="career-trend-intro">Published World Ranking highs and completed event results, season by season. Only recorded values are plotted.</p>
-    {loading && <CareerLoading label="Loading season evidence" />}
-    {facts.error && <CareerError error={facts.error} onRetry={() => facts.refetch()} />}
-    {ranking.error && <CareerError error={ranking.error} onRetry={() => ranking.refetch()} />}
-    {!loading && !facts.error && !ranking.error && <div className="career-trend-grid">
-      <section className="career-trend-chart" aria-label="World Ranking season highs">
-        <div className="career-trend-chart__heading"><strong>WORLD RANKING HIGH</strong><span>Lower position is better</span></div>
-        {highs.length ? <div className="career-trend-svg-wrap"><svg viewBox={`0 0 ${chartWidth} 220`} style={{ minWidth: highs.length > 8 ? `${chartWidth}px` : undefined }} role="img" aria-label={`World Ranking season highs: ${highs.map(s => `season ${s.season}, ${ordinal(s.best)}`).join("; ")}`}>
-          <line x1="48" y1="164" x2={chartWidth - 30} y2="164" className="career-chart-axis" /><line x1="48" y1="42" x2="48" y2="164" className="career-chart-axis" />
-          <text x="4" y="50" className="career-chart-label">{ordinal(minRank)}</text><text x="4" y="163" className="career-chart-label">{ordinal(maxRank)}</text>
-          {points.length > 1 && <polyline points={line} className="career-chart-line" />}
-          {points.map(p => <g key={p.season}><circle cx={p.x} cy={p.y} r="5" className="career-chart-point" />
-            <text x={p.x} y="191" textAnchor="middle" className="career-chart-label">S{p.season}</text>
-            <text x={p.x} y={p.y - 12} textAnchor="middle" className="career-chart-value">{ordinal(p.rank)}</text></g>)}
-        </svg></div> : <CareerEmptyState title="No World Ranking history yet">Published ranking snapshots appear here once recorded for this Career.</CareerEmptyState>}
-      </section>
-      <section className="career-trend-chart" aria-label="Completed event results by season">
-        <div className="career-trend-chart__heading"><strong>COMPLETED EVENT RESULTS</strong><span>Gold marks titles</span></div>
-        {results.length ? <div className="career-result-bars">{results.map(row => <div className="career-result-season" key={row.season}
-          aria-label={`Season ${row.season}: ${row.events} completed events, ${row.titles} titles`}>
-          <div className="career-result-count">{row.events}</div>
-          <div className="career-result-bar" style={{ height: `${Math.max(8, row.events / maxEvents * 100)}%` }}>
-            <i style={{ height: `${row.events ? row.titles / row.events * 100 : 0}%` }} />
-          </div><small>S{row.season}</small><span>{row.titles} title{row.titles === 1 ? "" : "s"}</span>
-        </div>)}</div> : <CareerEmptyState title="No completed event results yet">Completed event results will appear here as your campaign advances.</CareerEmptyState>}
-      </section>
-    </div>}
-    <p className="career-trend-note">Ranking marks show recorded season highs. Results count completed event records only; no gaps are filled and no values are estimated.</p>
-  </CareerSection>;
+  if (loading) return <div className="pdc-card"><CareerLoading label="Loading your performance record" /></div>;
+  if (facts.error) return <CareerError error={facts.error} onRetry={() => facts.refetch()} />;
+  if (ranking.error) return <CareerError error={ranking.error} onRetry={() => ranking.refetch()} />;
+  if (!facts.data || !stats || !performance) return <CareerEmptyState title="Performance data is not available yet" />;
+  const bestFinish = stats.bestFinish;
+  const bestLabel = bestFinish ? (bestFinish.position === 1 ? "Champion" : ordinal(bestFinish.position)) : "—";
+  const cards = [
+    ["MATCHES", stats.matchesPlayed, "recorded matches"],
+    ["WIN RATE", stats.winPercentage == null ? "—" : `${stats.winPercentage}%`, `${stats.wins} wins · ${stats.losses} defeats`],
+    ["EVENTS", stats.eventsEntered, `${stats.titles} titles won`],
+    ["WORLD HIGH", ranking.data?.careerHigh ? ordinal(ranking.data.careerHigh.position) : "—", "published ranking"],
+  ] as const;
+  const figures = [
+    ["3-dart average", performance.threeDartAverage == null ? "—" : performance.threeDartAverage.toFixed(1)],
+    ["Highest checkout", performance.highestCheckout ?? "—"],
+    ["180s", performance.maximums ?? "—"],
+    ["140+ visits", performance.visits140Plus ?? "—"],
+    ["100+ visits", performance.visits100Plus ?? "—"],
+    ["Highest visit", performance.highestVisit ?? "—"],
+    ["Checkouts completed", performance.checkoutsCompleted ?? "—"],
+    ["Darts recorded", performance.darts ?? "—"],
+  ];
+  return <main className="cp-live">
+    <header className="cp-live-hero" style={{ backgroundImage: "linear-gradient(90deg,rgba(5,7,11,.96) 3%,rgba(5,7,11,.72) 55%,rgba(5,7,11,.18)),url('/assets/career-performance-stage.jpg')" }}>
+      <div className="cp-live-top"><span>TKDL <i /> MY CAREER</span><span className="cp-live-season">{retired ? "CAREER COMPLETE" : "ACTIVE CAREER"} <b>S{season} · W{week}</b></span></div>
+      <div className="cp-live-title"><span className="cp-live-kicker">MATCH NIGHT · PERFORMANCE REPORT</span><h1>Your game,<br/><em>in the numbers.</em></h1>
+        <p>Every completed match, event and ranking in your Career, recorded from the oche.</p></div>
+      <div className="cp-live-stats">{cards.map(([label,value,note]) => <div key={label}><small>{label}</small><strong>{value}</strong><span>{note}</span></div>)}</div>
+    </header>
+    <nav className="cp-live-nav" aria-label="Performance report sections"><a href="#cp-seasons">01 <span>Season evidence</span></a><a href="#cp-record">02 <span>Career record</span></a><a href="#cp-playing">03 <span>Playing statistics</span></a></nav>
+    <section className="cp-live-section" id="cp-seasons">
+      <div className="cp-live-section-heading"><div><span>01 / THE CAMPAIGN</span><h2>Season by season</h2></div><p>Only completed results and published ranking records are shown.</p></div>
+      <div className="cp-live-charts">
+        <article className="cp-live-card cp-live-rank"><div className="cp-live-card-head"><span>WORLD RANKING</span><b>SEASON HIGH · LOWER IS BETTER</b></div>
+          {highs.length ? <svg viewBox="0 0 700 210" role="img" aria-label={`Career World Ranking season highs: ${highs.map(x => `season ${x.season}, ${ordinal(x.best)}`).join("; ")}`}>
+            <defs><linearGradient id="cpRankLine" x1="0" x2="1"><stop stopColor="#f1c96c"/><stop offset="1" stopColor="#e45b68"/></linearGradient></defs>
+            <line x1="30" y1="170" x2="670" y2="170" className="cp-gridline"/>
+            {points.length > 1 && <polyline points={points.map(p => `${p.x},${p.y}`).join(" ")} className="cp-rank-line"/>}
+            {points.map(p => <g key={p.season}><circle cx={p.x} cy={p.y} r="6" className="cp-rank-dot"/><text x={p.x} y={p.y-14} className="cp-value" textAnchor="middle">{ordinal(p.rank)}</text><text x={p.x} y="194" className="cp-axis" textAnchor="middle">S{p.season}</text></g>)}
+          </svg> : <p className="cp-live-empty">No published ranking history recorded yet.</p>}
+        </article>
+        <article className="cp-live-card"><div className="cp-live-card-head"><span>EVENT RESULTS</span><b>GOLD MARKS TITLES</b></div>
+          {results.length ? <div className="cp-bars">{results.map(row => <div className="cp-bar-col" key={row.season} aria-label={`Season ${row.season}: ${row.events} results, ${row.titles} titles`}>
+            <strong>{row.events}</strong><div className="cp-bar" style={{height:`${Math.max(10,row.events/maxEvents*100)}%`}}><i style={{height:`${row.events?row.titles/row.events*100:0}%`}}/></div><small>S{row.season}</small><span>{row.titles} titles</span></div>)}</div> : <p className="cp-live-empty">Completed event results will appear here as your Career progresses.</p>}
+        </article>
+      </div>
+    </section>
+    <section className="cp-live-section cp-live-record" id="cp-record">
+      <div className="cp-live-section-heading"><div><span>02 / CAREER RECORD</span><h2>Built match by match</h2></div><span className="cp-live-seal">OFFICIAL<br/>CAREER RECORD</span></div>
+      <div className="cp-live-record-grid">
+        <article className="cp-live-card cp-live-best"><span>BEST EVENT FINISH</span><strong>{bestLabel}</strong><b>{bestFinish?.name ?? "No event result recorded"}</b><small>{bestFinish ? `Season ${bestFinish.season} · ${bestFinish.country}` : "Your first result will appear here."}</small></article>
+        <article className="cp-live-card cp-live-milestones"><div><small>RUNNERS-UP</small><strong>{stats.runnersUp}</strong></div><div><small>SEMI-FINALS</small><strong>{stats.semiFinals}</strong></div><div><small>QUARTER-FINALS</small><strong>{stats.quarterFinals}</strong></div><div><small>CURRENT WIN STREAK</small><strong>{stats.currentWinningStreak ?? "—"}</strong></div><div><small>LONGEST WIN STREAK</small><strong>{stats.longestWinningStreak ?? "—"}</strong></div><div><small>SEASONS WITH PLAY</small><strong>{stats.seasonsPlayed}</strong></div></article>
+      </div>
+    </section>
+    <section className="cp-live-section cp-live-playing" id="cp-playing">
+      <div className="cp-live-section-heading"><div><span>03 / SCORING EVIDENCE</span><h2>The game behind the results</h2></div><p>{performance.recordedMatches} matches with recorded darts · {performance.unavailableMatches} without dart-level data</p></div>
+      <div className="cp-live-figures">{figures.map(([label,value],i)=><article className={`cp-live-figure cp-tone-${i%3}`} key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
+      <p className="cp-live-footnote">A missing figure means the scorer did not record that evidence. Checkout attempts are not currently available; no values are estimated.</p>
+    </section>
+  </main>;
 }
 
 /** Milestone eras use the venue plates already used by Career broadcast backdrops. */
