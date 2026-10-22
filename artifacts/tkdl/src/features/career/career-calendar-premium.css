@@ -781,3 +781,301 @@
   .cc-root .cc-detail-banner { border-radius: 12px; }
   .cc-root .cc-detail-actions .cc-button--primary { border-radius: 999px; }
 }
+
+/* Approved Calendar tour-atlas direction: onyx, TKDL red and bright gold. */
+.career-calendar-page.cc-root {
+  --cc-ink: #f5f2eb;
+  --cc-muted: #c0c0c5;
+  --cc-faint: #909199;
+  --cc-line: rgba(240, 225, 187, .16);
+  --cc-panel: #08090c;
+  --cc-raised: #111217;
+  --cc-red: #ef233c;
+  --cc-gold: #edc455;
+  --cc-green: #79d2a6;
+  color: var(--cc-ink);
+  font-family: Manrope, Inter, sans-serif;
+}
+.career-calendar-page.cc-root .cc-hero {
+  border-color: rgba(237, 196, 85, .48);
+  background-color: #07080b;
+  box-shadow: 0 25px 46px rgba(0,0,0,.42), 0 2px 0 rgba(255,255,255,.08),
+    inset 0 1px rgba(255,255,255,.13), inset 0 -3px rgba(0,0,0,.58);
+}
+.career-calendar-page.cc-root .cc-hero--stage .cc-hero-stage .ca-scrim {
+  background: linear-gradient(90deg, #050507f5 0%, #050507e8 43%, #050507b8 72%, #05050782 100%),
+    linear-gradient(0deg, #050507d9, transparent 70%);
+}
+.career-calendar-page.cc-root .cc-hero--stage::after {
+  background: linear-gradient(90deg, #ef233c, #edc455 38%, rgba(237,196,85,.22) 72%, transparent);
+  box-shadow: 0 2px 14px rgba(239,35,60,.38);
+}
+.career-calendar-page.cc-root .cc-hero h2,
+.career-calendar-page.cc-root .cc-rhythm-heading h3,
+.career-calendar-page.cc-root .cc-agenda-header h3,
+.career-calendar-page.cc-root .cc-detail-heading h2,
+.career-calendar-page.cc-root .cc-country-heading strong,
+.career-calendar-page.cc-root .cc-event-week strong,
+.career-calendar-page.cc-root .cc-format-score,
+.career-calendar-page.cc-root .cc-entry-field strong,
+.career-calendar-page.cc-root .cc-cost-total strong {
+  font-family: "Bodoni Moda", "Source Serif 4", Georgia, serif;
+  font-weight: 600;
+}
+.career-calendar-page.cc-root .cc-hero h2 {
+  color: #f8f5ee;
+  font-size: clamp(36px, 4.45vw, 56px);
+  line-height: 1.02;
+  letter-spacing: -.035em;
+}
+.career-calendar-page.cc-root .cc-hero h2 em { color: var(--cc-gold); }
+.career-calendar-page.cc-root .cc-eyebrow,
+.career-calendar-page.cc-root .cc-kicker { color: #d5c78f; }
+.career-calendar-page.cc-root .cc-hero-copy > p,
+.career-calendar-page.cc-root .cc-detail-summary { color: #d2d0cb; }
+.career-calendar-page.cc-root .cc-season-tag {
+  border-color: rgba(239,35,60,.48);
+  background: rgba(239,35,60,.16);
+  color: #ffb0b8;
+}
+.career-calendar-page.cc-root .cc-week-tag {
+  border-color: rgba(255,255,255,.17);
+  background: rgba(0,0,0,.38);
+  color: #dedde0;
+}
+.career-calendar-page.cc-root .cc-week-tag i { background: #edc455; box-shadow: 0 0 9px rgba(237,196,85,.38); }
+.career-calendar-page.cc-root .cc-hero-progress,
+.career-calendar-page.cc-root .cc-hero-balance {
+  border-color: rgba(237,196,85,.35);
+  background: linear-gradient(145deg, #17171b, #08090c 78%);
+}
+.career-calendar-page.cc-root .cc-hero-progress { border-left-color: rgba(237,196,85,.35); }
+.career-calendar-page.cc-root .cc-progress-label,
+.career-calendar-page.cc-root .cc-hero-balance > span:nth-child(2) { color: #c8c3b5; }
+.career-calendar-page.cc-root .cc-progress-label strong,
+.career-calendar-page.cc-root .cc-hero-balance strong { color: var(--cc-gold); font-family: "Bodoni Moda", "Source Serif 4", Georgia, serif; }
+.career-calendar-page.cc-root .cc-progress-label small,
+.career-calendar-page.cc-root .cc-progress-foot,
+.career-calendar-page.cc-root .cc-hero-balance small { color: #aaa9aa; }
+.career-calendar-page.cc-root .cc-balance-icon { color: var(--cc-gold); }
+.career-calendar-page.cc-root .cc-hero-progress [aria-label^="Season progress"] > div { background: #050507; }
+.career-calendar-page.cc-root .cc-controls,
+.career-calendar-page.cc-root .cc-rhythm,
+.career-calendar-page.cc-root .cc-agenda,
+.career-calendar-page.cc-root .cc-detail {
+  border-color: rgba(255,255,255,.13);
+  background: linear-gradient(145deg, #17181d 0%, #0d0e12 62%, #08090c 100%);
+  box-shadow: 0 20px 38px rgba(0,0,0,.42), 0 2px 0 rgba(255,255,255,.055),
+    inset 0 1px rgba(255,255,255,.09), inset 0 -2px rgba(0,0,0,.48);
+}
+.career-calendar-page.cc-root .cc-detail {
+  border-color: rgba(237,196,85,.43);
+  background: radial-gradient(ellipse at 90% 0, rgba(237,196,85,.08), transparent 34%),
+    linear-gradient(155deg, #17181c, #0b0c10 58%, #08090c);
+}
+.career-calendar-page.cc-root .cc-detail[data-tier="world"] { border-color: rgba(237,196,85,.7); }
+.career-calendar-page.cc-root .cc-control-icon,
+.career-calendar-page.cc-root .cc-balance-icon {
+  border-color: rgba(239,35,60,.4);
+  background: linear-gradient(145deg, #4a1820, #171014);
+  color: #ff727d;
+}
+.career-calendar-page.cc-root .tkdl-tab-rail {
+  border-color: rgba(255,255,255,.14);
+  background: #08090c;
+}
+.career-calendar-page.cc-root .career-chip { color: #c5c4c4; }
+.career-calendar-page.cc-root .career-chip[data-active="true"] {
+  background: linear-gradient(180deg, #ff4354, #bd152d) !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.3), inset 0 -2px rgba(80,6,16,.55),
+    0 5px 14px rgba(190,18,42,.32) !important;
+}
+.career-calendar-page.cc-root .cc-season-select,
+.career-calendar-page.cc-root .cc-filter { color: #c9c6bd; }
+.career-calendar-page.cc-root .cc-season-select select,
+.career-calendar-page.cc-root .cc-filter select {
+  border-color: rgba(255,255,255,.17);
+  background: linear-gradient(180deg, #191a1f, #090a0d);
+  color: #f1eee7;
+}
+.career-calendar-page.cc-root .cc-season-select select option,
+.career-calendar-page.cc-root .cc-filter select option { background: #0a0b0e; color: #f1eee7; }
+.career-calendar-page.cc-root .cc-filters {
+  border-top-color: rgba(255,255,255,.11);
+  background: linear-gradient(90deg, rgba(0,0,0,.35), rgba(239,35,60,.035));
+}
+.career-calendar-page.cc-root .cc-filter-title { color: #d3c58e; }
+.career-calendar-page.cc-root .cc-filter-title button,
+.career-calendar-page.cc-root .cc-link-button { color: #ff7782; }
+.career-calendar-page.cc-root .cc-rhythm-heading h3,
+.career-calendar-page.cc-root .cc-agenda-header h3 { color: #f7f3e9; }
+.career-calendar-page.cc-root .cc-rhythm-heading > span,
+.career-calendar-page.cc-root .cc-rhythm-key,
+.career-calendar-page.cc-root .cc-window-label { color: #b0afb2; }
+.career-calendar-page.cc-root .cc-rhythm-group {
+  border-color: #ef233c;
+  background: linear-gradient(105deg, rgba(239,35,60,.2), rgba(255,255,255,.025));
+}
+.career-calendar-page.cc-root .cc-rhythm-group:nth-child(3n + 2) {
+  border-color: #edc455;
+  background: linear-gradient(105deg, rgba(237,196,85,.18), rgba(255,255,255,.025));
+}
+.career-calendar-page.cc-root .cc-rhythm-group:nth-child(3n) {
+  border-color: #c74751;
+  background: linear-gradient(105deg, rgba(199,71,81,.18), rgba(255,255,255,.025));
+}
+.career-calendar-page.cc-root .cc-rhythm-group strong { color: #f0ede5; }
+.career-calendar-page.cc-root .cc-rhythm-group small { color: #b4b1aa; }
+.career-calendar-page.cc-root .cc-week-rail > span.has-event,
+.career-calendar-page.cc-root .cc-rhythm-key i { background: var(--cc-gold); }
+.career-calendar-page.cc-root .cc-week-rail > span.is-current,
+.career-calendar-page.cc-root .cc-rhythm-key i.is-current { background: var(--cc-red); }
+.career-calendar-page.cc-root .cc-agenda-header {
+  border-bottom-color: rgba(255,255,255,.13);
+  background: linear-gradient(100deg, rgba(239,35,60,.14), rgba(13,14,18,.94) 65%);
+}
+.career-calendar-page.cc-root .cc-agenda-header h3 span { color: var(--cc-gold); }
+.career-calendar-page.cc-root .cc-week-controls button {
+  border-color: rgba(237,196,85,.22);
+  background: #090a0d;
+  color: #dedbd3;
+}
+.career-calendar-page.cc-root .cc-week-controls button:hover:not(:disabled) { border-color: var(--cc-red); color: #ff9ca5; }
+.career-calendar-page.cc-root .cc-country-heading,
+.career-calendar-page.cc-root .cc-group-heading {
+  background: linear-gradient(90deg, rgba(237,196,85,.12), rgba(239,35,60,.045) 58%, transparent);
+}
+.career-calendar-page.cc-root .cc-country-heading strong { color: #f4d77f; }
+.career-calendar-page.cc-root .cc-country-flag,
+.career-calendar-page.cc-root .cc-country-tag {
+  border-color: rgba(237,196,85,.42);
+  background: rgba(237,196,85,.1);
+  color: #f2d888;
+}
+.career-calendar-page.cc-root .cc-country-tag--entered {
+  border-color: rgba(239,35,60,.48);
+  background: rgba(239,35,60,.1);
+  color: #ffadb3;
+}
+.career-calendar-page.cc-root .cc-country-heading small,
+.career-calendar-page.cc-root .cc-group-heading small { color: #b1b0b3; }
+.career-calendar-page.cc-root .cc-country-heading > i,
+.career-calendar-page.cc-root .cc-group-heading > i { background: rgba(255,255,255,.16); }
+.career-calendar-page.cc-root .cc-country-heading:hover {
+  background: linear-gradient(90deg, rgba(239,35,60,.16), rgba(237,196,85,.07) 70%, transparent);
+}
+.career-calendar-page.cc-root .cc-event-row {
+  border-color: rgba(255,255,255,.09);
+  background: linear-gradient(100deg, #15161a, #0b0c10);
+  box-shadow: 0 7px 15px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.06);
+}
+.career-calendar-page.cc-root .cc-event-row[data-selected="true"] {
+  border-color: rgba(239,35,60,.58);
+  background: linear-gradient(100deg, rgba(239,35,60,.2), #131419 76%);
+  box-shadow: inset 4px 0 var(--cc-red), 0 11px 20px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.12);
+}
+.career-calendar-page.cc-root .cc-event-row[data-tier="world"] { --cc-event-accent: #edc455; }
+.career-calendar-page.cc-root .cc-event-row[data-tier="major"] { --cc-event-accent: #ef4351; }
+.career-calendar-page.cc-root .cc-event-row[data-tier="featured"] { --cc-event-accent: #e5c56e; }
+.career-calendar-page.cc-root .cc-event-week strong { color: #f1d073; }
+.career-calendar-page.cc-root .cc-event-mark--venue { border-color: rgba(237,196,85,.43); }
+.career-calendar-page.cc-root .cc-event-copy > strong { color: #f1eee8; }
+.career-calendar-page.cc-root .cc-event-copy > span,
+.career-calendar-page.cc-root .cc-event-status > small { color: #b5b4b7; }
+.career-calendar-page.cc-root .cc-status { color: #e1ded8; }
+.career-calendar-page.cc-root .cc-status--success {
+  border-color: rgba(121,210,166,.35);
+  background: rgba(121,210,166,.1);
+  color: #a7e6c5;
+}
+.career-calendar-page.cc-root .cc-button--primary {
+  background: linear-gradient(180deg, #ff4354, #bd152d);
+  box-shadow: inset 0 1px rgba(255,255,255,.3), inset 0 -2px rgba(80,6,16,.5),
+    0 5px 13px rgba(190,18,42,.28);
+}
+.career-calendar-page.cc-root .cc-button--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ff5a68, #d21833);
+}
+.career-calendar-page.cc-root .cc-action-unavailable { color: #bab8b5; }
+.career-calendar-page.cc-root .cc-detail-top {
+  border-bottom-color: rgba(255,255,255,.13);
+  background: linear-gradient(90deg, rgba(237,196,85,.1), transparent);
+}
+.career-calendar-page.cc-root .cc-detail-top .cc-kicker,
+.career-calendar-page.cc-root .cc-detail-priority,
+.career-calendar-page.cc-root .cc-detail-circuit,
+.career-calendar-page.cc-root .cc-detail-section-title,
+.career-calendar-page.cc-root .cc-cost-heading { color: #f1d47c; }
+.career-calendar-page.cc-root .cc-detail-priority {
+  border-color: rgba(237,196,85,.42);
+  background: rgba(237,196,85,.08);
+}
+.career-calendar-page.cc-root .cc-detail-banner {
+  border-color: rgba(237,196,85,.48);
+  background: #07080b;
+}
+.career-calendar-page.cc-root .cc-detail-banner::before {
+  background: linear-gradient(90deg, #050507d9, transparent 74%), linear-gradient(0deg, #050507f2 0%, transparent 68%);
+}
+.career-calendar-page.cc-root .cc-detail-banner::after { border-color: rgba(237,196,85,.28); }
+.career-calendar-page.cc-root .cc-detail-banner__caption,
+.career-calendar-page.cc-root .cc-detail-banner__tier { font-family: Manrope, Inter, sans-serif; }
+.career-calendar-page.cc-root .cc-detail-banner__caption svg,
+.career-calendar-page.cc-root .cc-detail-icon,
+.career-calendar-page.cc-root .cc-format-score { color: var(--cc-gold); }
+.career-calendar-page.cc-root .cc-detail-status,
+.career-calendar-page.cc-root .cc-detail-locations > div,
+.career-calendar-page.cc-root .cc-facts-grid > div {
+  border-color: rgba(255,255,255,.12);
+  background: linear-gradient(145deg, rgba(255,255,255,.045), rgba(0,0,0,.24));
+}
+.career-calendar-page.cc-root .cc-detail-status > span:last-child,
+.career-calendar-page.cc-root .cc-detail-locations small,
+.career-calendar-page.cc-root .cc-entry-field > small,
+.career-calendar-page.cc-root .cc-entry-side small,
+.career-calendar-page.cc-root .cc-cost-lines,
+.career-calendar-page.cc-root .cc-cost-foot span { color: #b7b5b1; }
+.career-calendar-page.cc-root .cc-detail-locations strong,
+.career-calendar-page.cc-root .cc-facts-grid strong,
+.career-calendar-page.cc-root .cc-entry-side strong,
+.career-calendar-page.cc-root .cc-cost-lines b,
+.career-calendar-page.cc-root .cc-cost-foot strong { color: #f0ede6; }
+.career-calendar-page.cc-root .cc-detail-icon {
+  border-color: rgba(237,196,85,.3);
+  background: rgba(237,196,85,.08);
+}
+.career-calendar-page.cc-root .cc-world-note,
+.career-calendar-page.cc-root .cc-info-note {
+  border-color: rgba(237,196,85,.27);
+  background: rgba(237,196,85,.07);
+  color: #f1d47c;
+}
+.career-calendar-page.cc-root .cc-format-card,
+.career-calendar-page.cc-root .cc-entry-field,
+.career-calendar-page.cc-root .cc-cost-card {
+  border-color: rgba(237,196,85,.3);
+  background: linear-gradient(145deg, rgba(237,196,85,.1), #0a0b0f 72%);
+}
+.career-calendar-page.cc-root .cc-cost-header { background: linear-gradient(110deg, rgba(237,196,85,.12), #101115); }
+.career-calendar-page.cc-root .cc-cost-heading svg { color: var(--cc-gold); }
+.career-calendar-page.cc-root .cc-cost-total { border-bottom-color: rgba(255,255,255,.12); }
+.career-calendar-page.cc-root .cc-cost-total strong,
+.career-calendar-page.cc-root .cc-entry-field strong { color: #f1d47c; }
+.career-calendar-page.cc-root .cc-cost-lines--covered { border-color: rgba(255,255,255,.14); }
+.career-calendar-page.cc-root .cc-cost-lines b.cc-covered { color: #a8e5c4; }
+.career-calendar-page.cc-root .cc-cost-foot { border-top-color: rgba(255,255,255,.12); }
+.career-calendar-page.cc-root .cc-entry-side > div { border-color: rgba(255,255,255,.12); background: rgba(0,0,0,.28); }
+.career-calendar-page.cc-root .cc-entry-side strong[data-eligible="true"] { color: #f1d47c; }
+.career-calendar-page.cc-root .cc-entry-side .cc-viability { border-color: rgba(237,196,85,.25); }
+.career-calendar-page.cc-root .cc-viability span,
+.career-calendar-page.cc-root .cc-entry-reasons p { color: #c8c6c2; }
+.career-calendar-page.cc-root .cc-detail-section-title i { background: rgba(237,196,85,.24); }
+.career-calendar-page.cc-root .cc-agenda-footer,
+.career-calendar-page.cc-root .cc-pagination { color: #aaa9ad; }
+.career-calendar-page.cc-root .cc-action-message { border-color: rgba(255,255,255,.12); color: #a8e5c4; }
+.career-calendar-page.cc-root .cc-state,
+.career-calendar-page.cc-root .cc-detail--empty { color: #c0bec0; }
+@media (max-width: 520px) {
+  .career-calendar-page.cc-root .cc-hero h2 { font-size: clamp(31px, 9vw, 41px); }
+  .career-calendar-page.cc-root .cc-detail-actions .cc-button--primary { border-radius: 999px; }
+}
