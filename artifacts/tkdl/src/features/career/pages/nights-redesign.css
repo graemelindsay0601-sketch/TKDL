@@ -1,0 +1,111 @@
+.nights-live {
+  color:#f6f2e9;font-family:Manrope,sans-serif;
+}
+.nights-live__topline {
+  display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px;
+  color:#c9c5bc;font:500 9px "DM Mono",monospace;letter-spacing:.12em;text-transform:uppercase;
+}
+.nights-live__topline span { display:flex;align-items:center;gap:9px; }
+.nights-live__topline b {
+  display:grid;width:27px;height:27px;place-items:center;border:1px solid #e3bb6280;color:#e3bb62;
+  font:700 12px Oswald,sans-serif;transform:skew(-6deg);
+}
+.nights-live__topline small { color:#8d8982;font:inherit; }
+.nights-live__hero {
+  position:relative;min-height:250px;overflow:hidden;border:1px solid #e3bb626b;
+  background:linear-gradient(105deg,#111214 0%,#111214 43%,#11121455 100%),#171719;
+  box-shadow:0 18px 55px #0005,inset 0 1px #ffffff12;
+}
+.nights-live__hero::before { position:absolute;inset:0 auto 0 0;width:4px;content:"";background:linear-gradient(#d8393b,#e3bb62);z-index:2; }
+.nights-live__photo { position:absolute;inset:0 0 0 46%; }
+.nights-live__photo img { display:block;width:100%;height:100%;object-fit:cover;object-position:68% center;opacity:.8;filter:saturate(.78) contrast(1.08); }
+.nights-live__photo::after { position:absolute;inset:0;content:"";background:linear-gradient(90deg,#111214 0%,#111214c9 16%,#11121433 60%,transparent 84%),linear-gradient(0deg,#111214aa,transparent 44%); }
+.nights-live__hero-copy { position:relative;z-index:1;max-width:760px;padding:clamp(22px,3.4vw,42px); }
+.nights-live__kicker { display:flex;align-items:center;gap:9px;color:#e3bb62;font:500 9px "DM Mono",monospace;letter-spacing:.15em;text-transform:uppercase; }
+.nights-live__kicker i { width:7px;height:7px;border-radius:50%;background:#ef5350;box-shadow:0 0 0 4px #ef535022; }
+.nights-live__hero h1 { margin:13px 0 8px;font:700 clamp(55px,7vw,94px)/.86 Oswald,sans-serif;letter-spacing:-.025em;text-transform:uppercase; }
+.nights-live__hero h1 em { color:#e3bb62;font-style:normal; }
+.nights-live__hero-copy>p { max-width:610px;margin:14px 0 0;color:#c5c1ba;font-size:11px;line-height:1.65; }
+.nights-live__stats { display:flex;margin:20px 0 0;padding:0; }
+.nights-live__stats>div { min-width:130px;padding:0 16px;border-left:1px solid #ffffff29; }
+.nights-live__stats>div:first-child { padding-left:0;border:0; }
+.nights-live__stats dt { color:#a6a198;font:500 8px "DM Mono",monospace;letter-spacing:.08em;text-transform:uppercase; }
+.nights-live__stats dd { margin:3px 0 0;color:#f1ece1;font:700 25px/.95 Oswald,sans-serif; }
+.nights-live__stats>div:first-child dd { color:#e3bb62; }
+.nights-live__section-heading { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+.nights-live__section-label { display:flex;align-items:center;gap:10px;margin:23px 0 11px; }
+.nights-live__section-label>b { color:#e3bb62;font:500 8px "DM Mono",monospace;letter-spacing:.14em;text-transform:uppercase; }
+.nights-live__section-label>span { color:#f4f0e8;font:700 22px/.95 Oswald,sans-serif;text-transform:uppercase; }
+.nights-live__section-label::after { height:1px;flex:1;content:"";background:linear-gradient(90deg,#e3bb6259,transparent); }
+.nights-live__legend { display:flex;align-items:center;gap:6px;color:#a7a197;font:500 7px "DM Mono",monospace;letter-spacing:.07em;text-transform:uppercase; }
+.nights-live__legend i,.nights-live__day-top i { width:6px;height:6px;border-radius:50%;background:#df4d51; }
+.nights-live__legend i.open,.nights-live__day-top i.open { margin-left:5px;background:#d9b960; }
+.nights-live__schedule-panel { padding-bottom:9px;border-bottom:1px solid #ffffff19; }
+.nights-live__notice { margin:0 0 8px;color:#c8b77d;font-size:11px; }
+.nights-live__schedule { display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;margin:0;padding:0;list-style:none; }
+.nights-live__day { min-width:0;min-height:112px;padding:10px 8px;border-right:1px solid #ffffff1c; }
+.nights-live__day:last-child { border-right:0; }
+.nights-live__day-top { display:flex;align-items:center;justify-content:space-between;min-height:23px;margin-bottom:8px;color:#c5c0b5;font:500 8px "DM Mono",monospace;letter-spacing:.08em;text-transform:uppercase; }
+.nights-live__day-link { display:grid;grid-template-columns:22px minmax(0,1fr);gap:7px;margin:0 0 7px;color:#f1eee8;text-decoration:none; }
+.nights-live__day-link:focus-visible { outline:2px solid #e3bb62;outline-offset:3px; }
+.nights-live__day-link:hover strong { color:#fff2c4;text-decoration:underline;text-underline-offset:3px; }
+.nights-live__day-icon { display:grid;width:21px;height:21px;place-items:center;border:1px solid #ffffff33;border-radius:50%;color:#e3bb62; }
+.nights-live__day-icon svg { width:11px;height:11px; }
+.nights-live__day-link>span:last-child { min-width:0; }
+.nights-live__day-link small { display:block;margin-bottom:3px;color:#d9b960;font:500 6px "DM Mono",monospace;letter-spacing:.07em;text-transform:uppercase; }
+.nights-live__day-link strong { display:block;font-size:9px;line-height:1.35;overflow-wrap:anywhere; }
+.nights-live__day-link em { display:flex;align-items:center;gap:2px;margin-top:6px;color:#9e9a91;font:500 6px "DM Mono",monospace;font-style:normal;text-transform:uppercase; }
+.nights-live__day-link em svg { width:9px;height:9px; }
+.nights-live__day[data-free] { background:linear-gradient(180deg,#d7b85f14,transparent 80%); }
+.nights-live__free { display:block;padding:2px 0;color:#ebcf7d;font:500 10px "DM Mono",monospace; }
+.nights-live__open-note { display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;border-left:2px solid #d7b85f;background:linear-gradient(90deg,#d7b85f18,#ffffff05 75%);color:#b7b0a3;font:500 7px "DM Mono",monospace;text-transform:uppercase; }
+.nights-live__open-note>b { color:#dfc36e; }
+.nights-live__open-note>span { color:#f2eee4; }
+.nights-live__open-note>small { margin-left:auto;color:#87837a;font:inherit;text-transform:none; }
+.nights-live__body { display:grid;grid-template-columns:minmax(0,1.32fr) minmax(230px,.68fr);gap:14px;align-items:stretch;margin-top:22px; }
+.nights-live__activities { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+.nights-live__activity { --tone:#dfba65;position:relative;display:flex;gap:10px;align-items:center;min-width:0;min-height:82px;overflow:hidden;padding:11px 12px;border:1px solid color-mix(in srgb,var(--tone) 34%,transparent);background:linear-gradient(120deg,color-mix(in srgb,var(--tone) 11%,#1b1c1e),#17181a 70%);color:#f1eee8;text-decoration:none; }
+.nights-live__activity:hover,.nights-live__activity[data-action] { border-color:color-mix(in srgb,var(--tone) 68%,transparent); }
+.nights-live__activity:focus-visible { outline:2px solid var(--tone);outline-offset:2px; }
+.nights-live__activity-icon { z-index:1;display:grid;flex:0 0 34px;width:34px;height:34px;place-items:center;border:1px solid color-mix(in srgb,var(--tone) 48%,transparent);border-radius:50%;background:#111214;color:var(--tone); }
+.nights-live__activity-icon svg { width:17px;height:17px; }
+.nights-live__activity-watermark { position:absolute;right:10px;bottom:-16px;color:color-mix(in srgb,var(--tone) 12%,transparent); }
+.nights-live__activity-watermark svg { width:76px;height:76px;stroke-width:1; }
+.nights-live__activity-copy { z-index:1;display:flex;flex-direction:column;gap:4px;min-width:0; }
+.nights-live__activity-copy>b { display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800; }
+.nights-live__activity-copy small { color:#b7b3ac;font-size:9px;line-height:1.4; }
+.nights-live__activity-arrow { z-index:1;width:13px;height:13px;flex:0 0 13px;margin-left:auto;color:var(--tone); }
+.nights-live__aside { position:relative;min-height:100%;padding:17px;border:1px solid #e3bb623d;background:linear-gradient(155deg,#29231d,#17181a 68%); }
+.nights-live__aside::before { position:absolute;top:0;left:0;width:36px;height:2px;content:"";background:#d8393b; }
+.nights-live__aside>small { color:#e3bb62;font:500 8px "DM Mono",monospace;letter-spacing:.12em;text-transform:uppercase; }
+.nights-live__aside h2 { margin:11px 0 8px;color:#f0d58c;font:italic 27px/1 "Bodoni Moda",serif; }
+.nights-live__aside p { margin:0;color:#bdb8ae;font-size:10px;line-height:1.55; }
+.nights-live__aside>div { margin-top:16px;padding-top:11px;border-top:1px solid #ffffff19;color:#938e84;font:500 7px/1.6 "DM Mono",monospace;text-transform:uppercase; }
+.nights-live .nights-coming { color:#aaa39a;font-size:10px; }
+@media(max-width:900px) {
+  .nights-live__schedule { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .nights-live__day:nth-child(4) { border-right:0; }
+  .nights-live__body { grid-template-columns:1fr; }
+}
+@media(max-width:640px) {
+  .nights-live__hero { min-height:0; }
+  .nights-live__photo { left:38%;opacity:.42; }
+  .nights-live__hero-copy { padding:23px 17px 25px; }
+  .nights-live__hero h1 { font-size:clamp(54px,17vw,78px); }
+  .nights-live__hero-copy>p { max-width:35ch;font-size:10px; }
+  .nights-live__stats>div { min-width:0;flex:1;padding:0 8px; }
+  .nights-live__stats dt { font-size:6px; }
+  .nights-live__stats dd { font-size:22px; }
+  .nights-live__schedule { grid-template-columns:1fr; }
+  .nights-live__day { display:grid;grid-template-columns:65px minmax(0,1fr);gap:5px;min-height:0;padding:8px 6px;border-right:0;border-top:1px solid #ffffff19; }
+  .nights-live__day:first-child { border-top:0; }
+  .nights-live__day-top { grid-row:1;align-self:center;margin:0; }
+  .nights-live__day-link { grid-column:2; }
+  .nights-live__free { grid-column:2; }
+  .nights-live__open-note { flex-wrap:wrap; }
+  .nights-live__open-note>small { flex-basis:100%;margin-left:0; }
+  .nights-live__activities { grid-template-columns:1fr; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .nights-live__activity { transition:none; }
+}

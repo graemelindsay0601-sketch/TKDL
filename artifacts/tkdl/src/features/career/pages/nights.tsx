@@ -11,6 +11,7 @@ import type { ShellContext } from "../shell";
 import { MoneyMatches } from "../money-matches";
 import { RoadTrips } from "../road-trips";
 import { ProAmNights } from "../pro-am";
+import "./nights-redesign.css";
 
 /** Calendar items the week strip names (events and commitments come with their own label). */
 const KIND: Record<string, string> = { EVENT: "event", LIFE: "life", stream: "stream", trip: "trip", league: "league", proam: "proam", team: "team" };
@@ -40,14 +41,16 @@ function useNightsWeek(saveId: string, fallbackWeek: number) {
   const teamNight = team.data?.next && team.data.next.week === week ? team.data.next : null;
   const days = (plan.data?.days ?? []).map(d => ({ ...d, items: [...d.items,
     ...(teamNight && d.dayOfWeek === 3 ? [{ kind: "team", label: `Team night ${teamNight.home ? "v" : "at"} ${teamNight.opponent}`, id: "team" }] : [])] }));
-  return { loaded: !!plan.data, week, days, free: days.filter(d => !d.items.length).length, team, teamNight };
+  return { loaded: !!plan.data, error: plan.isError, week, days, free: days.filter(d => !d.items.length).length, team, teamNight };
 }
 
 /** One activity: where it lives and what it needs from you this week. */
 function Card({ href, icon, title, accent, status, action, isNew }: { href: string; icon: ReactNode; title: string; accent: string; status: ReactNode; action?: boolean; isNew?: boolean }) {
-  return <Link href={href} className="nights-card" style={{ "--accent": accent } as CSSProperties} data-action={action || undefined}>
-    <span className="nights-card__icon" aria-hidden>{icon}</span>
-    <span className="nights-card__body"><b>{title}{isNew && <span className="career-new-badge">New</span>}</b><small>{status}</small></span>
+  return <Link href={href} className="nights-live__activity" style={{ "--tone": accent } as CSSProperties} data-action={action || undefined}>
+    <span className="nights-live__activity-icon" aria-hidden>{icon}</span>
+    <span className="nights-live__activity-watermark" aria-hidden>{icon}</span>
+    <span className="nights-live__activity-copy"><b>{title}{isNew && <span className="career-new-badge">New</span>}</b><small>{status}</small></span>
+    <ChevronRight className="nights-live__activity-arrow" aria-hidden />
   </Link>;
 }
 
@@ -60,32 +63,56 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
   useEffect(() => { markVisited(id, "nights"); }, [id]);
   const unlocks = useUnlocks(ctx.save);
   const comingNext = nextUnlockLine(unlocks.next, unlocks.played);
-  const { loaded, week, days, free, team, teamNight } = useNightsWeek(id, ctx.save.currentWeek);
+  const { loaded, error, week, days, free, team, teamNight } = useNightsWeek(id, ctx.save.currentWeek);
   const money = useMoneyMatches(id), road = useRoadTrips(id), proam = useProAm(id),
     cam = useCamLeague(id), stream = useStreaming(id);
 
   const m = money.data, r = road.data, p = proam.data, c = cam.data, s = stream.data, fixture = c?.league?.thisWeek ?? null;
   const moneyLeft = m ? m.perWeek - m.playedThisWeek : 0;
   const streamsLeft = s ? s.perWeek - s.streamsThisWeek : 0;
-  return <div className="space-y-3 nights">
-    <CareerPageHero kicker="Nights Out" title={`Week ${week}`} accent="#e08a5b" stage={{ venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
-      subtitle={<p>{unlocks.everything ? "Your club, money matches, road trips, Pro-Am nights, the webcam league and DartCast. Each takes a night, so plan them around your events."
-        : "What to do with your free weeknights. Each activity takes a night, so plan them around your events."}</p>}
-      stats={[{ label: "Free nights", value: loaded ? free : "…", tone: "gold" }, { label: "Money matches left", value: m ? moneyLeft : "…" },
-        ...(unlocks.isOpen("streaming") ? [{ label: "Streams left", value: s ? streamsLeft : "…" }] : [])]} />
-    <ol className="nights-week" aria-label={`Week ${week}, night by night`}>
-      {days.map(d => <li key={d.dayOfWeek} data-free={!d.items.length || undefined}>
-        <b>{dayLabel(d.dayOfWeek)}</b>
-        {d.items.length ? d.items.map(i => <Link key={`${i.kind}:${i.id}`} href={weekPlanItemHref(id, i.kind, i.id)}
-          className="nights-week__item" data-kind={KIND[i.kind] ?? "event"} aria-label={`Open ${i.label}`}>
-          <span className="nights-week__item-icon">{KIND_ICON[i.kind] ?? <CalendarDays aria-hidden />}</span>
-          <span className="nights-week__item-copy"><small>{KIND_LABEL[i.kind] ?? "Booked event"}</small><strong>{i.label}</strong></span>
-          <ChevronRight className="nights-week__item-arrow" aria-hidden />
-        </Link>) : <small>Free</small>}
-      </li>)}
-    </ol>
-    <CareerSection title="This week" icon={<Moon aria-hidden />} accent="#e08a5b">
-      <div className="nights-cards">
+  const openNights = days.filter(d => !d.items.length);
+  return <div className="nights-live">
+    <div className="nights-live__topline">
+      <span><b>TKDL</b> Career / Nights Out</span><small>Week {week}</small>
+    </div>
+    <header className="nights-live__hero">
+      <div className="nights-live__hero-copy">
+        <div className="nights-live__kicker"><i /> The week, off the oche</div>
+        <h1>Week <em>{week}</em></h1>
+        <p>{unlocks.everything ? "Your club, money matches, road trips, Pro-Am nights, the webcam league and DartCast. Each takes a night, so plan them around your events."
+          : "What to do with your free weeknights. Each activity takes a night, so plan them around your events."}</p>
+        <dl className="nights-live__stats">
+          <div><dt>Free nights</dt><dd>{loaded ? free : "…"}</dd></div>
+          <div><dt>Money matches left</dt><dd>{m ? moneyLeft : "…"}</dd></div>
+          {unlocks.isOpen("streaming") && <div><dt>Streams left</dt><dd>{s ? streamsLeft : "…"}</dd></div>}
+        </dl>
+      </div>
+      <div className="nights-live__photo" aria-hidden="true"><img src="/images/career-night-local.jpg" alt="" /></div>
+    </header>
+    <section className="nights-live__schedule-panel" aria-labelledby="nights-live-schedule">
+      <div className="nights-live__section-heading">
+        <div className="nights-live__section-label"><b>01 / Plan</b><span id="nights-live-schedule">Seven nights</span></div>
+        <div className="nights-live__legend"><i /> booked <i className="open" /> free</div>
+      </div>
+      {error ? <p className="nights-live__notice" role="alert">Your week could not be loaded. Try again in a moment.</p>
+        : !loaded ? <p className="nights-live__notice" role="status">Loading your week…</p> : null}
+      <ol className="nights-live__schedule" aria-label={`Week ${week}, night by night`}>
+        {days.map(d => <li className="nights-live__day" key={d.dayOfWeek} data-free={!d.items.length || undefined}>
+          <div className="nights-live__day-top"><b>{dayLabel(d.dayOfWeek)}</b><span>{d.items.length ? <i /> : <i className="open" />}</span></div>
+          {d.items.length ? d.items.map(i => <Link key={`${i.kind}:${i.id}`} href={weekPlanItemHref(id, i.kind, i.id)}
+            className="nights-live__day-link" data-kind={KIND[i.kind] ?? "event"} aria-label={`Open ${i.label}`}>
+            <span className="nights-live__day-icon">{KIND_ICON[i.kind] ?? <CalendarDays aria-hidden />}</span>
+            <span><small>{KIND_LABEL[i.kind] ?? "Booked event"}</small><strong>{i.label}</strong><em>Open destination <ChevronRight aria-hidden /></em></span>
+          </Link>) : <span className="nights-live__free">Free</span>}
+        </li>)}
+      </ol>
+      <div className="nights-live__open-note"><b>Open nights</b>{openNights.length ? openNights.map(d => <span key={d.dayOfWeek}>{dayLabel(d.dayOfWeek)}</span>) : <span>None this week</span>}
+        <small>Choose a free night for an activity below.</small></div>
+    </section>
+    <section className="nights-live__body" aria-labelledby="nights-live-activities">
+      <div>
+        <div className="nights-live__section-label"><b>02 / Make it count</b><span id="nights-live-activities">This week</span></div>
+        <div className="nights-live__activities">
         <Card href={`${base}/club`} icon={<Shield />} title="Your club" accent="#7ec8a4"
           status={teamNight ? `Team night Wednesday ${teamNight.home ? "v" : "at"} ${teamNight.opponent}${teamNight.youFree ? "" : ` · you're busy (${teamNight.clash ?? "booked"})`}`
             : team.data?.next ? `Next team night week ${team.data.next.week}` : "Table, members and your own tournament"} />
@@ -103,8 +130,14 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
         {unlocks.isOpen("streaming") && <Card isNew={unlocks.isNew("streaming")} href={`${base}/streaming`} icon={<Radio />} title="DartCast" accent="#9b6bff"
           status={!s ? "…" : s.live ? "You're live now" : `${streamsLeft > 0 ? `${streamsLeft} stream${streamsLeft === 1 ? "" : "s"} left this week` : "Streamed out this week"} · ${s.followers.toLocaleString("en-GB")} followers`} />}
       </div>
-      {comingNext && <p className="nights-coming">{comingNext} New things to do on your free nights open up as you play.</p>}
-    </CareerSection>
+        {comingNext && <p className="nights-coming">{comingNext} New things to do on your free nights open up as you play.</p>}
+      </div>
+      <aside className="nights-live__aside">
+        <small>This week at your local</small><h2>A night well spent</h2>
+        <p>The week is already taking shape. Check your fixtures, then see where a free night might lead.</p>
+        <div>{openNights.length ? `${openNights.length} night${openNights.length === 1 ? "" : "s"} still open · Keep your plans around the tournament and team night.` : "Every night is booked this week."}</div>
+      </aside>
+    </section>
   </div>;
 }
 

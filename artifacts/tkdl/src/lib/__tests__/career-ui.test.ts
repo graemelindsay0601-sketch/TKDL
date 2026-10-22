@@ -929,7 +929,7 @@ test("Nights week plan sends booked items straight to their Career activity", ()
   }]]);
   assert.ok(page.includes(`href="/career/${SAVE_ID}/events/glasgow%2Fopen"`));
   assert.ok(page.includes(`href="/career/${SAVE_ID}/streaming"`));
-  assert.ok(page.includes('class="nights-week__item"'));
+  assert.ok(page.includes('class="nights-live__day-link"'));
 });
 
 test("DartCast channel: followers and the streamer route, nights to go live, and past streams", () => {
