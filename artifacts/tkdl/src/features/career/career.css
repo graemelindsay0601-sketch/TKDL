@@ -1788,3 +1788,245 @@
 @media(max-width:420px) {
   .career-header-home { gap:4px; min-height:31px; padding:0 7px; font-size:.59rem; }
 }
+
+/* Webcam League — Match-Night Atlas */
+.cam-league--atlas {
+  --cam-paper:#f0ece3; --cam-muted:#a69f91; --cam-gold:#d9b963; --cam-red:#c63a45;
+  --cam-line:#d9c47c24; width:min(100%,1380px); margin:0 auto; padding:2px 0 18px;
+  color:var(--cam-paper); font-family:Manrope,system-ui,sans-serif;
+}
+.cam-atlas__masthead { display:flex; justify-content:space-between; gap:12px; margin:0 0 12px; color:#a9a397; font:500 .58rem "IBM Plex Mono",monospace; letter-spacing:.12em; }
+.cam-atlas__masthead b { color:var(--cam-red); font:800 1rem Oswald,sans-serif; letter-spacing:.04em; }
+.cam-atlas__masthead i { margin:0 7px; color:var(--cam-gold); font-style:normal; }
+.cam-atlas__opening { position:relative; overflow:hidden; border:1px solid #d9b9634a; background:linear-gradient(120deg,#141416,#101113 56%,#171416); box-shadow:0 18px 40px #0007,inset 0 1px #fff1; }
+.cam-atlas__opening::before { position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent 0 39px,#ffffff08 40px),linear-gradient(90deg,transparent 55%,#d9b9630b 55.1%,transparent 55.2%); content:""; pointer-events:none; }
+.cam-atlas__eyebrow { position:relative; display:flex; justify-content:space-between; align-items:center; gap:10px; min-height:36px; padding:0 17px; border-bottom:1px solid var(--cam-line); color:#b8ae99; font:600 .55rem "IBM Plex Mono",monospace; letter-spacing:.11em; }
+.cam-atlas__eyebrow span { display:flex; align-items:center; gap:8px; }
+.cam-atlas__eyebrow span i,.cam-atlas__footer span:first-child i { width:6px; height:6px; border-radius:50%; background:var(--cam-red); box-shadow:0 0 10px #c63a4570; }
+.cam-atlas__eyebrow b { display:flex; align-items:center; gap:6px; color:#d4c795; font-size:.5rem; }
+.cam-atlas__eyebrow b svg { width:13px; color:var(--cam-gold); }
+.cam-atlas__eyebrow b i { color:var(--cam-red); font-style:normal; }
+.cam-atlas__lead { position:relative; display:grid; grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr); min-height:300px; }
+.cam-atlas__intro { align-self:center; padding:26px clamp(20px,3.6vw,48px); }
+.cam-atlas__intro>small { color:#bcae83; font:600 .54rem "IBM Plex Mono",monospace; letter-spacing:.13em; }
+.cam-atlas__intro h1 { margin:13px 0 10px; color:#f2eee6; font:800 clamp(2.4rem,5.5vw,4.8rem)/.82 Oswald,Impact,sans-serif; letter-spacing:-.035em; text-transform:uppercase; }
+.cam-atlas__intro h1 em { color:var(--cam-gold); font-style:normal; }
+.cam-atlas__intro>p { max-width:370px; margin:14px 0 18px; color:#aaa59d; font-size:.78rem; line-height:1.7; }
+.cam-atlas__movement { display:grid; grid-template-columns:max-content auto; align-items:center; gap:4px 12px; color:#aaa397; font:600 .48rem "IBM Plex Mono",monospace; letter-spacing:.09em; }
+.cam-atlas__movement span { display:flex; align-items:center; gap:6px; }
+.cam-atlas__movement span i,.cam-atlas__heading>span i { width:6px; height:6px; background:#7fc58a; }
+.cam-atlas__movement span i.down { background:var(--cam-red); }
+.cam-atlas__movement b { color:#e2d6b4; font-size:.65rem; }
+.cam-atlas__route-art { position:relative; min-height:280px; overflow:hidden; border-left:1px solid #d9b96319; background:radial-gradient(ellipse at 74% 45%,#6c1b2824,transparent 53%),repeating-linear-gradient(135deg,transparent 0 27px,#ffffff04 28px 29px); }
+.cam-atlas__map-label { position:absolute; z-index:1; top:17px; left:20px; color:#c0b28d; font:600 .48rem "IBM Plex Mono",monospace; letter-spacing:.1em; }
+.cam-atlas__map-label small { display:block; margin-top:5px; color:#827b70; font-size:.42rem; }
+.cam-atlas__route-art svg { position:absolute; inset:30px 2% 15px 1%; width:97%; height:calc(100% - 45px); }
+.cam-atlas__grid path { fill:none; stroke:#d9b96312; stroke-width:.7; }
+.cam-atlas__contours path { fill:none; stroke:#d9b96322; stroke-width:1; }
+.cam-atlas__route-shadow { fill:none; stroke:#000; stroke-width:8; opacity:.55; }
+.cam-atlas__route { fill:none; stroke:#d9b963; stroke-width:2; stroke-dasharray:5 7; }
+.cam-atlas__route-art .node { fill:#c63a45; stroke:#e0c878; stroke-width:1.5; }
+.cam-atlas__route-art .target { fill:none; stroke:#d9b96355; stroke-width:1; }
+.cam-atlas__route-art .target-inner { fill:none; stroke:#d9b96330; stroke-width:1; }
+.cam-atlas__route-art .node--active { fill:#e1c66b; }
+.cam-atlas__route-art text { fill:#aaa08d; font:7px "IBM Plex Mono",monospace; letter-spacing:1px; }
+.cam-atlas__seal { position:absolute; right:19px; bottom:48px; display:flex; flex-direction:column; min-width:112px; padding:10px 12px; border:1px solid #d9b96345; background:#0f1110dc; box-shadow:0 5px 15px #0007; }
+.cam-atlas__seal small,.cam-atlas__seal span { color:#9f9889; font:500 .43rem "IBM Plex Mono",monospace; letter-spacing:.1em; }
+.cam-atlas__seal b { color:var(--cam-gold); font:700 2rem/.95 Oswald,sans-serif; }
+.cam-atlas__seal span { margin-top:5px; font-size:.4rem; }
+.cam-atlas__route-caption { position:absolute; right:14px; bottom:12px; left:16px; display:flex; align-items:center; gap:7px; color:#aaa397; font:500 .43rem "IBM Plex Mono",monospace; letter-spacing:.1em; }
+.cam-atlas__route-caption i { width:6px; height:6px; border-radius:50%; background:var(--cam-red); }
+.cam-atlas__route-caption span { margin-left:auto; }
+.cam-atlas__stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)) 1.6fr; border-top:1px solid var(--cam-line); background:#0d1012b8; }
+.cam-atlas__stats>div { display:flex; flex-direction:column; justify-content:center; gap:4px; min-height:59px; padding:8px 15px; border-right:1px solid #ffffff10; }
+.cam-atlas__stats small { color:#999184; font:500 .43rem "IBM Plex Mono",monospace; letter-spacing:.1em; }
+.cam-atlas__stats b { color:#eadcae; font:700 1.15rem/.95 Oswald,sans-serif; }
+.cam-atlas__stats b span { color:#817a6d; font-size:.7rem; }
+.cam-atlas__stats p { align-self:center; margin:0; padding:8px 14px; color:#9e988e; font:500 .48rem/1.6 "IBM Plex Mono",monospace; }
+.cam-atlas__stats p i { color:var(--cam-gold); font-style:normal; }
+.cam-atlas__fixture { display:grid; grid-template-columns:70px minmax(0,1fr) 38px minmax(0,1fr) minmax(130px,.65fr); align-items:center; gap:10px; min-height:90px; margin-top:18px; border:1px solid #d9b96330; border-top:2px solid var(--cam-gold); background:linear-gradient(110deg,#1a1b1c,#111315 56%,#1b1515); box-shadow:inset 0 1px #fff1,0 8px 24px #0005; }
+.cam-atlas__week { display:flex; flex-direction:column; align-items:center; gap:2px; border-right:1px solid #ffffff14; color:#a8a091; }
+.cam-atlas__week small,.cam-atlas__week i { font:500 .42rem "IBM Plex Mono",monospace; letter-spacing:.1em; font-style:normal; }
+.cam-atlas__week b { color:var(--cam-gold); font:700 1.9rem/.95 Oswald,sans-serif; }
+.cam-atlas__contestant { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.cam-atlas__contestant small,.cam-atlas__format small { color:#9f9789; font:500 .43rem "IBM Plex Mono",monospace; letter-spacing:.09em; }
+.cam-atlas__contestant>b { overflow:hidden; color:#eee8dc; font:700 1.25rem Oswald,sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.cam-atlas__contestant>span,.cam-atlas__format>span { color:#aaa195; font:500 .45rem "IBM Plex Mono",monospace; letter-spacing:.05em; }
+.cam-atlas__versus { display:grid; width:32px; height:32px; place-items:center; border:1px solid #c63a456c; border-radius:50%; color:#e2c98c; font:600 .53rem "IBM Plex Mono",monospace; }
+.cam-atlas__format { display:flex; flex-direction:column; gap:6px; padding-left:13px; border-left:1px solid #ffffff12; }
+.cam-atlas__format>b { color:#e9e1d2; font:700 .88rem Oswald,sans-serif; white-space:nowrap; }
+.cam-atlas__format em { color:var(--cam-gold); font-style:normal; }
+.cam-atlas__booking { display:grid; grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr); margin-top:22px; border-top:1px solid #d9b96365; border-bottom:1px solid var(--cam-line); background:linear-gradient(110deg,#141517,#101113 55%,#181416); }
+.cam-atlas__booking-copy { min-width:0; padding:24px clamp(17px,3vw,38px) 22px 0; }
+.cam-atlas__section-tag { display:flex; align-items:center; gap:8px; color:#c2b99f; font:600 .53rem Oswald,sans-serif; letter-spacing:.15em; }
+.cam-atlas__section-tag>span { color:var(--cam-gold); }
+.cam-atlas__section-tag>i { width:22px; height:1px; background:var(--cam-red); }
+.cam-atlas__booking-copy h2,.cam-atlas__join h2 { margin:9px 0 0; color:#eeeae2; font:700 clamp(1.65rem,3vw,2.4rem)/.98 Oswald,sans-serif; letter-spacing:-.025em; text-transform:uppercase; }
+.cam-atlas__booking-copy h2 em { color:var(--cam-gold); font-style:normal; }
+.cam-atlas__note { max-width:400px; margin:9px 0 13px; color:#aaa49a; font-size:.68rem; line-height:1.65; }
+.cam-atlas__nights { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; max-width:405px; }
+.cam-atlas__nights button { position:relative; display:flex; min-width:0; min-height:47px; flex-direction:column; justify-content:center; padding:6px 10px; border:1px solid #ffffff25; background:linear-gradient(145deg,#252628,#141517 66%); color:#d4cec2; text-align:left; cursor:pointer; }
+.cam-atlas__nights button:hover { border-color:#d9b96390; background:#211e18; }
+.cam-atlas__nights button[aria-checked=true] { border-color:var(--cam-gold); background:linear-gradient(135deg,#524126,#292218 68%); box-shadow:inset 0 -2px #a3803b; color:#f2d982; }
+.cam-atlas__nights small { color:#9a9387; font:500 .4rem "IBM Plex Mono",monospace; letter-spacing:.1em; }
+.cam-atlas__nights b { margin-top:3px; font:600 .74rem Oswald,sans-serif; }
+.cam-atlas__nights svg { position:absolute; top:8px; right:8px; width:13px; color:var(--cam-gold); }
+.cam-atlas__book,.cam-atlas__sim { display:inline-flex; width:min(100%,405px); min-height:42px; align-items:center; justify-content:space-between; gap:9px; margin-top:8px; padding:0 13px; border:1px solid #f0d87b; background:linear-gradient(110deg,#f0d983,#d0a84e 72%,#a98037); color:#181510; box-shadow:inset 0 1px #fff9,inset 0 -2px #876627,0 3px 0 #5c471f,0 7px 13px #0007; font:800 .53rem "IBM Plex Mono",monospace; letter-spacing:.08em; cursor:pointer; }
+.cam-atlas__book svg { width:15px; }
+.cam-atlas__book:hover:not(:disabled) { filter:brightness(1.08); }
+.cam-atlas__book:disabled { opacity:.55; cursor:not-allowed; }
+.cam-atlas__actions { display:flex; flex-wrap:wrap; gap:8px; }
+.cam-atlas__actions .cam-atlas__book { width:auto; min-width:min(100%,190px); justify-content:center; }
+.cam-atlas__sim { width:auto; min-width:130px; justify-content:center; border-color:#ffffff30; background:#191a1c; color:#eee6d8; box-shadow:none; }
+.cam-atlas__outcome { color:var(--cam-gold); font:700 .8rem "IBM Plex Mono",monospace; }
+.cam-atlas__booking-art { position:relative; min-height:244px; overflow:hidden; border-left:1px solid #ffffff13; background:radial-gradient(ellipse at 76% 53%,#651d2938,transparent 50%),repeating-linear-gradient(135deg,transparent 0 27px,#ffffff05 28px 29px),linear-gradient(145deg,#1b1b1b,#101113 62%,#211816); }
+.cam-atlas__booking-art::before { position:absolute; inset:9px; border:1px solid #d8b96128; content:""; }
+.cam-atlas__booking-art>div { position:absolute; top:17px; right:18px; left:18px; display:flex; justify-content:space-between; gap:8px; color:#a69a80; font:500 .42rem "IBM Plex Mono",monospace; letter-spacing:.1em; }
+.cam-atlas__booking-art>strong { position:absolute; top:45px; left:24px; color:#eee9df; font:700 2.3rem/.9 Oswald,sans-serif; }
+.cam-atlas__booking-art>strong i { margin-left:8px; color:#d9b96365; font:500 3.8rem/.8 Georgia,serif; font-style:normal; }
+.cam-atlas__booking-art svg { position:absolute; right:5%; bottom:42px; left:5%; width:90%; height:100px; }
+.cam-atlas__booking-art svg path { fill:none; stroke:var(--cam-gold); stroke-width:1.4; stroke-dasharray:3 6; }
+.cam-atlas__booking-art svg circle { fill:var(--cam-red); stroke:#e3c876; stroke-width:1.3; }
+.cam-atlas__booking-art>small { position:absolute; right:18px; bottom:33px; left:18px; color:#aaa08e; font:500 .4rem "IBM Plex Mono",monospace; letter-spacing:.1em; }
+.cam-atlas__booking-art>small i { display:inline-block; width:25px; height:1px; margin:0 6px; background:var(--cam-red); }
+.cam-atlas__booking-art>b { position:absolute; right:18px; bottom:12px; color:#d8c47f; font:500 .74rem Georgia,serif; }
+.cam-atlas__competition { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); align-items:start; gap:18px; margin-top:24px; }
+.cam-atlas__standings,.cam-atlas__ledger { min-width:0; overflow:hidden; border-top:1px solid #d0ad5c76; background:linear-gradient(145deg,#1a1b1c,#111315 55%,#181614); box-shadow:inset 0 1px #fff1,0 10px 25px #0005; }
+.cam-atlas__ledger { background:radial-gradient(ellipse at 9% 45%,#8e263022,transparent 45%),linear-gradient(110deg,#141416,#0c0e10 74%,#171518); }
+.cam-atlas__heading { display:flex; min-height:65px; align-items:center; justify-content:space-between; gap:10px; padding:10px 13px; border-bottom:1px solid var(--cam-line); }
+.cam-atlas__heading>div>small { color:#c2b99f; font:600 .45rem "IBM Plex Mono",monospace; letter-spacing:.12em; }
+.cam-atlas__heading h2 { margin:4px 0 0; color:#eeeae2; font:600 1.5rem/.98 Oswald,sans-serif; }
+.cam-atlas__heading>span { display:flex; align-items:center; gap:5px; color:#a49e93; font:500 .43rem "IBM Plex Mono",monospace; white-space:nowrap; }
+.cam-atlas__heading>span i { width:5px; height:5px; }
+.cam-atlas__heading>span i.red { background:var(--cam-red); }
+.cam-atlas__heading>span svg { width:12px; color:var(--cam-gold); }
+.cam-atlas__table-scroll { width:100%; overflow-x:auto; }
+.cam-league--atlas .cam-league__table { color:#c9c4ba; font:500 .6rem "IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; }
+.cam-league--atlas .cam-league__table th,.cam-league--atlas .cam-league__table td { height:32px; padding:5px 7px; border-bottom:1px solid #ffffff0d; text-align:right; white-space:nowrap; }
+.cam-league--atlas .cam-league__table th { height:27px; color:#b1a88f; font-size:.42rem; letter-spacing:.08em; }
+.cam-league--atlas .cam-league__table th:first-child,.cam-league--atlas .cam-league__table td:first-child { width:35px; text-align:center; }
+.cam-league--atlas .cam-league__table th:nth-child(2),.cam-league--atlas .cam-league__table td:nth-child(2) { text-align:left; }
+.cam-league--atlas .cam-league__table td:nth-child(2) { color:#e5e0d7; font:600 .72rem Oswald,sans-serif; }
+.cam-league--atlas .cam-league__table td:nth-child(2) small { margin-left:5px; color:#827f79; font:500 .4rem "IBM Plex Mono",monospace; }
+.cam-league--atlas .cam-league__table td:nth-child(2) svg { width:11px; margin-left:5px; color:var(--cam-gold); vertical-align:middle; }
+.cam-atlas__rank { color:#a59d8f; font-size:.52rem; }
+.cam-league--atlas .cam-league__table td:last-child b { color:var(--cam-gold); font:700 .85rem Oswald,sans-serif; }
+.cam-league--atlas .cam-league__table tr[data-zone=up] td:first-child { box-shadow:inset 2px 0 #65b879; }
+.cam-league--atlas .cam-league__table tr[data-zone=down] td:first-child { box-shadow:inset 2px 0 var(--cam-red); }
+.cam-league--atlas .cam-league__table tr.is-you { background:linear-gradient(90deg,#c09c3d24,#c09c3d0b 75%,transparent); box-shadow:inset 0 1px #d9b9631c,inset 0 -1px #d9b9631c; }
+.cam-league--atlas .cam-league__table tr.is-you td:nth-child(2) { color:#f0d77f; }
+.cam-atlas__prize { display:flex; min-height:36px; align-items:center; gap:7px; padding:7px 10px; color:#c8b782; font:500 .43rem "IBM Plex Mono",monospace; }
+.cam-atlas__prize svg { width:14px; color:var(--cam-gold); }
+.cam-atlas__prize b { color:var(--cam-gold); font:600 .8rem Oswald,sans-serif; }
+.cam-atlas__prize small { margin-left:auto; color:#827c72; font-size:.38rem; }
+.cam-atlas__ledger ol { margin:0; padding:5px 12px 10px; list-style:none; }
+.cam-atlas__ledger li { display:grid; grid-template-columns:10px 27px minmax(0,1fr) minmax(65px,auto); min-height:37px; align-items:center; gap:6px; border-bottom:1px solid #ffffff0c; color:#bcb6ab; }
+.cam-atlas__ledger li>i { width:6px; height:6px; border:1px solid #8d8372; border-radius:50%; background:#151619; }
+.cam-atlas__ledger li.is-played>i { border-color:#bfaa67; background:#bfaa67; }
+.cam-atlas__ledger li.is-current { margin-inline:-12px; padding-inline:12px; background:linear-gradient(90deg,#a02a3838,#a02a3814 70%,transparent); }
+.cam-atlas__ledger li.is-current>i { border-color:var(--cam-red); background:var(--cam-red); box-shadow:0 0 0 3px #bd344225; }
+.cam-atlas__ledger li>small { color:#918b81; font:500 .45rem "IBM Plex Mono",monospace; }
+.cam-atlas__ledger li>span { display:flex; min-width:0; align-items:baseline; gap:6px; }
+.cam-atlas__ledger li>span b { overflow:hidden; color:#e1dcd3; font:600 .72rem Oswald,sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.cam-atlas__ledger li>span em { color:#858078; font:500 .4rem "IBM Plex Mono",monospace; font-style:normal; }
+.cam-atlas__ledger li>strong { color:#d8c27f; font:500 .43rem "IBM Plex Mono",monospace; text-align:right; }
+.cam-atlas__join { margin-top:22px; padding:22px clamp(17px,3vw,38px); border-top:1px solid #d9b96365; background:linear-gradient(110deg,#141517,#101113 55%,#181416); }
+.cam-atlas__join>p { max-width:620px; color:#aaa49a; font-size:.75rem; line-height:1.7; }
+.cam-atlas__join>p b { color:var(--cam-gold); }
+.cam-atlas__history { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:8px; margin-top:14px; }
+.cam-atlas__history>div,.cam-atlas__history>p { display:flex; align-items:center; gap:9px; min-width:0; margin:0; padding:10px; border:1px solid #d9b96324; background:#131416; }
+.cam-atlas__history>div svg { width:16px; color:var(--cam-gold); }
+.cam-atlas__history>div span { display:flex; flex-direction:column; gap:2px; }
+.cam-atlas__history>div small { color:#958b76; font:500 .42rem "IBM Plex Mono",monospace; }
+.cam-atlas__history>div b,.cam-atlas__history>p b { color:#e1d9c8; font:600 .75rem Oswald,sans-serif; }
+.cam-atlas__history>p { justify-content:space-between; flex-wrap:wrap; }
+.cam-atlas__history>p span { color:#cbb979; font:500 .43rem "IBM Plex Mono",monospace; }
+.cam-atlas__footer { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:16px; padding-top:9px; border-top:1px solid #ffffff17; color:#807b72; font:500 .43rem "IBM Plex Mono",monospace; letter-spacing:.09em; }
+.cam-atlas__footer span:first-child { display:flex; align-items:center; gap:6px; color:#c1b9a9; }
+.cam-atlas__footer b { color:#a69e90; font-weight:500; text-align:center; }
+.cam-atlas__footer b i { color:var(--cam-gold); font-style:normal; }
+.cam-league--atlas :is(button,a):focus-visible { outline:2px solid #f0d87b; outline-offset:3px; }
+@media(max-width:900px) {
+  .cam-atlas__stats { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  .cam-atlas__stats p { grid-column:1/-1; padding:8px 13px; border-top:1px solid #ffffff0d; }
+  .cam-atlas__fixture { grid-template-columns:54px minmax(0,1fr) 30px minmax(0,1fr) 120px; }
+  .cam-atlas__competition { gap:12px; }
+  .cam-league--atlas .cam-league__table th,.cam-league--atlas .cam-league__table td { padding-inline:5px; }
+}
+@media(max-width:640px) {
+  .cam-league--atlas { padding-top:0; }
+  .cam-atlas__masthead { align-items:flex-start; font-size:.43rem; letter-spacing:.06em; }
+  .cam-atlas__masthead b { font-size:.85rem; }
+  .cam-atlas__masthead i { margin-inline:3px; }
+  .cam-atlas__eyebrow { min-height:32px; padding-inline:10px; font-size:.43rem; }
+  .cam-atlas__eyebrow b { font-size:.4rem; }
+  .cam-atlas__eyebrow b svg { width:11px; }
+  .cam-atlas__lead { grid-template-columns:1fr; }
+  .cam-atlas__intro { padding:19px 17px 10px; }
+  .cam-atlas__intro>small { font-size:.43rem; }
+  .cam-atlas__intro h1 { margin-top:10px; font-size:clamp(2.55rem,12vw,3.6rem); }
+  .cam-atlas__intro>p { margin:10px 0 13px; font-size:.7rem; }
+  .cam-atlas__route-art { min-height:190px; border-top:1px solid #d9b96319; border-left:0; }
+  .cam-atlas__route-art svg { inset:20px 2% 8px 1%; height:calc(100% - 28px); }
+  .cam-atlas__map-label { top:10px; left:12px; font-size:.4rem; }
+  .cam-atlas__seal { right:12px; bottom:37px; min-width:93px; padding:7px 9px; }
+  .cam-atlas__seal b { font-size:1.55rem; }
+  .cam-atlas__seal small,.cam-atlas__seal span { font-size:.36rem; }
+  .cam-atlas__route-caption { right:9px; bottom:9px; left:10px; font-size:.37rem; }
+  .cam-atlas__stats>div { min-height:50px; padding:7px 8px; }
+  .cam-atlas__stats small { font-size:.38rem; }
+  .cam-atlas__stats b { font-size:1rem; }
+  .cam-atlas__stats p { padding:7px 9px; font-size:.42rem; }
+  .cam-atlas__fixture { grid-template-columns:47px minmax(0,1fr) 28px minmax(0,1fr); gap:7px; min-height:78px; margin-top:12px; padding-right:8px; }
+  .cam-atlas__week { grid-row:span 2; align-self:stretch; justify-content:center; }
+  .cam-atlas__week b { font-size:1.6rem; }
+  .cam-atlas__week i { font-size:.34rem; }
+  .cam-atlas__contestant { gap:3px; }
+  .cam-atlas__contestant small { font-size:.36rem; }
+  .cam-atlas__contestant>b { font-size:.95rem; }
+  .cam-atlas__contestant>span { overflow:hidden; font-size:.37rem; text-overflow:ellipsis; white-space:nowrap; }
+  .cam-atlas__versus { width:25px; height:25px; font-size:.42rem; }
+  .cam-atlas__format { grid-column:2/-1; flex-direction:row; align-items:center; justify-content:space-between; gap:7px; padding:6px 0 7px; border-top:1px solid #ffffff12; border-left:0; }
+  .cam-atlas__format small { display:none; }
+  .cam-atlas__format>b { font-size:.7rem; }
+  .cam-atlas__format>span { font-size:.36rem; }
+  .cam-atlas__booking { grid-template-columns:1fr; margin-top:16px; }
+  .cam-atlas__booking-copy { padding:18px 14px 17px; }
+  .cam-atlas__booking-copy h2,.cam-atlas__join h2 { font-size:1.8rem; }
+  .cam-atlas__note { font-size:.65rem; }
+  .cam-atlas__nights { gap:5px; }
+  .cam-atlas__nights button { min-height:44px; padding:6px 8px; }
+  .cam-atlas__nights b { font-size:.68rem; }
+  .cam-atlas__booking-art { min-height:190px; border-top:1px solid #ffffff13; border-left:0; }
+  .cam-atlas__booking-art>strong { font-size:2rem; }
+  .cam-atlas__booking-art>strong i { font-size:3rem; }
+  .cam-atlas__booking-art svg { bottom:36px; height:85px; }
+  .cam-atlas__booking-art>small { bottom:27px; font-size:.36rem; }
+  .cam-atlas__booking-art>b { font-size:.65rem; }
+  .cam-atlas__competition { grid-template-columns:1fr; gap:13px; margin-top:17px; }
+  .cam-atlas__heading { min-height:58px; padding:9px 10px; }
+  .cam-atlas__heading h2 { font-size:1.35rem; }
+  .cam-atlas__heading>div>small,.cam-atlas__heading>span { font-size:.39rem; }
+  .cam-league--atlas .cam-league__table { font-size:.53rem; }
+  .cam-league--atlas .cam-league__table th,.cam-league--atlas .cam-league__table td { height:30px; padding:4px 5px; }
+  .cam-league--atlas .cam-league__table th { font-size:.38rem; }
+  .cam-league--atlas .cam-league__table td:nth-child(2) { font-size:.67rem; }
+  .cam-league--atlas .cam-league__table td:nth-child(2) small { font-size:.35rem; }
+  .cam-atlas__prize { gap:5px; padding-inline:8px; font-size:.38rem; }
+  .cam-atlas__prize b { font-size:.68rem; }
+  .cam-atlas__prize small { font-size:.34rem; }
+  .cam-atlas__ledger li { grid-template-columns:9px 24px minmax(0,1fr) minmax(58px,auto); gap:5px; min-height:34px; }
+  .cam-atlas__ledger li>span b { font-size:.67rem; }
+  .cam-atlas__ledger li>strong { font-size:.38rem; }
+  .cam-atlas__footer { flex-wrap:wrap; font-size:.36rem; }
+  .cam-atlas__footer b { order:3; flex-basis:100%; text-align:left; }
+}
+@media(max-width:380px) {
+  .cam-atlas__eyebrow b { font-size:.34rem; }
+  .cam-atlas__masthead { font-size:.38rem; }
+  .cam-atlas__stats>div { padding-inline:6px; }
+  .cam-atlas__stats b { font-size:.9rem; }
+  .cam-atlas__contestant>b { font-size:.85rem; }
+  .cam-atlas__contestant>span { font-size:.33rem; }
+  .cam-atlas__format>span { font-size:.32rem; }
+}
