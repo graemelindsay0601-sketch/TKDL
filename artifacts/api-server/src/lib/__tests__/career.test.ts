@@ -12,6 +12,7 @@ import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerRouter } from "../../career/router.ts";
 import { CAREER_DEFAULTS, CAREER_VERSIONS } from "../../career/config.ts";
+import { CURRENT_SPONSOR_DATABASE_VERSION } from "../../career/finance/sponsors.catalogue.ts";
 
 // Runs real PostgreSQL DDL/constraints/transactions in WASM, with no production URL.
 const pg = new PGlite();
@@ -114,7 +115,7 @@ test("authenticated creation persists Day 1 defaults, server seed, versions and 
   const row = await stored(save.id);
   assert.equal(row.player_id, 1);
   assert.match(String(row.world_seed), /^[a-f0-9]{64}$/);
-  assert.deepEqual(row.settings_snapshot, { ...CAREER_DEFAULTS,careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2,sponsorDatabaseVersionAtCreation:5 });
+  assert.deepEqual(row.settings_snapshot, { ...CAREER_DEFAULTS,careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2,sponsorDatabaseVersionAtCreation:CURRENT_SPONSOR_DATABASE_VERSION });
   const ledger = (await db.execute(sql`SELECT kind, amount_pence FROM career_finance_entries WHERE career_save_id = ${save.id}`)).rows;
   assert.deepEqual(ledger, [{ kind: "CAREER_START", amount_pence: 25_000 }]);
   assert.equal((await request("GET", `/saves/${save.id}`)).status, 200);
@@ -229,7 +230,7 @@ test("restart replaces universe, resets progression/versions, cascades children 
     assert.equal(fresh.standing, "Unknown Amateur");
     for (const [key, value] of Object.entries(CAREER_VERSIONS)) assert.equal(fresh[key], value);
     assert.notEqual((await stored(fresh.id)).world_seed, seed);
-    assert.deepEqual((await stored(fresh.id)).settings_snapshot, { ...CAREER_DEFAULTS, difficulty: "CHALLENGING",careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2,sponsorDatabaseVersionAtCreation:5 });
+    assert.deepEqual((await stored(fresh.id)).settings_snapshot, { ...CAREER_DEFAULTS, difficulty: "CHALLENGING",careerStartPolicy:"ESTABLISHMENT_V1",travelVersion:2,sponsorDatabaseVersionAtCreation:CURRENT_SPONSOR_DATABASE_VERSION });
     assert.equal(await stored(career.id), undefined);
     assert.equal((await request("GET", `/saves/${career.id}`)).status, 404);
     assert.deepEqual((await db.execute(sql`SELECT * FROM career_test_child`)).rows, [{ career_save_id: other.id, value: "keep" }]);
