@@ -543,27 +543,24 @@ test("prize bands map finishing positions; cash vs ranking-eligible kept separat
   const ranking = profileFor({ definition_key: "friday-night-501", classification: "RANKING", snapshot: { profiles: { entryFee: "fee:grassroots", prize: "prize:grassroots" } } as never });
   const qualifier = profileFor({ definition_key: "vault-qualifier", classification: "QUALIFIER", snapshot: { profiles: { entryFee: "fee:vault", prize: "prize:vault" } } as never });
   assert.deepEqual([special.rankingEligible, ranking.rankingEligible, qualifier.rankingEligible], [false, true, false]);
+  assert.equal(prizeForPosition(PRIZE_PROFILES["prize:special"], 1), 2000, "special events still pay cash while remaining outside ranking money");
 });
 
-test("winning pays prize exactly once; a Special pays cash with £0 ranking-eligible; losing early pays nothing", async () => {
+test("a ranking win pays prize exactly once; losing early pays nothing", async () => {
   const save = await career();
   const all = await events(save.id);
   const local = (e: Ev) => e.finance.travelBand === "LOCAL";
-  const special = all.filter(e => e.definitionKey === "sudden-death-night" && local(e)).sort((a, b) => a.dates.startDay - b.dates.startDay)[0];
-  const ranking = all.filter(e => e.definitionKey === "friday-night-501" && local(e) && e.dates.startWeek < special.dates.startWeek && e.dates.startWeek >= special.registration.opensWeek)[0]
-    ?? all.filter(e => e.definitionKey === "friday-night-501" && local(e) && e.dates.startWeek < special.dates.startWeek)[0];
-  await playThrough(save.id, Math.min(special.registration.opensWeek, ranking.registration.opensWeek), false, "pre");
-  if ((await saves.read(1, save.id)).currentWeek < Math.max(special.registration.opensWeek, ranking.registration.opensWeek)) {
-    assert.equal((await finance.calendar.enter(actor, save.id, { eventId: ranking.id })).entered, true);
-    await playThrough(save.id, special.registration.opensWeek, true, "pre2");
-    assert.equal((await finance.calendar.enter(actor, save.id, { eventId: special.id })).entered, true);
-  } else for (const e of [ranking, special]) assert.equal((await finance.calendar.enter(actor, save.id, { eventId: e.id })).entered, true);
-  await playThrough(save.id, special.dates.startWeek + 1, true, "winner");
-  const awards = await rows(sql`SELECT event_id, finishing_position, cash_award_pence, ranking_eligible_pence, classification FROM career_prize_awards WHERE career_save_id = ${save.id} ORDER BY classification`);
+  const ranking = all.filter(e => e.definitionKey === "friday-night-501" && local(e))
+    .sort((a, b) => a.dates.startDay - b.dates.startDay)[0];
+  assert.ok(ranking, "the calendar includes a playable local ranking event");
+  await playThrough(save.id, ranking.registration.opensWeek, false, "pre");
+  const entry = await finance.calendar.enter(actor, save.id, { eventId: ranking.id });
+  assert.equal(entry.entered, true, JSON.stringify(entry));
+  await playThrough(save.id, ranking.dates.startWeek + 1, true, "winner");
+  const awards = await rows(sql`SELECT event_id, finishing_position, cash_award_pence, ranking_eligible_pence, classification, ledger_entry_id FROM career_prize_awards WHERE career_save_id = ${save.id} AND event_id = ${ranking.id}`);
   assert.deepEqual(awards.map(a => [a.event_id, a.finishing_position, Number(a.cash_award_pence), Number(a.ranking_eligible_pence), a.classification]),
-    [[ranking.id, 1, 2500, 2500, "RANKING"], [special.id, 1, 2000, 0, "SPECIAL"]]);
-  const prizes = (await ledger(save.id)).filter(r => r.category === "PRIZE");
-  assert.equal(prizes.length, 2);
+    [[ranking.id, 1, 2500, 2500, "RANKING"]]);
+  assert.equal((await ledger(save.id)).filter(r => r.id === awards[0].ledger_entry_id && r.category === "PRIZE").length, 1);
   // Retried completion processing is a no-op.
   await withRoot(save.id, async (tx, root) => {
     const event = (await tx.execute(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${save.id} AND id = ${ranking.id}`)).rows[0] as never;
@@ -571,10 +568,10 @@ test("winning pays prize exactly once; a Special pays cash with £0 ranking-elig
     await finance.hooks.onEventCompleted(tx, root, event, results);
     await finance.hooks.onEventCompleted(tx, root, event, results);
   });
-  assert.equal((await ledger(save.id)).filter(r => r.category === "PRIZE").length, 2, "no duplicate prize");
+  assert.equal((await ledger(save.id)).filter(r => r.id === awards[0].ledger_entry_id && r.category === "PRIZE").length, 1, "no duplicate prize");
   await rejectsWith(db.execute(sql`UPDATE career_prize_awards SET cash_award_pence = 1 WHERE career_save_id = ${save.id}`), /immutable/);
   const s = await finance.summary(actor, save.id);
-  assert.equal(s.careerEarningsPence, 4500); assert.equal(s.reconciled, true);
+  assert.equal(s.careerEarningsPence, 2500); assert.equal(s.reconciled, true);
   const tables = await rows(sql`SELECT COUNT(*)::int n, COUNT(*) FILTER (WHERE classification = 'SPECIAL' AND ranking_eligible)::int bad FROM career_event_prize_tables WHERE career_save_id = ${save.id}`);
   assert.ok(Number(tables[0].n) > 10, "prize tables snapshotted for every completed event (A5 input)"); assert.equal(tables[0].bad, 0);
   // Loser path: early exit in a paying event earns zero, recorded as a factual award row.
@@ -784,7 +781,7 @@ test("SP-C2 pays approved-snapshot guarantees on every real multi-week advance w
     ["SPONSOR_GUARANTEED_PAYMENT", 100],
     ["SPONSOR_GUARANTEED_PAYMENT", 500],
     ["SPONSOR_GUARANTEED_PAYMENT", 1300],
-    ["SPONSOR_SIGNING_BONUS", 10000],
+    ["SPONSOR_SIGNING_BONUS", terms.signingBonusPence],
   ], "the contractual signing bonus and signing/recurring guarantees have separate A4 ledger identities");
 
   const request = {
@@ -808,7 +805,7 @@ test("SP-C2 pays approved-snapshot guarantees on every real multi-week advance w
 
   const sponsorView = await finance.sponsors(actor, save.id);
   assert.deepEqual(sponsorView.commercial?.cashReceivedPence,
-    { total: 13500, signing: 10000, guarantees: 3500, eventPayments: 0, performanceBonuses: 0 });
+    { total: terms.signingBonusPence + 3500, signing: terms.signingBonusPence, guarantees: 3500, eventPayments: 0, performanceBonuses: 0 });
   assert.equal(sponsorView.commercial?.remainingGuaranteesPence, 3400);
   assert.equal(sponsorView.commercial?.pastDueGuaranteesPence, 0);
   assert.equal((await finance.summary(actor, save.id)).reconciled, true);

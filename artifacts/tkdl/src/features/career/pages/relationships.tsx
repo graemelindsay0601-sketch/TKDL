@@ -31,7 +31,7 @@ function RivalRecord({ opponent, saveId }: { opponent: OpponentRelationship; sav
       </span>
       <span className="rel3-rival__labels">{opponent.labels.length ? opponent.labels.map(label => <em key={label}>{label}</em>) : <i>No special relationship yet</i>}</span>
       <span className="rel3-rival__record" aria-label={`Head-to-head ${opponent.humanWins} wins to ${opponent.npcWins}`}>
-        <b>{opponent.humanWins}</b><i>–</i><b>{opponent.npcWins}</b><small>W—L</small>
+        <b>{opponent.humanWins}</b><i>–</i><b>{opponent.npcWins}</b><small>{opponent.meetings ? `H2H ${opponent.humanWins}–${opponent.npcWins}` : "COHORT"}</small>
       </span>
       <span className="rel3-rival__expand" aria-hidden="true"><ChevronDown size={17} /></span>
     </summary>
@@ -48,14 +48,14 @@ function RivalRecord({ opponent, saveId }: { opponent: OpponentRelationship; sav
       {opponent.evidence.length > 0 && <ul className="rel3-evidence">{opponent.evidence.map(item => <li key={item}>{item}</li>)}</ul>}
       {opponent.cohorts.length > 0 && <ul className="rel3-cohorts">{opponent.cohorts.map(cohort => <li key={`${cohort.kind}:${cohort.season}:${cohort.session}`}><b>{cohort.kind}</b> · Season {cohort.season} · {cohort.name} · Both played in this {cohort.kind === "Q-School Class" ? "session" : "event"}.</li>)}</ul>}
       <h3 className="rel3-last-match__title">Played meetings</h3>
-      <ul className="rel3-history">{opponent.history.map(meeting => <li key={meeting.id}>
+      {opponent.history.length === 0 ? <p className="rel3-history__empty">No played meetings yet. Shared cohorts still appear above.</p> : <ul className="rel3-history">{opponent.history.map(meeting => <li key={meeting.id}>
         <span className="rel3-history__mark" aria-hidden="true">{meeting.won ? "W" : "L"}</span>
         <div><Link href={`/career/${saveId}/events/${meeting.eventId}`}>{when(meeting)} <ArrowUpRight size={12} aria-hidden /></Link>
           <small>{meeting.won ? "Won" : "Lost"} · {meeting.stage} · Round {meeting.round}{meeting.final ? " · Final" : ""}{meeting.major ? " · Major/world" : ""}{meeting.qualification ? " · Qualification" : ""}
             {meeting.legsHuman === null || meeting.legsNpc === null ? "" : ` · Legs ${meeting.legsHuman}–${meeting.legsNpc}`}
             {meeting.setsHuman === null || meeting.setsNpc === null ? "" : ` · Sets ${meeting.setsHuman}–${meeting.setsNpc}`}</small>
         </div>
-      </li>)}</ul>
+      </li>)}</ul>}
     </div>
   </details>;
 }

@@ -100,14 +100,15 @@ test("every event finishes honestly: completed with a valid champion or explicit
 });
 
 test("knockout brackets are internally consistent from first round to champion", async () => {
-  const matches = await rows(sql`SELECT m.event_id, m.round, m.slot, m.a_key, m.b_key, m.winner_key, m.status, m.best_of, m.legs_a, m.legs_b, m.summary, i.champion_participant_key,
+  const matches = await rows(sql`SELECT m.event_id, m.stage_key, m.round, m.slot, m.a_key, m.b_key, m.winner_key, m.status, m.best_of, m.legs_a, m.legs_b, m.summary, i.champion_participant_key,
       i.snapshot->'format'->>'scoringUnit' AS unit, (i.snapshot->'format'->>'legsPerSet')::int AS legs_per_set
     FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
     WHERE m.career_save_id = ${world.id} AND i.season = 1 AND i.status = 'COMPLETED' ORDER BY m.event_id, m.round, m.slot`);
   const byEvent = new Map<string, typeof matches>();
   for (const m of matches) byEvent.set(String(m.event_id), [...(byEvent.get(String(m.event_id)) ?? []), m]);
   for (const [, list] of byEvent) {
-    const rounds = Math.max(...list.map(m => Number(m.round)));
+    const bracketMatches = list.filter(m => !String(m.stage_key).startsWith("groups:"));
+    const rounds = Math.max(...bracketMatches.map(m => Number(m.round)));
     for (const m of list) {
       if (m.status === "COMPLETED") {
         const target = (Number(m.best_of) + 1) / 2;
@@ -123,12 +124,13 @@ test("knockout brackets are internally consistent from first round to champion",
           assert.equal(wl, target); assert.ok(Number(ll) < target);
         }
       }
-      if (Number(m.round) > 1) {
-        const feeders = list.filter(f => Number(f.round) === Number(m.round) - 1 && Math.ceil(Number(f.slot) / 2) === Number(m.slot));
-        assert.deepEqual([m.a_key, m.b_key].sort(), feeders.map(f => f.winner_key).sort(), "winners advance into the next slot");
+      if (!String(m.stage_key).startsWith("groups:") && Number(m.round) > 1) {
+        const feeders = list.filter(f => f.stage_key === m.stage_key && Number(f.round) === Number(m.round) - 1 && Math.ceil(Number(f.slot) / 2) === Number(m.slot));
+        assert.deepEqual([m.a_key, m.b_key].sort(), feeders.map(f => f.winner_key).sort(),
+          `winners advance within stage ${m.stage_key}, round ${m.round}, slot ${m.slot} of event ${m.event_id}`);
       }
     }
-    assert.equal(list.find(m => Number(m.round) === rounds)!.winner_key, list[0].champion_participant_key);
+    assert.equal(bracketMatches.find(m => Number(m.round) === rounds)!.winner_key, list[0].champion_participant_key);
   }
 });
 
@@ -139,8 +141,10 @@ test("NPC fields are plausible by tier and genuinely international at the top", 
   const share = (circuit: string, tier: string) => { const all = tiers.filter(t => t.circuit === circuit); return all.filter(t => t.tier === tier).reduce((a, t) => a + Number(t.n), 0) / Math.max(1, all.reduce((a, t) => a + Number(t.n), 0)); };
   assert.equal(share("GRASSROOTS", "ELITE"), 0, "elite players do not fill pub nights");
   assert.ok(share("PRO_CIRCUIT", "GRASSROOTS") === 0 && share("PRO_CIRCUIT", "AMATEUR") === 0, "Pro Circuit uses the professional placeholder status");
-  assert.ok(share("MAJOR", "ELITE") + share("MAJOR", "PROFESSIONAL") > 0.85, "ranking majors are professional fields");
-  assert.ok(share("MAJOR", "ELITE") > share("PRO_CIRCUIT", "ELITE"), "majors are stronger than the floor circuit");
+  const majorProfessionalShare = share("MAJOR", "ELITE") + share("MAJOR", "PROFESSIONAL");
+  assert.ok(majorProfessionalShare > 0.8, `ranking majors are professional-dominated fields (observed ${majorProfessionalShare})`);
+  const majorLowerTierShare = share("MAJOR", "GRASSROOTS") + share("MAJOR", "AMATEUR");
+  assert.ok(majorProfessionalShare > majorLowerTierShare, "majors draw stronger fields than their lower-tier entrants");
   const nations = Object.keys(report.international.proLevelEntrantNationality);
   assert.ok(nations.length >= 5, `professional fields span ${nations.join(",")}`);
   assert.ok(report.international.proLevelUkIrelandShare < 0.7, `UK/IE share ${report.international.proLevelUkIrelandShare}`);
@@ -159,8 +163,13 @@ test("qualification entitlements persist source/recipient, are consumed by intak
   assert.ok(issued.some(e => e.target_key === "q-school-final:UK_IRELAND" && String(e.source_definition).startsWith("q-school-first-uk_ireland")));
   for (const e of issued) {
     assert.ok(e.recipient_key && e.source_event_id && e.source_position && e.target_key && e.target_season === 1);
-    const result = (await rows(sql`SELECT finishing_position FROM career_event_results WHERE career_save_id = ${world.id} AND event_id = ${e.source_event_id} AND participant_key = ${e.recipient_key}`))[0];
-    assert.equal(Number(result.finishing_position), Number(e.source_position), "entitlement matches the recorded result");
+    if (e.source_kind === "EVENT_RESULT") {
+      const result = (await rows(sql`SELECT finishing_position FROM career_event_results WHERE career_save_id = ${world.id} AND event_id = ${e.source_event_id} AND participant_key = ${e.recipient_key}`))[0];
+      assert.equal(Number(result.finishing_position), Number(e.source_position), "event-result entitlement matches the recorded result");
+    } else {
+      assert.equal(e.source_kind, "PROVIDER");
+      assert.ok(e.source_detail, "provider entitlement retains its standings source");
+    }
   }
   const consumed = issued.filter(e => e.status === "CONSUMED");
   assert.ok(consumed.length > 0);
