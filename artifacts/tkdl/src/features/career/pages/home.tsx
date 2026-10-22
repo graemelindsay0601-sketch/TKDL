@@ -63,7 +63,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
         onEnter={onEnter} entering={enter.isPending} message={message} />}
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
-        title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#ff005c" archival={retired}
+        title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#c52842" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}
         stage={retired ? { eventClass: "NATIONAL" } : sporting.data?.tourCard.holdsCard
           ? { venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" } : { venue: { venueType: "social-club" }, eventClass: "GRASSROOTS" }}
