@@ -353,3 +353,69 @@
 .plan-week__options-list a { display:inline-flex; align-items:center; gap:4px; color:#a8d3fa; text-decoration:none; }
 .plan-week__options-list a:hover { text-decoration:underline; }
 .plan-week__options-list a svg { width:13px; height:13px; }
+
+/* Approved Career save-home treatment: keep the existing live data and actions,
+   but lead with player identity, then the next decision, in the red/black/gold palette. */
+.career-home > .career-page-hero { order:-1; --hero-accent:#c52842; border-color:#78623c; }
+.career-home .career-page-hero__title {
+  color:#f8f3ea;
+  font-family:"Outfit",system-ui,sans-serif;
+  font-size:clamp(2.25rem,5.4vw,4.5rem);
+  font-weight:650;
+  letter-spacing:-.035em;
+  line-height:.98;
+  text-transform:none;
+}
+.career-home .career-page-hero__kicker { color:#e0c77f; font-weight:600; }
+.career-home .career-page-hero__subtitle { color:#d0c4b4; font-weight:500; }
+.career-home .career-page-hero__stats { background:linear-gradient(100deg,#17130fe8,#12110ff2); }
+.career-home .career-page-hero__stats > div { border-color:#d8c49a24; }
+.career-home .career-page-hero__stats dt { color:#b8a578; font-weight:600; }
+.career-home .career-page-hero__stats dd { color:#f3eadb; font-family:"Outfit",system-ui,sans-serif; font-weight:600; }
+.career-home .career-page-hero__stats small { color:#c4b8a7; font-weight:500; }
+.career-home .career-page-hero__stats .is-gold dd { color:#ffd24a; }
+.career-home .career-page-hero__stats .is-good dd { color:#e5d29c; }
+.career-home .career-page-hero__actions .career-btn-primary,
+.career-root:has(.career-home) .career-hero .career-btn-primary {
+  border:1px solid #e3c676;
+  background:linear-gradient(180deg,#d53b4f,#a91d35);
+  color:#fff;
+  box-shadow:0 3px 0 #641c27,inset 0 1px #ffffff35;
+}
+.career-home .career-page-hero__actions .career-btn-primary:hover,
+.career-root:has(.career-home) .career-hero .career-btn-primary:hover:not(:disabled) {
+  background:linear-gradient(180deg,#e54a5d,#bc263d);
+}
+.career-home .next-move {
+  border-color:#78623c;
+  border-radius:4px;
+  background:linear-gradient(130deg,#201a13,#16130f 52%,#181410);
+  box-shadow:0 15px 32px #0006,inset 0 1px #ffffff11;
+}
+.career-home .next-move::before {
+  height:3px;
+  background:linear-gradient(90deg,#c52842,#d6b66d 58%,transparent);
+}
+.career-home .next-move__title {
+  color:#f6f0e7;
+  font-family:"Outfit",system-ui,sans-serif;
+  font-weight:650;
+  letter-spacing:-.02em;
+}
+.career-home .next-move__kicker,
+.career-home .next-move__subhead { color:#e0c77f; }
+.career-home .next-move__lead {
+  border-color:#d6b66d55;
+  background:linear-gradient(110deg,#d6b66d14,#ffffff04 60%);
+}
+.career-home .next-move__lead strong { color:#fff8eb; font-family:"Outfit",system-ui,sans-serif; font-weight:600; }
+.career-home .next-move__lead span,
+.career-home .next-move__empty { color:#c4bdb2; }
+.career-home .next-move__link { color:#e5c978; }
+.career-home .next-move .career-btn-primary {
+  border:1px solid #e3c676;
+  background:linear-gradient(180deg,#d53b4f,#a91d35);
+  color:#fff;
+  box-shadow:0 3px 0 #641c27,inset 0 1px #ffffff35;
+}
+.career-home .next-move .career-btn-primary:hover:not(:disabled) { background:linear-gradient(180deg,#e54a5d,#bc263d); }
