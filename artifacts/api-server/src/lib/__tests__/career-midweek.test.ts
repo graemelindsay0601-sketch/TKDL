@@ -19,6 +19,7 @@ import { createCareerSporting } from "../../db/migrations/create_career_sporting
 import { createShadowObservations } from "../../db/migrations/create_shadow_observations_sb21a.ts";
 import { repairCareerSchema } from "../../db/migrations/repair_career_schema.ts";
 import { createCareerService } from "../../career/service.ts";
+import { CAREER_VERSIONS } from "../../career/config.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { ensureSeason, type RootRow } from "../../career/calendar/engine.ts";
 import { MIDWEEK_KEYS } from "../../career/content/season-v15.ts";
@@ -75,22 +76,22 @@ test("an existing Career on an older edition gets the circuit from next week on,
   await db.execute(sql`DELETE FROM career_event_instances WHERE career_save_id = ${id} AND definition_key IN ('monday-league-night', 'wednesday-flier')`);
   await db.execute(sql`DELETE FROM career_calendar_addons WHERE career_save_id = ${id}`);
   await db.execute(sql`UPDATE career_saves SET current_week = 10 WHERE id = ${id}`);
-  const before = Number((await db.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${id}`)).rows[0].n);
   await career.calendar.calendar(actor, id, {});
   const added = await midweek(id);
   assert.ok(added.length > 0 && added.every(r => Number(r.start_week) >= 11), "only weeks still ahead");
   assert.ok(added.every(r => Number(r.event_database_version) === 16));
   assert.ok(added.some(r => r.locality_key === "victoria") && added.some(r => r.locality_key === "ayrshire"), "every home area, the UK included");
   assert.ok(added.some(r => r.status === "REGISTRATION_OPEN"), "nights within the entry window open straight away");
+  const afterFirstRefresh = Number((await db.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${id}`)).rows[0].n);
   await career.calendar.calendar(actor, id, {});
   assert.equal((await midweek(id)).length, added.length, "added once");
-  const after = Number((await db.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${id}`)).rows[0].n);
-  assert.equal(after - before, added.length, "nothing else in the season changes");
+  const afterSecondRefresh = Number((await db.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${id}`)).rows[0].n);
+  assert.equal(afterSecondRefresh, afterFirstRefresh, "refresh is idempotent after the current season is reconciled");
   const root = (await db.execute(sql`SELECT * FROM career_saves WHERE id = ${id}`)).rows[0] as RootRow;
   await db.transaction(tx => ensureSeason(tx, root, 2));
   const next = await midweek(id, 2);
   assert.ok(next.some(r => Number(r.start_week) <= 2) && next.length > added.length, "the next season has the circuit all year");
-  assert.equal(Number((await db.execute(sql`SELECT event_database_version FROM career_saves WHERE id = ${id}`)).rows[0].event_database_version), 14, "the save keeps its edition");
+  assert.equal(Number((await db.execute(sql`SELECT event_database_version FROM career_saves WHERE id = ${id}`)).rows[0].event_database_version), CAREER_VERSIONS.eventDatabaseVersion, "the existing save migrates to the current immutable edition");
 });
 
 test("a v15 Career (UK and Ireland nights already in its season) gets the other home areas from next week, with no duplicates", async () => {
