@@ -248,3 +248,88 @@
     linear-gradient(105deg, #35131e, #111319 58%, #24131b);
 }
 .cp-redesign .cp-red-enter { border-color: #b23a51; background: linear-gradient(135deg, #a52a42, #741d32); }
+
+/* Keep the approved display pairing, but use a lighter, more measured scale. */
+.cp-redesign .cp-red-hero h1 {
+  font-size: clamp(46px, 6.2vw, 70px);
+  font-weight: 600;
+  letter-spacing: -.035em;
+  line-height: .94;
+}
+.cp-redesign .cp-red-section-head h2 { font-size: 23px; font-weight: 600; }
+.cp-redesign .cp-red-tour strong,
+.cp-redesign .cp-red-event-copy strong,
+.cp-redesign .cp-red-booked h3,
+.cp-redesign .cp-red-standing header strong,
+.cp-redesign .cp-red-stat b { font-weight: 600; }
+.cp-redesign .cp-red-identity > strong { font-size: clamp(19px, 2.6vw, 24px); font-weight: 700; }
+.cp-redesign .cp-red-event-copy strong { font-size: 14px; }
+.cp-redesign .cp-red-booked h3 { font-size: 17px; }
+.cp-redesign .cp-red-menu {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(255,210,74,.5);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,210,74,.2), rgba(255,210,74,.06));
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px rgba(255,255,255,.18);
+  font-family: Oswald, sans-serif !important;
+  font-weight: 700;
+}
+.cp-redesign .cp-red-calendar {
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.045));
+  box-shadow: 0 4px 0 rgba(0,0,0,.25), 0 8px 16px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.16);
+  color: #f4f0e8;
+  font-family: Oswald, sans-serif !important;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.cp-redesign .cp-red-calendar:hover,
+.cp-redesign .cp-red-menu:hover {
+  border-color: rgba(217,196,157,.75);
+  filter: brightness(1.12);
+}
+.cp-redesign .cp-red-hero {
+  border-color: rgba(217,196,157,.45);
+  box-shadow: 0 3px 0 rgba(217,196,157,.32), 0 23px 48px rgba(0,0,0,.46), inset 0 1px rgba(255,255,255,.13);
+}
+.cp-redesign .cp-red-main-panel,
+.cp-redesign .cp-red-booked,
+.cp-redesign .cp-red-standing {
+  border-color: rgba(217,196,157,.2);
+  box-shadow: 0 3px 0 rgba(0,0,0,.38), 0 15px 28px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.1);
+}
+.cp-redesign .cp-red-main-panel::before,
+.cp-redesign .cp-red-booked::before,
+.cp-redesign .cp-red-standing::before {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 18px;
+  left: 18px;
+  height: 2px;
+  background: linear-gradient(90deg, #8f2539, #d9c49d 52%, transparent);
+  content: "";
+}
+.cp-redesign .cp-red-event {
+  box-shadow: 0 3px 0 rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.07);
+}
+.cp-redesign .cp-red-event.is-featured {
+  border-color: rgba(207,36,66,.48);
+  box-shadow: 0 3px 0 rgba(0,0,0,.28), inset 3px 0 #a52a42, inset 0 1px rgba(255,255,255,.09);
+}
+.cp-redesign .cp-red-enter {
+  box-shadow: 0 4px 0 #551629, 0 8px 15px rgba(0,0,0,.32), inset 0 1px rgba(255,255,255,.24);
+}
+@media (max-width: 540px) {
+  .cp-redesign .cp-red-hero h1 { font-size: clamp(43px, 12.5vw, 54px); }
+  .cp-redesign .cp-red-section-head h2 { font-size: 21px; }
+  .cp-redesign .cp-red-menu { min-height: 34px; padding: 0 8px; font-size: 9px; }
+  .cp-redesign .cp-red-calendar { min-height: 36px; padding: 0 9px; font-size: 9px; }
+}
