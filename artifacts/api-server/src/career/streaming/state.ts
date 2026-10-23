@@ -66,16 +66,20 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   if(tier==="PARTNER"||tier==="STAR"){
     const campaignOpen=(await tx.execute(sql`SELECT 1 FROM career_stream_campaigns WHERE career_save_id=${root.id}
       AND status IN ('OFFERED','ACTIVE','IN_PROGRESS') LIMIT 1`)).rows.length>0;
-    const campaignCount=Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_campaigns WHERE career_save_id=${root.id} AND season=${season}`)).rows[0]?.n??0);
-    if(!campaignOpen&&campaignCount<STREAM_MONEY.campaignsPerSeason&&week<=46){
-      const rng=scopedRandom(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",season,campaignCount);
+    const campaignMonthStart=Math.floor((week-1)/STREAM_MONEY.monthWeeks)*STREAM_MONEY.monthWeeks+1;
+    const campaignCount=Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_campaigns WHERE career_save_id=${root.id}
+      AND season=${season} AND offered_week BETWEEN ${campaignMonthStart} AND ${week}`)).rows[0]?.n??0);
+    const isCampaignMonthOpenWeek=week===campaignMonthStart;
+    if(isCampaignMonthOpenWeek&&!campaignOpen&&campaignCount<STREAM_MONEY.campaignsPerMonth){
+      const campaignMonth=Math.ceil(week/STREAM_MONEY.monthWeeks);
+      const rng=scopedRandom(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",season,campaignMonth);
       const brands=sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION);
       const brand=brands[Math.floor(rng()*brands.length)]!;
       const formats=["CHALLENGER","KING","CHECKOUTS","BOBS_27","SCORING"] as const;
       const requiredFormat=formats[Math.floor(rng()*formats.length)]!;
       const profile=brand.terms.commercialProfile;
       const payout=Math.min(300_000,Math.max(10_000,dealFee(followers)*4));
-      const id=stableUuid(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",root.id,season,campaignCount);
+      const id=stableUuid(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",root.id,season,campaignMonth);
       const brief=`Showcase ${profile?.benefitFocus.toLowerCase()??"the brand"} and tell viewers why ${brand.terms.displayName} backs your channel.`;
       await tx.execute(sql`INSERT INTO career_stream_campaigns
         (career_save_id,id,season,offered_week,expires_week,sponsor_key,sponsor_name,required_format,brief,reward_pence,status)

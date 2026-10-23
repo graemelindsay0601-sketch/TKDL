@@ -148,6 +148,8 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   // Earlier streams' clips are settled already (a viral one would add followers here).
   await db.execute(sql`UPDATE career_stream_clips SET status='SETTLED' WHERE career_save_id=${id}`);
   // You streamed this month (the earlier tests), so most subs renew.
+  const campaignMonthStart=month-STREAM_MONEY.monthWeeks+1;
+  await settleStreamingWeek(db,root,s.currentSeason,campaignMonthStart);
   await settleStreamingWeek(db, root, s.currentSeason, month);
   await settleStreamingWeek(db, root, s.currentSeason, month);
   const paid = await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-subs:${s.currentSeason}:${month}`}`);
@@ -157,13 +159,13 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   assert.equal(v.subscribers, renewals(10, true));
   assert.ok(v.dealOffer, "a Partner gets a brand offer");
   assert.equal(v.dealOffer!.perStreamPence, dealFee(1200)); assert.equal(v.dealOffer!.streamsTotal, STREAM_MONEY.dealStreams);
-  assert.ok(v.campaignOffer,"a Partner also gets a separate one-off sponsor campaign");
+  assert.ok(v.campaignOffer,"a Partner gets a one-off sponsor campaign each DartCast month");
   assert.ok(v.campaignOffer!.rewardPence>v.dealOffer!.perStreamPence,"the single-stream activation pays a campaign premium");
   await db.execute(sql`UPDATE career_stream_campaigns SET required_format='CHALLENGER' WHERE career_save_id=${id} AND id=${v.campaignOffer!.id}`);
   v=await streaming.answerCampaign(actor,id,v.campaignOffer!.id,{accept:true});
   assert.equal(v.campaignOffer,null);assert.equal(v.campaign!.requiredFormat,"CHALLENGER");
   await settleStreamingWeek(db, root, s.currentSeason, month);
-  assert.equal(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_stream_deals WHERE career_save_id=${id}`))[0].n), 1, "one offer at a time");
+  assert.equal(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_stream_deals WHERE career_save_id=${id} AND status IN ('OFFERED','ACTIVE')`))[0].n), 1, "only one multi-stream deal is open at a time");
   v = await streaming.answerDeal(actor, id, v.dealOffer!.id, { accept: true });
   assert.equal(v.dealOffer, null); assert.equal(v.deal!.streamsDone, 0);
   await status(streaming.answerDeal(actor, id, v.deal!.id, { accept: false }), 409);
@@ -185,6 +187,8 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   await db.execute(sql`UPDATE career_stream_deals SET status='OFFERED', expires_week=${month + 1} WHERE career_save_id=${id}`);
   await settleStreamingWeek(db, root, s.currentSeason, month + 1);
   assert.equal((await rows(sql`SELECT status FROM career_stream_deals WHERE career_save_id=${id}`))[0].status, "EXPIRED");
+  assert.ok((await streaming.read(actor,id)).campaignOffer,"the next four-week block brings another campaign offer");
+  assert.equal(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_stream_campaigns WHERE career_save_id=${id} AND season=${s.currentSeason}`))[0].n),2);
 });
 
 test("a DartCast Star is invited to the televised invitationals, without a manager", async () => {
