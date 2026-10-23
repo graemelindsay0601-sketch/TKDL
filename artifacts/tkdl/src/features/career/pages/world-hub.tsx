@@ -14,6 +14,7 @@ import {NpcLegacyPage,LegacyPage} from "./legacy";
 import type {ShellContext} from "../shell";
 import {CareerVenueAtlas} from "./venue-atlas";
 import "./world-landing.css";
+import "./world-players-premium.css";
 
 export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;section?:"landing"|"events"|"venues"|"history"|"search";detail?:string}) {
   const querySearch=new URLSearchParams(useSearch()).get("q")??"";
@@ -171,7 +172,79 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
 function Pagination({page,total,setPage}:{page:number;total:number;setPage:(p:number)=>void}) {
   return <div className="career-pagination"><button className="career-btn" disabled={!page} onClick={()=>setPage(page-1)}>Previous</button><span>Page {page+1} · {total} results</span><button className="career-btn" disabled={(page+1)*20>=total} onClick={()=>setPage(page+1)}>Next</button></div>;
 }
-export function WorldPlayerDirectory({ctx,search:external,id}:{ctx:ShellContext;search?:string;id?:string}) {
+function WorldPlayersPremiumDirectory({ctx}:{ctx:ShellContext}) {
+  const [search,setSearch]=useState(""),[status,setStatus]=useState("ALL"),[offset,setOffset]=useState(0);
+  const q=useWorldPlayers(ctx.save.id,offset,search,status),players=q.data?.players??[],total=q.data?.total??0;
+  const base=`/career/${ctx.save.id}`;
+  const start=total?offset+1:0,end=Math.min(offset+players.length,total);
+  return <main className="career-world-players-page">
+    <header className="pwr-masthead">
+      <Link className="pwr-brand" href={base}><span className="pwr-brand__crest"><Users size={17}/></span><span><b>TKDL</b><small>CAREER WORLD</small></span></Link>
+      <nav aria-label="Career location"><span>CAREER</span><i>/</i><Link href={`${base}/world`}>DARTS WORLD</Link><i>/</i><strong>PLAYERS</strong></nav>
+      <span className="pwr-season">WORLD TOUR <b>·</b> SEASON {String(ctx.save.currentSeason).padStart(2,"0")}</span>
+    </header>
+    <section className="pwr-hero">
+      <div className="pwr-hero__copy">
+        <span className="pwr-kicker"><Sparkles size={13}/> THE WORLD ROSTER <i>—</i> CAREER EDITION</span>
+        <h1>THE<br/><span>PLAYERS</span><sup>01</sup></h1>
+        <p>Every name has a story.<br/>Every ranking has a history.</p>
+        <div className="pwr-hero__foot"><span>OFFICIAL CAREER DIRECTORY</span><span><i/> PUBLIC PLAYER FACTS</span></div>
+      </div>
+      <div className="pwr-art" aria-hidden="true">
+        <img className="pwr-art__lineup" src="/assets/career-world-players-lineup-studio.jpg" alt=""/>
+        <span className="pwr-art__serial">THE WORLD ROSTER · CAREER EDITION</span>
+      </div>
+      <aside className="pwr-hero__stat">
+        <span className="pwr-hero__stat-icon"><Crown size={17}/></span>
+        <strong>{String(total).padStart(2,"0")}</strong>
+        <small>PLAYER<br/>PROFILES</small>
+        <span className="pwr-hero__stat-rule"/>
+        <span className="pwr-hero__stat-caption">PUBLIC<br/>RECORD</span>
+      </aside>
+    </section>
+    <section className="pwr-directory" aria-label="World players directory">
+      <div className="pwr-directory__heading">
+        <div><span className="pwr-section-kicker">01 <i>—</i> ORDER OF MERIT</span><h2>The world roster <small>{total} profiles</small></h2></div>
+        <span className="pwr-edition"><Trophy size={15}/> OFFICIAL RECORD <b>SEASON {ctx.save.currentSeason}</b></span>
+      </div>
+      <div className="pwr-toolbar">
+        <label className="pwr-search"><Search size={17}/><input aria-label="Search players" maxLength={80} placeholder="Search by player, nickname or nation" value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}}/></label>
+        <div className="pwr-filter"><span>STATUS</span><label><select aria-label="Career status" value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}>{["ALL","ACTIVE","RETIRED"].map(s=><option key={s} value={s}>{s==="ALL"?"All players":titleCase(s)}</option>)}</select></label></div>
+        <div className="pwr-results"><b>{String(total).padStart(2,"0")}</b><span>PROFILES</span></div>
+      </div>
+      {q.isLoading?<CareerLoading label="Searching public player facts"/>:q.error?<CareerError error={q.error} onRetry={()=>q.refetch()}/>:
+        <div className="pwr-roster" aria-live="polite">
+          {players.map((player,index)=><Link key={player.id} className={`pwr-player${player.status==="RETIRED"?" is-retired":""}`} href={`${base}/world/players/${player.id}/profile`} aria-label={`Open ${player.name}'s player profile`}>
+            <div className="pwr-player__topline"><span>WORLD ORDER <b>·</b> PROFILE {String(offset+index+1).padStart(2,"0")}</span><ArrowRight size={16}/></div>
+            <div className="pwr-player__main">
+              <span className="pwr-kit"><CareerShirt playerId={player.id} name={player.name} identity={player.shirt} sponsors={player.commercial.portfolio} scale="standard"/></span>
+              <span className="pwr-player__copy">
+                <span className="pwr-player__rank">{player.ranking!==null&&player.ranking!==undefined?<>RANK <b>#{String(player.ranking).padStart(2,"0")}</b></>:<>RANK <b>—</b></>}</span>
+                <strong>{player.name}</strong>
+                {typeof player.nickname==="string"&&player.nickname&&<em>“{player.nickname}”</em>}
+                <span className="pwr-player__country">{String(player.country)}</span>
+              </span>
+              <span className="pwr-player__medal"><span>{player.ranking!==null&&player.ranking!==undefined?String(player.ranking).padStart(2,"0"):"—"}</span><small>WORLD<br/>RANK</small></span>
+            </div>
+            <span className="pwr-player__foot"><span className={`pwr-status${player.status==="RETIRED"?" is-retired":""}`}><i/>{titleCase(String(player.status))}</span><span>OPEN PROFILE <ArrowRight size={12}/></span></span>
+          </Link>)}
+          {!players.length&&<div className="pwr-empty"><Users size={28}/><strong>No player found</strong><p>Try another name or career status.</p><button type="button" onClick={()=>{setSearch("");setStatus("ALL");setOffset(0);}}>Clear filters</button></div>}
+        </div>}
+      {!q.isLoading&&!q.error&&q.data&&<footer className="pwr-pagination">
+        <span>SHOWING <b>{start}–{end}</b> OF <b>{String(total).padStart(2,"0")}</b> PROFILES</span>
+        <div><button type="button" aria-label="Previous page" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>←</button><span>{String(Math.floor(offset/50)+1).padStart(2,"0")} <i>/</i> {String(Math.max(1,Math.ceil(total/50))).padStart(2,"0")}</span><button type="button" aria-label="Next page" disabled={q.data.nextOffset===null} onClick={()=>q.data.nextOffset!==null&&setOffset(q.data.nextOffset)}>→</button></div>
+      </footer>}
+    </section>
+    <footer className="pwr-bottom"><span>TKDL <i>×</i> DARTS WORLD</span><p>Public Career player facts only.</p><Link href={`${base}/world`}>DARTS WORLD <ArrowRight size={13}/></Link></footer>
+  </main>;
+}
+
+export function WorldPlayerDirectory(props:{ctx:ShellContext;search?:string;id?:string}) {
+  if(!props.id&&props.search===undefined)return <WorldPlayersPremiumDirectory ctx={props.ctx}/>;
+  return <WorldPlayerRecordPage {...props}/>;
+}
+
+function WorldPlayerRecordPage({ctx,search:external,id}:{ctx:ShellContext;search?:string;id?:string}) {
   const [search,setSearch]=useState(""),[status,setStatus]=useState("ALL"),[offset,setOffset]=useState(0),q=useWorldPlayers(ctx.save.id,offset,external??search,status,id);
   return <div className="space-y-3">{!id&&external===undefined&&<div className="career-surface career-player-filters"><label>Search players <input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setOffset(0);}}/></label><label>Career status <select value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}>{["ALL","ACTIVE","RETIRED"].map(s=><option key={s} value={s}>{titleCase(s)}</option>)}</select></label></div>}
     {q.isLoading?<CareerLoading label="Searching public player facts"/>:q.error?<CareerError error={q.error} onRetry={()=>q.refetch()}/>:q.data&&<CareerSection title={id?"Player profile":"Players"}>

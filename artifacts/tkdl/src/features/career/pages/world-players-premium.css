@@ -1,0 +1,150 @@
+.career-root .career-world-players-page {
+  --pwr-paper:#f0f0ed; --pwr-muted:#a7aab1; --pwr-gold:#d8bc77; --pwr-red:#ba2939;
+  min-height:100%; padding:0 30px 22px; color:var(--pwr-paper);
+  background:radial-gradient(ellipse at 76% 8%,#64202b27 0,transparent 31%),linear-gradient(135deg,#121419 0%,#090a0d 55%,#101217 100%);
+  font-family:"DM Sans",sans-serif;
+}
+.career-root .career-world-players-page,.career-root .career-world-players-page * { box-sizing:border-box; }
+.career-root .career-world-players-page a { color:inherit; text-decoration:none; }
+.career-root .career-world-players-page .pwr-masthead { display:flex; align-items:center; justify-content:space-between; height:62px; border-bottom:1px solid #ddc78322; }
+.career-root .career-world-players-page .pwr-brand { display:flex; align-items:center; gap:10px; }
+.career-root .career-world-players-page .pwr-brand__crest { display:grid; place-items:center; width:31px; height:31px; border:1px solid #d8bc776e; border-radius:50%; color:var(--pwr-gold); }
+.career-root .career-world-players-page .pwr-brand b { display:block; font:600 17px/1 Oswald,sans-serif; letter-spacing:.13em; }
+.career-root .career-world-players-page .pwr-brand small { display:block; margin-top:4px; color:var(--pwr-muted); font:500 7px "Share Tech Mono",monospace; letter-spacing:.14em; }
+.career-root .career-world-players-page .pwr-masthead nav { display:flex; align-items:center; gap:10px; color:#adb0b7; font:500 8px "Share Tech Mono",monospace; letter-spacing:.1em; }
+.career-root .career-world-players-page .pwr-masthead nav i { color:#5c6068; font-style:normal; }
+.career-root .career-world-players-page .pwr-masthead nav strong { color:var(--pwr-gold); }
+.career-root .career-world-players-page .pwr-season { color:var(--pwr-muted); font:500 8px "Share Tech Mono",monospace; letter-spacing:.12em; }
+.career-root .career-world-players-page .pwr-season b { color:var(--pwr-red); }
+.career-root .career-world-players-page .pwr-hero { position:relative; display:flex; align-items:center; min-height:350px; padding:30px 0; overflow:hidden; border-bottom:1px solid #ddc78324; }
+.career-root .career-world-players-page .pwr-hero__copy { position:relative; z-index:2; width:47%; }
+.career-root .career-world-players-page .pwr-kicker { display:flex; align-items:center; gap:9px; color:var(--pwr-gold); font:600 9px "Share Tech Mono",monospace; letter-spacing:.12em; }
+.career-root .career-world-players-page .pwr-kicker svg { color:var(--pwr-red); }
+.career-root .career-world-players-page .pwr-kicker i { color:#858991; font-style:normal; }
+.career-root .career-world-players-page .pwr-hero h1 { position:relative; margin:19px 0 13px -5px; color:#f2f2ef; font:500 clamp(62px,8.6vw,108px)/.76 Oswald,sans-serif; letter-spacing:-.025em; }
+.career-root .career-world-players-page .pwr-hero h1 span { color:var(--pwr-red); }
+.career-root .career-world-players-page .pwr-hero h1 sup { position:absolute; top:8px; margin-left:13px; color:#ddc988; font:500 14px "Share Tech Mono",monospace; letter-spacing:.04em; }
+.career-root .career-world-players-page .pwr-hero__copy>p { margin:24px 0 20px; color:#c4c6cb; font-size:13px; line-height:1.65; }
+.career-root .career-world-players-page .pwr-hero__foot { display:flex; flex-wrap:wrap; gap:17px; color:#9699a1; font:500 7px "Share Tech Mono",monospace; letter-spacing:.1em; }
+.career-root .career-world-players-page .pwr-hero__foot span:last-child { color:var(--pwr-gold); }
+.career-root .career-world-players-page .pwr-hero__foot i { display:inline-block; width:5px; height:5px; margin-right:5px; border-radius:50%; background:var(--pwr-gold); }
+.career-root .career-world-players-page .pwr-art { position:absolute; z-index:1; top:50%; left:47%; width:355px; height:320px; transform:translateY(-50%); }
+.career-root .career-world-players-page .pwr-art__lineup { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 16px 18px #000b); mask-image:radial-gradient(ellipse at center,#000 56%,transparent 100%); }
+.career-root .career-world-players-page .pwr-art__serial { position:absolute; bottom:3px; left:50%; color:#a58e5a; font:500 7px "Share Tech Mono",monospace; letter-spacing:.13em; transform:translateX(-50%); white-space:nowrap; }
+.career-root .career-world-players-page .pwr-hero__stat { position:absolute; z-index:2; right:8px; top:50%; display:grid; justify-items:center; width:104px; padding:14px 10px; border:1px solid #d8bc7744; background:linear-gradient(145deg,#1b1d23e8,#101217); box-shadow:0 13px 30px #0008,inset 0 1px #fff1; transform:translateY(-45%); }
+.career-root .career-world-players-page .pwr-hero__stat-icon { display:grid; place-items:center; width:28px; height:28px; margin-bottom:7px; border:1px solid #c6a85e66; border-radius:50%; color:var(--pwr-gold); }
+.career-root .career-world-players-page .pwr-hero__stat strong { color:#f0d38a; font:500 39px/.95 Oswald,sans-serif; }
+.career-root .career-world-players-page .pwr-hero__stat small { margin-top:4px; color:#a9abb2; font:500 7px/1.55 "Share Tech Mono",monospace; letter-spacing:.11em; text-align:center; }
+.career-root .career-world-players-page .pwr-hero__stat-rule { width:70%; height:1px; margin:12px 0 9px; background:linear-gradient(90deg,transparent,#d8bc77a0,transparent); }
+.career-root .career-world-players-page .pwr-hero__stat-caption { color:var(--pwr-red); font:600 7px "Share Tech Mono",monospace; letter-spacing:.12em; text-align:center; }
+.career-root .career-world-players-page .pwr-directory { padding-top:24px; }
+.career-root .career-world-players-page .pwr-directory__heading { display:flex; align-items:end; justify-content:space-between; }
+.career-root .career-world-players-page .pwr-section-kicker { color:#cbb16e; font:600 8px "Share Tech Mono",monospace; letter-spacing:.13em; }
+.career-root .career-world-players-page .pwr-section-kicker i { color:var(--pwr-red); font-style:normal; }
+.career-root .career-world-players-page .pwr-directory__heading h2 { margin:7px 0 0; color:#efefed; font:500 28px/1 Oswald,sans-serif; text-transform:uppercase; }
+.career-root .career-world-players-page .pwr-directory__heading h2 small { margin-left:9px; color:#999ca4; font:500 8px "Share Tech Mono",monospace; text-transform:none; }
+.career-root .career-world-players-page .pwr-edition { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid #d8bc7735; color:var(--pwr-gold); font:500 7px "Share Tech Mono",monospace; letter-spacing:.1em; }
+.career-root .career-world-players-page .pwr-edition svg { color:var(--pwr-red); }
+.career-root .career-world-players-page .pwr-edition b { padding-left:8px; border-left:1px solid #d8bc7735; color:#999ca4; font-weight:500; }
+.career-root .career-world-players-page .pwr-toolbar { display:flex; align-items:center; gap:18px; margin:18px 0 14px; padding:10px 12px; border:1px solid #d9bd782b; background:linear-gradient(180deg,#1b1e24,#121419); box-shadow:0 7px 18px #0005,inset 0 1px #fff1; }
+.career-root .career-world-players-page .pwr-search { display:flex; flex:1; min-width:160px; align-items:center; gap:9px; color:#c2a75f; }
+.career-root .career-world-players-page .pwr-search input { width:100%; border:0; outline:0; background:transparent; color:var(--pwr-paper); font:400 10px "DM Sans",sans-serif; }
+.career-root .career-world-players-page .pwr-search input::placeholder { color:#999ca4; }
+.career-root .career-world-players-page .pwr-filter { display:flex; align-items:center; gap:9px; padding-left:17px; border-left:1px solid #d9bd782b; }
+.career-root .career-world-players-page .pwr-filter>span { color:#a9abb2; font:500 7px "Share Tech Mono",monospace; letter-spacing:.1em; }
+.career-root .career-world-players-page .pwr-filter select { padding:7px 9px; border:1px solid #d9bd7838; border-radius:0; background:#101217; color:#e6e7e8; font:400 9px "DM Sans",sans-serif; cursor:pointer; }
+.career-root .career-world-players-page .pwr-results { display:grid; justify-items:end; gap:1px; padding-left:14px; border-left:1px solid #d9bd782b; color:#9da0a8; font:500 6px "Share Tech Mono",monospace; letter-spacing:.1em; }
+.career-root .career-world-players-page .pwr-results b { color:#e9d28a; font:500 19px/.9 Oswald,sans-serif; }
+.career-root .career-world-players-page .pwr-roster { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
+.career-root .career-world-players-page .pwr-player { position:relative; min-width:0; padding:10px 11px 0; overflow:hidden; border:1px solid #d8bc7760; background:linear-gradient(145deg,#38131d,#25131b 43%,#17191f); color:inherit; box-shadow:0 2px 0 #7e1b2c,0 13px 22px #000b,0 22px 32px #0005,inset 0 1px #fff3,inset 1px 0 #f3d47b26; transition:transform .22s,border-color .22s,box-shadow .22s; }
+.career-root .career-world-players-page .pwr-player:hover { transform:translateY(-5px); border-color:#e4c56d; box-shadow:0 3px 0 #9e2234,0 18px 28px #000c,0 28px 38px #0007,inset 0 1px #fff5; }
+.career-root .career-world-players-page .pwr-player__topline { display:flex; align-items:center; justify-content:space-between; color:#b5b7bd; font:500 6px "Share Tech Mono",monospace; letter-spacing:.09em; }
+.career-root .career-world-players-page .pwr-player__topline b { color:var(--pwr-red); }
+.career-root .career-world-players-page .pwr-player__main { display:flex; align-items:center; gap:12px; min-height:112px; padding:10px 0 9px; }
+.career-root .career-world-players-page .pwr-kit { position:relative; display:grid; flex:none; place-items:center; width:84px; height:89px; overflow:hidden; border:1px solid #d8bc7763; background:linear-gradient(145deg,#1b1d23,#101217); box-shadow:0 5px 10px #0008,inset 0 0 0 2px #090a0d; }
+.career-root .career-world-players-page .pwr-kit .career-shirt { width:100%; height:100%; padding:2px 4px 7px; }
+.career-root .career-world-players-page .pwr-player__copy { display:grid; min-width:0; gap:3px; }
+.career-root .career-world-players-page .pwr-player__rank { color:#9da0a8; font:500 6px "Share Tech Mono",monospace; letter-spacing:.1em; }
+.career-root .career-world-players-page .pwr-player__rank b { margin-left:4px; color:#d7bc76; font:500 10px Oswald,sans-serif; }
+.career-root .career-world-players-page .pwr-player__copy strong { overflow:hidden; color:#f1f1ef; font:500 clamp(16px,1.55vw,21px)/1.05 Oswald,sans-serif; text-overflow:ellipsis; white-space:nowrap; text-transform:uppercase; }
+.career-root .career-world-players-page .pwr-player__copy em { overflow:hidden; color:#c9a65b; font:italic 500 9px/1.3 "DM Sans",sans-serif; text-overflow:ellipsis; white-space:nowrap; }
+.career-root .career-world-players-page .pwr-player__country { color:#bfc1c6; font:400 8px "DM Sans",sans-serif; }
+.career-root .career-world-players-page .pwr-player__medal { display:grid; flex:none; place-items:center; gap:1px; width:39px; height:45px; margin-left:auto; background:linear-gradient(155deg,#292c33,#15171c); clip-path:polygon(0 0,100% 0,100% 83%,50% 100%,0 83%); color:#e0c678; }
+.career-root .career-world-players-page .pwr-player__medal span { font:500 16px/.9 Oswald,sans-serif; }
+.career-root .career-world-players-page .pwr-player__medal small { color:#a7a9af; font:500 5px/1.2 "Share Tech Mono",monospace; text-align:center; }
+.career-root .career-world-players-page .pwr-player__foot { display:flex; align-items:center; justify-content:space-between; min-height:30px; border-top:1px solid #d8bc7740; color:#b1b3b9; font:500 6px "Share Tech Mono",monospace; letter-spacing:.08em; }
+.career-root .career-world-players-page .pwr-player__foot>span:last-child { display:flex; align-items:center; gap:4px; color:#c1a65e; }
+.career-root .career-world-players-page .pwr-status { display:flex; align-items:center; gap:6px; text-transform:uppercase; }
+.career-root .career-world-players-page .pwr-status i { width:5px; height:5px; border-radius:50%; background:#d6bd77; }
+.career-root .career-world-players-page .pwr-status.is-retired { color:#b6a0a2; }
+.career-root .career-world-players-page .pwr-status.is-retired i { background:#b3313d; }
+.career-root .career-world-players-page .pwr-player.is-retired .pwr-kit { filter:grayscale(.55); }
+.career-root .career-world-players-page .pwr-empty { grid-column:1/-1; display:grid; justify-items:center; gap:8px; padding:42px 16px; border:1px dashed #d8bc7750; color:#bfa65e; text-align:center; }
+.career-root .career-world-players-page .pwr-empty strong { color:#eeeef0; font:500 21px Oswald,sans-serif; text-transform:uppercase; }
+.career-root .career-world-players-page .pwr-empty p { margin:0; color:#a9abb2; font-size:11px; }
+.career-root .career-world-players-page .pwr-empty button { margin-top:6px; padding:8px 12px; border:1px solid #d8bc7766; background:#191b20; color:#e2c67b; cursor:pointer; }
+.career-root .career-world-players-page .pwr-pagination { display:flex; align-items:center; justify-content:space-between; padding:14px 1px; color:#a1a3aa; font:500 7px "Share Tech Mono",monospace; letter-spacing:.08em; }
+.career-root .career-world-players-page .pwr-pagination b { color:#e2d2ad; font-weight:500; }
+.career-root .career-world-players-page .pwr-pagination>div { display:flex; align-items:center; gap:11px; color:#d8c89e; font:500 10px Oswald,sans-serif; }
+.career-root .career-world-players-page .pwr-pagination>div i { color:#64676f; font-style:normal; }
+.career-root .career-world-players-page .pwr-pagination button { display:grid; place-items:center; width:29px; height:27px; border:1px solid #d8bc7745; background:#17191e; color:#e0c479; cursor:pointer; }
+.career-root .career-world-players-page .pwr-pagination button:disabled { color:#786d5b; opacity:.45; cursor:not-allowed; }
+.career-root .career-world-players-page .pwr-bottom { display:flex; align-items:center; justify-content:space-between; min-height:43px; border-top:1px solid #d8bc7729; }
+.career-root .career-world-players-page .pwr-bottom>span,.career-root .career-world-players-page .pwr-bottom a { color:#d3b86e; font:500 7px "Share Tech Mono",monospace; letter-spacing:.1em; }
+.career-root .career-world-players-page .pwr-bottom>span i { padding:0 5px; color:#bd2939; font-style:normal; }
+.career-root .career-world-players-page .pwr-bottom p { margin:0; color:#a6a8af; font:italic 11px Georgia,serif; }
+.career-root .career-world-players-page .pwr-bottom a { display:flex; align-items:center; gap:6px; }
+@media(max-width:850px) {
+  .career-root .career-world-players-page { padding:0 20px 20px; }
+  .career-root .career-world-players-page .pwr-hero { min-height:320px; }
+  .career-root .career-world-players-page .pwr-art { left:43%; width:290px; transform:translateY(-50%) scale(.85); }
+  .career-root .career-world-players-page .pwr-hero__stat { right:0; width:88px; }
+  .career-root .career-world-players-page .pwr-roster { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:580px) {
+  .career-root .career-world-players-page { padding:0 12px 14px; }
+  .career-root .career-world-players-page .pwr-masthead { height:55px; }
+  .career-root .career-world-players-page .pwr-masthead nav { display:none; }
+  .career-root .career-world-players-page .pwr-season { font-size:7px; }
+  .career-root .career-world-players-page .pwr-hero { min-height:285px; align-items:flex-start; padding-top:32px; }
+  .career-root .career-world-players-page .pwr-hero__copy { width:75%; }
+  .career-root .career-world-players-page .pwr-kicker { gap:6px; font-size:7px; }
+  .career-root .career-world-players-page .pwr-hero h1 { margin-top:20px; font-size:67px; }
+  .career-root .career-world-players-page .pwr-hero h1 sup { top:4px; margin-left:7px; font-size:10px; }
+  .career-root .career-world-players-page .pwr-hero__copy>p { margin:19px 0 13px; font-size:11px; }
+  .career-root .career-world-players-page .pwr-hero__foot { display:grid; gap:6px; font-size:6px; }
+  .career-root .career-world-players-page .pwr-art { top:64%; left:37%; width:220px; height:220px; transform:translateY(-50%) scale(.72); }
+  .career-root .career-world-players-page .pwr-art__serial { font-size:5px; }
+  .career-root .career-world-players-page .pwr-hero__stat { top:auto; right:0; bottom:16px; width:63px; padding:7px 4px; transform:none; }
+  .career-root .career-world-players-page .pwr-hero__stat-icon { width:21px; height:21px; margin-bottom:4px; }
+  .career-root .career-world-players-page .pwr-hero__stat-icon svg { width:13px; }
+  .career-root .career-world-players-page .pwr-hero__stat strong { font-size:27px; }
+  .career-root .career-world-players-page .pwr-hero__stat small,.career-root .career-world-players-page .pwr-hero__stat-caption { font-size:5px; }
+  .career-root .career-world-players-page .pwr-hero__stat-rule { margin:6px 0 5px; }
+  .career-root .career-world-players-page .pwr-directory { padding-top:18px; }
+  .career-root .career-world-players-page .pwr-directory__heading h2 { font-size:22px; }
+  .career-root .career-world-players-page .pwr-edition { gap:5px; padding:6px; font-size:5px; }
+  .career-root .career-world-players-page .pwr-edition svg { width:12px; }
+  .career-root .career-world-players-page .pwr-edition b { padding-left:5px; }
+  .career-root .career-world-players-page .pwr-toolbar { flex-wrap:wrap; gap:9px; margin:14px 0 10px; padding:9px; }
+  .career-root .career-world-players-page .pwr-search { flex-basis:100%; }
+  .career-root .career-world-players-page .pwr-filter { padding-left:0; border:0; }
+  .career-root .career-world-players-page .pwr-results { margin-left:auto; }
+  .career-root .career-world-players-page .pwr-roster { gap:8px; }
+  .career-root .career-world-players-page .pwr-player { padding:8px 7px 0; }
+  .career-root .career-world-players-page .pwr-player__topline { font-size:5px; }
+  .career-root .career-world-players-page .pwr-player__main { gap:7px; min-height:98px; }
+  .career-root .career-world-players-page .pwr-kit { width:48px; height:64px; }
+  .career-root .career-world-players-page .pwr-player__copy { flex:1; }
+  .career-root .career-world-players-page .pwr-player__copy strong { overflow:visible; font-size:clamp(12px,3.5vw,15px); white-space:normal; }
+  .career-root .career-world-players-page .pwr-player__copy em { overflow:visible; font-size:7px; white-space:normal; }
+  .career-root .career-world-players-page .pwr-player__country { font-size:7px; }
+  .career-root .career-world-players-page .pwr-player__medal { display:none; }
+  .career-root .career-world-players-page .pwr-player__foot { min-height:28px; font-size:5px; }
+  .career-root .career-world-players-page .pwr-pagination { font-size:6px; }
+  .career-root .career-world-players-page .pwr-bottom p { display:none; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .career-root .career-world-players-page .pwr-player { transition:none; }
+  .career-root .career-world-players-page .pwr-player:hover { transform:none; }
+}
