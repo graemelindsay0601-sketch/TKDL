@@ -189,7 +189,7 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 
 // ------------------------------------------------------------------ ledger authority
 test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Career saves", async () => {
-  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 7);
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 8);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
   assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "APPROVED");
   for (const version of [1, 2, 3, 4]) {
@@ -1206,7 +1206,7 @@ test("SP-F2 reissues pending legacy offers with company profiles and preserves t
   const offer=refreshed.offers.find(candidate=>candidate.sponsorKey==="forge-workwear")!;
   assert.ok(offer,"the updated offer is visible");
   assert.notEqual(offer.id,old.id);
-  assert.equal(offer.terms.sponsorDatabaseVersion,7);
+  assert.equal(offer.terms.sponsorDatabaseVersion,8);
   assert.ok(offer.terms.commercialProfile,"the refreshed offer has its company-specific commercial identity");
   const refresh=(offer.source as Record<string,unknown>).catalogueRefresh as {fromVersion:number;toVersion:number};
   assert.equal(refresh.fromVersion,5);
@@ -1244,6 +1244,28 @@ test("SP-F2 company profiles carry distinct identities and bargaining positions"
   }));
   assert.ok(sponsorCatalogue(6).every(definition=>!definition.terms.commercialProfile),
     "the prior catalogue remains an immutable snapshot");
+});
+
+test("SP-F3 sponsor value, contract length and required duties rise across career tiers",()=>{
+  const tiers=["LOCAL","REGIONAL","PROFESSIONAL","ELITE"] as const;
+  const ranges=tiers.map(tier=>{
+    const offers=sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).filter(item=>item.terms.tier===tier);
+    assert.ok(offers.length>0,`${tier} has available brands`);
+    const guarantees=offers.map(item=>item.terms.contractFoundation!.guaranteedPayments[0]!.amountPence);
+    const durations=offers.map(item=>item.terms.duration);
+    const duties=offers.map(item=>item.terms.contractFoundation!.activitySpecification!.required.length);
+    return {tier,min:Math.min(...guarantees),max:Math.max(...guarantees),durations,duties};
+  });
+  for(let index=1;index<ranges.length;index++){
+    assert.ok(ranges[index].min>ranges[index-1].max,`${ranges[index].tier} guaranteed value clears the previous tier`);
+  }
+  assert.deepEqual([...new Set(ranges[0].durations.map(value=>value.kind==="SEASONS"?value.seasons:0))],[1]);
+  assert.deepEqual([...new Set(ranges[1].durations.map(value=>value.kind==="SEASONS"?value.seasons:0))],[1]);
+  assert.deepEqual([...new Set(ranges[2].durations.map(value=>value.kind==="SEASONS"?value.seasons:0))],[2]);
+  assert.deepEqual([...new Set(ranges[3].durations.map(value=>value.kind==="SEASONS"?value.seasons:0))],[3]);
+  assert.ok(ranges[0].duties.every(count=>count===0));
+  assert.ok(ranges[2].duties.every(count=>count>=2));
+  assert.ok(ranges[3].duties.every(count=>count>=2));
 });
 
 test("SP-F2 a brand profile controls the sponsor's actual counter offer", async () => {

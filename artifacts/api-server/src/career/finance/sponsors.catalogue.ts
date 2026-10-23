@@ -4,8 +4,8 @@ import {BRANDS,SPONSOR_CATEGORIES,type Brand,type RelationshipSlot,type SponsorC
 import {representativeById} from "../content/sponsor-representatives.ts";
 
 /** Latest supported catalogue. Offers and signed contracts retain their stored terms when a save advances. */
-export const CURRENT_SPONSOR_DATABASE_VERSION = 7;
-export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6,7] as const);
+export const CURRENT_SPONSOR_DATABASE_VERSION = 8;
+export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6,7,8] as const);
 /** Annual GBP guarantee schedule approved for new v5 sponsor offers. */
 export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "APPROVED" as const;
 
@@ -106,7 +106,9 @@ const CATEGORY_ACTIVITY_TYPES:Record<SponsorCategory,readonly string[]>={
   EQUIPMENT_PARTNER:["PRODUCT_APPEARANCE","PROMOTIONAL_APPEARANCE"],
   APPAREL_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
   TRAVEL_PARTNER:["PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
-  LOCAL_PARTNER:["COMMUNITY_APPEARANCE"],
+  // Larger local/regional businesses can ask for media or promotional work
+  // when they fund a professional-level deal; grassroots variants remain community-only.
+  LOCAL_PARTNER:["COMMUNITY_APPEARANCE","MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
   MAIN_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
   SECONDARY_PARTNER:["MEDIA_APPEARANCE","COMMUNITY_APPEARANCE"],
 };
@@ -114,7 +116,7 @@ const OPTIONAL_CATEGORY_TYPES:Record<SponsorCategory,readonly string[]>={
   EQUIPMENT_PARTNER:["PRODUCT_LAUNCH","PROMOTIONAL_EVENT"],
   APPAREL_PARTNER:["SPONSOR_MEDIA_APPEARANCE","PROMOTIONAL_EVENT"],
   TRAVEL_PARTNER:["PROMOTIONAL_EVENT","COMMUNITY_APPEARANCE"],
-  LOCAL_PARTNER:["COMMUNITY_APPEARANCE"],
+  LOCAL_PARTNER:["COMMUNITY_APPEARANCE","MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
   MAIN_PARTNER:["SPONSOR_MEDIA_APPEARANCE","PROMOTIONAL_EVENT","COMMUNITY_APPEARANCE"],
   SECONDARY_PARTNER:["SPONSOR_MEDIA_APPEARANCE","COMMUNITY_APPEARANCE"],
 };
@@ -221,7 +223,7 @@ const sponsorTermsSchema=z.object({
   sponsorKey:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   displayName:z.string().trim().min(2).max(80),
   tier:z.enum(SPONSOR_TIERS),
-  sponsorDatabaseVersion:z.number().int().min(1).max(7),
+  sponsorDatabaseVersion:z.number().int().min(1).max(8),
   duration:z.union([z.object({kind:z.literal("REMAINDER_OF_SEASON")}).strict(),
     z.object({kind:z.literal("SEASONS"),seasons:z.number().int().min(1).max(5)}).strict()]),
   signingBonusPence:penceSchema,
@@ -368,7 +370,8 @@ export function sponsorCatalogue(version: number):readonly SponsorDefinition[] {
   if (version === 4) return SPONSOR_CATALOGUE_V4;
   if (version === 5) return SPONSOR_CATALOGUE_V5;
   if (version === 6) return SPONSOR_CATALOGUE_V6;
-  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V7;
+  if (version === 7) return SPONSOR_CATALOGUE_V7;
+  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V8;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
 /**
@@ -549,8 +552,58 @@ export const SPONSOR_CATALOGUE_V7:readonly SponsorDefinition[]=Object.freeze(SPO
   return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
 }));
 
+/** SP-F3: restore a visible four-stage value ladder and scale duties with the deal. */
+const V8_TIER:Readonly<Record<SponsorTier,{guarantee:number;signing:number;event:number;performance:number;duration:number;required:number}>>=Object.freeze({
+  LOCAL:{guarantee:45_000,signing:20_000,event:1_500,performance:1,duration:1,required:0},
+  REGIONAL:{guarantee:250_000,signing:100_000,event:4_000,performance:1.15,duration:1,required:1},
+  PROFESSIONAL:{guarantee:1_400_000,signing:600_000,event:15_000,performance:1.25,duration:2,required:2},
+  ELITE:{guarantee:5_000_000,signing:2_500_000,event:65_000,performance:1.4,duration:3,required:3},
+});
+const V8_SECTOR:Readonly<Record<string,{guarantee:number;signing:number;event:number}>>=Object.freeze({
+  EQUIPMENT:{guarantee:1.05,signing:1.05,event:.8},APPAREL:{guarantee:.95,signing:1.1,event:1.15},
+  TRADES:{guarantee:.85,signing:.8,event:1.35},LOGISTICS:{guarantee:1,signing:.9,event:1.2},
+  AUTOMOTIVE:{guarantee:1.1,signing:1.15,event:1},TECHNOLOGY:{guarantee:1,signing:1.1,event:1.1},
+  ENERGY:{guarantee:1.2,signing:1,event:.9},CONSUMER:{guarantee:.9,signing:1.2,event:1.3},
+  FINANCIAL:{guarantee:1.25,signing:1.1,event:.85},
+});
+function v8ActivitySpecification(definition:SponsorDefinition):SponsorActivitySpecification{
+  const category=definition.terms.contractFoundation!.category,tier=definition.terms.tier;
+  const count=V8_TIER[tier].required;
+  const types=requiredTypeForCategory[category].filter(type=>REQUIRED_TIER_TYPES[tier].includes(type)).slice(0,count);
+  const required=types.map((type,index)=>({id:`v8-${type.toLowerCase().replaceAll("_","-")}-${index+1}`,
+    type,maxPerSeason:1 as const,windowWeeks:REQUIRED_WINDOW[type],firstWindowWeek:8+index*16,extraCompensationPence:0 as const}));
+  const optional=definition.terms.contractFoundation!.activitySpecification?.optional??[];
+  return validateSponsorActivitySpecification({version:SPONSOR_ACTIVITY_SPEC_VERSION,required,optional},tier,category);
+}
+export const SPONSOR_CATALOGUE_V8:readonly SponsorDefinition[]=Object.freeze(SPONSOR_CATALOGUE_V7.map(definition=>{
+  const terms=structuredClone(definition.terms),tier=V8_TIER[terms.tier];
+  const brand=BRANDS.find(item=>item.id===definition.key)!;
+  const sector=V8_SECTOR[brand.sector]??{guarantee:1,signing:1,event:1};
+  const category=SPONSOR_V6_PROFILE[terms.category??"MAIN_PARTNER"];
+  terms.sponsorDatabaseVersion=8;
+  terms.duration={kind:"SEASONS",seasons:tier.duration};
+  terms.signingBonusPence=scaleSponsorPence(tier.signing,sector.signing*category.signing);
+  terms.contractFoundation!.guaranteedPayments=[{amountPence:scaleSponsorPence(tier.guarantee,sector.guarantee*category.guarantee),
+    cadence:"PER_SEASON",installments:4}];
+  if(terms.eventPayment){
+    terms.eventPayment.amountPence=scaleSponsorPence(tier.event,sector.event*category.event);
+    terms.eventPayment.maxEventsPerSeason=terms.tier==="LOCAL"?12:terms.tier==="REGIONAL"?20:terms.tier==="PROFESSIONAL"?32:40;
+  }
+  terms.performanceBonuses=terms.performanceBonuses.map(bonus=>({...bonus,
+    amountPence:scaleSponsorPence(bonus.amountPence,tier.performance)}));
+  terms.coverage=terms.coverage.map(rule=>{
+    const travel=rule.costTypes.some(type=>type==="TRAVEL"||type==="ACCOMMODATION");
+    const perEvent=terms.tier==="LOCAL"?2_500:terms.tier==="REGIONAL"?15_000:terms.tier==="PROFESSIONAL"?100_000:null;
+    const season=terms.tier==="LOCAL"?30_000:terms.tier==="REGIONAL"?250_000:terms.tier==="PROFESSIONAL"?2_000_000:null;
+    return {...rule,perEventCapPence:perEvent,seasonCapPence:season,
+      percent:terms.tier==="ELITE"?100:Math.max(rule.percent,terms.tier==="LOCAL"?70:terms.tier==="REGIONAL"?45:terms.tier==="PROFESSIONAL"?(travel?40:65):0)};
+  });
+  terms.contractFoundation!.activitySpecification=v8ActivitySpecification(definition);
+  return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
+}));
+
 export function validateSponsorCatalogues():void {
-  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6],[7,SPONSOR_CATALOGUE_V7]] as const){
+  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6],[7,SPONSOR_CATALOGUE_V7],[8,SPONSOR_CATALOGUE_V8]] as const){
     const keys=new Set<string>();
     for(const definition of catalogue){
       if(keys.has(definition.key))throw new Error(`Duplicate sponsor definition in v${version}: ${definition.key}`);
@@ -574,6 +627,10 @@ export function validateSponsorCatalogues():void {
         throw new Error(`Sponsor v6 must have one seasonal guarantee: ${definition.key}`);
       if(version===7&&!definition.terms.commercialProfile)
         throw new Error(`Sponsor v7 commercial identity is missing: ${definition.key}`);
+      if(version===8){
+        if(!definition.terms.commercialProfile)throw new Error(`Sponsor v8 commercial identity is missing: ${definition.key}`);
+        validateSponsorActivitySpecification(definition.terms.contractFoundation!.activitySpecification!,definition.terms.tier,definition.terms.contractFoundation!.category);
+      }
       if(definition.terms.representative&&definition.terms.representative.sponsorId!==definition.key)
         throw new Error(`Sponsor representative owner mismatch: ${definition.key}`);
     }
