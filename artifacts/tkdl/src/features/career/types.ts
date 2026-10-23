@@ -134,6 +134,11 @@ export type SponsorTerms = {
     terminationConditions?:("TERM_COMPLETION"|"MUTUAL_AGREEMENT"|"MATERIAL_BREACH"|"INELIGIBILITY")[];
   };
   renewalRequirement: unknown; retentionRequirement: unknown; presentation: { colour: string };
+  commercialProfile?: {
+    positioning:string; benefitFocus:string; commitmentFocus:string;
+    negotiation:{style:"RELATIONSHIP"|"PRACTICAL"|"RESULTS_LED"|"PRESTIGE"|"PRODUCT_LED";
+      accept:number;ceiling:number;counterShare:number;rationale:string};
+  };
 };
 export type SponsorGuaranteePayment = {
   operationKey: string; contractId: string; sponsorKey: string; displayName: string; amountPence: number;

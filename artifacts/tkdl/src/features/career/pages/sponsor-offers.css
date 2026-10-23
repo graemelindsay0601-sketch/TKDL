@@ -18,6 +18,47 @@
   color: #f6f4ee;
 }
 
+.career-sponsor-offer__commercial-profile {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0.85rem 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(216, 182, 105, 0.19);
+  border-radius: 11px;
+  background: linear-gradient(120deg, rgba(216, 182, 105, 0.075), rgba(255,255,255,0.018));
+}
+
+.career-sponsor-offer__commercial-profile span {
+  display: block;
+  color: #d8b669;
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.career-sponsor-offer__commercial-profile p {
+  margin: 0.28rem 0 0;
+  color: rgba(246, 244, 238, 0.82);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.career-sponsor-offer__commercial-profile small {
+  grid-column: 1 / -1;
+  color: rgba(230, 234, 239, 0.58);
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 560px) {
+  .career-sponsor-offer__commercial-profile {
+    grid-template-columns: 1fr;
+  }
+}
+
 .career-sponsor-offer::before {
   position: absolute;
   z-index: 4;

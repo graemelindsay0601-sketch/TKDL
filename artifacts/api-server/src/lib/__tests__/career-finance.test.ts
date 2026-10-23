@@ -189,7 +189,7 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 
 // ------------------------------------------------------------------ ledger authority
 test("SP-Economy preserves v1-v4 and enables approved v5 guarantees only for new Career saves", async () => {
-  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 6);
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 7);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
   assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "APPROVED");
   for (const version of [1, 2, 3, 4]) {
@@ -1190,7 +1190,7 @@ test("SP-B local sponsor negotiations validate each visible term and reject unch
   }
 });
 
-test("SP-F1 reissues pending legacy offers with visible v6 terms and preserves the old offer", async () => {
+test("SP-F2 reissues pending legacy offers with company profiles and preserves the old offer", async () => {
   Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
   const save=await career();
   await db.execute(sql`UPDATE career_finance_state SET sponsor_database_version=5 WHERE career_save_id=${save.id}`);
@@ -1206,7 +1206,8 @@ test("SP-F1 reissues pending legacy offers with visible v6 terms and preserves t
   const offer=refreshed.offers.find(candidate=>candidate.sponsorKey==="forge-workwear")!;
   assert.ok(offer,"the updated offer is visible");
   assert.notEqual(offer.id,old.id);
-  assert.equal(offer.terms.sponsorDatabaseVersion,6);
+  assert.equal(offer.terms.sponsorDatabaseVersion,7);
+  assert.ok(offer.terms.commercialProfile,"the refreshed offer has its company-specific commercial identity");
   const refresh=(offer.source as Record<string,unknown>).catalogueRefresh as {fromVersion:number;toVersion:number};
   assert.equal(refresh.fromVersion,5);
   assert.notEqual(offer.terms.signingBonusPence,oldTerms.signingBonusPence);
@@ -1227,6 +1228,22 @@ test("SP-F1 reissues pending legacy offers with visible v6 terms and preserves t
     offerId:String(old.id),requestKey:"post-refresh-wrong-offer",expectedRevision:offer.journey!.revision,
     change:{kind:"SIGNING_BONUS",amountPence:offer.terms.signingBonusPence+200},
   }),409);
+});
+
+test("SP-F2 company profiles carry distinct identities and bargaining positions", () => {
+  const current=sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION);
+  assert.ok(current.length>=30);
+  assert.ok(current.every(definition=>definition.terms.commercialProfile?.positioning));
+  assert.ok(current.every(definition=>definition.terms.commercialProfile?.benefitFocus));
+  assert.ok(current.every(definition=>definition.terms.commercialProfile?.commitmentFocus));
+  assert.ok(new Set(current.map(definition=>definition.terms.commercialProfile!.negotiation.accept)).size>10,
+    "individual brands should not all share one acceptance threshold");
+  assert.ok(current.every(definition=>{
+    const profile=definition.terms.commercialProfile!.negotiation;
+    return profile.ceiling>profile.accept&&profile.counterShare>=.32&&profile.counterShare<=.68;
+  }));
+  assert.ok(sponsorCatalogue(6).every(definition=>!definition.terms.commercialProfile),
+    "the prior catalogue remains an immutable snapshot");
 });
 
 test("SP-B negotiation responses use a valid tolerance profile at every sponsor tier", () => {

@@ -168,6 +168,24 @@ export function SponsorOfferCard({
       <div className="career-sponsor-offer__body">
         <DecisionBrief offer={offer} activeContracts={activeContracts} />
 
+        {terms.commercialProfile && (
+          <section className="career-sponsor-offer__commercial-profile" aria-label={`${terms.displayName} partnership approach`}>
+            <div className="career-sponsor-offer__profile-positioning">
+              <span>What this company values</span>
+              <p>{terms.commercialProfile.positioning}</p>
+            </div>
+            <div>
+              <span>What they bring</span>
+              <p>{terms.commercialProfile.benefitFocus}</p>
+            </div>
+            <div>
+              <span>What they expect</span>
+              <p>{terms.commercialProfile.commitmentFocus}</p>
+            </div>
+            <small>{terms.commercialProfile.negotiation.style.replaceAll("_", " ").toLowerCase()} negotiating style</small>
+          </section>
+        )}
+
         {journey && (
           <section className="career-sponsor-offer__journey" aria-label="Sponsor approach and negotiation">
             <div className="career-sponsor-offer__journey-heading">

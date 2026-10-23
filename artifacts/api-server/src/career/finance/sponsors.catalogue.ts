@@ -4,8 +4,8 @@ import {BRANDS,SPONSOR_CATEGORIES,type Brand,type RelationshipSlot,type SponsorC
 import {representativeById} from "../content/sponsor-representatives.ts";
 
 /** Latest supported catalogue. Offers and signed contracts retain their stored terms when a save advances. */
-export const CURRENT_SPONSOR_DATABASE_VERSION = 6;
-export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6] as const);
+export const CURRENT_SPONSOR_DATABASE_VERSION = 7;
+export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6,7] as const);
 /** Annual GBP guarantee schedule approved for new v5 sponsor offers. */
 export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "APPROVED" as const;
 
@@ -209,6 +209,11 @@ export type SponsorTerms = {
   signatureProductSupport?: ("SIGNATURE_DARTS" | "SIGNATURE_RANGE")[];
   representative?:{id:string;sponsorId:string;displayName:string;role:string}|null;
   contractFoundation?:SponsorContractFoundation;
+  commercialProfile?: {
+    positioning:string; benefitFocus:string; commitmentFocus:string;
+    negotiation:{style:"RELATIONSHIP"|"PRACTICAL"|"RESULTS_LED"|"PRESTIGE"|"PRODUCT_LED";
+      accept:number; ceiling:number; counterShare:number; rationale:string};
+  };
 };
 export type SponsorDefinition = { key: string; offerRequirement: Requirement; terms: SponsorTerms };
 
@@ -216,7 +221,7 @@ const sponsorTermsSchema=z.object({
   sponsorKey:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   displayName:z.string().trim().min(2).max(80),
   tier:z.enum(SPONSOR_TIERS),
-  sponsorDatabaseVersion:z.number().int().min(1).max(6),
+  sponsorDatabaseVersion:z.number().int().min(1).max(7),
   duration:z.union([z.object({kind:z.literal("REMAINDER_OF_SEASON")}).strict(),
     z.object({kind:z.literal("SEASONS"),seasons:z.number().int().min(1).max(5)}).strict()]),
   signingBonusPence:penceSchema,
@@ -240,6 +245,16 @@ const sponsorTermsSchema=z.object({
   representative:z.object({id:z.string().regex(/^rep-[a-z0-9-]+$/),sponsorId:z.string().regex(/^[a-z0-9-]+$/),
     displayName:z.string().trim().min(2).max(80),role:z.string().trim().min(2).max(100)}).strict().nullable().optional(),
   contractFoundation:sponsorContractFoundationSchema.optional(),
+  commercialProfile:z.object({
+    positioning:z.string().trim().min(2).max(100),
+    benefitFocus:z.string().trim().min(2).max(100),
+    commitmentFocus:z.string().trim().min(2).max(100),
+    negotiation:z.object({
+      style:z.enum(["RELATIONSHIP","PRACTICAL","RESULTS_LED","PRESTIGE","PRODUCT_LED"]),
+      accept:z.number().min(0.05).max(0.4),ceiling:z.number().min(0.2).max(0.9),
+      counterShare:z.number().min(0.25).max(0.75),rationale:z.string().trim().min(12).max(180),
+    }).strict(),
+  }).strict().optional(),
 }).strict();
 
 export function parseSponsorTerms(value:unknown):SponsorTerms {
@@ -346,13 +361,14 @@ export const SPONSOR_CATALOGUE_V2: readonly SponsorDefinition[] = Object.freeze(
   }
   return { key: b.id, offerRequirement: requirement, terms };
 }));
-export function sponsorCatalogue(version: number) {
+export function sponsorCatalogue(version: number):readonly SponsorDefinition[] {
   if (version === SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V1;
   if (version === 2) return SPONSOR_CATALOGUE_V2;
   if (version === 3) return SPONSOR_CATALOGUE_V3;
   if (version === 4) return SPONSOR_CATALOGUE_V4;
   if (version === 5) return SPONSOR_CATALOGUE_V5;
-  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V6;
+  if (version === 6) return SPONSOR_CATALOGUE_V6;
+  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V7;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
 /**
@@ -493,8 +509,48 @@ export const SPONSOR_CATALOGUE_V6:readonly SponsorDefinition[]=Object.freeze(SPO
   return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
 }));
 
+/** SP-F2: versioned company identities and distinct bargaining styles for new offers. */
+const V7_NEGOTIATION:Readonly<Record<SponsorCategory,{
+  style:"RELATIONSHIP"|"PRACTICAL"|"RESULTS_LED"|"PRESTIGE"|"PRODUCT_LED";
+  accept:number;ceiling:number;counterShare:number;rationale:string;
+}>>=Object.freeze({
+  LOCAL_PARTNER:{style:"RELATIONSHIP",accept:.15,ceiling:.46,counterShare:.62,rationale:"We want to keep backing darts locally, so we can be flexible on a balanced package."},
+  TRAVEL_PARTNER:{style:"PRACTICAL",accept:.12,ceiling:.50,counterShare:.48,rationale:"Our budget is strongest on getting you to events; cash terms have less room to move."},
+  EQUIPMENT_PARTNER:{style:"PRODUCT_LED",accept:.16,ceiling:.55,counterShare:.56,rationale:"Product visibility and performance matter most to us, so we have balanced those against the cash request."},
+  APPAREL_PARTNER:{style:"RESULTS_LED",accept:.13,ceiling:.49,counterShare:.44,rationale:"We need the promotional commitment to match the support in this package."},
+  MAIN_PARTNER:{style:"PRESTIGE",accept:.19,ceiling:.62,counterShare:.40,rationale:"We can invest in a visible partnership, but the full commitment must reflect results and reach."},
+  SECONDARY_PARTNER:{style:"PRACTICAL",accept:.17,ceiling:.52,counterShare:.53,rationale:"We can find a workable middle ground while keeping the partnership commercially balanced."},
+});
+const V7_BENEFIT:Readonly<Record<string,string>>=Object.freeze({
+  EQUIPMENT:"Darts equipment, product access and performance rewards",APPAREL:"Competition apparel and visibility-led support",
+  TRADES:"Local backing and entry-fee help",LOGISTICS:"Travel and accommodation support",
+  AUTOMOTIVE:"Touring support and event access",TECHNOLOGY:"Digital reach and practical technology",
+  ENERGY:"Long-term backing and performance rewards",CONSUMER:"Audience reach and event payments",
+  FINANCIAL:"Reliable guarantees and professional growth",
+});
+const V7_COMMITMENT:Readonly<Record<SponsorCategory,string>>=Object.freeze({
+  EQUIPMENT_PARTNER:"Product appearances and launch feedback",APPAREL_PARTNER:"Media appearances and promotional work",
+  TRAVEL_PARTNER:"Event promotion and community appearances",LOCAL_PARTNER:"Local community appearances",
+  MAIN_PARTNER:"Media visibility, promotion and community appearances",
+  SECONDARY_PARTNER:"A focused mix of media and community appearances",
+});
+const stableBrandNumber=(key:string)=>[...key].reduce((value,char)=>(value*31+char.charCodeAt(0))>>>0,7);
+export const SPONSOR_CATALOGUE_V7:readonly SponsorDefinition[]=Object.freeze(SPONSOR_CATALOGUE_V6.map(definition=>{
+  const terms=structuredClone(definition.terms),brand=BRANDS.find(item=>item.id===definition.key)!;
+  const base=V7_NEGOTIATION[terms.category??"MAIN_PARTNER"],variation=stableBrandNumber(brand.id);
+  const accept=Math.max(.08,Math.min(.3,base.accept+((variation%5)-2)*.01));
+  const ceiling=Math.max(accept+.18,Math.min(.78,base.ceiling+(((variation>>>3)%7)-3)*.015));
+  const counterShare=Math.max(.32,Math.min(.68,base.counterShare+(((variation>>>6)%7)-3)*.025));
+  terms.sponsorDatabaseVersion=7;
+  terms.commercialProfile={positioning:brand.personality,
+    benefitFocus:V7_BENEFIT[brand.sector]??"Flexible commercial support for your career",
+    commitmentFocus:V7_COMMITMENT[brand.category],
+    negotiation:{...base,accept,ceiling,counterShare}};
+  return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
+}));
+
 export function validateSponsorCatalogues():void {
-  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6]] as const){
+  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6],[7,SPONSOR_CATALOGUE_V7]] as const){
     const keys=new Set<string>();
     for(const definition of catalogue){
       if(keys.has(definition.key))throw new Error(`Duplicate sponsor definition in v${version}: ${definition.key}`);
@@ -516,6 +572,8 @@ export function validateSponsorCatalogues():void {
       }
       if(version===6&&definition.terms.contractFoundation?.guaranteedPayments.length!==1)
         throw new Error(`Sponsor v6 must have one seasonal guarantee: ${definition.key}`);
+      if(version===7&&!definition.terms.commercialProfile)
+        throw new Error(`Sponsor v7 commercial identity is missing: ${definition.key}`);
       if(definition.terms.representative&&definition.terms.representative.sponsorId!==definition.key)
         throw new Error(`Sponsor representative owner mismatch: ${definition.key}`);
     }

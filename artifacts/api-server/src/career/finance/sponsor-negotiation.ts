@@ -119,7 +119,10 @@ export async function negotiateSponsorOffer(
   const originalTerms = parseSponsorTerms(rawOffer.terms);
   const proposedTerms = changes.reduce((terms, change) => applyChange(terms, change), originalTerms);
   const pressure = packagePressure(originalTerms, proposedTerms, changes);
-  const profile = responseProfile(originalTerms.tier, String(journey.brand_personality));
+  const brandProfile = originalTerms.commercialProfile?.negotiation;
+  const profile = brandProfile
+    ? { accept: brandProfile.accept, ceiling: brandProfile.ceiling }
+    : responseProfile(originalTerms.tier, String(journey.brand_personality));
   let outcome: SponsorNegotiationResult["outcome"];
   let resultingTerms: SponsorTerms | null = null;
   let message: string;
@@ -134,7 +137,7 @@ export async function negotiateSponsorOffer(
       : "The sponsor accepts the package. Review the revised terms before signing.";
   } else if (pressure <= profile.ceiling && round < MAX_ROUNDS) {
     const counter = changes.reduce((terms, change) =>
-      applyChange(terms, change, counterValue(originalTerms, change, proposedTerms), true), originalTerms);
+      applyChange(terms, change, counterValue(originalTerms, change, proposedTerms, brandProfile?.counterShare ?? 0.5), true), originalTerms);
     if (sameTerms(counter, originalTerms) || sameTerms(counter, proposedTerms)) {
       outcome = "REJECTED";
       message = "The sponsor cannot make a useful counter on this term and has closed the negotiation.";
@@ -142,7 +145,7 @@ export async function negotiateSponsorOffer(
       outcome = "COUNTERED";
       resultingTerms = counter;
       counterChanges = changes.map(change => changeAtTerms(counter, change));
-      counterRationale = counterReason(originalTerms, changes);
+      counterRationale = brandProfile?.rationale ?? counterReason(originalTerms, changes);
       message = changes.length === 1
         ? "The sponsor has made a counter-offer. Review its revised term."
         : "The sponsor has countered on your package. Review each revised term.";
@@ -329,27 +332,24 @@ export function responseProfile(tier: SponsorTier, personality: string) {
   };
 }
 
-function counterValue(before: SponsorTerms, change: NegotiationChange, after: SponsorTerms) {
+function counterValue(before: SponsorTerms, change: NegotiationChange, after: SponsorTerms, counterShare = 0.5) {
+  const point = (current: number, requested: number, increment = 1) =>
+    Math.round((current + (requested - current) * counterShare) / increment) * increment;
   switch (change.kind) {
-    case "SIGNING_BONUS": return midpoint(before.signingBonusPence, after.signingBonusPence, 100);
-    case "EVENT_PAYMENT": return midpoint(Number(before.eventPayment?.amountPence ?? 0), Number(after.eventPayment?.amountPence ?? 0), 100);
-    case "COVERAGE_PERCENT": return Math.round((before.coverage[change.index].percent + after.coverage[change.index].percent) / 2);
+    case "SIGNING_BONUS": return point(before.signingBonusPence, after.signingBonusPence, 100);
+    case "EVENT_PAYMENT": return point(Number(before.eventPayment?.amountPence ?? 0), Number(after.eventPayment?.amountPence ?? 0), 100);
+    case "COVERAGE_PERCENT": return point(before.coverage[change.index].percent, after.coverage[change.index].percent);
     case "DURATION": {
       const current = before.duration.kind === "SEASONS" ? before.duration.seasons : 1;
       const next = after.duration.kind === "SEASONS" ? after.duration.seasons : current;
-      return current + Math.floor((next - current) / 2);
+      return Math.max(1, Math.min(next, Math.round(current + (next - current) * counterShare)));
     }
     case "PERFORMANCE_BONUS": {
       const current = before.performanceBonuses.find(item => item.key === change.key)?.amountPence ?? 0;
       const next = after.performanceBonuses.find(item => item.key === change.key)?.amountPence ?? current;
-      return midpoint(current, next, 100);
+      return point(current, next, 100);
     }
   }
-}
-
-function midpoint(before: number, after: number, increment: number) {
-  const raw = (before + after) / 2;
-  return Math.round(raw / increment) * increment;
 }
 
 function sameTerms(left: SponsorTerms, right: SponsorTerms) {
