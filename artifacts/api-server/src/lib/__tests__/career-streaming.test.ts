@@ -22,7 +22,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerStreamingService } from "../../career/streaming/service.ts";
 import { createCareerHostingService } from "../../career/hosting/service.ts";
-import { STREAM, STREAM_MONEY, chatForVisit, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
+import { STREAM, STREAM_MONEY, adRevenuePence, chatForVisit, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
 import { settleStreamingWeek } from "../../career/streaming/state.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
 
@@ -33,6 +33,13 @@ let id = "";
 const SEED = "a".repeat(64);
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 const status = (p: Promise<unknown>, n = 409) => assert.rejects(p, (e: { status?: number }) => e.status === n);
+
+test("platform ads reward audience watch time and consistent streaming, independently of sponsors",()=>{
+  assert.equal(adRevenuePence(30_000,3,50),900);
+  assert.equal(adRevenuePence(30_000,1,50),300,"one active week earns a third of the full consistency rate");
+  assert.equal(adRevenuePence(30_000,0,50),0,"no streaming weeks means no ads payout");
+  assert.equal(adRevenuePence(30_000,3,49),0,"ads unlock at Affiliate");
+});
 
 before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1);
@@ -155,6 +162,9 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   const paid = await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-subs:${s.currentSeason}:${month}`}`);
   assert.equal(paid.length, 1, "paid once, however often the week is settled");
   assert.equal(Number(paid[0].amount_pence), subPayout(renewals(10, true)));
+  const ads=await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-ads:${s.currentSeason}:${month/STREAM_MONEY.monthWeeks}`}`);
+  assert.equal(ads.length,1,"monthly ad income posts once at month-end");
+  assert.ok(Number(ads[0].amount_pence)>0,"watch time and at least one streaming week produce ad income");
   let v = await streaming.read(actor, id);
   assert.equal(v.subscribers, renewals(10, true));
   assert.ok(v.dealOffer, "a Partner gets a brand offer");

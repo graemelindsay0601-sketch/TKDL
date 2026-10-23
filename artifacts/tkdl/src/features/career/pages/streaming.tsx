@@ -151,9 +151,15 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             </div>
             {message && <p className="preview-message" role="alert">{message}</p>}
           </section>
-          {(d.subscribers > 0 || d.deal || d.dealOffer || d.campaign || d.campaignOffer || d.invitations || d.charity.raisedPence > 0 || d.goalOptions) && <section className="audience-finance" id="audience">
+          {(d.platform.adsEligible || d.subscribers > 0 || d.deal || d.dealOffer || d.campaign || d.campaignOffer || d.invitations || d.charity.raisedPence > 0 || d.goalOptions) && <section className="audience-finance" id="audience">
             <div className="section-heading"><div><span className="eyebrow">03 / AUDIENCE &amp; INCOME</span><h2>The channel is working</h2></div><span className="heading-meta">YOUR CHANNEL ECONOMY</span></div>
             <div className="finance-layout">
+              <div className="audience-panel"><div className="panel-label"><CircleDollarSign aria-hidden /> PLATFORM ADS</div>
+                {d.platform.adsEligible ? <><div className="sub-count"><b>{money(d.platform.estimatedAdPence)}</b><span>estimated this month</span></div>
+                  <div className="renewal-figure"><span>WATCH TIME</span><b>{d.platform.viewerMinutesThisMonth.toLocaleString("en-GB")} min</b><span>STREAMED WEEKS <strong>{d.platform.streamedWeeksThisMonth} / {d.platform.fullRateWeeks} for full rate</strong></span></div>
+                  <p>Ads are separate from sponsors. Earnings scale with audience watch time and how consistently you stream; paid at the end of each four-week month.</p></>
+                  : <><div className="sub-count"><b>50</b><span>followers to unlock ads</span></div><p>Build your audience to Affiliate. Platform ads will provide income without a sponsor deal.</p></>}
+              </div>
               {d.subscribers > 0 && <div className="audience-panel"><div className="panel-label"><Users aria-hidden /> SUBSCRIBER HEALTH</div><div className="sub-count"><b>{d.subscribers}</b><span>active subscribers</span></div>
                 <div className="renewal-figure"><span>NEXT RENEWAL</span><b>Week {d.renewsWeek}</b><span>IF ALL STAY <strong>{money(Math.round(d.subscribers * 125))}</strong></span></div>
                 <p>Subscribers renew at the end of week {d.renewsWeek}. Stream at least once a month or more of them drift away.</p>

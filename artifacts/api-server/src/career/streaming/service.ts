@@ -12,7 +12,7 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, adRevenuePence, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -52,6 +52,7 @@ export type StreamingView = {
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
   pathway: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number; scheduledNights: number[] };
   totals: { streams: number; earnedPence: number; won: number };
+  platform: { adsEligible: boolean; viewerMinutesThisMonth: number; streamedWeeksThisMonth: number; estimatedAdPence: number; adRatePencePerThousandMinutes: number; fullRateWeeks: number };
   /** Subscribers who renew every four weeks (half of each £2.50 to you), and the week the next renewals are paid. */
   subscribers: number; renewsWeek: number;
   /** A brand's offer to answer, and the deal you're doing now. */
@@ -178,7 +179,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const season = Number(root.current_season), currentWeek = Number(root.current_week);
     const ch = await channel(tx, root);
     const tier = tierFor(ch.followers), next = nextTier(ch.followers);
-    const rows = (await tx.execute(sql`SELECT id, season, week, day, status, format, challenger, result, tally, income_pence, followers_gained, rounds FROM career_streams
+    const rows = (await tx.execute(sql`SELECT id, season, week, day, status, format, challenger, result, tally, income_pence, followers_gained, rounds, processed_visits FROM career_streams
       WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC`)).rows;
     // A match streamed from an event is the event's night, not one of your stream nights.
     const nights = rows.filter(r => r.format !== "MATCH");
@@ -192,6 +193,15 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const collabbed = new Set((await tx.execute(sql`SELECT DISTINCT challenger->'streamer'->>'key' AS k FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND format='COLLAB'`)).rows.map(r => String(r.k)));
     const clips = (await tx.execute(sql`SELECT * FROM career_stream_clips WHERE career_save_id=${root.id} ORDER BY (status='VIRAL') DESC, views DESC, season DESC, week DESC LIMIT 8`)).rows;
     const partner = tier.key === "PARTNER" || tier.key === "STAR";
+    const monthStart=(monthOf(week)-1)*STREAM_MONEY.monthWeeks+1;
+    const monthStreams=ended.filter(r=>Number(r.season)===season&&Number(r.week)>=monthStart&&Number(r.week)<=week&&r.format!=="CHARITY");
+    const streamedWeeksThisMonth=new Set(monthStreams.map(r=>Number(r.week))).size;
+    const viewerMinutesThisMonth=monthStreams.reduce((sum,r)=>{
+      const t=r.tally as Tally;
+      return sum+Number(t.viewerMinutes??Math.round(((Number(t.viewers)+Number(t.peak))/2)*Number(r.processed_visits)*STREAM_MONEY.adMinutesPerVisit));
+    },0);
+    const streamEarnings=Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence),0)::bigint AS n FROM career_finance_entries
+      WHERE career_save_id=${root.id} AND category='STREAM_INCOME'`)).rows[0]?.n??0);
     const g = ch.subGoal, goalMonth = g && g.season === season ? g.month : null;
     const subGoal: SubGoal | null = g && goalMonth !== null && goalMonth >= monthOf(week) - 1
       ? { ...g, endsWeek: g.month * STREAM_MONEY.monthWeeks, progress: await subsThisMonth(tx, root.id, g.season, g.month) } : null;
@@ -201,7 +211,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: STREAM.perWeek,
       freeNights: root.status === "ACTIVE" ? await freeNights(tx, root, week) : [], live: nights.find(r => r.status === "LIVE")?.id as string ?? null,
       pathway: await pathwaySchedule(tx, root, week),
-      totals: { streams: ended.length, earnedPence: ended.reduce((n, r) => n + Number(r.income_pence ?? 0), 0), won: ended.filter(r => r.result === "WON").length },
+      totals: { streams: ended.length, earnedPence: streamEarnings, won: ended.filter(r => r.result === "WON").length },
+      platform:{adsEligible:tier.key!=="NEWCOMER",viewerMinutesThisMonth,streamedWeeksThisMonth,
+        estimatedAdPence:adRevenuePence(viewerMinutesThisMonth,streamedWeeksThisMonth,ch.followers),
+        adRatePencePerThousandMinutes:STREAM_MONEY.adPencePerThousandViewerMinutes,fullRateWeeks:STREAM_MONEY.adFullRateWeeks},
       videos: ended.slice(0, 24).map(r => {
         const format = String(r.format ?? "CHALLENGER") as StreamFormat, challenger = String((r.challenger as { name: string }).name);
         return { id: String(r.id), season: Number(r.season), week: Number(r.week), dayOfWeek: ((Number(r.day) - 1) % 7) + 1, format, title: titleOf(format, challenger), challenger,

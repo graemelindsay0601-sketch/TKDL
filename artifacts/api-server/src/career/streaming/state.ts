@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
-import { STREAM, STREAM_MONEY, brandFor, clipOutcome, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
+import { STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
@@ -58,6 +58,21 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
     await tx.execute(sql`UPDATE career_stream_clips SET status=${o.viral ? "VIRAL" : "SETTLED"}, views=${o.views}, followers_gained=${o.followers}, fans_gained=${o.fans}
       WHERE career_save_id=${root.id} AND id=${String(c.id)} AND status='NEW'`);
     if (o.followers) { await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${o.followers} WHERE career_save_id=${root.id}`); ch.followers = Number(ch.followers) + o.followers; }
+  }
+  if(week%STREAM_MONEY.monthWeeks===0){
+    const firstWeek=week-STREAM_MONEY.monthWeeks+1;
+    const monthStreams=(await tx.execute(sql`SELECT week,processed_visits,tally FROM career_streams WHERE career_save_id=${root.id}
+      AND season=${season} AND week BETWEEN ${firstWeek} AND ${week} AND status='ENDED' AND format<>'CHARITY'`)).rows;
+    const streamedWeeks=new Set(monthStreams.map(r=>Number(r.week))).size;
+    const viewerMinutes=monthStreams.reduce((sum,r)=>{
+      const t=r.tally as {viewerMinutes?:number;viewers?:number;peak?:number};
+      const minutes=Number(t.viewerMinutes??Math.round(((Number(t.viewers??0)+Number(t.peak??0))/2)*Number(r.processed_visits)*STREAM_MONEY.adMinutesPerVisit));
+      return sum+minutes;
+    },0);
+    const adPayout=adRevenuePence(viewerMinutes,streamedWeeks,Number(ch.followers));
+    if(adPayout>0)await post(tx,root,{operationKey:`stream-ads:${season}:${Math.ceil(week/STREAM_MONEY.monthWeeks)}`,category:"STREAM_INCOME",
+      amountPence:adPayout,reason:`DartCast platform ads: ${viewerMinutes.toLocaleString("en-GB")} audience minutes`,season,week,
+      detail:{viewerMinutes,streamedWeeks,consistencyWeeks:STREAM_MONEY.adFullRateWeeks,followers:Number(ch.followers)}});
   }
   await tx.execute(sql`UPDATE career_stream_deals SET status='EXPIRED' WHERE career_save_id=${root.id} AND status='OFFERED' AND (season < ${season} OR expires_week <= ${week})`);
   await tx.execute(sql`UPDATE career_stream_campaigns SET status='EXPIRED' WHERE career_save_id=${root.id}

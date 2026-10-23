@@ -16,8 +16,8 @@ export const STREAM = Object.freeze({
   /** Followers needed for each step of the streamer route. */
   tiers: [
     { key: "NEWCOMER", name: "Newcomer", followers: 0, perks: "Go live and build an audience." },
-    { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Viewers can cheer with bits and send super chats." },
-    { key: "PARTNER", name: "Partner", followers: 1000, perks: "Viewers can subscribe (£2.50 a month, half to you), and brands start to notice." },
+    { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Earn platform ad revenue; viewers can cheer with bits and send super chats." },
+    { key: "PARTNER", name: "Partner", followers: 1000, perks: "Add paid fan memberships (£2.50 a month, half to you) and brand opportunities." },
     { key: "STAR", name: "Star", followers: 25000, perks: "A household name in darts streaming: the biggest audiences and the biggest tips." },
   ] as const,
   /** A pound of bits is 100 bits; DartCast keeps half of every subscription. */
@@ -60,6 +60,8 @@ export type ChatEvent =
   /** The scoring challenge: bits pledged that pay only if you beat the target average. */
   | { kind: "PLEDGE"; user: string; pence: number; text: string };
 export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number;
+  /** Estimated audience watch time, at two minutes per dart visit. Optional for saves created before ad monetisation. */
+  viewerMinutes?: number;
   /** Scoring challenge pledges (paid only on a win). */
   pledgedPence?: number;
   /** The best clip-worthy moment so far. */
@@ -150,8 +152,9 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
   const follows = Math.floor(carry);
   for (let i = 0; i < Math.min(follows, 3); i++) events.push({ kind: "FOLLOW", user: handleFor(rng) });
   const viewers = Math.max(1, Math.round(tally.viewers * (1 + (hype - 0.6) * 0.04) + (rng() - 0.45) * 2));
+  const viewerMinutes = (tally.viewerMinutes ?? 0) + Math.round(((tally.viewers + viewers) / 2) * STREAM_MONEY.adMinutesPerVisit);
   return { events, tally: { ...tally, viewers, peak: Math.max(tally.peak, viewers), hype, followersGained: tally.followersGained + follows, followerCarry: carry - follows,
-    bitsPence: tally.bitsPence + bits, superchatsPence: tally.superchatsPence + supers, subs: tally.subs + subs,
+    bitsPence: tally.bitsPence + bits, superchatsPence: tally.superchatsPence + supers, subs: tally.subs + subs, viewerMinutes,
     ...(pledges || tally.pledgedPence ? { pledgedPence: (tally.pledgedPence ?? 0) + pledged } : {}) } };
 }
 
@@ -172,6 +175,8 @@ export const STREAM_MONEY = Object.freeze({
   dealsPerSeason: 2, dealStreams: 6, dealOfferWeeks: 3,
   /** One-off sponsor activations: one offer at the start of each four-week DartCast month. */
   campaignsPerMonth:1,
+  /** Platform ads: pence per thousand viewer-minutes, with full pay after three distinct streaming weeks. */
+  adEligibleFollowers:50, adPencePerThousandViewerMinutes:30, adMinutesPerVisit:2, adFullRateWeeks:3,
   /** Fee per stream: a floor plus so much per follower, to the pound. */
   dealFloorPence: 2500, dealPencePerFollower: 3,
 });
@@ -190,6 +195,12 @@ export const renewals = (subscribers: number, streamed: boolean) =>
   Math.floor(Math.max(0, subscribers) * (streamed ? STREAM_MONEY.renewal.streamed : STREAM_MONEY.renewal.quiet));
 /** What a month's renewals pay you. */
 export const subPayout = (renewed: number) => Math.round(renewed * STREAM.subPence * STREAM.subShare);
+/** Platform ad revenue: audience watch time and steady weekly streaming both matter. */
+export const adRevenuePence = (viewerMinutes:number,streamedWeeks:number,followers:number) => {
+  if(followers<STREAM_MONEY.adEligibleFollowers||viewerMinutes<=0||streamedWeeks<=0)return 0;
+  const consistency=Math.min(1,streamedWeeks/STREAM_MONEY.adFullRateWeeks);
+  return Math.floor(viewerMinutes*STREAM_MONEY.adPencePerThousandViewerMinutes/1000*consistency);
+};
 /** A brand's fee for each stream, to the pound. */
 export const dealFee = (followers: number) => Math.round((STREAM_MONEY.dealFloorPence + Math.max(0, followers) * STREAM_MONEY.dealPencePerFollower) / 100) * 100;
 /** Which brand comes calling (the n-th deal of the season, picked from the seed). */
