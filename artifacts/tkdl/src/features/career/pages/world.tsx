@@ -1,12 +1,12 @@
 import {useState} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldMap,useWorldPlayers,useTrophyCabinet,usePresentation,useEditPresentation,useLaunchSignature,errorMessage} from "../api";
-import {CareerError,CareerLoading,CareerSection,BoundedList,EventPlateTile,OSWALD} from "../components";
+import {CareerError,CareerLoading,CareerSection,BoundedList,OSWALD} from "../components";
 import {titleCase,formatPence,publicText} from "../model";
 import type {ShellContext} from "../shell";
 import type {PresentationContent} from "../../../../../api-server/src/career/content/service";
 import {CareerShirt,CareerEventIdentity,type ShirtIdentity} from "../identity";
-import {AwardPresentation,awardLabel,resolveAward,trophyArt} from "../trophies";
+import {AwardPresentation,awardLabel,resolveAward,trophyArt,trophyAssetUrl} from "../trophies";
 import "./trophy-cabinet.css";
 import {CareerKitCustomizer} from "../kit-customizer";
 import {GuidanceSettings} from "../guidance";
@@ -14,7 +14,7 @@ import {CareerPathOverview} from "../career-path-overview";
 import {CareerMapPage} from "./map";
 import {eligibleKitMakerIds} from "../apparel/brand-mark-identity";
 import {CareerPageHero} from "../page-hero";
-import {Shirt,Sparkles,Tag} from "lucide-react";
+import {ChevronDown,ChevronLeft,ChevronRight,CircleDot,ShieldCheck,Shirt,Sparkles,Tag} from "lucide-react";
 import "./life.css";
 
 export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
@@ -62,40 +62,81 @@ export function WorldPlayersPage({ctx}:{ctx:ShellContext}) {
 }
 export function TrophyPage({ctx}:{ctx:ShellContext}) {
   const [offset,setOffset]=useState(0),cabinet=useTrophyCabinet(ctx.save.id,offset);
+  const [visibleArt,setVisibleArt]=useState(0);
   if(cabinet.isLoading)return <CareerLoading/>;
   if(cabinet.error||!cabinet.data)return <CareerError error={cabinet.error} onRetry={()=>cabinet.refetch()}/>;
-  // G1: silverware on shelves (E2 policy by actual event key); title wins without a trophy listed honestly below.
+  // Awards remain tied to actual recorded event results. The hero renders below are catalogue illustrations only.
   const groups=[...new Set(cabinet.data.titles.map(t=>t.canonicalEventId))].map(key=>{
     const editions=cabinet.data!.titles.filter(t=>t.canonicalEventId===key),t=editions[0];
     return {key,t,editions,award:resolveAward({definitionKey:key,circuit:t.circuit,classification:t.classification},{persistedTrophyId:t.trophy?.id??null})};
   });
   const silverware=groups.filter(g=>g.award.award!=="RESULT_ONLY"),plain=groups.filter(g=>g.award.award==="RESULT_ONLY");
   const wins=(n:number)=>`${n} recorded win${n===1?"":"s"}`;
-  // The award's name as text (not only image alt): the E2 design's catalogue name, or the recognition form.
   const awardName=(a:ReturnType<typeof resolveAward>)=>a.designId?trophyArt(a.designId)?.name??awardLabel(a):awardLabel(a);
-  return <div className="space-y-3">
-    <CareerPageHero kicker="Trophy cabinet" title={`${cabinet.data.total} recorded title${cabinet.data.total===1?"":"s"}`} accent="#e9c77a"
-      stage={{venue:{venueType:"historic-theatre"},eventClass:"MAJOR"}} watermark={`${cabinet.data.total}`}
-      subtitle={<p>{silverware.length?`${silverware.reduce((n,g)=>n+g.editions.length,0)} brought home silverware.`:"No silverware yet."} Every title here is a real win; repeat wins stay separate.</p>}
-      stats={[{label:"Titles",value:cabinet.data.total,tone:"gold"},{label:"With silverware",value:silverware.reduce((n,g)=>n+g.editions.length,0)},
-        {label:"Trophy designs",value:silverware.length},{label:"Result-only wins",value:plain.reduce((n,g)=>n+g.editions.length,0)}]}/>
-    {silverware.length>0?<section className="career-cabinet" aria-label="Silverware">
-      {silverware.map(({key,t,editions,award})=><CareerEventIdentity eventKey={key} key={key} className="career-cabinet__item">
-        <div className="career-cabinet__plinth">{editions.length>1&&<span className="career-cabinet__count" aria-label={`${editions.length} wins`}>×{editions.length}</span>}
-          <AwardPresentation event={{definitionKey:key,circuit:t.circuit,classification:t.classification}} persistedTrophyId={t.trophy?.id??null} size="lg" eventName={t.name}/></div>
-        <h3 style={OSWALD}>{t.name}</h3><p className="career-cabinet__award">{awardName(award)}</p><p>{wins(editions.length)} · {titleCase(t.classification)}</p>
-        <details><summary>Inspect individual wins</summary>{editions.map(e=><p key={e.eventId}><Link href={`/career/${ctx.save.id}/events/${e.eventId}`}>Season {e.season} · {e.venue?.displayName??"Venue not recorded"} · {awardName(award)}</Link></p>)}</details>
-      </CareerEventIdentity>)}
-    </section>:<p className="career-cabinet__empty">Silverware appears here when you win an event that awards a trophy, plaque or medal.</p>}
-    {plain.length>0&&<CareerSection title="Titles without silverware">
-      <p className="px-3 pt-3 text-sm text-white/60">Weekly fixtures, qualifiers and Q-School sessions are recorded wins with result and prize only.</p>
-      <ul className="career-cabinet__list">{plain.map(({key,t,editions})=><li key={key}>
-        <EventPlateTile atmosphere={{definitionKey:key,circuit:t.circuit,classification:t.classification,venue:t.venue??null}} label={`×${editions.length}`}/>
-        <Link href={`/career/${ctx.save.id}/events/${editions[0].eventId}`}><strong>{t.name}</strong></Link>
-        <span>{wins(editions.length)} · {t.circuit==="Q_SCHOOL"?"Session win — not a tournament title or automatic Tour Card":titleCase(t.classification)}</span></li>)}</ul>
-    </CareerSection>}
-    {!cabinet.data.total&&<p className="p-3">No titles invented. Your first actual win will appear here.</p>}
-    {(offset>0||cabinet.data.nextOffset!==null)&&<div className="p-3 flex gap-2"><button className="career-btn" disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))}>Previous</button><button className="career-btn" disabled={cabinet.data.nextOffset===null} onClick={()=>cabinet.data.nextOffset!==null&&setOffset(cabinet.data.nextOffset)}>Next</button></div>}
+  const art=[
+    {src:trophyAssetUrl("catalogue/premium-gold-cup-clean.png"),label:"Gold championship cup"},
+    {src:trophyAssetUrl("catalogue/premium-silver-cup-clean.png"),label:"Silver championship cup"},
+    {src:trophyAssetUrl("catalogue/premium-champions-shield-clean.png"),label:"Champions shield award"},
+  ];
+  const physicalWins=silverware.reduce((n,g)=>n+g.editions.length,0);
+  const designCount=new Set(silverware.map(g=>g.award.designId??`${g.award.award}:${g.award.recognition??"none"}`)).size;
+  const resultWins=plain.reduce((n,g)=>n+g.editions.length,0),activeArt=art[visibleArt];
+  return <div className="tc-room">
+    <div className="tc-room__wrap">
+      <header className="tc-room__masthead">
+        <span className="tc-room__brand"><b className="tc-room__brand-mark">TKDL</b><span>Career <i>/</i> World</span></span>
+        <span className="tc-room__mast-note">Honours record <b>·</b> Personal cabinet</span>
+      </header>
+      <section className="tc-room__hero" aria-labelledby="cabinet-heading">
+        <div className="tc-room__hero-copy">
+          <p className="tc-room__eyebrow"><span/>The winner’s room</p>
+          <h1 id="cabinet-heading">Trophy<br/><em>cabinet</em></h1>
+          <p className="tc-room__intro">Every title starts with a result. Every award shown here is tied to a recorded event win. Repeat victories keep their own place in the record.</p>
+          <div className="tc-room__hero-tag"><ShieldCheck size={15}/>Records only. Nothing assumed.</div>
+        </div>
+        <figure className="tc-room__showcase">
+          <div className="tc-room__showcase-backdrop" aria-hidden="true"><span className="tc-room__spotlight"/><span className="tc-room__arch"/><span className="tc-room__rule tc-room__rule--one"/><span className="tc-room__rule tc-room__rule--two"/></div>
+          <img key={activeArt.src} className="tc-room__hero-art" src={activeArt.src} alt={activeArt.label}/>
+          <figcaption className="tc-room__art-caption"><span className="tc-room__live-dot"/> CATALOGUE ARTWORK <b>·</b> NOT AN EARNED AWARD</figcaption>
+          <div className="tc-room__art-switcher" role="group" aria-label="Browse representative award artwork">
+            {art.map((item,index)=><button key={item.src} type="button" aria-label={`Show ${item.label} catalogue artwork`} aria-pressed={visibleArt===index} className={visibleArt===index?"is-active":""} onClick={()=>setVisibleArt(index)}/>)}
+          </div>
+        </figure>
+        <div className="tc-room__hero-foot"><span>01</span> TKDL CAREER / HONOURS</div>
+      </section>
+      <section className="tc-room__summary" aria-label="Career titles and this-page award summary">
+        <div className="tc-room__total"><span className="tc-room__label">Recorded titles</span><strong>{cabinet.data.total}</strong><span className="tc-room__total-tail">{cabinet.data.total?"Verified event results":"No recorded wins yet"}</span></div>
+        <div className="tc-room__stat"><b>{physicalWins}</b><span>Page physical<br/>awards</span></div>
+        <div className="tc-room__stat"><b>{designCount}</b><span>Page award<br/>designs</span></div>
+        <div className="tc-room__stat"><b>{resultWins}</b><span>Page result-only<br/>wins</span></div>
+      </section>
+      <section className="tc-room__cabinet" aria-label="Awarded silverware">
+        <div className="tc-room__section-head"><div><span className="tc-room__overline">THE COLLECTION</span><h2>Silverware</h2></div><span className="tc-room__section-count">{String(silverware.length).padStart(2,"0")} AWARDS</span></div>
+        {silverware.length? <div className="tc-room__wins">{silverware.map(({key,t,editions,award})=><CareerEventIdentity eventKey={key} key={key} className="tc-room__win">
+          <div className="tc-room__win-art">{editions.length>1&&<span className="tc-room__win-count" aria-label={`${editions.length} wins`}>×{editions.length}</span>}<AwardPresentation event={{definitionKey:key,circuit:t.circuit,classification:t.classification}} persistedTrophyId={t.trophy?.id??null} size="lg" eventName={t.name}/></div>
+          <div className="tc-room__win-copy"><h3>{t.name}</h3><p>{awardName(award)} · {wins(editions.length)} · {titleCase(t.classification)}</p>
+            <details><summary>Inspect individual wins <ChevronDown size={14}/></summary><div>{editions.map(e=><Link key={e.eventId} href={`/career/${ctx.save.id}/events/${e.eventId}`}>Season {e.season} · {e.venue?.displayName??"Venue not recorded"} · {awardName(award)}</Link>)}</div></details>
+          </div>
+        </CareerEventIdentity>)}</div> :
+          <div className="tc-room__empty"><div className="tc-room__empty-copy"><span className="tc-room__empty-index">{cabinet.data.total?"NO SILVERWARE ON THIS PAGE":"YOUR FIRST TITLE"}</span><h3>{cabinet.data.total?"The result book keeps the record.":"The shelf is still waiting."}</h3>
+            <p>{cabinet.data.total?"No silverware yet on this page. Recorded wins without a physical trophy remain listed below.":"Silverware appears when a recorded event win awards a trophy, plaque or medal. The artwork shown here is illustrative catalogue art, not an award earned by your player."}</p></div>
+            <div className="tc-room__empty-art" aria-hidden="true">{art.slice(1).map(item=><img key={item.src} src={item.src} alt=""/>)}</div></div>}
+      </section>
+      <section className="tc-room__results" aria-labelledby="result-heading">
+        <div className="tc-room__section-head tc-room__section-head--results"><div><span className="tc-room__overline">THE RESULT BOOK</span><h2 id="result-heading">Wins without silverware</h2></div><CircleDot size={19} aria-hidden="true"/></div>
+        {plain.length?<ul className="tc-room__result-list">{plain.map(({key,t,editions,award})=><li key={key}><span className="tc-room__result-bullet"/>
+          <Link href={`/career/${ctx.save.id}/events/${editions[0].eventId}`}><strong>{t.name}</strong><small>{wins(editions.length)} · {t.circuit==="Q_SCHOOL"?"Q-School session win — no automatic Tour Card":titleCase(t.classification)}</small></Link>
+          <span className="tc-room__result-prize">{awardName(award)}</span></li>)}</ul>:
+          <p className="tc-room__result-empty">Weekly fixtures, qualifiers and Q-School sessions can be recorded as wins with result and prize only. None are recorded on this page yet.</p>}
+      </section>
+      <div className="tc-room__integrity"><ShieldCheck size={16}/><span><b>No titles invented.</b> {cabinet.data.total?"Every entry reflects a recorded result.":"Your first actual win will be recorded here."}</span></div>
+      <footer className="tc-room__footer">
+        <details className="tc-room__rules"><summary>How this cabinet works <ChevronDown size={15}/></summary><p>Only recorded event wins count as titles. Repeat wins stay distinct; physical awards appear only when awarded. Individual event editions remain inspectable, while result-only wins stay separate.</p></details>
+        {(offset>0||cabinet.data.nextOffset!==null)&&<nav className="tc-room__pager" aria-label="Trophy cabinet pages"><span>PAGE {Math.floor(offset/50)+1}</span>
+          <button disabled={!offset} onClick={()=>setOffset(Math.max(0,offset-50))} type="button"><ChevronLeft size={15}/> Previous</button>
+          <button disabled={cabinet.data.nextOffset===null} onClick={()=>cabinet.data.nextOffset!==null&&setOffset(cabinet.data.nextOffset)} type="button">Next <ChevronRight size={15}/></button></nav>}
+      </footer>
+    </div>
   </div>;
 }
 export function PresentationPage({ctx}:{ctx:ShellContext}) {

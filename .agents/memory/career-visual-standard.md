@@ -3,7 +3,7 @@ name: Career visual and navigation standard
 description: Product-wide visual and navigation expectations for TKDL Career screens.
 ---
 
-**Recent coverage:** On 2026-10-21, the user confirmed Club and Pro-Am were recently reviewed. Sponsor HQ, Money Matches, Finances, and the Darts World hub are approved; Darts World subpages and other untouched areas remain to review.
+**Recent coverage:** On 2026-10-23, the Trophy Cabinet redesign was approved for integration. On 2026-10-21, the user confirmed Club and Pro-Am were recently reviewed. Sponsor HQ, Money Matches, Finances, and the Darts World hub are approved; other Darts World subpages and untouched areas remain to review.
 
 **Why:** The user wants visually distinctive Career pages because plain, text-heavy layouts felt dull. They repeatedly asked for crisp 3D depth and more engaging graphics, and specifically rejected blocky stacks and flat surfaces.
 
