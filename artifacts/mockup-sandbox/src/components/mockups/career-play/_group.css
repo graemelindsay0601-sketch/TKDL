@@ -1,0 +1,32 @@
+.cp-current,
+.cp-redesign {
+  min-height: 100vh;
+  box-sizing: border-box;
+  color: #edf4f8;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+}
+.cp-current *,
+.cp-redesign * { box-sizing: border-box; }
+.cp-current button,
+.cp-redesign button { font: inherit; }
+.cp-current svg,
+.cp-redesign svg { flex: none; }
+.cp-muted { color: #9aaebe; }
+.cp-sample {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #f1d58b;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+.cp-sample::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d8b96f;
+  content: "";
+}
