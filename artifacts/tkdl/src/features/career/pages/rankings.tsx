@@ -4,13 +4,14 @@ import {Link} from "wouter";
 import {usePresentation} from "../api";
 import {CareerShirt} from "../identity";
 import {npcShirt} from "../../../../../api-server/src/career/content/visual";
-import { BarChart3, ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, HelpCircle, Trophy } from "lucide-react";
 import { useRankingExplain, useRankingHistory, useRankingLists, useRankingMovers, useRankingTable, type TableQuery } from "../api";
 import { formatPence, ordinal } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Flag, Label, Movement, OSWALD, Segmented } from "../components";
 import type { ShellContext } from "../shell";
 import { CareerPageHero } from "../page-hero";
 import type { RankingListMeta, RankingRow } from "../types";
+import "./rankings-premium.css";
 
 const PAGE = 50;
 
@@ -23,7 +24,7 @@ export function RankingsPage({ ctx }: { ctx: ShellContext }) {
   const key = listKey ?? lists.data[0]?.key;
   const meta = lists.data.find(l => l.key === key);
   return (
-    <div className="space-y-3">
+    <div className="career-rankings-shell space-y-3">
       <ContextHelp saveId={ctx.save.id} topic="rankings"/>
       {meta ? <ListView key={meta.key} saveId={ctx.save.id} meta={meta} picker={<>
       <div className="career-ranking-picker">
@@ -49,7 +50,7 @@ export function MoversPanel({ saveId }: { saveId: string }) {
   const Row = ({ name, human, detail, tag }: { name: string; human: boolean; detail: string; tag?: string | null }) => (
     <li className="flex items-baseline justify-between gap-3 text-sm py-1 border-b border-white/5"><span className={human ? "font-bold text-[#ffd24a]" : ""}>{name}{tag && <span className="ml-2 text-[11px] uppercase tracking-wider text-[#7fe3c4]">{tag}</span>}</span><span className="text-white/70 whitespace-nowrap">{detail}</span></li>);
   return (
-    <section className="pdc-card p-4 space-y-3" aria-label="World Ranking movers">
+    <section className="career-rankings-movers pdc-card p-4 space-y-3" aria-label="World Ranking movers">
       <div><Label>Movers · World Ranking</Label>
         <p className="text-xs text-white/60">Since season {d.since.season}, week {d.since.week} (published ranking week {d.at.week}, season {d.at.season}).</p></div>
       <div className="grid gap-4 md:grid-cols-2">
@@ -67,7 +68,6 @@ export function MoversPanel({ saveId }: { saveId: string }) {
 }
 
 function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListMeta; picker?: ReactNode }) {
-  const presentation = usePresentation(saveId).data;
   const h = meta.human;
   const me = h.standing;
   const [view, setView] = useState<TableQuery["view"]>(me ? "AROUND" : "TOP");
@@ -75,18 +75,19 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
   const [showExplain, setShowExplain] = useState(false);
   const q: TableQuery = view === "AROUND" ? { view, participant: "HUMAN", radius: 6 } : view === "TOP" ? { view, limit: 32 } : { view, limit: PAGE, offset };
   const table = useRankingTable(saveId, meta.key, q, !!meta.published);
+  const leaders = useRankingTable(saveId, meta.key, { view: "TOP", limit: 3 }, !!meta.published);
   const history = useRankingHistory(saveId, meta.key, "HUMAN", 12);
   const explain = useRankingExplain(saveId, meta.key, "HUMAN", showExplain);
   const windowLabel = meta.window.kind === "ROLLING" ? `Rolling ${meta.window.weeks} weeks` : "This season only";
 
   return (
-    <>
+    <div className="career-rankings-page">
       {(() => {
         const cut = h.cutLines.filter(c => !c.inside && c.valueAtCutPence !== null).sort((a, b) => b.cutPosition - a.cutPosition)[0];
-        return <CareerPageHero kicker={`Official ranking · ${windowLabel}`} title={meta.name} accent="#c084fc" watermark={me ? `#${me.position}` : "—"}
+        return <CareerPageHero kicker={`Official ranking · ${windowLabel}`} title={meta.name} accent="#c82132" watermark={me ? `#${me.position}` : "—"}
           stage={{ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" }}
           subtitle={meta.published ? `Published season ${meta.published.season}, week ${meta.published.week} · ${meta.published.participantCount} ranked players` : "Published after the first week in which ranking money is won"}
-          portrait={me && presentation ? <CareerShirt identity={presentation.identity} sponsors={presentation.placements} name="You" scale="featured" /> : undefined}
+          portrait={<RankingBoard rows={leaders.data?.rows ?? []} standing={me} />}
           stats={[
             { label: "Your position", tone: me ? "gold" : "neutral", value: me ? <span className="inline-flex items-baseline gap-2">{ordinal(me.position)} <Movement movement={me.movement} isNew={me.isNew} /></span> : "Unranked" },
             { label: "Ranking money", value: formatPence(me?.valuePence ?? 0), sub: windowLabel },
@@ -96,7 +97,7 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
           ]}>{picker}</CareerPageHero>;
       })()}
 
-      <CareerSection title={meta.name} icon={<BarChart3 className="w-3.5 h-3.5" />} accent="#c084fc"
+      <CareerSection title={meta.name} icon={<BarChart3 className="w-3.5 h-3.5" />} accent="#d6b56d"
         action={meta.published ? <span className="text-xs whitespace-nowrap" style={{ color: "rgba(255,255,255,0.62)" }}>S{meta.published.season} W{meta.published.week}</span> : undefined}>
         <div className="px-3 pt-2.5 pb-1 flex flex-wrap items-center justify-between gap-2">
           <Segmented label="Table view" value={view} onChange={v => { setView(v); setOffset(0); }} options={[...(me ? [{ value: "AROUND" as const, label: "Around me" }] : []), { value: "TOP", label: "Top 32" }, { value: "PAGE", label: "Full table" }]} />
@@ -116,10 +117,11 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
       </CareerSection>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <CareerSection title="Your ranking history" icon={<BarChart3 className="w-3.5 h-3.5" />}>
+        <CareerSection title="Your ranking history" icon={<BarChart3 className="w-3.5 h-3.5" />} accent="#c82132">
           {history.isLoading ? <CareerLoading /> : !history.data?.snapshots.length ? <CareerEmptyState title="No history yet">Your history starts with your first ranking entry on this list.</CareerEmptyState> : (
-            <div className="px-4 py-3 space-y-2">
+            <div className="career-ranking-history px-4 py-3 space-y-2">
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Season highs: {history.data.seasonHighs.map(s => `S${s.season} ${ordinal(s.best)}`).join(" · ")}</div>
+              <RankingHistoryChart snapshots={history.data.snapshots} />
               <ul className="space-y-1">{history.data.snapshots.map(s => (
                 <li key={s.sequence} className="flex items-center gap-3 text-sm"><span className="w-20 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>S{s.season} W{s.week}</span>
                   <span className="w-12 font-black tabular-nums" style={{ ...OSWALD, color: "#fff" }}>{ordinal(s.position)}</span><Movement movement={s.movement} isNew={s.isNew} />
@@ -127,8 +129,8 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
             </div>
           )}
         </CareerSection>
-        <CareerSection title="Why this ranking?" icon={<HelpCircle className="w-3.5 h-3.5" />} accent="#38bdf8"
-          action={<button className="career-btn career-btn-ghost" aria-expanded={showExplain} onClick={() => setShowExplain(!showExplain)}>{showExplain ? "Hide" : "Show"}</button>}>
+        <CareerSection title="Why this ranking?" icon={<HelpCircle className="w-3.5 h-3.5" />} accent="#d6b56d"
+          action={<button className="career-btn career-btn-ghost career-ranking-explanation" aria-expanded={showExplain} onClick={() => setShowExplain(!showExplain)}>{showExplain ? "Hide" : "Show"}</button>}>
           {!showExplain ? <p className="px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Your ranking is the prize money you've won at ranking events ({windowLabel.toLowerCase()}).</p>
             : explain.isLoading ? <CareerLoading /> : explain.error || !explain.data ? <CareerError error={explain.error} onRetry={() => explain.refetch()} /> : explain.data.counting.length === 0 ? <CareerEmptyState title="No counting results" /> : (
               <div className="px-4 py-3 space-y-1.5">
@@ -142,7 +144,77 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
             )}
         </CareerSection>
       </div>
-    </>
+    </div>
+  );
+}
+
+function RankingBoard({ rows, standing }: { rows: RankingRow[]; standing: RankingListMeta["human"]["standing"] }) {
+  const move = standing?.movement;
+  const current = standing ? `#${standing.position}` : "—";
+  return (
+    <div className="career-ranking-board" role="img" aria-label={`Top ranking positions${standing ? ` and your position, ${current}` : ""}`}>
+      <div className="career-ranking-board__head">
+        <span><i /> WORLD ORDER</span>
+        <small>OFFICIAL TABLE</small>
+      </div>
+      <div className="career-ranking-board__rows">
+        {rows.slice(0, 3).map((row, index) => (
+          <div className={`career-ranking-board__row${index === 0 ? " is-gold" : ""}`} key={row.participantKey}>
+            <b>{String(row.position).padStart(2, "0")}</b>
+            <span><strong>{row.name ?? "Player"}</strong><small>{row.nationality || "RANKED"}</small></span>
+            <em>{formatPence(row.valuePence, { compact: true })}</em>
+          </div>
+        ))}
+        {rows.length === 0 && [1, 2, 3].map(position => (
+          <div className={`career-ranking-board__row${position === 1 ? " is-gold" : ""}`} key={position}>
+            <b>{String(position).padStart(2, "0")}</b><span><strong>Ranking position</strong><small>AWAITING RESULTS</small></span><em>—</em>
+          </div>
+        ))}
+        <div className="career-ranking-board__row is-you">
+          <b>{standing ? String(standing.position).padStart(2, "0") : "—"}</b>
+          <span><strong>YOUR POSITION</strong><small>{!standing ? "NOT YET RANKED" : move == null ? "NO MOVEMENT DATA" : move === 0 ? "NO WEEKLY CHANGE" : `${move > 0 ? "↑" : "↓"} ${Math.abs(move)} PLACES`}</small></span>
+          <em>{standing ? formatPence(standing.valuePence, { compact: true }) : "—"}</em>
+        </div>
+      </div>
+      <span className="career-ranking-board__seal"><Trophy size={13} /><b>TOP<br/>RANKS</b></span>
+    </div>
+  );
+}
+
+function RankingHistoryChart({ snapshots }: { snapshots: (RankingRow & { season: number; week: number; sequence: number })[] }) {
+  const plotted = snapshots.slice(-12);
+  if (plotted.length < 2) return null;
+  const positions = plotted.map(snapshot => snapshot.position);
+  const min = Math.min(...positions);
+  const max = Math.max(...positions);
+  const spread = Math.max(1, max - min);
+  const points = plotted.map((snapshot, index) => ({
+    snapshot,
+    x: 18 + (index * 384) / (plotted.length - 1),
+    y: 18 + ((snapshot.position - min) / spread) * 56,
+  }));
+  const line = points.map(point => `${point.x},${point.y}`).join(" ");
+  const first = plotted[0];
+  const last = plotted[plotted.length - 1];
+  return (
+    <div className="career-ranking-history-chart">
+      <div className="career-ranking-history-chart__labels"><span>BEST #{min}</span><span>RECENT FORM</span><span>#{max}</span></div>
+      <svg viewBox="0 0 420 92" preserveAspectRatio="none" role="img"
+        aria-label={`Ranking history from ${ordinal(first.position)} in season ${first.season}, week ${first.week}, to ${ordinal(last.position)} in season ${last.season}, week ${last.week}`}>
+        <defs><linearGradient id="career-rank-history-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#c82132" stopOpacity=".32"/><stop offset="1" stopColor="#c82132" stopOpacity="0"/></linearGradient></defs>
+        <polygon points={`18,88 ${line} 402,88`} fill="url(#career-rank-history-fill)"/>
+        <polyline points={line} fill="none" stroke="#e14a4c" strokeWidth="2.5" vectorEffect="non-scaling-stroke"/>
+        {points.map(({ snapshot, x, y }) => (
+          <circle key={snapshot.sequence} cx={x} cy={y} r="4" fill="#f0c773" stroke="#261a15" strokeWidth="2">
+            <title>{`Season ${snapshot.season}, week ${snapshot.week}: ${ordinal(snapshot.position)}`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="career-ranking-history-chart__range">
+        <span>S{first.season} W{first.week} · {ordinal(first.position)}</span>
+        <span>S{last.season} W{last.week} · {ordinal(last.position)}</span>
+      </div>
+    </div>
   );
 }
 
