@@ -333,3 +333,25 @@
   .cp-redesign .cp-red-menu { min-height: 34px; padding: 0 8px; font-size: 9px; }
   .cp-redesign .cp-red-calendar { min-height: 36px; padding: 0 9px; font-size: 9px; }
 }
+
+/* Give the date its own lane so event names and details are easy to scan. */
+.cp-redesign .cp-red-event {
+  grid-template-columns: 57px minmax(0, 1fr) 47px 70px;
+  gap: 13px;
+  padding-inline: 13px;
+}
+.cp-redesign .cp-red-date {
+  padding-right: 10px;
+}
+.cp-redesign .cp-red-event-copy {
+  padding-left: 2px;
+}
+@media (max-width: 540px) {
+  .cp-redesign .cp-red-event {
+    grid-template-columns: 47px minmax(0, 1fr) 34px;
+    gap: 10px;
+    padding-inline: 9px;
+  }
+  .cp-redesign .cp-red-date { padding-right: 8px; }
+  .cp-redesign .cp-red-event-copy { padding-left: 3px; }
+}
