@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useLegacy, useSeasonReview, useEventLegacy, useNpcLegacy, useBeginSeason, useSaveLifecycle, usePresentation, errorMessage } from "../api";
 import { CareerSection, QueryState, ConfirmButton, BoundedList } from "../components";
 import { circuitLabel, formatPence, publicText, titleCase } from "../model";
-import { Award as AwardIcon, Crown, Landmark, Medal, ScrollText, Star, Trophy } from "lucide-react";
+import { Award as AwardIcon, Crown, Medal, ScrollText, Star, Trophy } from "lucide-react";
 import { CareerPageHero } from "../page-hero";
 import { CareerShirt } from "../identity";
 import { NpcHero } from "../npc-hero";
@@ -12,6 +12,7 @@ import "./legacy.css";
 import { HistoryPage } from "./history";
 import type { ShellContext } from "../shell";
 import type { Award, LegacyView, SeasonReview, RecordRow } from "../../../../../api-server/src/career/legacy/types";
+import { WorldHistoryChronicleArchive, WorldHistoryChronicleHero } from "./world-history-chronicle";
 
 const tabs=["Career Record","Seasons","Honours","World History","Event Legends","Records","Hall of Fame","Retirement"];
 export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;initialTab?:string}) {
@@ -19,22 +20,20 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
   const seasonQuery=useSeasonReview(ctx.save.id,season),eventQuery=useEventLegacy(ctx.save.id,event);
   const presentation=usePresentation(ctx.save.id);
   const world=initialTab==="World History";
-  return <div className="space-y-3 career-archive"><QueryState query={query} label="Building your Career legacy">{d=><CareerPageHero
-      kicker={world?"Darts World · Champions & records":`The record you build · Season ${ctx.save.currentSeason}`} title={world?"World history":"Career archive"}
-      stage={{venue:{venueType:world?"exhibition":"historic-theatre"},eventClass:"MAJOR"}} accent="#e8c66a" archival={ctx.retired}
-      watermark={world?`S${ctx.save.currentSeason}`:`${d.overview.titles}`}
+  return <div className={`space-y-3 career-archive${world?" whr-page":""}`}><QueryState query={query} label="Building your Career legacy">{d=>world
+      ? <WorldHistoryChronicleHero data={d} saveId={ctx.save.id}
+        />
+      : <CareerPageHero
+      kicker={`The record you build · Season ${ctx.save.currentSeason}`} title="Career archive"
+      stage={{venue:{venueType:"historic-theatre"},eventClass:"MAJOR"}} accent="#e8c66a" archival={ctx.retired}
+      watermark={`${d.overview.titles}`}
       subtitle={<p>{d.descriptors.join(" · ")||"Every result, sponsor and big moment from your darts career."}</p>}
-      portrait={!world&&presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>:undefined}
-      stats={world?[
+      portrait={presentation.data?<CareerShirt identity={presentation.data.identity} sponsors={presentation.data.placements} name={ctx.save.careerName??"Player"} scale="featured"/>:undefined}
+      stats={[
         {label:"Completed seasons",value:d.completedSeasons.length,tone:"gold"},
         {label:"Recorded players",value:d.players.filter(p=>p.id!=="HUMAN").length},
         {label:"Retired players",value:d.players.filter(p=>p.id!=="HUMAN"&&p.retiredSeason).length},
         {label:"Hall of Fame",value:d.hallOfFame.length},
-      ]:[
-        {label:"Main-event titles",value:d.overview.titles,tone:"gold"},
-        {label:"Finals",value:d.overview.finals},
-        {label:"Major / World titles",value:d.overview.majorTitles},
-        {label:"Highest World rank",value:d.bestRanking?`#${d.bestRanking.position}`:"—"},
       ]}
       actions={<nav aria-label="Career commercial and legacy navigation" className="flex flex-wrap gap-2">
         <Link className="career-btn career-btn-ghost" href={`/career/${ctx.save.id}/sponsors`}>Sponsor HQ</Link>
@@ -74,15 +73,7 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
           <b>S{r.season}</b><span>{r.identity}</span><small>{titleCase(r.provenance)}</small></button>}</BoundedList></div>
         {season!==null&&<QueryState query={seasonQuery} label="Reading Season Review">{r=><SeasonReviewPanel review={r} saveId={ctx.save.id}/>}</QueryState>}</>}
       {tab==="Honours"&&<><h2>Season awards</h2><Awards rows={d.honours}/><p className="career-fineprint">Main-event title honours remain in the trophy and result history below.</p></>}
-      {tab==="World History"&&<><h2>Career world history</h2>{!d.world.length&&<ArchiveEmpty icon={<Landmark size={18}/>} title="No completed world season yet">Champions, Tour Card changes, retirements and new players appear here at the end of each season.</ArchiveEmpty>}
-        <BoundedList rows={d.world} size={5}>{(w,i)=><section key={d.completedSeasons[i]} className="career-archive__world-season">
-        <header><span>Season {d.completedSeasons[i]}</span><strong>World #1: {w.numberOne?`${w.numberOne.name}`:"not recorded"}</strong>{w.numberOne&&<small>Week {w.numberOne.week}</small>}</header>
-        {w.champions.length>0&&<><h3>Champions</h3><BoundedList rows={w.champions}>{r=><div className="career-archive__row" key={r.id}><span className="career-archive__chip"><Trophy size={11}/> {titleCase(r.tier)}</span><strong>{r.name}</strong><em>{playerName(d,r.participant)}</em></div>}</BoundedList></>}
-        {w.cardChanges.length>0&&<><h3>Tour Card changes</h3><BoundedList rows={w.cardChanges}>{c=><div className="career-archive__row" key={c.id}><span className="career-archive__chip">Card</span><strong>{playerName(d,c.participant)}</strong><em>{titleCase(c.source)} · {titleCase(c.status)}</em></div>}</BoundedList></>}
-        {w.retirements.length>0&&<><h3>Retirements</h3><BoundedList rows={w.retirements}>{p=><div className="career-archive__row" key={p.id}><span className="career-archive__chip">Retired</span><Link href={`/career/${ctx.save.id}/history/npcs/${p.id}`}><strong>{p.name}</strong></Link><em /></div>}</BoundedList></>}
-        <h3>{w.newEntrants.length} new players</h3><div className="career-archive__names">{w.newEntrants.slice(0,8).map(p=><span key={p.id}>{p.name}</span>)}</div>
-      </section>}</BoundedList>
-        <NpcSearch data={d} saveId={ctx.save.id}/></>}
+      {tab==="World History"&&<WorldHistoryChronicleArchive data={d} saveId={ctx.save.id} />}
       {tab==="Event Legends"&&<><h2>Event history &amp; Palace legends</h2>
         <label className="career-archive__select"><span>Recurring event</span><select value={event??""} onChange={e=>setEvent(e.target.value||null)} aria-label="Recurring event">
           <option value="">Choose an event</option>{d.eventKeys.map(e=><option key={e.key} value={e.key}>{e.name}</option>)}</select></label>
@@ -116,15 +107,6 @@ export function LegacyPage({ctx,initialTab="Career Record"}:{ctx:ShellContext;in
 /** Archive sponsor rows carry the sponsor key ("lochside-joinery"); show it as a name. */
 const sponsorName=(name:string)=>/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)?titleCase(name):name;
 const playerName=(d:LegacyView,id:string)=>d.players.find(p=>p.id===id)?.name??"Recorded participant";
-function NpcSearch({data,saveId}:{data:LegacyView;saveId:string}) {
-  const [search,setSearch]=useState("");
-  const rows=data.players.filter(p=>p.id!=="HUMAN"&&p.name.toLowerCase().includes(search.toLowerCase())).slice(0,30);
-  return <section className="career-archive__npcs"><h3>Other players, including retired ones</h3>
-    <input className="career-archive__search" aria-label="Search historical players" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search a public name"/>
-    <p className="career-archive__hint">Showing up to 30 matches; use a name to find older retired players.</p>
-    <div className="career-archive__npc-grid">{rows.map(p=><Link key={p.id} className="career-archive__npc" href={`/career/${saveId}/history/npcs/${p.id}`}>
-      <CareerShirt playerId={p.id} name={p.name} scale="compact"/><span><strong>{p.name}</strong><small>{p.retiredSeason?`Retired season ${p.retiredSeason}`:"Active"}</small></span></Link>)}</div></section>;
-}
 const RECORD_LABELS:Record<string,string>={titles:"Most titles",majorTitles:"Most major titles",appearances:"Most appearances",finals:"Most finals",
   "season-titles":"Most titles in a season","season-majorTitles":"Most major titles in a season","human-season-prize":"Your best prize-money season"};
 const recordLabel=(metric:string)=>RECORD_LABELS[metric]??titleCase(metric.replace(/([a-z])([A-Z])/g,"$1 $2"));

@@ -1,0 +1,225 @@
+.whr-page {
+  --whr-ink: #f2eee4;
+  --whr-muted: #b7b0a4;
+  --whr-red: #d3423f;
+  --whr-gold: #e0bd69;
+  --whr-line: rgba(197, 177, 137, .2);
+  color: var(--whr-ink);
+}
+.whr-page .whr-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--whr-line);
+  color: var(--whr-muted);
+  font: 700 .65rem "Oswald", sans-serif;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.whr-page .whr-brand { display: flex; align-items: center; gap: 10px; color: var(--whr-ink); text-decoration: none; }
+.whr-page .whr-brand-mark {
+  display: grid;
+  width: 31px;
+  height: 31px;
+  place-items: center;
+  border: 1px solid #e0bd6970;
+  border-radius: 50%;
+  color: var(--whr-gold);
+  background: linear-gradient(145deg, #29221a, #171719);
+  box-shadow: inset 0 1px #ffffff14, 0 2px #08090a;
+}
+.whr-page .whr-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  align-items: end;
+  gap: 24px;
+  padding: clamp(28px, 5vw, 58px) 0 29px;
+}
+.whr-page .whr-kicker {
+  margin: 0 0 10px;
+  color: var(--whr-gold);
+  font: 700 .66rem "Oswald", sans-serif;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+.whr-page .whr-hero h1 {
+  margin: 0;
+  color: #f4f0e8;
+  font: 500 clamp(3.3rem, 9vw, 7.7rem)/.8 "Playfair Display", Georgia, serif;
+  letter-spacing: -.045em;
+  text-shadow: 0 2px #000;
+}
+.whr-page .whr-hero-copy { max-width: 58ch; margin: 18px 0 0; color: var(--whr-muted); font-size: .91rem; line-height: 1.6; }
+.whr-page .whr-edition {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 19px 16px;
+  border: 1px solid #5b4930;
+  border-left: 3px solid var(--whr-red);
+  border-radius: 11px;
+  background: linear-gradient(150deg, #292522, #1b1b1d 62%, #151618);
+  box-shadow: inset 0 1px #ffffff18, 0 2px #08090a, 0 10px 20px #0006;
+}
+.whr-page .whr-edition:after {
+  position: absolute;
+  top: -20px;
+  right: -10px;
+  width: 95px;
+  height: 95px;
+  border: 1px solid #e0bd6930;
+  border-radius: 50%;
+  content: "";
+  box-shadow: 0 0 0 10px #e0bd6908;
+}
+.whr-page .whr-edition small, .whr-page .whr-fact small, .whr-page .whr-number-one small {
+  display: block;
+  color: #c0a86e;
+  font: 700 .61rem "Oswald", sans-serif;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+.whr-page .whr-edition strong { display: block; margin-top: 8px; color: #f0d58d; font: 500 1.55rem/.96 "Playfair Display", Georgia, serif; }
+.whr-page .whr-edition span { display: block; margin-top: 7px; color: var(--whr-muted); font-size: .69rem; }
+.whr-page .whr-facts {
+  display: grid;
+  grid-template-columns: 1.1fr repeat(3, 1fr);
+  margin: 10px 0 30px;
+  overflow: hidden;
+  border: 1px solid #393635;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #1a1b1c, #111315);
+  box-shadow: inset 0 1px #ffffff12, 0 2px #070809, 0 10px 20px #0005;
+}
+.whr-page .whr-fact { position: relative; padding: 15px 18px 16px; border-left: 1px solid #393635; }
+.whr-page .whr-fact:first-child { padding-left: 18px; border-left: 0; }
+.whr-page .whr-fact small { color: var(--whr-muted); }
+.whr-page .whr-fact strong { display: block; margin-top: 5px; color: var(--whr-gold); font: 500 2rem/1 "Playfair Display", Georgia, serif; }
+.whr-page .whr-fact:first-child strong { color: #e1534b; }
+.whr-page .career-section {
+  overflow: hidden;
+  border: 1px solid #373432;
+  border-radius: 13px;
+  background: linear-gradient(150deg, #1c1d1f, #171819 55%, #141517);
+  box-shadow: inset 0 1px #ffffff0b, 0 3px #090a0b, 0 18px 32px #0008;
+}
+.whr-page .career-section-head {
+  min-height: 56px;
+  padding: 13px 19px;
+  border-bottom: 0;
+  background: linear-gradient(160deg, #242322, #191a1b);
+  box-shadow: inset 0 1px #ffffff18, 0 2px #08090a;
+}
+.whr-page .career-section-head h2 {
+  color: var(--whr-ink);
+  font: 500 1.56rem "Playfair Display", Georgia, serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.whr-page .career-section-head h2 span { color: var(--whr-ink); }
+.whr-page .career-section > div > .p-4.pb-3 { padding: 0; }
+.whr-page .tkdl-tab-rail {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 0 17px;
+  border: 1px solid #373432;
+  border-top: 0;
+  border-bottom: 1px solid #4b4237;
+  background: linear-gradient(180deg, #1d1e20, #17181a);
+  scrollbar-width: thin;
+}
+.whr-page .tkdl-tab-rail .tkdl-tab-trigger {
+  position: relative;
+  flex: none;
+  padding: 12px;
+  border: 0;
+  border-radius: 0;
+  color: #aaa59c;
+  background: transparent;
+  font: 700 .63rem "Oswald", sans-serif;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.whr-page .tkdl-tab-rail .tkdl-tab-trigger[aria-selected="true"] { color: #e45a50; }
+.whr-page .tkdl-tab-rail .tkdl-tab-trigger[aria-selected="true"]:after {
+  position: absolute;
+  right: 11px;
+  bottom: 0;
+  left: 11px;
+  height: 2px;
+  background: var(--whr-red);
+  content: "";
+}
+.whr-page .career-section > div > .p-4.pt-0 { padding: 20px 21px 26px; }
+.whr-page .whr-seasons { display: grid; grid-template-columns: 1fr; }
+.whr-page .whr-season { position: relative; display: grid; grid-template-columns: 106px minmax(0, 1fr); gap: 20px; padding: 21px 0 24px; border-top: 1px solid #353536; }
+.whr-page .whr-season:first-child { padding-top: 5px; border-top: 0; }
+.whr-page .whr-season:last-child { padding-bottom: 12px; }
+.whr-page .whr-season-rail { position: relative; padding: 3px 0 0 13px; }
+.whr-page .whr-season-rail:after { position: absolute; top: 36px; bottom: -38px; left: 3px; width: 1px; background: linear-gradient(#c8433e, #6b302d 72%, #423331); content: ""; }
+.whr-page .whr-season:last-child .whr-season-rail:after { display: none; }
+.whr-page .whr-season-rail small, .whr-page .whr-group h3, .whr-page .whr-pager span {
+  color: #aaa39a;
+  font: 700 .59rem "Oswald", sans-serif;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+.whr-page .whr-season-rail strong { display: block; margin-top: 5px; color: #e45149; font: 500 1.84rem/.95 "Playfair Display", Georgia, serif; }
+.whr-page .whr-season-rail b { position: absolute; top: 43px; left: 0; width: 8px; height: 8px; border: 1px solid #f0796c; border-radius: 50%; background: #c83e39; box-shadow: inset 0 1px #ffffff7a, 0 0 0 3px #d3423f20; }
+.whr-page .whr-season-main { min-width: 0; }
+.whr-page .whr-number-one { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 11px; padding: 0 0 13px; }
+.whr-page .whr-number-one small { color: #b6ac99; }
+.whr-page .whr-number-one strong { color: var(--whr-ink); font: 500 1.34rem "Playfair Display", Georgia, serif; }
+.whr-page .whr-number-one em { color: #aaa49a; font-size: .66rem; font-style: normal; }
+.whr-page .whr-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
+.whr-page .whr-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; color: var(--whr-gold); letter-spacing: .14em; }
+.whr-page .whr-group h3:before { width: 15px; height: 1px; background: #c9a34e; content: ""; }
+.whr-page .whr-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 8px; padding: 7px 0; border-top: 1px solid #303133; }
+.whr-page .whr-entry:first-of-type { border-top: 0; }
+.whr-page .whr-entry strong { min-width: 0; overflow: hidden; color: #e6e2d9; font-size: .76rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.whr-page .whr-entry > span { color: #aaa59b; font-size: .63rem; text-align: right; }
+.whr-page .whr-entry a { min-width: 0; color: inherit; text-decoration: none; }
+.whr-page .whr-entry a:hover strong, .whr-page .whr-entry a:focus-visible strong { color: #f1786c; }
+.whr-page .whr-tier { margin-right: 6px; color: var(--whr-gold); font: 700 .58rem "Oswald", sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.whr-page .whr-names { display: flex; flex-wrap: wrap; gap: 5px; }
+.whr-page .whr-names span { padding: 4px 8px; border: 1px solid #474139; border-radius: 5px; color: #d1c9b8; background: linear-gradient(150deg, #262522, #1a1b1c); font-size: .66rem; box-shadow: inset 0 1px #ffffff10, 0 1px #0b0c0d; }
+.whr-page .whr-pager { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 24px 0 5px; padding-top: 16px; border-top: 1px solid #393839; }
+.whr-page .whr-pager button { padding: 8px 13px; border: 1px solid #565044; border-radius: 7px; color: #e6dcc2; background: linear-gradient(160deg, #282724, #1d1e20); font: 700 .62rem "Oswald", sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; box-shadow: inset 0 1px #ffffff16, 0 2px #090a0b; }
+.whr-page .whr-pager button:hover:not(:disabled) { border-color: var(--whr-gold); color: var(--whr-gold); transform: translateY(-1px); }
+.whr-page .whr-pager button:disabled { opacity: .4; cursor: not-allowed; }
+.whr-page .whr-pager span { color: #c2b99f; letter-spacing: .1em; }
+.whr-page .whr-directory { margin-top: 27px; padding-top: 20px; border-top: 1px solid #45403a; }
+.whr-page .whr-directory-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 15px; margin-bottom: 8px; }
+.whr-page .whr-directory h2 { margin: 0; color: #f0ece3; font: 500 1.68rem "Playfair Display", Georgia, serif; }
+.whr-page .whr-directory-head p { margin: 0 0 2px; color: #aaa49a; font-size: .66rem; }
+.whr-page .whr-search { width: min(100%, 355px); min-height: 39px; padding: 8px 11px; border: 1px solid #514d47; border-radius: 7px; outline: none; color: var(--whr-ink); background: linear-gradient(160deg, #111315, #191a1c); font: inherit; font-size: .78rem; box-shadow: inset 0 1px 3px #0008, 0 1px #ffffff0a; }
+.whr-page .whr-search:focus-visible { border-color: #d85a50; box-shadow: inset 0 1px 3px #0008, 0 0 0 2px #d3423f35; }
+.whr-page .whr-directory-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 205px), 1fr)); gap: 8px; margin-top: 12px; }
+.whr-page .whr-player { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px; border: 1px solid #3d3b39; border-radius: 9px; color: inherit; background: linear-gradient(150deg, #252628, #1a1b1d 72%); text-decoration: none; transition: transform .16s ease, border-color .16s ease; box-shadow: inset 0 1px #ffffff13, 0 2px #0a0b0c, 0 5px 10px #0004; }
+.whr-page .whr-player:hover, .whr-page .whr-player:focus-visible { transform: translateY(-1px); border-color: #9c554b; outline: none; }
+.whr-page .whr-monogram { display: grid; width: 33px; height: 33px; flex: none; place-items: center; border: 1px solid #9a6c42; border-radius: 50%; color: var(--whr-gold); background: linear-gradient(145deg, #33281c, #211e1b); font: 700 .64rem "Oswald", sans-serif; box-shadow: inset 0 1px #ffffff1b, 0 1px #0c0d0e; }
+.whr-page .whr-player > span:last-child { display: grid; min-width: 0; }
+.whr-page .whr-player strong { overflow: hidden; color: #eee9df; font-size: .74rem; text-overflow: ellipsis; white-space: nowrap; }
+.whr-page .whr-player small { color: #aaa49a; font-size: .62rem; }
+.whr-page .whr-disclosure, .whr-page .whr-empty { margin: 22px 0 0; padding: 12px 14px; border: 1px solid #514536; border-left: 2px solid var(--whr-gold); border-radius: 7px; color: #c2bba9; background: linear-gradient(150deg, #25231f, #1a1b1d); font-size: .68rem; line-height: 1.55; box-shadow: inset 0 1px #ffffff10, 0 2px #090a0b; }
+.whr-page .whr-empty strong { display: block; color: var(--whr-gold); font: 700 .8rem "Oswald", sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.whr-page .whr-empty p { margin: 5px 0 0; }
+.whr-page .whr-empty-result { grid-column: 1 / -1; color: var(--whr-muted); font-size: .75rem; }
+@media (max-width: 760px) {
+  .whr-page .whr-hero { grid-template-columns: 1fr; align-items: start; }
+  .whr-page .whr-edition { max-width: 340px; }
+  .whr-page .whr-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .whr-page .whr-fact:first-child { padding: 15px 18px 16px; }
+  .whr-page .whr-fact:nth-child(odd) { border-left: 0; }
+  .whr-page .whr-fact:nth-child(n+3) { border-top: 1px solid #393635; }
+  .whr-page .whr-season { grid-template-columns: 69px minmax(0, 1fr); gap: 12px; }
+  .whr-page .whr-groups { grid-template-columns: 1fr; gap: 13px; }
+  .whr-page .whr-directory-head { display: grid; }
+  .whr-page .whr-search { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .whr-page .whr-player, .whr-page .whr-pager button { transition: none; }
+}
