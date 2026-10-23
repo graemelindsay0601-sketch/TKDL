@@ -1,0 +1,9 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&family=Oswald:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,500;0,600;1,500&display=swap");
+
+.webcam-page { min-height:100vh; box-sizing:border-box; padding:24px clamp(14px,3vw,38px) 42px; color:#eeeae2; background:radial-gradient(ellipse at 14% 0%,#65132138,transparent 32%),radial-gradient(ellipse at 93% 28%,#66501b17,transparent 32%),linear-gradient(145deg,#090a0c,#141518 62%,#090a0c); font-family:Manrope,sans-serif; }
+.webcam-page *, .webcam-page *::before, .webcam-page *::after { box-sizing:border-box; }
+.webcam-page button { font:inherit; color:inherit; }
+.webcam-page button:focus-visible { outline:2px solid #e1bd65; outline-offset:3px; }
+.webcam-wrap { max-width:1380px; margin:0 auto; }
+.webcam-masthead { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:15px; color:#a9a39a; font:500 9px "IBM Plex Mono",monospace; letter-spacing:.13em; text-transform:uppercase; }
+.webcam-masthead b { color:#ed4350; }

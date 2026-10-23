@@ -1,0 +1,272 @@
+.road-map {
+  --road-red: #d83b58;
+  --road-gold: #e8c777;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #72849b36;
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, #18283a 0%, #101c2a 48%, #0e1724 100%);
+  box-shadow: 0 14px 30px #02071155, inset 0 1px 0 #ffffff13, inset 0 -3px 0 #070e18;
+}
+.road-map::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--road-red), #9d2943 34%, #9b793d 68%, var(--road-gold));
+}
+.road-map__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem .95rem;
+  border-bottom: 1px solid #ffffff12;
+  background: linear-gradient(110deg, #ffffff08, transparent 70%);
+}
+.road-map__head span, .road-map__index {
+  display: block;
+  color: #d8b76b;
+  font: 700 .64rem/1.3 ui-monospace, monospace;
+  letter-spacing: .16em;
+}
+.road-map__head strong {
+  display: block;
+  margin-top: .35rem;
+  color: #f2f5f8;
+  font: 600 clamp(1.05rem, 2.2vw, 1.35rem)/1.15 Oswald, system-ui, sans-serif;
+  letter-spacing: .015em;
+}
+.road-map__head p { max-width: 24rem; margin: 0; color: #aebdd0; font-size: .78rem; line-height: 1.5; }
+.road-map__track {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) 2.7rem minmax(0, .82fr) 2.7rem minmax(0, .82fr);
+  align-items: stretch;
+  padding: 1.1rem;
+}
+.road-map__stage {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 12rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: .65rem;
+  padding: 1rem;
+  overflow: hidden;
+  border: 1px solid #afc3da29;
+  border-radius: 12px;
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 8px 16px #0207114d, inset 0 1px 0 #ffffff14, inset 0 -3px 0 #050b14;
+}
+.road-map__stage::after {
+  content: "";
+  position: absolute;
+  inset: auto 12px 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ffffff34, transparent);
+}
+.road-map__stage--routes { background: linear-gradient(145deg, #26394c, #142334 70%, #111b28); }
+.road-map__stage--card {
+  border-color: #e8c77761;
+  background-image: linear-gradient(145deg, #28251fdd, #131923ed);
+}
+.road-map__stage--card.is-earned {
+  border-color: #e8c777bd;
+  box-shadow: 0 9px 20px #04081166, inset 0 1px 0 #fff3d42c, inset 0 -3px 0 #614d2a;
+}
+.road-map__stage--world {
+  border-color: #d6536b66;
+  background: linear-gradient(145deg, #482735, #241d2a 68%, #161c28);
+}
+.road-map__stage--world.is-earned {
+  border-color: #e8c777bf;
+  background: linear-gradient(145deg, #493a2a, #28242a 68%, #171d27);
+}
+.road-map__index { display: flex; align-items: center; gap: .55rem; color: #e8c777; }
+.road-map__index span { color: #d5dfeb; letter-spacing: .1em; }
+.road-map__stage strong { display: block; color: #fff6e7; font: 600 1.04rem/1.25 Oswald, system-ui, sans-serif; }
+.road-map__stage small { display: block; color: #c1ccda; font-size: .73rem; line-height: 1.5; }
+.road-map__route-list { display: grid; grid-template-columns: 1fr 1fr; gap: .42rem .8rem; margin: .1rem 0; }
+.road-map__route-list span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: .18rem;
+  padding: .48rem .55rem;
+  border-left: 2px solid #d83b587a;
+  background: linear-gradient(90deg, #07111d9c, #07111d25);
+  color: #9eafc1;
+  font-size: .62rem;
+  letter-spacing: .045em;
+}
+.road-map__route-list b { color: #f1d58e; font: 600 .78rem/1.25 ui-monospace, monospace; text-align: left; }
+.road-map__connector { display: flex; align-items: center; justify-content: center; position: relative; }
+.road-map__connector::before { content: ""; width: 100%; height: 2px; background: #93a4b532; box-shadow: 0 1px 0 #050a12; }
+.road-map__connector::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  width: .5rem;
+  height: .5rem;
+  border-top: 2px solid #a6b5c6a6;
+  border-right: 2px solid #a6b5c6a6;
+  transform: rotate(45deg);
+}
+.road-map__connector.is-earned::before { background: linear-gradient(90deg, #d83b58, #e8c777); }
+.road-map__connector.is-earned::after { border-color: #e8c777; }
+
+.road-routes { display: grid; gap: .85rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.road-route {
+  --route-accent: #d83b58;
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #8296ad38;
+  border-radius: 11px;
+  padding: 1rem 1.05rem 1.05rem;
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--route-accent) 8%, transparent), transparent 38%),
+    linear-gradient(150deg, #1c2b3e 0%, #142132 58%, #101a28 100%);
+  box-shadow: 0 8px 17px #03081252, inset 0 1px 0 #ffffff12, inset 0 -3px 0 #09111d;
+  transition: transform 160ms ease, border-color 160ms ease;
+}
+.road-route::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  width: 2.5rem;
+  height: 3px;
+  background: linear-gradient(90deg, var(--route-accent), #e8c777);
+}
+.road-route:nth-child(2) { --route-accent: #c33b54; }
+.road-route:nth-child(3) { --route-accent: #c99b51; }
+.road-route:nth-child(4) { --route-accent: #9b7bba; }
+.road-route:nth-child(5) { --route-accent: #e8c777; }
+.road-route[data-done] {
+  border-color: color-mix(in srgb, var(--route-accent) 52%, #8193a8);
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--route-accent) 12%, transparent), transparent 42%),
+    linear-gradient(150deg, #263044 0%, #192638 60%, #121d2b 100%);
+}
+.road-route header { display: flex; align-items: center; gap: .6rem; color: #f1f4f8; font: 600 1.05rem/1.25 Oswald, system-ui, sans-serif; }
+.road-route header > span {
+  display: grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: 0 0 2.1rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--route-accent) 42%, transparent);
+  border-radius: 8px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--route-accent) 22%, #1b2737), #101a27);
+  box-shadow: 0 3px 0 #080f19, inset 0 1px 0 #ffffff1c;
+}
+.road-route header svg { width: 1.05rem; height: 1.05rem; color: var(--route-accent); }
+.road-route__done { margin-left: auto; color: #e8c777 !important; }
+.road-route__standing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .2rem .65rem;
+  margin: .85rem 0 .65rem;
+  padding: .68rem .75rem .66rem .85rem;
+  border: 1px solid color-mix(in srgb, var(--route-accent) 42%, #8091a5);
+  border-left: 3px solid var(--route-accent);
+  border-radius: 7px;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--route-accent) 17%, #101b29), #101b29 65%),
+    #101b29;
+  box-shadow: inset 0 1px 0 #ffffff12, 0 3px 0 #09111c;
+}
+.road-route__standing > span {
+  color: #aebdcd;
+  font: 700 .59rem/1.2 ui-monospace, monospace;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.road-route__standing strong {
+  grid-column: 1;
+  color: #fff0c8;
+  font: 600 clamp(1.2rem, 2vw, 1.65rem)/1.1 Oswald, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.road-route__standing small {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  max-width: 10rem;
+  color: #d7bd7f;
+  font: 600 .67rem/1.35 ui-monospace, monospace;
+  text-align: right;
+}
+.road-route__gives { margin: .45rem 0 .8rem; color: #bac8d7; font-size: .79rem; line-height: 1.55; }
+.road-route__you {
+  display: grid;
+  gap: .45rem;
+  padding: .68rem .7rem;
+  border: 1px solid #9eb4cc1b;
+  border-radius: 9px;
+  background: linear-gradient(145deg, #0d1927a6, #101a27a6);
+  color: #e3eaf2;
+  font-size: .8rem;
+  line-height: 1.5;
+  box-shadow: inset 0 1px 0 #ffffff09;
+}
+.road-route__you p { margin: 0; }
+.road-route__you b { color: #f1d58e; font-variant-numeric: tabular-nums; }
+.road-route__you a { color: #f1c86d; font-weight: 600; text-decoration: underline; text-decoration-color: #f1c86d70; text-underline-offset: 3px; }
+.road-route__you a:hover { color: #fff0c7; text-decoration-color: currentColor; }
+.road-good { color: #efcf81; }
+
+.road-offer {
+  position: relative;
+  display: flex;
+  gap: .9rem;
+  align-items: flex-start;
+  overflow: hidden;
+  border: 1px solid #e8c77779;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  background: linear-gradient(120deg, #342c20 0%, #202331 42%, #172334 100%);
+  box-shadow: 0 10px 22px #0308125c, inset 0 1px 0 #fff2ce24, inset 0 -3px 0 #0b111b;
+}
+.road-offer::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: linear-gradient(#f1d48d, #b98338); }
+.road-offer > svg { flex: none; width: 1.65rem; height: 1.65rem; color: #f1d48d; margin-top: .1rem; filter: drop-shadow(0 2px 0 #755b2f); }
+.road-offer b { color: #fff2d0; font: 600 1.12rem/1.3 Oswald, system-ui, sans-serif; }
+.road-offer p { margin: .4rem 0 0; color: #d4dce5; font-size: .83rem; line-height: 1.55; }
+.road-offer__by { color: #b6c2cf !important; }
+.road-offer__error { color: #ff9ca7 !important; }
+.road-offer__actions { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem; margin-top: .8rem; }
+.road-offer__actions span { flex-basis: 100%; color: #f2d898; font-size: .84rem; }
+.road-offer .career-btn { min-height: 42px; }
+.road-offer .career-btn-primary { background: linear-gradient(145deg, #db405d, #a92543); box-shadow: 0 4px 0 #70172d, 0 7px 14px #050a1466, inset 0 1px 0 #ffffff36; }
+.road-offer .career-btn-ghost { border-color: #e8c77760; background: #0d172499; color: #e5d7b5; }
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .road-route:hover { transform: translateY(-2px); border-color: #b0c5dc65; }
+}
+@media (max-width: 760px) {
+  .road-map__head { display: block; }
+  .road-map__head p { margin-top: .55rem; }
+  .road-map__track { grid-template-columns: 1fr; gap: .45rem; padding: .8rem; }
+  .road-map__stage { min-height: 0; padding: .85rem; }
+  .road-map__stage--routes { gap: .6rem; }
+  .road-map__connector { height: 1.15rem; }
+  .road-map__connector::before { width: 2px; height: 100%; background: #93a4b555; }
+  .road-map__connector::after { right: auto; bottom: 0; transform: rotate(135deg); }
+}
+@media (max-width: 480px) {
+  .road-map__head { padding: 1rem .95rem .8rem; }
+  .road-map__track { padding: .65rem; }
+  .road-map__route-list { grid-template-columns: 1fr 1fr; }
+  .road-routes { grid-template-columns: 1fr; gap: .7rem; }
+  .road-route { padding: .9rem; }
+  .road-route__standing { margin-top: .72rem; }
+  .road-offer { gap: .65rem; padding: .9rem; }
+  .road-offer > svg { width: 1.35rem; height: 1.35rem; }
+  .road-offer__actions { align-items: stretch; }
+  .road-offer__actions .career-btn { flex: 1 1 auto; white-space: normal; }
+}

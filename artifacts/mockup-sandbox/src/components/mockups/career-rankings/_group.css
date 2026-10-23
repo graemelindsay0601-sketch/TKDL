@@ -1,0 +1,4 @@
+/* Rankings preview: typography is already available in the mockup sandbox font bundle. */
+.rk-preview, .rk-preview * { box-sizing: border-box; }
+.rk-preview { min-height:100vh; padding:22px; color:#f4f1ec; background:#0b0d12; font-family:Inter, sans-serif; }
+.rk-preview button, .rk-preview select { font:inherit; }

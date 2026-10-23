@@ -1,0 +1,1986 @@
+.webcam-redesign {
+  --wl-ink: #f1eee7;
+  --wl-muted: #aaa49a;
+  --wl-dim: #77746f;
+  --wl-red: #bd3442;
+  --wl-red-bright: #ed5260;
+  --wl-gold: #d9bd6b;
+  --wl-line: #ffffff18;
+  --wl-panel: #111316;
+  --wl-panel-deep: #0c0e11;
+  overflow-x: hidden;
+  padding-top: 22px;
+  color: var(--wl-ink);
+  background:
+    radial-gradient(ellipse at 73% 8%, #6d511b20 0, transparent 25rem),
+    radial-gradient(ellipse at 8% 17%, #8b1e2c24 0, transparent 30rem),
+    linear-gradient(145deg, #090a0c 0%, #121315 50%, #090a0c 100%);
+}
+
+.webcam-redesign .webcam-wrap {
+  width: min(100%, 1380px);
+}
+
+.webcam-redesign .webcam-masthead {
+  min-height: 22px;
+  margin-bottom: 13px;
+  font-size: 9px;
+}
+
+.webcam-redesign .webcam-masthead b {
+  color: var(--wl-red-bright);
+  font-family: Oswald, sans-serif;
+  font-size: 13px;
+  letter-spacing: .08em;
+}
+
+.webcam-redesign .webcam-masthead i {
+  color: var(--wl-gold);
+  font-style: normal;
+}
+
+.webcam-redesign .wl-broadcast {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.03fr) minmax(330px, .97fr);
+  min-height: 430px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid #d2ad5b42;
+  background:
+    linear-gradient(115deg, #111214 0%, #111214 47%, #171416 100%);
+  box-shadow: 0 24px 55px #0008, inset 0 1px #ffffff0a;
+}
+
+.webcam-redesign .wl-broadcast::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(90deg, transparent 49.9%, #d9bd6b14 50%, transparent 50.1%),
+    repeating-linear-gradient(0deg, transparent 0 39px, #ffffff05 40px);
+  pointer-events: none;
+}
+
+.webcam-redesign .wl-hero-copy {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: clamp(28px, 4vw, 54px) clamp(24px, 4.2vw, 60px);
+}
+
+.webcam-redesign .wl-live-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 21px;
+  color: #b2aaa0;
+  font: 600 9px/1.4 "IBM Plex Mono", monospace;
+  letter-spacing: .12em;
+}
+
+.webcam-redesign .wl-live-line > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #f0e9dd;
+}
+
+.webcam-redesign .wl-live-line i,
+.webcam-redesign .wl-scene-lower > span i,
+.webcam-redesign .wl-page-foot > span:first-child i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  background: var(--wl-red-bright);
+  box-shadow: 0 0 0 4px #bd34421c;
+}
+
+.webcam-redesign .wl-live-line b {
+  color: var(--wl-gold);
+  font-weight: 500;
+}
+
+.webcam-redesign .wl-live-line em,
+.webcam-redesign .wl-hero-rule > b,
+.webcam-redesign .wl-first-to i,
+.webcam-redesign .wl-table-foot i {
+  color: var(--wl-red-bright);
+  font-style: normal;
+}
+
+.webcam-redesign .wl-eyebrow {
+  margin: 0 0 9px;
+  color: #c9b681;
+  font: 500 10px/1.5 "IBM Plex Mono", monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.webcam-redesign .wl-hero-copy h1 {
+  margin: 0;
+  color: #f0ede5;
+  font: 800 clamp(58px, 7.5vw, 96px)/.79 Oswald, sans-serif;
+  letter-spacing: -.055em;
+  text-transform: uppercase;
+}
+
+.webcam-redesign .wl-hero-copy h1 em {
+  color: var(--wl-gold);
+  font-family: "Source Serif 4", serif;
+  font-weight: 500;
+  letter-spacing: -.075em;
+}
+
+.webcam-redesign .wl-intro {
+  max-width: 440px;
+  margin: 21px 0 0;
+  color: #c4beb3;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.webcam-redesign .wl-hero-rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 21px;
+  color: #d9d3c8;
+  font: 600 8px/1.4 "IBM Plex Mono", monospace;
+  letter-spacing: .07em;
+}
+
+.webcam-redesign .wl-hero-rule span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-hero-rule svg {
+  width: 11px;
+  height: 11px;
+  color: #87c891;
+}
+
+.webcam-redesign .wl-hero-rule .down svg {
+  color: var(--wl-red-bright);
+}
+
+.webcam-redesign .wl-hero-rule > i {
+  width: 1px;
+  height: 13px;
+  background: #ffffff26;
+}
+
+.webcam-redesign .wl-hero-rule small {
+  color: #8f8980;
+  font-size: 7px;
+  letter-spacing: .1em;
+}
+
+.webcam-redesign .wl-record {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 28px -60px calc(clamp(28px, 4vw, 54px) * -1);
+  border-top: 1px solid var(--wl-line);
+  background: #090a0b70;
+}
+
+.webcam-redesign .wl-record > div {
+  min-width: 0;
+  padding: 13px 15px 15px;
+  border-right: 1px solid #ffffff12;
+}
+
+.webcam-redesign .wl-record > div:first-child {
+  padding-left: clamp(24px, 4.2vw, 60px);
+}
+
+.webcam-redesign .wl-record small {
+  display: block;
+  overflow: hidden;
+  color: #908b82;
+  font: 500 7px/1.4 "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-record b {
+  display: block;
+  margin-top: 3px;
+  color: #eee8dc;
+  font: 700 21px/1 Oswald, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.webcam-redesign .wl-record b:first-letter {
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-record sup {
+  margin-left: 2px;
+  color: var(--wl-gold);
+  font: 600 8px "IBM Plex Mono", monospace;
+  vertical-align: super;
+}
+
+.webcam-redesign .wl-record b span {
+  color: #979187;
+  font-size: 12px;
+}
+
+.webcam-redesign .wl-board-scene {
+  position: relative;
+  min-width: 0;
+  min-height: 430px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 56% 44%, #44212a 0, #1b1518 35%, #0c0d0f 75%),
+    #111;
+}
+
+.webcam-redesign .wl-board-scene::before,
+.webcam-redesign .wl-board-scene::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.webcam-redesign .wl-board-scene::before {
+  inset: 12px;
+  border: 1px solid #d9bd6b30;
+}
+
+.webcam-redesign .wl-board-scene::after {
+  inset: 0;
+  background: linear-gradient(90deg, #111214 0%, transparent 18%, transparent 75%, #08090a55 100%);
+}
+
+.webcam-redesign .wl-dartboard {
+  position: absolute;
+  top: 48%;
+  left: 54%;
+  width: min(88%, 390px);
+  max-height: 92%;
+  transform: translate(-50%, -50%) rotate(7deg);
+  filter: drop-shadow(0 25px 25px #000b);
+}
+
+.webcam-redesign .wl-board-shade {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background:
+    linear-gradient(0deg, #090a0ce8 0%, transparent 46%),
+    linear-gradient(90deg, #1112145c, transparent 40%);
+  pointer-events: none;
+}
+
+.webcam-redesign .wl-scene-stamp {
+  position: absolute;
+  z-index: 2;
+  top: 28px;
+  left: 29px;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid #d9bd6b75;
+  background: #101112b8;
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-scene-stamp > span {
+  grid-row: span 2;
+  font: 800 17px/1 Oswald, sans-serif;
+  letter-spacing: .04em;
+}
+
+.webcam-redesign .wl-scene-stamp b {
+  color: #f0e9dc;
+  font: 700 8px/1.05 "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+}
+
+.webcam-redesign .wl-scene-stamp small {
+  margin-top: 4px;
+  color: #b0a48c;
+  font: 500 6px "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+}
+
+.webcam-redesign .wl-graphic-corner {
+  position: absolute;
+  z-index: 2;
+  top: 28px;
+  right: 28px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #b8ae9b;
+  font: 500 8px "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+}
+
+.webcam-redesign .wl-graphic-corner b {
+  color: var(--wl-gold);
+  font: 700 35px/.9 Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-graphic-corner i {
+  color: #8a8273;
+  font-size: 7px;
+  font-style: normal;
+}
+
+.webcam-redesign .wl-scene-lower {
+  position: absolute;
+  z-index: 2;
+  right: 26px;
+  bottom: 47px;
+  left: 29px;
+}
+
+.webcam-redesign .wl-scene-lower > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d3c5a8;
+  font: 600 8px "IBM Plex Mono", monospace;
+  letter-spacing: .14em;
+}
+
+.webcam-redesign .wl-scene-lower > span i {
+  width: 6px;
+  height: 6px;
+  flex-basis: 6px;
+}
+
+.webcam-redesign .wl-scene-lower b {
+  display: block;
+  margin-top: 8px;
+  color: #f1ede5;
+  font: 700 clamp(23px, 3vw, 34px)/.94 Oswald, sans-serif;
+  letter-spacing: .015em;
+}
+
+.webcam-redesign .wl-scene-lower small {
+  display: block;
+  margin-top: 9px;
+  color: #b4a68b;
+  font: 500 7px "IBM Plex Mono", monospace;
+  letter-spacing: .12em;
+}
+
+.webcam-redesign .wl-scene-signal {
+  position: absolute;
+  z-index: 3;
+  right: 25px;
+  bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #aaa39a;
+  font: 500 7px "IBM Plex Mono", monospace;
+  letter-spacing: .08em;
+}
+
+.webcam-redesign .wl-scene-signal svg {
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-fixture-ribbon {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) minmax(170px, .38fr) 80px;
+  align-items: stretch;
+  margin-top: 12px;
+  border: 1px solid #c7a45166;
+  background: linear-gradient(105deg, #1e1913, #171719 45%, #111214);
+  box-shadow: 0 12px 30px #0005, inset 0 1px #fff1;
+}
+
+.webcam-redesign .wl-ribbon-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-right: 1px solid #d2b25f38;
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-ribbon-mark span {
+  font: 700 8px/1.1 "IBM Plex Mono", monospace;
+  letter-spacing: .08em;
+}
+
+.webcam-redesign .wl-vs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+}
+
+.webcam-redesign .wl-vs > div {
+  min-width: 0;
+}
+
+.webcam-redesign .wl-vs small,
+.webcam-redesign .wl-first-to small {
+  display: block;
+  color: #a69a80;
+  font: 500 7px "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+}
+
+.webcam-redesign .wl-vs b {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: #f1ede5;
+  font: 600 21px/1.15 Oswald, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-vs span {
+  display: block;
+  margin-top: 3px;
+  color: #aaa49a;
+  font: 500 8px "IBM Plex Mono", monospace;
+  letter-spacing: .05em;
+}
+
+.webcam-redesign .wl-vs span i {
+  color: var(--wl-gold);
+  font-style: normal;
+}
+
+.webcam-redesign .wl-vs strong {
+  color: #a19a8e;
+  font: 600 11px "IBM Plex Mono", monospace;
+  text-align: center;
+}
+
+.webcam-redesign .wl-first-to {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 18px;
+  border-left: 1px solid #ffffff14;
+}
+
+.webcam-redesign .wl-first-to b {
+  margin: 5px 0 2px;
+  color: #efe6d4;
+  font: 700 16px Oswald, sans-serif;
+  letter-spacing: .04em;
+}
+
+.webcam-redesign .wl-first-to span {
+  color: #a9a197;
+  font: 500 7px "IBM Plex Mono", monospace;
+  letter-spacing: .04em;
+}
+
+.webcam-redesign .wl-round-tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-left: 1px solid #ffffff14;
+  background: #0c0d0f40;
+}
+
+.webcam-redesign .wl-round-tag b {
+  color: var(--wl-gold);
+  font: 700 29px/.9 Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-round-tag small {
+  color: #aaa398;
+  font: 500 7px/1.4 "IBM Plex Mono", monospace;
+  letter-spacing: .07em;
+}
+
+.webcam-redesign .wl-match-planner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, .84fr);
+  min-height: 300px;
+  margin-top: 34px;
+  border-top: 1px solid #d3b4586b;
+  border-bottom: 1px solid var(--wl-line);
+  background: linear-gradient(110deg, #131416 0%, #111214 57%, #181416 100%);
+}
+
+.webcam-redesign .wl-planner-copy {
+  min-width: 0;
+  padding: 27px clamp(22px, 3.4vw, 46px) 28px 0;
+}
+
+.webcam-redesign .wl-section-index {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #b9b1a4;
+  font: 600 8px "IBM Plex Mono", monospace;
+  letter-spacing: .13em;
+}
+
+.webcam-redesign .wl-section-index > span {
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-section-index i {
+  width: 27px;
+  height: 1px;
+  background: var(--wl-red);
+}
+
+.webcam-redesign .wl-planner-copy h2,
+.webcam-redesign .wl-panel-head h2 {
+  margin: 11px 0 0;
+  color: #eeeae2;
+  font: 700 clamp(27px, 3vw, 39px)/.98 Oswald, sans-serif;
+  letter-spacing: -.015em;
+}
+
+.webcam-redesign .wl-planner-copy h2 em {
+  color: var(--wl-gold);
+  font-family: "Source Serif 4", serif;
+  font-weight: 500;
+}
+
+.webcam-redesign .wl-planner-copy > p {
+  max-width: 385px;
+  margin: 10px 0 16px;
+  color: #aaa49a;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.webcam-redesign .wl-night-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  max-width: 405px;
+}
+
+.webcam-redesign .wl-night-options button {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 7px 12px;
+  border: 1px solid #ffffff25;
+  border-radius: 0;
+  background: #171819;
+  color: #d4cec2;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.webcam-redesign .wl-night-options button:hover {
+  border-color: #d9bd6b8a;
+  background: #211e18;
+}
+
+.webcam-redesign .wl-night-options button[aria-checked="true"] {
+  border-color: var(--wl-gold);
+  background: linear-gradient(135deg, #3a2e1b, #211d17);
+  box-shadow: inset 0 0 0 1px #d9bd6b20;
+  color: #f2d982;
+}
+
+.webcam-redesign .wl-night-options button small {
+  color: #9a9387;
+  font: 500 7px "IBM Plex Mono", monospace;
+  letter-spacing: .1em;
+}
+
+.webcam-redesign .wl-night-options button b {
+  margin-top: 3px;
+  font: 600 12px Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-night-options button svg {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-book-cta {
+  display: flex;
+  width: min(100%, 405px);
+  min-height: 45px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+  padding: 0 15px;
+  border: 1px solid #f0d87b;
+  border-radius: 0;
+  background: linear-gradient(110deg, #e4c76e, #b38d3d);
+  color: #181510;
+  font: 800 9px "IBM Plex Mono", monospace !important;
+  letter-spacing: .09em;
+  box-shadow: 0 5px 14px #0006;
+  cursor: pointer;
+  transition: filter .18s ease, transform .18s ease;
+}
+
+.webcam-redesign .wl-book-cta:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.webcam-redesign .wl-play-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.webcam-redesign .wl-play-actions button {
+  display: inline-flex;
+  min-height: 39px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid #ffffff30;
+  border-radius: 0;
+  background: #191a1c;
+  color: #ece6da;
+  font: 600 8px "IBM Plex Mono", monospace !important;
+  letter-spacing: .03em;
+  cursor: pointer;
+}
+
+.webcam-redesign .wl-play-actions button:first-child {
+  border-color: #c2a34c88;
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-action-message {
+  margin-top: 9px;
+  color: #dec879;
+  font: 500 9px/1.5 "IBM Plex Mono", monospace;
+}
+
+.webcam-redesign .wl-planner-art {
+  position: relative;
+  min-height: 300px;
+  overflow: hidden;
+  border-left: 1px solid #ffffff12;
+  background:
+    radial-gradient(ellipse at 67% 46%, #511e292b, transparent 48%),
+    repeating-linear-gradient(135deg, transparent 0 25px, #ffffff04 26px 27px);
+}
+
+.webcam-redesign .wl-night-card {
+  position: absolute;
+  z-index: 1;
+  top: 26px;
+  right: 15px;
+  left: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.webcam-redesign .wl-night-card > span {
+  color: #a69a80;
+  font: 500 8px "IBM Plex Mono", monospace;
+  letter-spacing: .12em;
+}
+
+.webcam-redesign .wl-night-card > span i {
+  color: var(--wl-red-bright);
+  font-style: normal;
+}
+
+.webcam-redesign .wl-night-card > b {
+  margin-top: 12px;
+  color: #eee9df;
+  font: 700 clamp(31px, 3.7vw, 48px)/.9 Oswald, sans-serif;
+  letter-spacing: -.02em;
+}
+
+.webcam-redesign .wl-night-card > b em {
+  color: var(--wl-gold);
+  font-family: "Source Serif 4", serif;
+  font-weight: 500;
+}
+
+.webcam-redesign .wl-night-card > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.webcam-redesign .wl-night-card > div span {
+  padding: 6px 8px;
+  border: 1px solid #d9bd6b3c;
+  color: #c6b993;
+  font: 500 6px "IBM Plex Mono", monospace;
+  letter-spacing: .08em;
+}
+
+.webcam-redesign .wl-planner-art > svg {
+  position: absolute;
+  right: 0;
+  bottom: 6px;
+  width: 100%;
+  max-height: 66%;
+  opacity: .84;
+}
+
+.webcam-redesign .wl-art-coordinates {
+  position: absolute;
+  right: 15px;
+  bottom: 12px;
+  left: 15px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #827c71;
+  font: 500 6px "IBM Plex Mono", monospace;
+  letter-spacing: .09em;
+}
+
+.webcam-redesign .wl-season-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.07fr) minmax(0, .93fr);
+  align-items: start;
+  gap: 28px;
+  margin-top: 38px;
+}
+
+.webcam-redesign .wl-table-panel,
+.webcam-redesign .wl-fixture-panel {
+  min-width: 0;
+  border-top: 1px solid #d0ad5c76;
+  background: linear-gradient(145deg, #151619, #0d0f11);
+}
+
+.webcam-redesign .wl-panel-head {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--wl-line);
+}
+
+.webcam-redesign .wl-panel-head .wl-section-index {
+  font-size: 7px;
+}
+
+.webcam-redesign .wl-panel-head h2 {
+  margin-top: 5px;
+  font-size: 24px;
+}
+
+.webcam-redesign .wl-zone-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  color: #a49e93;
+  font: 500 6px "IBM Plex Mono", monospace;
+  letter-spacing: .04em;
+}
+
+.webcam-redesign .wl-zone-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-zone-legend i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #65bb78;
+}
+
+.webcam-redesign .wl-zone-legend span:last-child i {
+  background: var(--wl-red-bright);
+}
+
+.webcam-redesign .wl-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-color: #66542d #111;
+  scrollbar-width: thin;
+}
+
+.webcam-redesign .wl-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #c9c4ba;
+  font: 500 10px "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.webcam-redesign .wl-table th,
+.webcam-redesign .wl-table td {
+  height: 34px;
+  padding: 6px 9px;
+  border-bottom: 1px solid #ffffff0d;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-table th {
+  height: 30px;
+  color: #89857d;
+  font-size: 7px;
+  font-weight: 500;
+  letter-spacing: .09em;
+}
+
+.webcam-redesign .wl-table th:first-child,
+.webcam-redesign .wl-table td:first-child {
+  width: 39px;
+  text-align: center;
+}
+
+.webcam-redesign .wl-table th:nth-child(2),
+.webcam-redesign .wl-table td:nth-child(2) {
+  text-align: left;
+}
+
+.webcam-redesign .wl-table td:nth-child(2) {
+  position: relative;
+  min-width: 115px;
+  color: #e5e0d7;
+  font: 600 11px Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-table td:nth-child(2) small {
+  margin-left: 5px;
+  color: #827f79;
+  font: 500 7px "IBM Plex Mono", monospace;
+}
+
+.webcam-redesign .wl-table .wl-rank {
+  color: #a59d8f;
+  font-size: 8px;
+}
+
+.webcam-redesign .wl-table td:nth-child(7) strong {
+  color: var(--wl-gold);
+  font: 700 13px Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-table tbody tr[data-zone="up"] td:first-child {
+  box-shadow: inset 2px 0 #5fb875;
+}
+
+.webcam-redesign .wl-table tbody tr[data-zone="down"] td:first-child {
+  box-shadow: inset 2px 0 var(--wl-red-bright);
+}
+
+.webcam-redesign .wl-table tbody tr.is-you {
+  background: linear-gradient(90deg, #c09c3d1c, #c09c3d08);
+}
+
+.webcam-redesign .wl-table tbody tr.is-you td:nth-child(2) {
+  color: #f0d77f;
+}
+
+.webcam-redesign .wl-table .wl-crown {
+  margin-left: 5px;
+  color: var(--wl-gold);
+  vertical-align: -2px;
+}
+
+.webcam-redesign .wl-table-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 9px;
+  min-height: 42px;
+  padding: 9px 13px;
+  color: #aaa397;
+  font: 500 7px "IBM Plex Mono", monospace;
+}
+
+.webcam-redesign .wl-table-foot > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #c8b782;
+}
+
+.webcam-redesign .wl-table-foot > span svg {
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-table-foot b {
+  color: var(--wl-gold);
+  font: 600 12px Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-table-foot small {
+  color: #827c72;
+  font-size: 6px;
+  letter-spacing: .08em;
+}
+
+.webcam-redesign .wl-ledger-season {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #a59c8c;
+  font: 500 7px "IBM Plex Mono", monospace;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-ledger-season svg {
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-fixture-list {
+  margin: 0;
+  padding: 4px 14px 10px;
+  list-style: none;
+}
+
+.webcam-redesign .wl-fixture-list li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px 36px minmax(0, 1fr) minmax(58px, auto) 38px;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid #ffffff0c;
+  color: #bcb6ab;
+}
+
+.webcam-redesign .wl-fixture-list li.is-current {
+  margin: 0 -14px;
+  padding: 0 14px;
+  background: linear-gradient(90deg, #a02a382d, #a02a3809);
+}
+
+.webcam-redesign .wl-fixture-line {
+  position: relative;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.webcam-redesign .wl-fixture-line::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  content: "";
+  background: #ffffff1d;
+}
+
+.webcam-redesign .wl-fixture-list li:first-child .wl-fixture-line::before {
+  top: 50%;
+}
+
+.webcam-redesign .wl-fixture-list li:last-child .wl-fixture-line::before {
+  bottom: 50%;
+}
+
+.webcam-redesign .wl-fixture-line i {
+  position: relative;
+  z-index: 1;
+  width: 6px;
+  height: 6px;
+  border: 1px solid #8d8372;
+  border-radius: 50%;
+  background: #151619;
+}
+
+.webcam-redesign .wl-fixture-list li.is-current .wl-fixture-line i {
+  border-color: var(--wl-red-bright);
+  background: var(--wl-red-bright);
+  box-shadow: 0 0 0 3px #bd344225;
+}
+
+.webcam-redesign .wl-week {
+  color: #918b81;
+  font: 500 7px "IBM Plex Mono", monospace;
+}
+
+.webcam-redesign .wl-fixture-player {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.webcam-redesign .wl-fixture-player b {
+  overflow: hidden;
+  color: #e1dcd3;
+  font: 600 11px Oswald, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-fixture-player small {
+  color: #858078;
+  font: 500 6px "IBM Plex Mono", monospace;
+}
+
+.webcam-redesign .wl-fixture-status {
+  color: #aaa397;
+  font: 500 6px "IBM Plex Mono", monospace;
+  letter-spacing: .04em;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.webcam-redesign .wl-fixture-list li.is-current .wl-fixture-status {
+  color: var(--wl-red-bright);
+}
+
+.webcam-redesign .wl-fixture-status.is-forfeit {
+  color: #dc7d78;
+}
+
+.webcam-redesign .wl-fixture-score {
+  color: #d8c27f;
+  font: 600 9px "IBM Plex Mono", monospace;
+  text-align: right;
+}
+
+.webcam-redesign .wl-past-league {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  margin: 7px 12px 12px;
+  padding: 9px;
+  border: 1px solid #d7b85b31;
+  background: #201b143d;
+}
+
+.webcam-redesign .wl-past-league > span {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  color: var(--wl-gold);
+}
+
+.webcam-redesign .wl-past-league > div {
+  min-width: 0;
+}
+
+.webcam-redesign .wl-past-league small {
+  display: block;
+  color: #928977;
+  font: 500 6px "IBM Plex Mono", monospace;
+  letter-spacing: .07em;
+}
+
+.webcam-redesign .wl-past-league b {
+  display: block;
+  margin-top: 2px;
+  color: #e1d9c8;
+  font: 600 12px Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-past-league strong {
+  color: var(--wl-gold);
+  font: 700 16px Oswald, sans-serif;
+}
+
+.webcam-redesign .wl-past-league em {
+  grid-column: 2 / -1;
+  color: #a79d88;
+  font: 500 7px "IBM Plex Mono", monospace;
+  font-style: normal;
+}
+
+.webcam-redesign .wl-page-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid #ffffff17;
+  color: #807b72;
+  font: 500 7px "IBM Plex Mono", monospace;
+  letter-spacing: .09em;
+}
+
+.webcam-redesign .wl-page-foot > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #c1b9a9;
+}
+
+.webcam-redesign .wl-page-foot > span:first-child i {
+  width: 5px;
+  height: 5px;
+  flex-basis: 5px;
+}
+
+.webcam-redesign .wl-page-foot b {
+  color: #a69e90;
+  font-weight: 500;
+  text-align: center;
+}
+
+.webcam-redesign .wl-page-foot b i {
+  color: var(--wl-gold);
+  font-style: normal;
+}
+
+.webcam-redesign :where(button) {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 900px) {
+  .webcam-redesign .wl-broadcast {
+    grid-template-columns: minmax(0, 1.05fr) minmax(270px, .95fr);
+  }
+
+  .webcam-redesign .wl-hero-copy {
+    padding-right: 24px;
+    padding-left: 28px;
+  }
+
+  .webcam-redesign .wl-record {
+    margin-right: -24px;
+    margin-left: -28px;
+  }
+
+  .webcam-redesign .wl-record > div:first-child {
+    padding-left: 28px;
+  }
+
+  .webcam-redesign .wl-fixture-ribbon {
+    grid-template-columns: 58px minmax(0, 1fr) minmax(140px, .36fr) 66px;
+  }
+
+  .webcam-redesign .wl-vs {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .webcam-redesign .wl-season-grid {
+    gap: 17px;
+  }
+
+  .webcam-redesign .wl-table th,
+  .webcam-redesign .wl-table td {
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+}
+
+@media (max-width: 700px) {
+  .webcam-redesign {
+    padding: 16px 14px 28px;
+  }
+
+  .webcam-redesign .webcam-masthead {
+    align-items: flex-start;
+    font-size: 7px;
+    letter-spacing: .08em;
+  }
+
+  .webcam-redesign .webcam-masthead > span:last-child {
+    flex: 0 0 auto;
+    text-align: right;
+  }
+
+  .webcam-redesign .wl-broadcast {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .webcam-redesign .wl-hero-copy {
+    padding: 29px 22px 0;
+  }
+
+  .webcam-redesign .wl-live-line {
+    gap: 7px 13px;
+    margin-bottom: 17px;
+    font-size: 7px;
+  }
+
+  .webcam-redesign .wl-hero-copy h1 {
+    font-size: clamp(58px, 14vw, 82px);
+  }
+
+  .webcam-redesign .wl-intro {
+    max-width: 475px;
+    margin-top: 16px;
+    font-size: 11px;
+  }
+
+  .webcam-redesign .wl-hero-rule {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    font-size: 7px;
+  }
+
+  .webcam-redesign .wl-hero-rule small {
+    width: 100%;
+    margin-left: 2px;
+  }
+
+  .webcam-redesign .wl-record {
+    margin: 21px -22px 0;
+  }
+
+  .webcam-redesign .wl-record > div {
+    padding: 11px 9px 12px;
+  }
+
+  .webcam-redesign .wl-record > div:first-child {
+    padding-left: 17px;
+  }
+
+  .webcam-redesign .wl-record small {
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-record b {
+    font-size: 20px;
+  }
+
+  .webcam-redesign .wl-board-scene {
+    min-height: 330px;
+    border-top: 1px solid #d9bd6b28;
+  }
+
+  .webcam-redesign .wl-dartboard {
+    top: 46%;
+    left: 57%;
+    width: min(78vw, 330px);
+  }
+
+  .webcam-redesign .wl-scene-stamp {
+    top: 18px;
+    left: 18px;
+  }
+
+  .webcam-redesign .wl-graphic-corner {
+    top: 19px;
+    right: 19px;
+  }
+
+  .webcam-redesign .wl-scene-lower {
+    right: 19px;
+    bottom: 44px;
+    left: 20px;
+  }
+
+  .webcam-redesign .wl-scene-lower b {
+    font-size: 29px;
+  }
+
+  .webcam-redesign .wl-scene-signal {
+    right: 18px;
+    bottom: 13px;
+  }
+
+  .webcam-redesign .wl-fixture-ribbon {
+    grid-template-columns: 48px minmax(0, 1fr) 62px;
+    margin-top: 10px;
+  }
+
+  .webcam-redesign .wl-ribbon-mark {
+    flex-direction: column;
+    gap: 5px;
+    font-size: 7px;
+  }
+
+  .webcam-redesign .wl-vs {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 12px 10px;
+  }
+
+  .webcam-redesign .wl-vs b {
+    font-size: 18px;
+  }
+
+  .webcam-redesign .wl-vs small {
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-vs span {
+    font-size: 7px;
+  }
+
+  .webcam-redesign .wl-first-to {
+    grid-column: 1 / 3;
+    grid-row: 2;
+    padding: 9px 12px;
+    border-top: 1px solid #ffffff14;
+    border-left: 0;
+  }
+
+  .webcam-redesign .wl-first-to b {
+    margin: 3px 0 1px;
+  }
+
+  .webcam-redesign .wl-round-tag {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    flex-direction: column;
+    gap: 3px;
+    border-top: 1px solid #ffffff14;
+  }
+
+  .webcam-redesign .wl-round-tag b {
+    font-size: 27px;
+  }
+
+  .webcam-redesign .wl-round-tag small {
+    text-align: center;
+  }
+
+  .webcam-redesign .wl-match-planner {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 27px;
+  }
+
+  .webcam-redesign .wl-planner-copy {
+    padding: 23px 19px 22px;
+  }
+
+  .webcam-redesign .wl-planner-copy h2 {
+    font-size: 35px;
+  }
+
+  .webcam-redesign .wl-planner-art {
+    min-height: 238px;
+    border-top: 1px solid #ffffff13;
+    border-left: 0;
+  }
+
+  .webcam-redesign .wl-night-card {
+    top: 20px;
+    right: 16px;
+    left: 18px;
+  }
+
+  .webcam-redesign .wl-night-card > b {
+    font-size: 38px;
+  }
+
+  .webcam-redesign .wl-planner-art > svg {
+    right: 0;
+    bottom: 5px;
+    width: 94%;
+  }
+
+  .webcam-redesign .wl-season-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    margin-top: 28px;
+  }
+
+  .webcam-redesign .wl-panel-head {
+    min-height: 68px;
+    padding: 12px;
+  }
+
+  .webcam-redesign .wl-zone-legend {
+    max-width: 130px;
+    gap: 6px 9px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-table th,
+  .webcam-redesign .wl-table td {
+    height: 36px;
+    padding: 7px 9px;
+  }
+
+  .webcam-redesign .wl-table td:nth-child(2) {
+    font-size: 12px;
+  }
+
+  .webcam-redesign .wl-table-foot {
+    min-height: 39px;
+  }
+
+  .webcam-redesign .wl-fixture-list {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .webcam-redesign .wl-fixture-list li {
+    grid-template-columns: 25px 35px minmax(0, 1fr) minmax(53px, auto) 36px;
+    gap: 5px;
+    min-height: 39px;
+  }
+
+  .webcam-redesign .wl-fixture-list li.is-current {
+    margin-right: -12px;
+    margin-left: -12px;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .webcam-redesign .wl-fixture-player b {
+    font-size: 12px;
+  }
+
+  .webcam-redesign .wl-past-league {
+    margin-right: 10px;
+    margin-left: 10px;
+  }
+
+  .webcam-redesign .wl-page-foot {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    row-gap: 8px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-page-foot b {
+    order: 3;
+    width: 100%;
+    text-align: left;
+  }
+}
+
+@media (max-width: 430px) {
+  .webcam-redesign {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .webcam-redesign .webcam-masthead {
+    gap: 6px;
+    font-size: 6px;
+    letter-spacing: .045em;
+  }
+
+  .webcam-redesign .webcam-masthead b {
+    font-size: 11px;
+  }
+
+  .webcam-redesign .wl-hero-copy {
+    padding-right: 17px;
+    padding-left: 17px;
+  }
+
+  .webcam-redesign .wl-live-line {
+    font-size: 6px;
+    letter-spacing: .08em;
+  }
+
+  .webcam-redesign .wl-live-line b {
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-hero-copy h1 {
+    font-size: 59px;
+  }
+
+  .webcam-redesign .wl-intro {
+    font-size: 10px;
+    line-height: 1.65;
+  }
+
+  .webcam-redesign .wl-hero-rule {
+    gap: 7px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-record {
+    margin-right: -17px;
+    margin-left: -17px;
+  }
+
+  .webcam-redesign .wl-record > div {
+    padding-right: 6px;
+    padding-left: 7px;
+  }
+
+  .webcam-redesign .wl-record > div:first-child {
+    padding-left: 12px;
+  }
+
+  .webcam-redesign .wl-record small {
+    font-size: 5px;
+    letter-spacing: .06em;
+  }
+
+  .webcam-redesign .wl-record b {
+    font-size: 18px;
+  }
+
+  .webcam-redesign .wl-board-scene {
+    min-height: 300px;
+  }
+
+  .webcam-redesign .wl-dartboard {
+    left: 59%;
+    width: min(78vw, 290px);
+  }
+
+  .webcam-redesign .wl-scene-stamp {
+    top: 15px;
+    left: 15px;
+    padding: 7px 8px;
+  }
+
+  .webcam-redesign .wl-scene-stamp > span {
+    font-size: 14px;
+  }
+
+  .webcam-redesign .wl-graphic-corner {
+    top: 16px;
+    right: 14px;
+    gap: 5px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-graphic-corner b {
+    font-size: 30px;
+  }
+
+  .webcam-redesign .wl-scene-lower {
+    bottom: 42px;
+    left: 16px;
+  }
+
+  .webcam-redesign .wl-scene-lower b {
+    font-size: 26px;
+  }
+
+  .webcam-redesign .wl-scene-lower small {
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-scene-signal {
+    right: 14px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-fixture-ribbon {
+    grid-template-columns: 40px minmax(0, 1fr) 53px;
+  }
+
+  .webcam-redesign .wl-ribbon-mark svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .webcam-redesign .wl-vs {
+    grid-template-columns: minmax(0, 1fr) 23px minmax(0, 1fr);
+    gap: 4px;
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+
+  .webcam-redesign .wl-vs b {
+    font-size: 16px;
+  }
+
+  .webcam-redesign .wl-vs small {
+    font-size: 5px;
+    letter-spacing: .03em;
+  }
+
+  .webcam-redesign .wl-vs span {
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-vs strong {
+    font-size: 9px;
+  }
+
+  .webcam-redesign .wl-round-tag b {
+    font-size: 24px;
+  }
+
+  .webcam-redesign .wl-round-tag small {
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-planner-copy {
+    padding-right: 15px;
+    padding-left: 15px;
+  }
+
+  .webcam-redesign .wl-section-index {
+    font-size: 7px;
+  }
+
+  .webcam-redesign .wl-planner-copy h2 {
+    font-size: 32px;
+  }
+
+  .webcam-redesign .wl-planner-copy > p {
+    font-size: 9px;
+  }
+
+  .webcam-redesign .wl-night-options button {
+    min-height: 48px;
+    padding-right: 8px;
+    padding-left: 9px;
+  }
+
+  .webcam-redesign .wl-night-options button b {
+    font-size: 11px;
+  }
+
+  .webcam-redesign .wl-night-options button svg {
+    top: 6px;
+    right: 5px;
+    width: 11px;
+    height: 11px;
+  }
+
+  .webcam-redesign .wl-night-card > b {
+    font-size: 34px;
+  }
+
+  .webcam-redesign .wl-season-grid {
+    gap: 17px;
+    margin-top: 24px;
+  }
+
+  .webcam-redesign .wl-panel-head {
+    gap: 6px;
+    padding: 11px 9px;
+  }
+
+  .webcam-redesign .wl-panel-head h2 {
+    font-size: 21px;
+  }
+
+  .webcam-redesign .wl-panel-head .wl-section-index {
+    gap: 6px;
+    font-size: 6px;
+    letter-spacing: .08em;
+  }
+
+  .webcam-redesign .wl-panel-head .wl-section-index i {
+    width: 14px;
+  }
+
+  .webcam-redesign .wl-zone-legend {
+    max-width: 102px;
+    gap: 5px;
+    font-size: 5px;
+  }
+
+  .webcam-redesign .wl-zone-legend span {
+    gap: 4px;
+  }
+
+  .webcam-redesign .wl-table {
+    font-size: 9px;
+  }
+
+  .webcam-redesign .wl-table th,
+  .webcam-redesign .wl-table td {
+    padding-right: 5px;
+    padding-left: 5px;
+  }
+
+  .webcam-redesign .wl-table th:first-child,
+  .webcam-redesign .wl-table td:first-child {
+    width: 31px;
+  }
+
+  .webcam-redesign .wl-table td:nth-child(2) {
+    min-width: 94px;
+    font-size: 11px;
+  }
+
+  .webcam-redesign .wl-table td:nth-child(2) small {
+    margin-left: 3px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-table-foot {
+    gap: 5px 7px;
+    padding-right: 8px;
+    padding-left: 8px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-ledger-season {
+    gap: 1px;
+    font-size: 6px;
+  }
+
+  .webcam-redesign .wl-fixture-list {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .webcam-redesign .wl-fixture-list li {
+    grid-template-columns: 19px 31px minmax(0, 1fr) 48px 31px;
+    gap: 4px;
+  }
+
+  .webcam-redesign .wl-fixture-list li.is-current {
+    margin-right: -8px;
+    margin-left: -8px;
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .webcam-redesign .wl-fixture-player {
+    gap: 4px;
+  }
+
+  .webcam-redesign .wl-fixture-player b {
+    font-size: 11px;
+  }
+
+  .webcam-redesign .wl-fixture-player small {
+    font-size: 5px;
+  }
+
+  .webcam-redesign .wl-fixture-status {
+    font-size: 5px;
+  }
+
+  .webcam-redesign .wl-fixture-score {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-page-foot {
+    font-size: 5px;
+    letter-spacing: .05em;
+  }
+}
+
+/* Mobile type pass: keep the dense broadcast details readable at phone scale. */
+@media (max-width: 430px) {
+  .webcam-redesign .webcam-masthead {
+    font-size: 8px;
+    line-height: 1.45;
+  }
+
+  .webcam-redesign .wl-live-line,
+  .webcam-redesign .wl-live-line b {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-eyebrow,
+  .webcam-redesign .wl-hero-rule,
+  .webcam-redesign .wl-hero-rule small {
+    font-size: 9px;
+  }
+
+  .webcam-redesign .wl-record small {
+    font-size: 7px;
+    letter-spacing: .035em;
+  }
+
+  .webcam-redesign .wl-scene-stamp b,
+  .webcam-redesign .wl-scene-stamp small,
+  .webcam-redesign .wl-graphic-corner,
+  .webcam-redesign .wl-graphic-corner i,
+  .webcam-redesign .wl-scene-lower > span,
+  .webcam-redesign .wl-scene-lower small,
+  .webcam-redesign .wl-scene-signal {
+    font-size: 8px;
+    letter-spacing: .045em;
+  }
+
+  .webcam-redesign .wl-ribbon-mark span,
+  .webcam-redesign .wl-vs small,
+  .webcam-redesign .wl-vs span,
+  .webcam-redesign .wl-first-to small,
+  .webcam-redesign .wl-first-to span,
+  .webcam-redesign .wl-round-tag small {
+    font-size: 8px;
+    letter-spacing: .025em;
+  }
+
+  .webcam-redesign .wl-vs b {
+    font-size: 18px;
+  }
+
+  .webcam-redesign .wl-planner-copy > p {
+    font-size: 11px;
+  }
+
+  .webcam-redesign .wl-night-options button {
+    min-height: 52px;
+  }
+
+  .webcam-redesign .wl-night-options button small {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-night-options button b {
+    font-size: 13px;
+  }
+
+  .webcam-redesign .wl-book-cta {
+    min-height: 48px;
+    font-size: 11px !important;
+  }
+
+  .webcam-redesign .wl-play-actions button {
+    min-height: 44px;
+    font-size: 10px !important;
+  }
+
+  .webcam-redesign .wl-action-message {
+    font-size: 10px;
+  }
+
+  .webcam-redesign .wl-night-card > span,
+  .webcam-redesign .wl-night-card > div span,
+  .webcam-redesign .wl-art-coordinates {
+    font-size: 8px;
+    letter-spacing: .035em;
+  }
+
+  .webcam-redesign .wl-panel-head .wl-section-index {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-zone-legend {
+    max-width: 112px;
+    font-size: 7px;
+  }
+
+  /* Keep the mobile table focused on the standings story, without losing key stats. */
+  .webcam-redesign .wl-table th:nth-child(3),
+  .webcam-redesign .wl-table th:nth-child(4),
+  .webcam-redesign .wl-table th:nth-child(5),
+  .webcam-redesign .wl-table td:nth-child(3),
+  .webcam-redesign .wl-table td:nth-child(4),
+  .webcam-redesign .wl-table td:nth-child(5) {
+    display: none;
+  }
+
+  .webcam-redesign .wl-table th,
+  .webcam-redesign .wl-table td {
+    height: 42px;
+    padding: 8px 9px;
+    font-size: 12px;
+  }
+
+  .webcam-redesign .wl-table th {
+    height: 36px;
+    font-size: 9px;
+  }
+
+  .webcam-redesign .wl-table th:first-child,
+  .webcam-redesign .wl-table td:first-child {
+    width: 40px;
+  }
+
+  .webcam-redesign .wl-table td:nth-child(2) {
+    min-width: 0;
+    font-size: 15px;
+  }
+
+  .webcam-redesign .wl-table td:nth-child(2) small {
+    font-size: 9px;
+  }
+
+  .webcam-redesign .wl-table .wl-rank {
+    font-size: 11px;
+  }
+
+  .webcam-redesign .wl-table td:nth-child(6) {
+    min-width: 58px;
+  }
+
+  .webcam-redesign .wl-table td:nth-child(7) strong {
+    font-size: 16px;
+  }
+
+  .webcam-redesign .wl-table-foot {
+    gap: 6px 9px;
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-table-foot small {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-ledger-season {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-week {
+    font-size: 9px;
+  }
+
+  .webcam-redesign .wl-fixture-list li {
+    grid-template-columns: 19px 33px minmax(0, 1fr) minmax(60px, auto) 34px;
+    min-height: 44px;
+  }
+
+  .webcam-redesign .wl-fixture-player {
+    gap: 5px;
+  }
+
+  .webcam-redesign .wl-fixture-player b {
+    font-size: 14px;
+  }
+
+  .webcam-redesign .wl-fixture-player small {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-fixture-status {
+    font-size: 9px;
+    letter-spacing: 0;
+  }
+
+  .webcam-redesign .wl-fixture-score {
+    font-size: 10px;
+  }
+
+  .webcam-redesign .wl-past-league small,
+  .webcam-redesign .wl-past-league em {
+    font-size: 8px;
+  }
+
+  .webcam-redesign .wl-page-foot {
+    font-size: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .webcam-redesign *,
+  .webcam-redesign *::before,
+  .webcam-redesign *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}

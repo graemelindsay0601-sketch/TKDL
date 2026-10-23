@@ -1,0 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap");
+
+.cr-current, .cr-current * { box-sizing: border-box; }
+.cr-current { min-height:100vh; padding:24px; color:#edf3f7; background:#080d14; font:13px Inter, sans-serif; }
+.cr-current button,.cr-current input,.cr-current select { font:inherit; }

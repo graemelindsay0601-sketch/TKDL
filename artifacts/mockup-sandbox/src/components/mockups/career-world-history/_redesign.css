@@ -1,0 +1,112 @@
+.wh-redesign {
+  --page: #0c0e10;
+  --surface: #17191c;
+  --surface-raised: #202124;
+  --ink: #f1eee6;
+  --muted: #b6b0a5;
+  --line: #383638;
+  --accent: #d3423f;
+  --gold: #e0bd69;
+  min-height: 100dvh;
+  padding: clamp(16px, 3.6vw, 48px);
+  background:
+    radial-gradient(ellipse at 50% -22%, #30201d 0, transparent 34rem),
+    linear-gradient(150deg, #101214 0%, var(--page) 62%, #111011 100%);
+  color: var(--ink);
+  font-family: "DM Sans", sans-serif;
+}
+.wh-redesign * { box-sizing: border-box; }
+.whr-container { max-width: 1180px; margin: 0 auto; }
+.whr-topline { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 0 18px; border-bottom:1px solid #3c3937; color:#b5aa9c; font:700 .65rem "Oswald",sans-serif; letter-spacing:.16em; text-transform:uppercase; }
+.whr-brand { display:flex; align-items:center; gap:10px; color:var(--ink); }
+.whr-brand-mark { display:grid; place-items:center; width:31px; height:31px; border:1px solid #e0bd6970; border-radius:50%; background:linear-gradient(145deg,#29221a,#171719); color:var(--gold); font:800 .67rem "Oswald",sans-serif; letter-spacing:-.03em; box-shadow:inset 0 1px 0 #ffffff14,0 2px 0 #08090a; }
+.whr-hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,300px); align-items:end; gap:24px; padding:clamp(28px,5vw,58px) 0 29px; }
+.whr-kicker { margin:0 0 10px; color:var(--gold); font:700 .66rem "Oswald",sans-serif; letter-spacing:.2em; text-transform:uppercase; }
+.whr-hero h1 { margin:0; font:500 clamp(3.3rem,9vw,7.7rem)/.8 "Playfair Display", Georgia,serif; letter-spacing:-.045em; color:#f4f0e8; text-shadow:0 2px 0 #000; }
+.whr-hero-copy { max-width:58ch; margin:18px 0 0; color:#b9b3a9; font-size:.91rem; line-height:1.6; }
+.whr-edition { position:relative; padding:18px 19px 16px; overflow:hidden; border:1px solid #5b4930; border-left:3px solid var(--accent); border-radius:11px; background:linear-gradient(150deg,#2a2722 0%,#1b1b1d 62%,#151618 100%); box-shadow:inset 0 1px 0 #ffffff18,0 2px 0 #08090a,0 10px 20px #0006; }
+.whr-edition:after { content:""; position:absolute; top:-20px; right:-10px; width:95px; height:95px; border:1px solid #e0bd6930; border-radius:50%; box-shadow:0 0 0 10px #e0bd6908; }
+.whr-edition small { display:block; color:#c0a86e; font:700 .61rem "Oswald",sans-serif; letter-spacing:.17em; text-transform:uppercase; }
+.whr-edition strong { display:block; margin-top:8px; color:#f0d58d; font:500 1.55rem/.96 "Playfair Display",Georgia,serif; }
+.whr-edition span { display:block; margin-top:7px; color:#b5b0a7; font-size:.69rem; }
+.whr-facts { display:grid; grid-template-columns:1.1fr repeat(3,1fr); margin:10px 0 30px; overflow:hidden; border:1px solid #393635; border-radius:11px; background:linear-gradient(180deg,#1a1b1c,#111315); box-shadow:inset 0 1px 0 #ffffff12,0 2px 0 #070809,0 10px 20px #0005; }
+.whr-fact { position:relative; padding:15px 18px 16px; border-left:1px solid #393635; }
+.whr-fact:first-child { border-left:0; padding-left:18px; }
+.whr-fact small { display:block; color:#b4ada2; font:700 .6rem "Oswald",sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+.whr-fact strong { display:block; margin-top:5px; color:var(--gold); font:500 2rem/1 "Playfair Display",Georgia,serif; }
+.whr-fact:first-child strong { color:#e1534b; }
+.whr-index { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:16px 19px; border:1px solid #373432; border-bottom:0; border-radius:13px 13px 0 0; background:linear-gradient(160deg,#242322,#191a1b); box-shadow:inset 0 1px 0 #ffffff18,0 2px 0 #08090a; }
+.whr-index h2 { margin:0; color:#f1eee6; font:500 1.56rem "Playfair Display",Georgia,serif; }
+.whr-index small { color:#b7a36f; font:700 .6rem "Oswald",sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+.whr-tabrow { display:flex; overflow-x:auto; gap:0; padding:0 17px; border:1px solid #373432; border-bottom:1px solid #4b4237; background:linear-gradient(180deg,#1d1e20,#17181a); }
+.whr-tabrow button { position:relative; flex:none; padding:12px 12px 13px; border:0; background:transparent; color:#aaa59c; font:700 .63rem "Oswald",sans-serif; letter-spacing:.09em; text-transform:uppercase; cursor:pointer; }
+.whr-tabrow button:hover { color:#eee8dc; }
+.whr-tabrow button[aria-selected="true"] { color:#e45a50; }
+.whr-tabrow button[aria-selected="true"]:after { content:""; position:absolute; right:11px; bottom:-1px; left:11px; height:2px; background:var(--accent); }
+.whr-archive { padding:20px 21px 26px; border:1px solid #373432; border-top:0; border-radius:0 0 15px 15px; background:linear-gradient(150deg,#1c1d1f 0%,#171819 45%,#141517 100%); box-shadow:inset 0 1px 0 #ffffff0b,0 3px 0 #090a0b,0 18px 32px #0008; }
+.whr-seasons { display:grid; grid-template-columns:1fr; }
+.whr-season { display:grid; grid-template-columns:106px minmax(0,1fr); gap:20px; position:relative; padding:21px 0 24px; border-top:1px solid #353536; }
+.whr-season:first-child { border-top:0; padding-top:5px; }
+.whr-season:last-child { padding-bottom:12px; }
+.whr-season-rail { position:relative; padding:3px 0 0 13px; }
+.whr-season-rail:after { content:""; position:absolute; left:3px; top:36px; bottom:-38px; width:1px; background:linear-gradient(#c8433e,#6b302d 72%,#423331); }
+.whr-season:last-child .whr-season-rail:after { display:none; }
+.whr-season-rail small { display:block; color:#aaa39a; font:700 .59rem "Oswald",sans-serif; letter-spacing:.17em; text-transform:uppercase; }
+.whr-season-rail strong { display:block; margin-top:5px; color:#e45149; font:500 1.84rem/.95 "Playfair Display",Georgia,serif; }
+.whr-season-rail b { position:absolute; top:43px; left:0; width:8px; height:8px; border:1px solid #f0796c; border-radius:50%; background:#c83e39; box-shadow:inset 0 1px 0 #ffffff7a,0 0 0 3px #d3423f20; }
+.whr-season-main { min-width:0; }
+.whr-number-one { display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 11px; padding:0 0 13px; }
+.whr-number-one small { color:#b6ac99; font:700 .59rem "Oswald",sans-serif; letter-spacing:.15em; text-transform:uppercase; }
+.whr-number-one strong { color:#f1eee6; font:500 1.34rem "Playfair Display",Georgia,serif; }
+.whr-number-one em { color:#aaa49a; font-size:.66rem; font-style:normal; }
+.whr-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 24px; }
+.whr-group { padding:0 0 2px; }
+.whr-group h3 { display:flex; align-items:center; gap:8px; margin:0 0 6px; color:var(--gold); font:700 .62rem "Oswald",sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+.whr-group h3:before { content:""; width:15px; height:1px; background:#c9a34e; }
+.whr-entry { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:baseline; padding:7px 0; border-top:1px solid #303133; }
+.whr-entry:first-of-type { border-top:0; }
+.whr-entry strong { min-width:0; overflow:hidden; color:#e6e2d9; font-size:.76rem; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.whr-entry span { color:#aaa59b; font-size:.63rem; text-align:right; }
+.whr-entry a { min-width:0; color:inherit; text-decoration:none; }
+.whr-entry a:hover strong,.whr-entry a:focus-visible strong { color:#f1786c; }
+.whr-tier { margin-right:6px; color:var(--gold); font:700 .58rem "Oswald",sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.whr-names { display:flex; flex-wrap:wrap; gap:5px; }
+.whr-names span { padding:4px 8px; border:1px solid #474139; border-radius:5px; background:linear-gradient(150deg,#262522,#1a1b1c); color:#d1c9b8; font-size:.66rem; box-shadow:inset 0 1px 0 #ffffff10,0 1px 0 #0b0c0d; }
+.whr-pager { display:flex; align-items:center; justify-content:center; gap:16px; margin:24px 0 5px; padding-top:16px; border-top:1px solid #393839; }
+.whr-pager button { padding:8px 13px; border:1px solid #565044; border-radius:7px; background:linear-gradient(160deg,#282724,#1d1e20); color:#e6dcc2; font:700 .62rem "Oswald",sans-serif; letter-spacing:.08em; text-transform:uppercase; cursor:pointer; box-shadow:inset 0 1px 0 #ffffff16,0 2px 0 #090a0b; }
+.whr-pager button:hover:not(:disabled) { border-color:var(--gold); color:var(--gold); transform:translateY(-1px); }
+.whr-pager button:disabled { opacity:.4; cursor:not-allowed; }
+.whr-pager span { color:#c2b99f; font:700 .62rem "Oswald",sans-serif; letter-spacing:.1em; text-transform:uppercase; }
+.whr-directory { margin-top:27px; padding-top:20px; border-top:1px solid #45403a; }
+.whr-directory-head { display:flex; align-items:flex-end; justify-content:space-between; gap:15px; margin-bottom:8px; }
+.whr-directory h2 { margin:0; color:#f0ece3; font:500 1.68rem "Playfair Display",Georgia,serif; }
+.whr-directory-head p { margin:0 0 2px; color:#aaa49a; font-size:.66rem; }
+.whr-search { width:min(100%,355px); min-height:39px; padding:8px 11px; border:1px solid #514d47; border-radius:7px; outline:none; background:linear-gradient(160deg,#111315,#191a1c); color:#f1eee6; font:inherit; font-size:.78rem; box-shadow:inset 0 1px 3px #0008,0 1px 0 #ffffff0a; }
+.whr-search::placeholder { color:#88847c; }
+.whr-search:focus { border-color:#d85a50; box-shadow:inset 0 1px 3px #0008,0 0 0 2px #d3423f35; }
+.whr-directory-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,205px),1fr)); gap:8px; margin-top:12px; }
+.whr-player { display:flex; align-items:center; gap:10px; min-width:0; padding:9px; border:1px solid #3d3b39; border-radius:9px; background:linear-gradient(150deg,#252628,#1a1b1d 72%); color:inherit; text-decoration:none; transition:transform .16s ease, border-color .16s ease; box-shadow:inset 0 1px 0 #ffffff13,0 2px 0 #0a0b0c,0 5px 10px #0004; }
+.whr-player:hover,.whr-player:focus-visible { transform:translateY(-1px); border-color:#9c554b; outline:none; }
+.whr-monogram { display:grid; place-items:center; width:33px; height:33px; flex:none; border:1px solid #9a6c42; border-radius:50%; background:linear-gradient(145deg,#33281c,#211e1b); color:#e3c77b; font:700 .64rem "Oswald",sans-serif; box-shadow:inset 0 1px 0 #ffffff1b,0 1px 0 #0c0d0e; }
+.whr-player span:last-child { display:grid; min-width:0; }
+.whr-player strong { overflow:hidden; color:#eee9df; font-size:.74rem; text-overflow:ellipsis; white-space:nowrap; }
+.whr-player small { color:#aaa49a; font-size:.62rem; }
+.whr-disclosure { margin:22px 0 0; padding:12px 14px; border:1px solid #514536; border-left:2px solid var(--gold); border-radius:7px; background:linear-gradient(150deg,#25231f,#1a1b1d); color:#c2bba9; font-size:.68rem; line-height:1.55; box-shadow:inset 0 1px 0 #ffffff10,0 2px 0 #090a0b; }
+.whr-disclosure button { margin-left:9px; padding:6px 9px; border:1px solid #74613d; border-radius:5px; background:linear-gradient(160deg,#302a1e,#211f1b); color:#ead087; font:700 .6rem "Oswald",sans-serif; text-transform:uppercase; cursor:pointer; }
+.whr-profile { position:fixed; z-index:6; right:20px; bottom:20px; width:min(350px,calc(100vw - 40px)); padding:18px; border:1px solid #695538; border-radius:12px; background:linear-gradient(145deg,#282623,#191a1c); color:#f1eee6; box-shadow:inset 0 1px 0 #ffffff18,0 3px 0 #08090a,0 16px 28px #0009; }
+.whr-profile button { float:right; border:0; background:none; color:#c6b990; font-size:1.2rem; cursor:pointer; }
+.whr-profile small { color:#e36a5f; font:700 .6rem "Oswald",sans-serif; letter-spacing:.17em; text-transform:uppercase; }
+.whr-profile strong { display:block; margin-top:7px; color:#f0d58d; font:500 1.55rem "Playfair Display",Georgia,serif; }
+.whr-profile p { margin:7px 0 0; color:#c0b9aa; font-size:.75rem; line-height:1.5; }
+@media (max-width:760px) {
+  .whr-hero { grid-template-columns:1fr; align-items:start; }
+  .whr-edition { max-width:340px; }
+  .whr-facts { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .whr-fact:first-child { padding:15px 18px 16px; }
+  .whr-fact:nth-child(odd) { border-left:0; }
+  .whr-fact:nth-child(n+3) { border-top:1px solid #393635; }
+  .whr-season { grid-template-columns:69px minmax(0,1fr); gap:12px; }
+  .whr-groups { grid-template-columns:1fr; gap:13px; }
+  .whr-directory-head { display:grid; }
+  .whr-search { width:100%; }
+}

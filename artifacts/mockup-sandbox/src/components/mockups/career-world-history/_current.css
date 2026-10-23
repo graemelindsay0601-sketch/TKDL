@@ -1,0 +1,84 @@
+.wh-current {
+  --wh-ink: #eef2f6;
+  --wh-muted: #a3afbc;
+  --wh-gold: #e8c66a;
+  min-height: 100dvh;
+  padding: clamp(14px, 3vw, 36px);
+  color: var(--wh-ink);
+  background: radial-gradient(ellipse at 50% -15%, #1c2a3b 0, #0b111a 52%, #080d14 100%);
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+.wh-current * { box-sizing: border-box; }
+.whc-shell { max-width: 1100px; margin: 0 auto; }
+.whc-hero { position: relative; overflow: hidden; padding: clamp(22px, 4vw, 42px); border: 1px solid #ffffff1b; border-radius: 16px; background: linear-gradient(118deg,#111b28,#0c131d 70%); }
+.whc-hero:after { content:""; position:absolute; width:280px; height:280px; border:1px solid #e8c66a25; border-radius:50%; right:-72px; top:-138px; box-shadow:0 0 0 24px #e8c66a08,0 0 0 48px #e8c66a06; }
+.whc-kicker,.whc-eyebrow { margin:0; color:var(--wh-gold); font:700 .64rem/1.2 "Oswald",sans-serif; letter-spacing:.2em; text-transform:uppercase; }
+.whc-title { margin:9px 0 6px; font:800 clamp(2rem,5vw,3.2rem)/.98 "Oswald",sans-serif; letter-spacing:.01em; text-transform:uppercase; color:#fff; }
+.whc-subtitle { max-width:60ch; margin:0; color:#b9c5d1; font-size:.85rem; }
+.whc-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; margin-top:25px; border:1px solid #ffffff16; background:#ffffff16; }
+.whc-stat { padding:12px 15px; background:#0c141e; }
+.whc-stat small { display:block; color:#a4b0bc; font:700 .57rem "Oswald",sans-serif; letter-spacing:.15em; text-transform:uppercase; }
+.whc-stat strong { display:block; margin-top:4px; font:800 1.5rem/1 "Oswald",sans-serif; color:#fff; }
+.whc-stat:first-child strong { color:var(--wh-gold); }
+.whc-section { margin-top:14px; overflow:hidden; border:1px solid #ffffff19; border-radius:14px; background:#0b121b; box-shadow:0 18px 40px #0002; }
+.whc-section-head { padding:19px 20px 0; }
+.whc-section-head h2 { margin:0; color:#fff; font:800 1.12rem "Oswald",sans-serif; letter-spacing:.03em; text-transform:uppercase; }
+.whc-tabs { display:flex; overflow-x:auto; gap:6px; padding:15px 20px; border-bottom:1px solid #ffffff12; }
+.whc-tabs button { flex:none; padding:8px 12px; border:1px solid #ffffff16; border-radius:8px; background:#ffffff06; color:#aab5c0; font:700 .65rem "Oswald",sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.whc-tabs button[aria-selected="true"] { border-color:#e8c66a55; background:#e8c66a12; color:var(--wh-gold); }
+.whc-body { padding:18px 20px 22px; }
+.whc-season { margin-bottom:11px; padding:15px; border:1px solid #ffffff16; border-radius:13px; background:linear-gradient(150deg,#141e2a,#0a111a); }
+.whc-season > header { display:flex; flex-wrap:wrap; align-items:baseline; gap:9px 14px; padding-bottom:11px; border-bottom:1px solid #ffffff12; }
+.whc-season-label { color:var(--wh-gold); font:800 .69rem "Oswald",sans-serif; letter-spacing:.16em; text-transform:uppercase; }
+.whc-season > header strong { color:#fff; font:700 1rem "Oswald",sans-serif; }
+.whc-season > header small { color:#9ba8b5; font-size:.69rem; }
+.whc-season h3 { margin:14px 0 5px; color:var(--wh-gold); font:700 .65rem "Oswald",sans-serif; letter-spacing:.15em; text-transform:uppercase; }
+.whc-row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; min-height:36px; padding:6px 0; border-top:1px solid #ffffff0c; }
+.whc-row:first-of-type { border-top:0; }
+.whc-chip { padding:3px 8px; border:1px solid #ffffff19; border-radius:6px; background:#ffffff08; color:var(--wh-gold); font:700 .61rem "Oswald",sans-serif; letter-spacing:.06em; white-space:nowrap; }
+.whc-row strong { overflow:hidden; color:#e8edf3; font-size:.77rem; text-overflow:ellipsis; white-space:nowrap; }
+.whc-row em { color:#94a1ae; font-size:.62rem; font-style:normal; text-align:right; }
+.whc-row-link { min-width:0; color:inherit; text-decoration:none; }
+.whc-row-link:hover strong,.whc-row-link:focus-visible strong { color:var(--wh-gold); }
+.whc-names { display:flex; flex-wrap:wrap; gap:5px; }
+.whc-name { padding:4px 9px; border:1px solid #ffffff14; border-radius:99px; background:#ffffff07; color:#d5dde5; font-size:.69rem; }
+.whc-tools { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:17px 0 10px; }
+.whc-search { width:min(100%,360px); min-height:40px; padding:8px 13px; border:1px solid #ffffff27; border-radius:999px; outline:none; background:#070c12; color:#fff; font:inherit; font-size:.8rem; }
+.whc-search:focus { border-color:#e8c66a; box-shadow:0 0 0 2px #e8c66a20; }
+.whc-hint { margin:0; color:#8e9ba8; font-size:.68rem; }
+.whc-player-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr)); gap:7px; }
+.whc-player-link { display:flex; align-items:center; gap:10px; min-width:0; padding:8px 10px; border:1px solid #ffffff15; border-radius:10px; background:#0e1722; color:inherit; text-decoration:none; }
+.whc-player-link:hover,.whc-player-link:focus-visible { border-color:#e8c66a70; outline:none; }
+.whc-avatar { display:grid; place-items:center; width:34px; height:34px; flex:none; border:1px solid #e8c66a45; border-radius:50%; background:#e8c66a12; color:var(--wh-gold); font:700 .65rem "Oswald",sans-serif; }
+.whc-player-link span:last-child { display:grid; min-width:0; }
+.whc-player-link strong { overflow:hidden; color:#f1f4f7; font-size:.74rem; text-overflow:ellipsis; white-space:nowrap; }
+.whc-player-link small { color:#8c9aa8; font-size:.63rem; }
+.whc-pagination { display:flex; justify-content:center; align-items:center; gap:12px; margin:16px 0 2px; }
+.whc-pagination button { padding:7px 12px; border:1px solid #ffffff20; border-radius:7px; background:#ffffff07; color:#eef2f6; font:700 .64rem "Oswald",sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.whc-pagination button:disabled { opacity:.35; cursor:not-allowed; }
+.whc-pagination span { color:#a5b0bc; font:700 .67rem "Oswald",sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.whc-disclosure { margin-top:14px; padding:10px 13px; border-left:2px solid #e8c66a; background:#e8c66a0a; color:#aeb8c3; font-size:.68rem; line-height:1.5; }
+.whc-tab-return { margin-left:10px; padding:5px 8px; border:1px solid #e8c66a55; border-radius:5px; background:#e8c66a10; color:var(--wh-gold); font:700 .62rem "Oswald",sans-serif; text-transform:uppercase; cursor:pointer; }
+.whc-profile { position:fixed; z-index:5; right:20px; bottom:20px; width:min(340px,calc(100vw - 40px)); padding:17px; border:1px solid #e8c66a65; border-radius:12px; background:#111b27; box-shadow:0 18px 60px #0009; }
+.whc-profile button { float:right; border:0; background:transparent; color:#b9c5d1; font-size:1.1rem; cursor:pointer; }
+.whc-profile strong { color:#fff; font:700 1rem "Oswald",sans-serif; text-transform:uppercase; }
+.whc-profile p { margin:7px 0 0; color:#aeb9c5; font-size:.75rem; }
+/* Extracted World History rules from artifacts/tkdl/src/features/career/pages/legacy.css */
+.career-archive__world-season { padding:14px; border-radius:14px; border:1px solid #ffffff14; background:linear-gradient(160deg,#141c2a,#0a1019); margin-bottom:10px; }
+.career-archive__world-season > header { display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; padding-bottom:10px; border-bottom:1px solid #ffffff10; }
+.career-archive__world-season > header span { font:800 .7rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; color:#e8c66a; }
+.career-archive__world-season > header strong { font:700 1rem Oswald,sans-serif; color:#fff; }
+.career-archive__world-season > header small { color:#ffffff80; }
+.career-archive__row { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; padding:8px 0; border-top:1px solid #ffffff0f; }
+.career-archive__row:first-of-type { border-top:0; }
+.career-archive__row strong { min-width:0; color:#eef2f6; font-size:.84rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.career-archive__row em { font-style:normal; font-size:.66rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#ffffff8c; }
+.career-archive__chip { padding:3px 8px; border-radius:7px; background:#ffffff0d; border:1px solid #ffffff1a; font:700 .66rem Oswald,sans-serif; letter-spacing:.06em; color:#e8c66a; white-space:nowrap; }
+.career-archive__names { display:flex; flex-wrap:wrap; gap:6px; }
+.career-archive__names span { padding:4px 10px; border-radius:999px; background:#ffffff0a; border:1px solid #ffffff14; font-size:.74rem; }
+.career-archive__npc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr)); gap:8px; }
+.career-archive__npc { display:flex; align-items:center; gap:8px; padding:6px 10px 6px 6px; border-radius:12px; border:1px solid #ffffff14; background:#0d1520; color:#fff; text-decoration:none; min-width:0; }
+.career-archive__npc:hover { border-color:#e8c66a66; }
+.career-archive__npc strong { font-size:.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.career-archive__npc small { font-size:.64rem; color:#ffffff80; }
+@media (max-width:700px) { .whc-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.whc-season{padding:12px}.whc-body{padding:15px 13px 18px}.whc-section-head{padding:17px 14px 0}.whc-tabs{padding:13px 14px}.whc-row{grid-template-columns:auto minmax(0,1fr);}.whc-row em{grid-column:2;text-align:left;margin-top:-7px} }

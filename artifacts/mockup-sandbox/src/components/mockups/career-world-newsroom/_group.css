@@ -1,0 +1,12 @@
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&family=Source+Serif+4:ital,wght@0,500;0,600;1,500&display=swap");
+
+html, body, #root { min-height:100%; margin:0; }
+body { background:#090b10; color:#f2f0e8; font-family:Inter,sans-serif; }
+button,input,select { font:inherit; }
+.news-current-shell { min-height:100vh; padding:18px clamp(12px,3vw,36px) 36px; background:radial-gradient(ellipse at 74% 0,#5c202b30,transparent 38rem),linear-gradient(145deg,#11151d,#090b10 72%); }
+.news-current-frame { max-width:1180px; margin:auto; overflow:hidden; border:1px solid #ffffff1c; border-radius:12px; background:#10151e; box-shadow:0 16px 38px #0009,inset 0 1px #ffffff0c; }
+.news-current-head { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:46px; padding:9px 18px; border-bottom:1px solid #ffffff16; color:#f2f0e8; }
+.news-current-head h2 { margin:0; font:600 11px Oswald,sans-serif; letter-spacing:.14em; text-transform:uppercase; }
+.news-current-head span { color:#d1a65c; font:600 8px Inter,sans-serif; letter-spacing:.13em; text-transform:uppercase; }
+.news-current-frame .tkdl-newsroom { padding:14px clamp(12px,2.2vw,25px) 28px; }

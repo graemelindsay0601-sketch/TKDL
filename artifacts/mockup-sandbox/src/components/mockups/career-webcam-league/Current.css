@@ -1,0 +1,61 @@
+.webcam-current { font-family:Manrope,sans-serif; }
+.webcam-current .wc-hero { overflow:hidden;border:1px solid #ffffff1b;border-radius:15px;background:#070a10;box-shadow:0 18px 40px #0007; }
+.webcam-current .wc-hero-stage { position:relative;display:flex;min-height:206px;align-items:flex-end;overflow:hidden;background:linear-gradient(90deg,#05070cf2 0%,#080b12d9 52%,#10141c73),radial-gradient(ellipse at 78% 42%,#5bc0eb29,transparent 42%),linear-gradient(125deg,#11151d,#080b12); }
+.webcam-current .wc-hero-stage:after { position:absolute;right:0;bottom:0;left:0;height:2px;content:"";background:linear-gradient(90deg,#5bc0eb,#5bc0eb33,transparent); }
+.webcam-current .wc-hero-glow { position:absolute;right:8%;top:-45%;width:350px;height:350px;border:1px solid #ffffff15;border-radius:50%;box-shadow:0 0 0 30px #ffffff06,0 0 0 65px #ffffff04,inset 0 0 38px #5bc0eb13; }
+.webcam-current .wc-hero-mark { position:absolute;right:7%;top:50%;transform:translateY(-50%);color:#ffffff10;font:800 clamp(45px,9vw,100px)/1 Oswald,sans-serif;letter-spacing:.08em; }
+.webcam-current .wc-hero-mark span { color:#5bc0eb; }
+.webcam-current .wc-hero-copy { position:relative;z-index:1;max-width:650px;padding:25px clamp(18px,3vw,30px); }
+.webcam-current .wc-kicker { display:flex;align-items:center;gap:8px;margin:0 0 7px;color:#c7d1dd;font:700 10px Oswald,sans-serif;letter-spacing:.17em;text-transform:uppercase; }
+.webcam-current .wc-kicker i { width:20px;height:3px;background:#5bc0eb; }
+.webcam-current .wc-hero h1 { margin:0;color:#fff;font:800 clamp(32px,5vw,48px)/.98 Oswald,sans-serif;text-transform:uppercase; }
+.webcam-current .wc-subtitle { max-width:590px;margin:9px 0 0;color:#dbe4eecc;font-size:12px;line-height:1.55; }
+.webcam-current .wc-stats { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:0;border-top:1px solid #ffffff14;background:linear-gradient(180deg,#0d1320,#0a0f19); }
+.webcam-current .wc-stats>div { padding:11px 17px;border-left:1px solid #ffffff10; }.webcam-current .wc-stats>div:first-child{border:0}
+.webcam-current .wc-stats dt,.webcam-current .wc-small-label { color:#ffffff8c;font:700 9px Oswald,sans-serif;letter-spacing:.15em;text-transform:uppercase; }
+.webcam-current .wc-stats dd { margin:3px 0 0;color:#fff;font:800 22px Oswald,sans-serif;font-variant-numeric:tabular-nums; }
+.webcam-current .wc-stats .is-gold dd { color:#ffd27a; }
+.webcam-current .wc-section { overflow:hidden;margin-top:12px;border:1px solid #ffffff16;border-radius:13px;background:linear-gradient(145deg,#141820f5,#0c1017f7);box-shadow:0 15px 32px #0005,inset 0 1px #ffffff08; }
+.webcam-current .wc-section-head { display:flex;min-height:40px;align-items:center;justify-content:space-between;gap:12px;padding:10px 15px;border-bottom:1px solid #ffffff12; }
+.webcam-current .wc-section-head h2 { display:flex;align-items:center;gap:8px;margin:0;color:#e9edf2;font:700 11px Oswald,sans-serif;letter-spacing:.15em;text-transform:uppercase; }
+.webcam-current .wc-section-head h2 svg { width:15px;height:15px;color:#5bc0eb; }
+.webcam-current .wc-status { display:flex;align-items:center;gap:6px;color:#9db1bf;font:600 8px "IBM Plex Mono",monospace;letter-spacing:.1em; }
+.webcam-current .wc-status i { width:6px;height:6px;border-radius:50%;background:#ef5360; }
+.webcam-current .wc-match { display:grid;grid-template-columns:minmax(0,.9fr) minmax(300px,1.1fr);gap:24px;padding:18px; }
+.webcam-current .wc-opponent { display:flex;align-items:center;gap:13px;min-width:0; }
+.webcam-current .wc-opponent-number { display:grid;width:55px;height:62px;flex:0 0 55px;place-items:center;clip-path:polygon(50% 0,94% 15%,86% 76%,50% 100%,14% 76%,6% 15%);border:1px solid #947636;background:linear-gradient(145deg,#302416,#121316);color:#e2bf63;font:700 20px Oswald,sans-serif; }
+.webcam-current .wc-opponent small { color:#909ba6;font:600 8px "IBM Plex Mono",monospace;letter-spacing:.11em; }
+.webcam-current .wc-opponent h3 { margin:3px 0;color:#f4f0e8;font:600 24px Oswald,sans-serif; }
+.webcam-current .wc-opponent h3 em { margin-left:5px;color:#a7a197;font:500 9px "IBM Plex Mono",monospace;font-style:normal; }
+.webcam-current .wc-opponent p,.webcam-current .wc-booking>p { margin:0;color:#a8a49c;font-size:10px;line-height:1.6; }
+.webcam-current .wc-opponent p b { color:#e2bf63; }
+.webcam-current .wc-booking { display:flex;flex-direction:column;align-items:flex-start;gap:9px; }
+.webcam-current .wc-nights { display:flex;gap:6px; }
+.webcam-current .wc-nights button { min-width:65px;padding:8px 13px;border:1px solid #ffffff28;border-radius:5px;background:#17191d;color:#c4c0b7;font:600 9px "IBM Plex Mono",monospace;cursor:pointer; }
+.webcam-current .wc-nights button[aria-checked="true"] { border-color:#e2bf63;background:linear-gradient(145deg,#3b3020,#211d17);color:#f3d989;box-shadow:inset 0 0 0 1px #e2bf6330; }
+.webcam-current .wc-book-btn { min-height:37px;padding:0 15px;border:1px solid #ffe08a;border-radius:5px;background:linear-gradient(135deg,#e4c76e,#b5923f);color:#171511;font-size:10px;font-weight:800;box-shadow:0 4px 12px #0007;cursor:pointer; }
+.webcam-current .wc-match-actions { display:flex;flex-wrap:wrap;gap:7px; }
+.webcam-current .wc-match-actions button { display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #ffffff25;border-radius:5px;background:#191b20;color:#e9e4da;font-size:9px;cursor:pointer; }
+.webcam-current .wc-match-actions button:first-child { border-color:#8b6f35;color:#edcf76; }.webcam-current .wc-match-actions svg{width:13px;height:13px}
+.webcam-current .wc-local-note { color:#d2bd7c!important;font-size:9px!important; }
+.webcam-current .wc-zone-key { display:flex;gap:13px;color:#9da5ad;font:600 7px "IBM Plex Mono",monospace;letter-spacing:.07em; }
+.webcam-current .wc-zone-key span { display:flex;align-items:center;gap:5px; }.webcam-current .wc-zone-key i { width:7px;height:7px;border-radius:50%;background:#53ba79; }.webcam-current .wc-zone-key span:last-child i{background:#d84b56}
+.webcam-current .wc-table-scroll { overflow-x:auto; }
+.webcam-current .cam-league__table { width:100%;border-collapse:collapse;font-size:10px;font-variant-numeric:tabular-nums; }
+.webcam-current .cam-league__table th,.webcam-current .cam-league__table td { padding:7px 12px;text-align:left;border-bottom:1px solid #ffffff0d; }
+.webcam-current .cam-league__table th { color:#88939e;font:600 8px "IBM Plex Mono",monospace;letter-spacing:.08em; }
+.webcam-current .cam-league__table td:nth-child(n+3),.webcam-current .cam-league__table th:nth-child(n+3){text-align:right}
+.webcam-current .cam-league__table tbody tr[data-zone="up"] td:first-child { box-shadow:inset 3px 0 #46d369; }
+.webcam-current .cam-league__table tbody tr[data-zone="down"] td:first-child { box-shadow:inset 3px 0 #e5534b; }
+.webcam-current .cam-league__table tr.is-you { background:#5bc0eb17; }
+.webcam-current .cam-league__table td small,.webcam-current .cam-league__fixtures small { color:#8fa3b3;font:500 8px "IBM Plex Mono",monospace; }
+.webcam-current .cam-league__table td b { color:#f1d27b; }
+.webcam-current .wc-prize { margin:0;padding:10px 14px 12px;color:#9ca4ad;font-size:9px; }.webcam-current .wc-prize b{color:#e2bf63}
+.webcam-current .wc-lower { display:grid;grid-template-columns:1.2fr .8fr;gap:0;overflow:hidden; }
+.webcam-current .wc-lower>div+div { border-left:1px solid #ffffff14; }
+.webcam-current .wc-lower .wc-section-head { border-bottom:1px solid #ffffff12; }
+.webcam-current .cam-league__fixtures { display:flex;flex-direction:column;gap:0;margin:0;padding:5px 14px 10px;list-style:none;font-size:9px; }
+.webcam-current .cam-league__fixtures li { display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #ffffff0b; }
+.webcam-current .cam-league__fixtures em { color:#c8b87f;font:500 8px "IBM Plex Mono",monospace;font-style:normal;text-align:right; }
+@media(max-width:700px){.webcam-current .wc-match{grid-template-columns:1fr;gap:15px}.webcam-current .wc-lower{grid-template-columns:1fr}.webcam-current .wc-lower>div+div{border-top:1px solid #ffffff14;border-left:0}.webcam-current .wc-stats>div{padding:10px 11px}.webcam-current .cam-league__table th,.webcam-current .cam-league__table td{padding:7px 8px}}
+@media(max-width:430px){.webcam-current .wc-hero-stage{min-height:185px}.webcam-current .wc-hero-mark{right:4%;top:26%;font-size:48px}.webcam-current .wc-stats dd{font-size:19px}.webcam-current .wc-opponent h3{font-size:21px}.webcam-current .wc-zone-key{gap:7px;font-size:6px}}

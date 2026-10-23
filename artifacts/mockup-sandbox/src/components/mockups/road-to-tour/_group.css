@@ -1,0 +1,212 @@
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap");
+
+:root {
+  --background: 240 22% 5%;
+  --foreground: 0 0% 95%;
+  --card: 240 20% 7%;
+  --card-foreground: 0 0% 95%;
+  --border: 240 15% 12%;
+  --primary: 342 100% 50%;
+  --accent: 43 100% 64%;
+  --app-font-sans: 'Inter', sans-serif;
+  --app-font-display: 'Oswald', sans-serif;
+  --app-font-mono: 'Share Tech Mono', monospace;
+  --radius: 1.25rem;
+}
+
+.road-preview {
+  min-height: 100vh;
+  display: grid;
+  gap: 14px;
+  padding: 24px clamp(14px, 2.6vw, 38px) 44px;
+  background: radial-gradient(ellipse at 75% 8%, #581c2b66, transparent 38rem), #050509;
+  color: #f5f1e9;
+  font-family: Inter, sans-serif;
+}
+
+.road-preview__notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e8c77755;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(105deg, #46151f99, #121113);
+  color: #c9c0b4;
+  font-size: 10px;
+}
+.road-preview__notice b {
+  color: #e8c777;
+  font: 700 9px/1.2 'Share Tech Mono', monospace;
+  letter-spacing: .15em;
+  white-space: nowrap;
+}
+
+.road-preview-hero {
+  overflow: hidden;
+  border: 1px solid #a9a9a955;
+  border-radius: 16px;
+  background: #101014;
+  box-shadow: 0 16px 32px #0009, inset 0 1px #ffffff20, inset 0 -3px #0008;
+}
+.road-preview-hero__stage {
+  position: relative;
+  min-height: 206px;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(110deg, #08090dcc 0%, #090a0cb8 55%, #35121dcc 100%);
+}
+.road-preview-hero__backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #07080bf2 0%, #07080bcf 48%, #160c10a8 100%),
+    url("/__mockup/images/road-to-tour/career-venue-floor.jpg") center 48% / cover;
+  filter: saturate(.84);
+}
+.road-preview-hero__stage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, #c21e3c, #8e172f 40%, #be9040 75%, #efd287);
+}
+.road-preview-hero .career-page-hero__content { padding: 30px clamp(20px, 3vw, 40px) 24px; }
+.road-preview-hero .career-page-hero__kicker {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 10px;
+  color: #e8c777;
+  font: 700 10px/1.2 'Share Tech Mono', monospace;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.road-preview-hero .career-page-hero__kicker i {
+  width: 19px;
+  height: 2px;
+  background: #d83b58;
+}
+.road-preview-hero .career-page-hero__title {
+  margin: 0;
+  color: #fff6e6;
+  font: 700 clamp(32px, 5vw, 54px)/.98 Oswald, sans-serif;
+  letter-spacing: .01em;
+  text-transform: uppercase;
+  text-shadow: 0 3px 18px #000b;
+}
+.road-preview-hero .career-page-hero__subtitle {
+  max-width: 640px;
+  margin-top: 12px;
+  color: #d7d2ca;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.road-preview-hero .career-page-hero__subtitle p { margin: 0; }
+.road-preview-hero .career-page-hero__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #ffffff15;
+  background: linear-gradient(110deg, #100f12, #191216);
+}
+.road-preview-hero .career-page-hero__stats > div {
+  min-width: 0;
+  padding: 14px 20px;
+  border-right: 1px solid #ffffff12;
+}
+.road-preview-hero .career-page-hero__stats > div:last-child { border-right: 0; }
+.road-preview-hero .career-page-hero__stats dt {
+  color: #a9a099;
+  font: 700 9px/1.2 'Share Tech Mono', monospace;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.road-preview-hero .career-page-hero__stats dd {
+  margin: 5px 0 0;
+  color: #f1d58e;
+  font: 600 20px/1.1 Oswald, sans-serif;
+}
+
+.road-preview-section {
+  overflow: hidden;
+  border: 1px solid #ffffff23;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #111115, #0b0b0f);
+  box-shadow: 0 12px 25px #0008, inset 0 1px #ffffff13, inset 0 -2px #0008;
+}
+.road-preview-section__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 17px;
+  border-bottom: 1px solid #ffffff12;
+  background: linear-gradient(100deg, #8a1d32aa, transparent 55%);
+}
+.road-preview-section__header > span { color: #e8c777; }
+.road-preview-section__header h2 {
+  margin: 0;
+  color: #f4eee2;
+  font: 600 19px/1.2 Oswald, sans-serif;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.road-preview-section > .road-map,
+.road-preview-section > .road-routes { margin: 14px; }
+
+.road-event-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #f1c86d;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: #f1c86d70;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.road-preview__feedback {
+  margin: 0;
+  border: 1px solid #e8c77766;
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #211a10;
+  color: #f3d78e;
+  font-size: 12px;
+}
+.road-preview__event {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e8c77770;
+  border-radius: 11px;
+  padding: 14px 16px;
+  background: linear-gradient(110deg, #231a11, #111116);
+  box-shadow: 0 8px 18px #0008, inset 0 1px #ffffff18;
+}
+.road-preview__event div { display: grid; gap: 4px; }
+.road-preview__event small { color: #e8c777; font: 700 9px 'Share Tech Mono', monospace; letter-spacing: .12em; }
+.road-preview__event b { color: #f5f0e7; font: 600 18px Oswald, sans-serif; }
+.road-preview__event span { color: #bdb5ab; font-size: 11px; }
+.road-preview__event button {
+  border: 1px solid #e8c77766;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #171318;
+  color: #f1d58e;
+}
+
+@media (max-width: 680px) {
+  .road-preview { padding: 12px 10px 28px; gap: 10px; }
+  .road-preview__notice { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .road-preview-hero__stage { min-height: 190px; }
+  .road-preview-hero .career-page-hero__content { padding: 22px 18px; }
+  .road-preview-hero .career-page-hero__stats > div { padding: 11px 9px; }
+  .road-preview-hero .career-page-hero__stats dd { font-size: 17px; }
+  .road-preview-section > .road-map,
+  .road-preview-section > .road-routes { margin: 9px; }
+}

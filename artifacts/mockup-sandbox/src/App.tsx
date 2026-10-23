@@ -4,6 +4,11 @@ import { modules as discoveredModules } from "./.generated/mockup-components";
 
 type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 
+const previewModules: ModuleMap = {
+  ...import.meta.glob<Record<string, unknown>>("./components/mockups/**/*.tsx"),
+  ...discoveredModules,
+};
+
 function _resolveComponent(
   mod: Record<string, unknown>,
   name: string,
@@ -135,7 +140,7 @@ function App() {
     return (
       <PreviewRenderer
         componentPath={previewPath}
-        modules={discoveredModules}
+        modules={previewModules}
       />
     );
   }
