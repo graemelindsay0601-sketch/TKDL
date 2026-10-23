@@ -27,6 +27,7 @@ export function HostTournament({ saveId, retired }: { saveId: string; retired: b
   const pending = d.events.find(e => e.status !== "COMPLETED" && e.status !== "CANCELLED");
   const canBook = !retired && !pending && d.hostedThisSeason < d.maxPerSeason && weeks.length > 0;
   const p = preview.data;
+  const estimatedMarginPence = p ? p.takePence - p.costPence : null;
   const set = (k: keyof typeof form, v: string | number) => setForm(f => ({ ...f, [k]: v }));
 
   return (
@@ -45,6 +46,8 @@ export function HostTournament({ saveId, retired }: { saveId: string; retired: b
         <label><span>Your prize money (£)</span><input inputMode="numeric" value={form.topUp} onChange={e => set("topUp", e.target.value.replace(/[^0-9]/g, ""))} /></label>
         {p && valid && <p className="host__preview">Expect about <b>{p.entrants}</b> players. Pot about <b>{formatPence(p.prize.bands[0].amountPence + p.prize.bands[1].amountPence + p.prize.bands[2].amountPence * 2)}</b>
           {" "}(winner {formatPence(p.prize.bands[0].amountPence)}). You pay <b>{formatPence(p.costPence)}</b> now and keep about <b>{formatPence(p.takePence)}</b> of the fees.
+          {" "}{estimatedMarginPence! >= 0 ? <>Estimated event margin after room hire and prize top-up: <b>{formatPence(estimatedMarginPence!)}</b></> :
+            <span className="host__warn">Estimated shortfall after room hire and prize top-up: <b>{formatPence(-estimatedMarginPence!)}</b>. This is not guaranteed and excludes any prize you might win by entering.</span>}
           {p.costPence > d.availablePence ? <strong className="host__warn"> You have {formatPence(d.availablePence)} free.</strong> : null}</p>}
         {!valid && <p className="host__warn">Whole pounds only: entry up to £{d.rules.maxFeePence / 100}, prize money up to £{d.rules.maxTopUpPence / 100}.</p>}
         <button type="submit" className="career-btn career-btn-gold" disabled={!valid || book.isPending || (p ? p.costPence > d.availablePence : false)}>
