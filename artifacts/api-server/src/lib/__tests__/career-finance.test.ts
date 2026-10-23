@@ -1266,6 +1266,12 @@ test("SP-F3 sponsor value, contract length and required duties rise across caree
   assert.ok(ranges[0].duties.every(count=>count===0));
   assert.ok(ranges[2].duties.every(count=>count>=2));
   assert.ok(ranges[3].duties.every(count=>count>=2));
+  const legacyLocalPartner=sponsorCatalogue(7).find(item=>item.key==="westburn-industrial")!;
+  const updatedLocalPartner=sponsorCatalogue(8).find(item=>item.key==="westburn-industrial")!;
+  assert.equal(legacyLocalPartner.terms.contractFoundation!.activitySpecification!.required.length,1,
+    "the previous catalogue's signed-term template remains unchanged");
+  assert.equal(updatedLocalPartner.terms.contractFoundation!.activitySpecification!.required.length,2,
+    "the new professional deal adds one stage-appropriate duty");
 });
 
 test("SP-F2 a brand profile controls the sponsor's actual counter offer", async () => {

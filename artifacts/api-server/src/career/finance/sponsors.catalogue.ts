@@ -422,7 +422,7 @@ const requiredTypeForCategory:Record<SponsorCategory,readonly (typeof REQUIRED_S
   EQUIPMENT_PARTNER:["PRODUCT_APPEARANCE","PROMOTIONAL_APPEARANCE"],
   APPAREL_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
   TRAVEL_PARTNER:["PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
-  LOCAL_PARTNER:["COMMUNITY_APPEARANCE"],
+  LOCAL_PARTNER:["COMMUNITY_APPEARANCE","MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"],
   MAIN_PARTNER:["MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE","COMMUNITY_APPEARANCE"],
   SECONDARY_PARTNER:["MEDIA_APPEARANCE","COMMUNITY_APPEARANCE"],
 };
@@ -569,7 +569,10 @@ const V8_SECTOR:Readonly<Record<string,{guarantee:number;signing:number;event:nu
 function v8ActivitySpecification(definition:SponsorDefinition):SponsorActivitySpecification{
   const category=definition.terms.contractFoundation!.category,tier=definition.terms.tier;
   const count=V8_TIER[tier].required;
-  const types=requiredTypeForCategory[category].filter(type=>REQUIRED_TIER_TYPES[tier].includes(type)).slice(0,count);
+  const categoryTypes=category==="LOCAL_PARTNER"&&tier==="PROFESSIONAL"
+    ?["COMMUNITY_APPEARANCE","MEDIA_APPEARANCE","PROMOTIONAL_APPEARANCE"] as const
+    :requiredTypeForCategory[category];
+  const types=categoryTypes.filter(type=>REQUIRED_TIER_TYPES[tier].includes(type)).slice(0,count);
   const required=types.map((type,index)=>({id:`v8-${type.toLowerCase().replaceAll("_","-")}-${index+1}`,
     type,maxPerSeason:1 as const,windowWeeks:REQUIRED_WINDOW[type],firstWindowWeek:8+index*16,extraCompensationPence:0 as const}));
   const optional=definition.terms.contractFoundation!.activitySpecification?.optional??[];
