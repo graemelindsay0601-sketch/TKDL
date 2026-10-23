@@ -205,3 +205,46 @@
   .cp-red-footer { align-items: flex-start; flex-direction: column; }
   .cp-red-footer > div { text-align: left; }
 }
+
+/* Match the approved Records Book palette and typography. */
+.cp-redesign {
+  --red-ink: #f4f0e8;
+  --red-muted: #bab6b0;
+  --red-gold: #d9c49d;
+  --red-accent: #8f2539;
+  --red-edge: rgba(244, 240, 232, .14);
+  background:
+    radial-gradient(ellipse at 78% 3%, rgba(110, 23, 43, .18), transparent 38rem),
+    linear-gradient(145deg, #0d1017, #08090d 70%, #101118);
+  font-family: "Montserrat", Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.cp-redesign *:not(svg):not(svg *) { font-family: "Montserrat", Inter, ui-sans-serif, system-ui, sans-serif !important; }
+.cp-redesign .cp-red-hero h1,
+.cp-redesign .cp-red-section-head h2,
+.cp-redesign .cp-red-tour strong,
+.cp-redesign .cp-red-event-copy strong,
+.cp-redesign .cp-red-booked h3,
+.cp-redesign .cp-red-standing header strong,
+.cp-redesign .cp-red-stat b {
+  font-family: "Playfair Display", Georgia, serif !important;
+}
+.cp-redesign .cp-red-bar { background: linear-gradient(110deg, #191d26, #111319 72%); }
+.cp-redesign .cp-red-backdrop { background: radial-gradient(ellipse at 88% 0%, rgba(143,37,57,.28), transparent 42%); }
+.cp-redesign .cp-red-avatar { background: linear-gradient(145deg, #8f2539 0%, #35131e 78%); }
+.cp-redesign .cp-red-hero {
+  background: radial-gradient(ellipse at 76% 55%, rgba(143,37,57,.25), transparent 48%),
+    linear-gradient(116deg, #191d26 0%, #0e1118 58%, #24131b 100%);
+}
+.cp-redesign .cp-red-main-panel,
+.cp-redesign .cp-red-booked,
+.cp-redesign .cp-red-standing {
+  background: linear-gradient(135deg, #1b1c22, #101116 70%);
+}
+.cp-redesign .cp-red-event { background: linear-gradient(105deg, rgba(255,255,255,.035), rgba(0,0,0,.12)); }
+.cp-redesign .cp-red-event.is-featured { background: linear-gradient(100deg, rgba(143,37,57,.2), #121319 62%); }
+.cp-redesign .cp-red-booked-art {
+  background: radial-gradient(circle at 71% 40%, rgba(217,196,157,.2) 0 3%, transparent 4%),
+    radial-gradient(circle at 71% 40%, transparent 0 20%, rgba(217,196,157,.1) 20.5% 21%, transparent 22%),
+    linear-gradient(105deg, #35131e, #111319 58%, #24131b);
+}
+.cp-redesign .cp-red-enter { border-color: #b23a51; background: linear-gradient(135deg, #a52a42, #741d32); }
