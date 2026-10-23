@@ -131,3 +131,48 @@
   .rb-personal-count { gap:4px; font-size:6px; }
   .rb-personal-count strong { font-size:18px; }
 }
+
+/* Approved Records Book refinement: softer panels and refined typography. */
+.records-book { font-family:"Montserrat",sans-serif; }
+.records-book .rb-hero h1,
+.records-book .rb-box h2 {
+  font-family:"Playfair Display",Georgia,serif;
+  font-weight:500;
+  letter-spacing:-.035em;
+  text-transform:none;
+}
+.records-book .rb-hero h1 { letter-spacing:-.055em; }
+.records-book .rb-hero-art,
+.records-book .rb-box { border-radius:16px; }
+.records-book .rb-hero-art::after { border-radius:10px; }
+.records-book .rb-box::before { border-radius:11px; }
+.records-book .rb-edition b { border-radius:999px; }
+.records-book .rb-brand,
+.records-book .rb-brand small,
+.records-book .rb-edition,
+.records-book .rb-disclosure,
+.records-book .rb-overline,
+.records-book .rb-rule,
+.records-book .rb-art-label,
+.records-book .rb-art-caption,
+.records-book .rb-section-rule,
+.records-book .rb-index,
+.records-book .rb-index span,
+.records-book .rb-rank,
+.records-book .rb-player-name,
+.records-book .rb-player-name i,
+.records-book .rb-personal-seal,
+.records-book .rb-value,
+.records-book .rb-value small,
+.records-book .rb-book-note b,
+.records-book .rb-feature-value,
+.records-book .rb-feature-value small,
+.records-book .rb-ranking-label,
+.records-book .rb-card-value strong,
+.records-book .rb-footer-mark,
+.records-book .rb-footer p,
+.records-book .rb-personal-count,
+.records-book .rb-personal-count strong {
+  font-family:"Montserrat",sans-serif;
+}
+.records-book .rb-art-caption { font-family:"Playfair Display",Georgia,serif; }
