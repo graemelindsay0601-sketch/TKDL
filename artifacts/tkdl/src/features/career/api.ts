@@ -63,6 +63,8 @@ export type ChatEvent = import("../../../../api-server/src/career/streaming/mode
 /** Your DartCast channel: followers, the streamer route, nights you can go live, past streams. */
 export const useStreaming = (saveId: string, week?: number) => useQuery({ queryKey: careerKey(saveId, "streaming", ...(week === undefined ? [] : [week])),
   queryFn: () => get<StreamingView>(`/saves/${saveId}/streaming${qs({ week })}`), staleTime: STALE });
+export const useBuyStudioUpgrade = (saveId: string) => useSaveMutation(saveId, () =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/studio-upgrade`, {}));
 export const useSetStreamingPathway = (saveId: string) => useSaveMutation(saveId, (input: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number }) =>
   send<StreamingView>("PUT", `/saves/${saveId}/streaming/pathway`, input));
 export const useScheduleStreamingPathway = (saveId: string) => useSaveMutation(saveId, () =>

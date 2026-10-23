@@ -12,7 +12,7 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, adRevenuePence, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -52,6 +52,9 @@ export type StreamingView = {
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
   pathway: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number; scheduledNights: number[] };
   totals: { streams: number; earnedPence: number; won: number };
+  careerFundsPence: number;
+  studio: { level: number; name: string; audienceBonusPercent: number; next: { level: number; name: string; costPence: number; audienceBonusPercent: number; description: string } | null;
+    upgrades: { level: number; name: string; costPence: number; audienceBonusPercent: number; description: string; owned: boolean }[] };
   platform: { adsEligible: boolean; viewerMinutesThisMonth: number; streamedWeeksThisMonth: number; estimatedAdPence: number; adRatePencePerThousandMinutes: number; fullRateWeeks: number };
   /** Subscribers who renew every four weeks (half of each £2.50 to you), and the week the next renewals are paid. */
   subscribers: number; renewsWeek: number;
@@ -81,13 +84,13 @@ const monthOf = (week: number) => Math.ceil(week / STREAM_MONEY.monthWeeks);
 /** Your channel (made on first visit, its first followers drawn from your fan base). */
 async function channel(tx: CareerExecutor, root: Root) {
   const row = (await tx.execute(sql`SELECT * FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
-  if (row) return { handle: String(row.handle), followers: Number(row.followers), subscribers: Number(row.subscribers ?? 0),
+  if (row) return { handle: String(row.handle), followers: Number(row.followers), subscribers: Number(row.subscribers ?? 0), studioLevel: Number(row.studio_level ?? 0),
     pollPick: (row.poll_pick as StreamFormat | null) ?? null, subGoal: (row.sub_goal as Omit<SubGoal, "progress" | "endsWeek"> | null) ?? null };
   const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
   const name = String((await tx.execute(sql`SELECT career_name FROM career_saves WHERE id=${root.id}`)).rows[0]?.career_name ?? "Darts").replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || "Darts";
   const handle = `${name}Darts`, followers = followersFromFans(fans);
   await tx.execute(sql`INSERT INTO career_stream_channels (career_save_id, handle, followers) VALUES (${root.id}, ${handle}, ${followers}) ON CONFLICT DO NOTHING`);
-  return { handle, followers, subscribers: 0, pollPick: null, subGoal: null };
+  return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null };
 }
 
 const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), brand: String(r.brand_name), what: BRANDS.find(b => b.key === r.brand_key)?.what ?? "a brand",
@@ -202,6 +205,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
     },0);
     const streamEarnings=Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence),0)::bigint AS n FROM career_finance_entries
       WHERE career_save_id=${root.id} AND category='STREAM_INCOME'`)).rows[0]?.n??0);
+    const careerFundsPence=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
+    const currentStudio=studioUpgradeForLevel(ch.studioLevel),nextStudio=STUDIO_UPGRADES.find(item=>item.level===ch.studioLevel+1)??null;
     const g = ch.subGoal, goalMonth = g && g.season === season ? g.month : null;
     const subGoal: SubGoal | null = g && goalMonth !== null && goalMonth >= monthOf(week) - 1
       ? { ...g, endsWeek: g.month * STREAM_MONEY.monthWeeks, progress: await subsThisMonth(tx, root.id, g.season, g.month) } : null;
@@ -212,6 +217,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
       freeNights: root.status === "ACTIVE" ? await freeNights(tx, root, week) : [], live: nights.find(r => r.status === "LIVE")?.id as string ?? null,
       pathway: await pathwaySchedule(tx, root, week),
       totals: { streams: ended.length, earnedPence: streamEarnings, won: ended.filter(r => r.result === "WON").length },
+       careerFundsPence,
+       studio:{level:ch.studioLevel,name:currentStudio?.name??"Basic setup",audienceBonusPercent:Math.round((studioAudienceMultiplier(ch.studioLevel)-1)*100),
+         next:nextStudio?{level:nextStudio.level,name:nextStudio.name,costPence:nextStudio.costPence,audienceBonusPercent:Math.round(nextStudio.audienceBonus*100),description:nextStudio.description}:null,
+         upgrades:STUDIO_UPGRADES.map(item=>({...item,audienceBonusPercent:Math.round(item.audienceBonus*100),owned:item.level<=ch.studioLevel}))},
       platform:{adsEligible:tier.key!=="NEWCOMER",viewerMinutesThisMonth,streamedWeeksThisMonth,
         estimatedAdPence:adRevenuePence(viewerMinutesThisMonth,streamedWeeksThisMonth,ch.followers),
         adRatePencePerThousandMinutes:STREAM_MONEY.adPencePerThousandViewerMinutes,fullRateWeeks:STREAM_MONEY.adFullRateWeeks},
@@ -472,9 +481,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const since = last && Number(last.season) === season ? Math.max(0, day - Number(last.day)) : null;
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
         const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
+          * studioAudienceMultiplier(v.studio.level)
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));
         const id = stableUuid(root.world_seed, STREAM.version, "stream", root.id, key);
-        const tally: Tally = { viewers, peak: viewers, hype: 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0 };
+        const tally: Tally = { viewers, peak: viewers, hype: 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:v.studio.level };
         let challenger: Challenger, drill: DrillSpec | null = null, hello: ChatEvent[];
         if (format === "INVITATIONAL") {
           challenger = invitationalChallenger(root.world_seed, id, season, week, 0);
@@ -564,8 +574,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
           const season = Number(live.season), day = Number(live.scheduled_day), week = Math.ceil(day / 7);
           const id = stableUuid(root.world_seed, STREAM.version, "stream-match", root.id, matchId);
           const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
-          const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, ((day - 1) % 7) + 1, null) * formatByKey("MATCH").crowd));
-          const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0 };
+          const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, ((day - 1) % 7) + 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel)));
+          const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:ch.studioLevel };
           const name = npc ? `${npc.firstName} ${npc.surname}` : "Opponent";
           const hello: ChatEvent[] = [{ kind: "CHAT", user: "DartCast", text: `Live from the venue: ${ch.handle} vs ${name}. This one's for real` }];
           await tx.execute(sql`INSERT INTO career_streams (career_save_id, id, season, week, day, status, format, challenger, first_thrower, tally, chat, processed_visits, match_id, match_format)
@@ -627,6 +637,21 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (!SUB_GOAL.targets.includes(target) || !(SUB_GOAL.promises as readonly string[]).includes(promise)) throw new CareerError(400, "Pick a target and a promise from the list");
         if (v.subGoal && v.subGoal.season === season && v.subGoal.month === month) throw new CareerError(409, "You've set this month's goal");
         await tx.execute(sql`UPDATE career_stream_channels SET sub_goal=${JSON.stringify({ season, month, target, promise, status: "ON" })}::jsonb WHERE career_save_id=${root.id}`);
+        return view(tx, root);
+      });
+    },
+
+    /** Buy only the next studio tier; payment and upgrade are atomic and optional. */
+    async buyStudioUpgrade(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Retired Careers cannot buy studio upgrades");
+        const ch = await channel(tx, root), upgrade = STUDIO_UPGRADES.find(item => item.level === ch.studioLevel + 1);
+        if (!upgrade) throw new CareerError(409, "Your DartCast studio is already fully upgraded");
+        await post(tx, root, { operationKey: `adjustment:studio-upgrade:${upgrade.level}`, category: "ADJUSTMENT", headline: "EXPENSE",
+          amountPence: -upgrade.costPence, reason: `DartCast studio upgrade: ${upgrade.name}`, season: Number(root.current_season), week: Number(root.current_week),
+          detail: { type: "DARTCAST_STUDIO_UPGRADE", level: upgrade.level, name: upgrade.name, audienceBonusPercent: Math.round(upgrade.audienceBonus * 100) } });
+        await tx.execute(sql`UPDATE career_stream_channels SET studio_level=${upgrade.level} WHERE career_save_id=${root.id}`);
         return view(tx, root);
       });
     },

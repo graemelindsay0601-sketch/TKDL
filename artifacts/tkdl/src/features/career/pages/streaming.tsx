@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation, useSearch } from "wouter";
 import { Activity, ArrowUpRight, Check, CircleDollarSign, Clapperboard, Crosshair, Crown, Eye, HeartHandshake, Loader2, Play, Radio, Search, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users } from "lucide-react";
-import { useAnswerBrandDeal, useAnswerStreamCampaign, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, errorMessage, type StreamFormat } from "../api";
+import { useAnswerBrandDeal, useAnswerStreamCampaign, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, useBuyStudioUpgrade, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
@@ -27,11 +27,13 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
   const q = useStreaming(id, requestedWeek), live = useGoLive(id), scheduleNight = useScheduleStreamNight(id), answer = useAnswerBrandDeal(id),
     answerCampaign=useAnswerStreamCampaign(id),goal = useSetSubGoal(id);
+  const buyStudio=useBuyStudioUpgrade(id);
   const setPathway = useSetStreamingPathway(id), schedulePathway = useScheduleStreamingPathway(id);
   useEffect(() => { markSeen(id, "streaming"); }, [id]);
   const [format, setFormat] = useState<StreamFormat | null>(null);
   const [goalTarget, setGoalTarget] = useState<number | null>(null);
   const [promise, setPromise] = useState<string | null>(null);
+  const [studioMessage,setStudioMessage]=useState("");
   const [, navigate] = useLocation();
   const requestedDayValue = params.get("day");
   const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
@@ -150,6 +152,31 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
                 {futureWeek ? "Schedule stream" : "Go live"}{pick ? ` on ${dayLabel(pick)}` : ""}</button>
             </div>
             {message && <p className="preview-message" role="alert">{message}</p>}
+          </section>
+          <section className="audience-finance" aria-label="Optional creator studio upgrades">
+            <div className="section-heading"><div><span className="eyebrow">OPTIONAL INVESTMENT</span><h2>Build your broadcast studio</h2></div><span className="heading-meta">NO RECURRING COSTS</span></div>
+            <div className="finance-layout">
+              <div className="audience-panel">
+                <div className="panel-label"><Radio aria-hidden /> CURRENT SETUP</div>
+                <div className="sub-count"><b>{d.studio.name}</b><span>{d.studio.audienceBonusPercent ? `+${d.studio.audienceBonusPercent}% opening audience` : "Basic broadcast setup"}</span></div>
+                <p>Your studio is an optional investment. It increases the opening audience on future broadcasts; it never changes darts ability or match outcomes.</p>
+                <div className="renewal-figure"><span>CAREER FUNDS</span><b>{money(d.careerFundsPence)}</b><span>UPGRADES ARE ONE-OFF PURCHASES</span></div>
+              </div>
+              <div className="income-panel">
+                <div className="panel-label"><Sparkles aria-hidden /> NEXT STUDIO TIER</div>
+                {d.studio.next ? <>
+                  <h3 className="text-xl font-bold">{d.studio.next.name}</h3>
+                  <p>{d.studio.upgrades.find(item=>item.level===d.studio.next!.level)?.description}</p>
+                  <div className="offer-terms"><b>{money(d.studio.next.costPence)}</b><span>Expected reach: +{d.studio.next.audienceBonusPercent}% opening viewers</span></div>
+                  <button className="button-gold" type="button" disabled={retired || buyStudio.isPending || d.careerFundsPence<d.studio.next.costPence || futureWeek}
+                    onClick={()=>buyStudio.mutate(undefined,{onSuccess:()=>setStudioMessage("Studio upgraded. The audience boost applies to future broadcasts."),onError:e=>setStudioMessage(errorMessage(e))})}>
+                    {buyStudio.isPending ? "Upgrading…" : d.careerFundsPence<d.studio.next.costPence ? "Not enough Career funds" : "Buy studio upgrade"}
+                  </button>
+                  <p className="text-xs opacity-60">One-time purchase. No upkeep or automatic bills.</p>
+                </> : <><h3 className="text-xl font-bold">Studio fully upgraded</h3><p>You have reached the highest broadcast setup. No further purchase is required.</p></>}
+              </div>
+            </div>
+            {studioMessage && <p className="preview-message" role="status">{studioMessage}</p>}
           </section>
           {(d.platform.adsEligible || d.subscribers > 0 || d.deal || d.dealOffer || d.campaign || d.campaignOffer || d.invitations || d.charity.raisedPence > 0 || d.goalOptions) && <section className="audience-finance" id="audience">
             <div className="section-heading"><div><span className="eyebrow">03 / AUDIENCE &amp; INCOME</span><h2>The channel is working</h2></div><span className="heading-meta">YOUR CHANNEL ECONOMY</span></div>

@@ -19,6 +19,8 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
   // Phase 2: subscribers who renew monthly (and the last month paid), and brand deals.
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS subscribers integer NOT NULL DEFAULT 0`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS renewed_through text`);
+  // Optional creator-studio investments; old channels start with the basic setup.
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS studio_level integer NOT NULL DEFAULT 0`);
   await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_deals (
     career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
     id uuid NOT NULL, season integer NOT NULL, offered_week integer NOT NULL, expires_week integer NOT NULL,

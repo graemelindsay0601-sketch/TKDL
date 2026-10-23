@@ -22,7 +22,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerStreamingService } from "../../career/streaming/service.ts";
 import { createCareerHostingService } from "../../career/hosting/service.ts";
-import { STREAM, STREAM_MONEY, adRevenuePence, chatForVisit, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
+import { STREAM, STREAM_MONEY, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, chatForVisit, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
 import { settleStreamingWeek } from "../../career/streaming/state.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
 
@@ -41,8 +41,15 @@ test("platform ads reward audience watch time and consistent streaming, independ
   assert.equal(adRevenuePence(30_000,3,49),0,"ads unlock at Affiliate");
 });
 
+test("optional studio tiers improve reach without affecting darts ability",()=>{
+  assert.equal(studioAudienceMultiplier(0),1);
+  assert.equal(studioAudienceMultiplier(1),1.1);
+  assert.equal(studioAudienceMultiplier(3),1.35);
+  assert.equal(STUDIO_UPGRADES.length,3);
+});
+
 before(async () => {
-  await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1);
+  await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1),(2);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   for (const m of [createCareerSaves, createCareerWorld, createCareerSponsorshipFoundation, createCareerNpcSponsorMarketSPF, createCareerCalendar, createCareerFinance,
@@ -199,6 +206,27 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   assert.equal((await rows(sql`SELECT status FROM career_stream_deals WHERE career_save_id=${id}`))[0].status, "EXPIRED");
   assert.ok((await streaming.read(actor,id)).campaignOffer,"the next four-week block brings another campaign offer");
   assert.equal(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_stream_campaigns WHERE career_save_id=${id} AND season=${s.currentSeason}`))[0].n),2);
+});
+
+test("studio purchases debit the ledger atomically, persist on the channel, and cannot create debt",async()=>{
+  const upgradeActor={playerId:2};
+  const save=(await saves.create(2,{slot:1,careerName:"Studio Trial",dateOfBirth:"1998-03-02",homeLocality:"ayrshire"})).id;
+  await career.initialize(upgradeActor,save);
+  const start=await streaming.read(upgradeActor,save);
+  assert.equal(start.studio.level,0);
+  assert.equal(start.careerFundsPence,25_000);
+  const upgraded=await streaming.buyStudioUpgrade(upgradeActor,save);
+  assert.equal(upgraded.studio.level,1);
+  assert.equal(upgraded.careerFundsPence,15_000,"the entry upgrade does not consume all starting funds");
+  const entry=(await rows(sql`SELECT amount_pence,headline,detail FROM career_finance_entries WHERE career_save_id=${save} AND operation_key='adjustment:studio-upgrade:1'`))[0];
+  assert.equal(Number(entry.amount_pence),-STUDIO_UPGRADES[0].costPence);
+  assert.equal(entry.headline,"EXPENSE");
+  await status(streaming.buyStudioUpgrade(upgradeActor,save));
+  const after=await streaming.read(upgradeActor,save);
+  assert.equal(after.studio.level,1,"failed purchase does not advance the upgrade");
+  assert.equal(after.careerFundsPence,15_000,"failed purchase cannot overdraw the save");
+  const live=await streaming.goLive(upgradeActor,save,{dayOfWeek:after.freeNights[0]});
+  assert.equal(live.tally.studioLevel,1,"a new broadcast snapshots the purchased studio tier");
 });
 
 test("a DartCast Star is invited to the televised invitationals, without a manager", async () => {

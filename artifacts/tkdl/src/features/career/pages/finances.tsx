@@ -18,7 +18,8 @@ import "./finances-premium.css";
 /**
  * Screen 8 — Finances & Sponsorship, directly over A4. Four separate headlines
  * (never mixed), real offers with accept/decline only, immutable ledger.
- * No coin conversion, purchases, loans, debt or gambling anywhere.
+ * No coin conversion, loans, debt, or gambling. Optional Career purchases are
+ * recorded as expenses in this same immutable ledger.
  */
 export function FinancesPage({ ctx }: { ctx: ShellContext }) {
   const { save, retired } = ctx;

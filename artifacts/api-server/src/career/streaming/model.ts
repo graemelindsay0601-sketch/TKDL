@@ -23,6 +23,14 @@ export const STREAM = Object.freeze({
   /** A pound of bits is 100 bits; DartCast keeps half of every subscription. */
   subPence: 250, subShare: 0.5,
 });
+/** Optional studio investments improve stream reach only; they never affect darts ability or match outcomes. */
+export const STUDIO_UPGRADES = Object.freeze([
+  { level: 1, name: "Starter camera & mic", costPence: 10_000, audienceBonus: 0.10, description: "A clearer picture and sound bring a few more viewers into each show." },
+  { level: 2, name: "Dedicated creator setup", costPence: 50_000, audienceBonus: 0.20, description: "Lighting and a reliable broadcast desk help the channel reach a wider room." },
+  { level: 3, name: "Broadcast studio", costPence: 150_000, audienceBonus: 0.35, description: "A polished production attracts the largest audience uplift." },
+] as const);
+export const studioUpgradeForLevel = (level: number) => STUDIO_UPGRADES.find(item => item.level === level) ?? null;
+export const studioAudienceMultiplier = (level: number) => 1 + (studioUpgradeForLevel(level)?.audienceBonus ?? 0);
 export type TierKey = typeof STREAM.tiers[number]["key"];
 export const tierFor = (followers: number) => [...STREAM.tiers].reverse().find(t => followers >= t.followers)!;
 export const nextTier = (followers: number) => STREAM.tiers.find(t => t.followers > followers) ?? null;
@@ -62,6 +70,8 @@ export type ChatEvent =
 export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number;
   /** Estimated audience watch time, at two minutes per dart visit. Optional for saves created before ad monetisation. */
   viewerMinutes?: number;
+  /** Studio tier when this broadcast began; future upgrades never change a past stream. */
+  studioLevel?: number;
   /** Scoring challenge pledges (paid only on a win). */
   pledgedPence?: number;
   /** The best clip-worthy moment so far. */
