@@ -342,7 +342,9 @@ function counterValue(before: SponsorTerms, change: NegotiationChange, after: Sp
     case "DURATION": {
       const current = before.duration.kind === "SEASONS" ? before.duration.seasons : 1;
       const next = after.duration.kind === "SEASONS" ? after.duration.seasons : current;
-      return Math.max(1, Math.min(next, Math.round(current + (next - current) * counterShare)));
+      // Duration is indivisible: round against the request so a 1->2-season ask
+      // can receive a useful 1-season counter instead of accidentally matching it.
+      return Math.max(1, Math.min(next, Math.floor(current + (next - current) * counterShare)));
     }
     case "PERFORMANCE_BONUS": {
       const current = before.performanceBonuses.find(item => item.key === change.key)?.amountPence ?? 0;

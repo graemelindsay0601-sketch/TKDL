@@ -188,7 +188,7 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 }
 
 // ------------------------------------------------------------------ ledger authority
-test("SP-Economy preserves v1-v4 and enables approved v5 guarantees only for new Career saves", async () => {
+test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Career saves", async () => {
   assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 7);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
   assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "APPROVED");
@@ -1174,7 +1174,7 @@ test("SP-B local sponsor negotiations validate each visible term and reject unch
       const result = await finance.negotiateOffer(actor, save.id, String(offer.id), {
         requestKey: `local-visible-term-${scenarioIndex}-${roundIndex}`, expectedRevision, change,
       });
-      assert.ok(result.offerId, `${change.kind} produces a revised offer`);
+      assert.ok(result.offerId, `${change.kind} produces a revised offer (${JSON.stringify(result)})`);
       assert.ok(["ACCEPTED", "COUNTERED"].includes(result.outcome), `${change.kind} is negotiated, not rejected`);
       offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.id === result.offerId)!;
       assert.ok(offer, `${change.kind} revision is returned in the sponsor portfolio`);
@@ -1244,6 +1244,24 @@ test("SP-F2 company profiles carry distinct identities and bargaining positions"
   }));
   assert.ok(sponsorCatalogue(6).every(definition=>!definition.terms.commercialProfile),
     "the prior catalogue remains an immutable snapshot");
+});
+
+test("SP-F2 a brand profile controls the sponsor's actual counter offer", async () => {
+  Object.assign(fixture,{titles:1,bestFinishByCircuit:{GRASSROOTS:1}});
+  const save=await careerWithCurrentCatalogue();
+  await finance.evaluateOffers(actor,save.id,{triggerKey:"brand-profile-counter"});
+  const offer=(await finance.sponsors(actor,save.id)).offers.find(candidate=>candidate.sponsorKey==="forge-workwear")!;
+  const negotiation=offer.terms.commercialProfile!.negotiation;
+  const requested=offer.terms.signingBonusPence+15_000;
+  const result=await finance.negotiateOffer(actor,save.id,String(offer.id),{
+    requestKey:"brand-profile-counter-0001",expectedRevision:offer.journey!.revision,
+    change:{kind:"SIGNING_BONUS",amountPence:requested},
+  });
+  assert.equal(result.outcome,"COUNTERED");
+  assert.equal(result.counterRationale,negotiation.rationale);
+  const counter=(await finance.sponsors(actor,save.id)).offers.find(candidate=>candidate.id===result.offerId)!;
+  assert.equal(counter.terms.signingBonusPence,
+    Math.round((offer.terms.signingBonusPence+(requested-offer.terms.signingBonusPence)*negotiation.counterShare)/100)*100);
 });
 
 test("SP-B negotiation responses use a valid tolerance profile at every sponsor tier", () => {

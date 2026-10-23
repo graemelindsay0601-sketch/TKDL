@@ -59,7 +59,7 @@ export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
     SELECT ${saveId}, ${FINANCE_VERSION},
       CASE
-        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-6]$'
+        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-7]$'
           THEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation')::integer
         WHEN event_database_version >= 5 THEN 3
         WHEN event_database_version >= 3 THEN 2
