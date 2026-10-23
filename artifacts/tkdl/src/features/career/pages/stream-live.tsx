@@ -95,6 +95,9 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
       <div className="dc-live">
         <section className="dc-live__stage" aria-label="Stream">
           <div className="dc-live__title">{title}</div>
+          {session.campaign && <aside className="dc__note" aria-label="Sponsored stream campaign">
+            <b>Sponsored by {session.campaign.sponsorName}</b> · {session.campaign.brief} · {money(session.campaign.rewardPence)} on completion
+          </aside>}
           {(king || inv) && session.rounds.length > 0 && <ol className="dc-live__rounds" aria-label="Viewers so far">{session.rounds.map((r, i) => <li key={i} data-result={r.result}>{inv ? `${ROUND_NAMES[i]}: ` : ""}{r.challenger} {r.result === "WON" ? (inv ? "beaten" : "seen off") : "won"}</li>)}</ol>}
           {alert && <div className="dc-live__toast" role="status"><ChatLine e={alert} /></div>}
           {!over && drill ? <div className="dc-live__scorer">

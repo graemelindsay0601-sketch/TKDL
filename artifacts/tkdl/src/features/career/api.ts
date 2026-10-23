@@ -78,6 +78,8 @@ export const useSetSubGoal = (saveId: string) => useSaveMutation(saveId, (goal: 
   send<StreamingView>("POST", `/saves/${saveId}/streaming/sub-goal`, goal));
 export const useAnswerBrandDeal = (saveId: string) => useSaveMutation(saveId, ({ dealId, accept }: { dealId: string; accept: boolean }) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/deals/${dealId}`, { accept }));
+export const useAnswerStreamCampaign=(saveId:string)=>useSaveMutation(saveId,({campaignId,accept}:{campaignId:string;accept:boolean})=>
+  send<StreamingView>("POST",`/saves/${saveId}/streaming/campaigns/${campaignId}`,{accept}));
 export type MatchStream = import("../../../../api-server/src/career/streaming/service").MatchStream;
 export const streamingApi = {
   /** Streaming a real match from the venue: whether you can, and (start) go live / catch chat up with the match's darts. */

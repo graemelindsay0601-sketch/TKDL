@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation, useSearch } from "wouter";
 import { Activity, ArrowUpRight, Check, CircleDollarSign, Clapperboard, Crosshair, Crown, Eye, HeartHandshake, Loader2, Play, Radio, Search, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users } from "lucide-react";
-import { useAnswerBrandDeal, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, errorMessage, type StreamFormat } from "../api";
+import { useAnswerBrandDeal, useAnswerStreamCampaign, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
@@ -25,7 +25,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id;
   const search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week");
   const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
-  const q = useStreaming(id, requestedWeek), live = useGoLive(id), scheduleNight = useScheduleStreamNight(id), answer = useAnswerBrandDeal(id), goal = useSetSubGoal(id);
+  const q = useStreaming(id, requestedWeek), live = useGoLive(id), scheduleNight = useScheduleStreamNight(id), answer = useAnswerBrandDeal(id),
+    answerCampaign=useAnswerStreamCampaign(id),goal = useSetSubGoal(id);
   const setPathway = useSetStreamingPathway(id), schedulePathway = useScheduleStreamingPathway(id);
   useEffect(() => { markSeen(id, "streaming"); }, [id]);
   const [format, setFormat] = useState<StreamFormat | null>(null);
@@ -150,7 +151,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             </div>
             {message && <p className="preview-message" role="alert">{message}</p>}
           </section>
-          {(d.subscribers > 0 || d.deal || d.dealOffer || d.invitations || d.charity.raisedPence > 0 || d.goalOptions) && <section className="audience-finance" id="audience">
+          {(d.subscribers > 0 || d.deal || d.dealOffer || d.campaign || d.campaignOffer || d.invitations || d.charity.raisedPence > 0 || d.goalOptions) && <section className="audience-finance" id="audience">
             <div className="section-heading"><div><span className="eyebrow">03 / AUDIENCE &amp; INCOME</span><h2>The channel is working</h2></div><span className="heading-meta">YOUR CHANNEL ECONOMY</span></div>
             <div className="finance-layout">
               {d.subscribers > 0 && <div className="audience-panel"><div className="panel-label"><Users aria-hidden /> SUBSCRIBER HEALTH</div><div className="sub-count"><b>{d.subscribers}</b><span>active subscribers</span></div>
@@ -159,7 +160,18 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
                 <small className="track-note">RENEWAL WINDOW · WEEK {d.renewsWeek}</small></div>}
               <div className="income-panel">
                 <h2 className="sr-only">Channel money</h2>
-                {(d.dealOffer || d.deal || d.charity.raisedPence > 0 || d.invitations) && <div className="panel-label"><CircleDollarSign aria-hidden /> BRAND DESK</div>}
+                {(d.dealOffer || d.deal || d.campaign || d.campaignOffer || d.charity.raisedPence > 0 || d.invitations) && <div className="panel-label"><CircleDollarSign aria-hidden /> BRAND DESK</div>}
+                {d.campaignOffer && <div className="offer-card campaign-card" role="group" aria-label="One-off sponsored stream campaign">
+                  <div className="offer-top"><span>ONE STREAM · RESPONSE DUE WEEK {d.campaignOffer.expiresWeek}</span><i>CAMPAIGN</i></div>
+                  <div className="offer-brand">{d.campaignOffer.sponsorName}<small>{d.campaignOffer.requiredFormatName} · one-off activation</small></div>
+                  <p>{d.campaignOffer.brief}</p>
+                  <div className="offer-terms"><b>{money(d.campaignOffer.rewardPence)} <small>ON COMPLETION</small></b><span>Play the required format before the deadline</span></div>
+                  <div className="offer-actions"><button type="button" className="button-gold" disabled={answerCampaign.isPending} onClick={() => answerCampaign.mutate({campaignId:d.campaignOffer!.id,accept:true},{onError:e=>setMessage(errorMessage(e))})}>Accept campaign</button>
+                    <button type="button" className="text-action" disabled={answerCampaign.isPending} onClick={() => answerCampaign.mutate({campaignId:d.campaignOffer!.id,accept:false},{onError:e=>setMessage(errorMessage(e))})}>Decline</button></div>
+                </div>}
+                {d.campaign && <div className="active-deal campaign-active"><span>SPONSORED STREAM · {d.campaign.requiredFormatName.toUpperCase()}</span>
+                  <div><b>{d.campaign.sponsorName}</b><strong>{money(d.campaign.rewardPence)} <small>ON COMPLETION</small></strong></div>
+                  <small>{d.campaign.brief} · due week {d.campaign.expiresWeek}</small></div>}
                 {d.dealOffer && <div className="offer-card" role="group" aria-label="Brand offer"><div className="offer-top"><span>RESPONSE DUE · WEEK {d.dealOffer.expiresWeek}</span><i>NEW OFFER</i></div><div className="offer-brand">{d.dealOffer.brand}<small>{d.dealOffer.what}</small></div><div className="offer-terms"><b>{money(d.dealOffer.perStreamPence)} <small>/ STREAM</small></b><span>Next {d.dealOffer.streamsTotal} streams</span></div><div className="offer-actions"><button type="button" className="button-gold" disabled={answer.isPending} onClick={() => answer.mutate({ dealId: d.dealOffer!.id, accept: true }, { onError: e => setMessage(errorMessage(e)) })}>Take the deal</button><button type="button" className="text-action" disabled={answer.isPending} onClick={() => answer.mutate({ dealId: d.dealOffer!.id, accept: false }, { onError: e => setMessage(errorMessage(e)) })}>No thanks</button></div></div>}
                 {d.deal && <div className="active-deal"><span>ACTIVE BRAND DEAL</span><div><b>{d.deal.brand}</b><strong>{money(d.deal.perStreamPence)} <small>PER STREAM</small></strong></div><div className="deal-progress"><span style={{ width: `${d.deal.streamsTotal ? d.deal.streamsDone / d.deal.streamsTotal * 100 : 0}%` }} /></div><small>{d.deal.streamsDone} / {d.deal.streamsTotal} streams complete</small></div>}
                 {d.charity.raisedPence > 0 && <div className="charity-raised"><HeartHandshake aria-hidden /><span>RAISED FOR CHARITY ON STREAM</span><b>{money(d.charity.raisedPence)}</b></div>}

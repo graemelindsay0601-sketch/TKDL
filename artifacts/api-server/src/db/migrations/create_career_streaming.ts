@@ -44,6 +44,17 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
   // A real match streamed from an event: which match, and its own format.
   await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS match_id uuid`);
   await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS match_format jsonb`);
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS sponsor_campaign_id uuid`);
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS sponsor_campaign jsonb`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_campaigns (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, season integer NOT NULL, offered_week integer NOT NULL, expires_week integer NOT NULL,
+    sponsor_key text NOT NULL, sponsor_name text NOT NULL, required_format text NOT NULL,
+    brief text NOT NULL, reward_pence bigint NOT NULL CHECK(reward_pence > 0),
+    status text NOT NULL CHECK(status IN ('OFFERED','ACTIVE','IN_PROGRESS','COMPLETED','DECLINED','EXPIRED')),
+    stream_id uuid, created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id,id))`);
+  await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_stream_campaign_one_open
+    ON career_stream_campaigns(career_save_id) WHERE status IN ('OFFERED','ACTIVE','IN_PROGRESS')`);
   await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_streams_match_idx ON career_streams(career_save_id, match_id) WHERE match_id IS NOT NULL`);
   await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_streams_night_idx ON career_streams(career_save_id, season, day)`);
 }

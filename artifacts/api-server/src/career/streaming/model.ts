@@ -170,6 +170,7 @@ export const STREAM_MONEY = Object.freeze({
   renewal: { streamed: 0.85, quiet: 0.6 },
   /** Brand deals: from Partner up, at most this many a season, each for a run of streams. */
   dealsPerSeason: 2, dealStreams: 6, dealOfferWeeks: 3,
+  campaignsPerSeason:1,
   /** Fee per stream: a floor plus so much per follower, to the pound. */
   dealFloorPence: 2500, dealPencePerFollower: 3,
 });

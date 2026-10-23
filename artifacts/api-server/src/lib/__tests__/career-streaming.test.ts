@@ -157,6 +157,11 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   assert.equal(v.subscribers, renewals(10, true));
   assert.ok(v.dealOffer, "a Partner gets a brand offer");
   assert.equal(v.dealOffer!.perStreamPence, dealFee(1200)); assert.equal(v.dealOffer!.streamsTotal, STREAM_MONEY.dealStreams);
+  assert.ok(v.campaignOffer,"a Partner also gets a separate one-off sponsor campaign");
+  assert.ok(v.campaignOffer!.rewardPence>v.dealOffer!.perStreamPence,"the single-stream activation pays a campaign premium");
+  await db.execute(sql`UPDATE career_stream_campaigns SET required_format='CHALLENGER' WHERE career_save_id=${id} AND id=${v.campaignOffer!.id}`);
+  v=await streaming.answerCampaign(actor,id,v.campaignOffer!.id,{accept:true});
+  assert.equal(v.campaignOffer,null);assert.equal(v.campaign!.requiredFormat,"CHALLENGER");
   await settleStreamingWeek(db, root, s.currentSeason, month);
   assert.equal(Number((await rows(sql`SELECT COUNT(*)::int AS n FROM career_stream_deals WHERE career_save_id=${id}`))[0].n), 1, "one offer at a time");
   v = await streaming.answerDeal(actor, id, v.dealOffer!.id, { accept: true });
@@ -165,9 +170,14 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   // Move this week's streams back a week so there's a night free, then stream: the brand pays for it.
   await db.execute(sql`UPDATE career_streams SET week=week-1, day=day-7 WHERE career_save_id=${id} AND season=${s.currentSeason} AND week=${s.currentWeek}`);
   const live = await streaming.goLive(actor, id, { dayOfWeek: (await streaming.read(actor, id)).freeNights[0] });
+  assert.equal(live.campaign?.requiredFormat,"CHALLENGER","the accepted activation is attached to its matching stream");
   const done = await streaming.darts(actor, id, live.id, { darts: twoNil });
   const fee = await rows(sql`SELECT amount_pence, reason FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-deal:${live.id}`}`);
   assert.equal(Number(fee[0].amount_pence), dealFee(1200)); assert.match(String(fee[0].reason), /stream 1 of 6/);
+  const campaignPaid=await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-campaign:${live.id}`}`);
+  assert.equal(Number(campaignPaid[0].amount_pence),live.campaign!.rewardPence,"the one-off reward settles exactly once on completion");
+  await streaming.darts(actor,id,live.id,{darts:twoNil});
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-campaign:${live.id}`} `))[0].n,1);
   v = await streaming.read(actor, id);
   assert.equal(v.deal!.streamsDone, 1);
   assert.equal(v.subscribers, renewals(10, true) + done.session.tally.subs, "new subs join the monthly list");

@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
-import { stableUuid } from "../world/random.ts";
+import { scopedRandom, stableUuid } from "../world/random.ts";
 import { STREAM, STREAM_MONEY, brandFor, clipOutcome, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
+import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
 let seen = false;
@@ -59,7 +60,29 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
     if (o.followers) { await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${o.followers} WHERE career_save_id=${root.id}`); ch.followers = Number(ch.followers) + o.followers; }
   }
   await tx.execute(sql`UPDATE career_stream_deals SET status='EXPIRED' WHERE career_save_id=${root.id} AND status='OFFERED' AND (season < ${season} OR expires_week <= ${week})`);
+  await tx.execute(sql`UPDATE career_stream_campaigns SET status='EXPIRED' WHERE career_save_id=${root.id}
+    AND status IN ('OFFERED','ACTIVE') AND (season < ${season} OR expires_week < ${week})`);
   const followers = Number(ch.followers), tier = tierFor(followers).key;
+  if(tier==="PARTNER"||tier==="STAR"){
+    const campaignOpen=(await tx.execute(sql`SELECT 1 FROM career_stream_campaigns WHERE career_save_id=${root.id}
+      AND status IN ('OFFERED','ACTIVE','IN_PROGRESS') LIMIT 1`)).rows.length>0;
+    const campaignCount=Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_campaigns WHERE career_save_id=${root.id} AND season=${season}`)).rows[0]?.n??0);
+    if(!campaignOpen&&campaignCount<STREAM_MONEY.campaignsPerSeason&&week<=46){
+      const rng=scopedRandom(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",season,campaignCount);
+      const brands=sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION);
+      const brand=brands[Math.floor(rng()*brands.length)]!;
+      const formats=["CHALLENGER","KING","CHECKOUTS","BOBS_27","SCORING"] as const;
+      const requiredFormat=formats[Math.floor(rng()*formats.length)]!;
+      const profile=brand.terms.commercialProfile;
+      const payout=Math.min(300_000,Math.max(10_000,dealFee(followers)*4));
+      const id=stableUuid(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",root.id,season,campaignCount);
+      const brief=`Showcase ${profile?.benefitFocus.toLowerCase()??"the brand"} and tell viewers why ${brand.terms.displayName} backs your channel.`;
+      await tx.execute(sql`INSERT INTO career_stream_campaigns
+        (career_save_id,id,season,offered_week,expires_week,sponsor_key,sponsor_name,required_format,brief,reward_pence,status)
+        VALUES (${root.id},${id},${season},${week},${week+STREAM_MONEY.dealOfferWeeks},${brand.key},${brand.terms.displayName},
+          ${requiredFormat},${brief},${payout},'OFFERED') ON CONFLICT DO NOTHING`);
+    }
+  }
   if (tier !== "PARTNER" && tier !== "STAR") return;
   const open = (await tx.execute(sql`SELECT 1 FROM career_stream_deals WHERE career_save_id=${root.id} AND status IN ('OFFERED','ACTIVE') LIMIT 1`)).rows.length > 0;
   const thisSeason = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_deals WHERE career_save_id=${root.id} AND season=${season}`)).rows[0].n);

@@ -37,6 +37,8 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/streams/:streamId/end", authedWriteRateLimit, async (req, res) => { res.json(await service.end(res.locals.careerActor, id(req), stream(req))); });
   router.post("/saves/:id/streaming/deals/:dealId", authedWriteRateLimit, async (req, res) => {
     res.json(await service.answerDeal(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.dealId)), req.body)); });
+  router.post("/saves/:id/streaming/campaigns/:campaignId",authedWriteRateLimit,async(req,res)=>{
+    res.json(await service.answerCampaign(res.locals.careerActor,id(req),careerIdSchema.parse(String(req.params.campaignId)),req.body));});
   router.post("/saves/:id/streaming/sub-goal", authedWriteRateLimit, async (req, res) => { res.json(await service.setSubGoal(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/streaming/match/:matchId", async (req, res) => {
     res.json(await service.matchStream(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.matchId)), false)); });

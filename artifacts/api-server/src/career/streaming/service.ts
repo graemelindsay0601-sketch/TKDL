@@ -29,8 +29,10 @@ const isDrill = (format: string) => format === "CHECKOUTS" || format === "BOBS_2
 type Challenger = { name: string; avg: number; bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string } | null;
   /** A collab: the streamer and their audience when you went live. */
   streamer?: { key: string; followers: number } };
+export type StreamCampaign = { id:string; sponsorKey:string; sponsorName:string; requiredFormat:StreamFormat; requiredFormatName:string; brief:string; rewardPence:number; expiresWeek:number };
 export type StreamSession = { id: string; status: "LIVE" | "ENDED"; season: number; week: number; dayOfWeek: number; handle: string; tier: TierKey;
   streamFormat: StreamFormat; formatName: string;
+  campaign:Omit<StreamCampaign,"expiresWeek">|null;
   /** The viewer you're playing (null on a drill). */
   challenger: Challenger;
   format: X01Format; drill: DrillSpec | null; firstThrower: 0 | 1;
@@ -54,6 +56,7 @@ export type StreamingView = {
   subscribers: number; renewsWeek: number;
   /** A brand's offer to answer, and the deal you're doing now. */
   dealOffer: Deal | null; deal: Deal | null;
+  campaignOffer:StreamCampaign|null; campaign:StreamCampaign|null;
   /** Stars get invitations to the televised invitationals. */
   invitations: boolean;
   /** What you can stream, how big a crowd each would draw tonight (1 = a normal night), chat's pick and the last format played. */
@@ -88,6 +91,9 @@ async function channel(tx: CareerExecutor, root: Root) {
 
 const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), brand: String(r.brand_name), what: BRANDS.find(b => b.key === r.brand_key)?.what ?? "a brand",
   perStreamPence: Number(r.per_stream_pence), streamsTotal: Number(r.streams_total), streamsDone: Number(r.streams_done), expiresWeek: Number(r.expires_week) });
+const campaignFrom=(r:Record<string,unknown>):StreamCampaign=>({id:String(r.id),sponsorKey:String(r.sponsor_key),sponsorName:String(r.sponsor_name),
+  requiredFormat:String(r.required_format) as StreamFormat,requiredFormatName:formatByKey(String(r.required_format)).name,
+  brief:String(r.brief),rewardPence:Number(r.reward_pence),expiresWeek:Number(r.expires_week)});
 
 /** Nights this week you're free to stream (no event, commitment or other stream booked). */
 async function freeNights(tx: CareerExecutor, root: Root, week = Number(root.current_week)) {
@@ -149,6 +155,7 @@ const sessionFrom = (r: Record<string, unknown>, handle: string, tier: TierKey):
     round: Number(r.round ?? 0), kingRounds: roundsIn(format), rounds: (r.rounds as StreamSession["rounds"]) ?? [],
     tally: r.tally as Tally, processedVisits: Number(r.processed_visits), result: (r.result as StreamSession["result"]) ?? null,
     incomePence: r.income_pence === null ? null : Number(r.income_pence), followersGained: r.followers_gained === null ? null : Number(r.followers_gained),
+    campaign:(r.sponsor_campaign as StreamSession["campaign"])??null,
     chat: ((r.chat as ChatEvent[]) ?? []).slice(-60), darts: (r.darts as unknown[]) ?? [], poll: (r.poll as StreamSession["poll"]) ?? null };
 };
 
@@ -178,6 +185,9 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const ended = rows.filter(r => r.status === "ENDED");
     const deals = (await tx.execute(sql`SELECT * FROM career_stream_deals WHERE career_save_id=${root.id} AND status IN ('OFFERED','ACTIVE')`)).rows;
     const offer = deals.find(d => d.status === "OFFERED"), deal = deals.find(d => d.status === "ACTIVE");
+    const campaigns=(await tx.execute(sql`SELECT * FROM career_stream_campaigns WHERE career_save_id=${root.id}
+      AND status IN ('OFFERED','ACTIVE','IN_PROGRESS') ORDER BY created_at DESC`)).rows;
+    const campaignOffer=campaigns.find(row=>row.status==="OFFERED"),activeCampaign=campaigns.find(row=>row.status==="ACTIVE"||row.status==="IN_PROGRESS");
     const lastFormat = (ended[0]?.format as StreamFormat | undefined) ?? null;
     const collabbed = new Set((await tx.execute(sql`SELECT DISTINCT challenger->'streamer'->>'key' AS k FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND format='COLLAB'`)).rows.map(r => String(r.k)));
     const clips = (await tx.execute(sql`SELECT * FROM career_stream_clips WHERE career_save_id=${root.id} ORDER BY (status='VIRAL') DESC, views DESC, season DESC, week DESC LIMIT 8`)).rows;
@@ -198,7 +208,9 @@ export function createCareerStreamingService(database: CareerDatabase) {
           result: (r.result as "WON" | "LOST" | null) ?? null, peak: Number((r.tally as Tally).peak), followersGained: Number(r.followers_gained ?? 0), incomePence: Number(r.income_pence ?? 0) };
       }),
       subscribers: ch.subscribers, renewsWeek: monthOf(week) * STREAM_MONEY.monthWeeks,
-      dealOffer: offer ? dealFrom(offer) : null, deal: deal ? dealFrom(deal) : null, invitations: tier.key === "STAR",
+      dealOffer: offer ? dealFrom(offer) : null, deal: deal ? dealFrom(deal) : null,
+      campaignOffer:campaignOffer?campaignFrom(campaignOffer):null,campaign:activeCampaign?campaignFrom(activeCampaign):null,
+      invitations: tier.key === "STAR",
       invitational: (() => {
         const played = rows.find(r => r.format === "INVITATIONAL" && Number(r.season) === season && r.status === "ENDED");
         const wins = played ? ((played.rounds as StreamSession["rounds"]) ?? []).filter(r => r.result === "WON").length : 0;
@@ -256,6 +268,18 @@ export function createCareerStreamingService(database: CareerDatabase) {
       await post(tx, root, { operationKey: `stream-deal:${row.id}`, category: "STREAM_INCOME", amountPence: Number(deal.per_stream_pence),
         reason: `${deal.brand_name} brand deal: stream ${n} of ${total}`, season: Number(row.season), week: Number(row.week), detail: { streamId: String(row.id), dealId: String(deal.id) } });
       await tx.execute(sql`UPDATE career_stream_deals SET streams_done=${n}, status=${n >= total ? "COMPLETED" : "ACTIVE"} WHERE career_save_id=${root.id} AND id=${String(deal.id)}`);
+    }
+    const campaignId=row.sponsor_campaign_id?String(row.sponsor_campaign_id):null;
+    if(campaignId){
+      const campaign=(await tx.execute(sql`SELECT * FROM career_stream_campaigns WHERE career_save_id=${root.id} AND id=${campaignId} AND status='IN_PROGRESS'`)).rows[0];
+      if(campaign){
+        const completed=result!==null&&processed>0;
+        if(completed)await post(tx,root,{operationKey:`stream-campaign:${row.id}`,category:"STREAM_INCOME",amountPence:Number(campaign.reward_pence),
+          reason:`${String(campaign.sponsor_name)} sponsored DartCast stream`,season:Number(row.season),week:Number(row.week),
+          detail:{streamId:String(row.id),campaignId,sponsorKey:String(campaign.sponsor_key),requiredFormat:String(campaign.required_format)}});
+        await tx.execute(sql`UPDATE career_stream_campaigns SET status=${completed?"COMPLETED":"ACTIVE"},
+          stream_id=${completed?String(row.id):null} WHERE career_save_id=${root.id} AND id=${campaignId} AND status='IN_PROGRESS'`);
+      }
     }
     if (prize > 0) await post(tx, root, { operationKey: `stream-invitational:${row.id}`, category: "STREAM_INCOME", amountPence: prize,
       reason: `DartCast Invitational: ${wins >= INVITATIONAL.rounds.length ? "champion" : `out in the ${INVITATIONAL.rounds[wins].toLowerCase()}`}`, season: Number(row.season), week: Number(row.week),
@@ -465,9 +489,19 @@ export function createCareerStreamingService(database: CareerDatabase) {
             : drill.kind === "SCORING" ? `Target tonight: a ${drill.targetAverage} average. Pledges pay if you beat it` : "Bob's 27: D1 first. Good luck!" }];
         }
         if (v.pollPick === format && v.lastFormat !== null) hello.push({ kind: "CHAT", user: "DartCast", text: "Chat voted for this one: they've turned up for it" });
+        const campaignRow=(await tx.execute(sql`SELECT * FROM career_stream_campaigns WHERE career_save_id=${root.id}
+          AND status='ACTIVE' AND required_format=${format} AND expires_week>=${week} ORDER BY created_at LIMIT 1`)).rows[0];
+        const campaign=campaignRow?campaignFrom(campaignRow):null;
+        if(campaign)hello.push({kind:"CHAT",user:campaign.sponsorName,text:`Sponsored stream: ${campaign.brief}`});
         await tx.execute(sql`INSERT INTO career_streams (career_save_id, id, season, week, day, status, format, challenger, drill, first_thrower, tally, chat, processed_visits)
           VALUES (${root.id}, ${id}, ${season}, ${week}, ${day}, 'LIVE', ${format}, ${JSON.stringify(challenger)}::jsonb, ${drill ? JSON.stringify(drill) : null}::jsonb, 0,
             ${JSON.stringify(tally)}::jsonb, ${JSON.stringify(hello)}::jsonb, 0)`);
+        if(campaign){
+          const snapshot={id:campaign.id,sponsorKey:campaign.sponsorKey,sponsorName:campaign.sponsorName,requiredFormat:campaign.requiredFormat,
+            requiredFormatName:campaign.requiredFormatName,brief:campaign.brief,rewardPence:campaign.rewardPence};
+          await tx.execute(sql`UPDATE career_streams SET sponsor_campaign_id=${campaign.id},sponsor_campaign=${JSON.stringify(snapshot)}::jsonb WHERE career_save_id=${root.id} AND id=${id}`);
+          await tx.execute(sql`UPDATE career_stream_campaigns SET status='IN_PROGRESS',stream_id=${id} WHERE career_save_id=${root.id} AND id=${campaign.id} AND status='ACTIVE'`);
+        }
         if (planned) await tx.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${root.id} AND id=${String(planned.id)}`);
         return sessionFrom((await live(tx, root, id)), v.handle, v.tier.key);
       });
@@ -551,6 +585,21 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (row.status !== "OFFERED") throw new CareerError(409, "That offer has gone");
         await tx.execute(sql`UPDATE career_stream_deals SET status=${accept ? "ACTIVE" : "DECLINED"} WHERE career_save_id=${root.id} AND id=${dealId}`);
         return view(tx, root);
+      });
+    },
+
+    async answerCampaign(actor:CareerActor,saveId:string,campaignId:string,body:unknown){
+      const {accept}=z.object({accept:z.boolean()}).strict().parse(body);
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId) as unknown as Root;
+        const campaign=(await tx.execute(sql`SELECT status,season,expires_week FROM career_stream_campaigns WHERE career_save_id=${root.id} AND id=${campaignId}`)).rows[0];
+        if(!campaign)throw new CareerError(404,"Sponsor campaign not found");
+        if(campaign.status!=="OFFERED")throw new CareerError(409,"That campaign offer has gone");
+        if(Number(campaign.season)!==Number(root.current_season)||Number(campaign.expires_week)<Number(root.current_week)){
+          throw new CareerError(409,"That campaign offer has expired");
+        }
+        await tx.execute(sql`UPDATE career_stream_campaigns SET status=${accept?"ACTIVE":"DECLINED"} WHERE career_save_id=${root.id} AND id=${campaignId} AND status='OFFERED'`);
+        return view(tx,root);
       });
     },
 
