@@ -16,7 +16,7 @@ import {
   OFFER_LIFETIME_WEEKS, MAX_OFFERS_PER_EVALUATION, WEEKS, prizeForPosition, PRIZE_POTS, potPrize, POT_TYPICAL_FIELD, type FeeProfile, type PrizeProfile, type RefundPolicy,
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
-import { groupTrips, isWeeklyLeague, journey, leagueNightDays, priceTrip, travelBand, tripCost, type Home } from "./travel.ts";
+import { discountedTravelPence, groupTrips, isWeeklyLeague, journey, leagueNightDays, priceTrip, travelBand, tripCost, type Home } from "./travel.ts";
 import {CURRENT_SPONSOR_DATABASE_VERSION,SUPPORTED_SPONSOR_DATABASE_VERSIONS,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,validateSponsorActivitySpecification,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
@@ -234,7 +234,8 @@ export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contr
   const start = Math.min(...siblings.map(e => e.start_day)), end = Math.max(...siblings.map(e => e.end_day));
   const band = travelBand(home, primary);
   const j = journey(home, primary);
-  const trip = priceTrip(band, siblings, start, end, j.miles, j.sea);
+  const rawTrip = priceTrip(band, siblings, start, end, j.miles, j.sea);
+  const trip={...rawTrip,travelPence:discountedTravelPence(rawTrip.travelPence,home)};
   const scratch = new Map(usage);
   const copy=clonePortfolio(contract);
   const fee = portfolioCoverage(copy, scratch, "ENTRY_FEE", primary.circuit, feeGross);
@@ -689,8 +690,10 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
 /** Every save, old and new, prices trips by distance (travel v3); trips already paid for keep what they cost. */
 export const TRAVEL_VERSION = 3;
 export function createFinanceHooks(calendarProviders: () => CalendarProviders, factsProvider: () => SponsorFactsProvider): CalendarFinanceHooks {
-  const home = (root: RootRow): Home => { const h = calendarProviders().sportingStatus.human(root); return { locality: h.locality, country: h.country, zone: h.zone,
-    travelVersion:TRAVEL_VERSION }; };
+  const home = (root: RootRow): Home => { const h = calendarProviders().sportingStatus.human(root);
+    const careerEconomy=root.settings_snapshot?.careerEconomy as {purchases?:string[]}|undefined;
+    const ownsTravelKit=careerEconomy?.purchases?.includes("travel-saver-kit")===true;
+    return { locality: h.locality, country: h.country, zone: h.zone, travelVersion:TRAVEL_VERSION,travelDiscountPercent:ownsTravelKit?10:0 }; };
   const siblingsOf = async (tx: CareerExecutor, root: RootRow, event: InstanceRow) =>
     event.series_key ? (await tx.execute(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${event.season} AND series_key = ${event.series_key}`)).rows as InstanceRow[] : [event];
 
@@ -885,19 +888,20 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         const contract = await loadCoveragePortfolio(tx, root.id, season);
         for (const day of leagueNightDays(e).filter(d => d >= firstDay && d <= lastDay)) {
           const tripKey = `s${season}:${e.id}:d${day}`, tripId = stableUuid(root.world_seed, FINANCE_VERSION, "trip", tripKey);
-          const travel = portfolioCoverage(contract, new Map(), "TRAVEL", e.circuit, night.travelPence);
+          const travelGrossPence=discountedTravelPence(night.travelPence,h);
+          const travel = portfolioCoverage(contract, new Map(), "TRAVEL", e.circuit, travelGrossPence);
           const stay = portfolioCoverage(contract, new Map(), "ACCOMMODATION", e.circuit, night.accommodationPence);
           const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${root.id}`)).rows[0].balance_pence);
           // The whole league's travel was set aside at entry; never charge into debt if that money has since gone.
-          const share = Math.min(1, Math.max(0, balance) / Math.max(1, night.travelPence - travel.covered + night.accommodationPence - stay.covered));
+          const share = Math.min(1, Math.max(0, balance) / Math.max(1, travelGrossPence - travel.covered + night.accommodationPence - stay.covered));
           const destination = `${e.country}:${e.city}`;
           await tx.execute(sql`INSERT INTO career_trips (career_save_id, id, season, trip_key, band, destination, start_day, end_day, nights, event_ids, travel_gross_pence, travel_covered_pence,
               accommodation_gross_pence, accommodation_covered_pence, committed_season, committed_week)
             VALUES (${root.id}, ${tripId}, ${season}, ${tripKey}, ${band}, ${destination}, ${day}, ${day}, ${night.nights}, ${JSON.stringify([e.id])}::jsonb,
-              ${night.travelPence}, ${travel.covered}, ${night.accommodationPence}, ${stay.covered}, ${season}, ${week}) ON CONFLICT DO NOTHING`);
-          const travelPaid = Math.floor((night.travelPence - travel.covered) * share), stayPaid = Math.floor((night.accommodationPence - stay.covered) * share);
-          if (night.travelPence > 0) await post(tx, root, { operationKey: `travel:${tripKey}`, category: "TRAVEL", amountPence: -travelPaid,
-            reason: `Travel (${band}) — ${e.name}, league night`, season, week, eventId: e.id, tripId, grossAmountPence: night.travelPence, sponsorCoveredPence: travel.covered,
+              ${travelGrossPence}, ${travel.covered}, ${night.accommodationPence}, ${stay.covered}, ${season}, ${week}) ON CONFLICT DO NOTHING`);
+          const travelPaid = Math.floor((travelGrossPence - travel.covered) * share), stayPaid = Math.floor((night.accommodationPence - stay.covered) * share);
+          if (travelGrossPence > 0) await post(tx, root, { operationKey: `travel:${tripKey}`, category: "TRAVEL", amountPence: -travelPaid,
+            reason: `Travel (${band}) — ${e.name}, league night`, season, week, eventId: e.id, tripId, grossAmountPence: travelGrossPence, sponsorCoveredPence: travel.covered,
             contractId: travel.covered > 0 ? travel.contractId : null, detail: { band, events: [e.id], leagueNight: day, ...(travel.rule !== null ? { coverageRule: travel.rule } : {}) } });
           if (night.accommodationPence > 0) await post(tx, root, { operationKey: `accommodation:${tripKey}`, category: "ACCOMMODATION", amountPence: -stayPaid,
             reason: `Accommodation (1 night) — ${e.name}, league night`, season, week, eventId: e.id, tripId, grossAmountPence: night.accommodationPence, sponsorCoveredPence: stay.covered,
@@ -913,9 +917,10 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         const tripKey = `s${season}:${first.id}`;
         const tripId = stableUuid(root.world_seed, FINANCE_VERSION, "trip", tripKey);
         const contract=await loadCoveragePortfolio(tx,root.id,season);
-        const travel = portfolioCoverage(contract, new Map(), "TRAVEL", first.circuit, trip.travelPence);
+        const travelGrossPence=discountedTravelPence(trip.travelPence,h);
+        const travel = portfolioCoverage(contract, new Map(), "TRAVEL", first.circuit, travelGrossPence);
         const stay = portfolioCoverage(contract, new Map(), "ACCOMMODATION", first.circuit, trip.accommodationPence);
-        const playerCost = trip.travelPence - travel.covered + trip.accommodationPence - stay.covered;
+        const playerCost = travelGrossPence - travel.covered + trip.accommodationPence - stay.covered;
         const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${root.id}`)).rows[0].balance_pence);
         if (playerCost > balance) {
           // Cannot travel (e.g. sponsor coverage lapsed): pre-lock withdrawal, no debt, no refund of a fee for a trip the player cannot make.
@@ -930,9 +935,9 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         await tx.execute(sql`INSERT INTO career_trips (career_save_id, id, season, trip_key, band, destination, start_day, end_day, nights, event_ids, travel_gross_pence, travel_covered_pence,
             accommodation_gross_pence, accommodation_covered_pence, committed_season, committed_week)
           VALUES (${root.id}, ${tripId}, ${season}, ${tripKey}, ${trip.band}, ${trip.destination}, ${trip.start}, ${trip.end}, ${trip.nights}, ${JSON.stringify(trip.events.map(e => e.id))}::jsonb,
-            ${trip.travelPence}, ${travel.covered}, ${trip.accommodationPence}, ${stay.covered}, ${season}, ${week}) ON CONFLICT DO NOTHING`);
-        if (trip.travelPence > 0) await post(tx, root, { operationKey: `travel:${tripKey}`, category: "TRAVEL", amountPence: -(trip.travelPence - travel.covered),
-          reason: `Travel (${trip.band}) — ${trip.destination}`, season, week, eventId: first.id, tripId, grossAmountPence: trip.travelPence, sponsorCoveredPence: travel.covered,
+            ${travelGrossPence}, ${travel.covered}, ${trip.accommodationPence}, ${stay.covered}, ${season}, ${week}) ON CONFLICT DO NOTHING`);
+        if (travelGrossPence > 0) await post(tx, root, { operationKey: `travel:${tripKey}`, category: "TRAVEL", amountPence: -(travelGrossPence - travel.covered),
+          reason: `Travel (${trip.band}) — ${trip.destination}`, season, week, eventId: first.id, tripId, grossAmountPence: travelGrossPence, sponsorCoveredPence: travel.covered,
           contractId: travel.covered > 0 ? travel.contractId : null, detail: { band: trip.band, events: trip.events.map(e => e.id), ...(travel.rule !== null ? { coverageRule: travel.rule } : {}) } });
         if (trip.accommodationPence > 0) await post(tx, root, { operationKey: `accommodation:${tripKey}`, category: "ACCOMMODATION", amountPence: -(trip.accommodationPence - stay.covered),
           reason: `Accommodation (${trip.nights} nights) — ${trip.destination}`, season, week, eventId: first.id, tripId, grossAmountPence: trip.accommodationPence, sponsorCoveredPence: stay.covered,

@@ -7,7 +7,7 @@ import { stableUuid } from "../world/random.ts";
 import { replay, type X01Format } from "../../shared/darts-rules/x01.ts";
 import { replayDrill, type DrillSpec } from "../../shared/darts-rules/drills.ts";
 import { absoluteDay } from "../calendar/generation.ts";
-import { post } from "../finance/ledger.ts";
+import { InsufficientFundsError, post } from "../finance/ledger.ts";
 import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { freeNightsInWeek } from "../nights.ts";
@@ -205,7 +205,9 @@ export function createCareerStreamingService(database: CareerDatabase) {
     },0);
     const streamEarnings=Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence),0)::bigint AS n FROM career_finance_entries
       WHERE career_save_id=${root.id} AND category='STREAM_INCOME'`)).rows[0]?.n??0);
-    const careerFundsPence=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
+    const careerBalancePence=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
+    const careerFundsPence=careerBalancePence-Number((await tx.execute(sql`SELECT COALESCE(SUM(estimated_trip_pence),0)::bigint AS reserved
+      FROM career_event_finance WHERE career_save_id=${root.id} AND status='ENTERED'`)).rows[0]?.reserved??0);
     const currentStudio=studioUpgradeForLevel(ch.studioLevel),nextStudio=STUDIO_UPGRADES.find(item=>item.level===ch.studioLevel+1)??null;
     const g = ch.subGoal, goalMonth = g && g.season === season ? g.month : null;
     const subGoal: SubGoal | null = g && goalMonth !== null && goalMonth >= monthOf(week) - 1
@@ -648,6 +650,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (root.status !== "ACTIVE") throw new CareerError(409, "Retired Careers cannot buy studio upgrades");
         const ch = await channel(tx, root), upgrade = STUDIO_UPGRADES.find(item => item.level === ch.studioLevel + 1);
         if (!upgrade) throw new CareerError(409, "Your DartCast studio is already fully upgraded");
+        const balance=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
+        const reserved=Number((await tx.execute(sql`SELECT COALESCE(SUM(estimated_trip_pence),0)::bigint AS reserved FROM career_event_finance
+          WHERE career_save_id=${root.id} AND status='ENTERED'`)).rows[0]?.reserved??0);
+        if(balance-reserved<upgrade.costPence)throw new InsufficientFundsError(upgrade.costPence,balance-reserved);
         await post(tx, root, { operationKey: `adjustment:studio-upgrade:${upgrade.level}`, category: "ADJUSTMENT", headline: "EXPENSE",
           amountPence: -upgrade.costPence, reason: `DartCast studio upgrade: ${upgrade.name}`, season: Number(root.current_season), week: Number(root.current_week),
           detail: { type: "DARTCAST_STUDIO_UPGRADE", level: upgrade.level, name: upgrade.name, audienceBonusPercent: Math.round(upgrade.audienceBonus * 100) } });

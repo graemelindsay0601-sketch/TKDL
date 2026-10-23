@@ -25,6 +25,8 @@ export function createCareerFinanceRouter(service: CareerFinanceService, isAvail
   });
   const id = (req: Request) => String(req.params.id);
   router.get("/saves/:id/finance", async (req, res) => { res.json(await service.summary(res.locals.careerActor, id(req))); });
+  router.get("/saves/:id/finance/purchases", async (req,res)=>{res.json(await service.purchases(res.locals.careerActor,id(req)));});
+  router.post("/saves/:id/finance/purchases",authedWriteRateLimit,async(req,res)=>{res.json(await service.buyPurchase(res.locals.careerActor,id(req),req.body));});
   router.get("/saves/:id/finance/ledger", async (req, res) => {
     res.json(await service.ledger(res.locals.careerActor, id(req), Object.fromEntries(Object.entries({
       limit: num(req.query.limit), beforeCreatedAt: str(req.query.beforeCreatedAt), beforeId: str(req.query.beforeId) }).filter(([, v]) => v !== undefined))));

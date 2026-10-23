@@ -206,6 +206,11 @@ export const useManager = (saveId: string) => useQuery({ queryKey: careerKey(sav
 export const useSignManager = (saveId: string) => useSaveMutation(saveId, (managerKey: string) => send<ManagerView>("POST", `/saves/${saveId}/manager/sign`, { managerKey }));
 export const useLeaveManager = (saveId: string) => useSaveMutation(saveId, () => send<ManagerView>("POST", `/saves/${saveId}/manager/leave`));
 export const useClearSavingsGoal = (saveId: string) => useSaveMutation(saveId, () => send<{ goal: null }>("DELETE", `/saves/${saveId}/finance/goal`));
+export type CareerPurchasesView=import("../../../../api-server/src/career/finance/service").CareerPurchasesView;
+export const useCareerPurchases=(saveId:string)=>useQuery({queryKey:careerKey(saveId,"finance","purchases"),
+  queryFn:()=>get<CareerPurchasesView>(`/saves/${saveId}/finance/purchases`),staleTime:STALE});
+export const useBuyCareerPurchase=(saveId:string)=>useSaveMutation(saveId,(key:string)=>
+  send<CareerPurchasesView>("POST",`/saves/${saveId}/finance/purchases`,{key}));
 export const useFinance = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "finance"), queryFn: () => get<FinanceSummary>(`/saves/${saveId}/finance`), enabled, staleTime: STALE });
 export const useLedger = (saveId: string, limit = 25, before?: { beforeCreatedAt: string; beforeId: string } | null) => useQuery({ queryKey: careerKey(saveId, "ledger", limit, before ?? null), staleTime: STALE,
   queryFn: () => get<{ entries: LedgerEntry[]; next: { beforeCreatedAt: string; beforeId: string } | null }>(`/saves/${saveId}/finance/ledger${qs({ limit, ...(before ?? {}) })}`) });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { Briefcase, CalendarClock, Coins, Handshake, Receipt, ShieldCheck, Sparkles, Wallet } from "lucide-react";
-import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useNegotiateOffer, useSponsors, errorMessage } from "../api";
+import { newOperationKey, useAcceptOffer, useCalendar, useDeclineOffer, useFinance, useLedger, useNegotiateOffer, useSponsors, useCareerPurchases, useBuyCareerPurchase, errorMessage } from "../api";
 import { LEDGER_FILTERS, circuitLabel, publicText, financeHeadlines, formatPence, ledgerLabel, titleCase, TONES } from "../model";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
 import { useUnlocks } from "../unlocks";
@@ -233,6 +233,7 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
       </CareerSection>
       </div>
 
+      <CareerPurchases saveId={save.id} retired={retired} />
       <Ledger saveId={save.id} />
 
       {sponsors.data && sponsors.data.history.offers.length > 0 && (
@@ -398,4 +399,25 @@ function Ledger({ saveId }: { saveId: string }) {
       </div>
     </CareerSection>
   );
+}
+
+function CareerPurchases({saveId,retired}:{saveId:string;retired:boolean}) {
+  const query=useCareerPurchases(saveId),buy=useBuyCareerPurchase(saveId);
+  const [message,setMessage]=useState<string|null>(null);
+  if(query.isLoading)return <CareerSection title="Career equipment & lifestyle" icon={<Coins className="w-3.5 h-3.5"/>} accent="#c084fc"><CareerLoading/></CareerSection>;
+  if(query.error||!query.data)return <CareerSection title="Career equipment & lifestyle" icon={<Coins className="w-3.5 h-3.5"/>} accent="#c084fc"><CareerError error={query.error} onRetry={()=>void query.refetch()}/></CareerSection>;
+  return <CareerSection title="Career equipment & lifestyle" icon={<Coins className="w-3.5 h-3.5"/>} accent="#c084fc">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3"><p className="text-xs text-white/55">One-off purchases only. No upkeep; equipment never changes darts ability.</p>
+      <strong className="text-sm text-amber-200">Available · {formatPence(query.data.availablePence)}</strong></div>
+    {message&&<p className="mx-3 mt-2 text-sm" role="status">{message}</p>}
+    <div className="grid gap-3 p-3 md:grid-cols-2">{query.data.items.map(item=><article key={item.key} className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3"><div><span className="text-[10px] font-bold uppercase tracking-[.16em] text-amber-200">{item.type}</span><h3 className="mt-1 font-bold text-white">{item.name}</h3></div>
+        <strong className="shrink-0 text-amber-200">{formatPence(item.costPence)}</strong></div>
+      <p className="mt-2 text-sm leading-relaxed text-white/60">{item.description}</p>
+      {item.owned?<span className="mt-3 inline-flex rounded-full border border-emerald-300/30 px-3 py-1 text-xs font-bold text-emerald-200">OWNED</span>
+        :<button className="career-btn career-btn-ghost mt-3" type="button" disabled={retired||buy.isPending||query.data.availablePence<item.costPence}
+          onClick={()=>buy.mutate(item.key,{onSuccess:()=>setMessage(`${item.name} purchased. It is now recorded in your Career ledger.`),onError:e=>setMessage(errorMessage(e))})}>
+          {buy.isPending?"Processing…":query.data.availablePence<item.costPence?"Not enough available funds":"Purchase"}</button>}
+    </article>)}</div>
+  </CareerSection>;
 }

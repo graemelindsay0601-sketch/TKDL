@@ -28,7 +28,7 @@ import { post } from "../../career/finance/ledger.ts";
 import { activeContracts, advanceSponsorLifecycle, applyCoverage, evaluateOffers, postDueGuaranteedPayments, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
 import { scheduleContractGuarantees } from "../../career/finance/sponsor-guarantees.ts";
 import type { SponsorApproachSource } from "../../career/finance/sponsor-journey.ts";
-import { groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
+import { discountedTravelPence, groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
 import {
   CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, evaluateRequirement,
   SPONSOR_CATALOGUE_V1, SPONSOR_CATALOGUE_V2, sponsorCatalogue, type SportingFacts,
@@ -1482,6 +1482,28 @@ test("save isolation, retirement (readable, inert) and restart (fresh £250, no 
   await finance.initialize(actor, restarted.id);
   const fresh = await finance.summary(actor, restarted.id);
   assert.deepEqual([fresh.balancePence, fresh.ledgerEntries, fresh.sponsor, fresh.availableOffers], [25000, 1, null, 0]);
+});
+
+test("optional Career purchases are ledger-backed, persistent, affordable-only, and travel savings affect future costs",async()=>{
+  const save=await career();
+  const before=await finance.purchases(actor,save.id);
+  assert.equal(before.balancePence,25_000);
+  assert.ok(before.items.every(item=>!item.owned));
+  const candidate=(await events(save.id,{scope:"AVAILABLE",fromWeek:1,toWeek:52}))
+    .find(event=>event.finance.travelBand!=="LOCAL"&&event.finance.estimatedTravelPence>0);
+  assert.ok(candidate,"fixture has a future event with player-paid travel");
+  const bought=await finance.buyPurchase(actor,save.id,{key:"travel-saver-kit"});
+  assert.equal(bought.balancePence,15_000);
+  assert.equal(bought.items.find(item=>item.key==="travel-saver-kit")?.owned,true);
+  const repriced=(await events(save.id,{scope:"AVAILABLE",fromWeek:1,toWeek:52})).find(event=>event.id===candidate!.id)!;
+  assert.equal(repriced.finance.estimatedTravelPence,Math.floor(candidate!.finance.estimatedTravelPence*0.9));
+  await rejectsStatus(finance.buyPurchase(actor,save.id,{key:"travel-saver-kit"}),409);
+  await rejectsStatus(finance.buyPurchase(actor,save.id,{key:"unknown"}),404);
+  assert.equal(discountedTravelPence(10_000,{locality:"ayrshire",country:"UK",zone:"UK_IRELAND",travelDiscountPercent:10}),9_000);
+  assert.equal(discountedTravelPence(10_000,{locality:"ayrshire",country:"UK",zone:"UK_IRELAND"}),10_000);
+  const ledgerRows=await ledger(save.id);
+  assert.equal(ledgerRows.find(row=>row.operation_key==="adjustment:career-purchase:travel-saver-kit")?.amount_pence,-10_000);
+  assert.equal((await finance.summary(actor,save.id)).reconciled,true);
 });
 
 test("default facts come from A3 results only; Career money is isolated from TKDL coins and the Classic Tour", async () => {

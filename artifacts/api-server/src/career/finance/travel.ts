@@ -7,7 +7,10 @@ import { NEARBY_VENUES, TRAVEL_PROFILE, TRIP_MAX_GAP_DAYS, type TravelBand } fro
  * home (locality/country/zone from the A3 sporting-status provider) and the
  * event's venue/locality/country/zone. Nationality is never an input.
  */
-export type Home = { locality: string; country: string; zone: string; travelVersion?:number };
+export type Home = { locality: string; country: string; zone: string; travelVersion?:number; travelDiscountPercent?:number };
+/** One-off equipment perks apply only to future travel, never entry or accommodation. */
+export const discountedTravelPence = (pence:number,home:Home) =>
+  Math.floor(Math.max(0,pence)*(100-Math.max(0,Math.min(100,home.travelDiscountPercent??0)))/100);
 export type EventPlace = { id: string; start_day: number; end_day: number; locality_key: string | null; venue_key: string; country: string; zone: string; city: string; circuit: string; series_key: string | null };
 
 export function travelBand(home: Home, event: Pick<EventPlace, "locality_key" | "venue_key" | "country" | "zone">): TravelBand {

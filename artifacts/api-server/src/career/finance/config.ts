@@ -7,6 +7,11 @@ export const FINANCE_VERSION = 2;
 export const SPONSOR_DATABASE_VERSION = 1;
 export const SUPPORTED_FINANCE_VERSIONS = [1, 2] as const;
 export const CURRENCY = "GBP";
+/** Optional, permanent Career purchases. No upkeep; equipment does not change darts ability. */
+export const CAREER_PURCHASES = [
+  { key:"travel-saver-kit", name:"Touring case & travel saver", costPence:10_000, type:"EQUIPMENT", description:"A durable touring case and travel-saver package reduce player-paid transport fares by 10% on future trips, not entry fees or accommodation.", travelDiscountPercent:10 },
+  { key:"home-practice-nook", name:"Home practice nook", costPence:30_000, type:"LIFESTYLE", description:"A personal home-base milestone for the Career portfolio. It has no automatic upkeep and does not change match ability.", travelDiscountPercent:0 },
+] as const;
 export const WEEKS = 52;
 
 export const LEDGER_CATEGORIES = [

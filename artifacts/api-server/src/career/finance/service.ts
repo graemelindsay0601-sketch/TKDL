@@ -10,8 +10,8 @@ import type { CalendarProviders } from "../calendar/providers.ts";
 import { BRANDS } from "../content/brands.ts";
 import { representativeForSponsor } from "../content/sponsor-representatives.ts";
 import { getNpcSponsorMarket } from "../sponsorship/npc-market.ts";
-import { FINANCE_VERSION, OFFER_LIFETIME_WEEKS, WEEKS } from "./config.ts";
-import { summary, recentEntries, presentEntry, post, type LedgerRow } from "./ledger.ts";
+import { CAREER_PURCHASES, FINANCE_VERSION, OFFER_LIFETIME_WEEKS, WEEKS } from "./config.ts";
+import { summary, recentEntries, presentEntry, post, InsufficientFundsError, type LedgerRow } from "./ledger.ts";
 import {
   createFinanceHooks, defaultFactsProvider, ensureFinanceState, evaluateOffers, acceptOffer, declineOffer, reservedPence, activeContracts,
   assessOfferAcceptance, REPLACEMENT_RESOLVABLE_BLOCKS, type OfferRow,
@@ -126,6 +126,8 @@ const sponsorReleaseRequestSchema=z.object({
   contractId:z.string().uuid(), operationKey:z.string().min(8).max(180),
   releaseType:z.enum(["IMMEDIATE_NO_COST","MUTUAL","PRICED_BUYOUT"]),
 }).strict();
+const careerPurchaseSchema=z.object({key:z.string().min(1).max(80)}).strict();
+export type CareerPurchasesView={balancePence:number;availablePence:number;items:{key:string;name:string;costPence:number;type:string;description:string;travelDiscountPercent:number;owned:boolean}[]};
 const formatPence = (pence: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 
 /**
@@ -230,6 +232,40 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         const rows = await recentEntries(tx, root.id, q.limit, q.beforeCreatedAt && q.beforeId ? { createdAt: q.beforeCreatedAt, id: q.beforeId } : undefined);
         const last = rows[rows.length - 1];
         return { entries: rows.map(presentEntry), next: rows.length === q.limit && last ? { beforeCreatedAt: new Date(String(last.created_at)).toISOString(), beforeId: last.id } : null };
+      });
+    },
+
+    async purchases(actor:CareerActor,saveId:string):Promise<CareerPurchasesView>{
+      return database.transaction(async tx=>{
+        const root=await open(tx,actor,saveId,false);
+        const economy=root.settings_snapshot?.careerEconomy as {purchases?:string[]}|undefined;
+        const owned=new Set(Array.isArray(economy?.purchases)?economy.purchases:[]);
+        const balancePence=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
+        const availablePence=balancePence-await reservedPence(tx,root.id);
+        return {balancePence,availablePence,items:CAREER_PURCHASES.map(item=>({...item,owned:owned.has(item.key)}))};
+      });
+    },
+
+    async buyPurchase(actor:CareerActor,saveId:string,body:unknown):Promise<CareerPurchasesView>{
+      const {key}=careerPurchaseSchema.parse(body);
+      return database.transaction(async tx=>{
+        const root=await open(tx,actor,saveId);
+        const item=CAREER_PURCHASES.find(p=>p.key===key);
+        if(!item)throw new CareerError(404,"Career purchase not found");
+        const economy=root.settings_snapshot?.careerEconomy as {purchases?:string[]}|undefined;
+        const owned=Array.isArray(economy?.purchases)?economy.purchases:[];
+        if(owned.includes(key))throw new CareerError(409,"You already own this Career upgrade");
+        const balanceBefore=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
+        const availableBefore=balanceBefore-await reservedPence(tx,root.id);
+        if(availableBefore<item.costPence)throw new InsufficientFundsError(item.costPence,availableBefore);
+        await post(tx,root,{operationKey:`adjustment:career-purchase:${key}`,category:"ADJUSTMENT",headline:"EXPENSE",
+          amountPence:-item.costPence,reason:`Career purchase: ${item.name}`,season:Number(root.current_season),week:Number(root.current_week),
+          detail:{type:"CAREER_PURCHASE",key,name:item.name,purchaseType:item.type,travelDiscountPercent:item.travelDiscountPercent}});
+        const nextEconomy={...(economy??{}),purchases:[...owned,key]};
+        await tx.execute(sql`UPDATE career_saves SET settings_snapshot=settings_snapshot||${JSON.stringify({careerEconomy:nextEconomy})}::jsonb WHERE id=${root.id}`);
+        const balancePence=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
+        const availablePence=balancePence-await reservedPence(tx,root.id);
+        return {balancePence,availablePence,items:CAREER_PURCHASES.map(p=>({...p,owned:nextEconomy.purchases.includes(p.key)}))};
       });
     },
 
