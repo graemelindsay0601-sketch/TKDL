@@ -25,6 +25,7 @@
 - [Existing Career saves](career-save-compatibility.md) — new Career features and fixes must keep existing saves usable, with tested migrations rather than requiring a restart
 - [PDC calendar sourcing](pdc-calendar-sourcing.md) — when the PDC fixture API is unavailable, use its sitemap to locate official event notices; treat third-party calendars as leads
 - [Career sponsor trade-offs](career-sponsor-tradeoffs.md) — sponsor offers need real pros/cons, and player counter-proposals must work on existing saves
+- [Career economy scope](career-economy.md) — balance every Career route, including a viable streamer-first livelihood without tour progression
 - [Career path onboarding](career-path-onboarding.md) — explain available routes and first steps at save creation; keep routes non-exclusive and grounded in current rules
 - [Career visual and navigation standard](career-visual-standard.md) — Career pages should feel premium, avoid text-only sections, and keep clear in-career navigation
 - [Career portrait bank idea](career-portrait-bank.md) — plan a complete global fictional-player portrait pool plus replacement reserve; estimate storage and bandwidth before generation
