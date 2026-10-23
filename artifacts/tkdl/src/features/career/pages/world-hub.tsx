@@ -13,6 +13,7 @@ import {circuitLabel,eventCircuitLabel,familyName,titleCase} from "../model";
 import {NpcLegacyPage,LegacyPage} from "./legacy";
 import type {ShellContext} from "../shell";
 import {CareerVenueAtlas} from "./venue-atlas";
+import {WorldEventsPremiumDirectory} from "./world-events-premium";
 import "./world-landing.css";
 import "./world-players-premium.css";
 
@@ -117,14 +118,12 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
   }
   const searchBox=<label className="career-world-search"><Search size={16} aria-hidden="true"/><span className="sr-only">Search</span><input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Names, cities, circuits"/></label>;
   const seasonEditions=map.data?.events??[];
+  if(section==="events"&&!selected)return <WorldEventsPremiumDirectory
+    data={d} families={families} search={search} setSearch={setSearch} page={page} setPage={setPage} base={base}
+    editionCount={seasonEditions.length} editionLoading={map.isLoading} editionError={map.error}/>;
   return <div className="space-y-3">{section==="history"&&<h2 className="sr-only">World History</h2>}
     {section==="search"&&<CareerPageHero kicker="Darts World" title="Search the darts world" stage={{venue:{venueType:"conference"},eventClass:"PROFESSIONAL_TOUR"}} accent="#7ebbd3"
       subtitle={<p>Players, championships and venues across your saved Career world.</p>}>{searchBox}</CareerPageHero>}
-    {section==="events"&&!selected&&<CareerPageHero kicker="Darts World" title="Events & Circuits" stage={{venue:{venueType:"small-arena"},eventClass:"MAJOR"}} accent="#e4bb67"
-      watermark={`${d.eventFamilies.length}`}
-      subtitle={<p>Every championship family in your Career world, from local club nights to the Palace. Each family runs as local editions across the season.</p>}
-      stats={[{label:"Championship families",value:d.eventFamilies.length,tone:"gold"},{label:"Organisations",value:d.organisations.length},
-        {label:"Circuits",value:d.circuits.length},{label:"Editions this season",value:map.isLoading?"…":seasonEditions.length}]}>{searchBox}</CareerPageHero>}
     {section==="search"&&<><WorldPlayerDirectory ctx={ctx} search={search}/><CareerSection title="Events / Championships">{families.slice(0,10).map(f=><Link className="career-directory-row" key={f.id} href={`${base}/world/events/${f.id}`}>{familyName(f.name)}</Link>)}</CareerSection><CareerSection title="Venues">{venues.slice(0,10).map(v=><Link className="career-directory-row" key={v.id} href={`${base}/world/venues/${v.id}`}>{v.displayName}, {v.city}</Link>)}</CareerSection><p>Event and venue search shows up to ten matches; their directories provide full filtered pagination.</p></>}
     {section==="events"&&(selected?(()=>{
       const editions=seasonEditions.filter(e=>e.definitionId===selected.id);

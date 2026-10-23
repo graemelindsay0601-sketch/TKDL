@@ -1,0 +1,126 @@
+.career-root .career-world-events-page {
+  min-height: 100%;
+  padding: 20px 22px 38px;
+  color: #e9e4d8;
+  background: radial-gradient(ellipse at 50% -22%,#263448 0,#101a28 38%,#09111c 74%);
+  border: 1px solid #34404a;
+  border-radius: 12px;
+  font-family: "DM Sans",sans-serif;
+}
+.career-root .career-world-events-page,
+.career-root .career-world-events-page * { box-sizing: border-box; }
+.career-root .career-world-events-page a { color: inherit; text-decoration: none; }
+.career-world-events-page__shell { max-width: 1440px; margin: 0 auto; }
+.career-world-events-page__hero {
+  position: relative; isolation: isolate; display: grid; grid-template-columns: 1.1fr .9fr; min-height: 390px;
+  margin: 4px 0 28px; overflow: hidden; border: 1px solid #796743; border-radius: 5px;
+  background: linear-gradient(110deg,#182738 0%,#152334 46%,#101a27 100%);
+  box-shadow: 0 8px 0 #080f17,0 15px 28px #0007,inset 0 1px #ffffff24;
+}
+.career-world-events-page__hero::before {
+  position: absolute; z-index: -1; content: ""; inset: 0;
+  background: linear-gradient(90deg,transparent 47%,#0b14201a 58%,#09121bc9 100%),repeating-linear-gradient(0deg,transparent 0 44px,#ffffff05 45px 46px);
+}
+.career-world-events-page__hero-copy { z-index: 2; align-self: center; padding: 26px 26px 60px 42px; }
+.career-world-events-page__kicker {
+  display: flex; align-items: center; gap: 10px; color: #d9bd69;
+  font: 700 10px Oswald,sans-serif; letter-spacing: .2em; text-transform: uppercase;
+}
+.career-world-events-page__kicker i { width: 25px; height: 2px; background: #ba424d; }
+.career-world-events-page__hero h1 {
+  margin: 12px 0 10px; color: #f0e9da; font: 700 clamp(48px,4.4vw,60px)/.84 Oswald,sans-serif;
+  letter-spacing: -.025em; text-transform: uppercase; text-shadow: 0 3px #0b1016;
+}
+.career-world-events-page__hero h1 em { display: block; margin-top: 8px; color: #d9bd69; font-style: normal; }
+.career-world-events-page__intro { max-width: 430px; margin: 12px 0 0; color: #b5c0c8; font-size: 14px; line-height: 1.65; }
+.career-world-events-page__search {
+  display: flex; align-items: center; gap: 8px; max-width: 520px; margin-top: 8px; padding: 0 12px;
+  border: 1px solid #ffffff2e; border-radius: 999px; background: #05070cc7; color: #ffffffa6;
+}
+.career-world-events-page__search input { flex: 1; min-width: 0; min-height: 42px; border: 0; outline: 0; background: transparent; color: #fff; font: inherit; }
+.career-world-events-page__search:focus-within { border-color: #e4bb67; }
+.career-world-events-page__arena { position: relative; min-height: 390px; overflow: hidden; background: #0b1119; }
+.career-world-events-page__arena img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 47%; filter: saturate(.9) contrast(1.04); }
+.career-world-events-page__arena::after {
+  position: absolute; inset: 0; content: ""; pointer-events: none;
+  background: linear-gradient(90deg,#101a27a8 0%,#101a2740 24%,#101a2700 65%,#08101d66 100%),linear-gradient(0deg,#08111b9c,#08111b00 35%);
+}
+.career-world-events-page__arena span {
+  position: absolute; z-index: 1; top: 20px; right: 16px; color: #f0e5c6;
+  font: 700 9px Oswald,sans-serif; letter-spacing: .16em; writing-mode: vertical-rl; text-shadow: 0 1px 8px #000;
+}
+.career-world-events-page__stats {
+  position: absolute; z-index: 4; left: 18px; right: 18px; bottom: -1px; display: grid;
+  grid-template-columns: 1.2fr 1.2fr .8fr .8fr; margin: 0; border: 1px solid #5a5746;
+  background: linear-gradient(#202e3c,#121e2a); box-shadow: 0 5px 0 #080f17,0 12px 20px #0006;
+}
+.career-world-events-page__stats div { min-width: 0; min-height: 77px; padding: 14px 17px; border-right: 1px solid #ffffff17; }
+.career-world-events-page__stats div:last-child { border: 0; }
+.career-world-events-page__stats dt { margin-bottom: 6px; color: #95a0a8; font-size: 9px; letter-spacing: .14em; text-transform: uppercase; }
+.career-world-events-page__stats dd { margin: 0; color: #e0c36c; font: 700 clamp(15px,1.6vw,21px)/1.15 Oswald,sans-serif; }
+.career-world-events-page__org-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,260px),1fr)); gap: 10px; margin: 28px 0; }
+.career-world-events-page__org-card { padding: 14px; border: 1px solid #ffffff17; border-radius: 14px; background: linear-gradient(160deg,#121c2b,#0a111b); }
+.career-world-events-page__org-card header { display: flex; align-items: flex-start; gap: 10px; }
+.career-world-events-page__org-card header>span {
+  position: relative; display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center;
+  border: 1px solid #ffd27a66; border-radius: 50%; background: radial-gradient(circle at 50% 45%,#72521c,#3a2c10 48%,#171207);
+  color: #ffe7a5; font: 700 9px Oswald,sans-serif;
+}
+.career-world-events-page__org-card h2 { margin: 0; color: #fff; font: 700 .95rem Oswald,sans-serif; text-transform: uppercase; }
+.career-world-events-page__org-card p { margin: 3px 0 0; color: #ffffffa0; font-size: .74rem; line-height: 1.45; }
+.career-world-events-page__circuit-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.career-world-events-page__circuit-list button {
+  min-height: 34px; padding: 5px 10px; border: 1px solid #ffffff24; border-radius: 999px;
+  background: #ffffff08; color: #e7eef6; font: 600 .7rem "DM Sans",sans-serif; cursor: pointer;
+}
+.career-world-events-page__circuit-list button:hover,
+.career-world-events-page__circuit-list button:focus-visible,
+.career-world-events-page__circuit-list button[aria-pressed="true"] { border-color: #e4bb67; color: #ffd27a; outline: none; }
+.career-world-events-page__family-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,230px),1fr)); gap: 10px; }
+.career-world-events-page__family-card {
+  position: relative; isolation: isolate; display: flex; min-width: 0; min-height: 132px; align-items: flex-end;
+  overflow: hidden; padding: 0; border: 1px solid #ffffff1a; border-radius: 14px; background: #070a10; color: #fff;
+}
+.career-world-events-page__family-card img { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .4s; filter: saturate(1.05); }
+.career-world-events-page__family-card::before { position: absolute; z-index: -1; inset: 0; content: ""; background: linear-gradient(0deg,#05070cf2 8%,#05070c99 55%,#05070c26); }
+.career-world-events-page__family-card::after { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; content: ""; background: #d5b65d; }
+.career-world-events-page__family-card:hover img { transform: scale(1.05); }
+.career-world-events-page__family-card span { display: grid; gap: 2px; min-width: 0; padding: 12px 14px; }
+.career-world-events-page__family-card small { color: #d5b65d; font: 700 .58rem Oswald,sans-serif; letter-spacing: .18em; text-transform: uppercase; }
+.career-world-events-page__family-card strong { overflow-wrap: anywhere; color: #f0e9da; font: 800 1.02rem/1.1 Oswald,sans-serif; text-transform: uppercase; }
+.career-world-events-page__family-card em { color: #ffffffa3; font-size: .7rem; font-style: normal; }
+.career-world-events-page__family-card i { position: absolute; top: 12px; right: 12px; color: #e3c870; opacity: 0; transform: translateX(-4px); transition: opacity .18s,transform .18s; }
+.career-world-events-page__family-card:hover i,.career-world-events-page__family-card:focus-visible i { opacity: 1; transform: translateX(0); }
+.career-world-events-page__family-card:focus-visible { outline: 2px solid #e4bb67; outline-offset: 2px; }
+.career-world-events-page__empty { padding: 18px; border: 1px solid #ffffff18; background: #101a26; color: #aeb7c0; font-size: 13px; }
+.career-world-events-page__pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; padding: 12px 0; border-top: 1px solid #ffffff18; color: #aeb7c0; font: 600 11px Oswald,sans-serif; letter-spacing: .08em; }
+.career-world-events-page__pagination button { min-height: 38px; padding: 0 13px; border: 1px solid #56616c; background: linear-gradient(#1b2a3a,#142130); color: #e4e8e8; font: 700 10px Oswald,sans-serif; text-transform: uppercase; cursor: pointer; }
+.career-world-events-page__pagination button:disabled { opacity: .4; cursor: not-allowed; }
+.career-world-events-page__pagination span { display: flex; align-items: center; gap: 9px; }
+.career-world-events-page__pagination span i { width: 3px; height: 3px; border-radius: 50%; background: #d9bd69; }
+@media (max-width: 900px) {
+  .career-root .career-world-events-page { padding: 15px; }
+  .career-world-events-page__hero { grid-template-columns: 1fr .85fr; min-height: 340px; }
+  .career-world-events-page__hero-copy { padding-left: 25px; }
+  .career-world-events-page__arena { min-height: 340px; }
+  .career-world-events-page__stats { grid-template-columns: repeat(4,minmax(0,1fr)); left: 12px; right: 12px; }
+  .career-world-events-page__stats div { padding: 12px 10px; }
+}
+@media (max-width: 700px) {
+  .career-root .career-world-events-page { padding: 11px 10px 24px; }
+  .career-world-events-page__hero { grid-template-columns: 1fr; min-height: 0; margin-bottom: 15px; }
+  .career-world-events-page__hero-copy { padding: 26px 19px 18px; }
+  .career-world-events-page__hero h1 { font-size: 64px; }
+  .career-world-events-page__intro { margin-top: 17px; font-size: 13px; }
+  .career-world-events-page__arena { min-height: 235px; }
+  .career-world-events-page__arena span { top: 11px; right: 10px; }
+  .career-world-events-page__stats { position: relative; left: auto; right: auto; bottom: auto; grid-template-columns: repeat(2,minmax(0,1fr)); margin: -9px 10px 13px; }
+  .career-world-events-page__stats div { min-height: 66px; padding: 11px; border-bottom: 1px solid #ffffff17; }
+  .career-world-events-page__stats div:nth-child(2) { border-right: 0; }
+  .career-world-events-page__stats div:nth-child(3),.career-world-events-page__stats div:nth-child(4) { border-bottom: 0; }
+  .career-world-events-page__org-grid { grid-template-columns: 1fr; margin: 22px 0; }
+  .career-world-events-page__family-grid { grid-template-columns: 1fr; gap: 9px; }
+  .career-world-events-page__family-card { min-height: 160px; }
+  .career-world-events-page__pagination { font-size: 9px; }
+  .career-world-events-page__pagination button { padding: 0 8px; }
+}
