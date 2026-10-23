@@ -1,0 +1,133 @@
+.records-book {
+  --rb-ink: #f2eee4;
+  --rb-muted: #aaa49a;
+  --rb-gold: #dfbf70;
+  --rb-red: #c13a43;
+  --rb-line: #d9bd7838;
+  min-height: 100%;
+  padding: 0 clamp(12px, 3.5vw, 44px) 24px;
+  color: var(--rb-ink);
+  background:
+    radial-gradient(ellipse at 74% 4%, #64202b2b, transparent 34rem),
+    linear-gradient(135deg, #121419, #0b0c0f 58%, #111114);
+  font-family: "DM Sans", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.records-book *,.records-book *::before,.records-book *::after { box-sizing: border-box; }
+.rb-shell { width: min(1190px,100%); margin: 0 auto; }
+.rb-masthead { display:flex; align-items:center; justify-content:space-between; height:67px; border-bottom:1px solid var(--rb-line); }
+.rb-brand { display:flex; align-items:center; gap:10px; color:var(--rb-ink); font:600 11px "Oswald",sans-serif; letter-spacing:.13em; text-decoration:none; }
+.rb-brand>span:last-child { display:grid; gap:4px; }
+.rb-brand small { color:#a7aab1; font:500 7px "DM Sans",sans-serif; letter-spacing:.14em; }
+.rb-brand-mark { display:grid; width:31px; height:31px; place-items:center; border:1px solid #d8bc776e; border-radius:50%; background:linear-gradient(145deg,#29221a,#171719); color:var(--rb-gold); box-shadow:inset 0 0 0 3px #d8bc7712,0 2px #08090a; }
+.rb-brand-mark::first-letter { color:var(--rb-red); }
+.rb-edition { display:flex; align-items:center; gap:10px; color:#a7aab1; font:500 8px "DM Sans",sans-serif; letter-spacing:.12em; }
+.rb-edition b { padding:6px 8px; border:1px solid #d8bc773b; color:var(--rb-gold); font-size:7px; font-weight:600; }
+.rb-disclosure { display:inline-flex; align-items:center; gap:8px; margin-top:14px; color:#d3cabb; font:700 8px "Oswald",sans-serif; letter-spacing:.15em; }
+.rb-disclosure>span { width:6px; height:6px; border-radius:50%; background:var(--rb-red); box-shadow:0 0 0 3px #c13a431a; }
+.rb-disclosure i { color:var(--rb-gold); font-style:normal; }
+.rb-hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,42%); align-items:center; gap:30px; min-height:300px; padding:22px 0 30px; border-bottom:1px solid var(--rb-line); }
+.rb-hero-copy { position:relative; z-index:1; }
+.rb-overline { margin:0 0 13px; color:var(--rb-gold); font:700 10px "Oswald",sans-serif; letter-spacing:.2em; text-transform:uppercase; }
+.rb-hero h1 { margin:0 0 0 -3px; color:#f4f0e8; font:500 clamp(3.4rem,8vw,7rem)/.86 "Bodoni Moda","Source Serif 4",Georgia,serif; letter-spacing:-.055em; text-shadow:0 2px #000; }
+.rb-hero h1 em { color:#d84b4b; font-weight:500; }
+.rb-intro { max-width:440px; margin:18px 0 16px; color:#c4c6cb; font-size:13px; line-height:1.65; }
+.rb-rule { display:flex; align-items:center; gap:9px; color:#b7b3aa; font-size:10px; }
+.rb-rule span { color:var(--rb-gold); font-size:14px; }
+.rb-hero-art { position:relative; align-self:stretch; min-height:250px; overflow:hidden; border:1px solid #d8bc7752; background:linear-gradient(145deg,#292522,#111315 68%); box-shadow:0 3px #08090a,0 15px 30px #0009,inset 0 1px #ffffff16; }
+.rb-hero-art::before { position:absolute; z-index:1; inset:0; content:""; pointer-events:none; background:linear-gradient(90deg,#101214e8 0%,#10121463 31%,transparent 66%),linear-gradient(0deg,#101214a8,transparent 44%); }
+.rb-hero-art::after { position:absolute; z-index:2; inset:9px; border:1px solid #e0bd692a; content:""; pointer-events:none; }
+.rb-hero-art img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:61% 52%; filter:saturate(.82) contrast(1.05); }
+.rb-art-label,.rb-art-caption { position:absolute; z-index:3; color:#dfbf70; font:600 8px "Oswald",sans-serif; letter-spacing:.17em; }
+.rb-art-label { top:20px; left:20px; }
+.rb-art-label i { color:var(--rb-red); font-style:normal; }
+.rb-art-caption { right:20px; bottom:18px; color:#e7ddc5; line-height:1.45; text-align:right; }
+.rb-section-rule { display:flex; justify-content:space-between; margin:22px 0 12px; border-top:1px solid #ddc78335; padding:9px 0 0; color:#d6bd78; font:600 9px "Oswald",sans-serif; letter-spacing:.17em; }
+.rb-feature-grid { display:grid; grid-template-columns:1.02fr .98fr; gap:15px; }
+.rb-box { --rb-accent:var(--rb-gold); position:relative; isolation:isolate; min-width:0; overflow:hidden; border:1px solid #d8bc7765; background:linear-gradient(145deg,#252629,#17181b 72%); box-shadow:0 3px #070809,0 14px 26px #0009,inset 0 1px #fff2,inset 1px 0 #f3d47b25; }
+.rb-box::before { position:absolute; z-index:-1; inset:4px; border:1px solid #e4cc8538; content:""; pointer-events:none; }
+.rb-box::after { position:absolute; z-index:-1; top:0; right:0; left:0; height:42%; background:linear-gradient(125deg,#ffffff0c,transparent 46%); content:""; pointer-events:none; }
+.rb-nine { padding:16px 19px 15px; border-color:#d8bc7780; }
+.rb-nine::before { border-color:#e4cc8550; }
+.rb-nine::after { top:auto; height:4px; background:linear-gradient(90deg,#9e2635,#e3c578 52%,#9e2635); }
+.rb-feature { --rb-accent:var(--rb-red); padding:16px 19px 15px; border-color:#dfbf70a0; background:linear-gradient(145deg,#29272a,#191a1d 68%,#211719); }
+.rb-feature::before { border-color:#e0bd6945; }
+.rb-feature::after { top:0; right:auto; bottom:0; left:0; width:5px; height:auto; background:linear-gradient(#e3c578,#c13a43 48%,#7d202c); }
+.rb-card { --rb-accent:#d7bc76; padding:13px 15px 12px; border-top:3px solid var(--rb-accent); }
+.rb-card--tv-average { --rb-accent:#d7bc76; background:linear-gradient(145deg,#29272a,#191a1d 72%); }
+.rb-card--match-180s { --rb-accent:#c13a43; background:linear-gradient(145deg,#292326,#191a1d 72%); }
+.rb-card--checkout { --rb-accent:#ba8c4c; background:linear-gradient(145deg,#29251f,#191a1c 72%); }
+.rb-box-head { display:flex; align-items:center; justify-content:space-between; }
+.rb-index { display:flex; align-items:center; gap:8px; color:var(--rb-gold); font:600 10px "Oswald",sans-serif; letter-spacing:.13em; }
+.rb-index span { color:#a7aab1; font:600 8px "Oswald",sans-serif; letter-spacing:.13em; }
+.rb-seal { position:relative; display:grid; width:38px; height:38px; place-items:center; border:1px solid var(--rb-accent); border-radius:50%; background:radial-gradient(circle at 34% 27%,#fff3,transparent 35%),linear-gradient(145deg,#3a3325,#19191b 70%); color:var(--rb-accent); box-shadow:0 3px #08090a,inset 0 1px #fff5,inset 0 -3px 5px #0008; }
+.rb-seal::before { position:absolute; inset:3px; border:1px solid currentColor; border-radius:50%; content:""; opacity:.5; }
+.rb-feature .rb-seal { --rb-accent:var(--rb-red); }
+.rb-card .rb-seal { width:34px; height:34px; }
+.rb-nine h2,.rb-feature h2,.rb-card h2 { margin:5px 0 0; color:#f0eee8; font:500 25px/1.08 "Oswald",sans-serif; letter-spacing:.01em; text-transform:uppercase; }
+.rb-card h2 { min-height:42px; font-size:20px; }
+.rb-box-deck { margin:5px 0 10px; color:#b3ada3; font-size:11px; }
+.rb-nine-list,.rb-feature-list,.rb-card-list { margin:0; padding:0; list-style:none; }
+.rb-nine-list li { display:grid; grid-template-columns:25px minmax(0,1fr) auto auto; align-items:center; gap:9px; min-height:49px; border-top:1px solid #ffffff1c; }
+.rb-rank { color:#c7ac66; font:500 13px "Oswald",sans-serif; }
+.rb-entry { display:grid; gap:4px; min-width:0; }
+.rb-player-name { display:flex; align-items:center; gap:7px; min-width:0; overflow:hidden; color:#f0eee8; font:500 15px "Oswald",sans-serif; letter-spacing:.02em; text-decoration:none; text-overflow:ellipsis; white-space:nowrap; }
+.rb-player-name:hover { color:#ecd38d; }
+.rb-player-name i { color:#e36b61; font:700 7px "Oswald",sans-serif; letter-spacing:.08em; font-style:normal; }
+.rb-provenance { display:flex; align-items:center; flex-wrap:wrap; gap:5px; color:#b5b0a7; font-size:8px; line-height:1.4; }
+.rb-provenance i { color:var(--rb-gold); font-style:normal; }
+.rb-personal-seal { display:inline-grid; width:34px; height:34px; flex:none; place-content:center; transform:rotate(-8deg); border:1px solid #d8bc77; border-radius:50%; background:linear-gradient(145deg,#ffffff20,#6a4f1d22); color:#e6cd86; font:800 6px/1.15 "Oswald",sans-serif; letter-spacing:.08em; text-align:center; box-shadow:inset 0 1px #fff4,0 2px 3px #0008; }
+.rb-value { color:#ecd38d; font:500 25px/1 "Oswald",sans-serif; white-space:nowrap; }
+.rb-value small { margin-left:4px; color:#b7a675; font:600 7px "DM Sans",sans-serif; letter-spacing:.12em; }
+.rb-nine-list li.is-personal,.rb-feature-list li.is-personal,.rb-card-list li.is-personal { background:linear-gradient(90deg,#c8a95728,#c8a95706); }
+.rb-empty,.rb-feature-empty { margin:12px 0; color:#b8b4ab; font-size:12px; line-height:1.5; }
+.rb-book-note { display:flex; gap:10px; margin:10px 0 0; color:#c2b8a8; font-size:9px; line-height:1.4; }
+.rb-book-note b { flex:none; color:var(--rb-gold); font:700 8px "Oswald",sans-serif; letter-spacing:.12em; }
+.rb-feature-value { margin-top:5px; color:#e9cb7c; font:500 clamp(42px,5vw,58px)/.95 "Oswald",sans-serif; font-variant-numeric:tabular-nums; text-shadow:0 2px #08090a; }
+.rb-feature-value small { margin-left:8px; color:#b2a37b; font:600 9px "DM Sans",sans-serif; letter-spacing:.17em; vertical-align:10px; }
+.rb-feature-holder { display:grid; gap:4px; margin-top:8px; }
+.rb-ranking-label { display:flex; justify-content:space-between; margin-top:12px; border-top:1px solid #d8bc7740; padding-top:7px; color:#bca66e; font:700 8px "Oswald",sans-serif; letter-spacing:.14em; }
+.rb-feature-list li { display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:center; gap:7px; min-height:26px; border-top:1px solid #ffffff1c; color:#e6e2d9; font-size:10px; }
+.rb-feature-list li>strong { color:#eddbab; font-size:10px; font-variant-numeric:tabular-nums; }
+.rb-gallery { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; margin-top:15px; }
+.rb-card-list li { padding:8px 0; border-top:1px solid #ffffff20; }
+.rb-card-value,.rb-card-person { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.rb-card-value strong { color:#ecd38d; font:500 23px "Oswald",sans-serif; font-variant-numeric:tabular-nums; }
+.rb-card-person { min-height:23px; margin:3px 0; }
+.rb-card-person .rb-personal-seal { width:24px; height:24px; font-size:5px; }
+.rb-footer { display:flex; align-items:center; gap:10px; margin-top:15px; border-top:1px solid var(--rb-line); padding-top:11px; }
+.rb-footer-mark { color:var(--rb-gold); font:600 12px "Oswald",sans-serif; letter-spacing:.08em; }
+.rb-footer-mark span { padding:0 4px; color:var(--rb-red); }
+.rb-footer p { margin:0; color:#a6a8af; font:italic 11px "DM Sans",sans-serif; }
+.rb-personal-count { display:flex; align-items:center; gap:7px; margin-left:auto; color:#b9ae9d; font:600 8px/1.3 "Oswald",sans-serif; letter-spacing:.11em; }
+.rb-personal-count strong { color:#e4c978; font:500 21px "Oswald",sans-serif; }
+@media(max-width:850px) {
+  .rb-feature-grid,.rb-gallery { grid-template-columns:1fr; }
+  .rb-card h2 { min-height:0; }
+  .rb-card-list li { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0 10px; padding:8px 0; }
+  .rb-card-value { grid-column:2; grid-row:1 / 3; align-items:center; }
+  .rb-card-person { grid-column:1; grid-row:1; justify-content:flex-start; }
+  .rb-card-list .rb-provenance { grid-column:1; grid-row:2; }
+}
+@media(max-width:620px) {
+  .rb-masthead { height:59px; }
+  .rb-edition { gap:6px; font-size:7px; }
+  .rb-hero { grid-template-columns:1fr; gap:16px; min-height:0; padding:25px 0 20px; }
+  .rb-hero h1 { font-size:clamp(3.2rem,14vw,5.5rem); }
+  .rb-intro { max-width:370px; margin:16px 0 13px; font-size:12px; }
+  .rb-hero-art { min-height:180px; }
+  .rb-hero-art img { object-position:62% 53%; }
+  .rb-section-rule { margin-top:18px; }
+  .rb-nine,.rb-feature { padding-right:13px; padding-left:14px; }
+  .rb-nine-list li { grid-template-columns:20px minmax(0,1fr) auto auto; gap:6px; }
+  .rb-player-name { font-size:14px; }
+  .rb-provenance { gap:4px; font-size:7px; }
+  .rb-personal-seal { width:29px; height:29px; font-size:5px; }
+  .rb-value { font-size:21px; }
+  .rb-feature-value { font-size:50px; }
+  .rb-gallery { margin-top:11px; }
+  .rb-footer { align-items:center; }
+  .rb-footer p { max-width:145px; font-size:10px; }
+  .rb-personal-count { gap:4px; font-size:6px; }
+  .rb-personal-count strong { font-size:18px; }
+}
