@@ -6,7 +6,7 @@ import { LEDGER_FILTERS, circuitLabel, publicText, financeHeadlines, formatPence
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection, Label, OSWALD, Segmented, StatTile, StatusBadge } from "../components";
 import { useUnlocks } from "../unlocks";
 import type { ShellContext } from "../shell";
-import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorSigningReveal, SponsorTerms } from "../types";
+import type { SponsorCommercialOverview, SponsorNegotiationChange, SponsorNegotiationPackage, SponsorSigningReveal, SponsorTerms } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SeasonMoneyChart } from "../week-money";
 import { SavingsGoalPanel } from "../savings-goal";
@@ -173,10 +173,11 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
                     onSuccess: () => setMsg("Offer declined."),
                     onError: error => setMsg(errorMessage(error)),
                   })}
-                  onNegotiate={(change: SponsorNegotiationChange) => negotiate.mutate(
-                    { offerId: o.id, requestKey: newOperationKey(), expectedRevision: o.journey?.revision ?? 0, change },
+                  onNegotiate={(changes: SponsorNegotiationChange | SponsorNegotiationPackage) => negotiate.mutate(
+                    { offerId: o.id, requestKey: newOperationKey(), expectedRevision: o.journey?.revision ?? 0,
+                      ...(Array.isArray(changes) ? { changes } : { change: changes }) },
                     {
-                      onSuccess: result => setMsg(result.message),
+                      onSuccess: result => setMsg(negotiationResultNotice(result)),
                       onError: error => setMsg(errorMessage(error)),
                     },
                   )}
@@ -259,6 +260,23 @@ function journeyEventText(type: string) {
   if (type === "SIGNED") return "Partnership signed";
   if (type === "FINANCIAL_PAYMENT") return "Sponsor payment posted";
   return titleCase(type);
+}
+
+function negotiationResultNotice(result: import("../types").SponsorNegotiationResult) {
+  if (result.outcome !== "COUNTERED") return result.message;
+  const details = (result.counterChanges ?? []).map(change => {
+    switch (change.kind) {
+      case "SIGNING_BONUS": return `Signing bonus ${formatPence(change.amountPence)}`;
+      case "EVENT_PAYMENT": return `Payment per event ${formatPence(change.amountPence)}`;
+      case "COVERAGE_PERCENT": return `Coverage term ${change.index + 1} at ${change.percent}%`;
+      case "DURATION": return `${change.seasons} season${change.seasons === 1 ? "" : "s"}`;
+      case "PERFORMANCE_BONUS": return `Performance bonus ${formatPence(change.amountPence)}`;
+    }
+  });
+  const rationale = result.counterRationale ? ` ${result.counterRationale}` : "";
+  const terms = details.length ? ` Counter terms: ${details.join("; ")}.` : "";
+  const roundsLeft = result.remainingRounds ?? Math.max(0, result.maxRounds - result.round);
+  return `${result.message}${rationale}${terms} ${roundsLeft} negotiation round${roundsLeft === 1 ? "" : "s"} remain.`;
 }
 
 function Terms({ terms }: { terms: SponsorTerms }) {

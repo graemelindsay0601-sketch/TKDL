@@ -196,6 +196,16 @@ export type SponsorNegotiationChange =
   | { kind: "COVERAGE_PERCENT"; index: number; percent: number }
   | { kind: "DURATION"; seasons: number }
   | { kind: "PERFORMANCE_BONUS"; key: string; amountPence: number };
+/** A package changes several existing terms together; single changes remain valid for older callers. */
+export type SponsorNegotiationPackage = SponsorNegotiationChange[];
+export type SponsorNegotiationInput = {
+  offerId: string;
+  requestKey: string;
+  expectedRevision: number;
+} & (
+  | { changes: SponsorNegotiationPackage; change?: SponsorNegotiationChange }
+  | { change: SponsorNegotiationChange; changes?: SponsorNegotiationPackage }
+);
 export type SponsorNegotiationResult = {
   outcome: "ACCEPTED" | "COUNTERED" | "REJECTED" | "WITHDRAWN" | "EXPIRED";
   round: number;
@@ -204,6 +214,9 @@ export type SponsorNegotiationResult = {
   offerId: string | null;
   message: string;
   replayed?: boolean;
+  counterRationale?: string | null;
+  counterChanges?: SponsorNegotiationPackage;
+  remainingRounds?: number;
 };
 export type SponsorSigningReveal = {
   contractId: string; playerName: string; sponsorKey: string; displayName: string; tier: string;

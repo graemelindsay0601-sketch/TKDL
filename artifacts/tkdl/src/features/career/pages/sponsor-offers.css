@@ -1137,6 +1137,186 @@ ul.career-sponsor-offer__decision-terms {
   line-height: 1.45;
 }
 
+.career-sponsor-offer__counter-note {
+  margin-top: 10px;
+  padding: 9px 11px 10px;
+  border-left: 2px solid var(--sponsor-accent);
+  background: color-mix(in srgb, var(--sponsor-accent) 9%, rgba(3, 9, 15, 0.85));
+}
+
+.career-sponsor-offer__counter-note > span,
+.career-sponsor-offer__package-review > span {
+  color: color-mix(in srgb, var(--sponsor-accent) 79%, #fff4d9);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.career-sponsor-offer__counter-note p {
+  margin: 4px 0 0;
+  color: rgba(245, 242, 232, 0.82);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.career-sponsor-offer__package-count {
+  margin-left: auto;
+  color: rgba(231, 225, 208, 0.52);
+  font-size: 0.58rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.career-sponsor-offer__package-list {
+  display: grid;
+  gap: 7px;
+}
+
+.career-sponsor-offer__package-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(90px, 0.55fr) auto;
+  align-items: end;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.career-sponsor-offer__package-row label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: rgba(226, 233, 240, 0.64);
+  font-size: 0.61rem;
+}
+
+.career-sponsor-offer__package-row select,
+.career-sponsor-offer__package-row input {
+  min-width: 0;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  background: #0a131c;
+  color: #f4f0e7;
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.career-sponsor-offer__package-row select:focus-visible,
+.career-sponsor-offer__package-row input:focus-visible,
+.career-sponsor-offer__remove-term:focus-visible,
+.career-sponsor-offer__add-term:focus-visible,
+.career-sponsor-offer__send:focus-visible {
+  outline: 2px solid #f4dc9e;
+  outline-offset: 2px;
+}
+
+.career-sponsor-offer__remove-term {
+  min-height: 34px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(235, 231, 219, 0.68);
+  font: inherit;
+  font-size: 0.6rem;
+  cursor: pointer;
+}
+
+.career-sponsor-offer__remove-term:hover {
+  border-color: rgba(244, 220, 158, 0.45);
+  color: #f4dc9e;
+}
+
+.career-sponsor-offer__validation {
+  grid-column: 1 / -1;
+  color: #f4cf87;
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.career-sponsor-offer__add-term {
+  justify-self: start;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #e9d28d;
+  font: inherit;
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.career-sponsor-offer__add-term:hover {
+  color: #fff0bd;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.career-sponsor-offer__package-review {
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--sponsor-accent) 24%, transparent);
+  background: rgba(3, 9, 15, 0.45);
+}
+
+.career-sponsor-offer__package-review ul {
+  display: grid;
+  gap: 5px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.career-sponsor-offer__package-review li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(239, 236, 226, 0.7);
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+.career-sponsor-offer__package-review li strong {
+  color: rgba(239, 236, 226, 0.86);
+  font-weight: 650;
+}
+
+.career-sponsor-offer__package-review li span {
+  flex: 0 0 auto;
+  color: #f0d28c;
+  font-variant-numeric: tabular-nums;
+}
+
+.career-sponsor-offer__send {
+  justify-self: start;
+  border-color: color-mix(in srgb, var(--sponsor-accent) 50%, transparent);
+  color: #f2d994;
+}
+
+@media (max-width: 560px) {
+  .career-sponsor-offer__package-row {
+    grid-template-columns: minmax(0, 1fr) minmax(82px, 0.55fr);
+  }
+
+  .career-sponsor-offer__remove-term {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .career-sponsor-offer__validation {
+    grid-column: 1 / -1;
+  }
+
+  .career-sponsor-offer__send {
+    width: 100%;
+  }
+}
+
 .sponsor-expiry-countdown {
   display: grid;
   min-width: 82px;

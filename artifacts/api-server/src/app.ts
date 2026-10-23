@@ -34,6 +34,7 @@ import { createCareerFinance } from "./db/migrations/create_career_finance";
 import { createCareerSPHCommercial } from "./db/migrations/create_career_sph_commercial.ts";
 import { createCareerSponsorJourneysSPB } from "./db/migrations/create_career_sponsor_journeys_spb";
 import { createCareerSponsorJourneysSPB3 } from "./db/migrations/create_career_sponsor_journeys_spb3.ts";
+import { upgradeCareerSponsorRoundsSPB4 } from "./db/migrations/upgrade_career_sponsor_rounds_spb4.ts";
 import { createCareerFinanceSPC } from "./db/migrations/create_career_finance_spc.ts";
 import { createCareerSponsorHQSPD } from "./db/migrations/create_career_sponsor_hq_spd.ts";
 import { createCareerNpcSponsorMarketSPF } from "./db/migrations/create_career_npc_sponsor_market_spf.ts";
@@ -1551,6 +1552,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerSPHCommercial", () => createCareerSPHCommercial(db));
   await runMigrationStep("createCareerSponsorJourneysSPB", () => createCareerSponsorJourneysSPB(db));
   await runMigrationStep("createCareerSponsorJourneysSPB3", () => createCareerSponsorJourneysSPB3(db));
+  await runMigrationStep("upgradeCareerSponsorRoundsSPB4", () => upgradeCareerSponsorRoundsSPB4(db));
   await runMigrationStep("createCareerFinanceSPC", () => createCareerFinanceSPC(db));
   await runMigrationStep("createCareerSponsorHQSPD", () => createCareerSponsorHQSPD(db));
   await runMigrationStep("createCareerNpcSponsorMarketSPF", () => createCareerNpcSponsorMarketSPF(db));

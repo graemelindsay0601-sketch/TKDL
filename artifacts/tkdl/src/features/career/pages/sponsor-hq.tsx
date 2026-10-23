@@ -5,7 +5,7 @@ import { errorMessage, newOperationKey, useAcceptOffer, useDeclineOffer, useNego
   useRequestSponsorRelease, useAcceptSponsorRelease, useAcknowledgeSponsorNotice } from "../api";
 import { CareerError, CareerLoading, CareerSection, OSWALD } from "../components";
 import type { ShellContext } from "../shell";
-import type { SponsorNegotiationChange, SponsorSigningReveal } from "../types";
+import type { SponsorNegotiationChange, SponsorNegotiationPackage, SponsorSigningReveal } from "../types";
 import { SponsorOfferCard } from "./sponsor-offer-card";
 import { SponsorSigningReveal as SponsorSigningRevealCard } from "./sponsor-signing-reveal";
 import { CareerShirt } from "../identity";
@@ -170,7 +170,10 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
               if(result.signingReveal&&result.status!=="SCHEDULED")setSigningReveal(result.signingReveal);
             },onError:error=>setNotice(errorMessage(error))})}
             onDecline={()=>decline.mutate(offer.id,{onSuccess:()=>setNotice("Offer declined."),onError:error=>setNotice(errorMessage(error))})}
-            onNegotiate={(change:SponsorNegotiationChange)=>negotiate.mutate({offerId:offer.id,requestKey:newOperationKey(),expectedRevision:offer.journey?.revision??0,change},{onSuccess:result=>setNotice(result.message),onError:error=>setNotice(errorMessage(error))})}
+            onNegotiate={(changes:SponsorNegotiationChange|SponsorNegotiationPackage)=>negotiate.mutate({
+              offerId:offer.id,requestKey:newOperationKey(),expectedRevision:offer.journey?.revision??0,
+              ...(Array.isArray(changes)?{changes}:{change:changes}),
+            },{onSuccess:result=>setNotice(negotiationResultNotice(result)),onError:error=>setNotice(errorMessage(error))})}
             acceptBusy={accept.isPending} declineBusy={decline.isPending} negotiateBusy={negotiate.isPending}/>)}
         </div>}
     </CareerSection>
@@ -296,4 +299,21 @@ function contractWeeksRemaining(currentSeason:number,currentWeek:number,endSeaso
   const current=(currentSeason-1)*52+currentWeek;
   const end=(endSeason-1)*52+endWeek;
   return Math.max(0,end-current+1);
+}
+
+function negotiationResultNotice(result: import("../types").SponsorNegotiationResult) {
+  if (result.outcome !== "COUNTERED") return result.message;
+  const details = (result.counterChanges ?? []).map(change => {
+    switch (change.kind) {
+      case "SIGNING_BONUS": return `Signing bonus ${money(change.amountPence)}`;
+      case "EVENT_PAYMENT": return `Payment per event ${money(change.amountPence)}`;
+      case "COVERAGE_PERCENT": return `Coverage term ${change.index + 1} at ${change.percent}%`;
+      case "DURATION": return `${change.seasons} season${change.seasons === 1 ? "" : "s"}`;
+      case "PERFORMANCE_BONUS": return `Performance bonus ${money(change.amountPence)}`;
+    }
+  });
+  const rationale = result.counterRationale ? ` ${result.counterRationale}` : "";
+  const terms = details.length ? ` Counter terms: ${details.join("; ")}.` : "";
+  const roundsLeft = result.remainingRounds ?? Math.max(0, result.maxRounds - result.round);
+  return `${result.message}${rationale}${terms} ${roundsLeft} negotiation round${roundsLeft === 1 ? "" : "s"} remain.`;
 }

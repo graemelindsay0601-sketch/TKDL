@@ -13,6 +13,7 @@ import { createCareerCalendar } from "../../db/migrations/create_career_calendar
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSponsorJourneysSPB } from "../../db/migrations/create_career_sponsor_journeys_spb.ts";
 import { createCareerSponsorJourneysSPB3 } from "../../db/migrations/create_career_sponsor_journeys_spb3.ts";
+import { upgradeCareerSponsorRoundsSPB4 } from "../../db/migrations/upgrade_career_sponsor_rounds_spb4.ts";
 import { createCareerFinanceSPC } from "../../db/migrations/create_career_finance_spc.ts";
 import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
 import { addContractConcludedSponsorEventSPE1 } from "../../db/migrations/add_contract_concluded_sponsor_event_spe1.ts";
@@ -916,16 +917,18 @@ test("SP-B3 persists result-earned interest and promotes it only when A4 later c
   });
   assert.deepEqual([acceptedRequest.outcome, acceptedRequest.round, acceptedRequest.revision], ["ACCEPTED", 2, 2]);
   assert.ok(acceptedRequest.offerId);
-  const finalOffer = (await finance.sponsors(actor, save.id)).offers.find(o => o.id === acceptedRequest.offerId)!;
-  await rejectsStatus(finance.negotiateOffer(actor, save.id, String(finalOffer.id), {
-    requestKey: "spb-counter-over-limit-003", expectedRevision: 2,
-    change: { kind: "SIGNING_BONUS", amountPence: 22_000 },
-  }), 409);
-  assert.equal(finalOffer.journey?.negotiationRounds, 2);
+  let finalOffer = (await finance.sponsors(actor, save.id)).offers.find(o => o.id === acceptedRequest.offerId)!;
+  const thirdRound = await finance.negotiateOffer(actor, save.id, String(finalOffer.id), {
+    requestKey: "spb-extra-round-003", expectedRevision: 2,
+    change: { kind: "SIGNING_BONUS", amountPence: 16_100 },
+  });
+  assert.equal(thirdRound.outcome, "ACCEPTED");
+  finalOffer = (await finance.sponsors(actor, save.id)).offers.find(o => o.id === thirdRound.offerId)!;
+  assert.equal(finalOffer.journey?.negotiationRounds, 3, "two rounds used does not exhaust the new four-round limit");
   const finalOfferId = String(finalOffer.id);
   const signed = await finance.acceptOffer(actor, save.id, { offerId: finalOfferId });
   assert.equal(signed.created, true);
-  assert.equal(signed.signingReveal?.terms.signingBonusPence, 16_000);
+  assert.equal(signed.signingReveal?.terms.signingBonusPence, 16_100);
   assert.equal(signed.signingReveal?.contractId, signed.contractId);
   assert.ok(String(signed.signingReveal?.playerName).length > 0);
   assert.ok(signed.signingReveal?.category);
@@ -935,10 +938,73 @@ test("SP-B3 persists result-earned interest and promotes it only when A4 later c
   const secondOpen = await finance.acceptOffer(actor, save.id, { offerId: finalOfferId });
   assert.equal(secondOpen.created, false);
   assert.equal(secondOpen.signingReveal, null, "a replay does not show a second signing event");
-  assert.deepEqual((await ledger(save.id)).filter(row => row.category === "SPONSOR_SIGNING_BONUS").map(row => Number(row.amount_pence)), [16_000]);
+  assert.deepEqual((await ledger(save.id)).filter(row => row.category === "SPONSOR_SIGNING_BONUS").map(row => Number(row.amount_pence)), [16_100]);
   const journey = (await rows(sql`SELECT status, signed_contract_id FROM career_sponsor_journeys WHERE career_save_id = ${save.id} AND sponsor_key = 'forge-workwear'`))[0];
   assert.deepEqual([journey.status, journey.signed_contract_id], ["SIGNED", signed.contractId]);
   assert.deepEqual((await rows(sql`SELECT status FROM career_sponsor_offers WHERE career_save_id = ${save.id} AND id = ${initialId}`))[0].status, "COUNTERED");
+});
+
+test("SP-B package negotiations counter concrete terms and allow four bounded rounds", async () => {
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  const save = await career();
+  await createResultApproaches(save.id, "package-negotiation-result");
+  let offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.sponsorKey === "forge-workwear")!;
+  const packageResult = await finance.negotiateOffer(actor, save.id, String(offer.id), {
+    requestKey: "package-counter-000001",
+    expectedRevision: offer.journey!.revision,
+    changes: [
+      { kind: "SIGNING_BONUS", amountPence: 17_000 },
+      { kind: "DURATION", seasons: 2 },
+    ],
+  });
+  assert.equal(packageResult.outcome, "COUNTERED");
+  assert.equal(packageResult.round, 1);
+  assert.ok(packageResult.counterRationale);
+  assert.equal(packageResult.counterChanges?.length, 2);
+  assert.ok(packageResult.remainingRounds);
+  offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.id === packageResult.offerId)!;
+  assert.ok(offer);
+  assert.notEqual(offer.terms.signingBonusPence, 17_000, "the sponsor counter is a concrete figure, not the player's ask");
+
+  for (let round = 2; round <= 4; round += 1) {
+    const result = await finance.negotiateOffer(actor, save.id, String(offer.id), {
+      requestKey: `package-round-${round}-00001`,
+      expectedRevision: offer.journey!.revision,
+      change: { kind: "SIGNING_BONUS", amountPence: offer.terms.signingBonusPence + 100 },
+    });
+    assert.ok(result.offerId);
+    offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.id === result.offerId)!;
+  }
+  assert.equal(offer.journey?.negotiationRounds, 4);
+  await rejectsStatus(finance.negotiateOffer(actor, save.id, String(offer.id), {
+    requestKey: "package-round-five-0001",
+    expectedRevision: offer.journey!.revision,
+    change: { kind: "SIGNING_BONUS", amountPence: offer.terms.signingBonusPence + 100 },
+  }), 409);
+});
+
+test("SP-B4 widens legacy negotiation limits without changing existing save history", async () => {
+  const save = await career();
+  Object.assign(fixture, { titles: 1, bestFinishByCircuit: { GRASSROOTS: 1 } });
+  await finance.evaluateOffers(actor, save.id, { triggerKey: "legacy-round-limit" });
+  const offer = (await finance.sponsors(actor, save.id)).offers.find(candidate => candidate.sponsorKey === "forge-workwear")!;
+  await db.execute(sql`ALTER TABLE career_sponsor_journeys DROP CONSTRAINT career_sponsor_journeys_negotiation_rounds_check`);
+  await db.execute(sql`ALTER TABLE career_sponsor_journeys ADD CONSTRAINT career_sponsor_journeys_negotiation_rounds_check CHECK (negotiation_rounds BETWEEN 0 AND 2)`);
+  await db.execute(sql`ALTER TABLE career_sponsor_negotiations DROP CONSTRAINT career_sponsor_negotiations_round_check`);
+  await db.execute(sql`ALTER TABLE career_sponsor_negotiations ADD CONSTRAINT career_sponsor_negotiations_round_check CHECK (round BETWEEN 1 AND 2)`);
+  await db.execute(sql`UPDATE career_sponsor_journeys SET negotiation_rounds=2 WHERE career_save_id=${save.id} AND current_offer_id=${offer.id}`);
+  const before = (await rows(sql`SELECT status,revision,negotiation_rounds FROM career_sponsor_journeys
+    WHERE career_save_id=${save.id} AND current_offer_id=${offer.id}`))[0]!;
+
+  await upgradeCareerSponsorRoundsSPB4(db);
+  await upgradeCareerSponsorRoundsSPB4(db);
+
+  const after = (await rows(sql`SELECT status,revision,negotiation_rounds FROM career_sponsor_journeys
+    WHERE career_save_id=${save.id} AND current_offer_id=${offer.id}`))[0]!;
+  assert.deepEqual(after,before,"the additive migration preserves the existing negotiation record");
+  await db.execute(sql`UPDATE career_sponsor_journeys SET negotiation_rounds=3 WHERE career_save_id=${save.id} AND current_offer_id=${offer.id}`);
+  assert.equal((await rows(sql`SELECT negotiation_rounds FROM career_sponsor_journeys
+    WHERE career_save_id=${save.id} AND current_offer_id=${offer.id}`))[0]!.negotiation_rounds,3);
 });
 
 test("SP-B negotiation rejects extreme asks, records sponsor rejection, and preserves walk-away state", async () => {

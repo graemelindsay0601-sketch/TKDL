@@ -9,7 +9,7 @@ import { publicText } from "./model";
 import type {
   AdvanceResult, CalendarResponse, CareerSave, CareerSaveList, EventDetail, FinanceSummary, HistoryRow, LedgerEntry, Milestone, QSchoolView,
   QualificationResponse, CareerProfile, LiveSession, LiveDart, RankingExplain, RankingHistory, RankingListMeta, RankingTable, SponsorsResponse, SportingSummary, TourCardView,
-  SponsorNegotiationChange, SponsorNegotiationResult, SponsorSigningReveal,
+  SponsorNegotiationChange, SponsorNegotiationInput, SponsorNegotiationResult, SponsorSigningReveal,
 } from "./types";
 
 /**
@@ -316,7 +316,7 @@ export const careerRequests = {
   withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),
   acceptOffer: (saveId: string, offerId: string,replaceContractIds?:string[]) => send<{ contractId: string; sponsorKey: string; created: boolean; status: string; signingReveal: SponsorSigningReveal|null }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`,replaceContractIds?.length?{replaceContractIds}:undefined),
   declineOffer: (saveId: string, offerId: string) => send<unknown>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/decline`),
-  negotiateOffer: (saveId: string, offerId: string, input: { requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) =>
+  negotiateOffer: (saveId: string, offerId: string, input: { requestKey: string; expectedRevision: number; change?: SponsorNegotiationChange; changes?: SponsorNegotiationChange[] }) =>
     send<SponsorNegotiationResult>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/negotiate`, input),
   /**
    * A3 advance: retry-safe via a client-generated operation key; expected position guards against stale screens.
@@ -375,7 +375,7 @@ export const useEnterEvents = (saveId: string) => useSaveMutation(saveId, async 
 export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.withdraw(saveId, eventId));
 export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (input: string|{offerId:string;replaceContractIds:string[]}) => typeof input==="string"?careerRequests.acceptOffer(saveId,input):careerRequests.acceptOffer(saveId,input.offerId,input.replaceContractIds));
 export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));
-export const useNegotiateOffer = (saveId: string) => useSaveMutation(saveId, (input: { offerId: string; requestKey: string; expectedRevision: number; change: SponsorNegotiationChange }) => {
+export const useNegotiateOffer = (saveId: string) => useSaveMutation(saveId, (input: SponsorNegotiationInput) => {
   const { offerId, ...body } = input;
   return careerRequests.negotiateOffer(saveId, offerId, body);
 });

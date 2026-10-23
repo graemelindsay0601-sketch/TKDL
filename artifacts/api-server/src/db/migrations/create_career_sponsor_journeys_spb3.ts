@@ -8,6 +8,15 @@ import type { CareerDatabase } from "../../career/database.ts";
  */
 export async function createCareerSponsorJourneysSPB3(database: CareerDatabase): Promise<void> {
   await database.transaction(async tx => {
+    // SP-B4 widens the negotiation window. Keep test databases and rebuilt
+    // schemas aligned; the registered additive migration upgrades live saves.
+    await tx.execute(sql`ALTER TABLE career_sponsor_journeys DROP CONSTRAINT IF EXISTS career_sponsor_journeys_negotiation_rounds_check`);
+    await tx.execute(sql`ALTER TABLE career_sponsor_journeys ADD CONSTRAINT career_sponsor_journeys_negotiation_rounds_check
+      CHECK (negotiation_rounds BETWEEN 0 AND 4)`);
+    await tx.execute(sql`ALTER TABLE career_sponsor_negotiations DROP CONSTRAINT IF EXISTS career_sponsor_negotiations_round_check`);
+    await tx.execute(sql`ALTER TABLE career_sponsor_negotiations ADD CONSTRAINT career_sponsor_negotiations_round_check
+      CHECK (round BETWEEN 1 AND 4)`);
+
     await tx.execute(sql`ALTER TABLE career_sponsor_journeys
       ALTER COLUMN opening_offer_id DROP NOT NULL,
       ALTER COLUMN current_offer_id DROP NOT NULL`);

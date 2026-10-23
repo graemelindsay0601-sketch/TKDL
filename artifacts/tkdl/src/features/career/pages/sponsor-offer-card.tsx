@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { ConfirmButton } from "../components";
 import { circuitLabel, formatPence, ledgerLabel, titleCase } from "../model";
-import type { SponsorContract, SponsorJourneyEvent, SponsorNegotiationChange, SponsorOffer } from "../types";
+import type { SponsorContract, SponsorJourneyEvent, SponsorNegotiationChange, SponsorNegotiationPackage, SponsorOffer } from "../types";
 import { formatGuaranteeAmountPence, formatGuaranteeInstalmentSplit } from "./sponsor-guarantee-presentation";
 import "./sponsor-offers.css";
 
@@ -30,7 +30,7 @@ type SponsorOfferCardProps = {
   onReplacementChange: (contractId: string, checked: boolean) => void;
   onAccept: () => void;
   onDecline: () => void;
-  onNegotiate: (change: SponsorNegotiationChange) => void;
+  onNegotiate: (changes: SponsorNegotiationChange | SponsorNegotiationPackage) => void;
   acceptBusy: boolean;
   declineBusy: boolean;
   negotiateBusy: boolean;
@@ -51,8 +51,8 @@ export function SponsorOfferCard({
   negotiateBusy,
 }: SponsorOfferCardProps) {
   const { terms } = offer;
-  const [selectedTerm, setSelectedTerm] = useState("SIGNING_BONUS");
-  const [requestedValue, setRequestedValue] = useState(String(Math.round(terms.signingBonusPence / 100)));
+  const [selectedTerms, setSelectedTerms] = useState(["SIGNING_BONUS"]);
+  const [requestedValues, setRequestedValues] = useState<Record<string, string>>({});
   const accent = isHexColour(terms.presentation.colour) ? terms.presentation.colour : "#d8b669";
   const monogram = getMonogram(terms.displayName);
   const catalogueRefresh = offer.source?.catalogueRefresh as { fromVersion?: number; toVersion?: number } | undefined;
@@ -73,49 +73,50 @@ export function SponsorOfferCard({
       value: `PERFORMANCE:${encodeURIComponent(bonus.key)}`, label: `${bonus.maxPosition === 1 ? "Winner" : `Top ${bonus.maxPosition}`} bonus`, current: Math.round(bonus.amountPence / 100), unit: "£", kind: "money" as const,
     })),
   ];
-  const selected = negotiableTerms.find(term => term.value === selectedTerm) ?? negotiableTerms[0];
   const journey = offer.journey ?? null;
   const canNegotiate = !retired && journey && ["OFFERED", "NEGOTIATING"].includes(journey.status) && journey.negotiationRounds < journey.maxRounds;
-  const requestedNumber = Number(requestedValue);
-  const minRequested = selected.kind === "percent" ? 1
-    : selected.kind === "duration" ? (terms.duration.kind === "REMAINDER_OF_SEASON" ? 2 : 1)
-    : selected.value.startsWith("PERFORMANCE:") ? 1 : 0;
-  const maxRequested = selected.kind === "duration" ? 5
-    : selected.kind === "percent" ? 100
-    : 20_000_000;
-  const sameAsCurrent = selected.kind === "duration" && terms.duration.kind === "REMAINDER_OF_SEASON"
-    ? false
-    : Number.isFinite(requestedNumber) && requestedNumber === selected.current;
-  const validProposal = requestedValue.trim() !== ""
-    && Number.isInteger(requestedNumber)
-    && requestedNumber >= minRequested
-    && requestedNumber <= maxRequested
-    && !sameAsCurrent;
+  const selectedProposals = selectedTerms
+    .map(value => negotiableTerms.find(term => term.value === value))
+    .filter((term): term is (typeof negotiableTerms)[number] => !!term)
+    .map(term => {
+      const requestedValue = requestedValues[term.value] ?? String(term.kind === "duration" && terms.duration.kind === "REMAINDER_OF_SEASON" ? 2 : term.current);
+      const requestedNumber = Number(requestedValue);
+      const minRequested = term.kind === "percent" ? 1
+        : term.kind === "duration" ? (terms.duration.kind === "REMAINDER_OF_SEASON" ? 2 : 1)
+        : term.value.startsWith("PERFORMANCE:") ? 1 : 0;
+      const maxRequested = term.kind === "duration" ? 5 : term.kind === "percent" ? 100 : 20_000_000;
+      const sameAsCurrent = !(term.kind === "duration" && terms.duration.kind === "REMAINDER_OF_SEASON")
+        && Number.isFinite(requestedNumber) && requestedNumber === term.current;
+      const valid = requestedValue.trim() !== "" && Number.isInteger(requestedNumber)
+        && requestedNumber >= minRequested && requestedNumber <= maxRequested && !sameAsCurrent;
+      return { term, requestedValue, requestedNumber, minRequested, maxRequested, valid };
+    });
+  const validProposal = selectedProposals.length > 0 && selectedProposals.every(proposal => proposal.valid);
   const activeConflicts = activeContracts.filter(contract => offer.conflictingContractIds?.includes(contract.id));
   const replacementRequired = offer.portfolioFull || activeConflicts.length > 0;
   const acceptBlockedByReplacement = replacementDisabled && replacementRequired;
   const unsignable = unsignableOfferReason(offer);
-  const changeTerm = (value: string) => {
-    setSelectedTerm(value);
-    const next = negotiableTerms.find(term => term.value === value);
-    if (next) setRequestedValue(String(next.current));
+  const changeTerm = (index: number, value: string) =>
+    setSelectedTerms(previous => previous.map((term, position) => position === index ? value : term));
+  const addTerm = () => {
+    const next = negotiableTerms.find(term => !selectedTerms.includes(term.value));
+    if (next && selectedTerms.length < 3) setSelectedTerms(previous => [...previous, next.value]);
   };
   const submitNegotiation = () => {
     if (!validProposal) return;
-    const amount = requestedNumber;
-    if (selected.kind === "percent") {
-      const index = Number(selected.value.split(":")[1]);
-      onNegotiate({ kind: "COVERAGE_PERCENT", index, percent: amount });
-    } else if (selected.kind === "duration") {
-      onNegotiate({ kind: "DURATION", seasons: amount });
-    } else if (selected.value === "EVENT_PAYMENT") {
-      onNegotiate({ kind: "EVENT_PAYMENT", amountPence: amount * 100 });
-    } else if (selected.value.startsWith("PERFORMANCE:")) {
-      onNegotiate({ kind: "PERFORMANCE_BONUS", key: decodeURIComponent(selected.value.slice("PERFORMANCE:".length)), amountPence: amount * 100 });
-    } else {
-      onNegotiate({ kind: "SIGNING_BONUS", amountPence: amount * 100 });
-    }
+    const changes = selectedProposals.map(({ term, requestedNumber }) => {
+      if (term.kind === "percent") return { kind: "COVERAGE_PERCENT", index: Number(term.value.split(":")[1]), percent: requestedNumber } as const;
+      if (term.kind === "duration") return { kind: "DURATION", seasons: requestedNumber } as const;
+      if (term.value === "EVENT_PAYMENT") return { kind: "EVENT_PAYMENT", amountPence: requestedNumber * 100 } as const;
+      if (term.value.startsWith("PERFORMANCE:")) return {
+        kind: "PERFORMANCE_BONUS", key: decodeURIComponent(term.value.slice("PERFORMANCE:".length)), amountPence: requestedNumber * 100,
+      } as const;
+      return { kind: "SIGNING_BONUS", amountPence: requestedNumber * 100 } as const;
+    });
+    onNegotiate(changes);
   };
+  const latestCounter = journey?.timeline.slice().reverse().find(event => event.type === "SPONSOR_COUNTERED");
+  const counterRationale = latestCounter ? journeyCounterRationale(latestCounter) : null;
 
   return (
     <article
@@ -190,6 +191,12 @@ export function SponsorOfferCard({
             {approachIntroduction(journey.timeline) && (
               <p className="career-sponsor-offer__approach-copy">{approachIntroduction(journey.timeline)}</p>
             )}
+            {counterRationale && (
+              <aside className="career-sponsor-offer__counter-note" aria-label="Sponsor counter rationale">
+                <span>Why the sponsor countered</span>
+                <p>{counterRationale}</p>
+              </aside>
+            )}
             <ol className="career-sponsor-offer__timeline">
               {journey.timeline.slice(-4).map(event => (
                 <li key={`${event.type}-${event.createdAt}`} data-kind={event.type}>
@@ -204,40 +211,73 @@ export function SponsorOfferCard({
               <div className="career-sponsor-offer__negotiation">
                 <div className="career-sponsor-offer__section-heading">
                   <span className="career-sponsor-offer__index">ASK</span>
-                  <h4>Propose one term</h4>
+                  <h4>Propose a package</h4>
+                  <span className="career-sponsor-offer__package-count">{selectedTerms.length} / 3 terms</span>
                 </div>
-                <div className="career-sponsor-offer__negotiation-controls">
-                  <label>
-                    <span>Term</span>
-                    <select value={selected.value} onChange={event => changeTerm(event.target.value)}>
-                      {negotiableTerms.map(term => <option key={term.value} value={term.value}>{term.label}</option>)}
-                    </select>
-                  </label>
-                  <label>
-                    <span>Requested value {selected.kind === "money" ? "(£)" : `(${selected.unit})`}</span>
-                    <input
-                      type="number"
-                      min={minRequested}
-                      max={maxRequested}
-                      step="1"
-                      value={requestedValue}
-                      onChange={event => setRequestedValue(event.target.value)}
-                    />
-                  </label>
-                  <button type="button" className="career-btn career-btn-ghost" disabled={negotiateBusy || !validProposal} onClick={submitNegotiation}>
-                    {negotiateBusy ? "Sending…" : "Send proposal"}
+                <div className="career-sponsor-offer__package-list">
+                  {selectedProposals.map(({ term, requestedValue, requestedNumber, minRequested, maxRequested, valid }, index) => (
+                    <div className="career-sponsor-offer__package-row" key={`${offer.id}-${index}`}>
+                      <label>
+                        <span>Term {String(index + 1).padStart(2, "0")}</span>
+                        <select value={term.value} aria-label={`Package term ${index + 1}`}
+                          onChange={event => changeTerm(index, event.target.value)}>
+                          {negotiableTerms.map(option => (
+                            <option key={option.value} value={option.value}
+                              disabled={selectedTerms.some((picked, position) => position !== index && picked === option.value)}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Requested {term.kind === "money" ? "(£)" : `(${term.unit})`}</span>
+                        <input type="number" inputMode="numeric" min={minRequested} max={maxRequested} step="1"
+                          aria-label={`Requested ${term.label}`}
+                          value={requestedValue}
+                          onChange={event => setRequestedValues(previous => ({ ...previous, [term.value]: event.target.value }))} />
+                      </label>
+                      {selectedTerms.length > 1 && (
+                        <button type="button" className="career-sponsor-offer__remove-term"
+                          aria-label={`Remove ${term.label} from package`}
+                          onClick={() => setSelectedTerms(previous => previous.filter((_, position) => position !== index))}>
+                          Remove
+                        </button>
+                      )}
+                      {!valid && (
+                        <small role="status" className="career-sponsor-offer__validation">
+                          {requestedValue.trim() === "" || !Number.isInteger(requestedNumber)
+                            ? "Enter a whole-number value."
+                            : requestedNumber < minRequested || requestedNumber > maxRequested
+                              ? `Choose ${minRequested.toLocaleString("en-GB")}–${maxRequested.toLocaleString("en-GB")} ${term.unit}.`
+                              : "Choose a value different from the current offer."}
+                        </small>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {selectedTerms.length < 3 && selectedTerms.length < negotiableTerms.length && (
+                  <button type="button" className="career-sponsor-offer__add-term" onClick={addTerm}>
+                    Add another existing term
                   </button>
-                </div>
-                {!validProposal && (
-                  <small role="status" className="career-sponsor-offer__validation">
-                    {requestedValue.trim() === "" || !Number.isInteger(requestedNumber)
-                      ? "Enter a whole-number value."
-                      : requestedNumber < minRequested || requestedNumber > maxRequested
-                        ? `Choose a value from ${minRequested.toLocaleString("en-GB")} to ${maxRequested.toLocaleString("en-GB")} ${selected.unit}.`
-                        : "Choose a different value from the current offer before sending."}
-                  </small>
                 )}
-                <small>Only terms already in this offer can change. The sponsor can agree, counter, reject, or withdraw; at most two rounds.</small>
+                <div className="career-sponsor-offer__package-review" aria-live="polite">
+                  <span>Request for review</span>
+                  <ul>{selectedProposals.map(({ term, requestedNumber }, index) => (
+                    <li key={`${term.value}-${index}`}>
+                      <strong>{term.label}</strong>
+                      <span>{formatRequestedValue(term, requestedNumber)}</span>
+                    </li>
+                  ))}</ul>
+                </div>
+                <button type="button" className="career-btn career-btn-ghost career-sponsor-offer__send"
+                  disabled={negotiateBusy || !validProposal} onClick={submitNegotiation}>
+                  {negotiateBusy ? "Sending package…" : `Send ${selectedTerms.length}-term proposal`}
+                </button>
+                <small>
+                  {Math.max(0, journey.maxRounds - journey.negotiationRounds)} negotiation
+                  {journey.maxRounds - journey.negotiationRounds === 1 ? " round remains" : " rounds remain"}.
+                  Only terms already in this offer can change. The sponsor may agree, counter, reject, or withdraw; no outcome is guaranteed.
+                </small>
               </div>
             )}
           </section>
@@ -516,6 +556,21 @@ function getMonogram(name: string) {
 
 function isHexColour(value: string) {
   return /^#[\da-f]{6}$/i.test(value);
+}
+
+function formatRequestedValue(term: { kind: "money" | "percent" | "duration"; unit: string }, value: number) {
+  return term.kind === "money"
+    ? new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(value)
+    : `${value.toLocaleString("en-GB")} ${term.unit}`;
+}
+
+function journeyCounterRationale(event: SponsorJourneyEvent) {
+  const details = event.details;
+  for (const key of ["counterRationale", "rationale", "summary", "headline"]) {
+    const value = details[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
 }
 
 function approachIntroduction(events: SponsorJourneyEvent[]) {
