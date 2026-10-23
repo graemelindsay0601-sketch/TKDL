@@ -3,6 +3,7 @@ import { recordsView, type RecordEntry, type WorldRecordsView } from "./_fixture
 import hallOfFameMedallion from "./assets/hall-of-fame-medallion.png";
 import "./_group.css";
 import "../../../../../tkdl/src/features/career/pages/records-book.css";
+import "./Current.css";
 
 type RecordGroup = WorldRecordsView["records"][number];
 type RecordKey = RecordGroup["key"];

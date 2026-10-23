@@ -1,0 +1,65 @@
+.wr-current .records-book {
+  font-family: "Montserrat", sans-serif;
+}
+
+.wr-current .records-book .rb-hero h1,
+.wr-current .records-book .rb-box h2 {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -.035em;
+  text-transform: none;
+}
+
+.wr-current .records-book .rb-hero h1 {
+  letter-spacing: -.055em;
+}
+
+.wr-current .records-book .rb-hero-art,
+.wr-current .records-book .rb-box {
+  border-radius: 16px;
+}
+
+.wr-current .records-book .rb-hero-art::after {
+  border-radius: 10px;
+}
+
+.wr-current .records-book .rb-box::before {
+  border-radius: 11px;
+}
+
+.wr-current .records-book .rb-edition b {
+  border-radius: 999px;
+}
+
+.wr-current .records-book .rb-brand,
+.wr-current .records-book .rb-brand small,
+.wr-current .records-book .rb-edition,
+.wr-current .records-book .rb-disclosure,
+.wr-current .records-book .rb-overline,
+.wr-current .records-book .rb-rule,
+.wr-current .records-book .rb-art-label,
+.wr-current .records-book .rb-art-caption,
+.wr-current .records-book .rb-section-rule,
+.wr-current .records-book .rb-index,
+.wr-current .records-book .rb-index span,
+.wr-current .records-book .rb-rank,
+.wr-current .records-book .rb-player-name,
+.wr-current .records-book .rb-player-name i,
+.wr-current .records-book .rb-personal-seal,
+.wr-current .records-book .rb-value,
+.wr-current .records-book .rb-value small,
+.wr-current .records-book .rb-book-note b,
+.wr-current .records-book .rb-feature-value,
+.wr-current .records-book .rb-feature-value small,
+.wr-current .records-book .rb-ranking-label,
+.wr-current .records-book .rb-card-value strong,
+.wr-current .records-book .rb-footer-mark,
+.wr-current .records-book .rb-footer p,
+.wr-current .records-book .rb-personal-count,
+.wr-current .records-book .rb-personal-count strong {
+  font-family: "Montserrat", sans-serif;
+}
+
+.wr-current .records-book .rb-art-caption {
+  font-family: "Playfair Display", Georgia, serif;
+}
