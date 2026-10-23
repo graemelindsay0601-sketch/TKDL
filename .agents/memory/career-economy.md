@@ -7,6 +7,8 @@ Review the Career economy across all routes, not only tournament prize money or 
 
 Living costs must never be forced. Earnings should fund optional lifestyle and progression purchases, blending practical economic benefits with lifestyle milestones. Purchases are one-off and ledger-backed; practical upgrades must not change darts ability. DartCast studio investments improve future audience reach.
 
-**Why:** the user said the economy and sponsors may be weak across Career, streamers need an independent livelihood path, and Career purchases should mix lifestyle goals with practical benefits.
+A player at £0 needs a visible free/low-cost route to continue, but recovery income must still depend on results rather than guaranteed cash. Strong play should accelerate rankings, sponsorship and earnings beyond a baseline progression pace.
 
-**How to apply:** compare income and costs across amateur, pro, sponsor, manager, event-hosting, and streamer paths; keep purchases optional, ledger-backed, and compatible with existing saves.
+**Why:** the user wants both a meaningful risk of failure and a fair chance to survive, continue their chosen route, and advance faster when playing well.
+
+**How to apply:** compare weak, typical and strong outcomes across amateur, pro, sponsor, manager, event-hosting, and streamer paths. Surface affordable recovery options; keep costs optional where intended, purchases ledger-backed, and existing saves compatible.

@@ -26,6 +26,10 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
   const fin = useFinance(save.id);
   const sponsors = useSponsors(save.id);
   const schedule = useCalendar(save.id, { scope: "MY_SCHEDULE", season: save.currentSeason });
+  const recoveryMode = (fin.data?.availablePence ?? Number.POSITIVE_INFINITY) < 10_000;
+  const recoveryCalendar = useCalendar(save.id, {
+    scope: "AVAILABLE", fromWeek: save.currentWeek, toWeek: Math.min(52, save.currentWeek + 8),
+  }, recoveryMode);
   const accept = useAcceptOffer(save.id);
   const decline = useDeclineOffer(save.id);
   const negotiate = useNegotiateOffer(save.id);
@@ -45,6 +49,11 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
   const unlocks = useUnlocks(save);
   const showSponsors = unlocks.isOpen("sponsors") || active.length > 0 || pendingOffers > 0 || sponsorInterests.length > 0
     || (sponsors.data?.history.contracts.length ?? 0) > 0 || (sponsors.data?.history.offers.length ?? 0) > 0;
+  const recoveryEvents = (recoveryCalendar.data?.events ?? [])
+    .filter(event => event.finance?.affordable && event.finance.estimatedPlayerCostPence <= (fin.data?.availablePence ?? 0))
+    .sort((a, b) => a.finance!.estimatedPlayerCostPence - b.finance!.estimatedPlayerCostPence
+      || a.dates.startWeek - b.dates.startWeek)
+    .slice(0, 3);
 
   return (
     <div className="career-finances-page space-y-3">
@@ -77,8 +86,38 @@ export function FinancesPage({ ctx }: { ctx: ShellContext }) {
           </div>
         </>
       )}
+      <CareerSection title="Where Career income comes from" icon={<Coins className="w-3.5 h-3.5" />} accent="#4ade80">
+        <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+          <div><strong>Competition</strong><p className="mt-1 text-xs text-white/70">Prize money, qualification access and later appearance fees. Bigger events pay more, but usually cost more to reach and enter.</p></div>
+          <div><strong>Sponsors</strong><p className="mt-1 text-xs text-white/70">Signing money, scheduled guarantees, event payments, earned bonuses and help with eligible costs. Bonuses are conditional; future instalments are not advance cash.</p></div>
+          <div><strong>DartCast</strong><p className="mt-1 text-xs text-white/70">Streaming is free to start. At 50 followers, cheers and ads unlock; Partner brings memberships, brand deals and one-off campaigns.</p></div>
+          <div><strong>Other routes</strong><p className="mt-1 text-xs text-white/70">Webcam-league prizes, Pro-Am appearance fees for touring pros, hosting and money matches. Some need upfront fees or stakes, so returns carry risk.</p></div>
+        </div>
+      </CareerSection>
       {fin.data && !fin.data.reconciled && <div role="alert" className="pdc-card px-4 py-2 text-sm" style={{ color: TONES.danger }}>The ledger and balance cache disagree — please report this.</div>}
       {msg && <p role="status" className="pdc-card px-4 py-2 text-sm" style={{ color: "#fff" }}>{msg}</p>}
+      {recoveryMode && fin.data && <CareerSection title="Keep your route moving" icon={<CalendarClock className="w-3.5 h-3.5" />} accent="#4ade80">
+        <div className="space-y-3 p-4">
+          <p className="text-sm">There are no mandatory living costs. When cash is tight, you can still enter free events and stream without an entry fee. Free-event prizes depend on your result; they are a chance to rebuild, not guaranteed income.</p>
+          {recoveryCalendar.isLoading ? <CareerLoading label="Finding affordable events" /> : recoveryCalendar.error ? (
+            <CareerError error={recoveryCalendar.error} onRetry={() => recoveryCalendar.refetch()} />
+          ) : recoveryEvents.length ? (
+            <ul className="space-y-2">
+              {recoveryEvents.map(event => (
+                <li key={event.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+                  <Link href={`/career/${save.id}/events/${event.id}`} className="min-w-0 flex-1 font-bold text-white underline-offset-2 hover:underline">{event.name}</Link>
+                  <span className="text-xs text-white/65">Week {event.dates.startWeek}</span>
+                  <span className="font-bold tabular-nums text-emerald-300">{event.finance!.estimatedPlayerCostPence === 0 ? "Free to enter" : `Costs up to ${formatPence(event.finance!.estimatedPlayerCostPence)}`}</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-sm text-white/70">No affordable event appears in the next eight weeks. DartCast streams have no entry cost and can be played alongside your competition route.</p>}
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/career/${save.id}/streaming`} className="rounded-md border px-3 py-2 text-xs font-bold text-white hover:bg-white/10" style={{ borderColor: "rgba(255,255,255,0.16)" }}>Open DartCast</Link>
+            <Link href={`/career/${save.id}/calendar`} className="rounded-md border px-3 py-2 text-xs font-bold text-white/75 hover:bg-white/10" style={{ borderColor: "rgba(255,255,255,0.1)" }}>View full calendar</Link>
+          </div>
+        </div>
+      </CareerSection>}
       {signingReveal && <SponsorSigningRevealCard deal={signingReveal} onDismiss={() => setSigningReveal(null)} />}
       <CareerSection title="Savings goal" icon={<Wallet className="w-3.5 h-3.5" />} accent="#d9b96f">
         <SavingsGoalPanel saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired} />
