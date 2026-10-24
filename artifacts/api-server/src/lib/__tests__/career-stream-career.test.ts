@@ -21,7 +21,7 @@ import { repairCareerSchema } from "../../db/migrations/repair_career_schema.ts"
 import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerStreamingService } from "../../career/streaming/service.ts";
-import { FOLLOWER_FANS, INVITATIONAL, charityFans, invitationalPrize, streamIncome } from "../../career/streaming/model.ts";
+import { FOLLOWER_FANS, INVITATIONAL, charityFans, collabFollowers, creatorSeriesCollabFit, invitationalPrize, streamIncome } from "../../career/streaming/model.ts";
 import { loadFanFollowing } from "../../career/fans/service.ts";
 import { createCareerLiveMatchService } from "../../career/live/service.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
@@ -158,6 +158,9 @@ test("a creator season series tracks one matching show per quarter and rewards t
   const selected = await streaming.chooseCreatorSeries(actor, id, { seriesKey: "HEADLINER" });
   assert.equal(selected.creatorSeries.selected?.key, "HEADLINER");
   assert.equal(selected.creatorSeries.availableChapters, 3, "a mid-season start has three chapters remaining");
+  assert.equal(selected.collabs.find(c => c.key === "the-maximiser")?.seriesFit, true);
+  assert.equal(creatorSeriesCollabFit("HEADLINER", "the-maximiser"), true);
+  assert.ok(collabFollowers(1000, true, true) > collabFollowers(1000, true), "on-brand collaborations transfer a larger audience share");
   const chapterWeeks = [14, 27, 40];
   for (const week of chapterWeeks) {
     await db.execute(sql`UPDATE career_saves SET current_week=${week} WHERE id=${id}`);
@@ -173,4 +176,15 @@ test("a creator season series tracks one matching show per quarter and rewards t
   assert.equal(v.creatorSeries.completed, 3);
   assert.equal(v.creatorSeries.chapters[0].status, "NOT_STARTED", "a mid-season start does not penalize earlier quarters");
   await status(streaming.chooseCreatorSeries(actor, id, { seriesKey: "SKILL_LAB" }));
+});
+
+test("a creator series shapes the next sponsor campaign without changing its audience-based fee", async () => {
+  await db.execute(sql`UPDATE career_stream_campaigns SET status='DECLINED' WHERE career_save_id=${id} AND status IN ('OFFERED','ACTIVE','IN_PROGRESS')`);
+  await db.execute(sql`UPDATE career_stream_channels SET followers=1500 WHERE career_save_id=${id}`);
+  await db.transaction(tx => settleStreamingWeek(tx, { id, world_seed: HARNESS_SEED }, 1, 17));
+  const v = await streaming.read(actor, id);
+  assert.equal(v.campaignOffer?.seriesKey, "HEADLINER");
+  assert.ok(["CHALLENGER", "KING"].includes(v.campaignOffer!.requiredFormat), "the brief fits the channel's series identity");
+  assert.match(v.campaignOffer!.brief, /The Headliner/);
+  assert.ok(v.campaignOffer!.rewardPence >= 5000, "sponsorship still pays from recent live audience");
 });

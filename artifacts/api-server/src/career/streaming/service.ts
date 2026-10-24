@@ -12,7 +12,7 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -29,7 +29,7 @@ const isDrill = (format: string) => format === "CHECKOUTS" || format === "BOBS_2
 type Challenger = { name: string; avg: number; bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string } | null;
   /** A collab: the streamer and their audience when you went live. */
   streamer?: { key: string; followers: number } };
-export type StreamCampaign = { id:string; sponsorKey:string; sponsorName:string; requiredFormat:StreamFormat; requiredFormatName:string; brief:string; rewardPence:number; expiresWeek:number };
+export type StreamCampaign = { id:string; sponsorKey:string; sponsorName:string; requiredFormat:StreamFormat; requiredFormatName:string; brief:string; rewardPence:number; expiresWeek:number; seriesKey:string|null; seriesName:string|null };
 export type StreamSession = { id: string; status: "LIVE" | "ENDED"; season: number; week: number; dayOfWeek: number; handle: string; tier: TierKey;
   streamFormat: StreamFormat; formatName: string;
   campaign:Omit<StreamCampaign,"expiresWeek">|null;
@@ -48,7 +48,7 @@ export type Deal = { id: string; brand: string; what: string; perStreamPence: nu
 export type SubGoal = { season: number; month: number; endsWeek: number; target: number; promise: string; progress: number; status: "ON" | "HIT" | "MISSED" };
 export type CreatorSeries = { key: "HEADLINER" | "SKILL_LAB" | "CLUBHOUSE"; name: string; tagline: string; description: string };
 export type CreatorSeriesState = { selected: CreatorSeries | null; options: CreatorSeries[]; startedWeek: number | null;
-  chapters: { quarter: number; title: string; status: "DONE" | "CURRENT" | "UPCOMING" | "MISSED" | "NOT_STARTED"; format: StreamFormat | null; bonusFollowers: number }[];
+  chapters: { quarter: number; title: string; story: string; status: "DONE" | "CURRENT" | "UPCOMING" | "MISSED" | "NOT_STARTED"; format: StreamFormat | null; bonusFollowers: number }[];
   completed: number; availableChapters: number; finale: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETE" | "INCOMPLETE" };
 export type StreamingView = {
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
@@ -73,7 +73,7 @@ export type StreamingView = {
   subGoal: SubGoal | null; goalOptions: { targets: readonly number[]; promises: readonly string[] } | null;
   creatorSeries: CreatorSeriesState;
   /** Streamers you could collab with (their audience now, and whether they'd say yes). */
-  collabs: { key: string; handle: string; followers: number; avg: number; blurb: string; ok: boolean; why: string | null }[];
+  collabs: { key: string; handle: string; followers: number; avg: number; blurb: string; ok: boolean; why: string | null; seriesFit: boolean }[];
   /** The DartCast Invitational: open to you now?, the field, and how you did this season. */
   invitational: { open: boolean; why: string | null; fromWeek: number; field: { handle: string; followers: number; avg: number }[]; prizePence: readonly number[];
     result: { wins: number; prizePence: number } | null };
@@ -102,7 +102,8 @@ const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), bran
   perStreamPence: Number(r.per_stream_pence), streamsTotal: Number(r.streams_total), streamsDone: Number(r.streams_done), expiresWeek: Number(r.expires_week) });
 const campaignFrom=(r:Record<string,unknown>):StreamCampaign=>({id:String(r.id),sponsorKey:String(r.sponsor_key),sponsorName:String(r.sponsor_name),
   requiredFormat:String(r.required_format) as StreamFormat,requiredFormatName:formatByKey(String(r.required_format)).name,
-  brief:String(r.brief),rewardPence:Number(r.reward_pence),expiresWeek:Number(r.expires_week)});
+  brief:String(r.brief),rewardPence:Number(r.reward_pence),expiresWeek:Number(r.expires_week),
+  seriesKey:r.series_key?String(r.series_key):null,seriesName:r.series_key?creatorSeriesFor(String(r.series_key))?.name??null:null});
 
 /** Nights this week you're free to stream (no event, commitment or other stream booked). */
 async function freeNights(tx: CareerExecutor, root: Root, week = Number(root.current_week)) {
@@ -234,7 +235,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const quarter = index + 1, episode = episodes.find(row => Number(row.episode) === quarter);
         const status = !arc ? "NOT_STARTED" : quarter < startQuarter ? "NOT_STARTED" : episode ? "DONE"
           : quarter < currentQuarter ? "MISSED" : quarter === currentQuarter ? "CURRENT" : "UPCOMING";
-        return { quarter, title, status, format: episode ? String(episode.format) as StreamFormat : null,
+        return { quarter, title, story: arcDefinition?.chapters[quarter - 1] ?? "Choose a channel identity to give this season a story.",
+          status, format: episode ? String(episode.format) as StreamFormat : null,
           bonusFollowers: episode ? Number(episode.follower_bonus) : 0 };
       }),
       completed: episodes.length, availableChapters: arc ? 5 - startQuarter : 0,
@@ -276,8 +278,9 @@ export function createCareerStreamingService(database: CareerDatabase) {
       })(),
       charity: { doneThisMonth: rows.some(r => r.format === "CHARITY" && Number(r.season) === season && monthOf(Number(r.week)) === monthOf(week)),
         raisedPence: ended.reduce((n, r) => n + Number((r.tally as Tally).raisedPence ?? 0), 0) },
-      collabs: STREAMERS.map(st => { const followers = streamerFollowers(st.followers, season, week), a = collabAnswer(followers, ch.followers, collabbed.has(st.key));
-        return { key: st.key, handle: st.handle, followers, avg: st.avg, blurb: st.blurb, ok: a.ok, why: a.ok ? null : a.why }; }),
+       collabs: STREAMERS.map(st => { const followers = streamerFollowers(st.followers, season, week), a = collabAnswer(followers, ch.followers, collabbed.has(st.key));
+         return { key: st.key, handle: st.handle, followers, avg: st.avg, blurb: st.blurb, ok: a.ok, why: a.ok ? null : a.why,
+           seriesFit: creatorSeriesCollabFit(arcDefinition?.key ?? null, st.key) }; }),
       clips: clips.map(c => ({ id: String(c.id), season: Number(c.season), week: Number(c.week), kind: c.kind as ClipKind, title: String(c.title), status: c.status as "NEW" | "VIRAL" | "SETTLED",
         views: Number(c.views), followersGained: Number(c.followers_gained), fansGained: Number(c.fans_gained) })),
       formats: FORMATS.map(f => ({ key: f.key, name: f.name, blurb: f.blurb, crowd: Math.round(crowdFor(f.key, lastFormat, ch.pollPick) * 100) / 100,
@@ -307,7 +310,11 @@ export function createCareerStreamingService(database: CareerDatabase) {
     // Each win on stream (a challenger beaten, a drill passed): a couple of follows even in a small room, more in a big one.
     const streamer = (row.challenger as Challenger).streamer;
     // A collab: the winner takes a share of the other's audience (a little even in defeat).
-    const bonus = wins * (2 + Math.round(tally.peak * 0.05)) + (streamer && result ? collabFollowers(streamer.followers, result === "WON") : 0);
+    const seriesRow = streamer ? (await tx.execute(sql`SELECT series_key FROM career_stream_creator_series
+      WHERE career_save_id=${root.id} AND season=${Number(row.season)}`)).rows[0] : null;
+    const seriesFit = !!streamer && creatorSeriesCollabFit(seriesRow ? String(seriesRow.series_key) : null, streamer.key);
+    const bonus = wins * (2 + Math.round(tally.peak * 0.05)) +
+      (streamer && result ? collabFollowers(streamer.followers, result === "WON", seriesFit) : 0);
     const format = String(row.format ?? "CHALLENGER") as StreamFormat;
     const pledges = result === "WON" ? tally.pledgedPence ?? 0 : 0;
     // A charity stream: the night's cheers go to the cause (and win more followers); the Invitational pays prize money by round reached.

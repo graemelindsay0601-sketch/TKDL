@@ -239,15 +239,25 @@ export const FORMATS = [
 /** Optional four-episode channel series. Each keeps the other DartCast formats and Career routes available. */
 export const CREATOR_SERIES = [
   { key: "HEADLINER", name: "The Headliner", tagline: "Build a show around big nights and head-to-head darts.",
-    description: "Viewer battles, King of the Oche and real streamed matches.", formats: ["CHALLENGER", "KING", "INVITATIONAL", "MATCH"] },
+    description: "Viewer battles, King of the Oche and real streamed matches.", formats: ["CHALLENGER", "KING", "INVITATIONAL", "MATCH"],
+    chapters: ["Your first head-to-head gives the channel a clear hook.", "Regulars return to see if a challenger can take your crown.", "A bigger audience brings pressure to deliver a headline night.", "Close the season with the show viewers came back for."] },
   { key: "SKILL_LAB", name: "The Skill Lab", tagline: "Make the practice room appointment viewing.",
-    description: "Checkout challenges, Bob’s 27 and average challenges.", formats: ["CHECKOUTS", "BOBS_27", "SCORING"] },
+    description: "Checkout challenges, Bob’s 27 and average challenges.", formats: ["CHECKOUTS", "BOBS_27", "SCORING"],
+    chapters: ["Start with a challenge the audience can follow.", "Your regulars bring their own finishes and targets.", "A viewer-submitted challenge tests your preparation.", "Show how far the channel’s skills have come this season."] },
   { key: "CLUBHOUSE", name: "The Clubhouse", tagline: "Make the audience part of the show.",
-    description: "Collaborations and charity streams put community first.", formats: ["COLLAB", "CHARITY"] },
+    description: "Collaborations and charity streams put community first.", formats: ["COLLAB", "CHARITY"],
+    chapters: ["Welcome the community into the channel.", "Share the show with another creator.", "Use the audience to support a good cause or local darts.", "Finish the season by bringing the community together."] },
 ] as const;
 export type CreatorSeriesKey = typeof CREATOR_SERIES[number]["key"];
 export const creatorSeriesFor = (key: string) => CREATOR_SERIES.find(series => series.key === key) ?? null;
 export const creatorSeriesEpisodeBonus = (episode: number) => episode === 4 ? 85 : 15;
+const SERIES_COLLAB_FIT: Record<CreatorSeriesKey, readonly string[]> = {
+  HEADLINER: ["the-maximiser", "ninedartnick", "oche-official", "bullbarry"],
+  SKILL_LAB: ["tungsten-tom", "checkoutqueen", "oche-sophie", "the-maximiser"],
+  CLUBHOUSE: ["doubletrouble", "bullbarry", "arrowsandale", "dartsdaddy", "oche-sophie"],
+};
+export const creatorSeriesCollabFit = (seriesKey: string | null, streamerKey: string) =>
+  !!seriesKey && !!SERIES_COLLAB_FIT[seriesKey as CreatorSeriesKey]?.includes(streamerKey);
 /** The formats on the picker, plus a collab (picked from the streamers list), the DartCast Invitational and a real match streamed from an event. */
 export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH";
 const COLLAB_FORMAT = { key: "COLLAB", name: "Collab", blurb: "A match against another streamer, on both channels.", crowd: 1 } as const;
@@ -320,7 +330,8 @@ export function collabAnswer(theirs: number, yours: number, doneThisSeason: bool
   if (theirs < yours * COLLAB.minShare) return { ok: false, why: "Too small for your channel" };
   return { ok: true };
 }
-export const collabFollowers = (theirs: number, won: boolean) => Math.round(theirs * (won ? COLLAB.winShare : COLLAB.loseShare));
+export const collabFollowers = (theirs: number, won: boolean, seriesFit = false) =>
+  Math.round(theirs * (won ? COLLAB.winShare : COLLAB.loseShare) * (seriesFit ? 1.35 : 1));
 export const collabBot = (avg: number) => ({ avg, sd: 22, checkoutPct: Math.min(0.45, 0.12 + (avg - 30) * 0.008), hitAcc: Math.min(0.92, 0.45 + (avg - 30) * 0.012) });
 
 /**

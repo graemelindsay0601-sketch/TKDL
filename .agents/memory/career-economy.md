@@ -20,3 +20,9 @@ Optional DartCast creator series run across four quarterly chapters. Each chapte
 **Why:** the user chose a four-quarter creator series and finale as the DartCast pacing; the series should add direction without forcing streaming or closing other routes.
 
 **How to apply:** keep chapters tied to actual streamed formats, make missed quarters visible but non-punitive, and preserve mid-season entry and existing Career saves.
+
+Series identity should shape sponsor-campaign format fit and mark compatible collaborators; an on-brand collaboration gives 35% more audience share. Campaign fees still use recent average live viewers.
+
+**Why:** the user wants the DartCast series choice to have consequences beyond a checklist, without basing sponsor value on follower count alone.
+
+**How to apply:** keep partnership offers relevant to the selected series, preserve the normal audience-size eligibility rules, and do not make series fit a route lock.

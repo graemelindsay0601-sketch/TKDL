@@ -55,6 +55,7 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     brief text NOT NULL, reward_pence bigint NOT NULL CHECK(reward_pence > 0),
     status text NOT NULL CHECK(status IN ('OFFERED','ACTIVE','IN_PROGRESS','COMPLETED','DECLINED','EXPIRED')),
     stream_id uuid, created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id,id))`);
+  await tx.execute(sql`ALTER TABLE career_stream_campaigns ADD COLUMN IF NOT EXISTS series_key text`);
   await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_stream_campaign_one_open
     ON career_stream_campaigns(career_save_id) WHERE status IN ('OFFERED','ACTIVE','IN_PROGRESS')`);
   await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_streams_match_idx ON career_streams(career_save_id, match_id) WHERE match_id IS NOT NULL`);

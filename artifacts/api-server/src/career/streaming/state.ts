@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
-import { STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
+import { STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
@@ -101,16 +101,19 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
       const rng=scopedRandom(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",season,campaignMonth);
       const brands=sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION);
       const brand=brands[Math.floor(rng()*brands.length)]!;
-      const formats=["CHALLENGER","KING","CHECKOUTS","BOBS_27","SCORING"] as const;
+      const seriesRow=(await tx.execute(sql`SELECT series_key FROM career_stream_creator_series WHERE career_save_id=${root.id} AND season=${season}`)).rows[0];
+      const series=seriesRow?creatorSeriesFor(String(seriesRow.series_key)):null;
+      const formats=series ? series.formats.filter(f=>f!=="MATCH"&&f!=="INVITATIONAL") :
+        ["CHALLENGER","KING","CHECKOUTS","BOBS_27","SCORING"] as const;
       const requiredFormat=formats[Math.floor(rng()*formats.length)]!;
       const profile=brand.terms.commercialProfile;
       const payout=Math.min(100_000,Math.max(5_000,dealFee(averageViewers)*4));
       const id=stableUuid(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",root.id,season,campaignMonth);
-      const brief=`Showcase ${profile?.benefitFocus.toLowerCase()??"the brand"} and tell viewers why ${brand.terms.displayName} backs your channel.`;
+      const brief=`${series?`For your ${series.name} series, `:""}showcase ${profile?.benefitFocus.toLowerCase()??"the brand"} and tell viewers why ${brand.terms.displayName} backs your channel.`;
       await tx.execute(sql`INSERT INTO career_stream_campaigns
-        (career_save_id,id,season,offered_week,expires_week,sponsor_key,sponsor_name,required_format,brief,reward_pence,status)
+        (career_save_id,id,season,offered_week,expires_week,sponsor_key,sponsor_name,required_format,brief,reward_pence,status,series_key)
         VALUES (${root.id},${id},${season},${week},${week+STREAM_MONEY.dealOfferWeeks},${brand.key},${brand.terms.displayName},
-          ${requiredFormat},${brief},${payout},'OFFERED') ON CONFLICT DO NOTHING`);
+          ${requiredFormat},${brief},${payout},'OFFERED',${series?.key??null}) ON CONFLICT DO NOTHING`);
     }
   }
   if (tier !== "PARTNER" && tier !== "STAR") return;
