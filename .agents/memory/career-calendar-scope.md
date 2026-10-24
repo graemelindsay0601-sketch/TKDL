@@ -15,6 +15,12 @@ Players may book an event on each available day of a week; keep the one-event-pe
 
 **How to apply:** preserve daily booking limits and budget checks, and add regression tests whenever the calendar's Continue behavior changes.
 
+Local team leagues should be a viable Career path, not only background simulation: joining and taking part in a club season should build the player's local profile and improve access to opportunities or sponsors.
+
+**Why:** the user said local league participation should be a real option that can make the player more popular and lead to more chances or better sponsors.
+
+**How to apply:** preserve actual player participation in the league path, and connect team-season performance to meaningful local recognition and opportunity outcomes.
+
 The week planner may offer a future activity only when its availability and booking paths support that exact week; never reuse current-week availability as a prediction.
 
 **Why:** a future option must lead to a genuinely bookable slot rather than a link that fails or silently books a different week.
