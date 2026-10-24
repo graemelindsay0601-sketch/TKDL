@@ -30,6 +30,7 @@ import {calendarHashOf} from "../../career/calendar/generation.ts";
 import {stableUuid} from "../../career/world/random.ts";
 import {createCareerLegacyService} from "../../career/legacy/service.ts";
 import {settleLifeCommitments} from "../../career/life/commitments.ts";
+import {ensureClubTeams} from "../../db/migrations/create_career_club_teams.ts";
 import {calculateProductWeek,PRODUCT_ECONOMY} from "../../career/content/product-economy.ts";
 import type {RootRow} from "../../career/calendar/engine.ts";
 const pg=new PGlite(),db=drizzle(pg),saves=createCareerService(db),actor={playerId:1},seed="a".repeat(64);
@@ -51,6 +52,7 @@ before(async()=>{
     INSERT INTO feature_flags VALUES('tour_career_2',true,false,'test')`);
   await createCareerSaves(db);await createCareerWorld(db);await createCareerSponsorshipFoundation(db);await createCareerCalendar(db);await createCareerFinance(db);await createCareerSPHCommercial(db);await createCareerSponsorJourneysSPB(db);await createCareerSponsorJourneysSPB3(db);await createCareerFinanceSPC(db);await createCareerSponsorHQSPD(db);await createCareerNpcSponsorMarketSPF(db);await createCareerSponsorContractActionsSPE2(db);await createCareerSporting(db);
   await createCareerSPHCommercial(db);
+  await db.transaction(tx=>ensureClubTeams(tx));
   const save=await saves.create(1,{slot:1,dateOfBirth:"1990-01-01",homeLocality:"ayrshire"});saveId=save.id;
   // Preserve the published A8.1 v3 universe; A8.2 v4 has its own tournament tests.
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed},event_database_version=3 WHERE id=${saveId}`);

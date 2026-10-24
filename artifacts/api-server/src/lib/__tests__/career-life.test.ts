@@ -6,7 +6,7 @@ import { recognitionResult } from "../../career/recognition/types.ts";
 import { contentId, npcPersonality, COPY } from "../../career/life/content.ts";
 import { storyEngine, storyThreads, currentMoments, newsSelection } from "../../career/life/stories.ts";
 import { publicProfile, relationshipTones } from "../../career/life/profile.ts";
-import { opportunities, OPPORTUNITY_FAMILIES } from "../../career/life/opportunities.ts";
+import { opportunities, OPPORTUNITY_FAMILIES, clubInvitationProgress } from "../../career/life/opportunities.ts";
 import type { LifeSources, Decision } from "../../career/life/types.ts";
 import type { EventFact, CareerFacts, Fact } from "../../career/facts/types.ts";
 
@@ -139,9 +139,12 @@ test("accepted dates conflict honestly; declined opportunities stay declined and
 });
 test("real club appearances open a one-way local-to-regional opportunity path",()=>{
   const s=source();
+  assert.deepEqual(clubInvitationProgress(s),{nextInvitation:"LOCAL_SPOTLIGHT",status:"IN_PROGRESS",appearances:0,wins:0,targetAppearances:3,targetWins:null});
   s.localTeamRecord={appearances:2,wins:2};
+  assert.equal(clubInvitationProgress(s).targetAppearances,3);
   assert.ok(!opportunities(s).some(o=>o.family==="LOCAL_SPOTLIGHT"));
   s.localTeamRecord={appearances:3,wins:2};
+  assert.equal(clubInvitationProgress(s).status,"READY");
   const local=opportunities(s).find(o=>o.family==="LOCAL_SPOTLIGHT")!;
   assert.ok(local);
   assert.match(local.compatibility,/3 genuine club appearances/);
@@ -150,9 +153,11 @@ test("real club appearances open a one-way local-to-regional opportunity path",(
 
   s.commitments=[{id:local.id,family:local.family,title:local.title,season:1,day:local.day,feePence:local.feePence,status:"COMPLETED",contractId:null}];
   s.localTeamRecord={appearances:5,wins:2};
+  assert.deepEqual(clubInvitationProgress(s),{nextInvitation:"REGIONAL_SHOWCASE",status:"IN_PROGRESS",appearances:5,wins:2,targetAppearances:5,targetWins:3});
   assert.equal(opportunities(s).some(o=>o.family==="REGIONAL_SHOWCASE"),false,"two wins do not meet the regional invitation threshold");
   s.localTeamRecord={appearances:5,wins:3};
   const regional=opportunities(s).find(o=>o.family==="REGIONAL_SHOWCASE")!;
+  assert.equal(clubInvitationProgress(s).status,"READY");
   assert.ok(regional);
   assert.match(regional.compatibility,/5 genuine appearances · 3 wins · completed local spotlight/);
   assert.ok(regional.feePence>local.feePence);

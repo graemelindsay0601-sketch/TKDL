@@ -185,8 +185,8 @@ export const STREAM_MONEY = Object.freeze({
   dealsPerSeason: 2, dealStreams: 6, dealOfferWeeks: 3,
   /** One-off sponsor activations: one offer at the start of each four-week DartCast month. */
   campaignsPerMonth:1,
-  /** Platform ads: pence per thousand viewer-minutes, with full pay after three distinct streaming weeks. */
-  adEligibleFollowers:50, adPencePerThousandViewerMinutes:30, adMinutesPerVisit:2, adFullRateWeeks:3,
+  /** Platform ads: audience watch time and steady weekly streaming provide meaningful side-income, not a salary. */
+  adEligibleFollowers:50, adPencePerThousandViewerMinutes:150, adMinutesPerVisit:2, adFullRateWeeks:3,
   /** Brand value follows the average concurrent audience, not follower count. */
   dealFloorPence: 1000, dealPencePerAverageViewer: 100,
 });

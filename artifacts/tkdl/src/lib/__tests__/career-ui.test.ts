@@ -125,7 +125,8 @@ const lifeFixture=():LifeView=>({careerSaveId:SAVE_ID,retired:false,profile:{
   commercial:{demand:"Strong sporting demand",activity:"Choosing quiet off-board life",description:"Optional work; not a prize reward."}},
   news:[],threads:[],moments:[],opportunities:[],history:[],commitments:[],relationshipTones:[],
   merchandise:{demand:"Strong sporting demand",incomePence:0,agreement:null,royaltyPence:null,offerRoyaltyPence:7500,canOptIn:true,canStop:false},
-  commercialIncomePence:0,notes:["Persona and sporting recognition remain separate."]});
+  commercialIncomePence:0,clubInvitationProgress:{nextInvitation:"LOCAL_SPOTLIGHT",status:"IN_PROGRESS",appearances:0,wins:0,targetAppearances:3,targetWins:null},
+  notes:["Persona and sporting recognition remain separate."]});
 test("A7.5 profile preserves reserved sporting fame and separates awareness/reception/draw/commercial activity",()=>{
   const d=lifeFixture(),html=render(h(M.LifePage,{ctx:ctx()}),[[key("life"),d]]),t=text(html);
   for(const label of ["Reserved","Major darts star","Positive","Strong","Choosing quiet off-board life","Narrative relationship tone"])assert.ok(t.includes(label),label);
@@ -223,7 +224,7 @@ test("A7.3 optional focus/goals render guidance, an unrestricted calendar link, 
   const data=goalsFixture();
   const html=render(h(M.GoalsPage,{ctx:ctx()}),[[key("goals"),data]]);
   const t=text(html);
-  assert.match(t,/Optional sporting ambitions, not quests/);assert.match(t,/Every eligible pathway remains available/);
+  assert.match(t,/focus changes recommendations only/);assert.match(t,/every eligible route stays open/);
   for (const f of Object.values(FOCUSES)) assert.ok(t.includes(f.label));
   assert.match(t,/No active goals/);assert.match(t,/No matching upcoming opportunity/);assert.match(t,/Select goal/);
   assert.ok(html.includes(`/career/${SAVE_ID}/calendar`));assert.match(t,/no penalty/i);
@@ -250,7 +251,7 @@ test("A7.3 retired Careers retain readable goals/focus but no new-goal or abando
   assert.match(t,/Retired Career/);assert.match(t,/no further sporting progress/);
   assert.doesNotMatch(t,/Select goal|Abandon without penalty/);assert.match(html,/<select[^>]*disabled/);
   const summary=text(render(h(M.GoalsSummary,{saveId:SAVE_ID}),[[key("goals"),data]]));
-  assert.match(summary,/Anything goes/);assert.match(summary,/Main ambition/);assert.match(summary,/Win a Career title/);assert.match(summary,/Manage/);
+  assert.match(summary,/Open Career/);assert.match(summary,/Main ambition/);assert.match(summary,/Win a Career title/);assert.match(summary,/Manage/);
 });
 
 test("A7.2 relationships render factual retired identity, H2H, cohorts, meetings, world context and no gameplay effects",()=>{
@@ -885,7 +886,8 @@ test("Money matches: a challenge with their price, the haggling so far, form and
 
 test("Team nights: next fixture (and a clash with a booked event), last result singles by singles, and the league table", () => {
   const row = (club: string, position: number, points: number, you = false) => ({ club, name: `${club} Darts Club`, played: 2, won: points / 2, drawn: 0, lost: 2 - points / 2, singlesFor: 7, singlesAgainst: 5, points, position, you });
-  const view = { season: 1, week: 9, club: "Ayr Darts Club", nation: "SCO", available: true, firstWeek: 4, lastWeek: 46,
+  const view = { season: 1, week: 9, club: "Ayr Darts Club", nation: "SCO", available: true, joined: true,
+    localProfile: { reputationTier: "New face", reputation: 0, appearances: 0, wins: 0 }, firstWeek: 4, lastWeek: 46,
     next: { week: 10, home: false, opponent: "Glasgow Darts Club", youFree: false, clash: "Glasgow Open" },
     last: { week: 7, home: true, opponent: "Dundee Darts Club", us: 4, them: 2, youPlayed: true, youUnavailable: false,
       singles: [{ us: "You", them: "Ian Reid", usLegs: 3, themLegs: 1, you: true }, { us: "Jo Bell", them: "Al Kerr", usLegs: 2, themLegs: 3, you: false }] },
@@ -947,7 +949,10 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     collabs: [{ key: "checkoutqueen", handle: "CheckoutQueen", followers: 3300, avg: 66, blurb: "Any finish in 9.", ok: true, why: null },
       { key: "oche-official", handle: "TheOcheShow", followers: 95000, avg: 80, blurb: "The biggest.", ok: false, why: "Too big for you yet" }],
     clips: [{ id: "c1", season: 2, week: 8, kind: "NINE", title: "NINE-DARTER LIVE ON STREAM", status: "VIRAL", views: 182000, followersGained: 2900, fansGained: 5800 },
-      { id: "c2", season: 2, week: 9, kind: "MAX", title: "Maximum!", status: "NEW", views: 0, followersGained: 0, fansGained: 0 }] };
+      { id: "c2", season: 2, week: 9, kind: "MAX", title: "Maximum!", status: "NEW", views: 0, followersGained: 0, fansGained: 0 }],
+    studio: { level: 0, name: "Kitchen table", audienceBonusPercent: 0, next: null, upgrades: [] },
+    platform: { adsEligible: false, viewerMinutesThisMonth: 0, streamedWeeksThisMonth: 0, estimatedAdPence: 0, adRatePencePerThousandMinutes: 0, fullRateWeeks: 3 },
+    creatorSeries: { selected: null, options: [], startedWeek: null, chapters: [], completed: 0, availableChapters: 0, finale: "NOT_STARTED" } };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
   for (const fact of ["Dart Cast", "AyrDarts", "640", "FOLLOWERS", "Affiliate", "SHOWS", "14", "£184.50", "CAREER EARNED",
     "CHALLENGERS BEATEN", "Go live on Tue", "1 of 3 streams used this week",
@@ -972,7 +977,10 @@ test("DartCast channel money: subs that renew, a brand's offer to answer, and a 
     invitational: { open: false, why: null, fromWeek: 40, field: [], prizePence: [25000, 75000, 150000, 400000], result: { wins: 3, prizePence: 400000 } },
     charity: { doneThisMonth: true, raisedPence: 12345 },
     subGoal: { season: 3, month: 3, endsWeek: 12, target: 10, promise: "Throw in fancy dress", progress: 4, status: "ON" },
-    goalOptions: { targets: [5, 10, 20, 50], promises: ["Throw in fancy dress"] } };
+    goalOptions: { targets: [5, 10, 20, 50], promises: ["Throw in fancy dress"] },
+    studio: { level: 0, name: "Kitchen table", audienceBonusPercent: 0, next: null, upgrades: [] },
+    platform: { adsEligible: false, viewerMinutesThisMonth: 0, streamedWeeksThisMonth: 0, estimatedAdPence: 0, adRatePencePerThousandMinutes: 0, fullRateWeeks: 3 },
+    creatorSeries: { selected: null, options: [], startedWeek: null, chapters: [], completed: 0, availableChapters: 0, finale: "NOT_STARTED" } };
   const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
   for (const fact of ["Channel money", "14", "active subscribers", "Week 12", "£17.50", "FlightDeck", "flights and stems", "£69", "/ STREAM", "Next 6 streams",
     "WEEK 13", "Take the deal", "No thanks", "Televised invitations are listed in your calendar",

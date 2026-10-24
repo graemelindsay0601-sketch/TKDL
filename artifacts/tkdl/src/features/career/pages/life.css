@@ -35,3 +35,27 @@
 /* Fan following */
 .career-fans__bars { display: flex; align-items: flex-end; gap: 4px; height: 72px; padding: 6px 2px 0; border-bottom: 1px solid rgba(255,255,255,0.12); }
 .career-fans__bars span { flex: 1 1 0; min-width: 4px; max-width: 28px; border-radius: 4px 4px 0 0; background: linear-gradient(180deg, #c99bff, rgba(201,155,255,0.35)); }
+
+/* Club invitation progress: a factual readout alongside the existing opportunities board. */
+.career-club-progress { padding:16px; border:1px solid #d1a65c45; border-radius:14px; background:linear-gradient(120deg,#d1a65c12,transparent 55%),#101722; }
+.career-club-progress__header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.career-club-progress__eyebrow { margin:0 0 3px; color:#d1a65c; font:700 .62rem Oswald,sans-serif; letter-spacing:.16em; text-transform:uppercase; }
+.career-club-progress h2 { margin:0; font:700 1.05rem/1.2 Oswald,sans-serif; letter-spacing:.03em; text-transform:uppercase; color:#f5ead4; }
+.career-club-progress__status { flex:none; padding:5px 9px; border:1px solid #ffffff20; border-radius:999px; color:#d9d4c8; background:#ffffff08; font-size:.65rem; font-weight:700; letter-spacing:.09em; text-transform:uppercase; }
+.career-club-progress__status--ready,.career-club-progress__status--complete { color:#c8e5d1; border-color:#8ebda455; background:#8ebda415; }
+.career-club-progress__status--booked { color:#f0d59b; border-color:#d1a65c55; }
+.career-club-progress__status--closed { color:#c0c1c4; }
+.career-club-progress__copy { max-width:68ch; margin:10px 0 0; color:#d4d3cf; font-size:.82rem; line-height:1.55; }
+.career-club-progress__metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:14px 22px; margin-top:16px; }
+.career-club-progress__metric-label { display:flex; justify-content:space-between; align-items:baseline; gap:10px; color:#d8d7d3; font-size:.74rem; }
+.career-club-progress__metric-label strong { flex:none; color:#f5ead4; font:700 .86rem Oswald,sans-serif; font-variant-numeric:tabular-nums; }
+.career-club-progress__metric progress { display:block; width:100%; height:7px; margin-top:7px; overflow:hidden; border:0; border-radius:99px; background:#ffffff16; accent-color:#d1a65c; }
+.career-club-progress__metric progress::-webkit-progress-bar { border-radius:99px; background:#ffffff16; }
+.career-club-progress__metric progress::-webkit-progress-value { border-radius:99px; background:#d1a65c; }
+.career-club-progress__metric progress::-moz-progress-bar { border-radius:99px; background:#d1a65c; }
+.career-club-progress__rule { margin:12px 0 0; padding-top:10px; border-top:1px solid #ffffff12; color:#aeb6c0; font-size:.72rem; line-height:1.5; }
+@media (max-width:480px) {
+  .career-club-progress { padding:13px; }
+  .career-club-progress__header { align-items:flex-start; }
+  .career-club-progress__status { margin-top:3px; }
+}

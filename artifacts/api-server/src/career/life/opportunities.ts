@@ -1,7 +1,7 @@
 import { LEVELS } from "../recognition/types.ts";
 import { contentId } from "./content.ts";
 import { publicProfile } from "./profile.ts";
-import type { LifeSources, Opportunity } from "./types.ts";
+import type { ClubInvitationProgress, LifeSources, Opportunity } from "./types.ts";
 
 export const OPPORTUNITY_FAMILIES = [
   {key:"LOCAL_SIGNING",name:"Local signing",min:0,fee:2500},
@@ -21,6 +21,30 @@ export const LOCAL_PATH_OPPORTUNITIES = Object.freeze({
   local: {key:"LOCAL_SPOTLIGHT",title:"Local club spotlight",minAppearances:3,feePence:7500},
   regional: {key:"REGIONAL_SHOWCASE",title:"Regional darts showcase",minAppearances:5,minWins:3,feePence:25000},
 });
+export function clubInvitationProgress(s:LifeSources):ClubInvitationProgress {
+  const local=s.localTeamRecord??{appearances:0,wins:0};
+  const state=(family:string)=>{
+    const commitment=s.commitments.find(c=>c.family===family);
+    if(commitment)return commitment.status==="COMPLETED"?"COMPLETE" as const:"BOOKED" as const;
+    return s.decisions.some(d=>d.kind==="OPPORTUNITY"&&d.data.family===family)?"CLOSED" as const:null;
+  };
+  const localState=state(LOCAL_PATH_OPPORTUNITIES.local.key);
+  if(localState==="CLOSED")return {nextInvitation:null,status:"CLOSED",...local,targetAppearances:null,targetWins:null};
+  if(localState==="BOOKED")return {nextInvitation:"LOCAL_SPOTLIGHT",status:"BOOKED",...local,targetAppearances:LOCAL_PATH_OPPORTUNITIES.local.minAppearances,targetWins:null};
+  if(localState!=="COMPLETE"){
+    const ready=local.appearances>=LOCAL_PATH_OPPORTUNITIES.local.minAppearances;
+    return {nextInvitation:"LOCAL_SPOTLIGHT",status:ready?"READY":"IN_PROGRESS",...local,
+      targetAppearances:LOCAL_PATH_OPPORTUNITIES.local.minAppearances,targetWins:null};
+  }
+  const regionalState=state(LOCAL_PATH_OPPORTUNITIES.regional.key);
+  if(regionalState==="COMPLETE")return {nextInvitation:null,status:"COMPLETE",...local,targetAppearances:null,targetWins:null};
+  if(regionalState==="CLOSED")return {nextInvitation:null,status:"CLOSED",...local,targetAppearances:null,targetWins:null};
+  if(regionalState==="BOOKED")return {nextInvitation:"REGIONAL_SHOWCASE",status:"BOOKED",...local,
+    targetAppearances:LOCAL_PATH_OPPORTUNITIES.regional.minAppearances,targetWins:LOCAL_PATH_OPPORTUNITIES.regional.minWins};
+  const ready=local.appearances>=LOCAL_PATH_OPPORTUNITIES.regional.minAppearances&&local.wins>=LOCAL_PATH_OPPORTUNITIES.regional.minWins;
+  return {nextInvitation:"REGIONAL_SHOWCASE",status:ready?"READY":"IN_PROGRESS",...local,
+    targetAppearances:LOCAL_PATH_OPPORTUNITIES.regional.minAppearances,targetWins:LOCAL_PATH_OPPORTUNITIES.regional.minWins};
+}
 export function opportunities(s:LifeSources):Opportunity[] {
   const local=s.localTeamRecord??{appearances:0,wins:0};
   if(!s.active||!s.ready||(s.facts.statistics.matchesPlayed===0&&local.appearances===0))return [];
