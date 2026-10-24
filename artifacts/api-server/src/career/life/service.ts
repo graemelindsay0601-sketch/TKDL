@@ -47,6 +47,10 @@ async function sourceFingerprint(tx:CareerExecutor,saveId:string,root:Row) {
     (SELECT concat_ws('|',s.current_season,s.current_week,s.status,s.updated_at,s.balance_pence) FROM career_saves s WHERE s.id=${saveId}) AS s,
     (SELECT concat_ws('|',COUNT(*),MAX(created_at)) FROM career_life_decisions WHERE career_save_id=${saveId}) AS d,
     (SELECT concat_ws('|',COUNT(*),COUNT(*) FILTER (WHERE status='COMPLETED')) FROM career_life_commitments WHERE career_save_id=${saveId}) AS c,
+    (SELECT concat_ws('|',COUNT(*) FILTER (WHERE r->'humanMatch'->>'status'='PLAYED'),
+      COUNT(*) FILTER (WHERE r->'humanMatch'->>'status'='PLAYED' AND r->'humanMatch'->>'won'='true'))
+      FROM career_club_fixtures f CROSS JOIN LATERAL jsonb_array_elements(f.rubbers) r
+      WHERE f.career_save_id=${saveId} AND f.status='COMPLETED') AS club,
     (SELECT COUNT(*) FROM career_tournament_matches WHERE career_save_id=${saveId} AND (a_key='HUMAN' OR b_key='HUMAN') AND status='COMPLETED') AS m,
     (SELECT concat_ws('|',COUNT(*),COUNT(*) FILTER (WHERE status='COMPLETED')) FROM career_event_instances WHERE career_save_id=${saveId} AND season=${root.current_season}
       AND status IN ('COMPLETED','CANCELLED','DRAW_PENDING','DRAWN','IN_PROGRESS')) AS e,
@@ -94,6 +98,10 @@ export function createCareerLifeService(database:CareerDatabase) {
     const contract=(await tx.execute(sql`SELECT id,sponsor_key FROM career_sponsor_contracts WHERE career_save_id=${saveId} AND status='ACTIVE' LIMIT 1`)).rows[0];
     const decisions=decisionsFrom((await tx.execute(sql`SELECT * FROM career_life_decisions WHERE career_save_id=${saveId} ORDER BY season,week,created_at,id`)).rows);
     const commitments=commitmentsFrom((await tx.execute(sql`SELECT * FROM career_life_commitments WHERE career_save_id=${saveId} ORDER BY season,day,id`)).rows);
+    const clubRecord=(await tx.execute(sql`SELECT COUNT(*) FILTER (WHERE r->'humanMatch'->>'status'='PLAYED')::int AS appearances,
+      COUNT(*) FILTER (WHERE r->'humanMatch'->>'status'='PLAYED' AND r->'humanMatch'->>'won'='true')::int AS wins
+      FROM career_club_fixtures f CROSS JOIN LATERAL jsonb_array_elements(f.rubbers) r
+      WHERE f.career_save_id=${saveId} AND f.status='COMPLETED'`)).rows[0];
     const cardChanges=(await tx.execute(sql`SELECT c.id,c.participant_key,c.source,c.awarded_season,c.awarded_week,c.status,c.ended_season,c.ended_week,concat(n.first_name,' ',n.surname) AS name
       FROM career_tour_cards c JOIN career_world_players n ON n.career_save_id=c.career_save_id AND n.id::text=c.participant_key
       WHERE c.career_save_id=${saveId} AND (c.source NOT LIKE 'INITIAL%' OR c.status='LOST')
@@ -188,6 +196,7 @@ export function createCareerLifeService(database:CareerDatabase) {
       sponsor:contract?{id:String(contract.id),name:String(contract.sponsor_key)}:null,
       events:events.map(r=>({id:String(r.id),key:String(r.definition_key),name:String(r.name),circuit:String(r.circuit),tier:String(r.presentation_tier),venueKey:String(r.venue_key),
         classification:String(r.classification),season:Number(r.season),day:Number(r.start_day),endDay:Number(r.end_day),status:String(r.status)})),
+      localTeamRecord:{appearances:Number(clubRecord?.appearances??0),wins:Number(clubRecord?.wins??0)},
       worldResults:world.map(r=>({id:`result:${r.event_id}:${r.participant_key}`,source:"A3 public world result",label:`${r.participant_name} at ${r.name}`,
         season:Number(r.season),day:Number(r.end_day),week:Math.ceil(Number(r.end_day)/7),
         date:root.identity_start?careerDate(String(root.identity_start),Number(r.season),Number(r.end_day)):null,age:null,

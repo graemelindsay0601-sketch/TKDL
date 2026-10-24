@@ -12,6 +12,7 @@ import { createCareerRecognitionRouter } from "../../career/recognition/router.t
 import { createCareerLifeService } from "../../career/life/service.ts";
 import { createCareerLifeRouter } from "../../career/life/router.ts";
 import { createCareerLife } from "../../db/migrations/create_career_life.ts";
+import { ensureClubTeams } from "../../db/migrations/create_career_club_teams.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
 import { createCareerLegacyService } from "../../career/legacy/service.ts";
 import { createCareerLegacyRouter } from "../../career/legacy/router.ts";
@@ -78,6 +79,7 @@ before(async () => {
   await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSponsorHQSPD(db); await createCareerSponsorContractActionsSPE2(db); await createCareerSporting(db);
   await createShadowObservations(db);
   await createCareerLife(db);await createCareerLife(db);
+  await db.transaction(tx=>ensureClubTeams(tx));
   await createCareerLegacy(db);await createCareerLegacy(db);
   const preMigration=await saves.create(1,{slot:3,careerName:"Pre A7.3"});
   const oldRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
@@ -754,10 +756,20 @@ test("A7.5 actual HTTP: existing/retired/fresh context, choices, atomic replay, 
   await db.execute(sql`UPDATE career_saves SET current_week=${clockWeek} WHERE id=${id}`);
   root.current_week=clockWeek;
   const life=()=>call("GET",`/saves/${id}/life`),recognition=()=>call("GET",`/saves/${id}/recognition`);
+  const beforeClub=await life();
+  assert.equal(beforeClub.status,200,JSON.stringify(beforeClub.body));
+  assert.equal(beforeClub.body.opportunities.some((o:any)=>o.family==="LOCAL_SPOTLIGHT"),false);
+  for(let round=1;round<=3;round++) {
+    const rubbers=[{humanMatch:{status:"PLAYED",won:round<=2}}];
+    await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
+      VALUES (${id},${Number(root.current_season)},${round},${round},"ayrshire","other",1,0,${JSON.stringify(rubbers)}::jsonb,"COMPLETED")`);
+  }
   const inactive=await call("GET",`/saves/${retired.id}/life`);
   assert.equal(inactive.status,200,JSON.stringify(inactive.body));assert.deepEqual(inactive.body.moments,[]);assert.deepEqual(inactive.body.opportunities,[]);
   assert.ok(inactive.body.news.some((st:any)=>st.scope==="HUMAN"));
   const first=await life();assert.equal(first.status,200,JSON.stringify(first.body));
+  assert.equal(first.body.opportunities.find((o:any)=>o.family==="LOCAL_SPOTLIGHT")?.feePence,7500,
+    "the life API should surface a local opportunity from three real player appearances");
   assert.deepEqual((await life()).body,first.body);assert.ok(first.body.news.some((st:any)=>st.scope==="WORLD"));
   assert.equal(first.body.profile.persona.primary,null,"existing history fabricates no choices");
   assert.deepEqual(first.body.history,[]);assert.ok(first.body.opportunities.length>0,"existing sporting evidence enables off-board life without reset");

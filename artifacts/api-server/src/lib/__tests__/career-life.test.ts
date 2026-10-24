@@ -137,6 +137,26 @@ test("accepted dates conflict honestly; declined opportunities stay declined and
   const charity=OPPORTUNITY_FAMILIES.find(f=>f.key==="CHARITY")!;assert.equal(charity.fee,0);
   s.decisions=[{id:o.id,kind:"OPPORTUNITY",choice:"DECLINE",season:1,week:1,data:{}}];assert.ok(!opportunities(s).some(p=>p.id===o.id));
 });
+test("real club appearances open a one-way local-to-regional opportunity path",()=>{
+  const s=source();
+  s.localTeamRecord={appearances:2,wins:2};
+  assert.ok(!opportunities(s).some(o=>o.family==="LOCAL_SPOTLIGHT"));
+  s.localTeamRecord={appearances:3,wins:2};
+  const local=opportunities(s).find(o=>o.family==="LOCAL_SPOTLIGHT")!;
+  assert.ok(local);
+  assert.match(local.compatibility,/3 genuine club appearances/);
+  assert.match(local.description,/off-board commitment, not a tournament result/);
+  assert.equal(opportunities(s).some(o=>o.family==="REGIONAL_SHOWCASE"),false);
+
+  s.commitments=[{id:local.id,family:local.family,title:local.title,season:1,day:local.day,feePence:local.feePence,status:"COMPLETED",contractId:null}];
+  s.localTeamRecord={appearances:5,wins:2};
+  assert.equal(opportunities(s).some(o=>o.family==="REGIONAL_SHOWCASE"),false,"two wins do not meet the regional invitation threshold");
+  s.localTeamRecord={appearances:5,wins:3};
+  const regional=opportunities(s).find(o=>o.family==="REGIONAL_SHOWCASE")!;
+  assert.ok(regional);
+  assert.match(regional.compatibility,/5 genuine appearances · 3 wins · completed local spotlight/);
+  assert.ok(regional.feePence>local.feePence);
+});
 test("major scene rarity, recent-time eligibility, cooldown and source deduplication prevent repeated popups",()=>{
   const s=source([result("world","WORLD_CHAMPIONSHIP","WORLD")]),st=storyEngine(s),m=currentMoments(s,st);
   assert.equal(m.length,1);assert.equal(m[0].choices.length,4);
