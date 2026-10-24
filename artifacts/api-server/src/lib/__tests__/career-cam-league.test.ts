@@ -70,7 +70,8 @@ test("webcam league rules: everyone plays everyone once, the table, up and down,
   const t = tableFrom(["A", "B", "C"], [{ a: "A", b: "B", legsA: 3, legsB: 1 }, { a: "B", b: "C", legsA: 3, legsB: 0 }, { a: "C", b: "A", legsA: 3, legsB: 2 }, { a: "A", b: "C", legsA: null, legsB: null }]);
   assert.deepEqual(t.map(r => [r.key, r.points]), [["A", 2], ["B", 2], ["C", 2]], "level on points and leg difference (+1 each): A won more legs (5 to 4)");
   assert.equal(movement(3, 1), 2); assert.equal(movement(3, 8), 4); assert.equal(movement(1, 1), 1); assert.equal(movement(5, 8), 5); assert.equal(movement(3, 4), 3);
-  assert.equal(prizeFor(1, 1), DIVISIONS[0].fee * 10); assert.equal(prizeFor(3, 4), 0);
+  assert.equal(prizeFor(1, 1), DIVISIONS[0].fee * 4); assert.equal(prizeFor(3, 4), 0);
+  assert.ok(CAM.prizeMultiple.reduce((sum,multiple)=>sum+multiple,0)<=CAM.size,"cash prizes are fully covered by league fees");
   assert.equal(divisionFor(45), 4); assert.equal(divisionFor(72), 1); assert.equal(divisionFor(20), 5);
 });
 

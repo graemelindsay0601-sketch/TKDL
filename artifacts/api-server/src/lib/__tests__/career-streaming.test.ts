@@ -177,7 +177,7 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   assert.ok(v.dealOffer, "a Partner gets a brand offer");
   assert.ok(v.dealOffer!.perStreamPence >= dealFee(0)); assert.equal(v.dealOffer!.streamsTotal, STREAM_MONEY.dealStreams);
   assert.ok(v.campaignOffer,"a Partner gets a one-off sponsor campaign each DartCast month");
-  assert.ok(v.campaignOffer!.rewardPence>v.dealOffer!.perStreamPence,"the single-stream activation pays a campaign premium");
+  assert.ok(v.campaignOffer!.rewardPence>=5000&&v.campaignOffer!.rewardPence<=100000,"campaigns stay inside the audience-priced £50–£1,000 range");
   await db.execute(sql`UPDATE career_stream_campaigns SET required_format='CHALLENGER' WHERE career_save_id=${id} AND id=${v.campaignOffer!.id}`);
   v=await streaming.answerCampaign(actor,id,v.campaignOffer!.id,{accept:true});
   assert.equal(v.campaignOffer,null);assert.equal(v.campaign!.requiredFormat,"CHALLENGER");

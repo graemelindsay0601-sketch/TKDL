@@ -194,6 +194,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               <div className="income-panel">
                 <h2 className="sr-only">Channel money</h2>
                 {(d.dealOffer || d.deal || d.campaign || d.campaignOffer || d.charity.raisedPence > 0 || d.invitations) && <div className="panel-label"><CircleDollarSign aria-hidden /> BRAND DESK</div>}
+                {(d.dealOffer || d.deal || d.campaignOffer || d.campaign) && <p className="dc__note">DartCast sponsor amounts reflect your recent average live audience, not follower count alone. Campaigns pay only when you complete the brief.</p>}
                 {d.campaignOffer && <div className="offer-card campaign-card" role="group" aria-label="One-off sponsored stream campaign">
                   <div className="offer-top"><span>ONE STREAM · RESPONSE DUE WEEK {d.campaignOffer.expiresWeek}</span><i>CAMPAIGN</i></div>
                   <div className="offer-brand">{d.campaignOffer.sponsorName}<small>{d.campaignOffer.requiredFormatName} · one-off activation</small></div>

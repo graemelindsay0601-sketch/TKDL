@@ -20,7 +20,7 @@ import { createShadowObservations } from "../../db/migrations/create_shadow_obse
 import { repairCareerSchema } from "../../db/migrations/repair_career_schema.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
-import { createCareerHostingService } from "../../career/hosting/service.ts";
+import { createCareerHostingService, hostingPreview } from "../../career/hosting/service.ts";
 import { HOSTING, expectedTurnout, hostedPrize, organiserTake } from "../../career/hosting/model.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
@@ -53,6 +53,8 @@ test("rules: the pot is the fees less your share plus your top-up; prize money d
   assert.ok(turnout(5000, 0) < turnout(500, 0), "a steep fee keeps them away");
   assert.ok(turnout(500, 0, 5000) > turnout(500, 0), "a following brings them along");
   for (const x of [turnout(0, 200000, 1e6), turnout(5000, 0)]) assert.ok(x >= 0.25 && x <= 1);
+  assert.equal(hostingPreview({feePence:5000,topUpPence:0,fieldSize:16},0,20).roomHirePence,3200,
+    "the optional hosting kit discounts future room hire without changing prizes or turnout");
 });
 
 const booking = (over: Record<string, unknown> = {}) => ({ week: 6, dayOfWeek: 6, fieldSize: 16, feePence: 1000, topUpPence: 5000, ...over });
