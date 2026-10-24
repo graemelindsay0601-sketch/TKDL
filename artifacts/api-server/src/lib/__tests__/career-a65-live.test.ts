@@ -194,6 +194,31 @@ async function newCareer(slot: number, body: Record<string, unknown>) {
   assert.equal((await call("POST", `/saves/${created.body.id}/initialize`, {})).status, 200);
   return created.body.id as string;
 }
+test("Life API refreshes local spotlight eligibility from real played club singles",async()=>{
+  const slot=Number((await q(sql`SELECT n FROM generate_series(1,3) n WHERE NOT EXISTS
+    (SELECT 1 FROM career_saves s WHERE s.player_id=1 AND s.slot_number=n) ORDER BY n LIMIT 1`))[0]?.n);
+  assert.ok(slot,"a free Career slot is available for the API fixture");
+  const id=await newCareer(slot,{dateOfBirth:dobForAge(35)});
+  try {
+    const life=()=>call("GET",`/saves/${id}/life`);
+    const before=await life();
+    assert.equal(before.status,200,JSON.stringify(before.body));
+    assert.equal(before.body.opportunities.some((o:any)=>o.family==="LOCAL_SPOTLIGHT"),false);
+    const root=(await q(sql`SELECT current_season FROM career_saves WHERE id=${id}`))[0];
+    for(let round=1;round<=3;round++) {
+      const rubbers=[{humanMatch:{status:"PLAYED",won:round<=2}}];
+      await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
+        VALUES (${id},${Number(root.current_season)},${round},${round},'ayrshire','other',1,0,${JSON.stringify(rubbers)}::jsonb,'COMPLETED')`);
+    }
+    const after=await life();
+    assert.equal(after.status,200,JSON.stringify(after.body));
+    assert.equal(after.body.opportunities.find((o:any)=>o.family==="LOCAL_SPOTLIGHT")?.feePence,7500,
+      "three persisted player-played club appearances should unlock the local spotlight");
+    assert.deepEqual((await life()).body,after.body);
+  } finally {
+    await saves.delete(1,id);
+  }
+});
 let opCounter = 0;
 async function advanceToHumanMatch(id: string, maxSteps = 30) {
   for (let i = 0; i < maxSteps; i++) {
@@ -756,20 +781,10 @@ test("A7.5 actual HTTP: existing/retired/fresh context, choices, atomic replay, 
   await db.execute(sql`UPDATE career_saves SET current_week=${clockWeek} WHERE id=${id}`);
   root.current_week=clockWeek;
   const life=()=>call("GET",`/saves/${id}/life`),recognition=()=>call("GET",`/saves/${id}/recognition`);
-  const beforeClub=await life();
-  assert.equal(beforeClub.status,200,JSON.stringify(beforeClub.body));
-  assert.equal(beforeClub.body.opportunities.some((o:any)=>o.family==="LOCAL_SPOTLIGHT"),false);
-  for(let round=1;round<=3;round++) {
-    const rubbers=[{humanMatch:{status:"PLAYED",won:round<=2}}];
-    await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
-      VALUES (${id},${Number(root.current_season)},${round},${round},"ayrshire","other",1,0,${JSON.stringify(rubbers)}::jsonb,"COMPLETED")`);
-  }
   const inactive=await call("GET",`/saves/${retired.id}/life`);
   assert.equal(inactive.status,200,JSON.stringify(inactive.body));assert.deepEqual(inactive.body.moments,[]);assert.deepEqual(inactive.body.opportunities,[]);
   assert.ok(inactive.body.news.some((st:any)=>st.scope==="HUMAN"));
   const first=await life();assert.equal(first.status,200,JSON.stringify(first.body));
-  assert.equal(first.body.opportunities.find((o:any)=>o.family==="LOCAL_SPOTLIGHT")?.feePence,7500,
-    "the life API should surface a local opportunity from three real player appearances");
   assert.deepEqual((await life()).body,first.body);assert.ok(first.body.news.some((st:any)=>st.scope==="WORLD"));
   assert.equal(first.body.profile.persona.primary,null,"existing history fabricates no choices");
   assert.deepEqual(first.body.history,[]);assert.ok(first.body.opportunities.length>0,"existing sporting evidence enables off-board life without reset");
