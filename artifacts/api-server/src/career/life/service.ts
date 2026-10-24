@@ -14,7 +14,7 @@ import { createCareerClubService } from "../club/service.ts";
 import { crowdSupport } from "../fans/model.ts";
 import { storyEngine, newsSelection, currentMoments, storyThreads } from "./stories.ts";
 import { publicProfile, relationshipTones } from "./profile.ts";
-import { opportunities } from "./opportunities.ts";
+import { clubInvitationProgress, opportunities } from "./opportunities.ts";
 import { LEVELS } from "../recognition/types.ts";
 import type { Commitment, Decision, LifeSources, LifeView, NpcLifeView } from "./types.ts";
 
@@ -221,7 +221,7 @@ export function createCareerLifeService(database:CareerDatabase) {
     }
     const fans=s.fans?{...s.fans,crowd:crowdSupport(s.fans,profile.reception==="Divisive")}:undefined;
     return {careerSaveId:saveId,retired:!s.active,profile,...(fans?{fans}:{}),news:newsSelection(stories),...recentThreads(storyThreads(stories)),moments:currentMoments(s,stories),
-      opportunities:offers,history:s.decisions,commitments:s.commitments,relationshipTones:relationshipTones(s),
+       opportunities:offers,clubInvitationProgress:clubInvitationProgress(s),history:s.decisions,commitments:s.commitments,relationshipTones:relationshipTones(s),
       merchandise:{demand:profile.commercial.demand,incomePence:Number(entries.find(e=>e.category==="MERCHANDISE_ROYALTY")?.total??0),
         royaltyPence:merch?Number(merch.royalty_pence):null,offerRoyaltyPence:2500*Math.max(...s.recognition.contexts.map(c=>LEVELS.indexOf(c.level))),
         agreement:merch?`${String(merch.category).toLowerCase().replaceAll("_"," ")} · ${merch.active?"active":"stopped"}`:null,

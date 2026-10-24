@@ -35,8 +35,8 @@ const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 const status = (p: Promise<unknown>, n = 409) => assert.rejects(p, (e: { status?: number }) => e.status === n);
 
 test("platform ads reward audience watch time and consistent streaming, independently of sponsors",()=>{
-  assert.equal(adRevenuePence(30_000,3,50),900);
-  assert.equal(adRevenuePence(30_000,1,50),300,"one active week earns a third of the full consistency rate");
+  assert.equal(adRevenuePence(30_000,3,50),4500,"30,000 audience minutes at 150p per thousand is £45 before sponsorship or memberships");
+  assert.equal(adRevenuePence(30_000,1,50),1500,"one active week earns a third of the full consistency rate");
   assert.equal(adRevenuePence(30_000,0,50),0,"no streaming weeks means no ads payout");
   assert.equal(adRevenuePence(30_000,3,49),0,"ads unlock at Affiliate");
 });

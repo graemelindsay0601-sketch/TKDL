@@ -55,7 +55,7 @@ export function LifePage({ctx,initialTab="Profile"}:{ctx:ShellContext;initialTab
           m.choices.map(c=><button className="career-btn career-btn-ghost whitespace-normal text-left" disabled={choice.isPending} key={c.id} onClick={()=>choose("moments",m.id,c.id)}>{c.text}</button>)}</div>
       </section>)}
       {tab==="Profile"&&<Profile data={d}/>}
-      {tab==="Opportunities"&&<section className="space-y-3"><h2 className="font-bold">Optional off-board opportunities</h2><details className="career-note"><summary>How opportunities work</summary><p>Accepting reserves the displayed date; fees settle through the Career ledger after that sporting week. Declining is not a sporting penalty.</p></details>
+      {tab==="Opportunities"&&<section className="space-y-3"><ClubInvitationProgress progress={d.clubInvitationProgress}/><h2 className="font-bold">Optional off-board opportunities</h2><details className="career-note"><summary>How opportunities work</summary><p>Accepting reserves the displayed date; fees settle through the Career ledger after that sporting week. Declining is not a sporting penalty.</p></details>
         {d.opportunities.map(o=><article key={o.id} className="career-life-card space-y-2">
           <h3 className="font-bold">{o.title}</h3><p className="text-sm">{o.description}</p>
           <p className="text-sm">S{o.season} · day {o.day} · agreed fee {formatPence(o.feePence)}</p><p className="text-xs text-white/60">{o.compatibility}</p>
@@ -91,6 +91,40 @@ function Fans({fans}:{fans:NonNullable<LifeView["fans"]>}) {
     {fans.milestones.length>0&&<p className="text-xs text-white/60">Milestones: {fans.milestones.map(m=>`${n(m.fans)} (season ${m.season})`).join(" · ")}</p>}
     <details className="career-note"><summary>How fans are counted</summary><p>Fans come only from what you do: results (bigger stages win more), titles, nine-darters, and a showman or confident interview style. Wins at home build a home following; wins abroad an international one. A core stays loyal; casual fans drift when you are out of the spotlight. A big following sells more signature products and earns bigger sponsor signing bonuses. It never changes how you throw.</p></details>
   </section>;
+}
+function ClubInvitationProgress({progress}:{progress:LifeView["clubInvitationProgress"]}) {
+  const local=progress.nextInvitation==="LOCAL_SPOTLIGHT";
+  const regional=progress.nextInvitation==="REGIONAL_SHOWCASE";
+  const title=local?"Local spotlight":regional?"Regional showcase":"Club invitation";
+  const appearanceTarget=progress.targetAppearances;
+  const winTarget=progress.targetWins;
+  const stateCopy={
+    IN_PROGRESS:"Build your record at club nights by playing the singles yourself. Only your own completed appearances count; teammate cover does not.",
+    READY:"The requirements are met. This invitation is ready and appears separately in the opportunities list below.",
+    BOOKED:"This invitation has been booked. Its recorded progress is shown here for reference.",
+    COMPLETE:"This invitation is complete. Its recorded requirements remain here for reference.",
+    CLOSED:"This invitation is closed and is no longer available to book.",
+  }[progress.status];
+  return <section className="career-club-progress" aria-labelledby="club-invitation-heading">
+    <div className="career-club-progress__header">
+      <div><p className="career-club-progress__eyebrow">Club invitations</p><h2 id="club-invitation-heading">{title}</h2></div>
+      <span className={`career-club-progress__status career-club-progress__status--${progress.status.toLowerCase()}`}>{progress.status.replaceAll("_"," ").toLowerCase()}</span>
+    </div>
+    <p className="career-club-progress__copy">{stateCopy}</p>
+    {(appearanceTarget!==null||winTarget!==null)&&<div className="career-club-progress__metrics" aria-label="Invitation qualification progress">
+      {appearanceTarget!==null&&<ProgressMetric label="Player-played club appearances" value={progress.appearances} target={appearanceTarget}/>}
+      {winTarget!==null&&<ProgressMetric label="Wins" value={progress.wins} target={winTarget}/>}
+    </div>}
+    {progress.status==="IN_PROGRESS"&&local&&<p className="career-club-progress__rule">Local spotlight requires 3 player-played club appearances.</p>}
+    {progress.status==="IN_PROGRESS"&&regional&&<p className="career-club-progress__rule">Regional showcase requires 5 total player-played club appearances and 3 wins.</p>}
+  </section>;
+}
+function ProgressMetric({label,value,target}:{label:string;value:number;target:number}) {
+  const shown=Math.max(0,Math.min(value,target));
+  return <div className="career-club-progress__metric">
+    <div className="career-club-progress__metric-label"><span>{label}</span><strong>{value} <span aria-hidden="true">/</span> {target}</strong></div>
+    <progress aria-label={label} aria-valuetext={`${value} of ${target}`} value={shown} max={target}/>
+  </div>;
 }
 function Profile({data:d}:{data:LifeView}) {
   return <section className="space-y-3">{d.fans&&<Fans fans={d.fans}/>}<h2 className="text-lg font-bold">Your public presentation</h2>

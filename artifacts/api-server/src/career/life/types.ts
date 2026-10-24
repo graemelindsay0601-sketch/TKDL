@@ -46,6 +46,11 @@ export type Opportunity = {
   id:string;family:string;title:string;description:string;season:number;day:number;feePence:number;
   contractId:string|null;compatibility:string;conflicts:string[];canAccept:boolean;
 };
+export type ClubInvitationProgress = {
+  nextInvitation:"LOCAL_SPOTLIGHT"|"REGIONAL_SHOWCASE"|null;
+  status:"IN_PROGRESS"|"READY"|"BOOKED"|"COMPLETE"|"CLOSED";
+  appearances:number;wins:number;targetAppearances:number|null;targetWins:number|null;
+};
 export type PublicProfile = {
   persona:{label:string;primary:Persona|null;secondary:Persona|null;description:string};
   awareness:string;reception:string;draw:string;
@@ -54,7 +59,7 @@ export type PublicProfile = {
 export type LifeView = {
   careerSaveId:string;retired:boolean;profile:PublicProfile;
   news:Story[];threads:{id:string;title:string;stories:Story[]}[];/** All threads (only the most recent are sent). */ threadCount:number;moments:Moment[];
-  opportunities:Opportunity[];history:Decision[];commitments:Commitment[];
+   opportunities:Opportunity[];clubInvitationProgress:ClubInvitationProgress;history:Decision[];commitments:Commitment[];
   relationshipTones:{opponentId:string;name:string;tone:Tone;sportingLabels:string[]}[];
   merchandise:{demand:string;incomePence:number;agreement:string|null;royaltyPence:number|null;offerRoyaltyPence:number;canOptIn:boolean;canStop:boolean};
   commercialIncomePence:number;notes:string[];

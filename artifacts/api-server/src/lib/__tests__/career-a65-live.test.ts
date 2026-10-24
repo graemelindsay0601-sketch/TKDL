@@ -185,13 +185,13 @@ for(const [definition,score] of [["county-301-sprint",301],["county-701-open",70
 }
 const q = async (query: ReturnType<typeof sql>) => (await db.execute(query)).rows as Record<string, any>[];
 
-async function newCareer(slot: number, body: Record<string, unknown>) {
-  const created = await call("POST", "/saves", { slot, careerName: `A65 ${slot}`, ...body });
+async function newCareer(slot: number, body: Record<string, unknown>, playerId = 1) {
+  const created = await call("POST", "/saves", { slot, careerName: `A65 ${slot}`, ...body }, playerId);
   assert.equal(created.status, 201, JSON.stringify(created.body));
   // Reproduce the published A1–A7.6 universe, not the changed v3 sporting calendar.
   // A8.1 v3/v2 creation and content behavior have their own service/HTTP tests.
   await db.execute(sql`UPDATE career_saves SET world_seed = ${HARNESS_SEED},event_database_version=2,player_database_version=1 WHERE id = ${created.body.id}`);
-  assert.equal((await call("POST", `/saves/${created.body.id}/initialize`, {})).status, 200);
+  assert.equal((await call("POST", `/saves/${created.body.id}/initialize`, {}, playerId)).status, 200);
   return created.body.id as string;
 }
 test("Life API refreshes local spotlight eligibility from real played club singles",async()=>{
@@ -334,7 +334,7 @@ test("age pathways: junior events accept a 15-year-old and refuse adults; open e
 // ------------------------------------------------------------------ the playable loop
 test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, duplicate safety, no sporting side effects, abandon, retire and cascades", async () => {
   const id=await newCareer(3,{dateOfBirth:dobForAge(35)});
-  const other=await newCareer(2,{dateOfBirth:dobForAge(35)});
+  const other=await newCareer(1,{dateOfBirth:dobForAge(35)},2);
   const read=()=>call("GET",`/saves/${id}/goals`);
   const initial=await read();
   assert.equal(initial.status,200,JSON.stringify(initial.body));
@@ -387,13 +387,16 @@ test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, 
   assert.equal((await call("POST",`/saves/${id}/goals/${create.body.id}/abandon`,{})).body.status,"ABANDONED");
   assert.equal((await call("POST",`/saves/${id}/goals/${create.body.id}/abandon`,{})).body.status,"ABANDONED");
   assert.deepEqual(await invariant(),before,"Focus/goals do not change NPCs, event facts, money, rankings, eligibility settings or seeds");
-  assert.deepEqual((await call("GET",`/saves/${other}/goals`)).body.goals,[]);
+  const otherGoals=await call("GET",`/saves/${other}/goals`,undefined,2);
+  assert.equal(otherGoals.status,200,JSON.stringify(otherGoals.body));
+  assert.deepEqual(otherGoals.body.goals,[]);
   await call("POST",`/saves/${id}/retire`,{confirmation:"RETIRE CAREER"});
   assert.equal((await read()).body.retired,true);
   assert.equal((await call("POST",`/saves/${id}/focus`,{focus:"OPEN_SCHEDULE"})).status,409);
   assert.equal((await call("POST",`/saves/${id}/goals`,{requestKey:randomUUID(),definition})).status,409);
   assert.equal((await call("DELETE",`/saves/${id}`,{})).status,204);
   assert.equal((await q(sql`SELECT COUNT(*)::int n FROM career_personal_goals WHERE career_save_id=${id}`))[0].n,0);
+  assert.equal((await call("DELETE",`/saves/${other}`,{},2)).status,204);
 });
 
 test("full human loop (junior, legs): enter, reach the match, bull-up, play through the shared rules, server accepts once, bracket/money/rankings/milestones move", async () => {
@@ -578,12 +581,12 @@ test("set-play Career match (best of 3 sets, best of 5 legs per set) through the
   for (const leg of st.legsLog) assert.ok(leg.setNo <= 3);
   const again = await call("PUT", `/saves/${id}/matches/${matchId}/session/darts`, { darts: done.darts, expectedRevision: 0 });
   assert.equal(again.body.duplicate, true, "no duplicate result");
+  assert.equal((await call("DELETE", `/saves/${id}`, {})).status, 204);
 });
 
 test("Double Crown format (501 double-in double-out sets): no score before opening, opening double scores, bot obeys, result accepted", async () => {
-  const id = (await call("GET", "/saves")).body.slots[2].career.id;
+  const id = await newCareer(3, { dateOfBirth: dobForAge(30) });
   const save = (await call("GET", `/saves/${id}`)).body;
-  await advanceToHumanMatch(id).catch(() => null);
   await enterFirst(id, e => e.definitionKey === "friday-night-501" && e.capability.executable && e.dates.startWeek > save.currentWeek);
   const matchId = await advanceToHumanMatch(id);
   const dc = EVENT_CATALOGUE_V2.find(d => d.key === "double-crown")!.format;
@@ -603,10 +606,11 @@ test("Double Crown format (501 double-in double-out sets): no score before openi
   assert.ok(st.visits.some(v => v.thrower === 1 && !v.startOpened), "the bot also had to open");
   assert.ok(done.session.result.facts);
   assert.equal((await q(sql`SELECT status FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0].status, "COMPLETED");
+  assert.equal((await call("DELETE", `/saves/${id}`, {})).status, 204);
 });
 
 test("concurrency: two completions race; result completion races calendar advance — exactly one sporting outcome", async () => {
-  const id = (await call("GET", "/saves")).body.slots[2].career.id;
+  const id = await newCareer(3, { dateOfBirth: dobForAge(30) });
   const save = (await call("GET", `/saves/${id}`)).body;
   await enterFirst(id, e => e.capability.executable && e.finance.affordable !== false && e.dates.startWeek > save.currentWeek && ["GRASSROOTS", "COUNTY"].includes(e.circuit));
   const matchId = await advanceToHumanMatch(id);
@@ -629,6 +633,7 @@ test("concurrency: two completions race; result completion races calendar advanc
   assert.equal(results[0].n, 1);
   const sessions = await q(sql`SELECT status FROM career_match_sessions WHERE career_save_id = ${id} AND match_id = ${matchId}`);
   assert.deepEqual(sessions.map(r => r.status), ["COMPLETED"]);
+  assert.equal((await call("DELETE", `/saves/${id}`, {})).status, 204);
 });
 
 /** Offline full playthrough (no checkpoints) used to build a complete log for the race test. */

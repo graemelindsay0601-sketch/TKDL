@@ -1250,7 +1250,7 @@ test("SP-F2 reissues pending legacy offers with company profiles and preserves t
   const offer=refreshed.offers.find(candidate=>candidate.sponsorKey==="forge-workwear")!;
   assert.ok(offer,"the updated offer is visible");
   assert.notEqual(offer.id,old.id);
-  assert.equal(offer.terms.sponsorDatabaseVersion,8);
+  assert.equal(offer.terms.sponsorDatabaseVersion,CURRENT_SPONSOR_DATABASE_VERSION);
   assert.ok(offer.terms.commercialProfile,"the refreshed offer has its company-specific commercial identity");
   const refresh=(offer.source as Record<string,unknown>).catalogueRefresh as {fromVersion:number;toVersion:number};
   assert.equal(refresh.fromVersion,5);

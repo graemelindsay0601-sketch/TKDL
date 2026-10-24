@@ -34,3 +34,4 @@
 - [Career runtime stability](career-runtime-stability.md) — per-dart checkpoints must not rerender the active scorer; crash reports need route/error context
 - [Mockup preview routing](mockup-preview-routing.md) — canvas previews use the `/__mockup` proxy path without an explicit port; check the generated registry when a frame says its component is missing
 - [Career release readiness](career-release-readiness.md) — keep fleshing out Career toward sign-off; use independent compatibility and integration work during manual testing
+- [Career test isolation](career-test-isolation.md) — live-career tests must isolate save slots and player identity so sharded runs do not rely on shared fixture state
