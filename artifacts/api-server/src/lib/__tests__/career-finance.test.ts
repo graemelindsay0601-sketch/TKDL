@@ -31,7 +31,7 @@ import type { SponsorApproachSource } from "../../career/finance/sponsor-journey
 import { discountedTravelPence, groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
 import {
   CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, evaluateRequirement,
-  SPONSOR_CATALOGUE_V1, SPONSOR_CATALOGUE_V2, sponsorCatalogue, type SportingFacts,
+  SPONSOR_CATALOGUE_V1, SPONSOR_CATALOGUE_V2, sponsorCatalogue, type SportingFacts, type SponsorDefinition,
 } from "../../career/finance/sponsors.catalogue.ts";
 import { FINANCE_VERSION, PRIZE_PROFILES, PRIZE_PROFILES_V1, prizeForPosition, FEE_PROFILES } from "../../career/finance/config.ts";
 import { lockRoot } from "../../career/world/service.ts";
@@ -198,8 +198,8 @@ test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Ca
     `catalogue v${version} must retain its historical guarantee terms`);
   }
   for (const tier of ["LOCAL", "REGIONAL", "PROFESSIONAL", "ELITE"]) {
-    const definition = sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).find(item => item.terms.tier === tier)!;
-    const annualPence = definition.terms.contractFoundation!.guaranteedPayments[0]!.amountPence;
+    const definition: SponsorDefinition = sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).find((item: SponsorDefinition) => item.terms.tier === tier)!;
+    const annualPence: number = definition.terms.contractFoundation!.guaranteedPayments[0]!.amountPence;
     assert.ok(annualPence > 0 && annualPence % 4 === 0, `${tier} guarantees must be positive and split into four equal payments`);
     assert.deepEqual(definition.terms.contractFoundation?.guaranteedPayments, [
       { amountPence: annualPence, cadence: "PER_SEASON", installments: 4 },

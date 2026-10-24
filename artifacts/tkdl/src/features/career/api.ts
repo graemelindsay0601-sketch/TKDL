@@ -99,6 +99,12 @@ export type TeamNightsView = import("../../../../api-server/src/career/club/team
 /** Club team nights: the league table, your next fixture (and whether you're free for it) and the last result. */
 export const useTeamNights = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club", "team-nights"),
   queryFn: () => get<TeamNightsView>(`/saves/${saveId}/club/team-nights`), staleTime: STALE });
+export const useJoinTeamNights = (saveId: string) => useSaveMutation(saveId, () => send("POST", `/saves/${saveId}/club/team-nights/join`));
+export type TeamMatchSession = import("../../../../api-server/src/career/club/team-service").TeamMatchSession;
+export const useTeamLiveMatch = (saveId: string, matchId: string) => useQuery({ queryKey: careerKey(saveId, "club-team-match", matchId),
+  queryFn: () => get<TeamMatchSession>(`/saves/${saveId}/club/team-matches/${matchId}`), staleTime: 0 });
+export const teamLiveApi = { darts: (saveId: string, matchId: string, darts: unknown[]) =>
+  send<TeamMatchSession>("POST", `/saves/${saveId}/club/team-matches/${matchId}/darts`, { darts }) };
 /** Your home club: members, captain, county league table and history. */
 export const useHomeClub = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club"), queryFn: () => get<ClubView>(`/saves/${saveId}/club`), staleTime: STALE });
 export const useSetCountyCategory = (saveId: string) => useSaveMutation(saveId, (category: "MEN" | "WOMEN") =>

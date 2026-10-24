@@ -103,9 +103,24 @@ test("a team night: six singles for each side, you play when you're free", async
   const first = fixturesFor((await teams.read(actor, id)).table.map(t => t.club)).filter(f => f.home === "ayrshire" || f.away === "ayrshire")[0];
   const before = await teams.read(actor, id);
   assert.ok(before.available && before.table.length >= 2, "Scotland has a league");
-  assert.equal(before.next!.week, first.week); assert.equal(before.next!.youFree, true);
-  await play(first.week);
-  await play(first.week);
+  assert.equal(before.next!.week, first.week); assert.equal(before.next!.youFree, false, "availability is only relevant after joining");
+  await teams.join(actor, id);
+  assert.equal((await teams.read(actor, id)).next!.youFree, true);
+  const matchId = await play(first.week);
+  assert.ok(matchId, "a joined, available player receives a live single");
+  assert.equal(await play(first.week), matchId, "re-entering the same week returns the same live match");
+  const session = await teams.liveMatch(actor, id, matchId);
+  assert.equal(session.status, "LIVE");
+  assert.equal((await teams.read(actor, id)).you.played, 0, "a pending match is not a personal appearance yet");
+  const miss = { segment: 0, multiplier: 1 as const, value: 0 };
+  const t20 = { segment: 20, multiplier: 3 as const, value: 60 };
+  const t19 = { segment: 19, multiplier: 3 as const, value: 57 };
+  const d12 = { segment: 12, multiplier: 2 as const, value: 24 };
+  const darts = Array.from({ length: 3 }, () => [...Array(3).fill(t20), ...Array(3).fill(miss),
+    ...Array(3).fill(t20), ...Array(3).fill(miss), t20, t19, d12]).flat();
+  const finished = await teams.darts(actor, id, matchId, { darts });
+  assert.equal(finished.status, "PLAYED");
+  assert.equal(finished.won, true);
   const fixtures = await rows(sql`SELECT * FROM career_club_fixtures WHERE career_save_id=${id} AND week=${first.week}`);
   assert.equal(fixtures.length, fixturesFor(before.table.map(t => t.club)).filter(f => f.week === first.week).length, "every fixture that week, once");
   for (const f of fixtures) assert.equal(Number(f.home_score) + Number(f.away_score), TEAMS.singles);
@@ -116,12 +131,14 @@ test("a team night: six singles for each side, you play when you're free", async
   assert.equal(v.last!.singles.length, TEAMS.singles);
   assert.equal(v.last!.singles.filter(s => s.you).length, 1, "you play one singles");
   assert.equal(v.you.played, 1);
+  assert.equal(v.you.won, 1);
   assert.equal(v.table.reduce((n, t) => n + t.played, 0), fixtures.length * 2);
 });
 
 test("real events come first: booked elsewhere that night, you sit it out and a clubmate plays; booked members sit out too", async () => {
   const lg = (await teams.read(actor, id)).table.map(t => t.club);
   const second = fixturesFor(lg).filter(f => (f.home === "ayrshire" || f.away === "ayrshire"))[1];
+  await db.execute(sql`UPDATE career_saves SET current_week=${second.week} WHERE id=${id}`);
   const event = (await rows(sql`SELECT id FROM career_event_instances WHERE career_save_id=${id} LIMIT 1`))[0].id;
   await db.execute(sql`INSERT INTO career_participant_bookings (career_save_id,season,participant_key,day,event_id) VALUES (${id},1,'HUMAN',${teamNightDay(second.week)},${event})`);
   const next = (await teams.read(actor, id)).next!;

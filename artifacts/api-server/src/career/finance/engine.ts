@@ -274,8 +274,17 @@ export function defaultFactsProvider(calendarProviders: CalendarProviders): Spon
       const qualifications = (await tx.execute(sql`SELECT DISTINCT target_key FROM career_qualification_entitlements WHERE career_save_id = ${root.id} AND recipient_key = ${HUMAN}`)).rows.map(r => String(r.target_key));
       const status = calendarProviders.sportingStatus.human(root);
       const ranking = calendarProviders.sportingStatus.rankings(HUMAN)["pro-world"];
+      const hasClubFixtures = Boolean((await tx.execute(sql`SELECT to_regclass('career_club_fixtures') IS NOT NULL AS ok`)).rows[0]?.ok);
+      const teamRecord = hasClubFixtures
+        ? (await tx.execute(sql`SELECT COUNT(*)::int AS appearances,
+            COUNT(*) FILTER (WHERE r->'humanMatch'->>'won'='true')::int AS wins
+          FROM career_club_fixtures f CROSS JOIN LATERAL jsonb_array_elements(f.rubbers) r
+          WHERE f.career_save_id=${root.id} AND f.status='COMPLETED'
+            AND r->'humanMatch'->>'status'='PLAYED'`)).rows[0]
+        : null;
       return { careerStarted: true, titles, bestFinishByCircuit: best, qualifications,
-        professionalStatus: status.professionalStatus, tourCard: status.tourCard, worldRanking: ranking ?? null };
+        professionalStatus: status.professionalStatus, tourCard: status.tourCard, worldRanking: ranking ?? null,
+        localTeamRecord: { appearances: Number(teamRecord?.appearances ?? 0), wins: Number(teamRecord?.wins ?? 0) } };
     },
   };
 }

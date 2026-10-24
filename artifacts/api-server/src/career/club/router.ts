@@ -24,6 +24,27 @@ export function createCareerClubRouter(service: ReturnType<typeof createCareerCl
     if (!teams) { res.status(404).json({ error: "Not found" }); return; }
     res.json(await teams.read({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id))));
   });
+  router.post("/saves/:id/club/team-nights/join", async (req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store");
+    const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
+    if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
+    if (!teams) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(await teams.join({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id))));
+  });
+  router.get("/saves/:id/club/team-matches/:matchId", async (req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store");
+    const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
+    if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
+    if (!teams) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(await teams.liveMatch({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id)), careerIdSchema.parse(String(req.params.matchId))));
+  });
+  router.post("/saves/:id/club/team-matches/:matchId/darts", async (req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store");
+    const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
+    if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
+    if (!teams) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(await teams.darts({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id)), careerIdSchema.parse(String(req.params.matchId)), req.body));
+  });
   router.put("/saves/:id/club/county-category", async (req: Request, res: Response) => {
     res.set("Cache-Control", "no-store");
     const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;

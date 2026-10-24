@@ -4,8 +4,8 @@ import {BRANDS,SPONSOR_CATEGORIES,type Brand,type RelationshipSlot,type SponsorC
 import {representativeById} from "../content/sponsor-representatives.ts";
 
 /** Latest supported catalogue. Offers and signed contracts retain their stored terms when a save advances. */
-export const CURRENT_SPONSOR_DATABASE_VERSION = 8;
-export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6,7,8] as const);
+export const CURRENT_SPONSOR_DATABASE_VERSION = 9;
+export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6,7,8,9] as const);
 /** Annual GBP guarantee schedule approved for new v5 sponsor offers. */
 export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "APPROVED" as const;
 
@@ -26,6 +26,7 @@ export type SportingFacts = {
   professionalStatus: "AMATEUR" | "PROFESSIONAL" | null;
   tourCard: boolean | null;
   worldRanking: number | null;
+  localTeamRecord?: { appearances: number; wins: number };
 };
 export type Requirement =
   | { all: Requirement[] } | { any: Requirement[] }
@@ -35,7 +36,8 @@ export type Requirement =
   | { fact: "qualification"; targetKeys: string[] }
   | { fact: "professional" }
   | { fact: "tourCard" }
-  | { fact: "worldRanking"; maxPosition: number };
+  | { fact: "worldRanking"; maxPosition: number }
+  | { fact: "localTeamRecord"; minAppearances: number; minWins: number };
 
 const requirementSchema:z.ZodType<Requirement>=z.lazy(()=>z.union([
   z.object({all:z.array(requirementSchema).min(1).max(24)}).strict(),
@@ -48,6 +50,7 @@ const requirementSchema:z.ZodType<Requirement>=z.lazy(()=>z.union([
   z.object({fact:z.literal("professional")}).strict(),
   z.object({fact:z.literal("tourCard")}).strict(),
   z.object({fact:z.literal("worldRanking"),maxPosition:z.number().int().min(1).max(1000)}).strict(),
+  z.object({fact:z.literal("localTeamRecord"),minAppearances:z.number().int().min(0).max(1000),minWins:z.number().int().min(0).max(1000)}).strict(),
 ]));
 
 /** true = satisfied, false = known unmet, null = authority unknown (never grants). */
@@ -62,6 +65,8 @@ export function evaluateRequirement(rule: Requirement, facts: SportingFacts): bo
     case "professional": return facts.professionalStatus === null ? null : facts.professionalStatus === "PROFESSIONAL";
     case "tourCard": return facts.tourCard;
     case "worldRanking": return facts.worldRanking === null ? null : facts.worldRanking <= rule.maxPosition;
+    case "localTeamRecord": return facts.localTeamRecord === undefined ? null
+      : facts.localTeamRecord.appearances >= rule.minAppearances && facts.localTeamRecord.wins >= rule.minWins;
   }
 }
 
@@ -223,7 +228,7 @@ const sponsorTermsSchema=z.object({
   sponsorKey:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   displayName:z.string().trim().min(2).max(80),
   tier:z.enum(SPONSOR_TIERS),
-  sponsorDatabaseVersion:z.number().int().min(1).max(8),
+  sponsorDatabaseVersion:z.number().int().min(1).max(9),
   duration:z.union([z.object({kind:z.literal("REMAINDER_OF_SEASON")}).strict(),
     z.object({kind:z.literal("SEASONS"),seasons:z.number().int().min(1).max(5)}).strict()]),
   signingBonusPence:penceSchema,
@@ -371,7 +376,8 @@ export function sponsorCatalogue(version: number):readonly SponsorDefinition[] {
   if (version === 5) return SPONSOR_CATALOGUE_V5;
   if (version === 6) return SPONSOR_CATALOGUE_V6;
   if (version === 7) return SPONSOR_CATALOGUE_V7;
-  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V8;
+  if (version === 8) return SPONSOR_CATALOGUE_V8;
+  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V9;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
 /**
@@ -604,9 +610,18 @@ export const SPONSOR_CATALOGUE_V8:readonly SponsorDefinition[]=Object.freeze(SPO
   terms.contractFoundation!.activitySpecification=v8ActivitySpecification(definition);
   return {key:definition.key,offerRequirement:structuredClone(definition.offerRequirement),terms};
 }));
+/** v9 adds team-league eligibility without changing any earlier offer or signed contract snapshot. */
+export const SPONSOR_CATALOGUE_V9:readonly SponsorDefinition[]=Object.freeze(SPONSOR_CATALOGUE_V8.map(definition=>{
+  const terms=structuredClone(definition.terms);
+  terms.sponsorDatabaseVersion=9;
+  const offerRequirement=definition.key==="forge-workwear"
+    ? { any: [structuredClone(definition.offerRequirement), { fact: "localTeamRecord" as const, minAppearances: 5, minWins: 3 }] }
+    : structuredClone(definition.offerRequirement);
+  return { key: definition.key, offerRequirement, terms };
+}));
 
 export function validateSponsorCatalogues():void {
-  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6],[7,SPONSOR_CATALOGUE_V7],[8,SPONSOR_CATALOGUE_V8]] as const){
+  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6],[7,SPONSOR_CATALOGUE_V7],[8,SPONSOR_CATALOGUE_V8],[9,SPONSOR_CATALOGUE_V9]] as const){
     const keys=new Set<string>();
     for(const definition of catalogue){
       if(keys.has(definition.key))throw new Error(`Duplicate sponsor definition in v${version}: ${definition.key}`);

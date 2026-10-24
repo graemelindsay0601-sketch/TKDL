@@ -305,7 +305,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         }
         // A blocked live activity may resume only from the exact position it stopped at;
         // once the Career has moved on, retrying it returns the stored result and never moves time.
-        if (["HUMAN_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(String(stored?.stop?.reason))
+        if (["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(String(stored?.stop?.reason))
           && stored?.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
         return { stored: (stored ?? null) as unknown };
       }
@@ -328,6 +328,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           ? { reason: "MONEY_MATCH_PENDING", detail: { matchId: blocker.id } }
           : blocker?.kind === "STREAM"
             ? { reason: "STREAM_PENDING", detail: { day: blocker.day } }
+            : blocker?.kind === "TEAM_MATCH"
+              ? { reason: "TEAM_MATCH_PENDING", detail: { matchId: blocker.id } }
             : { reason: "HUMAN_MATCH_PENDING", detail: { season: step.season, week: step.week, matchIds: (step.summary as { awaitingHuman: string[] }).awaitingHuman } };
         break;
       }
@@ -360,7 +362,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
       // Blocked advances are recorded (resumable from the same position); completed ones are final.
       await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
-        completed_at = ${["HUMAN_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
+        completed_at = ${["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
         WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
       return result;
     });
@@ -535,12 +537,13 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       if (Number(season.played_week) >= w) return { season: s, week: w, summary: null as unknown, blocked: false };
       const summary = await playWeek(tx, root, state, s, w, await bind(tx, root));
       if (summary.awaitingHuman.length) return { season: s, week: w, summary, blocked: true };
+      const clubMatchId = await playTeamNights(tx, root, s, w);
+      if (clubMatchId) return { season: s, week: w, summary, blocked: true, blocker: { kind: "TEAM_MATCH" as const, id: clubMatchId } };
       await tx.execute(sql`UPDATE career_seasons SET played_week = ${w} WHERE career_save_id = ${saveId} AND season = ${s} AND played_week = ${w - 1}`);
       // A5: ranking publication / Q-School allocation / season review for the completed week (same transaction).
       await providers.sporting?.afterWeek(tx, root, s, w);
       await settleLifeCommitments(tx,root,s,w);
-      // Club team nights (Wednesday): played after the week's events, so anyone booked into one sits the team night out.
-      await playTeamNights(tx, root, s, w);
+      // County team fixtures remain automated except for the selected live county single.
       await playCountyFixtures(tx, root, s, w);
       // DartCast: monthly sub renewals and brand offers.
       await settleStreamingWeek(tx, root, s, w);
