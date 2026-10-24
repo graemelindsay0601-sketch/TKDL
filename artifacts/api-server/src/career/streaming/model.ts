@@ -187,8 +187,8 @@ export const STREAM_MONEY = Object.freeze({
   campaignsPerMonth:1,
   /** Platform ads: pence per thousand viewer-minutes, with full pay after three distinct streaming weeks. */
   adEligibleFollowers:50, adPencePerThousandViewerMinutes:30, adMinutesPerVisit:2, adFullRateWeeks:3,
-  /** Fee per stream: a floor plus so much per follower, to the pound. */
-  dealFloorPence: 2500, dealPencePerFollower: 3,
+  /** Brand value follows the average concurrent audience, not follower count. */
+  dealFloorPence: 1000, dealPencePerAverageViewer: 100,
 });
 
 export const BRANDS = [
@@ -211,8 +211,9 @@ export const adRevenuePence = (viewerMinutes:number,streamedWeeks:number,followe
   const consistency=Math.min(1,streamedWeeks/STREAM_MONEY.adFullRateWeeks);
   return Math.floor(viewerMinutes*STREAM_MONEY.adPencePerThousandViewerMinutes/1000*consistency);
 };
-/** A brand's fee for each stream, to the pound. */
-export const dealFee = (followers: number) => Math.round((STREAM_MONEY.dealFloorPence + Math.max(0, followers) * STREAM_MONEY.dealPencePerFollower) / 100) * 100;
+/** A brand's fee for each stream, based on average concurrent viewers, rounded to whole pounds. */
+export const dealFee = (averageViewers: number) =>
+  Math.round((STREAM_MONEY.dealFloorPence + Math.max(0, averageViewers) * STREAM_MONEY.dealPencePerAverageViewer) / 100) * 100;
 /** Which brand comes calling (the n-th deal of the season, picked from the seed). */
 export function brandFor(seed: string, season: number, n: number) {
   const rng = scopedRandom(seed, STREAM.version, "stream-brand", season, n);

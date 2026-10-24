@@ -4,7 +4,7 @@ import { z, ZodError } from "zod";
 import { CareerError } from "../service.ts";
 import { careerIdSchema } from "../validation.ts";
 import { authedWriteRateLimit } from "../../middleware/writeRateLimit.ts";
-import { hostingPreview, type createCareerHostingService } from "./service.ts";
+import { type createCareerHostingService } from "./service.ts";
 
 /** Run your own tournament: what you've hosted, a preview of a booking, and booking one. */
 export function createCareerHostingRouter(service: ReturnType<typeof createCareerHostingService>) {
@@ -21,7 +21,7 @@ export function createCareerHostingRouter(service: ReturnType<typeof createCaree
   router.get("/saves/:id/hosting/preview", async (req, res) => {
     const q = z.object({ feePence: z.coerce.number().int().min(0).max(5000), topUpPence: z.coerce.number().int().min(0).max(200000), fieldSize: z.coerce.number().int(), fans: z.coerce.number().int().min(0).default(0) }).parse(req.query);
     if (q.fieldSize !== 16 && q.fieldSize !== 32) throw new CareerError(400, "Choose a field of 16 or 32");
-    res.json(hostingPreview(q, q.fans));
+    res.json(await service.preview(res.locals.careerActor,id(req),q));
   });
   router.post("/saves/:id/hosting", authedWriteRateLimit, async (req, res) => { res.json(await service.create(res.locals.careerActor, id(req), req.body)); });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {

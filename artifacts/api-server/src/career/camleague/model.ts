@@ -8,8 +8,8 @@ import { scopedRandom } from "../world/random.ts";
  */
 export const CAM = Object.freeze({
   version: 1, size: 8, rounds: 7, bestOfLegs: 5, pointsForWin: 2, promote: 2, relegate: 2,
-  /** Prize money for the top three, as a multiple of the division's fee. */
-  prizeMultiple: [10, 5, 3] as const,
+  /** Prize pool is funded by the eight entry fees; retain one fee for league administration. */
+  prizeMultiple: [4, 2, 1] as const,
 });
 export const DIVISIONS = [
   { level: 1, name: "Premier Division", from: 68, fee: 3500 },

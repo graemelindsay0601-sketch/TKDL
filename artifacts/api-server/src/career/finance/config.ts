@@ -11,6 +11,8 @@ export const CURRENCY = "GBP";
 export const CAREER_PURCHASES = [
   { key:"travel-saver-kit", name:"Touring case & travel saver", costPence:10_000, type:"EQUIPMENT", description:"A durable touring case and travel-saver package reduce player-paid transport fares by 10% on future trips, not entry fees or accommodation.", travelDiscountPercent:10 },
   { key:"home-practice-nook", name:"Home practice nook", costPence:30_000, type:"LIFESTYLE", description:"A personal home-base milestone for the Career portfolio. It has no automatic upkeep and does not change match ability.", travelDiscountPercent:0 },
+  { key:"trophy-cabinet", name:"Trophy cabinet", costPence:60_000, type:"LIFESTYLE", description:"A permanent home for career silverware and milestones. It has no upkeep or effect on match ability.", travelDiscountPercent:0 },
+  { key:"club-hosting-kit", name:"Club-night hosting kit", costPence:30_000, type:"BUSINESS", description:"Portable signage and event equipment reduce room-hire costs by 20% when you host future tournaments. No upkeep.", travelDiscountPercent:0, hostingRoomDiscountPercent:20 },
 ] as const;
 export const WEEKS = 52;
 

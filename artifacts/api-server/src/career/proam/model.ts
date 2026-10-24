@@ -13,7 +13,7 @@ export const PROAM = Object.freeze({
   /** One leg, the amateur throws first. */
   bestOfLegs: 1,
   /** Your slot fee by how big the pro is, and the prize for beating them (a multiple of the fee). */
-  fee: { top16: 2500, top64: 1500, other: 1000 }, prizeMultiple: 20,
+  fee: { top16: 2500, top64: 1500, other: 1000 }, prizeMultiple: 10,
   /** Amateurs who take on the pro on the night, and what you're paid to be the pro, by your world ranking. */
   amateurs: 12,
   appearance: { top16: 250000, top32: 150000, top64: 90000, other: 40000 },

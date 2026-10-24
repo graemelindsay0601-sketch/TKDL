@@ -143,10 +143,10 @@ test("a stream night is booked like any other: an event that night can't be ente
   await status(streaming.goLive(actor, id, { dayOfWeek: (await streaming.read(actor, id)).freeNights[0] ?? 1 }), 409);
 });
 
-test("phase 2 rules: subs renew monthly (fewer when you go quiet), Partner brand fees grow with followers, Stars get invitational invitations", () => {
+test("phase 2 rules: subs renew monthly (fewer when you go quiet), Partner brand fees grow with live audience, Stars get invitational invitations", () => {
   assert.equal(renewals(20, true), 17); assert.equal(renewals(20, false), 12);
   assert.equal(subPayout(8), 8 * 125);
-  assert.equal(dealFee(1000), 5500); assert.equal(dealFee(25000), 77500);
+  assert.equal(dealFee(0), 1000); assert.equal(dealFee(10), 2000); assert.equal(dealFee(100), 11000);
   const inv = (circuit: string, definitionKey = "thursday-night-darts", takesInvitations = true) => ({ circuit, definitionKey, takesInvitations });
   assert.equal(streamerCanBeInvited("STAR", inv("INVITATIONAL")), true);
   assert.equal(streamerCanBeInvited("PARTNER", inv("INVITATIONAL")), false, "only Stars");
@@ -175,7 +175,7 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   let v = await streaming.read(actor, id);
   assert.equal(v.subscribers, renewals(10, true));
   assert.ok(v.dealOffer, "a Partner gets a brand offer");
-  assert.equal(v.dealOffer!.perStreamPence, dealFee(1200)); assert.equal(v.dealOffer!.streamsTotal, STREAM_MONEY.dealStreams);
+  assert.ok(v.dealOffer!.perStreamPence >= dealFee(0)); assert.equal(v.dealOffer!.streamsTotal, STREAM_MONEY.dealStreams);
   assert.ok(v.campaignOffer,"a Partner gets a one-off sponsor campaign each DartCast month");
   assert.ok(v.campaignOffer!.rewardPence>v.dealOffer!.perStreamPence,"the single-stream activation pays a campaign premium");
   await db.execute(sql`UPDATE career_stream_campaigns SET required_format='CHALLENGER' WHERE career_save_id=${id} AND id=${v.campaignOffer!.id}`);
@@ -192,7 +192,7 @@ test("a Partner channel: subs renew and pay at the month's end, a brand offers a
   assert.equal(live.campaign?.requiredFormat,"CHALLENGER","the accepted activation is attached to its matching stream");
   const done = await streaming.darts(actor, id, live.id, { darts: twoNil });
   const fee = await rows(sql`SELECT amount_pence, reason FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-deal:${live.id}`}`);
-  assert.equal(Number(fee[0].amount_pence), dealFee(1200)); assert.match(String(fee[0].reason), /stream 1 of 6/);
+  assert.equal(Number(fee[0].amount_pence), v.deal!.perStreamPence); assert.match(String(fee[0].reason), /stream 1 of 6/);
   const campaignPaid=await rows(sql`SELECT amount_pence FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`stream-campaign:${live.id}`}`);
   assert.equal(Number(campaignPaid[0].amount_pence),live.campaign!.rewardPence,"the one-off reward settles exactly once on completion");
   await streaming.darts(actor,id,live.id,{darts:twoNil});

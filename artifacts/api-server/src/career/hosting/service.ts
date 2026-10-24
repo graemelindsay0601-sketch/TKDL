@@ -32,6 +32,12 @@ const homeOf = async (tx: CareerExecutor, root: Root) => {
 };
 const available = async (tx: CareerExecutor, saveId: string) =>
   Math.max(0, Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${saveId}`)).rows[0]?.balance_pence ?? 0) - await reservedPence(tx, saveId));
+const hostingRoomDiscount = (root: Root) => {
+  const economy=root.settings_snapshot?.careerEconomy as {purchases?:string[]}|undefined;
+  return economy?.purchases?.includes("club-hosting-kit")?20:0;
+};
+const discountedRoomHire = (fieldSize:number,discountPercent:number) =>
+  Math.round(HOSTING.roomHirePence[fieldSize]*(100-discountPercent)/100);
 
 /** A local night to model your tournament on (its format, venue and open entry), from the save's own event database. */
 function template(root: Root, season: number, locality: { key: string; city: string }): EventInstanceDraft | null {
@@ -46,6 +52,7 @@ export function createCareerHostingService(database: CareerDatabase) {
   async function view(tx: CareerExecutor, root: Root): Promise<HostingView> {
     const season = Number(root.current_season), week = Number(root.current_week);
     const home = await homeOf(tx, root);
+    const discount=hostingRoomDiscount(root);
     const rows = (await tx.execute(sql`SELECT i.*, r.finishing_position,
         (SELECT SUM(amount_pence) FROM career_finance_entries f WHERE f.career_save_id=i.career_save_id AND f.event_id=i.id AND f.operation_key LIKE 'hosting-income:%')::bigint AS take
       FROM career_event_instances i LEFT JOIN career_event_results r ON r.career_save_id=i.career_save_id AND r.event_id=i.id AND r.participant_key=${HUMAN}
@@ -61,13 +68,20 @@ export function createCareerHostingService(database: CareerDatabase) {
     return { season, week, club: home ? `${home.city} Darts Club` : null, availablePence: await available(tx, root.id),
       hostedThisSeason: rows.filter(r => Number(r.season) === season && r.status !== "CANCELLED").length, maxPerSeason: HOSTING.maxPerSeason,
       fans: Math.max(0, (await fansForEffects(tx, root.id)) ?? 0),
-      rules: { leadWeeks: HOSTING.leadWeeks, lastWeek: HOSTING.lastWeek, fieldSizes: [...HOSTING.fieldSizes], roomHirePence: HOSTING.roomHirePence, maxFeePence: HOSTING.maxFeePence,
+      rules: { leadWeeks: HOSTING.leadWeeks, lastWeek: HOSTING.lastWeek, fieldSizes: [...HOSTING.fieldSizes],
+        roomHirePence: Object.fromEntries(HOSTING.fieldSizes.map(size=>[size,discountedRoomHire(size,discount)])), maxFeePence: HOSTING.maxFeePence,
         maxTopUpPence: HOSTING.maxTopUpPence, organiserShare: HOSTING.organiserShare }, events };
   }
 
   return {
     async read(actor: CareerActor, saveId: string) {
       return database.transaction(async tx => view(tx, await lockRoot(tx, actor, saveId, false) as unknown as Root));
+    },
+    async preview(actor: CareerActor,saveId:string,input:Pick<HostedTerms,"feePence"|"topUpPence"|"fieldSize">&{fans:number}) {
+      return database.transaction(async tx=>{
+        const root=await lockRoot(tx,actor,saveId,false) as unknown as Root;
+        return hostingPreview(input,input.fans,hostingRoomDiscount(root));
+      });
     },
 
     /**
@@ -93,7 +107,7 @@ export function createCareerHostingService(database: CareerDatabase) {
         if (!await freeOn(tx, root.id, season, day)) throw new CareerError(409, "You're already booked that night");
         const tmpl = template(root, season, home);
         if (!tmpl) throw new CareerError(409, "Your club has no back room to hire (no local open to model it on)");
-        const roomHirePence = HOSTING.roomHirePence[input.fieldSize];
+        const roomHirePence = discountedRoomHire(input.fieldSize,hostingRoomDiscount(root));
         const cost = roomHirePence + input.topUpPence;
         if (cost > before.availablePence) throw new CareerError(409, `That costs ${cost / 100} pounds up front and you have ${Math.floor(before.availablePence / 100)} free`);
         const terms: HostedTerms = { feePence: input.feePence, topUpPence: input.topUpPence, fieldSize: input.fieldSize, roomHirePence, organiserShare: HOSTING.organiserShare,
@@ -127,8 +141,10 @@ export function createCareerHostingService(database: CareerDatabase) {
 }
 
 /** What a booking would look like before you commit (turnout, pot and your take at that turnout). */
-export function hostingPreview(t: Pick<HostedTerms, "feePence" | "topUpPence" | "fieldSize">, fans: number) {
+export function hostingPreview(t: Pick<HostedTerms, "feePence" | "topUpPence" | "fieldSize">, fans: number,roomDiscountPercent=0) {
   const terms = { ...t, organiserShare: HOSTING.organiserShare };
   const turnout = expectedTurnout(t, fans), entrants = Math.max(HOSTING.minimumEntrants, Math.round(t.fieldSize * turnout));
-  return { turnout, entrants, prize: hostedPrize(terms, entrants), takePence: organiserTake(terms, entrants), costPence: HOSTING.roomHirePence[t.fieldSize] + t.topUpPence };
+  const roomHirePence=discountedRoomHire(t.fieldSize,roomDiscountPercent);
+  return { turnout, entrants, prize: hostedPrize(terms, entrants), takePence: organiserTake(terms, entrants), roomHirePence,
+    costPence: roomHirePence + t.topUpPence };
 }

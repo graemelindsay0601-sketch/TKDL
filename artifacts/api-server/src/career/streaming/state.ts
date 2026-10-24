@@ -78,6 +78,17 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   await tx.execute(sql`UPDATE career_stream_campaigns SET status='EXPIRED' WHERE career_save_id=${root.id}
     AND status IN ('OFFERED','ACTIVE') AND (season < ${season} OR expires_week < ${week})`);
   const followers = Number(ch.followers), tier = tierFor(followers).key;
+  const absoluteWeek=(season-1)*52+week;
+  const recentStreams=(await tx.execute(sql`SELECT processed_visits,tally FROM career_streams WHERE career_save_id=${root.id}
+    AND status='ENDED' AND format<>'CHARITY' AND ((season-1)*52+week) BETWEEN ${Math.max(1,absoluteWeek-4)} AND ${absoluteWeek-1}
+    ORDER BY season DESC,week DESC,id DESC LIMIT 12`)).rows;
+  const audienceMinutes=recentStreams.reduce((sum,r)=>{
+    const tally=r.tally as {viewerMinutes?:number;viewers?:number;peak?:number};
+    const minutes=Number(tally.viewerMinutes??Math.round(((Number(tally.viewers??0)+Number(tally.peak??0))/2)*Number(r.processed_visits??0)*STREAM_MONEY.adMinutesPerVisit));
+    return sum+minutes;
+  },0);
+  const audienceVisits=recentStreams.reduce((sum,r)=>sum+Number(r.processed_visits??0),0);
+  const averageViewers=audienceVisits>0?audienceMinutes/(audienceVisits*STREAM_MONEY.adMinutesPerVisit):0;
   if(tier==="PARTNER"||tier==="STAR"){
     const campaignOpen=(await tx.execute(sql`SELECT 1 FROM career_stream_campaigns WHERE career_save_id=${root.id}
       AND status IN ('OFFERED','ACTIVE','IN_PROGRESS') LIMIT 1`)).rows.length>0;
@@ -93,7 +104,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
       const formats=["CHALLENGER","KING","CHECKOUTS","BOBS_27","SCORING"] as const;
       const requiredFormat=formats[Math.floor(rng()*formats.length)]!;
       const profile=brand.terms.commercialProfile;
-      const payout=Math.min(300_000,Math.max(10_000,dealFee(followers)*4));
+      const payout=Math.min(100_000,Math.max(5_000,dealFee(averageViewers)*4));
       const id=stableUuid(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",root.id,season,campaignMonth);
       const brief=`Showcase ${profile?.benefitFocus.toLowerCase()??"the brand"} and tell viewers why ${brand.terms.displayName} backs your channel.`;
       await tx.execute(sql`INSERT INTO career_stream_campaigns
@@ -109,7 +120,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   const brand = brandFor(root.world_seed, season, thisSeason);
   await tx.execute(sql`INSERT INTO career_stream_deals (career_save_id, id, season, offered_week, expires_week, brand_key, brand_name, per_stream_pence, streams_total, status)
     VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-deal", root.id, season, thisSeason)}, ${season}, ${week}, ${week + STREAM_MONEY.dealOfferWeeks},
-      ${brand.key}, ${brand.name}, ${dealFee(followers)}, ${STREAM_MONEY.dealStreams}, 'OFFERED') ON CONFLICT DO NOTHING`);
+      ${brand.key}, ${brand.name}, ${dealFee(averageViewers)}, ${STREAM_MONEY.dealStreams}, 'OFFERED') ON CONFLICT DO NOTHING`);
 }
 /** New subs from streams that ended in this month's weeks. */
 export async function subsThisMonth(tx: CareerExecutor, saveId: string, season: number, month: number) {

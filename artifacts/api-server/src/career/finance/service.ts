@@ -127,7 +127,7 @@ const sponsorReleaseRequestSchema=z.object({
   releaseType:z.enum(["IMMEDIATE_NO_COST","MUTUAL","PRICED_BUYOUT"]),
 }).strict();
 const careerPurchaseSchema=z.object({key:z.string().min(1).max(80)}).strict();
-export type CareerPurchasesView={balancePence:number;availablePence:number;items:{key:string;name:string;costPence:number;type:string;description:string;travelDiscountPercent:number;owned:boolean}[]};
+export type CareerPurchasesView={balancePence:number;availablePence:number;items:{key:string;name:string;costPence:number;type:string;description:string;travelDiscountPercent:number;hostingRoomDiscountPercent?:number;owned:boolean}[]};
 const formatPence = (pence: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(pence / 100);
 
 /**
@@ -260,7 +260,8 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         if(availableBefore<item.costPence)throw new InsufficientFundsError(item.costPence,availableBefore);
         await post(tx,root,{operationKey:`adjustment:career-purchase:${key}`,category:"ADJUSTMENT",headline:"EXPENSE",
           amountPence:-item.costPence,reason:`Career purchase: ${item.name}`,season:Number(root.current_season),week:Number(root.current_week),
-          detail:{type:"CAREER_PURCHASE",key,name:item.name,purchaseType:item.type,travelDiscountPercent:item.travelDiscountPercent}});
+          detail:{type:"CAREER_PURCHASE",key,name:item.name,purchaseType:item.type,travelDiscountPercent:item.travelDiscountPercent,
+            hostingRoomDiscountPercent:"hostingRoomDiscountPercent" in item?item.hostingRoomDiscountPercent:0}});
         const nextEconomy={...(economy??{}),purchases:[...owned,key]};
         await tx.execute(sql`UPDATE career_saves SET settings_snapshot=settings_snapshot||${JSON.stringify({careerEconomy:nextEconomy})}::jsonb WHERE id=${root.id}`);
         const balancePence=Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence??0);
