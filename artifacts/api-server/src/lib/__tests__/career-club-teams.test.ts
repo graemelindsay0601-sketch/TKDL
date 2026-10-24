@@ -297,3 +297,70 @@ test("county singles use the live scorer log, update the fixture once, and then 
   const again = (await rows(sql`SELECT matches FROM career_county_fixtures WHERE career_save_id=${id} AND season=9 AND round=99`))[0];
   assert.equal((again.matches as { homeSets: number }[])[0].homeSets, 1, "retrying the completed scorer log cannot add a second set");
 });
+
+test("Continue pauses for a live club single, resumes the same week, and records it once", async () => {
+  const save = await saves.create(1, { slot: 3, careerName: "Team calendar", dateOfBirth: "1990-03-02", homeLocality: "ayrshire" });
+  await career.initialize(actor, save.id);
+  await teams.join(actor, save.id);
+  const next = (await teams.read(actor, save.id)).next!;
+  assert.equal(next.youFree, true, "the fresh save can play its first scheduled club night");
+
+  let request: { operationKey: string; expectedSeason: number; expectedWeek: number; target: { kind: "WEEKS"; weeks: number } } | undefined;
+  let blocked: any;
+  for (let weekGuard = 0; weekGuard < 52 && !blocked; weekGuard++) {
+    const current = await saves.read(1, save.id);
+    request = {
+      operationKey: `team-calendar-${save.id}-${current.currentSeason}-${current.currentWeek}`,
+      expectedSeason: current.currentSeason,
+      expectedWeek: current.currentWeek,
+      target: { kind: "WEEKS", weeks: 1 },
+    };
+    for (let retry = 0; retry < 12; retry++) {
+      const result = await career.calendar.advance(actor, save.id, request) as any;
+      if (result.stop.reason === "HUMAN_MATCH_PENDING") {
+        for (const matchId of result.stop.detail.matchIds as string[]) {
+          const row = (await rows(sql`SELECT event_id FROM career_tournament_matches WHERE career_save_id=${save.id} AND id=${matchId}`))[0];
+          await career.calendar.quickSimMatch(actor, save.id, String(row.event_id), { matchId, confirmation: "QUICK_SIM" });
+        }
+        continue;
+      }
+      if (result.stop.reason === "TEAM_MATCH_PENDING") blocked = result;
+      else assert.ok((await saves.read(1, save.id)).currentWeek <= next.week, "advance must not skip the first team night");
+      break;
+    }
+  }
+  assert.ok(blocked, "the calendar reaches the player's live team single");
+  assert.equal(blocked.stop.reason, "TEAM_MATCH_PENDING");
+  assert.equal(blocked.to.week, next.week, "the calendar remains on the fixture week");
+  const matchId = String(blocked.stop.detail.matchId);
+  const repeatedBlock = await career.calendar.advance(actor, save.id, request!) as any;
+  assert.equal(repeatedBlock.stop.reason, "TEAM_MATCH_PENDING");
+  assert.equal(repeatedBlock.stop.detail.matchId, matchId, "retrying while live returns the same single");
+
+  const miss = { segment: 0, multiplier: 1 as const, value: 0 };
+  const t20 = { segment: 20, multiplier: 3 as const, value: 60 };
+  const t19 = { segment: 19, multiplier: 3 as const, value: 57 };
+  const d12 = { segment: 12, multiplier: 2 as const, value: 24 };
+  const darts = Array.from({ length: 3 }, (_, leg) => [
+    ...(leg % 2 ? Array(3).fill(miss) : []),
+    ...Array(3).fill(t20), ...Array(3).fill(miss),
+    ...Array(3).fill(t20), ...Array(3).fill(miss), t20, t19, d12,
+  ]).flat();
+  const played = await teams.darts(actor, save.id, matchId, { darts });
+  assert.equal(played.status, "PLAYED");
+
+  const resumed = await career.calendar.advance(actor, save.id, request!) as any;
+  const after = await saves.read(1, save.id);
+  assert.equal(after.currentWeek, next.week + 1, "finishing the single releases exactly that calendar week");
+  assert.equal(resumed.to.week, after.currentWeek);
+  const again = await career.calendar.advance(actor, save.id, request!) as any;
+  assert.equal(again.to.week, after.currentWeek, "retrying a completed advance is idempotent");
+  assert.equal((await saves.read(1, save.id)).currentWeek, after.currentWeek);
+
+  const record = await teams.read(actor, save.id);
+  assert.equal(record.you.played, 1, "the real player receives exactly one appearance");
+  const fixture = (await rows(sql`SELECT you_played,status FROM career_club_fixtures
+    WHERE career_save_id=${save.id} AND season=1 AND week=${next.week} AND (home_key='ayrshire' OR away_key='ayrshire')`))[0];
+  assert.equal(fixture.you_played, true);
+  assert.equal(fixture.status, "COMPLETED");
+});
