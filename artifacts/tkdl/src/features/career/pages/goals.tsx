@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "wouter";
-import { useCareerGoals, useCareerFocus, useCreateCareerGoal, useAbandonCareerGoal, useSetMainCareerGoal, useSetCareerRoute, errorMessage } from "../api";
+import { useCareerGoals, useCareerFocus, useCreateCareerGoal, useAbandonCareerGoal, useSetMainCareerGoal, useSetCareerRoute, useStreaming, errorMessage } from "../api";
 import { CareerSection, CareerEmptyState, QueryState } from "../components";
 import { formatPence, denialLabel } from "../model";
 import type { ShellContext } from "../shell";
@@ -9,12 +9,13 @@ import "./goals.css";
 
 export function GoalsPage({ctx}: {ctx:ShellContext}) {
   const query=useCareerGoals(ctx.save.id),focus=useCareerFocus(ctx.save.id),create=useCreateCareerGoal(ctx.save.id),abandon=useAbandonCareerGoal(ctx.save.id),setMain=useSetMainCareerGoal(ctx.save.id),setRoute=useSetCareerRoute(ctx.save.id);
+  const streaming=useStreaming(ctx.save.id,undefined,query.data?.focus==="DARTCAST_CREATOR");
   const [selected,setSelected]=useState(""),[message,setMessage]=useState<string|null>(null);
   const request=useRef<{definition:string;key:string}|null>(null);
   const busy=focus.isPending || create.isPending || abandon.isPending || setMain.isPending || setRoute.isPending;
   return <div className="career-goals-page">
     <CareerSection title="Focus & personal goals">
-      <p className="career-goals__intro">Optional sporting ambitions, not quests. No points, money, bonuses or unlocks. Every eligible pathway remains available, whatever your focus.</p>
+      <p className="career-goals__intro">Choose what you want Career to help you pursue. Your focus changes recommendations only: it does not restrict eligibility, events, rewards or other routes.</p>
       <QueryState query={query} label="Reading your Career direction">{data=>{
         const detail=data.focusOptions.find(f=>f.value===data.focus)!;
         const active=data.goals.filter(g=>g.status==="ACTIVE");
@@ -26,8 +27,8 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
           {data.retired && <p className="career-goals__notice">Retired Career: focus and goal history remain readable. No new goals or sporting progression.</p>}
           <div className="career-goals__overview">
           <section className="career-goals__focus-panel">
-          <div className="career-goals__panel-heading"><span>YOUR CAREER PRIORITY</span><h3>Opportunity preference</h3></div>
-          <label className="career-goals__field"><span>Opportunity preference</span>
+          <div className="career-goals__panel-heading"><span>YOUR CAREER PRIORITY</span><h3>What should Career guide you toward?</h3></div>
+          <label className="career-goals__field"><span>Career focus</span>
             <select value={data.focus} disabled={data.retired || busy} onChange={e=>{
               setMessage(null);focus.mutate(e.target.value as Focus,{onSuccess:()=>setMessage("Focus changed. No sporting rules changed."),onError:e=>setMessage(errorMessage(e))});
             }}>
@@ -49,13 +50,29 @@ export function GoalsPage({ctx}: {ctx:ShellContext}) {
           </section>
           </div>
           <section className="career-goals__routes-panel">
-          <div className="career-goals__route-heading"><div><span>YOUR NEXT MOVE</span><h3>Near-term route</h3></div>
-          <p>Choose one suggested next step. Recommendations refresh with Career events; your choice stays yours.</p>
+          <div className="career-goals__route-heading"><div><span>YOUR NEXT MOVE</span><h3>Recommended next step</h3></div>
+          <p>Suggestions use your focus, current ambition and upcoming opportunities. They guide you; every eligible route stays open.</p>
           <Link href={`/career/${ctx.save.id}/calendar`}>Browse every route <span aria-hidden>↗</span></Link>
           </div>
+          {data.focus==="DARTCAST_CREATOR" && <section className="career-goals__creator-next" aria-label="DartCast next step">
+            <div><span className="career-goals__route-label">CREATOR PATH</span>
+              <h4>{streaming.data?.pathway.focus==="DARTCAST" ? "Keep building your channel" : "Set up your first stream week"}</h4>
+              <p>{streaming.data?.pathway.focus==="DARTCAST"
+                ? streaming.data.pathway.scheduledNights.length
+                  ? `This week is reserved for ${streaming.data.pathway.scheduledNights.map(day=>["","Mon","Tue","Wed","Thu","Fri","Sat","Sun"][day]).join(", ")}. Start a stream when you’re ready.`
+                  : "Your DartCast focus is active. Open Creator Studio to choose a free night or retry this week’s schedule."
+                : "Choose one to three stream nights a week in Creator Studio. Streams only start when you choose to go live."}
+              </p>
+              {streaming.data && <p className="career-goals__creator-progress">
+                {streaming.data.tier.name} · {streaming.data.followers.toLocaleString("en-GB")} followers
+                {streaming.data.next ? ` · ${Math.max(0,streaming.data.next.followers-streaming.data.followers).toLocaleString("en-GB")} to ${streaming.data.next.name}` : " · top channel tier"}
+              </p>}
+            </div>
+            <Link className="career-btn career-btn-primary" href={`/career/${ctx.save.id}/streaming`}>Open DartCast Creator Studio</Link>
+          </section>}
            {main?.status==="ACTIVE" && <p className="career-goals__route-note">Recommendations prioritize published routes that can support “{main.label}”. When Career cannot link an event directly to that ambition, it is labelled as a general alternative.</p>}
            {data.nearTermEventId && !selectedRoute && <p className="career-goals__route-note">Your selected route is no longer among the two current suggestions. It remains saved until you choose a replacement.</p>}
-          {!data.opportunities.length && <CareerEmptyState title="No matching upcoming opportunity">Your full calendar remains open; the route will refresh as dates and results change.</CareerEmptyState>}
+          {!data.opportunities.length && data.focus!=="DARTCAST_CREATOR" && <CareerEmptyState title="No matching upcoming opportunity">Your full calendar remains open; recommendations refresh as dates and results change.</CareerEmptyState>}
           <ul className="career-goals__routes">{data.opportunities.slice(0,2).map((e,i)=><li key={e.id} className={`career-goals__route${i===0?" is-recommended":""}`}>
             <span className="career-goals__route-label">{i===0?"Recommended next step":"Alternative route"}</span>
             <Link href={`/career/${ctx.save.id}/events/${e.id}`} className="career-goals__route-title">{e.name}</Link>
@@ -119,12 +136,16 @@ export function GoalsSummary({saveId}: {saveId:string}) {
   return <CareerSection title="Your focus & goals" action={<Link href={`/career/${saveId}/goals`} className="career-btn career-btn-ghost">Manage</Link>}>
     <QueryState query={query} label="Reading focus">{data=><div className="pl-summary-content p-4 space-y-2 text-sm">
       <p className="font-bold">{data.focusOptions.find(f=>f.value===data.focus)?.label}</p>
-      <p className="text-xs text-white/60">Which kind of events to suggest to you. Optional: it changes suggestions, not rewards.</p>
+      <p className="text-xs text-white/60">{data.focus==="DARTCAST_CREATOR"
+        ? "Creator guidance is active. It changes suggestions, not eligibility; sporting routes stay open."
+        : "Career uses this focus to suggest relevant next steps. It never changes eligibility or rewards."}</p>
       {data.mainGoalId && data.goals.find(g=>g.id===data.mainGoalId) ?
         <p><strong>Main ambition:</strong> {data.goals.find(g=>g.id===data.mainGoalId)!.label}</p> :
         <p>No main ambition selected.</p>}
       {data.nearTermEventId && <p>Chosen next step: {data.opportunities.find(e=>e.id===data.nearTermEventId)?.name ?? "no longer among current suggestions"}</p>}
-      {data.opportunities[0] && <Link className="underline" href={`/career/${saveId}/events/${data.opportunities[0].id}`}>{data.opportunities[0].name} · {data.opportunities[0].reason}</Link>}
+      {data.focus==="DARTCAST_CREATOR"
+        ? <Link className="underline" href={`/career/${saveId}/streaming`}>Open DartCast Creator Studio and plan your next stream</Link>
+        : data.opportunities[0] && <Link className="underline" href={`/career/${saveId}/events/${data.opportunities[0].id}`}>{data.opportunities[0].name} · {data.opportunities[0].reason}</Link>}
     </div>}</QueryState>
   </CareerSection>;
 }

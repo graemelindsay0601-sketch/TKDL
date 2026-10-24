@@ -135,7 +135,11 @@ function goalRoute(goal: GoalDefinition, event: Opportunity): { score: number; r
 
 export function recommend(focus: Focus, events: Opportunity[], mainGoal: GoalDefinition | null = null): (Opportunity & {reason:string})[] {
   const upcoming=events.filter(e=>["SCHEDULED","REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS"].includes(e.status));
+  // Creator guidance is an activity rather than a tournament. A pinned sporting
+  // ambition can still surface its relevant events while keeping the creator focus.
+  if (focus==="DARTCAST_CREATOR" && !mainGoal) return [];
   const relevant=upcoming.filter(e=>focus==="OPEN_SCHEDULE" || focus==="PRIZE_MONEY" ||
+    focus==="DARTCAST_CREATOR" ||
     (focus==="AMATEUR_CIRCUIT" ? amateur(e.circuit) : focus==="MAJOR_QUALIFICATION" ? e.majorRoute || ["MAJOR","WORLD"].includes(e.tier) :
       ["Q_SCHOOL","PRO_CIRCUIT","CHALLENGER"].includes(e.circuit) || e.classification==="RANKING"));
   // Events you can enter come first (an open schedule still shouldn't suggest a league night on another continent).

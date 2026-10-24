@@ -2,11 +2,12 @@ import type { Fact, CareerFacts } from "../facts/types.ts";
 import type { CareerRelationships } from "../relationships/types.ts";
 
 export const FOCUSES = {
-  OPEN_SCHEDULE: { label: "Anything goes", description: "No preference: suggestions from the whole calendar, nearest and soonest first." },
-  PROFESSIONAL_PATHWAY: { label: "Going pro", description: "Q-School, the Challenger Tour and ranking events. Turning professional is still up to you." },
-  AMATEUR_CIRCUIT: { label: "Amateur darts", description: "Local, county and open events, and the Vault. You can still try Q-School whenever you like." },
-  PRIZE_MONEY: { label: "Prize money", description: "The best first prizes for what they cost. Winning isn't guaranteed." },
-  MAJOR_QUALIFICATION: { label: "Big events", description: "The majors and the World Championship, and the qualifiers that lead to them." },
+  OPEN_SCHEDULE: { label: "Open Career", description: "See useful opportunities across Career, with the nearest suitable next step first." },
+  AMATEUR_CIRCUIT: { label: "Grassroots & amateur", description: "Prioritise local, county, open and secondary-circuit events. Other routes stay available." },
+  PROFESSIONAL_PATHWAY: { label: "Professional progression", description: "Prioritise Q-School, Challenger and ranking events. Turning professional is still your choice." },
+  MAJOR_QUALIFICATION: { label: "Major events", description: "Prioritise majors, the World Championship and events that can qualify you for them." },
+  PRIZE_MONEY: { label: "Prize opportunities", description: "See events with published prize money first. Costs and results still matter; winnings are never guaranteed." },
+  DARTCAST_CREATOR: { label: "DartCast creator", description: "Make streaming your main focus. Career will point you to creator activities; sporting routes remain open." },
 } as const;
 export type Focus = keyof typeof FOCUSES;
 export type GoalDefinition =

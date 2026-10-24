@@ -61,8 +61,8 @@ export type StreamingView = import("../../../../api-server/src/career/streaming/
 export type StreamSession = import("../../../../api-server/src/career/streaming/service").StreamSession;
 export type ChatEvent = import("../../../../api-server/src/career/streaming/model").ChatEvent;
 /** Your DartCast channel: followers, the streamer route, nights you can go live, past streams. */
-export const useStreaming = (saveId: string, week?: number) => useQuery({ queryKey: careerKey(saveId, "streaming", ...(week === undefined ? [] : [week])),
-  queryFn: () => get<StreamingView>(`/saves/${saveId}/streaming${qs({ week })}`), staleTime: STALE });
+export const useStreaming = (saveId: string, week?: number, enabled = true) => useQuery({ queryKey: careerKey(saveId, "streaming", ...(week === undefined ? [] : [week])),
+  queryFn: () => get<StreamingView>(`/saves/${saveId}/streaming${qs({ week })}`), enabled, staleTime: STALE });
 export const useBuyStudioUpgrade = (saveId: string) => useSaveMutation(saveId, () =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/studio-upgrade`, {}));
 export const useSetStreamingPathway = (saveId: string) => useSaveMutation(saveId, (input: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number }) =>
@@ -349,6 +349,8 @@ export const careerRequests = {
     await twice(() => careerRequests.initialize(save.id)).catch(() => undefined);
     if (body.careerPathway?.focus === "DARTCAST")
       await twice(() => send("PUT", `/saves/${save.id}/streaming/pathway`, body.careerPathway)).catch(() => undefined);
+    if (body.careerPathway?.focus === "DARTCAST")
+      await twice(() => send("POST", `/saves/${save.id}/focus`, { focus: "DARTCAST_CREATOR" })).catch(() => undefined);
     return { ...save, shirtSaved };
   },
   /** A1 restart returns a NEW save id in the same slot; the client must adopt it. */

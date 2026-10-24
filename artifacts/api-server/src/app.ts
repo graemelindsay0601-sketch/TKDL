@@ -44,6 +44,7 @@ import { createCareerSponsorContractActionsSPE2 } from "./db/migrations/create_c
 import { createCareerSporting } from "./db/migrations/create_career_sporting";
 import { repairCareerSchema, syncCareerEventDefinitions } from "./db/migrations/repair_career_schema";
 import { createCareerGoals } from "./db/migrations/create_career_goals";
+import { addCareerDartCastFocus } from "./db/migrations/add_career_dartcast_focus";
 import { addCareerMainGoal } from "./db/migrations/add_career_main_goal";
 import { createCareerLife } from "./db/migrations/create_career_life";
 import { createCareerLegacy } from "./db/migrations/create_career_legacy";
@@ -1561,6 +1562,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("createCareerSponsorContractActionsSPE2", () => createCareerSponsorContractActionsSPE2(db));
   await runMigrationStep("createCareerSportingA5", () => createCareerSporting(db));
   await runMigrationStep("createCareerGoalsA73", () => createCareerGoals(db));
+  await runMigrationStep("addCareerDartCastFocusA1", () => addCareerDartCastFocus(db));
   await runMigrationStep("addCareerMainGoalA1", () => addCareerMainGoal(db));
   await runMigrationStep("createCareerLifeA75", () => createCareerLife(db));
   await runMigrationStep("createCareerLegacyA76", () => createCareerLegacy(db));

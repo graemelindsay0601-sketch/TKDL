@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { addCareerMainGoal } from "../../db/migrations/add_career_main_goal.ts";
+import { addCareerDartCastFocus } from "../../db/migrations/add_career_dartcast_focus.ts";
 import type { CareerDatabase } from "../../career/database.ts";
 import { completionFact, goalSchema, focusSchema, mainGoalSchema, nearTermRouteSchema, goalProgress, evidenceFor, recommend, targetKey } from "../../career/goals/model.ts";
 import type { GoalRow, GoalSources, Opportunity } from "../../career/goals/types.ts";
@@ -18,6 +19,7 @@ const event=(id:string,extra:Partial<Opportunity>={}):Opportunity=>({id,name:id,
 
 test("strict focus/goal definitions reject invented types, completion fields and malformed targets",()=>{
   assert.equal(focusSchema.parse({focus:"OPEN_SCHEDULE"}).focus,"OPEN_SCHEDULE");
+  assert.equal(focusSchema.parse({focus:"DARTCAST_CREATOR"}).focus,"DARTCAST_CREATOR");
   for (const d of [{type:"XP"},{type:"WIN_TITLE",completed:true},{type:"EARNINGS",target:-1},{type:"REACH_WORLD_RANK",target:1.5},{type:"WIN_EVENT",eventId:"bad"}])
     assert.throws(()=>goalSchema.parse(d));
   assert.throws(()=>focusSchema.parse({focus:"OPEN_SCHEDULE",bonus:100}));
@@ -44,6 +46,23 @@ test("main ambition migration is additive, repeatable and backfills the oldest a
     assert.equal(rows[0].main_goal_id,"00000000-0000-0000-0000-000000000012");
     assert.equal(rows[1].main_goal_id,null);
     assert.equal(rows[0].near_term_event_id,null);
+  } finally { await pg.close(); }
+});
+test("DartCast guidance focus migration is repeatable and preserves existing focus values",async()=>{
+  const pg=new PGlite(),db=drizzle(pg) as unknown as CareerDatabase;
+  try {
+    await pg.exec(`CREATE TABLE career_saves(id uuid PRIMARY KEY,career_focus text NOT NULL DEFAULT 'OPEN_SCHEDULE'
+      CONSTRAINT career_saves_focus_check CHECK(career_focus IN ('OPEN_SCHEDULE','PROFESSIONAL_PATHWAY','AMATEUR_CIRCUIT','PRIZE_MONEY','MAJOR_QUALIFICATION')));
+      INSERT INTO career_saves(id,career_focus) VALUES
+        ('00000000-0000-0000-0000-000000000001','OPEN_SCHEDULE'),
+        ('00000000-0000-0000-0000-000000000002','PROFESSIONAL_PATHWAY')`);
+    await addCareerDartCastFocus(db);
+    await addCareerDartCastFocus(db);
+    await pg.query(`INSERT INTO career_saves(id,career_focus) VALUES ('00000000-0000-0000-0000-000000000003','DARTCAST_CREATOR')`);
+    const values=(await pg.query(`SELECT career_focus FROM career_saves ORDER BY id`)).rows
+      .map(row=>(row as {career_focus:string}).career_focus);
+    assert.deepEqual(values,["OPEN_SCHEDULE","PROFESSIONAL_PATHWAY","DARTCAST_CREATOR"]);
+    await assert.rejects(pg.query(`INSERT INTO career_saves(id,career_focus) VALUES ('00000000-0000-0000-0000-000000000004','LOCKED_PRO')`));
   } finally { await pg.close(); }
 });
 test("completion keeps a thin supporting reference and uses immutable identity for age at the actual known date",()=>{
@@ -112,6 +131,7 @@ test("recommendations are deterministic, preserve blocked-state denials and leav
   assert.deepEqual(recommend("OPEN_SCHEDULE",events).map(e=>e.id),["county","local-qualifier","route","q"]);
   assert.deepEqual(recommend("PROFESSIONAL_PATHWAY",events),recommend("PROFESSIONAL_PATHWAY",events));
   assert.deepEqual(recommend("PROFESSIONAL_PATHWAY",events).find(e=>e.id==="q")?.denials,["BELOW_MINIMUM_AGE"]);
+  assert.deepEqual(recommend("DARTCAST_CREATOR",events),[],"creator focus directs to streaming rather than a sporting event");
   assert.deepEqual(events,before);
 });
 test("active ambitions rank only authored or evidence-backed event routes and explain general alternatives",()=>{

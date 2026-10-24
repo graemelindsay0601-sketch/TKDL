@@ -9,6 +9,8 @@ import express from "express";
 import session from "express-session";
 import pino from "pino";
 import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
+import { createCareerGoals } from "../../db/migrations/create_career_goals.ts";
+import { addCareerDartCastFocus } from "../../db/migrations/add_career_dartcast_focus.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerRouter } from "../../career/router.ts";
 import { CAREER_DEFAULTS, CAREER_VERSIONS } from "../../career/config.ts";
@@ -36,6 +38,8 @@ before(async () => {
     INSERT INTO unrelated_tkdl_state VALUES (1, '{"coins":99,"tourRun":14,"trophies":[1,2],"leagueStats":42,"cosmetics":[3],"master501":8,"cardClash":9,"achievements":[7]}');
   `);
   await createCareerSaves(db);
+  await createCareerGoals(db);
+  await addCareerDartCastFocus(db);
   const app = express();
   app.use(express.json());
   app.use(session({ secret: "career-isolated-test-session-secret", resave: false, saveUninitialized: false }));

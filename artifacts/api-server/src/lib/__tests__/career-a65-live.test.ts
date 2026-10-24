@@ -5,6 +5,7 @@ import { createCareerRelationshipsRouter } from "../../career/relationships/rout
 import { createCareerGoalsService } from "../../career/goals/service.ts";
 import { createCareerGoalsRouter } from "../../career/goals/router.ts";
 import { createCareerGoals } from "../../db/migrations/create_career_goals.ts";
+import { addCareerDartCastFocus } from "../../db/migrations/add_career_dartcast_focus.ts";
 import { addCareerMainGoal } from "../../db/migrations/add_career_main_goal.ts";
 import { createCareerRecognitionService } from "../../career/recognition/service.ts";
 import { createCareerRecognitionRouter } from "../../career/recognition/router.ts";
@@ -81,6 +82,7 @@ before(async () => {
   const preMigration=await saves.create(1,{slot:3,careerName:"Pre A7.3"});
   const oldRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
   await createCareerGoals(db); await createCareerGoals(db);
+  await addCareerDartCastFocus(db);
   const migratedRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
   assert.equal(migratedRoot.career_focus,"OPEN_SCHEDULE");
   const {career_focus:_focus,...unchanged}=migratedRoot;
@@ -305,12 +307,12 @@ test("age pathways: junior events accept a 15-year-old and refuse adults; open e
 // ------------------------------------------------------------------ the playable loop
 test("A7.3 choices: defaults, deterministic guidance, strict ownership/targets, duplicate safety, no sporting side effects, abandon, retire and cascades", async () => {
   const id=await newCareer(3,{dateOfBirth:dobForAge(35)});
-  const other=(await call("GET","/saves")).body.slots[1].career.id;
+  const other=await newCareer(2,{dateOfBirth:dobForAge(35)});
   const read=()=>call("GET",`/saves/${id}/goals`);
   const initial=await read();
   assert.equal(initial.status,200,JSON.stringify(initial.body));
   assert.equal(initial.body.focus,"OPEN_SCHEDULE");assert.deepEqual(initial.body.goals,[]);
-  assert.equal(initial.body.focusOptions.length,5);
+  assert.equal(initial.body.focusOptions.length,6);
   const invariant=async()=>({
     root:(await q(sql`SELECT balance_pence,professional_ranking,has_tour_card,world_seed,settings_snapshot FROM career_saves WHERE id=${id}`))[0],
     world:(await q(sql`SELECT MD5(string_agg(row_to_json(n)::text,'|' ORDER BY id)) h FROM career_world_players n WHERE career_save_id=${id}`))[0],

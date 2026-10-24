@@ -77,6 +77,11 @@
 .career-goals__route-facts { color:#e1d2a6; }
 .career-goals__route-status { padding-top:8px; border-top:1px solid #ffffff10; }
 .career-goals__route .career-btn { justify-self:start; margin-top:2px; }
+.career-goals__creator-next { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px; padding:17px; border:1px solid #a77dd144; border-radius:14px; background:radial-gradient(90% 120% at 0% 0%,#a77dd122,transparent 65%),linear-gradient(150deg,#211d34,#111923 82%); }
+.career-goals__creator-next h4 { margin:5px 0 4px; color:#fff; font:700 1.08rem/1.25 Oswald,sans-serif; }
+.career-goals__creator-next p { margin:0; color:#c4bbd3; font-size:.77rem; line-height:1.55; }
+.career-goals__creator-progress { padding-top:7px; color:#e5d6a9 !important; }
+.career-goals__creator-next .career-btn { flex-shrink:0; }
 .career-goals__history { display:grid; gap:12px; padding-top:18px; border-top:1px solid #ffffff12; }
 .career-goals__history h3 small { margin-left:8px; color:#a7b7c4; font:500 .7rem Oswald,sans-serif; letter-spacing:0; }
 .career-goals__add-form { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:10px; padding:13px; border:1px solid #ffffff12; border-radius:13px; background:#ffffff04; }
@@ -99,4 +104,5 @@
   .career-goals__add-form { grid-template-columns:1fr; }
   .career-goals__add-form > button { justify-self:start; }
   .career-goals__context { gap:4px 6px; }
+  .career-goals__creator-next { align-items:flex-start; flex-direction:column; }
 }
