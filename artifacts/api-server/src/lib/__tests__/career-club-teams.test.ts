@@ -99,6 +99,21 @@ test("top four enter seeded semi-finals and a final; tied knockouts go to the hi
   assert.equal(final[0].home, semis[0].home, "higher regular-season seed wins a tied semi");
 });
 
+test("an older save keeps its team results when the current schema is repaired repeatedly", async () => {
+  await db.execute(sql`ALTER TABLE career_club_fixtures DROP COLUMN status`);
+  await db.execute(sql`DROP TABLE career_club_team_memberships`);
+  const legacyRubbers = [{ home: "legacy-player", away: "legacy-rival", homeLegs: 3, awayLegs: 1, averages: [70, 65] }];
+  await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers)
+    VALUES (${id},99,1,4,'legacy-home','legacy-away',1,0,${JSON.stringify(legacyRubbers)}::jsonb)`);
+  await repairCareerSchema(db);
+  await repairCareerSchema(db);
+  const saved = (await rows(sql`SELECT status,home_score,rubbers FROM career_club_fixtures WHERE career_save_id=${id} AND season=99`))[0];
+  assert.equal(saved.status, "COMPLETED", "pre-feature team history is treated as already settled");
+  assert.equal(Number(saved.home_score), 1);
+  assert.deepEqual(saved.rubbers, legacyRubbers);
+  assert.ok((await rows(sql`SELECT to_regclass('career_club_team_memberships') AS table_name`))[0].table_name);
+});
+
 test("a team night: six singles for each side, you play when you're free", async () => {
   const first = fixturesFor((await teams.read(actor, id)).table.map(t => t.club)).filter(f => f.home === "ayrshire" || f.away === "ayrshire")[0];
   const before = await teams.read(actor, id);
@@ -124,7 +139,7 @@ test("a team night: six singles for each side, you play when you're free", async
   const finished = await teams.darts(actor, id, matchId, { darts });
   assert.equal(finished.status, "PLAYED");
   assert.equal(finished.won, true);
-  const fixtures = await rows(sql`SELECT * FROM career_club_fixtures WHERE career_save_id=${id} AND week=${first.week}`);
+  const fixtures = await rows(sql`SELECT * FROM career_club_fixtures WHERE career_save_id=${id} AND season=1 AND week=${first.week}`);
   assert.equal(fixtures.length, fixturesFor(before.table.map(t => t.club)).filter(f => f.week === first.week).length, "every fixture that week, once");
   for (const f of fixtures) assert.equal(Number(f.home_score) + Number(f.away_score), TEAMS.singles);
   const ours = fixtures.find(f => f.home_key === "ayrshire" || f.away_key === "ayrshire")!;
@@ -147,7 +162,7 @@ test("real events come first: booked elsewhere that night, you sit it out and a 
   const next = (await teams.read(actor, id)).next!;
   assert.equal(next.week, second.week); assert.equal(next.youFree, false); assert.ok(next.clash, "says what you're booked into");
   await play(second.week);
-  const ours = (await rows(sql`SELECT * FROM career_club_fixtures WHERE career_save_id=${id} AND week=${second.week} AND (home_key='ayrshire' OR away_key='ayrshire')`))[0];
+  const ours = (await rows(sql`SELECT * FROM career_club_fixtures WHERE career_save_id=${id} AND season=1 AND week=${second.week} AND (home_key='ayrshire' OR away_key='ayrshire')`))[0];
   assert.equal(ours.you_played, false); assert.equal(ours.you_unavailable, true);
   assert.ok(!(ours.rubbers as any[]).some(r => r.home === "HUMAN" || r.away === "HUMAN"));
   const v = await teams.read(actor, id);
