@@ -11,6 +11,12 @@ A player's follower count should unlock streamer opportunities, not determine sp
 
 A player at £0 needs a visible free/low-cost route to continue, but recovery income must still depend on results rather than guaranteed cash. Strong play should accelerate rankings, sponsorship and earnings beyond a baseline progression pace.
 
+Optional DartCast creator series run across four quarterly chapters. Each chapter is earned by a real matching broadcast in that quarter; starting mid-season only includes the remaining quarters. Series choice never locks other formats or Career routes, and broadcasts are never started automatically.
+
 **Why:** the user wants both a meaningful risk of failure and a fair chance to survive, continue their chosen route, and advance faster when playing well.
 
 **How to apply:** compare weak, typical and strong outcomes across amateur, pro, sponsor, manager, event-hosting, and streamer paths. Surface affordable recovery options; keep costs optional where intended, purchases ledger-backed, and existing saves compatible.
+
+**Why:** the user chose a four-quarter creator series and finale as the DartCast pacing; the series should add direction without forcing streaming or closing other routes.
+
+**How to apply:** keep chapters tied to actual streamed formats, make missed quarters visible but non-punitive, and preserve mid-season entry and existing Career saves.

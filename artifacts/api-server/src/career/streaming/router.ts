@@ -27,6 +27,9 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/studio-upgrade", authedWriteRateLimit, async (req, res) => {
     res.json(await service.buyStudioUpgrade(res.locals.careerActor, id(req)));
   });
+  router.post("/saves/:id/streaming/creator-series", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.chooseCreatorSeries(res.locals.careerActor, id(req), req.body));
+  });
   router.get("/saves/:id/streaming", async (req, res) => {
     const week = req.query.week === undefined ? undefined : Number(req.query.week);
     res.json(await service.read(res.locals.careerActor, id(req), week));

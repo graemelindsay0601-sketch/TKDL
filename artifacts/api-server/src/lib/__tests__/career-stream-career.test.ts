@@ -151,3 +151,26 @@ test("stream your real match from the venue: chat follows the match's own darts;
   assert.ok(v.videos.find(x => x.format === "MATCH")!.title.startsWith("Live from the event"));
   void session;
 });
+
+test("a creator season series tracks one matching show per quarter and rewards the finale", async () => {
+  await db.execute(sql`UPDATE career_saves SET current_week=14 WHERE id=${id}`);
+  let v = await streaming.read(actor, id);
+  const selected = await streaming.chooseCreatorSeries(actor, id, { seriesKey: "HEADLINER" });
+  assert.equal(selected.creatorSeries.selected?.key, "HEADLINER");
+  assert.equal(selected.creatorSeries.availableChapters, 3, "a mid-season start has three chapters remaining");
+  const chapterWeeks = [14, 27, 40];
+  for (const week of chapterWeeks) {
+    await db.execute(sql`UPDATE career_saves SET current_week=${week} WHERE id=${id}`);
+    v = await streaming.read(actor, id);
+    const stream = await streaming.goLive(actor, id, { dayOfWeek: v.freeNights[0], format: "CHALLENGER" });
+    const done = await streaming.darts(actor, id, stream.id, { darts: winYouFirst });
+    assert.equal(done.session.status, "ENDED");
+    assert.ok((done.session.followersGained ?? 0) >= 15, "the episode adds its creator-series follower reward");
+    v = await streaming.read(actor, id);
+    assert.equal(v.creatorSeries.chapters[Math.ceil(week / 13) - 1].status, "DONE");
+  }
+  assert.equal(v.creatorSeries.finale, "COMPLETE");
+  assert.equal(v.creatorSeries.completed, 3);
+  assert.equal(v.creatorSeries.chapters[0].status, "NOT_STARTED", "a mid-season start does not penalize earlier quarters");
+  await status(streaming.chooseCreatorSeries(actor, id, { seriesKey: "SKILL_LAB" }));
+});

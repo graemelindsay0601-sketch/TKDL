@@ -59,4 +59,16 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     ON career_stream_campaigns(career_save_id) WHERE status IN ('OFFERED','ACTIVE','IN_PROGRESS')`);
   await tx.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS career_streams_match_idx ON career_streams(career_save_id, match_id) WHERE match_id IS NOT NULL`);
   await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_streams_night_idx ON career_streams(career_save_id, season, day)`);
+  // Optional creator season series: one selected channel identity and up to four episode records.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_creator_series (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL, series_key text NOT NULL CHECK(series_key IN ('HEADLINER','SKILL_LAB','CLUBHOUSE')),
+    started_week integer NOT NULL, created_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(career_save_id, season))`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_creator_episodes (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL, episode integer NOT NULL CHECK(episode BETWEEN 1 AND 4), stream_id uuid NOT NULL,
+    week integer NOT NULL, format text NOT NULL, follower_bonus integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(career_save_id, season, episode), UNIQUE(career_save_id, stream_id))`);
 }

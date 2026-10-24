@@ -12,7 +12,7 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -46,6 +46,10 @@ export type MatchStream = { eligible: boolean; why: string | null; session: Stre
 const TELEVISED = new Set(["TELEVISED", "MAJOR", "WORLD"]);
 export type Deal = { id: string; brand: string; what: string; perStreamPence: number; streamsTotal: number; streamsDone: number; expiresWeek: number };
 export type SubGoal = { season: number; month: number; endsWeek: number; target: number; promise: string; progress: number; status: "ON" | "HIT" | "MISSED" };
+export type CreatorSeries = { key: "HEADLINER" | "SKILL_LAB" | "CLUBHOUSE"; name: string; tagline: string; description: string };
+export type CreatorSeriesState = { selected: CreatorSeries | null; options: CreatorSeries[]; startedWeek: number | null;
+  chapters: { quarter: number; title: string; status: "DONE" | "CURRENT" | "UPCOMING" | "MISSED" | "NOT_STARTED"; format: StreamFormat | null; bonusFollowers: number }[];
+  completed: number; availableChapters: number; finale: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETE" | "INCOMPLETE" };
 export type StreamingView = {
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
@@ -67,6 +71,7 @@ export type StreamingView = {
   formats: { key: StreamFormat; name: string; blurb: string; crowd: number; why: string | null }[]; pollPick: StreamFormat | null; lastFormat: StreamFormat | null;
   /** This month's sub goal (Partner up), the targets and promises to choose from. */
   subGoal: SubGoal | null; goalOptions: { targets: readonly number[]; promises: readonly string[] } | null;
+  creatorSeries: CreatorSeriesState;
   /** Streamers you could collab with (their audience now, and whether they'd say yes). */
   collabs: { key: string; handle: string; followers: number; avg: number; blurb: string; ok: boolean; why: string | null }[];
   /** The DartCast Invitational: open to you now?, the field, and how you did this season. */
@@ -212,6 +217,32 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const g = ch.subGoal, goalMonth = g && g.season === season ? g.month : null;
     const subGoal: SubGoal | null = g && goalMonth !== null && goalMonth >= monthOf(week) - 1
       ? { ...g, endsWeek: g.month * STREAM_MONEY.monthWeeks, progress: await subsThisMonth(tx, root.id, g.season, g.month) } : null;
+    const arc = (await tx.execute(sql`SELECT series_key, started_week FROM career_stream_creator_series
+      WHERE career_save_id=${root.id} AND season=${season}`)).rows[0];
+    const arcDefinition = arc ? creatorSeriesFor(String(arc.series_key)) : null;
+    const episodes = arc ? (await tx.execute(sql`SELECT episode, week, format, follower_bonus FROM career_stream_creator_episodes
+      WHERE career_save_id=${root.id} AND season=${season} ORDER BY episode`)).rows : [];
+    const currentQuarter = Math.min(4, Math.ceil(week / 13));
+    const startQuarter = arc ? Math.min(4, Math.ceil(Number(arc.started_week) / 13)) : 1;
+    const quarterTitles = ["Pilot: find your voice", "Build a regular show", "Bring the audience in", "Season finale"];
+    const creatorSeries: CreatorSeriesState = { selected: arcDefinition ? {
+      key: arcDefinition.key, name: arcDefinition.name, tagline: arcDefinition.tagline, description: arcDefinition.description,
+    } : null,
+      options: CREATOR_SERIES.map(({ key, name, tagline, description }) => ({ key, name, tagline, description })),
+      startedWeek: arc ? Number(arc.started_week) : null,
+      chapters: quarterTitles.map((title, index) => {
+        const quarter = index + 1, episode = episodes.find(row => Number(row.episode) === quarter);
+        const status = !arc ? "NOT_STARTED" : quarter < startQuarter ? "NOT_STARTED" : episode ? "DONE"
+          : quarter < currentQuarter ? "MISSED" : quarter === currentQuarter ? "CURRENT" : "UPCOMING";
+        return { quarter, title, status, format: episode ? String(episode.format) as StreamFormat : null,
+          bonusFollowers: episode ? Number(episode.follower_bonus) : 0 };
+      }),
+      completed: episodes.length, availableChapters: arc ? 5 - startQuarter : 0,
+      finale: !arc ? "NOT_STARTED" : episodes.length >= 5 - startQuarter ? "COMPLETE"
+        : quarterTitles.slice(0, 4).some((_, index) => {
+          const quarter = index + 1;
+          return quarter >= startQuarter && quarter < currentQuarter && !episodes.some(row => Number(row.episode) === quarter);
+        }) ? "INCOMPLETE" : "IN_PROGRESS" };
     return { season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
@@ -253,7 +284,22 @@ export function createCareerStreamingService(database: CareerDatabase) {
         why: f.key !== "CHARITY" ? null : tier.key === "NEWCOMER" ? "From Affiliate (viewers can cheer)"
           : rows.some(r => r.format === "CHARITY" && Number(r.season) === season && monthOf(Number(r.week)) === monthOf(week)) ? "Done this month" : null })),
       pollPick: ch.pollPick, lastFormat,
-      subGoal, goalOptions: partner ? { targets: SUB_GOAL.targets, promises: SUB_GOAL.promises } : null };
+       subGoal, goalOptions: partner ? { targets: SUB_GOAL.targets, promises: SUB_GOAL.promises } : null, creatorSeries };
+  }
+
+  async function recordCreatorEpisode(tx: CareerExecutor, root: Root, row: Record<string, unknown>, processed: number) {
+    if (processed <= 0) return 0;
+    const season = Number(row.season), week = Number(row.week), quarter = Math.min(4, Math.ceil(week / 13));
+    const arc = (await tx.execute(sql`SELECT series_key, started_week FROM career_stream_creator_series
+      WHERE career_save_id=${root.id} AND season=${season}`)).rows[0];
+    const definition = arc ? creatorSeriesFor(String(arc.series_key)) : null;
+    const format = String(row.format ?? "CHALLENGER");
+    if (!definition || week < Number(arc.started_week) || !definition.formats.includes(format as never)) return 0;
+    const bonus = creatorSeriesEpisodeBonus(quarter);
+    const inserted = await tx.execute(sql`INSERT INTO career_stream_creator_episodes (career_save_id,season,episode,stream_id,week,format,follower_bonus)
+      VALUES (${root.id},${season},${quarter},${String(row.id)},${week},${format},${bonus})
+      ON CONFLICT DO NOTHING RETURNING follower_bonus`);
+    return Number(inserted.rows[0]?.follower_bonus ?? 0);
   }
 
   /** Finish a stream: followers banked (a bonus for wins), the night's money paid, and chat votes on what you play next. */
@@ -268,7 +314,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const charity = format === "CHARITY";
     if (charity) tally = { ...tally, raisedPence: streamIncome(tally) };
     const prize = format === "INVITATIONAL" && processed > 0 ? invitationalPrize(wins) : 0;
-    const gained = Math.round((tally.followersGained + bonus) * (charity ? CHARITY.followerBonus : 1)), income = charity ? 0 : streamIncome(tally) + pledges;
+    const seriesBonus = await recordCreatorEpisode(tx, root, row, processed);
+    const gained = Math.round((tally.followersGained + bonus) * (charity ? CHARITY.followerBonus : 1)) + seriesBonus, income = charity ? 0 : streamIncome(tally) + pledges;
     const poll = processed > 0 ? pollFor(root.world_seed, String(row.id), format) : null;
     await tx.execute(sql`UPDATE career_streams SET status='ENDED', result=${result}, tally=${JSON.stringify(tally)}::jsonb, chat=${JSON.stringify(chat)}::jsonb,
       processed_visits=${processed}, income_pence=${income + prize}, followers_gained=${gained}, poll=${poll ? JSON.stringify(poll) : null}::jsonb, ended_at=NOW()
@@ -398,6 +445,21 @@ export function createCareerStreamingService(database: CareerDatabase) {
   }
 
   return {
+    async chooseCreatorSeries(actor: CareerActor, saveId: string, body: unknown) {
+      const { seriesKey } = z.object({ seriesKey: z.enum(["HEADLINER", "SKILL_LAB", "CLUBHOUSE"]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Retired Careers cannot start a creator series");
+        const currentSeason = Number(root.current_season), currentWeek = Number(root.current_week);
+        if ((await tx.execute(sql`SELECT id FROM career_streams WHERE career_save_id=${root.id} AND status='LIVE'`)).rows.length)
+          throw new CareerError(409, "Finish your live stream before starting a creator series");
+        const existing = (await tx.execute(sql`SELECT series_key FROM career_stream_creator_series WHERE career_save_id=${root.id} AND season=${currentSeason}`)).rows[0];
+        if (existing) throw new CareerError(409, "Your creator series is already set for this season");
+        await tx.execute(sql`INSERT INTO career_stream_creator_series (career_save_id,season,series_key,started_week)
+          VALUES (${root.id},${currentSeason},${seriesKey},${currentWeek})`);
+        return view(tx, root);
+      });
+    },
     async setPathway(actor: CareerActor, saveId: string, body: unknown) {
       const input = z.object({ focus: z.enum(["OPEN", "DARTCAST"]), weeklyFrequency: z.number().int().min(0).max(STREAM.perWeek) }).strict().parse(body);
       return database.transaction(async tx => {

@@ -236,6 +236,18 @@ export const FORMATS = [
   { key: "SCORING", name: "Average challenge", blurb: "33 visits of pure scoring against a target average. Chat pledges bits that pay only if you beat it.", crowd: 0.9 },
   { key: "CHARITY", name: "Charity stream", blurb: "Play a viewer for a good cause: every bit and super chat goes to charity. Generous crowds, and fans remember it. Once a month.", crowd: 1.1 },
 ] as const;
+/** Optional four-episode channel series. Each keeps the other DartCast formats and Career routes available. */
+export const CREATOR_SERIES = [
+  { key: "HEADLINER", name: "The Headliner", tagline: "Build a show around big nights and head-to-head darts.",
+    description: "Viewer battles, King of the Oche and real streamed matches.", formats: ["CHALLENGER", "KING", "INVITATIONAL", "MATCH"] },
+  { key: "SKILL_LAB", name: "The Skill Lab", tagline: "Make the practice room appointment viewing.",
+    description: "Checkout challenges, Bob’s 27 and average challenges.", formats: ["CHECKOUTS", "BOBS_27", "SCORING"] },
+  { key: "CLUBHOUSE", name: "The Clubhouse", tagline: "Make the audience part of the show.",
+    description: "Collaborations and charity streams put community first.", formats: ["COLLAB", "CHARITY"] },
+] as const;
+export type CreatorSeriesKey = typeof CREATOR_SERIES[number]["key"];
+export const creatorSeriesFor = (key: string) => CREATOR_SERIES.find(series => series.key === key) ?? null;
+export const creatorSeriesEpisodeBonus = (episode: number) => episode === 4 ? 85 : 15;
 /** The formats on the picker, plus a collab (picked from the streamers list), the DartCast Invitational and a real match streamed from an event. */
 export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH";
 const COLLAB_FORMAT = { key: "COLLAB", name: "Collab", blurb: "A match against another streamer, on both channels.", crowd: 1 } as const;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation, useSearch } from "wouter";
 import { Activity, ArrowUpRight, Check, CircleDollarSign, Clapperboard, Crosshair, Crown, Eye, HeartHandshake, Loader2, Play, Radio, Search, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users } from "lucide-react";
-import { useAnswerBrandDeal, useAnswerStreamCampaign, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, useBuyStudioUpgrade, errorMessage, type StreamFormat } from "../api";
+import { useAnswerBrandDeal, useAnswerStreamCampaign, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, useBuyStudioUpgrade, useChooseCreatorSeries, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
@@ -26,7 +26,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week");
   const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
   const q = useStreaming(id, requestedWeek), live = useGoLive(id), scheduleNight = useScheduleStreamNight(id), answer = useAnswerBrandDeal(id),
-    answerCampaign=useAnswerStreamCampaign(id),goal = useSetSubGoal(id);
+    answerCampaign=useAnswerStreamCampaign(id),goal = useSetSubGoal(id), chooseSeries = useChooseCreatorSeries(id);
   const buyStudio=useBuyStudioUpgrade(id);
   const setPathway = useSetStreamingPathway(id), schedulePathway = useScheduleStreamingPathway(id);
   useEffect(() => { markSeen(id, "streaming"); }, [id]);
@@ -103,6 +103,31 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             </div>
             <div className="setpiece-readout"><span>CHANNEL</span><b>{d.handle}</b><i>{d.tier.name.toUpperCase()}</i></div>
             <div className="setpiece-coordinate">DARTCAST STUDIO / CREATOR BAY</div>
+          </section>
+          <section className="creator-series" aria-labelledby="creator-series-title">
+            <div className="creator-series__head">
+              <div><span className="eyebrow">THE SEASON PROJECT · 4 QUARTERS</span><h2 id="creator-series-title">{d.creatorSeries.selected ? d.creatorSeries.selected.name : "Give the channel a season-long show"}</h2>
+                <p>{d.creatorSeries.selected ? d.creatorSeries.selected.tagline : "Choose a recurring show identity. Each quarter, one real broadcast in that style becomes an episode."}</p></div>
+              {d.creatorSeries.selected && <div className="creator-series__score"><b>{d.creatorSeries.completed}/{d.creatorSeries.availableChapters}</b><small>EPISODES</small></div>}
+            </div>
+            {!d.creatorSeries.selected ? <div className="creator-series__options">{d.creatorSeries.options.map(option => <article className="creator-series__option" key={option.key}>
+              <span>CHANNEL CONCEPT</span><h3>{option.name}</h3><p>{option.tagline}</p><small>{option.description}</small>
+              <button type="button" disabled={retired || !!d.live || chooseSeries.isPending} onClick={() => chooseSeries.mutate(option.key, { onError: e => setMessage(errorMessage(e)) })}>
+                {chooseSeries.isPending ? "Setting up…" : "Choose this series"} <ArrowUpRight aria-hidden />
+              </button>
+            </article>)}</div> : <>
+              <p className="creator-series__note">One matching stream per quarter earns a small follower bump. Your show choice does not restrict other formats, events or career routes. Episodes use the darts and broadcast you actually played.</p>
+              <div className="creator-series__chapters">{d.creatorSeries.chapters.map(chapter => <article key={chapter.quarter} data-status={chapter.status}>
+                <span>Q{chapter.quarter} · {chapter.status === "DONE" ? "EPISODE RECORDED" : chapter.status.replace("_", " ")}</span><b>{chapter.title}</b>
+                {chapter.format ? <small>{chapter.format.replaceAll("_", " ")} · +{chapter.bonusFollowers} followers</small> :
+                  <small>{chapter.status === "CURRENT" ? "Choose a matching show this quarter." : chapter.status === "MISSED" ? "No matching show was recorded in this quarter." : chapter.status === "UPCOMING" ? "Opens later this season." : "Series not active yet."}</small>}
+              </article>)}</div>
+              <div className="creator-series__finale" data-complete={d.creatorSeries.finale === "COMPLETE"}>
+                <b>{d.creatorSeries.finale === "COMPLETE" ? "SEASON SERIES COMPLETE" : d.creatorSeries.finale === "INCOMPLETE" ? "SEASON FINALE · INCOMPLETE" : "SEASON FINALE"}</b>
+                <span>{d.creatorSeries.finale === "COMPLETE" ? "The whole series is in the archive. Your final episode earned the larger audience bonus." :
+                  d.creatorSeries.finale === "INCOMPLETE" ? "The season has ended. Your episodes and audience gains remain on your channel." : "Record one eligible show in each remaining quarter to finish the series."}</span>
+              </div>
+            </>}
           </section>
           <section className="creator-console">
             <div className="console-head"><div><span className="eyebrow">01 / CONTROL ROOM</span><h2>Today’s setup</h2></div><div className="console-state"><i /> {d.live ? "YOU’RE ON AIR" : "READY WHEN YOU ARE"}</div></div>
