@@ -22,7 +22,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerStreamingService } from "../../career/streaming/service.ts";
 import { createCareerHostingService } from "../../career/hosting/service.ts";
-import { STREAM, STREAM_MONEY, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, chatForVisit, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
+import { STREAM, STREAM_MONEY, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, chatForVisit, chatForMoment, openingViewers, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
 import { settleStreamingWeek } from "../../career/streaming/state.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
 
@@ -39,6 +39,16 @@ test("platform ads reward audience watch time and consistent streaming, independ
   assert.equal(adRevenuePence(30_000,1,50),1500,"one active week earns a third of the full consistency rate");
   assert.equal(adRevenuePence(30_000,0,50),0,"no streaming weeks means no ads payout");
   assert.equal(adRevenuePence(30_000,3,49),0,"ads unlock at Affiliate");
+});
+
+test("season-long streaming income grows with cadence and audience; Partner sponsorships are optional upside",()=>{
+  const light=streamerSeasonProjection(50,1,8,16),steady=streamerSeasonProjection(50,2,10,12);
+  const heavy=streamerSeasonProjection(50,3,12,8),partner=streamerSeasonProjection(1000,3,12,8);
+  assert.equal(light.streams,52);assert.ok(light.totalPence>=20_000&&light.totalPence<30_000);assert.equal(light.campaignsPence,0);
+  assert.ok(steady.totalPence>light.totalPence);assert.equal(steady.campaignsPence,0);
+  assert.ok(heavy.followers>=1000&&heavy.campaignsPence>0&&heavy.dealsPence>0);
+  assert.ok(heavy.totalPence>600_000,"an active channel can reach Partner and earn over £6,000 gross in this seeded season");
+  assert.ok(partner.totalPence>2_500_000,"an established, consistently streamed Partner channel can support a streamer-first route");
 });
 
 test("optional studio tiers improve reach without affecting darts ability",()=>{
@@ -65,6 +75,33 @@ const T20 = { segment: 20, multiplier: 3, value: 60 }, T19 = { segment: 19, mult
 const max = [T20, T20, T20], out141 = [T20, T19, D12], blank = [MISS, MISS, MISS];
 /** You win 2-0 with 180, 180, 141 each leg; the challenger misses everything. Leg 1 you throw first, leg 2 they do. */
 const twoNil = [...max, ...blank, ...max, ...blank, ...out141, ...blank, ...max, ...blank, ...max, ...blank, ...out141];
+
+/** Deterministic annual balance audit; partner campaigns/deals assume every offer is accepted and completed. */
+function streamerSeasonProjection(startFollowers:number,streamsPerWeek:number,visitsPerStream:number,bigEvery:number){
+  let followers=startFollowers,subscribers=0,ads=0,renewalsIncome=0,direct=0,campaigns=0,deals=0,viewerMinutes=0,monthWeeks=0,streams=0,dealCount=0,priorAverage=0,partnerAtMonthStart=false;
+  for(let week=1;week<=52;week++){
+    if((week-1)%STREAM_MONEY.monthWeeks===0)partnerAtMonthStart=followers>=STREAM.tiers.find(t=>t.key==="PARTNER")!.followers;
+    let weekMinutes=0;
+    for(let n=0;n<streamsPerWeek;n++){
+      const key=`season-${week}-${n}`,viewers=openingViewers(SEED,key,followers,0,4+n,week===1?null:2);
+      let t:Tally={...tally(viewers),viewerMinutes:0};
+      for(let i=0;i<visitsPerStream;i++)t=chatForMoment(SEED,key,i,bigEvery>0&&i%bigEvery===0?"DRILL_BIG":"DRILL_SCORE",t,tierFor(followers).key).tally;
+      weekMinutes+=t.viewerMinutes??0;streams++;direct+=streamIncome(t);followers+=t.followersGained;subscribers+=t.subs;
+    }
+    viewerMinutes+=weekMinutes;monthWeeks++;
+    if(week%STREAM_MONEY.monthWeeks===0){
+      ads+=adRevenuePence(viewerMinutes,monthWeeks,followers);
+      subscribers=renewals(subscribers,true);renewalsIncome+=subPayout(subscribers);
+      const average=viewerMinutes/(monthWeeks*streamsPerWeek*visitsPerStream*STREAM_MONEY.adMinutesPerVisit);
+      if(partnerAtMonthStart){
+        campaigns+=Math.min(100_000,Math.max(5_000,dealFee(priorAverage)*4));
+        if(dealCount<STREAM_MONEY.dealsPerSeason){deals+=dealFee(priorAverage)*STREAM_MONEY.dealStreams;dealCount++;}
+      }
+      priorAverage=average;viewerMinutes=0;monthWeeks=0;
+    }
+  }
+  return {followers,streams,totalPence:ads+renewalsIncome+direct+campaigns+deals,campaignsPence:campaigns,dealsPence:deals};
+}
 
 test("rules: the streamer route by followers, chat that reacts, and cheers only once you're an Affiliate", () => {
   assert.deepEqual([0, 49, 50, 999, 1000, 25000].map(f => tierFor(f).key), ["NEWCOMER", "NEWCOMER", "AFFILIATE", "AFFILIATE", "PARTNER", "STAR"]);
