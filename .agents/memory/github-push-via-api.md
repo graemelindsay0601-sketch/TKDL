@@ -15,6 +15,12 @@ If the Git remote rejects authentication but the GitHub integration is connected
 
 **How to apply:** never ask for or expose credentials to repair a failed push; use the managed connection and stop if the live branch moved or the tree does not match.
 
+The internal GitHub remote can accept a push and update the hosted branch, then return a nonzero status because Replit blocks updating its local remote-tracking ref lock. Verify the hosted ref through the GitHub integration before deciding whether the push failed; do not retry with `DANGEROUSLY_ALLOW_GIT`.
+
+**Why:** retrying after a server-side success risks duplicate or conflicting work, while bypassing the local Git guard can damage Replit's repository metadata.
+
+**How to apply:** when push output shows the remote accepted the update but local ref refresh failed, check the live branch SHA through GitHub and leave local tracking refs alone unless a separate repair is necessary.
+
 For this project, push each fully completed work step to GitHub `main` instead of accumulating completed steps locally. If direct Git push is unavailable, a verified API snapshot commit is acceptable when it includes the complete merged tree.
 
 **Why:** the user wants completed work on `main` promptly so later integration does not accumulate a large local backlog.
