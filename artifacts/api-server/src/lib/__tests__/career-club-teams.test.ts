@@ -23,9 +23,11 @@ import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerTeamNightsService, playTeamNights } from "../../career/club/team-service.ts";
 import { playCountyFixtures } from "../../career/club/county-team-service.ts";
 import { createCareerCountyLiveService } from "../../career/club/county-live-service.ts";
+import { createCareerCountyTrialService } from "../../career/club/county-trial-service.ts";
 import { clubTrialRecord, ensureCountyTrialInvitation } from "../../career/club/county-trials.ts";
 import { countyCupFixtures, countyTables } from "../../career/club/county-squads.ts";
 import { createCareerClubService } from "../../career/club/service.ts";
+import { createMatch, throwDart } from "../../shared/darts-rules/x01.ts";
 import { CLUB } from "../../career/club/model.ts";
 import { TEAMS, fixturesFor, leagueTable, playoffFixtures, teamNightDay } from "../../career/club/teams.ts";
 import { loadNpcs } from "../../career/world/repository.ts";
@@ -36,6 +38,7 @@ const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), teams = createCareerTeamNightsService(db);
 const clubs = createCareerClubService(db);
 const countyLive = createCareerCountyLiveService(db);
+const countyTrials = createCareerCountyTrialService(db);
 const actor = { playerId: 1 };
 let id = "";
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
@@ -391,8 +394,48 @@ test("county trial invitations count only completed singles the player actually 
   assert.equal(invited.status, "INVITED");
   assert.equal(invited.appearances, 5);
   assert.equal(invited.wins, 3);
-  await db.execute(sql`UPDATE career_county_trials SET status='LIVE' WHERE career_save_id=${id} AND season=101`);
-  assert.equal((await db.transaction(tx => ensureCountyTrialInvitation(tx, id, 101))).status, "LIVE", "re-reading an invitation must not reset an in-progress trial");
+  await db.execute(sql`UPDATE career_saves SET current_season=101 WHERE id=${id}`);
+  await db.execute(sql`INSERT INTO career_county_eligibility(career_save_id,category) VALUES (${id},'MEN')
+    ON CONFLICT (career_save_id) DO UPDATE SET category='MEN'`);
+  const started = await countyTrials.start(actor, id);
+  assert.equal(started.status, "LIVE");
+  assert.ok(started.opponent.name.startsWith("County reserve · "));
+  const partial = started.darts.slice(0, 3);
+  const savedPartial = await countyTrials.darts(actor, id, started.id, { darts: partial });
+  assert.equal(savedPartial.status, "LIVE");
+  assert.equal(savedPartial.darts.length, partial.length);
+  const resumed = await countyTrials.start(actor, id);
+  assert.equal(resumed.id, started.id, "starting again must resume the persistent match id");
+  assert.deepEqual(resumed.darts, partial, "resume must return the saved darts");
+
+  const trialState = createMatch(started.format, started.firstThrower);
+  const fullDarts: unknown[] = [];
+  let state = trialState;
+  while (!state.complete) {
+    const thrower = state.turn;
+    const dartsForVisit = thrower === 0
+      ? state.scores[0] === 141
+        ? [
+            { segment: 20, multiplier: 3 as const, value: 60 },
+            { segment: 19, multiplier: 3 as const, value: 57 },
+            { segment: 12, multiplier: 2 as const, value: 24 },
+          ]
+        : Array.from({ length: 3 }, () => ({ segment: 20, multiplier: 3 as const, value: 60 }))
+      : Array.from({ length: 3 }, () => ({ segment: 0, multiplier: 1 as const, value: 0 }));
+    for (const dart of dartsForVisit) {
+      if (state.complete || state.turn !== thrower) break;
+      fullDarts.push(dart);
+      state = throwDart(state, dart).state;
+    }
+  }
+  assert.equal(state.winner, 0, "the deterministic test player should win by checking out while the reserve misses");
+  const settled = await countyTrials.darts(actor, id, started.id, { darts: fullDarts });
+  assert.equal(settled.status, "PLAYED");
+  assert.equal(settled.won, true);
+  const duplicateSettlement = await countyTrials.darts(actor, id, started.id, { darts: fullDarts });
+  assert.equal(duplicateSettlement.status, "PLAYED");
+  assert.equal(duplicateSettlement.won, true, "replaying a completed payload must not change the result");
+  assert.equal((await db.transaction(tx => ensureCountyTrialInvitation(tx, id, 101))).status, "WON", "re-reading an invitation must preserve the settled result");
   await repairCareerSchema(db);
   assert.ok((await rows(sql`SELECT to_regclass('career_county_trials') AS table_name`))[0].table_name);
 });
