@@ -328,7 +328,8 @@ test("Continue pauses for a live club single, resumes the same week, and records
       if (result.stop.reason === "TEAM_MATCH_PENDING") blocked = result;
       else {
         const current = await saves.read(1, save.id);
-        assert.ok(current.currentWeek <= next.week, `advance must not skip the first team night (stop=${result.stop.reason}, current=${current.currentWeek}, fixture=${next.week})`);
+        const fixtures = await rows(sql`SELECT week,status,you_played,rubbers FROM career_club_fixtures WHERE career_save_id=${save.id} AND season=1`);
+        assert.ok(current.currentWeek <= next.week, `advance must not skip the first team night (stop=${result.stop.reason}, current=${current.currentWeek}, fixture=${next.week}, teamRows=${JSON.stringify(fixtures)})`);
       }
       break;
     }

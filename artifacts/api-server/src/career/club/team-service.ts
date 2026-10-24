@@ -75,13 +75,25 @@ export async function playTeamNights(tx: CareerExecutor, root: Root, season: num
     const members = npcs.filter(n => clubOf(n) === club && !busy.has(n.id)).map(n => ({ key: n.id, level: level(n) }))
       .sort((a, b) => b.level - a.level || a.key.localeCompare(b.key));
     // You always get a game when you're free (it's your career); the rest of the side is the strongest free members, then in order of strength.
-    const picked = club === lg.home && youFree ? [{ key: HUMAN, level: youLevel }, ...members.slice(0, TEAMS.singles - 1)] : members.slice(0, TEAMS.singles);
+    // Keep one extra club-mate as a reserve when you are selected. If the opposing side is short,
+    // pairing below can move you into an actual rubber without leaving your single as a walkover.
+    const picked = club === lg.home && youFree ? [{ key: HUMAN, level: youLevel }, ...members.slice(0, TEAMS.singles)] : members.slice(0, TEAMS.singles);
     return picked.sort((a, b) => b.level - a.level || a.key.localeCompare(b.key)).map(m => m.key);
   };
   const byId = new Map(npcs.map(n => [n.id, n]));
   let humanMatchId: string | null = null;
   for (const f of todo) {
     const home = side(f.home), away = side(f.away);
+    const humanSide = home.includes(HUMAN) ? home : away.includes(HUMAN) ? away : null;
+    const otherSide = humanSide === home ? away : home;
+    if (humanSide) {
+      const humanIndex = humanSide.indexOf(HUMAN);
+      const lastPaired = Math.min(TEAMS.singles, otherSide.length) - 1;
+      if (humanIndex > lastPaired) {
+        if (lastPaired >= 0) [humanSide[humanIndex], humanSide[lastPaired]] = [humanSide[lastPaired], humanSide[humanIndex]];
+        else humanSide.splice(humanIndex, 1); // no opponent: a team-mate covers; no human stats are recorded
+      }
+    }
     const rubbers: Rubber[] = [];
     for (let i = 0; i < TEAMS.singles; i++) {
       const a = home[i] ?? null, b = away[i] ?? null;
