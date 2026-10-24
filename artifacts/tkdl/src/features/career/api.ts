@@ -115,6 +115,16 @@ export const useCountyLiveMatch = (saveId: string, matchId: string) => useQuery(
 export const countyLiveApi = {
   darts: (saveId: string, matchId: string, darts: unknown[]) => send<CountyLiveSession>("POST", `/saves/${saveId}/club/county-matches/${matchId}/darts`, { darts }),
 };
+export type CountyTrialView = import("../../../../api-server/src/career/club/county-trials").CountyTrialView;
+export type CountyTrialSession = import("../../../../api-server/src/career/club/county-trial-service").CountyTrialSession;
+export const useCountyTrial = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "county-trial"),
+  queryFn: () => get<CountyTrialView>(`/saves/${saveId}/club/county-trial`), staleTime: STALE });
+export const useStartCountyTrial = (saveId: string) => useSaveMutation(saveId, () =>
+  send<CountyTrialSession>("POST", `/saves/${saveId}/club/county-trial/start`));
+export const useCountyTrialMatch = (saveId: string, matchId: string) => useQuery({ queryKey: careerKey(saveId, "county-trial-match", matchId),
+  queryFn: () => get<CountyTrialSession>(`/saves/${saveId}/club/county-trials/${matchId}`), staleTime: 0 });
+export const countyTrialApi = { darts: (saveId: string, matchId: string, darts: unknown[]) =>
+  send<CountyTrialSession>("POST", `/saves/${saveId}/club/county-trials/${matchId}/darts`, { darts }) };
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
 export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });

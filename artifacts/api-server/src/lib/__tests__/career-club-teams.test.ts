@@ -23,6 +23,7 @@ import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerTeamNightsService, playTeamNights } from "../../career/club/team-service.ts";
 import { playCountyFixtures } from "../../career/club/county-team-service.ts";
 import { createCareerCountyLiveService } from "../../career/club/county-live-service.ts";
+import { clubTrialRecord, ensureCountyTrialInvitation } from "../../career/club/county-trials.ts";
 import { countyCupFixtures, countyTables } from "../../career/club/county-squads.ts";
 import { createCareerClubService } from "../../career/club/service.ts";
 import { CLUB } from "../../career/club/model.ts";
@@ -325,7 +326,10 @@ test("Continue pauses for a live club single, resumes the same week, and records
         continue;
       }
       if (result.stop.reason === "TEAM_MATCH_PENDING") blocked = result;
-      else assert.ok((await saves.read(1, save.id)).currentWeek <= next.week, "advance must not skip the first team night");
+      else {
+        const current = await saves.read(1, save.id);
+        assert.ok(current.currentWeek <= next.week, `advance must not skip the first team night (stop=${result.stop.reason}, current=${current.currentWeek}, fixture=${next.week})`);
+      }
       break;
     }
   }
@@ -363,4 +367,31 @@ test("Continue pauses for a live club single, resumes the same week, and records
     WHERE career_save_id=${save.id} AND season=1 AND week=${next.week} AND (home_key='ayrshire' OR away_key='ayrshire')`))[0];
   assert.equal(fixture.you_played, true);
   assert.equal(fixture.status, "COMPLETED");
+});
+
+test("county trial invitations count only completed singles the player actually played and persist once", async () => {
+  await db.execute(sql`INSERT INTO career_club_team_memberships(career_save_id,season,club_key,joined_week)
+    VALUES (${id},100,'ayrshire',1)`);
+  const addRubber = async (round: number, humanMatch?: { status: string; won?: boolean }) => {
+    const rubbers = [{ home: "HUMAN", away: "npc", homeLegs: 3, awayLegs: 1, averages: [70, 65], ...(humanMatch ? { humanMatch } : {}) }];
+    await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
+      VALUES (${id},100,${round},${round + 3},'ayrshire','other',1,0,${JSON.stringify(rubbers)}::jsonb,'COMPLETED')`);
+  };
+  await addRubber(1, { status: "PLAYED", won: true });
+  await addRubber(2, { status: "PLAYED", won: true });
+  await addRubber(3, { status: "PLAYED", won: false });
+  await addRubber(4, { status: "PLAYED", won: false });
+  await addRubber(5); // team-mate cover must not count as the player's appearance
+  const short = await db.transaction(tx => ensureCountyTrialInvitation(tx, id, 101));
+  assert.equal(short.status, "NOT_EARNED");
+  assert.deepEqual(await clubTrialRecord(db, id, 100), { appearances: 4, wins: 2 });
+  await addRubber(6, { status: "PLAYED", won: true });
+  const invited = await db.transaction(tx => ensureCountyTrialInvitation(tx, id, 101));
+  assert.equal(invited.status, "INVITED");
+  assert.equal(invited.appearances, 5);
+  assert.equal(invited.wins, 3);
+  await db.execute(sql`UPDATE career_county_trials SET status='LIVE' WHERE career_save_id=${id} AND season=101`);
+  assert.equal((await db.transaction(tx => ensureCountyTrialInvitation(tx, id, 101))).status, "LIVE", "re-reading an invitation must not reset an in-progress trial");
+  await repairCareerSchema(db);
+  assert.ok((await rows(sql`SELECT to_regclass('career_county_trials') AS table_name`))[0].table_name);
 });

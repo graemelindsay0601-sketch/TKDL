@@ -305,7 +305,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         }
         // A blocked live activity may resume only from the exact position it stopped at;
         // once the Career has moved on, retrying it returns the stored result and never moves time.
-        if (["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(String(stored?.stop?.reason))
+        if (["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "COUNTY_TRIAL_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(String(stored?.stop?.reason))
           && stored?.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
         return { stored: (stored ?? null) as unknown };
       }
@@ -330,6 +330,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
             ? { reason: "STREAM_PENDING", detail: { day: blocker.day } }
             : blocker?.kind === "TEAM_MATCH"
               ? { reason: "TEAM_MATCH_PENDING", detail: { matchId: blocker.id } }
+              : blocker?.kind === "COUNTY_TRIAL"
+                ? { reason: "COUNTY_TRIAL_PENDING", detail: { matchId: blocker.id } }
             : { reason: "HUMAN_MATCH_PENDING", detail: { season: step.season, week: step.week, matchIds: (step.summary as { awaitingHuman: string[] }).awaitingHuman } };
         break;
       }
@@ -362,7 +364,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
       // Blocked advances are recorded (resumable from the same position); completed ones are final.
       await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
-        completed_at = ${["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
+        completed_at = ${["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "COUNTY_TRIAL_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
         WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
       return result;
     });
@@ -509,6 +511,10 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           AND EXISTS (SELECT 1 FROM jsonb_array_elements(f.matches) AS elem(value) WHERE elem.value->'humanMatch'->>'status'='LIVE')
         LIMIT 1`)).rows.length) throw new CareerError(409, "Finish your county singles on the scorer before advancing the Career");
       const s = Number(root.current_season), w = Number(root.current_week);
+      const liveTrial = (await tx.execute(sql`SELECT match_id FROM career_county_trials
+        WHERE career_save_id=${saveId} AND season=${s} AND status='LIVE' LIMIT 1`)).rows[0];
+      if (liveTrial?.match_id) return { season: s, week: w, summary: null as unknown, blocked: true,
+        blocker: { kind: "COUNTY_TRIAL" as const, id: String(liveTrial.match_id) } };
       const hasMoneySessions = (await tx.execute(sql`SELECT to_regclass('career_money_match_sessions') IS NOT NULL AS ok`)).rows[0]?.ok;
       const liveMoney = hasMoneySessions ? (await tx.execute(sql`SELECT id FROM career_money_match_sessions
         WHERE career_save_id=${saveId} AND status='LIVE' ORDER BY created_at,id LIMIT 1`)).rows[0] : undefined;

@@ -16,6 +16,7 @@ import { scopedRandom, stableUuid } from "../world/random.ts";
 import { SIMULATION_VERSION } from "../world/config.ts";
 import { CLUB, memberPoints, type ClubResult } from "./model.ts";
 import { countyCupFixtures, countyFixtures, selectCountySquads, COUNTY_SQUAD_FORMAT, type CountyCategory } from "./county-squads.ts";
+import { countyTrialQualifiedCategory } from "./county-trials.ts";
 
 type Root = { id: string; world_seed: string; world_generation_version: number | string; difficulty: string; settings_snapshot?: unknown };
 export const countyWeeksFor = (rounds: number) => Array.from({ length: rounds }, (_, i) => 4 + i * 3);
@@ -58,6 +59,7 @@ export async function playCountyFixtures(tx: CareerExecutor, root: Root, season:
 
   const categoryRow = (await tx.execute(sql`SELECT category FROM career_county_eligibility WHERE career_save_id=${root.id}`)).rows[0];
   const humanCategory: CountyCategory | null = categoryRow?.category === "MEN" || categoryRow?.category === "WOMEN" ? categoryRow.category : null;
+  const trialCategory = await countyTrialQualifiedCategory(tx, root.id, season);
   const humanAvailable = await freeOn(tx, root.id, season, teamNightDay(week));
   const npcs = await loadNpcs(tx, root.id, { activeOnly: true, nationality: home.country });
   const localityOf = new Map(npcs.map(n => [n.id, localityByRegion(n.homeRegion)?.key ?? null]));
@@ -76,7 +78,7 @@ export async function playCountyFixtures(tx: CareerExecutor, root: Root, season:
     const contestants = (playersByLocality.get(locality) ?? []).filter(n => n.status === "ACTIVE" && categoryOf(n) === category)
       .map(n => ({ key: n.id, points: points.get(n.id)?.points ?? 0, women: category === "WOMEN" }));
     if (locality === home.key && humanCategory === category && humanAvailable) contestants.push({ key: "HUMAN", points: points.get("HUMAN")?.points ?? 0, women: category === "WOMEN" });
-    return selectCountySquads(contestants);
+    return selectCountySquads(contestants, trialCategory);
   };
   const npcById = new Map(npcs.map(n => [n.id, n]));
   const form = await loadHumanForm(tx, root);

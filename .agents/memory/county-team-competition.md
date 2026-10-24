@@ -7,6 +7,8 @@ Career mode should include playable county representative fixtures, not only ind
 
 The player's selected county single must be thrown manually in the existing live scorer, not simulated on their behalf. Persist the dart log, record its result once, and prevent Career time advancing past the pending single.
 
+A club-team season can open a county trial: count only the player's manually played singles, not teammate cover or simulated fixtures. Five appearances and two wins qualify for one manually played best-of-five trial; winning grants a county B-squad place without county ranking points.
+
 The national World Cup route must also connect ranking-based call-up to a country pair, the event draw, and an actual live-scored match; selection logic alone is not enough.
 
 **Why:** The user explicitly said the county/national route should be playable, selected the UKDA-style men's and women's A/B squad format, and clarified that auto-simulating their own rubber did not make it playable.

@@ -6,10 +6,11 @@ import { careerIdSchema } from "../validation.ts";
 import type { createCareerClubService } from "./service.ts";
 import type { createCareerTeamNightsService } from "./team-service.ts";
 import type { createCareerCountyLiveService } from "./county-live-service.ts";
+import type { createCareerCountyTrialService } from "./county-trial-service.ts";
 
 /** Your home club (read-only). */
 export function createCareerClubRouter(service: ReturnType<typeof createCareerClubService>, teams?: ReturnType<typeof createCareerTeamNightsService>,
-  live?: ReturnType<typeof createCareerCountyLiveService>) {
+  live?: ReturnType<typeof createCareerCountyLiveService>, trials?: ReturnType<typeof createCareerCountyTrialService>) {
   const router = Router();
   router.get("/saves/:id/club", async (req: Request, res: Response) => {
     res.set("Cache-Control", "no-store");
@@ -64,6 +65,34 @@ export function createCareerClubRouter(service: ReturnType<typeof createCareerCl
     if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
     if (!live) { res.status(404).json({ error: "Not found" }); return; }
     res.json(await live.darts({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id)), careerIdSchema.parse(String(req.params.matchId)), req.body));
+  });
+  router.get("/saves/:id/club/county-trial", async (req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store");
+    const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
+    if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
+    if (!trials) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(await trials.read({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id))));
+  });
+  router.post("/saves/:id/club/county-trial/start", async (req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store");
+    const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
+    if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
+    if (!trials) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(await trials.start({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id))));
+  });
+  router.get("/saves/:id/club/county-trials/:matchId", async (req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store");
+    const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
+    if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
+    if (!trials) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(await trials.session({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id)), careerIdSchema.parse(String(req.params.matchId))));
+  });
+  router.post("/saves/:id/club/county-trials/:matchId/darts", async (req: Request, res: Response) => {
+    res.set("Cache-Control", "no-store");
+    const s = req.session as { playerId?: number; isAdmin?: boolean } | undefined;
+    if (!Number.isSafeInteger(s?.playerId) || (s?.playerId ?? 0) <= 0) { res.status(401).json({ error: "Authentication required" }); return; }
+    if (!trials) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(await trials.darts({ playerId: s!.playerId!, isAdmin: s?.isAdmin === true }, careerIdSchema.parse(String(req.params.id)), careerIdSchema.parse(String(req.params.matchId)), req.body));
   });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     if (!req.path.includes("/club")) { next(error); return; }

@@ -1,6 +1,6 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronRight, Crown, Flag, Medal, MapPin, Shield, Ticket, Trophy, Users } from "lucide-react";
-import { errorMessage, useHomeClub, useSetCountyCategory, type ClubView } from "../api";
+import { errorMessage, useHomeClub, useSetCountyCategory, useStartCountyTrial, type ClubView } from "../api";
 import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../components";
 import type { ShellContext } from "../shell";
 import { TeamNights } from "../team-nights";
@@ -14,6 +14,7 @@ const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(part => par
 export function ClubPage({ ctx }: { ctx: ShellContext }) {
   const club = useHomeClub(ctx.save.id), base = `/career/${ctx.save.id}`;
   const setCountyCategory = useSetCountyCategory(ctx.save.id);
+  const startTrial = useStartCountyTrial(ctx.save.id), [, navigate] = useLocation();
   if (club.isLoading) return <CareerLoading />;
   if (club.error || !club.data) return <CareerError error={club.error} onRetry={() => club.refetch()} />;
   const d: ClubView = club.data;
@@ -111,11 +112,33 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
       </div>
       {setCountyCategory.error && <p className="county-error" role="alert">{errorMessage(setCountyCategory.error)}</p>}
       {!d.county.category && <p className="club-section-note">Select a category to be considered for county team fixtures.</p>}
+      <div className="county-subsection county-trial-card">
+        <div className="subsection-heading"><div><span className="career-eyebrow">CLUB-TO-COUNTY PATHWAY</span><h3>County squad trial</h3></div>
+          <span>{d.county.trial.status === "WON" ? "QUALIFIED" : d.county.trial.status.replace("_", " ")}</span></div>
+        {d.county.trial.status === "NOT_EARNED" && <p className="club-section-note">
+          {d.county.trial.sourceSeason
+            ? `Last season: ${d.county.trial.appearances}/5 played team singles and ${d.county.trial.wins}/2 wins. Five actual appearances and two wins earn a trial invitation next season; stand-ins do not count.`
+            : "Play at least five actual club-team singles and win two in a season to earn a county trial invitation next season. Stand-in appearances do not count."}
+        </p>}
+        {d.county.trial.status === "INVITED" && <div>
+          <p className="club-section-note">Your ${d.county.trial.appearances} appearances and ${d.county.trial.wins} wins earned this invitation. Win a best-of-five-legs trial to claim a place in the {d.county.category === "WOMEN" ? "women’s" : "men’s"} county B squad. It awards no county ranking points.</p>
+          {!d.county.category ? <p className="county-error">Choose your county category above before starting.</p>
+            : <button className="club-button club-button-gold" type="button" disabled={startTrial.isPending}
+                onClick={async () => { try { const match = await startTrial.mutateAsync({}); navigate(`${base}/club/county-trial/${match.id}`); } catch { /* mutation error is shown below */ } }}>
+                {startTrial.isPending ? "Preparing trial…" : "Play county trial"} <ChevronRight size={15} />
+              </button>}
+          {startTrial.error && <p className="county-error" role="alert">{errorMessage(startTrial.error)}</p>}
+        </div>}
+        {d.county.trial.status === "LIVE" && d.county.trial.matchId && <Link className="club-button club-button-gold" href={`${base}/club/county-trial/${d.county.trial.matchId}`}>Resume county trial <ChevronRight size={15} /></Link>}
+        {d.county.trial.status === "WON" && <p className="club-section-note">Trial won. You are added to the {d.county.trial.category === "WOMEN" ? "women’s" : "men’s"} B-squad selection for future county fixtures this season.</p>}
+        {d.county.trial.status === "LOST" && <p className="club-section-note">The trial is complete. You can qualify again through next season’s club-team appearances and results.</p>}
+        {d.county.trial.status === "EXPIRED" && <p className="club-section-note">This invitation has expired with the season.</p>}
+      </div>
       <div className="county-squad-grid">{(["MEN", "WOMEN"] as const).flatMap(category => (["A", "B"] as const).map(team => {
         const roster = d.county!.squads[category][team], size = category === "MEN" ? 12 : 6;
         return <section key={`${category}-${team}`} className="squad-roster">
           <header><span>{category === "MEN" ? "MEN’S" : "WOMEN’S"} {team}</span><b>{roster.length} / {size}<small> PLACES</small></b></header>
-          {roster.length ? <ol>{roster.map((m, i) => <li className={m.you ? "you-in-roster" : ""} key={m.key}><b>{String(i + 1).padStart(2, "0")}</b><span>{m.you ? "You" : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}{m.you && <small> YOUR PLACE</small>}</span><em>{m.points}<small>PTS</small></em></li>)}</ol> : <p className="roster-empty">No eligible players with county results yet.</p>}
+          {roster.length ? <ol>{roster.map((m, i) => <li className={m.you ? "you-in-roster" : ""} key={m.key}><b>{String(i + 1).padStart(2, "0")}</b><span>{m.you ? "You" : <Link href={`${base}/world/players/${m.key}/profile`}>{m.name}</Link>}{m.you && <small>{m.selectionSource === "COUNTY_TRIAL" ? " TRIAL PLACE" : " YOUR PLACE"}</small>}</span><em>{m.points}<small>PTS</small></em></li>)}</ol> : <p className="roster-empty">No eligible players with county results yet.</p>}
           <footer>{roster.length} named <i /> {Math.max(0, size - roster.length)} places available</footer>
         </section>;
       }))}</div>

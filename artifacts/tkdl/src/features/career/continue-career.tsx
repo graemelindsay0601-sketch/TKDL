@@ -19,6 +19,10 @@ export function continueDestination(saveId: string, stop: AdvanceResult["stop"])
     const id = (stop.detail as { matchId?: string } | undefined)?.matchId;
     return id ? `/career/${saveId}/club/team-match/${id}` : null;
   }
+  if (stop.reason === "COUNTY_TRIAL_PENDING") {
+    const id = (stop.detail as { matchId?: string } | undefined)?.matchId;
+    return id ? `/career/${saveId}/club/county-trial/${id}` : null;
+  }
   if (stop.reason === "MONEY_MATCH_PENDING") {
     const id = (stop.detail as { matchId?: string } | undefined)?.matchId;
     return id ? `/career/${saveId}/money-matches/${id}/play` : null;

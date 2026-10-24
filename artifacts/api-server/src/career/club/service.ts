@@ -8,6 +8,7 @@ import { dartsNation, selectionRank } from "../calendar/pairs.ts";
 import { CLUB, NATION_NAMES, clubName, countyTeam, interCounty, leagueSeason, memberPoints, type ClubResult, type ClubSeason } from "./model.ts";
 import { countyCupFixtures, countyFixtures, countyTables, selectCountySquads, type CountyMatchResult } from "./county-squads.ts";
 import { countyWeeksFor } from "./county-team-service.ts";
+import { ensureCountyTrialInvitation, countyTrialQualifiedCategory } from "./county-trials.ts";
 
 type Row = Record<string, unknown>;
 const seasonFrom = (r: Row): ClubSeason => ({ season: Number(r.season), country: String(r.country), localityKey: String(r.locality_key), division: Number(r.division),
@@ -24,7 +25,8 @@ export type ClubView = {
   legend: boolean;
   /** County selection is category-specific; displayed squads use last-season results. */
   county: { name: string; category: "MEN" | "WOMEN" | null; aTeam: { key: string; name: string; you: boolean; points: number }[];
-    squads: Record<"MEN" | "WOMEN", Record<"A" | "B", { key: string; name: string; you: boolean; points: number }[]>>;
+    squads: Record<"MEN" | "WOMEN", Record<"A" | "B", { key: string; name: string; you: boolean; points: number; selectionSource?: "COUNTY_RESULTS" | "COUNTY_TRIAL" }[]>>;
+    trial: import("./county-trials.ts").CountyTrialView;
     fixtures: { week: number; round: number; opponent: string; home: boolean; matches: CountyMatchResult[] }[];
     teamStandings: { category: "MEN" | "WOMEN"; team: "A" | "B"; rows: { localityKey: string; name: string; position: number; played: number; points: number; won: number; drawn: number; lost: number }[] }[];
     youSelected: boolean; youSelectedLastSeason: boolean;
@@ -46,6 +48,10 @@ export function createCareerClubService(database: CareerDatabase) {
         if (existing && existing.category !== category && (await tx.execute(sql`SELECT 1 FROM career_county_fixtures
           WHERE career_save_id=${root.id} AND season=${Number(root.current_season)} AND status='COMPLETED' LIMIT 1`)).rows.length) {
           throw new CareerError(409, "County category cannot be changed after your county season has started");
+        }
+        if (existing && existing.category !== category && (await tx.execute(sql`SELECT 1 FROM career_county_trials
+          WHERE career_save_id=${root.id} AND season=${Number(root.current_season)} AND status IN ('LIVE','WON','LOST') LIMIT 1`)).rows.length) {
+          throw new CareerError(409, "County category cannot be changed after your trial has started");
         }
         await tx.execute(sql`INSERT INTO career_county_eligibility(career_save_id,category) VALUES (${root.id},${category})
           ON CONFLICT(career_save_id) DO UPDATE SET category=EXCLUDED.category,updated_at=NOW()`);
@@ -125,12 +131,14 @@ export function createCareerClubService(database: CareerDatabase) {
         const regionName = (key: string) => countryLocalities.find(l => l.key === key)!.region;
         const categoryRow = (await tx.execute(sql`SELECT category FROM career_county_eligibility WHERE career_save_id=${saveId}`)).rows[0];
         const category = categoryRow?.category === "WOMEN" ? "WOMEN" as const : categoryRow?.category === "MEN" ? "MEN" as const : null;
+        const trial = await ensureCountyTrialInvitation(tx, saveId, season);
+        const trialCategory = await countyTrialQualifiedCategory(tx, saveId, season);
         const eligibleForSquad = ["HUMAN", ...players.filter(p => localityOf.get(String(p.id)) === locality.key).map(p => String(p.id))]
           .map(key => {
             const player = players.find(p => String(p.id) === key);
             return { key, points: (last.get(key)?.points ?? 0), women: key === "HUMAN" ? category === "WOMEN" : String(player?.world_key ?? "").startsWith("women:") };
           });
-        const pickedSquads = selectCountySquads(eligibleForSquad);
+        const pickedSquads = selectCountySquads(eligibleForSquad, trialCategory);
         const presentSquad = (entries: typeof pickedSquads.MEN.A) => entries.map(m => ({ ...m, name: nameOf(m.key), you: m.key === "HUMAN" }));
         const squads = { MEN: { A: presentSquad(pickedSquads.MEN.A), B: presentSquad(pickedSquads.MEN.B) },
           WOMEN: { A: presentSquad(pickedSquads.WOMEN.A), B: presentSquad(pickedSquads.WOMEN.B) } };
@@ -152,7 +160,7 @@ export function createCareerClubService(database: CareerDatabase) {
             name: regionName(x.county), position: x.position, played: x.played, points: x.points, won: x.won, drawn: x.drawn, lost: x.lost })),
         })));
         const county = {
-          name: `${locality.region} County`, aTeam: selectedSquad?.[selectedTeam ?? "A"] ?? [], squads, category,
+          name: `${locality.region} County`, aTeam: selectedSquad?.[selectedTeam ?? "A"] ?? [], squads, category, trial,
           youSelected: !!selectedTeam, youSelectedLastSeason: previousTeam.some(m => m.key === "HUMAN"),
           fixtures: visibleCountyFixtures.filter(r => String(r.home_key) === locality.key || String(r.away_key) === locality.key).map(r => ({
             week: Number(r.week), round: Number(r.round), opponent: regionName(String(r.home_key) === locality.key ? String(r.away_key) : String(r.home_key)),

@@ -18,10 +18,10 @@ export const COUNTY_SQUAD_FORMAT = Object.freeze({
 
 export type CountyCategory = typeof COUNTY_SQUAD_FORMAT.categories[number];
 export type CountyTeam = typeof COUNTY_SQUAD_FORMAT.teams[number];
-export type CountySquadPlayer = { key: string; points: number; women: boolean };
+export type CountySquadPlayer = { key: string; points: number; women: boolean; selectionSource?: "COUNTY_RESULTS" | "COUNTY_TRIAL" };
 
 /** A/B selection is based on the previous season's local results, not hidden ability. */
-export function selectCountySquads(players: readonly CountySquadPlayer[]) {
+export function selectCountySquads(players: readonly CountySquadPlayer[], trialQualified: CountyCategory | null = null) {
   const output = {
     MEN: { A: [] as CountySquadPlayer[], B: [] as CountySquadPlayer[] },
     WOMEN: { A: [] as CountySquadPlayer[], B: [] as CountySquadPlayer[] },
@@ -33,6 +33,13 @@ export function selectCountySquads(players: readonly CountySquadPlayer[]) {
       .sort((a, b) => b.points - a.points || a.key.localeCompare(b.key));
     output[category].A = ranked.slice(0, limit);
     output[category].B = ranked.slice(limit, limit * 2);
+    if (trialQualified === category && ![...output[category].A, ...output[category].B].some(p => p.key === "HUMAN")) {
+      const human = players.find(p => p.key === "HUMAN" && p.women === women) ?? { key: "HUMAN", points: 0, women };
+      const trialPlayer = { ...human, selectionSource: "COUNTY_TRIAL" as const };
+      output[category].B = output[category].B.length >= limit
+        ? [...output[category].B.slice(0, limit - 1), trialPlayer]
+        : [...output[category].B, trialPlayer];
+    }
   }
   return output;
 }

@@ -21,6 +21,17 @@ test("UKDA-style A/B squads rank prior-season points separately by category", ()
   assert.equal(COUNTY_SQUAD_FORMAT.womenBestOf, 5);
 });
 
+test("a county-trial win earns a labelled B-squad place without adding ranking points", () => {
+  const players = Array.from({ length: 25 }, (_, i) => ({ key: `m${i}`, points: 100 - i, women: false }));
+  const squads = selectCountySquads([...players, { key: "HUMAN", points: 0, women: false }], "MEN");
+  assert.deepEqual(squads.MEN.A.map(p => p.key), players.slice(0, 12).map(p => p.key));
+  assert.equal(squads.MEN.B.length, 12);
+  assert.equal(squads.MEN.B.at(-1)?.key, "HUMAN");
+  assert.equal(squads.MEN.B.at(-1)?.selectionSource, "COUNTY_TRIAL");
+  assert.equal(squads.MEN.B.at(-1)?.points, 0);
+  assert.equal(squads.WOMEN.B.length, 0);
+});
+
 test("county fixture schedule is single round-robin and county table counts only match results", () => {
   const counties = ["A", "B", "C", "D"];
   const fixtures = countyFixtures(counties, [4, 8, 12]);
