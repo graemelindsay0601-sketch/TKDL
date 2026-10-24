@@ -12,6 +12,7 @@ import { createCareerRecognitionRouter } from "../../career/recognition/router.t
 import { createCareerLifeService } from "../../career/life/service.ts";
 import { createCareerLifeRouter } from "../../career/life/router.ts";
 import { createCareerLife } from "../../db/migrations/create_career_life.ts";
+import { ensureClubTeams } from "../../db/migrations/create_career_club_teams.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
 import { createCareerLegacyService } from "../../career/legacy/service.ts";
 import { createCareerLegacyRouter } from "../../career/legacy/router.ts";
@@ -78,6 +79,7 @@ before(async () => {
   await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSponsorHQSPD(db); await createCareerSponsorContractActionsSPE2(db); await createCareerSporting(db);
   await createShadowObservations(db);
   await createCareerLife(db);await createCareerLife(db);
+  await db.transaction(tx=>ensureClubTeams(tx));
   await createCareerLegacy(db);await createCareerLegacy(db);
   const preMigration=await saves.create(1,{slot:3,careerName:"Pre A7.3"});
   const oldRoot=(await q(sql`SELECT * FROM career_saves WHERE id=${preMigration.id}`))[0];
@@ -192,6 +194,31 @@ async function newCareer(slot: number, body: Record<string, unknown>) {
   assert.equal((await call("POST", `/saves/${created.body.id}/initialize`, {})).status, 200);
   return created.body.id as string;
 }
+test("Life API refreshes local spotlight eligibility from real played club singles",async()=>{
+  const slot=Number((await q(sql`SELECT n FROM generate_series(1,3) n WHERE NOT EXISTS
+    (SELECT 1 FROM career_saves s WHERE s.player_id=1 AND s.slot_number=n) ORDER BY n LIMIT 1`))[0]?.n);
+  assert.ok(slot,"a free Career slot is available for the API fixture");
+  const id=await newCareer(slot,{dateOfBirth:dobForAge(35)});
+  try {
+    const life=()=>call("GET",`/saves/${id}/life`);
+    const before=await life();
+    assert.equal(before.status,200,JSON.stringify(before.body));
+    assert.equal(before.body.opportunities.some((o:any)=>o.family==="LOCAL_SPOTLIGHT"),false);
+    const root=(await q(sql`SELECT current_season FROM career_saves WHERE id=${id}`))[0];
+    for(let round=1;round<=3;round++) {
+      const rubbers=[{humanMatch:{status:"PLAYED",won:round<=2}}];
+      await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
+        VALUES (${id},${Number(root.current_season)},${round},${round},'ayrshire','other',1,0,${JSON.stringify(rubbers)}::jsonb,'COMPLETED')`);
+    }
+    const after=await life();
+    assert.equal(after.status,200,JSON.stringify(after.body));
+    assert.equal(after.body.opportunities.find((o:any)=>o.family==="LOCAL_SPOTLIGHT")?.feePence,7500,
+      "three persisted player-played club appearances should unlock the local spotlight");
+    assert.deepEqual((await life()).body,after.body);
+  } finally {
+    await saves.delete(1,id);
+  }
+});
 let opCounter = 0;
 async function advanceToHumanMatch(id: string, maxSteps = 30) {
   for (let i = 0; i < maxSteps; i++) {

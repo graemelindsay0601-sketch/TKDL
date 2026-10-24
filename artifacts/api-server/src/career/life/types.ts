@@ -28,6 +28,8 @@ export type LifeSources = {
   savingsGoals?:{id:string;kind:"EVENT"|"AMOUNT";label:string;targetPence:number;eventId:string|null;season:number;week:number}[];
   /** Your home club: its name, this season's captain and its league history (promotions, titles). */
   club?:Pick<import("../club/service.ts").ClubView,"club"|"captain"|"history"|"season"|"county"|"nation">;
+  /** Only completed singles the player personally played; teammate cover is excluded. */
+  localTeamRecord?:{appearances:number;wins:number};
   /** Nine-dart legs from the records book (recorded match statistics), within the news window. */
   nineDarters?:{matchId:string;eventId:string;eventName:string;participantKey:string;name:string;season:number;day:number;count:number;source:string}[];
   upsets?:(import("../facts/types.ts").Fact & {winnerKey:string;winnerName:string;loserKey:string;loserName:string;winnerPosition:number;loserPosition:number;snapshotId:string})[];
