@@ -116,8 +116,11 @@ test("a team night: six singles for each side, you play when you're free", async
   const t20 = { segment: 20, multiplier: 3 as const, value: 60 };
   const t19 = { segment: 19, multiplier: 3 as const, value: 57 };
   const d12 = { segment: 12, multiplier: 2 as const, value: 24 };
-  const darts = Array.from({ length: 3 }, () => [...Array(3).fill(t20), ...Array(3).fill(miss),
-    ...Array(3).fill(t20), ...Array(3).fill(miss), t20, t19, d12]).flat();
+  const darts = Array.from({ length: 3 }, (_, leg) => [
+    ...(leg % 2 ? Array(3).fill(miss) : []),
+    ...Array(3).fill(t20), ...Array(3).fill(miss),
+    ...Array(3).fill(t20), ...Array(3).fill(miss), t20, t19, d12,
+  ]).flat();
   const finished = await teams.darts(actor, id, matchId, { darts });
   assert.equal(finished.status, "PLAYED");
   assert.equal(finished.won, true);

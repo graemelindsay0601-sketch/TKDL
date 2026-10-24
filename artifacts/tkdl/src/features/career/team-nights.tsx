@@ -21,7 +21,7 @@ export function TeamNights({ saveId }: { saveId: string }) {
           <div><Users aria-hidden /><span><b>Six singles</b><small>Home and away · best of 5 legs</small></span></div>
           <div><Trophy aria-hidden /><span><b>Top four reach finals</b><small>Semi-finals, then the final</small></span></div>
         </div>
-        <p className="team-night__note">You play when free; a clubmate stands in if an event clashes. League seeding breaks a tied knockout match.</p>
+        <p className="team-night__note">{d.joined ? "As a team member, you play your single when available; a clubmate covers an event clash." : "Join your home club to play your singles. The club team continues without you until you join."} League seeding breaks a tied knockout match.</p>
       </div>
       {!d.joined && <div className="team-night__join">
         <p>Join {d.club} for this season. Your singles are live-played when you’re available; a team-mate covers any clash.</p>
@@ -37,7 +37,7 @@ export function TeamNights({ saveId }: { saveId: string }) {
       {d.liveMatchId && <Link className="club-button club-button-gold" href={`/career/${saveId}/club/team-match/${d.liveMatchId}`}>Resume your live team single</Link>}
       {d.next && <p className="team-night__next" data-free={d.next.youFree ? "true" : "false"}>
         <b>Next: week {d.next.week}</b>, {venue(d.next.home, d.next.opponent)}.{" "}
-        {d.next.youFree ? "You're in the team." : `You're booked into ${d.next.clash} that night, so a clubmate will play instead.`}</p>}
+        {!d.joined ? "You haven't joined the team yet." : d.next.youFree ? "You're in the team." : `You're booked into ${d.next.clash ?? "another commitment"} that night, so a clubmate will play instead.`}</p>}
       {d.last && <div className="team-night__last">
         <p><b>Week {d.last.week}</b>, {venue(d.last.home, d.last.opponent)}: <strong data-tone={d.last.us > d.last.them ? "up" : d.last.us < d.last.them ? "down" : "flat"}>
           {d.last.us > d.last.them ? "Won" : d.last.us < d.last.them ? "Lost" : "Drew"} {d.last.us}-{d.last.them}</strong>
@@ -60,6 +60,6 @@ export function TeamNightLine({ saveId, week }: { saveId: string; week: number }
   if (!n || n.week > week + 1) return null;
   return <Link href={`/career/${saveId}/club#team-nights`} className="team-night-line" data-free={n.youFree ? "true" : "false"}>
     <Users aria-hidden /><span><b>{n.week === week ? "Wednesday" : "Next Wednesday"}:</b> club night {venue(n.home, n.opponent)}.{" "}
-      {n.youFree ? "You're in the team." : `You're booked into ${n.clash}, so a clubmate plays.`}</span>
+      {!q.data?.joined ? "Not joined yet." : n.youFree ? "You're in the team." : `You're booked into ${n.clash ?? "another commitment"}, so a clubmate plays.`}</span>
   </Link>;
 }

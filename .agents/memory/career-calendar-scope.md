@@ -21,6 +21,12 @@ Local team leagues should be a viable Career path, not only background simulatio
 
 **How to apply:** preserve actual player participation in the league path, and connect team-season performance to meaningful local recognition and opportunity outcomes.
 
+Local team membership is opt-in each season. A joined player who is free must play their own scheduled single in the live Career scorer; if booked elsewhere, a teammate stands in and the player's personal record and profile do not change. Team results must not become official tournament finishes or ranking money. Genuine appearances and wins can build local reputation and unlock local sponsor interest.
+
+**Why:** the user clarified that a teammate should cover missed team nights without affecting the player's stats, and that the league should be a fully robust, meaningful Career option.
+
+**How to apply:** keep team fixtures, substitutions, live personal rubbers, calendar blockers, and sponsor eligibility distinct and idempotent; preserve prior saves and historical sponsorship terms.
+
 The week planner may offer a future activity only when its availability and booking paths support that exact week; never reuse current-week availability as a prediction.
 
 **Why:** a future option must lead to a genuinely bookable slot rather than a link that fails or silently books a different week.

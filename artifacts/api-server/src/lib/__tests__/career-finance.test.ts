@@ -189,7 +189,7 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 
 // ------------------------------------------------------------------ ledger authority
 test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Career saves", async () => {
-  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 8);
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 9);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
   assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "APPROVED");
   for (const version of [1, 2, 3, 4]) {
@@ -214,6 +214,8 @@ test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Ca
   }
 
   const save = await careerWithCurrentCatalogue();
+  assert.equal(Number((await rows(sql`SELECT settings_snapshot->>'sponsorDatabaseVersionAtCreation' AS version FROM career_saves WHERE id=${save.id}`))[0]?.version), 9,
+    "new Career saves advertise their exact sponsor catalogue version");
   const financeState = (await rows(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id = ${save.id}`))[0];
   assert.equal(Number(financeState.sponsor_database_version), CURRENT_SPONSOR_DATABASE_VERSION,
     "a new save must pin the current catalogue version");
@@ -228,6 +230,17 @@ test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Ca
   await finance.initialize(actor,legacy.id);
   assert.equal(Number((await rows(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${legacy.id}`))[0]!.sponsor_database_version),3,
     "an old save missing its finance row must retain its historical v3 catalogue pin");
+});
+
+test("v9 Forge Workwear offers also unlock through a genuine local team record", () => {
+  const forge = sponsorCatalogue(9).find(item => item.key === "forge-workwear")!;
+  const facts: SportingFacts = { careerStarted: true, titles: 0, bestFinishByCircuit: {}, qualifications: [],
+    professionalStatus: "AMATEUR", tourCard: false, worldRanking: null, localTeamRecord: { appearances: 4, wins: 3 } };
+  assert.equal(evaluateRequirement(forge.offerRequirement, facts), false);
+  facts.localTeamRecord = { appearances: 5, wins: 2 };
+  assert.equal(evaluateRequirement(forge.offerRequirement, facts), false);
+  facts.localTeamRecord = { appearances: 5, wins: 3 };
+  assert.equal(evaluateRequirement(forge.offerRequirement, facts), true);
 });
 
 test("SP-C schedules per-season and monthly guarantees at deterministic Career weeks and excludes earlier mid-season periods", () => {
