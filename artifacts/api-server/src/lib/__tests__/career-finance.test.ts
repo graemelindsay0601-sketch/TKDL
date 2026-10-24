@@ -22,10 +22,11 @@ import { createCareerSponsorContractActionsSPE2 } from "../../db/migrations/crea
 import { ensureCareerCountyTeams } from "../../db/migrations/create_career_county_teams.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerFinanceService } from "../../career/finance/service.ts";
+import { ensureClubTeams } from "../../db/migrations/create_career_club_teams.ts";
 import { responseProfile } from "../../career/finance/sponsor-negotiation.ts";
 import { materializeSponsorActivities } from "../../career/finance/sponsor-activities.ts";
 import { post } from "../../career/finance/ledger.ts";
-import { activeContracts, advanceSponsorLifecycle, applyCoverage, evaluateOffers, postDueGuaranteedPayments, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
+import { activeContracts, advanceSponsorLifecycle, applyCoverage, defaultFactsProvider, evaluateOffers, postDueGuaranteedPayments, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
 import { scheduleContractGuarantees } from "../../career/finance/sponsor-guarantees.ts";
 import type { SponsorApproachSource } from "../../career/finance/sponsor-journey.ts";
 import { discountedTravelPence, groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
@@ -37,6 +38,7 @@ import { FINANCE_VERSION, PRIZE_PROFILES, PRIZE_PROFILES_V1, prizeForPosition, F
 import { lockRoot } from "../../career/world/service.ts";
 import type { RootRow } from "../../career/calendar/engine.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
+import { DEFAULT_PROVIDERS } from "../../career/calendar/providers.ts";
 
 const pg = new PGlite();
 const db = drizzle(pg);
@@ -63,6 +65,7 @@ before(async () => {
   await addScheduledSponsorRenewalsSPE1B(db); await addScheduledSponsorRenewalsSPE1B(db);
   await createCareerSponsorContractActionsSPE2(db); await createCareerSponsorContractActionsSPE2(db);
   await createCareerSporting(db);
+  await db.transaction(tx => ensureClubTeams(tx));
 });
 beforeEach(async () => {
   await pg.exec("DELETE FROM career_saves; UPDATE feature_flags SET enabled = true");
@@ -241,6 +244,34 @@ test("v9 Forge Workwear offers also unlock through a genuine local team record",
   assert.equal(evaluateRequirement(forge.offerRequirement, facts), false);
   facts.localTeamRecord = { appearances: 5, wins: 3 };
   assert.equal(evaluateRequirement(forge.offerRequirement, facts), true);
+});
+
+test("sponsor facts count only the player's played club singles, not teammate cover", async () => {
+  const save = await career();
+  const addFixture = async (round: number, humanMatch: { status: string; won: boolean }) => {
+    const rubbers = [{ humanMatch }];
+    await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
+      VALUES (${save.id},1,${round},${round},'ayrshire','other',1,0,${JSON.stringify(rubbers)}::jsonb,'COMPLETED')`);
+  };
+  await addFixture(1, { status: "PLAYED", won: true });
+  await addFixture(2, { status: "PLAYED", won: true });
+  await addFixture(3, { status: "PLAYED", won: false });
+  await addFixture(4, { status: "PLAYED", won: false });
+  await addFixture(5, { status: "COVERED", won: true });
+
+  const readFacts = () => db.transaction(async tx => {
+    const root = await lockRoot(tx, actor, save.id, false) as RootRow;
+    return defaultFactsProvider(DEFAULT_PROVIDERS).facts(tx, root);
+  });
+  const beforeFifthAppearance = await readFacts();
+  assert.deepEqual(beforeFifthAppearance.localTeamRecord, { appearances: 4, wins: 2 });
+  const forge = sponsorCatalogue(9).find(item => item.key === "forge-workwear")!;
+  assert.equal(evaluateRequirement(forge.offerRequirement, beforeFifthAppearance), false);
+
+  await addFixture(6, { status: "PLAYED", won: true });
+  const afterFifthAppearance = await readFacts();
+  assert.deepEqual(afterFifthAppearance.localTeamRecord, { appearances: 5, wins: 3 });
+  assert.equal(evaluateRequirement(forge.offerRequirement, afterFifthAppearance), true);
 });
 
 test("SP-C schedules per-season and monthly guarantees at deterministic Career weeks and excludes earlier mid-season periods", () => {
