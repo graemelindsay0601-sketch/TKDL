@@ -398,7 +398,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
         </section>
       )}
 
-      {(calendar.data?.sponsorActivities?.length??0)>0&&<section className="pdc-card space-y-3 p-4 sm:p-5">
+      {view !== "PLAN" && (calendar.data?.sponsorActivities?.length??0)>0&&<section className="pdc-card space-y-3 p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3"><div><p className="cc-eyebrow">PARTNERSHIPS</p><h3 className="text-lg font-bold text-white">Sponsor commitments</h3></div>
           <Link href={`/career/${save.id}/sponsors`} className="text-xs font-semibold text-amber-200">Open Sponsor HQ →</Link></div>
         <div className="grid gap-2 md:grid-cols-2">{calendar.data!.sponsorActivities!.map(a=><article key={a.id} className="rounded-lg border border-white/10 bg-black/20 p-3">
@@ -410,6 +410,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
       {view === "PLAN" ? <SeasonPlannerView
         save={save}
         events={calendar.data?.events ?? []}
+        sponsorActivities={calendar.data?.sponsorActivities ?? []}
         retired={retired}
         loading={calendar.isLoading}
         error={calendar.error}

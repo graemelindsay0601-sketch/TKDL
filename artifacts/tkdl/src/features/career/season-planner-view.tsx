@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, Check, MapPin, Minus, Plus, ShieldCheck, Ticket, X } from "lucide-react";
-import { errorMessage, useEnterEvents } from "./api";
-import { denialLabel, eventCircuitLabel, eventDateLabel, formatPence } from "./model";
-import type { CareerEvent, CareerSave } from "./types";
+import { Link } from "wouter";
+import { errorMessage, useEnterEvents, useFinanceWeeks, useHistory } from "./api";
+import { ageReason, denialLabel, eventCircuitLabel, eventDateLabel, formatPence } from "./model";
+import type { CalendarSponsorActivity, CareerEvent, CareerSave } from "./types";
 
 type Props = {
   save: CareerSave;
@@ -13,6 +14,7 @@ type Props = {
   onRetry: () => void;
   selectedIds: string[];
   onSelectedIdsChange: (ids: string[]) => void;
+  sponsorActivities?: CalendarSponsorActivity[];
 };
 
 const enteredRelationships = new Set(["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED", "WITHDRAWN", "MISSED"]);
@@ -44,10 +46,12 @@ function unavailableReason(event: CareerEvent) {
   return "Entry unavailable";
 }
 
-export function SeasonPlannerView({ save, events, retired, loading, error, onRetry, selectedIds, onSelectedIdsChange }: Props) {
+export function SeasonPlannerView({ save, events, retired, loading, error, onRetry, selectedIds, onSelectedIdsChange, sponsorActivities = [] }: Props) {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [message, setMessage] = useState("");
   const enterEvents = useEnterEvents(save.id);
+  const actualWeeks = useFinanceWeeks(save.id);
+  const actualResults = useHistory(save.id, { participant: "HUMAN", season: save.currentSeason });
   const endWeek = Math.min(52, save.currentWeek + 7);
   const candidates = useMemo(() => [...events]
     .filter(event => event.season === save.currentSeason && event.dates.startWeek >= save.currentWeek && event.dates.startWeek <= endWeek)
@@ -73,6 +77,13 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
   const gross = totals.entry + totals.travel + totals.accommodation;
   const sponsorCoverage = totals.sponsorEntry + totals.sponsorTravel + totals.sponsorAccommodation;
   const projectedBalance = save.balancePence - totals.net;
+  const seasonActuals = (actualWeeks.data?.weeks ?? []).reduce((sum, week) => ({
+    spent: sum.spent + week.spentPence,
+    won: sum.won + week.wonPence,
+    sponsor: sum.sponsor + week.sponsorPence,
+    events: sum.events + week.events,
+  }), { spent: 0, won: 0, sponsor: 0, events: 0 });
+  const recentResults = (actualResults.data ?? []).slice(0, 4);
 
   const toggle = (event: CareerEvent) => {
     if (!canShortlist(event, save, retired)) return;
@@ -134,6 +145,10 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
                       <strong>{event.name}</strong>
                       <span>{eventCircuitLabel(event)} · {event.venue.city}, {event.venue.country}</span>
                       <small>{eventDateLabel(event)}{chosenConflicts.length ? ` · Conflicts with ${chosenConflicts.map(item => item.name).join(", ")}` : ""}</small>
+                      {!event.human?.eligible && event.human && <small className="cc-season-plan__eligibility">
+                        <b>Qualification:</b> {ageReason(event) ?? (event.human.eligibilityReasons.map(denialLabel).join(" · ") || "Open the event dossier for the qualification route")}
+                        {" · "}<Link href={`/career/${save.id}/events/${event.id}`}>Event details</Link>
+                      </small>}
                     </div>
                   </div>
                   <div className="cc-season-plan__event-side">
@@ -166,6 +181,25 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
             </li>)}
           </ul> : <div className="cc-season-plan__empty"><Ticket size={22} /><strong>No stops shortlisted</strong><p>Choose an event you can enter to map your season.</p></div>}
 
+          {sponsorActivities.length > 0 && <section className="cc-season-plan__commitments" aria-label="Sponsor commitments in this planning window">
+            <div><span className="cc-kicker">PARTNERSHIPS</span><strong>Commitments in this window</strong></div>
+            {sponsorActivities.map(activity => {
+              const week = activity.scheduled_week ?? activity.available_from_week;
+              const overlaps = selected.filter(event => activity.scheduled_week !== null
+                ? event.dates.startWeek <= activity.scheduled_week && event.dates.endWeek >= activity.scheduled_week
+                : activity.available_from_week !== null && activity.to_week !== null
+                  && event.dates.startWeek <= activity.to_week && event.dates.endWeek >= activity.available_from_week);
+              return <article key={activity.id}>
+                <span><b>{activity.required ? "Required" : "Optional"} · {activity.kind.replaceAll("_", " ")}</b>
+                  <small>{activity.scheduled_week ? `Scheduled for week ${activity.scheduled_week}` : `Available weeks ${activity.available_from_week ?? "—"}–${activity.to_week ?? "—"}`}</small></span>
+                <span data-overlap={overlaps.length > 0 || undefined}>{overlaps.length
+                  ? `Same window as ${overlaps.map(event => event.name).join(", ")}`
+                  : `Status: ${activity.status.toLowerCase().replaceAll("_", " ")}`}</span>
+              </article>;
+            })}
+            <p>Being in the same week does not automatically satisfy a sponsor commitment. Check the exact terms in <Link href={`/career/${save.id}/sponsors`}>Sponsor HQ</Link>.</p>
+          </section>}
+
           {selectedConflicts.length > 0 && <div className="cc-season-plan__conflicts" role="status">
             <strong>Resolve schedule conflicts</strong>
             {selectedConflicts.map(([first, second]) => <span key={`${first.id}-${second.id}`}>{first.name} and {second.name} overlap or conflict.</span>)}
@@ -193,6 +227,33 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
           </button>
         </aside>
       </div>
+
+      <section className="cc-season-actual" aria-label="Season plan against actual results">
+        <header>
+          <div><span className="cc-kicker">PLAN VS ACTUAL</span><h3>Season {save.currentSeason} · so far</h3></div>
+          <span>{seasonActuals.events} event{seasonActuals.events === 1 ? "" : "s"} played</span>
+        </header>
+        {actualWeeks.isLoading || actualResults.isLoading ? <p>Loading recorded season results…</p>
+          : actualWeeks.error || actualResults.error ? <p role="status">Season actuals are temporarily unavailable. Your plan estimates are unchanged.</p>
+          : <div className="cc-season-actual__grid">
+            <div className="cc-season-actual__totals">
+              <article><small>Actual event costs</small><strong>{formatPence(seasonActuals.spent)}</strong></article>
+              <article><small>Actual prizes / event earnings</small><strong>{formatPence(seasonActuals.won)}</strong></article>
+              <article><small>Actual sponsor income</small><strong>{formatPence(seasonActuals.sponsor)}</strong></article>
+              <article data-tone={seasonActuals.won - seasonActuals.spent >= 0 ? "up" : "down"}>
+                <small>Event net so far</small><strong>{formatPence(seasonActuals.won - seasonActuals.spent)}</strong>
+              </article>
+            </div>
+            <div className="cc-season-actual__results">
+              <strong>Recorded finishes</strong>
+              {recentResults.length ? recentResults.map(result => <div key={result.eventId}>
+                <span><b>{result.name}</b><small>Week {result.week} · {result.stageReached.replaceAll("_", " ")}</small></span>
+                <span>{result.champion ? "Winner" : `#${result.position}`}<small>{result.wins}W–{result.losses}L</small></span>
+              </div>) : <p>No event results recorded this season yet. Your shortlisted stops remain estimates until played.</p>}
+            </div>
+          </div>}
+        <p className="cc-season-actual__note">Actual totals come from your Career ledger and recorded finishes; sponsor income is kept separate from event profit. The shortlist above shows current estimates for events ahead.</p>
+      </section>
 
       {reviewOpen && <div className="cc-season-plan__backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setReviewOpen(false); }}>
         <section className="cc-season-plan__dialog" role="dialog" aria-modal="true" aria-labelledby="cc-season-plan-review-title">

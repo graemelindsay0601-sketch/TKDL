@@ -1102,6 +1102,8 @@
 .cc-season-plan__event-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .cc-season-plan__event-copy strong { overflow: hidden; color: #f1eee8; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .cc-season-plan__event-copy span, .cc-season-plan__event-copy small { overflow: hidden; color: #aab5c0; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.cc-season-plan__event-copy .cc-season-plan__eligibility { color: #f0bd84; }
+.cc-season-plan__eligibility a { color: #f1d47c; font-weight: 700; }
 .cc-season-plan__event-side { display: flex; align-items: flex-end; flex-direction: column; gap: 5px; }
 .cc-season-plan__event-side > small { color: #aeb6bf; font: 8px ui-monospace,monospace; }
 .cc-season-plan__status { border: 1px solid rgba(231,187,97,.3); border-radius: 99px; padding: 4px 8px; color: #efd58f; background: rgba(231,187,97,.08); font-size: 8px; font-weight: 750; white-space: nowrap; }
@@ -1152,13 +1154,46 @@
 .cc-season-plan__dialog > div { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid rgba(255,255,255,.1); padding: 10px 0; color: #c0cad3; font-size: 10px; }
 .cc-season-plan__dialog > div strong { color: #f1d47c; }
 .cc-season-plan__dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.cc-season-plan__commitments { display: grid; gap: 8px; margin: 10px 12px; border: 1px solid rgba(231,187,97,.2); border-radius: 10px; padding: 10px; background: rgba(231,187,97,.045); }
+.cc-season-plan__commitments > div { display: flex; flex-direction: column; gap: 3px; }
+.cc-season-plan__commitments > div > strong { color: #f2f6fa; font-size: 10px; }
+.cc-season-plan__commitments article { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 7px; color: #d2dbe3; font-size: 8px; }
+.cc-season-plan__commitments article > span { display: flex; flex-direction: column; gap: 3px; }
+.cc-season-plan__commitments article > span:last-child { align-items: flex-end; color: #d8c58d; text-align: right; }
+.cc-season-plan__commitments article > span[data-overlap="true"] { color: #f0bd84; }
+.cc-season-plan__commitments small, .cc-season-plan__commitments p { color: #92a1af; font-size: 8px; }
+.cc-season-plan__commitments p { margin: 0; line-height: 1.5; }
+.cc-season-plan__commitments p a { color: #f1d47c; font-weight: 700; }
+.cc-season-actual { margin-top: 14px; overflow: hidden; border: 1px solid rgba(231,187,97,.22); border-radius: 15px; padding: 15px; background: linear-gradient(145deg,rgba(22,37,55,.98),rgba(10,19,30,.98)); box-shadow: 0 12px 28px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.035); }
+.cc-season-actual > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cc-season-actual > header h3 { margin: 3px 0 0; color: #f2f6fa; font: 650 19px/1.1 system-ui,sans-serif; }
+.cc-season-actual > header > span { color: #d4c18c; font: 700 9px ui-monospace,monospace; }
+.cc-season-actual__grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(260px,.8fr); gap: 12px; margin-top: 12px; }
+.cc-season-actual__totals { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.cc-season-actual__totals article { display: flex; flex-direction: column; gap: 5px; border: 1px solid rgba(255,255,255,.08); border-radius: 9px; padding: 10px; background: rgba(255,255,255,.025); }
+.cc-season-actual__totals small { color: #9daab7; font-size: 8px; }
+.cc-season-actual__totals strong { color: #f1d47c; font: 600 17px Oswald,sans-serif; }
+.cc-season-actual__totals article[data-tone="up"] strong { color: #a9e2c3; }
+.cc-season-actual__totals article[data-tone="down"] strong { color: #ff91a8; }
+.cc-season-actual__results { display: grid; align-content: start; gap: 7px; }
+.cc-season-actual__results > strong { color: #e7d08f; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+.cc-season-actual__results > div { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.07); padding: 6px 0; color: #edf3fa; font-size: 9px; }
+.cc-season-actual__results > div > span { display: flex; flex-direction: column; gap: 3px; }
+.cc-season-actual__results > div > span:last-child { align-items: flex-end; color: #f1d47c; }
+.cc-season-actual__results small, .cc-season-actual__results p { color: #9daab7; font-size: 8px; }
+.cc-season-actual__results p { margin: 0; line-height: 1.5; }
+.cc-season-actual > p { margin: 10px 0 0; color: #92a1af; font-size: 8px; line-height: 1.5; }
 @media (max-width: 900px) { .cc-season-plan__grid { grid-template-columns: minmax(0,1fr); } }
 @media (max-width: 560px) {
   .cc-season-plan__header { align-items: flex-start; flex-direction: column; }
   .cc-season-plan__event { grid-template-columns: minmax(0,1fr); }
   .cc-season-plan__event-side { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
   .cc-season-plan__event-side > small { align-self: center; }
+  .cc-season-plan__event-copy .cc-season-plan__eligibility { overflow: visible; white-space: normal; }
+  .cc-season-plan__commitments article { flex-direction: column; }
+  .cc-season-plan__commitments article > span:last-child { align-items: flex-start; text-align: left; }
   .cc-season-plan__toggle { margin-left: auto; }
   .cc-season-plan__dialog footer { flex-direction: column-reverse; }
   .cc-season-plan__dialog footer .cc-button { justify-content: center; }
+  .cc-season-actual__grid { grid-template-columns: minmax(0,1fr); }
 }
