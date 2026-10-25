@@ -1,9 +1,10 @@
-import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, EventFinancePreview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary } from "./types";
+import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, EventFinancePreview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary, SponsorGuaranteePayment } from "./types";
 
 /**
  * Pure Career view-model helpers. They only translate authoritative A1–A5 facts
- * into labels/tones/actions — they never compute sporting or financial truth
- * (eligibility, affordability, rankings, cards all come from the server).
+ * into labels/tones/actions. Sporting and financial facts (eligibility,
+ * affordability, rankings, cards and ledger values) come from the server;
+ * projections are explicitly derived from those facts and never authorize actions.
  */
 
 // ---------------------------------------------------------------- money / time
@@ -37,6 +38,24 @@ const trim = (n: number) => (Math.round(n * 10) / 10).toLocaleString("en-GB", { 
 export const WEEKS_PER_SEASON = 52;
 export const seasonProgressPct = (week: number) => Math.max(0, Math.min(100, Math.round(((week - 1) / WEEKS_PER_SEASON) * 100)));
 export const weekLabel = (season: number, week: number) => `Season ${season} · Week ${week}`;
+export type SeasonCashFlowEvent = { id: string; name: string; startWeek: number; estimatedCostPence: number; possiblePrizePence: number };
+export type SeasonCashFlowRow = { week: number; stops: SeasonCashFlowEvent[]; cost: number; possiblePrize: number;
+  income: SponsorGuaranteePayment[]; incomePence: number; remaining: number };
+/** Conservative season cash-flow projection: confirmed sponsor instalments count, conditional income never does. */
+export function buildSeasonCashFlow(season: number, startWeek: number, endWeek: number, startingAvailable: number,
+  events: SeasonCashFlowEvent[], payments: SponsorGuaranteePayment[]): SeasonCashFlowRow[] {
+  let remaining = startingAvailable;
+  return Array.from({ length: Math.max(0, endWeek - startWeek + 1) }, (_, index) => startWeek + index).map(week => {
+    const stops = events.filter(event => event.startWeek === week);
+    const cost = stops.reduce((sum, event) => sum + event.estimatedCostPence, 0);
+    const possiblePrize = stops.reduce((sum, event) => sum + event.possiblePrizePence, 0);
+    const income = payments.filter(payment => payment.season === season && payment.week === week
+      && (payment.status === "DUE" || payment.status === "SCHEDULED"));
+    const incomePence = income.reduce((sum, payment) => sum + payment.amountPence, 0);
+    remaining += incomePence - cost;
+    return { week, stops, cost, possiblePrize, income, incomePence, remaining };
+  });
+}
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 export const dayLabel = (dayOfWeek: number) => DAYS[(dayOfWeek - 1 + 7) % 7] ?? "";
 export function eventDateLabel(e: Pick<CareerEvent, "dates">) {
