@@ -744,6 +744,8 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   await playThrough(save.id, local.dates.startWeek + 1, true, "sponsored");
   const eventFinance = await finance.eventFinance(actor, save.id, local.id);
   assert.equal(eventFinance.actuals?.sponsorEventPaymentsPence, 1000);
+  assert.equal(eventFinance.actuals?.entryFeePaidPence, 250);
+  assert.equal(eventFinance.actuals?.sponsorPaymentsPence, 3500);
   const sponsorRows = (await ledger(save.id)).filter(r => r.headline === "SPONSOR").map(r => [r.category, Number(r.amount_pence)]).sort();
   assert.deepEqual(sponsorRows, [["SPONSOR_EVENT_PAYMENT", 1000], ["SPONSOR_PERFORMANCE_BONUS", 2500], ["SPONSOR_SIGNING_BONUS", 10000]]);
   const s = await finance.summary(actor, save.id);

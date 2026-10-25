@@ -412,3 +412,45 @@
   .career-root .career-event-prize-format { gap: 10px; }
   .career-root .career-event-prize-format > div + div { padding-left: 10px; }
 }
+.career-root .career-event-settlement {
+  margin: 0 16px 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(224,191,105,.32);
+  border-radius: 12px;
+  background: linear-gradient(115deg,rgba(224,191,105,.10),rgba(255,255,255,.025));
+}
+.career-root .career-event-settlement > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--event-rule);
+}
+.career-root .career-event-settlement > header span {
+  color: var(--event-gold);
+  font: 700 .62rem Oswald,sans-serif;
+  letter-spacing: .12em;
+}
+.career-root .career-event-settlement > header strong {
+  color: #9fe0bd;
+  font: 700 1.35rem Oswald,sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+.career-root .career-event-settlement > header strong[data-negative="true"] { color: #ff9a9a; }
+.career-root .career-event-settlement__grid {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 10px 16px;
+  padding: 12px 0 8px;
+}
+.career-root .career-event-settlement__grid > div { display: flex; flex-direction: column; gap: 3px; }
+.career-root .career-event-settlement__grid small,
+.career-root .career-event-settlement__caption { color: var(--event-muted); font-size: .67rem; }
+.career-root .career-event-settlement__grid b { color: #f2f4f2; font: 600 .95rem Oswald,sans-serif; font-variant-numeric: tabular-nums; }
+.career-root .career-event-settlement > p { margin: 4px 0 8px; color: #d9cba7; font-size: .7rem; }
+.career-root .career-event-settlement__caption { display: block; }
+@media (max-width: 640px) {
+  .career-root .career-event-settlement { margin: 0 12px 12px; padding: 12px; }
+  .career-root .career-event-settlement__grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px 12px; }
+}
