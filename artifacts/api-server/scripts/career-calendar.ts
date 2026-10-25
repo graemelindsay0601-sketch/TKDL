@@ -12,6 +12,9 @@ import { createCareerWorld } from "../src/db/migrations/create_career_world.ts";
 import { createCareerCalendar } from "../src/db/migrations/create_career_calendar.ts";
 import { createCareerSponsorshipFoundation } from "../src/db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerNpcSponsorMarketSPF } from "../src/db/migrations/create_career_npc_sponsor_market_spf.ts";
+import { createCareerFinance } from "../src/db/migrations/create_career_finance.ts";
+import { createCareerSporting } from "../src/db/migrations/create_career_sporting.ts";
+import { createCareerSponsorHQSPD } from "../src/db/migrations/create_career_sponsor_hq_spd.ts";
 import { createCareerService } from "../src/career/service.ts";
 import { createCareerCalendarService } from "../src/career/calendar/service.ts";
 import { staticCalendarReport, seasonReport, HARNESS_SEED } from "../src/career/calendar/harness.ts";
@@ -28,6 +31,7 @@ async function playSeason() {
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'harness')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db);
   await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db);
+  await createCareerFinance(db); await createCareerSponsorHQSPD(db); await createCareerSporting(db);
   const save = await createCareerService(db).create(1, { slot: 1 });
   await db.execute(sql`UPDATE career_saves SET world_seed = ${seed} WHERE id = ${save.id}`);
   const calendar = createCareerCalendarService(db);
