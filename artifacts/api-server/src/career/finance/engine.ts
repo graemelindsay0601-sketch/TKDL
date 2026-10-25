@@ -1035,6 +1035,33 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       });
       return out;
     },
+    async conditionalEventPaymentPreviews(tx, root, season, events) {
+      const out = new Map<string, { contractId: string; sponsorName: string; amountPence: number }[]>();
+      if (!events.length) return out;
+      const contracts = (await tx.execute(sql`SELECT id, sponsor_key, terms, status, start_season, start_week, end_season, end_week
+        FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND status IN ('ACTIVE','SCHEDULED') ORDER BY id`)).rows;
+      const paidCounts = new Map((await tx.execute(sql`SELECT contract_id, COUNT(*)::int AS paid_events FROM career_finance_entries
+        WHERE career_save_id = ${root.id} AND season = ${season} AND category = 'SPONSOR_EVENT_PAYMENT' AND contract_id IS NOT NULL
+        GROUP BY contract_id`)).rows.map(row => [String(row.contract_id), Number(row.paid_events)]));
+      const used = new Map(paidCounts);
+      for (const event of [...events].sort((a, b) => a.start_day - b.start_day || a.id.localeCompare(b.id))) {
+        const matches: { contractId: string; sponsorName: string; amountPence: number }[] = [];
+        for (const contract of contracts) {
+          const terms = parseSponsorTerms(contract.terms);
+          const payment = terms.eventPayment;
+          const count = used.get(String(contract.id)) ?? 0;
+          if (!payment || payment.amountPence <= 0 || count >= payment.maxEventsPerSeason || !payment.circuits.includes(event.circuit)) continue;
+          const eventStart = timeIndex(season, event.start_week);
+          const eventEnd = timeIndex(season, event.end_week);
+          if (eventStart < timeIndex(Number(contract.start_season), Number(contract.start_week))
+            || eventEnd > timeIndex(Number(contract.end_season), Number(contract.end_week))) continue;
+          matches.push({ contractId: String(contract.id), sponsorName: terms.displayName, amountPence: payment.amountPence });
+          used.set(String(contract.id), count + 1);
+        }
+        out.set(event.id, matches);
+      }
+      return out;
+    },
   };
 }
 

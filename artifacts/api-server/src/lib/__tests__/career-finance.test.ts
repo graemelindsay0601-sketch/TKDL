@@ -733,10 +733,17 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   // Coverage: Forge covers 50% of grassroots entry fees (cap £10/event).
   const local = (await events(save.id, { scope: "AVAILABLE" })).find(e => e.definitionKey === "friday-night-501" && e.finance.travelBand === "LOCAL")!;
   assert.equal(local.finance.sponsorCoverage.entryFeePence, 250);
+  const baseline = await finance.calendar.seasonPlanSnapshot(actor, save.id, { season: 1, eventIds: [local.id] });
+  assert.ok(baseline.snapshot);
+  const savedPlan = baseline.snapshot as { events: { conditionalSponsorIncome?: { contractId: string; sponsorName: string; amountPence: number }[] }[] };
+  assert.deepEqual(savedPlan.events[0].conditionalSponsorIncome,
+    [{ contractId: a.contractId, sponsorName: "Forge Workwear", amountPence: 1000 }]);
   await finance.calendar.enter(actor, save.id, { eventId: local.id });
   const fee = (await ledger(save.id)).find(r => r.category === "ENTRY_FEE")!;
   assert.deepEqual([Number(fee.amount_pence), Number(fee.gross_amount_pence), Number(fee.sponsor_covered_pence), fee.contract_id], [-250, 500, 250, a.contractId]);
   await playThrough(save.id, local.dates.startWeek + 1, true, "sponsored");
+  const eventFinance = await finance.eventFinance(actor, save.id, local.id);
+  assert.equal(eventFinance.actuals?.sponsorEventPaymentsPence, 1000);
   const sponsorRows = (await ledger(save.id)).filter(r => r.headline === "SPONSOR").map(r => [r.category, Number(r.amount_pence)]).sort();
   assert.deepEqual(sponsorRows, [["SPONSOR_EVENT_PAYMENT", 1000], ["SPONSOR_PERFORMANCE_BONUS", 2500], ["SPONSOR_SIGNING_BONUS", 10000]]);
   const s = await finance.summary(actor, save.id);

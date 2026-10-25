@@ -381,6 +381,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             entryFeePaidPence: -sum(["ENTRY_FEE"]), travelPaidPence: -sum(["TRAVEL"]), accommodationPaidPence: -sum(["ACCOMMODATION"]),
             sponsorCoveredPence: entries.reduce((t, e) => t + Number(e.sponsor_covered_pence), 0), refundsPence: sum(["REFUND"]),
             prizePence: sum(["PRIZE"]), sponsorPaymentsPence: sum(["SPONSOR_EVENT_PAYMENT", "SPONSOR_PERFORMANCE_BONUS"]),
+            sponsorEventPaymentsPence: sum(["SPONSOR_EVENT_PAYMENT"]),
             trip: trip ? { id: trip.id, band: trip.band, destination: trip.destination, nights: trip.nights, startDay: trip.start_day, endDay: trip.end_day, events: trip.event_ids,
               travelGrossPence: trip.travel_gross_pence, travelCoveredPence: trip.travel_covered_pence, accommodationGrossPence: trip.accommodation_gross_pence, accommodationCoveredPence: trip.accommodation_covered_pence } : null,
             prizeAward: prize ? { finishingPosition: prize.finishing_position, cashAwardPence: Number(prize.cash_award_pence), rankingEligiblePence: Number(prize.ranking_eligible_pence), classification: prize.classification } : null,

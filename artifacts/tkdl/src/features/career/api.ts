@@ -167,7 +167,8 @@ export const useHistory = (saveId: string, q: { participant?: string; season?: n
 export type FinanceWeek = { week: number; events: number; spentPence: number; wonPence: number; sponsorPence: number; dartsNetPence: number };
 export const useFinanceWeeks = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "finance", "weeks"),
   queryFn: () => get<{ season: number; currentWeek: number; weeks: FinanceWeek[] }>(`/saves/${saveId}/finance/weeks`), enabled, staleTime: STALE });
-export type SeasonPlanSnapshot = { season: number; savedAt: string; events: { eventId: string; name: string; week: number; finance: EventFinancePreview }[] };
+export type SeasonPlanSnapshot = { season: number; savedAt: string; events: { eventId: string; name: string; week: number; finance: EventFinancePreview;
+  conditionalSponsorIncome?: { contractId: string; sponsorName: string; amountPence: number }[] }[] };
 export const useSeasonPlanSnapshot = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "calendar", "season-plan"),
   queryFn: () => get<{ snapshot: SeasonPlanSnapshot | null }>(`/saves/${saveId}/calendar/season-plan`), staleTime: STALE });
 export type SavingsGoal = { kind: "EVENT" | "AMOUNT"; label: string; eventId: string | null; event: { week: number; closesWeek: number } | null;

@@ -46,7 +46,7 @@ test("weeks without events or confirmed income preserve the available balance", 
 
 test("conditional event payments are shown separately, respect circuits, contract dates and season caps", () => {
   const rows = buildSeasonCashFlow(2, 5, 8, 10_000, [
-    { id: "event-a", name: "Eligible Open", circuit: "DEVELOPMENT", startWeek: 5, endWeek: 5, estimatedCostPence: 2_000, possiblePrizePence: 10_000 },
+    { id: "event-a", name: "Eligible Open", circuit: "DEVELOPMENT", startWeek: 5, endWeek: 7, estimatedCostPence: 2_000, possiblePrizePence: 10_000 },
     { id: "event-b", name: "Second Eligible Open", circuit: "DEVELOPMENT", startWeek: 6, endWeek: 6, estimatedCostPence: 0, possiblePrizePence: 0 },
     { id: "event-c", name: "Wrong Circuit", circuit: "PRO_CIRCUIT", startWeek: 7, endWeek: 7, estimatedCostPence: 0, possiblePrizePence: 0 },
     { id: "event-d", name: "After Contract", circuit: "DEVELOPMENT", startWeek: 8, endWeek: 8, estimatedCostPence: 0, possiblePrizePence: 0 },
@@ -56,8 +56,8 @@ test("conditional event payments are shown separately, respect circuits, contrac
   ]);
 
   assert.deepEqual(rows.map(row => [row.week, row.conditionalPence, row.remaining]), [
-    [5, 1_500, 8_000], [6, 1_500, 8_000], [7, 0, 8_000], [8, 0, 8_000],
+    [5, 0, 8_000], [6, 1_500, 8_000], [7, 1_500, 8_000], [8, 0, 8_000],
   ]);
-  assert.deepEqual(rows[0].conditionalIncome.map(payment => payment.eventId), ["event-a"]);
+  assert.deepEqual(rows[2].conditionalIncome.map(payment => payment.eventId), ["event-a"]);
   assert.deepEqual(rows[1].conditionalIncome.map(payment => payment.contractId), ["starts-late"]);
 });

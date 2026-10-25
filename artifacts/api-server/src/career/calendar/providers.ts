@@ -80,6 +80,8 @@ export interface CalendarFinanceHooks {
   onCalendarMoved(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;
   /** Batch previews for calendar DTOs (no N+1). */
   previews(tx: CareerExecutor, root: RootRow, season: number, events: readonly InstanceRow[]): Promise<Map<string, { affordable: boolean } & Record<string, unknown>>>;
+  /** Conditional event-linked sponsor pay, captured as a planning estimate only. */
+  conditionalEventPaymentPreviews?(tx: CareerExecutor, root: RootRow, season: number, events: readonly InstanceRow[]): Promise<Map<string, { contractId: string; sponsorName: string; amountPence: number }[]>>;
 }
 
 /**

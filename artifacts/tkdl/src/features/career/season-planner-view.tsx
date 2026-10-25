@@ -81,13 +81,14 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
   const sponsorCoverage = totals.sponsorEntry + totals.sponsorTravel + totals.sponsorAccommodation;
   const projectedBalance = save.balancePence - totals.net;
   const startingAvailable = selected[0]?.finance?.availablePence ?? save.balancePence;
+  const cashFlowEndWeek = Math.min(52, Math.max(endWeek, ...selected.map(event => event.dates.endWeek)));
   const cashFlowWeeks = useMemo(() => {
-    return buildSeasonCashFlow(save.currentSeason, save.currentWeek, endWeek, startingAvailable,
+    return buildSeasonCashFlow(save.currentSeason, save.currentWeek, cashFlowEndWeek, startingAvailable,
       selected.map(event => ({ id: event.id, name: event.name, startWeek: event.dates.startWeek,
         circuit: event.circuit, endWeek: event.dates.endWeek, startDay: event.dates.startDay,
         estimatedCostPence: event.finance?.estimatedPlayerCostPence ?? 0, possiblePrizePence: event.finance?.topPrizePence ?? 0 })),
       sponsors.data?.commercial?.upcomingGuarantees ?? [], sponsors.data?.commercial?.conditionalEventPayments ?? []);
-  }, [selected, startingAvailable, save.currentWeek, save.currentSeason, endWeek, sponsors.data]);
+  }, [selected, startingAvailable, save.currentWeek, save.currentSeason, cashFlowEndWeek, sponsors.data]);
   const seasonActuals = (actualWeeks.data?.weeks ?? []).reduce((sum, week) => ({
     spent: sum.spent + week.spentPence,
     won: sum.won + week.wonPence,
@@ -233,15 +234,16 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
             <div className="cc-season-plan__prize"><span>Potential top prizes<small>Not guaranteed or included above</small></span><strong>Up to {formatPence(totals.prize)}</strong></div>
           </section>
           <section className="cc-season-cashflow" aria-label="Week-by-week cash-flow forecast">
-            <header><div><span className="cc-kicker">EIGHT-WEEK OUTLOOK</span><strong>Cash flow by week</strong></div>
+            <header><div><span className="cc-kicker">PLANNING TIMELINE</span><strong>Cash flow by week</strong></div>
               <small>Available now · {formatPence(startingAvailable)}</small></header>
             {!selected.length ? <p>Shortlist events to see when planned costs would be due.</p> : <>
-              <div className="cc-season-cashflow__legend" aria-hidden="true"><span>Week</span><span>Events</span><span>Cost</span><span>Guaranteed</span><span>Balance</span></div>
+              <div className="cc-season-cashflow__legend" aria-hidden="true"><span>Week</span><span>Events</span><span>Cost</span><span>Guaranteed</span><span>Conditional</span><span>Balance</span></div>
               <div className="cc-season-cashflow__rows">{cashFlowWeeks.map(row => <article key={row.week}>
                 <b>W{String(row.week).padStart(2, "0")}</b>
                 <span>{row.stops.length ? row.stops.map(event => event.name).join(", ") : "No selected events"}</span>
                 <span className="cc-season-cashflow__cost">{row.cost ? `−${formatPence(row.cost)}` : "—"}</span>
                 <span className="cc-season-cashflow__income">{row.incomePence ? `+${formatPence(row.incomePence)}` : "—"}</span>
+                <span className="cc-season-cashflow__conditional">{row.conditionalPence ? `~${formatPence(row.conditionalPence)}` : "—"}</span>
                 <span className="cc-season-cashflow__balance" data-negative={row.remaining < 0 || undefined}>{formatPence(row.remaining)}</span>
                 {(row.income.length > 0 || row.conditionalIncome.length > 0 || row.possiblePrize > 0) && <small>
                   {row.income.map(payment => `${payment.displayName} guaranteed instalment ${payment.installment}/${payment.installments}`).join(" · ")}
@@ -258,7 +260,7 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
             </>}
             {sponsors.error && <p className="cc-season-cashflow__warning" role="status">Scheduled sponsor payments could not be loaded and are excluded from this forecast.</p>}
             {sponsors.isLoading && <p className="cc-season-cashflow__note">Loading confirmed sponsor payment dates…</p>}
-            <p className="cc-season-cashflow__note">Confirmed instalments count in the balance. Event-linked sponsor pay is shown separately only for qualifying shortlisted events, subject to contract dates and remaining limits; it is earned only after you play and never counts in the balance. Prizes are excluded too.</p>
+            <p className="cc-season-cashflow__note">Confirmed instalments count in the balance. Event-linked sponsor pay is shown separately in the event’s finish week, subject to circuit, contract dates and remaining limits; it is earned only after you play and never counts in the balance. Event costs are grouped at their start week; prizes are excluded.</p>
           </section>
           <p className="cc-season-plan__note">Estimates use each event’s current finance preview. Entry checks run again when you confirm; a multi-event plan can partly succeed if a later entry is refused.</p>
           <button type="button" className="cc-button cc-button--primary cc-season-plan__review" disabled={!selected.length || selectedConflicts.length > 0 || enterEvents.isPending} onClick={() => setReviewOpen(true)}>
@@ -326,7 +328,7 @@ function SavedSeasonBaseline({ saveId, snapshot }: { saveId: string; snapshot: S
   return <section className="cc-season-baseline" aria-label="Saved season plan baseline">
     <header><div><span className="cc-kicker">SAVED FORECAST · SEASON {snapshot.season}</span><h3>Plan vs. actual</h3></div>
       <small>Saved {new Date(snapshot.savedAt).toLocaleDateString()}</small></header>
-    <p>Each saved estimate is compared with the event’s actual player-paid costs, prize and finish when recorded.</p>
+    <p>Each saved estimate is compared with recorded costs, prize, finish and sponsor event pay. Conditional sponsor estimates are captured when you save the plan; actual pay appears after the event is completed.</p>
     <div className="cc-season-baseline__rows">{snapshot.events.map(event => <SavedSeasonBaselineEvent key={event.eventId} saveId={saveId} event={event} />)}</div>
   </section>;
 }
@@ -335,14 +337,21 @@ function SavedSeasonBaselineEvent({ saveId, event }: { saveId: string; event: Se
   const query = useEventFinance(saveId, event.eventId);
   const actual = query.data?.actuals as {
     entryFeePaidPence?: number; travelPaidPence?: number; accommodationPaidPence?: number; refundsPence?: number;
-    prizePence?: number; prizeAward?: { finishingPosition?: number } | null;
+    prizePence?: number; sponsorEventPaymentsPence?: number; prizeAward?: { finishingPosition?: number } | null;
   } | null | undefined;
   const actualCost = actual ? (actual.entryFeePaidPence ?? 0) + (actual.travelPaidPence ?? 0)
     + (actual.accommodationPaidPence ?? 0) - (actual.refundsPence ?? 0) : null;
+  const conditionalSponsorEstimate = (event.conditionalSponsorIncome ?? []).reduce((total, payment) => total + payment.amountPence, 0);
+  const conditionalSponsorEstimateText = event.conditionalSponsorIncome === undefined ? "Not captured" : formatPence(conditionalSponsorEstimate);
+  const sponsorEventActual = query.data?.status === "COMPLETED" || query.data?.status === "CANCELLED" || query.data?.status === "WITHDRAWN"
+    ? formatPence(actual?.sponsorEventPaymentsPence ?? 0) : "Pending";
   return <article>
     <span><b>{event.name}</b><small>Week {event.week}</small></span>
     <span><small>Cost · estimate / actual</small><b>{formatPence(event.finance.estimatedPlayerCostPence)} / {actualCost === null ? "Not entered" : formatPence(actualCost)}</b></span>
     <span><small>Prize · estimate / actual</small><b>{formatPence(event.finance.topPrizePence)} / {actual ? formatPence(actual.prizePence ?? 0) : "Pending"}</b></span>
+    <span><small>Conditional sponsor · estimate / actual</small><b>{conditionalSponsorEstimateText} / {sponsorEventActual}</b>
+      {(event.conditionalSponsorIncome ?? []).map(payment => <small key={payment.contractId}>{payment.sponsorName} · {formatPence(payment.amountPence)} if played</small>)}
+    </span>
     <span className="cc-season-baseline__finish">{query.isLoading ? "Checking result…" : actual?.prizeAward?.finishingPosition
       ? `Finish #${actual.prizeAward.finishingPosition}` : actual ? "Result pending" : "Not played"}</span>
   </article>;
