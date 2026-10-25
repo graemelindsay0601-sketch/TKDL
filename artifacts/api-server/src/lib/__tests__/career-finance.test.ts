@@ -744,12 +744,17 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   await playThrough(save.id, local.dates.startWeek + 1, true, "sponsored");
   const eventFinance = await finance.eventFinance(actor, save.id, local.id);
   assert.equal(eventFinance.actuals?.sponsorEventPaymentsPence, 1000);
+  assert.equal(eventFinance.actuals?.entryFeePaidPence, 250);
+  assert.equal(eventFinance.actuals?.sponsorPaymentsPence, 3500);
   const sponsorRows = (await ledger(save.id)).filter(r => r.headline === "SPONSOR").map(r => [r.category, Number(r.amount_pence)]).sort();
   assert.deepEqual(sponsorRows, [["SPONSOR_EVENT_PAYMENT", 1000], ["SPONSOR_PERFORMANCE_BONUS", 2500], ["SPONSOR_SIGNING_BONUS", 10000]]);
   const s = await finance.summary(actor, save.id);
   assert.deepEqual([s.sponsorEarningsPence, s.careerEarningsPence, s.careerExpensesPence, s.sponsorCoveredExpensesPence, s.reconciled], [13500, 2500, 250, 250, true]);
   assert.equal(s.balancePence, 25000 + 13500 + 2500 - 250);
   const commercial = (await finance.sponsors(actor, save.id)).commercial!;
+  const eventCap = commercial.conditionalEventPayments.find(payment => payment.contractId === a.contractId);
+  assert.ok(eventCap);
+  assert.deepEqual([eventCap.paidEvents, eventCap.remainingEvents], [1, eventCap.maxEventsPerSeason - 1]);
   assert.deepEqual(commercial.cashReceivedPence, { total: 13500, signing: 10000, guarantees: 0, eventPayments: 1000, performanceBonuses: 2500 });
   assert.equal(commercial.costsCoveredPence, 250);
   assert.equal(commercial.remainingGuaranteesPence, 0);

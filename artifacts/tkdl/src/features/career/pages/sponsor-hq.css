@@ -24,3 +24,11 @@
 
 .sponsor-hq__activity { position: relative; overflow: hidden; border-left: 3px solid #eb8b59; }
 .sponsor-hq__activity[data-required="false"] { border-left-color: #69b8ec; }
+.sponsor-hq__event-cap { margin-top: 12px; padding: 11px 12px; border: 1px solid color-mix(in srgb,var(--partner-accent) 35%,transparent);
+  border-radius: 10px; background: linear-gradient(110deg,color-mix(in srgb,var(--partner-accent) 10%,#0b1214),#0b121488); }
+.sponsor-hq__event-cap > div { display: flex; flex-direction: column; gap: 3px; }
+.sponsor-hq__event-cap > div span { color: #ffffff7a; font: 700 .55rem Oswald,sans-serif; letter-spacing: .13em; }
+.sponsor-hq__event-cap > div strong { color: #f1eee3; font: 700 .94rem Oswald,sans-serif; }
+.sponsor-hq__event-cap > b { display: block; margin-top: 7px; color: #d8b669; font: 700 .75rem Oswald,sans-serif; }
+.sponsor-hq__event-cap p,.sponsor-hq__event-cap small { display: block; margin-top: 4px; color: #ffffff9c; font-size: .65rem; line-height: 1.45; }
+.sponsor-hq__no-event-cap { margin-top: 12px; padding: 9px 11px; border: 1px solid #ffffff12; border-radius: 9px; color: #ffffff70; font-size: .68rem; }

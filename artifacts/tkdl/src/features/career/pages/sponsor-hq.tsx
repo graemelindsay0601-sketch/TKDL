@@ -90,6 +90,8 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
       </div>:<div className="sponsor-hq__portfolio sponsor-hq__grid">{portfolio.map(contract=>{
         const representative=contract.representative;
         const category=contract.category??"Partnership";
+        const eventPayment=contract.terms.eventPayment;
+        const paymentCap=commercial?.conditionalEventPayments.find(item=>item.contractId===contract.id);
         const accent=contract.terms.presentation.colour;
         const validAccent=/^#[\da-f]{6}$/i.test(accent)?accent:"#d8b669";
         return <article key={contract.id} className="sponsor-hq__partner" style={{"--partner-accent":validAccent} as CSSProperties}>
@@ -110,6 +112,12 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
             <div><span>Cash received</span><strong>{money(contract.totals.paidPence)}</strong><small>Paid to date</small></div>
             <div><span>Costs covered</span><strong>{money(contract.totals.coveredPence)}</strong><small>Separate from cash</small></div>
           </div>
+          {eventPayment?.amountPence ? <div className="sponsor-hq__event-cap" aria-label={`Event-linked sponsor payment terms for ${contract.terms.displayName}`}>
+            <div><span>EVENT-LINKED SPONSOR PAY</span><strong>Up to {money(eventPayment.amountPence)} per eligible event</strong></div>
+            <b>{paymentCap?.remainingEvents ?? eventPayment.maxEventsPerSeason} left this season</b>
+            <p>{paymentCap?.paidEvents ?? 0} of {paymentCap?.maxEventsPerSeason ?? eventPayment.maxEventsPerSeason} event payments used · eligible circuits: {eventPayment.circuits.map(label).join(", ")}</p>
+            <small>Conditional, not guaranteed. Paid only after a qualifying event is played within this contract’s term, ending S{contract.end.season} W{contract.end.week}.</small>
+          </div> : <p className="sponsor-hq__no-event-cap">No per-event sponsor payment is included in this contract.</p>}
         </article>;
       })}</div>}
     </CareerSection>

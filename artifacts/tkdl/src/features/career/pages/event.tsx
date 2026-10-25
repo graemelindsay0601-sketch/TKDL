@@ -315,8 +315,19 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
   const e = detail.event;
   const fin = useEventFinance(saveId, detail.event.id);
   const p = detail.event.finance;
-  const award = (fin.data?.actuals as { prizeAward?: { finishingPosition: number; cashAwardPence: number; rankingEligiblePence: number } | null } | null)?.prizeAward ?? null;
-  const actuals = fin.data?.actuals as Record<string, number> | null | undefined;
+  const actuals = fin.data?.actuals as {
+    entryFeePaidPence?: number; travelPaidPence?: number; accommodationPaidPence?: number;
+    sponsorCoveredPence?: number; refundsPence?: number; prizePence?: number;
+    sponsorPaymentsPence?: number; sponsorEventPaymentsPence?: number;
+    prizeAward?: { finishingPosition: number; cashAwardPence: number; rankingEligiblePence: number } | null;
+  } | null | undefined;
+  const award = actuals?.prizeAward ?? null;
+  const completedByPlayer = e.status === "COMPLETED" && detail.results.some(result => result.participantKey === "HUMAN");
+  const eventIncome = (actuals?.prizePence ?? 0) + (actuals?.sponsorPaymentsPence ?? 0) + (actuals?.refundsPence ?? 0);
+  const playerCosts = (actuals?.entryFeePaidPence ?? 0) + (actuals?.travelPaidPence ?? 0) + (actuals?.accommodationPaidPence ?? 0);
+  const eventNet = eventIncome - playerCosts;
+  const eventSponsorPayment = actuals?.sponsorEventPaymentsPence ?? 0;
+  const sponsorPerformanceBonus = Math.max(0, (actuals?.sponsorPaymentsPence ?? 0) - eventSponsorPayment);
   return (
     <CareerSection title="Prize & costs" icon={<Coins className="w-3.5 h-3.5" />} accent="#ffd24a">
       {fin.isLoading ? <CareerLoading /> : fin.error ? <CareerError error={fin.error} onRetry={() => fin.refetch()} /> : (
@@ -332,6 +343,22 @@ function Prize({ saveId, detail }: { saveId: string; detail: EventDetail }) {
           </> : p ? <><F label="Entry fee (est.)" value={formatPence(p.entryFeePence)} /><F label="Travel + stay (est.)" value={formatPence(p.estimatedTravelPence + p.estimatedAccommodationPence)} /></> : null}
         </dl>
       )}
+      {completedByPlayer && actuals && <section className="career-event-settlement" aria-label="Your completed event financial result">
+        <header><span>POST-EVENT SETTLEMENT</span><strong data-negative={eventNet < 0}>
+          {eventNet > 0 ? "+" : eventNet < 0 ? "−" : ""}{formatPence(Math.abs(eventNet))}
+        </strong></header>
+        <div className="career-event-settlement__grid">
+          <div><small>Prize income</small><b>{formatPence(actuals.prizePence ?? 0)}</b></div>
+          <div><small>Event sponsor pay</small><b>{formatPence(eventSponsorPayment)}</b></div>
+          <div><small>Sponsor performance bonus</small><b>{formatPence(sponsorPerformanceBonus)}</b></div>
+          <div><small>Refunds</small><b>{formatPence(actuals.refundsPence ?? 0)}</b></div>
+          <div><small>Entry paid</small><b>−{formatPence(actuals.entryFeePaidPence ?? 0)}</b></div>
+          <div><small>Travel paid</small><b>−{formatPence(actuals.travelPaidPence ?? 0)}</b></div>
+          <div><small>Accommodation paid</small><b>−{formatPence(actuals.accommodationPaidPence ?? 0)}</b></div>
+        </div>
+        {!!actuals.sponsorCoveredPence && <p>Sponsor-covered costs: {formatPence(actuals.sponsorCoveredPence)} (paid directly, not counted again in your cash result).</p>}
+        <small className="career-event-settlement__caption">Actual ledger income minus the costs you paid for this event.</small>
+      </section>}
       {p?.prizePot && <p className="px-4 pb-1 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
         <strong style={{ color: "#fff" }}>Prize pot:</strong> {formatPence(p.prizePot.feePence)} from every player plus {formatPence(p.prizePot.housePence)} from the club
         {p.prizePot.entrants !== null ? ` — ${p.prizePot.entrants} players, ${formatPence(p.prizePot.feePence * p.prizePot.entrants + p.prizePot.housePence)} in the pot.`
