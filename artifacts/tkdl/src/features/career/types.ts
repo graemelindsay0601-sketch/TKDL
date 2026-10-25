@@ -153,6 +153,11 @@ export type SponsorPotentialBonus = {
   contractId: string; sponsorKey: string; displayName: string; bonusKey: string; amountPence: number;
   maxPosition: number; classifications: string[]; circuits: string[] | null;
 };
+export type SponsorConditionalEventPayment = {
+  contractId: string; sponsorKey: string; displayName: string; amountPence: number; circuits: string[];
+  maxEventsPerSeason: number; paidEvents: number; remainingEvents: number; status: "ACTIVE" | "SCHEDULED";
+  start: { season: number; week: number }; end: { season: number; week: number };
+};
 export type SponsorCommercialOverview = {
   season: number; week: number;
   cashReceivedPence: { total: number; signing: number; guarantees: number; eventPayments: number; performanceBonuses: number };
@@ -162,6 +167,7 @@ export type SponsorCommercialOverview = {
   pastDueGuarantees: SponsorGuaranteePayment[];
   pastDueGuaranteesPence: number;
   unsupportedGuarantees: SponsorUnsupportedGuarantee[];
+  conditionalEventPayments: SponsorConditionalEventPayment[];
   potentialBonuses: SponsorPotentialBonus[];
 };
 export type SponsorContract = { id: string; sponsorKey: string; tier: string; terms: SponsorTerms; status: string; endReason: string | null;

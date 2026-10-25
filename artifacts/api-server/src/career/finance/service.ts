@@ -496,6 +496,27 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             statusReason: o.status_reason, offered: { season: o.offered_season, week: o.offered_week }, expires: { season: o.expires_season, week: o.expires_week } };
         };
         const commercialPayments = [...schedules.values()].flatMap(schedule => schedule.payments);
+        const eventPaymentUsage = new Map((await tx.execute(sql`SELECT contract_id, COUNT(*)::int AS paid_events
+          FROM career_finance_entries WHERE career_save_id = ${root.id} AND category = 'SPONSOR_EVENT_PAYMENT'
+            AND season = ${current.season} AND contract_id IS NOT NULL GROUP BY contract_id`)).rows
+          .map(row => [String(row.contract_id), Number(row.paid_events)]));
+        const conditionalEventPayments = contracts.flatMap(contract => {
+          const status = String(contract.status);
+          if (status !== "ACTIVE" && status !== "SCHEDULED") return [];
+          const terms = parseSponsorTerms(contract.terms);
+          const payment = terms.eventPayment;
+          if (!payment || payment.amountPence <= 0) return [];
+          const paidEvents = eventPaymentUsage.get(String(contract.id)) ?? 0;
+          return [{
+            contractId: String(contract.id), sponsorKey: String(contract.sponsor_key),
+            displayName: terms.displayName, amountPence: payment.amountPence, circuits: payment.circuits,
+            maxEventsPerSeason: payment.maxEventsPerSeason, paidEvents,
+            remainingEvents: Math.max(0, payment.maxEventsPerSeason - paidEvents),
+            status: status as "ACTIVE" | "SCHEDULED",
+            start: { season: Number(contract.start_season), week: Number(contract.start_week) },
+            end: { season: Number(contract.end_season), week: Number(contract.end_week) },
+          }];
+        });
         const upcomingGuarantees = commercialPayments
           .filter(payment => payment.status === "DUE" || payment.status === "SCHEDULED")
           .sort((a, b) => a.season - b.season || a.week - b.week || a.sponsorKey.localeCompare(b.sponsorKey))
@@ -548,6 +569,7 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
               .filter(payment => payment.status === "PAST_DUE")
               .reduce((sum, payment) => sum + payment.amountPence, 0),
             unsupportedGuarantees,
+            conditionalEventPayments,
             potentialBonuses,
           },
           offers: offers.filter(o => o.status === "AVAILABLE").map(presentOffer),

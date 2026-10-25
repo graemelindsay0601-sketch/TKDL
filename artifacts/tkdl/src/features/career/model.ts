@@ -1,4 +1,4 @@
-import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, EventFinancePreview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary, SponsorGuaranteePayment } from "./types";
+import type { AdvanceResult, CareerEvent, CareerSave, CalendarOverview, EventFinancePreview, FinanceSummary, Milestone, PresentationTier, QSchoolPathwayView, RouteFact, SportingSummary, SponsorConditionalEventPayment, SponsorGuaranteePayment } from "./types";
 
 /**
  * Pure Career view-model helpers. They only translate authoritative A1–A5 facts
@@ -38,13 +38,35 @@ const trim = (n: number) => (Math.round(n * 10) / 10).toLocaleString("en-GB", { 
 export const WEEKS_PER_SEASON = 52;
 export const seasonProgressPct = (week: number) => Math.max(0, Math.min(100, Math.round(((week - 1) / WEEKS_PER_SEASON) * 100)));
 export const weekLabel = (season: number, week: number) => `Season ${season} · Week ${week}`;
-export type SeasonCashFlowEvent = { id: string; name: string; startWeek: number; estimatedCostPence: number; possiblePrizePence: number };
+export type SeasonCashFlowEvent = { id: string; name: string; circuit?: string; startWeek: number; endWeek?: number; startDay?: number; estimatedCostPence: number; possiblePrizePence: number };
+export type SeasonConditionalIncome = { eventId: string; eventName: string; contractId: string; sponsorName: string; amountPence: number };
 export type SeasonCashFlowRow = { week: number; stops: SeasonCashFlowEvent[]; cost: number; possiblePrize: number;
-  income: SponsorGuaranteePayment[]; incomePence: number; remaining: number };
-/** Conservative season cash-flow projection: confirmed sponsor instalments count, conditional income never does. */
+  income: SponsorGuaranteePayment[]; incomePence: number; conditionalIncome: SeasonConditionalIncome[];
+  conditionalPence: number; remaining: number };
+/** Conservative cash balance uses confirmed instalments only; event-linked payments remain a separate conditional estimate. */
 export function buildSeasonCashFlow(season: number, startWeek: number, endWeek: number, startingAvailable: number,
-  events: SeasonCashFlowEvent[], payments: SponsorGuaranteePayment[]): SeasonCashFlowRow[] {
+  events: SeasonCashFlowEvent[], payments: SponsorGuaranteePayment[], eventPayments: SponsorConditionalEventPayment[] = []): SeasonCashFlowRow[] {
   let remaining = startingAvailable;
+  const payoutCounts = new Map(eventPayments.map(payment => [payment.contractId, payment.paidEvents]));
+  const conditionalByWeek = new Map<number, SeasonConditionalIncome[]>();
+  const contractWeek = (date: { season: number; week: number }) => (date.season - 1) * WEEKS_PER_SEASON + date.week;
+  const orderedEvents = [...events].sort((a, b) => a.startWeek - b.startWeek || (a.startDay ?? 0) - (b.startDay ?? 0) || a.name.localeCompare(b.name));
+  for (const event of orderedEvents) {
+    for (const payment of eventPayments) {
+      const used = payoutCounts.get(payment.contractId) ?? payment.paidEvents;
+      const completionWeek = event.endWeek ?? event.startWeek;
+      const eventStart = (season - 1) * WEEKS_PER_SEASON + event.startWeek;
+      const eventEnd = (season - 1) * WEEKS_PER_SEASON + completionWeek;
+      if (payment.amountPence <= 0 || payment.remainingEvents <= 0 || used >= payment.maxEventsPerSeason
+        || !event.circuit || !payment.circuits.includes(event.circuit)
+        || eventStart < contractWeek(payment.start) || eventEnd > contractWeek(payment.end)) continue;
+      const weekItems = conditionalByWeek.get(event.startWeek) ?? [];
+      weekItems.push({ eventId: event.id, eventName: event.name, contractId: payment.contractId,
+        sponsorName: payment.displayName, amountPence: payment.amountPence });
+      conditionalByWeek.set(event.startWeek, weekItems);
+      payoutCounts.set(payment.contractId, used + 1);
+    }
+  }
   return Array.from({ length: Math.max(0, endWeek - startWeek + 1) }, (_, index) => startWeek + index).map(week => {
     const stops = events.filter(event => event.startWeek === week);
     const cost = stops.reduce((sum, event) => sum + event.estimatedCostPence, 0);
@@ -52,8 +74,10 @@ export function buildSeasonCashFlow(season: number, startWeek: number, endWeek: 
     const income = payments.filter(payment => payment.season === season && payment.week === week
       && (payment.status === "DUE" || payment.status === "SCHEDULED"));
     const incomePence = income.reduce((sum, payment) => sum + payment.amountPence, 0);
+    const conditionalIncome = conditionalByWeek.get(week) ?? [];
     remaining += incomePence - cost;
-    return { week, stops, cost, possiblePrize, income, incomePence, remaining };
+    return { week, stops, cost, possiblePrize, income, incomePence, conditionalIncome,
+      conditionalPence: conditionalIncome.reduce((sum, item) => sum + item.amountPence, 0), remaining };
   });
 }
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

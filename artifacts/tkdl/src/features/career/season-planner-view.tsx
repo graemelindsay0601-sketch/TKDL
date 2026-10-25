@@ -84,8 +84,9 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
   const cashFlowWeeks = useMemo(() => {
     return buildSeasonCashFlow(save.currentSeason, save.currentWeek, endWeek, startingAvailable,
       selected.map(event => ({ id: event.id, name: event.name, startWeek: event.dates.startWeek,
+        circuit: event.circuit, endWeek: event.dates.endWeek, startDay: event.dates.startDay,
         estimatedCostPence: event.finance?.estimatedPlayerCostPence ?? 0, possiblePrizePence: event.finance?.topPrizePence ?? 0 })),
-      sponsors.data?.commercial?.upcomingGuarantees ?? []);
+      sponsors.data?.commercial?.upcomingGuarantees ?? [], sponsors.data?.commercial?.conditionalEventPayments ?? []);
   }, [selected, startingAvailable, save.currentWeek, save.currentSeason, endWeek, sponsors.data]);
   const seasonActuals = (actualWeeks.data?.weeks ?? []).reduce((sum, week) => ({
     spent: sum.spent + week.spentPence,
@@ -242,9 +243,11 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
                 <span className="cc-season-cashflow__cost">{row.cost ? `−${formatPence(row.cost)}` : "—"}</span>
                 <span className="cc-season-cashflow__income">{row.incomePence ? `+${formatPence(row.incomePence)}` : "—"}</span>
                 <span className="cc-season-cashflow__balance" data-negative={row.remaining < 0 || undefined}>{formatPence(row.remaining)}</span>
-                {(row.income.length > 0 || row.possiblePrize > 0) && <small>
+                {(row.income.length > 0 || row.conditionalIncome.length > 0 || row.possiblePrize > 0) && <small>
                   {row.income.map(payment => `${payment.displayName} guaranteed instalment ${payment.installment}/${payment.installments}`).join(" · ")}
-                  {row.income.length > 0 && row.possiblePrize > 0 ? " · " : ""}
+                  {row.income.length > 0 && (row.conditionalIncome.length > 0 || row.possiblePrize > 0) ? " · " : ""}
+                  {row.conditionalIncome.map(payment => `${payment.sponsorName} · ${payment.eventName} event payment up to ${formatPence(payment.amountPence)} · conditional, excluded`).join(" · ")}
+                  {row.conditionalIncome.length > 0 && row.possiblePrize > 0 ? " · " : ""}
                   {row.possiblePrize > 0 ? `Possible prize up to ${formatPence(row.possiblePrize)} · excluded` : ""}
                 </small>}
               </article>)}</div>
@@ -255,7 +258,7 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
             </>}
             {sponsors.error && <p className="cc-season-cashflow__warning" role="status">Scheduled sponsor payments could not be loaded and are excluded from this forecast.</p>}
             {sponsors.isLoading && <p className="cc-season-cashflow__note">Loading confirmed sponsor payment dates…</p>}
-            <p className="cc-season-cashflow__note">Confirmed sponsor instalments are shown in their scheduled week. Event-linked sponsor pay, prizes and other uncertain income are excluded. Costs are grouped at event start; entry checks still use the live balance.</p>
+            <p className="cc-season-cashflow__note">Confirmed instalments count in the balance. Event-linked sponsor pay is shown separately only for qualifying shortlisted events, subject to contract dates and remaining limits; it is earned only after you play and never counts in the balance. Prizes are excluded too.</p>
           </section>
           <p className="cc-season-plan__note">Estimates use each event’s current finance preview. Entry checks run again when you confirm; a multi-event plan can partly succeed if a later entry is refused.</p>
           <button type="button" className="cc-button cc-button--primary cc-season-plan__review" disabled={!selected.length || selectedConflicts.length > 0 || enterEvents.isPending} onClick={() => setReviewOpen(true)}>
