@@ -99,6 +99,22 @@ test("save entry: three slots, create + one composed initialize (idempotent), au
   assert.equal((await call("GET", `/saves/${id}/sporting`, undefined, 2)).status, 404, "another player cannot read this Career");
 });
 
+test("opposition difficulty can be changed on an active save without changing its world settings or history", async () => {
+  const created = await call("POST", "/saves", { slot: 2, careerName: "Difficulty test" });
+  assert.equal(created.status, 201);
+  const id = created.body.id as string;
+  const changed = await call("PUT", `/saves/${id}/difficulty`, { difficulty: "CHALLENGING" });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.difficulty, "CHALLENGING");
+  const row = (await db.execute(sql`SELECT difficulty, settings_snapshot->>'difficulty' AS snapshot_difficulty FROM career_saves WHERE id=${id}`)).rows[0];
+  assert.deepEqual([row.difficulty, row.snapshot_difficulty], ["CHALLENGING", "CHALLENGING"]);
+  assert.equal((await call("PUT", `/saves/${id}/difficulty`, { difficulty: "IMPOSSIBLE" })).status, 400);
+  assert.equal((await call("PUT", `/saves/${id}/difficulty`, { difficulty: "ACCESSIBLE" }, 2)).status, 404);
+  assert.equal((await call("GET", `/saves/${id}`)).body.currentWeek, 1, "changing difficulty does not advance the calendar");
+  await call("POST", `/saves/${id}/retire`, { confirmation: "RETIRE CAREER" });
+  assert.equal((await call("PUT", `/saves/${id}/difficulty`, { difficulty: "ACCESSIBLE" })).status, 409, "retired saves remain read-only");
+});
+
 test("every read the UI makes returns real Career state (new Career: unranked, no card, no sponsor)", async () => {
   const id = (await call("GET", "/saves")).body.slots[0].career.id;
   const sporting = (await call("GET", `/saves/${id}/sporting`)).body;
