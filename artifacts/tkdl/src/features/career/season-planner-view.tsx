@@ -79,6 +79,17 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
   const gross = totals.entry + totals.travel + totals.accommodation;
   const sponsorCoverage = totals.sponsorEntry + totals.sponsorTravel + totals.sponsorAccommodation;
   const projectedBalance = save.balancePence - totals.net;
+  const startingAvailable = selected[0]?.finance?.availablePence ?? save.balancePence;
+  const cashFlowWeeks = useMemo(() => {
+    let remaining = startingAvailable;
+    return Array.from({ length: endWeek - save.currentWeek + 1 }, (_, index) => save.currentWeek + index).map(week => {
+      const stops = selected.filter(event => event.dates.startWeek === week);
+      const cost = stops.reduce((sum, event) => sum + (event.finance?.estimatedPlayerCostPence ?? 0), 0);
+      const possiblePrize = stops.reduce((sum, event) => sum + (event.finance?.topPrizePence ?? 0), 0);
+      remaining -= cost;
+      return { week, stops, cost, possiblePrize, remaining };
+    });
+  }, [selected, startingAvailable, save.currentWeek, endWeek]);
   const seasonActuals = (actualWeeks.data?.weeks ?? []).reduce((sum, week) => ({
     spent: sum.spent + week.spentPence,
     won: sum.won + week.wonPence,
@@ -222,6 +233,23 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
               <strong>{formatPence(projectedBalance)}</strong>
             </div>
             <div className="cc-season-plan__prize"><span>Potential top prizes<small>Not guaranteed or included above</small></span><strong>Up to {formatPence(totals.prize)}</strong></div>
+          </section>
+          <section className="cc-season-cashflow" aria-label="Week-by-week cash-flow forecast">
+            <header><div><span className="cc-kicker">EIGHT-WEEK OUTLOOK</span><strong>Cash flow by week</strong></div>
+              <small>Available now · {formatPence(startingAvailable)}</small></header>
+            {!selected.length ? <p>Shortlist events to see when planned costs would be due.</p> : <>
+              <div className="cc-season-cashflow__rows">{cashFlowWeeks.map(row => <article key={row.week}>
+                <b>W{String(row.week).padStart(2, "0")}</b>
+                <span>{row.stops.length ? row.stops.map(event => event.name).join(", ") : "No selected events"}</span>
+                <span className="cc-season-cashflow__cost">{row.cost ? `−${formatPence(row.cost)}` : "—"}</span>
+                <span className="cc-season-cashflow__balance" data-negative={row.remaining < 0 || undefined}>{formatPence(row.remaining)}</span>
+                {row.possiblePrize > 0 && <small>Possible prize up to {formatPence(row.possiblePrize)} · excluded from balance</small>}
+              </article>)}</div>
+              {cashFlowWeeks.some(row => row.remaining < 0) && <p className="cc-season-cashflow__warning" role="status">
+                Planned costs exceed current available funds in this conservative forecast. Future income and prizes are not included.
+              </p>}
+            </>}
+            <p className="cc-season-cashflow__note">Costs are grouped at event start week; future income, sponsorship and prizes are excluded. Entry checks still use the live balance.</p>
           </section>
           <p className="cc-season-plan__note">Estimates use each event’s current finance preview. Entry checks run again when you confirm; a multi-event plan can partly succeed if a later entry is refused.</p>
           <button type="button" className="cc-button cc-button--primary cc-season-plan__review" disabled={!selected.length || selectedConflicts.length > 0 || enterEvents.isPending} onClick={() => setReviewOpen(true)}>

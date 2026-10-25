@@ -1149,6 +1149,22 @@
 .cc-season-plan__review:disabled { cursor: not-allowed; opacity: .5; }
 .cc-season-plan__save-baseline { display: flex; width: calc(100% - 24px); justify-content: center; margin: -6px 12px 13px; border: 1px solid rgba(231,187,97,.28); border-radius: 9px; padding: 9px; color: #f1d47c; background: rgba(231,187,97,.055); cursor: pointer; font-size: 9px; font-weight: 750; }
 .cc-season-plan__save-baseline:disabled { cursor: not-allowed; opacity: .5; }
+.cc-season-cashflow { display: grid; gap: 8px; margin: 10px 12px; border: 1px solid rgba(107,166,213,.2); border-radius: 10px; padding: 10px; background: rgba(32,83,121,.075); }
+.cc-season-cashflow > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cc-season-cashflow > header > div { display: flex; flex-direction: column; gap: 3px; }
+.cc-season-cashflow > header > div > strong { color: #edf3fa; font-size: 10px; }
+.cc-season-cashflow > header > small { color: #bdd2e5; font-size: 8px; text-align: right; }
+.cc-season-cashflow > p { margin: 0; color: #9dafc0; font-size: 8px; line-height: 1.5; }
+.cc-season-cashflow__rows { display: grid; gap: 4px; }
+.cc-season-cashflow__rows article { display: grid; grid-template-columns: 30px minmax(0,1fr) auto auto; gap: 7px; align-items: center; border-top: 1px solid rgba(255,255,255,.06); padding: 6px 0; color: #cbd6e1; font-size: 8px; }
+.cc-season-cashflow__rows article > b { color: #91c5ec; font: 700 9px ui-monospace,monospace; }
+.cc-season-cashflow__rows article > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-season-cashflow__cost { color: #f0c688; font-variant-numeric: tabular-nums; }
+.cc-season-cashflow__balance { color: #a9e2c3; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.cc-season-cashflow__balance[data-negative="true"] { color: #ff91a8; }
+.cc-season-cashflow__rows article > small { grid-column: 2 / -1; color: #91a2b1; font-size: 7px; text-align: right; }
+.cc-season-cashflow .cc-season-cashflow__warning { border: 1px solid rgba(255,145,168,.2); border-radius: 6px; padding: 7px; color: #ffb1c1; background: rgba(145,29,57,.09); }
+.cc-season-cashflow > .cc-season-cashflow__note { color: #7f94a8; font-size: 7px; }
 .cc-season-baseline { margin-top: 14px; overflow: hidden; border: 1px solid rgba(231,187,97,.24); border-radius: 15px; padding: 15px; background: linear-gradient(145deg,rgba(22,37,55,.98),rgba(10,19,30,.98)); }
 .cc-season-baseline > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cc-season-baseline h3 { margin: 3px 0 0; color: #f2f6fa; font: 650 19px/1.1 system-ui,sans-serif; }
@@ -1209,4 +1225,7 @@
   .cc-season-plan__dialog footer .cc-button { justify-content: center; }
   .cc-season-actual__grid { grid-template-columns: minmax(0,1fr); }
   .cc-season-baseline__rows article { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .cc-season-cashflow__rows article { grid-template-columns: 27px minmax(0,1fr) auto; }
+  .cc-season-cashflow__balance { grid-column: 2 / -1; }
+  .cc-season-cashflow__rows article > small { text-align: left; }
 }
