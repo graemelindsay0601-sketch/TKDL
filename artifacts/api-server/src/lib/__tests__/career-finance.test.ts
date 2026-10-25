@@ -752,6 +752,9 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   assert.deepEqual([s.sponsorEarningsPence, s.careerEarningsPence, s.careerExpensesPence, s.sponsorCoveredExpensesPence, s.reconciled], [13500, 2500, 250, 250, true]);
   assert.equal(s.balancePence, 25000 + 13500 + 2500 - 250);
   const commercial = (await finance.sponsors(actor, save.id)).commercial!;
+  const eventCap = commercial.conditionalEventPayments.find(payment => payment.contractId === a.contractId);
+  assert.ok(eventCap);
+  assert.deepEqual([eventCap.paidEvents, eventCap.remainingEvents], [1, eventCap.maxEventsPerSeason - 1]);
   assert.deepEqual(commercial.cashReceivedPence, { total: 13500, signing: 10000, guarantees: 0, eventPayments: 1000, performanceBonuses: 2500 });
   assert.equal(commercial.costsCoveredPence, 250);
   assert.equal(commercial.remainingGuaranteesPence, 0);
