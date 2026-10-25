@@ -7,6 +7,8 @@ Do not re-propose a practice centre, season-long doubles league, opponent scouti
 
 Keep separate steel-tip and soft-tip equipment loadout profiles benched for now; the user said they are not worth the effort yet.
 
+Do not re-propose turning player-hosted local opens into recurring signature tournaments; the user declined this direction.
+
 **Why:** the user said the practice, doubles and scouting suggestions had already been rejected, then declined the replay, WDF-cup, Para Darts, main-tour camera-scoring and student-pathway ideas.
 
 **How to apply:** when brainstorming Career work, find genuinely different gaps in the active playing career; if the rejected list is incomplete, ask before offering another list.
