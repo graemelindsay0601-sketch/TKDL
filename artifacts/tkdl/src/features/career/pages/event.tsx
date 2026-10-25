@@ -161,22 +161,40 @@ function EntryActions({ ctx, detail }: { ctx: ShellContext; detail: EventDetail 
   const enter = useEnterEvent(ctx.save.id);
   const withdraw = useWithdrawEvent(ctx.save.id);
   const [msg, setMsg] = useState<string | null>(null);
+  const [travelChoice, setTravelChoice] = useState<"AUTO" | "GROUND_COMMUTE" | "AIR_STAY">("AUTO");
   if (ctx.retired || !h) return null;
   const entered = h.entryStatus && h.entryStatus !== "WITHDRAWN" && !["COMPLETED", "CANCELLED"].includes(e.status);
   const locked = ["DRAW_PENDING", "DRAWN", "IN_PROGRESS"].includes(e.status);
   const f = e.finance;
+  const travelOptions = f?.travelOptions ?? [];
+  const selectedTravel = travelOptions.find(option => option.choice === travelChoice) ?? travelOptions[0];
+  const committedTravel = travelOptions.find(option => option.choice === f?.commitment?.travelChoice);
   if (!h.canEnter && !entered && !h.denials.length) return null;
   return (
     <div className="pdc-card px-4 py-3 space-y-2">
       {h.canEnter ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <button className="career-btn career-btn-primary" disabled={enter.isPending} onClick={() => enter.mutate(e.id, { onSuccess: r => setMsg(r.entered ? "Entry confirmed." : `Entry refused: ${r.denials.map(denialLabel).join(", ")}`), onError: x => setMsg(errorMessage(x)) })}>
-            {enter.isPending ? "Entering…" : f && f.estimatedPlayerCostPence > 0 ? `Enter · ${formatPence(f.estimatedPlayerCostPence)}` : "Enter"}</button>
-          {f && <span className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Entry fee {formatPence(f.entryFeePence)}{f.entryFeeBasis === "PER_SERIES" ? " (whole series)" : ""} charged now · travel {formatPence(f.estimatedTravelPence + f.estimatedAccommodationPence)} reserved, charged in the week you travel</span>}
+        <div className="space-y-2">
+          {travelOptions.length > 1 && <label className="block max-w-xl text-xs text-white/75">Travel plan
+            <select className="ml-2 rounded border border-white/20 bg-slate-950 px-2 py-1.5 text-white" value={selectedTravel?.choice ?? "AUTO"}
+              onChange={event => setTravelChoice(event.target.value as typeof travelChoice)}>
+              {travelOptions.map(option => <option key={option.choice} value={option.choice}>
+                {option.label} · travel {formatPence(option.estimatedTravelPence)} · stay {formatPence(option.estimatedAccommodationPence)} · total after sponsor cover {formatPence(option.estimatedPlayerCostPence)}
+              </option>)}
+            </select>
+          </label>}
+          {selectedTravel && (selectedTravel.sponsorCoverage.travelPence + selectedTravel.sponsorCoverage.accommodationPence > 0)
+            && <p className="text-xs text-emerald-200">Sponsor travel and stay cover: {formatPence(selectedTravel.sponsorCoverage.travelPence + selectedTravel.sponsorCoverage.accommodationPence)}.</p>}
+          {travelOptions.length > 1 && <p className="text-xs text-white/55">If consecutive events at the same destination share one trip, the first explicit travel choice in event order applies to the combined journey.</p>}
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="career-btn career-btn-primary" disabled={enter.isPending} onClick={() => enter.mutate({ eventId: e.id, travelChoice: selectedTravel?.choice ?? "AUTO" }, { onSuccess: r => setMsg(r.entered ? "Entry confirmed." : `Entry refused: ${r.denials.map(denialLabel).join(", ")}`), onError: x => setMsg(errorMessage(x)) })}>
+              {enter.isPending ? "Entering…" : selectedTravel && selectedTravel.estimatedPlayerCostPence > 0 ? `Enter · ${formatPence(selectedTravel.estimatedPlayerCostPence)}` : "Enter"}</button>
+            {f && <span className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Entry fee {formatPence(f.entryFeePence)}{f.entryFeeBasis === "PER_SERIES" ? " (whole series)" : ""} charged now · selected travel and stay reserved, charged in the week you travel</span>}
+          </div>
         </div>
       ) : entered ? (
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge label={h.entryStatus === "CONFIRMED" ? "In the field" : "Entered"} tone="success" />
+          {committedTravel && <span className="text-xs text-white/65">Travel plan: {committedTravel.label}</span>}
           <ConfirmButton label={locked ? "Withdraw (concede)" : "Withdraw"} confirmLabel="Withdraw" danger busy={withdraw.isPending}
             description={locked ? "The field is locked: withdrawing concedes your remaining matches as walkovers. Late withdrawals are not refunded." : "Withdraw before entries close. The refund depends on this event's refund policy."}
             onConfirm={() => withdraw.mutate(e.id, { onSuccess: r => setMsg(r.withdrawn ? "Withdrawn." : `Not withdrawn: ${r.denials.map(denialLabel).join(", ")}`), onError: x => setMsg(errorMessage(x)) })} />

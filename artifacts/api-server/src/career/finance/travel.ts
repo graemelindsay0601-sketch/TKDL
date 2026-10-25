@@ -12,6 +12,13 @@ export type Home = { locality: string; country: string; zone: string; travelVers
 export const discountedTravelPence = (pence:number,home:Home) =>
   Math.floor(Math.max(0,pence)*(100-Math.max(0,Math.min(100,home.travelDiscountPercent??0)))/100);
 export type EventPlace = { id: string; start_day: number; end_day: number; locality_key: string | null; venue_key: string; country: string; zone: string; city: string; circuit: string; series_key: string | null };
+export const TRAVEL_CHOICES = ["AUTO", "GROUND_COMMUTE", "AIR_STAY"] as const;
+export type TravelChoice = typeof TRAVEL_CHOICES[number];
+export const TRAVEL_CHOICE_LABELS: Record<TravelChoice, string> = {
+  AUTO: "Recommended route",
+  GROUND_COMMUTE: "Drive and commute",
+  AIR_STAY: "Fly and stay nearby",
+};
 
 export function travelBand(home: Home, event: Pick<EventPlace, "locality_key" | "venue_key" | "country" | "zone">): TravelBand {
   if (home.travelVersion === 3) {
@@ -53,6 +60,30 @@ export function tripCost(band: TravelBand, spanDays: number, miles: number | nul
   if (miles !== null && (band === "DOMESTIC" || band === "UK_IRELAND")) return { band, ...distanceTrip(miles, spanDays, seaCrossing, p.nightlyPence) };
   const nights = spanDays >= p.overnightFromDays ? spanDays + p.extraNights : 0;
   return { band, travelPence: p.roundTripPence, nights, accommodationPence: nights * p.nightlyPence };
+}
+/** Player-selected alternatives. AUTO preserves the authored distance-based travel policy. */
+export function tripCostForChoice(band: TravelBand, spanDays: number, miles: number | null, seaCrossing: boolean, choice: TravelChoice = "AUTO") {
+  if (choice === "AUTO" || band === "LOCAL" || miles === null) return tripCost(band, spanDays, miles, seaCrossing);
+  const roadMiles = miles * TRAVEL_V3.roadFactor, profile = TRAVEL_PROFILE[band];
+  if (choice === "GROUND_COMMUTE") {
+    if (seaCrossing || roadMiles > TRAVEL_V3.driveUpToRoadMiles) return tripCost(band, spanDays, miles, seaCrossing);
+    const roundTrip = Math.max(TRAVEL_V3.minimumPence, roadMiles * 2 * TRAVEL_V3.carPencePerMile);
+    return { band, travelPence: Math.round(roundTrip * spanDays / 100) * 100, nights: 0, accommodationPence: 0 };
+  }
+  const travelPence = Math.round((TRAVEL_V3.farePence + miles * TRAVEL_V3.farePencePerMile) / 100) * 100;
+  const nights = Math.max(1, spanDays);
+  return { band, travelPence, nights, accommodationPence: nights * profile.nightlyPence };
+}
+/** Routes with no known distance stay on the automatic estimate. */
+export function eligibleTravelChoices(home: Home, event: Pick<EventPlace, "country" | "city" | "locality_key" | "venue_key" | "zone">): TravelChoice[] {
+  const band = travelBand(home, event);
+  if (band === "LOCAL") return ["AUTO"];
+  const j = journey(home, event);
+  if (j.miles === null) return ["AUTO"];
+  const choices: TravelChoice[] = ["AUTO"];
+  if (!j.sea && j.miles * TRAVEL_V3.roadFactor <= TRAVEL_V3.driveUpToRoadMiles) choices.push("GROUND_COMMUTE");
+  choices.push("AIR_STAY");
+  return choices;
 }
 
 /**
@@ -102,7 +133,7 @@ export function journey(home: Home, event: Pick<EventPlace, "country" | "city">)
  * next event starts within TRIP_MAX_GAP_DAYS of the chain's end at the same
  * destination (series days always chain). LOCAL events never form trips.
  */
-export function groupTrips(home: Home, events: readonly EventPlace[]) {
+export function groupTrips(home: Home, events: readonly EventPlace[], choices: ReadonlyMap<string, TravelChoice> = new Map()) {
   const sorted = [...events].sort((a, b) => a.start_day - b.start_day || (a.id < b.id ? -1 : 1));
   const trips: { band: TravelBand; destination: string; start: number; end: number; events: EventPlace[] }[] = [];
   for (const event of sorted) {
@@ -114,5 +145,12 @@ export function groupTrips(home: Home, events: readonly EventPlace[]) {
       last.end = Math.max(last.end, event.end_day); last.events.push(event);
     } else trips.push({ band, destination, start: event.start_day, end: event.end_day, events: [event] });
   }
-  return trips.map(t => { const j = journey(home, t.events[0]); return { ...t, ...priceTrip(t.band, t.events, t.start, t.end, j.miles, j.sea) }; });
+  return trips.map(t => {
+    const j = journey(home, t.events[0]);
+    const choice = t.events.map(event => choices.get(event.id)).find(value => value && value !== "AUTO")
+      ?? choices.get(t.events[0].id) ?? "AUTO";
+    const cost = choice === "AUTO" ? priceTrip(t.band, t.events, t.start, t.end, j.miles, j.sea)
+      : tripCostForChoice(t.band, t.end - t.start + 1, j.miles, j.sea, choice);
+    return { ...t, ...cost, choice };
+  });
 }

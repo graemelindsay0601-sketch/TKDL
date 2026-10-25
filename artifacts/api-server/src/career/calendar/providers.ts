@@ -66,9 +66,9 @@ export const NO_SEEDING: SeedingProvider = { id: "NONE", order: () => [] };
  */
 export interface CalendarFinanceHooks {
   /** Extra denials (e.g. INSUFFICIENT_FUNDS) for entering this event/series now. */
-  entryCheck(tx: CareerExecutor, root: RootRow, event: InstanceRow, siblings: readonly InstanceRow[]): Promise<DenialReason[]>;
+  entryCheck(tx: CareerExecutor, root: RootRow, event: InstanceRow, siblings: readonly InstanceRow[], travelChoice?: string): Promise<DenialReason[]>;
   /** Called after the human's entry rows exist, same transaction. Throw to roll back the entry. */
-  onHumanEntry(tx: CareerExecutor, root: RootRow, event: InstanceRow, siblings: readonly InstanceRow[]): Promise<void>;
+  onHumanEntry(tx: CareerExecutor, root: RootRow, event: InstanceRow, siblings: readonly InstanceRow[], travelChoice?: string): Promise<void>;
   onHumanWithdraw(tx: CareerExecutor, root: RootRow, targets: readonly InstanceRow[], postLock: boolean): Promise<void>;
   /** Start of a week's play-out, before any field locks (trip/travel commitment). */
   beforeWeek(tx: CareerExecutor, root: RootRow, season: number, week: number): Promise<void>;

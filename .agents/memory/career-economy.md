@@ -26,3 +26,9 @@ Series identity should shape sponsor-campaign format fit and mark compatible col
 **Why:** the user wants the DartCast series choice to have consequences beyond a checklist, without basing sponsor value on follower count alone.
 
 **How to apply:** keep partnership offers relevant to the selected series, preserve the normal audience-size eligibility rules, and do not make series fit a route lock.
+
+Travel planning is optional: retain the existing recommended route by default, and let a player choose a ground commute or flight with accommodation when the route supports it. Travel choice changes costs and sponsor coverage only, not sporting outcomes; old saves without a saved choice continue using the recommended route. For combined same-destination trips, the first explicit choice in event order governs the group.
+
+**Why:** the user approved player-controlled route and stay choices, with the estimate including sponsor coverage, while existing Career saves must remain usable.
+
+**How to apply:** carry the choice through affordability checks, reservations, and travel-week charges. Treat missing or invalid stored choices as the established recommended route.

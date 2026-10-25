@@ -345,7 +345,8 @@ async function signalBack(ms: number) {
 }
 
 export const careerRequests = {
-  enter: (saveId: string, eventId: string) => send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`),
+  enter: (saveId: string, eventId: string, travelChoice?: "AUTO" | "GROUND_COMMUTE" | "AIR_STAY") =>
+    send<EntryResult>("POST", `/saves/${saveId}/events/${eventId}/entry`, travelChoice ? { travelChoice } : undefined),
   withdraw: (saveId: string, eventId: string) => send<WithdrawResult>("DELETE", `/saves/${saveId}/events/${eventId}/entry`),
   acceptOffer: (saveId: string, offerId: string,replaceContractIds?:string[]) => send<{ contractId: string; sponsorKey: string; created: boolean; status: string; signingReveal: SponsorSigningReveal|null }>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/accept`,replaceContractIds?.length?{replaceContractIds}:undefined),
   declineOffer: (saveId: string, offerId: string) => send<unknown>("POST", `/saves/${saveId}/sponsors/offers/${offerId}/decline`),
@@ -397,7 +398,8 @@ function useSaveMutation<TArgs, TOut>(saveId: string, fn: (args: TArgs) => Promi
   const client = useQueryClient();
   return useMutation({ mutationFn: fn, onSuccess, onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); await client.invalidateQueries({ queryKey: ["career", "saves"] }); } });
 }
-export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.enter(saveId, eventId));
+export const useEnterEvent = (saveId: string) => useSaveMutation(saveId, (input: string | { eventId: string; travelChoice?: "AUTO" | "GROUND_COMMUTE" | "AIR_STAY" }) =>
+  typeof input === "string" ? careerRequests.enter(saveId, input) : careerRequests.enter(saveId, input.eventId, input.travelChoice));
 /** "Plan my week": enter each chosen event in turn (each is checked by the server as a normal entry), stopping at none. */
 export const useEnterEvents = (saveId: string) => useSaveMutation(saveId, async (eventIds: string[]) => {
   const results: { eventId: string; result: EntryResult | null; error: unknown }[] = [];

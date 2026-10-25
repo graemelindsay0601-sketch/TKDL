@@ -50,7 +50,7 @@ export function createCareerCalendarRouter(service: CareerCalendarService, isAva
     res.json(await service.event(res.locals.careerActor, id(req), String(req.params.eventId)));
   });
   router.post("/saves/:id/events/:eventId/entry", authedWriteRateLimit, async (req, res) => {
-    res.json(await service.enter(res.locals.careerActor, id(req), { eventId: String(req.params.eventId) }));
+    res.json(await service.enter(res.locals.careerActor, id(req), { ...req.body, eventId: String(req.params.eventId) }));
   });
   router.delete("/saves/:id/events/:eventId/entry", authedWriteRateLimit, async (req, res) => {
     res.json(await service.withdraw(res.locals.careerActor, id(req), { eventId: String(req.params.eventId) }));

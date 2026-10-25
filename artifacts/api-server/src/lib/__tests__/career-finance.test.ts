@@ -29,7 +29,7 @@ import { post } from "../../career/finance/ledger.ts";
 import { activeContracts, advanceSponsorLifecycle, applyCoverage, defaultFactsProvider, evaluateOffers, postDueGuaranteedPayments, profileFor, type ContractRow, type SponsorFactsProvider } from "../../career/finance/engine.ts";
 import { scheduleContractGuarantees } from "../../career/finance/sponsor-guarantees.ts";
 import type { SponsorApproachSource } from "../../career/finance/sponsor-journey.ts";
-import { discountedTravelPence, groupTrips, travelBand, tripCost } from "../../career/finance/travel.ts";
+import { discountedTravelPence, eligibleTravelChoices, groupTrips, travelBand, tripCost, tripCostForChoice } from "../../career/finance/travel.ts";
 import {
   CURRENT_SPONSOR_DATABASE_VERSION, SPONSOR_GUARANTEE_CONFIGURATION_STATUS, evaluateRequirement,
   SPONSOR_CATALOGUE_V1, SPONSOR_CATALOGUE_V2, sponsorCatalogue, type SportingFacts, type SponsorDefinition,
@@ -479,6 +479,42 @@ test("travel v3: only your own area is free; the rest of the UK and Ireland is p
   const [nights] = groupTrips(home, [league as never]);
   const one = cost(ev("Manchester", "the-foundry-manchester"));
   assert.deepEqual([nights.travelPence, nights.nights, nights.accommodationPence], [Number(one[1]) * 16, Number(one[2]) * 16, Number(one[3]) * 16], "a weekly league: sixteen one-night trips, not a season-long stay");
+});
+
+test("travel choices price eligible ground and air itineraries and apply a linked trip's explicit choice", () => {
+  const home = { locality: "ayrshire", country: "GBR", zone: "UK_IRELAND", travelVersion: 3 };
+  const edinburgh = { id: "edinburgh", start_day: 10, end_day: 11, locality_key: null, venue_key: "castle-exchange-edinburgh",
+    country: "GBR", zone: "UK_IRELAND", city: "Edinburgh", circuit: "MAJOR", series_key: null };
+  const choices = eligibleTravelChoices(home, edinburgh);
+  assert.deepEqual(choices, ["AUTO", "GROUND_COMMUTE", "AIR_STAY"]);
+  const auto = tripCostForChoice("DOMESTIC", 2, 60, false, "AUTO");
+  const ground = tripCostForChoice("DOMESTIC", 2, 60, false, "GROUND_COMMUTE");
+  const air = tripCostForChoice("DOMESTIC", 2, 60, false, "AIR_STAY");
+  assert.deepEqual([auto.travelPence, auto.nights, auto.accommodationPence], [2400, 1, 7000]);
+  assert.deepEqual([ground.nights, ground.accommodationPence], [0, 0]);
+  assert.ok(ground.travelPence > auto.travelPence, "commuting each day costs more than the recommended one-night stay");
+  assert.deepEqual([air.nights, air.accommodationPence], [2, 14000]);
+  const linked = [{ ...edinburgh, id: "first", start_day: 10, end_day: 10 }, { ...edinburgh, id: "second", start_day: 11, end_day: 11 }];
+  const [trip] = groupTrips(home, linked, new Map([["second", "AIR_STAY"]]));
+  assert.equal(trip.choice, "AIR_STAY", "an explicit choice on a linked stop applies to the combined trip");
+  assert.equal(trip.events.length, 2);
+});
+
+test("event preview exposes sponsor-net travel plans and an entered event saves the selected plan", async () => {
+  const save = await careerWithCurrentCatalogue();
+  await adjust(save.id, "travel-choice-funds", 1_000_000);
+  const away = (await events(save.id, { scope: "AVAILABLE" })).find(event =>
+    event.human!.canEnter && !event.series && event.finance.travelOptions?.some((option: { choice: string }) => option.choice === "AIR_STAY"));
+  assert.ok(away, "an available event with a known-distance travel route");
+  const air = away.finance.travelOptions!.find((option: { choice: string; estimatedPlayerCostPence: number; estimatedTravelPence: number; estimatedAccommodationPence: number;
+    sponsorCoverage: { travelPence: number; accommodationPence: number } }) => option.choice === "AIR_STAY")!;
+  assert.ok(air.estimatedPlayerCostPence >= air.estimatedTravelPence + air.estimatedAccommodationPence
+    - air.sponsorCoverage.travelPence - air.sponsorCoverage.accommodationPence, "total includes the entry fee net of its own coverage too");
+  const result = await finance.calendar.enter(actor, save.id, { eventId: away.id, travelChoice: "AIR_STAY" });
+  assert.equal(result.entered, true, result.denials?.join(","));
+  const row = (await rows(sql`SELECT snapshot, estimated_trip_pence FROM career_event_finance WHERE career_save_id=${save.id} AND event_id=${away.id}`))[0];
+  assert.equal((row.snapshot as { travelChoice: string }).travelChoice, "AIR_STAY");
+  assert.ok(Number(row.estimated_trip_pence) > 0);
 });
 
 test("a weekly league away from home pays its travel night by night, in the week of each night", async () => {

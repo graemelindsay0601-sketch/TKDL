@@ -33,12 +33,15 @@ export type EventFinancePreview = {
   estimatedTravelPence: number; estimatedAccommodationPence: number;
   sponsorCoverage: { entryFeePence: number; travelPence: number; accommodationPence: number };
   estimatedPlayerCostPence: number; balancePence: number; availablePence: number;
+  travelChoice?: "AUTO" | "GROUND_COMMUTE" | "AIR_STAY";
+  travelOptions?: { choice: "AUTO" | "GROUND_COMMUTE" | "AIR_STAY"; label: string; nights: number; estimatedTravelPence: number;
+    estimatedAccommodationPence: number; sponsorCoverage: { travelPence: number; accommodationPence: number }; estimatedPlayerCostPence: number }[];
   prizeProfile: string; topPrizePence: number; rankingEligible: boolean;
   /** Prize by finishing position (1 winner, 2 runner-up, 4 semi-finalist, 8 quarter-finalist, ...). */
   prizeBands?: { upToPosition: number; amountPence: number }[];
   /** Pot nights: prizes come from the entry money (feePence a player) plus a club top-up; entrants once the field is set. */
   prizePot?: { feePence: number; housePence: number; entrants: number | null; typicalField: number } | null;
-  commitment: { status: string; entryFeePaidPence: number; entryFeeCoveredPence: number; tripId: string | null } | null;
+  commitment: { status: string; entryFeePaidPence: number; entryFeeCoveredPence: number; tripId: string | null; travelChoice?: "AUTO" | "GROUND_COMMUTE" | "AIR_STAY" } | null;
 };
 export type EventFormat = { gameType: string; startingScore?: number; matchContext: string; structure: string; stages: { key: string; kind: string; bestOfByRound?: number[] }[];
   days: number; sideSize: number; inRule?: string; outRule?: string; scoringUnit?: "LEGS" | "SETS"; legsPerSet?: number | null; setPlay?: unknown;

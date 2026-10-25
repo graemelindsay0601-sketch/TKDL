@@ -44,7 +44,7 @@ import {
   insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, refreshCapabilities, matchKeyFor, simulateBullUp, anzLeagueStandings, type InstanceRow, type RootRow, type MatchRow,
 } from "./engine.ts";
 
-const eventRefSchema = z.object({ eventId: z.string().uuid() }).strict();
+const eventRefSchema = z.object({ eventId: z.string().uuid(), travelChoice: z.enum(["AUTO", "GROUND_COMMUTE", "AIR_STAY"]).optional() }).strict();
 const advanceSchema = z.object({
   operationKey: z.string().min(8).max(100).regex(/^[A-Za-z0-9:_-]+$/),
   expectedSeason: z.number().int().positive(),
@@ -605,7 +605,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     await tx.execute(sql`UPDATE career_seasons SET status = 'COMPLETED', off_season_processed = TRUE, completed_at = NOW() WHERE career_save_id = ${root.id} AND season = ${season}`);
   }
 
-  async function enterInTx(tx: CareerExecutor, root: RootRow, event: InstanceRow) {
+  async function enterInTx(tx: CareerExecutor, root: RootRow, event: InstanceRow, travelChoice = "AUTO") {
     const season = Number(root.current_season);
     const siblings = event.series_key ? await loadInstances(tx, root.id, sql`season = ${event.season} AND series_key = ${event.series_key}`) : [event];
     const all = await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`);
@@ -615,7 +615,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     if (!view.canEnter) return { created: false, denied: view.denials, view };
     const excluded = await exclusiveConflicts(tx, root.id, event);
     if (excluded.has(HUMAN)) return { created: false, denied: ["NOT_ELIGIBLE"] as DenialReason[], view };
-    const financeDenials = providers.finance ? await providers.finance.entryCheck(tx, root, event, siblings) : [];
+    const financeDenials = providers.finance ? await providers.finance.entryCheck(tx, root, event, siblings, travelChoice) : [];
     if (financeDenials.length) return { created: false, denied: financeDenials, view };
     for (const target of siblings) {
       if (target.status !== "REGISTRATION_OPEN") return { created: false, denied: ["REGISTRATION_CLOSED"] as DenialReason[], view };
@@ -629,7 +629,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const manager = view.managerInvite ? await activeManager(tx, root.id) : null;
     if (manager) await recordManagerInvites(tx, root.id, manager, siblings.map(t => t.id));
     // A4: the entry fee is charged in this same transaction; a failure rolls the entry back.
-    await providers.finance?.onHumanEntry(tx, root, event, siblings);
+    await providers.finance?.onHumanEntry(tx, root, event, siblings, travelChoice);
     await tx.execute(sql`UPDATE career_saves SET updated_at = NOW() WHERE id = ${root.id}`);
     return { created: true, view };
   }
@@ -859,11 +859,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     },
 
     async enter(actor: CareerActor, saveId: string, body: unknown) {
-      const { eventId } = eventRefSchema.parse(body);
+      const { eventId, travelChoice } = eventRefSchema.parse(body);
       return database.transaction(async tx => {
         const { root } = await requireSeason(tx, actor, saveId);
         const event = await eventOwned(tx, root.id, eventId);
-        const outcome = await enterInTx(tx, root, event);
+        const outcome = await enterInTx(tx, root, event, travelChoice);
         if ("denied" in outcome && outcome.denied) return { entered: false, created: false, denials: outcome.denied, event: presentEvent(event, outcome.view) };
         return { entered: true, created: outcome.created, denials: [] as DenialReason[], event: presentEvent(event) };
       });

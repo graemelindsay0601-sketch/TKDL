@@ -16,7 +16,8 @@ import {
   OFFER_LIFETIME_WEEKS, MAX_OFFERS_PER_EVALUATION, WEEKS, prizeForPosition, PRIZE_POTS, potPrize, POT_TYPICAL_FIELD, type FeeProfile, type PrizeProfile, type RefundPolicy,
 } from "./config.ts";
 import { post, InsufficientFundsError } from "./ledger.ts";
-import { discountedTravelPence, groupTrips, isWeeklyLeague, journey, leagueNightDays, priceTrip, travelBand, tripCost, type Home } from "./travel.ts";
+import { discountedTravelPence, eligibleTravelChoices, groupTrips, isWeeklyLeague, journey, leagueNightDays, priceTrip, travelBand, tripCost, tripCostForChoice,
+  TRAVEL_CHOICE_LABELS, type Home, type TravelChoice } from "./travel.ts";
 import {CURRENT_SPONSOR_DATABASE_VERSION,SUPPORTED_SPONSOR_DATABASE_VERSIONS,sponsorCatalogue,evaluateRequirement,tierRank,parseSponsorTerms,validateSponsorActivitySpecification,type CostType,type SponsorTerms,type SportingFacts,type SponsorTier} from "./sponsors.catalogue.ts";
 import { conflicts, portfolioLimit, relationship } from "./portfolio.ts";
 import { appendSponsorJourneyEvent, createSponsorInterest, createSponsorJourney, syncExpiredSponsorJourneys, type SponsorApproachSource } from "./sponsor-journey.ts";
@@ -227,14 +228,15 @@ export function portfolioCoverage(p:ContractRow|CoveragePortfolio|undefined,usag
 
 // ------------------------------------------------------------------ estimates
 const primaryOf = (siblings: readonly InstanceRow[]) => [...siblings].sort((a, b) => (a.series_day ?? 0) - (b.series_day ?? 0) || a.start_day - b.start_day)[0];
-export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contract: ContractRow | CoveragePortfolio | undefined, usage: CoverageUsage) {
+export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contract: ContractRow | CoveragePortfolio | undefined, usage: CoverageUsage, travelChoice: TravelChoice = "AUTO") {
   const primary = primaryOf(siblings);
   const profile = profileFor(primary);
   const feeGross = profile.fee.basis === "PER_SERIES" ? profile.fee.entryFeePence : profile.fee.entryFeePence * siblings.length;
   const start = Math.min(...siblings.map(e => e.start_day)), end = Math.max(...siblings.map(e => e.end_day));
   const band = travelBand(home, primary);
   const j = journey(home, primary);
-  const rawTrip = priceTrip(band, siblings, start, end, j.miles, j.sea);
+  const rawTrip = travelChoice === "AUTO" ? priceTrip(band, siblings, start, end, j.miles, j.sea)
+    : tripCostForChoice(band, end - start + 1, j.miles, j.sea, travelChoice);
   const trip={...rawTrip,travelPence:discountedTravelPence(rawTrip.travelPence,home)};
   const scratch = new Map(usage);
   const copy=clonePortfolio(contract);
@@ -244,7 +246,7 @@ export function estimateUnit(home: Home, siblings: readonly InstanceRow[], contr
   const tripPlayer = trip.travelPence - travel.covered + trip.accommodationPence - accommodation.covered;
   return { primary, profile, band, nights: trip.nights, entryFeeGrossPence: feeGross, entryFeeCoveredPence: fee.covered, entryFeePlayerPence: feeGross - fee.covered,
     travelGrossPence: trip.travelPence, travelCoveredPence: travel.covered, accommodationGrossPence: trip.accommodationPence, accommodationCoveredPence: accommodation.covered,
-    estimatedTripPlayerPence: tripPlayer, estimatedPlayerCostPence: feeGross - fee.covered + tripPlayer };
+    estimatedTripPlayerPence: tripPlayer, estimatedPlayerCostPence: feeGross - fee.covered + tripPlayer, travelChoice };
 }
 /** Money promised to entered-but-not-yet-travelled events (conservative standalone estimates). */
 export async function reservedPence(tx: CareerExecutor, saveId: string) {
@@ -713,13 +715,14 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
     if (!stale.length) return;
     const contract = await loadCoveragePortfolio(tx, root.id, Number(root.current_season));
     for (const row of stale) {
-      const snap = row.snapshot as { seriesEventIds?: string[] };
+      const snap = row.snapshot as { seriesEventIds?: string[]; travelChoice?: TravelChoice };
       const ids = snap.seriesEventIds?.length ? snap.seriesEventIds : [String(row.event_id)];
       const siblings = (await tx.execute(sql`SELECT * FROM career_event_instances WHERE career_save_id = ${root.id} AND id IN (${sql.join(ids.map(id => sql`${id}::uuid`), sql`, `)})`)).rows as InstanceRow[];
       if (!siblings.length) continue;
-      const e = estimateUnit(h, siblings, contract, new Map());
+      const travelChoice = snap.travelChoice && ["AUTO", "GROUND_COMMUTE", "AIR_STAY"].includes(snap.travelChoice) ? snap.travelChoice : "AUTO";
+      const e = estimateUnit(h, siblings, contract, new Map(), travelChoice);
       await tx.execute(sql`UPDATE career_event_finance SET estimated_trip_pence = ${e.estimatedTripPlayerPence},
-        snapshot = snapshot || ${JSON.stringify({ travelVersion: TRAVEL_VERSION, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence } })}::jsonb,
+        snapshot = snapshot || ${JSON.stringify({ travelVersion: TRAVEL_VERSION, travelChoice, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence } })}::jsonb,
         updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${row.event_id}`);
     }
   }
@@ -827,16 +830,25 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
   }
 
   return {
-    async entryCheck(tx, root, event, siblings) {
+    async entryCheck(tx, root, event, siblings, requestedChoice) {
       await ensureFinanceState(tx, root.id);
-      const { available, estimates } = await preview(tx, root, [[...siblings]]);
-      return estimates[0].estimatedPlayerCostPence > available ? ["INSUFFICIENT_FUNDS" as DenialReason] : [];
+      const { available } = await preview(tx, root, [[...siblings]]);
+      const choice = (requestedChoice as TravelChoice | undefined) ?? "AUTO";
+      const choices = isWeeklyLeague(event) ? ["AUTO"] : eligibleTravelChoices(home(root), event);
+      if (!choices.includes(choice)) throw new CareerError(400, "That travel option is not available for this event");
+      const contract = await loadCoveragePortfolio(tx, root.id, Number(root.current_season));
+      const estimate = estimateUnit(home(root), [...siblings], contract, new Map(), choice);
+      return estimate.estimatedPlayerCostPence > available ? ["INSUFFICIENT_FUNDS" as DenialReason] : [];
     },
 
-    async onHumanEntry(tx, root, event, siblings) {
+    async onHumanEntry(tx, root, event, siblings, requestedChoice) {
       await ensureFinanceState(tx, root.id);
-      const { available, estimates } = await preview(tx, root, [[...siblings]]);
-      const e = estimates[0];
+      const { available } = await preview(tx, root, [[...siblings]]);
+      const travelChoice = (requestedChoice as TravelChoice | undefined) ?? "AUTO";
+      const choices = isWeeklyLeague(event) ? ["AUTO"] : eligibleTravelChoices(home(root), event);
+      if (!choices.includes(travelChoice)) throw new CareerError(400, "That travel option is not available for this event");
+      const contractForEstimate = await loadCoveragePortfolio(tx, root.id, Number(root.current_season));
+      const e = estimateUnit(home(root), [...siblings], contractForEstimate, new Map(), travelChoice);
       if (e.estimatedPlayerCostPence > available) throw new InsufficientFundsError(e.estimatedPlayerCostPence, available);
       const season = Number(root.current_season), week = Number(root.current_week);
       const attempts = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id = ${root.id} AND event_id = ${e.primary.id} AND category = 'ENTRY_FEE'`)).rows[0].n);
@@ -849,7 +861,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
           reason: `Entry fee — ${e.primary.name}`, season, week, eventId: e.primary.id, grossAmountPence: e.entryFeeGrossPence, sponsorCoveredPence: cover.covered,
           contractId: cover.covered > 0 ? cover.contractId : null, detail: { feeProfile: e.profile.fee.key, basis: e.profile.fee.basis, ...(cover.rule !== null ? { coverageRule: cover.rule } : {}) } });
       }
-      const snapshot = { profile: e.profile, travelVersion:home(root).travelVersion, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence },
+      const snapshot = { profile: e.profile, travelVersion:home(root).travelVersion, travelChoice, band: e.band, nights: e.nights, estimate: { travelGrossPence: e.travelGrossPence, accommodationGrossPence: e.accommodationGrossPence },
         seriesEventIds: siblings.map(s => s.id) };
       for (const target of siblings) {
         const isPrimary = target.id === e.primary.id;
@@ -885,6 +897,11 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         WHERE f.career_save_id = ${root.id} AND f.season = ${season} AND f.status = 'ENTERED' ORDER BY i.start_day, i.id`)).rows as InstanceRow[];
       if (!pending.length) return;
       const h = home(root);
+      const pendingChoices = new Map((await tx.execute(sql`SELECT event_id, snapshot FROM career_event_finance WHERE career_save_id=${root.id} AND status='ENTERED'
+        AND event_id IN (${sql.join(pending.map(e => sql`${e.id}::uuid`), sql`, `)})`)).rows.map(r => {
+        const choice = (r.snapshot as { travelChoice?: TravelChoice }).travelChoice;
+        return [String(r.event_id), choice && ["AUTO", "GROUND_COMMUTE", "AIR_STAY"].includes(choice) ? choice : "AUTO"] as const;
+      }));
       await refreshReservations(tx, root, h);
       const firstDay = (week - 1) * 7 + 1, lastDay = week * 7;
       // Local events starting this week need no trip.
@@ -920,7 +937,7 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
             status = ${last ? "TRAVEL_COMMITTED" : "ENTERED"}, trip_id = ${tripId}, updated_at = NOW() WHERE career_save_id = ${root.id} AND event_id = ${e.id}`);
         }
       }
-      for (const trip of groupTrips(h, pending.filter(e => !isWeeklyLeague(e)))) {
+      for (const trip of groupTrips(h, pending.filter(e => !isWeeklyLeague(e)), pendingChoices)) {
         if (trip.start < firstDay || trip.start > lastDay) continue; // commits in the week its first event starts
         const first = trip.events[0];
         const tripKey = `s${season}:${first.id}`;
@@ -947,10 +964,10 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
             ${travelGrossPence}, ${travel.covered}, ${trip.accommodationPence}, ${stay.covered}, ${season}, ${week}) ON CONFLICT DO NOTHING`);
         if (travelGrossPence > 0) await post(tx, root, { operationKey: `travel:${tripKey}`, category: "TRAVEL", amountPence: -(travelGrossPence - travel.covered),
           reason: `Travel (${trip.band}) — ${trip.destination}`, season, week, eventId: first.id, tripId, grossAmountPence: travelGrossPence, sponsorCoveredPence: travel.covered,
-          contractId: travel.covered > 0 ? travel.contractId : null, detail: { band: trip.band, events: trip.events.map(e => e.id), ...(travel.rule !== null ? { coverageRule: travel.rule } : {}) } });
+          contractId: travel.covered > 0 ? travel.contractId : null, detail: { band: trip.band, events: trip.events.map(e => e.id), travelChoice: trip.choice, ...(travel.rule !== null ? { coverageRule: travel.rule } : {}) } });
         if (trip.accommodationPence > 0) await post(tx, root, { operationKey: `accommodation:${tripKey}`, category: "ACCOMMODATION", amountPence: -(trip.accommodationPence - stay.covered),
           reason: `Accommodation (${trip.nights} nights) — ${trip.destination}`, season, week, eventId: first.id, tripId, grossAmountPence: trip.accommodationPence, sponsorCoveredPence: stay.covered,
-          contractId: stay.covered > 0 ? stay.contractId : null, detail: { band: trip.band, nights: trip.nights, ...(stay.rule !== null ? { coverageRule: stay.rule } : {}) } });
+          contractId: stay.covered > 0 ? stay.contractId : null, detail: { band: trip.band, nights: trip.nights, travelChoice: trip.choice, ...(stay.rule !== null ? { coverageRule: stay.rule } : {}) } });
         for (const e of trip.events) await tx.execute(sql`UPDATE career_event_finance SET status = 'TRAVEL_COMMITTED', trip_id = ${tripId}, estimated_trip_pence = 0, updated_at = NOW()
           WHERE career_save_id = ${root.id} AND event_id = ${e.id}`);
       }
@@ -1017,20 +1034,31 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
         AND series_key IN (${sql.join(seriesKeys.map(k => sql`${k}`), sql`, `)})`)).rows as InstanceRow[] : [];
       const units = events.map(e => e.series_key ? series.filter(s => s.series_key === e.series_key) : [e]);
       const { available, balance, estimates } = await preview(tx, root, units);
-      const committed = new Map((await tx.execute(sql`SELECT event_id, status, finance_version, entry_fee_paid_pence, entry_fee_covered_pence, trip_id FROM career_event_finance WHERE career_save_id = ${root.id} AND season = ${season}`)).rows
+      const contract = await loadCoveragePortfolio(tx, root.id, season);
+      const committed = new Map((await tx.execute(sql`SELECT event_id, status, finance_version, entry_fee_paid_pence, entry_fee_covered_pence, trip_id, snapshot FROM career_event_finance WHERE career_save_id = ${root.id} AND season = ${season}`)).rows
         .map(r => [String(r.event_id), r]));
       events.forEach((event, i) => {
         const e = estimates[i];
         const c = committed.get(event.id);
         const prizeProfile = profileFor(event, Number(c?.finance_version ?? FINANCE_VERSION)).prize;
+        const travelOptions = (isWeeklyLeague(event) ? ["AUTO" as const] : eligibleTravelChoices(home(root), event)).map(choice => {
+          const option = choice === "AUTO" ? e : estimateUnit(home(root), units[i], contract, new Map(), choice);
+          return { choice, label: TRAVEL_CHOICE_LABELS[choice], nights: option.nights,
+            estimatedTravelPence: option.travelGrossPence, estimatedAccommodationPence: option.accommodationGrossPence,
+            sponsorCoverage: { travelPence: option.travelCoveredPence, accommodationPence: option.accommodationCoveredPence },
+            estimatedPlayerCostPence: option.estimatedPlayerCostPence };
+        });
+        const savedChoice = (c?.snapshot as { travelChoice?: TravelChoice } | undefined)?.travelChoice ?? "AUTO";
         out.set(event.id, {
           affordable: e.estimatedPlayerCostPence <= available, currency: "GBP", travelBand: e.band, nights: e.nights,
           entryFeePence: e.entryFeeGrossPence, entryFeeBasis: e.profile.fee.basis, estimatedTravelPence: e.travelGrossPence, estimatedAccommodationPence: e.accommodationGrossPence,
+          travelOptions, travelChoice: savedChoice,
           sponsorCoverage: { entryFeePence: e.entryFeeCoveredPence, travelPence: e.travelCoveredPence, accommodationPence: e.accommodationCoveredPence },
           estimatedPlayerCostPence: e.estimatedPlayerCostPence, balancePence: balance, availablePence: available,
           prizeProfile: prizeProfile.key, topPrizePence: prizeProfile.bands[0]?.amountPence ?? 0, prizeBands: prizeProfile.bands, rankingEligible: e.profile.rankingEligible,
           prizePot: PRIZE_POTS[event.definition_key] ? { ...PRIZE_POTS[event.definition_key], entrants: event.field_locked_at ? Number(event.entrant_count) : null, typicalField: POT_TYPICAL_FIELD } : null,
-          commitment: c ? { status: c.status, entryFeePaidPence: Number(c.entry_fee_paid_pence), entryFeeCoveredPence: Number(c.entry_fee_covered_pence), tripId: c.trip_id } : null,
+          commitment: c ? { status: c.status, entryFeePaidPence: Number(c.entry_fee_paid_pence), entryFeeCoveredPence: Number(c.entry_fee_covered_pence), tripId: c.trip_id,
+            travelChoice: savedChoice } : null,
         });
       });
       return out;
