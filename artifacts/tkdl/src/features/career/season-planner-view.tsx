@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, Check, MapPin, Minus, Plus, ShieldCheck, Ticket, X } from "lucide-react";
 import { Link } from "wouter";
-import { errorMessage, useEnterEvents, useEventFinance, useFinanceWeeks, useHistory, useSaveSeasonPlanSnapshot, useSeasonPlanSnapshot, type SeasonPlanSnapshot } from "./api";
-import { ageReason, denialLabel, eventCircuitLabel, eventDateLabel, formatPence } from "./model";
+import { errorMessage, useEnterEvents, useEventFinance, useFinanceWeeks, useHistory, useSaveSeasonPlanSnapshot, useSeasonPlanSnapshot, useSponsors, type SeasonPlanSnapshot } from "./api";
+import { ageReason, buildSeasonCashFlow, denialLabel, eventCircuitLabel, eventDateLabel, formatPence } from "./model";
 import type { CalendarSponsorActivity, CareerEvent, CareerSave } from "./types";
 
 type Props = {
@@ -52,6 +52,7 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
   const enterEvents = useEnterEvents(save.id);
   const baseline = useSeasonPlanSnapshot(save.id);
   const saveBaseline = useSaveSeasonPlanSnapshot(save.id);
+  const sponsors = useSponsors(save.id);
   const actualWeeks = useFinanceWeeks(save.id);
   const actualResults = useHistory(save.id, { participant: "HUMAN", season: save.currentSeason });
   const endWeek = Math.min(52, save.currentWeek + 7);
@@ -81,15 +82,11 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
   const projectedBalance = save.balancePence - totals.net;
   const startingAvailable = selected[0]?.finance?.availablePence ?? save.balancePence;
   const cashFlowWeeks = useMemo(() => {
-    let remaining = startingAvailable;
-    return Array.from({ length: endWeek - save.currentWeek + 1 }, (_, index) => save.currentWeek + index).map(week => {
-      const stops = selected.filter(event => event.dates.startWeek === week);
-      const cost = stops.reduce((sum, event) => sum + (event.finance?.estimatedPlayerCostPence ?? 0), 0);
-      const possiblePrize = stops.reduce((sum, event) => sum + (event.finance?.topPrizePence ?? 0), 0);
-      remaining -= cost;
-      return { week, stops, cost, possiblePrize, remaining };
-    });
-  }, [selected, startingAvailable, save.currentWeek, endWeek]);
+    return buildSeasonCashFlow(save.currentSeason, save.currentWeek, endWeek, startingAvailable,
+      selected.map(event => ({ id: event.id, name: event.name, startWeek: event.dates.startWeek,
+        estimatedCostPence: event.finance?.estimatedPlayerCostPence ?? 0, possiblePrizePence: event.finance?.topPrizePence ?? 0 })),
+      sponsors.data?.commercial?.upcomingGuarantees ?? []);
+  }, [selected, startingAvailable, save.currentWeek, save.currentSeason, endWeek, sponsors.data]);
   const seasonActuals = (actualWeeks.data?.weeks ?? []).reduce((sum, week) => ({
     spent: sum.spent + week.spentPence,
     won: sum.won + week.wonPence,
@@ -238,18 +235,27 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
             <header><div><span className="cc-kicker">EIGHT-WEEK OUTLOOK</span><strong>Cash flow by week</strong></div>
               <small>Available now · {formatPence(startingAvailable)}</small></header>
             {!selected.length ? <p>Shortlist events to see when planned costs would be due.</p> : <>
+              <div className="cc-season-cashflow__legend" aria-hidden="true"><span>Week</span><span>Events</span><span>Cost</span><span>Guaranteed</span><span>Balance</span></div>
               <div className="cc-season-cashflow__rows">{cashFlowWeeks.map(row => <article key={row.week}>
                 <b>W{String(row.week).padStart(2, "0")}</b>
                 <span>{row.stops.length ? row.stops.map(event => event.name).join(", ") : "No selected events"}</span>
                 <span className="cc-season-cashflow__cost">{row.cost ? `−${formatPence(row.cost)}` : "—"}</span>
+                <span className="cc-season-cashflow__income">{row.incomePence ? `+${formatPence(row.incomePence)}` : "—"}</span>
                 <span className="cc-season-cashflow__balance" data-negative={row.remaining < 0 || undefined}>{formatPence(row.remaining)}</span>
-                {row.possiblePrize > 0 && <small>Possible prize up to {formatPence(row.possiblePrize)} · excluded from balance</small>}
+                {(row.income.length > 0 || row.possiblePrize > 0) && <small>
+                  {row.income.map(payment => `${payment.displayName} guaranteed instalment ${payment.installment}/${payment.installments}`).join(" · ")}
+                  {row.income.length > 0 && row.possiblePrize > 0 ? " · " : ""}
+                  {row.possiblePrize > 0 ? `Possible prize up to ${formatPence(row.possiblePrize)} · excluded` : ""}
+                </small>}
               </article>)}</div>
               {cashFlowWeeks.some(row => row.remaining < 0) && <p className="cc-season-cashflow__warning" role="status">
-                Planned costs exceed current available funds in this conservative forecast. Future income and prizes are not included.
+                {sponsors.error ? "Without the sponsor schedule, planned costs exceed current available funds."
+                  : "Even after scheduled sponsor instalments, planned costs exceed available funds. Prizes and uncertain income are excluded."}
               </p>}
             </>}
-            <p className="cc-season-cashflow__note">Costs are grouped at event start week; future income, sponsorship and prizes are excluded. Entry checks still use the live balance.</p>
+            {sponsors.error && <p className="cc-season-cashflow__warning" role="status">Scheduled sponsor payments could not be loaded and are excluded from this forecast.</p>}
+            {sponsors.isLoading && <p className="cc-season-cashflow__note">Loading confirmed sponsor payment dates…</p>}
+            <p className="cc-season-cashflow__note">Confirmed sponsor instalments are shown in their scheduled week. Event-linked sponsor pay, prizes and other uncertain income are excluded. Costs are grouped at event start; entry checks still use the live balance.</p>
           </section>
           <p className="cc-season-plan__note">Estimates use each event’s current finance preview. Entry checks run again when you confirm; a multi-event plan can partly succeed if a later entry is refused.</p>
           <button type="button" className="cc-button cc-button--primary cc-season-plan__review" disabled={!selected.length || selectedConflicts.length > 0 || enterEvents.isPending} onClick={() => setReviewOpen(true)}>
