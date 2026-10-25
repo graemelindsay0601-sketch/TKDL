@@ -9,6 +9,12 @@ Career should reflect a plausible real darts career: players may start through c
 
 **How to apply:** when changing Career calendar content, preserve the playable grassroots ladder, use distinct names inspired by real competitions where needed, keep Vault optional and well-spaced, and preserve history when replacing future unplayed fixtures.
 
+Career tournaments should expose their real draw as a playable route: show round formats precisely and let the player launch an awaiting live match directly from the draw. Keep actual results server-authoritative and manually scored.
+
+**Why:** the user approved expanding tournament draws and event-format fidelity, with actual playing progression as the focus.
+
+**How to apply:** reuse the persisted draw and format definitions instead of generating client-side brackets or inventing results; display sets, legs-per-set, and each round's authored format clearly.
+
 Players may book an event on each available day of a week; keep the one-event-per-day and overlap rules, but do not impose a weekly event-count cap. Continue Career must stop for a live money match or reserved/live DartCast stream so it cannot silently advance past a scheduled activity.
 
 **Why:** the user explicitly asked to build a full seven-day schedule and reported Continue skipping booked activities while trying to arrange streams and money matches.

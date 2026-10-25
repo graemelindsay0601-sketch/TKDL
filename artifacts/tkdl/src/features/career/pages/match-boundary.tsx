@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { useEvent, useLiveSession, useWithdrawEvent, errorMessage } from "../api";
 import { ConfirmButton, Label, OSWALD, StatusBadge } from "../components";
 import { useState } from "react";
-import { MATCH_PLAY_STATUS } from "../model";
+import { eventMatchFormatLine, MATCH_PLAY_STATUS } from "../model";
 
 /**
  * HUMAN MATCH-PLAY BOUNDARY (A6.5: connected).
@@ -31,10 +31,11 @@ export function MatchBoundaryNotice({ saveId, eventId, compact }: { saveId: stri
       <div className="flex items-center gap-2 flex-wrap">
         <Swords className="w-4 h-4" style={{ color: "#ffd24a" }} aria-hidden />
         <Label color="#ffd24a">Your match</Label>
-        {match && <StatusBadge label={`${match.roundName ? match.roundName.replace(/_/g, " ") : `Round ${match.round}`} · best of ${match.bestOf}`} tone="gold" />}
+        {match && <StatusBadge label={match.roundName ? match.roundName.replace(/_/g, " ") : `Round ${match.round}`} tone="gold" />}
       </div>
       {match ? (
-        <div className="font-black uppercase" style={{ ...OSWALD, color: "#fff", fontSize: compact ? "1rem" : "1.2rem" }}>You vs {opponent?.name ?? "TBC"}</div>
+        <><div className="font-black uppercase" style={{ ...OSWALD, color: "#fff", fontSize: compact ? "1rem" : "1.2rem" }}>You vs {opponent?.name ?? "TBC"}</div>
+          <p className="text-xs text-white/70">{eventMatchFormatLine(event.data!.event.format, match.bestOf)}</p></>
       ) : event.isLoading ? null : <div className="text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Match details unavailable.</div>}
       <div className="flex items-start gap-2 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />

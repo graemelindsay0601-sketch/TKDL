@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  activeNavKey, cardLineText, careerChapter, continueOutcome, eventLifecycle, eventStatus, financeHeadlines, formatLabel, matchesStatusFilter, milestoneLabel, movementLabel,
+  activeNavKey, cardLineText, careerChapter, continueOutcome, eventLifecycle, eventMatchFormatLine, eventStatus, financeHeadlines, formatLabel, formatRuleLines, matchesStatusFilter, milestoneLabel, movementLabel,
   navLayerOf, pickNextEvent, primaryAction, qSchoolState, registrationAlerts, routeLines, slotLines, CAREER_NAV,
 } from "../../features/career/model.ts";
 import { event, finance, human, overview, pathway, save, sporting } from "./career-fixtures.ts";
@@ -139,6 +139,8 @@ test("format label reports sets for set-play events (World Championship) and leg
   assert.equal(formatLabel(event().format), "501 · knockout · best of 5–7 legs");
   const wc = event({ format: { scoringUnit: "SETS", legsPerSet: 5, stages: [{ key: "main", kind: "KNOCKOUT", bestOfByRound: [3, 3, 5, 5, 7, 7, 13] }] } }).format;
   assert.equal(formatLabel(wc), "501 · knockout · best of 3–13 sets");
+  assert.equal(eventMatchFormatLine(wc, 7), "501 · best of 7 sets, each set best of 5 legs · straight-in, straight-out");
+  assert.deepEqual(formatRuleLines(wc).slice(-2), ["Semi-finals: best of 7 sets (each set best of 5 legs)", "Final: best of 13 sets (each set best of 5 legs)"]);
 });
 
 test("movement labels are text + aria, not colour alone", () => {

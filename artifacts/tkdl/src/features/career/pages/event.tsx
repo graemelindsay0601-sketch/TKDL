@@ -2,9 +2,9 @@ import { useMemo, useState, type CSSProperties } from "react";
 import {CareerEventIdentity, CareerShirt} from "../identity";
 import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
-import { ArrowLeft, CalendarDays, Coins, MapPin, ShieldCheck, Swords, Ticket, Trophy, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Coins, MapPin, Play, ShieldCheck, Swords, Ticket, Trophy, Users } from "lucide-react";
 import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
-import { eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, formatLabel, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
+import { eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, eventMatchFormatLine, formatLabel, formatRuleLines, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
 import { CareerEmptyState, CareerError, CareerEventStakes, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
 import type { CareerMatch, EventDetail } from "../types";
@@ -146,9 +146,9 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
 
       <Segmented label="Event sections" value={tab} onChange={value => setTab(value as Tab)} options={tabs} wrap />
       {tab === "OVERVIEW" && <Overview detail={detail} saveId={save.id} />}
-      {tab === "DRAW" && <Draw detail={detail} />}
+      {tab === "DRAW" && <Draw detail={detail} saveId={save.id} />}
       {tab === "SCHEDULE" && <Schedule detail={detail} />}
-      {tab === "MY_MATCHES" && <CareerSection title="My matches" icon={<Swords className="w-3.5 h-3.5" />}>{myMatches.map(m => <MatchRow key={m.id} m={m} rounds={detail.draw.rounds} />)}</CareerSection>}
+      {tab === "MY_MATCHES" && <CareerSection title="My matches" icon={<Swords className="w-3.5 h-3.5" />}>{myMatches.map(m => <MatchRow key={m.id} m={m} rounds={detail.draw.rounds} saveId={save.id} format={e.format} />)}</CareerSection>}
       {tab === "PLAYERS" && <Players detail={detail} saveId={save.id} />}
       {tab === "PRIZE" && <Prize saveId={save.id} detail={detail} />}
       {tab === "RANKING" && <RankingTab saveId={save.id} detail={detail} retired={retired} />}
@@ -226,6 +226,11 @@ function Overview({ detail, saveId }: { detail: EventDetail; saveId: string }) {
           <F label="Status" value={titleCase(e.status)} />
         </dl>
       </CareerSection>
+      <CareerSection title="Match rules by stage" icon={<Swords className="w-3.5 h-3.5" />}>
+        <ul className="px-4 py-3 space-y-1 text-sm text-white/75">
+          {formatRuleLines(e.format).map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
+        </ul>
+      </CareerSection>
       <CareerSection title="Result" icon={<Trophy className="w-3.5 h-3.5" />} accent="#ffd24a">
         {champion || mine ? (
           <div className="px-4 py-3 space-y-2 text-sm">
@@ -241,7 +246,7 @@ function Overview({ detail, saveId }: { detail: EventDetail; saveId: string }) {
 const F = ({ label, value }: { label: string; value: string }) => <div className="min-w-0"><dt><Label>{label}</Label></dt><dd className="break-words" style={{ color: "#fff" }}>{value}</dd></div>;
 
 /** Persisted A3 draw, one round at a time (works on phones; no client-side recomputation). */
-function Draw({ detail }: { detail: EventDetail }) {
+function Draw({ detail, saveId }: { detail: EventDetail; saveId: string }) {
   const rounds = detail.draw.rounds;
   const humanRound = detail.draw.matches.filter(m => (m.a?.key === "HUMAN" || m.b?.key === "HUMAN")).reduce((r, m) => Math.max(r, m.round), 0);
   const [round, setRound] = useState(humanRound || Math.min(Math.max(detail.progress.currentRound, 1), rounds) || 1);
@@ -252,12 +257,12 @@ function Draw({ detail }: { detail: EventDetail }) {
       <div className="px-3 pt-2"><Segmented label="Round" wrap value={String(round)} onChange={v => setRound(Number(v))}
         options={Array.from({ length: rounds }, (_, i) => ({ value: String(i + 1), label: roundName(i + 1, rounds) }))} /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 p-3">
-        {list.map(m => <MatchCard key={m.id} m={m} seeds={seeds} />)}
+        {list.map(m => <MatchCard key={m.id} m={m} seeds={seeds} saveId={saveId} format={detail.event.format} />)}
       </div>
     </CareerSection>
   );
 }
-function MatchCard({ m, seeds }: { m: CareerMatch; seeds: Map<string, number> }) {
+function MatchCard({ m, seeds, saveId, format }: { m: CareerMatch; seeds: Map<string, number>; saveId: string; format: EventDetail["event"]["format"] }) {
   const side = (p: CareerMatch["a"], legs: number | undefined) => {
     const won = p && m.winnerKey === p.key;
     const me = p?.key === "HUMAN";
@@ -273,13 +278,14 @@ function MatchCard({ m, seeds }: { m: CareerMatch; seeds: Map<string, number> })
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${m.status === "AWAITING_HUMAN" ? "rgba(255,210,74,0.5)" : "rgba(255,255,255,0.08)"}`, background: "rgba(255,255,255,0.02)" }}>
       {side(m.a, m.legs?.[0])}<div className="h-px" style={{ background: "rgba(255,255,255,0.06)" }} />{side(m.b, m.legs?.[1])}
-      <div className="px-2.5 py-1 text-[0.6rem] uppercase flex justify-between" style={{ ...OSWALD, letterSpacing: "0.08em", color: "rgba(255,255,255,0.35)" }}>
-        <span>Best of {m.bestOf} · day {m.scheduledDay}</span><span>{m.status === "AWAITING_HUMAN" ? "Awaiting your match" : m.status === "WALKOVER" ? "Walkover" : m.status === "BYE" ? "Bye" : m.resultSource === "A2_SIMULATION" ? "Simulated" : m.resultSource === "QUICK_SIM" ? "Quick-sim" : m.resultSource === "HUMAN_LIVE" ? "Played live" : titleCase(m.status)}</span>
+      <div className="px-2.5 py-1 text-[0.6rem] uppercase flex flex-wrap gap-2 justify-between" style={{ ...OSWALD, letterSpacing: "0.08em", color: "rgba(255,255,255,0.48)" }}>
+        <span>{eventMatchFormatLine(format, m.bestOf)} · day {m.scheduledDay}</span><span>{m.status === "AWAITING_HUMAN" ? "Awaiting your match" : m.status === "WALKOVER" ? "Walkover" : m.status === "BYE" ? "Bye" : m.resultSource === "A2_SIMULATION" ? "Simulated" : m.resultSource === "QUICK_SIM" ? "Quick-sim" : m.resultSource === "HUMAN_LIVE" ? "Played live" : titleCase(m.status)}</span>
       </div>
+      {m.status === "AWAITING_HUMAN" && (m.a?.key === "HUMAN" || m.b?.key === "HUMAN") && <Link className="career-btn career-btn-gold m-2 mt-0" href={`/career/${saveId}/matches/${m.id}/play`}><Play size={13} aria-hidden /> Play this match</Link>}
     </div>
   );
 }
-function MatchRow({ m, rounds }: { m: CareerMatch; rounds: number }) {
+function MatchRow({ m, rounds, saveId, format }: { m: CareerMatch; rounds: number; saveId: string; format: EventDetail["event"]["format"] }) {
   const opp = m.a?.key === "HUMAN" ? m.b : m.a;
   const won = m.winnerKey === "HUMAN";
   const legs = m.legs ? (m.a?.key === "HUMAN" ? m.legs : [m.legs[1], m.legs[0]]) : null;
@@ -288,6 +294,8 @@ function MatchRow({ m, rounds }: { m: CareerMatch; rounds: number }) {
       <span className="w-24 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>{roundName(m.round, rounds)}</span>
       <span className="flex-1 min-w-0 truncate text-sm" style={{ color: "#fff" }}>vs {opp?.name ?? (m.status === "BYE" ? "Bye" : "TBC")}</span>
       {legs && <span className="font-black tabular-nums" style={{ ...OSWALD, color: won ? "#4ade80" : "#ff005c" }}>{legs[0]}–{legs[1]}</span>}
+      <span className="basis-full text-xs text-white/55">{eventMatchFormatLine(format, m.bestOf)}</span>
+      {m.status === "AWAITING_HUMAN" && <Link className="career-btn career-btn-gold" href={`/career/${saveId}/matches/${m.id}/play`}><Play size={13} aria-hidden /> Play</Link>}
       <StatusBadge label={m.status === "AWAITING_HUMAN" ? "Awaiting your match" : m.winnerKey ? (won ? "Won" : "Lost") : titleCase(m.status)} tone={m.status === "AWAITING_HUMAN" ? "gold" : m.winnerKey ? (won ? "success" : "danger") : "neutral"} />
     </div>
   );

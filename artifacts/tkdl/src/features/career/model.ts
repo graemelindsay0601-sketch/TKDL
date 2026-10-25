@@ -482,11 +482,38 @@ export function continueOutcome(result: AdvanceResult, dismissWarning?: string) 
 }
 
 // ---------------------------------------------------------------- formats (describes A3's stored format; never executes it)
+export function eventMatchFormatLine(f: CareerEvent["format"], bestOf: number): string {
+  const game = f.gameType === "X01" ? `${f.startingScore ?? 501}` : titleCase(f.gameType);
+  const length = f.scoringUnit === "SETS"
+    ? `best of ${bestOf} sets, each set best of ${f.legsPerSet ?? 1} legs`
+    : `best of ${bestOf} legs`;
+  const start = f.inRule === "DOUBLE" ? "double-in" : f.inRule === "MASTER" ? "master-in" : "straight-in";
+  const finish = f.outRule === "DOUBLE" ? "double-out" : f.outRule === "MASTER" ? "master-out" : "straight-out";
+  const softTip = f.bull === "FAT" ? `fat bull${f.roundLimit ? ` · ${f.roundLimit}-round limit` : ""}` : "";
+  return [game, length, f.gameType === "X01" ? `${start}, ${finish}` : "", softTip].filter(Boolean).join(" · ");
+}
+export function formatRuleLines(f: CareerEvent["format"]): string[] {
+  const rules = [f.gameType === "X01" ? `${f.startingScore ?? 501} · ${f.inRule === "DOUBLE" ? "double-in" : "straight-in"} · ${f.outRule === "MASTER" ? "master-out" : f.outRule === "STRAIGHT" ? "straight-out" : "double-out"}`
+    : titleCase(f.gameType)];
+  if (f.bull === "FAT") rules.push(`Fat bull${f.roundLimit ? ` · ${f.roundLimit}-round limit` : ""}`);
+  if (f.sideSize > 1) rules.push("Pairs");
+  if (f.firstThrowMethod) rules.push(`First throw: ${f.firstThrowMethod === "BULL_UP" ? "bull-up" : f.firstThrowMethod === "HIGHER_SEED" ? "higher seed" : "alternate from draw"}`);
+  for (const stage of f.stages) {
+    const values = stage.bestOfByRound ?? [];
+    if (!values.length) continue;
+    const unit = f.scoringUnit === "SETS" ? `sets (each set best of ${f.legsPerSet ?? 1} legs)` : "legs";
+    const roundRules = stage.kind === "KNOCKOUT"
+      ? values.map((value, index) => `${roundName(index + 1, values.length)}: best of ${value} ${unit}`)
+      : [`${titleCase(stage.kind)}: best of ${values[0]} ${unit}`];
+    rules.push(...roundRules);
+  }
+  return rules;
+}
 export function formatLabel(f: CareerEvent["format"] | undefined | null): string {
   if (!f) return "";
   const game = f.gameType === "X01" ? `${f.startingScore ?? 501}` : titleCase(f.gameType);
   const legs = f.stages[0]?.bestOfByRound ?? [];
-  // A3 stores the scoring unit explicitly (LEGS | SETS); sets formats are not executable yet.
+  // A3 stores the scoring unit explicitly (LEGS | SETS); both are supported by the Career scorer.
   const unit = f.scoringUnit === "SETS" || f.setPlay ? "sets" : "legs";
   const range = legs.length ? (Math.min(...legs) === Math.max(...legs) ? `best of ${legs[0]} ${unit}` : `best of ${Math.min(...legs)}–${Math.max(...legs)} ${unit}`) : "";
   const structure = f.structure === "KNOCKOUT" ? "knockout" : titleCase(f.structure);

@@ -45,6 +45,7 @@ export type EventFinancePreview = {
 };
 export type EventFormat = { gameType: string; startingScore?: number; matchContext: string; structure: string; stages: { key: string; kind: string; bestOfByRound?: number[] }[];
   days: number; sideSize: number; inRule?: string; outRule?: string; scoringUnit?: "LEGS" | "SETS"; legsPerSet?: number | null; setPlay?: unknown;
+  firstThrowMethod?: "BULL_UP" | "ALTERNATE_FROM_DRAW" | "HIGHER_SEED";
   /** Soft-tip: fat bull and a per-leg round limit decided by a cork. */
   bull?: "STANDARD" | "FAT"; roundLimit?: number };
 export type CareerEvent = {
