@@ -1147,6 +1147,18 @@
 .cc-season-plan__note { margin: 0 14px 12px; color: #92a1af; font-size: 8px; line-height: 1.5; }
 .cc-season-plan__review { display: flex; width: calc(100% - 24px); align-items: center; justify-content: center; gap: 7px; margin: 0 12px 13px; }
 .cc-season-plan__review:disabled { cursor: not-allowed; opacity: .5; }
+.cc-season-plan__save-baseline { display: flex; width: calc(100% - 24px); justify-content: center; margin: -6px 12px 13px; border: 1px solid rgba(231,187,97,.28); border-radius: 9px; padding: 9px; color: #f1d47c; background: rgba(231,187,97,.055); cursor: pointer; font-size: 9px; font-weight: 750; }
+.cc-season-plan__save-baseline:disabled { cursor: not-allowed; opacity: .5; }
+.cc-season-baseline { margin-top: 14px; overflow: hidden; border: 1px solid rgba(231,187,97,.24); border-radius: 15px; padding: 15px; background: linear-gradient(145deg,rgba(22,37,55,.98),rgba(10,19,30,.98)); }
+.cc-season-baseline > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cc-season-baseline h3 { margin: 3px 0 0; color: #f2f6fa; font: 650 19px/1.1 system-ui,sans-serif; }
+.cc-season-baseline header > small, .cc-season-baseline > p { color: #92a1af; font-size: 8px; }
+.cc-season-baseline > p { margin: 8px 0; line-height: 1.5; }
+.cc-season-baseline__rows { display: grid; gap: 6px; }
+.cc-season-baseline__rows article { display: grid; grid-template-columns: minmax(150px,1.2fr) repeat(2,minmax(130px,1fr)) auto; gap: 10px; align-items: center; border: 1px solid rgba(255,255,255,.07); border-radius: 9px; padding: 9px; background: rgba(255,255,255,.025); }
+.cc-season-baseline__rows article > span { display: flex; flex-direction: column; gap: 3px; color: #e8edf2; font-size: 9px; }
+.cc-season-baseline__rows small { color: #92a1af; font-size: 8px; }
+.cc-season-baseline__finish { color: #f1d47c !important; font-weight: 700; }
 .cc-season-plan__backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(0,0,0,.72); backdrop-filter: blur(5px); }
 .cc-season-plan__dialog { width: min(460px,100%); border: 1px solid rgba(231,187,97,.3); border-radius: 15px; padding: 20px; background: linear-gradient(145deg,#16273a,#0b1420); box-shadow: 0 24px 70px rgba(0,0,0,.6), inset 0 1px rgba(255,255,255,.05); }
 .cc-season-plan__dialog h3 { margin: 6px 0; color: #f3f5f7; font: 650 23px Oswald,sans-serif; text-transform: uppercase; }
@@ -1196,4 +1208,5 @@
   .cc-season-plan__dialog footer { flex-direction: column-reverse; }
   .cc-season-plan__dialog footer .cc-button { justify-content: center; }
   .cc-season-actual__grid { grid-template-columns: minmax(0,1fr); }
+  .cc-season-baseline__rows article { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }

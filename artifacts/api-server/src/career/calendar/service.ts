@@ -937,6 +937,40 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       });
     },
 
+    async seasonPlanSnapshot(actor: CareerActor, saveId: string, body?: unknown) {
+      if (body === undefined) {
+        return database.transaction(async tx => {
+          const { root } = await open(tx, actor, saveId, false);
+          const plans = root.settings_snapshot?.careerSeasonPlanBaselines as Record<string, unknown> | undefined;
+          return { snapshot: plans?.[String(root.current_season)] ?? null };
+        });
+      }
+      const input = z.object({
+        season: z.number().int().positive(),
+        eventIds: z.array(careerIdSchema).min(1).max(32).refine(ids => new Set(ids).size === ids.length, "Event ids must be unique"),
+      }).strict().parse(body);
+      return database.transaction(async tx => {
+        const { root } = await open(tx, actor, saveId, false);
+        if (input.season !== Number(root.current_season)) throw new CareerError(409, "Save a baseline for the current season");
+        const events = await loadInstances(tx, root.id, sql`season = ${input.season} AND id IN (${sql.join(input.eventIds.map(id => sql`${id}`), sql`, `)})`);
+        if (events.length !== input.eventIds.length) throw new CareerError(404, "One or more planned events could not be found");
+        const previews = providers.finance ? await providers.finance.previews(tx, root, input.season, events) : new Map();
+        const savedEvents = events.map(event => {
+          const finance = previews.get(event.id);
+          if (!finance) throw new CareerError(409, `A current estimate is unavailable for ${event.name}`);
+          return { eventId: event.id, name: event.name, week: event.start_week, finance };
+        });
+        const snapshot = { season: input.season, savedAt: new Date().toISOString(), events: savedEvents };
+        await tx.execute(sql`UPDATE career_saves SET settings_snapshot =
+          COALESCE(settings_snapshot, '{}'::jsonb) || jsonb_build_object(
+            'careerSeasonPlanBaselines',
+            COALESCE(settings_snapshot->'careerSeasonPlanBaselines', '{}'::jsonb) ||
+              jsonb_build_object(${String(input.season)}, ${JSON.stringify(snapshot)}::jsonb))
+          WHERE id = ${root.id}`);
+        return { snapshot };
+      });
+    },
+
     /** A5 boundary: ranking-derived entitlements reuse the same persisted model. */
     async issueProviderEntitlement(actor: CareerActor, saveId: string, body: unknown) {
       const input = providerEntitlementSchema.parse(body);
