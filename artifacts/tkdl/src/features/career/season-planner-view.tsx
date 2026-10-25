@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, Check, MapPin, Minus, Plus, ShieldCheck, Ticket, X } from "lucide-react";
 import { Link } from "wouter";
-import { errorMessage, useEnterEvents, useFinanceWeeks, useHistory } from "./api";
+import { errorMessage, useEnterEvents, useEventFinance, useFinanceWeeks, useHistory, useSaveSeasonPlanSnapshot, useSeasonPlanSnapshot, type SeasonPlanSnapshot } from "./api";
 import { ageReason, denialLabel, eventCircuitLabel, eventDateLabel, formatPence } from "./model";
 import type { CalendarSponsorActivity, CareerEvent, CareerSave } from "./types";
 
@@ -50,6 +50,8 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
   const [reviewOpen, setReviewOpen] = useState(false);
   const [message, setMessage] = useState("");
   const enterEvents = useEnterEvents(save.id);
+  const baseline = useSeasonPlanSnapshot(save.id);
+  const saveBaseline = useSaveSeasonPlanSnapshot(save.id);
   const actualWeeks = useFinanceWeeks(save.id);
   const actualResults = useHistory(save.id, { participant: "HUMAN", season: save.currentSeason });
   const endWeek = Math.min(52, save.currentWeek + 7);
@@ -225,8 +227,17 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
           <button type="button" className="cc-button cc-button--primary cc-season-plan__review" disabled={!selected.length || selectedConflicts.length > 0 || enterEvents.isPending} onClick={() => setReviewOpen(true)}>
             <ShieldCheck size={15} /> Review selected events
           </button>
+          <button type="button" className="cc-season-plan__save-baseline" disabled={!selected.length || saveBaseline.isPending}
+            onClick={() => saveBaseline.mutate({ season: save.currentSeason, eventIds: selected.map(event => event.id) }, {
+              onSuccess: () => setMessage("Season baseline saved. You can compare these estimates with the recorded event actuals below."),
+              onError: error => setMessage(errorMessage(error)),
+            })}>
+            {saveBaseline.isPending ? "Saving baseline…" : baseline.data?.snapshot ? "Update saved baseline" : "Save as season baseline"}
+          </button>
         </aside>
       </div>
+
+      {baseline.data?.snapshot && <SavedSeasonBaseline saveId={save.id} snapshot={baseline.data.snapshot} />}
 
       <section className="cc-season-actual" aria-label="Season plan against actual results">
         <header>
@@ -272,6 +283,32 @@ export function SeasonPlannerView({ save, events, retired, loading, error, onRet
       </div>}
     </section>
   );
+}
+
+function SavedSeasonBaseline({ saveId, snapshot }: { saveId: string; snapshot: SeasonPlanSnapshot }) {
+  return <section className="cc-season-baseline" aria-label="Saved season plan baseline">
+    <header><div><span className="cc-kicker">SAVED FORECAST · SEASON {snapshot.season}</span><h3>Plan vs. actual</h3></div>
+      <small>Saved {new Date(snapshot.savedAt).toLocaleDateString()}</small></header>
+    <p>Each saved estimate is compared with the event’s actual player-paid costs, prize and finish when recorded.</p>
+    <div className="cc-season-baseline__rows">{snapshot.events.map(event => <SavedSeasonBaselineEvent key={event.eventId} saveId={saveId} event={event} />)}</div>
+  </section>;
+}
+
+function SavedSeasonBaselineEvent({ saveId, event }: { saveId: string; event: SeasonPlanSnapshot["events"][number] }) {
+  const query = useEventFinance(saveId, event.eventId);
+  const actual = query.data?.actuals as {
+    entryFeePaidPence?: number; travelPaidPence?: number; accommodationPaidPence?: number; refundsPence?: number;
+    prizePence?: number; prizeAward?: { finishingPosition?: number } | null;
+  } | null | undefined;
+  const actualCost = actual ? (actual.entryFeePaidPence ?? 0) + (actual.travelPaidPence ?? 0)
+    + (actual.accommodationPaidPence ?? 0) - (actual.refundsPence ?? 0) : null;
+  return <article>
+    <span><b>{event.name}</b><small>Week {event.week}</small></span>
+    <span><small>Cost · estimate / actual</small><b>{formatPence(event.finance.estimatedPlayerCostPence)} / {actualCost === null ? "Not entered" : formatPence(actualCost)}</b></span>
+    <span><small>Prize · estimate / actual</small><b>{formatPence(event.finance.topPrizePence)} / {actual ? formatPence(actual.prizePence ?? 0) : "Pending"}</b></span>
+    <span className="cc-season-baseline__finish">{query.isLoading ? "Checking result…" : actual?.prizeAward?.finishingPosition
+      ? `Finish #${actual.prizeAward.finishingPosition}` : actual ? "Result pending" : "Not played"}</span>
+  </article>;
 }
 
 function CareerErrorMessage({ error, onRetry }: { error: unknown; onRetry: () => void }) {

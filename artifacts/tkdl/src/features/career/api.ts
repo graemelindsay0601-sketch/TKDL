@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetchJson, ApiRequestError } from "@/lib/api-fetch";
 import { publicText } from "./model";
 import type {
-  AdvanceResult, CalendarResponse, CareerSave, CareerSaveList, EventDetail, FinanceSummary, HistoryRow, LedgerEntry, Milestone, QSchoolView,
+  AdvanceResult, CalendarResponse, CareerSave, CareerSaveList, EventDetail, EventFinancePreview, FinanceSummary, HistoryRow, LedgerEntry, Milestone, QSchoolView,
   QualificationResponse, CareerProfile, LiveSession, LiveDart, RankingExplain, RankingHistory, RankingListMeta, RankingTable, SponsorsResponse, SportingSummary, TourCardView,
   SponsorNegotiationChange, SponsorNegotiationInput, SponsorNegotiationResult, SponsorSigningReveal,
 } from "./types";
@@ -167,6 +167,9 @@ export const useHistory = (saveId: string, q: { participant?: string; season?: n
 export type FinanceWeek = { week: number; events: number; spentPence: number; wonPence: number; sponsorPence: number; dartsNetPence: number };
 export const useFinanceWeeks = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "finance", "weeks"),
   queryFn: () => get<{ season: number; currentWeek: number; weeks: FinanceWeek[] }>(`/saves/${saveId}/finance/weeks`), enabled, staleTime: STALE });
+export type SeasonPlanSnapshot = { season: number; savedAt: string; events: { eventId: string; name: string; week: number; finance: EventFinancePreview }[] };
+export const useSeasonPlanSnapshot = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "calendar", "season-plan"),
+  queryFn: () => get<{ snapshot: SeasonPlanSnapshot | null }>(`/saves/${saveId}/calendar/season-plan`), staleTime: STALE });
 export type SavingsGoal = { kind: "EVENT" | "AMOUNT"; label: string; eventId: string | null; event: { week: number; closesWeek: number } | null;
   targetPence: number; availablePence: number; remainingPence: number; progress: number; status: "SAVING" | "READY" | "ENTERED" | "MISSED";
   averageWeeklyPence: number; weeksToGo: number | null; setSeason: number; setWeek: number };
@@ -401,6 +404,8 @@ export const useEnterEvents = (saveId: string) => useSaveMutation(saveId, async 
   }
   return results;
 });
+export const useSaveSeasonPlanSnapshot = (saveId: string) => useSaveMutation(saveId, (input: { season: number; eventIds: string[] }) =>
+  send<{ snapshot: SeasonPlanSnapshot }>("POST", `/saves/${saveId}/calendar/season-plan`, input));
 export const useWithdrawEvent = (saveId: string) => useSaveMutation(saveId, (eventId: string) => careerRequests.withdraw(saveId, eventId));
 export const useAcceptOffer = (saveId: string) => useSaveMutation(saveId, (input: string|{offerId:string;replaceContractIds:string[]}) => typeof input==="string"?careerRequests.acceptOffer(saveId,input):careerRequests.acceptOffer(saveId,input.offerId,input.replaceContractIds));
 export const useDeclineOffer = (saveId: string) => useSaveMutation(saveId, (offerId: string) => careerRequests.declineOffer(saveId, offerId));

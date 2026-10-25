@@ -37,6 +37,12 @@ export function createCareerCalendarRouter(service: CareerCalendarService, isAva
     // view=overview: just the season overview (the Career header on every page), without the week's event list.
     res.json({ ...calendar, events: str(q.view) === "overview" ? [] : calendar.events.map(listEvent) });
   });
+  router.get("/saves/:id/calendar/season-plan", async (req, res) => {
+    res.json(await service.seasonPlanSnapshot(res.locals.careerActor, id(req)));
+  });
+  router.post("/saves/:id/calendar/season-plan", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.seasonPlanSnapshot(res.locals.careerActor, id(req), req.body));
+  });
   router.post("/saves/:id/calendar/advance", authedWriteRateLimit, async (req, res) => {
     res.json(await service.advance(res.locals.careerActor, id(req), req.body));
   });
