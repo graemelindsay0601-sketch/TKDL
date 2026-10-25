@@ -1,7 +1,7 @@
 import { Fragment, useState, type ReactNode } from "react";
 import {ContextHelp} from "../guidance";
 import {Link} from "wouter";
-import {usePresentation} from "../api";
+import {useCalendar, usePresentation} from "../api";
 import {CareerShirt} from "../identity";
 import {npcShirt} from "../../../../../api-server/src/career/content/visual";
 import { BarChart3, ChevronLeft, ChevronRight, HelpCircle, Trophy } from "lucide-react";
@@ -26,7 +26,7 @@ export function RankingsPage({ ctx }: { ctx: ShellContext }) {
   return (
     <div className="career-rankings-shell space-y-3">
       <ContextHelp saveId={ctx.save.id} topic="rankings"/>
-      {meta ? <ListView key={meta.key} saveId={ctx.save.id} meta={meta} picker={<>
+      {meta ? <ListView key={meta.key} saveId={ctx.save.id} meta={meta} season={ctx.save.currentSeason} week={ctx.save.currentWeek} active={!ctx.retired} picker={<>
       <div className="career-ranking-picker">
         <label className="sm:hidden flex flex-col gap-1"><Label>Ranking list</Label>
           <select value={key ?? ""} onChange={e => setListKey(e.target.value)} className="rounded-lg px-3 py-2.5 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
@@ -67,7 +67,7 @@ export function MoversPanel({ saveId }: { saveId: string }) {
   );
 }
 
-function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListMeta; picker?: ReactNode }) {
+function ListView({ saveId, meta, season, week, active, picker }: { saveId: string; meta: RankingListMeta; season: number; week: number; active: boolean; picker?: ReactNode }) {
   const h = meta.human;
   const me = h.standing;
   const [view, setView] = useState<TableQuery["view"]>(me ? "AROUND" : "TOP");
@@ -78,6 +78,13 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
   const leaders = useRankingTable(saveId, meta.key, { view: "TOP", limit: 3 }, !!meta.published);
   const history = useRankingHistory(saveId, meta.key, "HUMAN", 12);
   const explain = useRankingExplain(saveId, meta.key, "HUMAN", showExplain);
+  const currentCalendar = useCalendar(saveId, { scope: "RELEVANT", season, fromWeek: week, toWeek: Math.min(52, week + 20) }, active);
+  const nextSeasonWeeks = Math.max(0, week + 20 - 52);
+  const nextCalendar = useCalendar(saveId, { scope: "RELEVANT", season: season + 1, fromWeek: 1, toWeek: Math.min(20, nextSeasonWeeks) }, active && nextSeasonWeeks > 0);
+  const replacementEvents = [...(currentCalendar.data?.events ?? []), ...(nextCalendar.data?.events ?? [])]
+    .filter(event => event.classification === "RANKING" && event.rankingCategory !== null && meta.categories.includes(event.rankingCategory)
+      && event.status !== "COMPLETED" && event.status !== "CANCELLED")
+    .sort((a, b) => a.season - b.season || a.dates.startWeek - b.dates.startWeek).slice(0, 4);
   const windowLabel = meta.window.kind === "ROLLING" ? `Rolling ${meta.window.weeks} weeks` : "This season only";
 
   return (
@@ -129,17 +136,46 @@ function ListView({ saveId, meta, picker }: { saveId: string; meta: RankingListM
             </div>
           )}
         </CareerSection>
-        <CareerSection title="Why this ranking?" icon={<HelpCircle className="w-3.5 h-3.5" />} accent="#d6b56d"
+        <CareerSection title="Ranking defence" icon={<HelpCircle className="w-3.5 h-3.5" />} accent="#d6b56d"
           action={<button className="career-btn career-btn-ghost career-ranking-explanation" aria-expanded={showExplain} onClick={() => setShowExplain(!showExplain)}>{showExplain ? "Hide" : "Show"}</button>}>
-          {!showExplain ? <p className="px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>Your ranking is the prize money you've won at ranking events ({windowLabel.toLowerCase()}).</p>
-            : explain.isLoading ? <CareerLoading /> : explain.error || !explain.data ? <CareerError error={explain.error} onRetry={() => explain.refetch()} /> : explain.data.counting.length === 0 ? <CareerEmptyState title="No counting results" /> : (
-              <div className="px-4 py-3 space-y-1.5">
-                {explain.data.counting.map(c => (
-                  <div key={c.eventId} className="flex items-center gap-2 text-sm"><span className="flex-1 truncate" style={{ color: "#fff" }}>{c.eventName}</span>
-                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>S{c.season} W{c.week}</span>
-                    <span className="w-20 text-right tabular-nums" style={{ ...OSWALD, color: "#4ade80" }}>{formatPence(c.amountPence)}</span></div>))}
-                <div className="flex justify-between pt-1.5 border-t text-sm" style={{ borderColor: "rgba(255,255,255,0.08)" }}><Label>Total</Label><span className="tabular-nums font-black" style={{ ...OSWALD, color: "#fff" }}>{formatPence(explain.data.contributionTotalPence)}</span></div>
-                {explain.data.expired.length > 0 && <div className="text-xs" style={{ color: "rgba(255,255,255,0.62)" }}>{explain.data.expired.length} older result{explain.data.expired.length > 1 ? "s" : ""} no longer count.</div>}
+          {!showExplain ? <p className="px-4 py-3 text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>See which results are due to leave this {windowLabel.toLowerCase()} and how that could affect your position.</p>
+            : explain.isLoading ? <CareerLoading /> : explain.error || !explain.data ? <CareerError error={explain.error} onRetry={() => explain.refetch()} /> : (
+              <div className="px-4 py-3 space-y-3">
+                <p className="text-xs text-white/60">Forecast at each ranking publication, assuming no further results or player-status changes before then. Only played results count.</p>
+                {explain.data.expiring.length ? <div className="space-y-2">
+                  {explain.data.expiring.map(expiry => (
+                    <div key={expiry.publicationIndex} className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <strong className="text-sm text-white">Season {expiry.season}, week {expiry.week}</strong>
+                        <span className="font-bold text-amber-200">{formatPence(expiry.amountPence)} expires</span>
+                      </div>
+                      <ul className="space-y-1 text-xs text-white/65">
+                        {expiry.contributions.map(contribution => <li key={contribution.eventId} className="flex justify-between gap-2"><span className="truncate">{contribution.eventName}</span><span>{formatPence(contribution.amountPence)}</span></li>)}
+                      </ul>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="text-white/75">Forecast: {expiry.position ? `#${expiry.position}` : "unranked"} · {formatPence(expiry.valuePence)}</span>
+                        {expiry.cutLines.map(cut => <span key={cut.cutPosition} className={cut.inside ? "text-emerald-300" : "text-rose-300"}>Top {cut.cutPosition}: {cut.inside ? "inside" : "outside"}</span>)}
+                      </div>
+                    </div>
+                  ))}
+                </div> : <p className="text-sm text-white/65">No current ranking results are due to expire.</p>}
+                <div className="border-t border-white/10 pt-3">
+                  <Label>Upcoming events that count for this list</Label>
+                  {currentCalendar.isLoading || nextCalendar.isLoading ? <p className="mt-2 text-xs text-white/55">Checking the calendar…</p>
+                    : replacementEvents.length ? <ul className="mt-2 space-y-1">{replacementEvents.map(event => <li key={event.id}>
+                      <Link className="flex justify-between gap-2 text-sm text-white/80 hover:text-white" href={`/career/${saveId}/events/${event.id}`}>
+                        <span className="truncate">{event.name}</span><span className="shrink-0 text-xs text-white/50">S{event.season} W{event.dates.startWeek}</span>
+                      </Link></li>)}</ul>
+                    : <p className="mt-2 text-xs text-white/55">No matching ranking events are scheduled in the next 20 weeks.</p>}
+                </div>
+                {explain.data.counting.length > 0 && <details className="border-t border-white/10 pt-2">
+                  <summary className="cursor-pointer text-xs text-white/65">Show all {explain.data.counting.length} results currently counting</summary>
+                  <div className="mt-2 space-y-1">
+                    {explain.data.counting.map(c => <div key={c.eventId} className="flex items-center gap-2 text-xs"><span className="flex-1 truncate text-white/75">{c.eventName}</span>
+                      <span className="text-white/45">S{c.season} W{c.week}</span><span className="w-20 text-right tabular-nums text-emerald-300">{formatPence(c.amountPence)}</span></div>)}
+                    <div className="flex justify-between border-t border-white/10 pt-1.5 text-sm"><Label>Total</Label><span className="font-black tabular-nums text-white">{formatPence(explain.data.contributionTotalPence)}</span></div>
+                  </div>
+                </details>}
               </div>
             )}
         </CareerSection>

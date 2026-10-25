@@ -251,6 +251,12 @@ test("9. human and NPCs use identical ranking rules (A4 award vs prize table, sa
   assert.deepEqual(lists.map(l => l.list_key).sort(), ["pro-circuit", "pro-world"]);
   const explain = await career.rankingExplain(human, A, "pro-world", HUMAN);
   assert.equal(explain.explained, true); assert.equal(explain.valuePence, explain.contributionTotalPence);
+  assert.ok(explain.expiring.length > 0, "counting results should expose their upcoming expiry");
+  const expiry = explain.expiring[0];
+  assert.ok(expiry.publicationIndex > explain.publicationIndex);
+  assert.equal(expiry.amountPence, expiry.contributions.reduce((sum, contribution) => sum + contribution.amountPence, 0));
+  assert.ok(expiry.position === null || expiry.position > 0);
+  assert.ok(expiry.cutLines.every(cut => cut.cutPosition > 0));
 });
 
 test("10. Specials, exhibitions and qualifiers never create ranking money", async () => {

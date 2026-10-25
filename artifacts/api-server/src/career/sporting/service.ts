@@ -11,8 +11,9 @@ import { evaluateRule } from "../calendar/eligibility.ts";
 import { catalogueFor } from "../calendar/catalogue.ts";
 import { createCareerFinanceService } from "../finance/service.ts";
 import type { SponsorFactsProvider } from "../finance/engine.ts";
-import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, rankingRulesVersionFor, tourCardRulesVersionFor, timeIndex } from "./config.ts";
+import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, rankingListsFor, rankingList, rankingRulesVersionFor, tourCardRulesVersionFor, timeIndex, seasonOfIndex, weekOfIndex } from "./config.ts";
 import { createSportingHooks, createSportingFactsProvider, bindSporting, ensureSporting, UNBOUND_STATUS, UNBOUND_SEEDING } from "./engine.ts";
+import { standingsAt } from "./rankings.ts";
 import { orderOfMerit, finalStageDays, PATHWAYS } from "./qschool.ts";
 import { decideOffer } from "./offers.ts";
 import { pathwaysView } from "./pathways.ts";
@@ -260,13 +261,36 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const rows = (await tx.execute(sql`SELECT c.*, i.name, i.definition_key, i.circuit FROM career_ranking_contributions c JOIN career_event_instances i ON i.career_save_id = c.career_save_id AND i.id = c.event_id
           WHERE c.career_save_id = ${root.id} AND c.list_key = ${list.key} AND c.participant_key = ${participant} ORDER BY c.completion_index DESC, c.event_id`)).rows;
         const present = (c: Record<string, unknown>) => ({ eventId: c.event_id, eventName: c.name, definitionKey: c.definition_key, circuit: c.circuit, season: c.season, week: c.week,
-          finishingPosition: c.finishing_position, amountPence: Number(c.amount_pence), source: c.source, completionIndex: c.completion_index, expiresIndex: c.expires_index, rulesVersion: c.ranking_rules_version });
+          finishingPosition: c.finishing_position, amountPence: Number(c.amount_pence), source: c.source, completionIndex: Number(c.completion_index), expiresIndex: Number(c.expires_index), rulesVersion: c.ranking_rules_version });
         const counting = rows.filter(c => Number(c.completion_index) <= P && Number(c.expires_index) > P);
         const standing = snap ? (await tx.execute(sql`SELECT value_pence, position FROM career_ranking_snapshot_rows WHERE career_save_id = ${root.id} AND snapshot_id = ${snap.id} AND participant_key = ${participant}`)).rows[0] : undefined;
         const total = counting.reduce((t, c) => t + Number(c.amount_pence), 0);
+        const byExpiry = new Map<number, Record<string, unknown>[]>();
+        for (const contribution of counting) {
+          const index = Number(contribution.expires_index);
+          const group = byExpiry.get(index) ?? [];
+          group.push(contribution);
+          byExpiry.set(index, group);
+        }
+        const expiring = [];
+        for (const [index, contributions] of [...byExpiry.entries()].sort(([a], [b]) => a - b).slice(0, 8)) {
+          const forecast = await standingsAt(tx, root, rulesVersion(root), list.key, index);
+          const position = forecast.findIndex(row => row.participant_key === participant);
+          const mine = position >= 0 ? forecast[position] : null;
+          expiring.push({
+            publicationIndex: index, season: seasonOfIndex(index), week: weekOfIndex(index),
+            amountPence: contributions.reduce((sum, contribution) => sum + Number(contribution.amount_pence), 0),
+            contributions: contributions.map(present),
+            position: mine ? position + 1 : null, valuePence: mine?.value ?? 0,
+            cutLines: list.cutLines.map(cutPosition => ({
+              cutPosition, valueAtCutPence: forecast[cutPosition - 1]?.value ?? null,
+              inside: !!mine && position + 1 <= cutPosition,
+            })),
+          });
+        }
         return { list: list.key, window: list.window, participantKey: participant, publicationIndex: P, position: standing ? Number(standing.position) : null,
           valuePence: standing ? Number(standing.value_pence) : 0, contributionTotalPence: total, explained: !standing || Number(standing.value_pence) === total,
-          counting: counting.map(present), expired: rows.filter(c => Number(c.expires_index) <= P).slice(0, 50).map(present), pending: rows.filter(c => Number(c.completion_index) > P).map(present) };
+          counting: counting.map(present), expired: rows.filter(c => Number(c.expires_index) <= P).slice(0, 50).map(present), pending: rows.filter(c => Number(c.completion_index) > P).map(present), expiring };
       });
     },
 

@@ -277,9 +277,11 @@ export type RankingTable = { list: string; name: string; view?: string; publishe
   cutLines?: Record<string, number | null>; participant: { key: string; position: number | null } | null; rows: RankingRow[] };
 export type RankingHistory = { list: string; participantKey: string; careerHigh: { position: number; publicationIndex: number } | null;
   seasonHighs: { season: number; best: number; worst: number; snapshots: number }[]; snapshots: (RankingRow & { season: number; week: number; sequence: number })[] };
-export type RankingContribution = { eventId: string; eventName: string; definitionKey: string; circuit: string; season: number; week: number; finishingPosition: number; amountPence: number; source: string };
+export type RankingContribution = { eventId: string; eventName: string; definitionKey: string; circuit: string; season: number; week: number; finishingPosition: number; amountPence: number; source: string; completionIndex: number; expiresIndex: number };
+export type RankingExpiryProjection = { publicationIndex: number; season: number; week: number; amountPence: number; contributions: RankingContribution[]; position: number | null; valuePence: number;
+  cutLines: { cutPosition: number; valueAtCutPence: number | null; inside: boolean }[] };
 export type RankingExplain = { list: string; window: { kind: string; weeks?: number }; position: number | null; valuePence: number; contributionTotalPence: number; explained: boolean;
-  counting: RankingContribution[]; expired: RankingContribution[]; pending: RankingContribution[] };
+  counting: RankingContribution[]; expired: RankingContribution[]; pending: RankingContribution[]; expiring: RankingExpiryProjection[] };
 export type OomEntry = { participantKey: string; position: number; points: number; bestDayFinish: number; scoringDays: number; name: string | null; dayWinner: boolean };
 export type QSchoolPathwayView = {
   pathway: "UK_IRELAND" | "EUROPE";
