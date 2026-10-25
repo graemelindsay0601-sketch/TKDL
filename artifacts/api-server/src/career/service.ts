@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { CAREER_DEFAULTS, CAREER_FEATURE, CAREER_SLOTS, CAREER_VERSIONS } from "./config.ts";
 import type { CareerDifficulty } from "./config.ts";
 import type { CareerDatabase, CareerExecutor } from "./database.ts";
-import { careerIdSchema, createCareerSchema } from "./validation.ts";
+import { careerIdSchema, createCareerSchema, updateCareerDifficultySchema } from "./validation.ts";
 import type { CreateCareerInput } from "./validation.ts";
 import { careerStartDateFor, validateDateOfBirth } from "./identity/age.ts";
 import { LOCALITIES } from "./calendar/geography.ts";
@@ -146,6 +146,23 @@ export function createCareerService(database: CareerDatabase,options:{onRetired?
 
     async read(playerId: number, id: string) {
       return present(await ownedSave(database, playerId, id));
+    },
+
+    async updateDifficulty(playerId: number, id: string, body: unknown) {
+      const { difficulty } = updateCareerDifficultySchema.parse(body);
+      return database.transaction(async tx => {
+        const row = await ownedSave(tx, playerId, id, true);
+        requireActive(row);
+        const result = await tx.execute(sql`
+          UPDATE career_saves
+          SET difficulty = ${difficulty},
+              settings_snapshot = jsonb_set(COALESCE(settings_snapshot, '{}'::jsonb), '{difficulty}', to_jsonb(${difficulty}::text), true),
+              updated_at = NOW()
+          WHERE id = ${id} AND player_id = ${playerId}
+          RETURNING *
+        `);
+        return present(result.rows[0] as CareerRow);
+      });
     },
 
     async create(playerId: number, body: unknown) {

@@ -715,6 +715,26 @@ test("Career Home presents verified progression, eligibility and personal focus"
   assert.ok(html.includes(`/career/${SAVE_ID}/calendar`));
   assert.ok(html.includes(`/career/${SAVE_ID}/rankings`));
 });
+test("qualification objective links to the actual event rather than sending every route to Q-School",()=>{
+  assert.equal(M.qualificationEventHref(SAVE_ID,"world-championship-qualifier"),`/career/${SAVE_ID}/events/world-championship-qualifier`);
+  assert.equal(M.qualificationEventHref(SAVE_ID,null),`/career/${SAVE_ID}/q-school`);
+});
+test("Career home surfaces factual tour movement and a direct rankings link",()=>{
+  const movers={available:true,since:{season:1,week:1},at:{season:2,week:1},
+    risers:[{key:"npc-a",name:"Rising Player",age:22,nationality:"ENG",human:false,from:40,to:18,change:22}],
+    fallers:[],newTop32:[{key:"npc-a",name:"Rising Player",age:22,nationality:"ENG",human:false,from:40,to:18}],
+    retirements:[{key:"npc-b",name:"Retired Player",age:41,nationality:"SCO",human:false,season:2,bestRanking:7}]};
+  const html=render(h(M.TourPulse,{saveId:SAVE_ID}),[[key("ranking-movers"),movers]]);
+  for(const fact of ["Tour movement","Rising Player","#40 → #18 (+22)","Retired Player","career-best #7"])assert.ok(text(html).includes(fact),fact);
+  assert.match(html,new RegExp(`/career/${SAVE_ID}/rankings`));
+});
+test("Career opposition settings explain future-only impact and lock retired saves",()=>{
+  const active=render(h(M.DifficultySettings,{saveId:SAVE_ID,difficulty:"STANDARD",retired:false}),[]);
+  assert.match(active,/Opposition difficulty/);assert.match(active,/future matches only/);
+  assert.match(active,/value="STANDARD" selected/);assert.doesNotMatch(active,/disabled=""/);
+  const retired=render(h(M.DifficultySettings,{saveId:SAVE_ID,difficulty:"STANDARD",retired:true}),[]);
+  assert.match(retired,/Retired Careers are read-only/);assert.match(retired,/disabled=""/);
+});
 test("A8.3 All Events map deep link exposes the inaccessible Palace and authoritative cost split",()=>{
   const seed:[unknown[],unknown][]=[[key("world-map"),a83MapFixture()],
     // The inspector reads the sporting routes for the event it shows.

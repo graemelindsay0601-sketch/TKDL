@@ -4,7 +4,7 @@ import { ArrowUpRight, Award, CalendarDays, CircleDollarSign, Flag, History, Med
 import {
   useCalendar, useSporting, useFinance, useHistory, useActiveTournament, usePresentation, usePathways, useStreaming, useHomeClub,
   useCareerProfile, useCareerLife, useCareerLegacySummary, useEnterEvent, useQualification, useMilestones,
-  useCareerGoals, useGuidance, useEditGuidance, errorMessage,
+  useCareerGoals, useGuidance, useEditGuidance, errorMessage, useRankingMovers,
 } from "../api";
 import {
   CareerSection, CareerEventCard, CareerEmptyState, CareerError, CareerLoading, EventPlateTile, Label, OSWALD, StatusBadge,
@@ -88,6 +88,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
       {!retired && <PathwayTracker saveId={id} events={events} week={save.currentWeek}
         calendarLoading={calendar.isLoading} calendarError={calendar.error} retryCalendar={() => void calendar.refetch()} />}
+      {!retired && <TourPulse saveId={id} />}
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
         <SeasonOneGuidance saveId={id} />
         <details className="career-note" open>
@@ -346,6 +347,10 @@ export const retentionStatus = (card: { retention: { maxPosition: number } }, po
     : position < card.retention.maxPosition ? `You are ${ordinal(position)} — inside the cut with ${card.retention.maxPosition - position} place${card.retention.maxPosition - position === 1 ? "" : "s"} to spare.`
     : `You are ${ordinal(position)} — ${position - card.retention.maxPosition} place${position - card.retention.maxPosition === 1 ? "" : "s"} outside the cut.`;
 
+export function qualificationEventHref(saveId: string, eventId: string | null) {
+  return eventId ? `/career/${saveId}/events/${encodeURIComponent(eventId)}` : `/career/${saveId}/q-school`;
+}
+
 function RouteObjective({ loading, error, retry, events, hasCard, card, worldPosition = null, saveId }: {
   loading: boolean; error: unknown; retry: () => void; events: QualificationEvent[]; hasCard: boolean;
   card: { reviewSeason: number; retention: { maxPosition: number }; inFinalSeason?: boolean } | null; worldPosition?: number | null; saveId: string;
@@ -368,8 +373,28 @@ function RouteObjective({ loading, error, retry, events, hasCard, card, worldPos
       {objective ? <><p>Authoritative routes reported for this event:</p><ul className="home-route-list">{lines.map((line, i) => <li key={`${i}-${line.text}`} data-met={line.met}><span aria-hidden />{line.text}</li>)}</ul></>
         : <p>Earn a Tour Card through Q-School or a Challenger ranking. Turning professional remains optional.</p>}
     </div>
-    <Link href={`/career/${saveId}/q-school`} className="home-objective-link">{objective ? "View routes" : pathwayLabel("UK_IRELAND")} <ArrowUpRight aria-hidden /></Link>
+    <Link href={qualificationEventHref(saveId, objective?.eventId ?? null)} className="home-objective-link">{objective ? "View event routes" : pathwayLabel("UK_IRELAND")} <ArrowUpRight aria-hidden /></Link>
   </div>;
+}
+
+/** A short, factual view of how the simulated tour has moved since the previous season. */
+export function TourPulse({saveId}:{saveId:string}) {
+  const q=useRankingMovers(saveId),d=q.data;
+  if(q.isLoading||q.error||!d?.available)return null;
+  const leader=d.risers[0],breakthrough=d.newTop32[0],retirement=d.retirements[0];
+  return <section className="pathway-tracker panel" aria-labelledby="tour-pulse-title">
+    <header className="pathway-tracker__head"><div><span className="home-section-kicker">THE WORLD AROUND YOU</span><h2 id="tour-pulse-title">Tour movement</h2></div>
+      <Link href={`/career/${saveId}/rankings`} className="home-text-link">Full ranking movement <ArrowUpRight aria-hidden /></Link></header>
+    <p className="pathway-tracker__note">Published World Ranking changes from season {d.since.season}, week {d.since.week} to season {d.at.season}, week {d.at.week}.</p>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <article className="pathway-tracker__route"><span className="pathway-tracker__eyebrow">BIGGEST CLIMBER</span>
+        <h3>{leader?.name??"No major climber reported"}</h3><p>{leader?`${leader.from===null?"Unranked":`#${leader.from}`} → #${leader.to} (+${leader.change})`:"No player rose into the top 64 in this period."}</p></article>
+      <article className="pathway-tracker__route"><span className="pathway-tracker__eyebrow">NEW TOP-32 PLAYER</span>
+        <h3>{breakthrough?.name??"No new entry"}</h3><p>{breakthrough?`${breakthrough.from===null?"Unranked":`#${breakthrough.from}`} → #${breakthrough.to}`:"No new player entered the top 32 in this period."}</p></article>
+      <article className="pathway-tracker__route"><span className="pathway-tracker__eyebrow">RECENT RETIREMENT</span>
+        <h3>{retirement?.name??"No recent retirement"}</h3><p>{retirement?`Retired in season ${retirement.season} · career-best #${retirement.bestRanking}`:"No ranked player retired in this period."}</p></article>
+    </div>
+  </section>;
 }
 
 function OpportunityRow({ event, saveId, onEnter, entering }: { event: CareerEvent; saveId: string; onEnter: (eventId: string) => void; entering: boolean }) {

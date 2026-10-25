@@ -37,6 +37,8 @@ export const useTournamentAction = (saveId:string,eventId:string) => useSaveMuta
 export type HumanForm = import("../../../../api-server/src/career/form/human").HumanForm;
 /** Your form and confidence (live darts, recent results, the week's practice). */
 export const useHumanForm = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "form"), queryFn: () => get<HumanForm>(`/saves/${saveId}/form`), enabled, staleTime: STALE });
+export const useUpdateCareerDifficulty = (saveId: string) => useSaveMutation(saveId, (difficulty: "ACCESSIBLE" | "STANDARD" | "CHALLENGING") =>
+  send<CareerSave>("PUT", `/saves/${saveId}/difficulty`, { difficulty }));
 export type QuickSimResult = { matchId: string; winnerKey: string; eventCompleted: number; nextHumanMatchIds: string[];
   quickSim: { won: boolean; legs: [number, number]; sets: [number, number] | null; yourAverage: number; opponentAverage: number; opponent: string; maximums: number; highestCheckout: number; form: HumanForm } };
 /** Play your waiting match by simulation at your level (recorded as a quick-sim, never as live darts). */

@@ -12,6 +12,10 @@ export const createCareerSchema = z.object({
   careerPathway: z.object({ focus: z.enum(["OPEN","DARTCAST"]), weeklyFrequency: z.number().int().min(0).max(3) }).optional(),
 }).strict();
 
+export const updateCareerDifficultySchema = z.object({
+  difficulty: z.enum(CAREER_DIFFICULTIES),
+}).strict();
+
 export const careerIdSchema = z.string().uuid();
 export const emptyCareerBodySchema = z.object({}).strict();
 export type CreateCareerInput = z.infer<typeof createCareerSchema>;

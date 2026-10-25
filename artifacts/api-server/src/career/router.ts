@@ -32,6 +32,9 @@ export function createCareerRouter(service: CareerService) {
   router.get("/saves/:id", async (req, res) => {
     res.json(await service.read(res.locals.careerPlayerId, String(req.params.id)));
   });
+  router.put("/saves/:id/difficulty", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.updateDifficulty(res.locals.careerPlayerId, String(req.params.id), req.body));
+  });
   router.post("/saves/:id/restart", authedWriteRateLimit, async (req, res) => {
     emptyCareerBodySchema.parse(req.body ?? {});
     res.json(await service.restart(res.locals.careerPlayerId, String(req.params.id)));
