@@ -10,6 +10,13 @@ import { npcFacts } from "./providers.ts";
  */
 /** Darts nations: the United Kingdom competes as England, Scotland, Wales and Northern Ireland, as in the real World Cup. */
 const SCOTLAND = new Set(["ayrshire", "highlands", "glasgow-clyde", "central-scotland", "edinburgh-lothians", "borders", "north-east-scotland", "tayside"]);
+/** The 40 teams used by the PDC World Cup of Darts format, including the Latin America qualifier. */
+export const WORLD_CUP_NATION_CODES = [
+  "AUS", "AUT", "BHR", "BEL", "CAN", "CHN", "CRO", "CZE", "DNK", "ENG", "FIN", "FRA", "DEU", "GIB",
+  "HKG", "HUN", "ISL", "IND", "ITA", "JPN", "LVA", "LTU", "NLD", "NZL", "NIR", "PHL", "POL", "PRT",
+  "IRL", "SCO", "SGP", "ZAF", "ESP", "SWE", "CHE", "THA", "UKR", "USA", "WAL", "LAT",
+] as const;
+const WORLD_CUP_NATION_SET = new Set<string>(WORLD_CUP_NATION_CODES);
 export function dartsNation(country: string, locality: string | null): string {
   if (country !== "GBR") return country;
   return locality && SCOTLAND.has(locality) ? "SCO" : locality === "south-wales" ? "WAL" : locality === "northern-ireland" ? "NIR" : "ENG";
@@ -36,7 +43,10 @@ export type PairCandidate = { key: string; npcId: string | null; country: string
  */
 export function nationTeams(candidates: readonly PairCandidate[], maxTeams: number): { teams: PairRow[]; players: PairCandidate[] } {
   const byNation = new Map<string, PairCandidate[]>();
-  for (const c of candidates) byNation.set(c.country, [...(byNation.get(c.country) ?? []), c]);
+  for (const c of candidates) {
+    if (!WORLD_CUP_NATION_SET.has(c.country)) continue;
+    byNation.set(c.country, [...(byNation.get(c.country) ?? []), c]);
+  }
   const nations = [...byNation.entries()].map(([nation, list]) => [nation, [...list].sort((a, b) => a.rank - b.rank || (a.key < b.key ? -1 : 1)).slice(0, 2)] as const)
     .filter(([, pair]) => pair.length === 2)
     .sort((a, b) => (a[1][0].rank + a[1][1].rank) - (b[1][0].rank + b[1][1].rank) || a[1][0].rank - b[1][0].rank || (a[0] < b[0] ? -1 : 1))

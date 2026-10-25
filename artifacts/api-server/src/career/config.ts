@@ -6,7 +6,7 @@ export const CAREER_VERSIONS = Object.freeze({
   worldGenerationVersion: 1,
   /** New saves use the current catalogue; existing roots migrate forward without rewriting played history. */
   eventDatabaseVersion: CURRENT_EVENT_DATABASE_VERSION,
-  playerDatabaseVersion: 7,
+  playerDatabaseVersion: 8,
 });
 
 export const CAREER_SLOTS = [1, 2, 3] as const;

@@ -130,7 +130,21 @@ export function createCareerWorldService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId);
         const existing = (await tx.execute(sql`SELECT * FROM career_world_state WHERE career_save_id = ${saveId}`)).rows[0];
-        if (existing) { await worldState(tx, root); return { initialized: true, created: false }; }
+        if (existing) {
+          await worldState(tx, root);
+          const playerDb = Number((root as Root & { player_database_version?: number }).player_database_version ?? 1);
+          if (playerDb < 8) {
+            const players = await loadNpcs(tx, saveId);
+            const additions = worldExpansion(root.world_seed, root.world_generation_version, root.current_season, players, `national-squads-v8-s${root.current_season}`);
+            if (additions.length) {
+              await persistNpcs(tx, saveId, additions);
+              await persistInitialNpcSponsorRelationships(tx, { saveId, seed: root.world_seed, generationVersion: root.world_generation_version,
+                npcIds: additions.map(player => player.id) });
+            }
+            await tx.execute(sql`UPDATE career_saves SET player_database_version = 8, updated_at = NOW() WHERE id = ${saveId}`);
+          }
+          return { initialized: true, created: false };
+        }
         // A1 saves start in season 1. Refuse to fabricate historical populations.
         if (root.current_season !== 1) throw new CareerError(409, "Uninitialized advanced save requires migration");
         const players = generateInitialWorld(root.world_seed, root.world_generation_version);
