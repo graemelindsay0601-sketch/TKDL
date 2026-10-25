@@ -16,10 +16,11 @@ import type { ShellContext } from "../shell";
 import type { CareerEvent, PresentationTier } from "../types";
 import "../career-calendar-premium.css";
 import { CareerStageBackdrop, PLATES, atmosphereFromCalendarEvent, resolveAtmosphere, spectacleFor } from "../atmosphere";
+import { SeasonPlannerView } from "../season-planner-view";
 
 const HERO_STAGE = resolveAtmosphere({ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" });
 
-type View = "MY_SCHEDULE" | "UPCOMING" | "SEASON";
+type View = "MY_SCHEDULE" | "UPCOMING" | "SEASON" | "PLAN";
 const CIRCUITS = ["GRASSROOTS", "COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "CHALLENGER", "VAULT", "Q_SCHOOL", "PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES", "INVITATIONAL", "MAJOR", "WORLD_CHAMPIONSHIP", "SOFT_TIP", "SPECIAL"];
 const PAGE_SIZE = 30;
 
@@ -270,13 +271,16 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const [season, setSeason] = useState(save.currentSeason);
   const [focusWeek, setFocusWeek] = useState(save.currentWeek);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [planEventIds, setPlanEventIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const isCurrentSeason = season === save.currentSeason;
   const fromWeek = isCurrentSeason ? Math.max(1, focusWeek - 2) : 1;
   const toWeek = Math.min(52, (isCurrentSeason ? focusWeek : 1) + 8);
-  const query: CalendarQuery = view === "UPCOMING"
-    ? { scope: "WORLD", season, fromWeek, toWeek, circuit: circuit || undefined }
-    : { scope: "WORLD", season, circuit: circuit || undefined };
+  const query: CalendarQuery = view === "PLAN"
+    ? { scope: "WORLD", season, fromWeek: isCurrentSeason ? save.currentWeek : 1, toWeek: Math.min(52, (isCurrentSeason ? save.currentWeek : 1) + 7) }
+    : view === "UPCOMING"
+      ? { scope: "WORLD", season, fromWeek, toWeek, circuit: circuit || undefined }
+      : { scope: "WORLD", season, circuit: circuit || undefined };
   const calendar = useCalendar(save.id, query);
   const enter = useEnterEvent(save.id);
   const pending = useMemo(() => new Set(calendar.data?.overview.pendingHumanMatches.map(item => item.eventId) ?? []), [calendar.data]);
@@ -349,10 +353,11 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
       <section className="cc-controls" aria-label="Calendar controls">
         <div className="cc-control-main">
           <div className="cc-view-heading"><span className="cc-control-icon"><CalendarDays size={16} /></span><span><strong>Tour planner</strong><small>How do you want to see the season?</small></span></div>
-          <Segmented label="Calendar view" value={view} onChange={next => { setView(next); setPage(0); setSelectedId(null); }} wrap options={[
+          <Segmented label="Calendar view" value={view} onChange={next => { setView(next); setPage(0); setSelectedId(null); if (next === "PLAN") setSeason(save.currentSeason); }} wrap options={[
             { value: "UPCOMING", label: "Timeline" },
             { value: "SEASON", label: "Season" },
             { value: "MY_SCHEDULE", label: "My Entries" },
+            { value: "PLAN", label: "Season Plan" },
           ]} />
           <label className="cc-season-select"><span>SEASON</span>
             <select value={season} onChange={event => { setSeason(Number(event.target.value)); setPage(0); setSelectedId(null); }}>
@@ -360,7 +365,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
             </select>
           </label>
         </div>
-        <div className="cc-filters">
+        {view !== "PLAN" && <div className="cc-filters">
           <div className="cc-filter-title"><span>REFINE THE TOUR</span><button type="button" onClick={resetFilters}>Reset filters</button></div>
           <div className="cc-filter-grid">
             <Select label="Circuit" value={circuit} onChange={value => { setCircuit(value); setPage(0); }} options={[["", "All circuits"], ...CIRCUITS.map(value => [value, circuitLabel(value)] as [string, string])]} />
@@ -368,7 +373,7 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
             <Select label="Entry status" value={status} onChange={value => { setStatus(value); setPage(0); }} options={CALENDAR_STATUS_FILTERS.map(filter => [filter.key, filter.label])} />
             <Select label="Host country" value={hostCountry} onChange={value => { setHostCountry(value); setPage(0); }} options={[["", "All countries"], ...hostCountries.map(code => [code, `${code} · ${countryInfo(code)?.name ?? code}`] as [string, string])]} />
           </div>
-        </div>
+        </div>}
         {message && <p role="status" className="cc-action-message">{message}</p>}
       </section>
 
@@ -402,7 +407,16 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
         </article>)}</div>
       </section>}
 
-      <div className="cc-content-grid">
+      {view === "PLAN" ? <SeasonPlannerView
+        save={save}
+        events={calendar.data?.events ?? []}
+        retired={retired}
+        loading={calendar.isLoading}
+        error={calendar.error}
+        onRetry={() => calendar.refetch()}
+        selectedIds={planEventIds}
+        onSelectedIdsChange={setPlanEventIds}
+      /> : <div className="cc-content-grid">
         <section className="cc-agenda" aria-label="Event schedule">
           {(status === "OPEN" || nearby) && view !== "MY_SCHEDULE" && <p className="cc-showing-open">Showing {nearby ? "events near home and the big national events" : "events"}{status === "OPEN" ? " you can enter now" : ""}. <button type="button" className="cc-link-button" onClick={() => { setStatus("ALL"); setNearby(false); setPage(0); }}>Show all events</button></p>}
           <div className="cc-agenda-header">
@@ -448,8 +462,8 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
 
         {shownEvent ? <SelectedEvent event={shownEvent} saveId={save.id} awaitingMatch={pending.has(shownEvent.id)} retired={retired} currentSeason={isCurrentSeason} entering={enter.isPending} onEnter={onEnter} />
           : <aside className="cc-detail cc-detail--empty" aria-label="Selected event details"><CalendarDays size={24} /><strong>Select an event</strong><span>Choose an event in your season schedule to see its venue, entry status and cost outlook.</span></aside>}
-      </div>
-      {groupBy === "PHASE" && <div className="cc-pagination">
+      </div>}
+      {view !== "PLAN" && groupBy === "PHASE" && <div className="cc-pagination">
         <button type="button" className="cc-button cc-button--quiet" disabled={page === 0} onClick={() => setPage(value => Math.max(0, value - 1))}>Previous events</button>
         <span>Page {page + 1} · {events.length} events</span>
         <button type="button" className="cc-button cc-button--quiet" disabled={(page + 1) * PAGE_SIZE >= events.length} onClick={() => setPage(value => value + 1)}>Next events</button>
