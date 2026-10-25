@@ -12,6 +12,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerWorldService } from "../../career/world/service.ts";
 import { loadNpcs } from "../../career/world/repository.ts";
 import { generateInitialWorld } from "../../career/world/generation.ts";
+import { worldExpansion } from "../../career/world/expansion.ts";
 import { removeTournamentMatchCopies } from "../../career/world/compact.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
 import { targetPopulation } from "../../career/world/config.ts";
@@ -60,15 +61,20 @@ async function requestFor(saveId: string, matchKey = "a3-match-identity") {
 }
 const rejectsStatus = async (promise: Promise<unknown>, status: number) => assert.rejects(promise, error => (error as { status?: number }).status === status);
 
-test("existing A1 saves initialize exactly once without rewriting seed or version; concurrent retry is safe", async () => {
+test("legacy saves receive the deterministic national-squad expansion once, including concurrent initialization", async () => {
   const save = await createV1(1, { slot: 1 });
   const rootBefore = (await db.execute(sql`SELECT * FROM career_saves WHERE id=${save.id}`)).rows[0];
   const results = await Promise.all([worlds.initialize(actor, save.id), worlds.initialize(actor, save.id)]);
   assert.equal(results.filter(result => result.created).length, 1);
   const players = await loadNpcs(db, save.id);
-  assert.equal(players.length, targetPopulation());
-  assert.deepEqual([...players].sort((a, b) => a.id.localeCompare(b.id)), generateInitialWorld(String(rootBefore.world_seed), Number(rootBefore.world_generation_version)).sort((a, b) => a.id.localeCompare(b.id)));
-  assert.deepEqual((await db.execute(sql`SELECT * FROM career_saves WHERE id=${save.id}`)).rows[0], rootBefore);
+  const initial = generateInitialWorld(String(rootBefore.world_seed), Number(rootBefore.world_generation_version));
+  const expected = [...initial, ...worldExpansion(String(rootBefore.world_seed), Number(rootBefore.world_generation_version), 1, initial, "national-squads-v8-s1")];
+  assert.equal(players.length, expected.length);
+  assert.deepEqual([...players].sort((a, b) => a.id.localeCompare(b.id)), expected.sort((a, b) => a.id.localeCompare(b.id)));
+  const rootAfter = (await db.execute(sql`SELECT * FROM career_saves WHERE id=${save.id}`)).rows[0];
+  assert.equal(rootAfter.world_seed, rootBefore.world_seed);
+  assert.equal(rootAfter.world_generation_version, rootBefore.world_generation_version);
+  assert.equal(rootAfter.player_database_version, 8);
   const before = await snapshot(save.id);
   await worlds.initialize(actor, save.id);
   assert.deepEqual(await snapshot(save.id), before);
@@ -85,6 +91,20 @@ test("failed initialization rolls back all 220 NPCs and can be retried", async (
   } finally { await pg.exec("DROP TRIGGER fail_world_init ON career_world_state; DROP FUNCTION fail_world_init()"); }
   await worlds.initialize(actor, save.id);
   assert.equal((await loadNpcs(db, save.id)).length, 220);
+});
+
+test("player database v8 adds persistent international squads to an existing world once", async () => {
+  const save = await initialized(2);
+  await db.execute(sql`UPDATE career_saves SET player_database_version=7 WHERE id=${save.id}`);
+  const before = (await loadNpcs(db, save.id)).length;
+  const first = await worlds.initialize(actor, save.id);
+  const afterFirst = await loadNpcs(db, save.id);
+  assert.equal(first.created, false);
+  assert.ok(afterFirst.length > before, "the existing world receives the newly supported countries");
+  assert.ok(afterFirst.some(player => player.nationality === "BHR" && player.worldKey.startsWith("intl:BHR:")));
+  assert.equal(Number((await db.execute(sql`SELECT player_database_version FROM career_saves WHERE id=${save.id}`)).rows[0].player_database_version), 8);
+  await worlds.initialize(actor, save.id);
+  assert.equal((await loadNpcs(db, save.id)).length, afterFirst.length, "retry does not duplicate world squads");
 });
 
 test("public identity projection omits abilities, potential, development and seeds", async () => {

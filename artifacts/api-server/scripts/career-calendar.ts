@@ -10,6 +10,8 @@ import { sql } from "drizzle-orm";
 import { createCareerSaves } from "../src/db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../src/db/migrations/create_career_world.ts";
 import { createCareerCalendar } from "../src/db/migrations/create_career_calendar.ts";
+import { createCareerSponsorshipFoundation } from "../src/db/migrations/create_career_sponsorship_foundation.ts";
+import { createCareerNpcSponsorMarketSPF } from "../src/db/migrations/create_career_npc_sponsor_market_spf.ts";
 import { createCareerService } from "../src/career/service.ts";
 import { createCareerCalendarService } from "../src/career/calendar/service.ts";
 import { staticCalendarReport, seasonReport, HARNESS_SEED } from "../src/career/calendar/harness.ts";
@@ -25,6 +27,7 @@ async function playSeason() {
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'harness')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerCalendar(db);
+  await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db);
   const save = await createCareerService(db).create(1, { slot: 1 });
   await db.execute(sql`UPDATE career_saves SET world_seed = ${seed} WHERE id = ${save.id}`);
   const calendar = createCareerCalendarService(db);

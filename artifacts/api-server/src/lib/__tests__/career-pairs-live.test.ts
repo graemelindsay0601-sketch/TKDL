@@ -108,7 +108,7 @@ test("World Cup: published national rankings select your pair and the draw opens
     }
     const scots = grouped.get("SCO") ?? [];
     assert.ok(scots.length, "an active Scottish partner is available");
-    const ranks = new Map<string, number>([["HUMAN", 1], [scots[0].id, 2]]);
+    const ranks = new Map<string, number>([["HUMAN", 100], [scots[0].id, 101]]);
     let nextRank = 3;
     for (const [nation, players] of grouped) {
       if (nation === "SCO") continue;
@@ -128,8 +128,16 @@ test("World Cup: published national rankings select your pair and the draw opens
   const mine = (await rows(sql`SELECT nation,partner_key FROM career_event_pairs
     WHERE career_save_id=${save.id} AND event_id=${eventId} AND captain_key='HUMAN'`))[0];
   assert.equal(mine.nation, "SCO");
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS count FROM career_event_pairs WHERE career_save_id=${save.id} AND event_id=${eventId}`))[0].count, 40);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS count FROM career_tournament_matches WHERE career_save_id=${save.id} AND event_id=${eventId}`))[0].count, 51);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS count FROM career_tournament_matches WHERE career_save_id=${save.id} AND event_id=${eventId} AND stage_key LIKE 'groups:%'`))[0].count, 36);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS count FROM career_tournament_matches WHERE career_save_id=${save.id} AND event_id=${eventId} AND stage_key LIKE 'groups:%' AND best_of=7`))[0].count, 36);
+  for (const [round, matches, bestOf] of [[1, 8, 15], [2, 4, 15], [3, 2, 15], [4, 1, 19]]) {
+    assert.equal((await rows(sql`SELECT COUNT(*)::int AS count FROM career_tournament_matches WHERE career_save_id=${save.id} AND event_id=${eventId} AND stage_key='knockout' AND round=${round} AND best_of=${bestOf}`))[0].count, matches);
+  }
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS count FROM career_tournament_matches WHERE career_save_id=${save.id} AND event_id=${eventId} AND stage_key='knockout' AND round=1 AND a_key IS NOT NULL AND b_key IS NULL`))[0].count, 4);
   const view = await tournaments.read(actor, save.id, eventId);
-  assert.ok(view.nextMatchId, "the selected national pair reaches the tournament draw");
+  assert.ok(view.nextMatchId, "the selected national pair receives a group-stage fixture");
   let session = await live.open(actor, save.id, view.nextMatchId!);
   assert.ok(session.team?.partner.name && session.team.opponentPartner.name, "the World Cup tie opens with both pairs in the live scorer");
   while (session.status === "BULL_UP")

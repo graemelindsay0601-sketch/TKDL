@@ -31,6 +31,7 @@ import { V24_CALENDAR_REFRESH_KEYS } from "../content/season-v24.ts";
 import { V25_CALENDAR_REFRESH_KEYS } from "../content/season-v25.ts";
 import { V26_CALENDAR_REFRESH_KEYS } from "../content/season-v27.ts";
 import { V28_CALENDAR_REFRESH_KEYS } from "../content/season-v28.ts";
+import { V29_CALENDAR_REFRESH_KEYS } from "../content/season-v29.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -174,10 +175,10 @@ export async function ensureCurrentEventCatalogue(tx: CareerExecutor, root: Root
     WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length > 0;
   if (hasSeason) {
     const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon)
-      VALUES (${root.id}, ${season}, 'career-events-v28')
+      VALUES (${root.id}, ${season}, 'career-events-v29')
       ON CONFLICT DO NOTHING RETURNING season`)).rows.length > 0;
     if (claimed) {
-      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS];
+      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS, ...V29_CALENDAR_REFRESH_KEYS];
       await tx.execute(sql`DELETE FROM career_event_instances i
         WHERE i.career_save_id = ${root.id} AND i.season = ${season}
           AND i.start_week > ${Number(root.current_week)}
@@ -680,25 +681,49 @@ export async function makeDraws(tx: CareerExecutor, root: RootRow, events: reado
     const npcOf = new Map(entries.map(row => [String(row.participant_key), row.npc_id ? String(row.npc_id) : null]));
     const policy = event.snapshot.seedingPolicy;
     const anzRanked = event.definition_key === "anz-premier-night-5" || event.definition_key === "anz-premier-finals";
+    const worldCup = event.snapshot.format.structure === "WORLD_CUP";
+    let worldCupGroupEntrants: string[] | null = null;
     const seeded = anzRanked
       ? (await anzLeagueStandings(tx, root.id, event.season, event.definition_key === "anz-premier-night-5" ? 4 : 5))
         .map(row => row.participant_key).filter(key => keys.includes(key))
       : policy.list ? providers.seeding.order(policy.list, keys) : [];
-    const draw = generateKnockoutDraw(keys, seeded, policy.seeds, scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "draw", event.season, event.instance_key));
+    const draw = worldCup ? (() => {
+      const nationalPairs = [...pairs.values()].filter(team => team.event_id === event.id);
+      const rank = (key: string) => providers.sportingStatus.rankings(key)["pro-world"] ?? 1_000_000;
+      nationalPairs.sort((a, b) => rank(a.captain_key) + rank(a.partner_key) - rank(b.captain_key) - rank(b.partner_key)
+        || String(a.nation).localeCompare(String(b.nation)));
+      if (nationalPairs.length !== 40 || new Set(nationalPairs.map(team => team.nation)).size !== 40)
+        throw new CareerError(409, "World Cup draw requires forty distinct national pairs");
+      const topFour = nationalPairs.slice(0, 4).map(team => team.captain_key);
+      const groupSeeds = nationalPairs.slice(4, 16);
+      const unseeded = nationalPairs.slice(16).map(team => team.captain_key);
+      const rng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "world-cup-group-draw", event.season, event.instance_key);
+      for (let i = unseeded.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [unseeded[i], unseeded[j]] = [unseeded[j], unseeded[i]];
+      }
+      worldCupGroupEntrants = groupSeeds.flatMap((team, i) => [team.captain_key, unseeded[i * 2], unseeded[i * 2 + 1]]);
+      return { size: 40, rounds: 4, byes: 4, seededKeys: topFour,
+        positions: nationalPairs.map((team, i) => ({ position: i + 1, participantKey: team.captain_key, seed: i < 16 ? i + 1 : null })) };
+    })() : generateKnockoutDraw(keys, seeded, policy.seeds, scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "draw", event.season, event.instance_key));
     const groups = isGroupedStructure(event.snapshot.format.structure), layout = layoutFor(event.snapshot.format.structure);
     const stage = groups ? "knockout" : event.snapshot.format.stages[0].key;
-    const rows: Record<string, unknown>[] = groups ? makeGroupRows(root, event, draw.positions.map(p => p.participantKey), layout) : [];
+    const rows: Record<string, unknown>[] = groups ? makeGroupRows(root, event, worldCupGroupEntrants ?? draw.positions.map(p => p.participantKey), layout) : [];
     const rounds = groups ? layout.knockoutRounds : draw.rounds;
     for (let round = 1; round <= rounds; round++) {
       const slots = (groups ? 2 ** layout.knockoutRounds : draw.size) / 2 ** round;
       for (let slot = 1; slot <= slots; slot++) {
-        const a = !groups && round === 1 ? draw.positions[(slot - 1) * 2].participantKey : null;
+        const a = worldCup && round === 1 && slot <= 4 ? draw.seededKeys[slot - 1]
+          : !groups && round === 1 ? draw.positions[(slot - 1) * 2].participantKey : null;
         const b = !groups && round === 1 ? draw.positions[(slot - 1) * 2 + 1].participantKey : null;
         const bye = !groups && round === 1 && (!a || !b);
+        const scheduledDay = worldCup ? event.start_day + (round === 1 ? 2 : 3)
+          : groups ? (layout.kind === "LEAGUE" ? event.end_day : tournamentDay(event, round + 3, 6))
+          : roundDay(event, round, draw.rounds);
         rows.push({ id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "tournament-match", event.id, stage, round, slot), stage_key: stage, round, slot,
           best_of: groups ? event.snapshot.format.stages[1].bestOfByRound[round - 1] : bestOfForRound(event.snapshot.format, round, draw.rounds),
           // League play-offs (semi-finals and final) are on the last night.
-          scheduled_day: groups ? (layout.kind === "LEAGUE" ? event.end_day : tournamentDay(event, round + 3, 6)) : roundDay(event, round, draw.rounds),
+          scheduled_day: scheduledDay,
           a_key: a, b_key: b, a_npc_id: a ? npcOf.get(a) : null, b_npc_id: b ? npcOf.get(b) : null,
           status: bye ? "BYE" : "PENDING", winner_key: bye ? (a ?? b) : null, result_source: bye ? "BYE" : null,
           first_throw_method: event.snapshot.format.firstThrowMethod });
@@ -1048,25 +1073,42 @@ async function awardAnzFinalists(tx: CareerExecutor, root: RootRow, sourceEvent:
 function eventResults(root: RootRow, event: InstanceRow, matches: MatchRow[], rounds: number, entries: readonly Record<string, unknown>[], teams: Awaited<ReturnType<typeof loadPairs>>) {
   const final = matches.find(m => !isGroupMatch(m) && m.round === rounds)!;
   const champion = final.winner_key!;
+  const eventTeams = [...teams.values()].filter(team => team.event_id === event.id);
+  const teamForPlayer = new Map<string, PairRow>();
+  for (const team of eventTeams) { teamForPlayer.set(team.captain_key, team); teamForPlayer.set(team.partner_key, team); }
   // League: players who miss the play-offs finish in their table position (5th-8th; tied rows share a place).
   const leagueRank = new Map<string, number>();
   if (event.snapshot.format.structure === "LEAGUE") {
     let place = 1;
     for (const bucket of groupTable(matches, "L", new Set(), layoutFor("LEAGUE")).buckets) { for (const p of bucket) leagueRank.set(p.key, place); place += bucket.length; }
   }
+  const worldCupGroupRank = new Map<string, number>();
+  if (event.snapshot.format.structure === "WORLD_CUP") {
+    const layout = layoutFor("WORLD_CUP");
+    layout.keys.forEach((group, index) => {
+      const buckets = groupTable(matches, group, new Set(), layout).buckets;
+      buckets.slice(1).forEach((bucket, bucketIndex) => {
+        const finishingPosition = bucketIndex === 0 ? 17 + index : 29 + index;
+        for (const player of bucket) worldCupGroupRank.set(player.key, finishingPosition);
+      });
+    });
+  }
   const results = entries.map(entry => {
     const key = String(entry.participant_key);
-    const team = teams.get(`${event.id}|${key}`);
-    const played = matches.filter(m => m.a_key === key || m.b_key === key);
-    const lost = played.find(m => !isGroupMatch(m) && FINAL.has(m.status) && m.winner_key !== key && m.status !== "BYE");
+    const team = teamForPlayer.get(key);
+    const competitionKey = team?.captain_key ?? key;
+    const partnerKey = team ? key === team.captain_key ? team.partner_key : team.captain_key : null;
+    const played = matches.filter(m => m.a_key === competitionKey || m.b_key === competitionKey);
+    const lost = played.find(m => !isGroupMatch(m) && FINAL.has(m.status) && m.winner_key !== competitionKey && m.status !== "BYE");
     const groupOut = isGroupedStructure(event.snapshot.format.structure) && !played.some(m => !isGroupMatch(m));
     const completed = played.filter(m => m.status === "COMPLETED");
-    const legs = completed.reduce((acc, m) => { const mine = m.a_key === key; acc[0] += (mine ? m.legs_a : m.legs_b) ?? 0; acc[1] += (mine ? m.legs_b : m.legs_a) ?? 0; return acc; }, [0, 0]);
-    const isChampion = key === champion;
-    const position = isChampion ? 1 : groupOut ? (leagueRank.get(key) ?? 9) : lost ? finishingPosition(lost.round, rounds) : finishingPosition(1, rounds);
+    const legs = completed.reduce((acc, m) => { const mine = m.a_key === competitionKey; acc[0] += (mine ? m.legs_a : m.legs_b) ?? 0; acc[1] += (mine ? m.legs_b : m.legs_a) ?? 0; return acc; }, [0, 0]);
+    const isChampion = competitionKey === champion;
+    const position = isChampion ? 1 : groupOut ? (worldCupGroupRank.get(competitionKey) ?? leagueRank.get(competitionKey) ?? 9)
+      : lost ? finishingPosition(lost.round, rounds) : finishingPosition(1, rounds);
     return { participant_key: key, participant_kind: String(entry.participant_kind), npc_id: entry.npc_id ? String(entry.npc_id) : null,
       finishing_position: position, stage_reached: isChampion ? "CHAMPION" : groupOut ? "GROUP_STAGE" : lost ? stageName(lost.round, rounds) : stageName(1, rounds), is_champion: isChampion,
-      matches_played: completed.length, wins: completed.filter(m => m.winner_key === key).length, losses: completed.filter(m => m.winner_key !== key).length,
+       matches_played: completed.length, wins: completed.filter(m => m.winner_key === competitionKey).length, losses: completed.filter(m => m.winner_key !== competitionKey).length,
       legs_for: legs[0], legs_against: legs[1],
       metadata: { byes: played.filter(m => m.status === "BYE").length, walkovers: played.filter(m => m.status === "WALKOVER").map(m => ({ round: m.round, won: m.winner_key === key })),
           ...(event.definition_key.startsWith("anz-premier-night-") ? { anzCountback: completed.reduce((acc, m) => {
@@ -1082,7 +1124,8 @@ function eventResults(root: RootRow, event: InstanceRow, matches: MatchRow[], ro
           return acc;
         }, { legsWonAgainstThrow: 0, points: 0, darts: 0, complete: true }) } : {}),
         ...(isGroupedStructure(event.snapshot.format.structure)?{structure:event.snapshot.format.structure,groupLosses:completed.filter(m=>isGroupMatch(m)&&m.winner_key!==key).length}:{}),
-        ...(team ? { pairs: { partnerKey: team.partner_key, partnerNpcId: team.partner_npc_id, nation: team.nation } } : {}),
+        ...(team ? { pairs: { partnerKey, partnerNpcId: key === team.captain_key ? team.partner_npc_id : team.captain_npc_id, nation: team.nation,
+          role: key === team.captain_key ? "CAPTAIN" : "PARTNER" } } : {}),
         qSchool: event.snapshot.qSchool ?? null, rankingCategory: event.ranking_category, classification: event.classification, roundLost: lost?.round ?? null, rounds,
         // A6.5: the human's age on the event's start date (a persisted fact for later storytelling).
         ...(key === HUMAN ? { humanAge: careerAge(rootIdentity(root as RootRow & { identity_dob?: unknown; identity_start?: unknown }), event.season, event.start_day) } : {}) } };

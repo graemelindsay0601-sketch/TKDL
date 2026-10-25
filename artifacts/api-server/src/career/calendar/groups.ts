@@ -5,12 +5,20 @@ import type { MatchRow } from "./engine.ts";
 export const GROUP_SCHEDULE = [[[0, 3], [1, 2]], [[0, 2], [3, 1]], [[0, 1], [2, 3]]] as const;
 export const GROUP_KEYS = ["A", "B", "C", "D"] as const;
 
-/** Circle-method round robin for an even number of seats; `double` repeats it with sides swapped. */
+/** Circle-method round robin for any field size; `double` repeats it with sides swapped. */
 export function roundRobin(n: number, double = false): [number, number][][] {
-  const seats = Array.from({ length: n }, (_, i) => i), rounds: [number, number][][] = [];
-  for (let r = 0; r < n - 1; r++) {
-    const rotated = [seats[0], ...seats.slice(1).map((_, i) => seats[1 + ((i + r) % (n - 1))])];
-    rounds.push(Array.from({ length: n / 2 }, (_, i) => (r % 2 === 0 ? [rotated[i], rotated[n - 1 - i]] : [rotated[n - 1 - i], rotated[i]]) as [number, number]));
+  const field: (number | null)[] = Array.from({ length: n }, (_, i) => i);
+  if (field.length % 2) field.push(null);
+  const rounds: [number, number][][] = [];
+  for (let r = 0; r < field.length - 1; r++) {
+    const rotated = [field[0], ...field.slice(1).map((_, i) => field[1 + ((i + r) % (field.length - 1))])];
+    const fixtures: [number, number][] = [];
+    for (let i = 0; i < field.length / 2; i++) {
+      const a = rotated[i], b = rotated[field.length - 1 - i];
+      if (a === null || b === null) continue;
+      fixtures.push((r % 2 === 0 ? [a, b] : [b, a]) as [number, number]);
+    }
+    rounds.push(fixtures);
   }
   return double ? [...rounds, ...rounds.map(pairs => pairs.map(([a, b]) => [b, a] as [number, number]))] : rounds;
 }
@@ -18,15 +26,19 @@ export function roundRobin(n: number, double = false): [number, number][][] {
  * Grouped formats. VAULT (A8.2): four groups of four, top two to cross-group quarter-finals.
  * LEAGUE (event database v11): one table of eight, double round robin on weekly nights, top four to
  * semi-finals (1st v 4th, 2nd v 3rd) and a final on play-off night — the Premier League shape.
+ * WORLD_CUP: twelve groups of three, one qualifier each, then a 16-team seeded knockout.
  */
-export type GroupLayout = { kind: "VAULT" | "LEAGUE"; keys: readonly string[]; size: number; schedule: readonly (readonly (readonly [number, number])[])[];
+export type GroupLayout = { kind: "VAULT" | "LEAGUE" | "WORLD_CUP"; keys: readonly string[]; size: number; schedule: readonly (readonly (readonly [number, number])[])[];
   qualifiers: number; knockoutRounds: number; fixtures: number };
 export const VAULT_LAYOUT: GroupLayout = { kind: "VAULT", keys: GROUP_KEYS, size: 4, schedule: GROUP_SCHEDULE, qualifiers: 2, knockoutRounds: 3, fixtures: 31 };
 const LEAGUE_SCHEDULE = roundRobin(8, true);
 export const LEAGUE_LAYOUT: GroupLayout = { kind: "LEAGUE", keys: ["L"], size: 8, schedule: LEAGUE_SCHEDULE, qualifiers: 4, knockoutRounds: 2,
   fixtures: LEAGUE_SCHEDULE.flat().length + 3 };
-export const isGroupedStructure = (structure: string) => structure === "GROUP_KNOCKOUT" || structure === "LEAGUE";
-export const layoutFor = (structure: string): GroupLayout => structure === "LEAGUE" ? LEAGUE_LAYOUT : VAULT_LAYOUT;
+export const WORLD_CUP_LAYOUT: GroupLayout = { kind: "WORLD_CUP", keys: "ABCDEFGHIJKL".split(""), size: 3,
+  schedule: roundRobin(3), qualifiers: 1, knockoutRounds: 4, fixtures: 12 * roundRobin(3).flat().length + 15 };
+export const isGroupedStructure = (structure: string) => ["GROUP_KNOCKOUT", "WORLD_CUP", "LEAGUE"].includes(structure);
+export const layoutFor = (structure: string): GroupLayout => structure === "LEAGUE" ? LEAGUE_LAYOUT
+  : structure === "WORLD_CUP" ? WORLD_CUP_LAYOUT : VAULT_LAYOUT;
 export const groupStage = (key: string) => `groups:${key}`;
 export const isGroupMatch = (m: Pick<MatchRow, "stage_key">) => m.stage_key.startsWith("groups:");
 export type GroupStanding = {
@@ -36,11 +48,15 @@ export type GroupStanding = {
 export type GroupTable = { key: string; finished: boolean; buckets: GroupStanding[][]; pendingTie: string[] | null };
 
 export function groupSeats(matches: MatchRow[], group: string, layout: GroupLayout = VAULT_LAYOUT): string[] {
-  const first = matches.filter(m => m.stage_key === groupStage(group) && m.round === 1).sort((a, b) => a.slot - b.slot);
-  if (first.length !== layout.size / 2 || first.some(m => !m.a_key || !m.b_key))
+  const fixtures = matches.filter(m => m.stage_key === groupStage(group)).sort((a, b) => a.round - b.round || a.slot - b.slot);
+  if (fixtures.length !== layout.schedule.flat().length || fixtures.some(m => !m.a_key || !m.b_key))
     throw new CareerError(409, "Group draw is incomplete; no replacement draw has been generated");
   const seats: string[] = Array(layout.size);
-  layout.schedule[0].forEach(([a, b], i) => { seats[a] = first[i].a_key!; seats[b] = first[i].b_key!; });
+  const seatRounds = layout.kind === "LEAGUE" ? layout.schedule.slice(0, layout.size - 1) : layout.schedule;
+  seatRounds.forEach((round, r) => round.forEach((pair, s) => {
+    const m = fixtures.find(x => x.round === r + 1 && x.slot === s + 1)!;
+    seats[pair[0]] = m.a_key!; seats[pair[1]] = m.b_key!;
+  }));
   if (new Set(seats).size !== layout.size) throw new CareerError(409, "Group draw has duplicate participants");
   return seats;
 }

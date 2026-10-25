@@ -29,8 +29,10 @@ export function playingDays(e: Pick<InstanceRow, "start_day" | "end_day" | "snap
 export function makeGroupRows(root: RootRow, event: InstanceRow, positions: (string | null)[], layout: GroupLayout = VAULT_LAYOUT) {
   const entrants = layout.keys.length * layout.size;
   if (positions.length !== entrants || positions.some(k => !k) || new Set(positions).size !== entrants)
-    throw new CareerError(409, layout.kind === "LEAGUE" ? "A league requires eight real confirmed entrants" : "Vault requires sixteen real confirmed entrants");
-  const day = (r: number) => layout.kind === "LEAGUE" ? leagueNight(event, r + 1) : tournamentDay(event, r + 1, 6);
+    throw new CareerError(409, layout.kind === "LEAGUE" ? "A league requires eight real confirmed entrants"
+      : layout.kind === "WORLD_CUP" ? "World Cup group stage requires thirty-six real confirmed pairs" : "Vault requires sixteen real confirmed entrants");
+  const day = (r: number) => layout.kind === "LEAGUE" ? leagueNight(event, r + 1)
+    : layout.kind === "WORLD_CUP" ? event.start_day + (r === 0 ? 0 : 1) : tournamentDay(event, r + 1, 6);
   return layout.keys.flatMap((group, g) => layout.schedule.flatMap((pairs, r) => pairs.map(([a, b], s) => ({
     id: stableUuid(root.world_seed, CALENDAR_GENERATION_VERSION, "tournament-match", event.id, groupStage(group), r + 1, s + 1),
     stage_key: groupStage(group), round: r + 1, slot: s + 1, best_of: event.snapshot.format.stages[0].bestOfByRound[0],
@@ -75,8 +77,10 @@ async function botTurns(tx: CareerExecutor, root: RootRow, event: InstanceRow, r
 /** Projection never writes. Completed standings + persisted bull facts determine the qualifiers. */
 export function resolvedGroups(matches: MatchRow[], bulls: BullRow[], withdrawn: Set<string>, layout: GroupLayout = VAULT_LAYOUT) {
   const qfs=matches.filter(m=>m.stage_key==="knockout"&&m.round===1).sort((a,b)=>a.slot-b.slot);
-  const firstRound = layout.kind === "LEAGUE" ? 2 : 4;
-  const locked=qfs.length===firstRound&&qfs.every(m=>!!m.a_key||!!m.b_key||m.status==="VOID");
+  const firstRound = layout.kind === "LEAGUE" ? 2 : layout.kind === "WORLD_CUP" ? 8 : 4;
+  const locked=qfs.length===firstRound&&qfs.every(m=>layout.kind === "WORLD_CUP"
+    ? (!!m.a_key&&!!m.b_key)||["VOID","BYE","WALKOVER","COMPLETED"].includes(m.status)
+    : !!m.a_key||!!m.b_key||m.status==="VOID");
   // League semi-finals: 1st v 4th (slot 1), 2nd v 3rd (slot 2); qualifiers are recorded in table order.
   const lockedPairs=locked?(layout.kind === "LEAGUE" ? [[qfs[0].a_key,qfs[1].a_key,qfs[1].b_key,qfs[0].b_key]] : [
     [qfs[0].a_key,qfs[2].b_key],[qfs[2].a_key,qfs[0].b_key],
@@ -86,6 +90,8 @@ export function resolvedGroups(matches: MatchRow[], bulls: BullRow[], withdrawn:
     const table = groupTable(matches, group, locked?new Set():withdrawn, layout);
     if(locked) {
       for(const p of table.buckets.flat())p.withdrawn=withdrawn.has(p.key);
+      if (layout.kind === "WORLD_CUP")
+        return {...table,qualifiers:table.buckets.slice(0,1).flatMap(bucket=>bucket.map(p=>p.key)),pending:null};
       return {...table,qualifiers:lockedPairs![index].filter((k):k is string=>!!k),pending:null};
     }
     const qualifiers: string[] = [];
@@ -126,6 +132,34 @@ export async function progressGroups(tx: CareerExecutor, root: RootRow, event: I
   // Vault: cross-group QFs A1-B2, C1-D2, B1-A2, D1-C2 (no reseeding, same-group SFs avoided).
   // League: semi-finals 1st v 4th and 2nd v 3rd.
   const q = groups.map(g => g.qualifiers);
+  if (layout.kind === "WORLD_CUP") {
+    const winners = q.flat();
+    const firstRound = matches.filter(m => m.stage_key === "knockout" && m.round === 1).sort((a, b) => a.slot - b.slot);
+    const seeds = firstRound.slice(0, 4).map(m => m.a_key);
+    if (seeds.length !== 4 || seeds.some(k => !k) || winners.length !== 12 || firstRound.length !== 8)
+      throw new CareerError(409, "World Cup knockout draw does not have four seeds and twelve group winners");
+    const rng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "world-cup-knockout-draw", event.season, event.instance_key);
+    const remaining = [...winners];
+    for (let i = remaining.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+    }
+    const pairings: [string, string][] = [
+      ...seeds.map((seed, i) => [seed!, remaining[i]] as [string, string]),
+      ...Array.from({length: 4}, (_, i) => [remaining[4 + i * 2], remaining[5 + i * 2]] as [string, string]),
+    ];
+    for (let i = 0; i < pairings.length; i++) {
+      const m = firstRound[i], [a, b] = pairings[i];
+      if (m.a_key || m.b_key) {
+        if (m.a_key !== a || m.b_key !== b) throw new CareerError(409, "World Cup knockout slot conflicts with the group draw");
+        continue;
+      }
+      await tx.execute(sql`UPDATE career_tournament_matches SET a_key=${a},b_key=${b},a_npc_id=${a==="HUMAN"?null:a},
+        b_npc_id=${b==="HUMAN"?null:b},status='PENDING'
+        WHERE career_save_id=${root.id} AND id=${m.id} AND status='PENDING' AND a_key IS NULL AND b_key IS NULL`);
+    }
+    return {changed:true,groups};
+  }
   const pairs = layout.kind === "LEAGUE" ? [[q[0][0], q[0][3]], [q[0][1], q[0][2]]]
     : [[q[0][0], q[1][1]], [q[2][0], q[3][1]], [q[1][0], q[0][1]], [q[3][0], q[2][1]]];
   for (let i = 0; i < pairs.length; i++) {

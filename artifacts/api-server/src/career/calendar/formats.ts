@@ -5,7 +5,7 @@ import { z } from "zod";
  * executability is decided only by assessCapability(), never by display text.
  */
 export const GAME_TYPES = ["X01", "CRICKET", "HALVE_IT", "KILLER", "SHANGHAI", "BOBS_27", "SCRAM", "BASEBALL", "FIVES", "GOLF", "FOOTBALL", "NOUGHTS_AND_CROSSES", "SNOOKER", "COUNT_UP", "OTHER"] as const;
-export const STRUCTURES = ["KNOCKOUT", "GROUP_KNOCKOUT", "ROUND_ROBIN", "LEAGUE", "MULTI_DAY_KNOCKOUT"] as const;
+export const STRUCTURES = ["KNOCKOUT", "GROUP_KNOCKOUT", "WORLD_CUP", "ROUND_ROBIN", "LEAGUE", "MULTI_DAY_KNOCKOUT"] as const;
 export const FIRST_THROW_METHODS = ["BULL_UP", "ALTERNATE_FROM_DRAW", "HIGHER_SEED"] as const;
 export const SCORING_UNITS = ["LEGS", "SETS"] as const;
 
@@ -58,7 +58,7 @@ export type Capability =
   | { executable: false; code: "UNSUPPORTED_FORMAT"; reasons: UnsupportedReason[] };
 
 /** Bumped when the set of executable formats changes; existing future instances are re-assessed. */
-export const CAPABILITY_ENGINE_VERSION = 4;
+export const CAPABILITY_ENGINE_VERSION = 5;
 
 /**
  * A format is executable only when BOTH sides of a Career tournament can run it
@@ -66,7 +66,8 @@ export const CAPABILITY_ENGINE_VERSION = 4;
  * GameScorer X01) and every NPC match through A2's dart-level simulation.
  * Shared X01 and A2 support 101..1001, straight/double-in, double-out,
  * legs/sets and singles knockout. A8.2 adds its explicitly versioned 4x4
- * group -> KO format; v11 league nights; v13 pairs knockouts with a pairing rule.
+ * group -> KO format; v11 league nights; v13 pairs knockouts; v29 annual
+ * 40-nation World Cup groups plus a seeded 16-team knockout.
  */
 export function assessCapability(format: EventFormat, allowGroups = false): Capability {
   eventFormatSchema.parse(format);
@@ -83,16 +84,22 @@ export function assessCapability(format: EventFormat, allowGroups = false): Capa
   }
   if (format.scoringUnit === "SETS" && !(format.legsPerSet && format.legsPerSet % 2 === 1)) reasons.push("SET_PLAY");
   // Pairs run end to end (team composite in A2, alternating visits in the shared scorer) for steel-tip
-  // knockout legs when the definition says how teams form; other pairs identities stay benched.
-  if (format.sideSize !== 1 && !(format.pairing && format.structure === "KNOCKOUT" && format.scoringUnit === "LEGS" && format.outRule === "DOUBLE" && !format.mix)) reasons.push("PAIRS");
+  // Pairs run end to end for knockouts and the explicitly modelled national-pairs World Cup.
+  const worldCup = allowGroups && format.structure === "WORLD_CUP" && format.sideSize === 2
+    && format.pairing === "NATION" && format.scoringUnit === "LEGS"
+    && format.stages.length === 2 && format.stages[0].kind === "GROUP"
+    && format.stages[0].groupSize === 3 && format.stages[0].advancePerGroup === 1
+    && format.stages[1].kind === "KNOCKOUT";
+  if (format.sideSize !== 1 && !(format.pairing && (format.structure === "KNOCKOUT" || worldCup)
+    && format.scoringUnit === "LEGS" && format.outRule === "DOUBLE" && !format.mix)) reasons.push("PAIRS");
   const groups = allowGroups && format.structure === "GROUP_KNOCKOUT" && format.scoringUnit === "LEGS"
     && format.stages.length === 2 && format.stages[0].kind === "GROUP" && format.stages[0].groupSize === 4
     && format.stages[0].advancePerGroup === 2 && format.stages[1].kind === "KNOCKOUT";
   // League nights only where the definition opts in (v11), so older saves keep their benched league identity.
   const league = allowGroups && format.structure === "LEAGUE" && format.leagueNights === true && format.scoringUnit === "LEGS"
     && format.stages.length === 2 && format.stages[0].kind === "LEAGUE" && format.stages[1].kind === "KNOCKOUT" && format.stages[1].bestOfByRound.length >= 1;
-  if (!groups && !league && !(format.structure === "KNOCKOUT" && format.stages.length === 1 && format.stages[0].kind === "KNOCKOUT")) reasons.push("STRUCTURE");
-  return reasons.length ? { executable: false, code: "UNSUPPORTED_FORMAT", reasons } : { executable: true, engine: groups || league ? "A2_X01_GROUP_KNOCKOUT" : "A2_X01_KNOCKOUT", simulationVersion: 1, liveScorer: "GAME_SCORER_X01" };
+  if (!groups && !league && !worldCup && !(format.structure === "KNOCKOUT" && format.stages.length === 1 && format.stages[0].kind === "KNOCKOUT")) reasons.push("STRUCTURE");
+  return reasons.length ? { executable: false, code: "UNSUPPORTED_FORMAT", reasons } : { executable: true, engine: groups || league || worldCup ? "A2_X01_GROUP_KNOCKOUT" : "A2_X01_KNOCKOUT", simulationVersion: 1, liveScorer: "GAME_SCORER_X01" };
 }
 
 /** A3 format -> A2 match format for one match (best-of from the bracket row). */
