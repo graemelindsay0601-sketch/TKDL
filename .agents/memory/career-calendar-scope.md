@@ -50,3 +50,9 @@ Series league points are standings inputs for that series only; do not add them 
 **Why:** competitions such as the ANZ Premier League award table points independently of the prize money used by the Career ranking lists.
 
 **How to apply:** use series points only for that series' standings, seeding, and qualification; keep rankings tied to their authored ranking rules.
+
+The World Cup of Darts is a recurring annual 40-nation pairs event, not a one-off. Preserve the current group-to-knockout structure and keep persistent national squads available for its full field.
+
+**Why:** the user clarified that the event recurs and approved expanding the Career player world so every national pair can be drawn and played.
+
+**How to apply:** preserve annual recurrence, the 40-team draw and live match progression, and migrate existing saves without rewriting completed event history.

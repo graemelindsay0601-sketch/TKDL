@@ -47,10 +47,13 @@ export function worldExpansion(seed: string, version: number, season: number, ex
     }
   }
   for (const country of INTERNATIONAL_COUNTRIES) {
-    const need = INTERNATIONAL_SQUAD.length - (active.get(`intl:${country}`) ?? 0);
+    const existingSquadSize = active.get(`intl:${country}`) ?? 0;
+    const need = INTERNATIONAL_SQUAD.length - existingSquadSize;
+    const foundingSquad = existingSquadSize === 0;
     for (let i = 0; i < need; i++) {
-      // The founding squad spans tour to club level; later entrants join at club level and develop.
-      const tier = tag === "initial" ? INTERNATIONAL_SQUAD[i] : "GRASSROOTS";
+      // Every country's first persistent squad spans tour to club level, including legacy-save migrations.
+      // Later top-ups join at club level and develop through the ordinary world.
+      const tier = foundingSquad ? INTERNATIONAL_SQUAD[i] : "GRASSROOTS";
       const women = scopedRandom(seed, version, "intl-squad", country, tag, i)() < CLUB_SQUAD.womenShare;
       make(`${women ? "women:" : ""}intl:${country}:${tag}:${i}`, tier, country, null, women);
     }

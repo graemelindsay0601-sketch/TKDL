@@ -33,7 +33,7 @@ import { V26_CALENDAR_REFRESH_KEYS } from "../content/season-v27.ts";
 import { V28_CALENDAR_REFRESH_KEYS } from "../content/season-v28.ts";
 import { V29_CALENDAR_REFRESH_KEYS } from "../content/season-v29.ts";
 import { updateWorldRecords } from "../records/service.ts";
-import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, type PairRow, type PairCandidate } from "./pairs.ts";
+import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, nationalFallbackRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
 export const HUMAN = "HUMAN";
 /** A6.5: identity columns joined onto the locked root by lockRoot (null when the save has no profile row). */
@@ -536,8 +536,14 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   let teams: PairRow[] = [];
   if (pairs && snapshot.format.pairing === "NATION") {
     const rank = (key: string) => selectionRank(providers.sportingStatus.rankings(key));
-    const candidates: PairCandidate[] = npcs.filter(npc => npc.status === "ACTIVE" && free(npc) && rank(npc.id) !== undefined)
-      .map(npc => ({ key: npc.id, npcId: npc.id, country: dartsNation(npc.nationality, npcFacts(npc).locality), rank: rank(npc.id)! }));
+    const worldCup = snapshot.format.structure === "WORLD_CUP";
+    const candidates: PairCandidate[] = [];
+    for (const npc of npcs) {
+      if (npc.status !== "ACTIVE" || !free(npc)) continue;
+      const candidateRank = rank(npc.id) ?? (worldCup ? nationalFallbackRank(npc.tier) : undefined);
+      if (candidateRank !== undefined) candidates.push({ key: npc.id, npcId: npc.id,
+        country: dartsNation(npc.nationality, npcFacts(npc).locality), rank: candidateRank });
+    }
     const human = humanParticipant(root, providers);
     if (root.status === "ACTIVE" && rank(HUMAN) !== undefined && !booked.has(HUMAN) && !excluded.has(HUMAN) && !taken.has(HUMAN))
       candidates.push({ key: HUMAN, npcId: null, country: dartsNation(human.country, human.locality), rank: rank(HUMAN)! });

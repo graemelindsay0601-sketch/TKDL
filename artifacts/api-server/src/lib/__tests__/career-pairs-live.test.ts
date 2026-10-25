@@ -25,11 +25,25 @@ import { loadInstances, lockField, makeDraw, progressEvent, type RootRow } from 
 import { loadNpcs } from "../../career/world/repository.ts";
 import { lockRoot, worldState } from "../../career/world/service.ts";
 import { localityByRegion } from "../../career/calendar/geography.ts";
-import { dartsNation } from "../../career/calendar/pairs.ts";
+import { dartsNation, nationTeams, nationalFallbackRank } from "../../career/calendar/pairs.ts";
 import { createMatch, throwDart, planBotX01Visit, seededRandom, botOptionsFor, type Dart, type X01Format, type X01MatchState } from "../../shared/darts-rules/index.ts";
 // The browser's own planners (artifacts/tkdl), loaded by URL so this package's typecheck stays inside its root.
 type LiveModel = { careerBotVisit: (...a: unknown[]) => Dart[]; careerPartnerVisit: (...a: unknown[]) => Dart[] | null; shouldCheckpoint: (...a: unknown[]) => boolean };
 const { careerBotVisit, careerPartnerVisit, shouldCheckpoint } = await import(new URL("../../../../tkdl/src/features/career/live-model.ts", import.meta.url).href) as LiveModel;
+
+test("World Cup national qualifiers complete under-ranked nations without outranking published ranking holders", () => {
+  const fallback = nationalFallbackRank("AMATEUR")!;
+  const selected = nationTeams([
+    { key: "A1", npcId: "A1", country: "AUS", rank: 4 },
+    { key: "A2", npcId: "A2", country: "AUS", rank: 9 },
+    { key: "A3", npcId: "A3", country: "AUS", rank: fallback },
+    { key: "N1", npcId: "N1", country: "NLD", rank: 40 },
+    { key: "N2", npcId: "N2", country: "NLD", rank: fallback },
+  ], 2);
+  assert.deepEqual(selected.teams.map(team => team.nation), ["AUS", "NLD"]);
+  assert.deepEqual(selected.players.map(player => player.key), ["A1", "A2", "N1", "N2"]);
+  assert.ok(fallback > 100_000);
+});
 
 /** Event database v13 pairs, end to end: Pub Doubles entry, pairing, draw, a live pairs match through the real session boundary. */
 const pg = new PGlite(), db = drizzle(pg), saves = createCareerService(db), sporting = createCareerSportingService(db);

@@ -22,14 +22,22 @@ export function dartsNation(country: string, locality: string | null): string {
   return locality && SCOTLAND.has(locality) ? "SCO" : locality === "south-wales" ? "WAL" : locality === "northern-ireland" ? "NIR" : "ENG";
 }
 /**
- * World Cup selection order inside a nation: the published World Ranking first, then players outside it by
- * the Open World Ranking, then by the Amateur Circuit Ranking (the affiliate-qualifier route smaller darting
- * nations use). Players on none of them are not selectable — no hidden ratings.
+ * World Cup selection order inside a nation: published World, Open, and Amateur rankings come first. If a
+ * nation lacks two ranked players, its persistent professional/amateur squad supplies affiliate qualifiers;
+ * this uses declared playing tier only and never invents a hidden ranking or ability score.
  */
 export function selectionRank(rankings: Record<string, number>): number | undefined {
   if (rankings["pro-world"] !== undefined) return rankings["pro-world"];
   if (rankings["open-world"] !== undefined) return 1000 + rankings["open-world"];
   if (rankings.amateur !== undefined) return 2000 + rankings.amateur;
+  return undefined;
+}
+
+/** Affiliate-nation qualifiers complete countries that have fewer than two published ranking holders. */
+export function nationalFallbackRank(tier: Npc["tier"]): number | undefined {
+  if (tier === "ELITE") return 1_000_000;
+  if (tier === "PROFESSIONAL") return 1_100_000;
+  if (tier === "AMATEUR") return 1_200_000;
   return undefined;
 }
 
