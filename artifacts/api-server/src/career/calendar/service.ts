@@ -968,7 +968,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           COALESCE(settings_snapshot, '{}'::jsonb) || jsonb_build_object(
             'careerSeasonPlanBaselines',
             COALESCE(settings_snapshot->'careerSeasonPlanBaselines', '{}'::jsonb) ||
-              jsonb_build_object(${String(input.season)}, ${JSON.stringify(snapshot)}::jsonb))
+              jsonb_build_object(${String(input.season)}::text, ${JSON.stringify(snapshot)}::jsonb))
           WHERE id = ${root.id}`);
         return { snapshot };
       });
