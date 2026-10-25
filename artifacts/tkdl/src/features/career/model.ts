@@ -60,10 +60,11 @@ export function buildSeasonCashFlow(season: number, startWeek: number, endWeek: 
       if (payment.amountPence <= 0 || payment.remainingEvents <= 0 || used >= payment.maxEventsPerSeason
         || !event.circuit || !payment.circuits.includes(event.circuit)
         || eventStart < contractWeek(payment.start) || eventEnd > contractWeek(payment.end)) continue;
-      const weekItems = conditionalByWeek.get(event.startWeek) ?? [];
+      const paymentWeek = event.endWeek ?? event.startWeek;
+      const weekItems = conditionalByWeek.get(paymentWeek) ?? [];
       weekItems.push({ eventId: event.id, eventName: event.name, contractId: payment.contractId,
         sponsorName: payment.displayName, amountPence: payment.amountPence });
-      conditionalByWeek.set(event.startWeek, weekItems);
+      conditionalByWeek.set(paymentWeek, weekItems);
       payoutCounts.set(payment.contractId, used + 1);
     }
   }

@@ -1155,14 +1155,15 @@
 .cc-season-cashflow > header > div > strong { color: #edf3fa; font-size: 10px; }
 .cc-season-cashflow > header > small { color: #bdd2e5; font-size: 8px; text-align: right; }
 .cc-season-cashflow > p { margin: 0; color: #9dafc0; font-size: 8px; line-height: 1.5; }
-.cc-season-cashflow__legend { display: grid; grid-template-columns: 30px minmax(0,1fr) auto auto auto; gap: 7px; padding: 2px 0; color: #8195a8; font-size: 7px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
+.cc-season-cashflow__legend { display: grid; grid-template-columns: 30px minmax(0,1fr) auto auto auto auto; gap: 7px; padding: 2px 0; color: #8195a8; font-size: 7px; font-weight: 750; text-transform: uppercase; letter-spacing: .06em; }
 .cc-season-cashflow__legend span:nth-child(n+3) { text-align: right; }
 .cc-season-cashflow__rows { display: grid; gap: 4px; }
-.cc-season-cashflow__rows article { display: grid; grid-template-columns: 30px minmax(0,1fr) auto auto auto; gap: 7px; align-items: center; border-top: 1px solid rgba(255,255,255,.06); padding: 6px 0; color: #cbd6e1; font-size: 8px; }
+.cc-season-cashflow__rows article { display: grid; grid-template-columns: 30px minmax(0,1fr) auto auto auto auto; gap: 7px; align-items: center; border-top: 1px solid rgba(255,255,255,.06); padding: 6px 0; color: #cbd6e1; font-size: 8px; }
 .cc-season-cashflow__rows article > b { color: #91c5ec; font: 700 9px ui-monospace,monospace; }
 .cc-season-cashflow__rows article > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cc-season-cashflow__cost { color: #f0c688; font-variant-numeric: tabular-nums; }
 .cc-season-cashflow__income { color: #9fe0bd; font-variant-numeric: tabular-nums; }
+.cc-season-cashflow__conditional { color: #c5b5ed; font-variant-numeric: tabular-nums; }
 .cc-season-cashflow__balance { color: #a9e2c3; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
 .cc-season-cashflow__balance[data-negative="true"] { color: #ff91a8; }
 .cc-season-cashflow__rows article > small { grid-column: 2 / -1; color: #91a2b1; font-size: 7px; text-align: right; }
@@ -1174,7 +1175,7 @@
 .cc-season-baseline header > small, .cc-season-baseline > p { color: #92a1af; font-size: 8px; }
 .cc-season-baseline > p { margin: 8px 0; line-height: 1.5; }
 .cc-season-baseline__rows { display: grid; gap: 6px; }
-.cc-season-baseline__rows article { display: grid; grid-template-columns: minmax(150px,1.2fr) repeat(2,minmax(130px,1fr)) auto; gap: 10px; align-items: center; border: 1px solid rgba(255,255,255,.07); border-radius: 9px; padding: 9px; background: rgba(255,255,255,.025); }
+.cc-season-baseline__rows article { display: grid; grid-template-columns: minmax(120px,1.1fr) repeat(3,minmax(105px,1fr)) auto; gap: 10px; align-items: center; border: 1px solid rgba(255,255,255,.07); border-radius: 9px; padding: 9px; background: rgba(255,255,255,.025); }
 .cc-season-baseline__rows article > span { display: flex; flex-direction: column; gap: 3px; color: #e8edf2; font-size: 9px; }
 .cc-season-baseline__rows small { color: #92a1af; font-size: 8px; }
 .cc-season-baseline__finish { color: #f1d47c !important; font-weight: 700; }
@@ -1228,9 +1229,9 @@
   .cc-season-plan__dialog footer .cc-button { justify-content: center; }
   .cc-season-actual__grid { grid-template-columns: minmax(0,1fr); }
   .cc-season-baseline__rows article { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .cc-season-cashflow__rows article { grid-template-columns: 27px minmax(0,1fr) auto auto; }
+  .cc-season-cashflow__rows article { grid-template-columns: 27px minmax(0,1fr) auto auto auto; }
   .cc-season-cashflow__balance { grid-column: 2 / -1; }
   .cc-season-cashflow__rows article > small { text-align: left; }
-  .cc-season-cashflow__legend { grid-template-columns: 27px minmax(0,1fr) auto auto; }
+  .cc-season-cashflow__legend { grid-template-columns: 27px minmax(0,1fr) auto auto auto; }
   .cc-season-cashflow__legend span:last-child { display: none; }
 }

@@ -955,17 +955,20 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const events = await loadInstances(tx, root.id, sql`season = ${input.season} AND id IN (${sql.join(input.eventIds.map(id => sql`${id}`), sql`, `)})`);
         if (events.length !== input.eventIds.length) throw new CareerError(404, "One or more planned events could not be found");
         const previews = providers.finance ? await providers.finance.previews(tx, root, input.season, events) : new Map();
+        const conditionalPayments = providers.finance?.conditionalEventPaymentPreviews
+          ? await providers.finance.conditionalEventPaymentPreviews(tx, root, input.season, events) : new Map();
         const savedEvents = events.map(event => {
           const finance = previews.get(event.id);
           if (!finance) throw new CareerError(409, `A current estimate is unavailable for ${event.name}`);
-          return { eventId: event.id, name: event.name, week: event.start_week, finance };
+          return { eventId: event.id, name: event.name, week: event.start_week, finance,
+            conditionalSponsorIncome: conditionalPayments.get(event.id) ?? [] };
         });
         const snapshot = { season: input.season, savedAt: new Date().toISOString(), events: savedEvents };
         await tx.execute(sql`UPDATE career_saves SET settings_snapshot =
           COALESCE(settings_snapshot, '{}'::jsonb) || jsonb_build_object(
             'careerSeasonPlanBaselines',
             COALESCE(settings_snapshot->'careerSeasonPlanBaselines', '{}'::jsonb) ||
-              jsonb_build_object(${String(input.season)}, ${JSON.stringify(snapshot)}::jsonb))
+              jsonb_build_object(${String(input.season)}::text, ${JSON.stringify(snapshot)}::jsonb))
           WHERE id = ${root.id}`);
         return { snapshot };
       });
