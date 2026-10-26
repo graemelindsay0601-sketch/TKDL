@@ -244,7 +244,7 @@ export const SUBSTITUTE_BANKS: readonly Bank[] = [
     women: w(`Mariam, Fatima, Noor, Huda, Aisha, Zainab, Reem, Layla`), last: w(`Al Khalifa, Al Doseri, Al Zayani, Janahi, Kanoo, Fakhro, Al Mannai, Bucheeri, Al Noaimi, Isa, Al Sayed, Ebrahim`) },
   { weight: 1, country: "CHN", regions: ["Beijing", "Shanghai", "Guangdong"], first: w(`Wei, Jun, Hao, Lei, Ming, Jian, Tao, Chen, Peng, Qiang, Bo, Yang`),
     women: w(`Mei, Jing, Yan, Li, Fang, Lin, Xia, Hui`), last: w(`Li, Wang, Zhang, Liu, Chen, Yang, Huang, Zhao, Wu, Zhou, Xu, Sun`) },
-  { weight: 1, country: "CRO", regions: ["Zagreb", "Dalmatia", "Slavonia"], first: w(`Ivan, Luka, Marko, Josip, Filip, Marin, Tomislav, Dario, Nikola, Ante, Matej, Stjepan`),
+  { weight: 1, country: "HRV", regions: ["Zagreb", "Dalmatia", "Slavonia"], first: w(`Ivan, Luka, Marko, Josip, Filip, Marin, Tomislav, Dario, Nikola, Ante, Matej, Stjepan`),
     women: w(`Ana, Marija, Petra, Ivana, Martina, Katarina, Lucija, Maja`), last: w(`Horvat, Kovačević, Babić, Marić, Jurić, Novak, Kovač, Knežević, Vuković, Matić, Pavlović, Marković`) },
   { weight: 1, country: "GIB", regions: ["Gibraltar"], first: w(`Daniel, Michael, Lee, Adam, Anthony, John, David, Ryan, Mark, Stephen, Liam, Paul`),
     women: w(`Emma, Maria, Laura, Hannah, Chloe, Sarah, Ana, Lisa`), last: w(`Garcia, Perez, Ruiz, Olivero, Figueras, Chipolina, Linares, Robba, Bossano, Cortes, Santos, Triay`) },
@@ -270,6 +270,6 @@ export const SUBSTITUTE_BANKS: readonly Bank[] = [
     women: w(`Anong, Kanya, Mali, Nicha, Nok, Pim, Suda, Ying`), last: w(`Srisai, Saengsri, Chaiyaporn, Boonmee, Suksawat, Phromsiri, Rattanakorn, Wongsa, Khamkaew, Sombat, Prasert, Thongchai`) },
   { weight: 1, country: "UKR", regions: ["Kyiv", "Lviv", "Odesa"], first: w(`Andrii, Bohdan, Danylo, Denys, Ivan, Maksym, Mykhailo, Oleksandr, Pavlo, Roman, Serhii, Taras`),
     women: w(`Alina, Daria, Iryna, Kateryna, Lesia, Mariia, Olena, Yulia`), last: w(`Shevchenko, Bondarenko, Kovalenko, Boyko, Tkachenko, Kovalchuk, Kravchenko, Oliinyk, Melnyk, Shevchuk, Petrenko, Lysenko`) },
-  { weight: 1, country: "LAT", regions: ["Northern South America", "Central America", "Southern Cone"], first: w(`Alejandro, Andrés, Carlos, Diego, Esteban, Gabriel, Javier, Juan, Luis, Mateo, Miguel, Santiago`),
+  { weight: 1, country: "COL", regions: ["Antioquia", "Cundinamarca", "Valle del Cauca"], first: w(`Alejandro, Andrés, Carlos, Diego, Esteban, Gabriel, Javier, Juan, Luis, Mateo, Miguel, Santiago`),
     women: w(`Camila, Daniela, Elena, Isabel, Lucia, Mariana, Paula, Valentina`), last: w(`García, Rodríguez, González, Fernández, López, Martínez, Pérez, Sánchez, Ramírez, Torres, Flores, Herrera`) },
 ];
