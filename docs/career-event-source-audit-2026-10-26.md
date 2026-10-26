@@ -1,7 +1,7 @@
 # Career event and ranking source audit
 
 **Audit date:** 26 October 2026  
-**Scope:** Current Career event catalogue (event database v36), ranking rules v6, and the official-source checks completed in this pass.
+**Scope:** Current Career event catalogue (event database v37), ranking rules v6, and the official-source checks completed in this pass.
 
 ## Findings
 
@@ -26,9 +26,9 @@ WDF publishes separate Youth and Under-23 ranking criteria, in addition to Senio
 
 Career v35/ranking rules v6 add separate Open/Girls U18 and U23 main tables and five regional tables per division. Career v36 evaluates those divisions against age on December 31 of the event's calendar year. The existing Career Youth Order of Merit remains a separate season-based list. Existing girls' U18 events now use a distinct WDF ranking category, while older definitions and published results remain pinned.
 
-The U23 calendar entries are explicitly Career-authored fixtures, not claims about named/scheduled WDF events; their grades are Career-authored. Human eligibility uses the saved date of birth. Fictional NPCs use a stable generated birthday because they do not have real birth records; older event editions keep their original event-date age behavior.
+Career v37 replaces the generic U23 fixture names with the WDF-listed Las Vegas Open U23 Youth and Girls events. Both official 2027 event pages show 14–17 January 2027 and Category B (Bronze). The recurring Career calendar uses the same mid-January slot as an in-game approximation; it does not claim to reproduce each future year's official dates. The v35/v36 event editions remain immutable. Human eligibility uses the saved date of birth. Fictional NPCs use a stable generated birthday because they do not have real birth records; older event editions keep their original event-date age behavior.
 
-**Status:** Ranking tables, year-end age cutoff, and points path implemented; calendar scheduling and Career-authored grades remain qualified.
+**Status:** Ranking tables, year-end age cutoff, and the verified U23 event reference/grade are implemented; recurring schedule dates remain a Career approximation.
 
 ### WDF Cups and pairs — scope distinction required in presentation
 
@@ -50,8 +50,10 @@ The official PDC sitemap exposes the current rankings-rules and tournament pages
 - WDF Seniors World Ranking Systems Criteria, rev 50, 17 Aug 2026: <https://dartswdf.com/storage/uploads/923afcee-0f2c-45e1-aef0-5813d8fa5cbf/2026-08-17_World_Ranking_Systems_Criteria_Seniors_50.pdf>
 - WDF Youth World Ranking Systems Criteria, rev 19, 17 Aug 2026: <https://dartswdf.com/storage/uploads/923afcee-0f2c-45e1-aef0-5813d8fa5cbf/2026-08-17_World_Ranking_Systems_Criteria_Youth_19.pdf>
 - WDF Under-23 World Ranking Systems Criteria, rev 5, 17 Aug 2026: <https://dartswdf.com/storage/uploads/923afcee-0f2c-45e1-aef0-5813d8fa5cbf/2026-08-17_World_Ranking_Systems_Criteria_U23_5.pdf>
+- WDF Las Vegas Open U23 Youth 2027 (Category B/Bronze, 14–17 Jan): <https://dartswdf.com/competitions/las-vegas-open-u23-youth/2027>
+- WDF Las Vegas Open U23 Girls 2027 (Category B/Bronze, 14–17 Jan): <https://dartswdf.com/competitions/las-vegas-open-u23-girls/2027>
 - PDC sitemap and rankings-rules page (page content not extractable in this pass): <https://www.pdc.tv/sitemap.xml> · <https://www.pdc.tv/rankings/pdc-rankings-rules>
 
 ## Recommendation
 
-Career now has the separate Youth/U23 points tables and future fixtures under versioned rules. Follow-up work is limited to exact year-end age eligibility and replacing Career-authored fixtures only when verified WDF calendar entries and grades are available. Complete the PDC source review separately once readable official event/rules material is available; keep unverified PDC formats marked as Career-authored rather than asserting exact official fidelity.
+Career now has the separate Youth/U23 points tables, the year-end age cutoff, and a source-verified U23 WDF fixture reference under versioned rules. Complete the PDC source review separately once readable official event/rules material is available; keep unverified PDC formats marked as Career-authored rather than asserting exact official fidelity.

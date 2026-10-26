@@ -167,6 +167,27 @@ test("v35 adds distinct WDF youth and authored Under-23 event divisions without 
   assert.equal(girls.eventDatabaseVersion, 35);
 });
 
+test("v37 uses the verified WDF Las Vegas U23 event while retaining the v36 edition", () => {
+  const previous = catalogueFor(36);
+  const current = catalogueFor(37);
+  const oldOpen = previous.find(d => d.key === "u23-world-ranking-open")!;
+  const open = current.find(d => d.key === "u23-world-ranking-open")!;
+  const girls = current.find(d => d.key === "u23-girls-world-ranking-open")!;
+  assert.equal(oldOpen.name, "Under-23 World Ranking Open");
+  assert.equal(open.name, "Las Vegas Open U23 Youth");
+  assert.equal(girls.name, "Las Vegas Open U23 Girls");
+  assert.equal(open.eventDatabaseVersion, 37);
+  assert.equal(open.rankingCategory, "WDF_U23_OPEN");
+  assert.match(open.legacyConcept!, /2027 WDF Las Vegas Open U23/);
+  assert.equal(open.schedule.kind, "FIXED");
+  if (open.schedule.kind === "FIXED") {
+    assert.deepEqual(open.schedule.slots[0], {
+      week: 2, day: 7, endWeek: 3, endDay: 3,
+      venue: "desert-pavilion-las-vegas", label: "Las Vegas",
+    });
+  }
+});
+
 test("instance snapshots preserve the definition they were generated from", async () => {
   const save = await careerFor();
   // The original A3 regression fixture intentionally stays on v2; its snapshot must match that edition.
@@ -202,7 +223,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   assert.ok(stale, "a future Auckland club night exists in the old save");
   // Recreate the stale persisted snapshot from a pre-v26 save. Production
   // updates remain guarded; only this isolated migration fixture bypasses it.
-  await db.execute(sql`DELETE FROM career_calendar_addons WHERE career_save_id=${save.id} AND addon='career-events-v36'`);
+  await db.execute(sql`DELETE FROM career_calendar_addons WHERE career_save_id=${save.id} AND addon='career-events-v37'`);
   await db.execute(sql`ALTER TABLE career_event_instances DISABLE TRIGGER career_event_instances_history_guard`);
   try {
     await db.execute(sql`UPDATE career_event_instances SET event_database_version=25,

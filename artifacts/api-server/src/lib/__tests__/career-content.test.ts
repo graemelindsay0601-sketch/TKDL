@@ -17,6 +17,7 @@ import {portfolioCoverage,type ContractRow} from "../../career/finance/engine.ts
 import {rankingListsFor} from "../../career/sporting/config.ts";
 import {VENUES} from "../../career/calendar/geography.ts";
 import {V32_WDF_RANKED_EVENT_KEYS} from "../../career/content/season-v32.ts";
+import {V35_WDF_RANKED_EVENT_KEYS} from "../../career/content/season-v35.ts";
 import {WDF_CAREER_GRADE_KEYS,WDF_EVENT_GRADES,WDF_OFFICIAL_GRADE_KEYS} from "../../career/sporting/wdf-ranking.ts";
 const seed="a".repeat(64),season=generateSeason(seed,3,1);
 const facts:SportingFacts={careerStarted:true,titles:20,tourCard:true,professionalStatus:"PROFESSIONAL",worldRanking:8,bestFinishByCircuit:{},qualifications:[]};
@@ -174,7 +175,7 @@ test("event database v34 places the girls world championship in the youth merit 
 });
 test("every senior singles WDF-inspired event has an explicit official or Career-authored grade",()=>{
   const current=new Map(catalogueFor(34).map(d=>[d.key,d]));
-  const seniorKeys=V32_WDF_RANKED_EVENT_KEYS.filter(key=>!key.includes("girls")&&!key.includes("youth"));
+  const seniorKeys=V32_WDF_RANKED_EVENT_KEYS.filter(key=>!key.includes("girls")&&!key.includes("youth")&&!key.includes("u23"));
   for(const key of seniorKeys){
     const event=current.get(key);
     assert.ok(event,`missing WDF event ${key}`);
@@ -182,10 +183,10 @@ test("every senior singles WDF-inspired event has an explicit official or Career
       `${key} is not a singles ranking event`);
     assert.ok(WDF_EVENT_GRADES[key],`${key} has no explicit grade`);
   }
-  const seniorKeySet=new Set<string>(seniorKeys);
-  for(const key of [...WDF_OFFICIAL_GRADE_KEYS,...WDF_CAREER_GRADE_KEYS]) assert.ok(seniorKeySet.has(key),`orphaned grade ${key}`);
+  const rankedWdfKeys=new Set<string>([...V32_WDF_RANKED_EVENT_KEYS,...V35_WDF_RANKED_EVENT_KEYS]);
+  for(const key of [...WDF_OFFICIAL_GRADE_KEYS,...WDF_CAREER_GRADE_KEYS]) assert.ok(rankedWdfKeys.has(key),`orphaned grade ${key}`);
   assert.equal(WDF_OFFICIAL_GRADE_KEYS.size,7);
-  assert.equal(WDF_CAREER_GRADE_KEYS.size,15);
+  assert.equal(WDF_CAREER_GRADE_KEYS.size,22);
 });
 test("equipment, apparel and commercial partners coexist; competitors conflict",()=>{
   const eq=contract("ironflight");

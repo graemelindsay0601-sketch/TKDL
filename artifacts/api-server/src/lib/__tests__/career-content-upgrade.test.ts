@@ -79,7 +79,7 @@ test("new migration independently installs the full Career schema and all shippe
       "SELECT event_database_version,count(*)::int AS count FROM career_event_definitions GROUP BY 1 ORDER BY 1");
     assert.deepEqual(versions.rows,[{event_database_version:1,count:73},{event_database_version:2,count:75},
       {event_database_version:3,count:92},{event_database_version:4,count:92},{event_database_version:5,count:92},{event_database_version:6,count:94},{event_database_version:7,count:153},{event_database_version:8,count:153},{event_database_version:9,count:153},{event_database_version:10,count:153},{event_database_version:11,count:153},{event_database_version:12,count:153},{event_database_version:13,count:154},{event_database_version:14,count:155},{event_database_version:15,count:157},{event_database_version:16,count:157},{event_database_version:17,count:158},
-       {event_database_version:18,count:141},{event_database_version:19,count:157},{event_database_version:20,count:157},{event_database_version:21,count:161},{event_database_version:22,count:165},{event_database_version:23,count:178},{event_database_version:24,count:178},{event_database_version:25,count:184},{event_database_version:26,count:184},{event_database_version:27,count:184},{event_database_version:28,count:184}]);
+        {event_database_version:18,count:141},{event_database_version:19,count:157},{event_database_version:20,count:157},{event_database_version:21,count:161},{event_database_version:22,count:165},{event_database_version:23,count:178},{event_database_version:24,count:178},{event_database_version:25,count:184},{event_database_version:26,count:184},{event_database_version:27,count:184},{event_database_version:28,count:184},{event_database_version:29,count:184},{event_database_version:30,count:184},{event_database_version:31,count:184},{event_database_version:32,count:184},{event_database_version:33,count:184},{event_database_version:34,count:184},{event_database_version:35,count:186},{event_database_version:36,count:186},{event_database_version:37,count:186}]);
     assert.equal((await marker(pg)).length,1);
     const before=await contents(pg),beforeSchema=await schema(pg);
     await upgradeCareerContentA9V1(db);
@@ -97,7 +97,7 @@ test("recorded old keys cannot skip the upgrade; the failed world/save survives 
     });
     const preserved=["career_saves","career_world_state","career_world_players","players","feature_flags"];
     const before=await contents(pg,preserved),keys=await legacyMarkers(pg);
-    assert.equal((before.career_world_players as {count:number}).count,804); // v4: 340 + 464 squad players
+    assert.equal((before.career_world_players as {count:number}).count,996); // Current v8 world: base field, cohorts and expanded squads.
     await upgradeCareerContentA9V1(db);
     assert.deepEqual(await contents(pg,preserved),before);assert.deepEqual(await legacyMarkers(pg),keys);
     assert.equal((await marker(pg)).length,1);
