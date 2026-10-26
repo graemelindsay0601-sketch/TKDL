@@ -20,6 +20,22 @@ export type CountyCategory = typeof COUNTY_SQUAD_FORMAT.categories[number];
 export type CountyTeam = typeof COUNTY_SQUAD_FORMAT.teams[number];
 export type CountySquadPlayer = { key: string; points: number; women: boolean; selectionSource?: "COUNTY_RESULTS" | "COUNTY_TRIAL" };
 
+export function countySelectionRanking(players: readonly CountySquadPlayer[], category: CountyCategory) {
+  const women = category === "WOMEN";
+  const teamSize = women ? COUNTY_SQUAD_FORMAT.womenPlayersPerTeam : COUNTY_SQUAD_FORMAT.menPlayersPerTeam;
+  const ranked = players.filter(p => p.points > 0 && p.women === women)
+    .sort((a, b) => b.points - a.points || a.key.localeCompare(b.key));
+  const index = ranked.findIndex(p => p.key === "HUMAN");
+  const rank = index < 0 ? null : index + 1;
+  return {
+    points: players.find(p => p.key === "HUMAN" && p.women === women)?.points ?? 0,
+    rank,
+    teamSize,
+    aCutoffPoints: ranked[teamSize - 1]?.points ?? null,
+    projectedTeam: rank === null ? null : rank <= teamSize ? "A" as const : rank <= teamSize * 2 ? "B" as const : null,
+  };
+}
+
 /** A/B selection is based on the previous season's local results, not hidden ability. */
 export function selectCountySquads(players: readonly CountySquadPlayer[], trialQualified: CountyCategory | null = null) {
   const output = {

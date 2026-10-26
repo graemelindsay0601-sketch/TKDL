@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COUNTY_SQUAD_FORMAT, countyFixtures, countyTables, selectCountySquads } from "../../career/club/county-squads.ts";
+import { COUNTY_SQUAD_FORMAT, countyFixtures, countySelectionRanking, countyTables, selectCountySquads } from "../../career/club/county-squads.ts";
 
 test("UKDA-style A/B squads rank prior-season points separately by category", () => {
   const players = Array.from({ length: 40 }, (_, i) => ({
@@ -30,6 +30,21 @@ test("a county-trial win earns a labelled B-squad place without adding ranking p
   assert.equal(squads.MEN.B.at(-1)?.selectionSource, "COUNTY_TRIAL");
   assert.equal(squads.MEN.B.at(-1)?.points, 0);
   assert.equal(squads.WOMEN.B.length, 0);
+});
+
+test("county individual results can move a trial-earned B player into A next season", () => {
+  const players = Array.from({ length: 30 }, (_, i) => ({ key: `m${i}`, points: 80 - i, women: false }));
+  const human = { key: "HUMAN", points: 100, women: false };
+  const squads = selectCountySquads([...players, human], "MEN");
+  const progress = countySelectionRanking([...players, human], "MEN");
+  assert.equal(progress.rank, 1);
+  assert.equal(progress.projectedTeam, "A");
+  assert.equal(squads.MEN.A[0].key, "HUMAN");
+  assert.ok(!squads.MEN.B.some(player => player.key === "HUMAN"), "ranking selection takes precedence over the trial's B place");
+
+  const lowerRanked = countySelectionRanking([...players, { ...human, points: 60 }], "MEN");
+  assert.equal(lowerRanked.projectedTeam, "B");
+  assert.equal(lowerRanked.aCutoffPoints, 69);
 });
 
 test("county fixture schedule is single round-robin and county table counts only match results", () => {

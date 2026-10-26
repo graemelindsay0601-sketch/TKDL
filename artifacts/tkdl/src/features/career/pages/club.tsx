@@ -112,6 +112,16 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
       </div>
       {setCountyCategory.error && <p className="county-error" role="alert">{errorMessage(setCountyCategory.error)}</p>}
       {!d.county.category && <p className="club-section-note">Select a category to be considered for county team fixtures.</p>}
+      {d.county.category && d.county.rankingProgress && <div className="county-ranking-progress">
+        <div className="subsection-heading"><div><span className="career-eyebrow">NEXT-SEASON SELECTION</span><h3>Your A-team route</h3></div>
+          <span>{d.county.rankingProgress.projectedTeam ? `PROJECTED ${d.county.rankingProgress.projectedTeam} SQUAD` : "NOT YET IN SQUAD PLACES"}</span></div>
+        <div className="county-ranking-stats">
+          <div><small>YOUR RANK</small><strong>{d.county.rankingProgress.rank ? `#${d.county.rankingProgress.rank}` : "—"}</strong></div>
+          <div><small>YOUR POINTS</small><strong>{d.county.rankingProgress.points}</strong></div>
+          <div><small>A-TEAM CUTOFF</small><strong>{d.county.rankingProgress.aCutoffPoints ?? "—"}</strong></div>
+        </div>
+        <p>Grassroots, county and regional event finishes build your individual points. Next season’s A squad goes to the top {d.county.rankingProgress.teamSize} in your category; a county-trial place keeps you in B until your ranking earns A selection.</p>
+      </div>}
       <div className="county-subsection county-trial-card">
         <div className="subsection-heading"><div><span className="career-eyebrow">CLUB-TO-COUNTY PATHWAY</span><h3>County squad trial</h3></div>
           <span>{d.county.trial.status === "WON" ? "QUALIFIED" : d.county.trial.status.replace("_", " ")}</span></div>
