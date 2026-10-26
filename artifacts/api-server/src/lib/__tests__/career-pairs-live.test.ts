@@ -32,6 +32,8 @@ type LiveModel = { careerBotVisit: (...a: unknown[]) => Dart[]; careerPartnerVis
 const { careerBotVisit, careerPartnerVisit, shouldCheckpoint } = await import(new URL("../../../../tkdl/src/features/career/live-model.ts", import.meta.url).href) as LiveModel;
 
 test("World Cup national qualifiers complete under-ranked nations without outranking published ranking holders", () => {
+  assert.equal(dartsNation("HRV", null), "CRO", "Croatian players use the World Cup team code");
+  assert.equal(dartsNation("COL", null), "LAT", "Colombian players represent the Latin America qualifier");
   const fallback = nationalFallbackRank("AMATEUR")!;
   const grassrootsFallback = nationalFallbackRank("GRASSROOTS")!;
   const selected = nationTeams([

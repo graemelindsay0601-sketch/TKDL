@@ -18,6 +18,10 @@ export const WORLD_CUP_NATION_CODES = [
 ] as const;
 const WORLD_CUP_NATION_SET = new Set<string>(WORLD_CUP_NATION_CODES);
 export function dartsNation(country: string, locality: string | null): string {
+  // World Cup teams use PDC team codes rather than ISO nationality codes for
+  // Croatia and the Latin America qualifier.
+  if (country === "HRV") return "CRO";
+  if (country === "COL") return "LAT";
   if (country !== "GBR") return country;
   return locality && SCOTLAND.has(locality) ? "SCO" : locality === "south-wales" ? "WAL" : locality === "northern-ireland" ? "NIR" : "ENG";
 }
