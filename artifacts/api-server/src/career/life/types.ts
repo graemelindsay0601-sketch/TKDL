@@ -44,12 +44,13 @@ export type Story = {
 export type Moment = {id:string;storyId:string;kind:"ATMOSPHERE"|"DIALOGUE";title:string;prompt:string;steps:string[];choices:Choice[];opponentId?:string;thread:string;statementFamily:string};
 export type Opportunity = {
   id:string;family:string;title:string;description:string;season:number;day:number;feePence:number;
-  contractId:string|null;compatibility:string;conflicts:string[];canAccept:boolean;
+  contractId:string|null;compatibility:string;conflicts:string[];canAccept:boolean;eventId?:string;eventName?:string;
 };
 export type ClubInvitationProgress = {
   nextInvitation:"LOCAL_SPOTLIGHT"|"REGIONAL_SHOWCASE"|null;
   status:"IN_PROGRESS"|"READY"|"BOOKED"|"COMPLETE"|"CLOSED";
   appearances:number;wins:number;targetAppearances:number|null;targetWins:number|null;
+  eventId?:string;eventName?:string;
 };
 export type PublicProfile = {
   persona:{label:string;primary:Persona|null;secondary:Persona|null;description:string};

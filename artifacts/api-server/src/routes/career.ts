@@ -65,7 +65,7 @@ router.use(createCareerFactsRouter(createCareerFactsService(db)));
 router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db)));
 router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
 router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
-router.use(createCareerLifeRouter(createCareerLifeService(db)));
+router.use(createCareerLifeRouter(createCareerLifeService(db,sporting.calendar)));
 router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
 router.use(createCareerRecordsRouter(createCareerRecordsService(db)));
 router.use(createCareerClubRouter(createCareerClubService(db), createCareerTeamNightsService(db), createCareerCountyLiveService(db), createCareerCountyTrialService(db)));
