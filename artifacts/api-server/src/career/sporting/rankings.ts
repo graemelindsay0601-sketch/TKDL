@@ -7,6 +7,8 @@ import { stableUuid } from "../world/random.ts";
 import { prizeForPosition, type PrizeProfile } from "../finance/config.ts";
 import { rankingListsFor, expiresIndex, timeIndex, type RankingListDefinition } from "./config.ts";
 import { recordMilestones, type Milestone } from "./state.ts";
+import { WDF_MAJOR_EVENT_KEYS, hasCompleteWdfRound, wdfGradeForEvent, wdfPointsForFinish } from "./wdf-ranking.ts";
+import { LOCALITIES } from "../calendar/geography.ts";
 
 /**
  * Ranking contributions: one immutable row per (list, event, participant) for
@@ -23,32 +25,78 @@ export async function recordRankingContributions(tx: CareerExecutor, root: RootR
 
 /** Ranking money for many completed events: one read of their A4 prize tables and one insert. */
 export async function recordRankingContributionsBatch(tx: CareerExecutor, root: RootRow, rulesVersion: number, batch: readonly { event: InstanceRow; results: readonly SportingResult[] }[]) {
-  const ranked = batch.map(b => ({ ...b, lists: b.event.classification === "RANKING" && b.event.ranking_category
-    ? rankingListsFor(rulesVersion).filter(l => l.categories.includes(b.event.ranking_category!)) : [] })).filter(b => b.lists.length);
+  const definitions = rankingListsFor(rulesVersion);
+  const ranked = batch.map(b => {
+    const category = b.event.ranking_category;
+    const grade = wdfGradeForEvent(b.event.definition_key);
+    const isWdfDivision = category === "WOMENS" || ["AMATEUR_NATIONAL", "AMATEUR_REGIONAL"].includes(category ?? "");
+    const lists = b.event.classification === "RANKING" && category
+      ? definitions.filter(l => l.unit !== "POINTS" && l.categories.includes(category)) : [];
+    const wdfLists = b.event.classification === "RANKING" && category && grade && isWdfDivision
+      ? definitions.filter(l => l.unit === "POINTS" && l.categories.includes(category)
+        && (!l.regionalCountry || !WDF_MAJOR_EVENT_KEYS.has(b.event.definition_key))
+        && (!l.regionalCountry || l.regionalCountry === b.event.country)) : [];
+    return { ...b, grade: isWdfDivision ? grade : null, lists, wdfLists };
+  }).filter(b => b.lists.length || (b.grade && b.wdfLists.length));
   if (!ranked.length) return 0;
-  const tables = new Map((await tx.execute(sql`SELECT event_id, ranking_eligible, bands, prize_profile_key FROM career_event_prize_tables WHERE career_save_id = ${root.id}
-    AND event_id IN (${sql.join(ranked.map(b => sql`${b.event.id}::uuid`), sql`, `)})`)).rows.map(r => [String(r.event_id), r]));
+  const cashRanked = ranked.filter(b => b.lists.length);
+  const tables = new Map((cashRanked.length ? (await tx.execute(sql`SELECT event_id, ranking_eligible, bands, prize_profile_key FROM career_event_prize_tables WHERE career_save_id = ${root.id}
+    AND event_id IN (${sql.join(cashRanked.map(b => sql`${b.event.id}::uuid`), sql`, `)})`)).rows : []).map(r => [String(r.event_id), r]));
   const completion = timeIndex(Number(root.current_season), Number(root.current_week));
   const rows: Record<string, unknown>[] = [];
-  for (const { event, results, lists } of ranked) {
-    const table = tables.get(event.id);
-    if (!table) throw new Error(`A4 prize table missing for ${event.id}: A5 ranking money must come from A4 prize facts`);
-    if (table.ranking_eligible !== true) continue;
-    const bands = { key: String(table.prize_profile_key), bands: table.bands } as PrizeProfile;
-    const award = results.some(r => r.participant_key === HUMAN)
-      ? (await tx.execute(sql`SELECT ranking_eligible_pence FROM career_prize_awards WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0]
-      : undefined;
-    for (const r of results) {
-      const fromTable = prizeForPosition(bands, r.finishing_position);
-      let amount = fromTable, source = "A4_PRIZE_TABLE";
-      if (r.participant_key === HUMAN && award) {
-        amount = Number(award.ranking_eligible_pence); source = "A4_PRIZE_AWARD";
-        if (amount !== fromTable) throw new Error("A4 human ranking-eligible award disagrees with the immutable prize table");
+  for (const { event, results, lists, wdfLists, grade } of ranked) {
+    const table = lists.length ? tables.get(event.id) : null;
+    if (lists.length && !table) throw new Error(`A4 prize table missing for ${event.id}: A5 ranking money must come from A4 prize facts`);
+    if (table?.ranking_eligible === true) {
+      const bands = { key: String(table.prize_profile_key), bands: table.bands } as PrizeProfile;
+      const award = results.some(r => r.participant_key === HUMAN)
+        ? (await tx.execute(sql`SELECT ranking_eligible_pence FROM career_prize_awards WHERE career_save_id = ${root.id} AND event_id = ${event.id} AND participant_key = ${HUMAN}`)).rows[0]
+        : undefined;
+      for (const r of results) {
+        const fromTable = prizeForPosition(bands, r.finishing_position);
+        let amount = fromTable, source = "A4_PRIZE_TABLE";
+        if (r.participant_key === HUMAN && award) {
+          amount = Number(award.ranking_eligible_pence); source = "A4_PRIZE_AWARD";
+          if (amount !== fromTable) throw new Error("A4 human ranking-eligible award disagrees with the immutable prize table");
+        }
+        if (amount <= 0) continue;
+        for (const list of lists) rows.push({ id: stableUuid(root.world_seed, rulesVersion, "ranking-contribution", root.id, list.key, event.id, r.participant_key), list_key: list.key,
+          participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount, source,
+          expires_index: expiresIndex(list.window, completion), event_id: event.id, season: event.season, ranking_category: event.ranking_category });
       }
-      if (amount <= 0) continue;
-      for (const list of lists) rows.push({ id: stableUuid(root.world_seed, rulesVersion, "ranking-contribution", root.id, list.key, event.id, r.participant_key), list_key: list.key,
-        participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount, source,
-        expires_index: expiresIndex(list.window, completion), event_id: event.id, season: event.season, ranking_category: event.ranking_category });
+    }
+    if (grade && wdfLists.length) {
+      const cardRows = (await tx.execute(sql`SELECT participant_key FROM career_tour_cards
+        WHERE career_save_id = ${root.id} AND status = 'ACTIVE' AND start_season <= ${event.season} AND end_season >= ${event.season}`)).rows;
+      const cardHolders = new Set(cardRows.map(r => String(r.participant_key)));
+      // A legacy entered fixture can survive the catalogue migration. If a
+      // current PDC card holder appears in it, do not publish a distorted WDF
+      // result or award points to anyone from that invalid draw.
+      if (!results.some(r => cardHolders.has(r.participant_key))) {
+      const matches = (await tx.execute(sql`SELECT stage_key, round, status, a_key, b_key, winner_key
+        FROM career_tournament_matches WHERE career_save_id = ${root.id} AND event_id = ${event.id}`)).rows as {
+          stage_key: string; round: number; status: string; a_key: string | null; b_key: string | null; winner_key: string | null;
+        }[];
+      const completeRoundPlayed = hasCompleteWdfRound(matches);
+      const participantKeys = results.map(r => r.participant_key).filter(k => k !== HUMAN);
+      const nationalities = new Map<string, string>();
+      if (participantKeys.length) {
+        for (const p of (await tx.execute(sql`SELECT id, nationality FROM career_world_players WHERE career_save_id = ${root.id}
+          AND id IN (${sql.join(participantKeys.map(k => sql`${k}::uuid`), sql`, `)})`)).rows) nationalities.set(String(p.id), String(p.nationality));
+      }
+      const home = (await tx.execute(sql`SELECT home_locality FROM career_profiles WHERE career_save_id = ${root.id}`)).rows[0];
+      const humanCountry = LOCALITIES.find(l => l.key === String(home?.home_locality ?? ""))?.country ?? null;
+      for (const r of results) for (const list of wdfLists) {
+        if (list.regionalCountry && (event.country !== list.regionalCountry
+          || (r.participant_key === HUMAN ? humanCountry : nationalities.get(r.participant_key)) !== list.regionalCountry)) continue;
+        const amount = wdfPointsForFinish({ grade, position: r.finishing_position, entries: results.length, completeRoundPlayed,
+          regional: !!list.regionalCountry });
+        if (amount <= 0) continue;
+        rows.push({ id: stableUuid(root.world_seed, rulesVersion, "ranking-contribution", root.id, list.key, event.id, r.participant_key), list_key: list.key,
+          participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount,
+          source: "WDF_OFFICIAL_POINTS", expires_index: expiresIndex(list.window, completion), event_id: event.id, season: event.season, ranking_category: event.ranking_category });
+      }
+      }
     }
   }
   if (!rows.length) return 0;
@@ -71,12 +119,22 @@ export const tieKey = (seed: string, rulesVersion: number, list: string, partici
 
 /** Counting standings for a list at publication index P (retired NPCs are not active ranking participants). */
 export async function standingsAt(tx: CareerExecutor, root: RootRow, rulesVersion: number, list: string, publication: number): Promise<Standing[]> {
-  const rows = (await tx.execute(sql`SELECT c.participant_key, c.participant_kind, c.npc_id, SUM(c.amount_pence)::bigint AS value, MAX(c.amount_pence)::bigint AS best,
-      MAX(c.completion_index)::int AS latest, COUNT(*)::int AS n
-    FROM career_ranking_contributions c LEFT JOIN career_world_players p ON p.career_save_id = c.career_save_id AND p.id = c.npc_id
-    WHERE c.career_save_id = ${root.id} AND c.list_key = ${list} AND c.completion_index <= ${publication} AND c.expires_index > ${publication}
-      AND (c.npc_id IS NULL OR p.status = 'ACTIVE')
-    GROUP BY c.participant_key, c.participant_kind, c.npc_id`)).rows;
+  const definition = rankingListsFor(rulesVersion).find(item => item.key === list);
+  const rows = definition?.bestResults
+    ? (await tx.execute(sql`WITH eligible AS (
+        SELECT c.*, ROW_NUMBER() OVER (PARTITION BY c.participant_key ORDER BY c.amount_pence DESC, c.completion_index DESC, c.event_id ASC) AS result_rank
+        FROM career_ranking_contributions c LEFT JOIN career_world_players p ON p.career_save_id = c.career_save_id AND p.id = c.npc_id
+        WHERE c.career_save_id = ${root.id} AND c.list_key = ${list} AND c.completion_index <= ${publication} AND c.expires_index > ${publication}
+          AND (c.npc_id IS NULL OR p.status = 'ACTIVE'))
+      SELECT participant_key, participant_kind, npc_id, SUM(amount_pence)::bigint AS value, MAX(amount_pence)::bigint AS best,
+        MAX(completion_index)::int AS latest, COUNT(*)::int AS n FROM eligible WHERE result_rank <= ${definition.bestResults}
+      GROUP BY participant_key, participant_kind, npc_id`)).rows
+    : (await tx.execute(sql`SELECT c.participant_key, c.participant_kind, c.npc_id, SUM(c.amount_pence)::bigint AS value, MAX(c.amount_pence)::bigint AS best,
+        MAX(c.completion_index)::int AS latest, COUNT(*)::int AS n
+      FROM career_ranking_contributions c LEFT JOIN career_world_players p ON p.career_save_id = c.career_save_id AND p.id = c.npc_id
+      WHERE c.career_save_id = ${root.id} AND c.list_key = ${list} AND c.completion_index <= ${publication} AND c.expires_index > ${publication}
+        AND (c.npc_id IS NULL OR p.status = 'ACTIVE')
+      GROUP BY c.participant_key, c.participant_kind, c.npc_id`)).rows;
   return rows.map(r => ({ participant_key: String(r.participant_key), participant_kind: String(r.participant_kind), npc_id: r.npc_id ? String(r.npc_id) : null,
     value: Number(r.value), best: Number(r.best), latest: Number(r.latest), n: Number(r.n), tie: tieKey(root.world_seed, rulesVersion, list, String(r.participant_key)) }))
     .sort(compareStandings);

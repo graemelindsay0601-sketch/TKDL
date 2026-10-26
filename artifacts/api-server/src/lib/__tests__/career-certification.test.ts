@@ -1,6 +1,7 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {catalogueFor} from "../../career/calendar/catalogue.ts";
+import {evaluateRule} from "../../career/calendar/eligibility.ts";
 import {generateSeason} from "../../career/calendar/generation.ts";
 import {assessCapability,a2MatchFormat,liveMatchFormat,bestOfForRound} from "../../career/calendar/formats.ts";
 import {SEASON_GROUPINGS,groupingForWeek} from "../../career/calendar/config.ts";
@@ -70,6 +71,52 @@ test("v20 keeps event names distinct from official PDC/WDF branding",()=>{
   assert.equal(names.get("wdf-gold-open"),"Gold-Ranked International Open");
   assert.equal(names.get("women-world-championship"),"Women's World Championship");
   assert.deepEqual(definitions.filter(d=>!assessCapability(d.format,true).executable).map(d=>d.key),[]);
+});
+test("v31 keeps WDF team cups competitive but outside singles ranking lists",()=>{
+  const previous=catalogueFor(30),current=catalogueFor(31);
+  const teamCups=["wdf-world-cup","wdf-europe-cup","wdf-asia-pacific-cup"];
+  for(const key of teamCups){
+    const old=previous.find(d=>d.key===key)!;
+    const next=current.find(d=>d.key===key)!;
+    assert.equal(old.classification,"RANKING","published event editions are immutable");
+    assert.equal(next.classification,"TEAM");
+    assert.equal(next.rankingCategory,null);
+    assert.equal(next.format.sideSize,2,"team format remains playable");
+    assert.equal(assessCapability(next.format,true).executable,true);
+  }
+  for(const key of ["wdf-world-championship","wdf-world-masters","wdf-gold-open","wdf-silver-open"]){
+    const event=current.find(d=>d.key===key)!;
+    assert.equal(event.classification,"RANKING",`${key} remains a singles ranking event`);
+    assert.ok(event.rankingCategory);
+  }
+  assert.deepEqual(current.filter(d=>!assessCapability(d.format,true).executable).map(d=>d.key),[]);
+});
+test("v32 excludes current PDC Tour Card holders from WDF-ranked singles events",()=>{
+  const v31=catalogueFor(31),current=catalogueFor(32);
+  const rankedWdfKeys=["wdf-world-championship","wdf-world-masters","wdf-gold-open","wdf-silver-open","wdf-bronze-open",
+    "wdf-nevada-open","wdf-low-countries-open","wdf-caledonian-open","wdf-manx-open","wdf-ulster-open","wdf-baltic-open",
+    "wdf-britannia-open","wdf-danube-masters","wdf-emerald-open","wdf-bohemian-open","wdf-mediterranean-masters",
+    "wdf-southern-cross-open","world-ranking-open","women-world-ranking-open","youth-world-ranking-open","girls-world-ranking-open",
+    "women-world-championship","women-masters","women-tour","youth-world-championship","youth-masters","wdf-world-girls-championship"];
+  for(const key of rankedWdfKeys){
+    const before=v31.find(d=>d.key===key),after=current.find(d=>d.key===key);
+    assert.ok(before,`missing historical event ${key}`);
+    assert.ok(after,`missing current event ${key}`);
+    assert.equal(before.eventDatabaseVersion,31);
+    assert.equal(after.eventDatabaseVersion,32);
+    assert.equal(after.classification,"RANKING",`${key} remains ranked`);
+    assert.ok("all" in after.eligibility,`${key}: current rule adds a Tour Card exclusion`);
+    assert.deepEqual(after.eligibility.all[0],before.eligibility,`${key}: existing eligibility rules are preserved`);
+    assert.deepEqual(after.eligibility.all[1],{type:"NON_TOUR_CARD"},`${key}: current PDC Tour Card holders are barred`);
+  }
+  for(const key of ["wdf-world-cup","wdf-europe-cup","wdf-asia-pacific-cup"]){
+    const teamEvent=current.find(d=>d.key===key)!;
+    assert.equal(teamEvent.classification,"TEAM");
+    assert.equal(teamEvent.rankingCategory,null,`${key} is not a WDF-ranked singles event`);
+  }
+  assert.equal(JSON.stringify(current.find(d=>d.key==="pdc-womens-matchplay")!.eligibility),
+    JSON.stringify(catalogueFor(31).find(d=>d.key==="pdc-womens-matchplay")!.eligibility),
+    "the WDF restriction must not leak into the PDC women's event");
 });
 test("v21 restores Vault as an optional tour without same-day clashes with headline circuits",()=>{
   const rows=generateSeason(seed,21,1);

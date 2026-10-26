@@ -23,7 +23,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
         definition_key TEXT NOT NULL CHECK (length(definition_key) BETWEEN 1 AND 80),
         definition_hash TEXT NOT NULL CHECK (definition_hash ~ '^[a-f0-9]{64}$'),
         circuit TEXT NOT NULL,
-        classification TEXT NOT NULL CHECK (classification IN ('RANKING','QUALIFIER','INVITATIONAL_EXHIBITION','SPECIAL')),
+        classification TEXT NOT NULL CHECK (classification IN ('RANKING','QUALIFIER','INVITATIONAL_EXHIBITION','SPECIAL','TEAM')),
         definition JSONB NOT NULL CHECK (jsonb_typeof(definition) = 'object'),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         PRIMARY KEY (event_database_version, definition_key)
@@ -61,7 +61,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
         name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 160),
         family TEXT NOT NULL,
         circuit TEXT NOT NULL CHECK (circuit IN ('GRASSROOTS','COUNTY','REGIONAL','NATIONAL_AMATEUR','CHALLENGER','VAULT','Q_SCHOOL','PRO_CIRCUIT','EUROPEAN_SERIES','WORLD_SERIES','INVITATIONAL','MAJOR','WORLD_CHAMPIONSHIP','SPECIAL')),
-        classification TEXT NOT NULL CHECK (classification IN ('RANKING','QUALIFIER','INVITATIONAL_EXHIBITION','SPECIAL')),
+        classification TEXT NOT NULL CHECK (classification IN ('RANKING','QUALIFIER','INVITATIONAL_EXHIBITION','SPECIAL','TEAM')),
         ranking_category TEXT,
         presentation_tier TEXT NOT NULL CHECK (presentation_tier IN ('LOCAL','STANDARD','FEATURED','TELEVISED','MAJOR','WORLD')),
         featured BOOLEAN NOT NULL,
@@ -100,6 +100,7 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
         CONSTRAINT career_event_instances_unsupported_check CHECK (executable OR status <> 'COMPLETED')
       )
     `);
+    await ensureTeamEventClassification(tx);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_event_instances_week_idx ON career_event_instances(career_save_id, season, start_week)`);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_event_instances_status_idx ON career_event_instances(career_save_id, season, status)`);
     await tx.execute(sql`CREATE INDEX IF NOT EXISTS career_event_instances_definition_idx ON career_event_instances(career_save_id, definition_key, season)`);
@@ -302,6 +303,21 @@ export async function createCareerCalendar(database: CareerDatabase): Promise<vo
     await createCareerLife(tx);
     await createCareerLegacy(tx);
   });
+}
+
+/** Event database v31 distinguishes competitive team cups from ranking singles. */
+export async function ensureTeamEventClassification(tx: CareerExecutor): Promise<void> {
+  for (const [table, constraint] of [
+    ["career_event_definitions", "career_event_definitions_classification_check"],
+    ["career_event_instances", "career_event_instances_classification_check"],
+  ] as const) {
+    const current = (await tx.execute(sql`SELECT pg_get_constraintdef(oid) AS def FROM pg_constraint
+      WHERE conrelid = ${table}::regclass AND conname = ${constraint}`)).rows[0] as { def: string } | undefined;
+    if (current?.def.includes("'TEAM'")) continue;
+    await tx.execute(sql.raw(`ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${constraint}`));
+    await tx.execute(sql.raw(`ALTER TABLE ${table} ADD CONSTRAINT ${constraint}
+      CHECK (classification IN ('RANKING','QUALIFIER','INVITATIONAL_EXHIBITION','SPECIAL','TEAM'))`));
+  }
 }
 
 /**

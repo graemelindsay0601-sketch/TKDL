@@ -44,7 +44,7 @@ export async function createCareerSporting(database: CareerDatabase): Promise<vo
         expires_index INTEGER NOT NULL,
         finishing_position INTEGER NOT NULL CHECK (finishing_position >= 1),
         amount_pence BIGINT NOT NULL CHECK (amount_pence > 0),
-        source TEXT NOT NULL CHECK (source IN ('A4_PRIZE_AWARD','A4_PRIZE_TABLE')),
+        source TEXT NOT NULL CHECK (source IN ('A4_PRIZE_AWARD','A4_PRIZE_TABLE','WDF_OFFICIAL_POINTS')),
         ranking_category TEXT NOT NULL,
         ranking_rules_version INTEGER NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

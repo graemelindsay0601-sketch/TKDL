@@ -7,7 +7,7 @@ import { BOOTSTRAP_STATUS, type CalendarProviders, type CalendarSportingHooks, t
 import { defaultFactsProvider, type SponsorFactsProvider } from "../finance/engine.ts";
 import type { Npc, Tier } from "../world/types.ts";
 import { QUALIFICATION_MILESTONES, timeIndex } from "./config.ts";
-import { loadSportingState, createSportingState, recordMilestones, type SportingState, type Milestone } from "./state.ts";
+import { loadSportingState, createSportingState, migrateSportingStateForEventDatabase, recordMilestones, type SportingState, type Milestone } from "./state.ts";
 import { recordRankingContributions, recordRankingContributionsBatch, publishRankings, currentPositions } from "./rankings.ts";
 import { cardHoldersIn, issueFoundingCards, seasonReview, processRetirements, syncHumanCardCache } from "./cards.ts";
 import { recordQSchoolResults, allocateQSchool, PATHWAYS } from "./qschool.ts";
@@ -19,7 +19,10 @@ import { awardBreakoutPlaces } from "./breakout.ts";
 /** State + founding cards, once per save (idempotent; inside the caller's locked transaction). */
 export async function ensureSporting(tx: CareerExecutor, root: RootRow): Promise<SportingState> {
   let state = await loadSportingState(tx, root.id);
-  if (state) return state;
+  if (state) {
+    await migrateSportingStateForEventDatabase(tx, root.id, Number(root.event_database_version));
+    return (await loadSportingState(tx, root.id))!;
+  }
   const world = (await tx.execute(sql`SELECT 1 FROM career_world_state WHERE career_save_id = ${root.id}`)).rows.length;
   if (!world) throw new Error("A5 requires the A2 Career world");
   if (await createSportingState(tx, root.id)) {

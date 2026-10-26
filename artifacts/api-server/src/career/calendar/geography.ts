@@ -29,6 +29,24 @@ export const COUNTRIES: Record<string, { name: string; zone: Zone }> = {
   EST: { name: "Estonia", zone: "EUROPE" },
   SGP: { name: "Singapore", zone: "REST_OF_WORLD" },
   ZAF: { name: "South Africa", zone: "REST_OF_WORLD" },
+  BHR: { name: "Bahrain", zone: "REST_OF_WORLD" },
+  CHN: { name: "China", zone: "REST_OF_WORLD" },
+  HRV: { name: "Croatia", zone: "EUROPE" },
+  GIB: { name: "Gibraltar", zone: "EUROPE" },
+  HKG: { name: "Hong Kong", zone: "REST_OF_WORLD" },
+  ISL: { name: "Iceland", zone: "EUROPE" },
+  IND: { name: "India", zone: "REST_OF_WORLD" },
+  ITA: { name: "Italy", zone: "EUROPE" },
+  LVA: { name: "Latvia", zone: "EUROPE" },
+  LTU: { name: "Lithuania", zone: "EUROPE" },
+  PHL: { name: "Philippines", zone: "REST_OF_WORLD" },
+  PRT: { name: "Portugal", zone: "EUROPE" },
+  CHE: { name: "Switzerland", zone: "EUROPE" },
+  THA: { name: "Thailand", zone: "REST_OF_WORLD" },
+  UKR: { name: "Ukraine", zone: "EUROPE" },
+  COL: { name: "Colombia", zone: "REST_OF_WORLD" },
+  // Older saves may still contain the former non-country LAT nationality code.
+  LAT: { name: "Latin America (legacy save)", zone: "REST_OF_WORLD" },
 };
 export const zoneOf = (country: string): Zone => COUNTRIES[country]?.zone ?? "REST_OF_WORLD";
 
@@ -113,6 +131,8 @@ export const VENUES: readonly Venue[] = [
   V("dockyard-arena-liverpool", "Dockyard Arena", "Liverpool", "GBR", "North West", "ARENA"),
   V("glasgow-hall", "Glasgow Hall", "Glasgow", "GBR", "Scotland", "ARENA"),
   V("midlands-oche", "Midlands Oche", "Wolverhampton", "GBR", "Midlands", "HALL"),
+  V("lakeside-country-club", "Lakeside Country Club", "Frimley Green", "GBR", "Surrey", "ARENA"),
+  V("isle-of-man-oche", "Manx Oche Hall", "Douglas", "GBR", "Isle of Man", "HALL"),
   V("vault-studio-leeds", "The Vault Studio", "Leeds", "GBR", "Yorkshire", "HALL"),
   V("riverside-hall-cardiff", "Riverside Hall", "Cardiff", "GBR", "South Wales", "HALL"),
   V("harbour-rooms-dublin", "Harbour Rooms", "Dublin", "IRL", "Leinster", "HALL"),
