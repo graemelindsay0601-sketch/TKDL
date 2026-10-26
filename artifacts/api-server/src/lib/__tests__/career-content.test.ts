@@ -15,6 +15,9 @@ import {portfolioLimit,conflicts,relationship} from "../../career/finance/portfo
 import {SPONSOR_CATALOGUE_V1,SPONSOR_CATALOGUE_V6,sponsorCatalogue,type SportingFacts} from "../../career/finance/sponsors.catalogue.ts";
 import {portfolioCoverage,type ContractRow} from "../../career/finance/engine.ts";
 import {rankingListsFor} from "../../career/sporting/config.ts";
+import {VENUES} from "../../career/calendar/geography.ts";
+import {V32_WDF_RANKED_EVENT_KEYS} from "../../career/content/season-v32.ts";
+import {WDF_CAREER_GRADE_KEYS,WDF_EVENT_GRADES,WDF_OFFICIAL_GRADE_KEYS} from "../../career/sporting/wdf-ranking.ts";
 const seed="a".repeat(64),season=generateSeason(seed,3,1);
 const facts:SportingFacts={careerStarted:true,titles:20,tourCard:true,professionalStatus:"PROFESSIONAL",worldRanking:8,bestFinishByCircuit:{},qualifications:[]};
 const terms=(key:string)=>sponsorCatalogue(2).find(s=>s.key===key)!.terms;
@@ -94,7 +97,7 @@ test("player database v3 extends deterministically when crowded",()=>{
 });
 test("authored counts, hierarchy and complete map anchors",()=>{
   assert.equal(ORGANISATIONS.length,4);assert.equal(CIRCUIT_CONTENT.length,29);
-  assert.equal(VENUE_CONTENT.length,75);assert.equal(VENUE_FAMILIES.length,15);assert.equal(TROPHIES.length,18);
+  assert.equal(VENUE_CONTENT.length,77);assert.equal(VENUE_FAMILIES.length,15);assert.equal(TROPHIES.length,18);
   assert.equal(CORE_BRANDS.length,36);assert.equal(LOCAL_SPONSORS.length,16);
   assert.ok(CITIES.every(c=>Number.isFinite(c.mapAnchor.latitude)&&Number.isFinite(c.mapAnchor.longitude)));
   for(const e of season)assert.ok(venueContent(e.venueKey).mapAnchor);
@@ -132,6 +135,47 @@ test("women's eligibility only restricts dedicated women events; open remains op
 test("old ranking catalogue is pinned; new lists reuse existing prize-money model",()=>{
   assert.equal(rankingListsFor(1).length,6);assert.equal(rankingListsFor(2).length,9);assert.equal(rankingListsFor(3).length,10);
   assert.ok(rankingListsFor(2).find(l=>l.key==="women")!.categories.includes("WOMENS"));
+});
+test("event database v33 corrects WDF major and regional host venues without rewriting v32",()=>{
+  const v32=new Map(catalogueFor(32).map(d=>[d.key,d]));
+  const v33=new Map(catalogueFor(33).map(d=>[d.key,d]));
+  assert.deepEqual([...v33.keys()].sort(),[...v32.keys()].sort());
+  const corrections:Record<string,string>={
+    "wdf-world-championship":"lakeside-country-club","wdf-world-masters":"desert-pavilion-las-vegas",
+    "women-world-championship":"lakeside-country-club","women-masters":"desert-pavilion-las-vegas",
+    "wdf-manx-open":"isle-of-man-oche","wdf-ulster-open":"lagan-exchange","wdf-baltic-open":"baltic-exchange",
+    "wdf-danube-masters":"danube-halle-vienna","wdf-bohemian-open":"vltava-arena-prague",
+    "wdf-mediterranean-masters":"ramblas-arena-barcelona",
+  };
+  for(const [key,venueKey] of Object.entries(corrections)){
+    const definition=v33.get(key)!;
+    assert.equal(definition.eventDatabaseVersion,33);
+    assert.equal(definition.schedule.kind,"FIXED");
+    if(definition.schedule.kind==="FIXED") assert.ok(definition.schedule.slots.every(slot=>slot.venue===venueKey),key);
+    assert.ok(VENUES.some(venue=>venue.key===venueKey),venueKey);
+  }
+  const countries:Record<string,string>={
+    "lakeside-country-club":"GBR","desert-pavilion-las-vegas":"USA","isle-of-man-oche":"GBR",
+    "lagan-exchange":"GBR","baltic-exchange":"EST","danube-halle-vienna":"AUT",
+    "vltava-arena-prague":"CZE","ramblas-arena-barcelona":"ESP",
+  };
+  for(const [venueKey,country] of Object.entries(countries)) assert.equal(VENUES.find(v=>v.key===venueKey)!.country,country);
+  assert.notDeepEqual(v32.get("wdf-world-championship")!.schedule,v33.get("wdf-world-championship")!.schedule);
+});
+test("every senior singles WDF-inspired event has an explicit official or Career-authored grade",()=>{
+  const current=new Map(catalogueFor(33).map(d=>[d.key,d]));
+  const seniorKeys=V32_WDF_RANKED_EVENT_KEYS.filter(key=>!key.includes("girls")&&!key.includes("youth"));
+  for(const key of seniorKeys){
+    const event=current.get(key);
+    assert.ok(event,`missing WDF event ${key}`);
+    assert.ok(event!.rankingCategory==="WOMENS"||event!.rankingCategory==="AMATEUR_NATIONAL"||event!.rankingCategory==="AMATEUR_REGIONAL",
+      `${key} is not a singles ranking event`);
+    assert.ok(WDF_EVENT_GRADES[key],`${key} has no explicit grade`);
+  }
+  const seniorKeySet=new Set<string>(seniorKeys);
+  for(const key of [...WDF_OFFICIAL_GRADE_KEYS,...WDF_CAREER_GRADE_KEYS]) assert.ok(seniorKeySet.has(key),`orphaned grade ${key}`);
+  assert.equal(WDF_OFFICIAL_GRADE_KEYS.size,7);
+  assert.equal(WDF_CAREER_GRADE_KEYS.size,15);
 });
 test("equipment, apparel and commercial partners coexist; competitors conflict",()=>{
   const eq=contract("ironflight");

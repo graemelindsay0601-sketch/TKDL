@@ -25,11 +25,11 @@ import { HARNESS_SEED } from "../../career/world/harness.ts";
 import { loadInstances, HUMAN, type InstanceRow, type RootRow } from "../../career/calendar/engine.ts";
 import { COUNTRIES, zoneOf } from "../../career/calendar/geography.ts";
 import { Q_SCHOOL_PATHWAYS } from "../../career/calendar/eligibility.ts";
-import { expiresIndex, timeIndex, rankingList, RANKING_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, qSchoolPoints } from "../../career/sporting/config.ts";
+import { expiresIndex, timeIndex, rankingList, rankingListsFor, rankingRulesVersionFor, RANKING_RULES_VERSION, TOUR_CARD_RULES_V1, Q_SCHOOL_RULES_V1, qSchoolPoints } from "../../career/sporting/config.ts";
 import { recordRankingContributions, publishRankings, standingsAt, compareStandings } from "../../career/sporting/rankings.ts";
 import { awardCard, seasonReview, processRetirements, cardHoldersIn, type CardRow } from "../../career/sporting/cards.ts";
 import { tourCardRulesFor, tourCardRulesVersionFor } from "../../career/sporting/config.ts";
-import { bestWdfAchievements, wdfPointsForFinish } from "../../career/sporting/wdf-ranking.ts";
+import { bestWdfAchievements, hasCompleteWdfRound, wdfGradeForEvent, wdfPointsForFinish } from "../../career/sporting/wdf-ranking.ts";
 import { allocateQSchool, orderOfMerit, compareOom, type OomEntry } from "../../career/sporting/qschool.ts";
 import { boundSeeding, createSportingFactsProvider, selectionTierFor, createSportingHooks } from "../../career/sporting/engine.ts";
 
@@ -41,6 +41,15 @@ const human = { playerId: 1 }, observer = { playerId: 2 }, twin = { playerId: 3 
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 
 test("WDF seniors points follow the official grade, draw-size, complete-round and regional rules", () => {
+  assert.equal(rankingRulesVersionFor(33), 5);
+  assert.equal(rankingRulesVersionFor(32), 4, "older saves keep their pinned ranking rules");
+  const v5 = rankingListsFor(5);
+  assert.equal(v5.find(l => l.key === "pro-world")?.unit, undefined, "PDC prize-money rankings remain distinct");
+  assert.equal(v5.find(l => l.key === "wdf-open")?.bestResults, 10);
+  assert.equal(v5.find(l => l.key === "wdf-women")?.bestResults, 10);
+  assert.ok(v5.find(l => l.key === "wdf-usa-open")?.bestResults === 8);
+  assert.equal(wdfGradeForEvent("wdf-world-masters"), "PLATINUM");
+  assert.equal(wdfGradeForEvent("wdf-world-girls-championship"), null, "youth rankings use a different criteria edition");
   assert.equal(wdfPointsForFinish({ grade: "PLATINUM", position: 1, entries: 128, completeRoundPlayed: true }), 270);
   assert.equal(wdfPointsForFinish({ grade: "GOLD", position: 2, entries: 4, completeRoundPlayed: true }), 111);
   assert.equal(wdfPointsForFinish({ grade: "BRONZE", position: 8, entries: 16, completeRoundPlayed: true }), 11);
@@ -56,6 +65,16 @@ test("WDF rolling best-ten/best-eight ignores expired and future results", () =>
   assert.equal(bestWdfAchievements(rows, 100, 10).length, 10);
   assert.equal(bestWdfAchievements(rows, 100, 10).reduce((sum, r) => sum + r.points, 0), 750);
   assert.equal(bestWdfAchievements(rows, 100, 8).reduce((sum, r) => sum + r.points, 0), 680);
+});
+test("WDF round validation rejects byes and invalid walkovers but accepts a previously active withdrawal", () => {
+  const completed = [
+    { stage_key: "OPEN", round: 1, status: "COMPLETED", a_key: "A", b_key: "B", winner_key: "A" },
+    { stage_key: "OPEN", round: 1, status: "COMPLETED", a_key: "C", b_key: "D", winner_key: "D" },
+  ] as const;
+  assert.equal(hasCompleteWdfRound([...completed, { stage_key: "OPEN", round: 2, status: "BYE", a_key: "A", b_key: null, winner_key: "A" }]), true);
+  assert.equal(hasCompleteWdfRound([{ stage_key: "OPEN", round: 1, status: "BYE", a_key: "A", b_key: null, winner_key: "A" }]), false);
+  assert.equal(hasCompleteWdfRound([{ stage_key: "OPEN", round: 2, status: "WALKOVER", a_key: "A", b_key: "B", winner_key: "A" }]), false);
+  assert.equal(hasCompleteWdfRound([...completed, { stage_key: "OPEN", round: 2, status: "WALKOVER", a_key: "A", b_key: "D", winner_key: "A" }]), true);
 });
 const rejectsStatus = (p: Promise<unknown>, status: number) => assert.rejects(p, (e: unknown) => (e as { status?: number }).status === status);
 class Rollback extends Error {}
@@ -147,13 +166,14 @@ test("1. ranking contributions are created from A3 results and A4 ranking-eligib
   const contributions = await rows(sql`SELECT c.*, t.bands, t.prize_profile_key, t.ranking_eligible, r.finishing_position AS result_position, i.classification, i.ranking_category AS cat
     FROM career_ranking_contributions c JOIN career_event_prize_tables t ON t.career_save_id = c.career_save_id AND t.event_id = c.event_id
     JOIN career_event_results r ON r.career_save_id = c.career_save_id AND r.event_id = c.event_id AND r.participant_key = c.participant_key
-    JOIN career_event_instances i ON i.career_save_id = c.career_save_id AND i.id = c.event_id WHERE c.career_save_id = ${A}`);
+    JOIN career_event_instances i ON i.career_save_id = c.career_save_id AND i.id = c.event_id
+    WHERE c.career_save_id = ${A} AND c.source <> 'WDF_OFFICIAL_POINTS'`);
   assert.ok(contributions.length > 300, "pro circuit, county, local and Challenger results produced contributions");
   for (const c of contributions) {
     assert.equal(c.ranking_eligible, true); assert.equal(c.classification, "RANKING");
     assert.equal(Number(c.amount_pence), prizeForPosition({ key: String(c.prize_profile_key), bands: c.bands } as PrizeProfile, Number(c.result_position)));
-    assert.ok(rankingList(String(c.list_key))!.categories.includes(String(c.cat)));
-    assert.equal(c.ranking_rules_version, RANKING_RULES_VERSION);
+    assert.ok(rankingListsFor(5).find(list => list.key === String(c.list_key))!.categories.includes(String(c.cat)));
+    assert.equal(c.ranking_rules_version, rankingRulesVersionFor(33));
   }
   const lists = new Set(contributions.map(c => String(c.list_key)));
   for (const l of ["pro-world", "pro-circuit", "amateur"]) assert.ok(lists.has(l), l);
@@ -228,7 +248,7 @@ test("6. snapshots are complete, unique per publication and never rewritten", as
   const snaps = await rows(sql`SELECT s.*, (SELECT COUNT(*)::int FROM career_ranking_snapshot_rows r WHERE r.career_save_id = s.career_save_id AND r.snapshot_id = s.id) AS n
     FROM career_ranking_snapshots s WHERE s.career_save_id = ${A} ORDER BY list_key, sequence`);
   assert.ok(snaps.length >= 6);
-  for (const s of snaps) { assert.equal(s.n, s.participant_count); assert.equal(s.ranking_rules_version, 1); }
+  for (const s of snaps) { assert.equal(s.n, s.participant_count); assert.equal(s.ranking_rules_version, 5); }
   assert.equal(await snapshotHash(A, 3), snapshotHashWeek4, "later publications did not touch earlier snapshots");
   await assert.rejects(db.execute(sql`UPDATE career_ranking_snapshot_rows SET position = position WHERE career_save_id = ${A}`));
   await assert.rejects(db.execute(sql`UPDATE career_ranking_contributions SET amount_pence = amount_pence + 1 WHERE career_save_id = ${A}`));

@@ -181,7 +181,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const lists = [];
         for (const list of rankingListsFor(rulesVersion(root))) {
           const s = await participantStanding(tx, root.id, list.key, HUMAN);
-          lists.push({ key: list.key, name: list.name, scope: list.scope, published: s.published, position: s.standing?.position ?? null, valuePence: s.standing?.valuePence ?? 0,
+          lists.push({ key: list.key, name: list.name, scope: list.scope, unit: list.unit ?? "GBP", published: s.published, position: s.standing?.position ?? null, valuePence: s.standing?.valuePence ?? 0,
             movement: s.standing?.movement ?? null, isNew: s.standing?.isNew ?? false, careerHighPosition: s.careerHighPosition });
         }
         const recent = (await tx.execute(sql`SELECT kind, list_key, season, week, detail FROM career_sporting_milestones WHERE career_save_id = ${root.id} AND participant_key = ${HUMAN}
@@ -199,7 +199,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const out = [];
         for (const list of rankingListsFor(rulesVersion(root))) {
           const snap = await latestSnapshot(tx, root.id, list.key);
-          out.push({ key: list.key, name: list.name, scope: list.scope, categories: list.categories, window: list.window, cutLines: list.cutLines,
+          out.push({ key: list.key, name: list.name, scope: list.scope, unit: list.unit ?? "GBP", bestResults: list.bestResults ?? null, categories: list.categories, window: list.window, cutLines: list.cutLines,
             published: snap ? { season: snap.season, week: snap.week, sequence: snap.sequence, participantCount: snap.participant_count, reason: snap.reason } : null,
             human: await participantStanding(tx, root.id, list.key, HUMAN) });
         }
@@ -262,7 +262,13 @@ export function createCareerSportingService(database: CareerDatabase, options: {
           WHERE c.career_save_id = ${root.id} AND c.list_key = ${list.key} AND c.participant_key = ${participant} ORDER BY c.completion_index DESC, c.event_id`)).rows;
         const present = (c: Record<string, unknown>) => ({ eventId: c.event_id, eventName: c.name, definitionKey: c.definition_key, circuit: c.circuit, season: c.season, week: c.week,
           finishingPosition: c.finishing_position, amountPence: Number(c.amount_pence), source: c.source, completionIndex: Number(c.completion_index), expiresIndex: Number(c.expires_index), rulesVersion: c.ranking_rules_version });
-        const counting = rows.filter(c => Number(c.completion_index) <= P && Number(c.expires_index) > P);
+         const eligibleNow = rows.filter(c => Number(c.completion_index) <= P && Number(c.expires_index) > P);
+         const counting = list.bestResults
+           ? eligibleNow.slice().sort((a, b) => Number(b.amount_pence) - Number(a.amount_pence)
+             || Number(b.completion_index) - Number(a.completion_index) || String(a.event_id).localeCompare(String(b.event_id))).slice(0, list.bestResults)
+           : eligibleNow;
+         const countedIds = new Set(counting.map(c => String(c.event_id)));
+         const notCounting = eligibleNow.filter(c => !countedIds.has(String(c.event_id)));
         const standing = snap ? (await tx.execute(sql`SELECT value_pence, position FROM career_ranking_snapshot_rows WHERE career_save_id = ${root.id} AND snapshot_id = ${snap.id} AND participant_key = ${participant}`)).rows[0] : undefined;
         const total = counting.reduce((t, c) => t + Number(c.amount_pence), 0);
         const byExpiry = new Map<number, Record<string, unknown>[]>();
@@ -288,9 +294,9 @@ export function createCareerSportingService(database: CareerDatabase, options: {
             })),
           });
         }
-        return { list: list.key, window: list.window, participantKey: participant, publicationIndex: P, position: standing ? Number(standing.position) : null,
-          valuePence: standing ? Number(standing.value_pence) : 0, contributionTotalPence: total, explained: !standing || Number(standing.value_pence) === total,
-          counting: counting.map(present), expired: rows.filter(c => Number(c.expires_index) <= P).slice(0, 50).map(present), pending: rows.filter(c => Number(c.completion_index) > P).map(present), expiring };
+         return { list: list.key, window: list.window, bestResults: list.bestResults ?? null, participantKey: participant, publicationIndex: P, position: standing ? Number(standing.position) : null,
+           valuePence: standing ? Number(standing.value_pence) : 0, contributionTotalPence: total, explained: !standing || Number(standing.value_pence) === total,
+           counting: counting.map(present), notCounting: notCounting.map(present), expired: rows.filter(c => Number(c.expires_index) <= P).slice(0, 50).map(present), pending: rows.filter(c => Number(c.completion_index) > P).map(present), expiring };
       });
     },
 

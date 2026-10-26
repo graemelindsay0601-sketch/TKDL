@@ -9,6 +9,7 @@ export const CITY_COORDINATES: Readonly<Record<string, readonly [number, number]
   "GBR:Blackpool": [53.817, -3.036], "GBR:Liverpool": [53.408, -2.992], "GBR:Manchester": [53.481, -2.243], "GBR:Leeds": [53.801, -1.549],
   "GBR:Wolverhampton": [52.587, -2.129], "GBR:Cardiff": [51.481, -3.179], "GBR:Bristol": [51.455, -2.588], "GBR:Southampton": [50.909, -1.404],
   "GBR:London": [51.507, -0.128],
+  "GBR:Frimley Green": [51.300, -0.730], "GBR:Douglas": [54.150, -4.480],
   "IRL:Dublin": [53.350, -6.260], "IRL:Cork": [51.898, -8.471], "IRL:Galway": [53.271, -9.057],
   "NLD:Utrecht": [52.091, 5.122], "NLD:Rotterdam": [51.924, 4.478], "NLD:Maastricht": [50.851, 5.691], "NLD:Leeuwarden": [53.201, 5.800],
   "BEL:Antwerp": [51.219, 4.402], "BEL:Brussels": [50.850, 4.352], "BEL:Ghent": [51.054, 3.725], "BEL:Liège": [50.633, 5.567],

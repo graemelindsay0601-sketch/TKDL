@@ -4,7 +4,7 @@ import { HUMAN, rootIdentity, type RootRow } from "../calendar/engine.ts";
 import { ageOn, careerWeekDate } from "../identity/age.ts";
 import { stableUuid } from "../world/random.ts";
 import { CareerError } from "../service.ts";
-import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, SUPPORTED_SPORTING_VERSIONS } from "./config.ts";
+import { RANKING_RULES_VERSION, TOUR_CARD_RULES_VERSION, Q_SCHOOL_RULES_VERSION, SUPPORTED_SPORTING_VERSIONS, rankingRulesVersionFor } from "./config.ts";
 
 export type SportingState = { ranking_rules_version: number; tour_card_rules_version: number; q_school_rules_version: number; force_publish: boolean; reviewed_season: number };
 
@@ -21,9 +21,16 @@ export async function loadSportingState(tx: CareerExecutor, saveId: string): Pro
 }
 export async function createSportingState(tx: CareerExecutor, saveId: string): Promise<boolean> {
   const created = await tx.execute(sql`INSERT INTO career_sporting_state (career_save_id, ranking_rules_version, tour_card_rules_version, q_school_rules_version)
-    SELECT ${saveId}, CASE WHEN event_database_version>=12 THEN 4 WHEN event_database_version>=7 THEN 3 WHEN event_database_version>=3 THEN 2 ELSE 1 END, CASE WHEN event_database_version>=12 THEN 3 WHEN event_database_version>=8 THEN 2 ELSE ${TOUR_CARD_RULES_VERSION} END, ${Q_SCHOOL_RULES_VERSION}
+    SELECT ${saveId}, CASE WHEN event_database_version>=33 THEN 5 WHEN event_database_version>=12 THEN 4 WHEN event_database_version>=7 THEN 3 WHEN event_database_version>=3 THEN 2 ELSE 1 END, CASE WHEN event_database_version>=12 THEN 3 WHEN event_database_version>=8 THEN 2 ELSE ${TOUR_CARD_RULES_VERSION} END, ${Q_SCHOOL_RULES_VERSION}
     FROM career_saves WHERE id=${saveId} ON CONFLICT DO NOTHING RETURNING career_save_id`);
   return created.rows.length > 0;
+}
+
+/** Additive sporting migration for v33 saves; previous snapshots/contributions remain immutable. */
+export async function migrateSportingStateForEventDatabase(tx: CareerExecutor, saveId: string, eventDatabaseVersion: number): Promise<void> {
+  const target = rankingRulesVersionFor(eventDatabaseVersion);
+  await tx.execute(sql`UPDATE career_sporting_state SET ranking_rules_version = ${target}, force_publish = TRUE
+    WHERE career_save_id = ${saveId} AND ranking_rules_version < ${target}`);
 }
 
 export type Milestone = { operationKey: string; participantKey: string; participantKind: string; npcId: string | null; kind: string; listKey?: string | null; season: number; week: number; detail?: Record<string, unknown> };

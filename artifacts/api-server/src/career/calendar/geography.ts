@@ -131,6 +131,8 @@ export const VENUES: readonly Venue[] = [
   V("dockyard-arena-liverpool", "Dockyard Arena", "Liverpool", "GBR", "North West", "ARENA"),
   V("glasgow-hall", "Glasgow Hall", "Glasgow", "GBR", "Scotland", "ARENA"),
   V("midlands-oche", "Midlands Oche", "Wolverhampton", "GBR", "Midlands", "HALL"),
+  V("lakeside-country-club", "Lakeside Country Club", "Frimley Green", "GBR", "Surrey", "ARENA"),
+  V("isle-of-man-oche", "Manx Oche Hall", "Douglas", "GBR", "Isle of Man", "HALL"),
   V("vault-studio-leeds", "The Vault Studio", "Leeds", "GBR", "Yorkshire", "HALL"),
   V("riverside-hall-cardiff", "Riverside Hall", "Cardiff", "GBR", "South Wales", "HALL"),
   V("harbour-rooms-dublin", "Harbour Rooms", "Dublin", "IRL", "Leinster", "HALL"),

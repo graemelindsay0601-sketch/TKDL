@@ -14,6 +14,8 @@ import type { RankingListMeta, RankingRow } from "../types";
 import "./rankings-premium.css";
 
 const PAGE = 50;
+const rankingValue = (value: number, unit: RankingListMeta["unit"], compact = false) =>
+  unit === "POINTS" ? `${Math.round(value).toLocaleString()} pts` : formatPence(value, { compact });
 
 /** Screen 4 — Rankings over A5's bounded APIs. Lists come from server metadata; nothing is inferred client-side. */
 export function RankingsPage({ ctx }: { ctx: ShellContext }) {
@@ -93,14 +95,14 @@ function ListView({ saveId, meta, season, week, active, picker }: { saveId: stri
         const cut = h.cutLines.filter(c => !c.inside && c.valueAtCutPence !== null).sort((a, b) => b.cutPosition - a.cutPosition)[0];
         return <CareerPageHero kicker={`Official ranking · ${windowLabel}`} title={meta.name} accent="#c82132" watermark={me ? `#${me.position}` : "—"}
           stage={{ venue: { venueType: "professional-floor" }, eventClass: "PROFESSIONAL_TOUR" }}
-          subtitle={meta.published ? `Published season ${meta.published.season}, week ${meta.published.week} · ${meta.published.participantCount} ranked players` : "Published after the first week in which ranking money is won"}
-          portrait={<RankingBoard rows={leaders.data?.rows ?? []} standing={me} />}
+          subtitle={meta.published ? `Published season ${meta.published.season}, week ${meta.published.week} · ${meta.published.participantCount} ranked players` : `Published after the first week with ${meta.unit === "POINTS" ? "ranking points" : "ranking money"}`}
+          portrait={<RankingBoard rows={leaders.data?.rows ?? []} standing={me} unit={meta.unit} />}
           stats={[
             { label: "Your position", tone: me ? "gold" : "neutral", value: me ? <span className="inline-flex items-baseline gap-2">{ordinal(me.position)} <Movement movement={me.movement} isNew={me.isNew} /></span> : "Unranked" },
-            { label: "Ranking money", value: formatPence(me?.valuePence ?? 0), sub: windowLabel },
+            { label: meta.unit === "POINTS" ? "Ranking points" : "Ranking money", value: rankingValue(me?.valuePence ?? 0, meta.unit), sub: meta.bestResults ? `Best ${meta.bestResults} results · ${windowLabel}` : windowLabel },
             { label: "Career high", value: h.careerHighPosition ? ordinal(h.careerHighPosition) : "—", sub: h.seasonHighPosition ? `Season high ${ordinal(h.seasonHighPosition)}` : undefined },
             { label: "Next cut", value: cut ? `Top ${cut.cutPosition}` : me ? "Inside all cuts" : "—",
-              sub: cut ? `${formatPence(cut.gapPence)} behind${cut.placesOutside ? ` · ${cut.placesOutside} places outside` : ""}` : undefined },
+              sub: cut && cut.gapPence !== null ? `${rankingValue(cut.gapPence, meta.unit)} behind${cut.placesOutside ? ` · ${cut.placesOutside} places outside` : ""}` : undefined },
           ]}>{picker}</CareerPageHero>;
       })()}
 
@@ -110,10 +112,10 @@ function ListView({ saveId, meta, season, week, active, picker }: { saveId: stri
           <Segmented label="Table view" value={view} onChange={v => { setView(v); setOffset(0); }} options={[...(me ? [{ value: "AROUND" as const, label: "Around me" }] : []), { value: "TOP", label: "Top 32" }, { value: "PAGE", label: "Full table" }]} />
           {meta.cutLines.length > 0 && <span className="text-xs inline-flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.62)" }}><span aria-hidden className="inline-block w-5 border-t border-dashed" style={{ borderColor: "rgba(255,210,74,0.7)" }} />Cut lines: top {meta.cutLines.join(", ")}</span>}
         </div>
-        {!meta.published ? <CareerEmptyState title="Not published yet">The first {meta.name} is published after the first week in which ranking money is won.</CareerEmptyState>
+        {!meta.published ? <CareerEmptyState title="Not published yet">The first {meta.name} is published after the first week with {meta.unit === "POINTS" ? "ranking points" : "ranking money"}.</CareerEmptyState>
           : table.isLoading ? <CareerLoading /> : table.error || !table.data ? <CareerError error={table.error} onRetry={() => table.refetch()} />
           : table.data.rows.length === 0 ? <CareerEmptyState title="Nobody ranked">This list currently has no ranked players.</CareerEmptyState>
-          : <RankingTable rows={table.data.rows} cutLines={meta.cutLines} saveId={saveId}/>}
+          : <RankingTable rows={table.data.rows} cutLines={meta.cutLines} saveId={saveId} unit={meta.unit}/>}
         {view === "PAGE" && table.data && meta.published && (
           <div className="flex items-center justify-between px-3 py-2 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
             <button className="career-btn career-btn-ghost" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}><ChevronLeft className="w-4 h-4" aria-hidden />Previous</button>
@@ -132,7 +134,7 @@ function ListView({ saveId, meta, season, week, active, picker }: { saveId: stri
               <ul className="space-y-1">{history.data.snapshots.map(s => (
                 <li key={s.sequence} className="flex items-center gap-3 text-sm"><span className="w-20 text-xs" style={{ ...OSWALD, color: "rgba(255,255,255,0.62)" }}>S{s.season} W{s.week}</span>
                   <span className="w-12 font-black tabular-nums" style={{ ...OSWALD, color: "#fff" }}>{ordinal(s.position)}</span><Movement movement={s.movement} isNew={s.isNew} />
-                  <span className="ml-auto tabular-nums text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{formatPence(s.valuePence, { compact: true })}</span></li>))}</ul>
+                  <span className="ml-auto tabular-nums text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>{rankingValue(s.valuePence, meta.unit, true)}</span></li>))}</ul>
             </div>
           )}
         </CareerSection>
@@ -147,13 +149,13 @@ function ListView({ saveId, meta, season, week, active, picker }: { saveId: stri
                     <div key={expiry.publicationIndex} className="rounded-lg border border-white/10 bg-black/20 p-3 space-y-2">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <strong className="text-sm text-white">Season {expiry.season}, week {expiry.week}</strong>
-                        <span className="font-bold text-amber-200">{formatPence(expiry.amountPence)} expires</span>
+                        <span className="font-bold text-amber-200">{rankingValue(expiry.amountPence, meta.unit)} expires</span>
                       </div>
                       <ul className="space-y-1 text-xs text-white/65">
-                        {expiry.contributions.map(contribution => <li key={contribution.eventId} className="flex justify-between gap-2"><span className="truncate">{contribution.eventName}</span><span>{formatPence(contribution.amountPence)}</span></li>)}
+                        {expiry.contributions.map(contribution => <li key={contribution.eventId} className="flex justify-between gap-2"><span className="truncate">{contribution.eventName}</span><span>{rankingValue(contribution.amountPence, meta.unit)}</span></li>)}
                       </ul>
                       <div className="flex flex-wrap gap-2 text-xs">
-                        <span className="text-white/75">Forecast: {expiry.position ? `#${expiry.position}` : "unranked"} · {formatPence(expiry.valuePence)}</span>
+                        <span className="text-white/75">Forecast: {expiry.position ? `#${expiry.position}` : "unranked"} · {rankingValue(expiry.valuePence, meta.unit)}</span>
                         {expiry.cutLines.map(cut => <span key={cut.cutPosition} className={cut.inside ? "text-emerald-300" : "text-rose-300"}>Top {cut.cutPosition}: {cut.inside ? "inside" : "outside"}</span>)}
                       </div>
                     </div>
@@ -168,14 +170,20 @@ function ListView({ saveId, meta, season, week, active, picker }: { saveId: stri
                       </Link></li>)}</ul>
                     : <p className="mt-2 text-xs text-white/55">No matching ranking events are scheduled in the next 20 weeks.</p>}
                 </div>
-                {explain.data.counting.length > 0 && <details className="border-t border-white/10 pt-2">
-                  <summary className="cursor-pointer text-xs text-white/65">Show all {explain.data.counting.length} results currently counting</summary>
+                  {explain.data.counting.length > 0 && <details className="border-t border-white/10 pt-2">
+                    <summary className="cursor-pointer text-xs text-white/65">Show {explain.data.counting.length} counted results{meta.bestResults ? ` (best ${meta.bestResults})` : ""}</summary>
                   <div className="mt-2 space-y-1">
                     {explain.data.counting.map(c => <div key={c.eventId} className="flex items-center gap-2 text-xs"><span className="flex-1 truncate text-white/75">{c.eventName}</span>
-                      <span className="text-white/45">S{c.season} W{c.week}</span><span className="w-20 text-right tabular-nums text-emerald-300">{formatPence(c.amountPence)}</span></div>)}
-                    <div className="flex justify-between border-t border-white/10 pt-1.5 text-sm"><Label>Total</Label><span className="font-black tabular-nums text-white">{formatPence(explain.data.contributionTotalPence)}</span></div>
+                      <span className="text-white/45">S{c.season} W{c.week}</span><span className="w-20 text-right tabular-nums text-emerald-300">{rankingValue(c.amountPence, meta.unit)}</span></div>)}
+                    <div className="flex justify-between border-t border-white/10 pt-1.5 text-sm"><Label>Total</Label><span className="font-black tabular-nums text-white">{rankingValue(explain.data.contributionTotalPence, meta.unit)}</span></div>
                   </div>
                 </details>}
+                  {!!explain.data.notCounting?.length && <details className="border-t border-white/10 pt-2">
+                    <summary className="cursor-pointer text-xs text-white/55">{explain.data.notCounting.length} eligible results outside the best {meta.bestResults ?? "N"} and not currently counted</summary>
+                    <ul className="mt-2 space-y-1">{explain.data.notCounting.map(c => <li key={c.eventId} className="flex justify-between gap-2 text-xs text-white/55">
+                      <span className="truncate">{c.eventName}</span><span>{rankingValue(c.amountPence, meta.unit)}</span>
+                    </li>)}</ul>
+                  </details>}
               </div>
             )}
         </CareerSection>
@@ -184,7 +192,7 @@ function ListView({ saveId, meta, season, week, active, picker }: { saveId: stri
   );
 }
 
-function RankingBoard({ rows, standing }: { rows: RankingRow[]; standing: RankingListMeta["human"]["standing"] }) {
+function RankingBoard({ rows, standing, unit }: { rows: RankingRow[]; standing: RankingListMeta["human"]["standing"]; unit?: RankingListMeta["unit"] }) {
   const move = standing?.movement;
   const current = standing ? `#${standing.position}` : "—";
   return (
@@ -198,7 +206,7 @@ function RankingBoard({ rows, standing }: { rows: RankingRow[]; standing: Rankin
           <div className={`career-ranking-board__row${index === 0 ? " is-gold" : ""}`} key={row.participantKey}>
             <b>{String(row.position).padStart(2, "0")}</b>
             <span><strong>{row.name ?? "Player"}</strong><small>{row.nationality || "RANKED"}</small></span>
-            <em>{formatPence(row.valuePence, { compact: true })}</em>
+            <em>{rankingValue(row.valuePence, unit, true)}</em>
           </div>
         ))}
         {rows.length === 0 && [1, 2, 3].map(position => (
@@ -209,7 +217,7 @@ function RankingBoard({ rows, standing }: { rows: RankingRow[]; standing: Rankin
         <div className="career-ranking-board__row is-you">
           <b>{standing ? String(standing.position).padStart(2, "0") : "—"}</b>
           <span><strong>YOUR POSITION</strong><small>{!standing ? "NOT YET RANKED" : move == null ? "NO MOVEMENT DATA" : move === 0 ? "NO WEEKLY CHANGE" : `${move > 0 ? "↑" : "↓"} ${Math.abs(move)} PLACES`}</small></span>
-          <em>{standing ? formatPence(standing.valuePence, { compact: true }) : "—"}</em>
+          <em>{standing ? rankingValue(standing.valuePence, unit, true) : "—"}</em>
         </div>
       </div>
       <span className="career-ranking-board__seal"><Trophy size={13} /><b>TOP<br/>RANKS</b></span>
@@ -255,11 +263,11 @@ function RankingHistoryChart({ snapshots }: { snapshots: (RankingRow & { season:
 }
 
 /** Table on wide screens; the same rows read as compact two-line rows on phones. Cut lines come from A5 list metadata. */
-export function RankingTable({ rows, cutLines,saveId }: { rows: RankingRow[]; cutLines: number[];saveId?:string }) {
+export function RankingTable({ rows, cutLines,saveId,unit }: { rows: RankingRow[]; cutLines: number[];saveId?:string;unit?: RankingListMeta["unit"] }) {
   const p=usePresentation(saveId??"",!!saveId);
   return (
     <table className="career-table career-table-fixed" aria-label="Ranking table">
-      <thead><tr><th scope="col" style={{ width: "2.9rem" }}>Pos</th><th scope="col" style={{ width: "2.9rem" }}><span aria-hidden>+/−</span><span className="sr-only">Movement</span></th><th scope="col">Player</th><th scope="col" style={{ textAlign: "right", width: "4.8rem" }}>Money</th></tr></thead>
+      <thead><tr><th scope="col" style={{ width: "2.9rem" }}>Pos</th><th scope="col" style={{ width: "2.9rem" }}><span aria-hidden>+/−</span><span className="sr-only">Movement</span></th><th scope="col">Player</th><th scope="col" style={{ textAlign: "right", width: "4.8rem" }}>{unit === "POINTS" ? "Points" : "Money"}</th></tr></thead>
       <tbody>
         {rows.map((r, i) => (
           <Fragment key={r.participantKey}>
@@ -268,7 +276,7 @@ export function RankingTable({ rows, cutLines,saveId }: { rows: RankingRow[]; cu
               <td className="font-black tabular-nums" style={OSWALD}><span className="career-rank-pos">{r.position}</span></td>
               <td><Movement movement={r.movement} isNew={r.isNew} /></td>
               <td><span className="flex items-center gap-1.5 min-w-0 career-ranking-shirt"><CareerShirt playerId={r.participantKey==="HUMAN"?undefined:r.participantKey} scale="compact" name={r.name??"Player"} identity={r.participantKey==="HUMAN"?p.data?.identity:npcShirt(r.participantKey)} sponsors={r.participantKey==="HUMAN"?p.data?.placements:[]}/><Flag code={r.nationality}/>{saveId?<Link href={`/career/${saveId}/${r.participantKey==="HUMAN"?"my-career":`world/players/${r.participantKey}`}`}>{r.participantKey==="HUMAN"?"You":r.name}</Link>:<span>{r.participantKey==="HUMAN"?"You":r.name}</span>}</span></td>
-              <td className="tabular-nums" style={{ textAlign: "right", ...OSWALD }}>{formatPence(r.valuePence, { compact: true })}</td>
+              <td className="tabular-nums" style={{ textAlign: "right", ...OSWALD }}>{rankingValue(r.valuePence, unit, true)}</td>
             </tr>
           </Fragment>
         ))}

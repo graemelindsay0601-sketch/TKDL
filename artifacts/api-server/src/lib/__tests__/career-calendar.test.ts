@@ -203,7 +203,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
       AND start_week>(SELECT current_week FROM career_saves WHERE id=${save.id})
       AND status IN ('SCHEDULED','REGISTRATION_OPEN') LIMIT 1`))[0];
   assert.ok(migratedWdf, "the existing save retains its future WDF Women's World Championship");
-  assert.equal(Number(migratedWdf.event_database_version), 32, "future WDF fixtures migrate to the new edition");
+  assert.equal(Number(migratedWdf.event_database_version), CURRENT_EVENT_DATABASE_VERSION, "future WDF fixtures migrate to the current edition");
   const wdfEligibility = (migratedWdf.snapshot as { eligibility: unknown }).eligibility;
   assert.ok(JSON.stringify(wdfEligibility).includes('"type":"NON_TOUR_CARD"'),
     "the migrated WDF event excludes current PDC Tour Card holders");
