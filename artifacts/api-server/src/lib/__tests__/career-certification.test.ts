@@ -71,6 +71,25 @@ test("v20 keeps event names distinct from official PDC/WDF branding",()=>{
   assert.equal(names.get("women-world-championship"),"Women's World Championship");
   assert.deepEqual(definitions.filter(d=>!assessCapability(d.format,true).executable).map(d=>d.key),[]);
 });
+test("v31 keeps WDF team cups competitive but outside singles ranking lists",()=>{
+  const previous=catalogueFor(30),current=catalogueFor(31);
+  const teamCups=["wdf-world-cup","wdf-europe-cup","wdf-asia-pacific-cup"];
+  for(const key of teamCups){
+    const old=previous.find(d=>d.key===key)!;
+    const next=current.find(d=>d.key===key)!;
+    assert.equal(old.classification,"RANKING","published event editions are immutable");
+    assert.equal(next.classification,"TEAM");
+    assert.equal(next.rankingCategory,null);
+    assert.equal(next.format.sideSize,2,"team format remains playable");
+    assert.equal(assessCapability(next.format,true).executable,true);
+  }
+  for(const key of ["wdf-world-championship","wdf-world-masters","wdf-gold-open","wdf-silver-open"]){
+    const event=current.find(d=>d.key===key)!;
+    assert.equal(event.classification,"RANKING",`${key} remains a singles ranking event`);
+    assert.ok(event.rankingCategory);
+  }
+  assert.deepEqual(current.filter(d=>!assessCapability(d.format,true).executable).map(d=>d.key),[]);
+});
 test("v21 restores Vault as an optional tour without same-day clashes with headline circuits",()=>{
   const rows=generateSeason(seed,21,1);
   const vault=rows.filter(e=>e.circuit==="VAULT");
