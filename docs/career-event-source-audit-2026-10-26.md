@@ -1,7 +1,7 @@
 # Career event and ranking source audit
 
 **Audit date:** 26 October 2026  
-**Scope:** Current Career event catalogue (event database v35), ranking rules v6, and the official-source checks completed in this pass.
+**Scope:** Current Career event catalogue (event database v36), ranking rules v6, and the official-source checks completed in this pass.
 
 ## Findings
 
@@ -24,11 +24,11 @@ WDF publishes separate Youth and Under-23 ranking criteria, in addition to Senio
 - Rolling 52-week main tables counting each player's best 10 results and regional tables counting the best 8; majors do not count regionally.
 - Regional tables for Australia, Canada, New Zealand, Russia and the USA.
 
-Career v35/ranking rules v6 now add separate Open/Girls U18 and U23 main tables and five regional tables per division. The existing Career Youth Order of Merit remains a separate season-based list. Existing girls' U18 events now use a distinct WDF ranking category, while older definitions and published results remain pinned.
+Career v35/ranking rules v6 add separate Open/Girls U18 and U23 main tables and five regional tables per division. Career v36 evaluates those divisions against age on December 31 of the event's calendar year. The existing Career Youth Order of Merit remains a separate season-based list. Existing girls' U18 events now use a distinct WDF ranking category, while older definitions and published results remain pinned.
 
-The U23 calendar entries are explicitly Career-authored fixtures, not claims about named/scheduled WDF events; their grades are Career-authored. Event-age checks use Career's existing event-date age fact, so the WDF calendar-year-end age cutoff still needs a dedicated exact model for players with known birth dates. Older NPC records store age without a birth date, which limits exact recalculation.
+The U23 calendar entries are explicitly Career-authored fixtures, not claims about named/scheduled WDF events; their grades are Career-authored. Human eligibility uses the saved date of birth. Fictional NPCs use a stable generated birthday because they do not have real birth records; older event editions keep their original event-date age behavior.
 
-**Status:** Ranking tables and points path implemented; calendar scheduling and exact WDF age-cutoff fidelity remain qualified.
+**Status:** Ranking tables, year-end age cutoff, and points path implemented; calendar scheduling and Career-authored grades remain qualified.
 
 ### WDF Cups and pairs — scope distinction required in presentation
 

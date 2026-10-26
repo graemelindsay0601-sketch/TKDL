@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AGE_POLICY, ageOn, careerAge, careerDate, careerStartDateFor, eligibleFrom, validateDateOfBirth } from "../../career/identity/age.ts";
+import { AGE_POLICY, ageOn, ageOnCalendarYearEnd, careerAge, careerDate, careerStartDateFor, eligibleFrom, npcAgeAtYearEnd, validateDateOfBirth } from "../../career/identity/age.ts";
 import { evaluateRule, R, type ParticipantFacts } from "../../career/calendar/eligibility.ts";
 import { generateInitialWorld, generateJuniorCohort, JUNIOR_COHORT } from "../../career/world/generation.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
@@ -29,6 +29,14 @@ test("age is derived from Career date and crosses birthdays between seasons", ()
   assert.equal(ageOn("2008-02-29", "2024-02-28"), 15); assert.equal(ageOn("2008-02-29", "2024-02-29"), 16);
 });
 
+test("WDF age is checked on 31 December; NPC cutoff ages are deterministic", () => {
+  assert.equal(ageOnCalendarYearEnd("2007-12-31", "2025-06-15"), 18);
+  assert.equal(ageOnCalendarYearEnd("2008-01-01", "2025-06-15"), 17);
+  assert.equal(npcAgeAtYearEnd(17, "2025-06-15", "npc-a"), npcAgeAtYearEnd(17, "2025-06-15", "npc-a"));
+  assert.ok([17, 18].includes(npcAgeAtYearEnd(17, "2025-06-15", "npc-a")!));
+  assert.equal(npcAgeAtYearEnd(17, "2025-12-31", "npc-a"), 17);
+});
+
 test("minimum start age 15 and a sanity upper bound; not a sporting rule", () => {
   assert.doesNotThrow(() => validateDateOfBirth("2010-01-01", "2025-01-01"));
   assert.throws(() => validateDateOfBirth("2010-01-02", "2025-01-01"), /at least 15/);
@@ -53,6 +61,23 @@ test("AGE rule: junior accepts under-18, refuses 18+, unknown age is PROFILE_INC
   assert.deepEqual(evaluateRule(rule, { ...base, age: 18 }).reasons, ["ABOVE_MAXIMUM_AGE"]);
   assert.deepEqual(evaluateRule(R.age({ minAge: 16 }), { ...base, age: 15 }).reasons, ["BELOW_MINIMUM_AGE"]);
   assert.deepEqual(evaluateRule(rule, { ...base, age: null }).reasons, ["PROFILE_INCOMPLETE"]);
+  const cutoffRule = R.age({ maxAgeExclusive: 18, basis: "CALENDAR_YEAR_END" });
+  assert.equal(evaluateRule(cutoffRule, { ...base, age: 17, ageOnYearEnd: 18 }).eligible, false);
+  assert.equal(evaluateRule(cutoffRule, { ...base, age: 18, ageOnYearEnd: 17 }).eligible, true);
+});
+
+test("event database v36 uses calendar-year-end age only for WDF Youth and U23", () => {
+  const v35 = catalogueFor(35), v36 = catalogueFor(36);
+  for (const key of ["youth-world-championship", "wdf-world-girls-championship", "youth-masters", "youth-world-ranking-open",
+    "girls-world-ranking-open", "u23-world-ranking-open", "u23-girls-world-ranking-open"]) {
+    const previous = v35.find(event => event.key === key)!;
+    const current = v36.find(event => event.key === key)!;
+    assert.equal(previous.eventDatabaseVersion, 35);
+    assert.equal(current.eventDatabaseVersion, 36);
+    assert.match(JSON.stringify(current.eligibility), /CALENDAR_YEAR_END/);
+    assert.doesNotMatch(JSON.stringify(previous.eligibility), /CALENDAR_YEAR_END/);
+  }
+  assert.doesNotMatch(JSON.stringify(v36.find(event => event.key === "junior-development-night")!.eligibility), /CALENDAR_YEAR_END/);
 });
 
 test("age never changes opponent strength: bot config depends on the NPC, context and difficulty only", () => {

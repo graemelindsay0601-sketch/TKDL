@@ -13,7 +13,7 @@ import { evaluateRule, type ParticipantFacts, type Rule, type RuleOutcome } from
 import { npcFacts, type CalendarProviders } from "./providers.ts";
 import { geographyWeight, weightedSample, tierWeight, fillTarget } from "./selection.ts";
 import { generateKnockoutDraw, finishingPosition, stageName } from "./draw.ts";
-import { careerAge, type CareerIdentity } from "../identity/age.ts";
+import { ageOnCalendarYearEnd, careerAge, careerDate, npcAgeAtYearEnd, type CareerIdentity } from "../identity/age.ts";
 import { makeGroupRows, progressGroups, tournamentDay, loadBulls, resolvedGroups, playingDays } from "./group-engine.ts";
 import { isGroupMatch, isGroupedStructure, layoutFor, groupTable } from "./groups.ts";
 import { substitutesFor } from "./substitutes.ts";
@@ -36,6 +36,7 @@ import { V30_CALENDAR_REFRESH_KEYS } from "../content/season-v30.ts";
 import { V31_CALENDAR_REFRESH_KEYS } from "../content/season-v31.ts";
 import { V32_WDF_RANKED_EVENT_KEYS } from "../content/season-v32.ts";
 import { V35_WDF_RANKED_EVENT_KEYS } from "../content/season-v35.ts";
+import { V36_WDF_AGE_EVENT_KEYS } from "../content/season-v36.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, nationalFallbackRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -179,10 +180,10 @@ export async function ensureCurrentEventCatalogue(tx: CareerExecutor, root: Root
     WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length > 0;
   if (hasSeason) {
       const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon)
-      VALUES (${root.id}, ${season}, 'career-events-v35')
+      VALUES (${root.id}, ${season}, 'career-events-v36')
       ON CONFLICT DO NOTHING RETURNING season`)).rows.length > 0;
     if (claimed) {
-      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS, ...V29_CALENDAR_REFRESH_KEYS, ...V30_CALENDAR_REFRESH_KEYS, ...V31_CALENDAR_REFRESH_KEYS, ...V32_WDF_RANKED_EVENT_KEYS, ...V35_WDF_RANKED_EVENT_KEYS];
+      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS, ...V29_CALENDAR_REFRESH_KEYS, ...V30_CALENDAR_REFRESH_KEYS, ...V31_CALENDAR_REFRESH_KEYS, ...V32_WDF_RANKED_EVENT_KEYS, ...V35_WDF_RANKED_EVENT_KEYS, ...V36_WDF_AGE_EVENT_KEYS];
       await tx.execute(sql`DELETE FROM career_event_instances i
         WHERE i.career_save_id = ${root.id} AND i.season = ${season}
           AND i.start_week > ${Number(root.current_week)}
@@ -278,10 +279,18 @@ export async function loadInstances(tx: CareerExecutor, saveId: string, where: R
 // ------------------------------------------------------------------ eligibility facts
 type FactsContext = {
   season: number;
+  careerStartDate: string;
   entitlements: Map<string, Set<string>>;   // participant -> target keys (ACTIVE, this season)
   results: { SAME: Map<string, Map<string, number>>; PREVIOUS: Map<string, Map<string, number>> }; // participant -> definition -> best position
   champions: Map<string, Set<string>>;      // previous-season "definition:ordinal" -> champion participant keys
 };
+async function careerStartDateForSave(tx: CareerExecutor, saveId: string): Promise<string> {
+  const row = (await tx.execute(sql`SELECT COALESCE(to_char(p.career_start_date, 'YYYY-MM-DD'),
+      to_char(date_trunc('year', s.created_at)::date, 'YYYY-MM-DD')) AS start_date
+    FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId}`)).rows[0];
+  if (!row?.start_date) throw new Error(`Career start date missing for save ${saveId}`);
+  return String(row.start_date);
+}
 function collectResultKeys(rule: Rule, out: Set<string>) {
   if ("all" in rule) rule.all.forEach(r => collectResultKeys(r, out));
   else if ("any" in rule) rule.any.forEach(r => collectResultKeys(r, out));
@@ -289,6 +298,7 @@ function collectResultKeys(rule: Rule, out: Set<string>) {
   else if (rule.type === "EVENT_RESULT") out.add(rule.definitionKey);
 }
 export async function loadFactsContext(tx: CareerExecutor, saveId: string, season: number, rules: readonly Rule[], participants?: readonly string[]): Promise<FactsContext> {
+  const careerStartDate = await careerStartDateForSave(tx, saveId);
   const filter = participants ? sql`AND recipient_key IN (${sql.join(participants.map(p => sql`${p}`), sql`, `)})` : sql``;
   const entitlements = new Map<string, Set<string>>();
   if (!participants || participants.length) {
@@ -302,7 +312,7 @@ export async function loadFactsContext(tx: CareerExecutor, saveId: string, seaso
   const definitions = new Set<string>();
   rules.forEach(rule => collectResultKeys(rule, definitions));
   const results = await loadResultFacts(tx, saveId, season, definitions);
-  return { season, entitlements, results, champions: await previousChampions(tx, saveId, season) };
+  return { season, careerStartDate, entitlements, results, champions: await previousChampions(tx, saveId, season) };
 }
 /** Best finishing position per participant/definition this season and last (only for EVENT_RESULT rules in play). */
 async function loadResultFacts(tx: CareerExecutor, saveId: string, season: number, definitions: ReadonlySet<string>): Promise<FactsContext["results"]> {
@@ -342,7 +352,11 @@ export function factsFor(participant: { key: string; kind: "HUMAN" | "NPC"; coun
   ctx: FactsContext, event: InstanceRow, invited = false): ParticipantFacts {
   // A6.5: the human's age is taken on THIS event's start date (Career-world time).
   const age = participant.identity !== undefined ? careerAge(participant.identity, event.season, event.start_day) : participant.age;
-  return { ...participant, age, zone: participant.zone as ParticipantFacts["zone"],
+  const eventDate = careerDate(participant.identity?.careerStartDate ?? ctx.careerStartDate, event.season, event.start_day);
+  const ageOnYearEnd = participant.identity?.dateOfBirth
+    ? ageOnCalendarYearEnd(participant.identity.dateOfBirth, eventDate)
+    : participant.kind === "NPC" ? npcAgeAtYearEnd(age, eventDate, participant.key) : null;
+  return { ...participant, age, ageOnYearEnd, zone: participant.zone as ParticipantFacts["zone"],
     entitlementTargets: ctx.entitlements.get(participant.key) ?? new Set(), invited: invited || humanInvited(participant, event),
     results: { SAME: ctx.results.SAME.get(participant.key) ?? new Map(), PREVIOUS: ctx.results.PREVIOUS.get(participant.key) ?? new Map() },
     defendingChampion: ctx.champions.get(`${event.definition_key}:${event.ordinal}`)?.has(participant.key) ?? false };
@@ -454,7 +468,8 @@ async function factsFromPreload(tx: CareerExecutor, saveId: string, pre: LockPre
     if (!entitlements.has(e.recipient_key)) entitlements.set(e.recipient_key, new Set());
     entitlements.get(e.recipient_key)!.add(e.target_key);
   }
-  return { season: pre.season, entitlements, results: pre.results, champions: await previousChampions(tx, saveId, pre.season) };
+  return { season: pre.season, careerStartDate: await careerStartDateForSave(tx, saveId), entitlements, results: pre.results,
+    champions: await previousChampions(tx, saveId, pre.season) };
 }
 export function forgetBookings(pre: LockPreload | undefined, eventId: string) {
   if (pre) for (const day of pre.bookings.values()) for (const [key, id] of day) if (id === eventId) day.delete(key);

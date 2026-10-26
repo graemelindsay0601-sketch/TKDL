@@ -202,7 +202,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   assert.ok(stale, "a future Auckland club night exists in the old save");
   // Recreate the stale persisted snapshot from a pre-v26 save. Production
   // updates remain guarded; only this isolated migration fixture bypasses it.
-  await db.execute(sql`DELETE FROM career_calendar_addons WHERE career_save_id=${save.id} AND addon='career-events-v35'`);
+  await db.execute(sql`DELETE FROM career_calendar_addons WHERE career_save_id=${save.id} AND addon='career-events-v36'`);
   await db.execute(sql`ALTER TABLE career_event_instances DISABLE TRIGGER career_event_instances_history_guard`);
   try {
     await db.execute(sql`UPDATE career_event_instances SET event_database_version=25,

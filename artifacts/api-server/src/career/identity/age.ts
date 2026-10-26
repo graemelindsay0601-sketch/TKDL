@@ -57,6 +57,49 @@ export function ageOn(dateOfBirth: string, onDate: string): number {
   return age;
 }
 
+/** WDF Youth/U23 eligibility is judged against 31 December of the event's calendar year. */
+export function calendarYearEnd(onDate: string): string {
+  const year = parse(onDate).getUTCFullYear();
+  return `${year}-12-31`;
+}
+
+/**
+ * NPCs are fictional and have no stored DOB. Give each stable NPC identity a deterministic
+ * birthday, then calculate whether they age between the event date and that year's cutoff.
+ * `age` remains the Career-world age supplied for the event.
+ */
+export function npcAgeAtYearEnd(age: number | null | undefined, eventDate: string, participantKey: string): number | null {
+  if (age === null || age === undefined) return null;
+  const yearEnd = calendarYearEnd(eventDate);
+  let hash = 2166136261;
+  for (const char of participantKey) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  let birthdayOrdinal = (hash >>> 0) % 365;
+  const monthLengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let month = 0;
+  while (birthdayOrdinal >= monthLengths[month]) birthdayOrdinal -= monthLengths[month++];
+  const birthday = `${eventDate.slice(0, 4)}-${String(month + 1).padStart(2, "0")}-${String(birthdayOrdinal + 1).padStart(2, "0")}`;
+  return age + (birthday > eventDate && birthday <= yearEnd ? 1 : 0);
+}
+
+export function ageOnCalendarYearEnd(dateOfBirth: string | null | undefined, onDate: string): number | null {
+  return dateOfBirth ? ageOn(dateOfBirth, calendarYearEnd(onDate)) : null;
+}
+
+export function eligibleFromCalendarYearEnd(identity: CareerIdentity, minAge: number, fromSeason: number, fromWeek: number) {
+  if (!identity.dateOfBirth) return null;
+  const startDay = (fromSeason - 1) * DAYS_PER_SEASON + (fromWeek - 1) * DAYS_PER_WEEK + 1;
+  for (let offset = 0; offset < 30 * 366; offset++) {
+    const absoluteDay = startDay + offset;
+    const season = Math.floor((absoluteDay - 1) / DAYS_PER_SEASON) + 1;
+    const day = ((absoluteDay - 1) % DAYS_PER_SEASON) + 1;
+    const date = careerDate(identity.careerStartDate, season, day);
+    if ((ageOnCalendarYearEnd(identity.dateOfBirth, date) ?? -1) >= minAge) {
+      return { season, week: Math.floor((day - 1) / DAYS_PER_WEEK) + 1, date };
+    }
+  }
+  return null;
+}
+
 export function validateDateOfBirth(dateOfBirth: string, startDate: string): void {
   if (!isIsoDate(dateOfBirth)) throw new Error("Date of birth must be a real date (YYYY-MM-DD)");
   const age = ageOn(dateOfBirth, startDate);

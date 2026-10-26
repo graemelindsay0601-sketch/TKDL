@@ -16,7 +16,7 @@ import { DEFAULT_PROVIDERS, type CalendarProviders } from "./providers.ts";
 import { venueByKey } from "./geography.ts";
 import { canonicalJson } from "./generation.ts";
 import { evaluateRule, type DenialReason, type Rule } from "./eligibility.ts";
-import { AGE_POLICY, eligibleFrom } from "../identity/age.ts";
+import { AGE_POLICY, calendarYearEnd, careerDate, eligibleFrom, eligibleFromCalendarYearEnd } from "../identity/age.ts";
 import { STREAM } from "../streaming/model.ts";
 import { settleLifeCommitments } from "../life/commitments.ts";
 import { playTeamNights } from "../club/team-service.ts";
@@ -105,13 +105,14 @@ async function loadHumanContext(tx: CareerExecutor, root: RootRow, season: numbe
 /** Structured, actionable view of one event for the human. Pure over loaded context. */
 /** A6.5: age bounds for an event = authored AGE rules + the config circuit policy (all database versions). */
 export function ageRequirement(event: InstanceRow) {
-  const leaves: { minAge?: number; maxAgeExclusive?: number }[] = [];
+  const leaves: { minAge?: number; maxAgeExclusive?: number; basis?: "EVENT_DATE" | "CALENDAR_YEAR_END" }[] = [];
   const walk = (r: Rule) => { if ("all" in r) r.all.forEach(walk); else if ("any" in r) r.any.forEach(walk); else if ("not" in r) return; else if (r.type === "AGE") leaves.push(r); };
   walk(event.snapshot.eligibility);
   const policyMin = AGE_POLICY.circuitMinimumAge[event.circuit];
   const mins = [...leaves.map(l => l.minAge), policyMin].filter((n): n is number => n !== undefined);
   const maxes = leaves.map(l => l.maxAgeExclusive).filter((n): n is number => n !== undefined);
-  return { minAge: mins.length ? Math.max(...mins) : null, maxAgeExclusive: maxes.length ? Math.min(...maxes) : null, policyMin: policyMin ?? null,
+  const basis = leaves.some(leaf => leaf.basis === "CALENDAR_YEAR_END") ? "CALENDAR_YEAR_END" as const : "EVENT_DATE" as const;
+  return { minAge: mins.length ? Math.max(...mins) : null, maxAgeExclusive: maxes.length ? Math.min(...maxes) : null, policyMin: policyMin ?? null, basis,
     junior: maxes.some(n => n <= AGE_POLICY.juniorMaxAgeExclusive) };
 }
 
@@ -139,9 +140,15 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   const underPolicy = ages.policyMin !== null && facts.age !== null && facts.age !== undefined && facts.age < ages.policyMin;
   const rule = underPolicy ? { eligible: false, reasons: [...new Set([...authored.reasons, "BELOW_MINIMUM_AGE" as const])] } : authored;
   const identity = human.participant.identity;
+  const eventDate = careerDate(identity?.careerStartDate ?? human.ctx.careerStartDate, event.season, event.start_day);
+  const eligibilityDate = ages.basis === "CALENDAR_YEAR_END" ? calendarYearEnd(eventDate) : eventDate;
+  const ageOnEligibilityDate = ages.basis === "CALENDAR_YEAR_END" ? facts.ageOnYearEnd ?? null : facts.age ?? null;
   const ageInfo = (ages.minAge !== null || ages.maxAgeExclusive !== null) ? {
-    ...ages, ageOnEventDate: facts.age ?? null,
-    eligibleFrom: identity && ages.minAge !== null && facts.age !== null && facts.age !== undefined && facts.age < ages.minAge ? eligibleFrom(identity, ages.minAge, event.season, event.start_week) : null,
+    ...ages, ageOnEventDate: facts.age ?? null, ageOnEligibilityDate, eligibilityDate,
+    eligibleFrom: identity && ages.minAge !== null && ageOnEligibilityDate !== null && ageOnEligibilityDate < ages.minAge
+      ? ages.basis === "CALENDAR_YEAR_END" ? eligibleFromCalendarYearEnd(identity, ages.minAge, event.season, event.start_week)
+        : eligibleFrom(identity, ages.minAge, event.season, event.start_week)
+      : null,
   } : null;
   const entry = human.entries.get(event.id) ?? null;
   const denials: DenialReason[] = [];

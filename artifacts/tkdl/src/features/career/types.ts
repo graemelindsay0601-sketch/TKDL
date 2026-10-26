@@ -24,8 +24,9 @@ export type HumanView = {
   /** In through your manager's invitation (you would not get in on your own): they take this share of its prize money. */
   managerInvite?: { name: string; commission: number } | null;
   streamInvite?: boolean;
-  /** A6.5: age bounds for this event (authored AGE rules + circuit policy) and the human's age on its start date. */
+  /** Age bounds and the age/date basis used for this event's eligibility check. */
   age?: { minAge: number | null; maxAgeExclusive: number | null; policyMin: number | null; junior: boolean; ageOnEventDate: number | null;
+    basis: "EVENT_DATE" | "CALENDAR_YEAR_END"; ageOnEligibilityDate: number | null; eligibilityDate: string;
     eligibleFrom: { season: number; week: number; date: string } | null } | null;
 };
 export type EventFinancePreview = {
