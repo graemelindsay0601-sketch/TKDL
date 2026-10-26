@@ -13,6 +13,9 @@ import { createCareerLifeService } from "../../career/life/service.ts";
 import { createCareerLifeRouter } from "../../career/life/router.ts";
 import { createCareerLife } from "../../db/migrations/create_career_life.ts";
 import { ensureClubTeams } from "../../db/migrations/create_career_club_teams.ts";
+import { createCareerClubRouter } from "../../career/club/router.ts";
+import { createCareerClubService } from "../../career/club/service.ts";
+import { createCareerTeamNightsService } from "../../career/club/team-service.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
 import { createCareerLegacyService } from "../../career/legacy/service.ts";
 import { createCareerLegacyRouter } from "../../career/legacy/router.ts";
@@ -67,6 +70,8 @@ const db = drizzle(pg);
 const saves = createCareerService(db,{onRetired:captureRetirement});
 const career = createCareerSportingService(db);
 const live = createCareerLiveMatchService(db, career.calendar);
+const clubs = createCareerClubService(db);
+const teamNights = createCareerTeamNightsService(db);
 let base = "";
 let server: ReturnType<ReturnType<typeof express>["listen"]>;
 const thisYear = new Date().getUTCFullYear();
@@ -107,6 +112,7 @@ before(async () => {
   router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
   router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
   router.use(createCareerLifeRouter(createCareerLifeService(db)));
+  router.use(createCareerClubRouter(clubs,teamNights));
   router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
   router.use(createCareerLiveRouter(live, available));
@@ -253,6 +259,89 @@ async function advanceToHumanMatch(id: string, maxSteps = 30) {
   }
   throw new Error("no human match reached");
 }
+async function advanceToClubMatch(id: string, maxSteps = 180) {
+  for (let i = 0; i < maxSteps; i++) {
+    const save = (await call("GET", `/saves/${id}`)).body;
+    const r = await call("POST", `/saves/${id}/calendar/advance`, {
+      operationKey: `a65-club-${id}-${++opCounter}`, expectedSeason: save.currentSeason, expectedWeek: save.currentWeek,
+      target: { kind: "NEXT_MEANINGFUL" },
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    if (r.body.stop.reason === "TEAM_MATCH_PENDING") return String(r.body.stop.detail.matchId);
+    if (r.body.stop.reason === "HUMAN_MATCH_PENDING") {
+      for (const matchId of r.body.stop.detail.matchIds as string[]) {
+        const row = (await q(sql`SELECT event_id FROM career_tournament_matches WHERE career_save_id=${id} AND id=${matchId}`))[0];
+        assert.ok(row, `pending event match ${matchId} has a stored event`);
+        await career.calendar.quickSimMatch({playerId:1},id,String(row.event_id),{matchId,confirmation:"QUICK_SIM"});
+      }
+    }
+  }
+  throw new Error("no player-played club team match reached");
+}
+function winningClubDarts() {
+  const miss = { segment: 0, multiplier: 1 as const, value: 0 };
+  const t20 = { segment: 20, multiplier: 3 as const, value: 60 };
+  const t19 = { segment: 19, multiplier: 3 as const, value: 57 };
+  const d12 = { segment: 12, multiplier: 2 as const, value: 24 };
+  return Array.from({length:3},(_,leg)=>[
+    ...(leg%2?Array(3).fill(miss):[]), ...Array(3).fill(t20), ...Array(3).fill(miss),
+    ...Array(3).fill(t20), ...Array(3).fill(miss), t20, t19, d12,
+  ]).flat();
+}
+test("local and regional invitations unlock from club matches scored through the live club API",async()=>{
+  const slot=Number((await q(sql`SELECT n FROM generate_series(1,3) n WHERE NOT EXISTS
+    (SELECT 1 FROM career_saves s WHERE s.player_id=1 AND s.slot_number=n) ORDER BY n LIMIT 1`))[0]?.n);
+  assert.ok(slot,"a free Career slot is available for the API fixture");
+  const id=await newCareer(slot,{dateOfBirth:dobForAge(35),homeLocality:"ayrshire"});
+  try {
+    assert.equal((await call("POST",`/saves/${id}/club/team-nights/join`,{})).status,200);
+    assert.equal((await call("GET",`/saves/${id}/life`)).body.opportunities.some((o:any)=>o.family==="LOCAL_SPOTLIGHT"),false);
+    const darts=winningClubDarts();
+    let played=0,wins=0,localId:string|null=null;
+    let finalProgress:any;
+    for(let attempt=0;attempt<10;attempt++) {
+      const matchId=await advanceToClubMatch(id);
+      const session=await call("GET",`/saves/${id}/club/team-matches/${matchId}`);
+      assert.equal(session.status,200,JSON.stringify(session.body));
+      assert.equal(session.body.status,"LIVE");
+      const scored=await call("POST",`/saves/${id}/club/team-matches/${matchId}/darts`,{darts});
+      assert.equal(scored.status,200,JSON.stringify(scored.body));
+      assert.equal(scored.body.status,"PLAYED","only a completed, rule-validated club scorer log counts");
+      played++;
+      if(scored.body.won)wins++;
+      const teamView=await call("GET",`/saves/${id}/club/team-nights`);
+      assert.equal(teamView.status,200,JSON.stringify(teamView.body));
+      assert.equal(teamView.body.you.played,played,"each completed scorer log creates one player appearance");
+      assert.equal(teamView.body.you.won,wins);
+      const life=await call("GET",`/saves/${id}/life`);
+      assert.equal(life.status,200,JSON.stringify(life.body));
+      const progress=life.body.clubInvitationProgress;
+      assert.equal(progress.appearances,played,"Life progress is read from completed club scorer records");
+      if(played<3)assert.equal(life.body.opportunities.some((o:any)=>o.family==="LOCAL_SPOTLIGHT"),false);
+      if(played===3) {
+        const local=life.body.opportunities.find((o:any)=>o.family==="LOCAL_SPOTLIGHT");
+        assert.ok(local,"three actually scored club singles unlock the local invitation");
+        assert.equal(local.canAccept,true);
+        assert.equal((await call("POST",`/saves/${id}/life/opportunities/${local.id}`,{choice:"ACCEPT"})).status,200);
+        localId=local.id;
+      }
+      const localCommitment=localId?life.body.commitments.find((c:any)=>c.id===localId):null;
+      const regional=life.body.opportunities.find((o:any)=>o.family==="REGIONAL_SHOWCASE");
+      if(played>=5&&wins>=3&&localCommitment?.status==="COMPLETED") {
+        assert.equal(progress.nextInvitation,"REGIONAL_SHOWCASE");
+        assert.equal(progress.status,"READY");
+        assert.ok(regional,"five actually scored appearances and three wins after completing the local invitation unlock regional");
+        assert.equal(regional.canAccept,true);
+        finalProgress=progress;
+        break;
+      }
+      assert.ok(attempt<9,`regional invitation not unlocked: ${JSON.stringify({played,wins,localCommitment,progress})}`);
+    }
+    assert.ok(played>=5&&wins>=3&&finalProgress?.status==="READY");
+  } finally {
+    await saves.delete(1,id);
+  }
+});
 async function enterFirst(id: string, predicate: (e: any) => boolean) {
   const events = (await call("GET", `/saves/${id}/calendar?scope=AVAILABLE`)).body.events.filter(predicate);
   assert.ok(events.length > 0, "an eligible, affordable event exists");
