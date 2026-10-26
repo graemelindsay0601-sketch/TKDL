@@ -39,11 +39,6 @@ export type HumanForm = import("../../../../api-server/src/career/form/human").H
 export const useHumanForm = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "form"), queryFn: () => get<HumanForm>(`/saves/${saveId}/form`), enabled, staleTime: STALE });
 export const useUpdateCareerDifficulty = (saveId: string) => useSaveMutation(saveId, (difficulty: "ACCESSIBLE" | "STANDARD" | "CHALLENGING") =>
   send<CareerSave>("PUT", `/saves/${saveId}/difficulty`, { difficulty }));
-export type QuickSimResult = { matchId: string; winnerKey: string; eventCompleted: number; nextHumanMatchIds: string[];
-  quickSim: { won: boolean; legs: [number, number]; sets: [number, number] | null; yourAverage: number; opponentAverage: number; opponent: string; maximums: number; highestCheckout: number; form: HumanForm } };
-/** Play your waiting match by simulation at your level (recorded as a quick-sim, never as live darts). */
-export const useQuickSim = (saveId: string) => useSaveMutation(saveId, (input: { eventId: string; matchId: string }) =>
-  send<QuickSimResult>("POST", `/saves/${saveId}/tournaments/${input.eventId}/quick-sim`, { matchId: input.matchId, confirmation: "QUICK_SIM" }));
 export const useTournamentPresentation = (saveId:string) => useSaveMutation(saveId,(body:{mode:"FULL"|"BALANCED"|"QUICK";reducedMotion:boolean})=>send("POST",`/saves/${saveId}/tournaments/presentation`,body));
 
 export type WorldRecordsView = import("../../../../api-server/src/career/records/service").WorldRecordsView;
@@ -195,10 +190,10 @@ export const useProAm = (saveId: string, week?: number) => useQuery({ queryKey: 
   queryFn: () => get<ProAmView>(`/saves/${saveId}/pro-am${qs({ week })}`), staleTime: STALE });
 export const useBookProAm = (saveId: string) => useSaveMutation(saveId, (input: { nightKey: string; week?: number }) =>
   send<ProAmView>("POST", `/saves/${saveId}/pro-am/book`, input));
-export const useSimulateProAm = (saveId: string) => useSaveMutation(saveId, (nightId: string) => send<ProAmView>("POST", `/saves/${saveId}/pro-am/nights/${nightId}/simulate`));
 export const useProAmLeg = (saveId: string, nightId: string) => useQuery({ queryKey: careerKey(saveId, "pro-am", "leg", nightId),
   queryFn: () => get<ProAmSession>(`/saves/${saveId}/pro-am/nights/${nightId}`), staleTime: Infinity });
-export const proAmApi = { darts: (saveId: string, nightId: string, darts: unknown[]) => send<ProAmSession>("POST", `/saves/${saveId}/pro-am/nights/${nightId}/darts`, { darts }) };
+export const proAmApi = { darts: (saveId: string, nightId: string, darts: unknown[], matchNumber: number) =>
+  send<ProAmSession>("POST", `/saves/${saveId}/pro-am/nights/${nightId}/darts`, { darts, matchNumber }) };
 export type CamLeagueView = import("../../../../api-server/src/career/camleague/service").CamLeagueView;
 export type CamMatchSession = import("../../../../api-server/src/career/camleague/service").CamMatchSession;
 /** Webcam leagues: your division, this league's table and fixtures, and joining the next one. */
@@ -206,17 +201,22 @@ export const useCamLeague = (saveId: string, week?: number) => useQuery({ queryK
   queryFn: () => get<CamLeagueView>(`/saves/${saveId}/cam-league${qs({ week })}`), staleTime: STALE });
 export const useJoinCamLeague = (saveId: string) => useSaveMutation(saveId, () => send<CamLeagueView>("POST", `/saves/${saveId}/cam-league/join`));
 export const useBookCamMatch = (saveId: string) => useSaveMutation(saveId, (input: { fixtureId: string; dayOfWeek: number; week?: number }) => send<CamLeagueView>("POST", `/saves/${saveId}/cam-league/book`, input));
-export const useSimulateCamMatch = (saveId: string) => useSaveMutation(saveId, (fixtureId: string) => send<CamLeagueView>("POST", `/saves/${saveId}/cam-league/fixtures/${fixtureId}/simulate`));
 export const useCamMatch = (saveId: string, fixtureId: string) => useQuery({ queryKey: careerKey(saveId, "cam-league", "match", fixtureId),
   queryFn: () => get<CamMatchSession>(`/saves/${saveId}/cam-league/fixtures/${fixtureId}`), staleTime: Infinity });
 export const camLeagueApi = { darts: (saveId: string, fixtureId: string, darts: unknown[]) => send<CamMatchSession>("POST", `/saves/${saveId}/cam-league/fixtures/${fixtureId}/darts`, { darts }) };
 export type RoadTripsView = import("../../../../api-server/src/career/roadtrip/service").RoadTripsView;
+export type RoadTripSession = import("../../../../api-server/src/career/roadtrip/service").RoadTripSession;
 /** Road trips: towns on your road, this week's trip, your name on the road, and a visitor at your club. */
 export const useRoadTrips = (saveId: string, week?: number) => useQuery({ queryKey: careerKey(saveId, "road-trips", ...(week === undefined ? [] : [week])),
   queryFn: () => get<RoadTripsView>(`/saves/${saveId}/road-trips${qs({ week })}`), staleTime: STALE });
 export const useGoOnRoadTrip = (saveId: string) => useSaveMutation(saveId, (input: { localityKey: string; dayOfWeek: number; week?: number }) => send<RoadTripsView>("POST", `/saves/${saveId}/road-trips`, input));
 export const useOfferRoadMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) => send<RoadTripsView>("POST", `/saves/${saveId}/road-trips/offer`, input));
-export const usePlayRoadMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) => send<RoadTripsView>("POST", `/saves/${saveId}/road-trips/play`, input));
+export const usePlayRoadMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
+  send<{ session: RoadTripSession; created: boolean }>("POST", `/saves/${saveId}/road-trips/play`, input));
+export const useRoadTripSession = (saveId: string, matchId: string) => useQuery({ queryKey: careerKey(saveId, "road-trips", "match", matchId),
+  queryFn: () => get<RoadTripSession>(`/saves/${saveId}/road-trips/matches/${matchId}`), enabled: !!matchId, staleTime: Infinity });
+export const roadTripApi = { darts: (saveId: string, matchId: string, darts: unknown[]) =>
+  send<RoadTripSession>("POST", `/saves/${saveId}/road-trips/matches/${matchId}/darts`, { darts }) };
 export const useMoneyMatches = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "money-matches"),
   queryFn: () => get<MoneyMatchesView>(`/saves/${saveId}/money-matches`), enabled, staleTime: STALE });
 export const useOfferMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>

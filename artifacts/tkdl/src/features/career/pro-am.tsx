@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Check, Loader2, MapPin, MonitorPlay, Radio, Star, Trophy } from "lucide-react";
+import { CalendarDays, Check, MapPin, MonitorPlay, Radio, Star, Trophy } from "lucide-react";
 import { GameScorer } from "@/components/game-scorer";
 import type { Dart } from "@/lib/darts-rules";
-import { careerKey, errorMessage, proAmApi, useBookProAm, useProAm, useProAmLeg, useSimulateProAm, type ProAmSession } from "./api";
+import { careerKey, errorMessage, proAmApi, useBookProAm, useProAm, useProAmLeg, type ProAmSession } from "./api";
 import { CareerError, CareerLoading } from "./components";
 import { careerBotVisit, careerGameType, recoveryFromLog, scorerLength, shouldCheckpoint } from "./live-model";
 import { dayLabel, formatPence } from "./model";
@@ -20,7 +20,7 @@ export function ProAmNights({ saveId, retired }: { saveId: string; retired: bool
   const search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week"), dayParam = params.get("day");
   const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
   const requestedDay = dayParam === null ? null : Number(dayParam);
-  const q = useProAm(saveId, requestedWeek), book = useBookProAm(saveId), sim = useSimulateProAm(saveId), [, navigate] = useLocation();
+  const q = useProAm(saveId, requestedWeek), book = useBookProAm(saveId), [, navigate] = useLocation();
   const [message, setMessage] = useState("");
   if (!q.data) return q.isLoading ? <CareerLoading /> : <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data, b = d.booking, amateur = d.side === "AMATEUR", fail = (e: unknown) => setMessage(errorMessage(e));
@@ -69,11 +69,9 @@ export function ProAmNights({ saveId, retired }: { saveId: string; retired: bool
         <p>{b.role === "AMATEUR" ? <>One leg · Fee {formatPence(b.feePence)} · Prize {formatPence(b.prizePence)}</>
           : <>Appearance {formatPence(b.appearancePence)}</>}</p>
       </div>
-      {b.status === "BOOKED" ? b.role === "AMATEUR" ? <div className="pa-booking-actions">
-        <button type="button" className="pa-action-button" onClick={() => navigate(`/career/${saveId}/pro-am/${b.id}`)}><MonitorPlay aria-hidden /> Throw your leg</button>
-        <button type="button" className="pa-action-button is-quiet" disabled={sim.isPending} onClick={() => sim.mutate(b.id, { onError: fail })}>Quick-sim it</button>
-      </div> : <div className="pa-booking-actions"><button type="button" className="pa-action-button" disabled={sim.isPending} onClick={() => sim.mutate(b.id, { onError: fail })}>
-        {sim.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null} Play the night</button></div>
+      {b.status === "BOOKED" ? <div className="pa-booking-actions">
+        <button type="button" className="pa-action-button" onClick={() => navigate(`/career/${saveId}/pro-am/${b.id}`)}><MonitorPlay aria-hidden /> {b.role === "PRO" ? "Play the live night" : "Throw your leg"}</button>
+      </div>
       : b.status === "MISSED" ? <p className="money-match__note">You missed your slot.</p>
       : b.role === "AMATEUR" ? <p className="money-match__outcome" data-tone={b.result?.won ? "up" : "down"}>{b.result?.won
         ? <>You beat {b.pro!.name}! Prize <b>{formatPence(b.prizePence)}</b></> : <>{b.pro!.name} took the leg.</>}</p>
@@ -118,7 +116,7 @@ export function ProAmNights({ saveId, retired }: { saveId: string; retired: bool
   </div>;
 }
 
-/** Your leg against the pro on the scorer (you throw first); the server replays the darts. */
+/** Your Pro-Am leg(s) on the scorer (you throw first); the server replays every dart. */
 export function ProAmLegPage({ ctx, nightId }: { ctx: ShellContext; nightId: string }) {
   const id = ctx.save.id, q = useProAmLeg(id, nightId), client = useQueryClient();
   const [session, setSession] = useState<ProAmSession | null>(null), [message, setMessage] = useState("");
@@ -127,28 +125,27 @@ export function ProAmLegPage({ ctx, nightId }: { ctx: ShellContext; nightId: str
   const send = useCallback((darts: Dart[]) => {
     queue.current = queue.current.then(async () => {
       try {
-        const s = await proAmApi.darts(id, nightId, darts);
-        if (s.status === "PLAYED") {
-          setSession(s);
-          await client.invalidateQueries({ queryKey: careerKey(id) });
-        }
+        const s = await proAmApi.darts(id, nightId, darts, session?.matchNumber ?? 1);
+        setSession(s);
+        if (s.matchNumber !== session?.matchNumber) log.current = [];
+        if (s.status === "PLAYED") await client.invalidateQueries({ queryKey: careerKey(id) });
       }
       catch (e) { setMessage(errorMessage(e)); }
     });
-  }, [id, nightId, client]);
+  }, [id, nightId, client, session?.matchNumber]);
   const live = useMemo(() => session ? { bot: session.pro.bot, format: session.format } as unknown as LiveSession : null, [session]);
   const onDartLog = useCallback((darts: Dart[]) => { log.current = darts; if (session?.status === "LIVE" && shouldCheckpoint(session.format, session.firstThrower, darts)) send(darts); }, [session, send]);
   const planner = useCallback((c: { remaining: number; opened: boolean }) => careerBotVisit(live!, session!.firstThrower, log.current, c), [live, session]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const recovery = useMemo(() => session && (session.darts as Dart[]).length ? recoveryFromLog(session.format, session.firstThrower, session.darts as Dart[]) : null, [session?.id]);
+  const recovery = useMemo(() => session && (session.darts as Dart[]).length ? recoveryFromLog(session.format, session.firstThrower, session.darts as Dart[]) : null, [session?.id, session?.matchNumber]);
   if (q.isLoading || (!session && !q.error)) return <CareerLoading />;
   if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/pro-am`}>Back to Pro-Am nights</Link>;
-  if (session.status === "PLAYED") return <div className="cam-league__done space-y-3"><h2>{session.won ? `You beat ${session.pro.name}!` : `${session.pro.name} took the leg`}</h2>{back}</div>;
+  if (session.status === "PLAYED") return <div className="cam-league__done space-y-3"><h2>{session.matchTotal > 1 ? `Pro-Am night complete · ${session.matchTotal - (session.beatenBy ?? 0)} of ${session.matchTotal} amateurs beaten` : session.won ? `You beat ${session.pro.name}!` : `${session.pro.name} took the leg`}</h2>{back}</div>;
   return <div className="cam-league__live">
-    <p className="cam-league__live-title"><Star aria-hidden /> <b>{session.you}</b> vs <b>{session.pro.name}</b> <small>Pro-Am · one leg · you throw first</small></p>
+    <p className="cam-league__live-title"><Star aria-hidden /> <b>{session.you}</b> vs <b>{session.pro.name}</b> <small>Pro-Am · leg {session.matchNumber} of {session.matchTotal} · you throw first</small></p>
     {message && <p className="money-match__message" role="alert">{message}</p>}
-    <GameScorer key={session.id} p1Name={session.you} p2Name={session.pro.name} gameType={careerGameType(session.format as LiveSession["format"])}
+    <GameScorer key={`${session.id}:${session.matchNumber}`} p1Name={session.you} p2Name={session.pro.name} gameType={careerGameType(session.format as LiveSession["format"])}
       botConfig={session.pro.bot.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => { /* the server keeps the dart log */ }} botVisitPlanner={planner} onDartLog={onDartLog}
       onWin={() => send(log.current)} onAbandon={() => history.back()} />

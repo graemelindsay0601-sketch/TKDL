@@ -106,7 +106,7 @@ test("book this week's match on a free night, play it on the scorer (the server 
   assert.equal(me.points, CAM.pointsForWin); assert.equal(me.legsFor, 3);
 });
 
-test("the week settles: the round plays out, an unplayed match is forfeited, a quick-sim counts; after round seven, prizes and a new division", async () => {
+test("the week settles: NPC matches play, an unplayed human match is forfeited; after round seven, prizes and a new division", async () => {
   const root = await rootOf(), season = Number(root.current_season);
   let v = await cam.read(actor, id);
   const start = v.league!.weekStart;
@@ -117,13 +117,14 @@ test("the week settles: the round plays out, an unplayed match is forfeited, a q
   await settleCamWeek(db, root, season, start + 1);
   v = await cam.read(actor, id);
   assert.deepEqual(v.league!.fixtures[1].legs, [0, 3]); assert.equal(v.league!.fixtures[1].status, "FORFEIT");
-  // Round three: book it and let it play out at your level.
+  // Round three: booking alone must never create a player result; it forfeits if not live-scored.
   await db.execute(sql`UPDATE career_saves SET current_week=${start + 2} WHERE id=${id}`);
   v = await cam.read(actor, id);
   const f3 = v.league!.thisWeek!;
   await cam.book(actor, id, { fixtureId: f3.id, dayOfWeek: v.freeNights[0] });
-  v = await cam.simulate(actor, id, f3.id);
-  assert.equal(v.league!.fixtures[2].status, "PLAYED"); assert.equal(v.league!.fixtures[2].source, "SIM");
+  await settleCamWeek(db, { ...root, current_week: start + 2 }, season, start + 2);
+  v = await cam.read(actor, id);
+  assert.equal(v.league!.fixtures[2].status, "FORFEIT");
   for (let w = start + 2; w <= start + CAM.rounds - 1; w++) await settleCamWeek(db, { ...root, current_week: w }, season, w);
   await settleCamWeek(db, root, season, start + CAM.rounds - 1);
   await db.execute(sql`UPDATE career_saves SET current_week=${start + CAM.rounds} WHERE id=${id}`);

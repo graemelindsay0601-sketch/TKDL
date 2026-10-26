@@ -60,7 +60,7 @@ function MemberRow({ m, busy, canPlay, perWeek, available, onOffer, onPlay }: { 
 
 /**
  * Money matches. Haggle with a member over the stake (they put up more when they fancy their chances), or answer the
- * member who challenged you. First to four legs, played out like a quick-sim with your form. The winner takes the stake.
+ * member who challenged you. First to four legs on the live scorer. The winner takes the stake.
  */
 export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boolean }) {
   const [, navigate] = useLocation();

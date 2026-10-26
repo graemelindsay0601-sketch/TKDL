@@ -5,17 +5,19 @@ import { CareerError } from "../service.ts";
 import { lockRoot, type CareerActor } from "../world/service.ts";
 import { LOCALITIES } from "../calendar/geography.ts";
 import { absoluteDay } from "../calendar/generation.ts";
-import { simulateBullUp, type RootRow } from "../calendar/engine.ts";
+import { type RootRow } from "../calendar/engine.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { simulateNpcMatch } from "../world/simulation.ts";
-import { stableUuid } from "../world/random.ts";
-import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
-import { attributeForAverage, humanSimulationPlayer, loadHumanForm } from "../form/human.ts";
+import { createPerformance } from "../world/performance.ts";
+import { toCareerBotConfig } from "../world/bot-adapter.ts";
+import { scopedRandom, stableUuid } from "../world/random.ts";
+import { CAREER_DIFFICULTY_CONFIG, SIMULATION_VERSION } from "../world/config.ts";
+import { attributeForAverage, loadHumanForm } from "../form/human.ts";
 import { post } from "../finance/ledger.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { availableOf, homeLocalityOf, playersOf, playersOfMany, type Member } from "../money/service.ts";
 import { MONEY, appetiteFor, averageForLevel, lineFor, oddsFor, replyTo, willingFor, type Odds } from "../money/model.ts";
 import { ROAD, appetiteBoost, destinationsFrom, greetingFor, reputationFor, REPUTATION, tripCostTo, weeklyVisitor } from "./model.ts";
+import { replay, type X01Format } from "../../shared/darts-rules/x01.ts";
 
 type Root = RootRow & { player_id?: number };
 type Row = Record<string, unknown>;
@@ -26,9 +28,9 @@ const pounds = (pence: number) => Math.max(MONEY.minimumPence, Math.floor(pence 
 
 export type RoadTalk = { status: "OPEN" | "AGREED" | "WALKED"; asksLeft: number; theirOfferPence: number | null; agreedPence: number | null;
   log: { who: "YOU" | "THEM"; text: string; pence: number | null }[] };
-export type RoadResult = { won: boolean; legs: [number, number]; stakePence: number; averages: [number, number] };
+export type RoadResult = { won: boolean; legs: [number, number]; stakePence: number; averages: [number, number] | null };
 export type RoadOpponent = { key: string; name: string; role: Role; average: number | null; odds: Odds; askingPence: number; greeting: string;
-  locked: string | null; talk: RoadTalk | null; result: RoadResult | null };
+  locked: string | null; talk: RoadTalk | null; result: RoadResult | null; liveMatchId: string | null };
 export type RoadTripsView = {
   season: number; week: number; currentWeek: number; home: string | null; availablePence: number; freeNights: number[];
   reputation: { towns: number; title: string; note: string; next: { title: string; towns: number } | null };
@@ -40,21 +42,32 @@ export type RoadTripsView = {
   record: { trips: number; played: number; won: number; netPence: number; conquered: string[] };
   recent: { season: number; week: number; town: string; name: string; role: Role; won: boolean; legs: [number, number]; stakePence: number }[];
 };
+type RoadBotConfig = { avg: number; sd: number; checkoutPct: number; hitAcc: number };
+const ROAD_MATCH_FORMAT: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf };
+export type RoadTripSession = { id: string; status: "LIVE" | "PLAYED" | "MISSED"; you: string; opponent: { name: string; bot: { config: RoadBotConfig; seed: string } };
+  stakePence: number; format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null; legs: [number, number] | null };
 
 const talkFrom = (r: Row): RoadTalk => ({ status: r.status === "WALKED" ? "WALKED" : r.agreed_pence !== null ? "AGREED" : "OPEN",
   asksLeft: Math.max(0, MONEY.asks - Number(r.asks)), theirOfferPence: r.their_offer_pence === null ? null : Number(r.their_offer_pence),
   agreedPence: r.agreed_pence === null ? null : Number(r.agreed_pence), log: (r.log as RoadTalk["log"]) ?? [] });
 const resultFrom = (r: Row): RoadResult | null => r.status !== "PLAYED" ? null : { won: r.won === true, legs: [Number(r.legs_you), Number(r.legs_them)],
-  stakePence: Number(r.stake_pence), averages: ((r.detail as { averages?: [number, number] })?.averages) ?? [0, 0] };
+  stakePence: Number(r.stake_pence), averages: ((r.detail as { averages?: [number, number] })?.averages) ?? null };
 
 /** A town's champion and locals (its best four players), or nobody if the town has no players. */
 const split = (players: Member[]) => ({ champion: players[0] ?? null, locals: players.slice(1, 1 + ROAD.locals) });
 
 export function createCareerRoadTripService(database: CareerDatabase) {
   const townPlayers = async (tx: CareerExecutor, root: Root, town: Locality) => split(await playersOf(tx, root, town));
+  const roadBot = (root: Root, npc: import("../world/types.ts").Npc, key: string): RoadBotConfig => {
+    const c = toCareerBotConfig(createPerformance(npc, { category: "local", roundImportance: 0.5, elimination: true }, root.difficulty as never,
+      scopedRandom(root.world_seed, root.world_generation_version, "performance", SIMULATION_VERSION, key, npc.id)));
+    return { avg: c.avg, sd: c.sd, checkoutPct: c.checkoutPct, hitAcc: c.hitAcc };
+  };
 
   async function view(tx: CareerExecutor, root: Root, week = Number(root.current_week)): Promise<RoadTripsView> {
     const season = Number(root.current_season), currentWeek = Number(root.current_week);
+    await tx.execute(sql`UPDATE career_road_matches SET status='MISSED'
+      WHERE career_save_id=${root.id} AND status='LIVE' AND (season<${season} OR (season=${season} AND week<${currentWeek}))`);
     const homeKey = await homeLocalityOf(tx, root), home = LOCALITIES.find(l => l.key === homeKey) ?? null;
     const available = await availableOf(tx, root.id);
     const matches = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC`)).rows;
@@ -72,7 +85,7 @@ export function createCareerRoadTripService(database: CareerDatabase) {
     const thisWeek = matches.filter(m => Number(m.season) === season && Number(m.week) === week);
     const opponentOf = (m: Member, role: Role, locked: string | null, extra = 1): RoadOpponent => {
       const row = thisWeek.find(r => r.opponent_key === m.key), a = asking(m, extra);
-      return { key: m.key, name: m.name, role, average: m.average, odds: a.odds, askingPence: a.willing,
+      return { key: m.key, name: m.name, role, average: m.average, odds: a.odds, askingPence: a.willing, liveMatchId: row?.status === "LIVE" ? String(row.id) : null,
         greeting: greetingFor(root.world_seed, `${season}:${week}:${m.key}`, role), locked, talk: row && row.status !== "PLAYED" ? talkFrom(row) : row && row.log ? talkFrom(row) : null,
         result: row ? resultFrom(row) : null };
     };
@@ -94,7 +107,7 @@ export function createCareerRoadTripService(database: CareerDatabase) {
       const opponents = locals.map(m => opponentOf(m, "LOCAL", null));
       if (champion) opponents.unshift(opponentOf(champion, "CHAMPION", beatenLocal || known ? null : `Beat one of ${town.city}'s locals first`));
       trip = { id: String(tripRow.id), town: town.city, region: town.region, dayOfWeek: ((Number(tripRow.day) - 1) % 7) + 1, costPence: Number(tripRow.cost_pence),
-        played: tonight.filter(m => m.status === "PLAYED").length, maxMatches: ROAD.matchesPerTrip, opponents };
+         played: tonight.filter(m => m.status === "PLAYED" || m.status === "LIVE").length, maxMatches: ROAD.matchesPerTrip, opponents };
     }
     const freeNights = root.status === "ACTIVE" ? await freeNightsInWeek(tx, root.id, season, week) : [];
     const why = !home ? "You need a home town to set off from" : root.status !== "ACTIVE" ? "Your career is over"
@@ -140,9 +153,21 @@ export function createCareerRoadTripService(database: CareerDatabase) {
     const o = v.trip?.opponents.find(x => x.key === key) ?? (v.visitor?.key === key ? v.visitor : undefined);
     if (!o) throw new CareerError(404, "That player isn't here to play you this week");
     if (o.locked) throw new CareerError(409, o.locked);
+    if (o.liveMatchId) throw new CareerError(409, "That match is already live; resume it");
     if (o.result) throw new CareerError(409, "You've already played them this week");
     if (o.role !== "VISITOR" && v.trip && v.trip.played >= v.trip.maxMatches) throw new CareerError(409, `That's ${v.trip.maxMatches} games tonight: time to head home`);
     return o;
+  }
+
+  async function sessionFrom(tx: CareerExecutor, root: Root, row: Row): Promise<RoadTripSession> {
+    const live = row.live_session as { opponentName: string; bot: RoadBotConfig; seed: string; darts: unknown[] } | null;
+    if (!live) throw new CareerError(409, "This road match has no resumable live scorer session");
+    const you = (await tx.execute(sql`SELECT COALESCE(p.display_name,s.career_name,'You') AS name FROM career_saves s
+      LEFT JOIN career_profiles p ON p.career_save_id=s.id WHERE s.id=${root.id}`)).rows[0];
+    return { id: String(row.id), status: row.status === "PLAYED" ? "PLAYED" : row.status === "MISSED" ? "MISSED" : "LIVE", you: String(you?.name ?? "You"),
+      opponent: { name: live.opponentName, bot: { config: live.bot, seed: live.seed } }, stakePence: Number(row.stake_pence),
+      format: ROAD_MATCH_FORMAT, firstThrower: 0, darts: live.darts ?? [], won: row.won == null ? null : row.won === true,
+      legs: row.status === "PLAYED" ? [Number(row.legs_you), Number(row.legs_them)] : null };
   }
 
   return {
@@ -205,15 +230,16 @@ export function createCareerRoadTripService(database: CareerDatabase) {
       });
     },
 
-    /**
-     * Play for a stake you've both agreed (or their figure, or their asking price as it stands). The match is played by the
-     * same simulator as a money match, with your form; the money goes through the ledger.
-     */
+    /** Start or resume a live-scored road match for the agreed stake. */
     async play(actor: CareerActor, saveId: string, body: unknown) {
       const input = z.object({ opponentKey: z.string().uuid(), stakePence: z.number().int().positive() }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
         const season = Number(root.current_season), week = Number(root.current_week);
+        const prior = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} AND season=${season}
+          AND week=${week} AND opponent_key=${input.opponentKey} FOR UPDATE`)).rows[0] as Row | undefined;
+        if (prior?.status === "LIVE") return { session: await sessionFrom(tx, root, prior), created: false };
+        if (prior?.status === "PLAYED") throw new CareerError(409, "You've already played this opponent this week");
         const v = await view(tx, root), o = find(v, input.opponentKey);
         const t = o.talk;
         const agreed = t?.status === "AGREED" && t.agreedPence === input.stakePence;
@@ -222,29 +248,72 @@ export function createCareerRoadTripService(database: CareerDatabase) {
         if (!agreed && !theirs && !asking) throw new CareerError(409, t?.status === "WALKED" ? `${o.name} has walked away` : "You haven't agreed that stake");
         if (input.stakePence > v.availablePence) throw new CareerError(409, "You do not have that much money free");
         const opponent = (await loadNpcs(tx, root.id, { ids: [o.key] }))[0];
-        const form = await loadHumanForm(tx, root);
-        const you = humanSimulationPlayer(root, opponent, form);
-        const key = `road-match:${season}:${week}:${o.key}`;
-        const bull = simulateBullUp(you, opponent, root.world_seed, key);
-        const result = simulateNpcMatch({ players: [you, opponent], seed: root.world_seed, generationVersion: Number(root.world_generation_version), matchKey: key,
-          difficulty: root.difficulty as never, context: { category: "local", roundImportance: o.role === "CHAMPION" ? 0.8 : 0.5, elimination: true },
-          format: { bestOf: MONEY.bestOf, firstThrow: bull.firstThrow } });
-        const [mine, other] = result.stats, won = mine.legsWon > other.legsWon;
-        const round2 = (n: number) => Math.round(n * 100) / 100;
-        const detail = { version: ROAD.version, averages: [round2(mine.average), round2(other.average)], highestCheckout: mine.highestCheckout, maximums: mine.maximums,
-          youThrewFirst: bull.firstThrow === 0, simulationVersion: result.simulationVersion };
-        const town = o.role === "VISITOR" ? LOCALITIES.find(l => l.city === v.visitor!.town)! : LOCALITIES.find(l => l.city === v.trip!.town)!;
+        if (!opponent) throw new CareerError(404, "That opponent is no longer available");
+        if (input.stakePence > v.availablePence) throw new CareerError(409, "You do not have that much money free");
         const id = stableUuid(root.world_seed, ROAD.version, "road-match", root.id, season, week, o.key);
-        await tx.execute(sql`INSERT INTO career_road_matches (career_save_id, id, season, week, trip_id, locality_key, opponent_key, role, status, asks, stake_pence, won, legs_you, legs_them, detail)
-          VALUES (${root.id}, ${id}, ${season}, ${week}, ${o.role === "VISITOR" ? null : v.trip!.id}, ${town.key}, ${o.key}, ${o.role}, 'PLAYED', 0, ${input.stakePence}, ${won},
-            ${mine.legsWon}, ${other.legsWon}, ${JSON.stringify(detail)}::jsonb)
-          ON CONFLICT (career_save_id, season, week, opponent_key) DO UPDATE SET status='PLAYED', stake_pence=EXCLUDED.stake_pence, won=EXCLUDED.won,
-            legs_you=EXCLUDED.legs_you, legs_them=EXCLUDED.legs_them, detail=EXCLUDED.detail`);
-        const what = o.role === "CHAMPION" ? `${town.city}'s champion` : o.role === "VISITOR" ? `a visitor from ${town.city}` : `a ${town.city} local`;
-        await post(tx, root, { operationKey: `road-match:${id}`, category: won ? "MONEY_MATCH_WIN" : "MONEY_MATCH_STAKE", amountPence: won ? input.stakePence : -input.stakePence,
-          reason: `Road money match ${won ? "won" : "lost"} against ${o.name}, ${what} (${mine.legsWon}-${other.legsWon})`, season, week,
-          detail: { roadMatchId: id, opponentKey: o.key, role: o.role, localityKey: town.key } });
-        return view(tx, root);
+        const key = `road-match:${season}:${week}:${o.key}`;
+        const live = { opponentName: o.name, bot: roadBot(root, opponent, key),
+          seed: stableUuid(root.world_seed, ROAD.version, "road-bot", key), darts: [] as unknown[] };
+        const localityKey = o.role === "VISITOR" ? LOCALITIES.find(l => l.city === v.visitor!.town)?.key ?? null
+          : LOCALITIES.find(l => l.city === v.trip!.town)!.key;
+        await tx.execute(sql`INSERT INTO career_road_matches
+          (career_save_id,id,season,week,trip_id,locality_key,opponent_key,role,status,asks,stake_pence,agreed_pence,live_session)
+          VALUES (${root.id},${id},${season},${week},${o.role === "VISITOR" ? null : v.trip!.id},${localityKey},${o.key},${o.role},'LIVE',0,
+            ${input.stakePence},${input.stakePence},${JSON.stringify(live)}::jsonb)
+          ON CONFLICT (career_save_id,season,week,opponent_key) DO UPDATE SET status='LIVE',stake_pence=EXCLUDED.stake_pence,
+            agreed_pence=EXCLUDED.agreed_pence,live_session=EXCLUDED.live_session`);
+        const row = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} AND id=${id}`)).rows[0] as Row;
+        return { session: await sessionFrom(tx, root, row), created: true };
+      });
+    },
+
+    async session(actor: CareerActor, saveId: string, matchId: string) {
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId, false) as unknown as Root;
+        const row = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} AND id=${matchId}`)).rows[0] as Row | undefined;
+        if (!row) throw new CareerError(404, "Road match not found");
+        if (row.status === "LIVE" && (Number(row.season) !== Number(root.current_season) || Number(row.week) !== Number(root.current_week))) {
+          await tx.execute(sql`UPDATE career_road_matches SET status='MISSED' WHERE career_save_id=${root.id} AND id=${matchId} AND status='LIVE'`);
+          const missed = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} AND id=${matchId}`)).rows[0] as Row;
+          return sessionFrom(tx, root, missed);
+        }
+        return sessionFrom(tx, root, row);
+      });
+    },
+
+    async darts(actor: CareerActor, saveId: string, matchId: string, body: unknown) {
+      const { darts } = z.object({ darts: z.array(z.unknown()).max(400) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        const row = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} AND id=${matchId} FOR UPDATE`)).rows[0] as Row | undefined;
+        if (!row) throw new CareerError(404, "Road match not found");
+        if (row.status === "LIVE") {
+          if (Number(row.season) !== Number(root.current_season) || Number(row.week) !== Number(root.current_week)) {
+            await tx.execute(sql`UPDATE career_road_matches SET status='MISSED' WHERE career_save_id=${root.id} AND id=${matchId} AND status='LIVE'`);
+            const missed = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} AND id=${matchId}`)).rows[0] as Row;
+            return sessionFrom(tx, root, missed);
+          }
+          let state;
+          try { state = replay(ROAD_MATCH_FORMAT, 0, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
+          const live = row.live_session as { opponentName: string; bot: RoadBotConfig; seed: string; darts: unknown[] };
+          if (state.complete && state.winner !== null) {
+            const won = state.winner === 0, [youLegs, theirLegs] = state.totalLegs;
+            await tx.execute(sql`UPDATE career_road_matches SET status='PLAYED',won=${won},legs_you=${youLegs},legs_them=${theirLegs},
+              detail=${JSON.stringify({ version: ROAD.version, source: "LIVE", darts })}::jsonb,
+              live_session=${JSON.stringify({ ...live, darts })}::jsonb WHERE career_save_id=${root.id} AND id=${matchId} AND status='LIVE'`);
+            const town = LOCALITIES.find(l => l.key === row.locality_key);
+            const what = row.role === "CHAMPION" ? `${town?.city ?? "town"}'s champion` : row.role === "VISITOR" ? `a visitor from ${town?.city ?? "town"}` : `a ${town?.city ?? "town"} local`;
+            await post(tx, root, { operationKey: `road-match:${matchId}`, category: won ? "MONEY_MATCH_WIN" : "MONEY_MATCH_STAKE",
+              amountPence: won ? Number(row.stake_pence) : -Number(row.stake_pence),
+              reason: `Road money match ${won ? "won" : "lost"} against ${live.opponentName}, ${what} (${youLegs}-${theirLegs})`,
+              season: Number(row.season), week: Number(row.week), detail: { roadMatchId: matchId, opponentKey: String(row.opponent_key), role: row.role, localityKey: row.locality_key } });
+          } else {
+            await tx.execute(sql`UPDATE career_road_matches SET live_session=${JSON.stringify({ ...live, darts })}::jsonb
+              WHERE career_save_id=${root.id} AND id=${matchId} AND status='LIVE'`);
+          }
+        }
+        const updated = (await tx.execute(sql`SELECT * FROM career_road_matches WHERE career_save_id=${root.id} AND id=${matchId}`)).rows[0] as Row;
+        return sessionFrom(tx, root, updated);
       });
     },
   };

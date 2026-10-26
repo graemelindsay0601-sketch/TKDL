@@ -32,6 +32,10 @@ let id = "";
 const SEED = "a".repeat(64);
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 const status = (p: Promise<unknown>, n = 409) => assert.rejects(p, (e: { status?: number }) => e.status === n);
+const T20 = { segment: 20, multiplier: 3, value: 60 }, T19 = { segment: 19, multiplier: 3, value: 57 }, D12 = { segment: 12, multiplier: 2, value: 24 }, MISS = { segment: 0, multiplier: 1, value: 0 };
+const nineDarter = [T20, T20, T20, MISS, MISS, MISS, T20, T20, T20, MISS, MISS, MISS, T20, T19, D12];
+const nineDarterWhenOtherStarts = [MISS, MISS, MISS, T20, T20, T20, MISS, MISS, MISS, T20, T20, T20, MISS, MISS, MISS, T20, T19, D12];
+const fourLegs = [...nineDarter, ...nineDarterWhenOtherStarts, ...nineDarter, ...nineDarterWhenOtherStarts];
 
 before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1);
@@ -80,13 +84,19 @@ test("a road trip: book a night, pay the travel, play the locals; the champion o
   let talk = v.trip!.opponents.find(o => o.key === local.key)!.talk!;
   assert.equal(talk.status, "OPEN"); assert.equal(talk.theirOfferPence, local.askingPence);
   await status(road.play(actor, id, { opponentKey: local.key, stakePence: local.askingPence + 100000 }), 409);
-  // Play every local at their figure until one is beaten (or the night's three games are gone).
-  for (const o of v.trip!.opponents.filter(o => o.role === "LOCAL")) {
-    const now = (await road.read(actor, id)).trip!;
-    if (now.played >= ROAD.matchesPerTrip || now.opponents.some(x => x.role === "LOCAL" && x.result?.won)) break;
-    const me = now.opponents.find(x => x.key === o.key)!;
-    v = await road.play(actor, id, { opponentKey: o.key, stakePence: me.talk?.theirOfferPence ?? me.askingPence });
-  }
+  // Starting a match creates no result; every leg is settled only from the live scorer's replayed darts.
+  const me = v.trip!.opponents.find(o => o.key === local.key)!;
+  const live = await road.play(actor, id, { opponentKey: local.key, stakePence: me.talk?.theirOfferPence ?? me.askingPence });
+  assert.equal(live.session.status, "LIVE");
+  assert.equal((await road.read(actor, id)).trip!.opponents.find(o => o.key === local.key)!.result, null);
+  const checkpoint = await road.darts(actor, id, live.session.id, { darts: [T20] });
+  assert.deepEqual(checkpoint.darts, [T20], "an unfinished game can be resumed");
+  const done = await road.darts(actor, id, live.session.id, { darts: fourLegs });
+  assert.equal(done.status, "PLAYED"); assert.equal(done.won, true); assert.deepEqual(done.legs, [4, 0]);
+  await road.darts(actor, id, live.session.id, { darts: fourLegs });
+  v = await road.read(actor, id);
+  const leagueRows = await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`road-match:${live.session.id}`}`);
+  assert.equal(Number(leagueRows[0].n), 1, "retrying a completed scorer submission cannot settle the stake twice");
   const beat = v.trip!.opponents.some(o => o.role === "LOCAL" && o.result?.won);
   const champNow = v.trip!.opponents.find(o => o.role === "CHAMPION")!;
   assert.equal(champNow.locked === null, beat, "the champion plays you once you've beaten a local");
@@ -124,10 +134,33 @@ test("beat a town's champion: it's conquered, your name grows, and its players c
   assert.ok(found, "someone turns up within a few weeks");
   assert.equal(found!.role, "VISITOR"); assert.equal(found!.town, town.city);
   assert.ok(found!.askingPence >= MONEY.minimumPence);
-  v = await road.play(actor, id, { opponentKey: found!.key, stakePence: found!.askingPence });
+  const live = await road.play(actor, id, { opponentKey: found!.key, stakePence: found!.askingPence });
+  assert.equal(live.session.status, "LIVE");
+  const played = await road.darts(actor, id, live.session.id, { darts: fourLegs });
+  assert.equal(played.status, "PLAYED", "the visitor match is manually scored");
+  v = await road.read(actor, id);
   assert.ok(v.visitor!.result, "played at your club");
   assert.equal(v.trip, null);
   await db.execute(sql`UPDATE career_saves SET current_week=${s.currentWeek} WHERE id=${id}`);
+});
+
+test("an unfinished live road match becomes missed at week end without a result or stake", async () => {
+  const saveId = (await saves.create(1, { slot: 3, careerName: "Missed Road", dateOfBirth: "1998-03-02", homeLocality: "ayrshire" })).id;
+  await career.initialize(actor, saveId);
+  await db.execute(sql`UPDATE career_saves SET balance_pence=500000 WHERE id=${saveId}`);
+  const start = await road.read(actor, saveId), town = start.towns.find(t => t.champion)!;
+  let v = await road.go(actor, saveId, { localityKey: town.key, dayOfWeek: start.freeNights[0] });
+  const local = v.trip!.opponents.find(o => o.role === "LOCAL")!;
+  const live = await road.play(actor, saveId, { opponentKey: local.key, stakePence: local.askingPence });
+  assert.equal(live.session.status, "LIVE");
+  await db.execute(sql`UPDATE career_saves SET current_week=current_week+1 WHERE id=${saveId}`);
+  await road.read(actor, saveId);
+  const missed = await road.session(actor, saveId, live.session.id);
+  assert.equal(missed.status, "MISSED");
+  const record = await rows(sql`SELECT status,won FROM career_road_matches WHERE career_save_id=${saveId} AND id=${live.session.id}`);
+  assert.equal(record[0].status, "MISSED"); assert.equal(record[0].won, null);
+  const ledger = await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${saveId} AND operation_key=${`road-match:${live.session.id}`}`);
+  assert.equal(Number(ledger[0].n), 0);
 });
 
 test("a road trip can be booked next week while this week's plan stays unchanged", async () => {

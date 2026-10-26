@@ -201,21 +201,6 @@ export function createCareerCamLeagueService(database: CareerDatabase) {
       });
     },
 
-    /** Let the booked match play out at your level (a quick-sim with your form), instead of throwing it. */
-    async simulate(actor: CareerActor, saveId: string, fixtureId: string) {
-      return database.transaction(async tx => {
-        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
-        const { f, opp, youA } = await myFixture(tx, root, fixtureId);
-        if (f.status === "BOOKED" && Number(f.week) > Number(root.current_week)) throw new CareerError(409, "That match is booked for a future week");
-        if (f.status !== "BOOKED") throw new CareerError(409, f.status === "PLAYED" ? "That match is played" : "Book a night for it first");
-        if ((f.darts as unknown[] | null)?.length) throw new CareerError(409, "You've started throwing this one: finish it on the scorer");
-        const npc = (await loadNpcs(tx, root.id, { ids: [opp.key] }))[0];
-        const youPlayer = humanSimulationPlayer(root, npc, await loadHumanForm(tx, root));
-        const r = simulateMatch(root, `cam:${String(f.id)}`, youPlayer, npc);
-        await record(tx, root, f, youA, r[0], r[1], "SIM", null);
-        return view(tx, root);
-      });
-    },
   };
 }
 

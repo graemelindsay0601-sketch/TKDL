@@ -11,9 +11,11 @@ Career should reflect a plausible real darts career: players may start through c
 
 Career tournaments should expose their real draw as a playable route: show round formats precisely and let the player launch an awaiting live match directly from the draw. Keep actual results server-authoritative and manually scored.
 
+The player's own Career results must come from live scorer play across events, leagues, club/county fixtures, exhibitions, road games, and money matches. A simulation may resolve NPC-versus-NPC fixtures, but an unplayed personal activity is missed or forfeited, never recorded as a played result.
+
 **Why:** the user approved expanding tournament draws and event-format fidelity, with actual playing progression as the focus.
 
-**How to apply:** reuse the persisted draw and format definitions instead of generating client-side brackets or inventing results; display sets, legs-per-set, and each round's authored format clearly.
+**How to apply:** reuse persisted draw and format definitions instead of generating client-side brackets or inventing results; display sets, legs-per-set, and authored round formats clearly. Settle stakes only after the live scorer completes; expire unfinished fixtures as missed without a result.
 
 Players may book an event on each available day of a week; keep the one-event-per-day and overlap rules, but do not impose a weekly event-count cap. Continue Career must stop for a live money match or reserved/live DartCast stream so it cannot silently advance past a scheduled activity.
 

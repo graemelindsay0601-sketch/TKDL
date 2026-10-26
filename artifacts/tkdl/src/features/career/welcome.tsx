@@ -27,7 +27,7 @@ export function CareerWelcome({ save, entered }: { save: CareerSave; entered: bo
   const played = history.data.length > 0;
   const steps: Step[] = [
     { key: "enter", title: "Pick your first event", text: "Choose one below and enter it. Local events near home are cheap and a good place to start.", done: entered || played },
-    { key: "play", title: "Play your first event", text: "Press Continue to move to your match, then throw it on the scorer or quick-sim it.", done: played },
+    { key: "play", title: "Play your first event", text: "Press Continue to move to your match, then play it on the live scorer.", done: played },
     { key: "week", title: "Finish your first week", text: "Continue moves the calendar on. Results, rankings and money update as you go.", done: save.currentWeek > 1 },
     { key: "money", title: "Win some prize money", text: "Even a quarter-final at a club night pays something. Your balance is at the top.", done: (finance.data?.careerEarningsPence ?? 0) > 0 },
     { key: "nights", title: "Try a night out", text: "Free weeknights can go on your club, money matches and more.", done: read(visitedKey(save.id, "nights")), href: `${base}/nights`, action: "Nights Out" },

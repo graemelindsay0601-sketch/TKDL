@@ -18,12 +18,11 @@ import { createCareerSporting } from "../../db/migrations/create_career_sporting
 import { createShadowObservations } from "../../db/migrations/create_shadow_observations_sb21a.ts";
 import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
-import { createCareerLiveMatchService } from "../../career/live/service.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
 
-/** Quick-sim: the human's waiting match is simulated at their level and recorded honestly as a simulation. */
+/** Career events require live player-scored results; human quick-sim is not a valid settlement path. */
 const pg = new PGlite(), db = drizzle(pg);
-const saves = createCareerService(db), career = createCareerSportingService(db), live = createCareerLiveMatchService(db, career.calendar);
+const saves = createCareerService(db), career = createCareerSportingService(db);
 const actor = { playerId: 1 };
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows as Record<string, any>[];
 let id = "", op = 0;
@@ -57,32 +56,10 @@ async function enterFriday() {
   return events[0].id as string;
 }
 
-test("quick-sim records the match as a simulation at the player's level and the tournament moves on", async () => {
+test("a Career tournament match cannot be settled by quick-sim", async () => {
   const eventId = await enterFriday();
   const matchId = await nextHumanMatch();
-  await live.open(actor, id, matchId); // a session opened at the bull, no darts thrown: quick-sim is still allowed
-  const r = await career.calendar.quickSimMatch(actor, id, eventId, { matchId, confirmation: "QUICK_SIM" }) as any;
-  const row = (await rows(sql`SELECT status, result_source, winner_key, summary, first_throw_detail FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0];
-  assert.deepEqual([row.status, row.result_source], ["COMPLETED", "QUICK_SIM"], "never recorded as live darts");
-  assert.equal(row.first_throw_detail.method, "SIMULATED_BULL_UP");
-  assert.equal(row.summary.quickSim.skillAverage, 45, "no live history: the estimated level");
-  assert.equal(r.quickSim.won, row.winner_key === "HUMAN");
-  assert.equal((await live.read(actor, id, matchId)).status, "SUPERSEDED", "the open session steps aside");
-  await assert.rejects(career.calendar.quickSimMatch(actor, id, eventId, { matchId, confirmation: "QUICK_SIM" }), /no longer awaiting/);
-  const form = await career.calendar.form(actor, id);
-  assert.equal(form.recentResults.length, 0, "a simmed result never moves your form or confidence");
-  assert.equal(form.estimated, true, "quick-sims never count as live evidence for the average");
-});
-
-test("quick-sim is refused once live darts have been thrown", async () => {
-  await enterFriday();
-  const matchId = await nextHumanMatch();
-  const eventId = String((await rows(sql`SELECT event_id FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0].event_id);
-  let s = await live.open(actor, id, matchId) as any;
-  for (let i = 0; i < 30 && s.status === "BULL_UP"; i++) s = await live.bull(actor, id, matchId, { throw: "MISS", expectedRevision: s.revision });
-  assert.equal(s.status, "IN_PLAY");
-  // Labelled fixture: the live log already holds thrown darts (the guard reads the session, not who threw them).
-  await db.execute(sql`UPDATE career_match_sessions SET darts = '[{"segment":1,"multiplier":1,"value":1,"label":"S1"}]'::jsonb WHERE career_save_id = ${id} AND match_id = ${matchId}`);
-  await assert.rejects(career.calendar.quickSimMatch(actor, id, eventId, { matchId, confirmation: "QUICK_SIM" }), /started this match live/);
-  assert.equal((await rows(sql`SELECT status FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0].status, "AWAITING_HUMAN");
+  await assert.rejects(career.calendar.quickSimMatch(actor, id, eventId, { matchId, confirmation: "QUICK_SIM" }), /must be played live/);
+  const row = (await rows(sql`SELECT status, result_source, winner_key FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0];
+  assert.deepEqual([row.status, row.result_source, row.winner_key], ["AWAITING_HUMAN", null, null]);
 });

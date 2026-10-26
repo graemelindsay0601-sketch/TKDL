@@ -24,6 +24,10 @@ export function createCareerRoadTripRouter(service: ReturnType<typeof createCare
   router.post("/saves/:id/road-trips", authedWriteRateLimit, async (req, res) => { res.json(await service.go(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/road-trips/offer", authedWriteRateLimit, async (req, res) => { res.json(await service.offer(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/road-trips/play", authedWriteRateLimit, async (req, res) => { res.json(await service.play(res.locals.careerActor, id(req), req.body)); });
+  router.get("/saves/:id/road-trips/matches/:matchId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), String(req.params.matchId))); });
+  router.post("/saves/:id/road-trips/matches/:matchId/darts", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.darts(res.locals.careerActor, id(req), String(req.params.matchId), req.body));
+  });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     if (!req.path.includes("/road-trips")) { next(error); return; }
     if (error instanceof CareerError) res.status(error.status).json({ error: error.message });

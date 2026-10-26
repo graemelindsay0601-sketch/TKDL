@@ -5,7 +5,7 @@ import { markSeen } from "../unlocks";
 import { Check, ChevronRight, Crown, Globe2, Loader2, MonitorPlay, Trophy, Video } from "lucide-react";
 import { GameScorer } from "@/components/game-scorer";
 import type { Dart } from "@/lib/darts-rules";
-import { camLeagueApi, careerKey, errorMessage, useBookCamMatch, useCamLeague, useCamMatch, useJoinCamLeague, useSimulateCamMatch } from "../api";
+import { camLeagueApi, careerKey, errorMessage, useBookCamMatch, useCamLeague, useCamMatch, useJoinCamLeague } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { careerBotVisit, careerGameType, recoveryFromLog, scorerLength, shouldCheckpoint } from "../live-model";
 import { dayLabel, formatPence } from "../model";
@@ -21,7 +21,7 @@ const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["
 export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
   const id = ctx.save.id, search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week");
   const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
-  const q = useCamLeague(id, requestedWeek), join = useJoinCamLeague(id), book = useBookCamMatch(id), sim = useSimulateCamMatch(id);
+  const q = useCamLeague(id, requestedWeek), join = useJoinCamLeague(id), book = useBookCamMatch(id);
   useEffect(() => { markSeen(id, "cam-league"); }, [id]);
   const requestedDayValue = params.get("day");
   const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
@@ -97,10 +97,9 @@ export function CamLeaguePage({ ctx }: { ctx: ShellContext }) {
             </> : !retired && <p className="cam-atlas__note">No free nights remain this week; this match will be forfeited.</p>}
           </> : f.status === "BOOKED" && futureWeek ? <p className="cam-atlas__note">Booked for {dayLabel(f.dayOfWeek!)} in week {d.week}. Playing opens when that week begins.</p>
             : f.status === "BOOKED" ? <>
-              <p className="cam-atlas__note">Booked for {dayLabel(f.dayOfWeek!)}. Play on your camera scorer or quick-sim at your level.</p>
+              <p className="cam-atlas__note">Booked for {dayLabel(f.dayOfWeek!)}. Your result only counts after you play on the camera scorer.</p>
               <div className="cam-atlas__actions">
                 <button type="button" className="cam-atlas__book" onClick={() => navigate(`/career/${id}/cam-league/${f.id}`)}><MonitorPlay aria-hidden /> Play on camera</button>
-                <button type="button" className="cam-atlas__sim" disabled={sim.isPending} onClick={() => sim.mutate(f.id, { onError: fail })}>{sim.isPending && <Loader2 className="animate-spin" aria-hidden />} Quick-sim it</button>
               </div>
             </> : <p className="cam-atlas__outcome">{f.status === "FORFEIT" ? "FORFEITED" : f.legs && f.legs[0] > f.legs[1] ? "VICTORY" : "FIXTURE COMPLETE"}{f.legs && ` · ${f.legs[0]}–${f.legs[1]}`}{f.source === "SIM" ? " · QUICK-SIM" : ""}</p>}
         </div>

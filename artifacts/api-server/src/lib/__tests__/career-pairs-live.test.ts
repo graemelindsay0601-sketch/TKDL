@@ -256,7 +256,7 @@ test("a tampered partner visit is refused by the session boundary", async () => 
   assert.fail("partner never came to throw");
 });
 
-test("a pairs match can be quick-simmed: your pair against theirs, recorded once like a live result", async () => {
+test("a pairs match cannot be settled without the live scorer", async () => {
   const save = await saves.create(1, { slot: 2, careerName: "Pairs Sim", dateOfBirth: "1990-01-01", homeLocality: "ayrshire" });
   await db.execute(sql`UPDATE career_saves SET world_seed=${seed} WHERE id=${save.id}`);
   await sporting.initialize(actor, save.id);
@@ -274,10 +274,7 @@ test("a pairs match can be quick-simmed: your pair against theirs, recorded once
     await progressEvent(tx, root, await worldState(tx, root), instance, Number(e.start_day), providers);
   });
   const matchId = (await tournaments.read(actor, save.id, event)).nextMatchId!;
-  const sim = await calendar.quickSimMatch(actor, save.id, event, { matchId, confirmation: "QUICK_SIM" });
-  assert.match(sim.quickSim.opponent, / & /, "against the other pair");
+  await assert.rejects(calendar.quickSimMatch(actor, save.id, event, { matchId, confirmation: "QUICK_SIM" }), /must be played live/);
   const [m] = await rows(sql`SELECT status, winner_key, legs_a, legs_b FROM career_tournament_matches WHERE career_save_id=${save.id} AND id=${matchId}`);
-  assert.equal(m.status, "COMPLETED");
-  assert.equal(m.winner_key === "HUMAN", sim.quickSim.won);
-  await assert.rejects(calendar.quickSimMatch(actor, save.id, event, { matchId, confirmation: "QUICK_SIM" }), (err: { status?: number }) => err.status === 409, "once only");
+  assert.deepEqual([m.status, m.winner_key, m.legs_a, m.legs_b], ["AWAITING_HUMAN", null, null, null]);
 });

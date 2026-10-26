@@ -6,7 +6,7 @@ import { careerIdSchema } from "../validation.ts";
 import { authedWriteRateLimit } from "../../middleware/writeRateLimit.ts";
 import type { createCareerCamLeagueService } from "./service.ts";
 
-/** Webcam leagues: your division and table, join, book this week's match, play it on the scorer or let it play out. */
+/** Webcam leagues: your division and table, join, book this week's match, and play it on the scorer. */
 export function createCareerCamLeagueRouter(service: ReturnType<typeof createCareerCamLeagueService>) {
   const router = Router();
   router.use("/saves/:id/cam-league", (req: Request, res: Response, next: NextFunction) => {
@@ -26,7 +26,6 @@ export function createCareerCamLeagueRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/cam-league/book", authedWriteRateLimit, async (req, res) => { res.json(await service.book(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/cam-league/fixtures/:fixtureId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), fixture(req))); });
   router.post("/saves/:id/cam-league/fixtures/:fixtureId/darts", async (req, res) => { res.json(await service.darts(res.locals.careerActor, id(req), fixture(req), req.body)); });
-  router.post("/saves/:id/cam-league/fixtures/:fixtureId/simulate", authedWriteRateLimit, async (req, res) => { res.json(await service.simulate(res.locals.careerActor, id(req), fixture(req))); });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     if (!req.path.includes("/cam-league")) { next(error); return; }
     if (error instanceof CareerError) res.status(error.status).json({ error: error.message });

@@ -1,7 +1,14 @@
-import { useState } from "react";
-import { Link, useSearch } from "wouter";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useSearch } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRight, Car, Check, Clock3, Compass, Crown, Loader2, MapPin, Route, Trophy } from "lucide-react";
-import { useGoOnRoadTrip, useOfferRoadMatch, usePlayRoadMatch, useRoadTrips, errorMessage, type RoadTripsView } from "./api";
+import { GameScorer } from "@/components/game-scorer";
+import type { Dart } from "@/lib/darts-rules";
+import { careerKey, roadTripApi, useGoOnRoadTrip, useOfferRoadMatch, usePlayRoadMatch, useRoadTrips, useRoadTripSession, errorMessage, type RoadTripsView, type RoadTripSession } from "./api";
+import { CareerError, CareerLoading } from "./components";
+import { careerBotVisit, careerGameType, recoveryFromLog, scorerLength, shouldCheckpoint } from "./live-model";
+import type { LiveSession } from "./types";
+import type { ShellContext } from "./shell";
 import { dayLabel, formatPence } from "./model";
 import "./road-trips-redesign.css";
 
@@ -21,8 +28,9 @@ function OpponentRow({ o, busy, available, full, onOffer, onPlay }: { o: Opponen
     {!o.result && <p className="road-trip__greeting">"{o.greeting}"</p>}
     {t && t.log.length > 0 && <ol className="money-match__talk">{t.log.map((line, i) => <li key={i} data-who={line.who}><b>{line.who === "YOU" ? "You" : first}:</b> {line.text}</li>)}</ol>}
     {o.result ? <span className="money-match__outcome" data-tone={o.result.won ? "up" : "down"}>{o.result.won ? "Won" : "Lost"} {o.result.legs[0]}-{o.result.legs[1]} ·
-        {" "}<b>{signed(o.result.won ? o.result.stakePence : -o.result.stakePence)}</b><small> · you averaged {o.result.averages[0].toFixed(1)}, they {o.result.averages[1].toFixed(1)}</small></span>
+        {" "}<b>{signed(o.result.won ? o.result.stakePence : -o.result.stakePence)}</b>{o.result.averages && <small> · you averaged {o.result.averages[0].toFixed(1)}, they {o.result.averages[1].toFixed(1)}</small>}</span>
       : o.locked ? <span className="money-match__outcome"><small>{o.locked}</small></span>
+      : o.liveMatchId ? <div className="money-match__play"><button type="button" className="career-btn career-btn-gold" onClick={() => onPlay(0)}>Resume live match</button></div>
       : full ? <span className="money-match__outcome"><small>That's your games for tonight</small></span>
       : t?.status === "WALKED" ? <span className="money-match__outcome"><small>{first} has walked away.</small></span>
       : t?.status === "AGREED" ? <div className="money-match__play"><button type="button" className="career-btn career-btn-gold" disabled={busy} onClick={() => onPlay(t.agreedPence!)}>Play for {formatPence(t.agreedPence!)}</button></div>
@@ -44,7 +52,7 @@ function OpponentRow({ o, busy, available, full, onOffer, onPlay }: { o: Opponen
  * yours, your name grows, and players from the towns you've taken come to your club for a game.
  */
 export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolean }) {
-  const search = useSearch(), params = new URLSearchParams(search), weekParam = params.get("week");
+  const search = useSearch(), [, navigate] = useLocation(), params = new URLSearchParams(search), weekParam = params.get("week");
   const requestedWeek = weekParam === null ? undefined : Number(weekParam) || undefined;
   const q = useRoadTrips(saveId, requestedWeek), go = useGoOnRoadTrip(saveId), offer = useOfferRoadMatch(saveId), play = usePlayRoadMatch(saveId);
   const requestedDayValue = params.get("day");
@@ -61,7 +69,11 @@ export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolea
   const destinations = d.towns.filter(t => t.champion);
   const destinationName = d.trip?.town ?? chosen?.city ?? "Choose a town";
   const roadWins = d.record.won, roadLosses = Math.max(0, d.record.played - d.record.won);
-  const act = (kind: "offer" | "play", opponentKey: string, stakePence: number) => { setMessage(""); (kind === "offer" ? offer : play).mutate({ opponentKey, stakePence }, { onError: fail }); };
+  const act = (kind: "offer" | "play", opponentKey: string, stakePence: number) => {
+    setMessage("");
+    if (kind === "offer") offer.mutate({ opponentKey, stakePence }, { onError: fail });
+    else play.mutate({ opponentKey, stakePence }, { onError: fail, onSuccess: r => navigate(`/career/${saveId}/road-trips/${r.session.id}/play`) });
+  };
   return <div className="money-match road-trip road-trip-shell">
     <header className="road-atlas-hero">
       <div className="road-atlas-copy">
@@ -103,7 +115,8 @@ export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolea
       <div className="road-subhead"><span className="road-atlas-label"><MapPin size={13} /> BACK AT YOUR CLUB</span><h2>{d.visitor.name} from {d.visitor.town} is at your club</h2>
         <p>“{d.visitor.greeting}” <small>{ODDS[d.visitor.odds]}.</small></p></div>
       <ul className="money-match__members"><OpponentRow o={d.visitor} busy={busy} available={d.availablePence} full={false}
-        onOffer={p => act("offer", d.visitor!.key, p)} onPlay={p => act("play", d.visitor!.key, p)} /></ul>
+         onOffer={p => act("offer", d.visitor!.key, p)} onPlay={p => d.visitor!.liveMatchId
+           ? navigate(`/career/${saveId}/road-trips/${d.visitor!.liveMatchId}/play`) : act("play", d.visitor!.key, p)} /></ul>
     </section>}
 
     {d.trip ? <section className="road-live-trip">
@@ -112,7 +125,8 @@ export function RoadTrips({ saveId, retired }: { saveId: string; retired: boolea
         <p className="money-match__note">{d.week > d.currentWeek ? `Planned for week ${d.week}. Travel paid: ${formatPence(d.trip.costPence)}. Matches open when that week begins.` : `Travel paid: ${formatPence(d.trip.costPence)}. ${d.trip.played} of ${d.trip.maxMatches} games played. First to four, winner takes the stake.`}</p>
       </div>
       {d.week <= d.currentWeek && <ul className="money-match__members">{d.trip.opponents.map(o => <OpponentRow key={o.key} o={o} busy={busy} available={d.availablePence} full={d.trip!.played >= d.trip!.maxMatches}
-        onOffer={p => act("offer", o.key, p)} onPlay={p => act("play", o.key, p)} />)}</ul>}
+         onOffer={p => act("offer", o.key, p)} onPlay={p => o.liveMatchId
+           ? navigate(`/career/${saveId}/road-trips/${o.liveMatchId}/play`) : act("play", o.key, p)} />)}</ul>}
     </section> : d.canTravel && !retired ? <section className="road-trip-planner">
       <div className="road-planner-main">
         <div className="road-subhead"><span className="road-atlas-label">01 / PICK YOUR NEXT STOP</span><h2>Where to tonight?</h2>
@@ -166,4 +180,48 @@ export function RoadVisitorLine({ saveId }: { saveId: string }) {
   if (!v || v.result) return null;
   return <Link href={`/career/${saveId}/road-trips`} className="money-match-line"><MapPin aria-hidden />
     <span><b>{v.name}</b> has come from {v.town} for a money match · {formatPence(v.askingPence)}</span></Link>;
+}
+
+/** Resumable live scorer for a money match on the road. */
+export function RoadTripLivePage({ ctx, matchId }: { ctx: ShellContext; matchId: string }) {
+  const id = ctx.save.id, q = useRoadTripSession(id, matchId), client = useQueryClient();
+  const [session, setSession] = useState<RoadTripSession>(), [message, setMessage] = useState("");
+  const log = useRef<Dart[]>([]), queue = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => { if (q.data && !session) { setSession(q.data); log.current = q.data.darts as Dart[]; } }, [q.data, session]);
+  const send = useCallback((darts: Dart[]) => {
+    queue.current = queue.current.then(async () => {
+      try {
+        const updated = await roadTripApi.darts(id, matchId, darts);
+        if (updated.status === "PLAYED") { setSession(updated); await client.invalidateQueries({ queryKey: careerKey(id) }); }
+      } catch (e) { setMessage(errorMessage(e)); }
+    });
+  }, [id, matchId, client]);
+  const live = useMemo(() => session ? { bot: session.opponent.bot, format: session.format } as unknown as LiveSession : null, [session]);
+  const onDartLog = useCallback((darts: Dart[]) => {
+    log.current = darts;
+    if (session?.status === "LIVE" && shouldCheckpoint(session.format, session.firstThrower, darts)) send(darts);
+  }, [session, send]);
+  const planner = useCallback((c: { remaining: number; opened: boolean }) => careerBotVisit(live!, session!.firstThrower, log.current, c), [live, session]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const recovery = useMemo(() => session?.darts.length ? recoveryFromLog(session.format, session.firstThrower, session.darts as Dart[]) : null, [session?.id]);
+  if (q.isLoading || (!session && !q.error)) return <CareerLoading />;
+  if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
+  const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/road-trips`}>Back to road trips</Link>;
+  const matchLength = session.format.unit === "LEGS" ? session.format.bestOfLegs : session.format.bestOfSets;
+  if (session.status === "PLAYED") return <div className="cam-league__done space-y-3">
+    <h2>{session.won ? `You beat ${session.opponent.name}!` : `${session.opponent.name} won the road match`}</h2>
+    {session.legs && <p>{session.legs[0]}–{session.legs[1]} · stake {formatPence(session.stakePence)}</p>}{back}</div>;
+  if (session.status === "MISSED") return <div className="cam-league__done space-y-3">
+    <h2>Road match missed</h2><p>The week ended before the match was completed. No result or stake was recorded.</p>{back}</div>;
+  return <div className="cam-league__live">
+    <p className="cam-league__live-title"><b>{session.you}</b> vs <b>{session.opponent.name}</b>
+      <small>Road money match · best of {matchLength} legs · stake settled when you finish</small></p>
+    {message && <p className="money-match__message" role="alert">{message}</p>}
+    <GameScorer key={session.id} p1Name={session.you} p2Name={session.opponent.name}
+      gameType={careerGameType(session.format as LiveSession["format"])} botConfig={session.opponent.bot.config}
+      firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
+      initialRecovery={recovery} onRecoveryState={() => {}} botVisitPlanner={planner} onDartLog={onDartLog}
+      onWin={() => send(log.current)} onAbandon={() => { window.location.href = `/career/${id}/road-trips`; }} />
+    {back}
+  </div>;
 }

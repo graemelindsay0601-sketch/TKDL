@@ -22,8 +22,7 @@ import { settleLifeCommitments } from "../life/commitments.ts";
 import { playTeamNights } from "../club/team-service.ts";
 import { playCountyFixtures } from "../club/county-team-service.ts";
 import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-engine.ts";
-import { loadPairs } from "./pairs.ts";
-import { isGroupedStructure, isGroupMatch, layoutFor } from "./groups.ts";
+import { isGroupedStructure, layoutFor } from "./groups.ts";
 import { activeManager, recordManagerInvites } from "../manager/state.ts";
 import { settleStreamingWeek, streamTier } from "../streaming/state.ts";
 import { nightLabel, offBoardNights } from "../nights.ts";
@@ -32,9 +31,6 @@ import { settleProAmWeek } from "../proam/service.ts";
 import { streamerCanBeInvited } from "../streaming/model.ts";
 import { canInvite } from "../manager/model.ts";
 import { loadHumanForm } from "../form/human.ts";
-import { loadNpcs } from "../world/repository.ts";
-import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
-import type { Npc } from "../world/types.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
   insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, refreshCapabilities, anzLeagueStandings, type InstanceRow, type RootRow, type MatchRow,
@@ -383,8 +379,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     if (!ctx.season) throw new CareerError(409, "Initialize Career calendar first");
     return ctx as typeof ctx & { season: Record<string, unknown> };
   }
-  async function recordHumanResultTx(tx: CareerExecutor, actor: CareerActor, saveId: string, input: HumanResultInput,
-    simulated?: { summary: Record<string, unknown>; firstThrowDetail: Record<string, unknown> }) {
+  async function recordHumanResultTx(tx: CareerExecutor, actor: CareerActor, saveId: string, input: HumanResultInput) {
     const { root, world: state } = await requireSeason(tx, actor, saveId);
     const match = (await tx.execute(sql`SELECT * FROM career_tournament_matches WHERE career_save_id = ${root.id} AND id = ${input.matchId} FOR UPDATE`)).rows[0] as MatchRow | undefined;
     if (!match) throw new CareerError(404, "Career match not found");
@@ -420,17 +415,15 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       ? (humanSide === 0 ? [liveFacts.human.points, liveFacts.opponent.points] : [liveFacts.opponent.points, liveFacts.human.points]) : null;
     const liveDarts = liveFacts?.human?.darts !== undefined && liveFacts?.opponent?.darts !== undefined
       ? (humanSide === 0 ? [liveFacts.human.darts, liveFacts.opponent.darts] : [liveFacts.opponent.darts, liveFacts.human.darts]) : null;
-    const suppliedCountback = event.definition_key.startsWith("anz-premier-night-")
-      ? simulated?.summary.anzCountback as Record<string, unknown> | undefined : undefined;
-    const anzCountback = !event.definition_key.startsWith("anz-premier-night-") ? undefined : suppliedCountback ?? (liveLegFacts && livePoints && liveDarts ? {
+    const anzCountback = !event.definition_key.startsWith("anz-premier-night-") ? undefined : liveLegFacts && livePoints && liveDarts ? {
       legsWonAgainstThrow: anzLegsWonAgainstThrow(liveLegFacts), points: livePoints, darts: liveDarts,
       averages: livePoints.map((points, side) => anzTournamentAverage(points, liveDarts[side])),
       legLog: liveLegFacts.map(l => ({ winner: l.winner, firstThrow: l.firstThrow })),
-    } : undefined);
+    } : undefined;
     const summary = { ...(sets ? { sets: humanSide === 0 ? [input.humanSets, input.opponentSets] : [input.opponentSets, input.humanSets] } : {}), ...(input.live ? { live: input.live } : {}),
-      ...(anzCountback ? { anzCountback } : {}), ...(simulated?.summary ?? {}) };
-    const firstThrowDetail = simulated?.firstThrowDetail ?? (input.live?.bullUp ? { method: "LIVE_BULL_UP", bullUp: input.live.bullUp } : { method: "LIVE_BULL_UP" });
-    const source = simulated ? "QUICK_SIM" : "HUMAN_LIVE";
+      ...(anzCountback ? { anzCountback } : {}) };
+    const firstThrowDetail = input.live?.bullUp ? { method: "LIVE_BULL_UP", bullUp: input.live.bullUp } : { method: "LIVE_BULL_UP" };
+    const source = "HUMAN_LIVE";
     const updated = await tx.execute(sql`UPDATE career_tournament_matches SET status = 'COMPLETED', winner_key = ${winner}, legs_a = ${legs[0]}, legs_b = ${legs[1]}, first_throw = ${firstThrow},
       first_throw_detail = ${JSON.stringify(firstThrowDetail)}::jsonb, result_source = ${source}, completed_at = NOW(),
       summary = ${Object.keys(summary).length ? JSON.stringify(summary) : null}::jsonb
@@ -667,63 +660,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         return {conceded:true};
       });
     },
-    /**
-     * Quick-sim: the human's waiting match is played by the A2 simulator at the human's own level (their live
-     * three-dart average, adjusted for form and confidence), then recorded through the same human-result boundary
-     * as live darts, marked as a simulation. Refused once live darts have been thrown in the match, and for pairs.
-     */
-    async quickSimMatch(actor: CareerActor, saveId: string, eventId: string, body: unknown) {
-      careerIdSchema.parse(eventId);
-      const input = z.object({ matchId: careerIdSchema, confirmation: z.literal("QUICK_SIM") }).strict().parse(body);
-      return database.transaction(async tx => {
-        const { root } = await requireSeason(tx, actor, saveId);
-        const event = await eventOwned(tx, root.id, eventId);
-        const matches = await loadMatches(tx, root.id, eventId);
-        const m = matches.find(x => x.id === input.matchId);
-        if (!m || ![m.a_key, m.b_key].includes(HUMAN)) throw new CareerError(404, "Your tournament match was not found");
-        if (event.status !== "IN_PROGRESS" || m.status !== "AWAITING_HUMAN") throw new CareerError(409, "Match is no longer awaiting you");
-        const live = (await tx.execute(sql`SELECT status, jsonb_array_length(darts)::int AS darts FROM career_match_sessions WHERE career_save_id = ${root.id} AND match_id = ${m.id}`)).rows[0];
-        if (live && (live.status === "COMPLETED" || Number(live.darts) > 0)) throw new CareerError(409, "You have started this match live; finish it at the oche");
-        const humanSide = m.a_key === HUMAN ? 0 : 1, opponentKey = humanSide === 0 ? m.b_key : m.a_key;
-        const opponent = opponentKey ? (await loadNpcs(tx, root.id, { ids: [opponentKey] }))[0] : undefined;
-        if (!opponent || opponent.status !== "ACTIVE") throw new CareerError(409, "Opponent is not known");
-        const form = await loadHumanForm(tx, root as RootRow & { player_id?: number });
-        let you = humanSimulationPlayer(root, opponent, form), them = opponent, opponentName = `${opponent.firstName} ${opponent.surname}`;
-        // Pairs: each side plays as its team (you and your partner, the other captain and theirs), as NPC pairs matches do.
-        if (event.snapshot.format.sideSize === 2) {
-          const teams = await loadPairs(tx, root.id, [eventId]), mine = teams.get(`${eventId}|${HUMAN}`), theirs = teams.get(`${eventId}|${opponentKey}`);
-          if (!mine || !theirs) throw new CareerError(409, "Pairs match has no recorded team");
-          const partners = new Map((await loadNpcs(tx, root.id, { ids: [mine.partner_npc_id, theirs.partner_npc_id] })).map(n => [n.id, n]));
-          const myPartner = partners.get(mine.partner_npc_id), theirPartner = partners.get(theirs.partner_npc_id);
-          if (!myPartner || !theirPartner) throw new CareerError(409, "Pairs partner is not known");
-          you = teamComposite(you, myPartner); them = teamComposite(opponent, theirPartner);
-          opponentName = `${opponentName} & ${theirPartner.firstName} ${theirPartner.surname}`;
-        }
-        const sides = (humanSide === 0 ? [you, them] : [them, you]) as [Npc, Npc];
-        const key = `${matchKeyFor(event, m.stage_key, m.round, m.slot)}:quick-sim`;
-        const bull = simulateBullUp(sides[0], sides[1], root.world_seed, key);
-        const knockout = matches.filter(x => !isGroupMatch(x)), rounds = Math.max(1, ...knockout.map(x => x.round));
-        const roundImportance = Math.round(m.round / (isGroupMatch(m) ? layoutFor(event.snapshot.format.structure).schedule.length : rounds) * 1000) / 1000;
-        const result = simulateNpcMatch({ players: sides, seed: root.world_seed, generationVersion: root.world_generation_version, matchKey: key,
-          difficulty: root.difficulty, context: { category: event.snapshot.format.matchContext, roundImportance: Math.min(1, roundImportance), elimination: !isGroupMatch(m) },
-          format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow) });
-        const mine = result.stats[humanSide], theirs = result.stats[1 - humanSide];
-        const averages = [Math.round(result.stats[0].average * 100) / 100, Math.round(result.stats[1].average * 100) / 100];
-        const recorded = await recordHumanResultTx(tx, actor, saveId, { matchId: m.id, humanLegs: mine.legsWon, opponentLegs: theirs.legsWon,
-          humanThrewFirst: bull.firstThrow === humanSide, ...(mine.setsWon !== undefined ? { humanSets: mine.setsWon, opponentSets: theirs.setsWon } : {}) }, {
-          summary: { quickSim: { skillAverage: form.skillAverage, form: form.form, confidence: form.confidence }, averages,
-            ...(event.definition_key.startsWith("anz-premier-night-") ? { anzCountback: { legsWonAgainstThrow: anzLegsWonAgainstThrow(result.legs), points: result.stats.map(s => s.points), darts: result.stats.map(s => s.darts),
-              averages: result.stats.map(s => anzTournamentAverage(s.points, s.darts)),
-              legLog: result.legs.map(l => ({ winner: l.winner, firstThrow: l.firstThrow, darts: l.darts, points: l.points, checkout: l.checkout, ...(l.set !== undefined ? { set: l.set } : {}) })) } } : {}),
-            checkoutPercentages: [result.stats[0].checkoutPercentage, result.stats[1].checkoutPercentage].map(n => Math.round(n * 100) / 100),
-            maximums: [result.stats[0].maximums, result.stats[1].maximums], highestCheckouts: [result.stats[0].highestCheckout, result.stats[1].highestCheckout],
-            simulationVersion: result.simulationVersion,
-            ...((nines => nines[0] || nines[1] ? { nineDarters: nines } : {})(simulatedNineDarters(result.legs, event.snapshot.format))) },
-          firstThrowDetail: { method: "SIMULATED_BULL_UP", throws: bull.throws } });
-        return { ...recorded, quickSim: { won: recorded.winnerKey === HUMAN, legs: [mine.legsWon, theirs.legsWon], sets: mine.setsWon !== undefined ? [mine.setsWon, theirs.setsWon] : null,
-          yourAverage: Math.round(mine.average * 100) / 100, opponentAverage: Math.round(theirs.average * 100) / 100, opponent: opponentName,
-          maximums: mine.maximums, highestCheckout: mine.highestCheckout, form } };
-      });
+    /** Retained only to return a clear error to clients from older app versions. */
+    async quickSimMatch(_actor: CareerActor, _saveId: string, _eventId: string, _body: unknown) {
+      throw new CareerError(409, "Career tournament matches must be played live in the scorer");
     },
     /** The human's form and confidence (from live darts, recent results and the week's practice). */
     async form(actor: CareerActor, saveId: string) {

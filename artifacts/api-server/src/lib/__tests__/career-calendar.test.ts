@@ -139,6 +139,15 @@ test("static harness reports a broad, international, non-flat calendar", () => {
   for (const tier of ["LOCAL", "STANDARD", "FEATURED", "TELEVISED", "MAJOR", "WORLD"]) assert.ok((report.byPresentationTier as Record<string, number>)[tier] > 0, tier);
 });
 
+test("the current Career event edition has no formats that cannot reach the live scorer", () => {
+  const current = generateSeason(HARNESS_SEED, CURRENT_EVENT_DATABASE_VERSION, 1);
+  const unsupported = current.filter(event => !event.executable);
+  assert.equal(unsupported.length, 0, unsupported.map(event => {
+    const capability = event.snapshot.capability;
+    return `${event.name}: ${capability.executable ? "unexpected supported classification" : capability.reasons.join(",")}`;
+  }).join("\n"));
+});
+
 test("instance snapshots preserve the definition they were generated from", async () => {
   const save = await careerFor();
   // The original A3 regression fixture intentionally stays on v2; its snapshot must match that edition.

@@ -3,8 +3,7 @@ import { pick, scopedRandom } from "../world/random.ts";
 
 /**
  * Money matches: a one-off game at your club against another member, first to four legs of 501, for a stake each.
- * The winner takes the other's stake. Nothing is invented: the match is played by the same simulator as a quick-sim,
- * with your form, and the money goes through the ledger like any other.
+ * The winner takes the other's stake. The match is completed in the live scorer, and the money goes through the ledger like any other.
  */
 export const MONEY = Object.freeze({
   version: 1,

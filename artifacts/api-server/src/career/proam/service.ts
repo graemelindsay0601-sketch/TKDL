@@ -8,12 +8,10 @@ import { absoluteDay } from "../calendar/generation.ts";
 import { WEEKS_PER_SEASON } from "../calendar/config.ts";
 import type { RootRow } from "../calendar/engine.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { simulateNpcMatch } from "../world/simulation.ts";
 import { createPerformance } from "../world/performance.ts";
 import { toCareerBotConfig } from "../world/bot-adapter.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
 import { SIMULATION_VERSION } from "../world/config.ts";
-import { humanSimulationPlayer, loadHumanForm } from "../form/human.ts";
 import { post } from "../finance/ledger.ts";
 import { availableOf, homeLocalityOf, playersOf } from "../money/service.ts";
 import { destinationsFrom, tripCostTo } from "../roadtrip/model.ts";
@@ -41,7 +39,7 @@ export type ProAmView = {
   history: (ProAmBooking & { season: number; week: number })[];
 };
 export type ProAmSession = { id: string; status: "LIVE" | "PLAYED"; you: string; pro: { name: string; avg: number; bot: { config: BotConfig; seed: string } };
-  format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null };
+  format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null; matchNumber: number; matchTotal: number; beatenBy: number | null };
 
 const PERF_CONTEXT = { category: "floor" as const, roundImportance: 0.3, elimination: false };
 
@@ -63,6 +61,14 @@ export function createCareerProAmService(database: CareerDatabase) {
     return { avg: c.avg, sd: c.sd, checkoutPct: c.checkoutPct, hitAcc: c.hitAcc };
   };
 
+  async function nearbyAmateurs(tx: CareerExecutor, root: Root, localityKey: string) {
+    const town = LOCALITIES.find(l => l.key === localityKey);
+    if (!town) return [];
+    const nearby = destinationsFrom(town.key).sort((a, b) => tripCostTo(town.key, a).pence - tripCostTo(town.key, b).pence).slice(0, 5);
+    const members = [await playersOf(tx, root, town), ...(await Promise.all(nearby.map(l => playersOf(tx, root, l))))].flat();
+    return [...new Map(members.filter(m => !m.professional).map(m => [m.key, m])).values()].slice(0, PROAM.amateurs);
+  }
+
   async function offers(tx: CareerExecutor, root: Root, side: "AMATEUR" | "PRO", season = Number(root.current_season), week = Number(root.current_week)) {
     const homeKey = await homeLocalityOf(tx, root), home = LOCALITIES.find(l => l.key === homeKey);
     if (!home) return [];
@@ -71,6 +77,8 @@ export function createCareerProAmService(database: CareerDatabase) {
     const towns = [{ key: home.key, t: home, cost: { pence: 0 } }, ...near.map(n => ({ key: n.t.key, t: n.t, cost: n.cost }))];
     const proList = side === "AMATEUR" ? await pros(tx, root) : [];
     const picked = weekNights(root.world_seed, season, week, towns, proList);
+    const proEligible = side === "PRO" ? new Set((await Promise.all(picked.map(async p =>
+      (await nearbyAmateurs(tx, root, p.town.key)).length === PROAM.amateurs ? p.town.key : undefined))).filter(Boolean)) : null;
     const npcs = new Map((await loadNpcs(tx, root.id, { ids: picked.flatMap(p => p.pro ? [p.pro.key] : []) })).map(n => [n.id, n]));
     const free = await freeNightsInWeek(tx, root.id, season, week), rank = side === "PRO" ? await yourRank(tx, root) : null;
     return picked.map((p, i) => {
@@ -79,7 +87,7 @@ export function createCareerProAmService(database: CareerDatabase) {
         pro: npc ? { name: `${npc.firstName} ${npc.surname}`, rank: p.pro!.rank, avg: Math.round(proConfig(root, npc, `proam:${season}:${week}:${i}`).avg * 10) / 10 } : null,
         proKey: npc?.id ?? null, feePence: side === "AMATEUR" ? feeFor(p.pro?.rank ?? null) : 0, prizePence: side === "AMATEUR" ? prizeFor(p.pro?.rank ?? null) : 0,
         appearancePence: side === "PRO" ? appearanceFor(rank) : 0 };
-    }).filter(n => side === "PRO" || n.pro);
+    }).filter(n => side === "PRO" ? proEligible!.has(n.localityKey) : !!n.pro);
   }
 
   const bookingFrom = (r: Row): ProAmBooking & { season: number; week: number } => ({ id: String(r.id), role: r.role as "AMATEUR" | "PRO", season: Number(r.season), week: Number(r.week),
@@ -110,12 +118,19 @@ export function createCareerProAmService(database: CareerDatabase) {
     return String((await tx.execute(sql`SELECT COALESCE(p.display_name, s.career_name) AS n FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id=s.id WHERE s.id=${root.id}`)).rows[0]?.n ?? "You");
   }
   const sessionFrom = (root: Root, r: Row, you: string): ProAmSession => {
-    const p = r.pro as { name: string; avg: number; config: BotConfig };
-    return { id: String(r.id), status: r.status === "PLAYED" ? "PLAYED" : "LIVE", you, pro: { name: p.name, avg: p.avg, bot: { config: p.config, seed: stableUuid(root.world_seed, PROAM.version, "proam-bot", String(r.id)) } },
-      format: PROAM_FORMAT, firstThrower: 0, darts: (r.darts as unknown[]) ?? [], won: r.status === "PLAYED" ? (r.result as { won: boolean }).won : null };
+    const result = (r.result as { legs?: { name: string; youWon: boolean }[]; won?: boolean; beatenBy?: number } | null) ?? {};
+    const legs = result.legs ?? [];
+    const opponents = (r.role === "PRO" ? (r.pro as { opponents: { key: string; name: string; avg: number; config: BotConfig }[] }).opponents : [r.pro as { key: string; name: string; avg: number; config: BotConfig }]);
+    const index = r.role === "PRO" ? Math.min(legs.length, opponents.length - 1) : 0;
+    const p = opponents[index];
+    return { id: String(r.id), status: r.status === "PLAYED" ? "PLAYED" : "LIVE", you,
+      pro: { name: p.name, avg: p.avg, bot: { config: p.config, seed: stableUuid(root.world_seed, PROAM.version, "proam-bot", String(r.id), p.key) } },
+      format: PROAM_FORMAT, firstThrower: 0, darts: (r.darts as unknown[]) ?? [], won: r.status === "PLAYED" && r.role === "AMATEUR" ? result.won ?? null : null,
+      matchNumber: index + 1, matchTotal: opponents.length, beatenBy: result.beatenBy ?? null };
   };
   /** Settle your leg against the pro: the prize if you beat them. */
-  async function finishAmateur(tx: CareerExecutor, root: Root, r: Row, won: boolean, source: "LIVE" | "SIM", darts: unknown[] | null) {
+  async function finishAmateur(tx: CareerExecutor, root: Root, r: Row, won: boolean, darts: unknown[] | null) {
+    const source = "LIVE";
     await tx.execute(sql`UPDATE career_proam_nights SET status='PLAYED', result=${JSON.stringify({ won, source })}::jsonb, darts=${darts ? JSON.stringify(darts) : null}::jsonb
       WHERE career_save_id=${root.id} AND id=${String(r.id)} AND status='BOOKED'`);
     if (won) await post(tx, root, { operationKey: `proam-win:${String(r.id)}`, category: "PROAM_WIN", amountPence: Number(r.prize_pence),
@@ -156,6 +171,15 @@ export function createCareerProAmService(database: CareerDatabase) {
         if (v.side === "AMATEUR") {
           const npc = (await loadNpcs(tx, root.id, { ids: [night.proKey!] }))[0];
           pro = { key: npc.id, name: night.pro!.name, rank: night.pro!.rank, avg: night.pro!.avg, config: proConfig(root, npc, `proam:${input.nightKey}`) };
+        } else {
+          const amateurs = await nearbyAmateurs(tx, root, night.localityKey);
+          if (amateurs.length !== PROAM.amateurs) throw new CareerError(409, "This venue does not have a full amateur field for a live Pro-Am night");
+          const npcs = new Map((await loadNpcs(tx, root.id, { ids: amateurs.map(m => m.key) })).map(n => [n.id, n]));
+          pro = { opponents: amateurs.map((m, i) => {
+            const npc = npcs.get(m.key);
+            if (!npc) throw new CareerError(409, "A Pro-Am opponent is no longer available");
+            return { key: m.key, name: m.name, avg: m.average ?? 0, config: proConfig(root, npc, `proam:${input.nightKey}:${i}`) };
+          }) };
         }
         await tx.execute(sql`INSERT INTO career_proam_nights (career_save_id, id, season, week, day, locality_key, role, status, pro, fee_pence, prize_pence, appearance_pence, travel_pence)
           VALUES (${root.id}, ${id}, ${season}, ${week}, ${absoluteDay(week, night.dayOfWeek)}, ${night.localityKey}, ${v.side}, 'BOOKED', ${pro ? JSON.stringify(pro) : null}::jsonb,
@@ -173,78 +197,54 @@ export function createCareerProAmService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId, false) as unknown as Root;
         const r = await own(tx, root, id);
-        if (r.role !== "AMATEUR") throw new CareerError(409, "You're the pro on this night");
         if (r.status === "MISSED") throw new CareerError(409, "You missed your slot");
+        if (r.role === "PRO" && !Array.isArray((r.pro as { opponents?: unknown[] } | null)?.opponents))
+          throw new CareerError(409, "This older Pro-Am booking has no saved live opponent list and cannot be resumed");
         return sessionFrom(root, r, await yourName(tx, root));
       });
     },
     async darts(actor: CareerActor, saveId: string, id: string, body: unknown) {
-      const { darts } = z.object({ darts: z.array(z.unknown()).max(300) }).strict().parse(body);
+      const { darts, matchNumber } = z.object({ darts: z.array(z.unknown()).max(300), matchNumber: z.number().int().min(1).max(PROAM.amateurs) }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
         const r = await own(tx, root, id);
-        if (r.role !== "AMATEUR") throw new CareerError(409, "You're the pro on this night");
+        const priorLegs = (r.result as { legs?: unknown[] } | null)?.legs ?? [];
+        const currentNumber = r.role === "PRO" ? priorLegs.length + 1 : 1;
+        if (matchNumber < currentNumber) return sessionFrom(root, r, await yourName(tx, root));
+        if (matchNumber > currentNumber) throw new CareerError(409, "The live Pro-Am field has moved; refresh the match");
         if (r.status === "BOOKED") {
           let state;
           try { state = replay(PROAM_FORMAT, 0, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
-          if (state.complete) await finishAmateur(tx, root, r, state.winner === 0, "LIVE", darts);
-          else await tx.execute(sql`UPDATE career_proam_nights SET darts=${JSON.stringify(darts)}::jsonb WHERE career_save_id=${root.id} AND id=${id}`);
+          if (state.complete && r.role === "AMATEUR") await finishAmateur(tx, root, r, state.winner === 0, darts);
+          else if (state.complete) {
+            const previous = (r.result as { legs?: { name: string; youWon: boolean }[] } | null)?.legs ?? [];
+            const opponents = (r.pro as { opponents: { name: string }[] }).opponents;
+            const current = opponents[previous.length];
+            const legs = [...previous, { name: current.name, youWon: state.winner === 0 }];
+            if (legs.length === opponents.length) {
+              const beatenBy = legs.filter(l => !l.youWon).length;
+              await tx.execute(sql`UPDATE career_proam_nights SET status='PLAYED', result=${JSON.stringify({ legs, beatenBy, source: "LIVE" })}::jsonb, darts=${JSON.stringify(darts)}::jsonb
+                WHERE career_save_id=${root.id} AND id=${id} AND status='BOOKED'`);
+              await post(tx, root, { operationKey: `proam-appearance:${String(r.id)}`, category: "PROAM_APPEARANCE", amountPence: Number(r.appearance_pence),
+                reason: `Pro-Am night in ${LOCALITIES.find(l => l.key === r.locality_key)?.city ?? "the local area"}: the pro's appearance fee`,
+                season: Number(r.season), week: Number(r.week), detail: { proAmId: String(r.id), beatenBy } });
+            } else {
+              await tx.execute(sql`UPDATE career_proam_nights SET result=${JSON.stringify({ legs, beatenBy: legs.filter(l => !l.youWon).length, source: "LIVE" })}::jsonb, darts=NULL
+                WHERE career_save_id=${root.id} AND id=${id} AND status='BOOKED'`);
+            }
+          } else await tx.execute(sql`UPDATE career_proam_nights SET darts=${JSON.stringify(darts)}::jsonb WHERE career_save_id=${root.id} AND id=${id}`);
         }
         return sessionFrom(root, await own(tx, root, id), await yourName(tx, root));
       });
     },
-
-    /** Let the night play out: your leg against the pro at your level, or (as the pro) your dozen legs against the amateurs. */
-    async simulate(actor: CareerActor, saveId: string, id: string) {
-      return database.transaction(async tx => {
-        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
-        const r = await own(tx, root, id);
-        if (r.status !== "BOOKED") throw new CareerError(409, "That night is over");
-        if ((r.darts as unknown[] | null)?.length) throw new CareerError(409, "You've started throwing: finish it on the scorer");
-        await playOut(tx, root, r);
-        return view(tx, root);
-      });
-    },
   };
-
-  /** Play a booked night out by simulation (also used when the week ends with it unplayed and you're the pro). */
-  async function playOut(tx: CareerExecutor, root: Root, r: Row) {
-    const form = await loadHumanForm(tx, root);
-    if (r.role === "AMATEUR") {
-      const npc = (await loadNpcs(tx, root.id, { ids: [String((r.pro as { key: string }).key)] }))[0];
-      const won = legWon(root, `proam:${String(r.id)}`, humanSimulationPlayer(root, npc, form), npc);
-      await finishAmateur(tx, root, r, won, "SIM", null);
-      return;
-    }
-    const town = LOCALITIES.find(l => l.key === r.locality_key)!;
-    const locals = (await playersOf(tx, root, town)).filter(m => !m.professional).slice(0, PROAM.amateurs);
-    const npcs = new Map((await loadNpcs(tx, root.id, { ids: locals.map(m => m.key) })).map(n => [n.id, n]));
-    const legs = locals.map((m, i) => { const npc = npcs.get(m.key)!; return { name: m.name, youWon: legWon(root, `proam:${String(r.id)}:${i}`, humanSimulationPlayer(root, npc, form), npc) }; });
-    const beatenBy = legs.filter(l => !l.youWon).length;
-    await tx.execute(sql`UPDATE career_proam_nights SET status='PLAYED', result=${JSON.stringify({ legs, beatenBy, source: "SIM" })}::jsonb
-      WHERE career_save_id=${root.id} AND id=${String(r.id)} AND status='BOOKED'`);
-    await post(tx, root, { operationKey: `proam-appearance:${String(r.id)}`, category: "PROAM_APPEARANCE", amountPence: Number(r.appearance_pence),
-      reason: `Pro-Am night in ${town.city}: the pro's appearance fee`, season: Number(r.season), week: Number(r.week), detail: { proAmId: String(r.id), beatenBy } });
-  }
-
-  return { ...api, playOut };
+  return api;
 }
 
-/**
- * The week's end: a slot you never played is missed (the fee's gone); a night you were booked to be the pro plays out
- * (you turned up, so you're paid).
- */
+/** At week end, every unplayed Pro-Am booking is missed; never invent a player result. */
 export async function settleProAmWeek(tx: CareerExecutor, root: Root, season: number, week: number) {
   if ((await tx.execute(sql`SELECT to_regclass('career_proam_nights') IS NOT NULL AS ok`)).rows[0]?.ok !== true) return;
   for (const r of (await tx.execute(sql`SELECT * FROM career_proam_nights WHERE career_save_id=${root.id} AND season=${season} AND week <= ${week} AND status='BOOKED'`)).rows) {
-    if (r.role === "PRO") await createCareerProAmService(null as never).playOut(tx, root, r);
-    else await tx.execute(sql`UPDATE career_proam_nights SET status='MISSED' WHERE career_save_id=${root.id} AND id=${String(r.id)} AND status='BOOKED'`);
+    await tx.execute(sql`UPDATE career_proam_nights SET status='MISSED' WHERE career_save_id=${root.id} AND id=${String(r.id)} AND status='BOOKED'`);
   }
-}
-
-/** One leg (you throw first): did you win it? */
-function legWon(root: Root, key: string, you: Npc, them: Npc) {
-  const r = simulateNpcMatch({ players: [you, them], seed: root.world_seed, generationVersion: Number(root.world_generation_version), matchKey: key,
-    difficulty: root.difficulty as never, context: PERF_CONTEXT, format: { bestOf: 1, firstThrow: 0 } });
-  return r.stats[0].legsWon > r.stats[1].legsWon;
 }

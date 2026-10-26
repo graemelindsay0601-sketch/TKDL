@@ -25,7 +25,6 @@ export function createCareerProAmRouter(service: ReturnType<typeof createCareerP
   router.post("/saves/:id/pro-am/book", authedWriteRateLimit, async (req, res) => { res.json(await service.book(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/pro-am/nights/:nightId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), night(req))); });
   router.post("/saves/:id/pro-am/nights/:nightId/darts", async (req, res) => { res.json(await service.darts(res.locals.careerActor, id(req), night(req), req.body)); });
-  router.post("/saves/:id/pro-am/nights/:nightId/simulate", authedWriteRateLimit, async (req, res) => { res.json(await service.simulate(res.locals.careerActor, id(req), night(req))); });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     if (!req.path.includes("/pro-am")) { next(error); return; }
     if (error instanceof CareerError) res.status(error.status).json({ error: error.message });

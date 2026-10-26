@@ -56,6 +56,7 @@ const rootOf = async () => (await rows(sql`SELECT * FROM career_saves WHERE id=$
 const thisWeek = async () => { const r = await rootOf(); return { season: Number(r.current_season), week: Number(r.current_week) }; };
 
 test("Pro-Am rules: the fee and prize by how big the pro is, the pro's appearance money by ranking, this week's nights", () => {
+  assert.equal("simulate" in proam, false, "there is no player-result simulation endpoint");
   assert.equal(feeFor(5), PROAM.fee.top16); assert.equal(feeFor(40), PROAM.fee.top64); assert.equal(feeFor(null), PROAM.fee.other);
   assert.equal(prizeFor(5), PROAM.fee.top16 * PROAM.prizeMultiple);
   assert.equal(appearanceFor(10), PROAM.appearance.top16); assert.equal(appearanceFor(30), PROAM.appearance.top32); assert.equal(appearanceFor(200), PROAM.appearance.other);
@@ -84,7 +85,7 @@ test("as an amateur: take a slot (fee and travel paid), throw your leg on the sc
   assert.equal(Number(fee[0].amount_pence), -night.feePence);
   const s = await proam.session(actor, id, v.booking!.id);
   assert.equal(s.firstThrower, 0); assert.ok(s.pro.bot.config.avg > 0);
-  const done = await proam.darts(actor, id, v.booking!.id, { darts: nineDarter });
+  const done = await proam.darts(actor, id, v.booking!.id, { darts: nineDarter, matchNumber: 1 });
   assert.equal(done.status, "PLAYED"); assert.equal(done.won, true);
   const prize = await rows(sql`SELECT amount_pence, category FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`proam-win:${v.booking!.id}`}`);
   assert.equal(Number(prize[0].amount_pence), night.prizePence); assert.equal(prize[0].category, "PROAM_WIN");
@@ -104,7 +105,7 @@ test("a slot you never play is missed when the week ends (the fee's gone)", asyn
   await status(proam.session(actor, id, v.booking!.id), 409);
 });
 
-test("with a Tour Card you're the pro: paid to take on a dozen amateurs (anyone who beats you collects from the organiser)", async () => {
+test("with a Tour Card you live-score all twelve one-leg matches before the appearance fee is paid", async () => {
   const w = await thisWeek();
   await db.execute(sql`UPDATE career_saves SET has_tour_card = true, current_week=${w.week + 1} WHERE id=${id}`);
   let v = await proam.read(actor, id);
@@ -112,21 +113,32 @@ test("with a Tour Card you're the pro: paid to take on a dozen amateurs (anyone 
   const night = v.nights.find(n => n.free)!;
   v = await proam.book(actor, id, { nightKey: night.key });
   assert.equal(v.booking!.role, "PRO");
-  await status(proam.session(actor, id, v.booking!.id), 409);
-  v = await proam.simulate(actor, id, v.booking!.id);
+  let session = await proam.session(actor, id, v.booking!.id);
+  assert.equal(session.matchTotal, PROAM.amateurs);
+  for (let i = 0; i < PROAM.amateurs; i++) {
+    session = await proam.darts(actor, id, v.booking!.id, { darts: nineDarter, matchNumber: session.matchNumber });
+    assert.equal(session.matchNumber, Math.min(i + 2, PROAM.amateurs));
+    assert.equal(session.status, i === PROAM.amateurs - 1 ? "PLAYED" : "LIVE");
+    if (i === 0) {
+      const retry = await proam.darts(actor, id, v.booking!.id, { darts: nineDarter, matchNumber: 1 });
+      assert.equal(retry.matchNumber, 2, "retrying the completed leg cannot score the same darts against the next amateur");
+      session = retry;
+    }
+  }
+  v = await proam.read(actor, id);
   const b = v.booking!;
   assert.equal(b.status, "PLAYED"); assert.ok(b.result!.legs!.length > 0 && b.result!.legs!.length <= PROAM.amateurs);
   assert.equal(b.result!.beatenBy, b.result!.legs!.filter(l => !l.youWon).length);
   const pay = await rows(sql`SELECT amount_pence, category FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`proam-appearance:${b.id}`}`);
   assert.equal(Number(pay[0].amount_pence), night.appearancePence); assert.equal(pay[0].category, "PROAM_APPEARANCE");
   assert.equal(v.record.nightsAsPro, 1);
-  // Booked as the pro and the week ends: you turned up, so it plays out and you're paid.
+  // An unplayed booking never creates a simulated result or appearance payment.
   const root = await rootOf();
   await db.execute(sql`UPDATE career_saves SET current_week=${w.week + 2} WHERE id=${id}`);
   v = await proam.read(actor, id);
   v = await proam.book(actor, id, { nightKey: v.nights.find(n => n.free)!.key });
   await settleProAmWeek(db, root, w.season, w.week + 2);
-  assert.equal((await proam.read(actor, id)).booking!.status, "PLAYED");
+  assert.equal((await proam.read(actor, id)).booking!.status, "MISSED");
 });
 
 test("existing saves can read and book a free Pro-Am night next week without changing this week's view", async () => {

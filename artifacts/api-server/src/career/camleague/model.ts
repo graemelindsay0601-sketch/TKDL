@@ -4,7 +4,7 @@ import { scopedRandom } from "../world/random.ts";
  * Webcam leagues: a remote league like the real online ones. Eight players from around the world, a division by level,
  * one match a week for seven weeks (first to three legs of 501), played on camera from your own board on a night you
  * choose. Two points a win; the top two go up a division and the bottom two go down; a small entry fee and prize money
- * for the top three. Play on the scorer, or let it play out at your level (a quick-sim).
+ * for the top three. Every player fixture must be completed on the live scorer.
  */
 export const CAM = Object.freeze({
   version: 1, size: 8, rounds: 7, bestOfLegs: 5, pointsForWin: 2, promote: 2, relegate: 2,
