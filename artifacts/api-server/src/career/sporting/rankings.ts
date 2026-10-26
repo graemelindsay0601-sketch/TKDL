@@ -61,7 +61,7 @@ export async function recordRankingContributionsBatch(tx: CareerExecutor, root: 
         }
         if (amount <= 0) continue;
         for (const list of lists) rows.push({ id: stableUuid(root.world_seed, rulesVersion, "ranking-contribution", root.id, list.key, event.id, r.participant_key), list_key: list.key,
-          participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount, source,
+          participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount, unit: "GBP", source,
           expires_index: expiresIndex(list.window, completion), event_id: event.id, season: event.season, ranking_category: event.ranking_category });
       }
     }
@@ -93,7 +93,7 @@ export async function recordRankingContributionsBatch(tx: CareerExecutor, root: 
           regional: !!list.regionalCountry });
         if (amount <= 0) continue;
         rows.push({ id: stableUuid(root.world_seed, rulesVersion, "ranking-contribution", root.id, list.key, event.id, r.participant_key), list_key: list.key,
-          participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount,
+          participant_key: r.participant_key, participant_kind: r.participant_kind, npc_id: r.npc_id, finishing_position: r.finishing_position, amount_pence: amount, unit: "POINTS",
           source: "WDF_OFFICIAL_POINTS", expires_index: expiresIndex(list.window, completion), event_id: event.id, season: event.season, ranking_category: event.ranking_category });
       }
       }
@@ -101,11 +101,11 @@ export async function recordRankingContributionsBatch(tx: CareerExecutor, root: 
   }
   if (!rows.length) return 0;
   await tx.execute(sql`INSERT INTO career_ranking_contributions (career_save_id, id, list_key, participant_key, participant_kind, npc_id, event_id, season, week, completion_index,
-      expires_index, finishing_position, amount_pence, source, ranking_category, ranking_rules_version)
+      expires_index, finishing_position, amount_pence, unit, source, ranking_category, ranking_rules_version)
     SELECT ${root.id}::uuid, c.id, c.list_key, c.participant_key, c.participant_kind, c.npc_id, c.event_id, c.season, ${Number(root.current_week)}, ${completion},
-      c.expires_index, c.finishing_position, c.amount_pence, c.source, c.ranking_category, ${rulesVersion}
+      c.expires_index, c.finishing_position, c.amount_pence, c.unit, c.source, c.ranking_category, ${rulesVersion}
     FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS c(id uuid, list_key text, participant_key text, participant_kind text, npc_id uuid, finishing_position integer,
-      amount_pence bigint, source text, expires_index integer, event_id uuid, season integer, ranking_category text)
+      amount_pence bigint, unit text, source text, expires_index integer, event_id uuid, season integer, ranking_category text)
     ON CONFLICT (career_save_id, list_key, event_id, participant_key) DO NOTHING`);
   return rows.length;
 }
