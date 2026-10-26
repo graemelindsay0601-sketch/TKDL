@@ -29,6 +29,7 @@ import { expiresIndex, timeIndex, rankingList, RANKING_RULES_VERSION, TOUR_CARD_
 import { recordRankingContributions, publishRankings, standingsAt, compareStandings } from "../../career/sporting/rankings.ts";
 import { awardCard, seasonReview, processRetirements, cardHoldersIn, type CardRow } from "../../career/sporting/cards.ts";
 import { tourCardRulesFor, tourCardRulesVersionFor } from "../../career/sporting/config.ts";
+import { bestWdfAchievements, wdfPointsForFinish } from "../../career/sporting/wdf-ranking.ts";
 import { allocateQSchool, orderOfMerit, compareOom, type OomEntry } from "../../career/sporting/qschool.ts";
 import { boundSeeding, createSportingFactsProvider, selectionTierFor, createSportingHooks } from "../../career/sporting/engine.ts";
 
@@ -38,6 +39,24 @@ const saves = createCareerService(db);
 const career = createCareerSportingService(db);
 const human = { playerId: 1 }, observer = { playerId: 2 }, twin = { playerId: 3 };
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
+
+test("WDF seniors points follow the official grade, draw-size, complete-round and regional rules", () => {
+  assert.equal(wdfPointsForFinish({ grade: "PLATINUM", position: 1, entries: 128, completeRoundPlayed: true }), 270);
+  assert.equal(wdfPointsForFinish({ grade: "GOLD", position: 2, entries: 4, completeRoundPlayed: true }), 111);
+  assert.equal(wdfPointsForFinish({ grade: "BRONZE", position: 8, entries: 16, completeRoundPlayed: true }), 11);
+  assert.equal(wdfPointsForFinish({ grade: "PLATINUM", position: 1, entries: 1, completeRoundPlayed: true }), 0);
+  assert.equal(wdfPointsForFinish({ grade: "SILVER", position: 5, entries: 32, completeRoundPlayed: false }), 0);
+  assert.equal(wdfPointsForFinish({ grade: "GOLD", position: 1, entries: 2, completeRoundPlayed: true, regional: true }), 90);
+  assert.equal(wdfPointsForFinish({ grade: "PLATINUM", position: 32, entries: 64, completeRoundPlayed: true, regional: true }), 9);
+});
+
+test("WDF rolling best-ten/best-eight ignores expired and future results", () => {
+  const rows = Array.from({ length: 12 }, (_, i) => ({ points: (i + 1) * 10, completionIndex: 100 - i, eventId: String(i) }));
+  rows.push({ points: 500, completionIndex: 48, eventId: "expired" }, { points: 600, completionIndex: 101, eventId: "future" });
+  assert.equal(bestWdfAchievements(rows, 100, 10).length, 10);
+  assert.equal(bestWdfAchievements(rows, 100, 10).reduce((sum, r) => sum + r.points, 0), 750);
+  assert.equal(bestWdfAchievements(rows, 100, 8).reduce((sum, r) => sum + r.points, 0), 680);
+});
 const rejectsStatus = (p: Promise<unknown>, status: number) => assert.rejects(p, (e: unknown) => (e as { status?: number }).status === status);
 class Rollback extends Error {}
 /** Run engine-level work against real persisted state, then roll it all back. */
