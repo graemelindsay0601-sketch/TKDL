@@ -281,7 +281,7 @@ test("9. human and NPCs use identical ranking rules (A4 award vs prize table, sa
     AND a.event_id = c.event_id AND a.participant_key = c.participant_key WHERE c.career_save_id = ${A} AND c.participant_key = ${HUMAN} AND c.list_key = 'pro-world'`);
   assert.ok(mine.length >= 1, "human earned World Ranking money on the Pro Circuit");
   for (const c of mine) {
-    assert.equal(c.source, "A4_PRIZE_AWARD"); assert.equal(Number(c.amount_pence), Number(c.ranking_eligible_pence));
+    assert.equal(c.source, "A4_PRIZE_AWARD"); assert.equal(c.unit, "GBP"); assert.equal(Number(c.amount_pence), Number(c.ranking_eligible_pence));
     const npcSame = await rows(sql`SELECT amount_pence FROM career_ranking_contributions WHERE career_save_id = ${A} AND event_id = ${c.event_id} AND list_key = 'pro-world'
       AND finishing_position = ${c.finishing_position} AND participant_key <> ${HUMAN}`);
     for (const n of npcSame) assert.equal(Number(n.amount_pence), Number(c.amount_pence), "same finish, same ranking money");
@@ -289,7 +289,7 @@ test("9. human and NPCs use identical ranking rules (A4 award vs prize table, sa
   const lists = await rows(sql`SELECT DISTINCT list_key FROM career_ranking_contributions WHERE career_save_id = ${A} AND event_id = ${mine[0].event_id}`);
   assert.deepEqual(lists.map(l => l.list_key).sort(), ["pro-circuit", "pro-world"]);
   const explain = await career.rankingExplain(human, A, "pro-world", HUMAN);
-  assert.equal(explain.explained, true); assert.equal(explain.valuePence, explain.contributionTotalPence);
+  assert.equal(explain.explained, true); assert.equal(explain.unit, "GBP"); assert.equal(explain.valuePence, explain.contributionTotalPence);
   assert.ok(explain.expiring.length > 0, "counting results should expose their upcoming expiry");
   const expiry = explain.expiring[0];
   assert.ok(expiry.publicationIndex > explain.publicationIndex);

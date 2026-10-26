@@ -23,7 +23,7 @@ export const careerRankingContributionsTable = pgTable("career_ranking_contribut
   careerSaveId: saveFk(), id: uuid("id").notNull(), listKey: text("list_key").notNull(), participantKey: text("participant_key").notNull(),
   participantKind: text("participant_kind").notNull(), npcId: uuid("npc_id"), eventId: uuid("event_id").notNull(), season: integer("season").notNull(), week: integer("week").notNull(),
   completionIndex: integer("completion_index").notNull(), expiresIndex: integer("expires_index").notNull(), finishingPosition: integer("finishing_position").notNull(),
-  amountPence: big("amount_pence").notNull(), source: text("source").notNull(), rankingCategory: text("ranking_category").notNull(),
+  amountPence: big("amount_pence").notNull(), unit: text("unit").notNull().default("GBP"), source: text("source").notNull(), rankingCategory: text("ranking_category").notNull(),
   rankingRulesVersion: integer("ranking_rules_version").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   primaryKey({ columns: [t.careerSaveId, t.id] }), unique("career_ranking_contributions_once").on(t.careerSaveId, t.listKey, t.eventId, t.participantKey),

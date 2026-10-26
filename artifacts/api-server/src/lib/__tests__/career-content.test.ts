@@ -162,8 +162,18 @@ test("event database v33 corrects WDF major and regional host venues without rew
   for(const [venueKey,country] of Object.entries(countries)) assert.equal(VENUES.find(v=>v.key===venueKey)!.country,country);
   assert.notDeepEqual(v32.get("wdf-world-championship")!.schedule,v33.get("wdf-world-championship")!.schedule);
 });
+test("event database v34 places the girls world championship in the youth merit table",()=>{
+  const v33=new Map(catalogueFor(33).map(d=>[d.key,d]));
+  const v34=new Map(catalogueFor(34).map(d=>[d.key,d]));
+  assert.equal(v33.get("wdf-world-girls-championship")!.rankingCategory,"WOMENS");
+  const girls=v34.get("wdf-world-girls-championship")!;
+  assert.equal(girls.eventDatabaseVersion,34);
+  assert.equal(girls.rankingCategory,"YOUTH");
+  assert.deepEqual(girls.eligibility,v33.get("wdf-world-girls-championship")!.eligibility);
+  assert.ok(rankingListsFor(5).find(list=>list.key==="youth")!.categories.includes(girls.rankingCategory!));
+});
 test("every senior singles WDF-inspired event has an explicit official or Career-authored grade",()=>{
-  const current=new Map(catalogueFor(33).map(d=>[d.key,d]));
+  const current=new Map(catalogueFor(34).map(d=>[d.key,d]));
   const seniorKeys=V32_WDF_RANKED_EVENT_KEYS.filter(key=>!key.includes("girls")&&!key.includes("youth"));
   for(const key of seniorKeys){
     const event=current.get(key);

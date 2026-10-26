@@ -261,7 +261,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
         const rows = (await tx.execute(sql`SELECT c.*, i.name, i.definition_key, i.circuit FROM career_ranking_contributions c JOIN career_event_instances i ON i.career_save_id = c.career_save_id AND i.id = c.event_id
           WHERE c.career_save_id = ${root.id} AND c.list_key = ${list.key} AND c.participant_key = ${participant} ORDER BY c.completion_index DESC, c.event_id`)).rows;
         const present = (c: Record<string, unknown>) => ({ eventId: c.event_id, eventName: c.name, definitionKey: c.definition_key, circuit: c.circuit, season: c.season, week: c.week,
-          finishingPosition: c.finishing_position, amountPence: Number(c.amount_pence), source: c.source, completionIndex: Number(c.completion_index), expiresIndex: Number(c.expires_index), rulesVersion: c.ranking_rules_version });
+          finishingPosition: c.finishing_position, amountPence: Number(c.amount_pence), unit: c.unit, source: c.source, completionIndex: Number(c.completion_index), expiresIndex: Number(c.expires_index), rulesVersion: c.ranking_rules_version });
          const eligibleNow = rows.filter(c => Number(c.completion_index) <= P && Number(c.expires_index) > P);
          const counting = list.bestResults
            ? eligibleNow.slice().sort((a, b) => Number(b.amount_pence) - Number(a.amount_pence)
@@ -294,7 +294,7 @@ export function createCareerSportingService(database: CareerDatabase, options: {
             })),
           });
         }
-         return { list: list.key, window: list.window, bestResults: list.bestResults ?? null, participantKey: participant, publicationIndex: P, position: standing ? Number(standing.position) : null,
+          return { list: list.key, window: list.window, unit: list.unit ?? "GBP", bestResults: list.bestResults ?? null, participantKey: participant, publicationIndex: P, position: standing ? Number(standing.position) : null,
            valuePence: standing ? Number(standing.value_pence) : 0, contributionTotalPence: total, explained: !standing || Number(standing.value_pence) === total,
            counting: counting.map(present), notCounting: notCounting.map(present), expired: rows.filter(c => Number(c.expires_index) <= P).slice(0, 50).map(present), pending: rows.filter(c => Number(c.completion_index) > P).map(present), expiring };
       });
