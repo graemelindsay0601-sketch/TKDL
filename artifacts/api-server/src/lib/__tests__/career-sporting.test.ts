@@ -42,14 +42,22 @@ const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 
 test("WDF seniors points follow the official grade, draw-size, complete-round and regional rules", () => {
   assert.equal(rankingRulesVersionFor(33), 5);
+  assert.equal(rankingRulesVersionFor(35), 6);
   assert.equal(rankingRulesVersionFor(32), 4, "older saves keep their pinned ranking rules");
   const v5 = rankingListsFor(5);
+  const v6 = rankingListsFor(6);
   assert.equal(v5.find(l => l.key === "pro-world")?.unit, undefined, "PDC prize-money rankings remain distinct");
   assert.equal(v5.find(l => l.key === "wdf-open")?.bestResults, 10);
   assert.equal(v5.find(l => l.key === "wdf-women")?.bestResults, 10);
   assert.ok(v5.find(l => l.key === "wdf-usa-open")?.bestResults === 8);
   assert.equal(wdfGradeForEvent("wdf-world-masters"), "PLATINUM");
-  assert.equal(wdfGradeForEvent("wdf-world-girls-championship"), null, "youth rankings use a different criteria edition");
+  assert.equal(wdfGradeForEvent("wdf-world-girls-championship"), "GOLD", "the authored youth grade is used only by the new rules edition");
+  for (const key of ["wdf-youth-open-u18", "wdf-youth-girls-u18", "wdf-u23-open", "wdf-u23-girls"]) {
+    assert.equal(v6.find(l => l.key === key)?.bestResults, 10, `${key} uses the official main-table best ten`);
+    assert.equal(v6.filter(l => l.key.startsWith(`${key}-`)).length, 5, `${key} has five regional tables`);
+  }
+  assert.equal(v6.find(l => l.key === "wdf-u23-open")?.categories[0], "WDF_U23_OPEN");
+  assert.equal(v5.some(l => l.key === "wdf-u23-open"), false, "older saves retain their pinned list set");
   assert.equal(wdfPointsForFinish({ grade: "PLATINUM", position: 1, entries: 128, completeRoundPlayed: true }), 270);
   assert.equal(wdfPointsForFinish({ grade: "GOLD", position: 2, entries: 4, completeRoundPlayed: true }), 111);
   assert.equal(wdfPointsForFinish({ grade: "BRONZE", position: 8, entries: 16, completeRoundPlayed: true }), 11);
@@ -173,7 +181,7 @@ test("1. ranking contributions are created from A3 results and A4 ranking-eligib
     assert.equal(c.ranking_eligible, true); assert.equal(c.classification, "RANKING");
     assert.equal(Number(c.amount_pence), prizeForPosition({ key: String(c.prize_profile_key), bands: c.bands } as PrizeProfile, Number(c.result_position)));
     assert.ok(rankingListsFor(5).find(list => list.key === String(c.list_key))!.categories.includes(String(c.cat)));
-    assert.equal(c.ranking_rules_version, rankingRulesVersionFor(33));
+    assert.equal(c.ranking_rules_version, rankingRulesVersionFor(35));
   }
   const lists = new Set(contributions.map(c => String(c.list_key)));
   for (const l of ["pro-world", "pro-circuit", "amateur"]) assert.ok(lists.has(l), l);
@@ -248,7 +256,7 @@ test("6. snapshots are complete, unique per publication and never rewritten", as
   const snaps = await rows(sql`SELECT s.*, (SELECT COUNT(*)::int FROM career_ranking_snapshot_rows r WHERE r.career_save_id = s.career_save_id AND r.snapshot_id = s.id) AS n
     FROM career_ranking_snapshots s WHERE s.career_save_id = ${A} ORDER BY list_key, sequence`);
   assert.ok(snaps.length >= 6);
-  for (const s of snaps) { assert.equal(s.n, s.participant_count); assert.equal(s.ranking_rules_version, 5); }
+  for (const s of snaps) { assert.equal(s.n, s.participant_count); assert.equal(s.ranking_rules_version, 6); }
   assert.equal(await snapshotHash(A, 3), snapshotHashWeek4, "later publications did not touch earlier snapshots");
   await assert.rejects(db.execute(sql`UPDATE career_ranking_snapshot_rows SET position = position WHERE career_save_id = ${A}`));
   await assert.rejects(db.execute(sql`UPDATE career_ranking_contributions SET amount_pence = amount_pence + 1 WHERE career_save_id = ${A}`));

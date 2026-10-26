@@ -11,7 +11,7 @@ import { WEEKS_PER_SEASON } from "../calendar/config.ts";
 export const RANKING_RULES_VERSION = 1;
 export const TOUR_CARD_RULES_VERSION = 1;
 export const Q_SCHOOL_RULES_VERSION = 1;
-export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2, 3, 4, 5], tourCard: [1, 2, 3], qSchool: [1] } as const;
+export const SUPPORTED_SPORTING_VERSIONS = { ranking: [1, 2, 3, 4, 5, 6], tourCard: [1, 2, 3], qSchool: [1] } as const;
 
 /** Linear Career clock: (season, week) -> publication index. Week 52 of season S = S*52. */
 export const timeIndex = (season: number, week: number) => (season - 1) * WEEKS_PER_SEASON + week;
@@ -94,9 +94,36 @@ const WDF_REGIONS: readonly RankingListDefinition[] = ["AUS", "CAN", "NZL", "RUS
     bestResults: 8, regionalCountry: country,
   })));
 export const RANKING_LISTS_V5: readonly RankingListDefinition[] = Object.freeze([...RANKING_LISTS_V4, ...WDF_MAIN, ...WDF_REGIONS]);
+const WDF_AGE_DIVISIONS = [
+  { key: "wdf-youth-open-u18", name: "WDF Youth Open U18", category: "WDF_YOUTH_OPEN" },
+  { key: "wdf-youth-girls-u18", name: "WDF Youth Girls U18", category: "WDF_YOUTH_GIRLS" },
+  { key: "wdf-u23-open", name: "WDF Under-23 Open", category: "WDF_U23_OPEN" },
+  { key: "wdf-u23-girls", name: "WDF Under-23 Girls", category: "WDF_U23_GIRLS" },
+] as const;
+const WDF_AGE_MAIN: readonly RankingListDefinition[] = WDF_AGE_DIVISIONS.map(division => ({
+  key: division.key, name: `${division.name} World Ranking`, scope: "AMATEUR",
+  categories: [division.category], window: { kind: "ROLLING", weeks: 52 }, cutLines: [8, 16, 32],
+  milestoneThresholds: [1], unit: "POINTS", bestResults: 10,
+}));
+const WDF_AGE_REGIONS: readonly RankingListDefinition[] = ["AUS", "CAN", "NZL", "RUS", "USA"].flatMap(country =>
+  WDF_AGE_DIVISIONS.map(division => ({
+    key: `${division.key}-${country.toLowerCase()}`, name: `WDF ${country} ${division.name} Regional Ranking`,
+    scope: "AMATEUR" as const, categories: [division.category], window: { kind: "ROLLING" as const, weeks: 52 },
+    cutLines: [8, 16], milestoneThresholds: [], unit: "POINTS" as const, bestResults: 8, regionalCountry: country,
+  })));
+export const RANKING_LISTS_V6: readonly RankingListDefinition[] = Object.freeze([
+  ...RANKING_LISTS_V5.map(list => list.key === "youth"
+    ? { ...list, categories: [...list.categories, "WDF_YOUTH_OPEN", "WDF_YOUTH_GIRLS"] }
+    : list.key === "women"
+      ? { ...list, categories: [...list.categories, "WDF_YOUTH_GIRLS"] }
+      : list),
+  ...WDF_AGE_MAIN,
+  ...WDF_AGE_REGIONS,
+]);
 /** Ranking rules version a save is created under, from its event database version. */
-export const rankingRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 33 ? 5 : eventDatabaseVersion >= 12 ? 4 : eventDatabaseVersion >= 7 ? 3 : eventDatabaseVersion >= 3 ? 2 : 1;
+export const rankingRulesVersionFor = (eventDatabaseVersion: number) => eventDatabaseVersion >= 35 ? 6 : eventDatabaseVersion >= 33 ? 5 : eventDatabaseVersion >= 12 ? 4 : eventDatabaseVersion >= 7 ? 3 : eventDatabaseVersion >= 3 ? 2 : 1;
 export function rankingListsFor(version: number): readonly RankingListDefinition[] {
+  if (version === 6) return RANKING_LISTS_V6;
   if (version === 5) return RANKING_LISTS_V5;
   if(version===4)return RANKING_LISTS_V4;
   if(version===3)return RANKING_LISTS_V3;

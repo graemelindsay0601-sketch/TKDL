@@ -28,8 +28,11 @@ export async function recordRankingContributionsBatch(tx: CareerExecutor, root: 
   const definitions = rankingListsFor(rulesVersion);
   const ranked = batch.map(b => {
     const category = b.event.ranking_category;
-    const grade = wdfGradeForEvent(b.event.definition_key);
-    const isWdfDivision = category === "WOMENS" || ["AMATEUR_NATIONAL", "AMATEUR_REGIONAL"].includes(category ?? "");
+    const youthGradeKeys = new Set(["youth-world-championship", "wdf-world-girls-championship", "youth-masters",
+      "youth-world-ranking-open", "girls-world-ranking-open", "u23-world-ranking-open", "u23-girls-world-ranking-open"]);
+    const grade = rulesVersion < 6 && youthGradeKeys.has(b.event.definition_key) ? null : wdfGradeForEvent(b.event.definition_key);
+    const isWdfDivision = category === "WOMENS" || ["AMATEUR_NATIONAL", "AMATEUR_REGIONAL",
+      "WDF_YOUTH_OPEN", "WDF_YOUTH_GIRLS", "WDF_U23_OPEN", "WDF_U23_GIRLS"].includes(category ?? "");
     const lists = b.event.classification === "RANKING" && category
       ? definitions.filter(l => l.unit !== "POINTS" && l.categories.includes(category)) : [];
     const wdfLists = b.event.classification === "RANKING" && category && grade && isWdfDivision

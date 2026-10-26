@@ -7,6 +7,7 @@ import { buildCatalogueV31 } from "../content/season-v31.ts";
 import { buildCatalogueV32 } from "../content/season-v32.ts";
 import { buildCatalogueV33 } from "../content/season-v33.ts";
 import { buildCatalogueV34 } from "../content/season-v34.ts";
+import { buildCatalogueV35 } from "../content/season-v35.ts";
 import { knockout501, setsKnockout501, groupKnockout501, league501, x01Variant, specialGame, pairs501, type EventFormat } from "./formats.ts";
 import { R, Q_SCHOOL_PATHWAYS, type Rule, type QSchoolPathway } from "./eligibility.ts";
 import { AGE_POLICY } from "../identity/age.ts";
@@ -496,6 +497,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 32) return EVENT_CATALOGUE_V32;
   if (version === 33) return EVENT_CATALOGUE_V33;
   if (version === 34) return EVENT_CATALOGUE_V34;
+  if (version === 35) return EVENT_CATALOGUE_V35;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -559,5 +561,7 @@ export const EVENT_CATALOGUE_V32: readonly EventDefinition[] = buildCatalogueV32
 export const EVENT_CATALOGUE_V33: readonly EventDefinition[] = buildCatalogueV33(EVENT_CATALOGUE_V32);
 /** v34: correct the Girls World Championship into the existing youth merit table. */
 export const EVENT_CATALOGUE_V34: readonly EventDefinition[] = buildCatalogueV34(EVENT_CATALOGUE_V33);
+/** v35: distinct WDF Youth and Under-23 ranking divisions; historical editions stay pinned. */
+export const EVENT_CATALOGUE_V35: readonly EventDefinition[] = buildCatalogueV35(EVENT_CATALOGUE_V34);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

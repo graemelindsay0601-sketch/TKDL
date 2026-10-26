@@ -40,6 +40,13 @@ const CAREER_AUTHORED_EVENT_GRADES: Readonly<Record<string, WdfGrade>> = Object.
   "women-tour": "SILVER",
   "world-ranking-open": "BRONZE",
   "women-world-ranking-open": "BRONZE",
+  "youth-world-championship": "GOLD",
+  "wdf-world-girls-championship": "GOLD",
+  "youth-masters": "GOLD",
+  "youth-world-ranking-open": "BRONZE",
+  "girls-world-ranking-open": "BRONZE",
+  "u23-world-ranking-open": "BRONZE",
+  "u23-girls-world-ranking-open": "BRONZE",
 });
 export const WDF_OFFICIAL_GRADE_KEYS = new Set(Object.keys(OFFICIAL_WDF_EVENT_GRADES));
 export const WDF_CAREER_GRADE_KEYS = new Set(Object.keys(CAREER_AUTHORED_EVENT_GRADES));
@@ -49,6 +56,7 @@ export const WDF_EVENT_GRADES: Readonly<Record<string, WdfGrade>> = Object.freez
 export const wdfGradeForEvent = (definitionKey: string): WdfGrade | null => WDF_EVENT_GRADES[definitionKey] ?? null;
 export const WDF_MAJOR_EVENT_KEYS = new Set([
   "wdf-world-championship", "wdf-world-masters", "women-world-championship", "women-masters",
+  "youth-world-championship", "wdf-world-girls-championship", "youth-masters",
 ]);
 
 const POINTS: Record<WdfGrade, readonly number[]> = {
