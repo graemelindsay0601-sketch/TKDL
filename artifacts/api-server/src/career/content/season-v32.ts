@@ -31,6 +31,7 @@ export const V32_WDF_RANKED_EVENT_KEYS = [
   "girls-world-ranking-open",
   "women-world-championship",
   "women-masters",
+  "women-tour",
   "youth-world-championship",
   "youth-masters",
   "wdf-world-girls-championship",

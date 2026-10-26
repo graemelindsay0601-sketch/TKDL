@@ -97,7 +97,7 @@ test("v32 excludes current PDC Tour Card holders from WDF-ranked singles events"
     "wdf-nevada-open","wdf-low-countries-open","wdf-caledonian-open","wdf-manx-open","wdf-ulster-open","wdf-baltic-open",
     "wdf-britannia-open","wdf-danube-masters","wdf-emerald-open","wdf-bohemian-open","wdf-mediterranean-masters",
     "wdf-southern-cross-open","world-ranking-open","women-world-ranking-open","youth-world-ranking-open","girls-world-ranking-open",
-    "women-world-championship","women-masters","youth-world-championship","youth-masters","wdf-world-girls-championship"];
+    "women-world-championship","women-masters","women-tour","youth-world-championship","youth-masters","wdf-world-girls-championship"];
   for(const key of rankedWdfKeys){
     const before=v31.find(d=>d.key===key),after=current.find(d=>d.key===key);
     assert.ok(before,`missing historical event ${key}`);

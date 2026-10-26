@@ -198,6 +198,15 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const migratedSnapshot = migrated.snapshot as { eligibility: Parameters<typeof evaluateRule>[0] };
   assert.equal(evaluateRule(migratedSnapshot.eligibility, facts({ country: "GBR", zone: "UK_IRELAND", locality: "ayrshire" })).eligible, false,
     "existing Scottish saves cannot enter the retained Auckland fixture");
+  const migratedWdf = (await rows(sql`SELECT event_database_version, snapshot FROM career_event_instances
+    WHERE career_save_id=${save.id} AND definition_key='women-world-championship' AND season=1
+      AND start_week>(SELECT current_week FROM career_saves WHERE id=${save.id})
+      AND status IN ('SCHEDULED','REGISTRATION_OPEN') LIMIT 1`))[0];
+  assert.ok(migratedWdf, "the existing save retains its future WDF Women's World Championship");
+  assert.equal(Number(migratedWdf.event_database_version), 32, "future WDF fixtures migrate to the new edition");
+  const wdfEligibility = (migratedWdf.snapshot as { eligibility: unknown }).eligibility;
+  assert.ok(JSON.stringify(wdfEligibility).includes('"type":"NON_TOUR_CARD"'),
+    "the migrated WDF event excludes current PDC Tour Card holders");
   const nzClubNight = generateSeason(String(before[0].world_seed), CURRENT_EVENT_DATABASE_VERSION, 1)
     .find(event => event.definitionKey === "club-league-night" && event.country === "NZL");
   assert.ok(nzClubNight, "the upgraded calendar edition includes the New Zealand club fixture");

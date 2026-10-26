@@ -45,6 +45,8 @@ export const COUNTRIES: Record<string, { name: string; zone: Zone }> = {
   THA: { name: "Thailand", zone: "REST_OF_WORLD" },
   UKR: { name: "Ukraine", zone: "EUROPE" },
   COL: { name: "Colombia", zone: "REST_OF_WORLD" },
+  // Older saves may still contain the former non-country LAT nationality code.
+  LAT: { name: "Latin America (legacy save)", zone: "REST_OF_WORLD" },
 };
 export const zoneOf = (country: string): Zone => COUNTRIES[country]?.zone ?? "REST_OF_WORLD";
 
