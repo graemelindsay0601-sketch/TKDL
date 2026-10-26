@@ -161,6 +161,9 @@ test("real club appearances open a one-way local-to-regional opportunity path",(
   assert.ok(regional);
   assert.match(regional.compatibility,/5 genuine appearances · 3 wins · completed local spotlight/);
   assert.ok(regional.feePence>local.feePence);
+  assert.ok(regional.day>local.day,"the regional invitation is scheduled after the completed local spotlight");
+  assert.equal(regional.canAccept,true,"the completed local spotlight no longer occupies the regional date");
+  assert.deepEqual(regional.conflicts,[]);
 });
 test("major scene rarity, recent-time eligibility, cooldown and source deduplication prevent repeated popups",()=>{
   const s=source([result("world","WORLD_CHAMPIONSHIP","WORLD")]),st=storyEngine(s),m=currentMoments(s,st);
