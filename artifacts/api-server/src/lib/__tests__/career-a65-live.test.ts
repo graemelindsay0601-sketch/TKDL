@@ -194,7 +194,7 @@ async function newCareer(slot: number, body: Record<string, unknown>, playerId =
   assert.equal((await call("POST", `/saves/${created.body.id}/initialize`, {}, playerId)).status, 200);
   return created.body.id as string;
 }
-test("Life API refreshes local spotlight eligibility from real played club singles",async()=>{
+test("Life API advances from local spotlight to regional showcase through played club singles",async()=>{
   const slot=Number((await q(sql`SELECT n FROM generate_series(1,3) n WHERE NOT EXISTS
     (SELECT 1 FROM career_saves s WHERE s.player_id=1 AND s.slot_number=n) ORDER BY n LIMIT 1`))[0]?.n);
   assert.ok(slot,"a free Career slot is available for the API fixture");
@@ -204,7 +204,7 @@ test("Life API refreshes local spotlight eligibility from real played club singl
     const before=await life();
     assert.equal(before.status,200,JSON.stringify(before.body));
     assert.equal(before.body.opportunities.some((o:any)=>o.family==="LOCAL_SPOTLIGHT"),false);
-    const root=(await q(sql`SELECT current_season FROM career_saves WHERE id=${id}`))[0];
+    const root=(await q(sql`SELECT current_season,world_seed FROM career_saves WHERE id=${id}`))[0];
     for(let round=1;round<=3;round++) {
       const rubbers=[{humanMatch:{status:"PLAYED",won:round<=2}}];
       await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
@@ -212,9 +212,33 @@ test("Life API refreshes local spotlight eligibility from real played club singl
     }
     const after=await life();
     assert.equal(after.status,200,JSON.stringify(after.body));
-    assert.equal(after.body.opportunities.find((o:any)=>o.family==="LOCAL_SPOTLIGHT")?.feePence,7500,
+    const local=after.body.opportunities.find((o:any)=>o.family==="LOCAL_SPOTLIGHT");
+    assert.equal(local?.feePence,7500,
       "three persisted player-played club appearances should unlock the local spotlight");
-    assert.deepEqual((await life()).body,after.body);
+    assert.equal((await call("POST",`/saves/${id}/life/opportunities/${local.id}`,{choice:"ACCEPT"})).status,200);
+    const settle = async () => db.transaction(async tx => {
+      await tx.execute(sql`SELECT id FROM career_saves WHERE id=${id} FOR UPDATE`);
+      await settleLifeCommitments(tx,{id,world_seed:String(root.world_seed)},Number(root.current_season),4);
+    });
+    await settle(); await settle();
+    assert.equal((await q(sql`SELECT status FROM career_life_commitments WHERE career_save_id=${id} AND id=${local.id}`))[0].status,"COMPLETED");
+    assert.equal((await q(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`life:appearance:${local.id}`}`))[0].n,1,
+      "the local appearance fee settles once");
+    for(let round=4;round<=5;round++) {
+      const rubbers=[{humanMatch:{status:"PLAYED",won:true}}];
+      await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
+        VALUES (${id},${Number(root.current_season)},${round},${round},'ayrshire','other',1,0,${JSON.stringify(rubbers)}::jsonb,'COMPLETED')`);
+    }
+    const regionalView=await life(),regional=regionalView.body.opportunities.find((o:any)=>o.family==="REGIONAL_SHOWCASE");
+    assert.equal(regionalView.status,200,JSON.stringify(regionalView.body));
+    assert.equal(regional?.canAccept,true,"the finished local spotlight must not block the regional invitation on its date");
+    assert.equal((await call("POST",`/saves/${id}/life/opportunities/${regional.id}`,{choice:"ACCEPT"})).status,200);
+    await settle(); await settle();
+    const finished=(await life()).body;
+    assert.equal(finished.clubInvitationProgress.status,"COMPLETE");
+    assert.equal(finished.commitments.find((c:any)=>c.id===regional.id)?.status,"COMPLETED");
+    assert.equal((await q(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`life:appearance:${regional.id}`}`))[0].n,1,
+      "the regional appearance fee settles once");
   } finally {
     await saves.delete(1,id);
   }

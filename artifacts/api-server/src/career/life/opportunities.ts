@@ -50,12 +50,13 @@ export function opportunities(s:LifeSources):Opportunity[] {
   if(!s.active||!s.ready||(s.facts.statistics.matchesPlayed===0&&local.appearances===0))return [];
   const stature=Math.max(...s.recognition.contexts.map(c=>LEVELS.indexOf(c.level)));
   const profile=publicProfile(s),window=Math.floor((s.week-1)/4);
+  const conflictsForDay=(day:number)=>s.commitments.filter(c=>c.season===s.season&&c.day===day).map(c=>c.title);
   const eligible=OPPORTUNITY_FAMILIES.filter(f=>f.min<=stature&&(!("sponsor" in f)||s.sponsor)&&
     (f.key!=="INTERNATIONAL"||s.recognition.contexts.some(c=>c.context==="INTERNATIONAL"&&c.level==="ELITE")));
   const selected=Array.from({length:Math.min(4,eligible.length)},(_,i)=>eligible[(window*3+i)%eligible.length]);
   const generic=selected.map(f=>{
     const id=contentId(s.saveId,`opportunity:${s.season}:${window}:${f.key}`),day=Math.min(364,(window*4+3)*7+1);
-    const conflicts=s.commitments.filter(c=>c.season===s.season&&c.day===day).map(c=>c.title);
+    const conflicts=conflictsForDay(day);
     // Entered tournaments occupy their authored date span; neither side silently replaces the other.
     const description=`${f.name} in your darts circuit. One full-day commitment; ${f.fee ? "an agreed commercial appearance fee" : "no fee or morality reward"}.`;
     return {id,family:f.key,title:f.name,description,season:s.season,day,feePence:f.fee*(1+Math.min(2,stature)),
@@ -75,8 +76,13 @@ export function opportunities(s:LifeSources):Opportunity[] {
       ? regional : null;
   if(!path)return generic;
   const id=contentId(s.saveId,`opportunity:${s.season}:${window}:${path.key}`);
-  const day=Math.min(364,(window*4+3)*7+1);
-  const conflicts=s.commitments.filter(c=>c.season===s.season&&c.day===day).map(c=>c.title);
+  let day=Math.max((s.week-1)*7+1,Math.min(364,(window*4+3)*7+1));
+  if(path.key===regional.key){
+    const completedLocal=s.commitments.find(c=>c.family===spotlight.key&&c.status==="COMPLETED");
+    if(completedLocal)day=Math.max(day,completedLocal.day+1);
+    while(day<364&&s.commitments.some(c=>c.season===s.season&&c.day===day))day++;
+  }
+  const conflicts=conflictsForDay(day);
   const isRegional=path.key===regional.key;
   const localOffer:Opportunity={
     id,family:path.key,title:path.title,
