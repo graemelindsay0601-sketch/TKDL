@@ -4,7 +4,7 @@ import { ArrowUpRight, CalendarDays, FastForward, Loader2, Swords, Trophy } from
 import { CareerEventCard } from "../components";
 import { CareerEventAtmosphere, atmosphereFromCalendarEvent } from "../atmosphere";
 import { useContinueCareer, ContinueOutcomeCard, ContinueProgress } from "../continue-career";
-import { FormBadge, QuickSim } from "../quick-sim";
+import { FormBadge } from "../quick-sim";
 import type { CareerEvent, CareerSave, CalendarOverview } from "../types";
 import { dayLabel, formatPence, worthIt } from "../model";
 import { CareerWelcome } from "../welcome";
@@ -53,7 +53,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
     <Link className="career-btn career-btn-primary" href={`/career/${id}/my-career/history`}>Season review <ArrowUpRight aria-hidden /></Link></Lead>;
   else if (match) lead = <Lead title="Your match is ready" text="Step up to the oche." event={byId(match.eventId)}>
     <Link className="career-btn career-btn-gold" href={`/career/${id}/matches/${match.matchId}/play`}><Swords aria-hidden /> Play your match</Link>
-    <QuickSim saveId={id} eventId={match.eventId} matchId={match.matchId} compact /></Lead>;
+    </Lead>;
   else if (activeTournament) lead = <Lead title={activeTournament.name} text="Tournament in progress.">
     <Link className="career-btn career-btn-primary" href={`/career/${id}/tournaments/${activeTournament.eventId}`}><Trophy aria-hidden /> Return to tournament</Link></Lead>;
   else if (booked) lead = <Lead title={byId(booked.eventId) ? "Booked" : `Booked: ${booked.name}`} text={`Week ${booked.week} · play on and your first match opens`} event={byId(booked.eventId)}>

@@ -1,4 +1,3 @@
-import { QuickSim } from "../quick-sim";
 import {useState} from "react";
 import {Link,useLocation} from "wouter";
 import {Flag,Swords} from "lucide-react";
@@ -114,7 +113,6 @@ export function TournamentPage({ctx,eventId,matchId}:{ctx:ShellContext;eventId:s
             <TaleOfTheTape v={v} match={next}/>
             <div className="flex flex-wrap gap-2">
               <button className="career-btn career-btn-gold" disabled={busy||v.readOnly} onClick={begin}>{v.session?.status==="IN_PLAY"?"Resume verified match":v.session?.status==="BULL_UP"?"Resume bull-up":"Prepare match"}</button>
-              {!v.readOnly&&v.session?.status!=="IN_PLAY"&&<QuickSim saveId={id} eventId={eventId} matchId={next.id} compact onDone={()=>{void q.refetch();}}/>}
               <ConfirmButton label="Concede this match" confirmLabel="Confirm match concession" danger busy={busy}
                 description="This records a walkover, not played darts. In a group you remain in the event; in a knockout you are eliminated."
                 onConfirm={()=>mutate("concede",{matchId:next.id,confirmation:"CONCEDE_MATCH"})}/></div></>:

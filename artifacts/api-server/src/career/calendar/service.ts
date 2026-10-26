@@ -5,7 +5,6 @@ import { sql } from "drizzle-orm";
 import { opportunity } from "../content/opportunities.ts";
 import { venueContent } from "../content/world.ts";
 import { z } from "zod";
-import { simulatedNineDarters } from "../records/model.ts";
 import { anzLegsWonAgainstThrow, anzTournamentAverage, type AnzLegFact } from "./anz-stats.ts";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
@@ -24,9 +23,7 @@ import { playTeamNights } from "../club/team-service.ts";
 import { playCountyFixtures } from "../club/county-team-service.ts";
 import { humanGroupBull,loadBulls,resolvedGroups,playingDays } from "./group-engine.ts";
 import { loadPairs } from "./pairs.ts";
-import { teamComposite } from "../world/team.ts";
 import { isGroupedStructure, isGroupMatch, layoutFor } from "./groups.ts";
-import { a2MatchFormat } from "./formats.ts";
 import { activeManager, recordManagerInvites } from "../manager/state.ts";
 import { settleStreamingWeek, streamTier } from "../streaming/state.ts";
 import { nightLabel, offBoardNights } from "../nights.ts";
@@ -34,14 +31,13 @@ import { settleCamWeek } from "../camleague/service.ts";
 import { settleProAmWeek } from "../proam/service.ts";
 import { streamerCanBeInvited } from "../streaming/model.ts";
 import { canInvite } from "../manager/model.ts";
-import { loadHumanForm, humanSimulationPlayer } from "../form/human.ts";
-import { simulateNpcMatch } from "../world/simulation.ts";
+import { loadHumanForm } from "../form/human.ts";
 import { loadNpcs } from "../world/repository.ts";
 import { CAREER_DIFFICULTY_CONFIG } from "../world/config.ts";
 import type { Npc } from "../world/types.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
-  insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, refreshCapabilities, matchKeyFor, simulateBullUp, anzLeagueStandings, type InstanceRow, type RootRow, type MatchRow,
+  insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, refreshCapabilities, anzLeagueStandings, type InstanceRow, type RootRow, type MatchRow,
 } from "./engine.ts";
 
 const eventRefSchema = z.object({ eventId: z.string().uuid(), travelChoice: z.enum(["AUTO", "GROUND_COMMUTE", "AIR_STAY"]).optional() }).strict();
@@ -434,7 +430,6 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const summary = { ...(sets ? { sets: humanSide === 0 ? [input.humanSets, input.opponentSets] : [input.opponentSets, input.humanSets] } : {}), ...(input.live ? { live: input.live } : {}),
       ...(anzCountback ? { anzCountback } : {}), ...(simulated?.summary ?? {}) };
     const firstThrowDetail = simulated?.firstThrowDetail ?? (input.live?.bullUp ? { method: "LIVE_BULL_UP", bullUp: input.live.bullUp } : { method: "LIVE_BULL_UP" });
-    // A quick-simmed match is honestly recorded as a simulation, never as live darts.
     const source = simulated ? "QUICK_SIM" : "HUMAN_LIVE";
     const updated = await tx.execute(sql`UPDATE career_tournament_matches SET status = 'COMPLETED', winner_key = ${winner}, legs_a = ${legs[0]}, legs_b = ${legs[1]}, first_throw = ${firstThrow},
       first_throw_detail = ${JSON.stringify(firstThrowDetail)}::jsonb, result_source = ${source}, completed_at = NOW(),

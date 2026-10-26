@@ -1,4 +1,3 @@
-import { QuickSim } from "../quick-sim";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ContinueProgress } from "../continue-career";
 import { createPortal } from "react-dom";
@@ -145,7 +144,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
             finally { setBusy(false); }
           }}
           onContinue={() => setPhase("play")}
-          footer={!session.team && session.darts.length === 0 ? <QuickSim saveId={saveId} eventId={session.eventId} matchId={matchId} /> : undefined} />
+           footer={undefined} />
         {session.firstThrower !== null && <span className="sr-only" role="status">{session.firstThrower === 0 ? "You throw first" : `${session.opponent.name} throws first`}</span>}
       </div>, document.body);
   }

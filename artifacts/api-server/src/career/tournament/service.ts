@@ -240,7 +240,6 @@ export function createCareerTournamentRouter(service:ReturnType<typeof createCar
   router.get("/saves/:id/tournaments/:eventId",async(req,res)=>res.json(await service.read(res.locals.careerActor,save(req),event(req))));
   router.post("/saves/:id/tournaments/:eventId/group-bull",authedWriteRateLimit,async(req,res)=>res.json(await calendar.groupBull(res.locals.careerActor,save(req),event(req),req.body)));
   router.get("/saves/:id/form",async(req,res)=>res.json(await calendar.form(res.locals.careerActor,save(req))));
-  router.post("/saves/:id/tournaments/:eventId/quick-sim",authedWriteRateLimit,async(req,res)=>res.json(await calendar.quickSimMatch(res.locals.careerActor,save(req),event(req),req.body)));
   router.post("/saves/:id/tournaments/:eventId/concede",authedWriteRateLimit,async(req,res)=>res.json(await calendar.concedeMatch(res.locals.careerActor,save(req),event(req),req.body)));
   router.post("/saves/:id/tournaments/:eventId/withdraw",authedWriteRateLimit,async(req,res)=>{
     z.object({confirmation:z.literal("WITHDRAW_TOURNAMENT")}).strict().parse(req.body);
