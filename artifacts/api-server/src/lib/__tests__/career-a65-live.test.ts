@@ -111,7 +111,7 @@ before(async () => {
   router.use(createCareerRelationshipsRouter(createCareerRelationshipsService(db)));
   router.use(createCareerGoalsRouter(createCareerGoalsService(db)));
   router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
-  router.use(createCareerLifeRouter(createCareerLifeService(db)));
+  router.use(createCareerLifeRouter(createCareerLifeService(db,career.calendar)));
   router.use(createCareerClubRouter(clubs,teamNights));
   router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
   router.use(createCareerIdentityRouter(createCareerIdentityService(db), available));
@@ -235,16 +235,29 @@ test("Life API advances from local spotlight to regional showcase through played
       await db.execute(sql`INSERT INTO career_club_fixtures(career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,status)
         VALUES (${id},${Number(root.current_season)},${round},${round},'ayrshire','other',1,0,${JSON.stringify(rubbers)}::jsonb,'COMPLETED')`);
     }
+    const regionalEvent=(await q(sql`SELECT id FROM career_event_instances WHERE career_save_id=${id}
+      AND season=${Number(root.current_season)} AND definition_key='regional-open' AND start_day>=1
+      AND status IN ('SCHEDULED','REGISTRATION_OPEN') ORDER BY start_day,id LIMIT 1`))[0];
+    assert.ok(regionalEvent,"the season has a scheduled Regional Open to receive the earned entry");
+    await db.execute(sql`UPDATE career_event_instances SET status='REGISTRATION_OPEN' WHERE career_save_id=${id}
+      AND season=${Number(root.current_season)} AND definition_key='regional-open'`);
+    await db.execute(sql`UPDATE career_event_instances SET registration_opens_week=1,registration_closes_week=start_week
+      WHERE career_save_id=${id} AND season=${Number(root.current_season)} AND definition_key='regional-open'`);
     const regionalView=await life(),regional=regionalView.body.opportunities.find((o:any)=>o.family==="REGIONAL_SHOWCASE");
     assert.equal(regionalView.status,200,JSON.stringify(regionalView.body));
-    assert.equal(regional?.canAccept,true,"the finished local spotlight must not block the regional invitation on its date");
-    assert.equal((await call("POST",`/saves/${id}/life/opportunities/${regional.id}`,{choice:"ACCEPT"})).status,200);
-    await settle(); await settle();
+    assert.equal(regional?.eventId,regionalEvent.id,"the invitation points to the next scheduled Regional Open");
+    assert.equal(regional?.canAccept,true,"the finished local spotlight must not block a playable Regional Open entry");
+    const accepted=await call("POST",`/saves/${id}/life/opportunities/${regional.id}`,{choice:"ACCEPT"});
+    assert.equal(accepted.status,200,JSON.stringify(accepted.body));
+    assert.equal(accepted.body.eventId,regionalEvent.id);
     const finished=(await life()).body;
-    assert.equal(finished.clubInvitationProgress.status,"COMPLETE");
-    assert.equal(finished.commitments.find((c:any)=>c.id===regional.id)?.status,"COMPLETED");
-    assert.equal((await q(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${id} AND operation_key=${`life:appearance:${regional.id}`}`))[0].n,1,
-      "the regional appearance fee settles once");
+    assert.equal(finished.clubInvitationProgress.status,"BOOKED","accepting enters the tournament; it does not invent a completed result");
+    assert.equal(finished.clubInvitationProgress.eventId,regionalEvent.id);
+    assert.equal(finished.commitments.some((c:any)=>c.id===regional.id),false,"regional tournament entry is not an off-board appearance commitment");
+    const entry=(await q(sql`SELECT status,source FROM career_event_entries WHERE career_save_id=${id}
+      AND event_id=${regionalEvent.id} AND participant_key='HUMAN'`))[0];
+    assert.deepEqual(entry,{status:"ENTERED",source:"HUMAN_ENTRY"});
+    assert.equal((await call("GET",`/saves/${id}/events/${regionalEvent.id}`)).status,200,"the accepted invitation opens the normal playable tournament page");
   } finally {
     await saves.delete(1,id);
   }

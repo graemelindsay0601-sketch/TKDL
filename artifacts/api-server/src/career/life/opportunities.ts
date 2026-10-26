@@ -23,10 +23,20 @@ export const LOCAL_PATH_OPPORTUNITIES = Object.freeze({
 });
 export function clubInvitationProgress(s:LifeSources):ClubInvitationProgress {
   const local=s.localTeamRecord??{appearances:0,wins:0};
+  const regionalDecision=s.decisions.find(d=>d.kind==="OPPORTUNITY"&&d.data.family===LOCAL_PATH_OPPORTUNITIES.regional.key);
+  const regionalEventId=typeof regionalDecision?.data.eventId==="string"?regionalDecision.data.eventId:null;
+  const regionalEvent=regionalEventId?s.events.find(e=>e.id===regionalEventId):null;
   const state=(family:string)=>{
     const commitment=s.commitments.find(c=>c.family===family);
     if(commitment)return commitment.status==="COMPLETED"?"COMPLETE" as const:"BOOKED" as const;
-    return s.decisions.some(d=>d.kind==="OPPORTUNITY"&&d.data.family===family)?"CLOSED" as const:null;
+    const decision=s.decisions.find(d=>d.kind==="OPPORTUNITY"&&d.data.family===family);
+    if(!decision)return null;
+    if(family===LOCAL_PATH_OPPORTUNITIES.regional.key&&decision.choice==="ACCEPT") {
+      if(regionalEvent?.status==="COMPLETED")return "COMPLETE" as const;
+      if(regionalEvent?.status==="CANCELLED")return "CLOSED" as const;
+      return "BOOKED" as const;
+    }
+    return "CLOSED" as const;
   };
   const localState=state(LOCAL_PATH_OPPORTUNITIES.local.key);
   if(localState==="CLOSED")return {nextInvitation:null,status:"CLOSED",...local,targetAppearances:null,targetWins:null};
@@ -37,10 +47,12 @@ export function clubInvitationProgress(s:LifeSources):ClubInvitationProgress {
       targetAppearances:LOCAL_PATH_OPPORTUNITIES.local.minAppearances,targetWins:null};
   }
   const regionalState=state(LOCAL_PATH_OPPORTUNITIES.regional.key);
-  if(regionalState==="COMPLETE")return {nextInvitation:null,status:"COMPLETE",...local,targetAppearances:null,targetWins:null};
+  if(regionalState==="COMPLETE")return {nextInvitation:null,status:"COMPLETE",...local,targetAppearances:null,targetWins:null,
+    ...(regionalEventId?{eventId:regionalEventId}:{}),...(regionalEvent?{eventName:regionalEvent.name}:{})};
   if(regionalState==="CLOSED")return {nextInvitation:null,status:"CLOSED",...local,targetAppearances:null,targetWins:null};
   if(regionalState==="BOOKED")return {nextInvitation:"REGIONAL_SHOWCASE",status:"BOOKED",...local,
-    targetAppearances:LOCAL_PATH_OPPORTUNITIES.regional.minAppearances,targetWins:LOCAL_PATH_OPPORTUNITIES.regional.minWins};
+    targetAppearances:LOCAL_PATH_OPPORTUNITIES.regional.minAppearances,targetWins:LOCAL_PATH_OPPORTUNITIES.regional.minWins,
+    ...(regionalEventId?{eventId:regionalEventId}:{}),...(regionalEvent?{eventName:regionalEvent.name}:{})};
   const ready=local.appearances>=LOCAL_PATH_OPPORTUNITIES.regional.minAppearances&&local.wins>=LOCAL_PATH_OPPORTUNITIES.regional.minWins;
   return {nextInvitation:"REGIONAL_SHOWCASE",status:ready?"READY":"IN_PROGRESS",...local,
     targetAppearances:LOCAL_PATH_OPPORTUNITIES.regional.minAppearances,targetWins:LOCAL_PATH_OPPORTUNITIES.regional.minWins};
@@ -75,8 +87,13 @@ export function opportunities(s:LifeSources):Opportunity[] {
     : spotlightCompleted&&!hasResolved(regional.key)&&local.appearances>=regional.minAppearances&&local.wins>=regional.minWins
       ? regional : null;
   if(!path)return generic;
+  const regionalEvent=path.key===regional.key
+    ? s.events.filter(e=>e.key==="regional-open"&&e.season===s.season&&e.circuit==="REGIONAL"&&e.status==="REGISTRATION_OPEN"&&e.day>=(s.week-1)*7+1)
+      .sort((a,b)=>a.day-b.day||a.id.localeCompare(b.id))[0]
+    : null;
+  if(path.key===regional.key&&!regionalEvent)return generic;
   const id=contentId(s.saveId,`opportunity:${s.season}:${window}:${path.key}`);
-  let day=Math.max((s.week-1)*7+1,Math.min(364,(window*4+3)*7+1));
+  let day=regionalEvent?.day??Math.max((s.week-1)*7+1,Math.min(364,(window*4+3)*7+1));
   if(path.key===regional.key){
     const completedLocal=s.commitments.find(c=>c.family===spotlight.key&&c.status==="COMPLETED");
     if(completedLocal)day=Math.max(day,completedLocal.day+1);
@@ -87,13 +104,14 @@ export function opportunities(s:LifeSources):Opportunity[] {
   const localOffer:Opportunity={
     id,family:path.key,title:path.title,
     description:isRegional
-      ? `Your club record has earned a regional showcase invitation. Make a one-day appearance, meet the wider circuit and earn an agreed fee. This is an off-board commitment, not a tournament result.`
+      ? `Your club record has earned direct entry to ${regionalEvent!.name}. Accept to enter its scheduled draw; your played result counts as a regional tournament finish.`
       : `Your player-played club appearances have brought a local spotlight invitation. Represent your club for one day and earn an agreed fee. This is an off-board commitment, not a tournament result.`,
-    season:s.season,day,feePence:path.feePence,contractId:null,
+    season:s.season,day,feePence:isRegional?0:path.feePence,contractId:null,
     compatibility:isRegional
-      ? `${local.appearances} genuine appearances · ${local.wins} wins · completed local spotlight.`
+      ? `${local.appearances} genuine appearances · ${local.wins} wins · completed local spotlight. Standard event entry fees and prizes apply.`
       : `${local.appearances} genuine club appearances. Teammate cover does not count.`,
     conflicts,canAccept:conflicts.length===0&&!s.decisions.some(d=>d.id===id),
+    ...(regionalEvent?{eventId:regionalEvent.id,eventName:regionalEvent.name}:{}),
   };
   return [...generic,localOffer].filter(o=>o.day>=(s.week-1)*7+1&&!s.decisions.some(d=>d.id===o.id));
 }

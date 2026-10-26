@@ -7,6 +7,7 @@ import { careerIdSchema } from "../validation.ts";
 import { createCareerFactsService } from "../facts/service.ts";
 import { createCareerRelationshipsService } from "../relationships/service.ts";
 import { createCareerRecognitionService } from "../recognition/service.ts";
+import type { CareerCalendarService } from "../calendar/service.ts";
 import { careerDate } from "../identity/age.ts";
 import { contentId, npcPersonality } from "./content.ts";
 import { loadFanFollowing } from "../fans/service.ts";
@@ -60,7 +61,7 @@ async function sourceFingerprint(tx:CareerExecutor,saveId:string,root:Row) {
   return JSON.stringify(f);
 }
 
-export function createCareerLifeService(database:CareerDatabase) {
+export function createCareerLifeService(database:CareerDatabase,calendar?:Pick<CareerCalendarService,"enter">) {
   async function sources(tx:CareerExecutor,actor:CareerActor,saveId:string,root:Row):Promise<LifeSources> {
     const key=await sourceFingerprint(tx,saveId,root),hit=SOURCE_CACHE.get(saveId);
     if(hit&&hit.key===key&&Date.now()-hit.at<SOURCE_CACHE_MS)return hit.value;
@@ -216,7 +217,8 @@ export function createCareerLifeService(database:CareerDatabase) {
     const booked=(await tx.execute(sql`SELECT day,event_id FROM career_participant_bookings WHERE career_save_id=${saveId}
       AND participant_key='HUMAN' AND season=${s.season}`)).rows;
     for(const o of offers) {
-      o.conflicts.push(...booked.filter(b=>Number(b.day)===o.day).map(b=>s.events.find(e=>e.id===b.event_id)?.name??"Entered tournament"));
+      o.conflicts.push(...booked.filter(b=>Number(b.day)===o.day&&String(b.event_id)!==o.eventId)
+        .map(b=>s.events.find(e=>e.id===b.event_id)?.name??"Entered tournament"));
       o.canAccept=o.conflicts.length===0;
     }
     const fans=s.fans?{...s.fans,crowd:crowdSupport(s.fans,profile.reception==="Divisive")}:undefined;
@@ -278,6 +280,22 @@ export function createCareerLifeService(database:CareerDatabase) {
     },
     async opportunity(actor:CareerActor,saveId:string,id:string,body:unknown) {
       careerIdSchema.parse(id);const {choice}=z.object({choice:z.enum(["ACCEPT","DECLINE"])}).strict().parse(body);
+      let regionalEventId:string|null=null;
+      if(choice==="ACCEPT") {
+        const offer=await database.transaction(async tx=>{
+          const root=await lockRoot(tx,actor,saveId,false) as unknown as Row;
+          if(await existing(tx,saveId,id,"OPPORTUNITY",choice))return null;
+          if(root.status!=="ACTIVE")throw new CareerError(409,"Career is retired");
+          return (await view(tx,actor,saveId,root)).opportunities.find(o=>o.id===id)??null;
+        });
+        if(offer?.family==="REGIONAL_SHOWCASE") {
+          if(!offer.eventId||!calendar)throw new CareerError(409,"The regional tournament entry service is unavailable");
+          if(!offer.canAccept)throw new CareerError(409,`Calendar conflict: ${offer.conflicts.join(", ")}`);
+          const entered=await calendar.enter(actor,saveId,{eventId:offer.eventId,travelChoice:"AUTO"});
+          if(!entered.entered)throw new CareerError(409,`Regional Open entry failed: ${(entered.denials??[]).join(", ")||"entry unavailable"}`);
+          regionalEventId=offer.eventId;
+        }
+      }
       return database.transaction(async tx=>{
         const root=await lockRoot(tx,actor,saveId,false) as unknown as Row;
         if(await existing(tx,saveId,id,"OPPORTUNITY",choice))return {resolved:true,replayed:true};
@@ -286,11 +304,12 @@ export function createCareerLifeService(database:CareerDatabase) {
         if(!o)throw new CareerError(409,"Opportunity is unavailable or expired");
         if(choice==="ACCEPT") {
           if(!o.canAccept)throw new CareerError(409,`Calendar conflict: ${o.conflicts.join(", ")}`);
-          await tx.execute(sql`INSERT INTO career_life_commitments (career_save_id,id,family,title,season,day,fee_pence,contract_id,status)
+          if(o.family!=="REGIONAL_SHOWCASE")await tx.execute(sql`INSERT INTO career_life_commitments (career_save_id,id,family,title,season,day,fee_pence,contract_id,status)
             VALUES (${saveId},${id},${o.family},${o.title},${o.season},${o.day},${o.feePence},${o.contractId},'ACCEPTED')`);
         }
-        await remember(tx,saveId,id,"OPPORTUNITY",choice,root,{family:o.family,season:o.season,day:o.day,thread:"commercial",feePence:o.feePence});
-        return {resolved:true,replayed:false};
+        await remember(tx,saveId,id,"OPPORTUNITY",choice,root,{family:o.family,season:o.season,day:o.day,thread:"commercial",feePence:o.feePence,
+          ...(regionalEventId?{eventId:regionalEventId}:{}),...(o.eventName?{eventName:o.eventName}:{})});
+        return {resolved:true,replayed:false,...(regionalEventId?{eventId:regionalEventId}:{})};
       });
     },
     async merchandise(actor:CareerActor,saveId:string,body:unknown) {

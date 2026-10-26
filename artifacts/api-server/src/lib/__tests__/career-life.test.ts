@@ -156,14 +156,22 @@ test("real club appearances open a one-way local-to-regional opportunity path",(
   assert.deepEqual(clubInvitationProgress(s),{nextInvitation:"REGIONAL_SHOWCASE",status:"IN_PROGRESS",appearances:5,wins:2,targetAppearances:5,targetWins:3});
   assert.equal(opportunities(s).some(o=>o.family==="REGIONAL_SHOWCASE"),false,"two wins do not meet the regional invitation threshold");
   s.localTeamRecord={appearances:5,wins:3};
+  s.events=[{id:"regional-open-1",key:"regional-open",name:"North Regional Open",circuit:"REGIONAL",tier:"REGIONAL",
+    classification:"RANKING",season:1,day:35,endDay:35,status:"REGISTRATION_OPEN"}];
   const regional=opportunities(s).find(o=>o.family==="REGIONAL_SHOWCASE")!;
   assert.equal(clubInvitationProgress(s).status,"READY");
   assert.ok(regional);
   assert.match(regional.compatibility,/5 genuine appearances · 3 wins · completed local spotlight/);
-  assert.ok(regional.feePence>local.feePence);
-  assert.ok(regional.day>local.day,"the regional invitation is scheduled after the completed local spotlight");
+  assert.equal(regional.feePence,0,"the tournament invitation is not an appearance payment");
+  assert.equal(regional.eventId,"regional-open-1");
+  assert.equal(regional.day,35,"the invitation uses the scheduled Regional Open date");
   assert.equal(regional.canAccept,true,"the completed local spotlight no longer occupies the regional date");
   assert.deepEqual(regional.conflicts,[]);
+  s.decisions=[{id:regional.id,kind:"OPPORTUNITY",choice:"ACCEPT",season:1,week:1,data:{family:"REGIONAL_SHOWCASE",eventId:"regional-open-1"}}];
+  assert.equal(clubInvitationProgress(s).status,"BOOKED");
+  assert.equal(clubInvitationProgress(s).eventId,"regional-open-1");
+  s.events[0].status="COMPLETED";
+  assert.equal(clubInvitationProgress(s).status,"COMPLETE");
 });
 test("major scene rarity, recent-time eligibility, cooldown and source deduplication prevent repeated popups",()=>{
   const s=source([result("world","WORLD_CHAMPIONSHIP","WORLD")]),st=storyEngine(s),m=currentMoments(s,st);

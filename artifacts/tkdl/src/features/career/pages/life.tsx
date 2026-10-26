@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useCareerLife, useLifeChoice, useMerchandiseChoice, useNpcLife, usePresentation, errorMessage } from "../api";
 import { CareerEmptyState, CareerSection, QueryState, StatusBadge } from "../components";
 import { formatPence, publicText } from "../model";
@@ -24,10 +24,15 @@ export function LifeSummary({saveId}:{saveId:string}) {
   </CareerSection>;
 }
 export function LifePage({ctx,initialTab="Profile"}:{ctx:ShellContext;initialTab?:string}) {
+  const [,navigate]=useLocation();
   const query=useCareerLife(ctx.save.id),choice=useLifeChoice(ctx.save.id),merch=useMerchandiseChoice(ctx.save.id);
   const [tab,setTab]=useState(initialTab),[message,setMessage]=useState<string|null>(null);
   const choose=async(kind:"moments"|"opportunities",id:string,value:string)=>{
-    setMessage(null);try{await choice.mutateAsync({kind,id,choice:value});setMessage("Decision recorded.");}catch(e){setMessage(errorMessage(e));}
+    setMessage(null);try{
+      const result=await choice.mutateAsync({kind,id,choice:value}) as {eventId?:string};
+      if(kind==="opportunities"&&value==="ACCEPT"&&result?.eventId)navigate(`/career/${ctx.save.id}/events/${result.eventId}`);
+      else setMessage("Decision recorded.");
+    }catch(e){setMessage(errorMessage(e));}
   };
   const merchandise=async(value:string)=>{setMessage(null);try{await merch.mutateAsync(value);setMessage("Merchandise decision recorded.");}catch(e){setMessage(errorMessage(e));}};
   const presentation=usePresentation(ctx.save.id);
@@ -55,12 +60,12 @@ export function LifePage({ctx,initialTab="Profile"}:{ctx:ShellContext;initialTab
           m.choices.map(c=><button className="career-btn career-btn-ghost whitespace-normal text-left" disabled={choice.isPending} key={c.id} onClick={()=>choose("moments",m.id,c.id)}>{c.text}</button>)}</div>
       </section>)}
       {tab==="Profile"&&<Profile data={d}/>}
-      {tab==="Opportunities"&&<section className="space-y-3"><ClubInvitationProgress progress={d.clubInvitationProgress}/><h2 className="font-bold">Optional off-board opportunities</h2><details className="career-note"><summary>How opportunities work</summary><p>Accepting reserves the displayed date; fees settle through the Career ledger after that sporting week. Declining is not a sporting penalty.</p></details>
+      {tab==="Opportunities"&&<section className="space-y-3"><ClubInvitationProgress progress={d.clubInvitationProgress} saveId={ctx.save.id}/><h2 className="font-bold">Optional off-board opportunities</h2><details className="career-note"><summary>How opportunities work</summary><p>Off-board appearance fees settle after the sporting week. Regional tournament invitations instead enter the scheduled event; normal entry fees, played results and ranking rules apply. Declining is not a sporting penalty.</p></details>
         {d.opportunities.map(o=><article key={o.id} className="career-life-card space-y-2">
           <h3 className="font-bold">{o.title}</h3><p className="text-sm">{o.description}</p>
-          <p className="text-sm">S{o.season} · day {o.day} · agreed fee {formatPence(o.feePence)}</p><p className="text-xs text-white/60">{o.compatibility}</p>
+           <p className="text-sm">S{o.season} · day {o.day}{o.family==="REGIONAL_SHOWCASE"?" · standard Regional Open entry fee applies":` · agreed fee ${formatPence(o.feePence)}`}</p><p className="text-xs text-white/60">{o.compatibility}</p>
           {o.conflicts.length>0&&<p className="text-sm text-amber-300">Calendar conflict: {o.conflicts.join(", ")}</p>}
-          {!d.retired&&<div className="flex flex-wrap gap-2"><button className="career-btn career-btn-primary" disabled={choice.isPending||!o.canAccept} onClick={()=>choose("opportunities",o.id,"ACCEPT")}>Accept commitment</button>
+           {!d.retired&&<div className="flex flex-wrap gap-2"><button className="career-btn career-btn-primary" disabled={choice.isPending||!o.canAccept} onClick={()=>choose("opportunities",o.id,"ACCEPT")}>{o.family==="REGIONAL_SHOWCASE"?"Accept & enter tournament":"Accept commitment"}</button>
             <button className="career-btn career-btn-ghost" disabled={choice.isPending} onClick={()=>choose("opportunities",o.id,"DECLINE")}>Decline</button></div>}
         </article>)}
         {!d.opportunities.length&&<CareerEmptyState title="No current opportunities">Availability follows real sporting stature and Career time.</CareerEmptyState>}
@@ -92,7 +97,7 @@ function Fans({fans}:{fans:NonNullable<LifeView["fans"]>}) {
     <details className="career-note"><summary>How fans are counted</summary><p>Fans come only from what you do: results (bigger stages win more), titles, nine-darters, and a showman or confident interview style. Wins at home build a home following; wins abroad an international one. A core stays loyal; casual fans drift when you are out of the spotlight. A big following sells more signature products and earns bigger sponsor signing bonuses. It never changes how you throw.</p></details>
   </section>;
 }
-function ClubInvitationProgress({progress}:{progress:LifeView["clubInvitationProgress"]}) {
+function ClubInvitationProgress({progress,saveId}:{progress:LifeView["clubInvitationProgress"];saveId:string}) {
   const local=progress.nextInvitation==="LOCAL_SPOTLIGHT";
   const regional=progress.nextInvitation==="REGIONAL_SHOWCASE";
   const title=local?"Local spotlight":regional?"Regional showcase":"Club invitation";
@@ -117,6 +122,7 @@ function ClubInvitationProgress({progress}:{progress:LifeView["clubInvitationPro
     </div>}
     {progress.status==="IN_PROGRESS"&&local&&<p className="career-club-progress__rule">Local spotlight requires 3 player-played club appearances.</p>}
     {progress.status==="IN_PROGRESS"&&regional&&<p className="career-club-progress__rule">Regional showcase requires 5 total player-played club appearances and 3 wins.</p>}
+    {progress.eventId&&<Link className="career-btn career-btn-ghost" href={`/career/${saveId}/events/${progress.eventId}`}>Open {progress.eventName??"Regional Open"}</Link>}
   </section>;
 }
 function ProgressMetric({label,value,target}:{label:string;value:number;target:number}) {
