@@ -740,7 +740,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     /** Idempotent: ensures the A2 world, then the current season calendar. */
     async initialize(actor: CareerActor, saveId: string) {
       careerIdSchema.parse(saveId);
-      await world.initialize(actor, saveId);
+      const initializedWorld = await world.initialize(actor, saveId);
+      // A fresh legacy save creates its base A2 world first. Run the idempotent
+      // existing-world migration once afterward so current Career calendars also
+      // receive the persistent international squads required by modern events.
+      if (initializedWorld.created) await world.initialize(actor, saveId);
       return database.transaction(async tx => {
         const { root } = await open(tx, actor, saveId);
         const created = await ensureSeason(tx, root, Number(root.current_season));

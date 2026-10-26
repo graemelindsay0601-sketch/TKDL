@@ -32,6 +32,7 @@ import { V25_CALENDAR_REFRESH_KEYS } from "../content/season-v25.ts";
 import { V26_CALENDAR_REFRESH_KEYS } from "../content/season-v27.ts";
 import { V28_CALENDAR_REFRESH_KEYS } from "../content/season-v28.ts";
 import { V29_CALENDAR_REFRESH_KEYS } from "../content/season-v29.ts";
+import { V30_CALENDAR_REFRESH_KEYS } from "../content/season-v30.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, nationalFallbackRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -175,10 +176,10 @@ export async function ensureCurrentEventCatalogue(tx: CareerExecutor, root: Root
     WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.length > 0;
   if (hasSeason) {
     const claimed = (await tx.execute(sql`INSERT INTO career_calendar_addons (career_save_id, season, addon)
-      VALUES (${root.id}, ${season}, 'career-events-v29')
+      VALUES (${root.id}, ${season}, 'career-events-v30')
       ON CONFLICT DO NOTHING RETURNING season`)).rows.length > 0;
     if (claimed) {
-      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS, ...V29_CALENDAR_REFRESH_KEYS];
+      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS, ...V29_CALENDAR_REFRESH_KEYS, ...V30_CALENDAR_REFRESH_KEYS];
       await tx.execute(sql`DELETE FROM career_event_instances i
         WHERE i.career_save_id = ${root.id} AND i.season = ${season}
           AND i.start_week > ${Number(root.current_week)}

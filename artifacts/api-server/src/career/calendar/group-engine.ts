@@ -133,6 +133,7 @@ export async function progressGroups(tx: CareerExecutor, root: RootRow, event: I
   // League: semi-finals 1st v 4th and 2nd v 3rd.
   const q = groups.map(g => g.qualifiers);
   if (layout.kind === "WORLD_CUP") {
+    let drawChanged = false;
     const winners = q.flat();
     const firstRound = matches.filter(m => m.stage_key === "knockout" && m.round === 1).sort((a, b) => a.slot - b.slot);
     const seeds = firstRound.slice(0, 4).map(m => m.a_key);
@@ -150,15 +151,16 @@ export async function progressGroups(tx: CareerExecutor, root: RootRow, event: I
     ];
     for (let i = 0; i < pairings.length; i++) {
       const m = firstRound[i], [a, b] = pairings[i];
-      if (m.a_key || m.b_key) {
-        if (m.a_key !== a || m.b_key !== b) throw new CareerError(409, "World Cup knockout slot conflicts with the group draw");
-        continue;
-      }
+      if ((m.a_key && m.a_key !== a) || (m.b_key && m.b_key !== b))
+        throw new CareerError(409, "World Cup knockout slot conflicts with the group draw");
+      if (m.a_key === a && m.b_key === b) continue;
       await tx.execute(sql`UPDATE career_tournament_matches SET a_key=${a},b_key=${b},a_npc_id=${a==="HUMAN"?null:a},
         b_npc_id=${b==="HUMAN"?null:b},status='PENDING'
-        WHERE career_save_id=${root.id} AND id=${m.id} AND status='PENDING' AND a_key IS NULL AND b_key IS NULL`);
+        WHERE career_save_id=${root.id} AND id=${m.id} AND status='PENDING'
+          AND (a_key IS NULL OR a_key=${a}) AND (b_key IS NULL OR b_key=${b})`);
+      drawChanged = true;
     }
-    return {changed:true,groups};
+    return {changed: changed || drawChanged,groups};
   }
   const pairs = layout.kind === "LEAGUE" ? [[q[0][0], q[0][3]], [q[0][1], q[0][2]]]
     : [[q[0][0], q[1][1]], [q[2][0], q[3][1]], [q[1][0], q[0][1]], [q[3][0], q[2][1]]];

@@ -38,6 +38,7 @@ export function nationalFallbackRank(tier: Npc["tier"]): number | undefined {
   if (tier === "ELITE") return 1_000_000;
   if (tier === "PROFESSIONAL") return 1_100_000;
   if (tier === "AMATEUR") return 1_200_000;
+  if (tier === "GRASSROOTS") return 1_300_000;
   return undefined;
 }
 

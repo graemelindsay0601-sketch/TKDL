@@ -56,3 +56,9 @@ The World Cup of Darts is a recurring annual 40-nation pairs event, not a one-of
 **Why:** the user clarified that the event recurs and approved expanding the Career player world so every national pair can be drawn and played.
 
 **How to apply:** preserve annual recurrence, the 40-team draw and live match progression, and migrate existing saves without rewriting completed event history.
+
+Grouped-event progression must report `changed` only when it actually persists a tie result or draw-slot update. A stable, already-drawn bracket must return unchanged so the event engine can simulate its due knockout matches.
+
+**Why:** repeatedly reporting a change after the group draw is locked causes the engine to reload the bracket instead of playing its knockout fixtures, leaving the event open at season rollover.
+
+**How to apply:** when adjusting grouped formats, verify the first pass stores qualifiers and later idempotent passes allow ready matches to run; include a full event-playthrough regression.

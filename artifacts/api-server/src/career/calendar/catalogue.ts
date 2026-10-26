@@ -2,6 +2,7 @@ import type { Tier } from "../world/types.ts";
 import type { Circuit, Classification, PresentationTier } from "./config.ts";
 import { EVENT_DATABASE_VERSION } from "./config.ts";
 import { buildCatalogueV29 } from "../content/season-v29.ts";
+import { buildCatalogueV30 } from "../content/season-v30.ts";
 import { knockout501, setsKnockout501, groupKnockout501, league501, x01Variant, specialGame, pairs501, type EventFormat } from "./formats.ts";
 import { R, Q_SCHOOL_PATHWAYS, type Rule, type QSchoolPathway } from "./eligibility.ts";
 import { AGE_POLICY } from "../identity/age.ts";
@@ -486,6 +487,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 27) return EVENT_CATALOGUE_V27;
   if (version === 28) return EVENT_CATALOGUE_V28;
   if (version === 29) return EVENT_CATALOGUE_V29;
+  if (version === 30) return EVENT_CATALOGUE_V30;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -539,5 +541,7 @@ export const EVENT_CATALOGUE_V27: readonly EventDefinition[] = buildCatalogueV27
 export const EVENT_CATALOGUE_V28: readonly EventDefinition[] = buildCatalogueV28(EVENT_CATALOGUE_V27);
 /** v29: the annual World Cup uses the official 40-team groups and seeded knockout format. */
 export const EVENT_CATALOGUE_V29: readonly EventDefinition[] = buildCatalogueV29(EVENT_CATALOGUE_V28);
+/** v30: priority-locks the annual World Cup's national pairs before overlapping events. */
+export const EVENT_CATALOGUE_V30: readonly EventDefinition[] = buildCatalogueV30(EVENT_CATALOGUE_V29);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

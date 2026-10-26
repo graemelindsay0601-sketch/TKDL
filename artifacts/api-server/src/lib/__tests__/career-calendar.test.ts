@@ -185,7 +185,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const before = await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`);
   const upgradedCalendar = await calendar.calendar(migrationActor, save.id, {});
   assert.deepEqual(await rows(sql`SELECT event_database_version, world_seed FROM career_saves WHERE id = ${save.id}`), [
-    { event_database_version: 28, world_seed: before[0].world_seed },
+    { event_database_version: CURRENT_EVENT_DATABASE_VERSION, world_seed: before[0].world_seed },
   ]);
   const visibleAuckland = (upgradedCalendar.events as Array<{ definitionKey: string; venue: { country: string }; human: { eligible: boolean } }>)
     .find(event => event.definitionKey === "club-league-night" && event.venue.country === "NZL");
@@ -194,7 +194,7 @@ test("calendar reads migrate old event editions but preserve the world seed", as
   const migrated = (await rows(sql`SELECT event_database_version,snapshot FROM career_event_instances WHERE career_save_id=${save.id}
     AND definition_key='club-league-night' AND country='NZL' AND start_week>(SELECT current_week FROM career_saves WHERE id=${save.id})
     AND status IN ('SCHEDULED','REGISTRATION_OPEN') LIMIT 1`))[0];
-  assert.equal(Number(migrated.event_database_version), 28, "the future fixture is rebuilt from the new immutable edition");
+  assert.equal(Number(migrated.event_database_version), CURRENT_EVENT_DATABASE_VERSION, "the future fixture is rebuilt from the new immutable edition");
   const migratedSnapshot = migrated.snapshot as { eligibility: Parameters<typeof evaluateRule>[0] };
   assert.equal(evaluateRule(migratedSnapshot.eligibility, facts({ country: "GBR", zone: "UK_IRELAND", locality: "ayrshire" })).eligible, false,
     "existing Scottish saves cannot enter the retained Auckland fixture");

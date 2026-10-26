@@ -33,6 +33,7 @@ const { careerBotVisit, careerPartnerVisit, shouldCheckpoint } = await import(ne
 
 test("World Cup national qualifiers complete under-ranked nations without outranking published ranking holders", () => {
   const fallback = nationalFallbackRank("AMATEUR")!;
+  const grassrootsFallback = nationalFallbackRank("GRASSROOTS")!;
   const selected = nationTeams([
     { key: "A1", npcId: "A1", country: "AUS", rank: 4 },
     { key: "A2", npcId: "A2", country: "AUS", rank: 9 },
@@ -43,6 +44,7 @@ test("World Cup national qualifiers complete under-ranked nations without outran
   assert.deepEqual(selected.teams.map(team => team.nation), ["AUS", "NLD"]);
   assert.deepEqual(selected.players.map(player => player.key), ["A1", "A2", "N1", "N2"]);
   assert.ok(fallback > 100_000);
+  assert.ok(grassrootsFallback > fallback);
 });
 
 /** Event database v13 pairs, end to end: Pub Doubles entry, pairing, draw, a live pairs match through the real session boundary. */
