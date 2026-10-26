@@ -270,7 +270,7 @@ test("county and national selection: picked, dropped, Inter-County titles and Wo
   const s=source();s.season=3;
   s.club={club:{localityKey:"ayrshire",name:"Kilbirnie Darts Club",city:"Kilbirnie",region:"Ayrshire",country:"GBR"},season:3,captain:{key:"HUMAN",name:"You",you:true},
     history:[{season:1,division:2,position:1,points:40,champions:true,promoted:true,relegated:false},{season:2,division:1,position:8,points:3,champions:false,promoted:false,relegated:true}],
-     county:{name:"Ayrshire County",category:"MEN",aTeam:[],squads:{MEN:{A:[],B:[]},WOMEN:{A:[],B:[]}},trial:{status:"NOT_EARNED",season:3,sourceSeason:2,appearances:0,wins:0,category:null,matchId:null,opponentName:null},fixtures:[],
+      county:{name:"Ayrshire County",category:"MEN",aTeam:[],squads:{MEN:{A:[],B:[]},WOMEN:{A:[],B:[]}},rankingProgress:null,trial:{status:"NOT_EARNED",season:3,sourceSeason:2,appearances:0,wins:0,category:null,matchId:null,opponentName:null},fixtures:[],
       teamStandings:["MEN-A","MEN-B","WOMEN-A","WOMEN-B"].map(k=>({category:k.startsWith("MEN")?"MEN" as const:"WOMEN" as const,team:k.endsWith("A")?"A" as const:"B" as const,rows:[]})),
       youSelected:true,youSelectedLastSeason:false,standings:[],lastSeasonChampion:{name:"Ayrshire",you:true}},
     nation:{code:"SCO",name:"Scotland",candidates:[],yourPlace:1,selected:true,worldCups:[{season:2,players:["You","Blair Paterson"],you:true},{season:3,players:["Blair Paterson","Kieran Ross"],you:false}]}};

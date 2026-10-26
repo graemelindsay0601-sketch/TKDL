@@ -126,6 +126,13 @@
 .county-tabs button { border:0; border-bottom:2px solid transparent; background:transparent; padding:10px 12px; color:#9cabb6; cursor:pointer; font:650 .67rem "DM Sans",sans-serif; }
 .county-tabs button.active { border-bottom-color:#e0c36d; color:#f0dea1; }
 .county-tabs button:disabled { cursor:wait; opacity:.55; }
+.county-ranking-progress { margin:14px 19px 0; border:1px solid #d9bd6940; background:linear-gradient(110deg,#d9bd6910,#ffffff04); padding:14px 16px; }
+.county-ranking-progress .subsection-heading { margin:0; }
+.county-ranking-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:12px; }
+.county-ranking-stats > div { display:grid; gap:4px; border-left:2px solid #d9bd6960; padding:4px 9px; }
+.county-ranking-stats small { color:#99a7b1; font:600 .49rem "DM Mono",monospace; letter-spacing:.08em; }
+.county-ranking-stats strong { color:#f0dea1; font:700 1.15rem "Oswald",sans-serif; }
+.county-ranking-progress > p { margin:11px 0 0; color:#bdc8cf; font-size:.68rem; line-height:1.55; }
 .county-error { margin:8px 19px 0; color:#ff9cb2; font-size:.65rem; }
 .county-squad-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:13px 19px 8px; }
 .squad-roster { min-width:0; border:1px solid #ffffff16; background:linear-gradient(145deg,#1d3042,#0e1b29); }
@@ -290,6 +297,7 @@
   .county-facts { padding-inline:12px; }
   .county-intro-row { margin-inline:12px; }
   .county-tabs { margin-inline:12px; }
+  .county-ranking-progress { margin-inline:12px; padding:12px; }
   .county-squad-grid { grid-template-columns:minmax(0,1fr); padding-inline:12px; }
   .county-subsection { margin-inline:12px; }
   .county-leagues { grid-template-columns:minmax(0,1fr); }
