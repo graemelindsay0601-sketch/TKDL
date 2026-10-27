@@ -304,7 +304,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         }
         // A blocked live activity may resume only from the exact position it stopped at;
         // once the Career has moved on, retrying it returns the stored result and never moves time.
-        if (["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "COUNTY_TRIAL_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(String(stored?.stop?.reason))
+        if (["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "COUNTY_TRIAL_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING", "LOCAL_COMPETITION_PENDING"].includes(String(stored?.stop?.reason))
           && stored?.to && Number(root.current_season) === stored.to.season && Number(root.current_week) === stored.to.week) return { stored: null };
         return { stored: (stored ?? null) as unknown };
       }
@@ -325,7 +325,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const blocker = step.blocker;
         stop = blocker?.kind === "MONEY_MATCH"
           ? { reason: "MONEY_MATCH_PENDING", detail: { matchId: blocker.id } }
-          : blocker?.kind === "STREAM"
+          : blocker?.kind === "LOCAL_COMPETITION"
+            ? { reason: "LOCAL_COMPETITION_PENDING", detail: { competitionId: blocker.competitionId, fixtureId: blocker.fixtureId } }
+            : blocker?.kind === "STREAM"
             ? { reason: "STREAM_PENDING", detail: { day: blocker.day } }
             : blocker?.kind === "TEAM_MATCH"
               ? { reason: "TEAM_MATCH_PENDING", detail: { matchId: blocker.id } }
@@ -363,7 +365,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
       // Blocked advances are recorded (resumable from the same position); completed ones are final.
       await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
-        completed_at = ${["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "COUNTY_TRIAL_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
+        completed_at = ${["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "COUNTY_TRIAL_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING", "LOCAL_COMPETITION_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
         WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
       return result;
     });
@@ -506,6 +508,17 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           AND EXISTS (SELECT 1 FROM jsonb_array_elements(f.matches) AS elem(value) WHERE elem.value->'humanMatch'->>'status'='LIVE')
         LIMIT 1`)).rows.length) throw new CareerError(409, "Finish your county singles on the scorer before advancing the Career");
       const s = Number(root.current_season), w = Number(root.current_week);
+      const hasLocalCompetitions = (await tx.execute(sql`SELECT to_regclass('career_local_competitions') IS NOT NULL AS ok`)).rows[0]?.ok;
+      if (hasLocalCompetitions) {
+        const competitions = (await tx.execute(sql`SELECT id,fixtures FROM career_local_competitions
+          WHERE career_save_id=${saveId} AND season=${s} AND status='ACTIVE'`)).rows;
+        for (const row of competitions) {
+          const fixture = (Array.isArray(row.fixtures) ? row.fixtures as {id?:string;week?:number;status?:string;match?:{status?:string}}[] : [])
+            .find(f => Number(f.week) <= w && f.status === "LIVE" && f.match?.status === "LIVE");
+          if (fixture) return { season: s, week: w, summary: null as unknown, blocked: true,
+            blocker: { kind: "LOCAL_COMPETITION" as const, competitionId: String(row.id), fixtureId: String(fixture.id) } };
+        }
+      }
       const liveTrial = (await tx.execute(sql`SELECT match_id FROM career_county_trials
         WHERE career_save_id=${saveId} AND season=${s} AND status='LIVE' LIMIT 1`)).rows[0];
       if (liveTrial?.match_id) return { season: s, week: w, summary: null as unknown, blocked: true,

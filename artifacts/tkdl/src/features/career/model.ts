@@ -469,6 +469,7 @@ export function slotLines(save: CareerSave): { label: string; value: string }[] 
 }
 export const advanceStopLabel = (reason: string) => ({ TARGET_REACHED: "Played on — no events booked", MEANINGFUL_DATE: "Stopped at your next important date",
   SEASON_BOUNDARY: "New season", SEASON_REVIEW:"Season complete — review before continuing", HUMAN_MATCH_PENDING: "Your match is ready",
+  LOCAL_COMPETITION_PENDING: "Your local competition match is ready",
   MONEY_MATCH_PENDING: "Your money match is ready", STREAM_PENDING: "Your scheduled stream is ready", LIMIT: "Advanced" } as Record<string, string>)[reason] ?? titleCase(reason);
 
 /** Report a cleanup failure without hiding a successful calendar advance. */

@@ -106,7 +106,7 @@ export type EventDetail = {
 export type HistoryRow = { eventId: string; season: number; name: string; definitionKey: string; circuit: string; classification: string; presentationTier: PresentationTier;
   week: number; country: string; participantKey: string; position: number; stageReached: string; champion: boolean; wins: number; losses: number };
 export type AdvanceResult = { operationKey: string; from: { season: number; week: number }; to: { season: number; week: number };
-  stop: { reason: "LIMIT" | "TARGET_REACHED" | "MEANINGFUL_DATE" | "SEASON_BOUNDARY" | "HUMAN_MATCH_PENDING" | "TEAM_MATCH_PENDING" | "COUNTY_TRIAL_PENDING" | "MONEY_MATCH_PENDING" | "STREAM_PENDING"; detail?: unknown }; weeksPlayed: number;
+  stop: { reason: "LIMIT" | "TARGET_REACHED" | "MEANINGFUL_DATE" | "SEASON_BOUNDARY" | "HUMAN_MATCH_PENDING" | "TEAM_MATCH_PENDING" | "COUNTY_TRIAL_PENDING" | "MONEY_MATCH_PENDING" | "STREAM_PENDING" | "LOCAL_COMPETITION_PENDING"; detail?: unknown }; weeksPlayed: number;
   /** Events won while time moved on (biggest first; yours first). Absent on older stored results. */
   headlines?: { name: string; circuit: string; tier: string; champion: string | null; you: boolean }[] };
 

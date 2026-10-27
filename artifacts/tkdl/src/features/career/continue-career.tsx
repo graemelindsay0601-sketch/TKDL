@@ -23,6 +23,11 @@ export function continueDestination(saveId: string, stop: AdvanceResult["stop"])
     const id = (stop.detail as { matchId?: string } | undefined)?.matchId;
     return id ? `/career/${saveId}/club/county-trial/${id}` : null;
   }
+  if (stop.reason === "LOCAL_COMPETITION_PENDING") {
+    const detail = stop.detail as { competitionId?: string; fixtureId?: string } | undefined;
+    return detail?.competitionId && detail.fixtureId
+      ? `/career/${saveId}/club/local-competitions/${detail.competitionId}/${detail.fixtureId}` : null;
+  }
   if (stop.reason === "MONEY_MATCH_PENDING") {
     const id = (stop.detail as { matchId?: string } | undefined)?.matchId;
     return id ? `/career/${saveId}/money-matches/${id}/play` : null;

@@ -27,7 +27,8 @@ import { createCareerCountyTrialService } from "../../career/club/county-trial-s
 import { clubTrialRecord, ensureCountyTrialInvitation } from "../../career/club/county-trials.ts";
 import { countyCupFixtures, countyTables } from "../../career/club/county-squads.ts";
 import { createCareerClubService } from "../../career/club/service.ts";
-import { createMatch, throwDart } from "../../shared/darts-rules/x01.ts";
+import { createCareerLocalCompetitionService } from "../../career/club/local-competitions.ts";
+import { createMatch, throwDart, type X01Format } from "../../shared/darts-rules/x01.ts";
 import { CLUB } from "../../career/club/model.ts";
 import { TEAMS, fixturesFor, leagueTable, playoffFixtures, teamNightDay } from "../../career/club/teams.ts";
 import { loadNpcs } from "../../career/world/repository.ts";
@@ -39,11 +40,34 @@ const saves = createCareerService(db), career = createCareerSportingService(db),
 const clubs = createCareerClubService(db);
 const countyLive = createCareerCountyLiveService(db);
 const countyTrials = createCareerCountyTrialService(db);
+const localCompetitions = createCareerLocalCompetitionService(db);
 const actor = { playerId: 1 };
 let id = "";
 const rows = async (q: ReturnType<typeof sql>) => (await db.execute(q)).rows;
 const play = (week: number) => db.transaction(async tx => playTeamNights(tx, await lockRoot(tx, actor, id) as never, 1, week));
 const playCounty = (season: number, week: number) => db.transaction(async tx => playCountyFixtures(tx, await lockRoot(tx, actor, id) as never, season, week));
+const winningDarts = (format: X01Format) => {
+  const checkout = format.startingScore === 301
+    ? [{ segment: 20, multiplier: 3 as const, value: 60 }, { segment: 11, multiplier: 3 as const, value: 33 }, { segment: 14, multiplier: 2 as const, value: 28 }]
+    : format.startingScore === 501
+      ? [{ segment: 20, multiplier: 3 as const, value: 60 }, { segment: 19, multiplier: 3 as const, value: 57 }, { segment: 12, multiplier: 2 as const, value: 24 }]
+      : [{ segment: 20, multiplier: 3 as const, value: 60 }, { segment: 17, multiplier: 3 as const, value: 51 }, { segment: 25, multiplier: 2 as const, value: 50 }];
+  const darts: unknown[] = [];
+  let state = createMatch(format, 0);
+  while (!state.complete) {
+    const thrower = state.turn;
+    const visit = thrower === 0
+      ? state.scores[0] === (format.startingScore === 301 ? 121 : format.startingScore === 501 ? 141 : 161)
+        ? checkout
+        : Array.from({ length: 3 }, () => ({ segment: 20, multiplier: 3 as const, value: 60 }))
+      : Array.from({ length: 3 }, () => ({ segment: 0, multiplier: 1 as const, value: 0 }));
+    for (const dart of visit) {
+      if (state.complete || state.turn !== thrower) break;
+      darts.push(dart); state = throwDart(state, dart).state;
+    }
+  }
+  return darts;
+};
 
 before(async () => {
   await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1);
@@ -155,6 +179,84 @@ test("a team night: six singles for each side, you play when you're free", async
   assert.equal(v.you.played, 1);
   assert.equal(v.you.won, 1);
   assert.equal(v.table.reduce((n, t) => n + t.played, 0), fixtures.length * 2);
+});
+
+test("local competitions persist custom rules, simulate NPC fixtures, and settle a live league rubber", async () => {
+  const localSave = { id };
+  const created = await localCompetitions.create(actor, localSave.id, {
+    name: "Friday League", kind: "LEAGUE", startingScore: 301, bestOfLegs: 3, inRule: "STRAIGHT", outRule: "DOUBLE",
+  });
+  assert.equal(created.participants.length, 8);
+  assert.equal(created.fixtures.length, 28);
+  for (const a of created.participants) for (const b of created.participants) if (a.key !== b.key) {
+    assert.equal(created.fixtures.filter(f => f.a === a.key && f.b === b.key || f.a === b.key && f.b === a.key).length, 1,
+      `${a.name} meets ${b.name} once`);
+  }
+  for (let round = 1; round <= 7; round++) {
+    const roundFixtures = created.fixtures.filter(f => f.round === round);
+    assert.equal(new Set(roundFixtures.flatMap(f => [f.a, f.b])).size, 8, "each league entrant plays once per round");
+  }
+  assert.equal(created.rules.startingScore, 301);
+  const firstRead = await localCompetitions.read(actor, localSave.id);
+  const league = firstRead.competitions.find(c => c.id === created.id)!;
+  assert.ok(league.fixtures.filter(f => f.round === 1 && f.a !== "HUMAN" && f.b !== "HUMAN").every(f => f.status === "PLAYED"),
+    "non-player fixtures in the current round are simulated and persisted");
+  const fixture = league.fixtures.find(f => f.a === "HUMAN" || f.b === "HUMAN")!;
+  const live = await localCompetitions.startMatch(actor, localSave.id, created.id, fixture.id);
+  assert.equal(live.fixture.match?.status, "LIVE");
+  const resumed = await localCompetitions.startMatch(actor, localSave.id, created.id, fixture.id);
+  assert.equal(resumed.fixture.match?.id, live.fixture.match?.id);
+  const current = await saves.read(1, localSave.id);
+  const blocked = await career.calendar.advance(actor, localSave.id, {
+    operationKey: `local-comp-live-${created.id}`, expectedSeason: current.currentSeason, expectedWeek: current.currentWeek, target: { kind: "WEEKS", weeks: 1 },
+  }) as any;
+  assert.equal(blocked.stop.reason, "LOCAL_COMPETITION_PENDING");
+  assert.equal(blocked.stop.detail.competitionId, created.id, "Continue routes to the correct local event");
+  await assert.rejects(localCompetitions.darts(actor, localSave.id, created.id, fixture.id, {
+    darts: [{ segment: 99, multiplier: 3, value: 297 }],
+  }), /Invalid darts/);
+  const matchFormat = { ...live.competition.rules, unit: "LEGS" as const };
+  const state0 = createMatch({ ...matchFormat, bestOfLegs: matchFormat.bestOfLegs }, 0);
+  const fullDarts: unknown[] = [];
+  let state = state0;
+  while (!state.complete) {
+    const thrower = state.turn;
+    const visit = thrower === 0
+      ? state.scores[0] === 121
+        ? [{ segment: 20, multiplier: 3 as const, value: 60 }, { segment: 11, multiplier: 3 as const, value: 33 }, { segment: 14, multiplier: 2 as const, value: 28 }]
+        : Array.from({ length: 3 }, () => ({ segment: 20, multiplier: 3 as const, value: 60 }))
+      : Array.from({ length: 3 }, () => ({ segment: 0, multiplier: 1 as const, value: 0 }));
+    for (const dart of visit) {
+      if (state.complete || state.turn !== thrower) break;
+      fullDarts.push(dart); state = throwDart(state, dart).state;
+    }
+  }
+  const settled = await localCompetitions.darts(actor, localSave.id, created.id, fixture.id, { darts: fullDarts });
+  assert.equal(settled.fixture.status, "PLAYED");
+  assert.equal(settled.fixture.winnerKey, "HUMAN");
+  const singlesCup = await localCompetitions.create(actor, localSave.id, { name: "Singles Cup", kind: "SINGLES_CUP", startingScore: 501, bestOfLegs: 5, inRule: "STRAIGHT", outRule: "DOUBLE" });
+  const teamCup = await localCompetitions.create(actor, localSave.id, { name: "Team Cup", kind: "TEAM_CUP", startingScore: 501, bestOfLegs: 5, inRule: "STRAIGHT", outRule: "DOUBLE" });
+  const cups = [singlesCup, teamCup];
+  assert.equal(cups[0].fixtures.length, 4, "eight entrants create a four-match opening round");
+  assert.equal(cups[1].participants.length, 4, "four clubs enter the team cup");
+  assert.equal(cups[1].fixtures.length, 2, "team cup opens with two semi-finals");
+  const cupMatch = cups[0].fixtures.find(f => f.a === "HUMAN" || f.b === "HUMAN")!;
+  const cupSession = await localCompetitions.startMatch(actor, localSave.id, cups[0].id, cupMatch.id);
+  assert.equal(cupSession.fixture.match?.status, "LIVE");
+  const cupRules = { ...cups[0].rules, unit: "LEGS" as const };
+  const cupResult = await localCompetitions.darts(actor, localSave.id, cups[0].id, cupMatch.id, { darts: winningDarts(cupRules) });
+  assert.equal(cupResult.fixture.match?.status, "PLAYED");
+  const advancedSingles = (await localCompetitions.read(actor, localSave.id)).competitions.find(c => c.id === cups[0].id)!;
+  assert.ok(advancedSingles.fixtures.some(f => f.round === 2), "cup winners advance to a saved next round");
+  const teamFixture = cups[1].fixtures.find(f => f.a === "HUMAN" || f.b === "HUMAN")!;
+  const teamMatch = await localCompetitions.startMatch(actor, localSave.id, cups[1].id, teamFixture.id);
+  assert.equal(teamMatch.fixture.teamScore?.length, 2, "two supporting singles are resolved for the team tie");
+  const teamRules = { ...cups[1].rules, unit: "LEGS" as const };
+  const teamResult = await localCompetitions.darts(actor, localSave.id, cups[1].id, teamFixture.id, { darts: winningDarts(teamRules) });
+  assert.equal(teamResult.fixture.score?.[0]! + teamResult.fixture.score?.[1]!, 3, "a team tie is three singles");
+  assert.ok(teamResult.fixture.winnerKey);
+  const advancedTeams = (await localCompetitions.read(actor, localSave.id)).competitions.find(c => c.id === cups[1].id)!;
+  assert.ok(advancedTeams.fixtures.some(f => f.round === 2), "the team cup advances to a final");
 });
 
 test("real events come first: booked elsewhere that night, you sit it out and a clubmate plays; booked members sit out too", async () => {

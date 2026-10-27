@@ -30,6 +30,7 @@ import { createCareerClubRouter } from "../career/club/router.ts";
 import { createCareerTeamNightsService } from "../career/club/team-service.ts";
 import { createCareerCountyLiveService } from "../career/club/county-live-service.ts";
 import { createCareerCountyTrialService } from "../career/club/county-trial-service.ts";
+import { createCareerLocalCompetitionService } from "../career/club/local-competitions.ts";
 import { createCareerHostingService } from "../career/hosting/service.ts";
 import { createCareerHostingRouter } from "../career/hosting/router.ts";
 import { createCareerStreamingService } from "../career/streaming/service.ts";
@@ -68,7 +69,8 @@ router.use(createCareerRecognitionRouter(createCareerRecognitionService(db)));
 router.use(createCareerLifeRouter(createCareerLifeService(db,sporting.calendar)));
 router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
 router.use(createCareerRecordsRouter(createCareerRecordsService(db)));
-router.use(createCareerClubRouter(createCareerClubService(db), createCareerTeamNightsService(db), createCareerCountyLiveService(db), createCareerCountyTrialService(db)));
+router.use(createCareerClubRouter(createCareerClubService(db), createCareerTeamNightsService(db), createCareerCountyLiveService(db),
+  createCareerCountyTrialService(db), createCareerLocalCompetitionService(db)));
 router.use(createCareerMoneyRouter(createCareerMoneyService(db)));
 router.use(createCareerHostingRouter(createCareerHostingService(db)));
 router.use(createCareerStreamingRouter(createCareerStreamingService(db)));

@@ -5,6 +5,7 @@ import { CareerError, CareerLoading, CareerSection, CareerEmptyState } from "../
 import type { ShellContext } from "../shell";
 import { TeamNights } from "../team-nights";
 import { HostTournament } from "../hosting";
+import { LocalCompetitions } from "../local-competitions";
 import "./club-premium.css";
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
@@ -31,6 +32,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
           <p>Your home club and county pathway. Club points come from your finishes at club nights, county and regional events.{d.legend ? " You turned professional and remain the club’s legend." : ""}</p>
           <div className="club-hero-actions">
             <a className="club-button club-button-red" href="#team-nights"><CalendarDays size={16} /> Team nights</a>
+            <a className="club-button club-button-outline" href="#local-competitions"><Trophy size={16} /> Local competitions</a>
             <a className="club-button club-button-outline" href="#host-tournament"><Trophy size={16} /> Host a tournament</a>
           </div>
         </div>
@@ -93,6 +95,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
         <TeamNights saveId={ctx.save.id} />
       </CareerSection></div>
     </div>
+    <LocalCompetitions saveId={ctx.save.id} retired={!!ctx.save.retiredAt} />
 
     <CareerSection title="Club members" icon={<Users aria-hidden />} accent="#d8495e" id="club-members">
       <p className="club-section-note">Active members · season points</p>

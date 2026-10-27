@@ -102,6 +102,22 @@ export const useTeamLiveMatch = (saveId: string, matchId: string) => useQuery({ 
   queryFn: () => get<TeamMatchSession>(`/saves/${saveId}/club/team-matches/${matchId}`), staleTime: 0 });
 export const teamLiveApi = { darts: (saveId: string, matchId: string, darts: unknown[]) =>
   send<TeamMatchSession>("POST", `/saves/${saveId}/club/team-matches/${matchId}/darts`, { darts }) };
+export type LocalCompetition = import("../../../../api-server/src/career/club/local-competitions").Competition;
+export type LocalCompetitionState = { season: number; week: number; competitions: LocalCompetition[] };
+export const useLocalCompetitions = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club", "local-competitions"),
+  queryFn: () => get<LocalCompetitionState>(`/saves/${saveId}/club/local-competitions`), staleTime: 0 });
+export const useCreateLocalCompetition = (saveId: string) => useSaveMutation(saveId, (input: {
+  name: string; kind: "LEAGUE" | "SINGLES_CUP" | "TEAM_CUP"; startingScore: 301 | 501 | 701;
+  bestOfLegs: 3 | 5 | 7; inRule: "STRAIGHT" | "DOUBLE"; outRule: "STRAIGHT" | "DOUBLE";
+}) => send<LocalCompetition>("POST", `/saves/${saveId}/club/local-competitions`, input));
+export const localCompetitionApi = {
+  start: (saveId: string, competitionId: string, fixtureId: string) =>
+    send<{ competition: LocalCompetition; fixture: LocalCompetition["fixtures"][number] }>("POST",
+      `/saves/${saveId}/club/local-competitions/${competitionId}/fixtures/${fixtureId}/start`, {}),
+  darts: (saveId: string, competitionId: string, fixtureId: string, darts: unknown[]) =>
+    send<{ competition: LocalCompetition; fixture: LocalCompetition["fixtures"][number] }>("POST",
+      `/saves/${saveId}/club/local-competitions/${competitionId}/fixtures/${fixtureId}/darts`, { darts }),
+};
 /** Your home club: members, captain, county league table and history. */
 export const useHomeClub = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "club"), queryFn: () => get<ClubView>(`/saves/${saveId}/club`), staleTime: STALE });
 export const useSetCountyCategory = (saveId: string) => useSaveMutation(saveId, (category: "MEN" | "WOMEN") =>
