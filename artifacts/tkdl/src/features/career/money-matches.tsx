@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Coins, Loader2 } from "lucide-react";
-import { useDeclineMoneyMatch, useMoneyMatches, useOfferMoneyMatch, usePlayMoneyMatch, errorMessage, type MoneyMatchResult, type MoneyMatchesView } from "./api";
+import { useDeclineMoneyMatch, useMoneyMatches, useOfferMoneyMatch, usePlayMoneyMatch, errorMessage, type MoneyGameFormat, type MoneyMatchResult, type MoneyMatchesView } from "./api";
 import { formatPence } from "./model";
 
 type Odds = MoneyMatchesView["members"][number]["odds"];
@@ -11,7 +11,7 @@ const signed = (pence: number) => `${pence > 0 ? "+" : pence < 0 ? "−" : ""}${
 function Outcome({ m }: { m: MoneyMatchResult }) {
   if (m.status === "DECLINED") return <span className="money-match__outcome">Turned down ({formatPence(m.stakePence)})</span>;
   return <span className="money-match__outcome" data-tone={m.won ? "up" : "down"}>
-    {m.won ? "Won" : "Lost"} {m.legs![0]}-{m.legs![1]} · <b>{signed(m.won ? m.stakePence : -m.stakePence)}</b>
+    {m.won ? "Won" : "Lost"} {m.legs![0]}-{m.legs![1]} · {m.gameFormat} · <b>{signed(m.won ? m.stakePence : -m.stakePence)}</b>
     {m.averages ? <small> · you averaged {m.averages[0].toFixed(1)}, they {m.averages[1].toFixed(1)}</small> : null}
   </span>;
 }
@@ -69,12 +69,13 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
   const [last, setLast] = useState<MoneyMatchResult | null>(null);
   const [message, setMessage] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [gameFormat, setGameFormat] = useState<MoneyGameFormat>("501");
   if (!q.data) return q.isLoading ? <p className="money-match__note">Loading money matches…</p> : null;
   const d = q.data;
   const busy = play.isPending || decline.isPending || offer.isPending;
   const canPlay = d.playedThisWeek < d.perWeek && !retired;
   const fail = (e: unknown) => setMessage(errorMessage(e));
-  const go = (opponentKey: string, stakePence: number) => { setMessage(""); play.mutate({ opponentKey, stakePence }, {
+  const go = (opponentKey: string, stakePence: number) => { setMessage(""); play.mutate({ opponentKey, stakePence, gameFormat }, {
     onSuccess: r => {
       if (r.session) navigate(`/career/${saveId}/money-matches/${r.session.id}/play`);
       else if (r.match) setLast(r.match);
@@ -89,9 +90,16 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
   const shown = showAll ? sorted : sorted.filter((m, i) => i < SHORT_LIST || m.talk || m.thisWeek);
   return (
     <div className="money-match">
-      <p className="money-match__intro">One-off games at the club, first to {(d.bestOf + 1) / 2} legs, winner takes the stake. Name your price: they'll put more up when they fancy
+      <p className="money-match__intro">Choose 301, 501 or 701. Money matches are first to {(d.bestOf + 1) / 2} legs; the winner takes the stake. Name your price: they'll put more up when they fancy
         their chances, haggle when it's too rich, and walk away if you push too often. Up to {d.perWeek} a week.
         {" "}You have <b>{formatPence(d.availablePence)}</b> free{d.yourAverage ? <> and you're averaging about <b>{d.yourAverage.toFixed(1)}</b></> : null}.</p>
+      <label className="money-match__format-picker">Game format
+        <select value={gameFormat} onChange={e => setGameFormat(e.target.value as MoneyGameFormat)} disabled={busy}>
+          <option value="301">301 · double out</option>
+          <option value="501">501 · double out</option>
+          <option value="701">701 · double out</option>
+        </select>
+      </label>
       {last && <p className="money-match__result" role="status" data-tone={last.won ? "up" : "down"}>
         {last.won ? `You beat ${last.opponentName}` : `${last.opponentName} beat you`} {last.legs![0]}-{last.legs![1]} and {last.won ? "you take" : "takes"} {formatPence(last.stakePence)}.
         {last.highestCheckout ? ` Your best finish: ${last.highestCheckout}.` : ""}</p>}
@@ -109,7 +117,7 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
       {d.liveMatches.length > 0 && <section className="money-match__challenge" aria-label="Unfinished money matches">
         <p><b>Resume an unfinished match</b></p>
         {d.liveMatches.map(m => <Link key={m.id} className="career-btn career-btn-gold"
-          href={`/career/${saveId}/money-matches/${m.id}/play`}>{m.opponentName} · Season {m.season}, week {m.week} · {formatPence(m.stakePence)}</Link>)}
+          href={`/career/${saveId}/money-matches/${m.id}/play`}>{m.opponentName} · {m.gameFormat} · Season {m.season}, week {m.week} · {formatPence(m.stakePence)}</Link>)}
       </section>}
       {d.members.length ? <ul className="money-match__members">
         {shown.map(m => <MemberRow key={m.key} m={m} busy={busy} canPlay={canPlay} perWeek={d.perWeek} available={d.availablePence}

@@ -178,6 +178,7 @@ export const useSetSavingsGoal = (saveId: string) => useSaveMutation(saveId, (in
 export type MoneyMatchesView = import("../../../../api-server/src/career/money/service").MoneyMatchesView;
 export type MoneyMatchResult = import("../../../../api-server/src/career/money/service").MoneyMatchResult;
 export type MoneyMatchSession = import("../../../../api-server/src/career/money/service").MoneyMatchSession;
+export type MoneyGameFormat = import("../../../../api-server/src/career/money/service").MoneyGameFormat;
 export const useMoneyMatchSession = (saveId: string, matchId: string) => useQuery({ queryKey: careerKey(saveId,"money-match",matchId),
   queryFn: () => get<MoneyMatchSession>(`/saves/${saveId}/money-matches/${matchId}`), enabled: !!matchId, staleTime: Infinity });
 export const moneyMatchApi = { darts: (saveId: string, matchId: string, darts: unknown[]) =>
@@ -221,7 +222,7 @@ export const useMoneyMatches = (saveId: string, enabled = true) => useQuery({ qu
   queryFn: () => get<MoneyMatchesView>(`/saves/${saveId}/money-matches`), enabled, staleTime: STALE });
 export const useOfferMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
   send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/offer`, input));
-export const usePlayMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number }) =>
+export const usePlayMoneyMatch = (saveId: string) => useSaveMutation(saveId, (input: { opponentKey: string; stakePence: number; gameFormat: MoneyGameFormat }) =>
   send<{ session: MoneyMatchSession | null; match: MoneyMatchResult | null; created: boolean }>("POST", `/saves/${saveId}/money-matches/play`, input));
 export const useDeclineMoneyMatch = (saveId: string) => useSaveMutation(saveId, () => send<MoneyMatchesView>("POST", `/saves/${saveId}/money-matches/decline`));
 export type ManagerView = import("../../../../api-server/src/career/manager/service").ManagerView;

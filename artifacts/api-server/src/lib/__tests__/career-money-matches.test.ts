@@ -80,16 +80,15 @@ test("haggle, shake on it, play: the agreed stake moves through the ledger", asy
   else { assert.equal(talk.status, "OPEN"); assert.ok(talk.theirOfferPence! > 0 && talk.theirOfferPence! < 20000); stake = talk.theirOfferPence!; }
   await assert.rejects(money.play(actor, id, { opponentKey: member.key, stakePence: stake + 500 }), (e: { status: number }) => e.status === 409, "only the stake you both agreed");
   const before = await balance();
-  const { session, created } = await money.play(actor, id, { opponentKey: member.key, stakePence: stake });
+  const { session, created } = await money.play(actor, id, { opponentKey: member.key, stakePence: stake, gameFormat: "301" });
   assert.equal(created, true); assert.ok(session); assert.equal(session.stakePence, stake);
+  assert.equal(session.gameFormat, "301"); assert.equal(session.format.startingScore, 301);
   assert.equal(session.status, "LIVE");
   assert.equal(await balance(), before, "stake is not transferred before the player finishes the scorer");
-  const nineDarter = [{segment:20,multiplier:3,value:60},{segment:20,multiplier:3,value:60},{segment:20,multiplier:3,value:60},
+  const darts301 = [{segment:20,multiplier:3,value:60},{segment:20,multiplier:3,value:60},{segment:20,multiplier:3,value:60},
     {segment:0,multiplier:1,value:0},{segment:0,multiplier:1,value:0},{segment:0,multiplier:1,value:0},
-    {segment:20,multiplier:3,value:60},{segment:20,multiplier:3,value:60},{segment:20,multiplier:3,value:60},
-    {segment:0,multiplier:1,value:0},{segment:0,multiplier:1,value:0},{segment:0,multiplier:1,value:0},
-    {segment:20,multiplier:3,value:60},{segment:19,multiplier:3,value:57},{segment:12,multiplier:2,value:24}];
-  const partial = await money.darts(actor, id, session.id, { darts: nineDarter.slice(0, 3) });
+    {segment:17,multiplier:3,value:51},{segment:18,multiplier:3,value:54},{segment:8,multiplier:2,value:16}];
+  const partial = await money.darts(actor, id, session.id, { darts: darts301.slice(0, 3) });
   assert.equal(partial.status, "LIVE");
   assert.equal((await money.session(actor, id, session.id)).darts.length, 3, "the match can be resumed from its saved dart log");
   assert.equal(await balance(), before, "unfinished match still leaves the agreed stake untouched");
@@ -102,9 +101,10 @@ test("haggle, shake on it, play: the agreed stake moves through the ledger", asy
   assert.equal(stopped.stop.detail?.matchId, session.id);
   assert.equal(stopped.to.week, current.currentWeek, "Continue holds the Career on this week until the live match is finished");
   assert.ok((await money.read(actor,id)).liveMatches.some(m => m.id === session.id), "unfinished match remains visible");
-  const completed = await money.darts(actor, id, session.id, { darts: [...nineDarter,...nineDarter,...nineDarter,...nineDarter,...nineDarter,...nineDarter,...nineDarter] });
+  const completed = await money.darts(actor, id, session.id, { darts: [...darts301,...darts301,...darts301,...darts301,...darts301,...darts301,...darts301] });
   assert.equal(completed.status, "PLAYED");
   const match = (await money.read(actor, id)).recent[0];
+  assert.equal(match.gameFormat, "301");
   assert.equal(Math.max(...match.legs!), (MONEY.bestOf + 1) / 2, "first to four legs");
   assert.equal(await balance(), before + (match.won ? stake : -stake));
   const row = (await db.execute(sql`SELECT id FROM career_money_matches WHERE career_save_id=${id} AND opponent_key=${member.key}`)).rows[0];
@@ -112,6 +112,7 @@ test("haggle, shake on it, play: the agreed stake moves through the ledger", asy
   assert.deepEqual([entry.category, Number(entry.amount_pence)], match.won ? ["MONEY_MATCH_WIN", stake] : ["MONEY_MATCH_STAKE", -stake]);
   const again = await money.play(actor, id, { opponentKey: member.key, stakePence: stake });
   assert.equal(again.created, false, "pressing play again moves no more money");
+  assert.equal(again.match?.gameFormat, "301", "a retry returns the saved format, not the current default");
   await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 500 }), (e: { status: number }) => e.status === 409, "settled for the week");
   const after = await money.read(actor, id);
   assert.equal(after.record.played, 1);
@@ -151,8 +152,9 @@ test("a challenge comes with their price: play it, or turn it down and it stays 
       assert.equal(after.challenge, null); assert.equal((await money.read(actor, id)).challenge, null);
       declined = true;
     } else {
-      const { session } = await money.play(actor, id, { opponentKey: v.challenge.opponentKey, stakePence: v.challenge.stakePence });
-      assert.ok(session); assert.equal(session.origin, "THEY_CHALLENGED"); assert.equal(session.stakePence, v.challenge.stakePence);
+       const { session } = await money.play(actor, id, { opponentKey: v.challenge.opponentKey, stakePence: v.challenge.stakePence });
+       assert.ok(session); assert.equal(session.origin, "THEY_CHALLENGED"); assert.equal(session.stakePence, v.challenge.stakePence);
+       assert.equal(session.gameFormat, "501", "omitting format keeps the legacy default");
       played = true;
     }
   }

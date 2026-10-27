@@ -21,18 +21,29 @@ type Row = Record<string, unknown>;
 export type Member = { key: string; name: string; professional: boolean; average: number | null };
 type Root = RootRow & { player_id?: number };
 
-export type MoneyMatchResult = { id: string; season: number; week: number; opponentKey: string; opponentName: string; stakePence: number;
+export type MoneyGameFormat = "301" | "501" | "701";
+const MONEY_FORMATS: Record<MoneyGameFormat, X01Format> = {
+  "301": { startingScore: 301, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf },
+  "501": { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf },
+  "701": { startingScore: 701, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf },
+};
+const gameFormatOf = (value: unknown): MoneyGameFormat => {
+  const key = value === null || value === undefined ? "501" : String(value);
+  if (key === "301" || key === "501" || key === "701") return key;
+  throw new Error(`Unsupported stored money-match format: ${key}`);
+};
+
+export type MoneyMatchResult = { id: string; season: number; week: number; opponentKey: string; opponentName: string; stakePence: number; gameFormat: MoneyGameFormat;
   origin: "YOU_CHALLENGED" | "THEY_CHALLENGED"; status: "PLAYED" | "DECLINED"; won: boolean | null; legs: [number, number] | null;
   averages: [number, number] | null; highestCheckout: number | null; maximums: number | null };
 type MoneyBotConfig = { avg: number; sd: number; checkoutPct: number; hitAcc: number };
-export type MoneyMatchSession = { id: string; status: "LIVE" | "PLAYED"; stakePence: number; origin: "YOU_CHALLENGED" | "THEY_CHALLENGED"; you: string;
+export type MoneyMatchSession = { id: string; status: "LIVE" | "PLAYED"; stakePence: number; gameFormat: MoneyGameFormat; origin: "YOU_CHALLENGED" | "THEY_CHALLENGED"; you: string;
   opponent: { name: string; bot: { config: MoneyBotConfig; seed: string } };
   format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null };
-const MONEY_FORMAT: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf };
 const MONEY_CONTEXT = { category: "local" as const, roundImportance: 0.5, elimination: true };
 export type MoneyMatchesView = {
   season: number; week: number; club: string | null; availablePence: number; perWeek: number; playedThisWeek: number; bestOf: number;
-  liveMatches: { id: string; season: number; week: number; opponentKey: string; opponentName: string; stakePence: number }[];
+  liveMatches: { id: string; season: number; week: number; opponentKey: string; opponentName: string; stakePence: number; gameFormat: MoneyGameFormat }[];
   /** Your Career average (null until enough live darts are thrown). */
   yourAverage: number | null;
   members: { key: string; name: string; professional: boolean; average: number | null; odds: Odds; thisWeek: MoneyMatchResult | null; talk: MoneyTalk | null }[];
@@ -53,7 +64,7 @@ const nameOf = (p: Row | undefined) => p ? `${p.first_name} ${p.surname}` : "A c
 const resultFrom = (r: Row, names: Map<string, string>): MoneyMatchResult => {
   const d = r.detail as { averages?: [number, number]; highestCheckout?: number; maximums?: number };
   return { id: String(r.id), season: Number(r.season), week: Number(r.week), opponentKey: String(r.opponent_key), opponentName: names.get(String(r.opponent_key)) ?? "A club member",
-    stakePence: Number(r.stake_pence), origin: r.origin as MoneyMatchResult["origin"], status: r.status as MoneyMatchResult["status"],
+    stakePence: Number(r.stake_pence), gameFormat: gameFormatOf(r.game_format), origin: r.origin as MoneyMatchResult["origin"], status: r.status as MoneyMatchResult["status"],
     won: r.won === null ? null : r.won === true, legs: r.legs_you === null ? null : [Number(r.legs_you), Number(r.legs_them)],
     averages: d.averages ?? null, highestCheckout: d.highestCheckout ?? null, maximums: d.maximums ?? null };
 };
@@ -115,9 +126,9 @@ export function createCareerMoneyService(database: CareerDatabase) {
       AND id IN (${sql.join(missing.map(k => sql`${k}::uuid`), sql`,`)})`)).rows) names.set(String(p.id), nameOf(p));
     const all = rows.map(r => resultFrom(r, names));
     const thisWeek = all.filter(r => r.season === season && r.week === week);
-    const liveMatches = (await tx.execute(sql`SELECT id,season,week,opponent_key,opponent_name,stake_pence FROM career_money_match_sessions
+    const liveMatches = (await tx.execute(sql`SELECT id,season,week,opponent_key,opponent_name,stake_pence,game_format FROM career_money_match_sessions
       WHERE career_save_id=${root.id} AND status='LIVE' ORDER BY season DESC,week DESC,created_at`)).rows
-      .map(r => ({ id: String(r.id), season: Number(r.season), week: Number(r.week), opponentKey: String(r.opponent_key), opponentName: String(r.opponent_name), stakePence: Number(r.stake_pence) }));
+      .map(r => ({ id: String(r.id), season: Number(r.season), week: Number(r.week), opponentKey: String(r.opponent_key), opponentName: String(r.opponent_name), stakePence: Number(r.stake_pence), gameFormat: gameFormatOf(r.game_format) }));
     const played = all.filter(r => r.status === "PLAYED");
     const yourAverage = form.average;
     // The odds use the level you actually play money matches at (your difficulty's handicap included).
@@ -149,20 +160,22 @@ export function createCareerMoneyService(database: CareerDatabase) {
     return { avg: c.avg, sd: c.sd, checkoutPct: c.checkoutPct, hitAcc: c.hitAcc };
   };
   async function sessionFrom(tx: CareerExecutor, root: Root, row: Row): Promise<MoneyMatchSession> {
+    const gameFormat = gameFormatOf(row.game_format);
     const you = (await tx.execute(sql`SELECT COALESCE(p.display_name,s.career_name,'You') AS name FROM career_saves s
       LEFT JOIN career_profiles p ON p.career_save_id=s.id WHERE s.id=${root.id}`)).rows[0];
-    return { id: String(row.id), status: row.status as "LIVE" | "PLAYED", stakePence: Number(row.stake_pence), origin: row.origin as MoneyMatchSession["origin"], you: String(you?.name ?? "You"),
+    return { id: String(row.id), status: row.status as "LIVE" | "PLAYED", stakePence: Number(row.stake_pence), gameFormat, origin: row.origin as MoneyMatchSession["origin"], you: String(you?.name ?? "You"),
       opponent: { name: String(row.opponent_name), bot: { config: row.bot as MoneyBotConfig, seed: String(row.bot_seed) } },
-      format: MONEY_FORMAT, firstThrower: 0, darts: row.darts as unknown[] ?? [], won: row.won === null ? null : row.won === true };
+      format: MONEY_FORMATS[gameFormat], firstThrower: 0, darts: row.darts as unknown[] ?? [], won: row.won === null ? null : row.won === true };
   }
   async function settleLive(tx: CareerExecutor, root: Root, row: Row, darts: unknown[], winner: number) {
-    const won = winner === 0, state = replay(MONEY_FORMAT, 0, darts);
+    const gameFormat = gameFormatOf(row.game_format), format = MONEY_FORMATS[gameFormat];
+    const won = winner === 0, state = replay(format, 0, darts);
     const season = Number(row.season), week = Number(row.week), opponentKey = String(row.opponent_key);
     await tx.execute(sql`UPDATE career_money_match_sessions SET status='PLAYED',won=${won},darts=${JSON.stringify(darts)}::jsonb
       WHERE career_save_id=${root.id} AND id=${String(row.id)} AND status='LIVE'`);
     const saved = (await tx.execute(sql`INSERT INTO career_money_matches
-      (career_save_id,season,week,opponent_key,stake_pence,origin,status,won,legs_you,legs_them,detail)
-      VALUES (${root.id},${season},${week},${opponentKey},${Number(row.stake_pence)},${String(row.origin)},'PLAYED',${won},
+      (career_save_id,season,week,opponent_key,stake_pence,game_format,origin,status,won,legs_you,legs_them,detail)
+      VALUES (${root.id},${season},${week},${opponentKey},${Number(row.stake_pence)},${gameFormat},${String(row.origin)},'PLAYED',${won},
         ${state.totalLegs[0]},${state.totalLegs[1]},${JSON.stringify({version:MONEY.version,source:"LIVE",darts})}::jsonb)
       ON CONFLICT (career_save_id,season,week,opponent_key) DO NOTHING RETURNING id`)).rows[0];
     if (!saved) return;
@@ -186,7 +199,8 @@ export function createCareerMoneyService(database: CareerDatabase) {
      * Playing again with the same member this week returns the match already played.
      */
     async play(actor: CareerActor, saveId: string, body: unknown) {
-      const input = z.object({ opponentKey: z.string().uuid(), stakePence: z.number().int().positive() }).strict().parse(body);
+      const input = z.object({ opponentKey: z.string().uuid(), stakePence: z.number().int().positive(),
+        gameFormat: z.enum(["301", "501", "701"]).default("501") }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
         const season = Number(root.current_season), week = Number(root.current_week);
@@ -218,8 +232,8 @@ export function createCareerMoneyService(database: CareerDatabase) {
         const id = stableUuid(root.world_seed, MONEY.version, "money-match-live", root.id, key);
         const config = botConfig(root, opponent, key);
         const row = (await tx.execute(sql`INSERT INTO career_money_match_sessions
-          (career_save_id,id,season,week,opponent_key,opponent_name,stake_pence,origin,bot,bot_seed,status,darts)
-          VALUES (${root.id},${id},${season},${week},${member.key},${member.name},${input.stakePence},
+          (career_save_id,id,season,week,opponent_key,opponent_name,stake_pence,game_format,origin,bot,bot_seed,status,darts)
+          VALUES (${root.id},${id},${season},${week},${member.key},${member.name},${input.stakePence},${input.gameFormat},
             ${theirs ? "THEY_CHALLENGED" : "YOU_CHALLENGED"},${JSON.stringify(config)}::jsonb,
             ${stableUuid(root.world_seed,MONEY.version,"money-match-bot",key)},'LIVE','[]'::jsonb)
           ON CONFLICT (career_save_id,season,week,opponent_key) DO NOTHING RETURNING *`)).rows[0]
@@ -247,7 +261,7 @@ export function createCareerMoneyService(database: CareerDatabase) {
         if (!row) throw new CareerError(404, "Money match not found");
         if (row.status === "LIVE") {
           let state;
-          try { state = replay(MONEY_FORMAT, 0, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
+          try { state = replay(MONEY_FORMATS[gameFormatOf(row.game_format)], 0, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
           if (state.complete && state.winner !== null) await settleLive(tx, root, row, darts, state.winner);
           else await tx.execute(sql`UPDATE career_money_match_sessions SET darts=${JSON.stringify(darts)}::jsonb
             WHERE career_save_id=${root.id} AND id=${matchId} AND status='LIVE'`);

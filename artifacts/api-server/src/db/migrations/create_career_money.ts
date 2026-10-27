@@ -12,6 +12,7 @@ export async function ensureMoneyMatches(tx: CareerExecutor): Promise<void> {
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     season integer NOT NULL CHECK(season>0), week integer NOT NULL CHECK(week BETWEEN 1 AND 52),
     opponent_key text NOT NULL, stake_pence bigint NOT NULL CHECK(stake_pence>0),
+    game_format text NOT NULL DEFAULT '501' CHECK(game_format IN ('301','501','701')),
     origin text NOT NULL CHECK(origin IN ('YOU_CHALLENGED','THEY_CHALLENGED')),
     status text NOT NULL CHECK(status IN ('PLAYED','DECLINED')),
     won boolean, legs_you integer, legs_them integer,
@@ -23,6 +24,7 @@ export async function ensureMoneyMatches(tx: CareerExecutor): Promise<void> {
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     season integer NOT NULL CHECK(season>0), week integer NOT NULL CHECK(week BETWEEN 1 AND 52),
     opponent_key text NOT NULL, opponent_name text NOT NULL, stake_pence bigint NOT NULL CHECK(stake_pence>0),
+    game_format text NOT NULL DEFAULT '501' CHECK(game_format IN ('301','501','701')),
     origin text NOT NULL CHECK(origin IN ('YOU_CHALLENGED','THEY_CHALLENGED')),
     bot jsonb NOT NULL CHECK(jsonb_typeof(bot)='object'), bot_seed text NOT NULL,
     darts jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(darts)='array'),
@@ -30,6 +32,12 @@ export async function ensureMoneyMatches(tx: CareerExecutor): Promise<void> {
     created_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY(career_save_id,id), UNIQUE(career_save_id,season,week,opponent_key))`);
   await tx.execute(sql`ALTER TABLE career_money_match_sessions ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW()`);
+  await tx.execute(sql`ALTER TABLE career_money_matches ADD COLUMN IF NOT EXISTS game_format text NOT NULL DEFAULT '501'`);
+  await tx.execute(sql`ALTER TABLE career_money_match_sessions ADD COLUMN IF NOT EXISTS game_format text NOT NULL DEFAULT '501'`);
+  await tx.execute(sql`ALTER TABLE career_money_matches DROP CONSTRAINT IF EXISTS career_money_matches_game_format_check`);
+  await tx.execute(sql`ALTER TABLE career_money_matches ADD CONSTRAINT career_money_matches_game_format_check CHECK(game_format IN ('301','501','701'))`);
+  await tx.execute(sql`ALTER TABLE career_money_match_sessions DROP CONSTRAINT IF EXISTS career_money_match_sessions_game_format_check`);
+  await tx.execute(sql`ALTER TABLE career_money_match_sessions ADD CONSTRAINT career_money_match_sessions_game_format_check CHECK(game_format IN ('301','501','701'))`);
   // This week's haggling with each member: what was said, any figure they have put to you, and where it stands.
   await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_money_talks (
     career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,

@@ -1355,6 +1355,8 @@
 .money-match__average { color: #cbd9e6; font-weight: 700; letter-spacing: .04em; }
 .money-match__odds { padding-left: 6px; border-left: 1px solid rgba(255,255,255,.2); }
 .money-match__play select { min-height: 36px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(0,0,0,.3); color: #fff; }
+.money-match__format-picker { display: inline-flex; align-items: center; gap: 8px; margin: 8px 0 12px; color: #c7d2dc; font-size: .78rem; }
+.money-match__format-picker select { min-height: 36px; padding: 4px 9px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; background: #171c22; color: #fff; }
 .money-match__outcome { font-size: .8rem; color: #e8eef3; }
 .money-match__outcome[data-tone="up"] b { color: #7ee0a1; }
 .money-match__outcome[data-tone="down"] b { color: #ff9a8a; }

@@ -42,7 +42,7 @@ export function MoneyMatchLivePage({ ctx, matchId }: { ctx: ShellContext; matchI
   const matchLength = session.format.unit === "LEGS" ? session.format.bestOfLegs : session.format.bestOfSets;
   return <div className="cam-league__live">
     <p className="cam-league__live-title"><b>{session.you}</b> vs <b>{session.opponent.name}</b>
-      <small>Money match · best of {matchLength} legs · stake settled when you finish</small></p>
+      <small>Money match · {session.gameFormat} · best of {matchLength} legs · stake settled when you finish</small></p>
     {message && <p className="money-match__message" role="alert">{message}</p>}
     <GameScorer key={session.id} p1Name={session.you} p2Name={session.opponent.name}
       gameType={careerGameType(session.format as LiveSession["format"])} botConfig={session.opponent.bot.config}
