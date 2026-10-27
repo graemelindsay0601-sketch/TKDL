@@ -7,6 +7,8 @@ For the WDF Seniors World Ranking Systems Criteria, 50th revised edition (17 Aug
 
 Career has both official WDF fixtures and fictional WDF-inspired fixtures. Only grades verified against WDF sources are labeled official; fictional Career fixtures use explicit Career-authored tiers, never inferred official grades. Youth events are not included in the senior singles tables.
 
+The WDF's 2027 Las Vegas Open U23 Youth and U23 Girls pages both list 14–17 January and Category B (Bronze). Career uses those as the basis for its recurring U23 fixtures, but the annual in-game date is explicitly an approximation; historical event editions remain unchanged.
+
 **Why:** Career's generic ranking-contribution pipeline sums A4 prize money, which is appropriate for PDC money-based Orders of Merit but not for WDF rankings. Fictional events need explicit game tiers without misrepresenting WDF sanctioning; team cups and youth events also have different eligibility from senior singles.
 
 **How to apply:** Keep PDC prize-money lists separate. Use only sourced grades for official WDF fixtures; keep authored Career grades explicitly distinguishable. Do not present an invented fixture as an official WDF calendar event without a verified WDF source. Any event added to WDF rankings needs points-valued contributions, 52-week best-N aggregation, regional eligibility, grade/finish points, minimum-field and completed-round checks, and eligibility checks. Keep Youth and Under-23 rankings separate from senior lists and from Career-authored season merit tables; do not award official WDF ranking credit for pairs events. Preserve old event snapshots when changing eligibility rules; for fictional NPCs without DOB, use a stable generated birthday for year-end age calculations.
