@@ -1,10 +1,11 @@
 import { useListSeasons } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
-import { useState, useEffect } from "react";
-import { Calendar, Trophy, Hash, Clock, ChevronDown, ChevronUp, Plus, Check, X, Target } from "lucide-react";
+import { useState, useEffect, useMemo, type CSSProperties } from "react";
+import { Archive, ArrowDown, ArrowUp, CalendarDays, CircleDot, Trophy, Hash, Search, Clock, ChevronDown, ChevronUp, Plus, Check, X, Target } from "lucide-react";
 import { apiFetchJson, apiFetchJsonOr } from "@/lib/api-fetch";
 import { useToast } from "@/hooks/use-toast";
+import "@/styles/season-archive.css";
 
 // Fetch players hook
 function usePlayers() {
@@ -335,123 +336,105 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
   const notes       = (season as any).notes;
   const showPlayoff = playoffPend || hasChampion;
   const isAdmin     = sessionStorage.getItem("tkdl_admin_unlocked") === "1";
-
-  // One accent color drives both the border/background tint (already here)
-  // and a top gradient bar — same "colored bar identifies the card at a
-  // glance" device Hall of Fame's RecordCard already uses, so a grid of
-  // seasons reads as scannable states rather than a wall of identical cards.
-  const accent = isLive ? "#ff005c" : hasChampion ? "#ffd24a" : playoffPend ? "#ffd24a" : "rgba(255,255,255,0.25)";
+  const dateRange = `${format(new Date(season.startDate), "d MMM yyyy")} — ${
+    season.endDate ? format(new Date(season.endDate), "d MMM yyyy") : "Present"
+  }`;
 
   return (
-    <div
-      className={`pdc-card overflow-hidden transition-all duration-300 fade-in-up ${isLive ? "pulse-red" : ""}`}
-      style={{
-        animationDelay: `${idx * 60}ms`,
-        borderColor: isLive
-          ? "rgba(255,0,92,0.35)"
-          : hasChampion
-          ? "rgba(255,210,74,0.2)"
-          : playoffPend
-          ? "rgba(255,210,74,0.15)"
-          : "rgba(255,255,255,0.08)",
-        background: isLive
-          ? "linear-gradient(135deg, rgba(255,0,92,0.05) 0%, rgba(255,255,255,0.02) 100%)"
-          : hasChampion
-          ? "linear-gradient(135deg, rgba(255,210,74,0.04) 0%, rgba(255,255,255,0.02) 100%)"
-          : "rgba(255,255,255,0.025)",
-      }}
+    <article
+      className={`season-entry ${isLive ? "is-live" : "is-complete"} ${expanded ? "is-expanded" : ""}`}
+      style={{ "--entry-index": idx } as CSSProperties}
     >
-      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
-      <div className="p-5">
-        {/* Header row */}
-        <div className="flex items-start justify-between mb-3 gap-2">
-          <div>
-            <h3 className="font-black text-xl uppercase leading-tight"
-              style={{ fontFamily: "Oswald, sans-serif", color: isLive ? "#ff005c" : hasChampion ? "#ffd24a" : "rgba(255,255,255,0.9)" }}>
-              {season.name}
-            </h3>
-            {isLive && (
-              <div className="flex items-center gap-1.5 mt-1">
-                <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#ff005c" }} />
-                <span className="text-xs font-bold uppercase" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.1em" }}>Live</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            {isLive && (
-              <span className="px-2 py-0.5 rounded text-xs font-black uppercase" style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-                ● LIVE
-              </span>
-            )}
-            {playoffPend && (
-              <span className="px-2 py-0.5 rounded text-xs font-black uppercase" style={{ background: "rgba(255,210,74,0.1)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-                ⚡ PLAYOFF
-              </span>
-            )}
-            {format301 && (
-              <span className="px-2 py-0.5 rounded text-xs font-black uppercase" style={{ background: "rgba(0,102,255,0.1)", border: "1px solid rgba(0,102,255,0.3)", color: "#0066ff", fontFamily: "Oswald, sans-serif", fontSize: "0.6rem" }}>
-                301
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Meta */}
-        <div className="flex flex-col gap-1.5 mb-4">
-          <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-            <Calendar className="w-3 h-3" />
-            {format(new Date(season.startDate), "d MMM yyyy")} —{" "}
-            {season.endDate ? format(new Date(season.endDate), "d MMM yyyy") : "Present"}
-          </div>
-          <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-            <Hash className="w-3 h-3" />
-            {season.totalMatches} matches
-          </div>
-          {notes && (
-            <div className="text-xs italic mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>{notes}</div>
-          )}
-        </div>
-
-        {/* Champion */}
-        {hasChampion && (
-          <div className="flex items-center gap-3 p-3 rounded mb-4"
-            style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.2)" }}>
-            <Trophy className="w-5 h-5 shrink-0" style={{ color: "#ffd24a" }} />
-            <div className="flex-1 min-w-0">
-              <div className="text-xs uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.6)", fontSize: "0.6rem", letterSpacing: "0.1em" }}>Champion</div>
-              <div className="text-lg font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>{season.championName}</div>
-            </div>
-            {mvp && mvp.playerId !== season.championId && (
-              <div className="shrink-0 text-right">
-                <div className="text-xs uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(0,102,255,0.6)", fontSize: "0.6rem", letterSpacing: "0.1em" }}>🏅 MVP</div>
-                <div className="text-sm font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#38bdf8" }}>{mvp.playerName}</div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.6rem" }}>{mvp.wins}W</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {playoffPend && !hasChampion && (
-          <div className="flex items-center gap-1.5 text-xs font-bold uppercase"
-            style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
-            <Clock className="w-3 h-3" /> Awaiting Playoff
-          </div>
-        )}
-
-        {/* Expand/Collapse button */}
-        <button
-          onClick={() => setExpanded(e => !e)}
-          className="w-full mt-4 pt-3 border-t flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-all hover:opacity-70"
-          style={{ borderColor: "rgba(255,255,255,0.06)", color: isLive ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-          {expanded
-            ? <><ChevronUp className="w-3.5 h-3.5" /> Hide</>
-            : <><ChevronDown className="w-3.5 h-3.5" /> {isLive ? "Standings & Race" : showPlayoff ? "Playoff & Standings" : "View Standings"}</>}
-        </button>
+      <div className="entry-marker" aria-hidden="true">
+        <span>{String(idx + 1).padStart(2, "0")}</span>
+        <i />
       </div>
+      <div className="entry-panel">
+        <div className="entry-main">
+          <div className="entry-title-block">
+            <div className="entry-overline">
+              <span className={`status-mark ${isLive ? "live-mark" : ""}`}>
+                {isLive ? <CircleDot size={13} /> : <Check size={13} />}
+              </span>
+              <span>{isLive ? "Season in progress" : "Season complete"}</span>
+              {isLive && <span className="live-chip">Live now</span>}
+              {playoffPend && !hasChampion && <span className="live-chip">Playoff pending</span>}
+            </div>
+            <h2>{season.name}</h2>
+            <div className="entry-dates">
+              <CalendarDays size={14} aria-hidden="true" />
+              <span>{dateRange}</span>
+            </div>
+            {notes && <p className="season-notes">{notes}</p>}
+          </div>
 
-      {/* Expanded content */}
-      {expanded && (
-        <div className="border-t px-5 pb-5" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+          <div className="entry-summary">
+            <div className="summary-number">
+              <span className="summary-value">{String(season.totalMatches ?? 0).padStart(2, "0")}</span>
+              <span className="summary-label">Matches</span>
+            </div>
+            <div className="summary-divider" />
+            <div className="summary-champion">
+              <span className="summary-label">{isLive ? "Title status" : "Season champion"}</span>
+              <strong className={hasChampion ? "" : "awaiting"}>{season.championName ?? "Not decided"}</strong>
+              {mvp && mvp.playerId !== season.championId && (
+                <span className="summary-mvp">Season MVP · {mvp.playerName} ({mvp.wins}W)</span>
+              )}
+              {playoffPend && !hasChampion && <span className="summary-mvp">Awaiting playoff</span>}
+            </div>
+            {format301 && <span className="format-stamp" aria-label="301 format">301</span>}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="entry-toggle"
+          onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
+          aria-controls={`season-details-${season.id}`}
+          aria-label={`${expanded ? "Hide" : "View"} details for ${season.name}`}
+        >
+          <span>{expanded ? "Close season record" : "Open season record"}</span>
+          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
+
+        {/* Expanded content keeps the existing standings, race narrative, and admin playoff tools. */}
+        {expanded && (
+          <div className="entry-details" id={`season-details-${season.id}`}>
+            <div className="details-heading">
+              <span className="details-index">RECORD / {String(season.id).padStart(2, "0")}</span>
+              <span className="details-rule" />
+              <Archive size={15} aria-hidden="true" />
+            </div>
+            <div className="details-grid">
+              <div className="detail-cell">
+                <span className="detail-label">Season dates</span>
+                <span className="detail-value">{dateRange}</span>
+              </div>
+              <div className="detail-cell">
+                <span className="detail-label">Matches played</span>
+                <span className="detail-value"><Hash size={13} /> {season.totalMatches ?? 0}</span>
+              </div>
+              <div className="detail-cell">
+                <span className="detail-label">Champion</span>
+                <span className={`detail-value ${hasChampion ? "gold-value" : "quiet-value"}`}>
+                  {hasChampion ? <><Trophy size={14} /> {season.championName}</> : <><Clock size={14} /> Yet to be decided</>}
+                </span>
+              </div>
+              {format301 && (
+                <div className="detail-cell">
+                  <span className="detail-label">Format</span>
+                  <span className="detail-value"><span className="mini-format">301</span> 301</span>
+                </div>
+              )}
+              {mvp && (
+                <div className="detail-cell">
+                  <span className="detail-label">Season MVP</span>
+                  <span className="detail-value gold-value">{mvp.playerName} · {mvp.wins} wins</span>
+                </div>
+              )}
+            </div>
+            {notes && <p className="details-note">{notes}</p>}
 
           {/* ── LIVE season narrative ── */}
           {isLive && detail?.standings && detail.standings.length >= 2 && (() => {
@@ -558,37 +541,128 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </article>
   );
 }
 
+type SeasonFilter = "all" | "live" | "completed";
+
 export default function Seasons() {
   const { data: seasons, isLoading } = useListSeasons();
-  const sorted = seasons ? [...seasons].sort((a, b) => b.id - a.id) : [];
+  const [filter, setFilter] = useState<SeasonFilter>("all");
+  const [query, setQuery] = useState("");
+  const [ascending, setAscending] = useState(false);
+
+  const visibleSeasons = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return [...(seasons ?? [])]
+      .filter((season: any) => {
+        const matchesFilter = filter === "all" ||
+          (filter === "live" && season.isActive) ||
+          (filter === "completed" && !season.isActive);
+        const searchable = `${season.name} ${season.championName ?? ""} ${season.format ?? ""} ${season.notes ?? ""}`;
+        return matchesFilter && searchable.toLowerCase().includes(normalizedQuery);
+      })
+      .sort((a: any, b: any) => {
+        const dateDifference = new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+        return ascending ? dateDifference : -dateDifference;
+      });
+  }, [seasons, filter, query, ascending]);
+  const completedCount = (seasons ?? []).filter((season: any) => !season.isActive).length;
+  const liveSeason = (seasons ?? []).find((season: any) => season.isActive);
 
   return (
-    <div className="space-y-6">
-      <div className="pdc-divider" />
-      <div>
-        <h1 className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-          Season Archive
-        </h1>
-        <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {seasons?.length ?? 0} seasons · Full history
-        </p>
-      </div>
+    <main className="archive-premium">
+      <div className="archive-inner">
+        <header className="archive-masthead">
+          <div className="masthead-brand">
+            <span className="brand-mark"><Trophy size={13} /></span>
+            <span>TKDL / Season archive</span>
+          </div>
+          <div className="masthead-location"><span className="masthead-dot" /> Match night records</div>
+        </header>
 
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-transparent animate-spin" style={{ borderTopColor: "#ff005c" }} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {sorted.map((season: any, idx: number) => (
-            <SeasonCard key={season.id} season={season} idx={idx} />
-          ))}
-        </div>
-      )}
-    </div>
+        <section className="archive-intro" aria-labelledby="archive-title">
+          <div>
+            <div className="eyebrow"><span className="eyebrow-line" /> The record room</div>
+            <h1 id="archive-title" className="archive-title">SEASONS<br /><span>ON THE BOARD</span></h1>
+            <p className="archive-subtitle">
+              Every campaign leaves its mark. Revisit the seasons, the matches played, and the names written into the TKDL record.
+            </p>
+          </div>
+          <div className="intro-count" aria-label={`${seasons?.length ?? 0} seasons in the archive`}>
+            <strong>{String(seasons?.length ?? 0).padStart(2, "0")}</strong>
+            <span>Seasons<br />on record</span>
+          </div>
+        </section>
+
+        <section aria-label="Season archive controls">
+          <div className="archive-toolbar">
+            <div className="filter-group" role="group" aria-label="Filter seasons">
+              {([
+                ["all", "All seasons"],
+                ["live", "In progress"],
+                ["completed", "Completed"],
+              ] as [SeasonFilter, string][]).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className="filter-btn"
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="toolbar-tools">
+              <label className="search-box">
+                <Search size={15} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Find a season"
+                  aria-label="Search seasons, champions, or format"
+                />
+              </label>
+              <button
+                type="button"
+                className="sort-btn"
+                onClick={() => setAscending((value) => !value)}
+                aria-label={`Sort seasons ${ascending ? "newest first" : "oldest first"}`}
+              >
+                {ascending ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                <span>{ascending ? "Oldest" : "Newest"}</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {isLoading ? (
+          <div className="season-loading" role="status" aria-label="Loading seasons">
+            <span className="season-loading-spinner" />
+          </div>
+        ) : (
+          <section className="timeline" aria-label="Seasons">
+            {visibleSeasons.length > 0 ? visibleSeasons.map((season: any, idx: number) => (
+              <SeasonCard key={season.id} season={season} idx={idx} />
+            )) : (
+              <div className="empty-state">
+                <Search size={18} aria-hidden="true" />
+                <strong>{seasons?.length ? "No season found" : "No seasons recorded"}</strong>
+                <span>{seasons?.length ? "Try another month, champion, or format." : "Season records will appear here once available."}</span>
+              </div>
+            )}
+          </section>
+        )}
+
+        <footer className="archive-footnote">
+          <span className="footnote-line" />
+          <span>{completedCount} completed seasons{liveSeason ? ` · ${liveSeason.name} still in play` : ""}</span>
+        </footer>
+      </div>
+    </main>
   );
 }
