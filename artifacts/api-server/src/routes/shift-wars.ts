@@ -183,11 +183,15 @@ router.get("/shift-wars/history", async (req, res): Promise<void> => {
 router.get("/shift-wars/matches", async (_req, res): Promise<void> => {
   const rows = await db.execute(sql`
     SELECT sm.id, sm.played_at, sm.stake, sm.game_type, sm.notes,
-           sm.winner_team_id, wt.name AS winner_team_name,
-           sm.loser_team_id, lt.name AS loser_team_name
+           sm.winner_team_id,
+           COALESCE(wh.team_name, wt.name) AS winner_team_name,
+           sm.loser_team_id,
+           COALESCE(lh.team_name, lt.name) AS loser_team_name
     FROM shift_wars_matches sm
     JOIN shift_wars_teams wt ON wt.id = sm.winner_team_id
     JOIN shift_wars_teams lt ON lt.id = sm.loser_team_id
+    LEFT JOIN shift_wars_season_history wh ON wh.season_id = sm.season_id AND wh.team_id = wt.id
+    LEFT JOIN shift_wars_season_history lh ON lh.season_id = sm.season_id AND lh.team_id = lt.id
     ORDER BY sm.played_at DESC
     LIMIT 200
   `);
@@ -699,11 +703,13 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
 
 router.get("/shift-wars/combined-matches", async (_req, res): Promise<void> => {
   const matchRows = await db.execute(sql`
-    SELECT scm.id, scm.played_at, scm.solo_team_id, st.name AS solo_team_name,
+    SELECT scm.id, scm.played_at, scm.solo_team_id,
+           COALESCE(sh.team_name, st.name) AS solo_team_name,
            scm.solo_fielded_count, scm.solo_won, scm.stake, scm.pot,
            scm.solo_points_delta, scm.game_type, scm.notes
     FROM shift_wars_combined_matches scm
     JOIN shift_wars_teams st ON st.id = scm.solo_team_id
+    LEFT JOIN shift_wars_season_history sh ON sh.season_id = scm.season_id AND sh.team_id = st.id
     ORDER BY scm.played_at DESC
     LIMIT 100
   `);
@@ -712,9 +718,12 @@ router.get("/shift-wars/combined-matches", async (_req, res): Promise<void> => {
 
   const matchIds = matches.map(m => m.id);
   const sideRows = await db.execute(sql`
-    SELECT s.match_id, s.team_id, t.name AS team_name, s.fielded_count, s.points_delta
+    SELECT s.match_id, s.team_id, COALESCE(h.team_name, t.name) AS team_name,
+           s.fielded_count, s.points_delta
     FROM shift_wars_combined_match_sides s
+    JOIN shift_wars_combined_matches scm ON scm.id = s.match_id
     JOIN shift_wars_teams t ON t.id = s.team_id
+    LEFT JOIN shift_wars_season_history h ON h.season_id = scm.season_id AND h.team_id = t.id
     WHERE s.match_id = ANY(ARRAY[${sql.join(matchIds.map((id: number) => sql`${id}`), sql`, `)}]::int[])
   `);
   const sides = sideRows.rows as any[];
@@ -924,10 +933,12 @@ router.post("/shift-wars/multi-matches", matchSubmitRateLimit, async (req, res):
 
 router.get("/shift-wars/multi-matches", async (_req, res): Promise<void> => {
   const matchRows = await db.execute(sql`
-    SELECT mm.id, mm.played_at, mm.winner_team_id, wt.name AS winner_team_name,
+    SELECT mm.id, mm.played_at, mm.winner_team_id,
+           COALESCE(wh.team_name, wt.name) AS winner_team_name,
            mm.participant_count, mm.stake, mm.pot, mm.game_type, mm.notes
     FROM shift_wars_multi_matches mm
     JOIN shift_wars_teams wt ON wt.id = mm.winner_team_id
+    LEFT JOIN shift_wars_season_history wh ON wh.season_id = mm.season_id AND wh.team_id = wt.id
     ORDER BY mm.played_at DESC
     LIMIT 100
   `);
@@ -936,9 +947,12 @@ router.get("/shift-wars/multi-matches", async (_req, res): Promise<void> => {
 
   const matchIds = matches.map(m => m.id);
   const participantRows = await db.execute(sql`
-    SELECT p.match_id, p.team_id, t.name AS team_name, p.is_winner, p.points_delta, p.eliminated
+    SELECT p.match_id, p.team_id, COALESCE(h.team_name, t.name) AS team_name,
+           p.is_winner, p.points_delta, p.eliminated
     FROM shift_wars_multi_match_participants p
+    JOIN shift_wars_multi_matches mm ON mm.id = p.match_id
     JOIN shift_wars_teams t ON t.id = p.team_id
+    LEFT JOIN shift_wars_season_history h ON h.season_id = mm.season_id AND h.team_id = t.id
     WHERE p.match_id = ANY(ARRAY[${sql.join(matchIds.map((id: number) => sql`${id}`), sql`, `)}]::int[])
   `);
   const participants = participantRows.rows as any[];

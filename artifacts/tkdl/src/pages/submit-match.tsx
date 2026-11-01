@@ -732,7 +732,7 @@ function TeamModePlayerCard({ player: p, isYou, isWinner, isLoser, disabled, onC
   );
 }
 
-/** Shift Wars — the 3 fixed department teams (Fresh, Twilight, Shift Leader). Same
+/** Shift Wars — the 3 fixed department teams. Same
  *  "Team A beat Team B, stake X" submission shape as the Doubles Event, but points
  *  only (no Elo/tier), and teams are a permanent admin-managed roster rather than a
  *  season's random draw — so there's no season lookup or elimination concept here. */

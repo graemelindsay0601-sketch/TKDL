@@ -260,6 +260,9 @@ export default function HeadToHead() {
                   <div className="text-xs mt-1 font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
                     {h2h.totalMatches} matches
                   </div>
+                  <div className="text-[0.55rem] mt-1 leading-relaxed" style={{ color: "rgba(255,255,255,0.22)" }}>
+                    Counts individual match records only; older summary-only seasons may be missing from this history.
+                  </div>
                 </div>
 
                 {/* P2 */}

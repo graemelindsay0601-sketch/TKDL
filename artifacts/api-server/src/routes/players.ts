@@ -225,7 +225,10 @@ router.get("/players/:id/stats", async (req, res): Promise<void> => {
 
   // Head-to-head stats
   const allMatches = await db.select().from(matchesTable)
-    .where(or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)))
+    .where(and(
+      or(eq(matchesTable.winnerId, id), eq(matchesTable.loserId, id)),
+      sql`${matchesTable.gameType} NOT LIKE 'team_%' AND ${matchesTable.gameType} <> 'multi_killer'`,
+    ))
     .orderBy(matchesTable.playedAt);
   const h2h = new Map<number, {
     wins: number; losses: number; name: string;

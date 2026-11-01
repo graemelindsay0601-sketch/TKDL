@@ -118,6 +118,7 @@ import { addSeasonalQuestsUnique } from "./db/migrations/add_seasonal_quests_uni
 import { addWeeklyChallengeYear } from "./db/migrations/add_weekly_challenge_year";
 import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
 import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
+import { TEAM_LEADERSHIP_EFFECTIVE_DATE } from "./lib/shift-wars-season-name";
 import { addMatchParticipantDeltas } from "./db/migrations/add_match_participant_deltas";
 import { addDoublesMatchDeltas } from "./db/migrations/add_doubles_match_deltas";
 import { addShiftWarsMatchSeason } from "./db/migrations/add_shift_wars_match_season";
@@ -1279,13 +1280,19 @@ async function seedShiftWars() {
   await db.execute(sql`UPDATE shift_wars_teams SET starting_points = points WHERE starting_points = 0`);
 
   // Seed the 3 teams once with their agreed starting points. ON CONFLICT DO
-  // NOTHING so this never overwrites admin edits to points on a later restart —
-  // it only ever creates a team the first time its name doesn't exist yet.
+  // NOTHING so this never overwrites admin edits to points on a later restart.
+  // Team Shift Leader is skipped once the November rename has happened, so a
+  // server restart cannot recreate a duplicate under its retired name.
   await db.execute(sql`
     INSERT INTO shift_wars_teams (name, points, peak_points, starting_points) VALUES
       ('Team Fresh', 125, 125, 125),
-      ('Team Twilight', 75, 75, 75),
-      ('Team Shift Leader', 50, 50, 50)
+      ('Team Twilight', 75, 75, 75)
+    ON CONFLICT (name) DO NOTHING
+  `);
+  await db.execute(sql`
+    INSERT INTO shift_wars_teams (name, points, peak_points, starting_points)
+    SELECT 'Team Shift Leader', 50, 50, 50
+    WHERE NOT EXISTS (SELECT 1 FROM shift_wars_teams WHERE name = 'Team Leadership')
     ON CONFLICT (name) DO NOTHING
   `);
   logger.info("Shift Wars tables ready");
@@ -1725,6 +1732,25 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("addPerformanceIndexes5", addPerformanceIndexes5);
   await runMigrationStep("addPerformanceIndexes6", addPerformanceIndexes6);
   await runMigrationStep("relaxAdminAnnouncementsAdminId", relaxAdminAnnouncementsAdminId);
+  // Catch up if the November season was opened before this code was deployed.
+  // Only the live team row is renamed; the outgoing season's snapshot remains
+  // unchanged, and the conflict guard avoids merging two separately-used teams.
+  await runInitStep("applyActiveShiftWarsTeamName", async () => {
+    await db.execute(sql`
+      UPDATE shift_wars_teams
+      SET name = 'Team Leadership'
+      WHERE name = 'Team Shift Leader'
+        AND NOT EXISTS (
+          SELECT 1 FROM shift_wars_teams WHERE name = 'Team Leadership'
+        )
+        AND EXISTS (
+          SELECT 1 FROM seasons
+          WHERE league_type = 'shift_wars'
+            AND is_active = true
+            AND start_date >= ${TEAM_LEADERSHIP_EFFECTIVE_DATE}::date
+        )
+    `);
+  });
 
   collectingSchemaFailures = false;
   const clean = schemaFailureCount === 0;

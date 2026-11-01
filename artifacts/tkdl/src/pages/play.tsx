@@ -214,7 +214,7 @@ const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string; 
   { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off",              color: "#38bdf8" },
   { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off",                          color: "#a78bfa" },
   { key: "doubles-event", label: "Doubles Event", icon: "🎯", desc: "Official season event — fixed random-draw teams",       color: "#0066ff" },
-  { key: "shift-wars", label: "Shift Wars", icon: "🏬",       desc: "Fixed department teams — Fresh, Twilight, Shift Leader", color: "#22c55e" },
+  { key: "shift-wars", label: "Shift Wars", icon: "🏬",       desc: "Three fixed department teams", color: "#22c55e" },
   { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players",                             color: "#ef4444" },
   { key: "doubles-multi", label: "Doubles Multi-Team", icon: "🎯", desc: "3–6 official pairings, one match, last team standing", color: "#0066ff" },
   { key: "shift-wars-multi", label: "Shift Wars 3-Way", icon: "🏬", desc: "All 3 departments, one match, last team standing", color: "#22c55e" },

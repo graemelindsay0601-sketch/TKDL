@@ -17,6 +17,7 @@ import {
   monthlyRolloverTiming,
   type SeasonResetTiming,
 } from "./season-calendar";
+import { shouldUseTeamLeadershipName } from "./shift-wars-season-name";
 
 /**
  * Guards a single league's reset sequence against a second concurrent
@@ -437,6 +438,18 @@ async function performShiftWarsSeasonResetLocked(
     const [inserted] = await tx.insert(seasonsTable).values({
       name, startDate, isActive: true, leagueType: "shift_wars",
     }).returning();
+
+    // Team names are historical data too. Apply the agreed department rename
+    // only when the new season starts on or after 1 November 2026, after the
+    // outgoing season has been snapshotted above. Earlier season results and
+    // standings therefore retain "Team Shift Leader".
+    if (shouldUseTeamLeadershipName(startDate)) {
+      await tx.execute(sql`
+        UPDATE shift_wars_teams
+        SET name = 'Team Leadership'
+        WHERE name = 'Team Shift Leader'
+      `);
+    }
 
     await tx.execute(sql`
       UPDATE shift_wars_teams SET

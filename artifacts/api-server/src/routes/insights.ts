@@ -33,17 +33,21 @@ async function resultFeed(): Promise<ResultRow[]> {
     FROM doubles_multi_matches m JOIN doubles_teams w ON w.id=m.winner_team_id
     UNION ALL
     SELECT 'shift-' || m.id, m.season_id, m.played_at, m.stake,
-      w.name, l.name, 'shift_wars'::text
+      COALESCE(wh.team_name, w.name), COALESCE(lh.team_name, l.name), 'shift_wars'::text
     FROM shift_wars_matches m JOIN shift_wars_teams w ON w.id=m.winner_team_id JOIN shift_wars_teams l ON l.id=m.loser_team_id
+      LEFT JOIN shift_wars_season_history wh ON wh.season_id=m.season_id AND wh.team_id=w.id
+      LEFT JOIN shift_wars_season_history lh ON lh.season_id=m.season_id AND lh.team_id=l.id
     UNION ALL
     SELECT 'shift-combined-' || m.id, m.season_id, m.played_at, m.pot,
-      CASE WHEN m.solo_won THEN solo.name ELSE 'Combined side' END,
-      CASE WHEN m.solo_won THEN 'Combined side' ELSE solo.name END, 'shift_wars'::text
+      CASE WHEN m.solo_won THEN COALESCE(h.team_name, solo.name) ELSE 'Combined side' END,
+      CASE WHEN m.solo_won THEN 'Combined side' ELSE COALESCE(h.team_name, solo.name) END, 'shift_wars'::text
     FROM shift_wars_combined_matches m JOIN shift_wars_teams solo ON solo.id=m.solo_team_id
+      LEFT JOIN shift_wars_season_history h ON h.season_id=m.season_id AND h.team_id=solo.id
     UNION ALL
     SELECT 'shift-multi-' || m.id, m.season_id, m.played_at, m.pot,
-      w.name, 'Multi-team field', 'shift_wars'::text
+      COALESCE(h.team_name, w.name), 'Multi-team field', 'shift_wars'::text
     FROM shift_wars_multi_matches m JOIN shift_wars_teams w ON w.id=m.winner_team_id
+      LEFT JOIN shift_wars_season_history h ON h.season_id=m.season_id AND h.team_id=w.id
   `);
   return result.rows as unknown as ResultRow[];
 }

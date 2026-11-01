@@ -99,10 +99,13 @@ router.get("/hub/pulse", async (_req, res): Promise<void> => {
         LIMIT 8
       `),
       db.execute(sql`
-        SELECT sm.id, wt.name AS winner_team_name, lt.name AS loser_team_name, sm.stake, sm.played_at
+        SELECT sm.id, COALESCE(wh.team_name, wt.name) AS winner_team_name,
+               COALESCE(lh.team_name, lt.name) AS loser_team_name, sm.stake, sm.played_at
         FROM shift_wars_matches sm
         JOIN shift_wars_teams wt ON wt.id = sm.winner_team_id
         JOIN shift_wars_teams lt ON lt.id = sm.loser_team_id
+        LEFT JOIN shift_wars_season_history wh ON wh.season_id = sm.season_id AND wh.team_id = wt.id
+        LEFT JOIN shift_wars_season_history lh ON lh.season_id = sm.season_id AND lh.team_id = lt.id
         ORDER BY sm.played_at DESC
         LIMIT 8
       `),

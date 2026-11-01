@@ -37,3 +37,4 @@
 - [Career test isolation](career-test-isolation.md) — live-career tests must isolate save slots and player identity so sharded runs do not rely on shared fixture state
 - [Career ranking defences](career-ranking-defences.md) — expiry forecasts are advisory; official rankings change only from played results and authored ranking rules
 - [WDF ranking rules](wdf-ranking-rules.md) — WDF uses rolling points tables and singles-only ranking eligibility, separate from PDC prize-money lists
+- [TKDL November team rename](tkdl-team-rename.md) — rename Team Shift Leader only when the November 2026+ Shift Wars season opens; preserve October records under the old name

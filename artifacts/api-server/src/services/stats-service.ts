@@ -155,15 +155,25 @@ export const statsService = {
         // separately still showed its own real numbers — the two tabs
         // visibly disagreed with each other.
         category === "Practice" ? db.execute(drizzleSql`
+          WITH player_sessions AS (
+            SELECT id AS session_id, created_at, game_type_key,
+                   p1_darts AS darts, p1_180s AS one_eighties, p1_checkout_hits AS checkout_hits
+            FROM practice_sessions
+            WHERE player1_id = ${playerId}
+            UNION ALL
+            SELECT id AS session_id, created_at, game_type_key,
+                   p2_darts AS darts, p2_180s AS one_eighties, p2_checkout_hits AS checkout_hits
+            FROM practice_sessions
+            WHERE player2_id = ${playerId}
+          )
           SELECT
-            COUNT(*)::int as sessions,
-            COALESCE(SUM(darts_thrown), 0)::int as total_darts_practice,
-            COALESCE(SUM(p1_180s), 0)::int as total_180s,
-            COALESCE(SUM(p1_checkout_hits), 0)::int as checkout_hits,
-            COALESCE(AVG(p1_darts), 0)::numeric as avg_darts
-          FROM practice_sessions
-          WHERE player1_id = ${playerId}
-            AND created_at >= ${cutoff}
+            COUNT(DISTINCT session_id)::int as sessions,
+            COALESCE(SUM(darts), 0)::int as total_darts_practice,
+            COALESCE(SUM(one_eighties), 0)::int as total_180s,
+            COALESCE(SUM(checkout_hits), 0)::int as checkout_hits,
+            COALESCE(AVG(darts), 0)::numeric as avg_darts
+          FROM player_sessions
+          WHERE created_at >= ${cutoff}
             AND game_type_key IS DISTINCT FROM 'master501'
         `).catch((err: any) => {
           console.error("Practice stats query error:", err);

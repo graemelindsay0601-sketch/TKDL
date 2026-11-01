@@ -564,13 +564,24 @@ router.get("/players/:id/stats/overview", async (req, res) => {
     // whatever the M501-specific views already report. Same M501 exclusion
     // pattern used by getCategorySessions/categorizeGameType elsewhere.
     const pracResult = await db.execute(sql`
+      WITH player_sessions AS (
+        SELECT id AS session_id, created_at, game_type_key,
+               p1_darts AS darts, p1_180s AS one_eighties, p1_checkout_hits AS checkout_hits
+        FROM practice_sessions
+        WHERE player1_id = ${playerId}
+        UNION ALL
+        SELECT id AS session_id, created_at, game_type_key,
+               p2_darts AS darts, p2_180s AS one_eighties, p2_checkout_hits AS checkout_hits
+        FROM practice_sessions
+        WHERE player2_id = ${playerId}
+      )
       SELECT
-        COUNT(*)::int AS sessions,
-        COALESCE(SUM(p1_darts), 0)::int AS total_darts,
-        COALESCE(SUM(p1_180s), 0)::int AS total_180s,
-        COALESCE(SUM(p1_checkout_hits), 0)::int AS checkout_hits
-      FROM practice_sessions
-      WHERE player1_id = ${playerId} AND created_at >= ${cutoff}
+        COUNT(DISTINCT session_id)::int AS sessions,
+        COALESCE(SUM(darts), 0)::int AS total_darts,
+        COALESCE(SUM(one_eighties), 0)::int AS total_180s,
+        COALESCE(SUM(checkout_hits), 0)::int AS checkout_hits
+      FROM player_sessions
+      WHERE created_at >= ${cutoff}
         AND game_type_key NOT ILIKE '%M501%' AND game_type_key NOT ILIKE '%MASTER%'
     `);
     const prac: any = pracResult.rows[0] ?? {};

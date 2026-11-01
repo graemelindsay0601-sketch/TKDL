@@ -144,7 +144,7 @@ export default function Rules() {
         <RuleSection icon={<Users className="w-5 h-5" />} title="Doubles Event & Shift Wars" accent="#22c55e">
           <Rule>Both run as their own <Highlight>monthly leagues</Highlight> alongside singles, resetting at the same time singles does.</Rule>
           <Rule><Highlight>Doubles Event</Highlight> teams are <Gold>randomly redrawn</Gold> every month — new pairings, fresh points.</Rule>
-          <Rule><Highlight>Shift Wars</Highlight> departments (Fresh, Twilight, Shift Leader) never reroll — the same three teams reset to their starting points each month.</Rule>
+          <Rule><Highlight>Shift Wars</Highlight> departments are fixed — the same three teams reset to their starting points each month.</Rule>
           <Rule>Both use the same points/wager mechanic as singles. Shift Wars is <Highlight>points only</Highlight> — no ELO or tiers.</Rule>
           <Rule>Each month's Shift Wars champion is recorded permanently — check the Shift Wars tab on Standings.</Rule>
         </RuleSection>

@@ -172,7 +172,7 @@ router.get("/seasons/:id", async (req, res): Promise<void> => {
     const players = allPlayers.filter(p => p.isActive);
     const active = players.filter(p => p.status !== "ELIMINATED");
     const eliminated = players.filter(p => p.status === "ELIMINATED");
-    const sorted = [...active.sort((a,b) => b.points-a.points || b.elo-a.elo), ...eliminated.sort((a,b) => b.points-a.points)];
+    const sorted = [...active.sort((a,b) => b.points-a.points || b.elo-a.elo), ...eliminated.sort((a,b) => b.points-a.points || b.elo-a.elo)];
     // Same live diff as GET /leaderboard (see lib/leaderboardRank.ts) —
     // this branch is the active season, so it's the same ranking, just
     // rendered from the season-detail page instead of the dashboard.
@@ -189,7 +189,8 @@ router.get("/seasons/:id", async (req, res): Promise<void> => {
         points: p.points, peakPoints: p.peakPoints,
         elo: p.elo, tier: calcTier(p.elo),
         winRate: games > 0 ? p.seasonWins/games : 0,
-        currentStreak: p.currentWinStreak, status: p.status, ...identity,
+        currentStreak: p.currentWinStreak > 0 ? p.currentWinStreak : -p.currentLossStreak,
+        status: p.status, ...identity,
       };
     });
   } else {

@@ -155,10 +155,13 @@ router.get("/stats/recent-activity", async (_req, res): Promise<void> => {
   }
 
   const shiftWarsRows = (await db.execute(drizzleSql`
-    SELECT sm.id, wt.name AS winner_team_name, lt.name AS loser_team_name, sm.stake, sm.played_at
+    SELECT sm.id, COALESCE(wh.team_name, wt.name) AS winner_team_name,
+           COALESCE(lh.team_name, lt.name) AS loser_team_name, sm.stake, sm.played_at
     FROM shift_wars_matches sm
     JOIN shift_wars_teams wt ON wt.id = sm.winner_team_id
     JOIN shift_wars_teams lt ON lt.id = sm.loser_team_id
+    LEFT JOIN shift_wars_season_history wh ON wh.season_id = sm.season_id AND wh.team_id = wt.id
+    LEFT JOIN shift_wars_season_history lh ON lh.season_id = sm.season_id AND lh.team_id = lt.id
     ORDER BY sm.played_at DESC
     LIMIT 15
   `)).rows as any[];
@@ -484,8 +487,9 @@ router.get("/stats/h2h", async (req, res): Promise<void> => {
              s.name AS season_name
       FROM matches m
       LEFT JOIN seasons s ON s.id = m.season_id
-      WHERE (m.winner_id = ${p1} AND m.loser_id = ${p2})
-         OR (m.winner_id = ${p2} AND m.loser_id = ${p1})
+       WHERE ((m.winner_id = ${p1} AND m.loser_id = ${p2})
+          OR (m.winner_id = ${p2} AND m.loser_id = ${p1}))
+         AND NOT (m.game_type LIKE 'team_%' OR m.game_type = 'multi_killer')
       ORDER BY m.played_at DESC
     `),
     // Scouting Report addition (2026-09-25): each player's most-played
