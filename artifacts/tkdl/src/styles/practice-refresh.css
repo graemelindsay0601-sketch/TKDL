@@ -1,0 +1,179 @@
+.practice-refresh {
+  width: min(100%, 1080px) !important;
+  padding-bottom: 96px;
+}
+
+.practice-refresh-header {
+  padding: 4px 0 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, .09);
+}
+
+.practice-refresh-header h1 {
+  font-family: Anton, Oswald, sans-serif !important;
+  font-size: 25px !important;
+  letter-spacing: .045em !important;
+}
+
+.practice-refresh-header > div:first-child {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(237, 203, 123, .4) !important;
+  background: linear-gradient(145deg, rgba(193, 144, 255, .13), rgba(13, 10, 20, .75)) !important;
+  box-shadow: 0 0 24px rgba(167, 99, 255, .18);
+}
+
+.practice-refresh-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 190px;
+  padding: 22px 8px 24px;
+  background:
+    radial-gradient(ellipse at 80% 45%, rgba(148, 89, 240, .13), transparent 42%),
+    radial-gradient(ellipse at 98% 80%, rgba(225, 194, 120, .06), transparent 34%);
+}
+
+.practice-refresh-kicker,
+.practice-game-heading small {
+  margin: 0 0 9px;
+  color: #c7a8ff;
+  font: 700 9px Oswald, sans-serif;
+  letter-spacing: .2em;
+}
+
+.practice-refresh-hero h2 {
+  margin: 0 0 10px;
+  color: #f8f5ff;
+  font: 700 clamp(38px, 5vw, 58px)/.99 Anton, Oswald, sans-serif;
+  text-transform: uppercase;
+}
+
+.practice-refresh-hero h2 span { color: #d9bf79; }
+.practice-refresh-hero p:last-child { margin: 0; color: #a49cad; font-size: 13px; }
+
+.practice-refresh-stamp {
+  display: flex;
+  width: 94px;
+  height: 94px;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgba(214, 187, 122, .33);
+  border-radius: 50%;
+  color: #ddc986;
+  box-shadow: inset 0 0 28px rgba(181, 130, 255, .11), 0 0 35px rgba(144, 85, 255, .1);
+  font: 700 8px Oswald, sans-serif;
+  letter-spacing: .16em;
+  text-align: center;
+}
+
+.practice-refresh-stamp svg { width: 24px; height: 24px; }
+
+.practice-refresh .pdc-card {
+  border-color: rgba(226, 211, 255, .1) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, rgba(27, 22, 37, .94), rgba(14, 11, 19, .96)) !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .15);
+}
+
+.practice-mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.practice-section-intro { display: flex; align-items: center; gap: 12px; margin: 0; }
+.practice-section-intro > span {
+  display: grid; width: 36px; height: 36px; place-items: center;
+  border: 1px solid rgba(216, 191, 122, .3); border-radius: 8px;
+  background: rgba(216, 191, 122, .06); color: #d8bf7a;
+  font: 700 12px Anton, Oswald, sans-serif;
+}
+.practice-section-intro small { display: block; margin-bottom: 3px; color: #8f879c; font: 700 9px Oswald, sans-serif; letter-spacing: .2em; }
+.practice-section-intro h2 { margin: 0; color: #f2ebff; font: 600 19px Oswald, sans-serif; }
+.practice-mode-option {
+  display: flex !important;
+  min-height: 68px;
+  align-items: center;
+  justify-content: flex-start !important;
+  gap: 11px !important;
+  padding: 11px 13px !important;
+  border: 1px solid rgba(255, 255, 255, .09) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, .025) !important;
+  color: #f8f5ff !important;
+  text-align: left;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+.practice-mode-option.is-active {
+  border-color: rgba(202, 174, 255, .65) !important;
+  background: linear-gradient(110deg, rgba(139, 85, 225, .19), rgba(219, 186, 109, .045)) !important;
+}
+
+.practice-mode-option > svg { color: #ae91ee; }
+.practice-mode-copy { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.practice-mode-copy b { font: 600 12px Oswald, sans-serif; }
+.practice-mode-copy small { color: #a39baa; font: 10px Inter, sans-serif; }
+
+.practice-game-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 4px 0 15px;
+}
+.practice-game-heading > div { display: flex; align-items: center; gap: 13px; }
+.practice-game-heading > div > span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(216, 191, 122, .3);
+  border-radius: 8px;
+  background: rgba(216, 191, 122, .06);
+  color: #d8bf7a;
+  font: 700 12px Anton, Oswald, sans-serif;
+}
+.practice-game-heading small { display: block; margin-bottom: 3px; color: #8f879c; }
+.practice-game-heading h2 { margin: 0; font: 600 19px Oswald, sans-serif; }
+.practice-game-heading p { max-width: 300px; margin: 0; color: #8e8697; font-size: 11px; text-align: right; }
+
+.practice-game-tools {
+  border-color: rgba(226, 211, 255, .12) !important;
+  border-radius: 12px !important;
+  background: rgba(16, 12, 22, .94) !important;
+}
+.practice-category-filters button {
+  border-radius: 20px !important;
+}
+.practice-format-card {
+  padding: 17px 18px;
+  border: 1px solid rgba(226, 211, 255, .1);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(27, 22, 37, .94), rgba(14, 11, 19, .96));
+}
+.practice-format-card > h2 { margin-bottom: 13px !important; color: #f2ebff !important; font: 600 15px Oswald, sans-serif !important; }
+.practice-format-toggle button { border-radius: 8px !important; }
+.practice-set-config { padding-top: 6px; }
+.practice-start-button {
+  position: sticky;
+  bottom: 10px;
+  z-index: 25;
+  border: 1px solid rgba(224, 197, 125, .25) !important;
+  background: linear-gradient(105deg, #b795ed, #e1c77f) !important;
+  color: #170f20 !important;
+  box-shadow: 0 8px 28px rgba(166, 123, 232, .2) !important;
+  font-family: Oswald, sans-serif !important;
+}
+
+@media (max-width: 760px) {
+  .practice-mode-grid { grid-template-columns: 1fr; }
+  .practice-game-heading { align-items: flex-start; flex-direction: column; }
+  .practice-game-heading p { text-align: left; }
+}
+@media (max-width: 480px) {
+  .practice-refresh-hero { min-height: 150px; padding: 20px 0; }
+  .practice-refresh-stamp { width: 68px; height: 68px; font-size: 7px; }
+  .practice-refresh-stamp svg { width: 19px; height: 19px; }
+  .practice-game-heading h2 { font-size: 16px; }
+}

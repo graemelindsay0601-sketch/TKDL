@@ -20,6 +20,7 @@ import {
   type SoloBotMode, type ShadowProfileData, type ShadowProfileLocked, type ShadowProfileResult,
 } from "@/components/BotPickers";
 import { useWakeLock, useZoomLock, useExitGuard } from "@/lib/nativeParity";
+import "@/styles/practice-refresh.css";
 
 type Player = { id: number; name: string; points: number; elo: number; status: string; isActive: boolean };
 
@@ -42,9 +43,9 @@ type SetupData = {
 };
 
 const TABS = [
-  { key: "competitive", label: "Competitive" },
-  { key: "practice",    label: "Practice"    },
-  { key: "party",       label: "Party"       },
+  { key: "competitive", label: "Match games" },
+  { key: "practice",    label: "Practice drills" },
+  { key: "party",       label: "Party games" },
   { key: "mini-games",  label: "Mini-Games"  },
 ];
 
@@ -391,9 +392,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
   return (
     <>
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="practice-refresh max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="practice-refresh-header flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center"
           style={{ background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.3)" }}>
           <Dumbbell className="w-5 h-5" style={{ color: "#a78bfa" }} />
@@ -403,6 +404,14 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>No stakes · No leaderboard · Just reps</p>
         </div>
       </div>
+      <section className="practice-refresh-hero" aria-label="Practice introduction">
+        <div>
+          <p className="practice-refresh-kicker">YOUR NEXT SESSION</p>
+          <h2>Make every visit <span>count.</span></h2>
+          <p>Choose who’s playing, pick a game, and get straight to the oche.</p>
+        </div>
+        <div className="practice-refresh-stamp" aria-hidden="true"><Target /><span>OPEN<br />PRACTICE</span></div>
+      </section>
       <div className="pdc-divider" />
 
       {/* Coach drill deep-link banner */}
@@ -435,14 +444,18 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
       )}
 
       {/* Mode toggle */}
-      <div className="flex gap-2">
+      <div className="practice-section-intro">
+        <span>01</span>
+        <div><small>SESSION TYPE</small><h2>Choose how you want to play</h2></div>
+      </div>
+      <div className="practice-mode-grid flex gap-2" role="group" aria-label="Choose who is playing">
         {([
-          { v: "2p"   as const, l: "2 Players",   icon: <Users className="w-4 h-4 shrink-0" /> },
-          { v: "bot"  as const, l: "Solo vs CPU",  icon: <Bot  className="w-4 h-4 shrink-0" /> },
-          { v: "solo" as const, l: "Solo Play",    icon: <User className="w-4 h-4 shrink-0" /> },
-        ]).map(({ v, l, icon }) => (
+          { v: "2p"   as const, l: "Two-player match", d: "Take turns on this device", icon: <Users className="w-4 h-4 shrink-0" /> },
+          { v: "bot"  as const, l: "Play against a bot", d: "Choose a level, pro or clone", icon: <Bot className="w-4 h-4 shrink-0" /> },
+          { v: "solo" as const, l: "Solo training", d: "No opponent; build your stats", icon: <User className="w-4 h-4 shrink-0" /> },
+        ]).map(({ v, l, d, icon }) => (
           <button key={v} onClick={() => setMode(v)}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+            className={`practice-mode-option flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${mode === v ? "is-active" : ""}`}
             style={{
               fontFamily: "Oswald, sans-serif",
               background: mode === v ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
@@ -450,15 +463,15 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               color: mode === v ? "#a78bfa" : "rgba(255,255,255,0.3)",
               cursor: "pointer",
             }}>
-            {icon}{l}
+            {icon}<span className="practice-mode-copy"><b>{l}</b><small>{d}</small></span>
           </button>
         ))}
       </div>
 
       {/* Player selection */}
-      <div>
+      <div className="practice-player-section">
         <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
-          {mode !== "2p" ? "Your Name" : "Players"}
+          {mode !== "2p" ? "Your player" : "Choose players"}
         </h2>
         <div className={`grid gap-3 ${mode === "2p" ? "grid-cols-2" : ""}`}>
           {([["p1", p1Id, p2Id], ...(mode === "2p" ? [["p2", p2Id, p1Id]] : [])] as [string, string, string][]).map(([which, val, other]) => (
@@ -632,8 +645,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
          box for whichever tab was open, on top of the *page's* own scroll —
          a "scroll fest" with no way to jump around. This flattens all
          enabled games into one filterable, browsable list. */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Game Type</h2>
+      <div className="practice-game-section">
+        <div className="practice-game-heading">
+          <div><span>02</span><div><small>GAME TYPE</small><h2>Pick a match, drill or party game</h2></div></div>
+          <p>Search the full catalogue or browse by the kind of game you want.</p>
+        </div>
 
         {/* Custom / Handicap — lets Player 1 and Player 2 (or Player 1 vs a
            bot) start on independently typed scores (e.g. 501 v 301). Pinned
@@ -648,7 +664,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         </div>
 
         {/* Sticky search + surprise-me + category quick-nav */}
-        <div className="sticky top-2 z-20 mb-3 rounded-xl p-2.5" style={{ background: "rgba(10,7,16,0.92)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(14px)" }}>
+        <div className="practice-game-tools sticky top-2 z-20 mb-3 rounded-xl p-2.5" style={{ background: "rgba(10,7,16,0.92)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(14px)" }}>
           <div className="flex gap-2 mb-2.5">
             <div className="flex-1 flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
               <Search className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
@@ -665,7 +681,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               <Sparkles className="w-3.5 h-3.5" />Surprise
             </button>
           </div>
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="practice-category-filters flex gap-1.5 flex-wrap">
             <button onClick={() => setActiveCat("all")}
               className="text-xs font-bold px-3 py-1.5 rounded-full transition-all"
               style={{
@@ -788,11 +804,11 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
 
       {/* Format picker — only for X01 games */}
       {selectedGame && (selectedGame.key?.startsWith("x01") || selectedGame.key?.startsWith("501") || selectedGame.key?.startsWith("301")) && (
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Format</h2>
-          <div className="flex gap-1 p-1 rounded-xl mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="practice-format-card">
+          <h2 className="text-sm font-bold uppercase tracking-widest mb-3">X01 match format · choose legs or sets</h2>
+          <div className="practice-format-toggle flex gap-1 p-1 rounded-xl mb-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {([
-              { key: "legs" as const, label: "Best of Legs" },
+              { key: "legs" as const, label: "Legs" },
               { key: "sets" as const, label: "Sets" },
             ]).map(({ key, label }) => (
               <button key={key} onClick={() => setFormatMode(key)}
@@ -811,7 +827,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           {formatMode === "legs" ? (
             <div>
               <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                Best of how many legs?
+                Choose a single leg or a best-of leg format.
               </div>
               <div className="flex gap-2 flex-wrap">
                 {[1, 3, 5, 7, 9, 11].map(n => (
@@ -829,7 +845,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="practice-set-config grid grid-cols-2 gap-4">
               <div>
                 <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Sets to win match</div>
                 <div className="flex gap-1.5 flex-wrap">
@@ -866,7 +882,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
               </div>
               <div className="col-span-2">
                 <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.15)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                  Best of {selectedSets.sets} sets · {selectedSets.legsPerSet} legs/set · First to {Math.ceil(selectedSets.sets/2)} sets
+                  First to {selectedSets.sets} {selectedSets.sets === 1 ? "set" : "sets"} · {selectedSets.legsPerSet} legs per set
                 </div>
               </div>
             </div>
@@ -909,7 +925,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           onStart(buildSetupData());
         }}
         disabled={!canStart}
-        className="w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
+        className="practice-start-button w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
         style={{
           background: canStart ? "linear-gradient(135deg, #7c3aed, #a78bfa)" : "rgba(255,255,255,0.04)",
           color: canStart ? "#fff" : "rgba(255,255,255,0.2)",

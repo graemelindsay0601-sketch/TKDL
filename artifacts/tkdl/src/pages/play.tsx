@@ -23,6 +23,7 @@ import { teamRoster, wagerShares, totalWagerError, validCombinedSelection, type 
 import type { LiveScoreState } from "@/lib/scorers";
 import { isScorerRecoveryState, recoveryMatchesEngine, type ScorerRecoveryState } from "@/lib/scorer-recovery";
 import { clearMatchdayDraft, readMatchdayDraft } from "@/lib/matchday";
+import "./play-setup.css";
 
 const PLAY_SNAPSHOT_KEY = "tkdl_play_snapshot";
 
@@ -206,16 +207,13 @@ function wagerPotScale(sides: [WagerAccount[], WagerAccount[]] | undefined): num
 // Colors match each format's real established accent elsewhere in the app
 // where one already exists (Doubles/Shift Wars come straight from the
 // Standings tabs — see leaderboard.tsx) rather than a flat grey per tile;
-// 2v2/3v3/Killer had no established color anywhere, so those three are new
-// assignments (Killer's crimson echoes the same "elimination" theme Boss
-// Battle uses elsewhere).
+// 2v2/3v3 had no established color anywhere, so those are new assignments.
 const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string; color: string }[] = [
   { key: "1v1",        label: "1v1",             icon: "👤",  desc: "Head to head",                                          color: "#ff005c" },
   { key: "2v2",        label: "2v2 Team Game",   icon: "👥",  desc: "Any 2 players vs any 2 — casual, one-off",              color: "#38bdf8" },
   { key: "3v3",        label: "3v3 Triples",     icon: "👥",  desc: "Teams of 3 — casual, one-off",                          color: "#a78bfa" },
   { key: "doubles-event", label: "Doubles Event", icon: "🎯", desc: "Official season event — fixed random-draw teams",       color: "#0066ff" },
   { key: "shift-wars", label: "Shift Wars", icon: "🏬",       desc: "Three fixed department teams", color: "#22c55e" },
-  { key: "killer-ffa", label: "Killer Free-for-All", icon: "💀", desc: "3–6 individual players",                             color: "#ef4444" },
   { key: "doubles-multi", label: "Doubles Multi-Team", icon: "🎯", desc: "3–6 official pairings, one match, last team standing", color: "#0066ff" },
   { key: "shift-wars-multi", label: "Shift Wars 3-Way", icon: "🏬", desc: "All 3 departments, one match, last team standing", color: "#22c55e" },
 ];
@@ -936,48 +934,55 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const tabs = TABS_BY_FORMAT[format];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <main className="match-scorer-setup-live">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)" }}>
-          <Swords className="w-5 h-5" style={{ color: "#ff005c" }} />
+      <header className="ms-live-header">
+        <div className="ms-live-brand">
+          <div className="ms-live-mark">
+            <Swords className="w-5 h-5" />
+          </div>
+          <div>
+            <p className="ms-live-eyebrow">TKDL <span>·</span> MATCHDAY CONTROL</p>
+            <h1>Match <span>Scorer</span></h1>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Match Scorer</h1>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Real match — results submitted to leaderboard</p>
-        </div>
-      </div>
-      <div className="pdc-divider" />
+        <span className="ms-live-status"><i /> OFFICIAL MATCH</span>
+      </header>
 
-      {matchdayDraft && <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{background:"rgba(255,210,74,.07)",border:"1px solid rgba(255,210,74,.2)"}}><Radio className="w-4 h-4" style={{color:"#ffd24a"}}/><div><div className="text-xs font-black uppercase" style={{fontFamily:"Oswald, sans-serif",color:"#ffd24a"}}>Loaded from Matchday Control</div><div className="text-xs text-white/35">{matchdayDraft.sideAName} vs {matchdayDraft.sideBName} · choose the game and wager to begin.</div></div></div>}
+      <section className="ms-live-intro">
+        <div>
+          <p className="ms-live-kicker">PRE-GAME SETUP</p>
+          <h2>Set the stage.<br /><span>Own the oche.</span></h2>
+          <p>Confirm your sides, set the terms, then choose tonight’s game.</p>
+        </div>
+        <div className="ms-live-match-stamp"><Radio /><span>LIVE FROM<br />MATCHDAY</span></div>
+      </section>
+
+      {matchdayDraft && <div className="ms-live-matchday-banner"><span className="ms-live-banner-icon"><Radio /></span><div><strong>Loaded from Matchday Control</strong><span>{matchdayDraft.sideAName} vs {matchdayDraft.sideBName} · choose the game and wager to begin.</span></div><span className="ms-live-banner-state">SYNCED</span></div>}
 
       {/* Format selector */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Format</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <section className="ms-live-panel ms-live-format-panel">
+        <div className="ms-live-section-title"><span>01</span><h2>Match format</h2><small>CHOOSE A FORMAT</small></div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 ms-live-format-grid">
           {formatOptions.map(f => (
             <button key={f.key} onClick={() => setFormat(f.key)}
-              className="p-3 rounded-xl text-left transition-all"
-              style={{
-                background: format === f.key ? `${f.color}14` : `${f.color}08`,
-                border: `1px solid ${format === f.key ? `${f.color}59` : `${f.color}22`}`,
-                cursor: "pointer",
-              }}>
-              <div className="text-lg mb-0.5">{f.icon}</div>
-              <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: format === f.key ? f.color : "rgba(255,255,255,0.6)", letterSpacing: "0.06em" }}>
+              className={`ms-live-format-option transition-all ${format === f.key ? "is-active" : ""}`}>
+              <div className="ms-live-format-icon">{f.icon}</div>
+              <div className="ms-live-format-label">
                 {f.label}
               </div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>{f.desc}</div>
+              <div className="ms-live-format-desc">{f.desc}</div>
+              <span className="ms-live-format-check" aria-hidden="true" />
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
       {/* Player selection */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+      <section className="ms-live-panel ms-live-players-panel">
+        <div className="ms-live-section-title"><span>02</span><h2>
           {format === "killer-ffa" ? "Players" : "Teams"}
-        </h2>
+        </h2><small>PLAYERS & TEAMS</small></div>
 
         {/* Uneven Teams toggle — available under Singles/2v2/3v3/Doubles
            Event/Shift Wars once one of those is picked, rather than being
@@ -1414,15 +1419,17 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
             </div>
           )
         )}
-      </div>
+      </section>
 
       {/* Stake */}
       {(format !== "killer-ffa" && !multiActive) || activePlayers.length > 0 ? (
-        <div className="pdc-card p-4" style={{ borderColor: stakeErr ? "rgba(255,0,92,0.3)" : "rgba(255,255,255,0.07)" }}>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Stake{totalWager ? " (per player)" : ""}</h2>
+        <section className="ms-live-panel ms-live-stake-panel pdc-card p-4" style={{ borderColor: stakeErr ? "rgba(255,0,92,0.3)" : "rgba(255,255,255,0.07)" }}>
+          <div className="ms-live-section-title">
+            <span>03</span>
+            <h2>Set the stake{totalWager ? " (per player)" : ""}</h2>
+            <small>WAGER</small>
             {activePlayers.length > 0 && (
-              <span className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif" }}>
+              <span className="ms-live-stake-limit">
                 {maxStake > 0
                   ? `Max: ${maxStake}pts per player${hasZeroBalancePlayer ? " (0pt players can't lose further)" : ""}`
                   : "No balance cap — all selected players are at 0pts"}
@@ -1460,12 +1467,12 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
                 : `Each loser pays ${stakeN}pts · each winner gains ${stakeN}pts`}
             </p>
           )}
-        </div>
+        </section>
       ) : null}
 
       {/* Game type selection */}
-      <div>
-        <h2 className="text-sm font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>Game Type</h2>
+      <section className="ms-live-panel ms-live-games-panel">
+        <div className="ms-live-section-title"><span>04</span><h2>Choose the contest</h2><small>GAME TYPE</small></div>
         {!unevenActive && tabs.length > 1 && (
           <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {tabs.map(t => (
@@ -1533,20 +1540,20 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
             </button>
           </div>
         )}
-      </div>
+      </section>
 
       {/* Bull Up toggle (all non-FFA formats; multi-team matches are FFA too) */}
       {format !== "killer-ffa" && !multiActive && (
         <button onClick={() => setBullUp(v => !v)}
-          className="w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
+          className="ms-live-panel ms-live-bull-toggle w-full px-4 py-3 rounded-xl flex items-center gap-3 transition-all"
           style={{
-            background: bullUp ? "rgba(255,210,74,0.08)" : "rgba(255,255,255,0.03)",
-            border: `1px solid ${bullUp ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.07)"}`,
+            background: bullUp ? "rgba(255,0,92,0.08)" : "rgba(255,255,255,0.03)",
+            border: `1px solid ${bullUp ? "rgba(255,0,92,0.35)" : "rgba(255,255,255,0.07)"}`,
             cursor: "pointer",
           }}>
           <span style={{ fontSize: 18 }}>🎯</span>
           <div className="flex-1 text-left">
-            <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: bullUp ? "#ffd24a" : "rgba(255,255,255,0.45)" }}>
+            <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: bullUp ? "#ff005c" : "rgba(255,255,255,0.45)" }}>
               Bull Up
             </div>
             <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", fontSize: "0.65rem" }}>
@@ -1554,16 +1561,16 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
             </div>
           </div>
           <div className="w-10 h-5 rounded-full relative transition-all flex-shrink-0"
-            style={{ background: bullUp ? "rgba(255,210,74,0.5)" : "rgba(255,255,255,0.1)" }}>
+            style={{ background: bullUp ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.1)" }}>
             <div className="absolute top-0.5 w-4 h-4 rounded-full transition-all"
-              style={{ background: bullUp ? "#ffd24a" : "rgba(255,255,255,0.3)", left: bullUp ? "calc(100% - 18px)" : "2px" }} />
+              style={{ background: bullUp ? "#ff005c" : "rgba(255,255,255,0.3)", left: bullUp ? "calc(100% - 18px)" : "2px" }} />
           </div>
         </button>
       )}
 
       {/* Start button */}
       {unevenActive && startIssues.length > 0 && (
-        <div id="uneven-start-issues" role="status" className="pdc-card p-3 text-sm" style={{ color: "#ffd24a" }}>
+        <div id="uneven-start-issues" role="status" className="ms-live-start-issues pdc-card p-3 text-sm" style={{ color: "#ff005c" }}>
           <p className="font-bold mb-1">Before you can start:</p>
           <ul className="list-disc pl-5 space-y-1">{startIssues.map(issue => <li key={issue}>{issue}</li>)}</ul>
         </div>
@@ -1572,7 +1579,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
         onClick={handleStart}
         disabled={!canStart}
         aria-describedby={unevenActive && startIssues.length > 0 ? "uneven-start-issues" : undefined}
-        className="w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
+        className="ms-live-start-button w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
         style={{ background: canStart ? "linear-gradient(135deg, #ff005c, #cc0048)" : "rgba(255,255,255,0.04)",
           color: canStart ? "#fff" : "rgba(255,255,255,0.2)",
           border: canStart ? "none" : "1px solid rgba(255,255,255,0.06)",
@@ -1589,7 +1596,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
       </button>
 
       {rulesGame && <RulesModal game={rulesGame} onClose={() => setRulesGame(null)} />}
-    </div>
+    </main>
   );
 }
 

@@ -1,0 +1,280 @@
+.match-scorer-setup-live {
+  --setup-red: #ff005c;
+  --setup-ink: #f6f7fa;
+  --setup-muted: #9a9da7;
+  --setup-line: rgba(255, 255, 255, .09);
+  width: min(100%, 1010px);
+  margin: 0 auto 36px;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid rgba(255, 255, 255, .07);
+  border-radius: 22px;
+  color: var(--setup-ink);
+  background:
+    radial-gradient(ellipse at 48% -15%, rgba(255, 0, 92, .15), transparent 38%),
+    linear-gradient(150deg, rgba(22, 22, 27, .98), rgba(10, 10, 13, .99));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .26);
+}
+
+.ms-live-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--setup-line);
+}
+
+.ms-live-brand { display: flex; align-items: center; gap: 12px; }
+.ms-live-mark {
+  width: 42px; height: 42px; display: grid; place-items: center; flex: none;
+  border: 1px solid rgba(255, 0, 92, .34); border-radius: 13px;
+  color: var(--setup-red); background: rgba(255, 0, 92, .09);
+}
+.ms-live-eyebrow { margin: 0 0 4px; color: #a9abb4; font: 700 9px Oswald, sans-serif; letter-spacing: .18em; }
+.ms-live-eyebrow span { color: var(--setup-red); }
+.ms-live-brand h1 { margin: 0; font: 700 23px/1 Oswald, sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.ms-live-brand h1 span { color: var(--setup-red); }
+.ms-live-status { display: flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid rgba(255, 0, 92, .22); border-radius: 20px; color: #f1b4c9; background: rgba(255, 0, 92, .05); font: 600 9px Oswald, sans-serif; letter-spacing: .12em; }
+.ms-live-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--setup-red); box-shadow: 0 0 9px rgba(255, 0, 92, .6); }
+
+.ms-live-intro { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 30px 4px 23px; }
+.ms-live-kicker { margin: 0; color: #ff7da9; font: 600 9px Oswald, sans-serif; letter-spacing: .2em; }
+.ms-live-intro h2 { margin: 9px 0; font: 700 clamp(36px, 5vw, 54px)/.98 Oswald, sans-serif; letter-spacing: .01em; text-transform: uppercase; }
+.ms-live-intro h2 span { color: var(--setup-red); }
+.ms-live-intro>div>p:last-child { margin: 0; color: #a6a7af; font-size: 12px; }
+.ms-live-match-stamp { width: 82px; height: 82px; display: flex; flex: none; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border: 1px solid rgba(255, 0, 92, .33); border-radius: 50%; color: #ff789f; text-align: center; font: 700 7px Oswald, sans-serif; letter-spacing: .12em; }
+.ms-live-match-stamp svg { width: 20px; height: 20px; }
+
+.ms-live-matchday-banner {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 13px; padding: 12px 14px;
+  border: 1px solid rgba(255, 0, 92, .24); border-radius: 12px;
+  background: linear-gradient(100deg, rgba(255, 0, 92, .09), rgba(255, 255, 255, .018));
+}
+.ms-live-banner-icon { width: 34px; height: 34px; display: grid; place-items: center; flex: none; border: 1px solid rgba(255, 0, 92, .28); border-radius: 10px; color: #ff6d99; background: rgba(255, 0, 92, .08); }
+.ms-live-banner-icon svg { width: 17px; height: 17px; }
+.ms-live-matchday-banner>div { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.ms-live-matchday-banner strong { color: #ff9dbb; font: 600 11px Oswald, sans-serif; }
+.ms-live-matchday-banner>div span { color: #b3b2ba; font-size: 10px; }
+.ms-live-banner-state { color: #ff789f; font: 600 8px Oswald, sans-serif; letter-spacing: .12em; }
+
+.ms-live-panel { margin-top: 12px; padding: 17px 18px; border: 1px solid var(--setup-line); border-radius: 15px; background: linear-gradient(135deg, rgba(29, 29, 34, .96), rgba(17, 17, 21, .98)); box-shadow: inset 0 1px rgba(255, 255, 255, .025); }
+.ms-live-section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 13px; }
+.ms-live-section-title>span:first-child { width: 30px; height: 30px; display: grid; place-items: center; flex: none; border: 1px solid rgba(255, 0, 92, .32); border-radius: 9px; color: #ff6997; background: rgba(255, 0, 92, .07); font: 700 11px Oswald, sans-serif; }
+.ms-live-section-title h2 { margin: 0; color: #f3f2f5; font: 600 17px/1.15 Oswald, sans-serif; }
+.ms-live-section-title small { margin-left: auto; color: #898891; font: 600 8px Oswald, sans-serif; letter-spacing: .14em; }
+.ms-live-format-grid { gap: 8px; }
+.ms-live-format-option {
+  position: relative; min-width: 0; min-height: 72px; padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, .09); border-radius: 11px;
+  color: #eeedf1; background: rgba(255, 255, 255, .018); text-align: left; cursor: pointer;
+}
+.ms-live-format-option:hover { border-color: rgba(255, 0, 92, .42); background: rgba(255, 0, 92, .045); }
+.ms-live-format-option.is-active { border-color: rgba(255, 0, 92, .65); background: linear-gradient(105deg, rgba(255, 0, 92, .14), rgba(255, 255, 255, .025)); box-shadow: inset 3px 0 var(--setup-red); }
+.ms-live-format-icon { margin-bottom: 3px; font-size: 17px; line-height: 1; }
+.ms-live-format-label { color: #f1eff3; font: 600 11px Oswald, sans-serif; letter-spacing: .035em; }
+.ms-live-format-option.is-active .ms-live-format-label { color: #ff7ca4; }
+.ms-live-format-desc { margin-top: 3px; color: #96949d; font-size: 9px; line-height: 1.35; }
+.ms-live-format-check { position: absolute; top: 10px; right: 10px; width: 13px; height: 13px; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; }
+.ms-live-format-option.is-active .ms-live-format-check { border: 4px solid var(--setup-red); background: #fff; }
+
+.ms-live-players-panel .pdc-card, .ms-live-stake-panel, .ms-live-games-panel .pdc-card {
+  border-color: rgba(255, 255, 255, .1) !important;
+  border-radius: 12px;
+  background: rgba(10, 10, 13, .4) !important;
+}
+.ms-live-players-panel select, .ms-live-stake-panel input, .ms-live-players-panel select:focus, .ms-live-stake-panel input:focus {
+  border-color: rgba(255, 255, 255, .15) !important;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .055) !important;
+  outline-color: var(--setup-red);
+}
+.ms-live-stake-panel { margin-top: 12px; }
+.ms-live-stake-panel .ms-live-section-title { flex-wrap: wrap; }
+.ms-live-stake-limit { margin-left: auto; color: #a5a3ac; font: 500 9px Oswald, sans-serif; }
+.ms-live-games-panel { margin-top: 12px; }
+.ms-live-games-panel .ms-live-section-title { margin-bottom: 14px; }
+.ms-live-games-panel .pdc-card { min-height: 78px; transition: border-color .16s ease, background .16s ease; }
+.ms-live-games-panel .pdc-card:hover { border-color: rgba(255, 0, 92, .4) !important; background: rgba(255, 0, 92, .045) !important; }
+.ms-live-bull-toggle { border-color: rgba(255,255,255,.1) !important; background: rgba(20,20,24,.9) !important; text-align: left; }
+.ms-live-bull-toggle:hover { border-color: rgba(255,0,92,.35) !important; }
+.ms-live-start-button { min-height: 58px; margin-top: 3px; border-radius: 13px; letter-spacing: .12em; }
+.ms-live-start-button:disabled { border: 1px solid rgba(255,255,255,.1) !important; background: rgba(255,255,255,.045) !important; color: #898891 !important; }
+.ms-live-start-issues { border-color: rgba(255,0,92,.3) !important; background: rgba(255,0,92,.055) !important; }
+
+@media (max-width: 640px) {
+  .match-scorer-setup-live { padding: 14px 12px 24px; border-radius: 16px; }
+  .ms-live-header { align-items: flex-start; }
+  .ms-live-status { padding: 7px 8px; font-size: 8px; }
+  .ms-live-intro { padding: 23px 2px 18px; }
+  .ms-live-intro h2 { font-size: clamp(34px, 10vw, 43px); }
+  .ms-live-match-stamp { width: 60px; height: 60px; margin-right: 1px; font-size: 6px; }
+  .ms-live-match-stamp svg { width: 16px; height: 16px; }
+  .ms-live-panel { padding: 13px 11px; }
+  .ms-live-section-title { gap: 8px; }
+  .ms-live-section-title h2 { font-size: 15px; }
+  .ms-live-section-title small { font-size: 7px; }
+  .ms-live-format-grid { gap: 6px; }
+  .ms-live-format-option { min-height: 76px; padding: 8px; }
+  .ms-live-format-desc { font-size: 8px; }
+  .ms-live-stake-limit { width: 100%; margin-left: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-live-format-option, .ms-live-games-panel .pdc-card { transition: none; }
+}
+
+/* Match Scorer: Career-style relief in TKDL near-black, signal red, and silver. */
+.match-scorer-setup-live {
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 255, 255, .13);
+  background:
+    radial-gradient(ellipse at 50% -12%, rgba(255, 0, 92, .09), transparent 40%),
+    linear-gradient(155deg, #17181c 0%, #0d0e11 55%, #090a0c 100%);
+  box-shadow:
+    0 5px 0 #050506,
+    0 9px 0 #101114,
+    0 30px 68px rgba(0, 0, 0, .48),
+    inset 0 2px 0 rgba(255, 255, 255, .12),
+    inset 0 -2px 0 rgba(0, 0, 0, .6);
+}
+
+.match-scorer-setup-live::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: 2px;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .32) 28%, rgba(255, 0, 92, .48) 68%, transparent);
+}
+
+.ms-live-mark {
+  border-color: rgba(255, 0, 92, .5);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(255, 0, 92, .24), #171014);
+  box-shadow: 0 4px 0 #080609, 0 8px 16px rgba(0, 0, 0, .38), inset 0 1px rgba(255, 255, 255, .2);
+}
+
+.ms-live-match-stamp {
+  background: radial-gradient(circle at 38% 28%, rgba(255, 0, 92, .12), #101114 72%);
+  box-shadow: 0 4px 0 #060607, 0 9px 19px rgba(0, 0, 0, .38), inset 0 1px rgba(255, 255, 255, .12);
+}
+
+.ms-live-matchday-banner {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 0, 92, .35);
+  background: linear-gradient(105deg, rgba(255, 0, 92, .12), rgba(255, 255, 255, .025) 62%), #131316;
+  box-shadow: 0 4px 0 #080609, 0 9px 18px rgba(0, 0, 0, .3), inset 0 1px rgba(255, 255, 255, .12);
+}
+
+.ms-live-matchday-banner::after {
+  position: absolute;
+  inset: 10px 0 10px auto;
+  width: 2px;
+  content: "";
+  background: linear-gradient(transparent, #ff005c, transparent);
+}
+
+.ms-live-banner-icon,
+.ms-live-section-title > span:first-child {
+  background: linear-gradient(145deg, rgba(255, 0, 92, .23), #211015);
+  box-shadow: 0 3px 0 #080609, inset 0 1px rgba(255, 255, 255, .16);
+}
+
+.ms-live-panel {
+  position: relative;
+  border-color: rgba(255, 255, 255, .13);
+  border-radius: 15px;
+  background:
+    linear-gradient(112deg, rgba(255, 255, 255, .045), transparent 34%),
+    linear-gradient(145deg, #28292e 0%, #1b1c20 50%, #141518 100%);
+  box-shadow:
+    0 4px 0 #070708,
+    0 7px 0 #121316,
+    0 16px 27px rgba(0, 0, 0, .4),
+    inset 0 2px 0 rgba(255, 255, 255, .14),
+    inset 0 -2px 0 rgba(0, 0, 0, .52);
+}
+
+.ms-live-panel::before {
+  position: absolute;
+  inset: 0 4% auto;
+  height: 2px;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .27), transparent);
+}
+
+.ms-live-section-title > span:first-child {
+  border-color: rgba(255, 0, 92, .4);
+  color: #ff6b91;
+}
+
+.ms-live-format-option,
+.ms-live-players-panel .pdc-card,
+.ms-live-stake-panel,
+.ms-live-games-panel .pdc-card {
+  border-color: rgba(255, 255, 255, .14) !important;
+  background: linear-gradient(145deg, #25262b, #17181c 70%, #121316) !important;
+  box-shadow: 0 3px 0 #09090b, 0 6px 11px rgba(0, 0, 0, .28), inset 0 1px rgba(255, 255, 255, .12);
+}
+
+.ms-live-format-option {
+  transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+
+.ms-live-format-option.is-active {
+  border-color: rgba(255, 0, 92, .68) !important;
+  background: linear-gradient(110deg, rgba(255, 0, 92, .19), rgba(255, 255, 255, .035) 75%) !important;
+  box-shadow: inset 3px 0 #ff005c, 0 4px 0 #09090b, 0 8px 14px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .17);
+}
+
+.ms-live-format-option.is-active .ms-live-format-label { color: #ff7da3; }
+.ms-live-format-check { box-shadow: inset 0 1px rgba(255, 255, 255, .08); }
+
+.ms-live-players-panel .pdc-card,
+.ms-live-games-panel .pdc-card {
+  border-radius: 11px !important;
+}
+
+.ms-live-players-panel select,
+.ms-live-stake-panel input {
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .32), inset 0 1px rgba(255, 255, 255, .06);
+}
+
+.ms-live-bull-toggle {
+  box-shadow: 0 4px 0 #070708, 0 8px 16px rgba(0, 0, 0, .32), inset 0 1px rgba(255, 255, 255, .11) !important;
+}
+
+.ms-live-start-button {
+  border: 1px solid rgba(255, 90, 137, .36) !important;
+  background: linear-gradient(145deg, #ff276f, #d90050 72%, #aa003f) !important;
+  box-shadow: 0 4px 0 #650027, 0 8px 17px rgba(255, 0, 92, .2), inset 0 2px rgba(255, 255, 255, .23) !important;
+}
+
+.ms-live-start-button:disabled {
+  box-shadow: 0 3px 0 #08090b, inset 0 1px rgba(255, 255, 255, .07) !important;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .ms-live-format-option:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 0, 92, .48) !important;
+    box-shadow: 0 5px 0 #08090b, 0 10px 15px rgba(0, 0, 0, .36), inset 0 1px rgba(255, 255, 255, .15);
+  }
+}
+
+@media (max-width: 640px) {
+  .match-scorer-setup-live {
+    box-shadow: 0 4px 0 #050506, 0 22px 48px rgba(0, 0, 0, .38), inset 0 1px rgba(255, 255, 255, .1);
+  }
+  .ms-live-panel {
+    box-shadow: 0 3px 0 #070708, 0 5px 0 #121316, 0 11px 20px rgba(0, 0, 0, .36), inset 0 1px rgba(255, 255, 255, .12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-live-format-option { transition: none; }
+}
