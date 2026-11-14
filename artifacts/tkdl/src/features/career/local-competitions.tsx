@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CareerScorerStage, ScorerMinimise } from "./scorer-stage";
+import { CareerScorerStage } from "./scorer-stage";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, CupSoda, Shield, Trophy } from "lucide-react";
@@ -127,11 +127,8 @@ export function LocalCompetitionMatchPage({ ctx, competitionId, fixtureId }: { c
     return <div className="cam-league__done"><h2>{comp.kind === "TEAM_CUP" ? (teamWon ? "Your club won the team tie" : "Your club lost the team tie") : (match.won ? "You won the match" : "You lost the match")}</h2>
       {current.fixture.score?.join("–")}{back}</div>;
   }
-  return <CareerScorerStage title={`${player.name} vs ${opponent?.name ?? "your opponent"}`}>
-    <GameScorer topBanner={<div className="cam-league__live career-scorer-banner"><ScorerMinimise /><p className="cam-league__live-title"><CupSoda aria-hidden /> <b>{player.name}</b> vs <b>{opponent?.name}</b>
-    <small>{kindLabel(comp.kind)} · {comp.rules.startingScore}, best of {comp.rules.bestOfLegs}</small></p>
-    {message && <p role="alert" className="money-match__message">{message}</p>}
-    {back}</div>} key={match.id} p1Name={player.name} p2Name={opponent?.name ?? "Opponent"} gameType={careerGameType(session!.format)}
+  return <CareerScorerStage message={message} title={`${player.name} vs ${opponent?.name ?? "your opponent"}`}>
+    <GameScorer key={match.id} p1Name={player.name} p2Name={opponent?.name ?? "Opponent"} gameType={careerGameType(session!.format)}
       botConfig={bot!} firstThrower={0} {...scorerLength(session!.format)} initialRecovery={recovery} onRecoveryState={() => {}}
       botVisitPlanner={planner} onDartLog={onDartLog} onWin={() => send(log.current)} onAbandon={() => history.back()} />
   </CareerScorerStage>;

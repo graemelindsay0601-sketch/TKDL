@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CareerScorerStage, ScorerMinimise } from "./scorer-stage";
+import { CareerScorerStage } from "./scorer-stage";
 import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRight, Car, Check, Clock3, Compass, Crown, Loader2, MapPin, Route, Trophy } from "lucide-react";
@@ -214,12 +214,8 @@ export function RoadTripLivePage({ ctx, matchId }: { ctx: ShellContext; matchId:
     {session.legs && <p>{session.legs[0]}–{session.legs[1]} · stake {formatPence(session.stakePence)}</p>}{back}</div>;
   if (session.status === "MISSED") return <div className="cam-league__done space-y-3">
     <h2>Road match missed</h2><p>The week ended before the match was completed. No result or stake was recorded.</p>{back}</div>;
-  return <CareerScorerStage title={`${session.you} vs ${session.opponent.name}`}>
-    <GameScorer topBanner={<div className="cam-league__live career-scorer-banner"><ScorerMinimise />
-    <p className="cam-league__live-title"><b>{session.you}</b> vs <b>{session.opponent.name}</b>
-      <small>Road money match · best of {matchLength} legs · stake settled when you finish</small></p>
-    {message && <p className="money-match__message" role="alert">{message}</p>}
-    {back}</div>} key={session.id} p1Name={session.you} p2Name={session.opponent.name}
+  return <CareerScorerStage message={message} title={`${session.you} vs ${session.opponent.name}`}>
+    <GameScorer key={session.id} p1Name={session.you} p2Name={session.opponent.name}
       gameType={careerGameType(session.format as LiveSession["format"])} botConfig={session.opponent.bot.config}
       firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => {}} botVisitPlanner={planner} onDartLog={onDartLog}

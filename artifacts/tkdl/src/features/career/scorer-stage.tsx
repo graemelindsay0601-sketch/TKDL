@@ -18,7 +18,7 @@ export function useScorerScrollLock(active = true) {
 
 const StageContext = createContext<{ minimise: () => void } | null>(null);
 
-/** "Minimise" for the scorer's own top region (inside a CareerScorerStage); renders nothing anywhere else. */
+/** The stage's Minimise button; renders nothing outside a CareerScorerStage. */
 export function ScorerMinimise() {
   const stage = useContext(StageContext);
   if (!stage) return null;
@@ -33,9 +33,10 @@ export function ScorerMinimise() {
  * hidden), and Resume match brings it straight back. Leaving the page altogether is safe too: the server keeps the
  * dart log, so the match reopens where it was.
  *
- * Put <ScorerMinimise /> in the scorer's top region (GameScorer `topBanner`); scorers without one use `floatingControl`.
+ * Minimise floats in the scorer's empty top-left corner and messages float over it, so neither takes any of the
+ * scorer's own height (its scoreboard and keypad stay exactly as in Practice).
  */
-export function CareerScorerStage({ children, title, floatingControl = false }: { children: ReactNode; title?: string; floatingControl?: boolean }) {
+export function CareerScorerStage({ children, title, message }: { children: ReactNode; title?: string; message?: ReactNode }) {
   const [minimised, setMinimised] = useState(false);
   useScorerScrollLock(!minimised);
   const resume = () => setMinimised(false);
@@ -49,7 +50,8 @@ export function CareerScorerStage({ children, title, floatingControl = false }: 
       <div className="career-scorer-stage" hidden={minimised} aria-hidden={minimised || undefined}
         style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e", overscrollBehavior: "contain", display: minimised ? "none" : undefined }}>
         {children}
-        {floatingControl && <div className="career-scorer-float-control"><ScorerMinimise /></div>}
+        <div className="career-scorer-float-control"><ScorerMinimise /></div>
+        {message && <div className="career-scorer-toast" role="alert">{message}</div>}
       </div>
       {minimised && <button type="button" className="career-scorer-resume" onClick={resume}><Maximize2 aria-hidden /> Resume match</button>}
     </>, document.body)}

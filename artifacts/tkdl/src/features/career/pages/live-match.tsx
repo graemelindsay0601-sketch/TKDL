@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useScorerScrollLock, CareerScorerStage, ScorerMinimise } from "../scorer-stage";
+import { useScorerScrollLock, CareerScorerStage } from "../scorer-stage";
 import { ContinueProgress } from "../continue-career";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
@@ -155,7 +155,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   if (phase === "done" && session.result) return <PostMatch ctx={ctx} session={session} />;
 
   if (session.format.mix === "SOFT_TIP") return (
-    <CareerScorerStage title={`${sideNames[0]} vs ${sideNames[1]}`} floatingControl>
+    <CareerScorerStage title={`${sideNames[0]} vs ${sideNames[1]}`}>
       <SoftTipScorer key={`${session.sessionId}:${scorerKey}`} session={session} firstThrower={session.firstThrower ?? 0} initialDarts={session.darts as Dart[]}
         onDarts={onDartLog} onAbandon={() => navigate(`/career/${saveId}/tournaments/${session.eventId}`)} />
       {error && phase === "play" && (
@@ -168,7 +168,7 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   const gameType = careerGameType(session.format) as unknown as GameTypeOption;
   return (
     <CareerScorerStage title={`${sideNames[0]} vs ${sideNames[1]}`}>
-      <GameScorer key={`${session.sessionId}:${scorerKey}`} topBanner={<div className="career-scorer-banner"><ScorerMinimise /></div>}
+      <GameScorer key={`${session.sessionId}:${scorerKey}`} 
         p1Name={sideNames[0]} p2Name={sideNames[1]} gameType={gameType}
         botConfig={session.bot.config} firstThrower={session.firstThrower ?? 0}
         {...scorerLength(session.format)}
