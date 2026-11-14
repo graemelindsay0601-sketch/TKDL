@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { DobPicker } from "../dob-picker";
 import { Link, useLocation } from "wouter";
 import { Archive, Plus, Star } from "lucide-react";
 import { useCareerSaves, useSaveLifecycle, usePresentation, errorMessage, errorStatus } from "../api";
@@ -150,15 +151,14 @@ function EmptySlot({ slot, onCreate, busy }: { slot: number; onCreate: (name: st
           <label className="flex flex-col gap-1"><Label>Career name (optional)</Label>
             <input value={name} maxLength={80} onChange={e => setName(e.target.value)} className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" placeholder="My Career" />
           </label>
-          <label className="flex flex-col gap-1"><Label>Date of birth</Label>
-            <input type="date" required value={dob} max={start} onChange={e => setDob(e.target.value)} aria-describedby={`dob-help-${slot}`} aria-invalid={tooYoung || undefined}
-              className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" />
+          <div className="flex flex-col gap-1"><span id={`dob-${slot}-label`}><Label>Date of birth</Label></span>
+            <DobPicker idPrefix={`dob-${slot}`} value={dob} onChange={setDob} start={start} minAge={MINIMUM_CAREER_START_AGE} describedBy={`dob-help-${slot}`} invalid={tooYoung} />
             <span id={`dob-help-${slot}`} className="text-xs" style={{ color: tooYoung ? "#ff8fb4" : "rgba(255,255,255,0.62)" }}>
               {startAge === null ? `Career time starts on ${start}. You must be at least ${MINIMUM_CAREER_START_AGE}. This cannot be changed later.`
                 : tooYoung ? `You would be ${startAge} when the Career starts — the minimum is ${MINIMUM_CAREER_START_AGE}.`
                 : `You start the Career aged ${startAge}${startAge < 18 ? " — junior events are open to you until you turn 18" : ""}. This cannot be changed later.`}
             </span>
-          </label>
+          </div>
           <label className="flex flex-col gap-1"><Label>Home region</Label>
             <select value={home} onChange={e => setHome(e.target.value)} className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
               {HOME_REGIONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}

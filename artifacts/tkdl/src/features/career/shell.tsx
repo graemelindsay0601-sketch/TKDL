@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { DobPicker } from "./dob-picker";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
   Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, Moon, Shield, Coins, Car, Star, Video, Radio, type LucideIcon } from "lucide-react";
@@ -70,9 +71,8 @@ function ProfileIncompleteBanner({ saveId }: { saveId: string }) {
       <div><Label color="#ffd24a">Profile incomplete</Label>
         <p className="text-sm mt-1" style={{ color: "#fff" }}>This Career was created before ages existed. Set your date of birth to keep playing — entering events, continuing the calendar and starting matches wait until you do. It can only be set once.</p></div>
       <form className="flex flex-col sm:flex-row sm:items-end gap-2" onSubmit={e => { e.preventDefault(); if (dob && !tooYoung) set.mutate({ dateOfBirth: dob, ...(home ? { homeLocality: home } : {}) }); }}>
-        <label className="flex flex-col gap-1"><Label>Date of birth</Label>
-          <input type="date" required value={dob} max={start} onChange={e => setDob(e.target.value)} aria-invalid={tooYoung || undefined}
-            className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" /></label>
+        <div className="flex flex-col gap-1"><span id="dob-profile-label"><Label>Date of birth</Label></span>
+          <DobPicker idPrefix="dob-profile" value={dob} onChange={setDob} start={start} minAge={MINIMUM_CAREER_START_AGE} invalid={tooYoung} /></div>
         {!profile.data.homeLocality && <label className="flex flex-col gap-1"><Label>Home region</Label>
           <select value={home} onChange={e => setHome(e.target.value)} className="rounded-lg px-3 py-2 text-sm bg-black/40 border border-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]">
             <option value="">Keep default (Ayrshire)</option>{HOME_REGIONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
