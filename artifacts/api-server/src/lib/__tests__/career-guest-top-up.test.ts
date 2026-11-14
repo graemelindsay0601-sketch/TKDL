@@ -59,7 +59,7 @@ test("substitutes: local club players from the event's own area, right age and c
   assert.equal(new Set(subs.map(s => `${s.firstName} ${s.surname}`)).size, 3);
   assert.deepEqual(subs, substitutesFor(HARNESS_SEED, 1, county, 3, [], tw), "same event, same substitutes");
   const providers = { sportingStatus: { rankings: () => ({}), npcTourCard: () => false } } as any;
-  const ctx = { entitlements: new Map(), results: { SAME: new Map(), PREVIOUS: new Map() }, champions: new Map() } as any;
+  const ctx = { careerStartDate: "2026-01-05", entitlements: new Map(), results: { SAME: new Map(), PREVIOUS: new Map() }, champions: new Map() } as any;
   for (const s of subs) assert.ok(evaluate(county, factsFor(npcParticipant(s, providers), ctx, county)).eligible, "a substitute meets the county rules");
   const juniors = row(14, "junior-development-night");
   const kids = substitutesFor(HARNESS_SEED, 1, { ...juniors, instance_key: "jdn:x" } as InstanceRow, 2, [], (juniors.snapshot as any).npcTierWeights);

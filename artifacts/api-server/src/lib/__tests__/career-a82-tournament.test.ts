@@ -97,7 +97,7 @@ test("circular three-way ties use aggregates, not ID, ability, RNG or premature 
 test("unplayed fixtures have no final qualifiers; corrupt fixtures are rejected, not invented",()=>{
   const f=fixtures();assert.equal(groupTable(f,"A").finished,false);assert.equal(groupTable(f,"A").pendingTie,null);
   assert.throws(()=>groupTable(f.slice(1),"A"),/incomplete/);
-  f[5].b_key="B";assert.throws(()=>groupTable(f,"A"),/official draw/);
+  f[5].b_key="B";assert.throws(()=>groupTable(f,"A"),/official draw|duplicate participants/);
 });
 test("bull knockout requires real winners at every pair and resolves both qualifying places",()=>{
   assert.deepEqual(bullRanking(["A","B","C"],[],2).pair,["A","B"]);

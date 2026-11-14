@@ -123,6 +123,8 @@ before(async () => {
   app.use("/api/career", router);
   app.use("/api", createCareerAdminRouter(db));
   server = app.listen(0);
+  // Long tests leave the client's pooled connection idle past Node's 5s keep-alive; the server then resets it on reuse.
+  server.keepAliveTimeout = 0;
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/career`;
 });
 after(async () => { server.close(); await pg.close(); });

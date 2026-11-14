@@ -60,7 +60,8 @@ test("the human enters events on three different days of one week and plays them
     const r = await career.calendar.advance(actor, id, { operationKey: `busy-week-${++op}`, expectedSeason: s.currentSeason, expectedWeek: s.currentWeek, target: { kind: "NEXT_MEANINGFUL" } }) as any;
     if (r.stop.reason === "HUMAN_MATCH_PENDING") for (const matchId of r.stop.detail.matchIds) {
       const eventId = String((await db.execute(sql`SELECT event_id FROM career_tournament_matches WHERE career_save_id=${id} AND id=${matchId}`)).rows[0].event_id);
-      await career.calendar.quickSimMatch(actor, id, eventId, { matchId, confirmation: "QUICK_SIM" });
+      // Tournament matches are played live (quick-sim is off for the human); conceding resolves one without a scorer.
+      await career.calendar.concedeMatch(actor, id, eventId, { matchId, confirmation: "CONCEDE_MATCH" });
     }
     assert.ok((await saves.read(1, id)).currentWeek <= week[0] + 1, `still in week ${week[0]} (stop: ${r.stop.reason})`);
   }
@@ -89,5 +90,5 @@ test("Continue stops on a reserved DartCast night and resumes the same week when
   assert.equal(paused.to.week, save.currentWeek);
   await db.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${id} AND id=${commitmentId}`);
   const resumed = await career.calendar.advance(actor, id, request) as any;
-  assert.equal(resumed.to.week, save.currentWeek + 1, "retrying the blocked advance continues after the stream is handled");
+  assert.equal(resumed.to.week, save.currentWeek + 1, `retrying the blocked advance continues after the stream is handled: ${JSON.stringify(resumed.stop)}`);
 });
