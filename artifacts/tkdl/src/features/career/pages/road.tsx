@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { markVisited } from "../welcome";
 import { Link } from "wouter";
-import { ArrowDownRight, ArrowRight, BadgeCheck, CalendarDays, Check, Crown, GraduationCap, Route, Sparkles, Ticket, Vault, X } from "lucide-react";
+import { ArrowDownRight, ArrowRight, BadgeCheck, CalendarDays, Check, Crown, GraduationCap, Medal, RotateCcw, Route, Sparkles, Ticket, Vault, X } from "lucide-react";
 import { usePathways, useTourCard, useDecideTourCard, errorMessage, type PathwaysView } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { BREAKOUT_ROUTES, formatPence, ordinal, sourceLabel } from "../model";
@@ -72,6 +72,38 @@ export function TourCardOffer({ saveId }: { saveId: string }) {
   </section>;
 }
 
+/**
+ * Lost your Tour Card: every way back, in one place. Real players drop off the tour and come back through Q-School, the
+ * second-tier tours and open events; nothing here is a new rule, it gathers the routes that stay open to you.
+ */
+export function RoutesBack({ saveId, p }: { saveId: string; p: PathwaysView }) {
+  const r = p.routesBack, lost = r.lostCard;
+  if (!lost || p.tourCard) return null;
+  const c = p.challenger, q = p.qSchool, cup = r.championsCup;
+  const ways: { key: string; title: string; text: string; event?: { eventId: string; name: string; week: number; status: string } | null; done?: boolean }[] = [
+    { key: "q-school", title: "Q-School", done: r.finalStageExempt,
+      text: r.finalStageExempt ? "You skip First Stage: losing your card puts you straight into this season's Final Stage, where the cards are won."
+        : `Win your card back at Q-School${q.next ? "" : ` (next season ${q.nextSeason}, weeks 2–4)`}.`, event: q.next },
+    { key: "challenger", title: "Challenger Tour", done: c.access === "PASS" || c.access === "OPEN_SEASON",
+      text: c.access === "NONE" ? `Reach the last 16 of a Challenger Qualifier for a pass. The top ${c.cards} on the ranking win a card.`
+        : `You can play it this season. The top ${c.cards} on the Challenger ranking win a card.`, event: c.qualifiers[0] ?? null },
+    { key: "vault", title: "Vault Tour", text: "Open to anyone without a card: TV events most weeks of the season, and a Worlds place for the top of its ranking." },
+    ...(cup.offered ? [{ key: "cup", title: "Grassroots Champions Cup", done: cup.eligible, event: cup.next,
+      text: cup.eligible ? `You're in as a champion this season. The final puts you into next season's Q-School Final Stage.`
+        : "Win a local, club or county event this season to get in. Free to enter; the finalists skip Q-School First Stage." }] : []),
+  ];
+  return <section className="rt-back" aria-labelledby="rt-back-title">
+    <div className="rt-section-heading"><div><span>ROUTES BACK</span><h2 id="rt-back-title">Your card has gone. <em>The road hasn't.</em></h2></div>
+      <p>Your Tour Card ended in season {lost.season}. Plenty of players lose a card and win it back. These are open to you now.</p></div>
+    <ol className="rt-back__list">
+      {ways.map(w => <li key={w.key} data-done={w.done || undefined}>
+        <span className="rt-back__tick" aria-hidden>{w.done ? <Check size={14} /> : <RotateCcw size={14} />}</span>
+        <div><b>{w.title}</b><p>{w.text}</p>{w.event && <EventLink saveId={saveId} e={w.event} />}</div>
+      </li>)}
+    </ol>
+  </section>;
+}
+
 function Routes({ saveId, p }: { saveId: string; p: PathwaysView }) {
   const pro = !!p.tourCard && !p.tourCard.offer;
   const c = p.challenger, q = p.qSchool, w = p.worlds;
@@ -132,7 +164,14 @@ function Routes({ saveId, p }: { saveId: string; p: PathwaysView }) {
           description="The TV amateur series. An optional route: top the ranking and earn a place at the Worlds.">
           <span className="rt-next-copy"><Vault size={14} aria-hidden /> Optional. Playing Vault does not close other routes.</span>
         </RouteTile>}
-        <RouteTile number="05" icon={<Crown />} title="World Championship" accent="#e3bf70"
+        {!pro && p.routesBack.championsCup.offered && (() => { const cup = p.routesBack.championsCup; return <RouteTile number="05" icon={<Medal />} title="Grassroots Champions Cup" accent="#b9873f"
+          rankLabel="YOUR TITLES THIS SEASON" rankValue={String(cup.titles.length)} rankNote={cup.eligible ? "You're in" : "Win one to get in"} completed={cup.eligible}
+          description={`Free, at the end of the season, for players without a card who won a local, club or county event. The finalists skip next season's Q-School First Stage; the last ${cup.challengerPlaces} get a Challenger Tour pass for next season.`}>
+          {cup.eligible ? <span className="rt-next-copy"><Check size={14} aria-hidden /> Champion of {cup.titles.slice(0, 2).join(" and ")}{cup.titles.length > 2 ? ` and ${cup.titles.length - 2} more` : ""}.</span>
+            : <span className="rt-next-copy">Any local night, club league or county event counts if you win it.</span>}
+          {cup.next && <><span className="rt-next-label">THIS SEASON</span><EventLink saveId={saveId} e={cup.next} /></>}
+        </RouteTile>; })()}
+        <RouteTile number="06" icon={<Crown />} title="World Championship" accent="#e3bf70"
           rankLabel="WORLDS PLACE" rankValue={w.place ? "Secured" : "Not secured"} rankNote={w.place ? BREAKOUT_ROUTES[w.place.route] ?? "Qualified" : "Multiple qualification routes"} completed={!!w.place}
           description={`Qualify via World Ranking, a qualifier, route rankings, winning the Amateur World Masters, or reaching ${w.fanFavouriteFans.toLocaleString("en-GB")} fans.`}>
           {w.place ? <span className="rt-next-copy"><Check size={14} aria-hidden /> Place secured via {BREAKOUT_ROUTES[w.place.route] ?? "qualification"}.</span> : <>
@@ -172,6 +211,7 @@ export function RoadToTourPage({ ctx }: { ctx: ShellContext }) {
       <div className="rt-hero__vertical" aria-hidden="true">ROAD TO THE TOUR <span>·</span> 01—03</div>
     </header>
     <TourCardOffer saveId={id} />
+    <RoutesBack saveId={id} p={p} />
     <Routes saveId={id} p={p} />
     <footer className="rt-footer"><span><span className="rt-footer__mark">TKDL</span> CAREER · ROAD TO THE TOUR</span>
       <p>Route standings, qualification status and event examples are live from this Career save.</p>

@@ -176,7 +176,11 @@ test("NPC fields are plausible by tier and genuinely international at the top", 
 
 test("qualification entitlements persist source/recipient, are consumed by intake and are retry safe", async () => {
   const issued = await rows(sql`SELECT q.*, i.definition_key AS source_definition FROM career_qualification_entitlements q JOIN career_event_instances i ON i.career_save_id = q.career_save_id AND i.id = q.source_event_id
-    WHERE q.career_save_id = ${world.id} AND q.awarded_season = 1`);
+    WHERE q.career_save_id = ${world.id} AND q.awarded_season = 1 AND q.target_season = 1`);
+  // v38: the Grassroots Champions Cup's places are for next season (Q-School Final Stage, a Challenger pass), so they stay active.
+  const nextSeason = await rows(sql`SELECT q.target_season, q.status, i.definition_key AS source_definition FROM career_qualification_entitlements q
+    JOIN career_event_instances i ON i.career_save_id = q.career_save_id AND i.id = q.source_event_id WHERE q.career_save_id = ${world.id} AND q.awarded_season = 1 AND q.target_season <> 1`);
+  assert.ok(nextSeason.every(e => e.source_definition === "grassroots-champions-cup" && Number(e.target_season) === 2), "only the Champions Cup grants next-season places");
   assert.ok(issued.some(e => e.target_key === "q-school-final:UK_IRELAND" && String(e.source_definition).startsWith("q-school-first-uk_ireland")));
   for (const e of issued) {
     assert.ok(e.recipient_key && e.source_event_id && e.source_position && e.target_key && e.target_season === 1);
@@ -200,7 +204,7 @@ test("qualification entitlements persist source/recipient, are consumed by intak
     entitlement_type: e.entitlement_type, source_event_id: e.source_event_id, source_position: e.source_position, source_detail: e.source_detail, target_key: e.target_key,
     target_season: e.target_season, consumption: e.consumption }));
   await db.transaction(tx => insertEntitlements(tx, world.id, 1, sample, "EVENT_RESULT"));
-  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_qualification_entitlements WHERE career_save_id = ${world.id} AND awarded_season = 1`))[0].n, issued.length);
+  assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_qualification_entitlements WHERE career_save_id = ${world.id} AND awarded_season = 1`))[0].n, issued.length + nextSeason.length);
   // A5 provider boundary reuses the same model idempotently.
   const npc = String(issued[0].recipient_key);
   const grant = { idempotencyKey: "ranking-top-32-s2", providerId: "A5_TEST", recipientKey: npc, entitlementType: "EVENT_ENTRY", targetKey: "world-championship", targetSeason: 2, consumption: "SINGLE_USE" };
