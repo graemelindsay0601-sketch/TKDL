@@ -81,6 +81,8 @@ export const useAnswerBrandDeal = (saveId: string) => useSaveMutation(saveId, ({
   send<StreamingView>("POST", `/saves/${saveId}/streaming/deals/${dealId}`, { accept }));
 export const useSetRegularRole = (saveId: string) => useSaveMutation(saveId, ({ key, role }: { key: string; role: "NONE" | "MOD" | "VIP" }) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/regulars/${encodeURIComponent(key)}/role`, { role }));
+export const useNameEmote = (saveId: string) => useSaveMutation(saveId, ({ slot, name }: { slot: number; name: string }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/emotes`, { slot, name }));
 export const useAnswerStreamCampaign=(saveId:string)=>useSaveMutation(saveId,({campaignId,accept}:{campaignId:string;accept:boolean})=>
   send<StreamingView>("POST",`/saves/${saveId}/streaming/campaigns/${campaignId}`,{accept}));
 export type MatchStream = import("../../../../api-server/src/career/streaming/service").MatchStream;
@@ -93,6 +95,8 @@ export const streamingApi = {
     : get<MatchStream>(`/saves/${saveId}/streaming/match/${matchId}`),
   darts: (saveId: string, streamId: string, darts: unknown[]) => send<{ session: StreamSession; events: ChatEvent[] }>("POST", `/saves/${saveId}/streaming/streams/${streamId}/darts`, { darts }),
   end: (saveId: string, streamId: string) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/end`),
+  /** Raid another creator with your audience once the stream ends. */
+  raid: (saveId: string, streamId: string, streamer: string) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/raid`, { streamer }),
   /** Accept or skip the viewer request on offer (between legs). */
   answerRequest: (saveId: string, streamId: string, accept: boolean) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/request`, { accept }),
 };

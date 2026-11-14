@@ -68,7 +68,7 @@ export type ChatEvent =
   /** The scoring challenge: bits pledged that pay only if you beat the target average. */
   | { kind: "PLEDGE"; user: string; pence: number; text: string }
   /** An on-screen overlay alert (hype train, request, prediction, milestone): shown above the stream, kept in chat too. */
-  | { kind: "ALERT"; alert: "TRAIN" | "TRAIN_END" | "REQUEST" | "REQUEST_IN" | "PREDICTION" | "MILESTONE" | "WELCOME"; text: string; user?: string };
+  | { kind: "ALERT"; alert: "TRAIN" | "TRAIN_END" | "REQUEST" | "REQUEST_IN" | "PREDICTION" | "MILESTONE" | "WELCOME" | "RAID" | "GIFT" | "NOTIFY"; text: string; user?: string };
 export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number;
   /** Estimated audience watch time, at two minutes per dart visit. Optional for saves created before ad monetisation. */
   viewerMinutes?: number;
@@ -111,13 +111,13 @@ const LINES: Record<string, readonly string[]> = {
  * Chat for one visit: the reaction, any cheers, follows and subs, and the viewer count after it. The same visit on the same
  * stream always gives the same chat. `tier` gates what viewers can do (bits and super chats from Affiliate, subs from Partner).
  */
-export function chatForVisit(seed: string, streamKey: string, index: number, v: Visit, tally: Tally, tier: TierKey, matchOver: "WON" | "LOST" | null, regulars: readonly Regular[] = []):
+export function chatForVisit(seed: string, streamKey: string, index: number, v: Visit, tally: Tally, tier: TierKey, matchOver: "WON" | "LOST" | null, regulars: readonly Regular[] = [], emotes: readonly string[] = []):
   { events: ChatEvent[]; tally: Tally } {
   const you = v.thrower === 0;
   const moment = matchOver ?? (you
     ? v.checkout ? (v.startScore >= 100 ? "YOU_BIG_CHECKOUT" : "YOU_CHECKOUT") : v.bust ? "YOU_BUST" : v.points === 180 ? "YOU_180" : v.points >= 100 ? "YOU_TON" : v.points < 30 ? "YOU_LOW" : "IDLE"
     : v.points === 180 ? "THEM_180" : v.checkout ? "THEM_CHECKOUT" : "IDLE");
-  return chatForMoment(seed, streamKey, index, moment, tally, tier, false, regulars);
+  return chatForMoment(seed, streamKey, index, moment, tally, tier, false, regulars, emotes);
 }
 
 const LIFT: Record<string, number> = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CHECKOUT: 0.5, YOU_TON: 0.25, WON: 1, THEM_180: 0.3, YOU_BUST: 0.1, LOST: 0.2, THEM_CHECKOUT: 0.1,
@@ -125,15 +125,15 @@ const LIFT: Record<string, number> = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CH
 
 /** Chat for one visit of a drill format (Bob's 27, checkouts, scoring). On the scoring challenge, bits come in as pledges. */
 export function chatForDrillVisit(seed: string, streamKey: string, index: number, v: { note: string; points: number; startScore?: number }, tally: Tally, tier: TierKey,
-  over: "WON" | "LOST" | null, pledges = false, regulars: readonly Regular[] = []) {
+  over: "WON" | "LOST" | null, pledges = false, regulars: readonly Regular[] = [], emotes: readonly string[] = []) {
   const moment = over ?? (v.note === "HIT" ? "DRILL_HIT" : v.note === "CHECKOUT" ? ((v.startScore ?? 0) >= 100 ? "YOU_BIG_CHECKOUT" : "DRILL_HIT") : v.note === "OUT" ? "DRILL_OUT"
     : v.note === "MISS" || v.note === "BUST" || v.note === "FAILED" ? "DRILL_MISS" : v.points === 180 ? "DRILL_BIG" : v.points >= 100 ? "YOU_TON" : v.points < 30 ? "YOU_LOW" : "DRILL_SCORE");
-  return chatForMoment(seed, streamKey, index, moment, tally, tier, pledges, regulars);
+  return chatForMoment(seed, streamKey, index, moment, tally, tier, pledges, regulars, emotes);
 }
 
 /** The heart of the chat: a moment's reaction, cheers, follows and subs, and the viewer count after it. */
-export function chatForMoment(seed: string, streamKey: string, index: number, moment: string, tally: Tally, tier: TierKey, pledges = false, regulars: readonly Regular[] = []):
-  { events: ChatEvent[]; tally: Tally } {
+export function chatForMoment(seed: string, streamKey: string, index: number, moment: string, tally: Tally, tier: TierKey, pledges = false, regulars: readonly Regular[] = [],
+  emotes: readonly string[] = []): { events: ChatEvent[]; tally: Tally } {
   const rng = scopedRandom(seed, STREAM.version, "stream-visit", streamKey, index);
   const lift = LIFT[moment] ?? 0;
   const hype = Math.max(0, Math.min(3, tally.hype * 0.85 + lift));
@@ -150,6 +150,11 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
   }
   const messages = Math.max(1, Math.min(6, Math.round(Math.sqrt(tally.viewers) / 2 * (0.6 + hype))));
   for (let i = 0; i < messages; i++) say(i === 0 || rng() < 0.6 ? moment : "IDLE");
+  // Your channel's own emotes: chat spams them on the big moments (a separate draw, so chat without emotes is unchanged).
+  if (emotes.length && (LIFT[moment] ?? 0) >= 0.45) {
+    const er = scopedRandom(seed, STREAM.version, "stream-emote", streamKey, index);
+    for (const e of events) if (e.kind === "CHAT" && er() < 0.5) { const em = pick(er, emotes); (e as { text: string }).text += ` ${em} ${er() < 0.4 ? em : ""}`.trimEnd(); }
+  }
   // Cheers: bits and super chats from Affiliate up, more likely on a big moment and in a bigger room.
   const room = Math.min(1, tally.viewers / 300);
   let bits = 0, supers = 0, subs = 0, pledged = 0;
@@ -244,6 +249,7 @@ export const FORMATS = [
   { key: "CHECKOUTS", name: "Checkout Challenge", blurb: "Chat picks 5 finishes: three visits at each. Hit 3 to win.", crowd: 0.9 },
   { key: "BOBS_27", name: "Bob's 27 live", blurb: "Every double from 1 to the bull, starting on 27. Don't drop to zero.", crowd: 0.8 },
   { key: "SCORING", name: "Average challenge", blurb: "33 visits of pure scoring against a target average. Chat pledges bits that pay only if you beat it.", crowd: 0.9 },
+  { key: "COMMUNITY", name: "Community night", blurb: "Play your regulars: one of them steps up, first to 2 legs. Every regular in the room grows more loyal. Needs 3 regulars.", crowd: 1.05 },
   { key: "CHARITY", name: "Charity stream", blurb: "Play a viewer for a good cause: every bit and super chat goes to charity. Generous crowds, and fans remember it. Once a month.", crowd: 1.1 },
 ] as const;
 /** Optional four-episode channel series. Each keeps the other DartCast formats and Career routes available. */
@@ -255,7 +261,7 @@ export const CREATOR_SERIES = [
     description: "Checkout challenges, Bob’s 27 and average challenges.", formats: ["CHECKOUTS", "BOBS_27", "SCORING"],
     chapters: ["Start with a challenge the audience can follow.", "Your regulars bring their own finishes and targets.", "A viewer-submitted challenge tests your preparation.", "Show how far the channel’s skills have come this season."] },
   { key: "CLUBHOUSE", name: "The Clubhouse", tagline: "Make the audience part of the show.",
-    description: "Collaborations and charity streams put community first.", formats: ["COLLAB", "CHARITY"],
+    description: "Collaborations and charity streams put community first.", formats: ["COLLAB", "CHARITY", "COMMUNITY"],
     chapters: ["Welcome the community into the channel.", "Share the show with another creator.", "Use the audience to support a good cause or local darts.", "Finish the season by bringing the community together."] },
 ] as const;
 export type CreatorSeriesKey = typeof CREATOR_SERIES[number]["key"];
@@ -458,6 +464,8 @@ export const COMMUNITY = Object.freeze({
   attend: 6, decay: 5, graceWeeks: 2,
   /** Each moderator keeps a little more of the audience watching (opening viewers), up to the cap. */
   modViewerBonus: 0.03, modViewerCap: 0.15,
+  /** Community nights: regulars needed to hold one, and the extra loyalty everyone gets. */
+  nightMin: 3, nightBonus: 8,
 });
 const PERSONA_LINES: Record<Persona, Partial<Record<string, string[]>>> = {
   HYPE: { YOU_180: ["ONE HUNDRED AND EIGHTYYYY 🔥🔥🔥", "I'M SCREAMING"], YOU_BIG_CHECKOUT: ["ARE YOU KIDDING ME", "CLIP IT CLIP IT CLIP IT"], WON: ["WE RIDE AT DAWN", "THE GOAT"] },
@@ -475,3 +483,30 @@ export const personaLine = (persona: Persona, moment: string, rng: () => number)
   return lines ? pick(rng, lines) : null;
 };
 export type Regular = { name: string; persona: Persona; role: "NONE" | "MOD" | "VIP" };
+
+// ------------------------------------------------------------------ emotes, raids
+/** Channel emotes: a slot opens at each sub count; you name them and chat uses them on big moments. */
+export const EMOTES = Object.freeze({ thresholds: [5, 25, 100, 500, 2500] as readonly number[], nameRe: /^[A-Za-z0-9]{2,12}$/ });
+/** The emote code chat types: your channel prefix plus the name you gave it. */
+export const emotePrefix = (handle: string) => (handle.replace(/[^A-Za-z]/g, "").slice(0, 4) || "dart").toLowerCase();
+/**
+ * Raids: end a stream by sending your viewers to another creator. It builds the friendship, and creators remember: one
+ * you've raided may raid you back on a later night (a big creator rarely raids a tiny channel). Raiders bring part of
+ * their audience, who see your stream at its best.
+ */
+export const RAID = Object.freeze({ baseIn: 0.04, owedIn: 0.3, raidersShare: 0.003, minRaiders: 3 });
+/** Chance a creator raids you tonight, and how many viewers they'd bring. */
+export function raidIn(seed: string, streamKey: string, you: number, candidates: readonly { key: string; handle: string; followers: number; owed: boolean }[]) {
+  const rng = scopedRandom(seed, STREAM.version, "stream-raid-in", streamKey);
+  if (!candidates.length) return null;
+  const owed = candidates.filter(c => c.owed);
+  const pool = owed.length ? owed : candidates;
+  const c = pool[Math.floor(rng() * pool.length)];
+  const sizeFit = Math.min(1, (you * 4 + 40) / Math.max(1, c.followers));
+  const chance = (c.owed ? RAID.owedIn : RAID.baseIn) * (c.owed ? Math.max(0.35, sizeFit) : sizeFit);
+  if (rng() >= chance) return null;
+  const viewers = Math.max(RAID.minRaiders, Math.round(Math.min(c.followers * RAID.raidersShare, you * 1.5 + 25) * (0.7 + rng() * 0.6)));
+  return { key: c.key, handle: c.handle, viewers };
+}
+/** Clip of the Week: chance your best clip of the week wins (viral or not), and the follower spotlight it brings. */
+export const CLIP_OF_WEEK = Object.freeze({ viral: 0.55, plain: 0.15, share: 0.01, minFollowers: 5 });

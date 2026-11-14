@@ -11,10 +11,10 @@ import { InsufficientFundsError, post } from "../finance/ledger.ts";
 import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { answerRequest, overlayVisit, recapFor } from "./overlay.ts";
-import { activeRegulars, attendStream, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
+import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -55,10 +55,12 @@ export type CreatorSeriesState = { selected: CreatorSeries | null; options: Crea
   chapters: { quarter: number; title: string; story: string; status: "DONE" | "CURRENT" | "UPCOMING" | "MISSED" | "NOT_STARTED"; format: StreamFormat | null; bonusFollowers: number }[];
   completed: number; availableChapters: number; finale: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETE" | "INCOMPLETE" };
 export type SceneCreator = { key: string; handle: string; region: string; style: string; blurb: string; catchphrase: string; followers: number; avg: number;
-  rookie: boolean; collabs: number; relationship: "NEW" | "KNOWN" | "FRIEND" | "BESTIE" };
+  rookie: boolean; collabs: number; raidsOut: number; raidsIn: number; relationship: "NEW" | "KNOWN" | "FRIEND" | "BESTIE" };
+export type EmoteSlot = { threshold: number; unlocked: boolean; name: string | null; code: string | null };
 export type StreamingView = {
   community: CommunityView;
   scene: { creators: SceneCreator[]; rookies: string[]; retired: string[] };
+  emotes: { prefix: string; slots: EmoteSlot[] };
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
@@ -88,22 +90,32 @@ export type StreamingView = {
   /** Charity streams: done this month, and raised so far in all. */
   charity: { doneThisMonth: boolean; raisedPence: number };
   /** Your clips, the viral ones first. */
-  clips: { id: string; season: number; week: number; kind: ClipKind; title: string; status: "NEW" | "VIRAL" | "SETTLED"; views: number; followersGained: number; fansGained: number }[];
+  clips: { id: string; season: number; week: number; kind: ClipKind; title: string; status: "NEW" | "VIRAL" | "SETTLED"; views: number; followersGained: number; fansGained: number; clipOfWeek: boolean }[];
   videos: { id: string; season: number; week: number; dayOfWeek: number; format: StreamFormat; title: string; challenger: string; result: "WON" | "LOST" | null; peak: number; followersGained: number; incomePence: number }[];
 };
 
+/** Your named emotes as chat types them. */
+async function emoteCodes(tx: CareerExecutor, root: Root) {
+  const row = (await tx.execute(sql`SELECT handle, emotes FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
+  if (!row) return [];
+  const prefix = emotePrefix(String(row.handle));
+  return ((row.emotes as (string | null)[] | null) ?? []).filter((n): n is string => !!n).map(n => `${prefix}${n}`);
+}
+/** A booked night: the go-live notification brings a few more people in. */
+const NOTIFY_BONUS = 1.1;
 const monthOf = (week: number) => Math.ceil(week / STREAM_MONEY.monthWeeks);
 
 /** Your channel (made on first visit, its first followers drawn from your fan base). */
 async function channel(tx: CareerExecutor, root: Root) {
   const row = (await tx.execute(sql`SELECT * FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
   if (row) return { handle: String(row.handle), followers: Number(row.followers), subscribers: Number(row.subscribers ?? 0), studioLevel: Number(row.studio_level ?? 0),
-    pollPick: (row.poll_pick as StreamFormat | null) ?? null, subGoal: (row.sub_goal as Omit<SubGoal, "progress" | "endsWeek"> | null) ?? null };
+    pollPick: (row.poll_pick as StreamFormat | null) ?? null, subGoal: (row.sub_goal as Omit<SubGoal, "progress" | "endsWeek"> | null) ?? null,
+    emotes: ((row.emotes as (string | null)[] | null) ?? []) };
   const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
   const name = String((await tx.execute(sql`SELECT career_name FROM career_saves WHERE id=${root.id}`)).rows[0]?.career_name ?? "Darts").replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || "Darts";
   const handle = `${name}Darts`, followers = followersFromFans(fans);
   await tx.execute(sql`INSERT INTO career_stream_channels (career_save_id, handle, followers) VALUES (${root.id}, ${handle}, ${followers}) ON CONFLICT DO NOTHING`);
-  return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null };
+  return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null, emotes: [] as (string | null)[] };
 }
 
 const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), brand: String(r.brand_name), what: BRANDS.find(b => b.key === r.brand_key)?.what ?? "a brand",
@@ -281,17 +293,23 @@ export function createCareerStreamingService(database: CareerDatabase) {
         }) ? "INCOMPLETE" : "IN_PROGRESS" };
     const collabCounts = new Map((await tx.execute(sql`SELECT challenger->'streamer'->>'key' AS k, COUNT(*)::int AS n FROM career_streams
       WHERE career_save_id=${root.id} AND format='COLLAB' AND status='ENDED' GROUP BY 1`)).rows.map(r => [String(r.k), Number(r.n)]));
+    const raids = (await tx.execute(sql`SELECT streamer_key, direction, COUNT(*)::int AS n FROM career_stream_raids WHERE career_save_id=${root.id} GROUP BY 1, 2`)).rows;
+    const raidCount = (key: string, dir: "OUT" | "IN") => Number(raids.find(r => r.streamer_key === key && r.direction === dir)?.n ?? 0);
     const sceneNow = activeStreamers(season);
     const scene = {
-      creators: sceneNow.map(c => { const n = collabCounts.get(c.key) ?? 0;
+      creators: sceneNow.map(c => { const n = collabCounts.get(c.key) ?? 0, out = raidCount(c.key, "OUT"), inn = raidCount(c.key, "IN"), bond = n * 2 + out + inn;
         return { key: c.key, handle: c.handle, region: c.region, style: c.style, blurb: c.blurb, catchphrase: c.catchphrase,
-          followers: streamerFollowers(c.followers, season, week), avg: c.avg, rookie: c.debut === season && season > 1, collabs: n,
-          relationship: (n >= 5 ? "BESTIE" : n >= 3 ? "FRIEND" : n >= 1 ? "KNOWN" : "NEW") as SceneCreator["relationship"] }; })
+          followers: streamerFollowers(c.followers, season, week), avg: c.avg, rookie: c.debut === season && season > 1, collabs: n, raidsOut: out, raidsIn: inn,
+          relationship: (bond >= 8 ? "BESTIE" : bond >= 4 ? "FRIEND" : bond >= 1 ? "KNOWN" : "NEW") as SceneCreator["relationship"] }; })
         .sort((a, b) => b.followers - a.followers),
       rookies: sceneNow.filter(c => c.debut === season && season > 1).map(c => c.handle),
       retired: STREAMERS.filter(c => "retire" in c && season >= (c as { retire: number }).retire).map(c => c.handle),
     };
-    return { community: await communityView(tx, root.id, tier.key), scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
+    const community = await communityView(tx, root.id, tier.key);
+    const named = ch.emotes, prefix = emotePrefix(ch.handle);
+    const emotes = { prefix, slots: EMOTES.thresholds.map((threshold, i) => ({ threshold, unlocked: ch.subscribers >= threshold || !!named[i],
+      name: named[i] ?? null, code: named[i] ? `${prefix}${named[i]}` : null })) };
+    return { community, emotes, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: STREAM.perWeek,
@@ -328,9 +346,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
          return { key: st.key, handle: st.handle, followers, avg: st.avg, blurb: st.blurb, ok: a.ok, why: a.ok ? null : a.why,
            seriesFit: creatorSeriesCollabFit(arcDefinition?.key ?? null, st.key) }; }),
       clips: clips.map(c => ({ id: String(c.id), season: Number(c.season), week: Number(c.week), kind: c.kind as ClipKind, title: String(c.title), status: c.status as "NEW" | "VIRAL" | "SETTLED",
-        views: Number(c.views), followersGained: Number(c.followers_gained), fansGained: Number(c.fans_gained) })),
+        views: Number(c.views), followersGained: Number(c.followers_gained), fansGained: Number(c.fans_gained), clipOfWeek: c.clip_of_week === true })),
       formats: FORMATS.map(f => ({ key: f.key, name: f.name, blurb: f.blurb, crowd: Math.round(crowdFor(f.key, lastFormat, ch.pollPick) * 100) / 100,
-        why: f.key !== "CHARITY" ? null : tier.key === "NEWCOMER" ? "From Affiliate (viewers can cheer)"
+        why: f.key === "COMMUNITY" ? (community.size < COMMUNITY.nightMin ? `Needs ${COMMUNITY.nightMin} regulars (you have ${community.size})` : null)
+          : f.key !== "CHARITY" ? null : tier.key === "NEWCOMER" ? "From Affiliate (viewers can cheer)"
           : rows.some(r => r.format === "CHARITY" && Number(r.season) === season && monthOf(Number(r.week)) === monthOf(week)) ? "Done this month" : null })),
       pollPick: ch.pollPick, lastFormat,
        subGoal, goalOptions: partner ? { targets: SUB_GOAL.targets, promises: SUB_GOAL.promises } : null, creatorSeries };
@@ -382,7 +401,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
     if (weekStreams >= STREAM.perWeek) await tx.execute(sql`DELETE FROM career_life_commitments
       WHERE career_save_id=${root.id} AND season=${Number(row.season)} AND family='DARTCAST' AND status='ACCEPTED'
         AND day BETWEEN ${(Number(row.week) - 1) * 7 + 1} AND ${Number(row.week) * 7}`);
-    // The room's regulars grow more loyal, and new ones join while there's room.
+    // The room's regulars grow more loyal, and new ones join while there's room (more so on a community night).
+    if (processed > 0 && format === "COMMUNITY") await communityNightBonus(tx, root.id);
     if (processed > 0) {
       const followersNow = Number((await tx.execute(sql`SELECT followers FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0]?.followers ?? 0);
       await attendStream(tx, root, Number(row.season), Number(row.week), followersNow);
@@ -432,7 +452,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     try { state = replay(x01For(format, row.match_format), Number(row.first_thrower) as 0 | 1, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
     const processed = Number(row.processed_visits);
     let tally = row.tally as Tally;
-    const fresh: ChatEvent[] = [], visits = state.visits, regulars = await activeRegulars(tx, root.id);
+    const fresh: ChatEvent[] = [], visits = state.visits, regulars = await activeRegulars(tx, root.id), emotes = await emoteCodes(tx, root);
     // Chat is seeded per round, so each King of the Oche round has its own reactions.
     const key = king ? `${row.id}:${round}` : String(row.id);
     for (let i = processed; i < visits.length; i++) {
@@ -444,8 +464,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
         tally = bestClip(tally, clipFor({ points: v.points, checkout: v.checkout, startScore: v.startScore, dartsInLeg }));
       }
       const out = last && king && state.winner === 0 && round + 1 < total
-        ? chatForMoment(root.world_seed, key, i, format === "KING" ? "KING_DOWN" : "THROUGH", tally, tier, false, regulars)
-        : chatForVisit(root.world_seed, key, i, { thrower: v.thrower, points: v.points, bust: v.bust, checkout: v.checkout, startScore: v.startScore, legNo: v.legNo }, tally, tier, over, regulars);
+        ? chatForMoment(root.world_seed, key, i, format === "KING" ? "KING_DOWN" : "THROUGH", tally, tier, false, regulars, emotes)
+        : chatForVisit(root.world_seed, key, i, { thrower: v.thrower, points: v.points, bust: v.bust, checkout: v.checkout, startScore: v.startScore, legNo: v.legNo }, tally, tier, over, regulars, emotes);
       tally = out.tally; fresh.push(...out.events);
       const lastDart = v.darts[v.darts.length - 1] as { segment: number; multiplier: number } | undefined;
       const legDarts = v.checkout && v.thrower === 0 ? visits.filter(x => x.thrower === 0 && x.legNo === v.legNo && x.setNo === v.setNo).reduce((n, x) => n + x.darts.length, 0) : undefined;
@@ -493,7 +513,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     try { state = replayDrill(spec, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
     const processed = Number(row.processed_visits);
     let tally = row.tally as Tally;
-    const fresh: ChatEvent[] = [], regulars = await activeRegulars(tx, root.id);
+    const fresh: ChatEvent[] = [], regulars = await activeRegulars(tx, root.id), emotes = await emoteCodes(tx, root);
     for (let i = processed; i < state.visits.length; i++) {
       const v = state.visits[i], over = state.complete && i === state.visits.length - 1 ? state.result : null;
       const scored = spec.kind === "SCORING";
@@ -501,7 +521,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
       tally = bestClip(tally, v.note === "CHECKOUT" ? clipFor({ points: v.points, checkout: true, startScore: v.points }) : v.note === "HIT" && v.target === "Bull" ? "BOBS_BULL"
         : v.points === 180 ? "MAX" : null);
       const out = chatForDrillVisit(root.world_seed, String(row.id), i, { note: v.note, points: v.points, startScore: v.note === "CHECKOUT" ? v.points : undefined },
-        tally, tier, over, spec.kind === "SCORING", regulars);
+        tally, tier, over, spec.kind === "SCORING", regulars, emotes);
       tally = out.tally; fresh.push(...out.events);
       if (spec.kind === "SCORING") {
         const ovr = overlayVisit(root.world_seed, String(row.id), i, { you: true, points: v.points, bust: false, checkout: false, startScore: 0, legEnded: false, legNo: 1,
@@ -522,6 +542,46 @@ export function createCareerStreamingService(database: CareerDatabase) {
   }
 
   return {
+    /** End-of-stream raid: send your audience to another creator (once per stream, after it ends, the same week). */
+    async raid(actor: CareerActor, saveId: string, streamId: string, body: unknown) {
+      const { streamer } = z.object({ streamer: z.string().min(1).max(40) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        const row = await live(tx, root, streamId);
+        if (row.status !== "ENDED") throw new CareerError(409, "Raid when the stream ends");
+        if (Number(row.processed_visits) === 0) throw new CareerError(409, "Nobody stayed to raid with");
+        if (Number(row.season) !== Number(root.current_season) || Number(row.week) !== Number(root.current_week)) throw new CareerError(409, "That stream's audience has gone home");
+        const tally = row.tally as Tally;
+        if (tally.ov?.raidOut) throw new CareerError(409, "You've already raided from this stream");
+        const target = activeStreamers(Number(row.season)).find(c => c.key === streamer);
+        if (!target) throw new CareerError(404, "That creator isn't streaming");
+        const viewers = Math.max(1, Number(tally.viewers));
+        const next: Tally = { ...tally, ov: { ...(tally.ov ?? {}), raidOut: { key: target.key, handle: target.handle, viewers } } };
+        await tx.execute(sql`UPDATE career_streams SET tally=${JSON.stringify(next)}::jsonb, chat = chat || ${JSON.stringify([{ kind: "ALERT", alert: "RAID", user: target.handle,
+          text: `Raiding ${target.handle} with ${viewers} viewer${viewers === 1 ? "" : "s"}!` }])}::jsonb WHERE career_save_id=${root.id} AND id=${streamId}`);
+        await tx.execute(sql`INSERT INTO career_stream_raids (career_save_id, stream_id, direction, streamer_key, season, week, viewers)
+          VALUES (${root.id}, ${streamId}, 'OUT', ${target.key}, ${Number(row.season)}, ${Number(row.week)}, ${viewers}) ON CONFLICT DO NOTHING`);
+        const ch = await channel(tx, root);
+        return sessionFrom(await live(tx, root, streamId), ch.handle, tierFor(ch.followers).key, ch.followers);
+      });
+    },
+    /** Name (or rename) an unlocked emote slot. */
+    async nameEmote(actor: CareerActor, saveId: string, body: unknown) {
+      const { slot, name } = z.object({ slot: z.number().int().min(0).max(EMOTES.thresholds.length - 1), name: z.string().regex(EMOTES.nameRe) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const ch = await channel(tx, root);
+        const named = [...ch.emotes];
+        if (ch.subscribers < EMOTES.thresholds[slot] && !named[slot]) throw new CareerError(409, `That emote slot opens at ${EMOTES.thresholds[slot]} subscribers`);
+        const clean = name.charAt(0).toUpperCase() + name.slice(1);
+        if (named.some((n, i) => i !== slot && n?.toLowerCase() === clean.toLowerCase())) throw new CareerError(409, "You already have an emote with that name");
+        while (named.length <= slot) named.push(null);
+        named[slot] = clean;
+        await tx.execute(sql`UPDATE career_stream_channels SET emotes=${JSON.stringify(named)}::jsonb WHERE career_save_id=${root.id}`);
+        return view(tx, root);
+      });
+    },
     /** Accept or skip the viewer request on offer (between legs). */
     async answerRequest(actor: CareerActor, saveId: string, streamId: string, body: unknown) {
       const { accept } = z.object({ accept: z.boolean() }).strict().parse(body);
@@ -641,6 +701,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (format === "INVITATIONAL" && !v.invitational.open) throw new CareerError(409, v.invitational.why ?? "The Invitational isn't open");
         if (format === "CHARITY" && v.tier.key === "NEWCOMER") throw new CareerError(409, "Charity streams start once you're an Affiliate (viewers can cheer)");
         if (format === "CHARITY" && v.charity.doneThisMonth) throw new CareerError(409, "One charity stream a month");
+        if (format === "COMMUNITY" && v.community.size < COMMUNITY.nightMin) throw new CareerError(409, `Community nights need ${COMMUNITY.nightMin} regulars`);
         const n = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_streams WHERE career_save_id=${root.id}`)).rows[0].n) + 1;
         const key = `${season}:${week}:${n}`;
         const last = (await tx.execute(sql`SELECT season, day FROM career_streams WHERE career_save_id=${root.id} ORDER BY season DESC, day DESC LIMIT 1`)).rows[0];
@@ -649,9 +710,17 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
         const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
           * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id))
+          * (planned || v.pathway.scheduledNights.includes(dayOfWeek) ? NOTIFY_BONUS : 1)
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));
         const id = stableUuid(root.world_seed, STREAM.version, "stream", root.id, key);
-        const tally: Tally = { viewers, peak: viewers, hype: 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:v.studio.level, ov: { startFollowers: v.followers } };
+        // A booked night: followers got the go-live notification. And maybe a creator raids you as you start.
+        const notified = !!planned || v.pathway.scheduledNights.includes(dayOfWeek);
+        const owed = new Set((await tx.execute(sql`SELECT streamer_key FROM career_stream_raids WHERE career_save_id=${root.id} AND direction='OUT' AND NOT returned`)).rows.map(r => String(r.streamer_key)));
+        const raid = format === "COLLAB" ? null : raidIn(root.world_seed, key, v.followers,
+          v.scene.creators.filter(c => c.key !== streamerKey).map(c => ({ key: c.key, handle: c.handle, followers: c.followers, owed: owed.has(c.key) })));
+        const opening = viewers + (raid?.viewers ?? 0);
+        const tally: Tally = { viewers: opening, peak: opening, hype: raid ? 1.2 : 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:v.studio.level,
+          ov: { startFollowers: v.followers, ...(raid ? { raidIn: raid } : {}) } };
         let challenger: Challenger, drill: DrillSpec | null = null, hello: ChatEvent[];
         if (format === "INVITATIONAL") {
           challenger = invitationalChallenger(root.world_seed, id, season, week, 0);
@@ -661,6 +730,13 @@ export function createCareerStreamingService(database: CareerDatabase) {
             streamer: { key: partner.key, followers: partner.followers } };
           hello = [{ kind: "CHAT", user: partner.handle, text: `Collab night! My lot vs yours, first to ${STREAM.legsToWin}. You throw first` },
             { kind: "CHAT", user: "DartCast", text: `${partner.handle}'s viewers are joining the stream` }];
+        } else if (format === "COMMUNITY") {
+          const regular = await communityChallenger(tx, root.id, root.world_seed, key);
+          if (!regular) throw new CareerError(409, `Community nights need ${COMMUNITY.nightMin} regulars`);
+          const c = challengerFor(root.world_seed, key, v.followers);
+          challenger = { name: regular.name, avg: c.avg, bot: { config: c.config, seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) } };
+          hello = [{ kind: "CHAT", user: "DartCast", text: "Community night: one of your regulars takes you on" },
+            { kind: "CHAT", user: regular.name, text: `Been waiting for this! First to ${STREAM.legsToWin}, you throw first` }];
         } else if (format === "CHALLENGER" || format === "KING" || format === "CHARITY") {
           if (format === "KING") challenger = kingChallenger(root.world_seed, id, v.followers, 0);
           else { const c = challengerFor(root.world_seed, key, v.followers); challenger = { name: c.name, avg: c.avg, bot: { config: c.config, seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) } }; }
@@ -678,6 +754,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
           hello = [{ kind: "CHAT", user: "DartCast", text: drill.kind === "CHECKOUTS" ? `Chat picked tonight's finishes: ${drill.targets.join(", ")}`
             : drill.kind === "SCORING" ? `Target tonight: a ${drill.targetAverage} average. Pledges pay if you beat it` : "Bob's 27: D1 first. Good luck!" }];
         }
+        if (notified) hello.unshift({ kind: "ALERT", alert: "NOTIFY", text: `🔔 Go-live notification sent to ${v.followers.toLocaleString("en-GB")} follower${v.followers === 1 ? "" : "s"}` });
+        if (raid) hello.push({ kind: "ALERT", alert: "RAID", user: raid.handle, text: `${raid.handle} is raiding with ${raid.viewers} viewers!` },
+          { kind: "CHAT", user: raid.handle, text: "Raid! Show them some love, chat" });
+        hello.push(...await arrivals(tx, root.id, season, week));
         if (v.pollPick === format && v.lastFormat !== null) hello.push({ kind: "CHAT", user: "DartCast", text: "Chat voted for this one: they've turned up for it" });
         const campaignRow=(await tx.execute(sql`SELECT * FROM career_stream_campaigns WHERE career_save_id=${root.id}
           AND status='ACTIVE' AND required_format=${format} AND expires_week>=${week} ORDER BY created_at LIMIT 1`)).rows[0];
@@ -691,6 +771,11 @@ export function createCareerStreamingService(database: CareerDatabase) {
             requiredFormatName:campaign.requiredFormatName,brief:campaign.brief,rewardPence:campaign.rewardPence};
           await tx.execute(sql`UPDATE career_streams SET sponsor_campaign_id=${campaign.id},sponsor_campaign=${JSON.stringify(snapshot)}::jsonb WHERE career_save_id=${root.id} AND id=${id}`);
           await tx.execute(sql`UPDATE career_stream_campaigns SET status='IN_PROGRESS',stream_id=${id} WHERE career_save_id=${root.id} AND id=${campaign.id} AND status='ACTIVE'`);
+        }
+        if (raid) {
+          await tx.execute(sql`INSERT INTO career_stream_raids (career_save_id, stream_id, direction, streamer_key, season, week, viewers)
+            VALUES (${root.id}, ${id}, 'IN', ${raid.key}, ${season}, ${week}, ${raid.viewers}) ON CONFLICT DO NOTHING`);
+          await tx.execute(sql`UPDATE career_stream_raids SET returned=true WHERE career_save_id=${root.id} AND direction='OUT' AND streamer_key=${raid.key}`);
         }
         if (planned) await tx.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${root.id} AND id=${String(planned.id)}`);
         return sessionFrom((await live(tx, root, id)), v.handle, v.tier.key, v.followers);

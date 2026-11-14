@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Globe2, Shield, Sparkles, Star, UserMinus, Users } from "lucide-react";
-import { errorMessage, useSetRegularRole, type StreamingView } from "../api";
+import { errorMessage, useNameEmote, useSetRegularRole, type StreamingView } from "../api";
 import "./stream-community.css";
 
 const REGIONS: Record<string, string> = { UK: "United Kingdom", IE: "Ireland", NL: "Netherlands", DE: "Germany", BE: "Belgium", AU: "Australia" };
@@ -40,6 +40,7 @@ export function CommunitySection({ saveId, d, retired }: { saveId: string; d: St
       </li>)}</ul>}
     <p className="sc-note">{c.modSlots === 0 ? "Moderators and VIPs open up at Affiliate." :
       `Mods need ${c.modLoyalty} loyalty and keep more of the audience watching (+3% each). VIPs need ${c.vipLoyalty} and get a badge in chat. Slots grow with your tier.`}</p>
+    <EmoteSlots saveId={saveId} d={d} retired={retired} />
     {c.recentlyLeft.length > 0 && <p className="sc-note">Drifted away: {c.recentlyLeft.map(r => r.name).join(", ")}. Stream regularly to keep people coming back.</p>}
     {message && <p className="sc-error" role="alert">{message}</p>}
   </section>;
@@ -68,8 +69,29 @@ export function SceneSection({ d }: { d: StreamingView }) {
       <small>{REGIONS[c.region] ?? c.region} · {c.style} · {c.followers.toLocaleString("en-GB")} followers · avg {c.avg}</small>
       <p>{c.blurb}</p>
       <q>{c.catchphrase}</q>
-      <span className="sc-rel">{RELATIONSHIP[c.relationship]}{c.collabs > 0 ? ` · ${c.collabs} collab${c.collabs === 1 ? "" : "s"}` : ""}</span>
+      <span className="sc-rel">{RELATIONSHIP[c.relationship]}{c.collabs > 0 ? ` · ${c.collabs} collab${c.collabs === 1 ? "" : "s"}` : ""}{c.raidsOut ? ` · raided ${c.raidsOut}×` : ""}{c.raidsIn ? ` · raided you ${c.raidsIn}×` : ""}</span>
     </li>)}</ul>
     {shown.length > 8 && <button type="button" className="sc-more" onClick={() => setAll(v => !v)}>{all ? "Show fewer" : `Show all ${shown.length} creators`}</button>}
   </section>;
+}
+
+/** Channel emotes: a slot opens at each sub count; name them and chat spams them on your big moments. */
+function EmoteSlots({ saveId, d, retired }: { saveId: string; d: StreamingView; retired: boolean }) {
+  const name = useNameEmote(saveId), [draft, setDraft] = useState<Record<number, string>>({}), [message, setMessage] = useState("");
+  if (!d.emotes) return null;
+  const save = (slot: number) => name.mutate({ slot, name: (draft[slot] ?? "").trim() }, {
+    onSuccess: () => { setMessage(""); setDraft(x => ({ ...x, [slot]: "" })); }, onError: e => setMessage(errorMessage(e)) });
+  return <div className="sc-emotes">
+    <h3>Channel emotes <small>chat types them as <code>{d.emotes.prefix}Name</code></small></h3>
+    <ul>{d.emotes.slots.map((slot, i) => ({ slot, i })).filter(({ slot, i }) => slot.unlocked || i === d.emotes.slots.findIndex(x => !x.unlocked)).map(({ slot, i }) => <li key={slot.threshold} data-unlocked={slot.unlocked || undefined}>
+      <span className="sc-emote-face" aria-hidden>{slot.code ? slot.code.slice(d.emotes.prefix.length, d.emotes.prefix.length + 2) : "🔒"}</span>
+      <div><b>{slot.code ?? (slot.unlocked ? "Unnamed" : "Locked")}</b><small>{slot.threshold.toLocaleString("en-GB")} subscribers</small></div>
+      {slot.unlocked && !retired && <form onSubmit={e => { e.preventDefault(); save(i); }}>
+        <input aria-label={`Name emote ${i + 1}`} value={draft[i] ?? ""} maxLength={12} placeholder={slot.name ? "Rename" : "Name it"} onChange={e => setDraft(x => ({ ...x, [i]: e.target.value.replace(/[^A-Za-z0-9]/g, "") }))} />
+        <button type="submit" disabled={name.isPending || (draft[i] ?? "").length < 2}>Save</button>
+      </form>}
+    </li>)}</ul>
+    {d.emotes.slots.filter(x => !x.unlocked).length > 1 && <p className="sc-note">More slots at {d.emotes.slots.filter(x => !x.unlocked).slice(1).map(x => x.threshold.toLocaleString("en-GB")).join(", ")} subscribers.</p>}
+    {message && <p className="sc-error" role="alert">{message}</p>}
+  </div>;
 }

@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { scopedRandom } from "../world/random.ts";
-import { COMMUNITY, PERSONAS, STREAM, handleFor, tierFor, type Persona, type Regular, type TierKey } from "./model.ts";
+import { COMMUNITY, PERSONAS, STREAM, handleFor, tierFor, type ChatEvent, type Persona, type Regular, type TierKey } from "./model.ts";
 
 /**
  * Your community: regulars join as the channel grows, grow loyal by catching your shows, and fade (then drift away)
@@ -91,6 +91,36 @@ export async function communityView(tx: CareerExecutor, saveId: string, tier: Ti
         canMod: role !== "MOD" && loyalty >= COMMUNITY.modLoyalty && mods < modSlots, canVip: role !== "VIP" && loyalty >= COMMUNITY.vipLoyalty && vips < vipSlots };
     }),
     recentlyLeft: rows.filter(r => r.status === "LAPSED").slice(0, 5).map(r => ({ name: String(r.name), persona: r.persona as Persona })) };
+}
+
+/** As you go live: VIPs announce themselves, and anyone whose community anniversary falls this week gets a shout-out. */
+export async function arrivals(tx: CareerExecutor, saveId: string, season: number, week: number): Promise<ChatEvent[]> {
+  if (!await ready(tx)) return [];
+  const rows = (await tx.execute(sql`SELECT name, role, joined_season, joined_week FROM career_stream_regulars WHERE career_save_id=${saveId} AND status='ACTIVE'
+    AND (role='VIP' OR (joined_week=${week} AND joined_season<${season})) ORDER BY loyalty DESC, key LIMIT 6`)).rows;
+  const out: ChatEvent[] = [];
+  for (const r of rows) {
+    const years = season - Number(r.joined_season);
+    if (Number(r.joined_week) === week && years > 0) out.push({ kind: "ALERT", alert: "WELCOME", user: String(r.name), text: `${r.name}: ${years} year${years === 1 ? "" : "s"} in the community!` });
+    else if (r.role === "VIP") out.push({ kind: "CHAT", user: String(r.name), role: "VIP", text: "VIP in the building 👑 let's go!" });
+  }
+  return out;
+}
+
+/** Community night: a regular steps up (one of the loyalest, picked by the stream's seed). Null with fewer than three. */
+export async function communityChallenger(tx: CareerExecutor, saveId: string, seed: string, streamKey: string) {
+  if (!await ready(tx)) return null;
+  const rows = (await tx.execute(sql`SELECT key, name FROM career_stream_regulars WHERE career_save_id=${saveId} AND status='ACTIVE' ORDER BY loyalty DESC, key LIMIT 6`)).rows;
+  if (rows.length < COMMUNITY.nightMin) return null;
+  const rng = scopedRandom(seed, STREAM.version, "stream-community-night", streamKey);
+  const r = rows[Math.floor(rng() * rows.length)];
+  return { key: String(r.key), name: String(r.name) };
+}
+
+/** After a community night, everyone in the room gets an extra loyalty boost. */
+export async function communityNightBonus(tx: CareerExecutor, saveId: string) {
+  if (!await ready(tx)) return;
+  await tx.execute(sql`UPDATE career_stream_regulars SET loyalty=LEAST(100, loyalty + ${COMMUNITY.nightBonus}::int) WHERE career_save_id=${saveId} AND status='ACTIVE'`);
 }
 
 let seen = false;

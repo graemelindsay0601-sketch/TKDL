@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
-import { STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
+import { CLIP_OF_WEEK, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
 import { settleCommunity } from "./community.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
@@ -59,6 +59,20 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
     await tx.execute(sql`UPDATE career_stream_clips SET status=${o.viral ? "VIRAL" : "SETTLED"}, views=${o.views}, followers_gained=${o.followers}, fans_gained=${o.fans}
       WHERE career_save_id=${root.id} AND id=${String(c.id)} AND status='NEW'`);
     if (o.followers) { await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${o.followers} WHERE career_save_id=${root.id}`); ch.followers = Number(ch.followers) + o.followers; }
+  }
+  // Clip of the Week: DartCast's weekly vote. Your best clip of the week is in it; win and the spotlight brings followers.
+  const already = (await tx.execute(sql`SELECT 1 FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND clip_of_week LIMIT 1`)).rows.length > 0;
+  const best = already ? undefined : (await tx.execute(sql`SELECT id, status, views FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week}
+    AND status IN ('VIRAL','SETTLED') ORDER BY (status='VIRAL') DESC, views DESC, id LIMIT 1`)).rows[0];
+  if (best) {
+    const rng = scopedRandom(root.world_seed, STREAM.version, "clip-of-week", season, week);
+    const viral = best.status === "VIRAL";
+    if (rng() < (viral ? CLIP_OF_WEEK.viral : CLIP_OF_WEEK.plain)) {
+      const bonus = Math.max(CLIP_OF_WEEK.minFollowers, Math.round(Number(best.views) * CLIP_OF_WEEK.share));
+      await tx.execute(sql`UPDATE career_stream_clips SET clip_of_week=true, followers_gained=followers_gained+${bonus}::int WHERE career_save_id=${root.id} AND id=${String(best.id)}`);
+      await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${bonus}::int WHERE career_save_id=${root.id}`);
+      ch.followers = Number(ch.followers) + bonus;
+    }
   }
   if(week%STREAM_MONEY.monthWeeks===0){
     const firstWeek=week-STREAM_MONEY.monthWeeks+1;

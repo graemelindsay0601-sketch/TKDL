@@ -22,7 +22,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerStreamingService } from "../../career/streaming/service.ts";
 import { createCareerHostingService } from "../../career/hosting/service.ts";
-import { CLIPS, COLLAB, clipFor, clipOutcome, collabAnswer, collabFollowers, streamerFollowers } from "../../career/streaming/model.ts";
+import { CLIPS, CLIP_OF_WEEK, COLLAB, clipFor, clipOutcome, collabAnswer, collabFollowers, streamerFollowers } from "../../career/streaming/model.ts";
 import { loadFanFollowing } from "../../career/fans/service.ts";
 import { settleStreamingWeek } from "../../career/streaming/state.ts";
 
@@ -118,7 +118,10 @@ test("clips: each stream's best moment is clipped, and at the end of the week it
   const settled = (await rows(sql`SELECT * FROM career_stream_clips WHERE career_save_id=${id}`))[0];
   assert.equal(settled.status, expected.viral ? "VIRAL" : "SETTLED"); assert.equal(Number(settled.views), expected.views);
   const v = await streaming.read(actor, id);
-  assert.equal(v.followers, before + expected.followers, "followers once");
+  // Clip of the Week may add a spotlight on top (once, and only to the week's best clip).
+  const spotlight = settled.clip_of_week ? Number(settled.followers_gained) - expected.followers : 0;
+  if (settled.clip_of_week) assert.ok(spotlight >= CLIP_OF_WEEK.minFollowers);
+  assert.equal(v.followers, before + expected.followers + spotlight, "followers once");
   assert.equal(v.clips[0].title, CLIPS.NINE.title);
   assert.equal((await loadFanFollowing(db, id)).total, fansBefore + (expected.viral ? expected.fans : 0), "viral fans join your following");
 });
