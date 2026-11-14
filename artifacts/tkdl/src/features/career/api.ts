@@ -84,6 +84,9 @@ export const useAnswerStreamCampaign=(saveId:string)=>useSaveMutation(saveId,({c
 export type MatchStream = import("../../../../api-server/src/career/streaming/service").MatchStream;
 export const streamingApi = {
   /** Streaming a real match from the venue: whether you can, and (start) go live / catch chat up with the match's darts. */
+  /** Stream any other live Career match (money match, road trip, club/county, Pro-Am, webcam league, local competition): extra to stream nights. */
+  sideMatch: (saveId: string, refId: string, body: { start: boolean; kind: SideMatchKind; format: unknown; firstThrower: 0 | 1; opponentName: string; opponentAvg: number; darts: unknown[] }) =>
+    send<MatchStream>("POST", `/saves/${saveId}/streaming/side-match/${refId}`, body),
   match: (saveId: string, matchId: string, start: boolean) => start ? send<MatchStream>("POST", `/saves/${saveId}/streaming/match/${matchId}`)
     : get<MatchStream>(`/saves/${saveId}/streaming/match/${matchId}`),
   darts: (saveId: string, streamId: string, darts: unknown[]) => send<{ session: StreamSession; events: ChatEvent[] }>("POST", `/saves/${saveId}/streaming/streams/${streamId}/darts`, { darts }),
@@ -309,6 +312,7 @@ export const useRankingHistory = (saveId: string, list: string, participant = "H
   queryFn: () => get<RankingHistory>(`/saves/${saveId}/rankings/${encodeURIComponent(list)}/history${qs({ participant, limit })}`) });
 export const useRankingExplain = (saveId: string, list: string, participant = "HUMAN", enabled = true) => useQuery({ queryKey: careerKey(saveId, "ranking-explain", list, participant), enabled, staleTime: STALE,
   queryFn: () => get<RankingExplain>(`/saves/${saveId}/rankings/${encodeURIComponent(list)}/explain${qs({ participant })}`) });
+export type SideMatchKind = "MONEY" | "ROAD" | "TEAM" | "COUNTY" | "COUNTY_TRIAL" | "PROAM" | "CAM" | "LOCAL";
 export type PathwaysView = Awaited<ReturnType<typeof import("../../../../api-server/src/career/sporting/pathways").pathwaysView>>;
 /** Road to the Tour: every route to a card and to the Worlds, and where you stand. */
 export const usePathways = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "pathways"), queryFn: () => get<PathwaysView>(`/saves/${saveId}/pathways`), staleTime: STALE });

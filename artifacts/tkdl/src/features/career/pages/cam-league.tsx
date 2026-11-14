@@ -172,7 +172,7 @@ export function CamMatchPage({ ctx, fixtureId }: { ctx: ShellContext; fixtureId:
   const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/cam-league`}>Back to the league</Link>;
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3">
     <h2>{session.won ? `You beat ${session.opponent.name}` : `${session.opponent.name} beat you`} {session.legs![0]}-{session.legs![1]}</h2>{back}</div>;
-  return <CareerScorerStage message={message} title={`${session.you} vs ${session.opponent.name}`}>
+  return <CareerScorerStage stream={{ saveId: id, refId: session.fixtureId, side: { kind: "CAM", format: session.format, firstThrower: (session.firstThrower) as 0 | 1, opponentName: session.opponent.name, opponentAvg: session.opponent.bot.config.avg, darts: () => log.current } }} message={message} title={`${session.you} vs ${session.opponent.name}`}>
     <GameScorer key={session.fixtureId} p1Name={session.you} p2Name={session.opponent.name} gameType={careerGameType(session.format as LiveSession["format"])}
       botConfig={session.opponent.bot.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => { /* the server keeps the dart log */ }} botVisitPlanner={planner} onDartLog={onDartLog}

@@ -41,7 +41,7 @@ export function MoneyMatchLivePage({ ctx, matchId }: { ctx: ShellContext; matchI
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3">
     <h2>{session.won ? `You beat ${session.opponent.name}!` : `${session.opponent.name} won the money match`}</h2>{back}</div>;
   const matchLength = session.format.unit === "LEGS" ? session.format.bestOfLegs : session.format.bestOfSets;
-  return <CareerScorerStage message={message} title={`${session.you} vs ${session.opponent.name}`}>
+  return <CareerScorerStage stream={{ saveId: id, refId: session.id, side: { kind: "MONEY", format: session.format, firstThrower: (session.firstThrower) as 0 | 1, opponentName: session.opponent.name, opponentAvg: session.opponent.bot.config.avg, darts: () => log.current } }} message={message} title={`${session.you} vs ${session.opponent.name}`}>
     <GameScorer key={session.id} p1Name={session.you} p2Name={session.opponent.name}
       gameType={careerGameType(session.format as LiveSession["format"])} botConfig={session.opponent.bot.config}
       firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}

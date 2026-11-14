@@ -127,7 +127,7 @@ export function LocalCompetitionMatchPage({ ctx, competitionId, fixtureId }: { c
     return <div className="cam-league__done"><h2>{comp.kind === "TEAM_CUP" ? (teamWon ? "Your club won the team tie" : "Your club lost the team tie") : (match.won ? "You won the match" : "You lost the match")}</h2>
       {current.fixture.score?.join("–")}{back}</div>;
   }
-  return <CareerScorerStage message={message} title={`${player.name} vs ${opponent?.name ?? "your opponent"}`}>
+  return <CareerScorerStage stream={{ saveId: id, refId: match.id, side: { kind: "LOCAL", format: session!.format, firstThrower: (0) as 0 | 1, opponentName: opponent?.name ?? "Opponent", opponentAvg: bot!.avg, darts: () => log.current } }} message={message} title={`${player.name} vs ${opponent?.name ?? "your opponent"}`}>
     <GameScorer key={match.id} p1Name={player.name} p2Name={opponent?.name ?? "Opponent"} gameType={careerGameType(session!.format)}
       botConfig={bot!} firstThrower={0} {...scorerLength(session!.format)} initialRecovery={recovery} onRecoveryState={() => {}}
       botVisitPlanner={planner} onDartLog={onDartLog} onWin={() => send(log.current)} onAbandon={() => history.back()} />
