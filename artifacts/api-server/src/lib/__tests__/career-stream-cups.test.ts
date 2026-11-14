@@ -44,7 +44,7 @@ before(async () => {
 after(async () => { await pg.close(); });
 
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupThisWeek, nextCup, roundsFor, seedOrder } from "../../career/streaming/cups.ts";
-import { STREAM } from "../../career/streaming/model.ts";
+import { STREAM, VIEWER_CEILING } from "../../career/streaming/model.ts";
 import { arrivals, attendStream } from "../../career/streaming/community.ts";
 import { loadFanFollowing } from "../../career/fans/service.ts";
 
@@ -97,6 +97,9 @@ test("a Creator Cup night: extra to your stream nights, round by round, and a ch
     session = out.session;
   }
   assert.equal(session.status, "ENDED"); assert.equal(session.result, "WON");
+  // A long night of nine-darters can't snowball the room: it stays near what a 300-follower channel can hold.
+  const cap = Math.max(Math.floor(300 * VIEWER_CEILING.share + VIEWER_CEILING.floor), session.tally.ov?.openedWith ?? 0);
+  assert.ok(session.tally.peak <= cap * 1.25, `peak ${session.tally.peak} vs cap ${cap}`);
   v = await streaming.read(actor, id);
   assert.equal(v.cups.trophies, 1); assert.ok(v.cups.history[0].won); assert.equal(v.cups.history[0].prizePence, cupPrize("AFFILIATE", 8, 3));
   assert.equal(v.cups.current!.open, false, "one entry per cup");

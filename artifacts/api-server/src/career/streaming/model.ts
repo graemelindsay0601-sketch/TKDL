@@ -70,7 +70,7 @@ export type ChatEvent =
   /** The scoring challenge: bits pledged that pay only if you beat the target average. */
   | { kind: "PLEDGE"; user: string; pence: number; text: string }
   /** An on-screen overlay alert (hype train, request, prediction, milestone): shown above the stream, kept in chat too. */
-  | { kind: "ALERT"; alert: "TRAIN" | "TRAIN_END" | "REQUEST" | "REQUEST_IN" | "PREDICTION" | "MILESTONE" | "WELCOME" | "RAID" | "GIFT" | "NOTIFY"; text: string; user?: string };
+  | { kind: "ALERT"; alert: "TRAIN" | "TRAIN_END" | "REQUEST" | "REQUEST_IN" | "PREDICTION" | "MILESTONE" | "WELCOME" | "RAID" | "GIFT" | "NOTIFY" | "TIMER" | "GOAL" | "DONATION" | "AWARD"; text: string; user?: string };
 export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number;
   /** Estimated audience watch time, at two minutes per dart visit. Optional for saves created before ad monetisation. */
   viewerMinutes?: number;
@@ -178,12 +178,19 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
   const carry = tally.followerCarry + tally.viewers * 0.01 + Math.max(0, lift) * (0.8 + tally.viewers * 0.04);
   const follows = Math.floor(carry);
   for (let i = 0; i < Math.min(follows, 3); i++) events.push({ kind: "FOLLOW", user: handleFor(rng) });
-  const viewers = Math.max(1, Math.round(tally.viewers * (1 + (hype - 0.6) * 0.04) + (rng() - 0.45) * 2));
+  // The room grows with the hype, but a channel can only hold so many at once: a ceiling from its size when it went live
+  // (and whatever a raid or collab brought), so a long night (a cup, a marathon) doesn't snowball. Older streams have none.
+  const start = tally.ov?.startFollowers;
+  const ceiling = start === undefined ? Infinity : Math.floor(Math.max(VIEWER_CEILING.floor + (tally.ov?.raidIn?.viewers ?? 0), start * VIEWER_CEILING.share + VIEWER_CEILING.floor, tally.ov?.openedWith ?? 0));
+  const viewers = Math.max(1, Math.min(Math.max(ceiling, 1), Math.round(tally.viewers * (1 + (hype - 0.6) * 0.04) + (rng() - 0.45) * 2)));
   const viewerMinutes = (tally.viewerMinutes ?? 0) + Math.round(((tally.viewers + viewers) / 2) * STREAM_MONEY.adMinutesPerVisit);
   return { events, tally: { ...tally, viewers, peak: Math.max(tally.peak, viewers), hype, followersGained: tally.followersGained + follows, followerCarry: carry - follows,
     bitsPence: tally.bitsPence + bits, superchatsPence: tally.superchatsPence + supers, subs: tally.subs + subs, viewerMinutes,
     ...(pledges || tally.pledgedPence ? { pledgedPence: (tally.pledgedPence ?? 0) + pledged } : {}) } };
 }
+
+/** The most a stream can hold at once: a share of the followers it went live with, plus a floor. */
+export const VIEWER_CEILING = Object.freeze({ share: 0.3, floor: 20 });
 
 /** What the stream pays: bits and super chats in full, half of each new subscription's first month. */
 export const streamIncome = (t: Pick<Tally, "bitsPence" | "superchatsPence" | "subs">) => t.bitsPence + t.superchatsPence + Math.round(t.subs * STREAM.subPence * STREAM.subShare);
@@ -277,7 +284,7 @@ const SERIES_COLLAB_FIT: Record<CreatorSeriesKey, readonly string[]> = {
 export const creatorSeriesCollabFit = (seriesKey: string | null, streamerKey: string) =>
   !!seriesKey && !!SERIES_COLLAB_FIT[seriesKey as CreatorSeriesKey]?.includes(streamerKey);
 /** The formats on the picker, plus a collab (picked from the streamers list), the DartCast Invitational and a real match streamed from an event. */
-export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH" | "CUP" | "CELEBRATION";
+export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH" | "CUP" | "CELEBRATION" | "SUBATHON" | "MARATHON";
 /** Streams that are extra to your stream nights (a real match streamed from an event, a Creator Cup). */
 export const EXTRA_FORMATS = ["MATCH", "CUP"] as const;
 /** Stream nights a week: three, or five for a full-time creator. */
@@ -291,6 +298,8 @@ const SPECIAL_FORMATS = {
   INVITATIONAL: { key: "INVITATIONAL", name: "DartCast Invitational", blurb: "The season's top streamers, knockout, first to 2 legs.", crowd: 2 },
   MATCH: { key: "MATCH", name: "Live from the event", blurb: "Your real match, streamed from the venue.", crowd: 1.3 },
   CUP: { key: "CUP", name: "Creator Cup", blurb: "A one-night knockout against creators your size. Extra to your stream nights.", crowd: 1.6 },
+  SUBATHON: { key: "SUBATHON", name: "Subathon", blurb: "Once a season: game after game against viewers on a timer. Support adds time and unlocks goals.", crowd: 1.35 },
+  MARATHON: { key: "MARATHON", name: "Charity Marathon", blurb: "Once a season: a timed marathon where every cheer goes to the cause, with creators chipping in.", crowd: 1.35 },
   CELEBRATION: { key: "CELEBRATION", name: "Celebration stream", blurb: "You hit a follower milestone: a party stream, a big crowd and a trophy for the channel.", crowd: 1.6 },
 } as const;
 export const formatByKey = (key: string) => (SPECIAL_FORMATS as Record<string, typeof FORMATS[number] | typeof SPECIAL_FORMATS[keyof typeof SPECIAL_FORMATS]>)[key] ?? FORMATS.find(f => f.key === key) ?? FORMATS[0];

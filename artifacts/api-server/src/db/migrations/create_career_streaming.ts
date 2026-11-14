@@ -99,4 +99,10 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS celebrated integer NOT NULL DEFAULT 0`);
   await tx.execute(sql`ALTER TABLE career_stream_regulars ADD COLUMN IF NOT EXISTS subbed_week integer`);
   await tx.execute(sql`ALTER TABLE career_stream_regulars ADD COLUMN IF NOT EXISTS sub_celebrated integer NOT NULL DEFAULT 0`);
+  // The Creator Awards: each season's categories, winners, and how you did.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_awards (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL, award text NOT NULL, name text NOT NULL, winner text NOT NULL, nominees jsonb NOT NULL DEFAULT '[]'::jsonb,
+    you_nominated boolean NOT NULL DEFAULT false, you_won boolean NOT NULL DEFAULT false, followers integer NOT NULL DEFAULT 0, fans integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id, season, award))`);
 }

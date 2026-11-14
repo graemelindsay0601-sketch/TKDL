@@ -8,7 +8,7 @@ export function hudAlertText(e: ChatEvent): string {
   switch (e.kind) {
     case "ALERT": return e.alert === "REQUEST_IN" ? `📩 Request from ${e.user ?? "chat"}` : e.alert === "REQUEST" ? `✅ ${e.text}` : e.alert === "TRAIN" ? `🚂 ${e.text}`
       : e.alert === "TRAIN_END" ? `🚂 ${e.text}` : e.alert === "PREDICTION" ? `🔮 ${e.text}` : e.alert === "MILESTONE" ? `🎉 ${e.text}`
-      : e.alert === "RAID" ? `🚨 ${e.text}` : e.alert === "GIFT" ? `🎁 ${e.text}` : e.alert === "WELCOME" ? `🎂 ${e.text}` : e.text;
+      : e.alert === "TIMER" ? `⏱️ ${e.text}` : e.alert === "GOAL" ? `🎯 ${e.text}` : e.alert === "DONATION" ? `🎗️ ${e.text}` : e.alert === "RAID" ? `🚨 ${e.text}` : e.alert === "GIFT" ? `🎁 ${e.text}` : e.alert === "WELCOME" ? `🎂 ${e.text}` : e.text;
     case "SUB": return `⭐ ${e.user} subscribed!`;
     case "SUPERCHAT": return `💬 ${e.user}: £${(e.pence / 100).toFixed(2)}`;
     default: return "";

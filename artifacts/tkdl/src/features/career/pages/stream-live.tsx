@@ -85,10 +85,12 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
   const invWins = session.rounds.filter(r => r.result === "WON").length;
   const title = drill ? <><b>{session.formatName}</b> <small>{drill.kind === "SCORING" ? `target average ${drill.targetAverage}` : drill.kind === "CHECKOUTS" ? `finishes ${drill.targets.join(", ")}` : "D1 to the bull"}</small></>
     : king ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>King of the Oche · viewer {session.round + 1} of {session.kingRounds} · one leg · they average about {session.challenger.avg}</small></>
+    : session.streamFormat === "SUBATHON" || session.streamFormat === "MARATHON" ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>{session.formatName} · game {session.round + 1} · one leg · {t.ov?.marathon?.visitsLeft ?? 0} visits on the clock</small></>
     : cupNight ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>Creator Cup · {cupRound(session.round)} · first to {session.format.unit === "LEGS" ? (session.format.bestOfLegs + 1) / 2 : "?"} · they average about {session.challenger.avg}</small></>
     : inv ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>DartCast Invitational · {ROUND_NAMES[session.round]} · first to 2 · they average about {session.challenger.avg}</small></>
     : <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>first to 2 · they average about {session.challenger.avg}</small></>;
   const headline = drill ? (session.result === "WON" ? `${session.formatName}: done it!` : session.result === "LOST" ? `${session.formatName}: not this time` : "Stream ended")
+    : session.streamFormat === "SUBATHON" || session.streamFormat === "MARATHON" ? `${session.formatName}: ${cupWins} of ${session.rounds.length} legs won${t.ov?.marathon?.targetHit ? ", target smashed!" : ""}`
     : cupNight ? (cupWins >= cupRounds ? "Creator Cup champion! 🏆" : `Out in the ${cupRound(cupWins).toLowerCase()}`)
     : inv ? (invWins >= 3 ? "DartCast Invitational champion!" : `Out in the ${ROUND_NAMES[Math.min(2, invWins)].toLowerCase()}`)
     : king ? (session.result === "WON" ? `King of the Oche: all ${session.kingRounds} seen off` : `${session.rounds.filter(r => r.result === "WON").length} viewer${session.rounds.filter(r => r.result === "WON").length === 1 ? "" : "s"} seen off`)

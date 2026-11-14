@@ -11,6 +11,7 @@ import { InsufficientFundsError, post } from "../finance/ledger.ts";
 import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { answerRequest, overlayVisit, recapFor } from "./overlay.ts";
+import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
@@ -24,13 +25,15 @@ const MATCH: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DOU
 /** King of the Oche: one leg against each viewer. */
 const KING_LEG: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: 1 };
 /** The x01 format a stream's match is played in: one leg for King of the Oche, a real match's own format, otherwise first to 2. */
-const x01For = (format: string, matchFormat?: unknown) => (format === "MATCH" || format === "CUP") && matchFormat ? matchFormat as X01Format : format === "KING" ? KING_LEG : MATCH;
+const x01For = (format: string, matchFormat?: unknown) => (format === "MATCH" || format === "CUP") && matchFormat ? matchFormat as X01Format : format === "KING" || isMarathon(format) ? KING_LEG : MATCH;
 /** A Creator Cup round: first to 3 legs, the final first to 4. */
 const cupFormat = (size: number, round: number): X01Format => ({ ...MATCH, bestOfLegs: legsToWinIn(size, round) * 2 - 1 });
 const isExtra = (format: unknown) => (EXTRA_FORMATS as readonly string[]).includes(String(format));
 /** Formats that play round after round (a new opponent each time): how many rounds. */
 const roundsIn = (format: string, cup?: unknown) => format === "KING" ? KING_ROUNDS : format === "INVITATIONAL" ? INVITATIONAL.rounds.length
-  : format === "CUP" && cup ? roundsFor((cup as CupState).size) : 1;
+  : format === "CUP" && cup ? roundsFor((cup as CupState).size) : isMarathon(format) ? MARATHON_ROUNDS : 1;
+/** A marathon is leg after leg until the clock runs out (this just has to be more than will ever be played). */
+const MARATHON_ROUNDS = 999;
 const isDrill = (format: string) => format === "CHECKOUTS" || format === "BOBS_27" || format === "SCORING";
 
 type Challenger = { name: string; avg: number; bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string } | null;
@@ -71,6 +74,8 @@ export type StreamingView = {
   emotes: { prefix: string; slots: EmoteSlot[] };
   cups: { current: CupView | null; next: { name: string; opens: number } | null; history: CupRecord[]; trophies: number };
   celebration: { milestone: number } | null;
+  awards: { seasons: { season: number; results: { award: string; name: string; winner: string; nominees: string[]; youNominated: boolean; youWon: boolean }[] }[]; trophies: number; nextAt: number };
+  marathons: { subathon: { open: boolean; why: string | null }; marathon: { open: boolean; why: string | null; targetPence: number } };
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
@@ -348,7 +353,15 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const cups = { current, next: upcoming ? { name: upcoming.name, opens: upcoming.opens } : null, history, trophies: history.filter(h => h.won).length };
     const milestone = [...CELEBRATION_MILESTONES].reverse().find(m => ch.followers >= m && m > ch.celebrated) ?? null;
     const celebration = milestone !== null && !rows.some(r => r.status === "LIVE" && r.format === "CELEBRATION") ? { milestone } : null;
-    return { community, emotes, cups, celebration, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
+    const marathonWhy = (kind: "SUBATHON" | "MARATHON") => root.status !== "ACTIVE" ? "Career is retired" : tier.key === "NEWCOMER" ? "From Affiliate (viewers can support)"
+      : rows.some(r => r.format === kind && Number(r.season) === season) ? "Once a season: done" : null;
+    const marathons = { subathon: { open: marathonWhy("SUBATHON") === null, why: marathonWhy("SUBATHON") },
+      marathon: { open: marathonWhy("MARATHON") === null, why: marathonWhy("MARATHON"), targetPence: MARATHON.target[tier.key] } };
+    const awardRows = (await tx.execute(sql`SELECT * FROM career_stream_awards WHERE career_save_id=${root.id} ORDER BY season DESC, award`)).rows;
+    const awardSeasons = [...new Set(awardRows.map(r => Number(r.season)))].slice(0, 3).map(s2 => ({ season: s2, results: awardRows.filter(r => Number(r.season) === s2).map(r => ({
+      award: String(r.award), name: String(r.name), winner: String(r.winner), nominees: (r.nominees as string[]) ?? [], youNominated: r.you_nominated === true, youWon: r.you_won === true })) }));
+    const awards = { seasons: awardSeasons, trophies: awardRows.filter(r => r.you_won === true).length, nextAt: 52 };
+    return { community, emotes, cups, celebration, marathons, awards, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: perWeekFor(root.settings_snapshot),
@@ -442,13 +455,15 @@ export function createCareerStreamingService(database: CareerDatabase) {
     if (tally.ov) tally = { ...tally, ov: { ...tally.ov, request: null, recap: recapFor(tally, chat, "") } };
     const pledges = result === "WON" ? tally.pledgedPence ?? 0 : 0;
     // A charity stream: the night's cheers go to the cause (and win more followers); the Invitational pays prize money by round reached.
-    const charity = format === "CHARITY";
+    const charity = format === "CHARITY" || format === "MARATHON";
     if (charity) tally = { ...tally, raisedPence: streamIncome(tally) };
     const cupTier = tierFor(Number((await tx.execute(sql`SELECT followers FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0]?.followers ?? 0)).key;
     const cup = format === "CUP" ? row.cup as CupState : null;
     const prize = format === "INVITATIONAL" && processed > 0 ? invitationalPrize(wins) : cup && processed > 0 ? cupPrize(cupTier, cup.size, wins) : 0;
     const seriesBonus = await recordCreatorEpisode(tx, root, row, processed);
-    const gained = Math.round((tally.followersGained + bonus) * (charity ? CHARITY.followerBonus : 1)) + seriesBonus, income = charity ? 0 : streamIncome(tally) + pledges;
+    const targetBonus = format === "MARATHON" && tally.ov?.marathon?.targetHit
+      ? Math.max(10, Math.round(Number((await tx.execute(sql`SELECT followers FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0]?.followers ?? 0) * MARATHON.targetFollowers)) : 0;
+    const gained = Math.round((tally.followersGained + bonus) * (charity ? CHARITY.followerBonus : 1)) + seriesBonus + targetBonus, income = charity ? 0 : streamIncome(tally) + pledges;
     const poll = processed > 0 ? pollFor(root.world_seed, String(row.id), format) : null;
     await tx.execute(sql`UPDATE career_streams SET status='ENDED', result=${result}, tally=${JSON.stringify(tally)}::jsonb, chat=${JSON.stringify(chat)}::jsonb,
       processed_visits=${processed}, income_pence=${income + prize}, followers_gained=${gained}, poll=${poll ? JSON.stringify(poll) : null}::jsonb, ended_at=NOW()
@@ -525,7 +540,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const key = king ? `${row.id}:${round}` : String(row.id);
     for (let i = processed; i < visits.length; i++) {
       const v = visits[i], last = state.complete && i === visits.length - 1;
-      const over = last ? (state.winner === 0 ? (king && round + 1 < total ? null : "WON") : "LOST") : null;
+      const over = last && !isMarathon(format) ? (state.winner === 0 ? (king && round + 1 < total ? null : "WON") : "LOST") : null;
       if (v.thrower === 0) {
         tally = { ...tally, myDarts: (tally.myDarts ?? 0) + v.darts.length, myScoredDarts: (tally.myScoredDarts ?? 0) + v.darts.length, myPoints: (tally.myPoints ?? 0) + v.points };
         const dartsInLeg = v.checkout ? visits.filter(x => x.thrower === 0 && x.legNo === v.legNo && x.setNo === v.setNo).reduce((n, x) => n + x.darts.length, 0) : undefined;
@@ -543,6 +558,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         legEnded: v.checkout, legNo: v.legNo, streamOver: last && over !== null }, tally, tier, out.events,
         { drill: false, regulars, myAvg, theirAvg: (row.challenger as Challenger).avg ?? null });
       tally = ovr.tally; fresh.push(...ovr.events);
+      if (isMarathon(format)) { const mv = marathonVisit(root.world_seed, key, i, v.thrower === 0, tally, [...out.events, ...ovr.events], Number(row.season)); tally = mv.tally; fresh.push(...mv.events); }
     }
     const chat = [...(row.chat as ChatEvent[]), ...fresh].slice(-200);
     if (!state.complete) {
@@ -558,7 +574,15 @@ export function createCareerStreamingService(database: CareerDatabase) {
     }
     const rounds = [...((row.rounds as StreamSession["rounds"]) ?? []), { challenger: challenger.name, result: won ? "WON" as const : "LOST" as const }];
     const wins = rounds.filter(r => r.result === "WON").length;
-    if (!won || round + 1 >= total) {
+    // A marathon: the leg's done; the clock decides whether there's another.
+    if (isMarathon(format) && (tally.ov?.marathon?.visitsLeft ?? 0) <= 0) {
+      const endChat: ChatEvent = { kind: "ALERT", alert: "TIMER", text: `Time's up! ${wins} of ${rounds.length} legs won` };
+      fresh.push(endChat);
+      await tx.execute(sql`UPDATE career_streams SET darts=${JSON.stringify(darts)}::jsonb, rounds=${JSON.stringify(rounds)}::jsonb WHERE career_save_id=${root.id} AND id=${String(row.id)}`);
+      await finish(tx, root, row, wins * 2 >= rounds.length ? "WON" : "LOST", tally, [...chat, endChat], Number(row.processed_visits) + visits.length, wins);
+      return fresh;
+    }
+    if (!isMarathon(format) && (!won || round + 1 >= total)) {
       await tx.execute(sql`UPDATE career_streams SET darts=${JSON.stringify(darts)}::jsonb, rounds=${JSON.stringify(rounds)}::jsonb WHERE career_save_id=${root.id} AND id=${String(row.id)}`);
       await finish(tx, root, row, won ? "WON" : "LOST", tally, chat, Number(row.processed_visits) + visits.length, wins);
       return fresh;
@@ -566,10 +590,11 @@ export function createCareerStreamingService(database: CareerDatabase) {
     // Next up: a fresh match, and they throw first every other round.
     const cup = format === "CUP" ? row.cup as CupState : null;
     const cupNext = cup ? cupOpponent(root.world_seed, cup, round + 1, rounds.map(r => r.result === "WON")) : null;
-    const nextUp = format === "KING" ? kingChallenger(root.world_seed, String(row.id), followers, round + 1)
+    const nextUp = format === "KING" || isMarathon(format) ? kingChallenger(root.world_seed, String(row.id), followers, round + 1)
       : cup && cupNext ? cupChallenger(root.world_seed, String(row.id), cupNext, round + 1)
       : invitationalChallenger(root.world_seed, String(row.id), Number(row.season), Number(row.week), round + 1);
-    const hello: ChatEvent = format === "KING" ? { kind: "CHAT", user: nextUp.name, text: `My turn. ${wins} down, let's see you beat me` }
+    const hello: ChatEvent = isMarathon(format) ? { kind: "CHAT", user: nextUp.name, text: `Next up! ${tally.ov?.marathon?.visitsLeft ?? 0} visits left on the clock` }
+      : format === "KING" ? { kind: "CHAT", user: nextUp.name, text: `My turn. ${wins} down, let's see you beat me` }
       : cup ? { kind: "ALERT", alert: "WELCOME", text: `${roundName(cup.size, round + 1)}: ${nextUp.name} awaits. First to ${legsToWinIn(cup.size, round + 1)}` }
       : { kind: "CHAT", user: "DartCast", text: `${INVITATIONAL.rounds[round + 1]}: ${nextUp.name} awaits` };
     await tx.execute(sql`UPDATE career_streams SET darts='[]'::jsonb, round=${round + 1}, rounds=${JSON.stringify(rounds)}::jsonb, challenger=${JSON.stringify(nextUp)}::jsonb,
@@ -759,7 +784,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     /** Go live on a free night this week (up to three a week, one at a time) in the format of your choice. */
     async goLive(actor: CareerActor, saveId: string, body: unknown) {
       const { dayOfWeek, format = "CHALLENGER", streamer: streamerKey } = z.object({ dayOfWeek: z.number().int().min(1).max(7),
-        format: z.enum(["COLLAB", "INVITATIONAL", "CUP", "CELEBRATION", ...FORMATS.map(f => f.key)] as [StreamFormat, ...StreamFormat[]]).optional(), streamer: z.string().max(40).optional() }).strict().parse(body);
+        format: z.enum(["COLLAB", "INVITATIONAL", "CUP", "CELEBRATION", "SUBATHON", "MARATHON", ...FORMATS.map(f => f.key)] as [StreamFormat, ...StreamFormat[]]).optional(), streamer: z.string().max(40).optional() }).strict().parse(body);
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId) as unknown as Root;
         const season = Number(root.current_season), week = Number(root.current_week);
@@ -770,6 +795,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (cupNight && !v.cups.current) throw new CareerError(409, "No Creator Cup is on this week");
         if (cupNight && !v.cups.current!.open) throw new CareerError(409, v.cups.current!.why ?? "The Creator Cup isn't open");
         if (format === "CELEBRATION" && !v.celebration) throw new CareerError(409, "Celebration streams come with a follower milestone");
+        if (format === "SUBATHON" && !v.marathons.subathon.open) throw new CareerError(409, v.marathons.subathon.why ?? "No subathon right now");
+        if (format === "MARATHON" && !v.marathons.marathon.open) throw new CareerError(409, v.marathons.marathon.why ?? "No marathon right now");
         const planned = (await tx.execute(sql`SELECT id FROM career_life_commitments WHERE career_save_id=${root.id} AND season=${season}
           AND family='DARTCAST' AND status='ACCEPTED' AND day=${absoluteDay(week, dayOfWeek)}`)).rows[0];
         if (!v.freeNights.includes(dayOfWeek) && !planned) throw new CareerError(409, "You're booked that night");
@@ -786,7 +813,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const day = absoluteDay(week, dayOfWeek);
         const since = last && Number(last.season) === season ? Math.max(0, day - Number(last.day)) : null;
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
-        const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" || cupNight || format === "CELEBRATION" ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
+        const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" || cupNight || format === "CELEBRATION" || isMarathon(format) ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
           * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id))
           * (planned || v.pathway.scheduledNights.includes(dayOfWeek) ? NOTIFY_BONUS : 1)
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));
@@ -798,7 +825,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           v.scene.creators.filter(c => c.key !== streamerKey).map(c => ({ key: c.key, handle: c.handle, followers: c.followers, owed: owed.has(c.key) })));
         const opening = viewers + (raid?.viewers ?? 0);
         const tally: Tally = { viewers: opening, peak: opening, hype: format === "CELEBRATION" ? 2 : raid || cupNight ? 1.2 : 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:v.studio.level,
-          ov: { startFollowers: v.followers, ...(raid ? { raidIn: raid } : {}) } };
+          ov: { startFollowers: v.followers, openedWith: opening, ...(raid ? { raidIn: raid } : {}), ...(isMarathon(format) ? { marathon: startMarathon(format, v.tier.key) } : {}) } };
         let challenger: Challenger, drill: DrillSpec | null = null, hello: ChatEvent[], cupState: CupState | null = null, extra: Record<string, unknown> | null = null;
         if (cupNight) {
           const cup = v.cups.current!;
@@ -810,6 +837,12 @@ export function createCareerStreamingService(database: CareerDatabase) {
             ...(cup.callout ? [{ kind: "CHAT" as const, user: cup.callout.handle, text: cup.callout.text }] : []),
             { kind: "CHAT", user: "DartCast", text: `${roundName(cup.size, 0)}: ${opp.handle}. First to ${legsToWinIn(cup.size, 0)}` }];
           extra = { cup: cupState };
+        } else if (isMarathon(format)) {
+          challenger = kingChallenger(root.world_seed, id, v.followers, 0);
+          hello = [{ kind: "ALERT", alert: "TIMER", text: `${format === "SUBATHON" ? "Subathon" : "Charity Marathon"} starts: ${MARATHON.startVisits} visits on the clock` },
+            { kind: "CHAT", user: "DartCast", text: format === "SUBATHON" ? "Every sub, super chat and cheer adds time. Goals unlock as support rolls in!"
+              : `Every bit and super chat tonight goes to the cause. Target: £${(MARATHON.target[v.tier.key] / 100).toFixed(0)}` },
+            { kind: "CHAT", user: challenger.name, text: "First up! One leg, you throw first" }];
         } else if (format === "CELEBRATION") {
           const c = challengerFor(root.world_seed, key, v.followers);
           challenger = { name: c.name, avg: c.avg, bot: { config: c.config, seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) } };
