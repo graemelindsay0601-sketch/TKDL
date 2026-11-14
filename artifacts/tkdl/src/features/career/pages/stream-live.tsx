@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CareerScorerStage, ScorerMinimise } from "../scorer-stage";
+import { CareerScorerStage } from "../scorer-stage";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Eye, Heart, Loader2, Radio, Sparkles, Star } from "lucide-react";
@@ -103,8 +103,8 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
           {alert && <div className="dc-live__toast" role="status"><ChatLine e={alert} /></div>}
           {!over && drill ? <div className="dc-live__scorer">
             <DrillScorer key={session.id} spec={drill} initialDarts={session.darts as Dart[]} onVisit={send} />
-          </div> : !over ? <CareerScorerStage title={`${session.handle} vs ${session.challenger.name}`}>
-            <GameScorer topBanner={<div className="dc-live__title career-scorer-banner"><ScorerMinimise />{title}{session.campaign && <small> · Sponsored by {session.campaign.sponsorName}</small>}{alert && <div className="dc-live__toast" role="status"><ChatLine e={alert} /></div>}</div>} key={`${session.id}:${session.round}`} p1Name={session.handle} p2Name={session.challenger.name} gameType={careerGameType(session.format as LiveSession["format"])}
+          </div> : !over ? <CareerScorerStage message={alert ? <ChatLine e={alert} /> : null} title={`${session.handle} vs ${session.challenger.name}`}>
+            <GameScorer key={`${session.id}:${session.round}`} p1Name={session.handle} p2Name={session.challenger.name} gameType={careerGameType(session.format as LiveSession["format"])}
               botConfig={session.challenger.bot!.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
               initialRecovery={initialRecovery} onRecoveryState={() => { /* the server keeps the stream's dart log */ }}
               botVisitPlanner={botVisitPlanner} onDartLog={onDartLog} onWin={() => send(log.current)} onAbandon={() => setEnding(true)} />

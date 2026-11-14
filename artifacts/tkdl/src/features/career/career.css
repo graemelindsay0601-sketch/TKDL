@@ -1459,8 +1459,6 @@
 .cam-league__fixtures li { display: flex; justify-content: space-between; gap: .5rem; }
 .cam-league__live { display: flex; flex-direction: column; gap: .5rem; }
 .cam-league__live-title { margin: 0; font-size: .9rem; }
-.career-scorer-banner { padding: .5rem .75rem 0; color: #fff; }
-.career-scorer-banner .career-btn { align-self: flex-start; }
 .cam-league__live-title svg, .cam-league__match svg { width: 15px; height: 15px; vertical-align: -2px; }
 /* Pro-Am nights */
 .pro-am__legs { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .2rem .6rem; font-size: .75rem; color: #e5a8a3; }
@@ -2038,13 +2036,15 @@
 /* ── Career scorer stage: slide up into the scorer, minimise back to the Career, resume ── */
 .career-scorer-stage:not([hidden]) { animation: career-scorer-in .34s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes career-scorer-in { from { opacity: 0; transform: translateY(28px) scale(.985); } to { opacity: 1; transform: none; } }
-.career-scorer-banner { display: flex; flex-direction: column; gap: .4rem; }
-.career-scorer-minimise { align-self: flex-end; display: inline-flex; align-items: center; gap: .35rem; min-height: 36px; padding: 0 .8rem;
+.career-scorer-minimise { display: inline-flex; align-items: center; gap: .35rem; min-height: 36px; padding: 0 .8rem;
   border: 1px solid rgba(255,255,255,.22); border-radius: 999px; background: rgba(255,255,255,.07); color: #fff;
   font: 700 .72rem/1 "Barlow Condensed", "Oswald", sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .career-scorer-minimise:hover, .career-scorer-minimise:focus-visible { background: rgba(255,255,255,.14); outline: 2px solid #ff005c; outline-offset: 2px; }
 .career-scorer-minimise svg { width: 14px; height: 14px; }
-.career-scorer-float-control { position: fixed; top: max(10px, env(safe-area-inset-top)); right: 12px; z-index: 10003; }
+.career-scorer-float-control { position: fixed; top: max(8px, env(safe-area-inset-top)); left: 10px; z-index: 10003; }
+.career-scorer-float-control .career-scorer-minimise { min-height: 32px; padding: 0 .7rem; background: rgba(6,4,14,.82); backdrop-filter: blur(6px); }
+.career-scorer-toast { position: fixed; left: 12px; right: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 10004; max-width: 560px; margin: 0 auto;
+  padding: .6rem .9rem; border-radius: 12px; background: rgba(255,0,92,.92); color: #fff; font-size: .85rem; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
 .career-scorer-paused { display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; padding: 1rem 1.1rem; border-radius: 16px;
   border: 1px solid rgba(255,0,92,.45); background: linear-gradient(135deg, rgba(255,0,92,.16), rgba(20,12,30,.9)); color: #fff;
   animation: career-scorer-in .3s ease-out both; }
@@ -2059,3 +2059,20 @@
 @media (min-width: 1024px) { .career-scorer-resume { bottom: 64px; } }
 @keyframes career-scorer-pulse { 0%, 100% { box-shadow: 0 10px 28px rgba(255,0,92,.45); } 50% { box-shadow: 0 10px 34px rgba(255,0,92,.75); } }
 @media (prefers-reduced-motion: reduce) { .career-scorer-stage:not([hidden]), .career-scorer-paused, .career-scorer-resume { animation: none; } }
+/* Short phones (browser bars showing): keep names, legs, remaining scores and this visit above the keypad.
+   Career only; the shared scorer is unchanged elsewhere. */
+@media (max-height: 760px) {
+  .career-scorer-stage .x01-match-content > * + * { margin-top: .4rem !important; }
+  /* The event header repeats what the legs line, the lit card and This visit already show. */
+  .career-scorer-stage .x01-event-header, .career-scorer-stage .x01-divider { display: none !important; }
+  .career-scorer-stage .x01-player-grid .pdc-card { padding: .4rem .5rem; }
+  .career-scorer-stage .x01-player-grid svg { height: 60px !important; }
+  .career-scorer-stage .x01-keypad-dock button { min-height: 42px !important; }
+  .career-scorer-stage .x01-keypad-dock button:not([style*="padding: 0px"]) { padding-top: .35rem !important; padding-bottom: .35rem !important; }
+  .career-scorer-stage .x01-keypad-dock > button { min-height: 30px !important; padding-top: .2rem !important; padding-bottom: .2rem !important; }
+}
+@media (max-height: 620px) {
+  .career-scorer-stage .x01-keypad-dock button { min-height: 38px !important; }
+  .career-scorer-stage .x01-keypad-dock > button { min-height: 28px !important; }
+  .career-scorer-stage .x01-player-grid svg { height: 48px !important; }
+}
