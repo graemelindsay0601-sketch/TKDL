@@ -87,12 +87,12 @@ test("a Creator Cup night: extra to your stream nights, round by round, and a ch
   assert.ok(v.cups.current!.callout, "someone calls you out");
   const fansBefore = (await loadFanFollowing(db, id)).total;
   const s = await streaming.goLive(actor, id, { dayOfWeek: v.freeNights[0], format: "CUP" });
-  assert.equal(s.kingRounds, 3); assert.equal(s.format.bestOfLegs, 5, "first to 3");
+  assert.equal(s.kingRounds, 3); assert.equal((s.format as { bestOfLegs: number }).bestOfLegs, 5, "first to 3");
   assert.equal((await streaming.read(actor, id)).streamsThisWeek, 0, "a cup doesn't use a stream night");
   let session = s;
   for (let r = 0; r < 3; r++) {
     const legs = r === 2 ? CUPS.finalLegsToWin : CUPS.legsToWin;
-    assert.equal(session.format.bestOfLegs, legs * 2 - 1, `round ${r} length`);
+    assert.equal((session.format as { bestOfLegs: number }).bestOfLegs, legs * 2 - 1, `round ${r} length`);
     const out = await streaming.darts(actor, id, s.id, { darts: winMatch(legs, session.firstThrower) });
     session = out.session;
   }
