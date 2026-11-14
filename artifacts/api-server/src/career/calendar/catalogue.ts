@@ -10,6 +10,7 @@ import { buildCatalogueV34 } from "../content/season-v34.ts";
 import { buildCatalogueV35 } from "../content/season-v35.ts";
 import { buildCatalogueV36 } from "../content/season-v36.ts";
 import { buildCatalogueV37 } from "../content/season-v37.ts";
+import { buildCatalogueV38 } from "../content/season-v38.ts";
 import { knockout501, setsKnockout501, groupKnockout501, league501, x01Variant, specialGame, pairs501, type EventFormat } from "./formats.ts";
 import { R, Q_SCHOOL_PATHWAYS, type Rule, type QSchoolPathway } from "./eligibility.ts";
 import { AGE_POLICY } from "../identity/age.ts";
@@ -502,6 +503,7 @@ export function catalogueFor(version: number): readonly EventDefinition[] {
   if (version === 35) return EVENT_CATALOGUE_V35;
   if (version === 36) return EVENT_CATALOGUE_V36;
   if (version === 37) return EVENT_CATALOGUE_V37;
+  if (version === 38) return EVENT_CATALOGUE_V38;
   throw new Error(`Unsupported Career event database version ${version}; migration required`);
 }
 /** A9: same authored world; first Q-School policy is applied by season generation. */
@@ -571,5 +573,7 @@ export const EVENT_CATALOGUE_V35: readonly EventDefinition[] = buildCatalogueV35
 export const EVENT_CATALOGUE_V36: readonly EventDefinition[] = buildCatalogueV36(EVENT_CATALOGUE_V35);
 /** v37: U23 fixtures use a verified WDF Las Vegas Open reference. */
 export const EVENT_CATALOGUE_V37: readonly EventDefinition[] = buildCatalogueV37(EVENT_CATALOGUE_V36);
+/** v38: routes back for players without a Tour Card (the Grassroots Champions Cup). */
+export const EVENT_CATALOGUE_V38: readonly EventDefinition[] = buildCatalogueV38(EVENT_CATALOGUE_V37);
 /** Referenced so a missing locality list fails at module load, not mid-season. */
 export const CATALOGUE_LOCALITY_COUNT = LOCALITIES.length;

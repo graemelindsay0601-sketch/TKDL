@@ -531,3 +531,13 @@
 @media (prefers-reduced-motion:reduce) {
   .rt-tile,.rt-button { transition:none; }
 }
+
+/* Routes back: shown once a Tour Card has ended */
+.rt-back { position:relative; padding:20px clamp(11px,2vw,21px) 18px; border:1px solid #be2d3c80; border-radius:24px 7px 24px 7px; background:linear-gradient(135deg,#2a1719,#171310 45%,#1d1714); box-shadow:0 12px 26px #0007,inset 0 1px #fff3d522; }
+.rt-back__list { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin:14px 0 0; padding:0; list-style:none; }
+.rt-back__list li { display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid #b8964d40; border-radius:12px; background:#ffffff08; }
+.rt-back__list li[data-done] { border-color:#dcb65a90; background:#dcb65a12; }
+.rt-back__list b { color:#fff2d5; font-size:15px; }
+.rt-back__list p { margin:4px 0 6px; color:#e8dcc4cc; font-size:13px; line-height:1.4; }
+.rt-back__tick { display:grid; flex:none; place-items:center; width:24px; height:24px; border-radius:50%; background:#be2d3c; color:#fff; }
+.rt-back__list li[data-done] .rt-back__tick { background:#dcb65a; color:#1a140f; }

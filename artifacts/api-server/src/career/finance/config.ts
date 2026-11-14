@@ -86,6 +86,8 @@ export const FEE_OVERRIDES: Record<string, FeeProfile> = {
   "vault-qualifier": fee("fee:vault-qualifier", 4000),
   /** v17: an open day for a season's Challenger Tour pass. */
   "challenger-qualifier": fee("fee:challenger-qualifier", 5000),
+  /** v38: free for the season's local, club and county champions. */
+  "grassroots-champions-cup": fee("fee:champions-cup", 0),
   "q-school-final-uk_ireland-d1": fee("fee:q-school-final", 45000, "q_school", "PER_SERIES"),
   "q-school-final-uk_ireland-d2": fee("fee:q-school-final", 45000, "q_school", "PER_SERIES"),
   "q-school-final-uk_ireland-d3": fee("fee:q-school-final", 45000, "q_school", "PER_SERIES"),
@@ -176,6 +178,8 @@ export const PRIZE_OVERRIDES: Record<string, PrizeProfile> = {
   "world-championship-qualifier": prize("prize:qualifier-medium", 30000, 15000, 7500),
   "amateur-world-qualifier": prize("prize:qualifier-medium", 30000, 15000, 7500),
   "vault-qualifier": prize("prize:qualifier-small", 10000, 5000),
+  /** v38: the champions' event pays toward the trip to Q-School. */
+  "grassroots-champions-cup": prize("prize:champions-cup", 200000, 100000, 50000, 25000, 10000),
 };
 /**
  * Midweek pub nights pay out of the pot, like a real flier: every player's entry money plus a small top-up from the club,

@@ -79,6 +79,7 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
     "continental-girls-youth-cup-pairs", "continental-girls-youth-cup-singles",
     "continental-youth-cup-pairs", "continental-youth-cup-singles",
     "girls-world-ranking-open", "women-world-ranking-open", "world-ranking-open", "youth-world-ranking-open",
+    "u23-world-ranking-open", "u23-girls-world-ranking-open",
   ].map(k => [k, N("TOUR_ROUND", ROUND)])),
   ...Object.fromEntries(["lakeside", "uk-lakeside"].flatMap(prefix =>
     ["girls", "open", "women", "youth"].map(category => [`${prefix}-qualifier-${category}`, N("QUALIFIER", QUAL)]))),
@@ -99,6 +100,8 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "vault-qualifier": N("QUALIFIER", QUAL),
   // v17: an open day for a season's Challenger Tour pass.
   "challenger-qualifier": N("QUALIFIER", QUAL),
+  // v38: the season's local, club and county champions; the real prize is a Q-School Final Stage place.
+  "grassroots-champions-cup": R("CHAMPIONSHIP", "MEDAL", "Champions Cup: winner's medal; the final earns a Q-School Final Stage place."),
   // ---- Q-School
   ...Object.fromEntries(["europe", "uk_ireland"].flatMap(p => [
     ...[1, 2, 3, 4].map(d => [`q-school-final-${p}-d${d}`, N("Q_SCHOOL_SESSION", QSCHOOL)]),
