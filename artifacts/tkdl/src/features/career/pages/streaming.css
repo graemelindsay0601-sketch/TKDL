@@ -1117,3 +1117,7 @@
 /* The channel name is one long word (e.g. OldSaveDarts): shrink it to fit rather than split it mid-word. */
 .setup-current { min-width:0; }
 .setup-current h3 { overflow-wrap:normal; word-break:keep-all; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:clamp(20px,4.6cqi,34px); max-width:100%; }
+.collab-more { justify-self:start; padding:7px 10px; border:1px solid #d3b66077; background:transparent; color:#ecd084; font-size:11px; cursor:pointer; }
+.dc-chat__badge { display:inline-block; margin-right:4px; padding:0 4px; border-radius:3px; font:700 .62rem/1.5 system-ui, sans-serif; font-style:normal; vertical-align:1px; }
+.dc-chat__badge[data-role="MOD"] { background:#12403d; color:#7ff0e8; }
+.dc-chat__badge[data-role="VIP"] { background:#4d3a0a; color:#ffe08a; }

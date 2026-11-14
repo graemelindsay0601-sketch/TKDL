@@ -72,4 +72,12 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     week integer NOT NULL, format text NOT NULL, follower_bonus integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY(career_save_id, season, episode), UNIQUE(career_save_id, stream_id))`);
+  // Community: named regulars (personality, loyalty, role) who keep coming back to your streams.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_regulars (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    key text NOT NULL, name text NOT NULL, persona text NOT NULL, loyalty integer NOT NULL DEFAULT 25 CHECK(loyalty BETWEEN 0 AND 100),
+    joined_season integer NOT NULL, joined_week integer NOT NULL, last_season integer NOT NULL, last_week integer NOT NULL,
+    streams integer NOT NULL DEFAULT 0, role text NOT NULL DEFAULT 'NONE' CHECK(role IN ('NONE','MOD','VIP')),
+    status text NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','LAPSED')), created_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(career_save_id,key))`);
 }

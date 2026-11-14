@@ -3,6 +3,7 @@ import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
 import { STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
+import { settleCommunity } from "./community.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
@@ -74,6 +75,8 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
       amountPence:adPayout,reason:`DartCast platform ads: ${viewerMinutes.toLocaleString("en-GB")} audience minutes`,season,week,
       detail:{viewerMinutes,streamedWeeks,consistencyWeeks:STREAM_MONEY.adFullRateWeeks,followers:Number(ch.followers)}});
   }
+  // Regulars fade if you've gone quiet (and drift away at zero loyalty).
+  await settleCommunity(tx, root.id, season, week);
   await tx.execute(sql`UPDATE career_stream_deals SET status='EXPIRED' WHERE career_save_id=${root.id} AND status='OFFERED' AND (season < ${season} OR expires_week <= ${week})`);
   await tx.execute(sql`UPDATE career_stream_campaigns SET status='EXPIRED' WHERE career_save_id=${root.id}
     AND status IN ('OFFERED','ACTIVE') AND (season < ${season} OR expires_week < ${week})`);
