@@ -202,7 +202,7 @@ export function GameScorer({
   p1Name, p2Name, gameType, botConfig, onWin, onAbandon, onPracticeStats,
   legs, setsToWin, legsToWinSet,
   teamNames, playerNames, soloMode, bullUp, scorerThemeColor, teamTurnOrder,
-  onLiveState, initialRecovery, onRecoveryState, firstThrower, botVisitPlanner, botCorkPlanner, onDartLog, partnerVisitPlanner,
+  onLiveState, initialRecovery, onRecoveryState, firstThrower, botVisitPlanner, botCorkPlanner, onDartLog, partnerVisitPlanner, topBanner,
 }: {
   p1Name: string; p2Name: string;
   gameType: GameTypeOption;
@@ -242,6 +242,9 @@ export function GameScorer({
   botCorkPlanner?: (ctx: { legNo: number; throwIndex: number }) => Dart;
   /** X01 only: canonical dart log of the match after every dart/undo. */
   onDartLog?: (darts: Dart[]) => void;
+  /** X01/Cricket: content shown inside the scorer's own top region (the scorer fills 100dvh, so anything placed above it
+   *  would push the keypad off screen). Used by Career for the match title and messages. */
+  topBanner?: ReactNode;
 }) {
   // X01 and Cricket take the starter directly (bot stays player 2); other engines
   // still swap names, which is only correct between two humans, so with a bot
@@ -322,12 +325,12 @@ export function GameScorer({
     case "X01":
       return <X01Scorer p1Name={ep1} p2Name={ep2} config={cfg as any} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} legs={legs} setsToWin={setsToWin} legsToWinSet={legsToWinSet} soloMode={soloMode} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
         initialRecovery={initialRecovery?.engine === "X01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportX01Recovery : undefined}
-        firstThrower={starterIdx} botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog} partnerVisitPlanner={partnerVisitPlanner} />;
+        firstThrower={starterIdx} botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog} partnerVisitPlanner={partnerVisitPlanner} topBanner={topBanner} />;
 
     case "Cricket":
       return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
         initialRecovery={initialRecovery?.engine === "Cricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportCricketRecovery : undefined}
-        firstThrower={starterIdx} />;
+        firstThrower={starterIdx} topBanner={topBanner} />;
 
     case "Killer":
       return <KillerScorer p1Name={ep1} p2Name={ep2} lives={(cfg.lives as number) ?? 3} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} newScoringUI={newScoringUI} />;

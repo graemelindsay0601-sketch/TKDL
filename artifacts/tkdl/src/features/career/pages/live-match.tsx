@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useScorerScrollLock, CareerScorerStage, ScorerMinimise } from "../scorer-stage";
 import { ContinueProgress } from "../continue-career";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
@@ -114,6 +115,8 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   const sideNames: [string, string] = session ? (session.team
     ? [`${session.player.name} & ${session.team.partner.name}`, `${session.opponent.name} & ${session.team.opponentPartner.name}`]
     : [session.player.name, session.opponent.name]) : ["", ""];
+  // Bull-up, loading and result layers lock the page; while you are throwing, the scorer stage owns the lock (and releases it when minimised).
+  useScorerScrollLock(!(session && (phase === "play" || phase === "submitting")));
 
   const initialRecovery = useMemo(() => session && session.firstThrower !== null && format
     ? recoveryFromLog(format, session.firstThrower, session.darts as Dart[]) : null, [session?.sessionId, session?.firstThrower, format, scorerKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -151,8 +154,8 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
 
   if (phase === "done" && session.result) return <PostMatch ctx={ctx} session={session} />;
 
-  if (session.format.mix === "SOFT_TIP") return createPortal(
-    <>
+  if (session.format.mix === "SOFT_TIP") return (
+    <CareerScorerStage title={`${sideNames[0]} vs ${sideNames[1]}`} floatingControl>
       <SoftTipScorer key={`${session.sessionId}:${scorerKey}`} session={session} firstThrower={session.firstThrower ?? 0} initialDarts={session.darts as Dart[]}
         onDarts={onDartLog} onAbandon={() => navigate(`/career/${saveId}/tournaments/${session.eventId}`)} />
       {error && phase === "play" && (
@@ -160,12 +163,12 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
           {error} <button className="underline" onClick={() => setError(null)}>Dismiss</button>
         </div>
       )}
-    </>, document.body);
+    </CareerScorerStage>);
 
   const gameType = careerGameType(session.format) as unknown as GameTypeOption;
-  return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
-      <GameScorer key={`${session.sessionId}:${scorerKey}`}
+  return (
+    <CareerScorerStage title={`${sideNames[0]} vs ${sideNames[1]}`}>
+      <GameScorer key={`${session.sessionId}:${scorerKey}`} topBanner={<div className="career-scorer-banner"><ScorerMinimise /></div>}
         p1Name={sideNames[0]} p2Name={sideNames[1]} gameType={gameType}
         botConfig={session.bot.config} firstThrower={session.firstThrower ?? 0}
         {...scorerLength(session.format)}
@@ -184,11 +187,11 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
           {error} <button className="underline" onClick={() => setError(null)}>Dismiss</button>
         </div>
       )}
-    </div>, document.body);
+    </CareerScorerStage>);
 }
 
 function Overlay({ children }: { children: React.ReactNode }) {
-  return createPortal(<div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "rgba(4,4,10,0.96)" }}>{children}</div>, document.body);
+  return createPortal(<div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "safe center", justifyContent: "center", overflowY: "auto", overscrollBehavior: "contain", padding: 16, background: "rgba(4,4,10,0.96)" }}>{children}</div>, document.body);
 }
 
 /** Career result transition: score, significance from the saved tournament state, what happens next. No narrative (A7). */

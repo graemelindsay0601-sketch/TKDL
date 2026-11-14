@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CareerScorerStage, ScorerMinimise } from "../scorer-stage";
 import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { markSeen } from "../unlocks";
@@ -171,13 +172,13 @@ export function CamMatchPage({ ctx, fixtureId }: { ctx: ShellContext; fixtureId:
   const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/cam-league`}>Back to the league</Link>;
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3">
     <h2>{session.won ? `You beat ${session.opponent.name}` : `${session.opponent.name} beat you`} {session.legs![0]}-{session.legs![1]}</h2>{back}</div>;
-  return <div className="cam-league__live">
+  return <CareerScorerStage title={`${session.you} vs ${session.opponent.name}`}>
+    <GameScorer topBanner={<div className="cam-league__live career-scorer-banner"><ScorerMinimise />
     <p className="cam-league__live-title"><Video aria-hidden /> <b>{session.you}</b> vs <b>{session.opponent.name}</b> <small>({session.opponent.country}) · on camera · first to 3</small></p>
     {message && <p className="money-match__message" role="alert">{message}</p>}
-    <GameScorer key={session.fixtureId} p1Name={session.you} p2Name={session.opponent.name} gameType={careerGameType(session.format as LiveSession["format"])}
+    {back}</div>} key={session.fixtureId} p1Name={session.you} p2Name={session.opponent.name} gameType={careerGameType(session.format as LiveSession["format"])}
       botConfig={session.opponent.bot.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => { /* the server keeps the dart log */ }} botVisitPlanner={planner} onDartLog={onDartLog}
       onWin={() => send(log.current)} onAbandon={() => history.back()} />
-    {back}
-  </div>;
+  </CareerScorerStage>;
 }
