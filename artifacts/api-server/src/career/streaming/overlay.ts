@@ -32,6 +32,8 @@ export const REQUESTS: Record<RequestKind, { label: string; reward: number; unit
 const DRILL_REQUESTS: RequestKind[] = ["TON", "MAX"];
 const BASE_REWARD: Record<TierKey, number> = { NEWCOMER: 0, AFFILIATE: 500, PARTNER: 1200, STAR: 3000 };
 export const MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000];
+/** First-time chatters: how often one says hello, and the chance they follow (better when a mod welcomes them). */
+export const FIRST_CHAT = { chance: 0.06, follow: 0.3, followWithMod: 0.6 };
 /** A VIP's gifted subs: chance per visit (per VIP, up to three) and the most in one go. */
 export const VIP_GIFT = { chance: 0.02, max: 5 };
 export const TRAIN = { maxLevel: 5, perCheer: 40, perSub: 80, quietVisits: 8, followersPerLevel: 2 };
@@ -119,6 +121,17 @@ export function overlayVisit(seed: string, streamKey: string, index: number, v: 
       const who = vips[Math.floor(g() * vips.length)].name, n = 1 + Math.floor(g() * VIP_GIFT.max);
       t.subs += n; events.push(alert("GIFT", `${who} gifted ${n} sub${n === 1 ? "" : "s"}!`, who));
       events.push({ kind: "SUB", user: who, months: 1 });
+    }
+  }
+  // A first-time chatter says hello, and a mod (or the room) welcomes them in (a separate draw).
+  if (v.you && t.viewers >= 3) {
+    const f = scopedRandom(seed, STREAM.version, "stream-first-chat", streamKey, index);
+    if (f() < FIRST_CHAT.chance) {
+      const newbie = handleFor(f), mods = regulars.filter(r => r.role === "MOD");
+      events.push({ kind: "CHAT", user: newbie, text: pick(f, ["first time here, this is great", "just found this stream!", "hello from a new viewer 👋", "first time chatting, love it"]) });
+      if (mods.length) events.push({ kind: "CHAT", user: mods[Math.floor(f() * mods.length)].name, role: "MOD", text: `welcome in, ${newbie}! 👋 grab a seat` });
+      else events.push({ kind: "CHAT", user: regulars.length ? regulars[Math.floor(f() * regulars.length)].name : handleFor(f), text: `welcome ${newbie}!` });
+      if (f() < (mods.length ? FIRST_CHAT.followWithMod : FIRST_CHAT.follow)) { t.followersGained += 1; events.push({ kind: "FOLLOW", user: newbie }); }
     }
   }
   // 2. The hype train: cheers in quick succession build it; a quiet spell ends it (it pays a few followers by level).

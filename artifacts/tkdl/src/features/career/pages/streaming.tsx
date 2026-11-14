@@ -7,6 +7,7 @@ import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
 import { CommunitySection, SceneSection } from "./stream-community";
+import { CupsSection } from "./stream-cups";
 import "./streaming.css";
 
 function StreamFormatIcon({ format }: { format: StreamFormat }) {
@@ -45,7 +46,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const scheduledWeek = useRef("");
   useEffect(() => {
     const data = q.data;
-    if (ctx.save.retiredAt || !data || data.week !== data.currentWeek || data.pathway.focus !== "DARTCAST" || data.pathway.scheduledNights.length) return;
+    if (ctx.save.retiredAt || !data || data.week !== data.currentWeek || data.pathway.focus === "OPEN" || data.pathway.scheduledNights.length) return;
     const key = `${id}:${data.season}:${data.week}`;
     if (scheduledWeek.current === key) return;
     scheduledWeek.current = key;
@@ -81,6 +82,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             <a href="#control-room" className="is-current"><SlidersHorizontal aria-hidden /> Overview</a>
             <a href="#programming"><Radio aria-hidden /> Programming</a>
             <a href="#audience"><Users aria-hidden /> Audience &amp; income</a>
+            <a href="#cups"><Trophy aria-hidden /> Cups</a>
             <a href="#community"><HeartHandshake aria-hidden /> Community</a>
             <a href="#scene"><Sparkles aria-hidden /> The scene</a>
             <a href="#vault"><Clapperboard aria-hidden /> Production vault</a>
@@ -160,10 +162,11 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
                 <div className="control-stack">
                   <div className="route-control">
                     <div className="control-title"><span className="control-number">A</span><div><b>Career focus</b><small>Choose the path you want to build</small></div></div>
-                    {d.pathway.focus === "DARTCAST" ? <div className="route-config">
-                      <div className="route-active"><i /> DARTCAST FOCUS ACTIVE</div>
-                      <p>Your chosen weekly frequency is reserved on free nights. Starting each stream is still your choice.</p>
-                      <label>Weekly schedule<select aria-label="Streams to schedule each week" value={d.pathway.weeklyFrequency} disabled={setPathway.isPending || retired} onChange={e => setPathway.mutate({ focus: "DARTCAST", weeklyFrequency: Number(e.target.value) }, { onError: err => setMessage(errorMessage(err)) })}>{[1, 2, 3].map(n => <option key={n} value={n}>{n} night{n === 1 ? "" : "s"} a week</option>)}</select></label>
+                    {d.pathway.focus !== "OPEN" ? <div className="route-config">
+                      <div className="route-active"><i /> {d.pathway.focus === "CREATOR" ? "FULL-TIME CREATOR" : "DARTCAST FOCUS ACTIVE"}</div>
+                      <p>{d.pathway.focus === "CREATOR" ? "Streaming is your main job: up to 5 nights a week. Darts events are still there whenever you want them." : "Your chosen weekly frequency is reserved on free nights. Starting each stream is still your choice."}</p>
+                      <label>Weekly schedule<select aria-label="Streams to schedule each week" value={d.pathway.weeklyFrequency} disabled={setPathway.isPending || retired} onChange={e => setPathway.mutate({ focus: d.pathway.focus, weeklyFrequency: Number(e.target.value) }, { onError: err => setMessage(errorMessage(err)) })}>{(d.pathway.focus === "CREATOR" ? [1, 2, 3, 4, 5] : [1, 2, 3]).map(n => <option key={n} value={n}>{n} night{n === 1 ? "" : "s"} a week</option>)}</select></label>
+                      <button className="text-action" type="button" disabled={setPathway.isPending || retired} onClick={() => setPathway.mutate(d.pathway.focus === "CREATOR" ? { focus: "DARTCAST", weeklyFrequency: Math.min(3, d.pathway.weeklyFrequency) } : { focus: "CREATOR", weeklyFrequency: Math.max(4, d.pathway.weeklyFrequency) }, { onError: err => setMessage(errorMessage(err)) })}>{d.pathway.focus === "CREATOR" ? "Go back to part-time streaming" : "Go full-time creator (up to 5 nights a week)"}</button>
                       <div className="reserved"><span>THIS WEEK RESERVED</span><b>{d.pathway.scheduledNights.length ? d.pathway.scheduledNights.map(dayLabel).join(" · ") : "No nights reserved"}</b></div>
                       {!d.pathway.scheduledNights.length && d.streamsThisWeek < d.pathway.weeklyFrequency && d.freeNights.length > 0 && <button className="text-action" type="button" disabled={schedulePathway.isPending} onClick={() => schedulePathway.mutate(undefined, { onError: err => setMessage(errorMessage(err)) })}>{schedulePathway.isPending ? "Checking free nights…" : "Try scheduling this week again"}</button>}
                       <button className="text-action" type="button" disabled={setPathway.isPending || retired} onClick={() => setPathway.mutate({ focus: "OPEN", weeklyFrequency: 0 }, { onError: err => setMessage(errorMessage(err)) })}>Stop pursuing this route</button>
@@ -260,6 +263,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               {!goalThisMonth && <><p>Set a goal for this month. Hit it and the buzz wins you followers.</p><div className="goal-controls"><div><small>SUB TARGET</small><div className="goal-options" role="radiogroup" aria-label="Sub target">{d.goalOptions.targets.map(t => <button type="button" key={t} role="radio" aria-checked={goalTarget === t} onClick={() => setGoalTarget(t)}>{t} subs</button>)}</div></div><div><small>YOUR PROMISE</small><div className="promise-options" role="radiogroup" aria-label="Your promise">{d.goalOptions.promises.map(p => <button type="button" key={p} role="radio" aria-checked={promise === p} onClick={() => setPromise(p)}>{p}</button>)}</div></div><button className="button-gold goal-submit" type="button" disabled={goalTarget === null || promise === null || goal.isPending} onClick={() => goal.mutate({ target: goalTarget!, promise: promise! }, { onError: e => setMessage(errorMessage(e)) })}>{goal.isPending ? "Setting goal…" : "Set the goal"} <ArrowUpRight aria-hidden /></button></div></>}
             </div>}
           </section>}
+          <CupsSection d={d} night={pick} canGo={!futureWeek && !retired && !d.live && pick !== null} busy={live.isPending}
+            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
           <CommunitySection saveId={id} d={d} retired={retired} />
           <SceneSection d={d} />
           <section className="growth-map">

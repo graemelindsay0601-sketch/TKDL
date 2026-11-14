@@ -8,7 +8,7 @@ import { absoluteDay } from "./calendar/generation.ts";
  * Keys are "<kind>:<id>" so the calendar can say what the night is.
  */
 const SOURCES = [
-  { kind: "stream", table: "career_streams", label: "Streaming night", where: sql`AND format <> 'MATCH'` },
+  { kind: "stream", table: "career_streams", label: "Streaming night", where: sql`AND format NOT IN ('MATCH','CUP')` },
   { kind: "trip", table: "career_road_trips", label: "Road trip", where: sql`` },
   { kind: "league", table: "career_cam_fixtures", label: "Webcam league match", where: sql`AND day IS NOT NULL` },
   { kind: "proam", table: "career_proam_nights", label: "Pro-Am night", where: sql`AND status <> 'CANCELLED'` },

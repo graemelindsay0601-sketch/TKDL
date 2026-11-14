@@ -59,6 +59,38 @@
 .sc-emotes input { flex:1; min-width:0; padding:6px 8px; border:1px solid #ffffff2a; background:#0a131b; color:#fff; font-size:13px; }
 .sc-emotes form button { padding:6px 10px; border:1px solid #d3b66077; background:#dfbd6816; color:#ecd084; font-size:12px; cursor:pointer; }
 .sc-emotes form button:disabled { opacity:.5; cursor:not-allowed; }
+.sc-celebrate { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px; border:1px solid #ffd16688; background:linear-gradient(120deg,#3a2a08,#1a1030); }
+.sc-celebrate>svg { width:26px; height:26px; color:#ffd166; flex:none; }
+.sc-celebrate>div { flex:1 1 220px; display:grid; gap:3px; }
+.sc-celebrate b { color:#ffe08a; font-size:16px; }
+.sc-celebrate small { color:#d9cfb5; font-size:12.5px; }
+.sc-celebrate button, .sc-enter { display:inline-flex; align-items:center; gap:6px; padding:10px 14px; border:0; background:#ffd166; color:#1a1205; font-weight:800; font-size:13px; cursor:pointer; }
+.sc-celebrate button:disabled, .sc-enter:disabled { opacity:.5; cursor:not-allowed; }
+.sc-enter { justify-self:start; }
+.sc-panel .sc-enter, .sc-panel .sc-celebrate button { color:#1a1205; }
+.sc-enter svg { width:16px; height:16px; }
+.sc-callout { display:flex; gap:8px; margin:0; padding:10px 12px; border-left:3px solid #ff4d5e; background:#ff4d5e12; color:#e9e2d0; font-size:13px; }
+.sc-callout svg { width:16px; height:16px; color:#ff4d5e; flex:none; margin-top:2px; }
+.sc-callout b { color:#ffb3bc; }
+.sc-cup-grid { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:10px; }
+.sc-field, .sc-prizes { margin:0; padding:0; list-style:none; display:grid; gap:4px; align-content:start; }
+.sc-field li { display:flex; align-items:center; gap:8px; padding:6px 8px; background:#ffffff06; border:1px solid #ffffff10; min-width:0; }
+.sc-field li[data-you] { border-color:#d6b761; background:#d6b76118; }
+.sc-field span { width:20px; color:#89989d; font:600 11px "DM Mono",monospace; }
+.sc-field b { flex:1; min-width:0; color:#f0eadb; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sc-field small { color:#9fabad; font-size:11px; white-space:nowrap; }
+.sc-prizes li { display:flex; justify-content:space-between; gap:8px; padding:6px 8px; border-bottom:1px solid #ffffff10; color:#c9c2b0; font-size:12.5px; }
+.sc-prizes b { color:#ffe08a; }
+.sc-trophies h3 { margin:0 0 6px; color:#f2eee3; font:700 16px "Space Grotesk",sans-serif; text-transform:none; }
+.sc-trophies ul { margin:0; padding:0; list-style:none; display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr)); gap:6px; }
+.sc-trophies li { display:flex; gap:8px; align-items:center; padding:8px; border:1px solid #ffffff12; opacity:.75; }
+.sc-trophies li[data-won] { opacity:1; border-color:#ffd16688; }
+.sc-trophies li svg { width:18px; height:18px; color:#9fabad; flex:none; }
+.sc-trophies li[data-won] svg { color:#ffd166; }
+.sc-trophies li div { display:grid; gap:2px; min-width:0; }
+.sc-trophies b { color:#f0eadb; font-size:13px; }
+.sc-trophies small { color:#9fabad; font-size:11.5px; }
+@media (max-width: 620px) { .sc-cup-grid { grid-template-columns:1fr; } }
 @media (max-width: 520px) {
   .sc-panel { padding:14px 12px; }
   .sc-head h2 { font-size:20px; }

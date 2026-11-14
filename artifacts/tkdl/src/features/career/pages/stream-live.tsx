@@ -78,13 +78,18 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
   if (q.isLoading || (!session && !q.error)) return <CareerLoading />;
   if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const t = session.tally, over = session.status === "ENDED", king = session.streamFormat === "KING", inv = session.streamFormat === "INVITATIONAL", drill = session.drill;
+  const cupNight = session.streamFormat === "CUP", cupRounds = session.kingRounds;
+  const cupRound = (r: number) => { const left = cupRounds - r; return left === 1 ? "Final" : left === 2 ? "Semi-final" : left === 3 ? "Quarter-final" : "Round of 16"; };
+  const cupWins = session.rounds.filter(r => r.result === "WON").length;
   const ROUND_NAMES = ["Quarter-final", "Semi-final", "Final"];
   const invWins = session.rounds.filter(r => r.result === "WON").length;
   const title = drill ? <><b>{session.formatName}</b> <small>{drill.kind === "SCORING" ? `target average ${drill.targetAverage}` : drill.kind === "CHECKOUTS" ? `finishes ${drill.targets.join(", ")}` : "D1 to the bull"}</small></>
     : king ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>King of the Oche · viewer {session.round + 1} of {session.kingRounds} · one leg · they average about {session.challenger.avg}</small></>
+    : cupNight ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>Creator Cup · {cupRound(session.round)} · first to {session.format.unit === "LEGS" ? (session.format.bestOfLegs + 1) / 2 : "?"} · they average about {session.challenger.avg}</small></>
     : inv ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>DartCast Invitational · {ROUND_NAMES[session.round]} · first to 2 · they average about {session.challenger.avg}</small></>
     : <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>first to 2 · they average about {session.challenger.avg}</small></>;
   const headline = drill ? (session.result === "WON" ? `${session.formatName}: done it!` : session.result === "LOST" ? `${session.formatName}: not this time` : "Stream ended")
+    : cupNight ? (cupWins >= cupRounds ? "Creator Cup champion! 🏆" : `Out in the ${cupRound(cupWins).toLowerCase()}`)
     : inv ? (invWins >= 3 ? "DartCast Invitational champion!" : `Out in the ${ROUND_NAMES[Math.min(2, invWins)].toLowerCase()}`)
     : king ? (session.result === "WON" ? `King of the Oche: all ${session.kingRounds} seen off` : `${session.rounds.filter(r => r.result === "WON").length} viewer${session.rounds.filter(r => r.result === "WON").length === 1 ? "" : "s"} seen off`)
     : session.result === "WON" ? `You beat ${session.challenger.name}` : session.result === "LOST" ? `${session.challenger.name} beat you` : "Stream ended";
@@ -107,7 +112,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
           {session.campaign && <aside className="dc__note" aria-label="Sponsored stream campaign">
             <b>Sponsored by {session.campaign.sponsorName}</b> · {session.campaign.brief} · {money(session.campaign.rewardPence)} on completion
           </aside>}
-          {(king || inv) && session.rounds.length > 0 && <ol className="dc-live__rounds" aria-label="Viewers so far">{session.rounds.map((r, i) => <li key={i} data-result={r.result}>{inv ? `${ROUND_NAMES[i]}: ` : ""}{r.challenger} {r.result === "WON" ? (inv ? "beaten" : "seen off") : "won"}</li>)}</ol>}
+          {(king || inv || cupNight) && session.rounds.length > 0 && <ol className="dc-live__rounds" aria-label="Rounds so far">{session.rounds.map((r, i) => <li key={i} data-result={r.result}>{inv ? `${ROUND_NAMES[i]}: ` : cupNight ? `${cupRound(i)}: ` : ""}{r.challenger} {r.result === "WON" ? (inv || cupNight ? "beaten" : "seen off") : "won"}</li>)}</ol>}
           {!over && drill && <StreamHud inline session={session} chat={chat} fresh={fresh} onAnswer={answer} answering={answering} />}
           {!over && drill ? <div className="dc-live__scorer">
             <DrillScorer key={session.id} spec={drill} initialDarts={session.darts as Dart[]} onVisit={send} />
