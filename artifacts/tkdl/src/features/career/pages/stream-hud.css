@@ -1,0 +1,56 @@
+/* The live stream overlay: a chip in the scorer's empty top corner beside Minimise, and a tray it opens. */
+.dc-hud { position: fixed; top: max(8px, env(safe-area-inset-top)); left: 106px; z-index: 10003; display: grid; justify-items: start; gap: 6px;
+  max-width: min(340px, calc(100vw - 230px)); color: #fff; font-family: system-ui, sans-serif; }
+.dc-hud[data-open] { max-width: none; }
+.dc-hud--inline { position: static; max-width: none; margin-bottom: 8px; }
+.dc-hud__chip { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; max-width: min(340px, calc(100vw - 230px)); padding: 0 8px; border-radius: 999px;
+  border: 1px solid rgba(145, 70, 255, .6); background: rgba(14, 10, 24, .9); backdrop-filter: blur(6px); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; overflow: hidden; }
+.dc-hud--inline .dc-hud__chip { max-width: 100%; }
+.dc-hud__chip[data-offer] { border-color: #ffd166; animation: dc-hud-pulse 1.6s ease-in-out infinite; }
+.dc-hud__chip[data-alert] { border-color: #ffd166; background: linear-gradient(90deg, rgba(90, 50, 160, .95), rgba(150, 40, 90, .95)); animation: dc-hud-pop .25s ease-out; }
+.dc-hud__chip[data-alert="SUB"], .dc-hud__chip[data-alert="SUPERCHAT"] { background: linear-gradient(90deg, rgba(20, 90, 85, .95), rgba(60, 40, 140, .95)); }
+.dc-hud__alert { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-hud__stat { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.dc-hud__stat svg, .dc-hud__pill svg, .dc-hud__caret { width: 14px; height: 14px; flex: none; }
+.dc-hud__stat--train { color: #ffd166; }
+.dc-hud__pill { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px; background: #ffd166; color: #1a1205; white-space: nowrap; }
+.dc-hud__pill--active { background: #39d0c8; color: #04201e; }
+.dc-hud__caret { opacity: .7; }
+@media (max-width: 420px) { .dc-hud__caret { display: none; } }
+.dc-hud__tray { width: min(360px, calc(100vw - 20px)); margin-left: -96px; max-height: min(62vh, 520px); overflow-y: auto; display: grid; gap: 10px; padding: 10px;
+  border-radius: 12px; border: 1px solid rgba(145, 70, 255, .45); background: rgba(14, 10, 24, .97); box-shadow: 0 12px 30px rgba(0, 0, 0, .5); }
+.dc-hud--inline .dc-hud__tray { margin-left: 0; width: 100%; max-height: none; }
+.dc-hud__meters { display: grid; gap: 8px; }
+.dc-hud__meter { display: grid; gap: 4px; }
+.dc-hud__meter-label { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; }
+.dc-hud__meter-label svg { width: 14px; height: 14px; color: #ffd166; }
+.dc-hud__meter-label small { margin-left: auto; color: #b9b3c9; font-weight: 500; font-size: 11px; }
+.dc-hud__bar { display: block; height: 7px; border-radius: 999px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.dc-hud__bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #39d0c8, #9146ff, #ff4d5e); transition: width .4s; }
+.dc-hud__call { margin: 0; font-size: 12.5px; color: #ddd6ee; }
+.dc-hud__call b { color: #ffd166; }
+.dc-hud__request { display: grid; gap: 8px; padding: 10px; border-radius: 10px; border: 1px solid #ffd16688; background: rgba(255, 209, 102, .08); }
+.dc-hud__request small, .dc-hud__challenge small { display: flex; align-items: center; gap: 4px; color: #ffd166; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; }
+.dc-hud__request small svg { width: 12px; height: 12px; }
+.dc-hud__request b, .dc-hud__challenge b { display: block; margin-top: 3px; font-size: 14px; }
+.dc-hud__request span, .dc-hud__challenge span { display: block; margin-top: 2px; color: #c9c2d8; font-size: 11.5px; }
+.dc-hud__request-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dc-hud__request-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 40px; border-radius: 8px; font-weight: 800; font-size: 13px; cursor: pointer; }
+.dc-hud__request-actions svg { width: 16px; height: 16px; }
+.dc-hud__accept { border: 0; background: #ffd166; color: #1a1205; }
+.dc-hud__skip { border: 1px solid rgba(255, 255, 255, .25); background: transparent; color: #fff; }
+.dc-hud__request-actions button:disabled { opacity: .5; cursor: default; }
+.dc-hud__challenge { display: flex; gap: 8px; align-items: flex-start; padding: 9px 10px; border-radius: 10px; border: 1px solid #39d0c877; background: rgba(57, 208, 200, .08); }
+.dc-hud__challenge > svg { width: 18px; height: 18px; color: #39d0c8; flex: none; margin-top: 2px; }
+.dc-hud__challenge small { color: #7ff0e8; }
+.dc-hud__chat { list-style: none; margin: 0; padding: 0; max-height: 150px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #ddd6ee; }
+.dc-hud__chat b { color: #c8a8ff; }
+.dc-hud__chat-alert { color: #ffd166; }
+.dc-hud__chat-note { color: #9d96ad; }
+.dc-hud__recap { margin: 0; padding: 0 0 0 1.1em; display: grid; gap: 3px; font-size: .82rem; color: var(--dc-text, #e9ecf1); }
+@keyframes dc-hud-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 209, 102, .55); } 50% { box-shadow: 0 0 0 5px rgba(255, 209, 102, 0); } }
+@keyframes dc-hud-pop { from { transform: scale(.94); opacity: .6; } to { transform: none; opacity: 1; } }
+/* Phones on their side: the keypad starts near the middle, so the chip stays inside the left column. */
+@media (max-height: 500px) and (orientation: landscape) { .dc-hud, .dc-hud__chip { max-width: min(180px, calc(45vw - 110px)); } .dc-hud__caret { display: none; } .dc-hud[data-open] { max-width: none; } }
+@media (prefers-reduced-motion: reduce) { .dc-hud__chip[data-offer], .dc-hud__chip[data-alert] { animation: none; } }
+.dc-match__warn { position: fixed; top: 46px; left: 10px; z-index: 10003; max-width: 300px; padding: 4px 8px; border-radius: 8px; background: rgba(14, 10, 24, .92); }

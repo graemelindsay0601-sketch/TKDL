@@ -12,12 +12,14 @@ import { formatPence } from "../model";
 import type { ShellContext } from "../shell";
 import type { LiveSession } from "../types";
 import { DrillScorer } from "./drill-scorer";
+import { RecapList, StreamHud } from "./stream-hud";
 import "./streaming.css";
 
 const money = (p: number) => formatPence(p);
 
 function ChatLine({ e }: { e: ChatEvent }) {
   if (e.kind === "CHAT") return <li className="dc-chat__line">{e.role && <i className="dc-chat__badge" data-role={e.role}>{e.role}</i>}<b>{e.user}</b> {e.text}</li>;
+  if (e.kind === "ALERT") return <li className="dc-chat__alert" data-kind="ALERT"><Sparkles aria-hidden /> {e.text}</li>;
   if (e.kind === "FOLLOW") return <li className="dc-chat__note"><Heart aria-hidden /> {e.user} followed</li>;
   if (e.kind === "SUB") return <li className="dc-chat__alert" data-kind="SUB"><Star aria-hidden /> <b>{e.user}</b> subscribed{e.months > 1 ? ` for ${e.months} months` : ""}!</li>;
   if (e.kind === "BITS") return <li className="dc-chat__alert" data-kind="BITS"><Sparkles aria-hidden /> <b>{e.user}</b> cheered {e.pence} bits <span>{e.text}</span></li>;
@@ -34,13 +36,13 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
   const id = ctx.save.id, q = useStreamSession(id, streamId), client = useQueryClient();
   const [session, setSession] = useState<StreamSession | null>(null);
   const [chat, setChat] = useState<ChatEvent[]>([]);
-  const [alert, setAlert] = useState<ChatEvent | null>(null);
+  const [fresh, setFresh] = useState<ChatEvent[]>([]);
+  const [answering, setAnswering] = useState(false);
   const [message, setMessage] = useState("");
   const [ending, setEnding] = useState(false);
   const log = useRef<Dart[]>([]), queue = useRef<Promise<void>>(Promise.resolve()), chatBox = useRef<HTMLOListElement>(null);
   useEffect(() => { if (q.data && !session) { setSession(q.data); setChat(q.data.chat); log.current = q.data.darts as Dart[]; } }, [q.data, session]);
   useEffect(() => { chatBox.current?.scrollTo({ top: chatBox.current.scrollHeight }); }, [chat]);
-  useEffect(() => { if (!alert) return; const t = setTimeout(() => setAlert(null), 3500); return () => clearTimeout(t); }, [alert]);
 
   const send = useCallback((darts: Dart[]) => {
     queue.current = queue.current.then(async () => {
@@ -51,7 +53,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
           if (prev && r.session.round !== prev.round) log.current = r.session.darts as Dart[];
           return r.session;
         });
-        if (r.events.length) { setChat(c => [...c, ...r.events].slice(-150)); const big = [...r.events].reverse().find(e => e.kind === "SUPERCHAT" || e.kind === "SUB" || e.kind === "BITS" || e.kind === "PLEDGE"); if (big) setAlert(big); }
+        if (r.events.length) { setFresh(r.events); setChat(c => [...c, ...r.events].slice(-150)); }
         if (r.session.status === "ENDED") await client.invalidateQueries({ queryKey: careerKey(id) });
       } catch (e) { setMessage(errorMessage(e)); }
     });
@@ -67,6 +69,10 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [session?.id, session?.round]);
 
+  const answer = useCallback((accept: boolean) => {
+    setAnswering(true);
+    streamingApi.answerRequest(id, streamId, accept).then(setSession).catch(e => setMessage(errorMessage(e))).finally(() => setAnswering(false));
+  }, [id, streamId]);
   if (q.isLoading || (!session && !q.error)) return <CareerLoading />;
   if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const t = session.tally, over = session.status === "ENDED", king = session.streamFormat === "KING", inv = session.streamFormat === "INVITATIONAL", drill = session.drill;
@@ -100,10 +106,11 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
             <b>Sponsored by {session.campaign.sponsorName}</b> · {session.campaign.brief} · {money(session.campaign.rewardPence)} on completion
           </aside>}
           {(king || inv) && session.rounds.length > 0 && <ol className="dc-live__rounds" aria-label="Viewers so far">{session.rounds.map((r, i) => <li key={i} data-result={r.result}>{inv ? `${ROUND_NAMES[i]}: ` : ""}{r.challenger} {r.result === "WON" ? (inv ? "beaten" : "seen off") : "won"}</li>)}</ol>}
-          {alert && <div className="dc-live__toast" role="status"><ChatLine e={alert} /></div>}
+          {!over && drill && <StreamHud inline session={session} chat={chat} fresh={fresh} onAnswer={answer} answering={answering} />}
           {!over && drill ? <div className="dc-live__scorer">
             <DrillScorer key={session.id} spec={drill} initialDarts={session.darts as Dart[]} onVisit={send} />
-          </div> : !over ? <CareerScorerStage message={alert ? <ChatLine e={alert} /> : null} title={`${session.handle} vs ${session.challenger.name}`}>
+          </div> : !over ? <CareerScorerStage title={`${session.handle} vs ${session.challenger.name}`}
+            hud={<StreamHud session={session} chat={chat} fresh={fresh} onAnswer={answer} answering={answering} />}>
             <GameScorer key={`${session.id}:${session.round}`} p1Name={session.handle} p2Name={session.challenger.name} gameType={careerGameType(session.format as LiveSession["format"])}
               botConfig={session.challenger.bot!.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
               initialRecovery={initialRecovery} onRecoveryState={() => { /* the server keeps the stream's dart log */ }}
@@ -120,6 +127,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
               <div><dt>New subs</dt><dd>{t.subs}</dd></div>
               <div><dt>Earned</dt><dd>{money(session.incomePence ?? 0)}</dd></div>
             </dl>
+            <RecapList session={session} />
             {session.poll && <div className="dc-live__poll"><h3>Chat's vote for next time</h3><ul>{[...session.poll.options].sort((a, b) => b.share - a.share).map(o =>
               <li key={o.key} data-winner={o.key === session.poll!.winner || undefined}><span>{o.name}</span><span className="dc-live__bar"><span style={{ width: `${o.share}%` }} /></span><b>{o.share}%</b></li>)}</ul>
               <p className="dc__note">Stream what chat picked and more of them turn up.</p></div>}
