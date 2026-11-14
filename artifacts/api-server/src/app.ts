@@ -1,3 +1,4 @@
+import { addMissingCareerColumns, driftCount, findCareerSchemaDrift } from "./db/career-schema-drift.ts";
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -1530,6 +1531,34 @@ async function runMigrationStep(name: string, fn: () => Promise<unknown> | unkno
 // checks because marking a partially-applied helper complete would prevent a
 // later deployment from repairing it.
 
+let careerSchemaRepairSteps: [string, () => Promise<unknown>][] = [];
+
+/**
+ * Production can be short of schema a fresh database has (a ledgered migration that failed and never recorded, or one
+ * edited after it was recorded). Find that drift; if there is any, log exactly what, run the Career migrations again
+ * regardless of the ledger (they are idempotent on populated data) and the repair, then check again.
+ */
+async function verifyCareerSchema() {
+  const before = await db.transaction(tx => findCareerSchemaDrift(tx));
+  if (driftCount(before) === 0) return;
+  logger.error({ drift: before }, `Career schema drift: ${driftCount(before)} difference(s) from the expected schema; re-running Career migrations`);
+  for (const [name, fn] of careerSchemaRepairSteps) await runInitStep(`${name}:drift-repair`, fn);
+  await runInitStep("repairCareerSchema:drift-repair", () => repairCareerSchema(db));
+  await runInitStep("syncCareerEventDefinitions:drift-repair", () => syncCareerEventDefinitions(db));
+  let after = await db.transaction(tx => findCareerSchemaDrift(tx));
+  if (after.missingColumns.length) {
+    const added: string[] = [];
+    for (const key of after.missingColumns) {
+      try { added.push(...await db.transaction(tx => addMissingCareerColumns(tx, [key]))); }
+      catch (err) { logger.error({ err, column: key }, "Career schema drift: could not add column"); }
+    }
+    logger.warn({ added }, "Career schema drift: added columns the migrations could not");
+    after = await db.transaction(tx => findCareerSchemaDrift(tx));
+  }
+  if (driftCount(after) === 0) logger.info({ repaired: before }, "Career schema drift repaired");
+  else throw new Error(`Career schema drift remains after repair: ${JSON.stringify(after)}`);
+}
+
 async function initSchemaAndData(): Promise<boolean> {
   collectingSchemaFailures = true;
   schemaFailureCount = 0;
@@ -1553,39 +1582,44 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("initializeCardClashSchema", initializeCardClashSchema);
   await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
   await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
-  await runMigrationStep("createCareerSavesA1", () => createCareerSaves(db));
-  await runMigrationStep("createCareerWorldA2", () => createCareerWorld(db));
-  await runMigrationStep("createCareerSponsorshipFoundationSPA1", () => createCareerSponsorshipFoundation(db));
-  await runMigrationStep("createCareerCalendarA3", () => createCareerCalendar(db));
-  await runMigrationStep("createCareerFinanceA4", () => createCareerFinance(db));
+  // The ledgered Career migrations (in order). Listed once so the schema drift check at the end of init can run them again.
   // P0-1 (restored): dropped in 5c51822; Career creation and the commercial inbox need these tables.
-  await runMigrationStep("createCareerSPHCommercial", () => createCareerSPHCommercial(db));
-  await runMigrationStep("createCareerSponsorJourneysSPB", () => createCareerSponsorJourneysSPB(db));
-  await runMigrationStep("createCareerSponsorJourneysSPB3", () => createCareerSponsorJourneysSPB3(db));
-  await runMigrationStep("upgradeCareerSponsorRoundsSPB4", () => upgradeCareerSponsorRoundsSPB4(db));
-  await runMigrationStep("createCareerFinanceSPC", () => createCareerFinanceSPC(db));
-  await runMigrationStep("createCareerSponsorHQSPD", () => createCareerSponsorHQSPD(db));
-  await runMigrationStep("createCareerNpcSponsorMarketSPF", () => createCareerNpcSponsorMarketSPF(db));
-  await runMigrationStep("addContractConcludedSponsorEventSPE1", () => addContractConcludedSponsorEventSPE1(db));
-  await runMigrationStep("addScheduledSponsorRenewalsSPE1B", () => addScheduledSponsorRenewalsSPE1B(db));
-  await runMigrationStep("createCareerSponsorContractActionsSPE2", () => createCareerSponsorContractActionsSPE2(db));
-  await runMigrationStep("createCareerSportingA5", () => createCareerSporting(db));
-  await runMigrationStep("addCareerWdfPointsSource", () => addCareerWdfPointsSource(db));
-  await runMigrationStep("addCareerRankingContributionUnits", () => addCareerRankingContributionUnits(db));
-  await runMigrationStep("createCareerGoalsA73", () => createCareerGoals(db));
-  await runMigrationStep("addCareerDartCastFocusA1", () => addCareerDartCastFocus(db));
-  await runMigrationStep("addCareerMainGoalA1", () => addCareerMainGoal(db));
-  await runMigrationStep("createCareerLifeA75", () => createCareerLife(db));
-  await runMigrationStep("createCareerLegacyA76", () => createCareerLegacy(db));
-  await runMigrationStep(SHADOW_OBSERVATIONS_SB21A, () => createShadowObservations(db));
-  await runMigrationStep(CAREER_CONTENT_UPGRADE_A9_V1, () => upgradeCareerContentA9V1(db));
   // P0-2: the A9 upgrade re-runs the A4 finance migration, which narrows career_finance_entries_category_check
   // below the SP-C/SP-E2 sponsor categories. Re-apply the SP-E2 ledger constraint once (idempotent); a new key
   // also repairs databases where A9 already ran after SP-C.
-  await runMigrationStep("reapplyCareerLedgerConstraintSPE2AfterA9", () => createCareerSponsorContractActionsSPE2(db));
+  const careerMigrations: [string, () => Promise<unknown>][] = [
+    ["createCareerSavesA1", () => createCareerSaves(db)],
+    ["createCareerWorldA2", () => createCareerWorld(db)],
+    ["createCareerSponsorshipFoundationSPA1", () => createCareerSponsorshipFoundation(db)],
+    ["createCareerCalendarA3", () => createCareerCalendar(db)],
+    ["createCareerFinanceA4", () => createCareerFinance(db)],
+    ["createCareerSPHCommercial", () => createCareerSPHCommercial(db)],
+    ["createCareerSponsorJourneysSPB", () => createCareerSponsorJourneysSPB(db)],
+    ["createCareerSponsorJourneysSPB3", () => createCareerSponsorJourneysSPB3(db)],
+    ["upgradeCareerSponsorRoundsSPB4", () => upgradeCareerSponsorRoundsSPB4(db)],
+    ["createCareerFinanceSPC", () => createCareerFinanceSPC(db)],
+    ["createCareerSponsorHQSPD", () => createCareerSponsorHQSPD(db)],
+    ["createCareerNpcSponsorMarketSPF", () => createCareerNpcSponsorMarketSPF(db)],
+    ["addContractConcludedSponsorEventSPE1", () => addContractConcludedSponsorEventSPE1(db)],
+    ["addScheduledSponsorRenewalsSPE1B", () => addScheduledSponsorRenewalsSPE1B(db)],
+    ["createCareerSponsorContractActionsSPE2", () => createCareerSponsorContractActionsSPE2(db)],
+    ["createCareerSportingA5", () => createCareerSporting(db)],
+    ["addCareerWdfPointsSource", () => addCareerWdfPointsSource(db)],
+    ["addCareerRankingContributionUnits", () => addCareerRankingContributionUnits(db)],
+    ["createCareerGoalsA73", () => createCareerGoals(db)],
+    ["addCareerDartCastFocusA1", () => addCareerDartCastFocus(db)],
+    ["addCareerMainGoalA1", () => addCareerMainGoal(db)],
+    ["createCareerLifeA75", () => createCareerLife(db)],
+    ["createCareerLegacyA76", () => createCareerLegacy(db)],
+    [SHADOW_OBSERVATIONS_SB21A, () => createShadowObservations(db)],
+    [CAREER_CONTENT_UPGRADE_A9_V1, () => upgradeCareerContentA9V1(db)],
+    ["reapplyCareerLedgerConstraintSPE2AfterA9", () => createCareerSponsorContractActionsSPE2(db)],
+  ];
+  for (const [name, fn] of careerMigrations) await runMigrationStep(name, fn);
   // Idempotent, every boot: repairs added after the ledgered Career migrations above were recorded complete.
   await runInitStep("repairCareerSchema", () => repairCareerSchema(db));
   await runInitStep("syncCareerEventDefinitions", () => syncCareerEventDefinitions(db));
+  careerSchemaRepairSteps = careerMigrations;
   await runInitStep("addTkdlLiveBroadcastTables", addTkdlLiveBroadcastTables);
   await runInitStep("addBroadcastStorySeasonId", addBroadcastStorySeasonId);
   await runInitStep("addSeasonBroadcastReviewedAt", addSeasonBroadcastReviewedAt);
@@ -1751,6 +1785,9 @@ async function initSchemaAndData(): Promise<boolean> {
         )
     `);
   });
+
+  // Last: compare the Career schema with what every migration produces, and repair any drift (see career-schema-drift.ts).
+  await runInitStep("verifyCareerSchema", verifyCareerSchema);
 
   collectingSchemaFailures = false;
   const clean = schemaFailureCount === 0;

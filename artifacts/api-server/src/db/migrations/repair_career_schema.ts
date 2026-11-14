@@ -1,3 +1,4 @@
+import { ensureRankingContributionUnits } from "./add_career_ranking_contribution_units.ts";
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { sql } from "drizzle-orm";
 import { ensureSoftTipCircuit, ensureTeamEventClassification, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions, insertMissingEventDefinitions } from "./create_career_calendar.ts";
@@ -51,6 +52,9 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     // Added to the ledgered A1/A3 migrations after production had already recorded them, so they never ran there:
     // without TEAM, every v31+ edition's definitions (the World Cup is a TEAM event) were refused and new Careers failed.
     await ensureCareerProfileSchema(tx);
+    // The ranking unit migration rolled back on databases that already held ranking rows (the table refuses UPDATEs), so
+    // completed events there couldn't record their ranking contributions and the Career wouldn't advance.
+    await ensureRankingContributionUnits(tx);
     await ensureTeamEventClassification(tx);
     await ensureCareerGroupSchema(tx);
     await ensureDevelopmentCardSource(tx);
