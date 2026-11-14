@@ -1,7 +1,7 @@
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { sql } from "drizzle-orm";
-import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions, insertMissingEventDefinitions } from "./create_career_calendar.ts";
-import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
+import { ensureSoftTipCircuit, ensureTeamEventClassification, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions, insertMissingEventDefinitions } from "./create_career_calendar.ts";
+import { ensureCareerMatchSessionSchema, ensureCareerProfileSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
 import { ensureDevelopmentCardSource, ensureRankingArchive, ensureTourCardOffers } from "./create_career_sporting.ts";
 import { createCareerContent } from "./create_career_content.ts";
@@ -48,6 +48,10 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureCareerMaintenance(tx);
     await ensureSimulatedMatchCopiesOptional(tx);
     await ensureCareerMatchSessionSchema(tx);
+    // Added to the ledgered A1/A3 migrations after production had already recorded them, so they never ran there:
+    // without TEAM, every v31+ edition's definitions (the World Cup is a TEAM event) were refused and new Careers failed.
+    await ensureCareerProfileSchema(tx);
+    await ensureTeamEventClassification(tx);
     await ensureCareerGroupSchema(tx);
     await ensureDevelopmentCardSource(tx);
     await ensureRankingArchive(tx);
@@ -77,6 +81,6 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
 /** Shipped event definitions for every supported version (insert-only; its own step so a refusal cannot undo the repairs). */
 export async function syncCareerEventDefinitions(database: CareerDatabase): Promise<void> {
   // Missing rows first, in their own transaction, so a refused sync below still leaves every edition complete.
-  await database.transaction(tx => insertMissingEventDefinitions(tx));
+  await database.transaction(async tx => { await ensureTeamEventClassification(tx); await insertMissingEventDefinitions(tx); });
   await database.transaction(tx => syncEventDefinitions(tx));
 }
