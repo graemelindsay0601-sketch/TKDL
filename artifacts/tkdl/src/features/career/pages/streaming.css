@@ -609,7 +609,8 @@
 .studio-search { display:flex; align-items:center; gap:8px; width:min(260px,26vw); margin-left:auto; padding:9px 11px; border:1px solid #ffffff17; background:#07101a; color:#748391; font:500 8px "DM Mono",monospace; letter-spacing:.08em; }
 .studio-search svg { width:15px; }
 .studio-avatar { display:grid; place-items:center; flex:0 0 35px; width:35px; height:35px; padding:0; border:1px solid #e5bd6866; background:#63313b; color:#ffe7ad!important; font:700 11px "Space Grotesk",sans-serif; }
-.studio-shell { display:grid; grid-template-columns:208px minmax(0,1fr); max-width:1620px; margin:auto; }
+/* One column: the studio has no sidebar (a reserved sidebar column squeezed the whole studio into 208px on desktop and tablet). */
+.studio-shell { display:block; max-width:1620px; margin:auto; }
 .studio-content { min-width:0; padding:0 clamp(18px,3.2vw,52px) 28px; }
 .studio-nav { position:sticky; top:0; z-index:3; display:flex; align-items:center; gap:8px; min-height:58px; margin:0 -1px 23px; border-bottom:1px solid #ffffff1b; background:#09131ef2; backdrop-filter:blur(12px); }
 .studio-nav a { display:flex; align-items:center; gap:7px; min-height:44px; padding:0 12px; color:#aeb8c0; font:700 12px "Barlow Condensed",sans-serif; letter-spacing:.06em; text-transform:uppercase; }
@@ -921,7 +922,6 @@
 .studio-footer i { width:5px; height:5px; border-radius:50%; background:var(--red); }
 @media (min-width:1450px) { .studio-content { padding-right:56px; padding-left:56px; } .studio-hero { min-height:470px; } }
 @media (max-width:1060px) {
-  .studio-shell { grid-template-columns:170px minmax(0,1fr); }
   .studio-content { padding-right:22px; padding-left:22px; }
   .setup-main { grid-template-columns:1fr; }
   .control-room-image { height:210px; }
