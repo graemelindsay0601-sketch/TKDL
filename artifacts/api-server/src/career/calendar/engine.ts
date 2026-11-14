@@ -7,7 +7,8 @@ import { scopedRandom, stableUuid, normal } from "../world/random.ts";
 import { simulateMatchesInTransaction, type Root, type World } from "../world/service.ts";
 import type { Npc } from "../world/types.ts";
 import { CALENDAR_GENERATION_VERSION, CURRENT_EVENT_DATABASE_VERSION, WEEKS_PER_SEASON, DAYS_PER_WEEK, type EventStatus } from "./config.ts";
-import { generateSeason, canonicalJson, type EventInstanceDraft, type InstanceSnapshot } from "./generation.ts";
+import { generateSeason, canonicalJson, definitionHash, type EventInstanceDraft, type InstanceSnapshot } from "./generation.ts";
+import { catalogueFor } from "./catalogue.ts";
 import { bestOfForRound, a2MatchFormat, assessCapability, CAPABILITY_ENGINE_VERSION } from "./formats.ts";
 import { evaluateRule, type ParticipantFacts, type Rule, type RuleOutcome } from "./eligibility.ts";
 import { npcFacts, type CalendarProviders } from "./providers.ts";
@@ -241,7 +242,34 @@ async function addMidweek(tx: CareerExecutor, root: RootRow, season: number, fro
   await insertDrafts(tx, root, season, drafts);
 }
 
+/**
+ * Every instance must name a stored definition (foreign key). Startup syncs the shipped catalogues, but if that step
+ * failed on a deployment the newest edition can be missing rows; add any shipped definition these drafts need
+ * (insert-only, never rewrites a stored one) so creating a Career or a season never depends on startup having succeeded.
+ */
+async function ensureDraftDefinitions(tx: CareerExecutor, drafts: readonly EventInstanceDraft[]) {
+  const wanted = new Map<string, { version: number; key: string }>();
+  for (const d of drafts) wanted.set(`${d.eventDatabaseVersion}:${d.definitionKey}`, { version: d.eventDatabaseVersion, key: d.definitionKey });
+  if (!wanted.size) return;
+  const pairs = [...wanted.values()];
+  const present = new Set((await tx.execute(sql`SELECT event_database_version, definition_key FROM career_event_definitions
+    WHERE (event_database_version, definition_key) IN (${sql.join(pairs.map(p => sql`(${p.version}::int, ${p.key}::text)`), sql`, `)})`)).rows
+    .map(r => `${Number(r.event_database_version)}:${String(r.definition_key)}`));
+  const missing = pairs.flatMap(p => {
+    if (present.has(`${p.version}:${p.key}`)) return [];
+    const definition = catalogueFor(p.version).find(d => d.key === p.key);
+    return definition ? [{ version: p.version, definition_key: definition.key, definition_hash: definitionHash(definition), circuit: definition.circuit,
+      classification: definition.classification, definition }] : [];
+  });
+  if (!missing.length) return;
+  await tx.execute(sql`INSERT INTO career_event_definitions (event_database_version, definition_key, definition_hash, circuit, classification, definition)
+    SELECT d.version, d.definition_key, d.definition_hash, d.circuit, d.classification, d.definition
+    FROM jsonb_to_recordset(${JSON.stringify(missing)}::jsonb) AS d(version integer, definition_key text, definition_hash text, circuit text, classification text, definition jsonb)
+    ON CONFLICT (event_database_version, definition_key) DO NOTHING`);
+}
+
 export async function insertDrafts(tx: CareerExecutor, root: RootRow, season: number, drafts: readonly EventInstanceDraft[]) {
+  await ensureDraftDefinitions(tx, drafts);
   const rows = drafts.map(d => ({ id: d.id, season, instance_key: d.instanceKey, ordinal: d.ordinal, event_database_version: d.eventDatabaseVersion, definition_key: d.definitionKey,
     name: d.name, family: d.family, circuit: d.circuit, classification: d.classification, ranking_category: d.rankingCategory, presentation_tier: d.presentationTier,
     featured: d.featured, calendar_priority: d.calendarPriority, venue_key: d.venueKey, city: d.city, country: d.country, region: d.region, zone: d.zone,

@@ -124,7 +124,9 @@ test("every read the UI makes returns real Career state (new Career: unranked, n
   const cal = (await call("GET", `/saves/${id}/calendar?scope=WORLD&fromWeek=1&toWeek=8`)).body;
   assert.ok(cal.overview.groupings.length === 6 && cal.events.length > 10 && cal.events.every((e: { human: unknown; finance: unknown }) => e.human && e.finance));
   const lists = (await call("GET", `/saves/${id}/rankings`)).body;
-  assert.deepEqual(lists.map((l: { key: string }) => l.key), ["pro-world", "pro-circuit", "european-series", "challenger", "development", "vault", "amateur", "open-world", "women", "youth", "soft-tip"]);
+  const listKeys = lists.map((l: { key: string }) => l.key);
+  assert.deepEqual(listKeys.slice(0, 11), ["pro-world", "pro-circuit", "european-series", "challenger", "development", "vault", "amateur", "open-world", "women", "youth", "soft-tip"]);
+  assert.ok(listKeys.slice(11).every((k: string) => k.startsWith("wdf-")), "the rest are the WDF rankings");
   assert.equal((await call("GET", `/saves/${id}/rankings/pro-world?view=AROUND&participant=HUMAN`)).body.published, null);
   assert.equal((await call("GET", `/saves/${id}/rankings/not-a-list`)).status, 404);
   const q = (await call("GET", `/saves/${id}/q-school`)).body;

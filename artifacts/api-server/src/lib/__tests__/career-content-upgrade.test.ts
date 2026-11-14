@@ -91,10 +91,8 @@ test("recorded old keys cannot skip the upgrade; the failed world/save survives 
   const pg=new PGlite(),db=drizzle(pg);
   try{
     await prepare(pg,db,true);const save=await newSave(db),career=createCareerSportingService(db);
-    await assert.rejects(()=>career.initialize(actor,save.id),error=>{
-      for(let e=error as {code?:string;cause?:unknown};e;e=e.cause as typeof e)if(e.code)return e.code==="23503";
-      return false;
-    });
+    // Missing stored definitions no longer break initialize: the calendar adds any shipped definition it needs (insert-only).
+    await career.initialize(actor,save.id);
     const preserved=["career_saves","career_world_state","career_world_players","players","feature_flags"];
     const before=await contents(pg,preserved),keys=await legacyMarkers(pg);
     assert.equal((before.career_world_players as {count:number}).count,996); // Current v8 world: base field, cohorts and expanded squads.

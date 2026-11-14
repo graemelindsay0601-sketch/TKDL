@@ -8,7 +8,7 @@ import { createCareerSaves } from "../../db/migrations/create_career_saves.ts";
 import { createCareerWorld } from "../../db/migrations/create_career_world.ts";
 import {createCareerSponsorshipFoundation} from "../../db/migrations/create_career_sponsorship_foundation.ts";
 import { createCareerNpcSponsorMarketSPF } from "../../db/migrations/create_career_npc_sponsor_market_spf.ts";
-import { createCareerCalendar, syncEventDefinitions } from "../../db/migrations/create_career_calendar.ts";
+import { createCareerCalendar, syncEventDefinitions, insertMissingEventDefinitions } from "../../db/migrations/create_career_calendar.ts";
 import { createCareerFinance } from "../../db/migrations/create_career_finance.ts";
 import { createCareerSporting } from "../../db/migrations/create_career_sporting.ts";
 import { createCareerSponsorHQSPD } from "../../db/migrations/create_career_sponsor_hq_spd.ts";
@@ -609,4 +609,28 @@ test("NEXT_MATCH plays past ordinary stops straight to the human's booked match 
   // Retry-safe like every advance: the same operation key returns the stored outcome.
   const again = await calendar.advance(actor, a.id, { operationKey: "next-match-a-1", expectedSeason: 1, expectedWeek: 1, target: { kind: "NEXT_MATCH" } }) as { stop: { reason: string } };
   assert.equal(again.stop.reason, direct.stop.reason);
+});
+
+// Production regression: the startup sync was refused (a current definition's stored hash differed), so the newest edition
+// had no stored definitions and every new Career's initialize failed on the instance foreign key (500, then 409 calendars).
+test("a new Career initializes even when the current edition's definitions are missing from the database", async () => {
+  const v = CURRENT_EVENT_DATABASE_VERSION;
+  await db.execute(sql`DELETE FROM career_event_definitions WHERE event_database_version = ${v}`);
+  const save = await saves.create(1, { slot: 1 });
+  const [root] = await rows(sql`SELECT event_database_version FROM career_saves WHERE id = ${save.id}`);
+  assert.equal(Number(root.event_database_version), v);
+  await calendar.initialize(actor, save.id);
+  const [league] = await rows(sql`SELECT COUNT(*)::int AS n FROM career_event_instances WHERE career_save_id = ${save.id} AND definition_key = 'monday-league-night'`);
+  assert.ok(Number(league.n) > 0, "the Monday League is on the new calendar");
+  const [stored] = await rows(sql`SELECT definition_hash FROM career_event_definitions WHERE event_database_version = ${v} AND definition_key = 'monday-league-night'`);
+  assert.equal(stored.definition_hash, definitionHash(catalogueFor(v).find(d => d.key === "monday-league-night")!));
+  // Startup: the insert-only step completes every edition even when the guarded sync then refuses.
+  await db.execute(sql`DELETE FROM career_event_definitions WHERE event_database_version = ${v}
+    AND NOT EXISTS (SELECT 1 FROM career_event_instances i WHERE i.event_database_version = ${v} AND i.definition_key = career_event_definitions.definition_key)`);
+  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${"0".repeat(64)} WHERE event_database_version = ${v} AND definition_key = 'monday-league-night'`);
+  await rejectsWith(db.transaction(tx => syncEventDefinitions(tx)), /changed inside current shipped database version/);
+  await db.transaction(tx => insertMissingEventDefinitions(tx));
+  const [count] = await rows(sql`SELECT COUNT(*)::int AS n FROM career_event_definitions WHERE event_database_version = ${v}`);
+  assert.equal(Number(count.n), catalogueFor(v).length);
+  await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${stored.definition_hash} WHERE event_database_version = ${v} AND definition_key = 'monday-league-night'`);
 });
