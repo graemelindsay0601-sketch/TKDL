@@ -1,3 +1,4 @@
+import { addMissingCareerColumns, driftCount, findCareerSchemaDrift } from "./db/career-schema-drift.ts";
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -1512,6 +1513,7 @@ async function runInitStep(name: string, fn: () => Promise<unknown> | unknown): 
 }
 
 async function runMigrationStep(name: string, fn: () => Promise<unknown> | unknown): Promise<void> {
+  if (collectingCareerSteps) careerSchemaRepairSteps.push([name, fn]);
   if (schemaMigrationLedgerReady && completedSchemaMigrations.has(name)) {
     startupStepTimings.push({ name, durationMs: 0, ok: true, skipped: true });
     return;
@@ -1530,11 +1532,41 @@ async function runMigrationStep(name: string, fn: () => Promise<unknown> | unkno
 // checks because marking a partially-applied helper complete would prevent a
 // later deployment from repairing it.
 
+let careerSchemaRepairSteps: [string, () => Promise<unknown> | unknown][] = [];
+let collectingCareerSteps = false;
+
+/**
+ * Production can be short of schema a fresh database has (a ledgered migration that failed and never recorded, or one
+ * edited after it was recorded). Find that drift; if there is any, log exactly what, run the Career migrations again
+ * regardless of the ledger (they are idempotent on populated data) and the repair, then check again.
+ */
+async function verifyCareerSchema() {
+  const before = await db.transaction(tx => findCareerSchemaDrift(tx));
+  if (driftCount(before) === 0) return;
+  logger.error({ drift: before }, `Career schema drift: ${driftCount(before)} difference(s) from the expected schema; re-running Career migrations`);
+  for (const [name, fn] of careerSchemaRepairSteps) await runInitStep(`${name}:drift-repair`, fn);
+  await runInitStep("repairCareerSchema:drift-repair", () => repairCareerSchema(db));
+  await runInitStep("syncCareerEventDefinitions:drift-repair", () => syncCareerEventDefinitions(db));
+  let after = await db.transaction(tx => findCareerSchemaDrift(tx));
+  if (after.missingColumns.length) {
+    const added: string[] = [];
+    for (const key of after.missingColumns) {
+      try { added.push(...await db.transaction(tx => addMissingCareerColumns(tx, [key]))); }
+      catch (err) { logger.error({ err, column: key }, "Career schema drift: could not add column"); }
+    }
+    logger.warn({ added }, "Career schema drift: added columns the migrations could not");
+    after = await db.transaction(tx => findCareerSchemaDrift(tx));
+  }
+  if (driftCount(after) === 0) logger.info({ repaired: before }, "Career schema drift repaired");
+  else throw new Error(`Career schema drift remains after repair: ${JSON.stringify(after)}`);
+}
+
 async function initSchemaAndData(): Promise<boolean> {
   collectingSchemaFailures = true;
   schemaFailureCount = 0;
   startupStepTimings = [];
   completedSchemaMigrations = new Set();
+  careerSchemaRepairSteps = [];
   schemaMigrationLedgerReady = await runInitStep("ensureSchemaMigrationLedger", ensureSchemaMigrationLedger);
   if (schemaMigrationLedgerReady) {
     schemaMigrationLedgerReady = await runInitStep("loadCompletedSchemaMigrations", async () => {
@@ -1553,6 +1585,8 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("initializeCardClashSchema", initializeCardClashSchema);
   await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
   await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
+  // Record the ledgered Career migrations as they go, so the schema drift check at the end of init can run them again.
+  collectingCareerSteps = true;
   await runMigrationStep("createCareerSavesA1", () => createCareerSaves(db));
   await runMigrationStep("createCareerWorldA2", () => createCareerWorld(db));
   await runMigrationStep("createCareerSponsorshipFoundationSPA1", () => createCareerSponsorshipFoundation(db));
@@ -1583,6 +1617,7 @@ async function initSchemaAndData(): Promise<boolean> {
   // below the SP-C/SP-E2 sponsor categories. Re-apply the SP-E2 ledger constraint once (idempotent); a new key
   // also repairs databases where A9 already ran after SP-C.
   await runMigrationStep("reapplyCareerLedgerConstraintSPE2AfterA9", () => createCareerSponsorContractActionsSPE2(db));
+  collectingCareerSteps = false;
   // Idempotent, every boot: repairs added after the ledgered Career migrations above were recorded complete.
   await runInitStep("repairCareerSchema", () => repairCareerSchema(db));
   await runInitStep("syncCareerEventDefinitions", () => syncCareerEventDefinitions(db));
@@ -1751,6 +1786,9 @@ async function initSchemaAndData(): Promise<boolean> {
         )
     `);
   });
+
+  // Last: compare the Career schema with what every migration produces, and repair any drift (see career-schema-drift.ts).
+  await runInitStep("verifyCareerSchema", verifyCareerSchema);
 
   collectingSchemaFailures = false;
   const clean = schemaFailureCount === 0;
