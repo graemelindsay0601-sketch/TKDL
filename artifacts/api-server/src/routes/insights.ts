@@ -59,7 +59,7 @@ router.get("/insights/records", async (_req, res): Promise<void> => {
     db.execute(sql`SELECT id, name, longest_win_streak FROM players WHERE longest_win_streak > 0 ORDER BY longest_win_streak DESC, name LIMIT 1`),
     db.execute(sql`
       WITH player_wins AS (
-        SELECT winner_id player_id, winner_name player_name, played_at::date day FROM matches
+        SELECT winner_id AS player_id, winner_name AS player_name, played_at::date AS day FROM matches
         WHERE game_type NOT LIKE 'team_%' AND game_type <> 'multi_killer'
         UNION ALL
         SELECT mp.player_id, mp.player_name, m.played_at::date FROM match_participants mp
