@@ -403,6 +403,24 @@ export async function ensureEventPairs(tx: CareerExecutor): Promise<void> {
   `);
 }
 
+/**
+ * Insert-only: every shipped definition not yet stored, for every supported version. Never compares or rewrites a stored
+ * definition, so it cannot be refused; startup runs it before the guarded sync so a refused sync cannot leave the newest
+ * edition without its rows (new Careers would then fail to build their calendar).
+ */
+export async function insertMissingEventDefinitions(tx: CareerExecutor): Promise<void> {
+  for (const version of SUPPORTED_EVENT_DATABASE_VERSIONS) {
+    const definitions = catalogueFor(version).map(definition => ({ definition_key: definition.key, definition_hash: definitionHash(definition),
+      circuit: definition.circuit, classification: definition.classification, definition }));
+    await tx.execute(sql`
+      INSERT INTO career_event_definitions (event_database_version, definition_key, definition_hash, circuit, classification, definition)
+      SELECT ${version}, d.definition_key, d.definition_hash, d.circuit, d.classification, d.definition
+      FROM jsonb_to_recordset(${JSON.stringify(definitions)}::jsonb) AS d(definition_key text, definition_hash text, circuit text, classification text, definition jsonb)
+      ON CONFLICT (event_database_version, definition_key) DO NOTHING
+    `);
+  }
+}
+
 /** Insert shipped definitions; a changed definition under an existing version is refused. */
 export async function syncEventDefinitions(tx: CareerExecutor): Promise<void> {
   for (const version of SUPPORTED_EVENT_DATABASE_VERSIONS) {

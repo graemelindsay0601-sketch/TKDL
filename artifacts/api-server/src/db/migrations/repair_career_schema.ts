@@ -1,6 +1,6 @@
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { sql } from "drizzle-orm";
-import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions } from "./create_career_calendar.ts";
+import { ensureSoftTipCircuit, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions, insertMissingEventDefinitions } from "./create_career_calendar.ts";
 import { ensureCareerMatchSessionSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
 import { ensureDevelopmentCardSource, ensureRankingArchive, ensureTourCardOffers } from "./create_career_sporting.ts";
@@ -23,6 +23,7 @@ async function ensureQualificationEntitlementSourceConstraint(tx: CareerExecutor
     CHECK (source_kind <> 'EVENT_RESULT' OR source_event_id IS NOT NULL)`);
 }
 import { ensureManagers } from "./create_career_manager.ts";
+import { ensureLocalCompetitions } from "./create_career_local_competitions.ts";
 import { ensureCareerMaintenance, ensureFastMatchCompression, ensureSimulatedMatchCopiesOptional } from "./create_career_world.ts";
 import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensureCalendarAddons, ensureSavingsGoals } from "./create_career_legacy.ts";
 
@@ -65,6 +66,8 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureCamLeagues(tx);
     await ensureProAm(tx);
     await ensureManagers(tx);
+    // Player-created local leagues and cups (career/club/local-competitions.ts): created lazily before, now at startup too.
+    await ensureLocalCompetitions(tx);
     // SP-G (signature products, equipment) tables were added to createCareerContent after its ledgered
     // caller (createCareerFinanceA4 / the A9 upgrade) had already run in production. All IF NOT EXISTS.
     await createCareerContent(tx);
@@ -73,5 +76,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
 
 /** Shipped event definitions for every supported version (insert-only; its own step so a refusal cannot undo the repairs). */
 export async function syncCareerEventDefinitions(database: CareerDatabase): Promise<void> {
+  // Missing rows first, in their own transaction, so a refused sync below still leaves every edition complete.
+  await database.transaction(tx => insertMissingEventDefinitions(tx));
   await database.transaction(tx => syncEventDefinitions(tx));
 }
