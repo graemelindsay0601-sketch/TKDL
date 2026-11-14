@@ -10,6 +10,7 @@ const RELATIONSHIP: Record<string, string> = { NEW: "Not met yet", KNOWN: "Colla
 export function CommunitySection({ saveId, d, retired }: { saveId: string; d: StreamingView; retired: boolean }) {
   const role = useSetRegularRole(saveId), [message, setMessage] = useState("");
   const c = d.community;
+  if (!c) return null;
   const set = (key: string, next: "NONE" | "MOD" | "VIP") => role.mutate({ key, role: next }, { onSuccess: () => setMessage(""), onError: e => setMessage(errorMessage(e)) });
   return <section className="sc-panel" id="community" aria-labelledby="community-title">
     <div className="sc-head">
@@ -47,6 +48,7 @@ export function CommunitySection({ saveId, d, retired }: { saveId: string; d: St
 /** The wider DartCast scene: every creator, by region, and how well you know them. */
 export function SceneSection({ d }: { d: StreamingView }) {
   const [region, setRegion] = useState<string>("ALL"), [all, setAll] = useState(false);
+  if (!d.scene) return null;
   const regions = [...new Set(d.scene.creators.map(c => c.region))];
   const shown = d.scene.creators.filter(c => region === "ALL" || c.region === region);
   return <section className="sc-panel" id="scene" aria-labelledby="scene-title">
