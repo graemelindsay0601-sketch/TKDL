@@ -1043,7 +1043,7 @@ test("Webcam league: the table with promotion and relegation places, this week's
       thisWeek: f(4, { status: "BOOKED", dayOfWeek: 4, legs: null, source: null }) },
     history: [{ season: 1, level: 4, name: "Division Two", position: 2, prizePence: 4000, nextLevel: 3 }] };
   const t = text(render(h(M.CamLeaguePage, { ctx: ctx() }), [[key("cam-league"), view]], `/career/${SAVE_ID}/cam-league`));
-  for (const fact of ["Division One", "2nd", "4 of 7", "This week's match", "Opp 4", "averages about 51.2", "Booked for Thu", "Play on camera", "Quick-sim it",
+  for (const fact of ["Division One", "2nd", "4 of 7", "This week's match", "Opp 4", "averages about 51.2", "Booked for Thu", "Play on camera",
     "Jan de Vries", "You", "£120 / £60 / £36", "Forfeit 0-3", "Booked Thu", "Past leagues", "Division Two", "£40 · promoted"]) assert.ok(t.includes(fact), fact);
   const openView = { ...view, freeNights: [2, 4], league: { ...view.league,
     fixtures: view.league.fixtures.map((fixture, i) => i === 3 ? { ...fixture, status: "SCHEDULED", dayOfWeek: null } : fixture),

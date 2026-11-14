@@ -66,7 +66,9 @@ test("new and old roots are genuinely pinned, initialize idempotently and expose
   const versions=await rows(sql`SELECT id,event_database_version,player_database_version FROM career_saves ORDER BY slot_number`);
   assert.equal(versions[0].event_database_version,3);assert.equal(versions[1].event_database_version,2);
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${saveId}`))[0].n,996); // Current v8 world: base field, cohorts and expanded squads.
-  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${oldId}`))[0].n,260);
+  // An old world (player database v1: 260 players) gains the v8 national and club squads when it is opened again, so features built on them work.
+  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${oldId}`))[0].n,916);
+  assert.equal(Number((await rows(sql`SELECT player_database_version v FROM career_saves WHERE id=${oldId}`))[0].v),8);
   assert.equal((await sporting.rankingLists(actor,saveId)).length,9);assert.equal((await sporting.rankingLists(actor,oldId)).length,6);
   await sporting.initialize(actor,saveId);
   assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_world_players WHERE career_save_id=${saveId}`))[0].n,996); // Current v8 world: base field, cohorts and expanded squads.
