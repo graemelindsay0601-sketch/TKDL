@@ -1090,3 +1090,30 @@
   .creator-series__finale { flex-direction:column; }
   .creator-series__finale span { text-align:left; }
 }
+
+/* Resume a live stream / go live for a booked show: always the first thing on the page. */
+.studio-alert { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 0 18px; padding:14px 16px; border:1px solid #ff3b5c80; border-radius:4px;
+  background:linear-gradient(100deg,#3a0d18,#1a0f14 60%,#120d10); color:#f5ecd8; }
+.studio-alert__icon { display:grid; place-items:center; width:38px; height:38px; flex:none; border-radius:50%; background:var(--red,#e5324d); }
+.studio-alert__icon svg { width:18px; height:18px; color:#fff; }
+.studio-alert > div { display:flex; flex-direction:column; gap:3px; flex:1 1 220px; min-width:0; }
+.studio-alert b { font:700 15px "Barlow Condensed",sans-serif; letter-spacing:.04em; text-transform:uppercase; }
+.studio-alert small { color:#d9cdb4c0; font-size:12px; }
+.studio-alert__go { display:inline-flex; align-items:center; min-height:42px; padding:0 18px; border-radius:3px; background:var(--gold,#e2bb65); color:#16110a;
+  font:800 13px "Barlow Condensed",sans-serif; letter-spacing:.1em; text-transform:uppercase; text-decoration:none; }
+.studio-alert__go:hover, .studio-alert__go:focus-visible { filter:brightness(1.08); outline:2px solid #fff3; outline-offset:2px; }
+
+/* Invitational: the title and prize wall shared a ~200px strip on laptops and tablets, breaking words mid-way.
+   Stack the halves by the studio's own width, let the banner wrap, and never split a word. */
+.studio-content { container-type:inline-size; }
+.invitational-banner { flex-wrap:wrap; }
+.invitational-copy { flex:1 1 260px; min-width:0; }
+.invitational-copy h2 { overflow-wrap:normal; word-break:keep-all; hyphens:none; font-size:clamp(32px,4cqi,54px); }
+.prize-wall { flex:1 1 175px; max-width:260px; }
+@container (max-width: 1100px) {
+  .invitational-studio { grid-template-columns:minmax(0,1fr); }
+  .field-panel { border-top:1px solid #937a4b66; }
+}
+/* The channel name is one long word (e.g. OldSaveDarts): shrink it to fit rather than split it mid-word. */
+.setup-current { min-width:0; }
+.setup-current h3 { overflow-wrap:normal; word-break:keep-all; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:clamp(20px,4.6cqi,34px); max-width:100%; }

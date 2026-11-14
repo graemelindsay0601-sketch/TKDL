@@ -4,9 +4,9 @@ import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
   Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, Moon, Shield, Coins, Car, Star, Video, Radio, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, errorMessage, errorStatus } from "./api";
+import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, useStreaming, errorMessage, errorStatus } from "./api";
 import { UNLOCKS, useUnlocks, type UnlockKey } from "./unlocks";
-import { CAREER_NAV, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
+import { CAREER_NAV, dayLabel, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
@@ -179,6 +179,9 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
   const go = useContinueCareer(save, nextEntry);
   const live = useLiveSession(save.id, pendingMatchId);
   const resumable = !!live.data && (live.data.status === "BULL_UP" || live.data.status === "IN_PLAY");
+  // DartCast: a stream you started (and left) or a show booked this week, one tap from any Career page.
+  const stream = useStreaming(save.id).data;
+  const bookedNights = stream && stream.week === stream.currentWeek && !stream.live ? stream.pathway.scheduledNights : [];
   if(seasonReview.data?.pendingReview)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/my-career/history`}>Continue Season Review — before Season {save.currentSeason}</Link>;
   if (pendingEventId) return (
     <Link href={pendingMatchId ? `/career/${save.id}/matches/${pendingMatchId}/play` : `/career/${save.id}/events/${pendingEventId}`}
@@ -186,9 +189,17 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
       <Swords className="w-4 h-4" aria-hidden /> {resumable ? "Resume match" : pendingCount > 1 ? `Play match (${pendingCount} waiting)` : "Play your match"}
     </Link>
   );
+  if (stream?.live) return (
+    <Link href={`/career/${save.id}/streaming/${stream.live}`} className="career-btn career-btn-gold w-full sm:w-auto" aria-label="You're live on DartCast: resume your stream">
+      <Radio className="w-4 h-4" aria-hidden /> Resume stream
+    </Link>
+  );
   if(active&&hubAction)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/tournaments/${active.eventId}`}>Return to Tournament</Link>;
   return (
     <div className="flex flex-col items-stretch sm:items-end gap-1">
+      {bookedNights.length > 0 && <Link href={`/career/${save.id}/streaming#go-live`} className="career-btn career-btn-gold" aria-label={`DartCast show booked for ${bookedNights.map(dayLabel).join(", ")}: go live`}>
+        <Radio className="w-4 h-4" aria-hidden /> Go live · {bookedNights.map(dayLabel).join(", ")} show booked
+      </Link>}
       <button className="career-btn career-btn-primary" title={nextEntry ? `Play on to your next match: ${nextEntry.name}` : "Play simulated weeks until your next important date"} disabled={go.pending||seasonReview.isLoading||go.blocked||!!seasonReview.error}
         onClick={() => { void go.run(); }}>
         {go.pending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
