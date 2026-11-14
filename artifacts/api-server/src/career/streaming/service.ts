@@ -4,7 +4,7 @@ import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { lockRoot, type CareerActor } from "../world/service.ts";
 import { stableUuid } from "../world/random.ts";
-import { replay, type X01Format } from "../../shared/darts-rules/x01.ts";
+import { replay, validateFormat, type X01Format } from "../../shared/darts-rules/x01.ts";
 import { replayDrill, type DrillSpec } from "../../shared/darts-rules/drills.ts";
 import { absoluteDay } from "../calendar/generation.ts";
 import { InsufficientFundsError, post } from "../finance/ledger.ts";
@@ -181,6 +181,23 @@ function kingChallenger(seed: string, key: string, followers: number, round: num
 function invitationalChallenger(seed: string, key: string, season: number, week: number, round: number): Challenger {
   const st = invitationalOpponent(invitationalField(season, week), round);
   return { name: st.handle, avg: st.avg, bot: { config: collabBot(st.avg), seed: stableUuid(seed, STREAM.version, "stream-bot", key, "inv", round) }, streamer: { key: st.key, followers: st.now } };
+}
+
+/** Where a streamed side match is played, for the opening chat line. */
+const SIDE_MATCH_WHERE: Record<string, string> = { MONEY: "from the money match", ROAD: "on the road", TEAM: "from club team night", COUNTY: "from the county match",
+  COUNTY_TRIAL: "from the county trial", PROAM: "from Pro-Am night", CAM: "from the webcam league", LOCAL: "from your local competition" };
+/** Where each kind of side match lives: its own id column, or an "id" inside the fixtures it keeps (exact match only). */
+const SIDE_MATCH_SOURCE: Record<string, { table: string; column?: string }> = {
+  MONEY: { table: "career_money_match_sessions", column: "id" }, ROAD: { table: "career_road_matches", column: "id" },
+  PROAM: { table: "career_proam_nights", column: "id" }, CAM: { table: "career_cam_fixtures", column: "id" },
+  COUNTY_TRIAL: { table: "career_county_trials", column: "match_id" },
+  TEAM: { table: "career_club_fixtures" }, COUNTY: { table: "career_county_fixtures" }, LOCAL: { table: "career_local_competitions" },
+};
+async function ownsSideMatch(tx: CareerExecutor, saveId: string, kind: string, refId: string) {
+  const source = SIDE_MATCH_SOURCE[kind];
+  if (!source || refId === saveId || !(await tx.execute(sql`SELECT to_regclass(${source.table}) IS NOT NULL AS ok`)).rows[0]?.ok) return false;
+  const match = source.column ? sql`t.${sql.raw(source.column)}::text = ${refId}` : sql`t::text LIKE ${`%"id": "${refId}"%`}`;
+  return (await tx.execute(sql`SELECT 1 FROM ${sql.raw(source.table)} t WHERE t.career_save_id = ${saveId} AND ${match} LIMIT 1`)).rows.length > 0;
 }
 
 export function createCareerStreamingService(database: CareerDatabase) {
@@ -663,6 +680,54 @@ export function createCareerStreamingService(database: CareerDatabase) {
             row = { ...row, first_thrower: Number(live.first_thrower) };
           }
           events = await matchDarts(tx, root, row, live.darts as unknown[], tier, ch.followers);
+          row = (await tx.execute(sql`SELECT * FROM career_streams WHERE career_save_id=${root.id} AND id=${String(row.id)}`)).rows[0];
+        }
+        return { eligible: true, why: null, session: sessionFrom(row, ch.handle, tier), events };
+      });
+    },
+
+    /**
+     * Stream any other live Career match (money match, road trip, club or county singles, county trial, Pro-Am, webcam
+     * league, local competition) on DartCast. Like a tournament match stream it is extra to your weekly stream nights
+     * (format MATCH never counts towards them). The match must be one of this save's own live activities; its scorer
+     * sends the same dart log it already keeps, and chat follows it until the match is decided, when the stream pays.
+     */
+    async sideMatchStream(actor: CareerActor, saveId: string, refId: string, body: unknown): Promise<MatchStream> {
+      const input = z.object({
+        start: z.boolean(),
+        kind: z.enum(["MONEY", "ROAD", "TEAM", "COUNTY", "COUNTY_TRIAL", "PROAM", "CAM", "LOCAL"]),
+        format: z.record(z.string(), z.unknown()),
+        firstThrower: z.union([z.literal(0), z.literal(1)]),
+        opponentName: z.string().min(1).max(80),
+        opponentAvg: z.number().min(0).max(130),
+        darts: z.array(z.unknown()).max(600),
+      }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId, input.start) as unknown as Root;
+        const ch = await channel(tx, root), tier = tierFor(ch.followers).key;
+        let row = (await tx.execute(sql`SELECT * FROM career_streams WHERE career_save_id=${root.id} AND match_id=${refId}`)).rows[0];
+        if (!row) {
+          if (!(await ownsSideMatch(tx, root.id, input.kind, refId))) return { eligible: false, why: "That match isn't yours to stream", session: null, events: [] };
+          if (root.status !== "ACTIVE") return { eligible: false, why: "Your Career has ended", session: null, events: [] };
+          if (!input.start) return { eligible: true, why: null, session: null, events: [] };
+          let format: X01Format;
+          try { format = validateFormat(input.format as unknown as X01Format); } catch { throw new CareerError(400, "That match can't be streamed"); }
+          const season = Number(root.current_season), week = Number(root.current_week), day = absoluteDay(week, 1);
+          const id = stableUuid(root.world_seed, STREAM.version, "stream-side-match", root.id, refId);
+          const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
+          const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel)));
+          const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel: ch.studioLevel };
+          const where = SIDE_MATCH_WHERE[input.kind];
+          const hello: ChatEvent[] = [{ kind: "CHAT", user: "DartCast", text: `Live ${where}: ${ch.handle} vs ${input.opponentName}. This one's for real` }];
+          await tx.execute(sql`INSERT INTO career_streams (career_save_id, id, season, week, day, status, format, challenger, first_thrower, tally, chat, processed_visits, match_id, match_format)
+            VALUES (${root.id}, ${id}, ${season}, ${week}, ${day}, 'LIVE', 'MATCH', ${JSON.stringify({ name: input.opponentName, avg: input.opponentAvg, bot: null })}::jsonb,
+              ${input.firstThrower}, ${JSON.stringify(tally)}::jsonb, ${JSON.stringify(hello)}::jsonb, 0, ${refId}, ${JSON.stringify(format)}::jsonb)
+            ON CONFLICT DO NOTHING`);
+          row = (await tx.execute(sql`SELECT * FROM career_streams WHERE career_save_id=${root.id} AND match_id=${refId}`)).rows[0];
+        }
+        let events: ChatEvent[] = [];
+        if (input.start && row.status === "LIVE" && input.darts.length) {
+          events = await matchDarts(tx, root, row, input.darts, tier, ch.followers);
           row = (await tx.execute(sql`SELECT * FROM career_streams WHERE career_save_id=${root.id} AND id=${String(row.id)}`)).rows[0];
         }
         return { eligible: true, why: null, session: sessionFrom(row, ch.handle, tier), events };

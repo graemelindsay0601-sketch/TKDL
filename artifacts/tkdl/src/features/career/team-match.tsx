@@ -37,7 +37,7 @@ export function TeamMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
   const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/club`}>Back to your club team</Link>;
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3">
     <h2>{session.won ? `You beat ${session.opponent.name}!` : `${session.opponent.name} won your single`}</h2>{session.legs && <p>{session.legs[0]}–{session.legs[1]}</p>}{back}</div>;
-  return <CareerScorerStage message={message} title={`${session.you} vs ${session.opponent.name}`}>
+  return <CareerScorerStage stream={{ saveId: id, refId: session.id, side: { kind: "TEAM", format: session.format, firstThrower: (session.firstThrower) as 0 | 1, opponentName: session.opponent.name, opponentAvg: session.opponent.bot.config.avg, darts: () => log.current } }} message={message} title={`${session.you} vs ${session.opponent.name}`}>
     <GameScorer key={session.id} p1Name={session.you} p2Name={session.opponent.name} gameType={careerGameType(session.format as LiveSession["format"])}
       botConfig={session.opponent.bot.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => {}} botVisitPlanner={planner} onDartLog={onDartLog}

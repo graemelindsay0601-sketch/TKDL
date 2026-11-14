@@ -50,6 +50,8 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
     res.json(await service.matchStream(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.matchId)), false)); });
   router.post("/saves/:id/streaming/match/:matchId", async (req, res) => {
     res.json(await service.matchStream(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.matchId)), true)); });
+  router.post("/saves/:id/streaming/side-match/:refId", async (req, res) => {
+    res.json(await service.sideMatchStream(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.refId)), req.body)); });
   router.use((error: unknown, req: Request, res: Response, next: NextFunction) => {
     if (!req.path.includes("/streaming")) { next(error); return; }
     if (error instanceof CareerError) res.status(error.status).json({ error: error.message });

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Maximize2, Minimize2, Target } from "lucide-react";
+import { MatchStreamPanel, type SideStream } from "./pages/match-stream";
 
 /**
  * Lock the page behind a full-screen scorer: nothing underneath scrolls or rubber-bands while you throw (the app's own
@@ -36,7 +37,8 @@ export function ScorerMinimise() {
  * Minimise floats in the scorer's empty top-left corner and messages float over it, so neither takes any of the
  * scorer's own height (its scoreboard and keypad stay exactly as in Practice).
  */
-export function CareerScorerStage({ children, title, message }: { children: ReactNode; title?: string; message?: ReactNode }) {
+export function CareerScorerStage({ children, title, message, stream }: { children: ReactNode; title?: string; message?: ReactNode;
+  /** Offer "Stream this match on DartCast" for a non-tournament match (extra to your stream nights). */ stream?: { saveId: string; refId: string; side: SideStream } }) {
   const [minimised, setMinimised] = useState(false);
   useScorerScrollLock(!minimised);
   const resume = () => setMinimised(false);
@@ -51,6 +53,7 @@ export function CareerScorerStage({ children, title, message }: { children: Reac
         style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e", overscrollBehavior: "contain", display: minimised ? "none" : undefined }}>
         {children}
         <div className="career-scorer-float-control"><ScorerMinimise /></div>
+        {stream && <MatchStreamPanel saveId={stream.saveId} matchId={stream.refId} side={stream.side} />}
         {message && <div className="career-scorer-toast" role="alert">{message}</div>}
       </div>
       {minimised && <button type="button" className="career-scorer-resume" onClick={resume}><Maximize2 aria-hidden /> Resume match</button>}

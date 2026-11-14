@@ -143,7 +143,7 @@ export function ProAmLegPage({ ctx, nightId }: { ctx: ShellContext; nightId: str
   if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/pro-am`}>Back to Pro-Am nights</Link>;
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3"><h2>{session.matchTotal > 1 ? `Pro-Am night complete · ${session.matchTotal - (session.beatenBy ?? 0)} of ${session.matchTotal} amateurs beaten` : session.won ? `You beat ${session.pro.name}!` : `${session.pro.name} took the leg`}</h2>{back}</div>;
-  return <CareerScorerStage message={message} title={`${session.you} vs ${session.pro.name}`}>
+  return <CareerScorerStage stream={{ saveId: id, refId: session.id, side: { kind: "PROAM", format: session.format, firstThrower: (session.firstThrower) as 0 | 1, opponentName: session.pro.name, opponentAvg: session.pro.bot.config.avg, darts: () => log.current } }} message={message} title={`${session.you} vs ${session.pro.name}`}>
     <GameScorer key={`${session.id}:${session.matchNumber}`} p1Name={session.you} p2Name={session.pro.name} gameType={careerGameType(session.format as LiveSession["format"])}
       botConfig={session.pro.bot.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => { /* the server keeps the dart log */ }} botVisitPlanner={planner} onDartLog={onDartLog}
