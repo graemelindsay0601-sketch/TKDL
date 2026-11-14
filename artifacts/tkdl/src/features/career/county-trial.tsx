@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CareerScorerStage, ScorerMinimise } from "./scorer-stage";
 import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { GameScorer } from "@/components/game-scorer";
@@ -37,15 +38,15 @@ export function CountyTrialPage({ ctx, matchId }: { ctx: ShellContext; matchId: 
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3">
     <h2>{session.won ? `You won the county trial against ${session.opponent.name}` : `${session.opponent.name} won the county trial`}</h2>{back}</div>;
   const matchLength = session.format.unit === "LEGS" ? session.format.bestOfLegs : session.format.bestOfSets;
-  return <div className="cam-league__live">
+  return <CareerScorerStage title={`${session.you} vs ${session.opponent.name}`}>
+    <GameScorer topBanner={<div className="cam-league__live career-scorer-banner"><ScorerMinimise />
     <p className="cam-league__live-title"><b>{session.you}</b> vs <b>{session.opponent.name}</b>
       <small>{session.category === "WOMEN" ? "Women’s" : "Men’s"} county B-squad trial · best of {matchLength} legs · you throw first</small></p>
     {message && <p className="money-match__message" role="alert">{message}</p>}
-    <GameScorer key={session.id} p1Name={session.you} p2Name={session.opponent.name}
+    {back}</div>} key={session.id} p1Name={session.you} p2Name={session.opponent.name}
       gameType={careerGameType(session.format as LiveSession["format"])} botConfig={session.opponent.bot.config}
       firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => {}} botVisitPlanner={planner} onDartLog={onDartLog}
       onWin={() => send(log.current)} onAbandon={() => history.back()} />
-    {back}
-  </div>;
+  </CareerScorerStage>;
 }

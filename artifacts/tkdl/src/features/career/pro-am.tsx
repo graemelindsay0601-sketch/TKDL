@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CareerScorerStage, ScorerMinimise } from "./scorer-stage";
 import { Link, useLocation, useSearch } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Check, MapPin, MonitorPlay, Radio, Star, Trophy } from "lucide-react";
@@ -142,13 +143,13 @@ export function ProAmLegPage({ ctx, nightId }: { ctx: ShellContext; nightId: str
   if (q.error || !session) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const back = <Link className="career-btn career-btn-ghost" href={`/career/${id}/pro-am`}>Back to Pro-Am nights</Link>;
   if (session.status === "PLAYED") return <div className="cam-league__done space-y-3"><h2>{session.matchTotal > 1 ? `Pro-Am night complete · ${session.matchTotal - (session.beatenBy ?? 0)} of ${session.matchTotal} amateurs beaten` : session.won ? `You beat ${session.pro.name}!` : `${session.pro.name} took the leg`}</h2>{back}</div>;
-  return <div className="cam-league__live">
+  return <CareerScorerStage title={`${session.you} vs ${session.pro.name}`}>
+    <GameScorer topBanner={<div className="cam-league__live career-scorer-banner"><ScorerMinimise />
     <p className="cam-league__live-title"><Star aria-hidden /> <b>{session.you}</b> vs <b>{session.pro.name}</b> <small>Pro-Am · leg {session.matchNumber} of {session.matchTotal} · you throw first</small></p>
     {message && <p className="money-match__message" role="alert">{message}</p>}
-    <GameScorer key={`${session.id}:${session.matchNumber}`} p1Name={session.you} p2Name={session.pro.name} gameType={careerGameType(session.format as LiveSession["format"])}
+    {back}</div>} key={`${session.id}:${session.matchNumber}`} p1Name={session.you} p2Name={session.pro.name} gameType={careerGameType(session.format as LiveSession["format"])}
       botConfig={session.pro.bot.config} firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}
       initialRecovery={recovery} onRecoveryState={() => { /* the server keeps the dart log */ }} botVisitPlanner={planner} onDartLog={onDartLog}
       onWin={() => send(log.current)} onAbandon={() => history.back()} />
-    {back}
-  </div>;
+  </CareerScorerStage>;
 }
