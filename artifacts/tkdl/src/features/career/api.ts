@@ -64,7 +64,7 @@ export const useBuyStudioUpgrade = (saveId: string) => useSaveMutation(saveId, (
   send<StreamingView>("POST", `/saves/${saveId}/streaming/studio-upgrade`, {}));
 export const useChooseCreatorSeries = (saveId: string) => useSaveMutation(saveId, (seriesKey: "HEADLINER" | "SKILL_LAB" | "CLUBHOUSE") =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/creator-series`, { seriesKey }));
-export const useSetStreamingPathway = (saveId: string) => useSaveMutation(saveId, (input: { focus: "OPEN" | "DARTCAST"; weeklyFrequency: number }) =>
+export const useSetStreamingPathway = (saveId: string) => useSaveMutation(saveId, (input: { focus: "OPEN" | "DARTCAST" | "CREATOR"; weeklyFrequency: number }) =>
   send<StreamingView>("PUT", `/saves/${saveId}/streaming/pathway`, input));
 export const useScheduleStreamingPathway = (saveId: string) => useSaveMutation(saveId, () =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/schedule`, {}));

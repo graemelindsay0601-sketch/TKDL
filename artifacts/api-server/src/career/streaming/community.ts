@@ -9,7 +9,8 @@ import { COMMUNITY, PERSONAS, STREAM, handleFor, tierFor, type ChatEvent, type P
  * when you go quiet. Loyal regulars can be made moderators or VIPs. None of it touches your darts.
  */
 export type CommunityMember = { key: string; name: string; persona: Persona; personaName: string; emoji: string; loyalty: number;
-  streams: number; role: "NONE" | "MOD" | "VIP"; joinedSeason: number; joinedWeek: number; canMod: boolean; canVip: boolean };
+  streams: number; role: "NONE" | "MOD" | "VIP"; joinedSeason: number; joinedWeek: number; canMod: boolean; canVip: boolean;
+  /** Months subscribed (null if they aren't a subscriber). */ subMonths: number | null };
 export type CommunityView = { size: number; target: number; members: CommunityMember[]; recentlyLeft: { name: string; persona: Persona }[];
   modSlots: number; vipSlots: number; mods: number; vips: number; modLoyalty: number; vipLoyalty: number; viewerBonusPercent: number };
 
@@ -35,6 +36,15 @@ export async function attendStream(tx: CareerExecutor, root: { id: string; world
   await tx.execute(sql`UPDATE career_stream_regulars SET loyalty=LEAST(100, loyalty + ${COMMUNITY.attend}::int), streams=streams+1, last_season=${season}, last_week=${week}
     WHERE career_save_id=${root.id} AND status='ACTIVE'`);
   const tier = tierFor(followers).key, target = COMMUNITY.size[tier];
+  // From Partner, loyal regulars may subscribe (their sub anniversaries are celebrated on stream).
+  if (tier === "PARTNER" || tier === "STAR") {
+    const abs = (season - 1) * 52 + week;
+    for (const r of (await tx.execute(sql`SELECT key FROM career_stream_regulars WHERE career_save_id=${root.id} AND status='ACTIVE' AND subbed_week IS NULL
+        AND loyalty >= ${COMMUNITY.subLoyalty}::int ORDER BY key`)).rows) {
+      if (scopedRandom(root.world_seed, STREAM.version, "stream-regular-sub", root.id, String(r.key), abs)() < COMMUNITY.subChance)
+        await tx.execute(sql`UPDATE career_stream_regulars SET subbed_week=${abs}::int WHERE career_save_id=${root.id} AND key=${String(r.key)}`);
+    }
+  }
   const counts = (await tx.execute(sql`SELECT COUNT(*) FILTER (WHERE status='ACTIVE')::int AS active, COUNT(*)::int AS total
     FROM career_stream_regulars WHERE career_save_id=${root.id}`)).rows[0];
   const active = Number(counts?.active ?? 0), total = Number(counts?.total ?? 0);
@@ -76,7 +86,7 @@ export async function setRole(tx: CareerExecutor, saveId: string, key: string, r
   await tx.execute(sql`UPDATE career_stream_regulars SET role=${role} WHERE career_save_id=${saveId} AND key=${key}`);
 }
 
-export async function communityView(tx: CareerExecutor, saveId: string, tier: TierKey): Promise<CommunityView> {
+export async function communityView(tx: CareerExecutor, saveId: string, tier: TierKey, absWeek = 0): Promise<CommunityView> {
   const rows = await ready(tx) ? (await tx.execute(sql`SELECT * FROM career_stream_regulars WHERE career_save_id=${saveId}
     ORDER BY (status='ACTIVE') DESC, (role<>'NONE') DESC, loyalty DESC, key`)).rows : [];
   const active = rows.filter(r => r.status === "ACTIVE");
@@ -88,7 +98,8 @@ export async function communityView(tx: CareerExecutor, saveId: string, tier: Ti
       const persona = r.persona as Persona, loyalty = Number(r.loyalty), role = r.role as CommunityMember["role"];
       return { key: String(r.key), name: String(r.name), persona, personaName: PERSONAS[persona]?.name ?? persona, emoji: PERSONAS[persona]?.emoji ?? "",
         loyalty, streams: Number(r.streams), role, joinedSeason: Number(r.joined_season), joinedWeek: Number(r.joined_week),
-        canMod: role !== "MOD" && loyalty >= COMMUNITY.modLoyalty && mods < modSlots, canVip: role !== "VIP" && loyalty >= COMMUNITY.vipLoyalty && vips < vipSlots };
+        canMod: role !== "MOD" && loyalty >= COMMUNITY.modLoyalty && mods < modSlots, canVip: role !== "VIP" && loyalty >= COMMUNITY.vipLoyalty && vips < vipSlots,
+        subMonths: r.subbed_week === null || r.subbed_week === undefined ? null : Math.max(0, Math.floor((absWeek - Number(r.subbed_week)) / 4)) };
     }),
     recentlyLeft: rows.filter(r => r.status === "LAPSED").slice(0, 5).map(r => ({ name: String(r.name), persona: r.persona as Persona })) };
 }
@@ -99,6 +110,18 @@ export async function arrivals(tx: CareerExecutor, saveId: string, season: numbe
   const rows = (await tx.execute(sql`SELECT name, role, joined_season, joined_week FROM career_stream_regulars WHERE career_save_id=${saveId} AND status='ACTIVE'
     AND (role='VIP' OR (joined_week=${week} AND joined_season<${season})) ORDER BY loyalty DESC, key LIMIT 6`)).rows;
   const out: ChatEvent[] = [];
+  // Sub anniversaries: 3, 6, 12 months and on (each celebrated once, on the first stream after it comes round).
+  const abs = (season - 1) * 52 + week;
+  for (const r of (await tx.execute(sql`SELECT key, name, subbed_week, sub_celebrated FROM career_stream_regulars WHERE career_save_id=${saveId} AND status='ACTIVE'
+      AND subbed_week IS NOT NULL ORDER BY key`)).rows) {
+    const months = Math.floor((abs - Number(r.subbed_week)) / 4);
+    const m = [...COMMUNITY.subMilestones].reverse().find(x => months >= x);
+    if (m && m > Number(r.sub_celebrated)) {
+      out.push({ kind: "ALERT", alert: "WELCOME", user: String(r.name), text: `${r.name} resubscribed: ${m} months!` },
+        { kind: "CHAT", user: String(r.name), text: m >= 12 ? `${m / 12 >= 2 ? `${m / 12} years` : "A whole year"} subbed. Wouldn't watch anyone else 💜` : `${m} months and counting!` });
+      await tx.execute(sql`UPDATE career_stream_regulars SET sub_celebrated=${m}::int WHERE career_save_id=${saveId} AND key=${String(r.key)}`);
+    }
+  }
   for (const r of rows) {
     const years = season - Number(r.joined_season);
     if (Number(r.joined_week) === week && years > 0) out.push({ kind: "ALERT", alert: "WELCOME", user: String(r.name), text: `${r.name}: ${years} year${years === 1 ? "" : "s"} in the community!` });

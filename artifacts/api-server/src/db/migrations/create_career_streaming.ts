@@ -88,4 +88,15 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id, stream_id, direction))`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS emotes jsonb NOT NULL DEFAULT '[]'::jsonb`);
   await tx.execute(sql`ALTER TABLE career_stream_clips ADD COLUMN IF NOT EXISTS clip_of_week boolean NOT NULL DEFAULT false`);
+  // Creator Cups (the bracket on the stream, and each cup you played), celebration milestones, and subscribed regulars.
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS cup jsonb`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_cups (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL, cup_no integer NOT NULL, name text NOT NULL, size integer NOT NULL, wins integer NOT NULL DEFAULT 0, won boolean NOT NULL DEFAULT false,
+    prize_pence bigint NOT NULL DEFAULT 0, followers integer NOT NULL DEFAULT 0, fans integer NOT NULL DEFAULT 0, champion text NOT NULL, knocked_out_by text,
+    met jsonb NOT NULL DEFAULT '[]'::jsonb, stream_id uuid NOT NULL, created_at timestamptz NOT NULL DEFAULT NOW(),
+    PRIMARY KEY(career_save_id, season, cup_no))`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS celebrated integer NOT NULL DEFAULT 0`);
+  await tx.execute(sql`ALTER TABLE career_stream_regulars ADD COLUMN IF NOT EXISTS subbed_week integer`);
+  await tx.execute(sql`ALTER TABLE career_stream_regulars ADD COLUMN IF NOT EXISTS sub_celebrated integer NOT NULL DEFAULT 0`);
 }

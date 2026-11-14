@@ -4,7 +4,7 @@ import { errorMessage, useNameEmote, useSetRegularRole, type StreamingView } fro
 import "./stream-community.css";
 
 const REGIONS: Record<string, string> = { UK: "United Kingdom", IE: "Ireland", NL: "Netherlands", DE: "Germany", BE: "Belgium", AU: "Australia" };
-const RELATIONSHIP: Record<string, string> = { NEW: "Not met yet", KNOWN: "Collabed", FRIEND: "Friends", BESTIE: "Best mates" };
+const RELATIONSHIP: Record<string, string> = { NEW: "Not met yet", KNOWN: "Know each other", FRIEND: "Friends", BESTIE: "Best mates", RIVAL: "Friendly rival ⚔️" };
 
 /** Your community: the regulars who keep coming back, and the mods and VIPs you trust with the room. */
 export function CommunitySection({ saveId, d, retired }: { saveId: string; d: StreamingView; retired: boolean }) {
@@ -28,7 +28,7 @@ export function CommunitySection({ saveId, d, retired }: { saveId: string; d: St
         <span className="sc-avatar" aria-hidden>{m.emoji}</span>
         <div className="sc-who">
           <b>{m.name}{m.role !== "NONE" && <i className="sc-badge" data-role={m.role}>{m.role === "MOD" ? "MOD" : "VIP"}</i>}</b>
-          <small>{m.personaName} · {m.streams} show{m.streams === 1 ? "" : "s"} · since S{m.joinedSeason} wk {m.joinedWeek}</small>
+          <small>{m.personaName} · {m.streams} show{m.streams === 1 ? "" : "s"} · since S{m.joinedSeason} wk {m.joinedWeek}{m.subMonths !== null && m.subMonths !== undefined ? ` · subbed ${m.subMonths} month${m.subMonths === 1 ? "" : "s"}` : ""}</small>
           <span className="sc-loyalty" role="meter" aria-label={`${m.name}'s loyalty`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={m.loyalty}><span style={{ width: `${m.loyalty}%` }} /></span>
         </div>
         {!retired && <div className="sc-actions">
@@ -69,7 +69,7 @@ export function SceneSection({ d }: { d: StreamingView }) {
       <small>{REGIONS[c.region] ?? c.region} · {c.style} · {c.followers.toLocaleString("en-GB")} followers · avg {c.avg}</small>
       <p>{c.blurb}</p>
       <q>{c.catchphrase}</q>
-      <span className="sc-rel">{RELATIONSHIP[c.relationship]}{c.collabs > 0 ? ` · ${c.collabs} collab${c.collabs === 1 ? "" : "s"}` : ""}{c.raidsOut ? ` · raided ${c.raidsOut}×` : ""}{c.raidsIn ? ` · raided you ${c.raidsIn}×` : ""}</span>
+      <span className="sc-rel">{RELATIONSHIP[c.relationship]}{c.collabs > 0 ? ` · ${c.collabs} collab${c.collabs === 1 ? "" : "s"}` : ""}{c.raidsOut ? ` · raided ${c.raidsOut}×` : ""}{c.raidsIn ? ` · raided you ${c.raidsIn}×` : ""}{c.cupMeetings ? ` · met in ${c.cupMeetings} cup${c.cupMeetings === 1 ? "" : "s"}` : ""}</span>
     </li>)}</ul>
     {shown.length > 8 && <button type="button" className="sc-more" onClick={() => setAll(v => !v)}>{all ? "Show fewer" : `Show all ${shown.length} creators`}</button>}
   </section>;

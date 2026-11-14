@@ -34,7 +34,7 @@ export async function loadFanEvidence(tx: CareerExecutor, saveId: string): Promi
  * Fans won on DartCast, by season (none on a database without streaming): viral clips, a share of the followers your
  * streams won, and the goodwill of charity streams.
  */
-let clipsSeen = false;
+let clipsSeen = false, cupsSeen = false;
 async function streamFans(tx: CareerExecutor, saveId: string) {
   if (!clipsSeen) clipsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_clips') IS NOT NULL AS ok`)).rows[0]?.ok === true;
   if (!clipsSeen) return [];
@@ -45,6 +45,10 @@ async function streamFans(tx: CareerExecutor, saveId: string) {
   for (const r of (await tx.execute(sql`SELECT season, SUM(followers_gained)::int AS f, SUM(COALESCE((tally->>'raisedPence')::int, 0))::int AS raised
       FROM career_streams WHERE career_save_id=${saveId} AND status='ENDED' GROUP BY season`)).rows)
     add(Number(r.season), Math.floor(Number(r.f) * FOLLOWER_FANS) + charityFans(Number(r.raised)));
+  // A deep Creator Cup run wins fans who follow your darts too.
+  if (!cupsSeen) cupsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_cups') IS NOT NULL AS ok`)).rows[0]?.ok === true;
+  if (cupsSeen) for (const r of (await tx.execute(sql`SELECT season, SUM(fans)::int AS n FROM career_stream_cups WHERE career_save_id=${saveId} GROUP BY season`)).rows)
+    add(Number(r.season), Number(r.n));
   return [...bySeason].filter(([, fans]) => fans > 0).map(([season, fans]) => ({ season, fans }));
 }
 

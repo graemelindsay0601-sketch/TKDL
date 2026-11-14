@@ -11,6 +11,8 @@ import { NOT_FOR_SALE } from "../manager/model.ts";
 export const STREAM = Object.freeze({
   version: 1,
   perWeek: 3,
+  /** A full-time creator (the Creator focus) can stream up to this many nights a week. */
+  creatorPerWeek: 5,
   /** First to this many legs against the challenger. */
   legsToWin: 2,
   /** Followers needed for each step of the streamer route. */
@@ -275,12 +277,21 @@ const SERIES_COLLAB_FIT: Record<CreatorSeriesKey, readonly string[]> = {
 export const creatorSeriesCollabFit = (seriesKey: string | null, streamerKey: string) =>
   !!seriesKey && !!SERIES_COLLAB_FIT[seriesKey as CreatorSeriesKey]?.includes(streamerKey);
 /** The formats on the picker, plus a collab (picked from the streamers list), the DartCast Invitational and a real match streamed from an event. */
-export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH";
+export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH" | "CUP" | "CELEBRATION";
+/** Streams that are extra to your stream nights (a real match streamed from an event, a Creator Cup). */
+export const EXTRA_FORMATS = ["MATCH", "CUP"] as const;
+/** Stream nights a week: three, or five for a full-time creator. */
+export const perWeekFor = (settings: unknown) =>
+  (settings as { careerPathway?: { focus?: string } } | null | undefined)?.careerPathway?.focus === "CREATOR" ? STREAM.creatorPerWeek : STREAM.perWeek;
+/** Follower milestones that earn a celebration stream (once each). */
+export const CELEBRATION_MILESTONES = [100, 1000, 10000, 100000] as const;
 const COLLAB_FORMAT = { key: "COLLAB", name: "Collab", blurb: "A match against another streamer, on both channels.", crowd: 1 } as const;
 const SPECIAL_FORMATS = {
   COLLAB: COLLAB_FORMAT,
   INVITATIONAL: { key: "INVITATIONAL", name: "DartCast Invitational", blurb: "The season's top streamers, knockout, first to 2 legs.", crowd: 2 },
   MATCH: { key: "MATCH", name: "Live from the event", blurb: "Your real match, streamed from the venue.", crowd: 1.3 },
+  CUP: { key: "CUP", name: "Creator Cup", blurb: "A one-night knockout against creators your size. Extra to your stream nights.", crowd: 1.6 },
+  CELEBRATION: { key: "CELEBRATION", name: "Celebration stream", blurb: "You hit a follower milestone: a party stream, a big crowd and a trophy for the channel.", crowd: 1.6 },
 } as const;
 export const formatByKey = (key: string) => (SPECIAL_FORMATS as Record<string, typeof FORMATS[number] | typeof SPECIAL_FORMATS[keyof typeof SPECIAL_FORMATS]>)[key] ?? FORMATS.find(f => f.key === key) ?? FORMATS[0];
 export const KING_ROUNDS = 5;
@@ -466,6 +477,8 @@ export const COMMUNITY = Object.freeze({
   modViewerBonus: 0.03, modViewerCap: 0.15,
   /** Community nights: regulars needed to hold one, and the extra loyalty everyone gets. */
   nightMin: 3, nightBonus: 8,
+  /** From Partner: loyal regulars may subscribe (chance each stream), and their sub anniversaries (months) get shout-outs. */
+  subLoyalty: 50, subChance: 0.25, subMilestones: [3, 6, 12, 24, 36, 48, 60] as readonly number[],
 });
 const PERSONA_LINES: Record<Persona, Partial<Record<string, string[]>>> = {
   HYPE: { YOU_180: ["ONE HUNDRED AND EIGHTYYYY 🔥🔥🔥", "I'M SCREAMING"], YOU_BIG_CHECKOUT: ["ARE YOU KIDDING ME", "CLIP IT CLIP IT CLIP IT"], WON: ["WE RIDE AT DAWN", "THE GOAT"] },

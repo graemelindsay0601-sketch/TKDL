@@ -197,6 +197,9 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
   if(active&&hubAction)return <Link className="career-btn career-btn-primary" href={`/career/${save.id}/tournaments/${active.eventId}`}>Return to Tournament</Link>;
   return (
     <div className="flex flex-col items-stretch sm:items-end gap-1">
+      {stream?.cups?.current?.open && (stream.pathway.focus !== "OPEN" || stream.totals.streams > 0) && <Link href={`/career/${save.id}/streaming#cups`} className="career-btn career-btn-gold" aria-label={`DartCast ${stream.cups.current.name} is on this week: play it`}>
+        <Trophy className="w-4 h-4" aria-hidden /> {stream.cups.current.name} is on · play it
+      </Link>}
       {bookedNights.length > 0 && <Link href={`/career/${save.id}/streaming#go-live`} className="career-btn career-btn-gold" aria-label={`DartCast show booked for ${bookedNights.map(dayLabel).join(", ")}: go live`}>
         <Radio className="w-4 h-4" aria-hidden /> Go live · {bookedNights.map(dayLabel).join(", ")} show booked
       </Link>}
