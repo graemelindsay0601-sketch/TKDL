@@ -5,7 +5,7 @@ import { formatPence } from "../model";
 import "./streaming.css";
 
 function Line({ e }: { e: ChatEvent }) {
-  if (e.kind === "CHAT") return <li className="dc-chat__line"><b>{e.user}</b> {e.text}</li>;
+  if (e.kind === "CHAT") return <li className="dc-chat__line">{e.role && <i className="dc-chat__badge" data-role={e.role}>{e.role}</i>}<b>{e.user}</b> {e.text}</li>;
   if (e.kind === "FOLLOW") return <li className="dc-chat__note"><Heart aria-hidden /> {e.user} followed</li>;
   if (e.kind === "SUB") return <li className="dc-chat__alert" data-kind="SUB"><Star aria-hidden /> <b>{e.user}</b> subscribed!</li>;
   if (e.kind === "BITS" || e.kind === "PLEDGE") return <li className="dc-chat__alert" data-kind="BITS"><Sparkles aria-hidden /> <b>{e.user}</b> cheered {e.pence} bits</li>;

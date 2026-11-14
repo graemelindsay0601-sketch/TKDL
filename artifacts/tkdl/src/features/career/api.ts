@@ -79,6 +79,8 @@ export const useSetSubGoal = (saveId: string) => useSaveMutation(saveId, (goal: 
   send<StreamingView>("POST", `/saves/${saveId}/streaming/sub-goal`, goal));
 export const useAnswerBrandDeal = (saveId: string) => useSaveMutation(saveId, ({ dealId, accept }: { dealId: string; accept: boolean }) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/deals/${dealId}`, { accept }));
+export const useSetRegularRole = (saveId: string) => useSaveMutation(saveId, ({ key, role }: { key: string; role: "NONE" | "MOD" | "VIP" }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/regulars/${encodeURIComponent(key)}/role`, { role }));
 export const useAnswerStreamCampaign=(saveId:string)=>useSaveMutation(saveId,({campaignId,accept}:{campaignId:string;accept:boolean})=>
   send<StreamingView>("POST",`/saves/${saveId}/streaming/campaigns/${campaignId}`,{accept}));
 export type MatchStream = import("../../../../api-server/src/career/streaming/service").MatchStream;

@@ -10,9 +10,10 @@ import { absoluteDay } from "../calendar/generation.ts";
 import { InsufficientFundsError, post } from "../finance/ledger.ts";
 import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
+import { activeRegulars, attendStream, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -50,7 +51,11 @@ export type CreatorSeries = { key: "HEADLINER" | "SKILL_LAB" | "CLUBHOUSE"; name
 export type CreatorSeriesState = { selected: CreatorSeries | null; options: CreatorSeries[]; startedWeek: number | null;
   chapters: { quarter: number; title: string; story: string; status: "DONE" | "CURRENT" | "UPCOMING" | "MISSED" | "NOT_STARTED"; format: StreamFormat | null; bonusFollowers: number }[];
   completed: number; availableChapters: number; finale: "NOT_STARTED" | "IN_PROGRESS" | "COMPLETE" | "INCOMPLETE" };
+export type SceneCreator = { key: string; handle: string; region: string; style: string; blurb: string; catchphrase: string; followers: number; avg: number;
+  rookie: boolean; collabs: number; relationship: "NEW" | "KNOWN" | "FRIEND" | "BESTIE" };
 export type StreamingView = {
+  community: CommunityView;
+  scene: { creators: SceneCreator[]; rookies: string[]; retired: string[] };
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
@@ -262,7 +267,19 @@ export function createCareerStreamingService(database: CareerDatabase) {
           const quarter = index + 1;
           return quarter >= startQuarter && quarter < currentQuarter && !episodes.some(row => Number(row.episode) === quarter);
         }) ? "INCOMPLETE" : "IN_PROGRESS" };
-    return { season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
+    const collabCounts = new Map((await tx.execute(sql`SELECT challenger->'streamer'->>'key' AS k, COUNT(*)::int AS n FROM career_streams
+      WHERE career_save_id=${root.id} AND format='COLLAB' AND status='ENDED' GROUP BY 1`)).rows.map(r => [String(r.k), Number(r.n)]));
+    const sceneNow = activeStreamers(season);
+    const scene = {
+      creators: sceneNow.map(c => { const n = collabCounts.get(c.key) ?? 0;
+        return { key: c.key, handle: c.handle, region: c.region, style: c.style, blurb: c.blurb, catchphrase: c.catchphrase,
+          followers: streamerFollowers(c.followers, season, week), avg: c.avg, rookie: c.debut === season && season > 1, collabs: n,
+          relationship: (n >= 5 ? "BESTIE" : n >= 3 ? "FRIEND" : n >= 1 ? "KNOWN" : "NEW") as SceneCreator["relationship"] }; })
+        .sort((a, b) => b.followers - a.followers),
+      rookies: sceneNow.filter(c => c.debut === season && season > 1).map(c => c.handle),
+      retired: STREAMERS.filter(c => "retire" in c && season >= (c as { retire: number }).retire).map(c => c.handle),
+    };
+    return { community: await communityView(tx, root.id, tier.key), scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: STREAM.perWeek,
@@ -295,7 +312,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
       })(),
       charity: { doneThisMonth: rows.some(r => r.format === "CHARITY" && Number(r.season) === season && monthOf(Number(r.week)) === monthOf(week)),
         raisedPence: ended.reduce((n, r) => n + Number((r.tally as Tally).raisedPence ?? 0), 0) },
-       collabs: STREAMERS.map(st => { const followers = streamerFollowers(st.followers, season, week), a = collabAnswer(followers, ch.followers, collabbed.has(st.key));
+       collabs: activeStreamers(season).map(st => { const followers = streamerFollowers(st.followers, season, week), a = collabAnswer(followers, ch.followers, collabbed.has(st.key));
          return { key: st.key, handle: st.handle, followers, avg: st.avg, blurb: st.blurb, ok: a.ok, why: a.ok ? null : a.why,
            seriesFit: creatorSeriesCollabFit(arcDefinition?.key ?? null, st.key) }; }),
       clips: clips.map(c => ({ id: String(c.id), season: Number(c.season), week: Number(c.week), kind: c.kind as ClipKind, title: String(c.title), status: c.status as "NEW" | "VIRAL" | "SETTLED",
@@ -352,6 +369,11 @@ export function createCareerStreamingService(database: CareerDatabase) {
     if (weekStreams >= STREAM.perWeek) await tx.execute(sql`DELETE FROM career_life_commitments
       WHERE career_save_id=${root.id} AND season=${Number(row.season)} AND family='DARTCAST' AND status='ACCEPTED'
         AND day BETWEEN ${(Number(row.week) - 1) * 7 + 1} AND ${Number(row.week) * 7}`);
+    // The room's regulars grow more loyal, and new ones join while there's room.
+    if (processed > 0) {
+      const followersNow = Number((await tx.execute(sql`SELECT followers FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0]?.followers ?? 0);
+      await attendStream(tx, root, Number(row.season), Number(row.week), followersNow);
+    }
     // The night's best moment is clipped (it may go viral when the week is settled).
     if (tally.clip) await tx.execute(sql`INSERT INTO career_stream_clips (career_save_id, id, stream_id, season, week, kind, title, peak, status)
       VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-clip", String(row.id))}, ${String(row.id)}, ${Number(row.season)}, ${Number(row.week)}, ${tally.clip},
@@ -397,7 +419,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     try { state = replay(x01For(format, row.match_format), Number(row.first_thrower) as 0 | 1, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
     const processed = Number(row.processed_visits);
     let tally = row.tally as Tally;
-    const fresh: ChatEvent[] = [], visits = state.visits;
+    const fresh: ChatEvent[] = [], visits = state.visits, regulars = await activeRegulars(tx, root.id);
     // Chat is seeded per round, so each King of the Oche round has its own reactions.
     const key = king ? `${row.id}:${round}` : String(row.id);
     for (let i = processed; i < visits.length; i++) {
@@ -409,8 +431,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
         tally = bestClip(tally, clipFor({ points: v.points, checkout: v.checkout, startScore: v.startScore, dartsInLeg }));
       }
       const out = last && king && state.winner === 0 && round + 1 < total
-        ? chatForMoment(root.world_seed, key, i, format === "KING" ? "KING_DOWN" : "THROUGH", tally, tier)
-        : chatForVisit(root.world_seed, key, i, { thrower: v.thrower, points: v.points, bust: v.bust, checkout: v.checkout, startScore: v.startScore, legNo: v.legNo }, tally, tier, over);
+        ? chatForMoment(root.world_seed, key, i, format === "KING" ? "KING_DOWN" : "THROUGH", tally, tier, false, regulars)
+        : chatForVisit(root.world_seed, key, i, { thrower: v.thrower, points: v.points, bust: v.bust, checkout: v.checkout, startScore: v.startScore, legNo: v.legNo }, tally, tier, over, regulars);
       tally = out.tally; fresh.push(...out.events);
     }
     const chat = [...(row.chat as ChatEvent[]), ...fresh].slice(-200);
@@ -450,7 +472,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     try { state = replayDrill(spec, darts); } catch (e) { throw new CareerError(400, `Invalid darts: ${(e as Error).message}`); }
     const processed = Number(row.processed_visits);
     let tally = row.tally as Tally;
-    const fresh: ChatEvent[] = [];
+    const fresh: ChatEvent[] = [], regulars = await activeRegulars(tx, root.id);
     for (let i = processed; i < state.visits.length; i++) {
       const v = state.visits[i], over = state.complete && i === state.visits.length - 1 ? state.result : null;
       const scored = spec.kind === "SCORING";
@@ -458,7 +480,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
       tally = bestClip(tally, v.note === "CHECKOUT" ? clipFor({ points: v.points, checkout: true, startScore: v.points }) : v.note === "HIT" && v.target === "Bull" ? "BOBS_BULL"
         : v.points === 180 ? "MAX" : null);
       const out = chatForDrillVisit(root.world_seed, String(row.id), i, { note: v.note, points: v.points, startScore: v.note === "CHECKOUT" ? v.points : undefined },
-        tally, tier, over, spec.kind === "SCORING");
+        tally, tier, over, spec.kind === "SCORING", regulars);
       tally = out.tally; fresh.push(...out.events);
     }
     const chat = [...(row.chat as ChatEvent[]), ...fresh].slice(-200);
@@ -469,6 +491,17 @@ export function createCareerStreamingService(database: CareerDatabase) {
   }
 
   return {
+    async setRegularRole(actor: CareerActor, saveId: string, key: string, body: unknown) {
+      const { role } = z.object({ role: z.enum(["NONE", "MOD", "VIP"]) }).strict().parse(body);
+      if (!/^r\d{1,6}$/.test(key)) throw new CareerError(404, "That regular isn't in your community");
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const ch = await channel(tx, root);
+        await setRole(tx, root.id, key, role, ch.followers);
+        return view(tx, root);
+      });
+    },
     async chooseCreatorSeries(actor: CareerActor, saveId: string, body: unknown) {
       const { seriesKey } = z.object({ seriesKey: z.enum(["HEADLINER", "SKILL_LAB", "CLUBHOUSE"]) }).strict().parse(body);
       return database.transaction(async tx => {
@@ -569,7 +602,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const since = last && Number(last.season) === season ? Math.max(0, day - Number(last.day)) : null;
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
         const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
-          * studioAudienceMultiplier(v.studio.level)
+          * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id))
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));
         const id = stableUuid(root.world_seed, STREAM.version, "stream", root.id, key);
         const tally: Tally = { viewers, peak: viewers, hype: 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:v.studio.level };
@@ -662,7 +695,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           const season = Number(live.season), day = Number(live.scheduled_day), week = Math.ceil(day / 7);
           const id = stableUuid(root.world_seed, STREAM.version, "stream-match", root.id, matchId);
           const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
-          const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, ((day - 1) % 7) + 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel)));
+          const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, ((day - 1) % 7) + 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel) * (1 + await modViewerBonus(tx, root.id))));
           const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:ch.studioLevel };
           const name = npc ? `${npc.firstName} ${npc.surname}` : "Opponent";
           const hello: ChatEvent[] = [{ kind: "CHAT", user: "DartCast", text: `Live from the venue: ${ch.handle} vs ${name}. This one's for real` }];
@@ -715,7 +748,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           const season = Number(root.current_season), week = Number(root.current_week), day = absoluteDay(week, 1);
           const id = stableUuid(root.world_seed, STREAM.version, "stream-side-match", root.id, refId);
           const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
-          const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel)));
+          const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel) * (1 + await modViewerBonus(tx, root.id))));
           const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel: ch.studioLevel };
           const where = SIDE_MATCH_WHERE[input.kind];
           const hello: ChatEvent[] = [{ kind: "CHAT", user: "DartCast", text: `Live ${where}: ${ch.handle} vs ${input.opponentName}. This one's for real` }];

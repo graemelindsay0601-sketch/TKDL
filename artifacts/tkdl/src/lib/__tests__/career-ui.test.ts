@@ -955,7 +955,10 @@ test("Nights week plan sends booked items straight to their Career activity", ()
 });
 
 test("DartCast channel: followers and the streamer route, nights to go live, and past streams", () => {
-  const view = { season: 2, week: 9, currentWeek: 9, handle: "AyrDarts", followers: 640, tier: { key: "AFFILIATE", name: "Affiliate", perks: "Bits and super chats." },
+  const view = { community: { size: 1, target: 6, modSlots: 1, vipSlots: 2, mods: 0, vips: 0, modLoyalty: 60, vipLoyalty: 40, viewerBonusPercent: 0, recentlyLeft: [],
+      members: [{ key: "r0", name: "DartDad77", persona: "HYPE", personaName: "Hype merchant", emoji: "🔥", loyalty: 70, streams: 9, role: "NONE", joinedSeason: 1, joinedWeek: 3, canMod: true, canVip: true }] },
+    scene: { creators: [{ key: "the-oche-show", handle: "TheOcheShow", region: "UK", style: "Variety", blurb: "The biggest.", catchphrase: "Welcome!", followers: 95000, avg: 80, rookie: false, collabs: 0, relationship: "NEW" }], rookies: [], retired: [] },
+    season: 2, week: 9, currentWeek: 9, handle: "AyrDarts", followers: 640, tier: { key: "AFFILIATE", name: "Affiliate", perks: "Bits and super chats." },
     pathway: { focus: "DARTCAST", weeklyFrequency: 3, scheduledNights: [2, 5, 6] },
     next: { name: "Partner", followers: 1000, perks: "Subs." }, tiers: [{ key: "NEWCOMER", name: "Newcomer", followers: 0, perks: "Go live.", reached: true },
       { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Bits and super chats.", reached: true }, { key: "PARTNER", name: "Partner", followers: 1000, perks: "Subs.", reached: false }],
@@ -981,6 +984,7 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     "COLLAB DESK", "CheckoutQueen", "3,300 followers", "Too big for you yet", "NINE-DARTER LIVE ON STREAM", "VIRAL", "182,000 views",
     "+2,900 followers · +5,800 fans", "out this week: will it go viral?",
     "DartCast Invitational", "£250", "£750", "£1,500", "£4,000", "TheOcheShow", "95,000 followers", "AVG 80", "Play the Invitational on Tue"]) assert.ok(t.includes(fact), fact);
+  for (const fact of ["The regulars", "DartDad77", "Hype merchant", "Make mod", "Make VIP", "1 of 6 regulars", "DartCast creators", "“Welcome!”"]) assert.ok(t.includes(fact) || t.includes(fact.replace(/[“”]/g, "")), fact);
   const selected = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming?day=5`));
   assert.ok(selected.includes("Go live on Fri"), "DartCast should carry the planner's selected night into the booking screen");
   const futureStream = { ...view, week: 10, pathway: { ...view.pathway, scheduledNights: [] } };
@@ -989,7 +993,10 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
 });
 
 test("DartCast channel money: subs that renew, a brand's offer to answer, and a Star's invitations", () => {
-  const view = { season: 3, week: 10, handle: "AyrDarts", followers: 1450, tier: { key: "PARTNER", name: "Partner", perks: "Subs." },
+  const view = { community: { size: 1, target: 6, modSlots: 1, vipSlots: 2, mods: 0, vips: 0, modLoyalty: 60, vipLoyalty: 40, viewerBonusPercent: 0, recentlyLeft: [],
+      members: [{ key: "r0", name: "DartDad77", persona: "HYPE", personaName: "Hype merchant", emoji: "🔥", loyalty: 70, streams: 9, role: "NONE", joinedSeason: 1, joinedWeek: 3, canMod: true, canVip: true }] },
+    scene: { creators: [{ key: "the-oche-show", handle: "TheOcheShow", region: "UK", style: "Variety", blurb: "The biggest.", catchphrase: "Welcome!", followers: 95000, avg: 80, rookie: false, collabs: 0, relationship: "NEW" }], rookies: [], retired: [] },
+    season: 3, week: 10, handle: "AyrDarts", followers: 1450, tier: { key: "PARTNER", name: "Partner", perks: "Subs." },
     pathway: { focus: "OPEN", weeklyFrequency: 1, scheduledNights: [] }, next: { name: "Star", followers: 25000, perks: "Big." },
     tiers: [], streamsThisWeek: 0, perWeek: 3, freeNights: [1], live: null, totals: { streams: 40, earnedPence: 90000, won: 25 }, videos: [],
     subscribers: 14, renewsWeek: 12, dealOffer: { id: "d1", brand: "FlightDeck", what: "flights and stems", perStreamPence: 6900, streamsTotal: 6, streamsDone: 0, expiresWeek: 13 },

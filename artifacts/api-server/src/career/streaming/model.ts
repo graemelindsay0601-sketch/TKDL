@@ -60,7 +60,7 @@ export const handleFor = (rng: () => number) => `${pick(rng, ADJ)}${pick(rng, NO
 
 export type Visit = { thrower: 0 | 1; points: number; bust: boolean; checkout: boolean; startScore: number; legNo: number; dartsInLeg?: number };
 export type ChatEvent =
-  | { kind: "CHAT"; user: string; text: string }
+  | { kind: "CHAT"; user: string; text: string; role?: "MOD" | "VIP" }
   | { kind: "BITS"; user: string; pence: number; text: string }
   | { kind: "SUPERCHAT"; user: string; pence: number; text: string }
   | { kind: "SUB"; user: string; months: number }
@@ -107,13 +107,13 @@ const LINES: Record<string, readonly string[]> = {
  * Chat for one visit: the reaction, any cheers, follows and subs, and the viewer count after it. The same visit on the same
  * stream always gives the same chat. `tier` gates what viewers can do (bits and super chats from Affiliate, subs from Partner).
  */
-export function chatForVisit(seed: string, streamKey: string, index: number, v: Visit, tally: Tally, tier: TierKey, matchOver: "WON" | "LOST" | null):
+export function chatForVisit(seed: string, streamKey: string, index: number, v: Visit, tally: Tally, tier: TierKey, matchOver: "WON" | "LOST" | null, regulars: readonly Regular[] = []):
   { events: ChatEvent[]; tally: Tally } {
   const you = v.thrower === 0;
   const moment = matchOver ?? (you
     ? v.checkout ? (v.startScore >= 100 ? "YOU_BIG_CHECKOUT" : "YOU_CHECKOUT") : v.bust ? "YOU_BUST" : v.points === 180 ? "YOU_180" : v.points >= 100 ? "YOU_TON" : v.points < 30 ? "YOU_LOW" : "IDLE"
     : v.points === 180 ? "THEM_180" : v.checkout ? "THEM_CHECKOUT" : "IDLE");
-  return chatForMoment(seed, streamKey, index, moment, tally, tier);
+  return chatForMoment(seed, streamKey, index, moment, tally, tier, false, regulars);
 }
 
 const LIFT: Record<string, number> = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CHECKOUT: 0.5, YOU_TON: 0.25, WON: 1, THEM_180: 0.3, YOU_BUST: 0.1, LOST: 0.2, THEM_CHECKOUT: 0.1,
@@ -121,14 +121,14 @@ const LIFT: Record<string, number> = { YOU_180: 1, YOU_BIG_CHECKOUT: 1.2, YOU_CH
 
 /** Chat for one visit of a drill format (Bob's 27, checkouts, scoring). On the scoring challenge, bits come in as pledges. */
 export function chatForDrillVisit(seed: string, streamKey: string, index: number, v: { note: string; points: number; startScore?: number }, tally: Tally, tier: TierKey,
-  over: "WON" | "LOST" | null, pledges = false) {
+  over: "WON" | "LOST" | null, pledges = false, regulars: readonly Regular[] = []) {
   const moment = over ?? (v.note === "HIT" ? "DRILL_HIT" : v.note === "CHECKOUT" ? ((v.startScore ?? 0) >= 100 ? "YOU_BIG_CHECKOUT" : "DRILL_HIT") : v.note === "OUT" ? "DRILL_OUT"
     : v.note === "MISS" || v.note === "BUST" || v.note === "FAILED" ? "DRILL_MISS" : v.points === 180 ? "DRILL_BIG" : v.points >= 100 ? "YOU_TON" : v.points < 30 ? "YOU_LOW" : "DRILL_SCORE");
-  return chatForMoment(seed, streamKey, index, moment, tally, tier, pledges);
+  return chatForMoment(seed, streamKey, index, moment, tally, tier, pledges, regulars);
 }
 
 /** The heart of the chat: a moment's reaction, cheers, follows and subs, and the viewer count after it. */
-export function chatForMoment(seed: string, streamKey: string, index: number, moment: string, tally: Tally, tier: TierKey, pledges = false):
+export function chatForMoment(seed: string, streamKey: string, index: number, moment: string, tally: Tally, tier: TierKey, pledges = false, regulars: readonly Regular[] = []):
   { events: ChatEvent[]; tally: Tally } {
   const rng = scopedRandom(seed, STREAM.version, "stream-visit", streamKey, index);
   const lift = LIFT[moment] ?? 0;
@@ -136,8 +136,14 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
   const events: ChatEvent[] = [];
   // The room's regulars: a crowd the size of the audience (a three-viewer stream is three or four names, not twenty).
   const crowd = Array.from({ length: Math.max(2, Math.min(40, Math.round(tally.peak * 1.5))) }, (_, i) => handleFor(scopedRandom(seed, STREAM.version, "stream-user", streamKey, i)));
+  // Your regulars are part of the room (most of it, in a small stream), and they speak in their own voice on big moments.
+  if (regulars.length) for (let i = 0; i < Math.min(regulars.length, crowd.length); i++) if (i % 2 === 0 || crowd.length <= regulars.length * 2) crowd[i] = regulars[i].name;
   const someone = () => pick(rng, crowd);
   const say = (pool: string) => events.push({ kind: "CHAT", user: someone(), text: pick(rng, LINES[pool]) });
+  if (regulars.length && moment !== "IDLE") {
+    const voiced = regulars.map(r => ({ r, line: personaLine(r.persona, moment, rng) })).filter(x => x.line);
+    if (voiced.length && rng() < 0.7) { const v = pick(rng, voiced); events.push({ kind: "CHAT", user: v.r.name, text: v.line!, ...(v.r.role !== "NONE" ? { role: v.r.role } : {}) } as ChatEvent); }
+  }
   const messages = Math.max(1, Math.min(6, Math.round(Math.sqrt(tally.viewers) / 2 * (0.6 + hype))));
   for (let i = 0; i < messages; i++) say(i === 0 || rng() < 0.6 ? moment : "IDLE");
   // Cheers: bits and super chats from Affiliate up, more likely on a big moment and in a bigger room.
@@ -303,19 +309,61 @@ export const goalBonus = (target: number) => target * SUB_GOAL.followerBonusPerS
  * is a match against one of them on both channels: their viewers tune in, and the winner takes a share of the other's
  * audience. They'll only collab with a channel somewhere near their size, and once a season each.
  */
+/**
+ * The DartCast scene: about 40 creators across the UK, Ireland, the Netherlands, Germany, Belgium and Australia, from pub
+ * streamers to the giant channel. `debut` (season) brings rookies in over the years; `retire` (season) takes a few out.
+ * The first eleven are the original roster (their keys are kept for collabs and history).
+ */
+type Region = "UK" | "IE" | "NL" | "DE" | "BE" | "AU";
+export type StreamerDef = { key: string; handle: string; followers: number; avg: number; blurb: string; region: Region; style: string; catchphrase: string; debut: number; retire?: number };
+const st = (key: string, handle: string, followers: number, avg: number, region: Region, style: string, blurb: string, catchphrase: string, debut = 1, retire?: number): StreamerDef =>
+  ({ key, handle, followers, avg, region, style, blurb, catchphrase, debut, ...(retire ? { retire } : {}) });
 export const STREAMERS = [
-  { key: "doubletrouble", handle: "DoubleTroubleDan", followers: 120, avg: 48, blurb: "Pub player, all heart, can't find a double." },
-  { key: "oche-sophie", handle: "OcheSophie", followers: 450, avg: 55, blurb: "County ladies' player, streams every Sunday." },
-  { key: "tungsten-tom", handle: "TungstenTomTV", followers: 900, avg: 58, blurb: "Reviews every set of darts on the market." },
-  { key: "bullbarry", handle: "BullseyeBarry", followers: 1600, avg: 52, blurb: "The comedian of darts streaming." },
-  { key: "checkoutqueen", handle: "CheckoutQueen", followers: 3200, avg: 66, blurb: "Famous for her 'any finish in 9' challenges." },
-  { key: "arrowsandale", handle: "ArrowsAndAle", followers: 5200, avg: 61, blurb: "Darts and craft beer, every Friday." },
-  { key: "the-maximiser", handle: "TheMaximiser", followers: 9000, avg: 72, blurb: "Ex-pro, now the king of the 180 compilation." },
-  { key: "dartsdaddy", handle: "DartsDaddyLive", followers: 15000, avg: 64, blurb: "Family-friendly darts with his three kids." },
-  { key: "shanghai-sam", handle: "ShanghaiSam", followers: 26000, avg: 75, blurb: "Trick shots and big personality." },
-  { key: "ninedartnick", handle: "NineDartNick", followers: 48000, avg: 82, blurb: "Hit a nine-darter live in 2019 and never looked back." },
-  { key: "oche-official", handle: "TheOcheShow", followers: 90000, avg: 80, blurb: "The biggest darts channel on DartCast." },
-] as const;
+  st("doubletrouble", "DoubleTroubleDan", 120, 48, "UK", "Pub darts", "Pub player, all heart, can't find a double.", "One more dart and it's in!"),
+  st("oche-sophie", "OcheSophie", 450, 55, "UK", "County darts", "County ladies' player, streams every Sunday.", "Sunday is darts day."),
+  st("tungsten-tom", "TungstenTomTV", 900, 58, "UK", "Gear reviews", "Reviews every set of darts on the market.", "Grip, weight, flight. Let's test it."),
+  st("bullbarry", "BullseyeBarry", 1600, 52, "UK", "Comedy", "The comedian of darts streaming.", "I aimed for that. Honestly."),
+  st("checkoutqueen", "CheckoutQueen", 3200, 66, "UK", "Checkout challenges", "Famous for her 'any finish in 9' challenges.", "Name a number, I'll take it out."),
+  st("arrowsandale", "ArrowsAndAle", 5200, 61, "UK", "Darts and beer", "Darts and craft beer, every Friday.", "Cheers to the ton!"),
+  st("the-maximiser", "TheMaximiser", 9000, 72, "UK", "180 compilations", "Ex-pro, now the king of the 180 compilation.", "Maximum effort, maximum points."),
+  st("dartsdaddy", "DartsDaddyLive", 15000, 64, "UK", "Family darts", "Family-friendly darts with his three kids.", "Kids, cover your ears, it's a bust."),
+  st("shanghai-sam", "ShanghaiSam", 26000, 75, "UK", "Trick shots", "Trick shots and big personality.", "Watch this. No, really, watch this."),
+  st("ninedartnick", "NineDartNick", 48000, 82, "UK", "Nine-dart hunting", "Hit a nine-darter live in 2019 and never looked back.", "Nine darts. That's the dream."),
+  st("oche-official", "TheOcheShow", 90000, 80, "UK", "Darts variety show", "The biggest darts channel on DartCast.", "Welcome to the show!"),
+  // The wider scene.
+  st("pintsandpoints", "PintsAndPoints", 60, 44, "UK", "Pub darts", "Monday league player streaming from his garage.", "Back of the net. Wrong sport."),
+  st("sligo-sean", "SligoSeanDarts", 180, 50, "IE", "Pub darts", "Irish pub league legend, plays in his flat cap.", "Sure look, it'll go in eventually."),
+  st("kerry-katie", "KerryKatie", 650, 57, "IE", "County darts", "Kerry county player, fierce competitor.", "Come on, the Kingdom!"),
+  st("dublindouble", "DublinDouble", 2400, 63, "IE", "Checkout challenges", "Practice-room streams and double drills.", "Doubles win matches."),
+  st("oranje-ollie", "OranjeOllie", 300, 54, "NL", "Darts and DJ sets", "Mixes music between legs.", "Drop the beat, drop the treble."),
+  st("dutchdarter", "TheDutchDarter", 4100, 68, "NL", "Practice streams", "Grinds practice for six hours a day, live.", "Again. And again. And again."),
+  st("windmill-wim", "WindmillWim", 1100, 60, "NL", "Gear reviews", "Builds his own barrels in a shed.", "Handmade, hand-thrown."),
+  st("amsterdam-arrows", "AmsterdamArrows", 12000, 70, "NL", "Darts variety show", "Big Dutch channel with a live crowd.", "Gezellig! Let's play."),
+  st("bavarian-bulls", "BavarianBulls", 2100, 61, "DE", "Darts and beer", "Lederhosen, beer, and bulls.", "Prost to the bull!"),
+  st("kolner-checkout", "KolnerCheckout", 7400, 67, "DE", "Checkout challenges", "German checkout maths whizz.", "Zahlen, bitte!"),
+  st("ruhrpott-rocket", "RuhrpottRocket", 450, 56, "DE", "Pub darts", "Former miner, plays in his local Kneipe.", "Glück auf!"),
+  st("deutschedarts", "DeutscheDartsLive", 22000, 71, "DE", "Darts variety show", "Germany's biggest darts stream, huge chat.", "Willkommen, Darts-Familie!"),
+  st("belgian-bullet", "BelgianBullet", 950, 59, "BE", "Practice streams", "Quiet, precise, streams at dawn.", "Focus. Breathe. Throw."),
+  st("antwerp-ace", "AntwerpAce", 3600, 64, "BE", "Comedy", "Belgian chips and darts jokes.", "Frites first, darts second."),
+  st("aussie-arrows", "AussieArrows", 800, 58, "AU", "Pub darts", "Plays late-night for the UK crowd.", "Too easy, mate."),
+  st("sydney-sixty", "SydneySixty", 5600, 65, "AU", "Darts and beer", "Barbie, beers and big scores.", "Throw another ton on the barbie."),
+  st("outback-oche", "OutbackOche", 18000, 73, "AU", "Trick shots", "Throws from the back of a ute.", "Stand back, she's a big one."),
+  st("ladies-who-dart", "LadiesWhoDart", 2900, 60, "UK", "Community darts", "Women's darts community channel.", "Everyone's welcome at this oche."),
+  st("darts-dad-jokes", "DartsDadJokes", 1300, 49, "UK", "Comedy", "A pun for every dart.", "Why was the dart so sharp? It went to school."),
+  st("stattracker", "StatTrackerSteve", 4600, 62, "UK", "Analysis", "Breaks down every pro match with spreadsheets.", "The numbers don't lie."),
+  st("retro-arrows", "RetroArrows", 3300, 58, "UK", "Darts history", "Old-school darts history and classic matches.", "They don't make 'em like they used to."),
+  st("highlands-hammer", "HighlandsHammer", 700, 57, "UK", "Pub darts", "Scottish pub league, kilt optional.", "Och, that's a beauty."),
+  // Rookies who arrive in later seasons, and veterans who hang up the headset.
+  st("rookie-riley", "RookieRiley", 40, 52, "UK", "Junior darts", "A teenager with a big arm and bigger dreams.", "I'm going pro one day.", 2),
+  st("next-gen-nina", "NextGenNina", 90, 58, "NL", "Junior darts", "Dutch junior champion turned streamer.", "Watch me grow.", 2),
+  st("bounce-out-ben", "BounceOutBen", 30, 46, "UK", "Comedy", "Bounce-outs, every single stream.", "That one counted in my head.", 3),
+  st("treble-trouble-tia", "TrebleTroubleTia", 150, 61, "AU", "Practice streams", "Fast-rising Aussie grinder.", "Trebles or bust.", 3),
+  st("the-new-wave", "TheNewWave", 400, 66, "DE", "Darts variety show", "Slick production, rising fast.", "The future is now.", 4),
+  st("ex-pro-eddie", "ExProEddie", 8000, 78, "UK", "Pro stories", "Retired tour player telling road stories.", "Back in my day on the tour...", 4),
+  st("old-school-oscar", "OldSchoolOscar", 2500, 55, "UK", "Darts history", "Veteran streamer, hanging up the headset soon.", "Darts was better with ashtrays.", 1, 6),
+] as const satisfies readonly StreamerDef[];
+/** The creators active in a season: rookies arrive in their debut season, veterans leave in their final one. */
+export const activeStreamers = (season: number) => STREAMERS.filter(s => s.debut <= season && (!("retire" in s) || season < (s as StreamerDef).retire!));
 export type StreamerKey = typeof STREAMERS[number]["key"];
 export const COLLAB = Object.freeze({ weeklyGrowth: 0.004, minShare: 0.2, maxShare: 5, minFollowers: 50,
   /** Share of their audience that tunes in, and the share of it that follows you if you win / lose. */
@@ -372,7 +420,7 @@ export const INVITATIONAL = Object.freeze({ fromWeek: 40, toWeek: 50, field: 7,
   prizePence: [25_000, 75_000, 150_000, 400_000] as const, rounds: ["Quarter-final", "Semi-final", "Final"] as const });
 /** Your opponents round by round: the field's lowest seed first, the biggest streamer in the final. */
 export function invitationalField(season: number, week: number) {
-  return [...STREAMERS].map(st => ({ ...st, now: streamerFollowers(st.followers, season, week) })).sort((a, b) => b.now - a.now).slice(0, INVITATIONAL.field);
+  return [...activeStreamers(season)].map(st => ({ ...st, now: streamerFollowers(st.followers, season, week) })).sort((a, b) => b.now - a.now).slice(0, INVITATIONAL.field);
 }
 export const invitationalOpponent = (field: ReturnType<typeof invitationalField>, round: number) => field[[6, 3, 0][round] ?? 0];
 export const invitationalPrize = (wins: number) => INVITATIONAL.prizePence[Math.min(3, wins)];
@@ -383,3 +431,43 @@ export const charityFans = (raisedPence: number) => Math.floor(raisedPence / CHA
 
 /** Streaming and your career: followers gained on DartCast bring fans for your darts (they fade like any fans). */
 export const FOLLOWER_FANS = 0.3;
+
+// ------------------------------------------------------------------ community
+/**
+ * Your community: named regulars who come back stream after stream. Each has a personality that colours what they say.
+ * Loyalty (0–100) grows when they catch your shows and fades when you go quiet; at zero they drift away. Loyal regulars
+ * can be made moderators (they welcome newcomers and keep the room friendly) or VIPs. Never affects your darts.
+ */
+export const PERSONAS = {
+  HYPE: { name: "Hype merchant", emoji: "🔥" }, STATS: { name: "Stats nerd", emoji: "📊" }, DOUBTER: { name: "Friendly doubter", emoji: "🤨" },
+  OLD_TIMER: { name: "Old-timer", emoji: "🍺" }, BIG_SPENDER: { name: "Big spender", emoji: "💸" }, COMEDIAN: { name: "Chat comedian", emoji: "😂" },
+  COACH: { name: "Armchair coach", emoji: "🎯" }, LURKER: { name: "Lurker", emoji: "👀" },
+} as const;
+export type Persona = keyof typeof PERSONAS;
+export const COMMUNITY = Object.freeze({
+  /** How many regulars a channel of each tier keeps. */
+  size: { NEWCOMER: 3, AFFILIATE: 6, PARTNER: 15, STAR: 30 } as Record<TierKey, number>,
+  modSlots: { NEWCOMER: 0, AFFILIATE: 1, PARTNER: 3, STAR: 5 } as Record<TierKey, number>,
+  vipSlots: { NEWCOMER: 0, AFFILIATE: 2, PARTNER: 5, STAR: 10 } as Record<TierKey, number>,
+  modLoyalty: 60, vipLoyalty: 40, startLoyalty: 25,
+  /** Loyalty for catching a show, and lost each week after `graceWeeks` without a stream (mods lose half). */
+  attend: 6, decay: 5, graceWeeks: 2,
+  /** Each moderator keeps a little more of the audience watching (opening viewers), up to the cap. */
+  modViewerBonus: 0.03, modViewerCap: 0.15,
+});
+const PERSONA_LINES: Record<Persona, Partial<Record<string, string[]>>> = {
+  HYPE: { YOU_180: ["ONE HUNDRED AND EIGHTYYYY 🔥🔥🔥", "I'M SCREAMING"], YOU_BIG_CHECKOUT: ["ARE YOU KIDDING ME", "CLIP IT CLIP IT CLIP IT"], WON: ["WE RIDE AT DAWN", "THE GOAT"] },
+  STATS: { YOU_180: ["that's the third maximum this month, I'm keeping count", "average just jumped two points"], YOU_BUST: ["bust rate this leg: concerning 📉"], WON: ["leg difference looking healthy"] },
+  DOUBTER: { YOU_TON: ["ok fine, that was decent"], YOU_BUST: ["told you", "and there it is"], WON: ["fine, I'll admit it. well played"] },
+  OLD_TIMER: { YOU_180: ["been here since stream one, never gets old"], WON: ["proud of you, been here since the start"], IDLE: ["remember the first stream? three of us watching"] },
+  BIG_SPENDER: { YOU_180: ["that deserves a tip"], WON: ["drinks are on me"] },
+  COMEDIAN: { YOU_BUST: ["the dartboard has filed a complaint", "that dart had other plans"], YOU_LOW: ["warming up the arm, sure"], THEM_180: ["who invited this guy"] },
+  COACH: { YOU_BUST: ["should've left 32 there", "set up the double first!"], YOU_LOW: ["follow through!", "relax the shoulder"], YOU_CHECKOUT: ["textbook finish"] },
+  LURKER: { WON: ["*comes out of lurk* gg", "lurk mode off, that was great"] },
+};
+/** A line in this regular's own voice for the moment, if they have one. */
+export const personaLine = (persona: Persona, moment: string, rng: () => number) => {
+  const lines = PERSONA_LINES[persona]?.[moment];
+  return lines ? pick(rng, lines) : null;
+};
+export type Regular = { name: string; persona: Persona; role: "NONE" | "MOD" | "VIP" };
