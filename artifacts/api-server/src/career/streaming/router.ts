@@ -40,6 +40,7 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/live", authedWriteRateLimit, async (req, res) => { res.json(await service.goLive(res.locals.careerActor, id(req), req.body)); });
   router.get("/saves/:id/streaming/streams/:streamId", async (req, res) => { res.json(await service.session(res.locals.careerActor, id(req), stream(req))); });
   router.post("/saves/:id/streaming/streams/:streamId/darts", async (req, res) => { res.json(await service.darts(res.locals.careerActor, id(req), stream(req), req.body)); });
+  router.post("/saves/:id/streaming/streams/:streamId/request", authedWriteRateLimit, async (req, res) => { res.json(await service.answerRequest(res.locals.careerActor, id(req), stream(req), req.body)); });
   router.post("/saves/:id/streaming/streams/:streamId/end", authedWriteRateLimit, async (req, res) => { res.json(await service.end(res.locals.careerActor, id(req), stream(req))); });
   router.post("/saves/:id/streaming/deals/:dealId", authedWriteRateLimit, async (req, res) => {
     res.json(await service.answerDeal(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.dealId)), req.body)); });

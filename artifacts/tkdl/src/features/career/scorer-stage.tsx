@@ -37,7 +37,8 @@ export function ScorerMinimise() {
  * Minimise floats in the scorer's empty top-left corner and messages float over it, so neither takes any of the
  * scorer's own height (its scoreboard and keypad stay exactly as in Practice).
  */
-export function CareerScorerStage({ children, title, message, stream }: { children: ReactNode; title?: string; message?: ReactNode;
+export function CareerScorerStage({ children, title, message, stream, hud }: { children: ReactNode; title?: string; message?: ReactNode;
+  /** A stream overlay floated beside Minimise (DartCast). */ hud?: ReactNode;
   /** Offer "Stream this match on DartCast" for a non-tournament match (extra to your stream nights). */ stream?: { saveId: string; refId: string; side: SideStream } }) {
   const [minimised, setMinimised] = useState(false);
   useScorerScrollLock(!minimised);
@@ -53,6 +54,7 @@ export function CareerScorerStage({ children, title, message, stream }: { childr
         style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e", overscrollBehavior: "contain", display: minimised ? "none" : undefined }}>
         {children}
         <div className="career-scorer-float-control"><ScorerMinimise /></div>
+        {hud}
         {stream && <MatchStreamPanel saveId={stream.saveId} matchId={stream.refId} side={stream.side} />}
         {message && <div className="career-scorer-toast" role="alert">{message}</div>}
       </div>

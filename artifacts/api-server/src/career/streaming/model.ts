@@ -66,7 +66,9 @@ export type ChatEvent =
   | { kind: "SUB"; user: string; months: number }
   | { kind: "FOLLOW"; user: string }
   /** The scoring challenge: bits pledged that pay only if you beat the target average. */
-  | { kind: "PLEDGE"; user: string; pence: number; text: string };
+  | { kind: "PLEDGE"; user: string; pence: number; text: string }
+  /** An on-screen overlay alert (hype train, request, prediction, milestone): shown above the stream, kept in chat too. */
+  | { kind: "ALERT"; alert: "TRAIN" | "TRAIN_END" | "REQUEST" | "REQUEST_IN" | "PREDICTION" | "MILESTONE" | "WELCOME"; text: string; user?: string };
 export type Tally = { viewers: number; peak: number; hype: number; followersGained: number; followerCarry: number; bitsPence: number; superchatsPence: number; subs: number;
   /** Estimated audience watch time, at two minutes per dart visit. Optional for saves created before ad monetisation. */
   viewerMinutes?: number;
@@ -79,7 +81,9 @@ export type Tally = { viewers: number; peak: number; hype: number; followersGain
   /** Your own darts on stream (all), and the darts and points that count toward a scoring average (x01 and the average challenge). */
   myDarts?: number; myScoredDarts?: number; myPoints?: number;
   /** A charity stream: what the night raised. */
-  raisedPence?: number };
+  raisedPence?: number;
+  /** The live overlay's state (requests, predictions, hype train, recap). Streams from before it have none. */
+  ov?: import("./overlay.ts").Overlay };
 
 const LINES: Record<string, readonly string[]> = {
   YOU_180: ["ONE HUNDRED AND EIGHTYYYY", "180!!! 🎯🎯🎯", "MAXIMUM", "clip it!!", "he's on fire", "absolute scenes"],

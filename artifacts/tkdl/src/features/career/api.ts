@@ -93,6 +93,8 @@ export const streamingApi = {
     : get<MatchStream>(`/saves/${saveId}/streaming/match/${matchId}`),
   darts: (saveId: string, streamId: string, darts: unknown[]) => send<{ session: StreamSession; events: ChatEvent[] }>("POST", `/saves/${saveId}/streaming/streams/${streamId}/darts`, { darts }),
   end: (saveId: string, streamId: string) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/end`),
+  /** Accept or skip the viewer request on offer (between legs). */
+  answerRequest: (saveId: string, streamId: string, accept: boolean) => send<StreamSession>("POST", `/saves/${saveId}/streaming/streams/${streamId}/request`, { accept }),
 };
 export type WeekNights = { season: number; week: number; days: import("../../../../api-server/src/career/nights").WeekNight[] };
 /** What each night of this week holds: events, commitments and your own nights out. */

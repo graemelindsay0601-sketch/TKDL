@@ -10,6 +10,7 @@ import { absoluteDay } from "../calendar/generation.ts";
 import { InsufficientFundsError, post } from "../finance/ledger.ts";
 import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
+import { answerRequest, overlayVisit, recapFor } from "./overlay.ts";
 import { activeRegulars, attendStream, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
@@ -40,7 +41,9 @@ export type StreamSession = { id: string; status: "LIVE" | "ENDED"; season: numb
   /** King of the Oche: the round now (0-based), out of `kingRounds`, and the viewers you've seen off. */
   round: number; kingRounds: number; rounds: { challenger: string; result: "WON" | "LOST" }[];
   tally: Tally; processedVisits: number; result: "WON" | "LOST" | null; incomePence: number | null; followersGained: number | null;
-  chat: ChatEvent[]; darts: unknown[]; poll: ReturnType<typeof pollFor> | null };
+  chat: ChatEvent[]; darts: unknown[]; poll: ReturnType<typeof pollFor> | null;
+  /** The overlay's goal bar (followers toward your next tier), when known. */
+  goal: { label: string; current: number; target: number } | null };
 /** Streaming a real match from the venue: allowed?, and the stream so far. */
 export type MatchStream = { eligible: boolean; why: string | null; session: StreamSession | null; events: ChatEvent[] };
 /** Events with their own TV coverage: no streaming from the venue. */
@@ -161,8 +164,16 @@ const titleOf = (format: string, challenger: string) => format === "CHALLENGER" 
 /** Keep the stream's best clip-worthy moment. */
 const bestClip = (tally: Tally, kind: ClipKind | null): Tally => kind && (!tally.clip || CLIPS[kind].weight > CLIPS[tally.clip].weight) ? { ...tally, clip: kind } : tally;
 
-const sessionFrom = (r: Record<string, unknown>, handle: string, tier: TierKey): StreamSession => {
+/** The overlay's goal bar: followers to your next tier (or the next big number once you're a Star). */
+function goalFor(followers: number, gainedLive: number) {
+  const now = followers + gainedLive, next = nextTier(followers);
+  if (next) return { label: `Followers to ${next.name}`, current: now, target: next.followers };
+  const target = [50000, 100000, 250000, 500000, 1000000].find(m => m > now) ?? now;
+  return { label: "Follower goal", current: now, target };
+}
+const sessionFrom = (r: Record<string, unknown>, handle: string, tier: TierKey, followers?: number): StreamSession => {
   const format = String(r.format ?? "CHALLENGER") as StreamFormat;
+  const live = r.status === "LIVE", t = r.tally as Tally;
   return {
     id: String(r.id), status: r.status as StreamSession["status"], season: Number(r.season), week: Number(r.week), dayOfWeek: ((Number(r.day) - 1) % 7) + 1, handle, tier,
     streamFormat: format, formatName: titleOf(format, (r.challenger as Challenger).name),
@@ -171,7 +182,8 @@ const sessionFrom = (r: Record<string, unknown>, handle: string, tier: TierKey):
     tally: r.tally as Tally, processedVisits: Number(r.processed_visits), result: (r.result as StreamSession["result"]) ?? null,
     incomePence: r.income_pence === null ? null : Number(r.income_pence), followersGained: r.followers_gained === null ? null : Number(r.followers_gained),
     campaign:(r.sponsor_campaign as StreamSession["campaign"])??null,
-    chat: ((r.chat as ChatEvent[]) ?? []).slice(-60), darts: (r.darts as unknown[]) ?? [], poll: (r.poll as StreamSession["poll"]) ?? null };
+    chat: ((r.chat as ChatEvent[]) ?? []).slice(-60), darts: (r.darts as unknown[]) ?? [], poll: (r.poll as StreamSession["poll"]) ?? null,
+    goal: followers === undefined ? null : goalFor(followers, live ? t.followersGained : 0) };
 };
 
 /** A viewer for King of the Oche round `round`: each a little better than the last. */
@@ -350,6 +362,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const bonus = wins * (2 + Math.round(tally.peak * 0.05)) +
       (streamer && result ? collabFollowers(streamer.followers, result === "WON", seriesFit) : 0);
     const format = String(row.format ?? "CHALLENGER") as StreamFormat;
+    if (tally.ov) tally = { ...tally, ov: { ...tally.ov, request: null, recap: recapFor(tally, chat, "") } };
     const pledges = result === "WON" ? tally.pledgedPence ?? 0 : 0;
     // A charity stream: the night's cheers go to the cause (and win more followers); the Invitational pays prize money by round reached.
     const charity = format === "CHARITY";
@@ -434,6 +447,14 @@ export function createCareerStreamingService(database: CareerDatabase) {
         ? chatForMoment(root.world_seed, key, i, format === "KING" ? "KING_DOWN" : "THROUGH", tally, tier, false, regulars)
         : chatForVisit(root.world_seed, key, i, { thrower: v.thrower, points: v.points, bust: v.bust, checkout: v.checkout, startScore: v.startScore, legNo: v.legNo }, tally, tier, over, regulars);
       tally = out.tally; fresh.push(...out.events);
+      const lastDart = v.darts[v.darts.length - 1] as { segment: number; multiplier: number } | undefined;
+      const legDarts = v.checkout && v.thrower === 0 ? visits.filter(x => x.thrower === 0 && x.legNo === v.legNo && x.setNo === v.setNo).reduce((n, x) => n + x.darts.length, 0) : undefined;
+      const myAvg = tally.myScoredDarts ? (tally.myPoints ?? 0) / tally.myScoredDarts * 3 : null;
+      const ovr = overlayVisit(root.world_seed, key, i, { you: v.thrower === 0, points: v.points, bust: v.bust, checkout: v.checkout, startScore: v.startScore,
+        lastDart: lastDart ? { segment: lastDart.segment, multiplier: lastDart.multiplier } : undefined, dartsInLeg: legDarts,
+        legEnded: v.checkout, legNo: v.legNo, streamOver: last && over !== null }, tally, tier, out.events,
+        { drill: false, regulars, myAvg, theirAvg: (row.challenger as Challenger).avg ?? null });
+      tally = ovr.tally; fresh.push(...ovr.events);
     }
     const chat = [...(row.chat as ChatEvent[]), ...fresh].slice(-200);
     if (!state.complete) {
@@ -482,6 +503,16 @@ export function createCareerStreamingService(database: CareerDatabase) {
       const out = chatForDrillVisit(root.world_seed, String(row.id), i, { note: v.note, points: v.points, startScore: v.note === "CHECKOUT" ? v.points : undefined },
         tally, tier, over, spec.kind === "SCORING", regulars);
       tally = out.tally; fresh.push(...out.events);
+      if (spec.kind === "SCORING") {
+        const ovr = overlayVisit(root.world_seed, String(row.id), i, { you: true, points: v.points, bust: false, checkout: false, startScore: 0, legEnded: false, legNo: 1,
+          streamOver: over !== null }, tally, tier, out.events, { drill: true, regulars });
+        tally = ovr.tally; fresh.push(...ovr.events);
+      } else if (tally.ov?.startFollowers !== undefined) {
+        // Other drills: the hype train and milestones still run.
+        const ovr = overlayVisit(root.world_seed, String(row.id), i, { you: true, points: 0, bust: false, checkout: false, startScore: 0, legEnded: false, legNo: 1,
+          streamOver: true }, tally, tier, out.events, { drill: true, regulars });
+        tally = ovr.tally; fresh.push(...ovr.events);
+      }
     }
     const chat = [...(row.chat as ChatEvent[]), ...fresh].slice(-200);
     await tx.execute(sql`UPDATE career_streams SET darts=${JSON.stringify(darts)}::jsonb, tally=${JSON.stringify(tally)}::jsonb, chat=${JSON.stringify(chat)}::jsonb,
@@ -491,6 +522,21 @@ export function createCareerStreamingService(database: CareerDatabase) {
   }
 
   return {
+    /** Accept or skip the viewer request on offer (between legs). */
+    async answerRequest(actor: CareerActor, saveId: string, streamId: string, body: unknown) {
+      const { accept } = z.object({ accept: z.boolean() }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        const row = await live(tx, root, streamId);
+        if (row.status !== "LIVE") throw new CareerError(409, "This stream has ended");
+        const tally = row.tally as Tally;
+        if (tally.ov?.request?.status !== "OFFERED") throw new CareerError(409, "That request has gone");
+        const next = answerRequest(tally, accept);
+        await tx.execute(sql`UPDATE career_streams SET tally=${JSON.stringify(next)}::jsonb WHERE career_save_id=${root.id} AND id=${streamId}`);
+        const ch = await channel(tx, root);
+        return sessionFrom(await live(tx, root, streamId), ch.handle, tierFor(ch.followers).key, ch.followers);
+      });
+    },
     async setRegularRole(actor: CareerActor, saveId: string, key: string, body: unknown) {
       const { role } = z.object({ role: z.enum(["NONE", "MOD", "VIP"]) }).strict().parse(body);
       if (!/^r\d{1,6}$/.test(key)) throw new CareerError(404, "That regular isn't in your community");
@@ -572,7 +618,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
       return database.transaction(async tx => {
         const root = await lockRoot(tx, actor, saveId, false) as unknown as Root;
         const ch = await channel(tx, root);
-        return sessionFrom(await live(tx, root, streamId), ch.handle, tierFor(ch.followers).key);
+        return sessionFrom(await live(tx, root, streamId), ch.handle, tierFor(ch.followers).key, ch.followers);
       });
     },
 
@@ -605,7 +651,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id))
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));
         const id = stableUuid(root.world_seed, STREAM.version, "stream", root.id, key);
-        const tally: Tally = { viewers, peak: viewers, hype: 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:v.studio.level };
+        const tally: Tally = { viewers, peak: viewers, hype: 0.6, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:v.studio.level, ov: { startFollowers: v.followers } };
         let challenger: Challenger, drill: DrillSpec | null = null, hello: ChatEvent[];
         if (format === "INVITATIONAL") {
           challenger = invitationalChallenger(root.world_seed, id, season, week, 0);
@@ -647,7 +693,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           await tx.execute(sql`UPDATE career_stream_campaigns SET status='IN_PROGRESS',stream_id=${id} WHERE career_save_id=${root.id} AND id=${campaign.id} AND status='ACTIVE'`);
         }
         if (planned) await tx.execute(sql`DELETE FROM career_life_commitments WHERE career_save_id=${root.id} AND id=${String(planned.id)}`);
-        return sessionFrom((await live(tx, root, id)), v.handle, v.tier.key);
+        return sessionFrom((await live(tx, root, id)), v.handle, v.tier.key, v.followers);
       });
     },
 
@@ -662,7 +708,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const row = await live(tx, root, streamId);
         const ch = await channel(tx, root);
         const tier = tierFor(ch.followers).key;
-        if (row.status !== "LIVE") return { session: sessionFrom(row, ch.handle, tier), events: [] as ChatEvent[] };
+        if (row.status !== "LIVE") return { session: sessionFrom(row, ch.handle, tier, ch.followers), events: [] as ChatEvent[] };
         const events = isDrill(String(row.format)) ? await drillDarts(tx, root, row, darts, tier) : await matchDarts(tx, root, row, darts, tier, ch.followers);
         // Remember the average reached on a scoring challenge, for next time's target.
         const after = await live(tx, root, streamId);
@@ -670,7 +716,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           const avg = replayDrill(after.drill as DrillSpec, after.darts as unknown[]).average;
           await tx.execute(sql`UPDATE career_streams SET drill = drill || ${JSON.stringify({ achieved: avg })}::jsonb WHERE career_save_id=${root.id} AND id=${streamId}`);
         }
-        return { session: sessionFrom(await live(tx, root, streamId), ch.handle, tier), events };
+        return { session: sessionFrom(await live(tx, root, streamId), ch.handle, tier, ch.followers), events };
       });
     },
 
@@ -689,14 +735,14 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const ch = await channel(tx, root), tier = tierFor(ch.followers).key;
         const why = !live ? "Open the match first" : TELEVISED.has(String(live.presentation_tier)) ? "This match is on TV: no streaming from the venue"
           : !row && live.status === "COMPLETED" ? "This match is over" : null;
-        if (!start || why || !live) return { eligible: !why, why, session: row ? sessionFrom(row, ch.handle, tier) : null, events: [] };
+        if (!start || why || !live) return { eligible: !why, why, session: row ? sessionFrom(row, ch.handle, tier, ch.followers) : null, events: [] };
         if (!row) {
           const npc = (await loadNpcs(tx, root.id, { ids: [String(live.opponent_key)] }))[0];
           const season = Number(live.season), day = Number(live.scheduled_day), week = Math.ceil(day / 7);
           const id = stableUuid(root.world_seed, STREAM.version, "stream-match", root.id, matchId);
           const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
           const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, ((day - 1) % 7) + 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel) * (1 + await modViewerBonus(tx, root.id))));
-          const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:ch.studioLevel };
+          const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel:ch.studioLevel, ov: { startFollowers: ch.followers } };
           const name = npc ? `${npc.firstName} ${npc.surname}` : "Opponent";
           const hello: ChatEvent[] = [{ kind: "CHAT", user: "DartCast", text: `Live from the venue: ${ch.handle} vs ${name}. This one's for real` }];
           await tx.execute(sql`INSERT INTO career_streams (career_save_id, id, season, week, day, status, format, challenger, first_thrower, tally, chat, processed_visits, match_id, match_format)
@@ -715,7 +761,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           events = await matchDarts(tx, root, row, live.darts as unknown[], tier, ch.followers);
           row = (await tx.execute(sql`SELECT * FROM career_streams WHERE career_save_id=${root.id} AND id=${String(row.id)}`)).rows[0];
         }
-        return { eligible: true, why: null, session: sessionFrom(row, ch.handle, tier), events };
+        return { eligible: true, why: null, session: sessionFrom(row, ch.handle, tier, ch.followers), events };
       });
     },
 
@@ -749,7 +795,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           const id = stableUuid(root.world_seed, STREAM.version, "stream-side-match", root.id, refId);
           const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
           const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, id, ch.followers, fans, 1, null) * formatByKey("MATCH").crowd * studioAudienceMultiplier(ch.studioLevel) * (1 + await modViewerBonus(tx, root.id))));
-          const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel: ch.studioLevel };
+          const tally: Tally = { viewers, peak: viewers, hype: 0.7, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel: ch.studioLevel, ov: { startFollowers: ch.followers } };
           const where = SIDE_MATCH_WHERE[input.kind];
           const hello: ChatEvent[] = [{ kind: "CHAT", user: "DartCast", text: `Live ${where}: ${ch.handle} vs ${input.opponentName}. This one's for real` }];
           await tx.execute(sql`INSERT INTO career_streams (career_save_id, id, season, week, day, status, format, challenger, first_thrower, tally, chat, processed_visits, match_id, match_format)
@@ -763,7 +809,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           events = await matchDarts(tx, root, row, input.darts, tier, ch.followers);
           row = (await tx.execute(sql`SELECT * FROM career_streams WHERE career_save_id=${root.id} AND id=${String(row.id)}`)).rows[0];
         }
-        return { eligible: true, why: null, session: sessionFrom(row, ch.handle, tier), events };
+        return { eligible: true, why: null, session: sessionFrom(row, ch.handle, tier, ch.followers), events };
       });
     },
 
@@ -839,7 +885,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           await finish(tx, root, row, null, row.tally as Tally, row.chat as ChatEvent[], Number(row.processed_visits) + wins, wins);
         }
         const ch = await channel(tx, root);
-        return sessionFrom(await live(tx, root, streamId), ch.handle, tierFor(ch.followers).key);
+        return sessionFrom(await live(tx, root, streamId), ch.handle, tierFor(ch.followers).key, ch.followers);
       });
     },
   };
