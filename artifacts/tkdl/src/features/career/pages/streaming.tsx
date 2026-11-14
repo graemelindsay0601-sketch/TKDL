@@ -48,6 +48,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
     scheduledWeek.current = key;
     schedulePathway.mutate(undefined);
   }, [id, q.data, schedulePathway]);
+  // Arriving from "Go live" elsewhere in Career (…/streaming#go-live): bring the console into view once it has rendered.
+  useEffect(() => { if (window.location.hash === "#go-live") document.getElementById("go-live")?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [!!q.data]);
   if (q.isLoading) return <CareerLoading />;
   if (q.error || !q.data) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
   const d = q.data, retired = !!ctx.save.retiredAt;
@@ -79,6 +81,16 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             <a href="#vault"><Clapperboard aria-hidden /> Production vault</a>
             <span className="studio-nav-status"><i /> {d.tier.name.toUpperCase()} CHANNEL</span>
           </nav>
+          {d.live ? <div className="studio-alert" role="status">
+            <span className="studio-alert__icon" aria-hidden><Radio /></span>
+            <div><b>You're live on DartCast</b><small>Your stream is still running. Pick it up exactly where you left it.</small></div>
+            <Link className="studio-alert__go" href={`/career/${id}/streaming/${d.live}`}>Resume stream</Link>
+          </div> : !futureWeek && !retired && d.pathway.scheduledNights.length > 0 ? <div className="studio-alert" role="status">
+            <span className="studio-alert__icon" aria-hidden><Radio /></span>
+            <div><b>{d.pathway.scheduledNights.map(dayLabel).join(" · ")} show{d.pathway.scheduledNights.length > 1 ? "s" : ""} booked this week</b>
+              <small>Pick a format below and go live. Continue Career stops for a booked show until it's done.</small></div>
+            <a className="studio-alert__go" href="#go-live">Go live</a>
+          </div> : null}
           <section className="studio-hero" id="control-room">
             <img className="studio-hero-image" src="/assets/dartcast-creator-studio/dartcast-creator-studio.jpg" alt="A darts creator's private studio: board, camera, microphone and control desk" />
             <div className="studio-hero-shade" />
@@ -130,7 +142,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               </div>
             </>}
           </section>
-          <section className="creator-console">
+          <section className="creator-console" id="go-live">
             <div className="console-head"><div><span className="eyebrow">01 / CONTROL ROOM</span><h2>Today’s setup</h2></div><div className="console-state"><i /> {d.live ? "YOU’RE ON AIR" : "READY WHEN YOU ARE"}</div></div>
             <div className="console-layout">
               <div className="setup-main">
