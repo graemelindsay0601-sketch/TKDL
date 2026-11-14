@@ -54,3 +54,14 @@
 @media (max-height: 500px) and (orientation: landscape) { .dc-hud, .dc-hud__chip { max-width: min(180px, calc(45vw - 110px)); } .dc-hud__caret { display: none; } .dc-hud[data-open] { max-width: none; } }
 @media (prefers-reduced-motion: reduce) { .dc-hud__chip[data-offer], .dc-hud__chip[data-alert] { animation: none; } }
 .dc-match__warn { position: fixed; top: 46px; left: 10px; z-index: 10003; max-width: 300px; padding: 4px 8px; border-radius: 8px; background: rgba(14, 10, 24, .92); }
+.dc-raid { display: grid; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid rgba(255, 77, 94, .45); background: rgba(255, 77, 94, .06); }
+.dc-raid h3 { margin: 0; display: flex; align-items: center; gap: 6px; font: 800 1rem system-ui, sans-serif; }
+.dc-raid__icon { width: 16px; height: 16px; color: #ff4d5e; vertical-align: -3px; }
+.dc-raid ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dc-raid li { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, .04); }
+.dc-raid li div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.dc-raid li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-raid li small { color: var(--dc-dim, #9aa3b2); font-size: .74rem; }
+.dc-raid li button { padding: 7px 14px; border: 0; border-radius: 8px; background: #ff4d5e; color: #fff; font-weight: 800; cursor: pointer; }
+.dc-raid li button:disabled { opacity: .5; cursor: default; }
+.dc-raid__done { display: flex; align-items: center; gap: 6px; }

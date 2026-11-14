@@ -17,7 +17,9 @@ export type Prediction = { leg: number; believe: number; status: "OPEN" | "RIGHT
 export type HypeTrain = { level: number; progress: number; visitsLeft: number; best: number };
 export type Recap = { topChatter: string | null; requestsDone: number; requestsTried: number; trainBest: number; upsets: number; legsCalled: number };
 export type Overlay = { train?: HypeTrain; request?: StreamRequest | null; requests?: { offered: number; tried: number; done: number };
-  prediction?: Prediction | null; predictions?: { called: number; upsets: number }; startFollowers?: number; seenFollowers?: number; recap?: Recap };
+  prediction?: Prediction | null; predictions?: { called: number; upsets: number }; startFollowers?: number; seenFollowers?: number; recap?: Recap;
+  /** A creator who raided you as you went live, and who you raided at the end. */
+  raidIn?: { key: string; handle: string; viewers: number }; raidOut?: { key: string; handle: string; viewers: number } };
 
 export const REQUESTS: Record<RequestKind, { label: string; reward: number; unit: "LEGS" | "VISITS"; left: number; weight: number }> = {
   TON: { label: "Hit a ton (100+) this leg", reward: 1, unit: "LEGS", left: 1, weight: 5 },
@@ -30,6 +32,8 @@ export const REQUESTS: Record<RequestKind, { label: string; reward: number; unit
 const DRILL_REQUESTS: RequestKind[] = ["TON", "MAX"];
 const BASE_REWARD: Record<TierKey, number> = { NEWCOMER: 0, AFFILIATE: 500, PARTNER: 1200, STAR: 3000 };
 export const MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000];
+/** A VIP's gifted subs: chance per visit (per VIP, up to three) and the most in one go. */
+export const VIP_GIFT = { chance: 0.02, max: 5 };
 export const TRAIN = { maxLevel: 5, perCheer: 40, perSub: 80, quietVisits: 8, followersPerLevel: 2 };
 
 export type VisitInfo = { you: boolean; points: number; bust: boolean; checkout: boolean; startScore: number;
@@ -107,11 +111,21 @@ export function overlayVisit(seed: string, streamKey: string, index: number, v: 
   else if (req?.status === "OFFERED" && v.legEnded) req = null;
   if (req && req.status !== "OFFERED" && req.status !== "ACTIVE") req = null;
 
+  // VIPs at Partner and above sometimes gift subs to the room (a separate draw, so streams without VIPs are unchanged).
+  const vips = regulars.filter(r => r.role === "VIP");
+  if (vips.length && (tier === "PARTNER" || tier === "STAR") && v.you) {
+    const g = scopedRandom(seed, STREAM.version, "stream-vip-gift", streamKey, index);
+    if (g() < VIP_GIFT.chance * Math.min(3, vips.length)) {
+      const who = vips[Math.floor(g() * vips.length)].name, n = 1 + Math.floor(g() * VIP_GIFT.max);
+      t.subs += n; events.push(alert("GIFT", `${who} gifted ${n} sub${n === 1 ? "" : "s"}!`, who));
+      events.push({ kind: "SUB", user: who, months: 1 });
+    }
+  }
   // 2. The hype train: cheers in quick succession build it; a quiet spell ends it (it pays a few followers by level).
   if (tier !== "NEWCOMER") {
     const train = { level: 0, progress: 0, visitsLeft: 0, best: 0, ...(ov.train ?? {}) };
     const fuel = cheers.reduce((n, e) => n + (e.kind === "SUB" ? TRAIN.perSub : e.kind === "BITS" || e.kind === "SUPERCHAT" ? TRAIN.perCheer : 0), 0)
-      + events.reduce((n, e) => n + (e.kind === "BITS" ? TRAIN.perCheer : 0), 0);
+      + events.reduce((n, e) => n + (e.kind === "BITS" ? TRAIN.perCheer : e.kind === "SUB" ? TRAIN.perSub : 0), 0);
     if (fuel > 0) {
       train.progress += fuel; train.visitsLeft = TRAIN.quietVisits;
       while (train.progress >= 100 && train.level < TRAIN.maxLevel) {

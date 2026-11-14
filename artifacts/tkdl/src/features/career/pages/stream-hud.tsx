@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, ChevronDown, ChevronUp, Eye, Flame, Inbox, Target, TrainFront, X } from "lucide-react";
-import type { ChatEvent, StreamSession } from "../api";
+import { Check, ChevronDown, Siren, ChevronUp, Eye, Flame, Inbox, Target, TrainFront, X } from "lucide-react";
+import { errorMessage, streamingApi, useStreaming, type ChatEvent, type StreamSession } from "../api";
 import { formatPence } from "../model";
 import { hudAlertText, isHudAlert } from "./stream-hud-model";
 import "./stream-hud.css";
@@ -99,4 +99,29 @@ export function RecapList({ session }: { session: StreamSession }) {
     session.tally.clip && "Your best moment was clipped",
   ].filter(Boolean) as string[];
   return items.length ? <ul className="dc-hud__recap">{items.map(i => <li key={i}>{i}</li>)}</ul> : null;
+}
+
+/**
+ * End a stream like real creators do: send your audience to another creator. It builds the friendship, and they may
+ * raid you back one night. Suggests your friends first, then channels around your size.
+ */
+export function RaidPicker({ saveId, session, onRaided }: { saveId: string; session: StreamSession; onRaided: (s: StreamSession) => void }) {
+  const q = useStreaming(saveId), [busy, setBusy] = useState(false), [note, setNote] = useState("");
+  const out = session.tally.ov?.raidOut, inn = session.tally.ov?.raidIn;
+  const d = q.data;
+  const header = inn ? <p className="dc__note">{inn.handle} raided you with {inn.viewers} viewers tonight.</p> : null;
+  if (out) return <>{header}<p className="dc__note dc-raid__done"><Siren aria-hidden className="dc-raid__icon" /> You raided {out.handle} with {out.viewers} viewer{out.viewers === 1 ? "" : "s"}.</p></>;
+  if (!d || session.status !== "ENDED" || session.processedVisits === 0 || session.season !== d.season || session.week !== d.currentWeek) return header;
+  const me = Math.max(1, d.followers), dist = (f: number) => Math.abs(Math.log(Math.max(1, f) / me));
+  const picks = [...(d.scene?.creators ?? [])].sort((a, b) => Number(b.relationship !== "NEW") - Number(a.relationship !== "NEW") || dist(a.followers) - dist(b.followers)).slice(0, 6);
+  if (!picks.length) return header;
+  const raid = (key: string) => { setBusy(true); streamingApi.raid(saveId, session.id, key).then(onRaided).catch(e => setNote(errorMessage(e))).finally(() => setBusy(false)); };
+  return <div className="dc-raid">
+    {header}
+    <h3><Siren aria-hidden className="dc-raid__icon" /> Raid someone?</h3>
+    <p className="dc__note">Send your {session.tally.viewers} viewer{session.tally.viewers === 1 ? "" : "s"} to another creator. Creators remember: they may raid you back.</p>
+    <ul>{picks.map(c => <li key={c.key}><div><b>{c.handle}</b><small>{c.followers.toLocaleString("en-GB")} followers · {c.relationship === "NEW" ? "not met yet" : c.relationship.toLowerCase()}</small></div>
+      <button type="button" disabled={busy} onClick={() => raid(c.key)}>Raid</button></li>)}</ul>
+    {note && <p className="dc__warn" role="alert">{note}</p>}
+  </div>;
 }

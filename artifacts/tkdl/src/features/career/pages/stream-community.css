@@ -44,6 +44,21 @@
 .sc-creator q { color:#d8c57f; font-size:12px; font-style:italic; }
 .sc-rel { color:#89989d; font:500 11px "DM Mono",monospace; }
 .sc-more { justify-self:start; padding:8px 12px; border:1px solid #d3b66077; background:transparent; color:#ecd084; font-size:12.5px; cursor:pointer; }
+.sc-emotes { display:grid; gap:8px; }
+.sc-emotes h3 { margin:0; text-transform:none; letter-spacing:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; color:#f2eee3; font:700 16px "Space Grotesk",sans-serif; }
+.sc-emotes h3 small { color:#9fabad; font:500 12px Manrope,sans-serif; text-transform:none; letter-spacing:0; }
+.sc-emotes code { color:#ffe08a; font:600 12px "DM Mono",monospace; }
+.sc-emotes ul { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr)); gap:8px; margin:0; padding:0; list-style:none; }
+.sc-emotes li { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px; border:1px solid #ffffff12; background:#ffffff05; opacity:.6; }
+.sc-emotes li[data-unlocked] { opacity:1; border-color:#d6b76144; }
+.sc-emote-face { display:grid; place-items:center; width:34px; height:34px; border-radius:8px; background:#4d3a0a; color:#ffe08a; font:800 14px "Space Grotesk",sans-serif; }
+.sc-emotes li>div { display:grid; gap:2px; min-width:0; flex:1; }
+.sc-emotes li b { color:#f0eadb; font-size:13px; overflow-wrap:anywhere; }
+.sc-emotes li small { color:#9fabad; font-size:11px; }
+.sc-emotes form { display:flex; gap:6px; flex-basis:100%; }
+.sc-emotes input { flex:1; min-width:0; padding:6px 8px; border:1px solid #ffffff2a; background:#0a131b; color:#fff; font-size:13px; }
+.sc-emotes form button { padding:6px 10px; border:1px solid #d3b66077; background:#dfbd6816; color:#ecd084; font-size:12px; cursor:pointer; }
+.sc-emotes form button:disabled { opacity:.5; cursor:not-allowed; }
 @media (max-width: 520px) {
   .sc-panel { padding:14px 12px; }
   .sc-head h2 { font-size:20px; }

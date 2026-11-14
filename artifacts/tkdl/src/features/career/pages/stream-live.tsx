@@ -12,7 +12,7 @@ import { formatPence } from "../model";
 import type { ShellContext } from "../shell";
 import type { LiveSession } from "../types";
 import { DrillScorer } from "./drill-scorer";
-import { RecapList, StreamHud } from "./stream-hud";
+import { RaidPicker, RecapList, StreamHud } from "./stream-hud";
 import "./streaming.css";
 
 const money = (p: number) => formatPence(p);
@@ -41,7 +41,9 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
   const [message, setMessage] = useState("");
   const [ending, setEnding] = useState(false);
   const log = useRef<Dart[]>([]), queue = useRef<Promise<void>>(Promise.resolve()), chatBox = useRef<HTMLOListElement>(null);
-  useEffect(() => { if (q.data && !session) { setSession(q.data); setChat(q.data.chat); log.current = q.data.darts as Dart[]; } }, [q.data, session]);
+  useEffect(() => { if (q.data && !session) { setSession(q.data); setChat(q.data.chat); log.current = q.data.darts as Dart[];
+    // A fresh stream: show the opening alerts (go-live notification, an incoming raid, VIPs arriving) on the overlay.
+    if (q.data.status === "LIVE" && q.data.processedVisits === 0) setFresh(q.data.chat); } }, [q.data, session]);
   useEffect(() => { chatBox.current?.scrollTo({ top: chatBox.current.scrollHeight }); }, [chat]);
 
   const send = useCallback((darts: Dart[]) => {
@@ -128,6 +130,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
               <div><dt>Earned</dt><dd>{money(session.incomePence ?? 0)}</dd></div>
             </dl>
             <RecapList session={session} />
+            <RaidPicker saveId={id} session={session} onRaided={setSession} />
             {session.poll && <div className="dc-live__poll"><h3>Chat's vote for next time</h3><ul>{[...session.poll.options].sort((a, b) => b.share - a.share).map(o =>
               <li key={o.key} data-winner={o.key === session.poll!.winner || undefined}><span>{o.name}</span><span className="dc-live__bar"><span style={{ width: `${o.share}%` }} /></span><b>{o.share}%</b></li>)}</ul>
               <p className="dc__note">Stream what chat picked and more of them turn up.</p></div>}

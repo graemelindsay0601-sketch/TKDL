@@ -80,4 +80,12 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     streams integer NOT NULL DEFAULT 0, role text NOT NULL DEFAULT 'NONE' CHECK(role IN ('NONE','MOD','VIP')),
     status text NOT NULL DEFAULT 'ACTIVE' CHECK(status IN ('ACTIVE','LAPSED')), created_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY(career_save_id,key))`);
+  // Raids out and in (one each way per stream), channel emotes, and Clip of the Week winners.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_raids (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    stream_id uuid NOT NULL, direction text NOT NULL CHECK(direction IN ('OUT','IN')), streamer_key text NOT NULL,
+    season integer NOT NULL, week integer NOT NULL, viewers integer NOT NULL DEFAULT 0, returned boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id, stream_id, direction))`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS emotes jsonb NOT NULL DEFAULT '[]'::jsonb`);
+  await tx.execute(sql`ALTER TABLE career_stream_clips ADD COLUMN IF NOT EXISTS clip_of_week boolean NOT NULL DEFAULT false`);
 }
