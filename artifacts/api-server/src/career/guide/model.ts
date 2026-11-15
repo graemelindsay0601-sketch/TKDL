@@ -128,7 +128,17 @@ export function buildGuide(g: GuideInput) {
     return { key: st.key, title: st.title, unlocks: st.unlocks, done, current, progress: st.progress?.(g.facts, g.streaming, earned) ?? null, how: st.how };
   });
   const currentDef = path.stages.find(st => !st.done(g.facts, g.streaming, g.earningsPence ?? 0)) ?? null;
-  const fits = (e: GuideEvent) => !currentDef || !currentDef.circuits.length || currentDef.circuits.includes(e.circuit);
+  const fits = (e: GuideEvent) => !!currentDef && currentDef.circuits.includes(e.circuit);
+  // How far it's sensible to go, and what to spend, for the step you're on: a pub-level step stays local and cheap; a
+  // county step can travel in the UK; tour-level steps on the pro or majors paths can go further.
+  const stageCircuits = currentDef?.circuits ?? [];
+  const localStage = stageCircuits.length > 0 && stageCircuits.every(c => LOCAL.includes(c));
+  const countyStage = stageCircuits.length > 0 && stageCircuits.every(c => [...LOCAL, ...COUNTY, "VAULT"].includes(c));
+  const bands = localStage ? ["LOCAL"] : countyStage || !["PROFESSIONAL_PATHWAY", "MAJOR_QUALIFICATION"].includes(g.focus) ? ["LOCAL", "DOMESTIC"] : Object.keys(BAND_RANK);
+  // Low on money (under £50): only free or very cheap nights, so the career never spends itself to nothing.
+  const spendCap = g.balancePence < 5_000 ? 500 : localStage ? Math.max(2_000, g.balancePence * 0.25) : g.balancePence * 0.6;
+  const sensibleTripLocal = (e: GuideEvent) => (e.finance?.travelBand ?? "LOCAL") === "LOCAL" && (e.finance?.estimatedPlayerCostPence ?? 0) <= Math.min(spendCap, 2_000);
+  const sensibleTrip = (e: GuideEvent) => bands.includes(e.finance?.travelBand ?? "LOCAL") && (e.finance?.estimatedPlayerCostPence ?? 0) <= spendCap;
 
   // ---- today
   const { week, dayOfWeek, phase } = g.today;
@@ -157,7 +167,7 @@ export function buildGuide(g: GuideInput) {
     .sort((a, b) => b.dates.startDay - a.dates.startDay).slice(0, 5)
     .map(e => ({ id: e.id, name: e.name, week: e.dates.startWeek, when: when(e), why: `It fitted your next step: ${currentDef!.title.toLowerCase()}.` }));
   const affordable = (e: GuideEvent) => (e.finance?.estimatedPlayerCostPence ?? 0) <= g.balancePence;
-  const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && fits(e) && near(e) && affordable(e)).sort(sensible).slice(0, 4)
+  const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && (fits(e) || !stageCircuits.length) && sensibleTrip(e) && affordable(e)).sort(sensible).slice(0, 4)
     .map(e => ({ id: e.id, name: e.name, when: when(e), href: `${base}/events/${e.id}` }));
 
   // ---- next steps: at most three, the most pressing first
@@ -173,12 +183,15 @@ export function buildGuide(g: GuideInput) {
   else if (g.activeTournament) add({ key: "tournament", tone: "now", title: `Back to ${g.activeTournament.name}`, why: "You're in a tournament.", action: { label: "Open it", href: `${base}/tournaments/${g.activeTournament.eventId}` } });
   for (const w of waitingOn.filter(w => !w.label.startsWith("Your match"))) add({ key: `wait:${w.label}`, tone: "now", title: w.label, why: "The week is waiting for it.", action: { label: "Go", href: w.href } });
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
-  for (const c of closing.slice(0, 1)) add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}. It fits your next step.`, action: { label: "Enter", enterEventId: c.id, href: c.href } });
+  for (const c of closing.slice(0, 1)) { const ev = g.events.find(e => e.id === c.id);
+    add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}${ev ? cost(ev) : ""}.${ev && fits(ev) ? " It fits your next step." : " A cheap night of darts near home."}`,
+      action: { label: "Enter", enterEventId: c.id, href: c.href } }); }
   const fitting = (currentDef?.circuits.length ? upcoming.filter(e => currentDef.circuits.includes(e.circuit)) : [])
-    .filter(e => affordable(e) && (near(e) || g.focus === "MAJOR_QUALIFICATION" || g.focus === "PROFESSIONAL_PATHWAY")).sort(sensible);
+    .filter(e => affordable(e) && sensibleTrip(e)).sort(sensible);
   // Make it pay: the best prize for the cost; every other path: the soonest event that fits.
   const pathPick = g.focus === "PRIZE_MONEY"
-    ? [...fitting].sort((a, b) => worth(b) - worth(a))[0]
+    ? [...fitting].filter(e => (e.finance?.estimatedPlayerCostPence ?? 0) === 0 || (e.finance?.topPrizePence ?? e.finance?.firstPrizePence ?? 0) >= 6 * (e.finance?.estimatedPlayerCostPence ?? 0))
+        .sort((a, b) => worth(b) - worth(a))[0]
     : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id)) ?? fitting[0];
   const suggest = (e: GuideEvent) => add({ key: `path:${e.id}`, tone: "soon", title: `Enter ${e.name}`, why: `${when(e)}${cost(e)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
     action: { label: "Enter", enterEventId: e.id, href: `${base}/events/${e.id}` } });
@@ -191,11 +204,20 @@ export function buildGuide(g: GuideInput) {
   }
   else if (currentDef && !currentDef.circuits.length) add({ key: "creator", tone: "soon", title: currentDef.title, why: currentDef.how, action: { label: "Open DartCast", href: `${base}/streaming` } });
   else if (currentDef) {
-    const blocked = g.events.filter(e => e.status !== "COMPLETED" && e.dates.startWeek >= week && currentDef.circuits.includes(e.circuit) && e.human?.eligible && !e.human.canEnter);
-    const broke = blocked.some(e => (e.human?.denials ?? []).includes("INSUFFICIENT_FUNDS"));
-    add({ key: "path-none", tone: "tip", title: broke ? "Raise some entry money" : `No ${currentDef.title.toLowerCase()} events open yet`,
-      why: broke ? `You have ${pounds(g.balancePence)}. Free local events, money matches and local nights cost little or nothing.` : `${currentDef.how} Entries open a few weeks before each event.`,
-      action: broke ? { label: "Local nights", href: `${base}/local` } : { label: "Calendar", href: `${base}/calendar` } });
+    // Nothing on your path you can enter now: say exactly why (cost, when entries open), and keep you playing locally.
+    const blocked = g.events.filter(e => e.status !== "COMPLETED" && e.status !== "CANCELLED" && e.dates.startWeek >= week && currentDef.circuits.includes(e.circuit)
+      && e.human?.eligible && !e.human.canEnter).sort((a, b) => a.dates.startDay - b.dates.startDay);
+    const next = blocked[0], nextCost = next?.finance?.estimatedPlayerCostPence ?? 0;
+    const opens = next && (next.human?.denials ?? []).includes("REGISTRATION_NOT_OPEN") ? next.registration?.opensWeek : undefined;
+    const short = next && nextCost > g.balancePence;
+    add({ key: "path-none", tone: "tip",
+      title: next ? `${next.name}: ${short ? "save up for it" : opens ? `entries open week ${opens}` : "not open to you yet"}` : `${currentDef.title}: nothing open yet`,
+      why: next ? `${when(next)}, about ${pounds(nextCost)} to play${short ? `. You have ${pounds(g.balancePence)}: local nights and money matches can make up the difference` : ""}.`
+        : `${currentDef.how} Entries open a few weeks before each event, so keep an eye on the calendar.`,
+      action: next ? { label: "Have a look", href: `${base}/events/${next.id}` } : { label: "Calendar", href: `${base}/calendar` } });
+    const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e)).sort(sensible)[0];
+    if (local) add({ key: `keep-playing:${local.id}`, tone: "soon", title: `Meanwhile: ${local.name}`, why: `${when(local)}${cost(local)}. Keeps your form up and can win you entry money.`,
+      action: { label: "Enter", enterEventId: local.id, href: `${base}/events/${local.id}` } });
   }
   if (!bookedThisWeek && phase === "START_OF_WEEK" && upcoming.some(e => e.dates.startWeek === week))
     add({ key: "plan", tone: "tip", title: "Plan this week", why: "Pick a night for each thing you want to do before you play on.", action: { label: "Plan it", href: `${base}#week-planner` } });

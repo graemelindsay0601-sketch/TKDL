@@ -129,6 +129,12 @@ async function closeRegistrations(tx: CareerExecutor, events: InstanceRow[]) {
 export const calendarHash = (drafts: readonly EventInstanceDraft[]) => createHash("sha256").update(canonicalJson(drafts.map(d => [d.id, d.instanceKey, d.startDay, d.endDay, d.snapshot.resolvedFrom.definitionHash]))).digest("hex");
 
 /** Create the season calendar once. Re-entry returns the stored season untouched. */
+/** ANALYZE the busy Career tables (cheap: a sample; allowed inside a transaction, unlike VACUUM). */
+export async function refreshCareerStatistics(tx: CareerExecutor) {
+  for (const table of ["career_event_instances", "career_tournament_matches", "career_event_entries", "career_participant_bookings"])
+    if ((await tx.execute(sql`SELECT to_regclass(${table}) IS NOT NULL AS ok`)).rows[0]?.ok === true) await tx.execute(sql.raw(`ANALYZE ${table}`));
+}
+
 export async function ensureSeason(tx: CareerExecutor, root: RootRow, season: number) {
   const existing = (await tx.execute(sql`SELECT * FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows[0];
   if (existing) return { season: existing, created: false };
@@ -140,6 +146,9 @@ export async function ensureSeason(tx: CareerExecutor, root: RootRow, season: nu
   // Older editions get the midweek circuit (v16: every home area) added to every new season (the season's own hash stays its edition's).
   if (version < MIDWEEK_WORLD_EVENT_DATABASE) await addMidweek(tx, root, season, 1);
   if (version < PATHWAYS_EVENT_DATABASE) await addPathwayEvents(tx, root, season, 1);
+  // A new season adds thousands of rows at once. Refresh the planner's statistics now: with none for this save yet it
+  // can pick plans that run for minutes (a cohort query took 11+ minutes on a fresh save before this).
+  await refreshCareerStatistics(tx);
   const created = (await tx.execute(sql`SELECT * FROM career_seasons WHERE career_save_id = ${root.id} AND season = ${season}`)).rows[0];
   return { season: created, created: true };
 }

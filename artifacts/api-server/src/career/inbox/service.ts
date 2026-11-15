@@ -9,6 +9,7 @@ import { INBOX, INBOX_CATEGORIES, OPEN_CIRCUITS, QUALIFIED_CIRCUITS, seriesName,
 
 type CalendarRead = { calendar(actor: CareerActor, saveId: string, query?: unknown, options?: { overview?: boolean }): Promise<{ events: CalEvent[] }> };
 type CalEvent = { id: string; name: string; circuit: string; status: string; dates: { startWeek: number; startDayOfWeek: number };
+  finance?: unknown;
   registration: { opensWeek: number; closesWeek: number } | null; venue: { city?: string } | null;
   human: { canEnter: boolean; eligible: boolean; relationship: string; managerInvite?: unknown; streamInvite?: boolean } | null };
 type StreamingRead = { read(actor: CareerActor, saveId: string): Promise<Record<string, any>> };
@@ -40,6 +41,7 @@ export function createCareerInboxService(database: CareerDatabase, deps: { calen
     // Events: qualified for, newly open, and entry closing this week.
     const cal = await deps.calendar.calendar(actor, saveId, { scope: "AVAILABLE", fromWeek: week, toWeek: Math.min(52, week + INBOX.lookAheadWeeks) }, { overview: false });
     const told = new Set<string>();
+    const opened: { id: string; name: string; dates: { startWeek: number } }[] = [];
     for (const e0 of [...cal.events].sort((a, b) => a.dates.startWeek - b.dates.startWeek || a.dates.startDayOfWeek - b.dates.startDayOfWeek)) {
       if (!e0.human || !e0.human.canEnter || e0.status === "CANCELLED") continue;
       const name = seriesName(e0.name);
@@ -52,13 +54,16 @@ export function createCareerInboxService(database: CareerDatabase, deps: { calen
         add({ key: `qualified:${e.id}`, category: "QUALIFIED", title: `You're in for ${e.name}`, week: e.dates.startWeek, expiresWeek: closes,
           body: `${invited ? (e.human.streamInvite ? "Your DartCast audience earned an invitation" : "Your manager got you an invitation") : "You've qualified"} for ${e.name}${where}, week ${e.dates.startWeek}. Qualifying doesn't enter you: enter by week ${closes}.`,
           action: { label: "Enter", href: `${base}/events/${e.id}` } });
-      else if (OPEN_CIRCUITS.has(e.circuit))
-        add({ key: `open:${e.id}`, category: "OPEN", title: `${e.name} is open`, week: e.dates.startWeek, expiresWeek: closes,
-          body: `Entries are open for ${e.name}${where}, week ${e.dates.startWeek}.`, action: { label: "Have a look", href: `${base}/events/${e.id}` } });
+      else if (OPEN_CIRCUITS.has(e.circuit) && ["LOCAL", "DOMESTIC", undefined].includes((e.finance as { travelBand?: string } | null | undefined)?.travelBand)) opened.push(e);
       if (closes === week && (QUALIFIED_CIRCUITS.has(e.circuit) || OPEN_CIRCUITS.has(e.circuit) || invited))
         add({ key: `closing:${e.id}:${week}`, category: "CLOSING", title: `Last week to enter ${e.name}`, week, expiresWeek: week,
           body: `Entries for ${e.name} close this week.`, action: { label: "Enter", href: `${base}/events/${e.id}` } });
     }
+    // Newly open events near you: one digest a week, not one item per event.
+    if (opened.length) add({ key: `open-digest:${root.current_season}:${week}`, category: "OPEN", week, expiresWeek: week,
+      title: opened.length === 1 ? `${opened[0].name} is open` : `${opened.length} events near you are open`,
+      body: `Entries are open for ${opened.slice(0, 3).map(e => `${e.name} (week ${e.dates.startWeek})`).join(", ")}${opened.length > 3 ? ` and ${opened.length - 3} more` : ""}.`,
+      action: opened.length === 1 ? { label: "Have a look", href: `${base}/events/${opened[0].id}` } : { label: "See them", href: `${base}/calendar` } });
     // Sponsor offers for your darts career.
     for (const o of offers) {
       const t = o.terms as { displayName?: string; signingBonusPence?: number };
