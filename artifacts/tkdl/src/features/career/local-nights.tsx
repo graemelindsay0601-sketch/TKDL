@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { BookOpen, GraduationCap, Handshake, Mic2, Target, Trophy } from "lucide-react";
+import { Award, BookOpen, Crown, GraduationCap, Handshake, Mic2, Target, Trophy } from "lucide-react";
 import { GameScorer } from "@/components/game-scorer";
 import type { Dart } from "@/lib/darts-rules";
 import { careerKey, errorMessage, localNightApi, useBookLocalNight, useJoinPubLeague, useLocalNights, useLocalSession } from "./api";
@@ -15,7 +15,7 @@ import type { LiveSession } from "./types";
 import type { ShellContext } from "./shell";
 import "./local-nights.css";
 
-const ICON: Record<string, typeof Trophy> = { PUB_LEAGUE: Trophy, KNOCKOUT: Target, PRACTICE: BookOpen, FRIENDLY: Handshake, EXHIBITION: Mic2, COACHING: GraduationCap };
+const ICON: Record<string, typeof Trophy> = { CHAMPIONSHIP: Crown, PUB_LEAGUE: Trophy, KNOCKOUT: Target, PRACTICE: BookOpen, FRIENDLY: Handshake, EXHIBITION: Mic2, COACHING: GraduationCap };
 
 /** Local nights: book any of this week's ordinary darts nights, and the pub league table. */
 export function LocalNightsPage({ ctx }: { ctx: ShellContext }) {
@@ -48,7 +48,7 @@ export function LocalNightsPage({ ctx }: { ctx: ShellContext }) {
             {!a.dayOfWeek && !a.why && <select aria-label={`Night for ${a.name}`} value={day ?? ""} onChange={e => setNight(x => ({ ...x, [a.kind]: Number(e.target.value) }))}>
               {v.freeNights.map(d => <option key={d} value={d}>{dayLabel(d)}</option>)}</select>}
             {needsLeague && !a.why ? <button type="button" className="career-btn career-btn-gold" disabled={retired || join.isPending}
-                onClick={() => join.mutate(undefined, { onSuccess: () => setMessage("You're in: seven weeks of Tuesday nights."), onError: e => setMessage(errorMessage(e)) })}>Join a league</button>
+                onClick={() => join.mutate(undefined, { onSuccess: () => setMessage("You're in: seven weeks of Tuesday nights."), onError: e => setMessage(errorMessage(e)) })}>Join · {v.division.name}</button>
               : <button type="button" className="career-btn career-btn-gold" disabled={retired || !!a.why || day === null || book.isPending}
                 onClick={() => book.mutate({ kind: a.kind, dayOfWeek: day!, ...(a.kind === "PRACTICE" ? { routine } : {}) }, {
                   onSuccess: r => { setMessage(""); if (a.kind !== "COACHING") go(`/career/${id}/local/${r.nightId}`); else setMessage("Booked: you're paid when the week's done."); },
@@ -57,11 +57,15 @@ export function LocalNightsPage({ ctx }: { ctx: ShellContext }) {
         </li>; })}</ul>
       {message && <p className="local-nights__msg" role="status">{message}</p>}
     </CareerSection>
-    {lg && <CareerSection title={`Pub league · weeks ${lg.weekStart}–${lg.weekEnd}`} icon={<Trophy aria-hidden />} accent="#d9b96f">
+    {lg && <CareerSection title={`Pub league · ${lg.division} · weeks ${lg.weekStart}–${lg.weekEnd}`} icon={<Trophy aria-hidden />} accent="#d9b96f">
       {lg.thisWeek && <p className="local-nights__note">This Tuesday: v {lg.thisWeek.opponent}{lg.thisWeek.legs ? ` (${lg.thisWeek.legs[0]}-${lg.thisWeek.legs[1]})` : ""}</p>}
       <table className="local-nights__table"><thead><tr><th>#</th><th>Player</th><th>P</th><th>W</th><th>Legs</th><th>Pts</th></tr></thead>
         <tbody>{(lg.table ?? []).map((r, i) => <tr key={r.key} data-you={r.you || undefined}><td>{i + 1}</td><td>{r.name}</td><td>{r.played}</td><td>{r.won}</td><td>{r.legsFor}-{r.legsAgainst}</td><td>{r.points}</td></tr>)}</tbody></table>
-      <p className="local-nights__note">£60, £30 and £15 for the top three. Miss a Tuesday and that match is forfeited 3-0.</p>
+      <p className="local-nights__note">Prizes for the top three (bigger in higher divisions); the top two go up a division and the bottom two go down. Miss a Tuesday and that match is forfeited 3-0.</p>
+    </CareerSection>}
+    {v.honours.length > 0 && <CareerSection title="Club honours" icon={<Award aria-hidden />} accent="#d9b96f">
+      <ul className="local-nights__booked">{v.honours.map(h => <li key={`${h.season}:${h.award}`}><b>S{h.season}</b>
+        <span>{h.award === "CLUB_CHAMPION" ? "Club Champion" : h.award === "PLAYER_OF_THE_YEAR" ? "Club Player of the Year" : `Club Championship: reached the ${String(h.detail.reached ?? "").toLowerCase()}`}</span></li>)}</ul>
     </CareerSection>}
     <p className="nights-back"><Link href={`/career/${id}/nights`}>Back to this week's nights</Link></p>
   </div>;

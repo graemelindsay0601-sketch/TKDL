@@ -16,7 +16,23 @@ export const LOCAL = Object.freeze({
   friendly: { weeks: [1, 2, 3, 47, 48, 49, 50, 51, 52] as readonly number[], bestOf: 5 },
   exhibition: { legs: 3, minFans: 5_000, maxRank: 128, everyWeeks: 4, basePence: 30_000, perFanPence: 2, capPence: 200_000, legWinPence: 5_000, challengerAvg: [38, 52] as const },
   coaching: { minFans: 1_000, maxRank: 256, basePence: 4_000, perFanDivisor: 50, capPence: 20_000 },
+  /** Pub league divisions: 4 is where everyone starts; the top two go up, the bottom two go down; prizes grow going up. */
+  divisions: { count: 4, promote: 2, relegate: 2, prizeMultiple: { 1: 3, 2: 2, 3: 1.5, 4: 1 } as Record<number, number> },
+  /** The Club Championship: once a season, weeks 44–45, sixteen players, first to 3 (the final first to 4). */
+  championship: { weeks: [44, 45] as readonly number[], size: 16, bestOf: 5, finalBestOf: 7, prizes: [15_000, 5_000] as readonly number[] },
+  /** Club Player of the Year, at the season's end: points from your local nights (see playerOfYearPoints). */
+  playerOfYear: { points: 12 },
 });
+/** A division's name. */
+export const divisionName = (d: number) => d === 1 ? "Premier Division" : `Division ${d - 1}`;
+/** Where you start the next league after finishing in a position. */
+export const nextDivision = (division: number, position: number) => position <= LOCAL.divisions.promote && division > 1 ? division - 1
+  : position > LOCAL.pub.size - LOCAL.divisions.relegate && division < LOCAL.divisions.count ? division + 1 : division;
+/** A season's local record as Player of the Year points: league finishes, knockout wins, the championship. */
+export function playerOfYearPoints(r: { leagueFinishes: { division: number; position: number }[]; knockoutWins: number; championship: "WON" | "FINAL" | null }) {
+  const league = r.leagueFinishes.reduce((n, f) => n + Math.max(0, 4 - f.position) * (LOCAL.divisions.count + 1 - f.division), 0);
+  return league + r.knockoutWins * 3 + (r.championship === "WON" ? 8 : r.championship === "FINAL" ? 4 : 0);
+}
 export const LOCAL_KINDS = {
   PUB_LEAGUE: { name: "Pub league", blurb: "Tuesday nights: a seven-week league against your club's members, first to 3. A prize for the top three." },
   KNOCKOUT: { name: "Club knockout", blurb: "Thursday nights: eight players, first to 2 legs, £5 in. £30 to the winner, £10 to the runner-up." },
@@ -24,6 +40,7 @@ export const LOCAL_KINDS = {
   FRIENDLY: { name: "Friendly", blurb: "Pre-season and after the season: one match, first to 3, against a club member." },
   EXHIBITION: { name: "Exhibition", blurb: "Three legs against local challengers for an appearance fee. One every four weeks." },
   COACHING: { name: "Coaching night", blurb: "Teach a session at a club for a fee. No darts thrown." },
+  CHAMPIONSHIP: { name: "Club Championship", blurb: "Once a season (weeks 44–45): sixteen of the club, first to 3, the final first to 4. A trophy and £150 for the champion." },
 } as const;
 export type LocalKind = keyof typeof LOCAL_KINDS;
 export const PRACTICE_ROUTINES = { CHECKOUTS: "Checkout practice", BOBS_27: "Bob's 27", SCORING: "Scoring (33 visits)" } as const;
@@ -37,3 +54,4 @@ export const canExhibit = (fans: number, rank: number | null) => fans >= LOCAL.e
 export const canCoach = (fans: number, rank: number | null) => fans >= LOCAL.coaching.minFans || (rank !== null && rank <= LOCAL.coaching.maxRank);
 /** The knockout round names for an eight-player draw. */
 export const KO_ROUNDS = ["Quarter-final", "Semi-final", "Final"] as const;
+export const CHAMP_ROUNDS = ["Last 16", "Quarter-final", "Semi-final", "Final"] as const;
