@@ -90,8 +90,12 @@ export function resolvedGroups(matches: MatchRow[], bulls: BullRow[], withdrawn:
     const table = groupTable(matches, group, locked?new Set():withdrawn, layout);
     if(locked) {
       for(const p of table.buckets.flat())p.withdrawn=withdrawn.has(p.key);
-      if (layout.kind === "WORLD_CUP")
-        return {...table,qualifiers:table.buckets.slice(0,1).flatMap(bucket=>bucket.map(p=>p.key)),pending:null};
+      // World Cup: the group's winner is whoever the knockout draw holds. Taking the whole top bucket counted every player
+      // of a tie that a bull-off had already settled, so the draw saw more than twelve winners and the week couldn't play.
+      if (layout.kind === "WORLD_CUP") {
+        const drawn=new Set(qfs.flatMap(m=>[m.a_key,m.b_key]).filter((k):k is string=>!!k));
+        return {...table,qualifiers:table.buckets.flat().map(p=>p.key).filter(k=>drawn.has(k)).slice(0,1),pending:null};
+      }
       return {...table,qualifiers:lockedPairs![index].filter((k):k is string=>!!k),pending:null};
     }
     const qualifiers: string[] = [];
