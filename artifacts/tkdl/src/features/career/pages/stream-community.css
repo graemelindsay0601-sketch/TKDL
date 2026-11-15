@@ -217,3 +217,19 @@
 .studio .sc-ladder-live b { color:#ecf0f0; }
 .studio .sc-ladder-live small { color:#9fadb4; }
 .studio .sc-ladder-live button { justify-self:start; }
+
+/* Brand partners */
+.studio .sc-partner-list { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.studio .sc-partner { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px; border:1px solid #ffffff12; background:linear-gradient(160deg,#182833,#0f1a23); }
+.studio .sc-partner[data-offer] { box-shadow:inset 2px 0 var(--gold,#e5bd68); }
+.studio .sc-partner > svg { box-sizing:content-box; width:16px; height:16px; padding:8px; border:1px solid #9a7f465c; background:#24262a; color:var(--gold,#e5bd68); }
+.studio .sc-partner > div { display:grid; gap:3px; min-width:0; }
+.studio .sc-partner b { color:#ecf0f0; }
+.studio .sc-partner-name { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.studio .sc-partner small { color:#9fadb4; }
+.studio .sc-partner .sc-kind { padding:2px 6px; border:1px solid #e5bd6866; color:#ecd084; font:500 9.5px "DM Mono",monospace; font-style:normal; letter-spacing:.06em; text-transform:uppercase; }
+.studio .sc-partner .sc-terms { color:#ecf0f0; font:500 11px "DM Mono",monospace; }
+.studio .sc-partner .sc-clash { color:#ff9aa2; }
+.studio .sc-partner button { padding:8px 11px; border:1px solid #d3b66077; background:#dfbd6816; color:#ecd084; font:500 10px "DM Mono",monospace; letter-spacing:.08em; text-transform:uppercase; }
+.studio .sc-partner button:disabled { opacity:.45; }
+@media (max-width: 620px) { .studio .sc-partner { grid-template-columns:auto minmax(0,1fr); } .studio .sc-partner > .sc-pair, .studio .sc-partner > button { grid-column:1 / -1; justify-self:start; } }

@@ -1,5 +1,6 @@
 import { scopedRandom } from "../world/random.ts";
 import { BRANDS, STREAM, type TierKey } from "./model.ts";
+import { BRAND_ROSTER } from "./partners.ts";
 
 /**
  * The business side of a channel: what turns an audience into a living.
@@ -63,22 +64,17 @@ export const tierAtLeast = (tier: TierKey, min: TierKey) => TIER_ORDER.indexOf(t
  * costs nothing, but the rung isn't banked. Finishing a rung wins fans for your darts career too (bigger rungs, more
  * fans), and those fans count with darts sponsors as all your others do.
  */
+const rosterFor = (tier: TierKey, darts: boolean) => BRAND_ROSTER.filter(b => b.minTier === tier && (b.category === "DARTS") === darts).map(b => ({ key: b.key, name: b.name, what: b.what }));
 export const SPONSOR_LADDER = [
   { rung: 1, key: "LOCAL", name: "Local backer", minTier: "NEWCOMER" as TierKey, minFollowers: 100, weeks: 10, basePence: 1_500, perViewerPence: 10, fans: 25,
-    blurb: "A business round the corner puts its name on your stream.",
-    brands: [{ key: "double-top-kebabs", name: "Double Top Kebabs", what: "the late-night takeaway" }, { key: "bullseye-arms", name: "The Bullseye Arms", what: "your local pub" },
-      { key: "arrows-and-ale", name: "Arrows & Ale", what: "the darts shop down the road" }] },
+    blurb: "A business round the corner puts its name on your stream.", brands: rosterFor("NEWCOMER", false) },
   { rung: 2, key: "REGIONAL", name: "Regional partner", minTier: "AFFILIATE" as TierKey, minFollowers: 500, weeks: 12, basePence: 5_000, perViewerPence: 25, fans: 75,
-    blurb: "A firm known across the region backs your channel.",
-    brands: [{ key: "gripline", name: "GripLine", what: "finger wax and grips" }, { key: "checkout-cabs", name: "Checkout Cabs", what: "a taxi firm" },
-      { key: "northern-oche-motors", name: "Northern Oche Motors", what: "a car dealership" }] },
+    blurb: "A firm known across the region backs your channel.", brands: rosterFor("AFFILIATE", false) },
   { rung: 3, key: "NATIONAL", name: "National brand", minTier: "PARTNER" as TierKey, minFollowers: 0, weeks: 16, basePence: 15_000, perViewerPence: 50, fans: 250,
-    blurb: "A brand people know nationally: adverts, a logo on your shirt, a launch event.",
-    brands: [{ key: "oche-energy", name: "Oche Energy", what: "an energy drink" }, { key: "boardroom-gaming", name: "Boardroom Gaming", what: "gaming chairs" }] },
+    blurb: "A brand people know nationally: adverts, a logo on your shirt, a launch event.", brands: [...rosterFor("PARTNER", false), ...rosterFor("STAR", false)] },
   { rung: 4, key: "SIGNATURE", name: "Signature range", minTier: "STAR" as TierKey, minFollowers: 0, weeks: 20, basePence: 40_000, perViewerPence: 80, fans: 800,
-    blurb: "A darts maker launches a signature range with your name on it.",
-    brands: [{ key: "tungsten-toms", name: "Tungsten Tom's", what: "your signature barrels" }, { key: "flightdeck", name: "FlightDeck", what: "your signature flights and stems" }] },
-] as const;
+    blurb: "A darts maker launches a signature range with your name on it.", brands: BRAND_ROSTER.filter(b => b.category === "DARTS").map(b => ({ key: b.key, name: b.name, what: `your signature ${b.what}` })) },
+];
 export const SPONSOR = Object.freeze({ offerWeeks: 3, retryWeeks: 4 });
 /** A rung's weekly fee, fixed when it's offered: a base plus your average audience, to the nearest pound. */
 export const sponsorWeeklyPence = (rung: number, averageViewers: number, manager: boolean) => {
