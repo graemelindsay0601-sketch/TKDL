@@ -12,7 +12,7 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { answerRequest, overlayVisit, recapFor } from "./overlay.ts";
 import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.ts";
-import { AFFILIATE, MERCH, MERCH_ITEMS, PLATFORM, TEAM, tierAtLeast, type MerchKey, type TeamRole } from "./business.ts";
+import { AFFILIATE, MERCH, MERCH_ITEMS, PLATFORM, SPONSOR_LADDER, TEAM, tierAtLeast, type MerchKey, type TeamRole } from "./business.ts";
 import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
@@ -93,6 +93,12 @@ export type StreamingView = {
     affiliate: { offer: { id: string; brand: string } | null; active: { id: string; brand: string; paidPence: number } | null; why: string | null };
     team: { role: string; name: string; blurb: string; wagePence: number; hired: boolean; available: boolean; why: string | null }[];
     platform: { name: string; offer: number | null; active: boolean; declined: boolean };
+    sponsor: {
+      rungs: { rung: number; name: string; blurb: string; minTier: TierKey; weeks: number; fans: number; status: "BANKED" | "CURRENT" | "NEXT" | "LOCKED"; brand: string | null }[];
+      offer: { id: string; rung: number; brand: string; what: string; weeklyPence: number; weeks: number; expiresWeek: number } | null;
+      active: { id: string; rung: number; brand: string; what: string; weeklyPence: number; weeksPaid: number; weeksTotal: number; paidPence: number } | null;
+      why: string | null;
+    };
   };
   awards: { seasons: { season: number; results: { award: string; name: string; winner: string; nominees: string[]; youNominated: boolean; youWon: boolean }[] }[]; trophies: number; nextAt: number };
   marathons: { subathon: { open: boolean; why: string | null }; marathon: { open: boolean; why: string | null; targetPence: number } };
@@ -511,6 +517,28 @@ export function createCareerStreamingService(database: CareerDatabase) {
         return { role, name: t.name, blurb: t.blurb, wagePence: t.wagePence, hired: ch.team.includes(role), available, why: available ? null : `From ${t.minTier.charAt(0)}${t.minTier.slice(1).toLowerCase()}` }; }),
       platform: { name: PLATFORM.name, offer: ch.platform?.status === "OFFERED" && ch.platform.season === season ? ch.platform.offerPence : null,
         active: exclusive(ch.platform, season), declined: ch.platform?.status === "DECLINED" && ch.platform.season === season },
+      sponsor: await sponsorView(tx, root, ch.followers, tier),
+    };
+  }
+
+  /** The sponsor ladder: rungs banked, the current headline sponsor or offer, and what the next rung needs. */
+  async function sponsorView(tx: CareerExecutor, root: Root, followers: number, tier: TierKey): Promise<StreamingView["business"]["sponsor"]> {
+    const rows = (await tx.execute(sql`SELECT * FROM career_stream_sponsors WHERE career_save_id=${root.id} ORDER BY n`)).rows;
+    const what = (rung: number, key: string) => SPONSOR_LADDER[rung - 1]?.brands.find(b => b.key === key)?.what ?? "";
+    const banked = Math.max(0, ...rows.filter(r => r.status === "COMPLETED").map(r => Number(r.rung)));
+    const o = rows.find(r => r.status === "OFFERED"), a = rows.find(r => r.status === "ACTIVE");
+    const next = SPONSOR_LADDER[banked];
+    const why = !next ? null : !tierAtLeast(tier, next.minTier) ? `The ${next.name.toLowerCase()} rung opens at ${next.minTier.charAt(0)}${next.minTier.slice(1).toLowerCase()}`
+      : followers < next.minFollowers ? `The ${next.name.toLowerCase()} rung opens at ${next.minFollowers.toLocaleString("en-GB")} followers` : o || a ? null : "Keep streaming: a sponsor will be in touch soon";
+    return {
+      rungs: SPONSOR_LADDER.map(r => ({ rung: r.rung, name: r.name, blurb: r.blurb, minTier: r.minTier, weeks: r.weeks, fans: r.fans,
+        status: r.rung <= banked ? "BANKED" as const : (a && Number(a.rung) === r.rung) ? "CURRENT" as const : r.rung === banked + 1 ? "NEXT" as const : "LOCKED" as const,
+        brand: String(rows.filter(x => x.status === "COMPLETED" && Number(x.rung) === r.rung).at(-1)?.brand_name ?? (a && Number(a.rung) === r.rung ? a.brand_name : "")) || null })),
+      offer: o ? { id: String(o.id), rung: Number(o.rung), brand: String(o.brand_name), what: what(Number(o.rung), String(o.brand_key)), weeklyPence: Number(o.weekly_pence),
+        weeks: Number(o.weeks_total), expiresWeek: Number(o.week) + 3 } : null,
+      active: a ? { id: String(a.id), rung: Number(a.rung), brand: String(a.brand_name), what: what(Number(a.rung), String(a.brand_key)), weeklyPence: Number(a.weekly_pence),
+        weeksPaid: Number(a.weeks_paid), weeksTotal: Number(a.weeks_total), paidPence: Number(a.paid_pence) } : null,
+      why,
     };
   }
 
@@ -915,6 +943,21 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (action === "ACCEPT") await tx.execute(sql`UPDATE career_stream_affiliates SET status='ENDED' WHERE career_save_id=${root.id} AND status='ACTIVE'`);
         await tx.execute(sql`UPDATE career_stream_affiliates SET status=${action === "ACCEPT" ? "ACTIVE" : action === "DECLINE" ? "DECLINED" : "ENDED"}
           WHERE career_save_id=${root.id} AND id=${affiliateId}`);
+        return view(tx, root);
+      });
+    },
+    /** Answer a headline sponsor: sign (replacing nothing: one at a time), turn it down, or walk away early (the rung isn't banked). */
+    async answerSponsor(actor: CareerActor, saveId: string, sponsorId: string, body: unknown) {
+      const { action } = z.object({ action: z.enum(["ACCEPT", "DECLINE", "END"]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const row = (await tx.execute(sql`SELECT * FROM career_stream_sponsors WHERE career_save_id=${root.id} AND id=${sponsorId}`)).rows[0];
+        if (!row) throw new CareerError(404, "Sponsor not found");
+        if (row.status !== (action === "END" ? "ACTIVE" : "OFFERED")) throw new CareerError(409, action === "END" ? "That sponsorship isn't running" : "That offer has gone");
+        const closed = action === "ACCEPT" ? null : (Number(root.current_season) - 1) * 52 + Number(root.current_week);
+        await tx.execute(sql`UPDATE career_stream_sponsors SET status=${action === "ACCEPT" ? "ACTIVE" : action === "DECLINE" ? "DECLINED" : "ENDED"}, closed_week=${closed}
+          WHERE career_save_id=${root.id} AND id=${sponsorId}`);
         return view(tx, root);
       });
     },

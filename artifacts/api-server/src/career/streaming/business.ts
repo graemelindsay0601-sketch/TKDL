@@ -55,3 +55,38 @@ export const platformOfferPence = (followers: number) => Math.max(PLATFORM.minPe
 
 const TIER_ORDER: TierKey[] = ["NEWCOMER", "AFFILIATE", "PARTNER", "STAR"];
 export const tierAtLeast = (tier: TierKey, min: TierKey) => TIER_ORDER.indexOf(tier) >= TIER_ORDER.indexOf(min);
+
+/**
+ * The sponsor ladder: one headline channel sponsor at a time, climbing from a local backer to a darts maker's signature
+ * range. Each rung pays a weekly fee for every week you go live with their name on screen (a quiet week simply isn't
+ * paid); see the run through and the next rung's brands come calling once your channel is big enough. Walking away early
+ * costs nothing, but the rung isn't banked. Finishing a rung wins fans for your darts career too (bigger rungs, more
+ * fans), and those fans count with darts sponsors as all your others do.
+ */
+export const SPONSOR_LADDER = [
+  { rung: 1, key: "LOCAL", name: "Local backer", minTier: "NEWCOMER" as TierKey, minFollowers: 100, weeks: 10, basePence: 1_500, perViewerPence: 10, fans: 25,
+    blurb: "A business round the corner puts its name on your stream.",
+    brands: [{ key: "double-top-kebabs", name: "Double Top Kebabs", what: "the late-night takeaway" }, { key: "bullseye-arms", name: "The Bullseye Arms", what: "your local pub" },
+      { key: "arrows-and-ale", name: "Arrows & Ale", what: "the darts shop down the road" }] },
+  { rung: 2, key: "REGIONAL", name: "Regional partner", minTier: "AFFILIATE" as TierKey, minFollowers: 500, weeks: 12, basePence: 5_000, perViewerPence: 25, fans: 75,
+    blurb: "A firm known across the region backs your channel.",
+    brands: [{ key: "gripline", name: "GripLine", what: "finger wax and grips" }, { key: "checkout-cabs", name: "Checkout Cabs", what: "a taxi firm" },
+      { key: "northern-oche-motors", name: "Northern Oche Motors", what: "a car dealership" }] },
+  { rung: 3, key: "NATIONAL", name: "National brand", minTier: "PARTNER" as TierKey, minFollowers: 0, weeks: 16, basePence: 15_000, perViewerPence: 50, fans: 250,
+    blurb: "A brand people know nationally: adverts, a logo on your shirt, a launch event.",
+    brands: [{ key: "oche-energy", name: "Oche Energy", what: "an energy drink" }, { key: "boardroom-gaming", name: "Boardroom Gaming", what: "gaming chairs" }] },
+  { rung: 4, key: "SIGNATURE", name: "Signature range", minTier: "STAR" as TierKey, minFollowers: 0, weeks: 20, basePence: 40_000, perViewerPence: 80, fans: 800,
+    blurb: "A darts maker launches a signature range with your name on it.",
+    brands: [{ key: "tungsten-toms", name: "Tungsten Tom's", what: "your signature barrels" }, { key: "flightdeck", name: "FlightDeck", what: "your signature flights and stems" }] },
+] as const;
+export const SPONSOR = Object.freeze({ offerWeeks: 3, retryWeeks: 4 });
+/** A rung's weekly fee, fixed when it's offered: a base plus your average audience, to the nearest pound. */
+export const sponsorWeeklyPence = (rung: number, averageViewers: number, manager: boolean) => {
+  const r = SPONSOR_LADDER[rung - 1];
+  return Math.round((r.basePence + Math.max(0, averageViewers) * r.perViewerPence) * (manager ? MANAGER_FEES : 1) / 100) * 100;
+};
+/** Which brand on the rung comes calling (the n-th sponsor offer). */
+export const sponsorBrand = (seed: string, rung: number, n: number) => {
+  const brands = SPONSOR_LADDER[rung - 1].brands;
+  return brands[Math.floor(scopedRandom(seed, STREAM.version, "stream-sponsor-brand", rung, n)() * brands.length)];
+};

@@ -97,6 +97,8 @@ export const useAnswerAffiliate = (saveId: string) => useSaveMutation(saveId, ({
   send<StreamingView>("POST", `/saves/${saveId}/streaming/affiliates/${id}`, { action }));
 export const useSetTeam = (saveId: string) => useSaveMutation(saveId, (input: { role: string; hire: boolean }) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/team`, input));
+export const useAnswerSponsor = (saveId: string) => useSaveMutation(saveId, ({ id, action }: { id: string; action: "ACCEPT" | "DECLINE" | "END" }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/sponsors/${id}`, { action }));
 export const useAnswerPlatform = (saveId: string) => useSaveMutation(saveId, (accept: boolean) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/platform`, { accept }));
 export const useAnswerStreamCampaign=(saveId:string)=>useSaveMutation(saveId,({campaignId,accept}:{campaignId:string;accept:boolean})=>
