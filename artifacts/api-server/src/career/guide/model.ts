@@ -135,7 +135,9 @@ export function buildGuide(g: GuideInput) {
   const localStage = stageCircuits.length > 0 && stageCircuits.every(c => LOCAL.includes(c));
   const countyStage = stageCircuits.length > 0 && stageCircuits.every(c => [...LOCAL, ...COUNTY, "VAULT"].includes(c));
   const bands = localStage ? ["LOCAL"] : countyStage || !["PROFESSIONAL_PATHWAY", "MAJOR_QUALIFICATION"].includes(g.focus) ? ["LOCAL", "DOMESTIC"] : Object.keys(BAND_RANK);
-  const spendCap = localStage ? Math.max(2_000, g.balancePence * 0.25) : g.balancePence * 0.6;
+  // Low on money (under £50): only free or very cheap nights, so the career never spends itself to nothing.
+  const spendCap = g.balancePence < 5_000 ? 500 : localStage ? Math.max(2_000, g.balancePence * 0.25) : g.balancePence * 0.6;
+  const sensibleTripLocal = (e: GuideEvent) => (e.finance?.travelBand ?? "LOCAL") === "LOCAL" && (e.finance?.estimatedPlayerCostPence ?? 0) <= Math.min(spendCap, 2_000);
   const sensibleTrip = (e: GuideEvent) => bands.includes(e.finance?.travelBand ?? "LOCAL") && (e.finance?.estimatedPlayerCostPence ?? 0) <= spendCap;
 
   // ---- today
@@ -188,7 +190,8 @@ export function buildGuide(g: GuideInput) {
     .filter(e => affordable(e) && sensibleTrip(e)).sort(sensible);
   // Make it pay: the best prize for the cost; every other path: the soonest event that fits.
   const pathPick = g.focus === "PRIZE_MONEY"
-    ? [...fitting].sort((a, b) => worth(b) - worth(a))[0]
+    ? [...fitting].filter(e => (e.finance?.estimatedPlayerCostPence ?? 0) === 0 || (e.finance?.topPrizePence ?? e.finance?.firstPrizePence ?? 0) >= 6 * (e.finance?.estimatedPlayerCostPence ?? 0))
+        .sort((a, b) => worth(b) - worth(a))[0]
     : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id)) ?? fitting[0];
   const suggest = (e: GuideEvent) => add({ key: `path:${e.id}`, tone: "soon", title: `Enter ${e.name}`, why: `${when(e)}${cost(e)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
     action: { label: "Enter", enterEventId: e.id, href: `${base}/events/${e.id}` } });
@@ -201,11 +204,20 @@ export function buildGuide(g: GuideInput) {
   }
   else if (currentDef && !currentDef.circuits.length) add({ key: "creator", tone: "soon", title: currentDef.title, why: currentDef.how, action: { label: "Open DartCast", href: `${base}/streaming` } });
   else if (currentDef) {
-    const blocked = g.events.filter(e => e.status !== "COMPLETED" && e.dates.startWeek >= week && currentDef.circuits.includes(e.circuit) && e.human?.eligible && !e.human.canEnter);
-    const broke = blocked.some(e => (e.human?.denials ?? []).includes("INSUFFICIENT_FUNDS"));
-    add({ key: "path-none", tone: "tip", title: broke ? "Raise some entry money" : `No ${currentDef.title.toLowerCase()} events open yet`,
-      why: broke ? `You have ${pounds(g.balancePence)}. Free local events, money matches and local nights cost little or nothing.` : `${currentDef.how} Entries open a few weeks before each event.`,
-      action: broke ? { label: "Local nights", href: `${base}/local` } : { label: "Calendar", href: `${base}/calendar` } });
+    // Nothing on your path you can enter now: say exactly why (cost, when entries open), and keep you playing locally.
+    const blocked = g.events.filter(e => e.status !== "COMPLETED" && e.status !== "CANCELLED" && e.dates.startWeek >= week && currentDef.circuits.includes(e.circuit)
+      && e.human?.eligible && !e.human.canEnter).sort((a, b) => a.dates.startDay - b.dates.startDay);
+    const next = blocked[0], nextCost = next?.finance?.estimatedPlayerCostPence ?? 0;
+    const opens = next && (next.human?.denials ?? []).includes("REGISTRATION_NOT_OPEN") ? next.registration?.opensWeek : undefined;
+    const short = next && nextCost > g.balancePence;
+    add({ key: "path-none", tone: "tip",
+      title: next ? `${next.name}: ${short ? "save up for it" : opens ? `entries open week ${opens}` : "not open to you yet"}` : `${currentDef.title}: nothing open yet`,
+      why: next ? `${when(next)}, about ${pounds(nextCost)} to play${short ? `. You have ${pounds(g.balancePence)}: local nights and money matches can make up the difference` : ""}.`
+        : `${currentDef.how} Entries open a few weeks before each event, so keep an eye on the calendar.`,
+      action: next ? { label: "Have a look", href: `${base}/events/${next.id}` } : { label: "Calendar", href: `${base}/calendar` } });
+    const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e)).sort(sensible)[0];
+    if (local) add({ key: `keep-playing:${local.id}`, tone: "soon", title: `Meanwhile: ${local.name}`, why: `${when(local)}${cost(local)}. Keeps your form up and can win you entry money.`,
+      action: { label: "Enter", enterEventId: local.id, href: `${base}/events/${local.id}` } });
   }
   if (!bookedThisWeek && phase === "START_OF_WEEK" && upcoming.some(e => e.dates.startWeek === week))
     add({ key: "plan", tone: "tip", title: "Plan this week", why: "Pick a night for each thing you want to do before you play on.", action: { label: "Plan it", href: `${base}#week-planner` } });

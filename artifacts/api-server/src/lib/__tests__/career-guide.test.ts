@@ -49,11 +49,11 @@ test("missed: an event on your path you were free for and didn't enter", () => {
   assert.deepEqual(g.missed.map(m => m.id), ["gone"]);
 });
 
-test("short of money: the guide says so and points to cheap nights", () => {
+test("short of money: the guide names what to save for and how", () => {
   const g = buildGuide(base({ balancePence: 0, events: [ev("x", "GRASSROOTS", 11, 1, { human: { canEnter: false, eligible: true, relationship: "AVAILABLE", denials: ["INSUFFICIENT_FUNDS"] } })] }));
   const tip = g.nextSteps.find(s => s.key === "path-none");
-  assert.equal(tip?.title, "Raise some entry money");
-  assert.equal(tip?.action.href, "/career/s/local");
+  assert.match(tip?.title ?? "", /save up for it/);
+  assert.match(tip?.why ?? "", /You have £0: local nights and money matches/);
 });
 
 test("the creator path runs on followers", () => {
@@ -103,4 +103,15 @@ test("no long trips or big spends at pub level, on any path; the creator's darts
   }
   const creator = buildGuide(base({ focus: "DARTCAST_CREATOR", events: [home] }));
   assert.ok(!creator.nextSteps.some(s => /fits your next step/.test(s.why)));
+});
+
+test("when the next step isn't open, the guide says when and keeps you playing locally", () => {
+  const facts = { careerStarted: true, titles: 4, bestFinishByCircuit: { GRASSROOTS: 1, COUNTY: 2, CHALLENGER: 9 }, qualifications: [], professionalStatus: "AMATEUR" as const, tourCard: false, worldRanking: null };
+  const qschool = ev("qs", "Q_SCHOOL", 12, 1, { finance: { estimatedPlayerCostPence: 45_000 }, registration: { opensWeek: 11, closesWeek: 12 },
+    human: { canEnter: false, eligible: true, relationship: "AVAILABLE", denials: ["REGISTRATION_NOT_OPEN"] } });
+  const g = buildGuide(base({ facts, events: [qschool, ev("pub", "GRASSROOTS", 10, 5, { finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } })] }));
+  assert.equal(g.path.current?.key, "tour-card");
+  const tip = g.nextSteps.find(s => s.key === "path-none");
+  assert.match(tip?.title ?? "", /entries open week 11|save up/);
+  assert.ok(g.nextSteps.some(s => s.action.enterEventId === "pub"), "keeps playing locally meanwhile");
 });
