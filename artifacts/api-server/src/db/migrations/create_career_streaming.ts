@@ -105,4 +105,18 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     season integer NOT NULL, award text NOT NULL, name text NOT NULL, winner text NOT NULL, nominees jsonb NOT NULL DEFAULT '[]'::jsonb,
     you_nominated boolean NOT NULL DEFAULT false, you_won boolean NOT NULL DEFAULT false, followers integer NOT NULL DEFAULT 0, fans integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY(career_save_id, season, award))`);
+  // Content: VOD views after a stream, Shorts cut from clips, the weekly podcast, and the studio sets you've built.
+  await tx.execute(sql`ALTER TABLE career_streams ADD COLUMN IF NOT EXISTS vod_views integer NOT NULL DEFAULT 0`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS sets jsonb NOT NULL DEFAULT '[]'::jsonb`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_shorts (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, clip_id uuid NOT NULL, season integer NOT NULL, week integer NOT NULL, kind text NOT NULL, title text NOT NULL,
+    boosted boolean NOT NULL DEFAULT false, status text NOT NULL DEFAULT 'NEW' CHECK (status IN ('NEW','SETTLED')),
+    views integer NOT NULL DEFAULT 0, followers integer NOT NULL DEFAULT 0, pence integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, clip_id))`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_podcasts (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    season integer NOT NULL, week integer NOT NULL, guest_key text NOT NULL, guest_handle text NOT NULL, topic text NOT NULL,
+    listeners integer NOT NULL, followers integer NOT NULL, sponsor_pence integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, season, week))`);
 }

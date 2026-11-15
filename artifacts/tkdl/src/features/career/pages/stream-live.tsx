@@ -90,6 +90,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
     : inv ? <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>DartCast Invitational · {ROUND_NAMES[session.round]} · first to 2 · they average about {session.challenger.avg}</small></>
     : <><b>{session.handle}</b> vs <b>{session.challenger.name}</b> <small>first to 2 · they average about {session.challenger.avg}</small></>;
   const headline = drill ? (session.result === "WON" ? `${session.formatName}: done it!` : session.result === "LOST" ? `${session.formatName}: not this time` : "Stream ended")
+    : session.streamFormat === "WATCHALONG" ? `Watch-along: ${session.challenger.name}`
     : session.streamFormat === "SUBATHON" || session.streamFormat === "MARATHON" ? `${session.formatName}: ${cupWins} of ${session.rounds.length} legs won${t.ov?.marathon?.targetHit ? ", target smashed!" : ""}`
     : cupNight ? (cupWins >= cupRounds ? "Creator Cup champion! 🏆" : `Out in the ${cupRound(cupWins).toLowerCase()}`)
     : inv ? (invWins >= 3 ? "DartCast Invitational champion!" : `Out in the ${ROUND_NAMES[Math.min(2, invWins)].toLowerCase()}`)

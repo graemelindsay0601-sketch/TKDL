@@ -8,6 +8,7 @@ import { dayLabel, formatPence } from "../model";
 import type { ShellContext } from "../shell";
 import { CommunitySection, SceneSection } from "./stream-community";
 import { BigNightsSection, CupsSection } from "./stream-cups";
+import { ContentSection } from "./stream-content";
 import "./streaming.css";
 
 function StreamFormatIcon({ format }: { format: StreamFormat }) {
@@ -84,6 +85,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             <a href="#audience"><Users aria-hidden /> Audience &amp; income</a>
             <a href="#cups"><Trophy aria-hidden /> Cups</a>
             <a href="#big-nights"><Sparkles aria-hidden /> Big nights</a>
+            <a href="#content"><Clapperboard aria-hidden /> Content</a>
             <a href="#community"><HeartHandshake aria-hidden /> Community</a>
             <a href="#scene"><Sparkles aria-hidden /> The scene</a>
             <a href="#vault"><Clapperboard aria-hidden /> Production vault</a>
@@ -268,6 +270,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
           <BigNightsSection d={d} night={pick} canGo={canGo} busy={live.isPending}
             onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
+          <ContentSection saveId={id} d={d} night={pick} canGo={canGo} retired={retired} onWatched={sid => navigate(`/career/${id}/streaming/${sid}`)} />
           <CommunitySection saveId={id} d={d} retired={retired} />
           <SceneSection d={d} />
           <section className="growth-map">

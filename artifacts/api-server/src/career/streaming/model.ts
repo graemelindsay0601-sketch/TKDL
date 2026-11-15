@@ -284,7 +284,7 @@ const SERIES_COLLAB_FIT: Record<CreatorSeriesKey, readonly string[]> = {
 export const creatorSeriesCollabFit = (seriesKey: string | null, streamerKey: string) =>
   !!seriesKey && !!SERIES_COLLAB_FIT[seriesKey as CreatorSeriesKey]?.includes(streamerKey);
 /** The formats on the picker, plus a collab (picked from the streamers list), the DartCast Invitational and a real match streamed from an event. */
-export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH" | "CUP" | "CELEBRATION" | "SUBATHON" | "MARATHON";
+export type StreamFormat = typeof FORMATS[number]["key"] | "COLLAB" | "INVITATIONAL" | "MATCH" | "CUP" | "CELEBRATION" | "SUBATHON" | "MARATHON" | "WATCHALONG";
 /** Streams that are extra to your stream nights (a real match streamed from an event, a Creator Cup). */
 export const EXTRA_FORMATS = ["MATCH", "CUP"] as const;
 /** Stream nights a week: three, or five for a full-time creator. */
@@ -300,6 +300,7 @@ const SPECIAL_FORMATS = {
   CUP: { key: "CUP", name: "Creator Cup", blurb: "A one-night knockout against creators your size. Extra to your stream nights.", crowd: 1.6 },
   SUBATHON: { key: "SUBATHON", name: "Subathon", blurb: "Once a season: game after game against viewers on a timer. Support adds time and unlocks goals.", crowd: 1.35 },
   MARATHON: { key: "MARATHON", name: "Charity Marathon", blurb: "Once a season: a timed marathon where every cheer goes to the cause, with creators chipping in.", crowd: 1.35 },
+  WATCHALONG: { key: "WATCHALONG", name: "Watch-along", blurb: "Co-stream a televised event: no darts, a big room reacting to the real results.", crowd: 1.4 },
   CELEBRATION: { key: "CELEBRATION", name: "Celebration stream", blurb: "You hit a follower milestone: a party stream, a big crowd and a trophy for the channel.", crowd: 1.6 },
 } as const;
 export const formatByKey = (key: string) => (SPECIAL_FORMATS as Record<string, typeof FORMATS[number] | typeof SPECIAL_FORMATS[keyof typeof SPECIAL_FORMATS]>)[key] ?? FORMATS.find(f => f.key === key) ?? FORMATS[0];
