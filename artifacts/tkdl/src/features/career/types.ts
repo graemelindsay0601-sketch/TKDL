@@ -73,6 +73,8 @@ export type CareerEvent = {
 export type EventStatus = "SCHEDULED" | "REGISTRATION_OPEN" | "REGISTRATION_CLOSED" | "DRAW_PENDING" | "DRAWN" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export type PresentationTier = "LOCAL" | "STANDARD" | "FEATURED" | "TELEVISED" | "MAJOR" | "WORLD";
 export type CalendarOverview = {
+  /** Where you are in the week: mid-week means the rest of the week has been played and your event is waiting. */
+  today?: { week: number; dayOfWeek: number; phase: "START_OF_WEEK" | "MID_WEEK" };
   season: number; week: number; grouping: { key: string; name: string; fromWeek: number; toWeek: number };
   groupings: { key: string; name: string; fromWeek: number; toWeek: number }[]; status: string; playedWeek: number; instanceCount: number;
   pendingHumanMatches: { matchId: string; eventId: string }[];

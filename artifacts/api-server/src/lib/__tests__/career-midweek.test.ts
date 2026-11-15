@@ -127,3 +127,18 @@ test("midweek nights draw a proper turnout (11 to 16 players)", async () => {
   const average = played.reduce((a, b) => a + b, 0) / played.length;
   assert.ok(average >= 11, `average turnout ${average.toFixed(1)}`);
 });
+
+test("events whose entry window has begun open on the next calendar read (saves upgraded before this was fixed)", async () => {
+  await db.execute(sql`INSERT INTO players VALUES (2) ON CONFLICT DO NOTHING`);
+  const other = { playerId: 2 };
+  const id = (await saves.create(2, { slot: 1, careerName: "Window", dateOfBirth: "1996-06-15" })).id;
+  await career.initialize(other, id);
+  const stuck = (await db.execute(sql`SELECT id, registration_opens_week FROM career_event_instances WHERE career_save_id = ${id} AND season = 1
+    AND status = 'SCHEDULED' ORDER BY registration_opens_week LIMIT 1`)).rows[0] as { id: string; registration_opens_week: number };
+  assert.ok(stuck, "a scheduled event exists");
+  // The save moves past the event's opening week without the usual advance opening it (what a mid-season catalogue upgrade left behind).
+  await db.execute(sql`UPDATE career_saves SET current_week = ${Number(stuck.registration_opens_week)} WHERE id = ${id}`);
+  await career.calendar.calendar(other, id, {});
+  const status = (await db.execute(sql`SELECT status FROM career_event_instances WHERE id = ${stuck.id}`)).rows[0].status;
+  assert.equal(status, "REGISTRATION_OPEN");
+});

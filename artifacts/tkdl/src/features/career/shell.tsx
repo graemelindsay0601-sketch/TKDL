@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, useStreaming, errorMessage, errorStatus } from "./api";
 import { UNLOCKS, useUnlocks, type UnlockKey } from "./unlocks";
 import { useInboxFresh } from "./inbox";
-import { CAREER_NAV, dayLabel, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
+import { CAREER_NAV, dayLabel, dayName, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
 import { CareerShirt } from "./identity";
@@ -144,7 +144,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
               {save.careerName ?? "My Career"}
             </h1>
             <div className="text-xs mt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em" }}>
-              {weekLabel(save.currentSeason, save.currentWeek)}<span className="career-hero__extra">{overview ? ` · ${overview.grouping.name}` : ""}</span><HeaderAge saveId={save.id} />
+              {weekLabel(save.currentSeason, save.currentWeek)}{overview?.today?.week === save.currentWeek ? <> · <b className="career-hero__day" title={overview.today.phase === "MID_WEEK" ? "The rest of this week has been played; your event is waiting" : "The start of the week: nothing played yet"}>{dayName(overview.today.dayOfWeek)}</b></> : null}<span className="career-hero__extra">{overview ? ` · ${overview.grouping.name}` : ""}</span><HeaderAge saveId={save.id} />
             </div>
           </div>
         </div>
@@ -212,6 +212,7 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
       {nextEntry && !go.pending && <span className="text-xs sm:text-right sm:max-w-[16rem]" style={{ color: "rgba(255,255,255,0.62)" }}>Booked: {nextEntry.name} · wk {nextEntry.week}</span>}
       {(seasonReview.error||tournament.error)&&<CareerError error={seasonReview.error||tournament.error} onRetry={()=>{void seasonReview.refetch();void tournament.refetch();}}/>}
       {go.pending && <ContinueProgress saveId={save.id} from={go.from} toEvent={nextEntry} />}
+      {go.dialog}
       {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
     </div>
   );
