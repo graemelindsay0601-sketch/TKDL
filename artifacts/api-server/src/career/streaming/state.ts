@@ -6,6 +6,7 @@ import { CLIP_OF_WEEK, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutco
 import { settleCommunity } from "./community.ts";
 import { holdAwards } from "./awards.ts";
 import { CONTENT, shortOutcome, vodPence, vodViews } from "./content.ts";
+import { AFFILIATE, EDITOR_SHORT, EDITOR_VOD, MANAGER_FEES, MERCH, PLATFORM, TEAM, affiliateBrand, affiliatePayout, merchSales, platformOfferPence, tierAtLeast, type TeamRole } from "./business.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
@@ -35,7 +36,7 @@ type Root = { id: string; world_seed: string };
  */
 export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season: number, week: number) {
   if (!await ready(tx)) return;
-  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through, sub_goal FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
+  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through, sub_goal, team, platform, emotes FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
   if (!ch) return;
   const month = `${season}:${week}`;
   // The month's sub goal: hit it and the buzz wins followers; either way it's settled once.
@@ -63,7 +64,9 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
     if (o.followers) { await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${o.followers} WHERE career_save_id=${root.id}`); ch.followers = Number(ch.followers) + o.followers; }
   }
   // VODs: every stream keeps earning views for a few weeks (paid at the ad rate); Shorts run and settle.
-  await settleContent(tx, root, season, week, Number(ch.followers));
+  const team = (ch.team as string[] | null) ?? [];
+  await settleContent(tx, root, season, week, Number(ch.followers), team.includes("EDITOR"));
+  await settleBusiness(tx, root, season, week, ch);
   // Clip of the Week: DartCast's weekly vote. Your best clip of the week is in it; win and the spotlight brings followers.
   const already = (await tx.execute(sql`SELECT 1 FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND clip_of_week LIMIT 1`)).rows.length > 0;
   const best = already ? undefined : (await tx.execute(sql`SELECT id, status, views FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week}
@@ -130,7 +133,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
         ["CHALLENGER","KING","CHECKOUTS","BOBS_27","SCORING"] as const;
       const requiredFormat=formats[Math.floor(rng()*formats.length)]!;
       const profile=brand.terms.commercialProfile;
-      const payout=Math.min(100_000,Math.max(5_000,dealFee(averageViewers)*4));
+      const payout=Math.round(Math.min(100_000,Math.max(5_000,dealFee(averageViewers)*4))*(team.includes("MANAGER")?MANAGER_FEES:1));
       const id=stableUuid(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",root.id,season,campaignMonth);
       const brief=`${series?`For your ${series.name} series, `:""}showcase ${profile?.benefitFocus.toLowerCase()??"the brand"} and tell viewers why ${brand.terms.displayName} backs your channel.`;
       await tx.execute(sql`INSERT INTO career_stream_campaigns
@@ -146,7 +149,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   const brand = brandFor(root.world_seed, season, thisSeason);
   await tx.execute(sql`INSERT INTO career_stream_deals (career_save_id, id, season, offered_week, expires_week, brand_key, brand_name, per_stream_pence, streams_total, status)
     VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-deal", root.id, season, thisSeason)}, ${season}, ${week}, ${week + STREAM_MONEY.dealOfferWeeks},
-      ${brand.key}, ${brand.name}, ${dealFee(averageViewers)}, ${STREAM_MONEY.dealStreams}, 'OFFERED') ON CONFLICT DO NOTHING`);
+      ${brand.key}, ${brand.name}, ${Math.round(dealFee(averageViewers) * (team.includes("MANAGER") ? MANAGER_FEES : 1))}, ${STREAM_MONEY.dealStreams}, 'OFFERED') ON CONFLICT DO NOTHING`);
 }
 /** New subs from streams that ended in this month's weeks. */
 export async function subsThisMonth(tx: CareerExecutor, saveId: string, season: number, month: number) {
@@ -157,13 +160,13 @@ export async function subsThisMonth(tx: CareerExecutor, saveId: string, season: 
 
 
 /** The week's VOD views and Shorts: views, a few followers and a little money. Settled once per week. */
-async function settleContent(tx: CareerExecutor, root: Root, season: number, week: number, followers: number) {
+async function settleContent(tx: CareerExecutor, root: Root, season: number, week: number, followers: number, editor = false) {
   const abs = (season - 1) * 52 + week;
   let views = 0, gained = 0;
   for (const r of (await tx.execute(sql`SELECT id, season, week, processed_visits, tally FROM career_streams WHERE career_save_id=${root.id} AND status='ENDED'
       AND ((season-1)*52 + week) BETWEEN ${abs - CONTENT.vodWeeks} AND ${abs - 1}`)).rows) {
     const after = abs - ((Number(r.season) - 1) * 52 + Number(r.week));
-    const v = vodViews(Number((r.tally as { peak?: number }).peak ?? 0), Number(r.processed_visits ?? 0), after);
+    const v = Math.round(vodViews(Number((r.tally as { peak?: number }).peak ?? 0), Number(r.processed_visits ?? 0), after) * (editor ? EDITOR_VOD : 1));
     if (!v) continue;
     // Each stream's VOD week is counted once: the views are stored as they accrue, keyed by how many weeks have been paid.
     const done = (await tx.execute(sql`UPDATE career_streams SET vod_views = vod_views + ${v}::int,
@@ -176,7 +179,9 @@ async function settleContent(tx: CareerExecutor, root: Root, season: number, wee
     reason: `DartCast VODs: ${views.toLocaleString("en-GB")} views this week`, season, week, detail: { views } });
   for (const sh of (await tx.execute(sql`SELECT id, kind, boosted FROM career_stream_shorts WHERE career_save_id=${root.id} AND status='NEW'
       AND (season < ${season} OR week <= ${week})`)).rows) {
-    const o = shortOutcome(root.world_seed, String(sh.id), sh.kind as never, followers, sh.boosted === true);
+    const raw = shortOutcome(root.world_seed, String(sh.id), sh.kind as never, followers, sh.boosted === true);
+    const views = Math.round(raw.views * (editor ? EDITOR_SHORT : 1));
+    const o = { views, followers: Math.round(raw.followers * views / Math.max(1, raw.views)), pence: Math.floor(raw.pence * views / Math.max(1, raw.views)) };
     const settled = (await tx.execute(sql`UPDATE career_stream_shorts SET status='SETTLED', views=${o.views}, followers=${o.followers}, pence=${o.pence}
       WHERE career_save_id=${root.id} AND id=${String(sh.id)} AND status='NEW' RETURNING 1`)).rows.length > 0;
     if (!settled) continue;
@@ -185,4 +190,62 @@ async function settleContent(tx: CareerExecutor, root: Root, season: number, wee
       reason: `DartCast Short: ${o.views.toLocaleString("en-GB")} views`, season, week, detail: { shortId: String(sh.id), views: o.views } });
   }
   if (gained) await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${gained}::int WHERE career_save_id=${root.id}`);
+}
+
+/** Business, weekly: merch sells, the team is paid, affiliate codes are offered and pay monthly, the platform comes calling. */
+async function settleBusiness(tx: CareerExecutor, root: Root, season: number, week: number, ch: Record<string, unknown>) {
+  const abs = (season - 1) * 52 + week, followers = Number(ch.followers), tier = tierFor(followers).key;
+  const team = (ch.team as string[] | null) ?? [];
+  // Merch: each drop sells for a few weeks after it's made (once per week of sale).
+  const loyal = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_regulars WHERE career_save_id=${root.id} AND status='ACTIVE' AND loyalty >= 50`)).rows[0]?.n ?? 0);
+  const emotes = ((ch.emotes as (string | null)[] | null) ?? []).filter(Boolean).length;
+  for (const d of (await tx.execute(sql`SELECT * FROM career_stream_merch WHERE career_save_id=${root.id} AND sold < units AND weeks_paid < ${MERCH.weeks}`)).rows) {
+    const weekOfDrop = abs - ((Number(d.season) - 1) * 52 + Number(d.week)) + 1;
+    if (weekOfDrop <= Number(d.weeks_paid)) continue;
+    const sold = merchSales(root.world_seed, String(d.id), weekOfDrop, d.item as never, followers, loyal, emotes, Number(d.units) - Number(d.sold));
+    const pence = sold * Number(d.price_pence);
+    const done = (await tx.execute(sql`UPDATE career_stream_merch SET sold = sold + ${sold}::int, revenue_pence = revenue_pence + ${pence}::int, weeks_paid = ${weekOfDrop}::int
+      WHERE career_save_id=${root.id} AND id=${String(d.id)} AND weeks_paid < ${weekOfDrop}::int RETURNING 1`)).rows.length > 0;
+    if (done && pence > 0) await post(tx, root, { operationKey: `stream-merch:${d.id}:${weekOfDrop}`, category: "STREAM_INCOME", amountPence: pence,
+      reason: `DartCast merch: ${sold} sold`, season, week, detail: { dropId: String(d.id), sold } });
+  }
+  // Wages for the team you've hired.
+  for (const role of team as TeamRole[]) {
+    const def = TEAM[role];
+    if (def) await post(tx, root, { operationKey: `adjustment:stream-wage:${role}:${season}:${week}`, category: "ADJUSTMENT", headline: "EXPENSE", amountPence: -def.wagePence,
+      reason: `DartCast ${def.name.toLowerCase()} wage`, season, week, detail: { type: "DARTCAST_TEAM_WAGE", role } });
+  }
+  // Affiliate codes: an offer every few weeks from Affiliate; an active code pays at each month's end; offers lapse after two weeks.
+  await tx.execute(sql`UPDATE career_stream_affiliates SET status='EXPIRED' WHERE career_save_id=${root.id} AND status='OFFERED' AND ((season-1)*52 + week) <= ${abs - 2}`);
+  if (tierAtLeast(tier, AFFILIATE.minTier) && week % AFFILIATE.offerEveryWeeks === 0) {
+    const open = (await tx.execute(sql`SELECT 1 FROM career_stream_affiliates WHERE career_save_id=${root.id} AND status IN ('OFFERED','ACTIVE') LIMIT 1`)).rows.length > 0;
+    if (!open) {
+      const n = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_affiliates WHERE career_save_id=${root.id}`)).rows[0]?.n ?? 0);
+      const brand = affiliateBrand(root.world_seed, n);
+      await tx.execute(sql`INSERT INTO career_stream_affiliates (career_save_id, id, n, brand_key, brand_name, season, week, status)
+        VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-affiliate", root.id, n)}, ${n}, ${brand.key}, ${brand.name}, ${season}, ${week}, 'OFFERED') ON CONFLICT DO NOTHING`);
+    }
+  }
+  if (week % STREAM_MONEY.monthWeeks === 0) {
+    const active = (await tx.execute(sql`SELECT * FROM career_stream_affiliates WHERE career_save_id=${root.id} AND status='ACTIVE'`)).rows[0];
+    if (active) {
+      const streamed = new Set((await tx.execute(sql`SELECT week FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND status='ENDED'
+        AND week BETWEEN ${week - STREAM_MONEY.monthWeeks + 1} AND ${week}`)).rows.map(r => Number(r.week))).size;
+      const pay = affiliatePayout(root.world_seed, `${active.id}:${season}:${week}`, followers, streamed, team.includes("MANAGER"));
+      const opKey = `stream-affiliate:${active.id}:${season}:${week}`;
+      const already = (await tx.execute(sql`SELECT 1 FROM career_finance_entries WHERE career_save_id=${root.id} AND operation_key=${opKey} LIMIT 1`)).rows.length > 0;
+      if (pay > 0 && !already) {
+        await post(tx, root, { operationKey: opKey, category: "STREAM_INCOME", amountPence: pay,
+          reason: `${active.brand_name} affiliate code: this month's sales`, season, week, detail: { affiliateId: String(active.id) } });
+        await tx.execute(sql`UPDATE career_stream_affiliates SET paid_pence = paid_pence + ${pay}::int WHERE career_save_id=${root.id} AND id=${String(active.id)}`);
+      }
+    }
+  }
+  // The platform offer: a Star gets one in week 20 each season (unless already exclusive).
+  const p = ch.platform as { status?: string; season?: number } | null;
+  if (tier === "STAR" && week === PLATFORM.offerWeek && p?.season !== season)
+    await tx.execute(sql`UPDATE career_stream_channels SET platform=${JSON.stringify({ status: "OFFERED", season, offerPence: platformOfferPence(followers) })}::jsonb
+      WHERE career_save_id=${root.id}`);
+  if (p?.status === "OFFERED" && p.season === season && week > PLATFORM.offerWeek + 2)
+    await tx.execute(sql`UPDATE career_stream_channels SET platform = platform || '{"status":"DECLINED"}'::jsonb WHERE career_save_id=${root.id}`);
 }
