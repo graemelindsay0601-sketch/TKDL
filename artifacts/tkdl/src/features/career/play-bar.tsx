@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, Menu, X, Gamepad2, House, BookOpen, CalendarDays, Map as MapIcon, ListOrdered, Users, Trophy, Landmark, ScrollText, LayoutGrid, Activity, Medal, Sparkles, Briefcase, Coins, Target, GraduationCap, Moon, Shield, Car, Star, Video, Radio, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Menu, X, Gamepad2, House, BookOpen, CalendarDays, Map as MapIcon, ListOrdered, Users, Trophy, Landmark, ScrollText, LayoutGrid, Activity, Medal, Sparkles, Briefcase, Coins, Target, GraduationCap, Moon, Shield, Car, Star, Video, Radio, LogOut, HeartPulse, Search, Inbox, Beer, type LucideIcon } from "lucide-react";
 import { useFinance, usePresentation } from "./api";
 import { CareerShirt } from "./identity";
 import { FormBadge } from "./quick-sim";
@@ -35,14 +35,14 @@ export function PlayBar({ save }: { save: CareerSave }) {
 
 type Tile = { label: string; sub: string; path: string; accent: string; plate: PlateKey; icon: LucideIcon };
 const TILES: Tile[] = [
-  { label: "Play", sub: "Your next move", path: "/play", accent: "#ffd24a", plate: "small-arena", icon: Gamepad2 },
-  { label: "Career HQ", sub: "Goals, route, schedule", path: "", accent: "#ff3d7f", plate: "pub-club", icon: House },
+  { label: "Today", sub: "Your guide and this week", path: "", accent: "#ff3d7f", plate: "pub-club", icon: House },
+  { label: "Inbox", sub: "What's new", path: "/inbox", accent: "#ffd24a", plate: "small-arena", icon: Inbox },
   { label: "Calendar", sub: "Every event", path: "/calendar", accent: "#ffb547", plate: "professional-floor", icon: CalendarDays },
   { label: "Map", sub: "Events near you", path: "/map", accent: "#4fc3f7", plate: "conference", icon: MapIcon },
 ];
 const ICONS: Record<string, LucideIcon> = {
   rankings: ListOrdered, players: Users, "world-events": Trophy, venues: Landmark, "world-history": ScrollText,
-  nights: Moon, club: Shield, "money-matches": Coins, "road-trips": Car, "pro-am": Star, "cam-league": Video, streaming: Radio,
+  nights: Moon, local: Beer, inbox: Inbox, details: LayoutGrid, club: Shield, "money-matches": Coins, "road-trips": Car, "pro-am": Star, "cam-league": Video, streaming: Radio,
   overview: LayoutGrid, performance: Activity, achievements: Medal, "career-life": Sparkles, history: BookOpen, sponsors: Briefcase,
 };
 const ACCENT: Record<string, string> = { NIGHTS: "#e08a5b", DARTS_WORLD: "#5ee39b", MY_CAREER: "#c99bff" };
@@ -86,8 +86,13 @@ export function CareerMenu({ save, onClose }: { save: CareerSave; onClose: () =>
           <Link href={`${base}/finances`} onClick={onClose} aria-current={here("/finances")}><Coins aria-hidden /> Finances</Link>
           <Link href={`${base}/goals`} onClick={onClose} aria-current={here("/goals")}><Target aria-hidden /> Goals</Link>
           <Link href={`${base}/q-school`} onClick={onClose} aria-current={here("/q-school")}><GraduationCap aria-hidden /> Q-School</Link>
-          <Link href={`${base}/guide`} onClick={onClose} aria-current={here("/guide")}><BookOpen aria-hidden /> Career Guide</Link>
         </div>
+        <div className="career-menu__group"><span>Help</span>
+          <Link href={`${base}/guide`} onClick={onClose} aria-current={here("/guide")}><BookOpen aria-hidden /> How darts careers work</Link>
+          <Link href={`${base}/world/search`} onClick={onClose} aria-current={here("/world/search")}><Search aria-hidden /> Search the darts world</Link>
+          <Link href={`${base}/health`} onClick={onClose} aria-current={here("/health")}><HeartPulse aria-hidden /> Save health</Link>
+        </div>
+        <Link href="/career" onClick={onClose} className="career-menu__exit"><LogOut aria-hidden /> Exit Career (back to your saves)</Link>
       </nav>
     </div>, document.body);
 }

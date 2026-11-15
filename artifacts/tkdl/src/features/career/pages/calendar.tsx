@@ -259,15 +259,15 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const [view, setView] = useState<View>("UPCOMING");
   const [page, setPage] = useState(0);
   const [circuit, setCircuit] = useState("");
-  const [groupBy, setGroupBy] = useState<"COUNTRY" | "PHASE">("COUNTRY");
+  const [groupBy, setGroupBy] = useState<"COUNTRY" | "PHASE">("PHASE");
   const [hostCountry, setHostCountry] = useState("");
   const homeLocality = useCareerProfile(save.id).data?.homeLocality ?? null;
   const homeCountry = homeCountryOf(homeLocality);
-  // Season 1 also starts near home: your own area's local events plus the big ones (other towns' club nights are one tap away).
-  const [nearby, setNearby] = useState(save.currentSeason === 1 && !retired);
+  // Every season starts near home: your own area's local events plus the big ones (other towns' club nights are one tap away).
+  const [nearby, setNearby] = useState(!retired);
   const [tier, setTier] = useState("");
-  // A first-season calendar opens on what you can enter now; everything else is one tap away.
-  const [status, setStatus] = useState(save.currentSeason === 1 && !retired ? "OPEN" : "ALL");
+  // The calendar opens on what you can enter now; everything else is one tap away.
+  const [status, setStatus] = useState(!retired ? "OPEN" : "ALL");
   const [season, setSeason] = useState(save.currentSeason);
   const [focusWeek, setFocusWeek] = useState(save.currentWeek);
   const [selectedId, setSelectedId] = useState<string | null>(null);

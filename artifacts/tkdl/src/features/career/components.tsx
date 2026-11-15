@@ -3,7 +3,7 @@ import { type ReactNode, useState, useId } from "react";
 import { Link } from "wouter";
 import { AlertCircle, ChevronRight, Inbox, Loader2, RotateCcw } from "lucide-react";
 import type { CareerEvent } from "./types";
-import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, eventCircuitLabel, movementLabel, formatPence, isJuniorEvent, worthIt, titleCase, qualificationStakeLines } from "./model";
+import { TONES, type Tone, country, eventDateLabel, eventStatus, primaryAction, tierStyle, circuitLabel, eventCircuitLabel, movementLabel, formatPence, isJuniorEvent, worthIt, titleCase, qualificationStakeLines, denialLabel } from "./model";
 import { errorMessage } from "./api";
 import {CareerEventIdentity} from "./identity";
 
@@ -154,6 +154,10 @@ export function CareerEventCard({ event, saveId, awaitingMatch, retired, onEnter
         <CareerEventStakes event={event} compact />
         {event.human?.streamInvite && !event.human.result && <div className="career-manager-invite mt-0.5 text-xs">Invitation as a DartCast Star · no one takes a cut</div>}
         {event.human?.managerInvite && !event.human.result && <div className="career-manager-invite mt-0.5 text-xs">Invitation through {event.human.managerInvite.name} · they take {Math.round(event.human.managerInvite.commission * 100)}% of any prize money</div>}
+        {/* Why you can't enter, in plain words (only when it's still in the future and you're not already in). */}
+        {event.human && !event.human.canEnter && !["COMPLETED", "CANCELLED"].includes(event.status) && !["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED"].includes(event.human.relationship)
+          && (event.human.denials ?? []).filter(d => d !== "ALREADY_ENTERED").length > 0
+          && <div className="career-why-not mt-0.5 text-xs">Can't enter: {[...new Set((event.human.denials ?? []).filter(d => d !== "ALREADY_ENTERED").map(denialLabel))].slice(0, 2).join(" · ")}{(event.human.denials ?? []).includes("REGISTRATION_NOT_OPEN") && event.registration?.opensWeek ? ` (opens week ${event.registration.opensWeek})` : ""}</div>}
       </Link>
       <div className={`shrink-0 flex items-center ${action.kind === "ENTER" && onEnter ? "w-full sm:w-auto pl-[4.25rem] sm:pl-0" : ""}`}>
         {action.kind === "ENTER" && onEnter ? (

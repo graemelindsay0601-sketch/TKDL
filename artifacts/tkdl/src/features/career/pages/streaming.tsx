@@ -41,6 +41,11 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const [goalTarget, setGoalTarget] = useState<number | null>(null);
   const [promise, setPromise] = useState<string | null>(null);
   const [studioMessage,setStudioMessage]=useState("");
+  // One studio area at a time (it was one very long page): the tab follows the link you arrived by (#business, #cups...).
+  const tabFor = (hash: string) => ({ "control-room": "overview", "go-live": "overview", programming: "programming", audience: "audience", cups: "cups",
+    "big-nights": "big-nights", content: "content", business: "business", community: "community", scene: "scene", vault: "vault" } as Record<string, string>)[hash.replace(/^#/, "")] ?? "overview";
+  const [tab, setTab] = useState(() => tabFor(params.get("tab") ?? (typeof window === "undefined" ? "" : window.location.hash)));
+  useEffect(() => { const on = () => setTab(tabFor(window.location.hash)); window.addEventListener("hashchange", on); return () => window.removeEventListener("hashchange", on); }, []);
   const [, navigate] = useLocation();
   const requestedDayValue = params.get("day");
   const requestedDay = requestedDayValue === null ? null : Number(requestedDayValue);
@@ -83,16 +88,16 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
       <div className="studio-shell" id="studio-home">
         <div className="studio-content">
           <nav className="studio-nav" aria-label="Creator studio sections">
-            <a href="#control-room" className="is-current"><SlidersHorizontal aria-hidden /> Overview</a>
-            <a href="#programming"><Radio aria-hidden /> Programming</a>
-            <a href="#audience"><Users aria-hidden /> Audience &amp; income</a>
-            <a href="#cups"><Trophy aria-hidden /> Cups</a>
-            <a href="#big-nights"><Sparkles aria-hidden /> Big nights</a>
-            <a href="#content"><Clapperboard aria-hidden /> Content</a>
-            <a href="#business"><CircleDollarSign aria-hidden /> Business</a>
-            <a href="#community"><HeartHandshake aria-hidden /> Community</a>
-            <a href="#scene"><Sparkles aria-hidden /> The scene</a>
-            <a href="#vault"><Clapperboard aria-hidden /> Production vault</a>
+            <a href="#control-room" className={tab === "overview" ? "is-current" : undefined} aria-current={tab === "overview" ? "page" : undefined} onClick={() => setTab("overview")}><SlidersHorizontal aria-hidden /> Overview</a>
+            <a href="#programming" className={tab === "programming" ? "is-current" : undefined} aria-current={tab === "programming" ? "page" : undefined} onClick={() => setTab("programming")}><Radio aria-hidden /> Programming</a>
+            <a href="#audience" className={tab === "audience" ? "is-current" : undefined} aria-current={tab === "audience" ? "page" : undefined} onClick={() => setTab("audience")}><Users aria-hidden /> Audience &amp; income</a>
+            <a href="#cups" className={tab === "cups" ? "is-current" : undefined} aria-current={tab === "cups" ? "page" : undefined} onClick={() => setTab("cups")}><Trophy aria-hidden /> Cups</a>
+            <a href="#big-nights" className={tab === "big-nights" ? "is-current" : undefined} aria-current={tab === "big-nights" ? "page" : undefined} onClick={() => setTab("big-nights")}><Sparkles aria-hidden /> Big nights</a>
+            <a href="#content" className={tab === "content" ? "is-current" : undefined} aria-current={tab === "content" ? "page" : undefined} onClick={() => setTab("content")}><Clapperboard aria-hidden /> Content</a>
+            <a href="#business" className={tab === "business" ? "is-current" : undefined} aria-current={tab === "business" ? "page" : undefined} onClick={() => setTab("business")}><CircleDollarSign aria-hidden /> Business</a>
+            <a href="#community" className={tab === "community" ? "is-current" : undefined} aria-current={tab === "community" ? "page" : undefined} onClick={() => setTab("community")}><HeartHandshake aria-hidden /> Community</a>
+            <a href="#scene" className={tab === "scene" ? "is-current" : undefined} aria-current={tab === "scene" ? "page" : undefined} onClick={() => setTab("scene")}><Sparkles aria-hidden /> The scene</a>
+            <a href="#vault" className={tab === "vault" ? "is-current" : undefined} aria-current={tab === "vault" ? "page" : undefined} onClick={() => setTab("vault")}><Clapperboard aria-hidden /> Production vault</a>
             <span className="studio-nav-status"><i /> {d.tier.name.toUpperCase()} CHANNEL</span>
           </nav>
           {d.live ? <div className="studio-alert" role="status">
@@ -105,6 +110,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               <small>Pick a format below and go live. Continue Career stops for a booked show until it's done.</small></div>
             <a className="studio-alert__go" href="#go-live">Go live</a>
           </div> : null}
+          {tab === "overview" && <>
           <section className="studio-hero" id="control-room">
             <img className="studio-hero-image" src="/assets/dartcast-creator-studio/dartcast-creator-studio.jpg" alt="A darts creator's private studio: board, camera, microphone and control desk" />
             <div className="studio-hero-shade" />
@@ -118,18 +124,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             <div className="hero-id"><span>CHANNEL</span><b>{d.handle}</b><i>{d.tier.name.toUpperCase()}</i></div>
             <div className="hero-depth-label"><span>STUDIO 02</span><span>LIVE SETUP / DARTCAST</span></div>
           </section>
-          <section className="setpiece" aria-label="DartCast studio set">
-            <img className="setpiece-image" src="/assets/dartcast-creator-studio/dartcast-broadcast-diorama.png" alt="A miniature DartCast broadcast stage with an illuminated dartboard, studio screens, boom microphone, mixing desk and trophy" />
-            <div className="setpiece-shade" />
-            <div className="setpiece-copy">
-              <span className="setpiece-kicker"><i /> YOUR BROADCAST SET <b>·</b> SEASON {d.season} / WEEK {d.week}</span>
-              <h2>Set the scene.<br /><em>Take the shot.</em></h2>
-              <p>The room is ready. Your channel, your format, your call on when to go live.</p>
-              <a href="#programming" className="setpiece-action"><SlidersHorizontal aria-hidden /> Configure the next show <ArrowUpRight aria-hidden /></a>
-            </div>
-            <div className="setpiece-readout"><span>CHANNEL</span><b>{d.handle}</b><i>{d.tier.name.toUpperCase()}</i></div>
-            <div className="setpiece-coordinate">DARTCAST STUDIO / CREATOR BAY</div>
-          </section>
+          </>}
+          {tab === "overview" && <>
           <section className="creator-series" aria-labelledby="creator-series-title">
             <div className="creator-series__head">
               <div><span className="eyebrow">THE SEASON PROJECT · 4 QUARTERS</span><h2 id="creator-series-title">{d.creatorSeries.selected ? d.creatorSeries.selected.name : "Give the channel a season-long show"}</h2>
@@ -156,6 +152,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               </div>
             </>}
           </section>
+          </>}
+          {tab === "overview" && <>
           <section className="creator-console" id="go-live">
             <div className="console-head"><div><span className="eyebrow">01 / CONTROL ROOM</span><h2>Today’s setup</h2></div><div className="console-state"><i /> {d.live ? "YOU’RE ON AIR" : "READY WHEN YOU ARE"}</div></div>
             <div className="console-layout">
@@ -189,6 +187,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               </div>
             </div>
           </section>
+          </>}
+          {(tab === "overview" || tab === "programming") && <>
           <section className="programming-desk" id="programming">
             <div className="section-heading"><div><span className="eyebrow">02 / SESSION BUILDER</span><h2>Build your next stream</h2></div><span className="heading-meta">SELECT FORMAT <i>→</i> PICK A NIGHT</span></div>
             <div className="program-topline"><div><b>WHAT’S THE SHOW?</b><span>Chat’s pick is marked. Your last format is noted.{d.trend ? ` The platform's pushing ${d.trend.name} shows until week ${d.trend.endsWeek}: +${d.trend.bonusPercent}% reach.` : ""}</span></div><span className="weekly-limit">WEEKLY LIMIT <b>{d.streamsThisWeek} / {d.perWeek}</b></span></div>
@@ -206,6 +206,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             </div>
             {message && <p className="preview-message" role="alert">{message}</p>}
           </section>
+          </>}
+          {tab === "programming" && <>
           <section className="audience-finance" aria-label="Optional creator studio upgrades">
             <div className="section-heading"><div><span className="eyebrow">OPTIONAL INVESTMENT</span><h2>Build your broadcast studio</h2></div><span className="heading-meta">NO RECURRING COSTS</span></div>
             <div className="finance-layout">
@@ -231,6 +233,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             </div>
             {studioMessage && <p className="preview-message" role="status">{studioMessage}</p>}
           </section>
+          </>}
+          {tab === "audience" && <>
           {(d.platform.adsEligible || d.subscribers > 0 || d.deal || d.dealOffer || d.campaign || d.campaignOffer || d.invitations || d.charity.raisedPence > 0 || d.goalOptions) && <section className="audience-finance" id="audience">
             <div className="section-heading"><div><span className="eyebrow">03 / AUDIENCE &amp; INCOME</span><h2>The channel is working</h2></div><span className="heading-meta">YOUR CHANNEL ECONOMY</span></div>
             <div className="finance-layout">
@@ -270,6 +274,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               {!goalThisMonth && <><p>Set a goal for this month. Hit it and the buzz wins you followers.</p><div className="goal-controls"><div><small>SUB TARGET</small><div className="goal-options" role="radiogroup" aria-label="Sub target">{d.goalOptions.targets.map(t => <button type="button" key={t} role="radio" aria-checked={goalTarget === t} onClick={() => setGoalTarget(t)}>{t} subs</button>)}</div></div><div><small>YOUR PROMISE</small><div className="promise-options" role="radiogroup" aria-label="Your promise">{d.goalOptions.promises.map(p => <button type="button" key={p} role="radio" aria-checked={promise === p} onClick={() => setPromise(p)}>{p}</button>)}</div></div><button className="button-gold goal-submit" type="button" disabled={goalTarget === null || promise === null || goal.isPending} onClick={() => goal.mutate({ target: goalTarget!, promise: promise! }, { onError: e => setMessage(errorMessage(e)) })}>{goal.isPending ? "Setting goal…" : "Set the goal"} <ArrowUpRight aria-hidden /></button></div></>}
             </div>}
           </section>}
+          </>}
+          {tab === "audience" && <>
           <section className="growth-map">
             <div className="growth-copy"><span className="eyebrow">04 / CHANNEL GROWTH</span><h2>A long game.<br /><em>Your own pace.</em></h2><p>Another way up in darts: build an audience. You’re {d.tier.name.toLowerCase()} today; {d.next ? `${(d.next.followers - d.followers).toLocaleString("en-GB")} more followers to ${d.next.name}.` : "you have reached the top tier."}</p></div>
             <div className="growth-steps">{d.tiers.map((tier, i) => <div className={`growth-step ${tier.reached ? "reached" : ""}`} key={tier.key}><span className="step-index">0{i + 1}</span><div className="step-info"><div><b>{tier.reached && <Check aria-hidden />} {tier.name}</b><small>{tier.followers ? `${tier.followers.toLocaleString("en-GB")} followers` : "Start here"}</small></div><p>{tier.perks}</p></div></div>)}</div>
@@ -278,6 +284,8 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               <div><b>{p.name}</b><small>{p.earned ? `Arrived S${p.earned.season} wk ${p.earned.week} · +${p.fans.toLocaleString("en-GB")} fans` : `${p.followers.toLocaleString("en-GB")} followers`}</small></div>
             </div>)}</div>}
           </section>
+          </>}
+          {tab === "vault" && <>
           <section className="production-vault" id="vault">
             <div className="section-heading"><div><span className="eyebrow">05 / PRODUCTION VAULT</span><h2>Moments worth keeping</h2></div><span className="heading-meta">CLIPS · COLLABS · REPLAYS</span></div>
             <div className="vault-grid">
@@ -288,20 +296,23 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               {d.videos.length ? <div className="replay-list">{d.videos.map(v => <article className="replay-item" key={v.id}><div className={`replay-thumb ${v.result === "WON" ? "win" : v.result === "LOST" ? "loss" : ""}`}><span>{v.format === "CHALLENGER" ? `vs ${v.challenger}` : v.title}</span><i>{v.result === "WON" ? "WON" : v.result === "LOST" ? "LOST" : "ENDED"}</i><Play aria-hidden /></div><div className="replay-meta"><b>{v.result === "WON" && <Trophy aria-hidden />} {v.title}</b><span>S{v.season} WK {v.week} · {dayLabel(v.dayOfWeek)}</span><div><span><Eye aria-hidden /> {v.peak} peak</span><span><Users aria-hidden /> +{v.followersGained}</span><strong>{money(v.incomePence)}</strong></div></div></article>)}</div> : <p className="dc__note">No past broadcasts yet. Your first show will appear here.</p>}
             </div>
           </section>
+          </>}
+          {tab === "cups" && <>
           <section className="invitational-studio">
             <div className="invitational-banner"><img className="final-stage-art" src="/assets/dartcast-creator-studio/dartcast-final-stage.png" alt="A gold darts trophy on a stepped plinth beneath an illuminated dartboard at the DartCast finals stage" /><div className="invitational-copy"><span className="eyebrow">SEASONAL FEATURE · FROM WEEK {d.invitational.fromWeek}</span><h2>DartCast<br /><em>Invitational</em></h2><p>Once a season, the season’s top seven streamers and you meet in a knockout on one big stream. First to 2 legs.</p><span className="locked-tag"><i /> {d.invitational.open ? "ENTRY OPEN" : d.invitational.why}</span></div>
               <div className="prize-wall"><small>PRIZE BY FINISH</small>{d.invitational.prizePence.map((amount, i) => <div key={`${i}-${amount}`}><span>{["QUARTER-FINAL", "SEMI-FINAL", "FINAL", "WINNER"][i] ?? `FINISH ${i + 1}`}</span><b>{money(amount)}</b></div>)}</div></div>
             <div className="field-panel"><div className="field-title"><span>INVITATIONAL FIELD</span><small>SEVEN INVITED CHANNELS</small></div><div className="field-list">{d.invitational.field.map((s, i) => <div className="field-member" key={s.handle}><span>0{i + 1}</span><b>{s.handle}</b><small>{s.followers.toLocaleString("en-GB")} followers</small><strong>AVG {s.avg}</strong></div>)}</div>
               {d.invitational.result ? <p>{d.invitational.result.wins >= 3 ? "You won the Invitational!" : `You won ${d.invitational.result.wins} match${d.invitational.result.wins === 1 ? "" : "es"}.`} Prize: {money(d.invitational.result.prizePence)}.</p> : d.invitational.open ? <button className="button-gold" type="button" disabled={!canGo || live.isPending} onClick={() => live.mutate({ dayOfWeek: pick!, format: "INVITATIONAL" }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>Play the Invitational{pick ? ` on ${dayLabel(pick)}` : ""} <ArrowUpRight aria-hidden /></button> : <p>Entry opens at week {d.invitational.fromWeek}. {d.invitational.why}</p>}</div>
           </section>
-          <CupsSection d={d} night={pick} canGo={!futureWeek && !retired && !d.live && pick !== null} busy={live.isPending}
-            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
-          <BigNightsSection d={d} night={pick} canGo={canGo} busy={live.isPending}
-            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
-          <ContentSection saveId={id} d={d} night={pick} canGo={canGo} retired={retired} onWatched={sid => navigate(`/career/${id}/streaming/${sid}`)} />
-          <BusinessSection saveId={id} d={d} retired={retired} />
-          <CommunitySection saveId={id} d={d} retired={retired} />
-          <SceneSection d={d} />
+          </>}
+          {tab === "cups" && <CupsSection d={d} night={pick} canGo={!futureWeek && !retired && !d.live && pick !== null} busy={live.isPending}
+            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />}
+          {tab === "big-nights" && <BigNightsSection d={d} night={pick} canGo={canGo} busy={live.isPending}
+            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />}
+          {tab === "content" && <ContentSection saveId={id} d={d} night={pick} canGo={canGo} retired={retired} onWatched={sid => navigate(`/career/${id}/streaming/${sid}`)} />}
+          {tab === "business" && <BusinessSection saveId={id} d={d} retired={retired} />}
+          {tab === "community" && <CommunitySection saveId={id} d={d} retired={retired} />}
+          {tab === "scene" && <SceneSection d={d} />}
           <footer className="studio-footer"><span>DARTCAST <b>CREATOR STUDIO</b></span><span>SEASON {d.season} · WEEK {d.week} <i /> {d.handle.toUpperCase()}</span></footer>
         </div>
       </div>

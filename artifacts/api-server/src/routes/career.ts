@@ -16,6 +16,8 @@ import { createCareerFactsRouter } from "../career/facts/router.ts";
 import { createCareerRelationshipsService } from "../career/relationships/service.ts";
 import { createCareerRelationshipsRouter } from "../career/relationships/router.ts";
 import { createCareerGoalsService } from "../career/goals/service.ts";
+import { createCareerGuideService } from "../career/guide/service.ts";
+import { createCareerGuideRouter } from "../career/guide/router.ts";
 import { createCareerGoalsRouter } from "../career/goals/router.ts";
 import { createCareerRecognitionService } from "../career/recognition/service.ts";
 import { createCareerRecognitionRouter } from "../career/recognition/router.ts";
@@ -78,6 +80,7 @@ router.use(createCareerClubRouter(createCareerClubService(db), createCareerTeamN
 const money = createCareerMoneyService(db), streaming = createCareerStreamingService(db);
 router.use(createCareerMoneyRouter(money));
 router.use(createCareerInboxRouter(createCareerInboxService(db, { calendar: sporting.calendar, streaming, money, sponsors: sporting.finance })));
+router.use(createCareerGuideRouter(createCareerGuideService(db, { calendar: sporting.calendar, goals: createCareerGoalsService(db), sponsors: sporting.finance, streaming, money })));
 router.use(createCareerHostingRouter(createCareerHostingService(db)));
 router.use(createCareerStreamingRouter(streaming));
 router.use(createCareerRoadTripRouter(createCareerRoadTripService(db)));

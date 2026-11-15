@@ -267,6 +267,8 @@ export function Layout({ children }: { children: ReactNode }) {
     staleTime: 30_000,
   });
   const careerAvailable = !!authUser && careerStatus.data?.available === true;
+  // Inside a Career save, Career has its own bottom bar; the league ticker and app nav would pull you out of it.
+  const inCareerSave = /^\/career\/[^/]+/.test(location);
   const matchInProgressRoute = /^\/(play|practice|master501|card-clash|boss-battle|board-curse)(\/|$)/.test(location) || /^\/tour\/[^/]+/.test(location);
 
   useEffect(() => {
@@ -639,7 +641,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <LiveTicker />
+      {!inCareerSave && <LiveTicker />}
 
       <NotificationOptInPrompt />
 
@@ -656,7 +658,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {/* The shared bottom nav also stays visible on Career subpages: Career's own
           destinations now sit in the page instead of occupying the bottom edge. */}
-      <nav aria-label="Primary navigation" className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"
+      {!inCareerSave && <nav aria-label="Primary navigation" className="tkdl-app-nav lg:hidden fixed bottom-0 left-0 right-0 z-30 flex"
         style={{ background: "rgba(4,4,10,0.97)", borderTop: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(20px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {mobileNavItems.map(item => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
@@ -691,7 +693,7 @@ export function Layout({ children }: { children: ReactNode }) {
             More
           </span>
         </button>
-      </nav>
+      </nav>}
     </div>
   );
 }

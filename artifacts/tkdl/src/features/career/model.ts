@@ -144,8 +144,8 @@ const DENIALS: Record<string, string> = {
   NOT_ELIGIBLE: "Not eligible", OUTSIDE_REGION: "Outside region", REQUIRES_AMATEUR_STATUS: "Amateurs only", REQUIRES_PROFESSIONAL_STATUS: "Professionals only",
   REQUIRES_TOUR_CARD: "Tour Card required", TOUR_CARD_HOLDER_EXCLUDED: "Not open to Tour Card holders", REQUIRES_QUALIFICATION: "Qualification required",
   REQUIRES_INVITATION: "Invitation only", REQUIRES_RANKING: "Ranking position required", REQUIRES_EVENT_RESULT: "Earlier result required",
-  REQUIRES_DEFENDING_CHAMPION: "Defending champion only", REGISTRATION_NOT_OPEN: "Registration not open", REGISTRATION_CLOSED: "Registration closed",
-  SCHEDULE_CONFLICT: "Clashes with your schedule", ALREADY_ENTERED: "Already entered", NOT_ENTERED: "Not entered", UNSUPPORTED_FORMAT: "Format not yet playable",
+  REQUIRES_DEFENDING_CHAMPION: "Defending champion only", REGISTRATION_NOT_OPEN: "Entries not open yet", REGISTRATION_CLOSED: "Entries closed",
+  SCHEDULE_CONFLICT: "You are booked that day", ALREADY_ENTERED: "Already entered", NOT_ENTERED: "Not entered", UNSUPPORTED_FORMAT: "Format not yet playable",
   CAREER_NOT_ACTIVE: "Career retired", PARTICIPANT_RETIRED: "Retired", FIELD_LOCKED: "Field locked", EVENT_FINISHED: "Event finished", INSUFFICIENT_FUNDS: "Cannot afford",
   BELOW_MINIMUM_AGE: "Below minimum age", ABOVE_MAXIMUM_AGE: "Junior event (age limit)", PROFILE_INCOMPLETE: "Set your date of birth",
 };
@@ -438,7 +438,7 @@ export const CAREER_NAV = [
     {key:"world-events",label:"Events & Circuits",path:"/world/events"},{key:"venues",label:"Venues",path:"/world/venues"},
     {key:"world-history",label:"History",path:"/world/history"}]},
   { layer: "MY_CAREER", label: "My Career", path:"/my-career", icon:"♙", items:[
-    {key:"overview",label:"Overview",path:"/my-career"},{key:"road",label:"Road to the Tour",path:"/road-to-the-tour"},{key:"performance",label:"Performance",path:"/my-career/performance"},
+    {key:"overview",label:"Overview",path:"/my-career"},{key:"details",label:"Career details",path:"/details"},{key:"road",label:"Road to the Tour",path:"/road-to-the-tour"},{key:"performance",label:"Performance",path:"/my-career/performance"},
     {key:"achievements",label:"Achievements",path:"/my-career/achievements"},{key:"career-life",label:"Career Life",path:"/my-career/life"},
     {key:"history",label:"History",path:"/my-career/history"},{key:"sponsors",label:"Sponsor HQ",path:"/sponsors"}]},
 ];

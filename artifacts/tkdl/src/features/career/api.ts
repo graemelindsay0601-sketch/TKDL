@@ -9,7 +9,7 @@ import { publicText } from "./model";
 import type {
   AdvanceResult, CalendarResponse, CareerSave, CareerSaveList, EventDetail, EventFinancePreview, FinanceSummary, HistoryRow, LedgerEntry, Milestone, QSchoolView,
   QualificationResponse, CareerProfile, LiveSession, LiveDart, RankingExplain, RankingHistory, RankingListMeta, RankingTable, SponsorsResponse, SportingSummary, TourCardView,
-  SponsorNegotiationChange, SponsorNegotiationInput, SponsorNegotiationResult, SponsorSigningReveal,
+  SponsorNegotiationChange, SponsorNegotiationInput, SponsorNegotiationResult, SponsorSigningReveal, GuideView,
 } from "./types";
 
 /**
@@ -55,6 +55,8 @@ export const useHostingPreview = (saveId: string, q: { feePence: number; topUpPe
 export const useBookHosting = (saveId: string) => useSaveMutation(saveId, (input: { name?: string; week: number; dayOfWeek: number; fieldSize: number; feePence: number; topUpPence: number }) =>
   send<{ eventId: string; turnout: number; view: HostingView }>("POST", `/saves/${saveId}/hosting`, input));
 export type InboxView = import("../../../../api-server/src/career/inbox/service").InboxView;
+/** The Career Guide: today, your path, next steps and what you're missing. */
+export const useGuide = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "guide"), queryFn: () => get<GuideView>(`/saves/${saveId}/guide`), staleTime: 15_000, enabled: enabled && !!saveId });
 export const useInbox = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "inbox"), queryFn: () => get<InboxView>(`/saves/${saveId}/inbox`), staleTime: 30_000, enabled: enabled && !!saveId });
 /** Read state only: updates the inbox in place without refetching the rest of the Career. */
 export const useUpdateInbox = (saveId: string) => { const client = useQueryClient(); return useMutation({

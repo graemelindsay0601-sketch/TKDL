@@ -23,9 +23,48 @@ import { NextMove } from "./next-move";
 import type { ShellContext } from "../shell";
 import type { CareerEvent, QualificationEvent } from "../types";
 import "./home.css";
+import { CareerGuide } from "../guide";
 
 /** Career headquarters: the next decision is prominent; every fact is server-backed. */
-export function HomePage({ ctx }: { ctx: ShellContext }) {
+export function HomePage({ ctx, mode = "guide" }: { ctx: ShellContext; mode?: "guide" | "details" }) {
+  // Today (the Guide) loads only what it shows; the full dashboard is "Career details".
+  return !ctx.retired && mode === "guide" ? <TodayHome ctx={ctx} /> : <DashboardHome ctx={ctx} mode={mode} />;
+}
+
+/** Home: the Career Guide, this week's planner and the inbox. */
+function TodayHome({ ctx }: { ctx: ShellContext }) {
+  const { save } = ctx, id = save.id;
+  const legacy = useCareerLegacySummary(id, true);
+  const calendar = useCalendar(id, { scope: "RELEVANT", fromWeek: Math.max(1, save.currentWeek - 2), toWeek: Math.min(52, save.currentWeek + 8) });
+  const tournaments = useActiveTournament(id, true);
+  const enter = useEnterEvent(id);
+  const [message, setMessage] = useState("");
+  const events = calendar.data?.events ?? [];
+  const active = tournaments.data?.tournaments.find(t => !t.terminal);
+  const onEnter = (eventId: string) => enter.mutate(eventId, {
+    onSuccess: result => setMessage(result.entered ? "Entry confirmed." : result.denials.map(denialLabel).join(" · ")),
+    onError: error => setMessage(errorMessage(error)),
+  });
+  return (
+    <main className="career-home career-home--guide">
+      <CareerGuide save={save}>
+        <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
+          onEnter={onEnter} entering={enter.isPending} message={message} embedded />
+      </CareerGuide>
+      <InboxStrip save={save} />
+      <nav className="career-home__explore" aria-label="More of your career">
+        <Link href={`/career/${id}/details`}>Career details<small>Rankings, results, news, your pathway</small></Link>
+        <Link href={`/career/${id}/calendar`}>Calendar<small>Every event this season</small></Link>
+        <Link href={`/career/${id}/local`}>Local nights<small>Practice, pub league, knockouts</small></Link>
+        <Link href={`/career/${id}/sponsors`}>Sponsor HQ<small>Who could sign you next</small></Link>
+        <Link href={`/career/${id}/streaming`}>DartCast<small>Your channel</small></Link>
+      </nav>
+      <ContextHelp saveId={id} topic="home" />
+    </main>
+  );
+}
+
+function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "details" }) {
   const { save, retired } = ctx;
   const id = save.id;
   const sporting = useSporting(id);
@@ -60,10 +99,6 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
 
   return (
     <main className="career-home">
-      {/* Your next move comes first: the rest of Home is reference you can scroll to. */}
-      {!retired && <InboxStrip save={save} />}
-      {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
-        onEnter={onEnter} entering={enter.isPending} message={message} />}
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#c52842" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}

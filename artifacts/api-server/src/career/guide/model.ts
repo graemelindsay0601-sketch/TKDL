@@ -1,0 +1,177 @@
+/**
+ * The Career Guide: one place that tells the player where they are, what they can do today, what they're missing and
+ * what the next step is on the path they chose. Pure: the service gathers the facts, this decides what to say.
+ */
+import type { SportingFacts } from "../finance/sponsors.catalogue.ts";
+
+export type GuideFocus = "OPEN_SCHEDULE" | "AMATEUR_CIRCUIT" | "PROFESSIONAL_PATHWAY" | "MAJOR_QUALIFICATION" | "PRIZE_MONEY" | "DARTCAST_CREATOR";
+export type GuideEvent = {
+  id: string; name: string; circuit: string; status: string;
+  dates: { startWeek: number; startDayOfWeek: number; startDay: number };
+  registration?: { opensWeek: number; closesWeek: number } | null;
+  venue?: { city?: string } | null;
+  finance?: { estimatedPlayerCostPence?: number; firstPrizePence?: number | null } | null;
+  human: { canEnter: boolean; eligible: boolean; relationship: string; denials?: string[] } | null;
+};
+export type GuideStreaming = { tierKey: string; tierName: string; followers: number; nextTier: { name: string; followers: number } | null;
+  week: number; scheduledNights: number[]; streamsThisWeek: number; perWeek: number; live: string | null } | null;
+export type GuideInput = {
+  saveId: string; season: number; balancePence: number; focus: GuideFocus;
+  today: { week: number; dayOfWeek: number; phase: "START_OF_WEEK" | "MID_WEEK" };
+  facts: SportingFacts;
+  sponsorTiers: { tier: string; name: string; met: boolean; signed: boolean }[];
+  events: GuideEvent[];
+  pendingMatch: { matchId: string; eventId: string; name: string } | null;
+  pendingReview?: number | null;
+  activeTournament: { eventId: string; name: string } | null;
+  booked: { eventId: string; name: string; week: number } | null;
+  streaming: GuideStreaming;
+  moneyChallenge: { name: string; stakePence: number } | null;
+};
+export type GuideAction = { label: string; href?: string; enterEventId?: string };
+export type GuideStep = { key: string; title: string; why: string; action: GuideAction; tone: "now" | "soon" | "tip" };
+export type GuideStage = { key: string; title: string; unlocks: string; done: boolean; current: boolean; progress: string | null; how: string };
+
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const dayName = (d: number) => DAY_NAMES[(d - 1 + 7) % 7] ?? "";
+const pounds = (p: number) => `£${(p / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
+const BOOKED = new Set(["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED"]);
+const LOCAL = ["GRASSROOTS", "LOCAL"], COUNTY = ["COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "SOFT_TIP"], ROAD = ["CHALLENGER", "Q_SCHOOL", "VAULT"],
+  PRO = ["PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES"], MAJORS = ["MAJOR", "WORLD_CHAMPIONSHIP"];
+const best = (f: SportingFacts, circuits: string[]) => Math.min(Infinity, ...circuits.map(c => f.bestFinishByCircuit[c] ?? Infinity));
+const playedAnything = (f: SportingFacts) => f.titles > 0 || Object.keys(f.bestFinishByCircuit).length > 0;
+const ranked = (f: SportingFacts) => f.worldRanking !== null && f.worldRanking < 100_000 ? f.worldRanking : null;
+
+type StageDef = { key: string; title: string; unlocks: string; how: string; circuits: string[]; done: (f: SportingFacts, s: GuideStreaming) => boolean;
+  progress?: (f: SportingFacts, s: GuideStreaming) => string | null };
+const DARTS: StageDef[] = [
+  { key: "first-event", title: "Play your first event", unlocks: "Your first results, ranking-point history and form.", how: "Enter a local event: they're cheap and near home.",
+    circuits: LOCAL, done: playedAnything },
+  { key: "first-title", title: "Win a local title", unlocks: "Local sponsors start calling.", how: "Keep entering local events: pub nights, leagues and knockouts.",
+    circuits: LOCAL, done: f => f.titles >= 1, progress: f => `${f.titles} of 1 won` },
+  { key: "three-titles", title: "Win three titles", unlocks: "Regional sponsors, and county selectors notice you.", how: "Local and county events both count.",
+    circuits: [...LOCAL, ...COUNTY], done: f => f.titles >= 3, progress: f => `${Math.min(f.titles, 3)} of 3 won` },
+  { key: "county-final", title: "Reach a county, regional or national final", unlocks: "Proves you can go beyond the pub: the road to the tour opens up.",
+    how: "Enter county, regional and national amateur events.", circuits: COUNTY, done: f => best(f, COUNTY) <= 2,
+    progress: f => { const b = best(f, COUNTY); return Number.isFinite(b) ? `best so far: ${b === 1 ? "won" : `top ${b}`}` : "not played one yet"; } },
+  { key: "road", title: "Play the road to the tour", unlocks: "Challenger, Vault and Q-School results are how amateurs earn a Tour Card.",
+    how: "Enter a Challenger or Vault event, or Q-School when it opens.", circuits: ROAD, done: f => Number.isFinite(best(f, ROAD)) || !!f.tourCard },
+  { key: "tour-card", title: "Earn a Tour Card", unlocks: "Pro Tour events, professional sponsors and the world rankings.",
+    how: "Win through Q-School, or finish high on the Challenger Tour.", circuits: ["Q_SCHOOL", "CHALLENGER"], done: f => !!f.tourCard },
+  { key: "top-64", title: "Break into the world top 64", unlocks: "Invitations to the bigger televised events.", how: "Play Pro Tour ranking events: ranking points come from results.",
+    circuits: PRO, done: f => (ranked(f) ?? Infinity) <= 64, progress: f => ranked(f) ? `you're #${ranked(f)}` : "not ranked yet" },
+  { key: "major-final", title: "Reach a major final", unlocks: "Elite sponsors and the big stages.", how: "Qualify for majors through your ranking and qualifiers.",
+    circuits: MAJORS, done: f => best(f, MAJORS) <= 2 },
+  { key: "world-champion", title: "Win the World Championship", unlocks: "The top of the game.", how: "Qualify for the World Championship and win it.",
+    circuits: ["WORLD_CHAMPIONSHIP"], done: f => (f.bestFinishByCircuit.WORLD_CHAMPIONSHIP ?? Infinity) === 1 },
+];
+const AMATEUR: StageDef[] = [...DARTS.slice(0, 4),
+  { key: "national-title", title: "Win a national amateur title", unlocks: "The best amateur honours and the biggest amateur prizes.",
+    how: "Enter national amateur events.", circuits: ["NATIONAL_AMATEUR"], done: f => (f.bestFinishByCircuit.NATIONAL_AMATEUR ?? Infinity) === 1 },
+  { key: "vault-title", title: "Win a Vault event", unlocks: "The top of the amateur scene.", how: "Enter Vault Nights.", circuits: ["VAULT"],
+    done: f => (f.bestFinishByCircuit.VAULT ?? Infinity) === 1 },
+];
+const tierStage = (key: string, name: string, followers: number, unlocks: string): StageDef => ({ key: `tier-${key}`, title: `Reach ${name} on DartCast`, unlocks,
+  how: "Go live regularly, post Shorts and clips, play the Creator Cups.", circuits: [],
+  done: (_f, s) => !!s && s.followers >= followers, progress: (_f, s) => s ? `${s.followers.toLocaleString("en-GB")} of ${followers.toLocaleString("en-GB")} followers` : null });
+const CREATOR: StageDef[] = [
+  { key: "open-dartcast", title: "Open your DartCast channel", unlocks: "Streaming: an audience, tips and brand deals.", how: "Open DartCast and go live once.",
+    circuits: [], done: (_f, s) => !!s },
+  tierStage("AFFILIATE", "Affiliate", 50, "Ad revenue, bits and super chats."),
+  tierStage("PARTNER", "Partner", 1000, "Paid memberships and brand partners."),
+  tierStage("STAR", "Star", 25000, "The biggest audiences and tips."),
+  tierStage("ICON", "Icon", 100000, "More brand partners and bigger cup prizes."),
+  tierStage("LEGEND", "Legend", 500000, "The biggest name in darts streaming."),
+];
+export const PATHS: Record<GuideFocus, { label: string; blurb: string; stages: StageDef[] }> = {
+  OPEN_SCHEDULE: { label: "See how far you get", blurb: "No fixed plan: the guide follows the darts ladder and points out anything good.", stages: DARTS },
+  AMATEUR_CIRCUIT: { label: "Amateur star", blurb: "Be the best player around without turning pro: local, county and national titles.", stages: AMATEUR },
+  PROFESSIONAL_PATHWAY: { label: "Turn pro", blurb: "Earn a Tour Card and climb the world rankings.", stages: DARTS },
+  MAJOR_QUALIFICATION: { label: "Chase the majors", blurb: "Get to the big televised events and win one.", stages: DARTS },
+  PRIZE_MONEY: { label: "Make it pay", blurb: "Play where the prize money is worth the trip.", stages: DARTS },
+  DARTCAST_CREATOR: { label: "Darts creator", blurb: "Build a DartCast channel; play darts for the content.", stages: CREATOR },
+};
+
+const open = (e: GuideEvent) => !!e.human?.canEnter && !["COMPLETED", "CANCELLED"].includes(e.status);
+const when = (e: GuideEvent) => `Wk ${e.dates.startWeek} ${dayName(e.dates.startDayOfWeek).slice(0, 3)}`;
+const cost = (e: GuideEvent) => e.finance?.estimatedPlayerCostPence ? ` · about ${pounds(e.finance.estimatedPlayerCostPence)}` : " · free";
+
+export function buildGuide(g: GuideInput) {
+  const base = `/career/${g.saveId}`, path = PATHS[g.focus] ?? PATHS.OPEN_SCHEDULE;
+  // ---- the path: every stage, the first not done is the current one
+  let currentSeen = false;
+  const stages: GuideStage[] = path.stages.map(st => {
+    const done = st.done(g.facts, g.streaming), current = !done && !currentSeen;
+    if (current) currentSeen = true;
+    return { key: st.key, title: st.title, unlocks: st.unlocks, done, current, progress: st.progress?.(g.facts, g.streaming) ?? null, how: st.how };
+  });
+  const currentDef = path.stages.find(st => !st.done(g.facts, g.streaming)) ?? null;
+  const fits = (e: GuideEvent) => !currentDef || !currentDef.circuits.length || currentDef.circuits.includes(e.circuit);
+
+  // ---- today
+  const { week, dayOfWeek, phase } = g.today;
+  const upcoming = g.events.filter(open).sort((a, b) => a.dates.startDay - b.dates.startDay);
+  const todayEvents = phase === "START_OF_WEEK" ? upcoming.filter(e => e.dates.startWeek === week && e.dates.startDayOfWeek === dayOfWeek) : [];
+  const restOfWeek = upcoming.filter(e => e.dates.startWeek === week && (phase === "MID_WEEK" ? false : e.dates.startDayOfWeek > dayOfWeek));
+  const bookedThisWeek = g.events.some(e => e.dates.startWeek === week && e.human && BOOKED.has(e.human.relationship) && e.status !== "CANCELLED");
+  const waitingOn: GuideAction[] = [];
+  if (g.pendingMatch) waitingOn.push({ label: `Your match in ${g.pendingMatch.name}`, href: `${base}/matches/${g.pendingMatch.matchId}/play` });
+  const streamDays = g.streaming && g.streaming.week === week && !g.streaming.live && g.streaming.streamsThisWeek < g.streaming.scheduledNights.length
+    ? g.streaming.scheduledNights : [];
+  if (g.streaming?.live) waitingOn.push({ label: "Your DartCast stream (you're live)", href: `${base}/streaming/${g.streaming.live}` });
+  else if (streamDays.length && phase === "MID_WEEK") waitingOn.push({ label: `Your booked DartCast show (${streamDays.map(d => dayName(d).slice(0, 3)).join(", ")})`, href: `${base}/streaming#go-live` });
+  const headline = g.pendingReview ? `Season ${g.pendingReview} is over: read your review to start the new season.` : phase === "MID_WEEK"
+    ? waitingOn.length ? `The rest of week ${week} has been played. It's waiting on you.` : `Week ${week} is done. Play on to start week ${week + 1}.`
+    : bookedThisWeek ? `Week ${week} is planned. Play on when you're ready.` : upcoming.some(e => e.dates.startWeek === week)
+      ? `Nothing booked yet this week: ${upcoming.filter(e => e.dates.startWeek === week).length} events you could enter.` : `Nothing to enter this week: try a local night or plan next week.`;
+
+  // ---- what you missed (the last two weeks, events that fitted your path and you could have played)
+  const missed = g.events.filter(e => e.status === "COMPLETED" && e.dates.startWeek >= week - 2 && e.dates.startWeek <= week && e.human?.eligible
+    && !BOOKED.has(e.human.relationship) && (e.human.denials ?? []).every(d => ["EVENT_FINISHED", "REGISTRATION_CLOSED", "FIELD_LOCKED", "INSUFFICIENT_FUNDS"].includes(d))
+    && currentDef?.circuits.includes(e.circuit))
+    .sort((a, b) => b.dates.startDay - a.dates.startDay).slice(0, 5)
+    .map(e => ({ id: e.id, name: e.name, when: when(e), why: `It fitted your next step: ${currentDef!.title.toLowerCase()}.` }));
+  const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && fits(e)).slice(0, 4)
+    .map(e => ({ id: e.id, name: e.name, when: when(e), href: `${base}/events/${e.id}` }));
+
+  // ---- next steps: at most three, the most pressing first
+  const steps: GuideStep[] = [];
+  const add = (s: GuideStep) => {
+    const ev = s.action.enterEventId;
+    if (steps.length < 3 && !steps.some(x => x.key === s.key || (ev && x.action.enterEventId === ev))) steps.push(s);
+  };
+  if (g.pendingReview) add({ key: "review", tone: "now", title: `Read your Season ${g.pendingReview} review`, why: "The new season starts once you've read it.",
+    action: { label: "Read it", href: `${base}/my-career/history` } });
+  if (g.pendingMatch) add({ key: "match", tone: "now", title: `Play your match: ${g.pendingMatch.name}`, why: "Nothing else moves until it's played.",
+    action: { label: "Play it", href: `${base}/matches/${g.pendingMatch.matchId}/play` } });
+  else if (g.activeTournament) add({ key: "tournament", tone: "now", title: `Back to ${g.activeTournament.name}`, why: "You're in a tournament.", action: { label: "Open it", href: `${base}/tournaments/${g.activeTournament.eventId}` } });
+  for (const w of waitingOn.filter(w => !w.label.startsWith("Your match"))) add({ key: `wait:${w.label}`, tone: "now", title: w.label, why: "The week is waiting for it.", action: { label: "Go", href: w.href } });
+  if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
+  for (const c of closing.slice(0, 1)) add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}. It fits your next step.`, action: { label: "Enter", enterEventId: c.id, href: c.href } });
+  const pathPick = currentDef?.circuits.length ? upcoming.find(e => currentDef.circuits.includes(e.circuit)) : undefined;
+  if (pathPick) add({ key: `path:${pathPick.id}`, tone: "soon", title: `Enter ${pathPick.name}`, why: `${when(pathPick)}${cost(pathPick)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
+    action: { label: "Enter", enterEventId: pathPick.id, href: `${base}/events/${pathPick.id}` } });
+  else if (currentDef && !currentDef.circuits.length) add({ key: "creator", tone: "soon", title: currentDef.title, why: currentDef.how, action: { label: "Open DartCast", href: `${base}/streaming` } });
+  else if (currentDef) {
+    const blocked = g.events.filter(e => e.status !== "COMPLETED" && e.dates.startWeek >= week && currentDef.circuits.includes(e.circuit) && e.human?.eligible && !e.human.canEnter);
+    const broke = blocked.some(e => (e.human?.denials ?? []).includes("INSUFFICIENT_FUNDS"));
+    add({ key: "path-none", tone: "tip", title: broke ? "Raise some entry money" : `No ${currentDef.title.toLowerCase()} events open yet`,
+      why: broke ? `You have ${pounds(g.balancePence)}. Free local events, money matches and local nights cost little or nothing.` : `${currentDef.how} Entries open a few weeks before each event.`,
+      action: broke ? { label: "Local nights", href: `${base}/local` } : { label: "Calendar", href: `${base}/calendar` } });
+  }
+  if (!bookedThisWeek && phase === "START_OF_WEEK" && upcoming.some(e => e.dates.startWeek === week))
+    add({ key: "plan", tone: "tip", title: "Plan this week", why: "Pick a night for each thing you want to do before you play on.", action: { label: "Plan it", href: `${base}#week-planner` } });
+  const sponsor = g.sponsorTiers.find(t => t.met && !t.signed);
+  if (sponsor) add({ key: "sponsor", tone: "tip", title: `${sponsor.name} will talk to you`, why: "Offers arrive after your events while you have room in your portfolio.", action: { label: "Sponsor HQ", href: `${base}/sponsors` } });
+
+  return {
+    today: { season: g.season, week, dayOfWeek, dayName: dayName(dayOfWeek), phase, headline, waitingOn,
+      options: todayEvents.slice(0, 4).map(e => ({ id: e.id, name: e.name, detail: `${e.venue?.city ?? ""}${cost(e)}`.replace(/^ · /, ""), fits: fits(e) })),
+      laterThisWeek: restOfWeek.length },
+    path: { focus: g.focus, label: path.label, blurb: path.blurb, stages,
+      current: stages.find(s => s.current) ?? null, done: stages.filter(s => s.done).length, total: stages.length },
+    paths: Object.entries(PATHS).map(([key, p]) => ({ key: key as GuideFocus, label: p.label, blurb: p.blurb })),
+    nextSteps: steps, missed, closing,
+  };
+}
+export type GuideView = ReturnType<typeof buildGuide>;
