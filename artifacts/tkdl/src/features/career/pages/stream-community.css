@@ -115,6 +115,7 @@
 .sc-rows li { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 8px; background:#ffffff06; border:1px solid #ffffff10; min-width:0; }
 .sc-rows li>span { min-width:0; color:#e9e2d0; font-size:13px; overflow-wrap:anywhere; }
 .sc-rows small { color:#9fabad; font-size:11.5px; }
+.sc-rows li>small { flex:none; white-space:nowrap; }
 .sc-rows button { flex:none; padding:6px 10px; border:1px solid #d3b66077; background:#dfbd6816; color:#ecd084; font-size:12px; cursor:pointer; white-space:nowrap; }
 .sc-rows button:disabled { opacity:.5; cursor:not-allowed; }
 .sc-rows--quiet li { background:transparent; }

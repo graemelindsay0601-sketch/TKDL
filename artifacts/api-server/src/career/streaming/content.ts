@@ -63,10 +63,13 @@ export function shortOutcome(seed: string, shortId: string, kind: ClipKind, foll
   return { views, followers: Math.round(views / 1000 * CONTENT.shortFollowersPerThousand), pence: Math.floor(views / 1000 * CONTENT.shortPencePerThousand) };
 }
 
+export const SMALL_CREATOR = 250;
 /** Will they come on? Friends always; anyone near your size might; giants want you to be known first. */
 export function guestAnswer(relationship: string, theirs: number, yours: number): { ok: boolean; why: string | null } {
   if (relationship === "FRIEND" || relationship === "BESTIE" || relationship === "RIVAL") return { ok: true, why: null };
   const ratio = theirs / Math.max(1, yours);
+  // Small creators are always happy to chat (everyone remembers starting out).
+  if (theirs <= SMALL_CREATOR) return { ok: true, why: null };
   if (relationship === "KNOWN" && ratio <= 12) return { ok: true, why: null };
   if (ratio <= 3) return { ok: true, why: null };
   return { ok: false, why: relationship === "NEW" ? "Doesn't know you yet: collab, raid or meet them in a cup first" : "Wants a bigger show first" };
