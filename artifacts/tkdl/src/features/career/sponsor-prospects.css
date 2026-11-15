@@ -1,0 +1,15 @@
+.sponsor-prospects { display:grid; gap:10px; padding:16px; border:1px solid #d8b66955; border-radius:14px; background:linear-gradient(160deg,#1b2430,#10161e); }
+.sponsor-prospects h2 { display:flex; gap:8px; align-items:center; margin:0; color:#f1e3bd; font:700 15px Oswald,sans-serif; letter-spacing:.06em; text-transform:uppercase; }
+.sponsor-prospects h2 svg { width:18px; height:18px; color:#d8b669; }
+.sponsor-prospects > p { margin:0; color:#a9b4ba; font-size:13px; }
+.sponsor-prospects ol { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.sponsor-prospects li { display:grid; grid-template-columns:auto minmax(0,1fr); gap:12px; align-items:start; padding:12px; border:1px solid #ffffff12; border-radius:10px; background:#0f1620; }
+.sponsor-prospects li[data-met] { border-color:#7ec8a466; }
+.sponsor-prospects li[data-signed] { border-color:#d8b66999; background:linear-gradient(160deg,#2b2412,#10161e); }
+.sponsor-prospects__icon svg { width:18px; height:18px; color:#7d8a91; }
+.sponsor-prospects li[data-met] .sponsor-prospects__icon svg { color:#7ec8a4; }
+.sponsor-prospects li div { display:grid; gap:3px; min-width:0; }
+.sponsor-prospects li b { color:#eef1f2; }
+.sponsor-prospects li small { color:#8d999f; font-size:12px; }
+.sponsor-prospects li span { color:#d7dee1; font-size:13px; }
+.sponsor-prospects li em { color:#d8b669; font-style:normal; font-size:12px; font-family:"DM Mono",monospace; }

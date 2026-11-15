@@ -419,3 +419,11 @@
   box-shadow:0 3px 0 #641c27,inset 0 1px #ffffff35;
 }
 .career-home .next-move .career-btn-primary:hover:not(:disabled) { background:linear-gradient(180deg,#e54a5d,#bc263d); }
+.next-move__lines { display:grid; gap:6px; margin-top:6px; }
+.next-move__why p { margin:0 0 4px; }
+.next-move__why-tips { color:#9fadb4; font-size:12.5px; }
+.next-move__why-tips a { color:#ecd084; text-decoration:underline; text-underline-offset:2px; }
+.week-planner__see { justify-self:start; padding:2px 0; border:0; background:none; color:#ecd084; font-size:12px; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.sponsor-line b { color:#ecd084; }
+.week-planner__also { display:block; color:#9fadb4; font-size:12px; }
+.week-planner__also a { color:#ecd084; }
