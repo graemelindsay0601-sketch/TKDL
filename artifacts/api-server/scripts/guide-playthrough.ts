@@ -14,15 +14,18 @@ import { createCareerGoalsService } from "../src/career/goals/service.ts";
 import { createCareerStreamingService } from "../src/career/streaming/service.ts";
 import { createCareerMoneyService } from "../src/career/money/service.ts";
 import { createCareerGuideService } from "../src/career/guide/service.ts";
+import { createCareerLegacyService } from "../src/career/legacy/service.ts";
 
 const weeks = Number(process.argv[2] ?? 10), focus = process.argv[3] ?? "OPEN_SCHEDULE";
 // The Postgres driver lives with the shared db package.
 const pg = createRequire(new URL("../../../lib/db/package.json", import.meta.url))("pg") as typeof import("pg");
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const db = readRetryingCareerDatabase(drizzle(pool) as never);
+const legacy = createCareerLegacyService(db);
 const saves = createCareerService(db), sporting = createCareerSportingService(db), goals = createCareerGoalsService(db);
 const guide = createCareerGuideService(db, { calendar: sporting.calendar, goals, sponsors: sporting.finance, streaming: createCareerStreamingService(db), money: createCareerMoneyService(db) });
 
+const winRate = Number(process.env.WIN_RATE ?? 0.5);
 const playerId = Number(process.argv[4] ?? (await db.execute(sql`SELECT player_id AS id FROM career_saves ORDER BY created_at DESC LIMIT 1`)).rows[0]?.id);
 const actor = { playerId, isAdmin: false };
 const used = new Set((await db.execute(sql`SELECT slot_number FROM career_saves WHERE player_id = ${playerId} AND status = 'ACTIVE'`)).rows.map(r => Number(r.slot_number)));
@@ -55,11 +58,20 @@ for (let i = 0; i < weeks; i++) {
       target: { kind: "WEEKS", weeks: 1 } }) as { stop: { reason: string; detail?: { matchIds?: string[] } } };
     if (r.stop.reason === "HUMAN_MATCH_PENDING") for (const matchId of r.stop.detail?.matchIds ?? []) {
       const m = (await db.execute(sql`SELECT best_of FROM career_tournament_matches WHERE career_save_id = ${save.id} AND id = ${matchId}`)).rows[0];
-      const need = (Number(m.best_of) + 1) / 2, win = Math.random() < 0.5;
+      const need = (Number(m.best_of) + 1) / 2, win = Math.random() < winRate;
       await sporting.calendar.recordHumanMatchResult(actor, save.id, { matchId, humanLegs: win ? need : 0, opponentLegs: win ? 0 : need, humanThrewFirst: true });
       if (win) wins++; else losses++;
+    } else if (r.stop.reason === "SEASON_REVIEW") {
+      // Read the season review and begin the next season, as the Guide's first step says.
+      const season = Number((r.stop.detail as { season?: number } | undefined)?.season ?? root.currentSeason);
+      await legacy.begin(actor, save.id, season, { confirmation: "BEGIN SEASON" }).catch(e => console.log(`  (season review: ${(e as Error).message})`));
+      console.log(`  == season ${season} reviewed; next season begins ==`);
+      break;
     } else if (r.stop.reason !== "TARGET_REACHED") console.log(`  (stopped: ${r.stop.reason})`);
   }
 }
-console.log(`\n${entered} entries, ${wins} matches won, ${losses} lost.`);
+const end = await guide.read(actor, save.id);
+const fin = (await db.execute(sql`SELECT balance_pence, has_tour_card FROM career_saves WHERE id = ${save.id}`)).rows[0] as { balance_pence: number; has_tour_card?: boolean };
+console.log(`\n${entered} entries, ${wins} matches won, ${losses} lost. Balance £${(Number(fin.balance_pence) / 100).toFixed(0)}.`);
+console.log(`Path ${end.path.label}: ${end.path.done}/${end.path.total} steps; now: ${end.path.current?.title ?? "complete"} ${end.path.current?.progress ?? ""}`);
 process.exit(0);

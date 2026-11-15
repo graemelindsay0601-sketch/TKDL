@@ -2155,3 +2155,5 @@
   .career-navigation .career-subnav-link { min-height:34px !important; padding:5px 12px !important; font-size:.85rem !important; }
   .career-navigation .career-subnav-icon { width:13px; height:13px; }
 }
+.career-event-verdict__instead { color:#c9d3da; font-size:13px; }
+.career-event-verdict__instead a { color:#ecd084; text-decoration:underline; text-underline-offset:2px; }

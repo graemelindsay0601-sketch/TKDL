@@ -3,7 +3,7 @@ import {CareerEventIdentity, CareerShirt} from "../identity";
 import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Play, ShieldCheck, Swords, Ticket, Trophy, Users } from "lucide-react";
-import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, useGuide, errorMessage } from "../api";
+import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, useGuide, useCalendar, errorMessage } from "../api";
 import { eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, eventMatchFormatLine, formatLabel, formatRuleLines, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
 import { CareerEmptyState, CareerError, CareerEventStakes, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
@@ -439,6 +439,12 @@ function RankingTab({ saveId, detail, retired }: { saveId: string; detail: Event
 /** "Should I enter?" in one line: can you, can you afford it, is it worth it, does it fit your path. */
 function EventVerdict({ saveId, event: e, balancePence }: { saveId: string; event: EventDetail["event"]; balancePence: number }) {
   const guide = useGuide(saveId);
+  const broke = !!e.human && !e.human.entryStatus && ((e.finance?.estimatedPlayerCostPence ?? 0) > balancePence || e.human.denials.includes("INSUFFICIENT_FUNDS"));
+  // Short of money: the nearest free (or cheapest) local night that week or the next, instead of a dead end.
+  const nearby = useCalendar(saveId, { scope: "AVAILABLE", fromWeek: e.dates.startWeek, toWeek: Math.min(52, e.dates.startWeek + 1) }, broke);
+  const instead = broke ? (nearby.data?.events ?? []).filter(x => x.id !== e.id && x.human?.canEnter && x.status !== "COMPLETED"
+    && (x.finance?.estimatedPlayerCostPence ?? 0) <= balancePence && (x.finance?.travelBand ?? "LOCAL") === "LOCAL")
+    .sort((a, b) => (a.finance?.estimatedPlayerCostPence ?? 0) - (b.finance?.estimatedPlayerCostPence ?? 0) || a.dates.startDay - b.dates.startDay)[0] : undefined;
   if (["COMPLETED", "CANCELLED"].includes(e.status) || !e.human) return null;
   const entered = e.human.entryStatus && e.human.entryStatus !== "WITHDRAWN";
   const fits = !!guide.data?.path.circuits.includes(e.circuit), step = guide.data?.path.current?.title.toLowerCase();
@@ -454,5 +460,9 @@ function EventVerdict({ saveId, event: e, balancePence }: { saveId: string; even
   return <div className="career-event-verdict" data-tone={tone} role="note">
     <b>{head}</b>
     <span>{[worth?.label, fits && step && !entered ? `Moves you towards: ${step}.` : null].filter(Boolean).join(" ")}</span>
+    {broke && <span className="career-event-verdict__instead">
+      {instead ? <>Instead: <Link href={`/career/${saveId}/events/${instead.id}`}>{instead.name}</Link> ({(instead.finance?.estimatedPlayerCostPence ?? 0) === 0 ? "free" : formatPence(instead.finance!.estimatedPlayerCostPence)}, week {instead.dates.startWeek}). </> : null}
+      Or win some money first: <Link href={`/career/${saveId}/money-matches`}>a money match at your club</Link> or <Link href={`/career/${saveId}/local`}>a local night</Link>.
+    </span>}
   </div>;
 }

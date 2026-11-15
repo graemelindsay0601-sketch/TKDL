@@ -128,7 +128,15 @@ export function buildGuide(g: GuideInput) {
     return { key: st.key, title: st.title, unlocks: st.unlocks, done, current, progress: st.progress?.(g.facts, g.streaming, earned) ?? null, how: st.how };
   });
   const currentDef = path.stages.find(st => !st.done(g.facts, g.streaming, g.earningsPence ?? 0)) ?? null;
-  const fits = (e: GuideEvent) => !currentDef || !currentDef.circuits.length || currentDef.circuits.includes(e.circuit);
+  const fits = (e: GuideEvent) => !!currentDef && currentDef.circuits.includes(e.circuit);
+  // How far it's sensible to go, and what to spend, for the step you're on: a pub-level step stays local and cheap; a
+  // county step can travel in the UK; tour-level steps on the pro or majors paths can go further.
+  const stageCircuits = currentDef?.circuits ?? [];
+  const localStage = stageCircuits.length > 0 && stageCircuits.every(c => LOCAL.includes(c));
+  const countyStage = stageCircuits.length > 0 && stageCircuits.every(c => [...LOCAL, ...COUNTY, "VAULT"].includes(c));
+  const bands = localStage ? ["LOCAL"] : countyStage || !["PROFESSIONAL_PATHWAY", "MAJOR_QUALIFICATION"].includes(g.focus) ? ["LOCAL", "DOMESTIC"] : Object.keys(BAND_RANK);
+  const spendCap = localStage ? Math.max(2_000, g.balancePence * 0.25) : g.balancePence * 0.6;
+  const sensibleTrip = (e: GuideEvent) => bands.includes(e.finance?.travelBand ?? "LOCAL") && (e.finance?.estimatedPlayerCostPence ?? 0) <= spendCap;
 
   // ---- today
   const { week, dayOfWeek, phase } = g.today;
@@ -157,7 +165,7 @@ export function buildGuide(g: GuideInput) {
     .sort((a, b) => b.dates.startDay - a.dates.startDay).slice(0, 5)
     .map(e => ({ id: e.id, name: e.name, week: e.dates.startWeek, when: when(e), why: `It fitted your next step: ${currentDef!.title.toLowerCase()}.` }));
   const affordable = (e: GuideEvent) => (e.finance?.estimatedPlayerCostPence ?? 0) <= g.balancePence;
-  const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && fits(e) && near(e) && affordable(e)).sort(sensible).slice(0, 4)
+  const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && (fits(e) || !stageCircuits.length) && sensibleTrip(e) && affordable(e)).sort(sensible).slice(0, 4)
     .map(e => ({ id: e.id, name: e.name, when: when(e), href: `${base}/events/${e.id}` }));
 
   // ---- next steps: at most three, the most pressing first
@@ -173,9 +181,11 @@ export function buildGuide(g: GuideInput) {
   else if (g.activeTournament) add({ key: "tournament", tone: "now", title: `Back to ${g.activeTournament.name}`, why: "You're in a tournament.", action: { label: "Open it", href: `${base}/tournaments/${g.activeTournament.eventId}` } });
   for (const w of waitingOn.filter(w => !w.label.startsWith("Your match"))) add({ key: `wait:${w.label}`, tone: "now", title: w.label, why: "The week is waiting for it.", action: { label: "Go", href: w.href } });
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
-  for (const c of closing.slice(0, 1)) add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}. It fits your next step.`, action: { label: "Enter", enterEventId: c.id, href: c.href } });
+  for (const c of closing.slice(0, 1)) { const ev = g.events.find(e => e.id === c.id);
+    add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}${ev ? cost(ev) : ""}.${ev && fits(ev) ? " It fits your next step." : " A cheap night of darts near home."}`,
+      action: { label: "Enter", enterEventId: c.id, href: c.href } }); }
   const fitting = (currentDef?.circuits.length ? upcoming.filter(e => currentDef.circuits.includes(e.circuit)) : [])
-    .filter(e => affordable(e) && (near(e) || g.focus === "MAJOR_QUALIFICATION" || g.focus === "PROFESSIONAL_PATHWAY")).sort(sensible);
+    .filter(e => affordable(e) && sensibleTrip(e)).sort(sensible);
   // Make it pay: the best prize for the cost; every other path: the soonest event that fits.
   const pathPick = g.focus === "PRIZE_MONEY"
     ? [...fitting].sort((a, b) => worth(b) - worth(a))[0]

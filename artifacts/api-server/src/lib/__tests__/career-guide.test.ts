@@ -93,3 +93,14 @@ test("missed ignores far events and nights you were busy", () => {
   const g = buildGuide(base({ events: [done("near", 5, "LOCAL"), done("abroad", 5, "EUROPE"), done("played", 2, "LOCAL", "COMPLETED"), done("same-night", 2, "LOCAL")] }));
   assert.deepEqual(g.missed.map(m => m.id), ["near"]);
 });
+
+test("no long trips or big spends at pub level, on any path; the creator's darts nights don't claim to fit", () => {
+  const trip = ev("cardiff", "GRASSROOTS", 10, 7, { finance: { estimatedPlayerCostPence: 19_200, travelBand: "DOMESTIC" } });
+  const home = ev("home", "GRASSROOTS", 10, 5, { finance: { estimatedPlayerCostPence: 500, travelBand: "LOCAL" } });
+  for (const focus of ["OPEN_SCHEDULE", "PROFESSIONAL_PATHWAY", "PRIZE_MONEY"] as const) {
+    const g = buildGuide(base({ focus, balancePence: 25_000, events: [trip, home] }));
+    assert.ok(!g.nextSteps.some(s => s.action.enterEventId === "cardiff"), `${focus}: no £192 pub night`);
+  }
+  const creator = buildGuide(base({ focus: "DARTCAST_CREATOR", events: [home] }));
+  assert.ok(!creator.nextSteps.some(s => /fits your next step/.test(s.why)));
+});
