@@ -65,6 +65,7 @@ function TodayHome({ ctx }: { ctx: ShellContext }) {
 }
 
 function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "details" }) {
+  const [dtab, setDtab] = useState<"pathway" | "rankings" | "results" | "news">("pathway");
   const { save, retired } = ctx;
   const id = save.id;
   const sporting = useSporting(id);
@@ -97,8 +98,9 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
     onError: error => setMessage(errorMessage(error)),
   });
 
+  const DTABS = [["pathway", "Pathway"], ["rankings", "Rankings"], ["results", "Results"], ["news", "News"]] as const;
   return (
-    <main className="career-home">
+    <main className={`career-home${mode === "details" ? " career-home--details" : ""}`} data-dtab={mode === "details" ? dtab : undefined}>
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#c52842" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}
@@ -122,10 +124,18 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
             sub: finance.data ? `${formatPence(finance.data.availablePence)} available` : undefined },
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
+      {mode === "details" && <nav className="career-details-tabs" aria-label="Career details">
+        {DTABS.map(([k, label]) => <button key={k} type="button" aria-pressed={dtab === k} onClick={() => setDtab(k)}>{label}</button>)}
+      </nav>}
+      <div data-section="pathway">
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
       {!retired && <PathwayTracker saveId={id} events={events} week={save.currentWeek}
         calendarLoading={calendar.isLoading} calendarError={calendar.error} retryCalendar={() => void calendar.refetch()} />}
+      </div>
+      <div data-section="rankings">
       {!retired && <TourPulse saveId={id} />}
+      </div>
+      <div data-section="pathway">
       {(save.eventDatabaseVersion ?? 0) >= 5 && save.currentSeason === 1 && !retired && <>
         <SeasonOneGuidance saveId={id} />
         <details className="career-note" open>
@@ -137,9 +147,11 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
               : "Play wherever suits you. Your first Q-School is at the start of season 2. Turning professional is up to you."}</p>
         </details>
       </>}
-      <details className="home-more" open={retired}>
+      </div>
+      <details className="home-more" open={retired || mode === "details"}>
       <summary className="home-more__summary">More about your Career <span>Guidance, route ahead, goals, schedule and results</span></summary>
       <div className="home-more__body">
+      <div data-section="pathway">
       <ContextHelp saveId={id} topic="home" />
 
       <section className={`home-next panel${active ? " home-next-live" : ""}`} aria-labelledby="home-next-title">
@@ -238,6 +250,8 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
             <CareerEmptyState title="No entered commitments nearby">Qualified does not mean entered. Choose an event when registration and your schedule work.</CareerEmptyState>}
       </CareerSection>}
 
+
+      </div>      <div data-section="results">
       <div className="home-two-column home-records">
         <CareerSection title="Recent results" icon={<Medal aria-hidden />} accent="#d8b76a" action={<Link className="home-text-link" href={`/career/${id}/my-career/history`}>Full history <ArrowUpRight aria-hidden /></Link>}>
           {history.isLoading ? <CareerLoading label="Loading your results" /> : history.error ? <CareerError error={history.error} onRetry={() => void history.refetch()} /> :
@@ -262,6 +276,8 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
         </CareerSection>
       </div>
 
+      </div>
+      <div data-section="news">
       <div className="home-two-column home-latest">
         <CareerSection title="Recent changes" icon={<History aria-hidden />} accent="#82a9d0" action={<Link className="home-text-link" href={`/career/${id}/my-career/history`}>Career history <ArrowUpRight aria-hidden /></Link>}>
           {legacy.isLoading ? <CareerLoading label="Checking Career changes" /> : legacy.error ? <CareerError error={legacy.error} onRetry={() => void legacy.refetch()} /> :
@@ -276,6 +292,7 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
         </CareerSection>
       </div>
 
+      </div>
       </div>
       </details>
     </main>

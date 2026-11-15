@@ -337,7 +337,7 @@ export type GuideFocus = "OPEN_SCHEDULE" | "AMATEUR_CIRCUIT" | "PROFESSIONAL_PAT
 export type GuideView = {
   today: { season: number; week: number; dayOfWeek: number; dayName: string; phase: "START_OF_WEEK" | "MID_WEEK"; headline: string; waitingOn: GuideAction[];
     options: { id: string; name: string; detail: string; fits: boolean }[]; laterThisWeek: number };
-  path: { focus: GuideFocus; label: string; blurb: string; done: number; total: number;
+  path: { focus: GuideFocus; label: string; blurb: string; done: number; total: number; circuits: string[];
     stages: { key: string; title: string; unlocks: string; done: boolean; current: boolean; progress: string | null; how: string }[];
     current: { key: string; title: string; unlocks: string; progress: string | null; how: string } | null };
   paths: { key: GuideFocus; label: string; blurb: string }[];

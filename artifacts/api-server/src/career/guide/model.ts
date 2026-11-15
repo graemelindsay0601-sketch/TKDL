@@ -10,7 +10,7 @@ export type GuideEvent = {
   dates: { startWeek: number; startDayOfWeek: number; startDay: number };
   registration?: { opensWeek: number; closesWeek: number } | null;
   venue?: { city?: string } | null;
-  finance?: { estimatedPlayerCostPence?: number; topPrizePence?: number | null; firstPrizePence?: number | null } | null;
+  finance?: { estimatedPlayerCostPence?: number; topPrizePence?: number | null; firstPrizePence?: number | null; travelBand?: string } | null;
   human: { canEnter: boolean; eligible: boolean; relationship: string; denials?: string[] } | null;
 };
 export type GuideStreaming = { tierKey: string; tierName: string; followers: number; nextTier: { name: string; followers: number } | null;
@@ -29,6 +29,8 @@ export type GuideInput = {
   moneyChallenge: { name: string; stakePence: number } | null;
   /** Career prize money won so far (for the money path). */
   earningsPence?: number;
+  /** How many weeks back "missed" looks (default two; more after a long skip). */
+  missedWeeks?: number;
 };
 export type GuideAction = { label: string; href?: string; enterEventId?: string };
 export type GuideStep = { key: string; title: string; why: string; action: GuideAction; tone: "now" | "soon" | "tip" };
@@ -104,6 +106,12 @@ export const PATHS: Record<GuideFocus, { label: string; blurb: string; stages: S
   DARTCAST_CREATOR: { label: "Darts creator", blurb: "Build a DartCast channel; play darts for the content.", stages: CREATOR },
 };
 
+/** Near home: a local night out or a domestic trip (an amateur doesn't fly to Galway for a Monday knockout). */
+const near = (e: GuideEvent) => !e.finance?.travelBand || ["LOCAL", "DOMESTIC"].includes(e.finance.travelBand);
+const BAND_RANK: Record<string, number> = { LOCAL: 0, DOMESTIC: 1, UK_IRELAND: 2, EUROPE: 3, LONG_HAUL: 4 };
+/** Best first: this week before later weeks, then nearest, then cheapest, then soonest. */
+const sensible = (a: GuideEvent, b: GuideEvent) => a.dates.startWeek - b.dates.startWeek || (BAND_RANK[a.finance?.travelBand ?? "LOCAL"] ?? 0) - (BAND_RANK[b.finance?.travelBand ?? "LOCAL"] ?? 0)
+  || (a.finance?.estimatedPlayerCostPence ?? 0) - (b.finance?.estimatedPlayerCostPence ?? 0) || a.dates.startDay - b.dates.startDay;
 /** What an event could pay you over what it costs (its top prize less your costs). */
 const worth = (e: GuideEvent) => (e.finance?.topPrizePence ?? e.finance?.firstPrizePence ?? 0) - (e.finance?.estimatedPlayerCostPence ?? 0);
 const open = (e: GuideEvent) => !!e.human?.canEnter && !["COMPLETED", "CANCELLED"].includes(e.status);
@@ -140,12 +148,16 @@ export function buildGuide(g: GuideInput) {
       ? `Nothing booked yet this week: ${upcoming.filter(e => e.dates.startWeek === week).length} events you could enter.` : `Nothing to enter this week: try a local night or plan next week.`;
 
   // ---- what you missed (the last two weeks, events that fitted your path and you could have played)
-  const missed = g.events.filter(e => e.status === "COMPLETED" && e.dates.startWeek >= week - 2 && e.dates.startWeek <= week && e.human?.eligible
+  // Missed: near home, on a night you had nothing else on (an event across the country, or on a night you played, isn't missed).
+  const busyDays = new Set(g.events.filter(e => e.human && BOOKED.has(e.human.relationship)).flatMap(e => [e.dates.startDay]));
+  const missed = g.events.filter(e => e.status === "COMPLETED" && e.dates.startWeek >= week - (g.missedWeeks ?? 2) && e.dates.startWeek <= week && e.human?.eligible
+    && (e.finance?.travelBand ?? "LOCAL") === "LOCAL" && !busyDays.has(e.dates.startDay)
     && !BOOKED.has(e.human.relationship) && (e.human.denials ?? []).every(d => ["EVENT_FINISHED", "REGISTRATION_CLOSED", "FIELD_LOCKED", "INSUFFICIENT_FUNDS"].includes(d))
     && currentDef?.circuits.includes(e.circuit))
     .sort((a, b) => b.dates.startDay - a.dates.startDay).slice(0, 5)
     .map(e => ({ id: e.id, name: e.name, week: e.dates.startWeek, when: when(e), why: `It fitted your next step: ${currentDef!.title.toLowerCase()}.` }));
-  const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && fits(e)).slice(0, 4)
+  const affordable = (e: GuideEvent) => (e.finance?.estimatedPlayerCostPence ?? 0) <= g.balancePence;
+  const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && fits(e) && near(e) && affordable(e)).sort(sensible).slice(0, 4)
     .map(e => ({ id: e.id, name: e.name, when: when(e), href: `${base}/events/${e.id}` }));
 
   // ---- next steps: at most three, the most pressing first
@@ -162,13 +174,21 @@ export function buildGuide(g: GuideInput) {
   for (const w of waitingOn.filter(w => !w.label.startsWith("Your match"))) add({ key: `wait:${w.label}`, tone: "now", title: w.label, why: "The week is waiting for it.", action: { label: "Go", href: w.href } });
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
   for (const c of closing.slice(0, 1)) add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}. It fits your next step.`, action: { label: "Enter", enterEventId: c.id, href: c.href } });
-  const fitting = currentDef?.circuits.length ? upcoming.filter(e => currentDef.circuits.includes(e.circuit)) : [];
+  const fitting = (currentDef?.circuits.length ? upcoming.filter(e => currentDef.circuits.includes(e.circuit)) : [])
+    .filter(e => affordable(e) && (near(e) || g.focus === "MAJOR_QUALIFICATION" || g.focus === "PROFESSIONAL_PATHWAY")).sort(sensible);
   // Make it pay: the best prize for the cost; every other path: the soonest event that fits.
   const pathPick = g.focus === "PRIZE_MONEY"
     ? [...fitting].sort((a, b) => worth(b) - worth(a))[0]
-    : fitting[0];
-  if (pathPick) add({ key: `path:${pathPick.id}`, tone: "soon", title: `Enter ${pathPick.name}`, why: `${when(pathPick)}${cost(pathPick)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
-    action: { label: "Enter", enterEventId: pathPick.id, href: `${base}/events/${pathPick.id}` } });
+    : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id)) ?? fitting[0];
+  const suggest = (e: GuideEvent) => add({ key: `path:${e.id}`, tone: "soon", title: `Enter ${e.name}`, why: `${when(e)}${cost(e)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
+    action: { label: "Enter", enterEventId: e.id, href: `${base}/events/${e.id}` } });
+  if (pathPick) {
+    suggest(pathPick);
+    // A second night this week if there's one: a different day from anything already suggested.
+    const taken = new Set(steps.map(s => g.events.find(e => e.id === s.action.enterEventId)?.dates.startDay).filter(Boolean));
+    const second = fitting.find(e => e.dates.startWeek === week && !taken.has(e.dates.startDay) && e.id !== pathPick.id);
+    if (second && !bookedThisWeek) suggest(second);
+  }
   else if (currentDef && !currentDef.circuits.length) add({ key: "creator", tone: "soon", title: currentDef.title, why: currentDef.how, action: { label: "Open DartCast", href: `${base}/streaming` } });
   else if (currentDef) {
     const blocked = g.events.filter(e => e.status !== "COMPLETED" && e.dates.startWeek >= week && currentDef.circuits.includes(e.circuit) && e.human?.eligible && !e.human.canEnter);
@@ -179,15 +199,16 @@ export function buildGuide(g: GuideInput) {
   }
   if (!bookedThisWeek && phase === "START_OF_WEEK" && upcoming.some(e => e.dates.startWeek === week))
     add({ key: "plan", tone: "tip", title: "Plan this week", why: "Pick a night for each thing you want to do before you play on.", action: { label: "Plan it", href: `${base}#week-planner` } });
-  const sponsor = g.sponsorTiers.find(t => t.met && !t.signed);
-  if (sponsor) add({ key: "sponsor", tone: "tip", title: `${sponsor.name} will talk to you`, why: "Offers arrive after your events while you have room in your portfolio.", action: { label: "Sponsor HQ", href: `${base}/sponsors` } });
+  // Sponsor tiers you reach are announced once in the inbox (a weekly reminder here only nagged).
 
   return {
     today: { season: g.season, week, dayOfWeek, dayName: dayName(dayOfWeek), phase, headline, waitingOn,
       options: todayEvents.slice(0, 4).map(e => ({ id: e.id, name: e.name, detail: `${e.venue?.city ?? ""}${cost(e)}`.replace(/^ · /, ""), fits: fits(e) })),
       laterThisWeek: restOfWeek.length },
     path: { focus: g.focus, label: path.label, blurb: path.blurb, stages,
-      current: stages.find(s => s.current) ?? null, done: stages.filter(s => s.done).length, total: stages.length },
+      current: stages.find(s => s.current) ?? null, done: stages.filter(s => s.done).length, total: stages.length,
+      /** Circuits that move the current step on (for "fits your path" on event pages). */
+      circuits: currentDef?.circuits ?? [] },
     paths: Object.entries(PATHS).map(([key, p]) => ({ key: key as GuideFocus, label: p.label, blurb: p.blurb })),
     nextSteps: steps, missed, closing,
   };

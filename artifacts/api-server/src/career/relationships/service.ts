@@ -53,11 +53,12 @@ export function createCareerRelationshipsService(database: CareerDatabase) {
       // also include post-lock withdrawals. Q-School session = season + pathway/stage
       // series; Junior overlap = same actual event, not merely same age/year.
       // Only the sessions the human played in are expanded (all Q-School and junior matches of every season grew with the save).
-      const shared = (await tx.execute(sql`WITH human AS (
+      // MATERIALIZED: computed once. On a new save (no table statistics yet) the planner otherwise re-ran sessions per match.
+      const shared = (await tx.execute(sql`WITH human AS MATERIALIZED (
         SELECT DISTINCT i.season, i.circuit, i.family, CASE WHEN i.circuit='Q_SCHOOL' THEN i.series_key ELSE i.id::text END AS session
         FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
         WHERE m.career_save_id=${saveId} AND (m.a_key='HUMAN' OR m.b_key='HUMAN') AND (i.circuit='Q_SCHOOL' OR i.family='junior-development-circuit')
-      ), sessions AS (
+      ), sessions AS MATERIALIZED (
         SELECT i.id FROM career_event_instances i JOIN human h ON h.season=i.season AND h.circuit=i.circuit AND h.family=i.family
           AND h.session=CASE WHEN i.circuit='Q_SCHOOL' THEN i.series_key ELSE i.id::text END
         WHERE i.career_save_id=${saveId}

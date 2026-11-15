@@ -2123,3 +2123,35 @@
 .career-continue-outcome__missed ul { margin:4px 0; padding-left:18px; }
 .career-continue-outcome__missed small { color:#9fadb4; }
 .career-continue-outcome__missed a { color:#ecd084; text-decoration:underline; text-underline-offset:2px; }
+/* Phones: page banners become a short title strip (the one-line page intro already says what the page is for). */
+@media (max-width:640px) {
+  .career-page-hero__stage { min-height:0 !important; padding:14px 16px !important; }
+  .career-page-hero__watermark, .career-page-hero__portrait, .career-page-hero__sweep, .career-page-hero__kicker, .career-page-hero__subtitle { display:none !important; }
+  .career-page-hero__title { font-size:1.6rem !important; line-height:1.05 !important; margin:0 !important; }
+  .career-page-hero__actions { margin-top:8px !important; }
+  .career-page-hero__stats { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:6px !important; padding:8px !important; }
+  .career-page-hero__stats > div { padding:6px 8px !important; }
+  .career-page-hero__stats small { display:none; }
+  .cc-hero { min-height:0 !important; padding:14px 16px !important; }
+  .cc-hero h2, .cc-hero h1 { font-size:1.6rem !important; line-height:1.05 !important; }
+  .cc-hero-copy > p, .cc-hero .cc-eyebrow { display:none !important; }
+  .rt-hero { min-height:0 !important; }
+  .rt-hero__content { padding:16px !important; }
+  .rt-hero h1 { font-size:1.9rem !important; line-height:1 !important; }
+  .rt-hero__vertical, .rt-hero__lead .rt-hero__rule { display:none !important; }
+  .rt-hero__stats { gap:6px !important; }
+}
+.career-event-verdict { display:grid; gap:2px; padding:10px 14px; border-radius:12px; border:1px solid #ffffff1a; background:#ffffff07; font-size:14px; color:#dfe6ec; }
+.career-event-verdict b { font-size:15px; }
+.career-event-verdict[data-tone="good"] { border-color:#7ee0a166; background:#7ee0a112; }
+.career-event-verdict[data-tone="good"] b { color:#bff0cf; }
+.career-event-verdict[data-tone="fair"] b { color:#ecd084; }
+.career-event-verdict[data-tone="poor"] { border-color:#ff8a7a55; background:#ff8a7a10; }
+.career-event-verdict[data-tone="poor"] b { color:#ffb3a3; }
+/* Phones: a slim row of the section's pages. */
+@media (max-width:1023px) {
+  .career-navigation { padding:4px !important; border-radius:12px !important; }
+  .career-navigation .career-context-nav { padding:2px !important; margin:0 !important; border-top:0 !important; gap:4px !important; }
+  .career-navigation .career-subnav-link { min-height:34px !important; padding:5px 12px !important; font-size:.85rem !important; }
+  .career-navigation .career-subnav-icon { width:13px; height:13px; }
+}
