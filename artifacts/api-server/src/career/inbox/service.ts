@@ -1,3 +1,5 @@
+import { ensureInbox } from "../../db/migrations/create_career_inbox.ts";
+export { ensureInbox };
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
@@ -13,11 +15,6 @@ type StreamingRead = { read(actor: CareerActor, saveId: string): Promise<Record<
 type MoneyRead = { read(actor: CareerActor, saveId: string): Promise<{ challenge: { name: string; stakePence: number } | null }> };
 
 const pounds = (p: number) => `£${(p / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
-/** The inbox's read state (created at boot by the schema repair; here too for test databases that skip it). */
-export async function ensureInbox(tx: CareerExecutor) {
-  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_inbox_state (career_save_id uuid PRIMARY KEY REFERENCES career_saves(id) ON DELETE CASCADE,
-    seen jsonb NOT NULL DEFAULT '[]'::jsonb, dismissed jsonb NOT NULL DEFAULT '[]'::jsonb, muted jsonb NOT NULL DEFAULT '[]'::jsonb, updated_at timestamptz NOT NULL DEFAULT NOW())`);
-}
 let stateSeen = false;
 async function ensureState(tx: CareerExecutor) {
   if (stateSeen) return;
