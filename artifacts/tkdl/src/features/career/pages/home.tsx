@@ -101,9 +101,6 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
   const DTABS = [["pathway", "Pathway"], ["rankings", "Rankings"], ["results", "Results"], ["news", "News"]] as const;
   return (
     <main className={`career-home${mode === "details" ? " career-home--details" : ""}`} data-dtab={mode === "details" ? dtab : undefined}>
-      {mode === "details" && <nav className="career-details-tabs" aria-label="Career details">
-        {DTABS.map(([k, label]) => <button key={k} type="button" aria-pressed={dtab === k} onClick={() => setDtab(k)}>{label}</button>)}
-      </nav>}
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#c52842" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}
@@ -127,6 +124,9 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
             sub: finance.data ? `${formatPence(finance.data.availablePence)} available` : undefined },
           { label: "Sponsor", value: finance.data?.sponsor?.displayName ?? "Self-funded" },
         ]} />
+      {mode === "details" && <nav className="career-details-tabs" aria-label="Career details">
+        {DTABS.map(([k, label]) => <button key={k} type="button" aria-pressed={dtab === k} onClick={() => setDtab(k)}>{label}</button>)}
+      </nav>}
       <div data-section="pathway">
       {!retired && finance.data?.availableOffers ? <aside className="home-sponsor-alert"><span><strong>Sponsor decision available</strong><small>Review the offer terms and coverage before your next commitment.</small></span><Link href={`/career/${id}/finances`}>Review <ArrowUpRight aria-hidden /></Link></aside> : null}
       {!retired && <PathwayTracker saveId={id} events={events} week={save.currentWeek}

@@ -301,7 +301,9 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
     ...(seasonReview.data?.pendingReview?[{title:"Season Review waiting",path:`${base}/my-career/history`}]:[]),
     ...(finance.data?.availableOffers?[{title:"Sponsor decision available",path:`${base}/finances`}]:[])]:[];
   const panelId=`career-attention-panel-${saveId}`;
-  const count=actions.length+inbox.length;
+  // The count is what matters: qualified, offers waiting, entries closing, milestones. "X is open" notices stay in the inbox.
+  const important=inbox.filter(i=>i.category!=="OPEN");
+  const count=actions.length+important.length;
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
       <button type="button" className="career-attention-trigger" data-testid="button-career-attention" aria-expanded={open} aria-controls={panelId}>
@@ -324,7 +326,7 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
         </section>}
         <section className="career-attention-group" aria-labelledby={`${panelId}-inbox`}>
           <h3 id={`${panelId}-inbox`}>New in your inbox</h3>
-          {inbox.slice(0,6).map(i=><Link key={i.key} className={i.category==="CLOSING"||i.category==="QUALIFIED"?"is-action":undefined} href={i.action?.href??`${base}/inbox`} onClick={()=>setOpen(false)}><Inbox size={14} aria-hidden/><span>{i.title}</span></Link>)}
+          {[...important,...inbox.filter(i=>i.category==="OPEN")].slice(0,6).map(i=><Link key={i.key} className={i.category==="CLOSING"||i.category==="QUALIFIED"?"is-action":undefined} href={i.action?.href??`${base}/inbox`} onClick={()=>setOpen(false)}><Inbox size={14} aria-hidden/><span>{i.title}</span></Link>)}
           {!inbox.length&&<p>Nothing new.</p>}
           <Link data-testid="link-open-inbox" href={`${base}/inbox`} onClick={()=>setOpen(false)}>Open inbox{inbox.length>6?` (${inbox.length} new)`:""}</Link>
         </section>
