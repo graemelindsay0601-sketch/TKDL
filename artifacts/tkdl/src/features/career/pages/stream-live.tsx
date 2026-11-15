@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Eye, Heart, Loader2, Radio, Sparkles, Star } from "lucide-react";
 import { GameScorer } from "@/components/game-scorer";
 import type { Dart } from "@/lib/darts-rules";
-import { careerKey, streamingApi, useStreamSession, errorMessage, type ChatEvent, type StreamSession } from "../api";
+import { careerKey, streamingApi, useStreaming, useStreamSession, errorMessage, type ChatEvent, type StreamSession } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { careerBotVisit, careerGameType, recoveryFromLog, scorerLength, shouldCheckpoint } from "../live-model";
 import { formatPence } from "../model";
@@ -33,7 +33,7 @@ function ChatLine({ e }: { e: ChatEvent }) {
  * match is over the stream ends and you see the night's numbers.
  */
 export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId: string }) {
-  const id = ctx.save.id, q = useStreamSession(id, streamId), client = useQueryClient();
+  const id = ctx.save.id, q = useStreamSession(id, streamId), client = useQueryClient(), look = useStreaming(id).data?.look;
   const [session, setSession] = useState<StreamSession | null>(null);
   const [chat, setChat] = useState<ChatEvent[]>([]);
   const [fresh, setFresh] = useState<ChatEvent[]>([]);
@@ -109,7 +109,7 @@ export function StreamLivePage({ ctx, streamId }: { ctx: ShellContext; streamId:
           <span className="dc__viewers"><Eye aria-hidden /> {t.viewers.toLocaleString("en-GB")} <small>watching</small></span>
         </div>
       </header>
-      <div className="dc-live">
+      <div className="dc-live" data-look={look?.theme} style={look ? { ["--look-accent" as string]: look.accent } : undefined}>
         <section className="dc-live__stage" aria-label="Stream">
           <div className="dc-live__title">{title}</div>
           {session.campaign && <aside className="dc__note" aria-label="Sponsored stream campaign">

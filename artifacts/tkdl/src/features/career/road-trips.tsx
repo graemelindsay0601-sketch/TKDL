@@ -214,7 +214,7 @@ export function RoadTripLivePage({ ctx, matchId }: { ctx: ShellContext; matchId:
     {session.legs && <p>{session.legs[0]}–{session.legs[1]} · stake {formatPence(session.stakePence)}</p>}{back}</div>;
   if (session.status === "MISSED") return <div className="cam-league__done space-y-3">
     <h2>Road match missed</h2><p>The week ended before the match was completed. No result or stake was recorded.</p>{back}</div>;
-  return <CareerScorerStage stream={{ saveId: id, refId: session.id, side: { kind: "ROAD", format: session.format, firstThrower: (session.firstThrower) as 0 | 1, opponentName: session.opponent.name, opponentAvg: session.opponent.bot.config.avg, darts: () => log.current } }} message={message} title={`${session.you} vs ${session.opponent.name}`}>
+  return <CareerScorerStage stream={{ saveId: id, refId: session.id, side: { kind: "ROAD", format: session.format, firstThrower: (session.firstThrower) as 0 | 1, opponentName: session.opponent.name, opponentAvg: session.opponent.bot.config.avg, darts: () => log.current } }} message={message || (session.crowd ? `📣 ${session.crowd.inHall.toLocaleString("en-GB")} of your ${session.crowd.handle} community came along: “${session.crowd.chant}”` : "")} title={`${session.you} vs ${session.opponent.name}`}>
     <GameScorer key={session.id} p1Name={session.you} p2Name={session.opponent.name}
       gameType={careerGameType(session.format as LiveSession["format"])} botConfig={session.opponent.bot.config}
       firstThrower={session.firstThrower} {...scorerLength(session.format as LiveSession["format"])}

@@ -45,6 +45,7 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/shorts", authedWriteRateLimit, async (req, res) => { res.json(await service.makeShort(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/podcast", authedWriteRateLimit, async (req, res) => { res.json(await service.recordPodcast(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/vlogs", authedWriteRateLimit, async (req, res) => { res.json(await service.postVlog(res.locals.careerActor, id(req), req.body)); });
+  router.post("/saves/:id/streaming/look", authedWriteRateLimit, async (req, res) => { res.json(await service.setLook(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/sets", authedWriteRateLimit, async (req, res) => { res.json(await service.buySet(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/watch-along", authedWriteRateLimit, async (req, res) => { res.json(await service.watchAlong(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/merch", authedWriteRateLimit, async (req, res) => { res.json(await service.dropMerch(res.locals.careerActor, id(req), req.body)); });

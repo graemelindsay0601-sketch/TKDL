@@ -102,3 +102,22 @@ export function vlogOutcome(seed: string, key: string, followers: number, tier: 
   const views = Math.round((Math.max(0, followers) * VLOG.followerShare + VLOG.base) * (VLOG.prestige[tier ?? ""] ?? 1) * (0.7 + rng() * 0.6) * (editor ? VLOG.editor : 1));
   return { views, followers: Math.round(views / 1000 * VLOG.followersPerThousand), pence: vodPence(views) };
 }
+
+/**
+ * The studio's look: set dressing (a theme for the stream: colours, banners, a backdrop) and lighting. A theme is cosmetic
+ * (the live screen takes its colours); better lighting makes every show a touch more watchable. Buy once, switch freely.
+ */
+export const STREAM_LOOKS = [
+  { key: "CLUB", name: "Club colours", blurb: "Your club's colours on the wall and a scarf on the mic stand.", costPence: 0, accent: "#d9b96f" },
+  { key: "NEON", name: "Neon nights", blurb: "Neon tubes, a dark room, a pink glow on the board.", costPence: 15_000, accent: "#ff4fa3" },
+  { key: "RETRO", name: "Retro pub", blurb: "Wood panelling, a brass rail, an old chalkboard scorer behind you.", costPence: 15_000, accent: "#c9864a" },
+  { key: "STAGE", name: "Championship", blurb: "Walk-on banners, a big screen and a stage-style backdrop.", costPence: 40_000, accent: "#4fc3f7" },
+] as const;
+export type StreamLookKey = typeof STREAM_LOOKS[number]["key"];
+export const LIGHTING = [
+  { key: "DESK", name: "Desk lamp", costPence: 0, bonus: 0 },
+  { key: "SOFTBOX", name: "Softbox kit", costPence: 12_000, bonus: 0.02 },
+  { key: "RIG", name: "Lighting rig", costPence: 50_000, bonus: 0.04 },
+] as const;
+export type LightingKey = typeof LIGHTING[number]["key"];
+export const lightingBonus = (key: string | null | undefined) => LIGHTING.find(l => l.key === key)?.bonus ?? 0;

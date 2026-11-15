@@ -159,5 +159,9 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, source_key))`);
   // A pro on the podcast wins fans for your darts career.
   await tx.execute(sql`ALTER TABLE career_stream_podcasts ADD COLUMN IF NOT EXISTS fans integer NOT NULL DEFAULT 0`);
+  // The month whose follower drift has been applied (once a month).
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS churned_through text`);
+  // The studio's look: the theme on show, the lighting, and what you've bought.
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS look jsonb NOT NULL DEFAULT '{"theme":"CLUB","lighting":"DESK","owned":["CLUB","DESK"]}'::jsonb`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS plaques jsonb NOT NULL DEFAULT '[]'::jsonb`);
 }

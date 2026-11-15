@@ -133,6 +133,8 @@ test("Clip of the Week: at most one a week, and a win brings followers", async (
   for (let w = 1; w <= 20; w++) {
     await db.execute(sql`INSERT INTO career_stream_clips (career_save_id, id, stream_id, season, week, kind, title, peak, status, views)
       VALUES (${id}, gen_random_uuid(), gen_random_uuid(), 9, ${w}, 'MAX', 'A 180', 40, 'VIRAL', 3000), (${id}, gen_random_uuid(), gen_random_uuid(), 9, ${w}, 'MAX', 'Another', 40, 'SETTLED', 10)`);
+    // This test is about the clip spotlight: the month's follower drift is marked done so it doesn't blur the gain.
+    await db.execute(sql`UPDATE career_stream_channels SET churned_through=${`9:${w}`} WHERE career_save_id=${id}`);
     const before = Number((await rows(sql`SELECT followers FROM career_stream_channels WHERE career_save_id=${id}`))[0].followers);
     await settleStreamingWeek(db, r, 9, w); await settleStreamingWeek(db, r, 9, w);
     const won = await rows(sql`SELECT views FROM career_stream_clips WHERE career_save_id=${id} AND season=9 AND week=${w} AND clip_of_week`);

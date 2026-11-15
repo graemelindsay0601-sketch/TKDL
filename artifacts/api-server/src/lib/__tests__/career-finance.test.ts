@@ -503,8 +503,14 @@ test("travel choices price eligible ground and air itineraries and apply a linke
 test("event preview exposes sponsor-net travel plans and an entered event saves the selected plan", async () => {
   const save = await careerWithCurrentCatalogue();
   await adjust(save.id, "travel-choice-funds", 1_000_000);
-  const away = (await events(save.id, { scope: "AVAILABLE" })).find(event =>
-    event.human!.canEnter && !event.series && event.finance.travelOptions?.some((option: { choice: string }) => option.choice === "AIR_STAY"));
+  // Lists leave travel choices out; the event page (event detail) carries them.
+  const candidates = (await events(save.id, { scope: "AVAILABLE" })).filter(event => event.human!.canEnter && !event.series);
+  assert.ok(candidates.every(event => event.finance.travelOptions === undefined), "lists don't carry travel choices");
+  let away: Ev | undefined;
+  for (const c of candidates) {
+    const detail = (await finance.calendar.event(actor, save.id, c.id)) as unknown as { event: Ev };
+    if (detail.event.finance?.travelOptions?.some((option: { choice: string }) => option.choice === "AIR_STAY")) { away = detail.event; break; }
+  }
   assert.ok(away, "an available event with a known-distance travel route");
   const air = away.finance.travelOptions!.find((option: { choice: string; estimatedPlayerCostPence: number; estimatedTravelPence: number; estimatedAccommodationPence: number;
     sponsorCoverage: { travelPence: number; accommodationPence: number } }) => option.choice === "AIR_STAY")!;

@@ -15,7 +15,7 @@ import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.t
 import { BRAND_CATEGORIES, DEAL_KINDS, PARTNERS, brandByKey, type BrandCategory, type DealKind } from "./partners.ts";
 import { brandTrust } from "./state.ts";
 import { AFFILIATE, MERCH, MERCH_ITEMS, PLATFORM, SPONSOR_LADDER, TEAM, tierAtLeast, type MerchKey, type TeamRole } from "./business.ts";
-import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, VLOG, setFor, vlogOutcome, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
+import { CONTENT, LIGHTING, PODCAST_TOPICS, STREAM_LOOKS, STUDIO_SETS, VLOG, lightingBonus, type LightingKey, type StreamLookKey, setFor, vlogOutcome, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
@@ -121,6 +121,8 @@ export type StreamingView = {
   marathons: { subathon: { open: boolean; why: string | null }; marathon: { open: boolean; why: string | null; targetPence: number } };
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
   trend: { format: string; name: string; endsWeek: number; bonusPercent: number };
+  look: { theme: string; accent: string; lighting: string; themes: { key: string; name: string; blurb: string; costPence: number; accent: string; owned: boolean }[];
+    lights: { key: string; name: string; costPence: number; bonusPercent: number; owned: boolean }[] };
   plaques: { key: string; name: string; followers: number; fans: number; earned: { season: number; week: number } | null }[];
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
@@ -175,13 +177,15 @@ async function channel(tx: CareerExecutor, root: Root) {
     pollPick: (row.poll_pick as StreamFormat | null) ?? null, subGoal: (row.sub_goal as Omit<SubGoal, "progress" | "endsWeek"> | null) ?? null,
     emotes: ((row.emotes as (string | null)[] | null) ?? []), celebrated: Number(row.celebrated ?? 0), sets: ((row.sets as string[] | null) ?? []),
     team: ((row.team as string[] | null) ?? []), platform: (row.platform as PlatformDeal | null) ?? null,
-    plaques: ((row.plaques as { key: string; season: number; week: number }[] | null) ?? []) };
+    plaques: ((row.plaques as { key: string; season: number; week: number }[] | null) ?? []),
+    look: (row.look as { theme: string; lighting: string; owned: string[] } | null) ?? { theme: "CLUB", lighting: "DESK", owned: ["CLUB", "DESK"] } };
   const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
   const name = String((await tx.execute(sql`SELECT career_name FROM career_saves WHERE id=${root.id}`)).rows[0]?.career_name ?? "Darts").replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || "Darts";
   const handle = `${name}Darts`, followers = followersFromFans(fans);
   await tx.execute(sql`INSERT INTO career_stream_channels (career_save_id, handle, followers) VALUES (${root.id}, ${handle}, ${followers}) ON CONFLICT DO NOTHING`);
   return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null, emotes: [] as (string | null)[], celebrated: 0, sets: [] as string[],
-    team: [] as string[], platform: null as PlatformDeal | null, plaques: [] as { key: string; season: number; week: number }[] };
+    team: [] as string[], platform: null as PlatformDeal | null, plaques: [] as { key: string; season: number; week: number }[],
+    look: { theme: "CLUB", lighting: "DESK", owned: ["CLUB", "DESK"] } };
 }
 
 const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), brand: String(r.brand_name), what: BRANDS.find(b => b.key === r.brand_key)?.what ?? "a brand",
@@ -422,6 +426,9 @@ export function createCareerStreamingService(database: CareerDatabase) {
     return { community, emotes, cups, celebration, marathons, awards, content, business, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
       trend: (() => { const t = trendFor(root.world_seed, season, week); return { format: t.format, name: formatByKey(t.format).name, endsWeek: t.endsWeek, bonusPercent: Math.round((TREND.bonus - 1) * 100) }; })(),
+      look: { theme: ch.look.theme, accent: STREAM_LOOKS.find(l => l.key === ch.look.theme)?.accent ?? STREAM_LOOKS[0].accent, lighting: ch.look.lighting,
+        themes: STREAM_LOOKS.map(l => ({ key: l.key, name: l.name, blurb: l.blurb, costPence: l.costPence, accent: l.accent, owned: ch.look.owned.includes(l.key) })),
+        lights: LIGHTING.map(l => ({ key: l.key, name: l.name, costPence: l.costPence, bonusPercent: Math.round(l.bonus * 100), owned: ch.look.owned.includes(l.key) })) },
       plaques: PLAQUES.map(p => { const e = ch.plaques.find(x => x.key === p.key); return { key: p.key, name: p.name, followers: p.followers, fans: p.fans, earned: e ? { season: e.season, week: e.week } : null }; }),
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: perWeekFor(root.settings_snapshot),
@@ -962,6 +969,26 @@ export function createCareerStreamingService(database: CareerDatabase) {
         return view(tx, root);
       });
     },
+    /** The studio's look: buy a theme or lighting (once), or switch to one you own. */
+    async setLook(actor: CareerActor, saveId: string, body: unknown) {
+      const keys = [...STREAM_LOOKS.map(l => l.key), ...LIGHTING.map(l => l.key)] as [string, ...string[]];
+      const { key } = z.object({ key: z.enum(keys) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const ch = await channel(tx, root), theme = STREAM_LOOKS.find(l => l.key === key), light = LIGHTING.find(l => l.key === key);
+        const cost = (theme ?? light)!.costPence;
+        if (!ch.look.owned.includes(key) && cost > 0) {
+          const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence ?? 0);
+          if (balance < cost) throw new InsufficientFundsError(cost, balance);
+          await post(tx, root, { operationKey: `adjustment:stream-look:${key}`, category: "ADJUSTMENT", headline: "EXPENSE", amountPence: -cost,
+            reason: `DartCast studio: ${(theme ?? light)!.name}`, season: Number(root.current_season), week: Number(root.current_week), detail: { type: "DARTCAST_LOOK", key } });
+        }
+        const look = { ...ch.look, owned: [...new Set([...ch.look.owned, key])], ...(theme ? { theme: key as StreamLookKey } : { lighting: key as LightingKey }) };
+        await tx.execute(sql`UPDATE career_stream_channels SET look=${JSON.stringify(look)}::jsonb WHERE career_save_id=${root.id}`);
+        return view(tx, root);
+      });
+    },
     /** Buy a studio set (yours for good). */
     async buySet(actor: CareerActor, saveId: string, body: unknown) {
       const { set } = z.object({ set: z.enum(STUDIO_SETS.map(s => s.key) as [StudioSetKey, ...StudioSetKey[]]) }).strict().parse(body);
@@ -1240,7 +1267,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const since = last && Number(last.season) === season ? Math.max(0, day - Number(last.day)) : null;
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
         const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" || cupNight || format === "CELEBRATION" || isMarathon(format) ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick)) * trendBonus(String(format), v.trend)
-          * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id)) * (1 + setBonus((await channel(tx, root)).sets, format))
+          * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id)) * (1 + setBonus((await channel(tx, root)).sets, format)) * (1 + lightingBonus(v.look.lighting))
           * (exclusive((await channel(tx, root)).platform, season) ? PLATFORM.viewerPenalty : 1)
           * (planned || v.pathway.scheduledNights.includes(dayOfWeek) ? NOTIFY_BONUS : 1)
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));

@@ -185,6 +185,10 @@ export const EVENT_AWARDS: Readonly<Record<string, EventAward>> = Object.freeze(
   "county-classic-dido": N("TOUR_ROUND", "Routine county fixture: result and prize only."),
   // ---- Grassroots & weekly
   "friday-night-501": N("WEEKLY", WEEKLY),
+  "monday-night-knockout": N("WEEKLY", WEEKLY),
+  "tuesday-shootout": N("WEEKLY", WEEKLY),
+  "wednesday-open": N("WEEKLY", WEEKLY),
+  "thursday-club-open": N("WEEKLY", WEEKLY),
   "sunday-league-sprint": N("WEEKLY", WEEKLY),
   "pub-doubles": N("WEEKLY", WEEKLY),
   "free-entry-night": N("WEEKLY", WEEKLY),

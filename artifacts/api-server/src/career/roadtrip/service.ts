@@ -1,3 +1,4 @@
+import { channelReach, walkOnCrowd } from "../streaming/career-links.ts";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
@@ -45,7 +46,7 @@ export type RoadTripsView = {
 type RoadBotConfig = { avg: number; sd: number; checkoutPct: number; hitAcc: number };
 const ROAD_MATCH_FORMAT: X01Format = { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf };
 export type RoadTripSession = { id: string; status: "LIVE" | "PLAYED" | "MISSED"; you: string; opponent: { name: string; bot: { config: RoadBotConfig; seed: string } };
-  stakePence: number; format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null; legs: [number, number] | null };
+  stakePence: number; format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null; legs: [number, number] | null; crowd: ReturnType<typeof walkOnCrowd> };
 
 const talkFrom = (r: Row): RoadTalk => ({ status: r.status === "WALKED" ? "WALKED" : r.agreed_pence !== null ? "AGREED" : "OPEN",
   asksLeft: Math.max(0, MONEY.asks - Number(r.asks)), theirOfferPence: r.their_offer_pence === null ? null : Number(r.their_offer_pence),
@@ -167,7 +168,8 @@ export function createCareerRoadTripService(database: CareerDatabase) {
     return { id: String(row.id), status: row.status === "PLAYED" ? "PLAYED" : row.status === "MISSED" ? "MISSED" : "LIVE", you: String(you?.name ?? "You"),
       opponent: { name: live.opponentName, bot: { config: live.bot, seed: live.seed } }, stakePence: Number(row.stake_pence),
       format: ROAD_MATCH_FORMAT, firstThrower: 0, darts: live.darts ?? [], won: row.won == null ? null : row.won === true,
-      legs: row.status === "PLAYED" ? [Number(row.legs_you), Number(row.legs_them)] : null };
+      legs: row.status === "PLAYED" ? [Number(row.legs_you), Number(row.legs_them)] : null,
+      crowd: walkOnCrowd(await channelReach(tx, root.id), String(you?.name ?? "You"), 60) };
   }
 
   return {

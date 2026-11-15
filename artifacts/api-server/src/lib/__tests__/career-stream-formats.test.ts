@@ -1,5 +1,5 @@
 /** Stream formats: King of the Oche, the drills (checkouts, Bob's 27, the average challenge), chat's poll and the monthly sub goal. */
-import { TREND } from "../../career/streaming/model.ts";
+import { TREND, monthlyChurn } from "../../career/streaming/model.ts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -157,5 +157,6 @@ test("the monthly sub goal: set once a month from Partner up, settled at the mon
   await settleStreamingWeek(db, root, s.currentSeason, end);
   const ch = (await rows(sql`SELECT followers, sub_goal FROM career_stream_channels WHERE career_save_id=${id}`))[0];
   assert.equal((ch.sub_goal as { status: string }).status, "HIT");
-  assert.equal(Number(ch.followers), 1500 + goalBonus(5), "followers once");
+  // The goal's bonus once, then the month's small drift of followers (they streamed, so the lower rate).
+  assert.equal(Number(ch.followers), 1500 + goalBonus(5) - monthlyChurn(1500 + goalBonus(5), true), "followers once");
 });

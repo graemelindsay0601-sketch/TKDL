@@ -29,12 +29,12 @@ export async function creatorSponsorPremium(tx: CareerExecutor, saveId: string) 
 }
 
 /** Your DartCast crowd at a real walk-on: from Partner up, a chant and a share of your audience in the hall. */
-export function walkOnCrowd(c: { handle: string; followers: number; tier: TierKey; emotes: string[] } | null, playerName: string) {
+export function walkOnCrowd(c: { handle: string; followers: number; tier: TierKey; emotes: string[] } | null, playerName: string, hall = 3000) {
   if (!c || !CREATOR_SPONSOR_PREMIUM[c.tier]) return null;
   const surname = playerName.trim().split(/\s+/).at(-1) ?? playerName;
   const chants = [`There's only one ${surname}!`, `${c.handle}! ${c.handle}!`, `Stand up for the DartCast!`, `Oh ${surname}, ${surname}!`];
   const chant = chants[(c.followers + surname.length) % chants.length];
-  return { handle: c.handle, followers: c.followers, chant, inHall: Math.max(20, Math.min(3000, Math.round(c.followers * 0.01))), emote: c.emotes[0] ?? null };
+  return { handle: c.handle, followers: c.followers, chant, inHall: Math.max(Math.min(20, hall), Math.min(hall, Math.round(c.followers * 0.01))), emote: c.emotes[0] ?? null };
 }
 
 /** Pro guests on the podcast: pros you've played (from Partner), and the world's top 16 once you're a Star. */

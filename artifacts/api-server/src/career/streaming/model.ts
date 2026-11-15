@@ -63,6 +63,16 @@ export function openingViewers(seed: string, streamKey: string, followers: numbe
   return Math.max(1, Math.round((2 + followers * 0.06 + Math.max(0, fans) * 0.005) * weekend * fresh * (0.85 + rng() * 0.3)));
 }
 
+/**
+ * Growth that levels off, as real channels do. New followers come from viewers who don't follow you yet, a share that
+ * shrinks as the channel grows; and every month a few drift away (more if you went quiet). Without these a channel
+ * compounded forever (Icon in one season, millions in two).
+ */
+export const GROWTH = Object.freeze({ discoveryBase: 800, discoveryPower: 0.65, churnStreamed: 0.012, churnQuiet: 0.05 });
+export const discoveryFor = (followers: number) => Math.min(1, Math.pow(GROWTH.discoveryBase / Math.max(1, followers), GROWTH.discoveryPower));
+/** Followers lost at a month's end. */
+export const monthlyChurn = (followers: number, streamed: boolean) => Math.floor(Math.max(0, followers) * (streamed ? GROWTH.churnStreamed : GROWTH.churnQuiet));
+
 /** A viewer who fancies their chances: their name and a level that grows with your channel. */
 export function challengerFor(seed: string, streamKey: string, followers: number) {
   const rng = scopedRandom(seed, STREAM.version, "stream-challenger", streamKey);
@@ -173,16 +183,16 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
     for (const e of events) if (e.kind === "CHAT" && er() < 0.5) { const em = pick(er, emotes); (e as { text: string }).text += ` ${em} ${er() < 0.4 ? em : ""}`.trimEnd(); }
   }
   // Cheers: bits and super chats from Affiliate up, more likely on a big moment and in a bigger room.
-  const room = Math.min(1, tally.viewers / 300);
+  const room = Math.min(1, tally.viewers / 1200);
   let bits = 0, supers = 0, subs = 0, pledged = 0;
   if (tier !== "NEWCOMER") {
     if (rng() < Math.min(0.6, 0.04 + room * 0.25 + lift * 0.2)) {
-      const pence = Math.round((1 + rng() * (2 + hype * 4) * (1 + room * 4))) * 100;
+      const pence = Math.round((1 + rng() * (2 + hype * 4) * (1 + room * 2))) * 100;
       if (pledges) { pledged += pence; events.push({ kind: "PLEDGE", user: someone(), pence, text: pick(rng, LINES.PLEDGE) }); }
       else { bits += pence; events.push({ kind: "BITS", user: someone(), pence, text: pick(rng, ["for the 180s", "love the stream", "buy some new flights", "gg", "for the next ton"]) }); }
     }
     if (rng() < Math.min(0.25, 0.01 + room * 0.08 + lift * 0.08)) {
-      const pence = Math.round(2 + rng() * (3 + hype * 6) * (1 + room * 3)) * 100;
+      const pence = Math.round(2 + rng() * (3 + hype * 6) * (1 + room * 1.5)) * 100;
       supers += pence; events.push({ kind: "SUPERCHAT", user: someone(), pence, text: pick(rng, ["What a player. Keep it up!", "Watching from the pub, cheers mate", "Get that tour card!", "Best darts stream going", "One more leg!"]) });
     }
   }
@@ -190,7 +200,9 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
     subs++; events.push({ kind: "SUB", user: someone(), months: 1 + Math.floor(rng() * 6) });
   }
   // Follows: a share of the room on every visit, and a big moment wins one or two even in a tiny room; whole follows carry over.
-  const carry = tally.followerCarry + tally.viewers * 0.01 + Math.max(0, lift) * (0.8 + tally.viewers * 0.04);
+  // Discovery thins out as a channel grows: most of a big room already follows you (older streams, without a start size, keep the old rate).
+  const discovery = tally.ov?.startFollowers === undefined ? 1 : discoveryFor(tally.ov.startFollowers);
+  const carry = tally.followerCarry + (tally.viewers * 0.01 + Math.max(0, lift) * (0.8 + tally.viewers * 0.04)) * discovery;
   const follows = Math.floor(carry);
   for (let i = 0; i < Math.min(follows, 3); i++) events.push({ kind: "FOLLOW", user: handleFor(rng) });
   // The room grows with the hype, but a channel can only hold so many at once: a ceiling from its size when it went live
@@ -225,7 +237,7 @@ export const STREAM_MONEY = Object.freeze({
   /** One-off sponsor activations: one offer at the start of each four-week DartCast month. */
   campaignsPerMonth:1,
   /** Platform ads: audience watch time and steady weekly streaming provide meaningful side-income, not a salary. */
-  adEligibleFollowers:50, adPencePerThousandViewerMinutes:150, adMinutesPerVisit:2, adFullRateWeeks:3,
+  adEligibleFollowers:50, adPencePerThousandViewerMinutes:150, adFullMinutes:400_000, adMinutesPerVisit:2, adFullRateWeeks:3,
   /** Brand value follows the average concurrent audience, not follower count. */
   dealFloorPence: 1000, dealPencePerAverageViewer: 100,
 });
@@ -248,11 +260,22 @@ export const subPayout = (renewed: number) => Math.round(renewed * STREAM.subPen
 export const adRevenuePence = (viewerMinutes:number,streamedWeeks:number,followers:number) => {
   if(followers<STREAM_MONEY.adEligibleFollowers||viewerMinutes<=0||streamedWeeks<=0)return 0;
   const consistency=Math.min(1,streamedWeeks/STREAM_MONEY.adFullRateWeeks);
-  return Math.floor(viewerMinutes*STREAM_MONEY.adPencePerThousandViewerMinutes/1000*consistency);
+  // Ads pay in full for a modest monthly audience, then each extra minute a little less (as brand value does).
+  const full=STREAM_MONEY.adFullMinutes, minutes=viewerMinutes<=full?viewerMinutes:full*(1+Math.log(viewerMinutes/full));
+  return Math.floor(minutes*STREAM_MONEY.adPencePerThousandViewerMinutes/1000*consistency);
 };
 /** A brand's fee for each stream, based on average concurrent viewers, rounded to whole pounds. */
 export const dealFee = (averageViewers: number) =>
-  Math.round((STREAM_MONEY.dealFloorPence + Math.max(0, averageViewers) * STREAM_MONEY.dealPencePerAverageViewer) / 100) * 100;
+  Math.round((STREAM_MONEY.dealFloorPence + brandViewers(averageViewers) * STREAM_MONEY.dealPencePerAverageViewer) / 100) * 100;
+/**
+ * What an audience is worth to a brand: every viewer counts up to a few hundred, then each extra one less (a brand pays
+ * for reach it can use). Keeps a Star channel's sponsorship near a top-32 pro's prize money, not a world champion's.
+ */
+export const BRAND_VALUE = Object.freeze({ fullUpTo: 300 });
+/** A month's sponsored campaign: a multiple of the per-stream deal fee, between a floor and a cap. */
+export const CAMPAIGN_PAY = Object.freeze({ multiple: 1.5, floorPence: 5_000, capPence: 40_000 });
+export const brandViewers = (viewers: number) => { const v = Math.max(0, viewers);
+  return v <= BRAND_VALUE.fullUpTo ? v : BRAND_VALUE.fullUpTo * (1 + Math.log(v / BRAND_VALUE.fullUpTo)); };
 /** Which brand comes calling (the n-th deal of the season, picked from the seed). */
 export function brandFor(seed: string, season: number, n: number) {
   const rng = scopedRandom(seed, STREAM.version, "stream-brand", season, n);

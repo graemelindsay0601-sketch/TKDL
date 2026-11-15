@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Clapperboard, Map as MapIcon, Mic, Rocket, Tv, Warehouse } from "lucide-react";
-import { errorMessage, useBuyStudioSet, useMakeShort, usePostVlog, useRecordPodcast, useWatchAlong, type StreamingView } from "../api";
+import { Clapperboard, Lightbulb, Map as MapIcon, Mic, Rocket, Tv, Warehouse } from "lucide-react";
+import { errorMessage, useBuyStudioSet, useSetStreamLook, useMakeShort, usePostVlog, useRecordPodcast, useWatchAlong, type StreamingView } from "../api";
 import { dayLabel, formatPence } from "../model";
 import "./stream-community.css";
 
@@ -11,7 +11,7 @@ import "./stream-community.css";
 export function ContentSection({ saveId, d, night, canGo, retired, onWatched }: { saveId: string; d: StreamingView; night: number | null; canGo: boolean; retired: boolean;
   onWatched: (streamId: string) => void }) {
   const c = d.content;
-  const short = useMakeShort(saveId), pod = useRecordPodcast(saveId), set = useBuyStudioSet(saveId), watch = useWatchAlong(saveId), vlog = usePostVlog(saveId);
+  const short = useMakeShort(saveId), pod = useRecordPodcast(saveId), set = useBuyStudioSet(saveId), watch = useWatchAlong(saveId), vlog = usePostVlog(saveId), look = useSetStreamLook(saveId);
   const [guest, setGuest] = useState(""), [topic, setTopic] = useState("STORY"), [boost, setBoost] = useState(false), [message, setMessage] = useState("");
   if (!c) return null;
   const fail = (e: unknown) => setMessage(errorMessage(e)), ok = () => setMessage("");
@@ -57,6 +57,15 @@ export function ContentSection({ saveId, d, night, canGo, retired, onWatched }: 
           : <p className="sc-note">Nothing to vlog right now: play an event or take a road trip, then come back within {4} weeks.</p>}
         {c.vlogs.posted.length > 0 && <ul className="sc-rows">{c.vlogs.posted.map(x => <li key={x.title + x.week}><span><b>{x.title}</b><small> · S{x.season} wk {x.week}</small></span>
           <small>{x.views.toLocaleString("en-GB")} views · +{x.followers} · {formatPence(x.pence)}</small></li>)}</ul>}
+      </article>}
+      {d.look && <article className="sc-card"><h3><Lightbulb aria-hidden /> Studio look</h3>
+        <p className="sc-note">Set dressing changes how your stream looks; better lighting makes every show a little more watchable. Buy once, switch any time.</p>
+        <ul className="sc-rows">{d.look.themes.map(t => <li key={t.key}><span><i className="sc-swatch" style={{ background: t.accent }} aria-hidden /> <b>{t.name}</b><small> · {t.blurb}</small></span>
+          {d.look.theme === t.key ? <small>On show</small> : <button type="button" disabled={retired || look.isPending} onClick={() => look.mutate(t.key, { onSuccess: ok, onError: fail })}>
+            {t.owned || !t.costPence ? "Use it" : `Buy · ${formatPence(t.costPence)}`}</button>}</li>)}</ul>
+        <ul className="sc-rows">{d.look.lights.map(l => <li key={l.key}><span><b>{l.name}</b><small>{l.bonusPercent ? ` · +${l.bonusPercent}% viewers` : ""}</small></span>
+          {d.look.lighting === l.key ? <small>In use</small> : <button type="button" disabled={retired || look.isPending} onClick={() => look.mutate(l.key, { onSuccess: ok, onError: fail })}>
+            {l.owned || !l.costPence ? "Use it" : `Buy · ${formatPence(l.costPence)}`}</button>}</li>)}</ul>
       </article>}
       <article className="sc-card"><h3><Warehouse aria-hidden /> Studio sets</h3>
         <ul className="sc-rows">{c.sets.map(x => <li key={x.key}><span><b>{x.name}</b><small> · +{x.bonusPercent}% crowd for {x.formats.map(f => f.toLowerCase().replace(/_/g, " ")).join(", ")}</small></span>

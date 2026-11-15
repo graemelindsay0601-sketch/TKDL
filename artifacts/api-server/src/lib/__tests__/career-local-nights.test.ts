@@ -72,7 +72,7 @@ test("a week of local nights: practice, the knockout, the pub league, coaching, 
   const season = (await saves.read(1, id)).currentSeason;
   await db.execute(sql`UPDATE career_saves SET balance_pence=500000, current_week=5 WHERE id=${id}`);
   let v = await local.read(actor, id);
-  assert.equal(v.activities.length, 6);
+  assert.equal(v.activities.length, 7);
   assert.match(v.activities.find(a => a.kind === "EXHIBITION")!.why ?? "", /known/);
   assert.match(v.activities.find(a => a.kind === "FRIENDLY")!.why ?? "", /Pre-season/);
   // Practice on a free night: Bob's 27, all misses, done; it takes the night.
@@ -123,4 +123,35 @@ test("a week of local nights: practice, the knockout, the pub league, coaching, 
   const fr = await local.book(actor, id, { kind: "FRIENDLY", dayOfWeek: v.freeNights[0] });
   await settleLocalWeek(db, root as never, season, 48);
   assert.equal((await local.session(actor, id, fr.nightId)).status, "MISSED");
+});
+
+import { nextDivision, playerOfYearPoints } from "../../career/local/model.ts";
+
+test("divisions, the Club Championship and Player of the Year", async () => {
+  assert.equal(nextDivision(4, 1), 3); assert.equal(nextDivision(4, 8), 4); assert.equal(nextDivision(1, 1), 1); assert.equal(nextDivision(2, 8), 3); assert.equal(nextDivision(3, 4), 3);
+  assert.ok(playerOfYearPoints({ leagueFinishes: [{ division: 1, position: 1 }], knockoutWins: 0, championship: null }) > playerOfYearPoints({ leagueFinishes: [{ division: 4, position: 1 }], knockoutWins: 0, championship: null }));
+  const root = (await rows(sql`SELECT * FROM career_saves WHERE id=${id}`))[0] as never;
+  const season = (await saves.read(1, id)).currentSeason;
+  let v = await local.read(actor, id);
+  const lg = (await rows(sql`SELECT division, position FROM career_local_leagues WHERE career_save_id=${id} AND status='FINISHED'`))[0];
+  assert.equal(v.division.level, nextDivision(Number(lg.division), Number(lg.position)), "the next league starts where the last one left you");
+  // The Club Championship: weeks 44-45, four rounds, the final first to 4.
+  await db.execute(sql`UPDATE career_saves SET current_week=44 WHERE id=${id}`);
+  v = await local.read(actor, id);
+  assert.equal(v.activities.find(a => a.kind === "CHAMPIONSHIP")!.why, null);
+  const c = await local.book(actor, id, { kind: "CHAMPIONSHIP", dayOfWeek: v.freeNights[0] });
+  let s = await local.session(actor, id, c.nightId);
+  for (const [r, legs] of [["Last 16", 3], ["Quarter-final", 3], ["Semi-final", 3], ["Final", 4]] as const) {
+    s = await local.session(actor, id, c.nightId); assert.equal(s.match?.round, r);
+    s = await local.darts(actor, id, c.nightId, { darts: whitewash(s.match!.firstThrower, legs) });
+  }
+  assert.match(s.outcome ?? "", /Won the Club Championship/);
+  v = await local.read(actor, id);
+  assert.ok(v.honours.some(h => h.award === "CLUB_CHAMPION" && h.season === season));
+  assert.match(v.activities.find(a => a.kind === "CHAMPIONSHIP")!.why ?? "", /Played this season/);
+  // Season's end: Player of the Year when the record is good enough.
+  await settleLocalWeek(db, root, season, 52); await settleLocalWeek(db, root, season, 52);
+  const poty = await rows(sql`SELECT detail FROM career_local_honours WHERE career_save_id=${id} AND award='PLAYER_OF_THE_YEAR'`);
+  assert.ok(poty.length <= 1);
+  if (poty.length) assert.ok(Number((poty[0].detail as { points: number }).points) >= 12);
 });
