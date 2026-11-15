@@ -67,3 +67,13 @@ test("a waiting season review comes first; one event never appears twice", () =>
   assert.equal(g.nextSteps[0].key, "review");
   assert.equal(g.nextSteps.filter(s => s.action.enterEventId === "a").length, 1);
 });
+
+test("make it pay: stages run on prize money and the pick is the best prize for the cost", () => {
+  const g = buildGuide(base({ focus: "PRIZE_MONEY", earningsPence: 25_000, events: [
+    ev("small", "COUNTY", 11, 2, { finance: { estimatedPlayerCostPence: 500, topPrizePence: 2_000 } }),
+    ev("rich", "COUNTY", 11, 4, { finance: { estimatedPlayerCostPence: 2_000, topPrizePence: 20_000 } }),
+  ] }));
+  assert.equal(g.path.current?.key, "prize-100000");
+  assert.equal(g.path.current?.progress, "£250 won so far");
+  assert.equal(g.nextSteps.find(s => s.key.startsWith("path:"))?.action.enterEventId, "rich");
+});

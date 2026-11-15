@@ -96,7 +96,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
       <FormBadge saveId={id} variant="card" />
       {go.dialog}
       {go.pending && <ContinueProgress saveId={save.id} from={go.from} toEvent={booked} />}
-      {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
+      {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} saveId={save.id} />}
     </section>
   );
 }

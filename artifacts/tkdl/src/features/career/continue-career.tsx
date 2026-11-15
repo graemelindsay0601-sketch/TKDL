@@ -1,14 +1,16 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
-import { useAdvance, useActiveTournament, useTournamentAction, useCalendar, errorMessage } from "./api";
+import { useAdvance, useActiveTournament, useTournamentAction, useCalendar, useGuide, errorMessage } from "./api";
 import { circuitLabel, continueOutcome, dayLabel, weekLabel } from "./model";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { AdvanceResult, CareerSave } from "./types";
 
 export type NextEntry = { name: string; week: number } | null;
-export type ContinueOutcome = { tone: "info" | "error"; headline: string; detail: string; results?: NonNullable<AdvanceResult["headlines"]> };
+export type ContinueOutcome = { tone: "info" | "error"; headline: string; detail: string; results?: NonNullable<AdvanceResult["headlines"]>;
+  /** Where the advance started, so the card can list chances missed in the weeks just played. */
+  from?: { season: number; week: number } };
 
 /** Resolve only genuine server blockers to an activity route; ordinary progress stays on Career. */
 export function continueDestination(saveId: string, stop: AdvanceResult["stop"]): string | null {
@@ -84,7 +86,7 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
       const destination = continueDestination(save.id, r.stop);
       if (destination) navigate(destination);
       else if (r.stop.reason === "MONEY_MATCH_PENDING") setOutcome({ tone: "error", headline: "Money match needs attention", detail: "Open Money Matches to resume it before continuing." });
-      else setOutcome({ ...continueOutcome(r, dismissWarning), results: r.headlines });
+      else setOutcome({ ...continueOutcome(r, dismissWarning), results: r.headlines, from: { season: save.currentSeason, week: save.currentWeek } });
     } catch (e) {
       setOutcome({ tone: "error", headline: "Couldn't continue",
         detail: dismissWarning ? `Finished event cleanup also failed: ${dismissWarning}. ${errorMessage(e)}` : errorMessage(e) });
@@ -115,7 +117,11 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
 }
 
 /** Clear result of a continue: where the Career now is and why it stopped. */
-export function ContinueOutcomeCard({ outcome, onClose }: { outcome: ContinueOutcome; onClose: () => void }) {
+export function ContinueOutcomeCard({ outcome, onClose, saveId }: { outcome: ContinueOutcome; onClose: () => void; saveId?: string }) {
+  const guide = useGuide(saveId ?? "", !!saveId && !!outcome.from && outcome.tone === "info");
+  // Events from the weeks just played that fitted your path and you didn't enter.
+  const missed = outcome.from && guide.data && guide.data.today.season === outcome.from.season
+    ? guide.data.missed.filter(m => m.week >= outcome.from!.week && m.week <= guide.data!.today.week) : [];
   return <div role="status" className={`career-continue-outcome career-continue-outcome--${outcome.tone}`}>
     <div><strong>{outcome.headline}</strong><span>{outcome.detail}</span>
       {!!outcome.results?.length && <ul className="career-continue-outcome__results" aria-label="Results while you were away">
@@ -123,6 +129,11 @@ export function ContinueOutcomeCard({ outcome, onClose }: { outcome: ContinueOut
           <span>{r.you ? "🏆 You won" : r.champion ? `${r.champion} won` : "Completed"}</span> <b>{r.name}</b> <small>{circuitLabel(r.circuit)}</small>
         </li>)}
       </ul>}
+      {missed.length > 0 && <div className="career-continue-outcome__missed">
+        <b>You let {missed.length === 1 ? "this" : "these"} slip (they fitted your path):</b>
+        <ul>{missed.slice(0, 4).map(m => <li key={m.id}>{m.name} <small>{m.when}</small></li>)}</ul>
+        {saveId && <Link href={`/career/${saveId}#week-planner`} onClick={onClose}>Plan this week so the next ones don't</Link>}
+      </div>}
     </div>
     <button type="button" onClick={onClose} aria-label="Dismiss">✕</button>
   </div>;

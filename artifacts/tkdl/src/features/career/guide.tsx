@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, ArrowRight, CheckCircle2, Circle, Compass, Loader2, MapPin, Sparkles, Sun } from "lucide-react";
 import { useCareerFocus, useEnterEvent, useGuide, errorMessage } from "./api";
-import { denialLabel } from "./model";
-import type { CareerSave, GuideAction, GuideFocus, GuideView } from "./types";
+import { dayName, denialLabel } from "./model";
+import type { CalendarOverview, CareerSave, GuideAction, GuideFocus, GuideView } from "./types";
 import "./guide.css";
 import { Walkthrough } from "./glossary";
 
@@ -74,10 +74,18 @@ function PathCard({ saveId, guide, onChange }: { saveId: string; guide: GuideVie
  * The Career Guide (Home's top): where you are (week and day), what's waiting on you, the three best things to do next,
  * your path and what you've let slip by. Everything else on Home is below it.
  */
-export function CareerGuide({ save, children }: { save: CareerSave; children?: React.ReactNode }) {
+export function CareerGuide({ save, overview, children }: { save: CareerSave; overview?: CalendarOverview | null; children?: React.ReactNode }) {
   const q = useGuide(save.id, save.status === "ACTIVE");
   const [picking, setPicking] = useState(false), [dismissed, setDismissed] = useState(false), [msg, setMsg] = useState("");
-  if (q.isLoading) return <section className="guide-card" aria-busy><p className="guide-muted"><Loader2 className="animate-spin" aria-hidden /> Reading your week…</p></section>;
+  // While the guide loads, the day is already known from the header's overview: show it straight away.
+  if (q.isLoading) return <div className="career-guide">
+    <section className="guide-card guide-today" aria-busy>
+      <p className="guide-today__date"><Sun aria-hidden /> Season {save.currentSeason} · Week {save.currentWeek}</p>
+      <h2 className="guide-today__day">{dayName(overview?.today?.dayOfWeek ?? 1)}</h2>
+      <p className="guide-muted"><Loader2 className="animate-spin" aria-hidden /> Working out your next steps…</p>
+    </section>
+    {children}
+  </div>;
   if (!q.data) return null;
   const g = q.data, t = g.today;
   const showPicker = picking || (!dismissed && !asked(save.id) && g.path.focus === "OPEN_SCHEDULE");

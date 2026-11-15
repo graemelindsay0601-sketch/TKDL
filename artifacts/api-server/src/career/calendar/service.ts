@@ -264,6 +264,24 @@ function presentEvent(event: InstanceRow, human?: ReturnType<typeof humanView>) 
 /** Advances running in this process, by save (see advance). */
 const ADVANCES_IN_FLIGHT = new Map<string, { operationKey: string; playerId: number; result: Promise<unknown> }>();
 
+
+/**
+ * Where you are inside the week. A week is played in one go and stops for anything waiting on you (your match, a
+ * booked stream...), so mid-week the other days' events may already be played: "today" is the furthest day played,
+ * or the day of the match waiting for you.
+ */
+export async function todayOf(tx: CareerExecutor, saveId: string, season: number, week: number, pendingCount: number) {
+  const first = (week - 1) * 7 + 1, last = week * 7;
+  const waitingDay = pendingCount ? Number((await tx.execute(sql`SELECT MIN(scheduled_day) AS d FROM career_tournament_matches
+    WHERE career_save_id = ${saveId} AND status = 'AWAITING_HUMAN'`)).rows[0]?.d ?? 0) : 0;
+  const playedDay = Number((await tx.execute(sql`SELECT GREATEST(
+      (SELECT MAX(end_day) FROM career_event_instances WHERE career_save_id = ${saveId} AND season = ${season} AND status = 'COMPLETED' AND start_week = ${week} AND end_day <= ${last}),
+      (SELECT MAX(m.scheduled_day) FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
+        WHERE m.career_save_id = ${saveId} AND i.season = ${season} AND m.status = 'COMPLETED' AND m.scheduled_day BETWEEN ${first} AND ${last})) AS d`)).rows[0]?.d ?? 0);
+  const day = waitingDay >= first && waitingDay <= last ? waitingDay : playedDay >= first ? playedDay : 0;
+  return { week, dayOfWeek: day ? ((day - 1) % 7) + 1 : 1, phase: (day || pendingCount ? "MID_WEEK" : "START_OF_WEEK") as "MID_WEEK" | "START_OF_WEEK" };
+}
+
 export function createCareerCalendarService(database: CareerDatabase, options: { providers?: Partial<CalendarProviders> } = {}) {
   const providers: CalendarProviders = { ...DEFAULT_PROVIDERS, ...options.providers };
   const world = createCareerWorldService(database);
@@ -487,18 +505,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       if (reasons.length) next = { season, week: w, reasons };
     }
     next ??= { season: season + 1, week: 1, reasons: [{ type: "SEASON_BOUNDARY" }] };
-    // Where you are inside the week. A week is played in one go and stops for anything waiting on you (your match, a
-    // booked stream...), so mid-week the other days' events may already be played: "today" is the furthest day played,
-    // or the day of the match waiting for you.
-    const first = (week - 1) * 7 + 1, last = week * 7;
-    const waitingDay = pending.length ? Number((await tx.execute(sql`SELECT MIN(scheduled_day) AS d FROM career_tournament_matches
-      WHERE career_save_id = ${root.id} AND status = 'AWAITING_HUMAN'`)).rows[0]?.d ?? 0) : 0;
-    const playedDay = Number((await tx.execute(sql`SELECT GREATEST(
-        (SELECT MAX(end_day) FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${season} AND status = 'COMPLETED' AND start_week = ${week} AND end_day <= ${last}),
-        (SELECT MAX(m.scheduled_day) FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
-          WHERE m.career_save_id = ${root.id} AND i.season = ${season} AND m.status = 'COMPLETED' AND m.scheduled_day BETWEEN ${first} AND ${last})) AS d`)).rows[0]?.d ?? 0);
-    const day = waitingDay >= first && waitingDay <= last ? waitingDay : playedDay >= first ? playedDay : 0;
-    const today = { week, dayOfWeek: day ? ((day - 1) % 7) + 1 : 1, phase: (day || pending.length ? "MID_WEEK" : "START_OF_WEEK") as "MID_WEEK" | "START_OF_WEEK" };
+    const today = await todayOf(tx, root.id, season, week, pending.length);
     return {
       today,
       season, week, grouping: groupingForWeek(week), groupings: SEASON_GROUPINGS, status: String(seasonRow.status),
@@ -724,6 +731,17 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       });
     },
 
+    /** The cheap part of the overview: today, your waiting matches and your next booked entry (no read of the weeks ahead). */
+    async glance(actor: CareerActor, saveId: string) {
+      return database.transaction(async tx => {
+        const { root } = await requireSeason(tx, actor, saveId, false);
+        const season = Number(root.current_season), week = Number(root.current_week);
+        const pending = (await tx.execute(sql`SELECT m.id, m.event_id FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
+          WHERE m.career_save_id = ${root.id} AND m.status = 'AWAITING_HUMAN' AND i.season = ${season}`)).rows;
+        return { today: await todayOf(tx, root.id, season, week, pending.length),
+          pendingHumanMatches: pending.map(r => ({ matchId: String(r.id), eventId: String(r.event_id) })), nextHumanEntry: await nextHumanEntry(tx, root.id) };
+      });
+    },
     /** options.overview=false: callers that only want the events (Goals) skip the season overview and its read of every week ahead. */
     async calendar(actor: CareerActor, saveId: string, query: unknown = {}, options: { overview?: boolean } = {}) {
       const q = calendarQuerySchema.parse(query);
