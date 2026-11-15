@@ -205,6 +205,8 @@ export async function ensureCurrentEventCatalogue(tx: CareerExecutor, root: Root
       const present = new Set((await tx.execute(sql`SELECT instance_key FROM career_event_instances
         WHERE career_save_id = ${root.id} AND season = ${season}`)).rows.map((r: any) => String(r.instance_key)));
       await insertDrafts(tx, root, season, replacements.filter(d => !present.has(d.instanceKey)));
+      // New events whose entry window has already begun open now (not at the next week's advance).
+      await openRegistrations(tx, root.id, season, Number(root.current_week));
 
       const rows = (await tx.execute(sql`SELECT id, instance_key, start_day, snapshot
         FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${season}

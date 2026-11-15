@@ -487,7 +487,20 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       if (reasons.length) next = { season, week: w, reasons };
     }
     next ??= { season: season + 1, week: 1, reasons: [{ type: "SEASON_BOUNDARY" }] };
+    // Where you are inside the week. A week is played in one go and stops for anything waiting on you (your match, a
+    // booked stream...), so mid-week the other days' events may already be played: "today" is the furthest day played,
+    // or the day of the match waiting for you.
+    const first = (week - 1) * 7 + 1, last = week * 7;
+    const waitingDay = pending.length ? Number((await tx.execute(sql`SELECT MIN(scheduled_day) AS d FROM career_tournament_matches
+      WHERE career_save_id = ${root.id} AND status = 'AWAITING_HUMAN'`)).rows[0]?.d ?? 0) : 0;
+    const playedDay = Number((await tx.execute(sql`SELECT GREATEST(
+        (SELECT MAX(end_day) FROM career_event_instances WHERE career_save_id = ${root.id} AND season = ${season} AND status = 'COMPLETED' AND start_week = ${week} AND end_day <= ${last}),
+        (SELECT MAX(m.scheduled_day) FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
+          WHERE m.career_save_id = ${root.id} AND i.season = ${season} AND m.status = 'COMPLETED' AND m.scheduled_day BETWEEN ${first} AND ${last})) AS d`)).rows[0]?.d ?? 0);
+    const day = waitingDay >= first && waitingDay <= last ? waitingDay : playedDay >= first ? playedDay : 0;
+    const today = { week, dayOfWeek: day ? ((day - 1) % 7) + 1 : 1, phase: (day || pending.length ? "MID_WEEK" : "START_OF_WEEK") as "MID_WEEK" | "START_OF_WEEK" };
     return {
+      today,
       season, week, grouping: groupingForWeek(week), groupings: SEASON_GROUPINGS, status: String(seasonRow.status),
       playedWeek: Number(seasonRow.played_week), developedWeek: Number(seasonRow.developed_week), eventDatabaseVersion: Number(seasonRow.event_database_version),
       instanceCount: Number(seasonRow.instance_count), developmentCadence: DEVELOPMENT_CADENCE,
@@ -719,6 +732,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         await ensureMidweekCircuit(tx, root);
         await ensurePathwayEvents(tx, root);
         await ensureCurrentEventCatalogue(tx, root);
+        // Heals saves upgraded before the catalogue opened what it added: entries due open by now are open.
+        await openRegistrations(tx, root.id, Number(root.current_season), Number(root.current_week));
         // Sponsor activity upkeep in one round trip (the three updates touch disjoint rows).
         await tx.execute(sql`WITH available AS (UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
             WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'

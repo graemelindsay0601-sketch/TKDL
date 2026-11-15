@@ -427,3 +427,8 @@
 .sponsor-line b { color:#ecd084; }
 .week-planner__also { display:block; color:#9fadb4; font-size:12px; }
 .week-planner__also a { color:#ecd084; }
+.week-planner__day[data-state="past"] { opacity:.45; }
+.week-planner__today { display:block; margin-top:2px; font-style:normal; font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:#ff7aa8; }
+.career-skip-warning__list { display:grid; gap:6px; margin:4px 0 10px; padding:0; list-style:none; font-size:14px; }
+.career-skip-warning__list b { color:#ecd084; margin-right:4px; }
+.career-skip-warning__quiet { display:flex; gap:8px; align-items:center; font-size:13px; color:#9fadb4; }

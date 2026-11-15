@@ -1,9 +1,10 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { Loader2 } from "lucide-react";
 import { useAdvance, useActiveTournament, useTournamentAction, useCalendar, errorMessage } from "./api";
-import { circuitLabel, continueOutcome, weekLabel } from "./model";
+import { circuitLabel, continueOutcome, dayLabel, weekLabel } from "./model";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { AdvanceResult, CareerSave } from "./types";
 
 export type NextEntry = { name: string; week: number } | null;
@@ -58,7 +59,19 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
   const outcome = useSyncExternalStore(subscribe, () => outcomes.get(save.id) ?? null, () => null);
   const setOutcome = (value: ContinueOutcome | null) => setStoredOutcome(save.id, value);
 
-  const run = async () => {
+  // Before moving on: events you could still enter in the weeks you'd pass with nothing booked.
+  const lastWeek = nextEntry ? Math.max(save.currentWeek, nextEntry.week - 1) : save.currentWeek;
+  const skippable = useCalendar(save.id, { scope: "AVAILABLE", fromWeek: save.currentWeek, toWeek: Math.min(52, lastWeek) }, save.status === "ACTIVE");
+  const missed = (skippable.data?.events ?? []).filter(e => e.human?.canEnter && e.dates.startWeek >= save.currentWeek && e.dates.startWeek <= lastWeek
+    && (!nextEntry || e.dates.startWeek < nextEntry.week) && e.status !== "COMPLETED" && e.status !== "CANCELLED")
+    .sort((a, b) => a.dates.startDay - b.dates.startDay);
+  const [asking, setAsking] = useState(false), [quiet, setQuiet] = useState(false);
+  const warnKey = `tkdl-career-skip-warning:${save.id}`;
+  const warnOff = () => { try { return localStorage.getItem(warnKey) === "off"; } catch { return false; } };
+
+  const run = async (opts: { force?: boolean } = {}) => {
+    if (!opts.force && missed.length && !warnOff()) { setAsking(true); return; }
+    setAsking(false);
     setOutcome(null);
     let dismissWarning: string | undefined;
     if (finished.length) {
@@ -77,7 +90,27 @@ export function useContinueCareer(save: CareerSave, nextEntry: NextEntry) {
         detail: dismissWarning ? `Finished event cleanup also failed: ${dismissWarning}. ${errorMessage(e)}` : errorMessage(e) });
     }
   };
-  return { run, pending: advance.isPending || dismiss.isPending, outcome, clear: () => setOutcome(null),
+  const weeks = lastWeek > save.currentWeek ? `weeks ${save.currentWeek}–${lastWeek}` : "this week";
+  const dialog: ReactNode = <AlertDialog open={asking} onOpenChange={setAsking}>
+    <AlertDialogContent className="career-skip-warning">
+      <AlertDialogHeader>
+        <AlertDialogTitle>Nothing booked {lastWeek > save.currentWeek ? "before your match" : "this week"}</AlertDialogTitle>
+        <AlertDialogDescription>
+          Playing on will pass {weeks}. You could still enter {missed.length} event{missed.length === 1 ? "" : "s"}:
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <ul className="career-skip-warning__list">
+        {missed.slice(0, 4).map(e => <li key={e.id}><b>Wk {e.dates.startWeek} {dayLabel(e.dates.startDayOfWeek)}</b> {e.name}{e.venue?.city ? <small> · {e.venue.city}</small> : null}</li>)}
+        {missed.length > 4 && <li><small>and {missed.length - 4} more</small></li>}
+      </ul>
+      <label className="career-skip-warning__quiet"><input type="checkbox" checked={quiet} onChange={e => setQuiet(e.target.checked)} /> Don't warn me about this again</label>
+      <AlertDialogFooter>
+        <AlertDialogCancel onClick={() => { setAsking(false); navigate(`/career/${save.id}`); }}>Plan my week</AlertDialogCancel>
+        <AlertDialogAction onClick={() => { if (quiet) { try { localStorage.setItem(warnKey, "off"); } catch { /* this device only */ } } void run({ force: true }); }}>Play on anyway</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>;
+  return { run, dialog, missed: missed.length, pending: advance.isPending || dismiss.isPending, outcome, clear: () => setOutcome(null),
     blocked: tournament.isLoading || !!tournament.error, from: { season: save.currentSeason, week: save.currentWeek } };
 }
 

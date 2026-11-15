@@ -38,6 +38,9 @@ const trim = (n: number) => (Math.round(n * 10) / 10).toLocaleString("en-GB", { 
 export const WEEKS_PER_SEASON = 52;
 export const seasonProgressPct = (week: number) => Math.max(0, Math.min(100, Math.round(((week - 1) / WEEKS_PER_SEASON) * 100)));
 export const weekLabel = (season: number, week: number) => `Season ${season} · Week ${week}`;
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+/** The full day name (1 = Monday). */
+export const dayName = (dayOfWeek: number) => DAY_NAMES[(dayOfWeek - 1 + 7) % 7] ?? "";
 export type SeasonCashFlowEvent = { id: string; name: string; circuit?: string; startWeek: number; endWeek?: number; startDay?: number; estimatedCostPence: number; possiblePrizePence: number };
 export type SeasonConditionalIncome = { eventId: string; eventName: string; contractId: string; sponsorName: string; amountPence: number };
 export type SeasonCashFlowRow = { week: number; stops: SeasonCashFlowEvent[]; cost: number; possiblePrize: number;

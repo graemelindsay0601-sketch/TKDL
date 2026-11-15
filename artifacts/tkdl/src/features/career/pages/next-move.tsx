@@ -72,7 +72,8 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         <div className="next-move__subhead"><span>{booked ? "Add another event" : "Pick an event to play"}</span>
           <Link href={`/career/${id}/calendar`} className="next-move__link"><CalendarDays aria-hidden /> Full calendar</Link></div>
         {/* The week first: pick a day, and that day's events are right underneath. */}
-        <WeekPlanner saveId={id} events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
+        <WeekPlanner saveId={id} events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan}
+          today={overview?.today?.week === save.currentWeek ? overview.today.dayOfWeek : 1} />
         {enterable.length ? <div className="next-move__events" aria-label={plan.day ? `Events you can enter on ${dayLabel(plan.day)}` : `Events you can enter in week ${planWeek}`}>
           {enterable.map(e => <CareerEventCard key={e.id} event={e} saveId={id} compact onEnter={onEnter} entering={entering} />)}
         </div> : <WhyNothing saveId={id} events={events} week={planWeek} day={plan.day} anyOpen={open.length > 0} currentWeek={save.currentWeek} onNextWeek={() => setPlan({ week: Math.min(52, planWeek + 1), day: null })} />}
@@ -91,6 +92,7 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
           {go.pending ? <Loader2 className="animate-spin" aria-hidden /> : <FastForward aria-hidden />} Skip ahead to the next date</button>}
       </>}
       <FormBadge saveId={id} variant="card" />
+      {go.dialog}
       {go.pending && <ContinueProgress saveId={save.id} from={go.from} toEvent={booked} />}
       {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
     </section>
@@ -112,8 +114,8 @@ type WeekPlannerActivity = { kind: string; id: string; label: string };
  * Your week, Monday to Sunday: what you have booked each day and how many events you could still enter,
  * for this week and the next. A league night on Tuesday, a flier on Friday and an open on Saturday all fit.
  */
-function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
-  saveId: string; events: CareerEvent[]; open: CareerEvent[]; currentWeek: number; week: number; day: number | null;
+function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick, today }: {
+  saveId: string; events: CareerEvent[]; open: CareerEvent[]; currentWeek: number; week: number; day: number | null; today: number;
   onPick: (plan: { week: number; day: number | null }) => void;
 }) {
   const nights = useWeekNights(saveId);
@@ -188,12 +190,13 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
       <div className="week-planner__days">
         {[1, 2, 3, 4, 5, 6, 7].map(d => {
           const { mine, activities, free, played } = onDay(d);
-          const state = mine.length || activities.length ? "booked" : played ? "played" : free ? "open" : "empty";
+          const past = week === currentWeek && d < today, isToday = week === currentWeek && d === today;
+          const state = mine.length || activities.length ? "booked" : played ? "played" : past ? "past" : free ? "open" : "empty";
           return <button key={d} type="button" className="week-planner__day" data-state={state} aria-pressed={day === d}
             aria-label={`${dayLabel(d)}: ${mine.length || activities.length ? `booked ${[...mine.map(e => e.name), ...activities.map(item => item.label)].join(", ")}` : played ? "played" : free ? `${free} you can enter` : "nothing on"}`}
             onClick={() => onPick({ week, day: day === d ? null : d })}>
-            <span className="week-planner__dow">{dayLabel(d)}</span>
-            <span className="week-planner__what">{mine[0]?.name ?? activities[0]?.label ?? (played ? "Played" : free ? `${free} open` : "—")}</span>
+            <span className="week-planner__dow">{dayLabel(d)}{isToday && <i className="week-planner__today">Today</i>}</span>
+            <span className="week-planner__what">{mine[0]?.name ?? activities[0]?.label ?? (played ? "Played" : past ? "Gone" : free ? `${free} open` : "—")}</span>
           </button>;
         })}
       </div>
