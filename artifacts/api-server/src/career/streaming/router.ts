@@ -49,6 +49,8 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/merch", authedWriteRateLimit, async (req, res) => { res.json(await service.dropMerch(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/affiliates/:affiliateId", authedWriteRateLimit, async (req, res) => {
     res.json(await service.answerAffiliate(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.affiliateId)), req.body)); });
+  router.post("/saves/:id/streaming/sponsors/:sponsorId", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.answerSponsor(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.sponsorId)), req.body)); });
   router.post("/saves/:id/streaming/team", authedWriteRateLimit, async (req, res) => { res.json(await service.setTeam(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/platform", authedWriteRateLimit, async (req, res) => { res.json(await service.answerPlatform(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/emotes", authedWriteRateLimit, async (req, res) => { res.json(await service.nameEmote(res.locals.careerActor, id(req), req.body)); });

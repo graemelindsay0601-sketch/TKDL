@@ -130,6 +130,14 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     id uuid NOT NULL, n integer NOT NULL, brand_key text NOT NULL, brand_name text NOT NULL, season integer NOT NULL, week integer NOT NULL,
     status text NOT NULL CHECK (status IN ('OFFERED','ACTIVE','ENDED','DECLINED','EXPIRED')), paid_pence integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, n))`);
+  // The sponsor ladder: one headline sponsor at a time, rung by rung.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_sponsors (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, n integer NOT NULL, rung integer NOT NULL CHECK (rung BETWEEN 1 AND 4), brand_key text NOT NULL, brand_name text NOT NULL,
+    season integer NOT NULL, week integer NOT NULL, weekly_pence integer NOT NULL CHECK (weekly_pence >= 0), weeks_total integer NOT NULL CHECK (weeks_total > 0),
+    weeks_paid integer NOT NULL DEFAULT 0, paid_pence integer NOT NULL DEFAULT 0, fans integer NOT NULL DEFAULT 0, last_paid text, closed_week integer,
+    status text NOT NULL CHECK (status IN ('OFFERED','ACTIVE','COMPLETED','ENDED','DECLINED','EXPIRED')),
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, n))`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS team jsonb NOT NULL DEFAULT '[]'::jsonb`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS platform jsonb`);
 }

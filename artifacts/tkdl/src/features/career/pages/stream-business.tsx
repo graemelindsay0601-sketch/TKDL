@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { BadgePercent, Briefcase, Clapperboard, Handshake, Shirt, UserPlus } from "lucide-react";
-import { errorMessage, useAnswerAffiliate, useAnswerPlatform, useDropMerch, useSetTeam, type StreamingView } from "../api";
+import { Award, BadgePercent, Briefcase, Clapperboard, Handshake, Lock, Shirt, Store, UserPlus } from "lucide-react";
+import { errorMessage, useAnswerAffiliate, useAnswerPlatform, useAnswerSponsor, useDropMerch, useSetTeam, type StreamingView } from "../api";
 import { formatPence } from "../model";
 import "./stream-community.css";
 
 /** The business desk: merch drops, affiliate codes, the team you hire, and the platform's exclusivity offer. */
 export function BusinessSection({ saveId, d, retired }: { saveId: string; d: StreamingView; retired: boolean }) {
   const b = d.business;
-  const drop = useDropMerch(saveId), aff = useAnswerAffiliate(saveId), team = useSetTeam(saveId), platform = useAnswerPlatform(saveId);
+  const drop = useDropMerch(saveId), aff = useAnswerAffiliate(saveId), team = useSetTeam(saveId), platform = useAnswerPlatform(saveId), sponsor = useAnswerSponsor(saveId);
   const [item, setItem] = useState("SHIRT"), [units, setUnits] = useState(50), [message, setMessage] = useState("");
   if (!b) return null;
   const fail = (e: unknown) => setMessage(errorMessage(e)), ok = () => setMessage("");
@@ -24,6 +24,8 @@ export function BusinessSection({ saveId, d, retired }: { saveId: string; d: Str
       <button type="button" className="sc-ghost" disabled={retired || platform.isPending} onClick={() => platform.mutate(false, { onSuccess: ok, onError: fail })}>Turn it down</button>
     </div>}
     {b.platform.active && <p className="sc-note">You're exclusive to {b.platform.name} this season: no collabs, smaller rooms, the money's in the bank.</p>}
+    {b.sponsor && <SponsorLadder s={b.sponsor} retired={retired} busy={sponsor.isPending}
+      answer={(id, action) => sponsor.mutate({ id, action }, { onSuccess: ok, onError: fail })} />}
     <div className="sc-content-grid">
       <article className="sc-card"><h3><Shirt aria-hidden /> Merch drops</h3>
         <p className="sc-note">You pay for the stock now; it sells over four weeks to loyal regulars and followers. Named emotes on the design sell better. The stock is the most you can lose.</p>
@@ -58,4 +60,34 @@ export function BusinessSection({ saveId, d, retired }: { saveId: string; d: Str
     </div>
     {message && <p className="sc-error" role="alert">{message}</p>}
   </section>;
+}
+
+const TIER_NAME: Record<string, string> = { NEWCOMER: "Newcomer", AFFILIATE: "Affiliate", PARTNER: "Partner", STAR: "Star" };
+const RUNG_ICON = [Store, Briefcase, BadgePercent, Award];
+
+/** The sponsor ladder: one headline sponsor at a time, local backer to signature range. */
+function SponsorLadder({ s, retired, busy, answer }: { s: StreamingView["business"]["sponsor"]; retired: boolean; busy: boolean;
+  answer: (id: string, action: "ACCEPT" | "DECLINE" | "END") => void }) {
+  return <div className="sc-ladder">
+    <h3>Sponsor ladder <small>one headline sponsor at a time · paid for every week you go live</small></h3>
+    <ol className="sc-cup-season sc-ladder-rungs">{s.rungs.map(r => { const Icon = r.status === "LOCKED" ? Lock : RUNG_ICON[r.rung - 1];
+      return <li key={r.rung} data-status={r.status}>
+        <Icon aria-hidden /><small>Rung {r.rung} · {TIER_NAME[r.minTier]}</small><b>{r.name}</b>
+        <em>{r.status === "BANKED" ? `Banked${r.brand ? ` · ${r.brand}` : ""}` : r.status === "CURRENT" ? `Live · ${r.brand}` : r.status === "NEXT" ? "Next up" : "Locked"}</em>
+        <span className="sc-rung-blurb">{r.blurb} {r.weeks} live weeks · +{r.fans} fans</span>
+      </li>; })}</ol>
+    {s.active ? <div className="sc-ladder-live">
+      <div><b>{s.active.brand}</b><small> · {s.active.what} · {formatPence(s.active.weeklyPence)} a live week · {formatPence(s.active.paidPence)} so far</small></div>
+      <span className="sc-loyalty" role="meter" aria-label="Sponsorship run" aria-valuemin={0} aria-valuemax={s.active.weeksTotal} aria-valuenow={s.active.weeksPaid}>
+        <span style={{ width: `${Math.round(s.active.weeksPaid / s.active.weeksTotal * 100)}%` }} /></span>
+      <small>{s.active.weeksPaid} of {s.active.weeksTotal} live weeks. See it through to bank the rung; walk away any time without a penalty.</small>
+      <button type="button" disabled={busy} onClick={() => answer(s.active!.id, "END")}>Walk away</button>
+    </div> : s.offer ? <div className="sc-celebrate">
+      <Handshake aria-hidden />
+      <div><b>{s.offer.brand} want to sponsor the channel: {formatPence(s.offer.weeklyPence)} a live week</b>
+        <small>{s.offer.what[0].toUpperCase() + s.offer.what.slice(1)} · {s.offer.weeks} live weeks · offer open until week {s.offer.expiresWeek}</small></div>
+      <button type="button" disabled={retired || busy} onClick={() => answer(s.offer!.id, "ACCEPT")}>Sign</button>
+      <button type="button" className="sc-ghost" disabled={busy} onClick={() => answer(s.offer!.id, "DECLINE")}>Not now</button>
+    </div> : s.why ? <p className="sc-note">{s.why}</p> : null}
+  </div>;
 }

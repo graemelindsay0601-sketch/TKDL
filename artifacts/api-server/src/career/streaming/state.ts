@@ -6,7 +6,7 @@ import { CLIP_OF_WEEK, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutco
 import { settleCommunity } from "./community.ts";
 import { holdAwards } from "./awards.ts";
 import { CONTENT, shortOutcome, vodPence, vodViews } from "./content.ts";
-import { AFFILIATE, EDITOR_SHORT, EDITOR_VOD, MANAGER_FEES, MERCH, PLATFORM, TEAM, affiliateBrand, affiliatePayout, merchSales, platformOfferPence, tierAtLeast, type TeamRole } from "./business.ts";
+import { AFFILIATE, EDITOR_SHORT, EDITOR_VOD, MANAGER_FEES, MERCH, PLATFORM, TEAM, SPONSOR, SPONSOR_LADDER, affiliateBrand, affiliatePayout, merchSales, platformOfferPence, sponsorBrand, sponsorWeeklyPence, tierAtLeast, type TeamRole } from "./business.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
@@ -115,6 +115,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   },0);
   const audienceVisits=recentStreams.reduce((sum,r)=>sum+Number(r.processed_visits??0),0);
   const averageViewers=audienceVisits>0?audienceMinutes/(audienceVisits*STREAM_MONEY.adMinutesPerVisit):0;
+  await settleSponsorLadder(tx, root, season, week, followers, averageViewers, ((ch.team as string[] | null) ?? []).includes("MANAGER"));
   if(tier==="PARTNER"||tier==="STAR"){
     const campaignOpen=(await tx.execute(sql`SELECT 1 FROM career_stream_campaigns WHERE career_save_id=${root.id}
       AND status IN ('OFFERED','ACTIVE','IN_PROGRESS') LIMIT 1`)).rows.length>0;
@@ -248,4 +249,40 @@ async function settleBusiness(tx: CareerExecutor, root: Root, season: number, we
       WHERE career_save_id=${root.id}`);
   if (p?.status === "OFFERED" && p.season === season && week > PLATFORM.offerWeek + 2)
     await tx.execute(sql`UPDATE career_stream_channels SET platform = platform || '{"status":"DECLINED"}'::jsonb WHERE career_save_id=${root.id}`);
+}
+
+/**
+ * The sponsor ladder, once a week: the headline sponsor pays for a week you went live (and the rung is banked when its run
+ * is done, with fans for your darts career); unanswered offers lapse; with no sponsor on the go, the next rung up comes
+ * calling once your channel is big enough (and again a few weeks after one is turned down or lapses).
+ */
+async function settleSponsorLadder(tx: CareerExecutor, root: Root, season: number, week: number, followers: number, averageViewers: number, manager: boolean) {
+  const abs = (season - 1) * 52 + week, tag = `${season}:${week}`;
+  const active = (await tx.execute(sql`SELECT * FROM career_stream_sponsors WHERE career_save_id=${root.id} AND status='ACTIVE' LIMIT 1`)).rows[0];
+  if (active && active.last_paid !== tag) {
+    const live = (await tx.execute(sql`SELECT 1 FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND status='ENDED' LIMIT 1`)).rows.length > 0;
+    if (live) {
+      const pay = Number(active.weekly_pence), done = Number(active.weeks_paid) + 1 >= Number(active.weeks_total);
+      const rung = SPONSOR_LADDER[Number(active.rung) - 1];
+      const updated = (await tx.execute(sql`UPDATE career_stream_sponsors SET weeks_paid = weeks_paid + 1, paid_pence = paid_pence + ${pay}::int, last_paid=${tag},
+        status=${done ? "COMPLETED" : "ACTIVE"}, fans=${done ? rung.fans : 0}::int, closed_week=${done ? abs : null}
+        WHERE career_save_id=${root.id} AND id=${String(active.id)} AND status='ACTIVE' AND last_paid IS DISTINCT FROM ${tag} RETURNING 1`)).rows.length > 0;
+      if (updated && pay > 0) await post(tx, root, { operationKey: `stream-sponsor:${active.id}:${tag}`, category: "STREAM_INCOME", amountPence: pay,
+        reason: `${active.brand_name}: headline sponsor (${rung.name.toLowerCase()})`, season, week, detail: { sponsorId: String(active.id), rung: rung.rung } });
+    }
+  }
+  await tx.execute(sql`UPDATE career_stream_sponsors SET status='EXPIRED', closed_week=${abs} WHERE career_save_id=${root.id} AND status='OFFERED' AND ((season-1)*52 + week) <= ${abs - SPONSOR.offerWeeks}`);
+  const rows = (await tx.execute(sql`SELECT n, rung, status, season, week, closed_week FROM career_stream_sponsors WHERE career_save_id=${root.id} ORDER BY n`)).rows;
+  if (rows.some(r => r.status === "OFFERED" || r.status === "ACTIVE")) return;
+  const banked = Math.max(0, ...rows.filter(r => r.status === "COMPLETED").map(r => Number(r.rung)));
+  if (banked >= SPONSOR_LADDER.length) return;
+  const next = SPONSOR_LADDER[banked], tier = tierFor(followers).key;
+  if (!tierAtLeast(tier, next.minTier) || followers < next.minFollowers) return;
+  const last = rows.at(-1);
+  // A few weeks' breather after one is turned down, lapses or is walked away from (the next rung after a finished run comes straight away).
+  if (last && last.status !== "COMPLETED" && abs - Number(last.closed_week ?? (Number(last.season) - 1) * 52 + Number(last.week)) < SPONSOR.retryWeeks) return;
+  const n = rows.length, brand = sponsorBrand(root.world_seed, next.rung, n);
+  await tx.execute(sql`INSERT INTO career_stream_sponsors (career_save_id, id, n, rung, brand_key, brand_name, season, week, weekly_pence, weeks_total, status)
+    VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-sponsor", root.id, n)}, ${n}, ${next.rung}, ${brand.key}, ${brand.name}, ${season}, ${week},
+      ${sponsorWeeklyPence(next.rung, averageViewers, manager)}, ${next.weeks}, 'OFFERED') ON CONFLICT DO NOTHING`);
 }

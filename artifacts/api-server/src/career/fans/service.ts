@@ -34,7 +34,7 @@ export async function loadFanEvidence(tx: CareerExecutor, saveId: string): Promi
  * Fans won on DartCast, by season (none on a database without streaming): viral clips, a share of the followers your
  * streams won, and the goodwill of charity streams.
  */
-let clipsSeen = false, cupsSeen = false, awardsSeen = false;
+let clipsSeen = false, cupsSeen = false, awardsSeen = false, sponsorsSeen = false;
 async function streamFans(tx: CareerExecutor, saveId: string) {
   if (!clipsSeen) clipsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_clips') IS NOT NULL AS ok`)).rows[0]?.ok === true;
   if (!clipsSeen) return [];
@@ -52,6 +52,11 @@ async function streamFans(tx: CareerExecutor, saveId: string) {
   // A Creator Award win does too.
   if (!awardsSeen) awardsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_awards') IS NOT NULL AS ok`)).rows[0]?.ok === true;
   if (awardsSeen) for (const r of (await tx.execute(sql`SELECT season, SUM(fans)::int AS n FROM career_stream_awards WHERE career_save_id=${saveId} GROUP BY season`)).rows)
+    add(Number(r.season), Number(r.n));
+  // So does seeing a headline sponsor's run through (the sponsor ladder), in the season it finished.
+  if (!sponsorsSeen) sponsorsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_sponsors') IS NOT NULL AS ok`)).rows[0]?.ok === true;
+  if (sponsorsSeen) for (const r of (await tx.execute(sql`SELECT split_part(last_paid, ':', 1)::int AS season, SUM(fans)::int AS n FROM career_stream_sponsors
+      WHERE career_save_id=${saveId} AND status='COMPLETED' AND last_paid IS NOT NULL GROUP BY 1`)).rows)
     add(Number(r.season), Number(r.n));
   return [...bySeason].filter(([, fans]) => fans > 0).map(([season, fans]) => ({ season, fans }));
 }
