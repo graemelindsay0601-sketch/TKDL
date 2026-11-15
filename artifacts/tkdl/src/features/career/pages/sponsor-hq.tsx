@@ -71,9 +71,9 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         {label:"Scheduled guarantees",value:money(commercial?.remainingGuaranteesPence),sub:"Still to be paid"},
       ]}>
       <nav className="sponsor-hq__jump-nav" aria-label="Sponsor headquarters sections">
-        <a href="#sponsor-portfolio">Portfolio</a>
-        <a href="#sponsor-decisions">Offers &amp; renewals</a>
-        <a href="#sponsor-activities">Activities</a>
+        {portfolio.length>0&&<a href="#sponsor-portfolio">Portfolio</a>}
+        {!nothingYet&&<a href="#sponsor-decisions">Offers &amp; renewals</a>}
+        {activities.length>0&&<a href="#sponsor-activities">Activities</a>}
         <a href="#sponsor-history">History</a>
       </nav>
       <nav className="sponsor-hq__cross-nav" aria-label="Commercial career tools">
