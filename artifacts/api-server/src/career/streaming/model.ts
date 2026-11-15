@@ -274,6 +274,8 @@ export const FORMATS = [
   { key: "BOBS_27", name: "Bob's 27 live", blurb: "Every double from 1 to the bull, starting on 27. Don't drop to zero.", crowd: 0.8 },
   { key: "SCORING", name: "Average challenge", blurb: "33 visits of pure scoring against a target average. Chat pledges bits that pay only if you beat it.", crowd: 0.9 },
   { key: "COMMUNITY", name: "Community night", blurb: "Play your regulars: one of them steps up, first to 2 legs. Every regular in the room grows more loyal. Needs 3 regulars.", crowd: 1.05 },
+  { key: "TRICKSHOTS", name: "Board-cam trick shots", blurb: "The board camera shows every dart: chat picks six showpiece finishes, two visits at each. Land half to win. Needs the board camera.", crowd: 1.15 },
+  { key: "HEAD_TO_HEAD", name: "Head-to-head", blurb: "Two boards side by side: a creator from the scene throws next to you, first to 2 legs. Needs the second board.", crowd: 1.25 },
   { key: "CHARITY", name: "Charity stream", blurb: "Play a viewer for a good cause: every bit and super chat goes to charity. Generous crowds, and fans remember it. Once a month.", crowd: 1.1 },
 ] as const;
 /** Optional four-episode channel series. Each keeps the other DartCast formats and Career routes available. */
@@ -332,6 +334,14 @@ export function checkoutTargets(seed: string, streamKey: string) {
   const pool = [...FINISHES], out: number[] = [];
   while (out.length < 5) out.push(pool.splice(Math.floor(Math.pow(rng(), 1.4) * pool.length), 1)[0]);
   return out;
+}
+/** Board-cam trick shots: six showpiece finishes (bull finishes, the big fish and the flashy two-darters), chat's pick. */
+export const SHOWPIECE_FINISHES = [50, 100, 110, 121, 141, 161, 164, 167, 170, 81, 61, 96, 98, 136] as const;
+export function trickShotTargets(seed: string, streamKey: string) {
+  const rng = scopedRandom(seed, STREAM.version, "stream-trickshots", streamKey);
+  const pool: number[] = [...SHOWPIECE_FINISHES], out: number[] = [];
+  while (out.length < 6) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  return out.sort((a, b) => a - b);
 }
 /** The target average for the scoring challenge: a bit above your last one (or 45 the first time), to the half point. */
 export const scoringTarget = (lastAverage: number | null) => Math.round(((lastAverage ?? 43) + 2) * 2) / 2;

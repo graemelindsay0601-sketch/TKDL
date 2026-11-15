@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation, useSearch } from "wouter";
-import { Activity, ArrowUpRight, Check, CircleDollarSign, Clapperboard, Crosshair, Crown, Eye, HeartHandshake, Loader2, Play, Radio, Search, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users } from "lucide-react";
+import { Activity, ArrowUpRight, Check, CircleDollarSign, Clapperboard, Crosshair, Crown, Eye, HeartHandshake, Loader2, Play, Radio, Search, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users, Video, Swords } from "lucide-react";
 import { useAnswerBrandDeal, useAnswerStreamCampaign, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, useBuyStudioUpgrade, useChooseCreatorSeries, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
@@ -21,6 +21,8 @@ function StreamFormatIcon({ format }: { format: StreamFormat }) {
     case "SCORING": return <TrendingUp aria-hidden />;
     case "CHARITY": return <HeartHandshake aria-hidden />;
     case "COMMUNITY": return <Users aria-hidden />;
+    case "TRICKSHOTS": return <Video aria-hidden />;
+    case "HEAD_TO_HEAD": return <Swords aria-hidden />;
     default: return <Radio aria-hidden />;
   }
 }

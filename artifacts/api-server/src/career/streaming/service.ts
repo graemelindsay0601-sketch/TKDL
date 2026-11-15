@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { lockRoot, type CareerActor } from "../world/service.ts";
-import { stableUuid } from "../world/random.ts";
+import { scopedRandom, stableUuid } from "../world/random.ts";
 import { replay, validateFormat, type X01Format } from "../../shared/darts-rules/x01.ts";
 import { replayDrill, type DrillSpec } from "../../shared/darts-rules/drills.ts";
 import { absoluteDay } from "../calendar/generation.ts";
@@ -15,13 +15,13 @@ import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.t
 import { BRAND_CATEGORIES, DEAL_KINDS, PARTNERS, brandByKey, type BrandCategory, type DealKind } from "./partners.ts";
 import { brandTrust } from "./state.ts";
 import { AFFILIATE, MERCH, MERCH_ITEMS, PLATFORM, SPONSOR_LADDER, TEAM, tierAtLeast, type MerchKey, type TeamRole } from "./business.ts";
-import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
+import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, setFor, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
 import { CREATOR_SPONSOR_PREMIUM, PRO_GUEST, proGuests } from "./career-links.ts";
-import { PLAQUES, TIER_ORDER, STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { PLAQUES, TIER_ORDER, STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, trickShotTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -39,7 +39,7 @@ const roundsIn = (format: string, cup?: unknown) => format === "KING" ? KING_ROU
   : format === "CUP" && cup ? roundsFor((cup as CupState).size) : isMarathon(format) ? MARATHON_ROUNDS : 1;
 /** A marathon is leg after leg until the clock runs out (this just has to be more than will ever be played). */
 const MARATHON_ROUNDS = 999;
-const isDrill = (format: string) => format === "CHECKOUTS" || format === "BOBS_27" || format === "SCORING";
+const isDrill = (format: string) => format === "CHECKOUTS" || format === "BOBS_27" || format === "SCORING" || format === "TRICKSHOTS";
 
 type Challenger = { name: string; avg: number; bot: { config: { avg: number; sd: number; checkoutPct: number; hitAcc: number }; seed: string } | null;
   /** A collab: the streamer and their audience when you went live. */
@@ -457,7 +457,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
       clips: clips.map(c => ({ id: String(c.id), season: Number(c.season), week: Number(c.week), kind: c.kind as ClipKind, title: String(c.title), status: c.status as "NEW" | "VIRAL" | "SETTLED",
         views: Number(c.views), followersGained: Number(c.followers_gained), fansGained: Number(c.fans_gained), clipOfWeek: c.clip_of_week === true })),
       formats: FORMATS.map(f => ({ key: f.key, name: f.name, blurb: f.blurb, crowd: Math.round(crowdFor(f.key, lastFormat, ch.pollPick) * 100) / 100,
-        why: f.key === "COMMUNITY" ? (community.size < COMMUNITY.nightMin ? `Needs ${COMMUNITY.nightMin} regulars (you have ${community.size})` : null)
+        why: setFor(f.key) && !ch.sets.includes(setFor(f.key)!.key) ? `Needs the ${setFor(f.key)!.name.toLowerCase()} (studio sets)`
+          : f.key === "COMMUNITY" ? (community.size < COMMUNITY.nightMin ? `Needs ${COMMUNITY.nightMin} regulars (you have ${community.size})` : null)
           : f.key !== "CHARITY" ? null : tier.key === "NEWCOMER" ? "From Affiliate (viewers can cheer)"
           : rows.some(r => r.format === "CHARITY" && Number(r.season) === season && monthOf(Number(r.week)) === monthOf(week)) ? "Done this month" : null })),
       pollPick: ch.pollPick, lastFormat,
@@ -1184,6 +1185,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (format === "CHARITY" && v.tier.key === "NEWCOMER") throw new CareerError(409, "Charity streams start once you're an Affiliate (viewers can cheer)");
         if (format === "CHARITY" && v.charity.doneThisMonth) throw new CareerError(409, "One charity stream a month");
         if (format === "COMMUNITY" && v.community.size < COMMUNITY.nightMin) throw new CareerError(409, `Community nights need ${COMMUNITY.nightMin} regulars`);
+        const gear = setFor(String(format));
+        if (gear && !v.content.sets.find(x => x.key === gear.key)?.owned) throw new CareerError(409, `${formatByKey(String(format)).name} needs the ${gear.name.toLowerCase()}`);
         const n = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_streams WHERE career_save_id=${root.id}`)).rows[0].n) + 1;
         const key = `${season}:${week}:${n}`;
         const last = (await tx.execute(sql`SELECT season, day FROM career_streams WHERE career_save_id=${root.id} ORDER BY season DESC, day DESC LIMIT 1`)).rows[0];
@@ -1243,13 +1246,22 @@ export function createCareerStreamingService(database: CareerDatabase) {
           challenger = { name: regular.name, avg: c.avg, bot: { config: c.config, seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) } };
           hello = [{ kind: "CHAT", user: "DartCast", text: "Community night: one of your regulars takes you on" },
             { kind: "CHAT", user: regular.name, text: `Been waiting for this! First to ${STREAM.legsToWin}, you throw first` }];
+        } else if (format === "HEAD_TO_HEAD") {
+          // The second board: a creator near your size throws beside you (no invitation needed, just your show).
+          const near = [...v.collabs].sort((a, b) => Math.abs(Math.log(Math.max(1, a.followers) / Math.max(1, v.followers))) - Math.abs(Math.log(Math.max(1, b.followers) / Math.max(1, v.followers))));
+          const guest = near[Math.floor(scopedRandom(root.world_seed, STREAM.version, "stream-h2h", key)() * Math.min(5, near.length))];
+          if (!guest) throw new CareerError(409, "Nobody's free to come round tonight");
+          challenger = { name: guest.handle, avg: guest.avg, bot: { config: collabBot(guest.avg), seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) } };
+          hello = [{ kind: "CHAT", user: "DartCast", text: `Head-to-head on two boards: ${guest.handle} is throwing next to you tonight` },
+            { kind: "CHAT", user: guest.handle, text: `Side by side, first to ${STREAM.legsToWin}. You throw first` }];
         } else if (format === "CHALLENGER" || format === "KING" || format === "CHARITY") {
           if (format === "KING") challenger = kingChallenger(root.world_seed, id, v.followers, 0);
           else { const c = challengerFor(root.world_seed, key, v.followers); challenger = { name: c.name, avg: c.avg, bot: { config: c.config, seed: stableUuid(root.world_seed, STREAM.version, "stream-bot", root.id, key) } }; }
           hello = [{ kind: "CHAT", user: challenger.name, text: format === "KING" ? "I'll be first up. One leg, you throw first" : `I'll have a go! First to ${STREAM.legsToWin}, you throw first` },
             ...(format === "CHARITY" ? [{ kind: "CHAT" as const, user: "DartCast", text: "Charity night: every bit and super chat tonight goes to the cause" }] : [])];
         } else {
-          if (format === "CHECKOUTS") drill = { kind: "CHECKOUTS", targets: checkoutTargets(root.world_seed, key), visitsEach: 3 };
+          if (format === "TRICKSHOTS") drill = { kind: "CHECKOUTS", targets: trickShotTargets(root.world_seed, key), visitsEach: 2 };
+          else if (format === "CHECKOUTS") drill = { kind: "CHECKOUTS", targets: checkoutTargets(root.world_seed, key), visitsEach: 3 };
           else if (format === "BOBS_27") drill = { kind: "BOBS_27" };
           else {
             const prior = (await tx.execute(sql`SELECT drill->>'achieved' AS a FROM career_streams WHERE career_save_id=${root.id} AND format='SCORING' AND status='ENDED'
@@ -1257,7 +1269,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
             drill = { kind: "SCORING", visits: 33, targetAverage: scoringTarget(prior ? Number(prior.a) : null) };
           }
           challenger = { name: formatByKey(format).name, avg: 0, bot: null };
-          hello = [{ kind: "CHAT", user: "DartCast", text: drill.kind === "CHECKOUTS" ? `Chat picked tonight's finishes: ${drill.targets.join(", ")}`
+          hello = [{ kind: "CHAT", user: "DartCast", text: drill.kind === "CHECKOUTS" ? `${format === "TRICKSHOTS" ? "Board cam is rolling. Showpiece finishes" : "Chat picked tonight's finishes"}: ${drill.targets.join(", ")}`
             : drill.kind === "SCORING" ? `Target tonight: a ${drill.targetAverage} average. Pledges pay if you beat it` : "Bob's 27: D1 first. Good luck!" }];
         }
         if (notified) hello.unshift({ kind: "ALERT", alert: "NOTIFY", text: `🔔 Go-live notification sent to ${v.followers.toLocaleString("en-GB")} follower${v.followers === 1 ? "" : "s"}` });

@@ -33,13 +33,17 @@ export type PodcastTopic = typeof PODCAST_TOPICS[number]["key"];
 /** Studio sets: rooms you build, each a crowd bonus for its kind of show. Buy once, keep for good. */
 export const STUDIO_SETS = [
   { key: "PUB", name: "Pub corner", blurb: "A proper local: dartboard, bar stools, a cheeky pint. Viewer and community nights feel like home.",
-    costPence: 40_000, formats: ["CHALLENGER", "COMMUNITY", "COLLAB"] as StreamFormat[], bonus: 0.1 },
+    costPence: 40_000, formats: ["CHALLENGER", "COMMUNITY", "COLLAB"] as StreamFormat[], bonus: 0.1, unlocks: null as StreamFormat | null },
   { key: "LAB", name: "Practice lab", blurb: "Lights, cameras on the board, a stats wall. Drills become a show.",
-    costPence: 60_000, formats: ["CHECKOUTS", "BOBS_27", "SCORING"] as StreamFormat[], bonus: 0.12 },
+    costPence: 60_000, formats: ["CHECKOUTS", "BOBS_27", "SCORING"] as StreamFormat[], bonus: 0.12, unlocks: null as StreamFormat | null },
   { key: "ARENA", name: "Mini arena", blurb: "Walk-on lights and a stage. Big nights look the part.",
-    costPence: 150_000, formats: ["KING", "INVITATIONAL", "CUP", "SUBATHON", "MARATHON", "CELEBRATION"] as StreamFormat[], bonus: 0.12 },
+    costPence: 150_000, formats: ["KING", "INVITATIONAL", "CUP", "SUBATHON", "MARATHON", "CELEBRATION"] as StreamFormat[], bonus: 0.12, unlocks: null as StreamFormat | null },
   { key: "BROADCAST", name: "Broadcast desk", blurb: "A desk, two mics and a big screen. Watch-alongs and real matches feel like TV.",
-    costPence: 90_000, formats: ["WATCHALONG", "MATCH"] as StreamFormat[], bonus: 0.15 },
+    costPence: 90_000, formats: ["WATCHALONG", "MATCH"] as StreamFormat[], bonus: 0.15, unlocks: null as StreamFormat | null },
+  { key: "BOARD_CAM", name: "Board camera", blurb: "A camera in the board's surround: every dart in close-up. Unlocks the board-cam trick-shot show.",
+    costPence: 80_000, formats: ["TRICKSHOTS", "CHECKOUTS"] as StreamFormat[], bonus: 0.08, unlocks: "TRICKSHOTS" as StreamFormat | null },
+  { key: "SECOND_BOARD", name: "Second board", blurb: "Another board beside yours, lit and miked up. Unlocks head-to-heads with creators from the scene.",
+    costPence: 120_000, formats: ["HEAD_TO_HEAD", "CHALLENGER", "COMMUNITY"] as StreamFormat[], bonus: 0.08, unlocks: "HEAD_TO_HEAD" as StreamFormat | null },
 ] as const;
 export type StudioSetKey = typeof STUDIO_SETS[number]["key"];
 /** The crowd bonus your sets give a format (sets don't stack on the same format beyond the best one). */
@@ -83,3 +87,5 @@ export function podcastOutcome(seed: string, key: string, yours: number, guestFo
   const listeners = Math.round((yours * CONTENT.podcastListenersShare + guestFollowers * CONTENT.podcastGuestShare) * t.listen * bonus * (0.8 + rng() * 0.4)) + 3;
   return { listeners, followers: Math.max(1, Math.round(listeners * 0.08)), sponsorPence: CONTENT.podcastSponsorPence[tier] };
 }
+/** The set a format needs before you can run it (the board camera, the second board), if any. */
+export const setFor = (format: string) => STUDIO_SETS.find(s => s.unlocks === format) ?? null;
