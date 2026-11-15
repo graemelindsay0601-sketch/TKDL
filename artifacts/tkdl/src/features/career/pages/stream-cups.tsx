@@ -17,11 +17,13 @@ export function CupsSection({ d, night, canGo, busy, onGo }: { d: StreamingView;
       <button type="button" disabled={!canGo || busy} onClick={() => onGo("CELEBRATION")}>Celebrate{night ? ` on ${dayLabel(night)}` : ""}</button>
     </div>}
     <div className="sc-head">
-      <div><span className="sc-eyebrow">CREATOR CUPS · 4 A SEASON</span><h2 id="cups-title">{cup ? cup.name : "Creator Cups"}</h2>
+      <div><span className="sc-eyebrow"><b>06</b> / CREATOR CUPS · 4 A SEASON</span><h2 id="cups-title">{cup ? cup.name : "Creator Cups"}</h2>
         <p>{cup ? `One night, ${cup.size} creators around your size, knockout. First to ${cup.legsToWin} legs, the final first to ${cup.finalLegsToWin}. Extra to your stream nights.`
           : d.cups.next ? `Next up: the ${d.cups.next.name}, from week ${d.cups.next.opens}. Brackets of 8, or 16 once you're a Partner.` : "That's this season's cups done. They're back next season."}</p></div>
       <div className="sc-stats"><span><Trophy aria-hidden /> <span><b>{d.cups.trophies}</b> cup{d.cups.trophies === 1 ? "" : "s"} won</span></span></div>
     </div>
+    {d.cups.season && <ol className="sc-cup-season" aria-label="This season's cups">{d.cups.season.map(c => <li key={c.n} data-status={c.status}>
+      <Trophy aria-hidden /><b>{c.name}</b><small>Week {c.opens}</small><em>{{ WON: "Won", PLAYED: "Played", OPEN: "On now", UPCOMING: "Coming up", MISSED: "Missed" }[c.status]}</em></li>)}</ol>}
     {cup && <>
       {cup.callout && <blockquote className="sc-callout"><Swords aria-hidden /><div><b>{cup.callout.handle}</b> {cup.callout.text}</div></blockquote>}
       <div className="sc-cup-grid">
@@ -42,7 +44,7 @@ export function BigNightsSection({ d, night, canGo, busy, onGo }: { d: Streaming
   if (!d.marathons || !d.awards) return null;
   const latest = d.awards.seasons[0];
   return <section className="sc-panel" id="big-nights" aria-labelledby="big-nights-title">
-    <div className="sc-head"><div><span className="sc-eyebrow">ONCE A SEASON</span><h2 id="big-nights-title">Big nights</h2>
+    <div className="sc-head"><div><span className="sc-eyebrow"><b>07</b> / BIG NIGHTS · ONCE A SEASON</span><h2 id="big-nights-title">Big nights</h2>
       <p>Marathon streams against viewer after viewer on a clock, and the Creator Awards at the end of every season.</p></div>
       <div className="sc-stats"><span><Award aria-hidden /> <span><b>{d.awards.trophies}</b> award{d.awards.trophies === 1 ? "" : "s"} won</span></span></div></div>
     <div className="sc-nights">

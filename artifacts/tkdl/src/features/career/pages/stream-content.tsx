@@ -17,7 +17,7 @@ export function ContentSection({ saveId, d, night, canGo, retired, onWatched }: 
   const fail = (e: unknown) => setMessage(errorMessage(e)), ok = () => setMessage("");
   const guestPick = guest || c.podcast.guests.find(g => g.ok)?.key || "";
   return <section className="sc-panel" id="content" aria-labelledby="content-title">
-    <div className="sc-head"><div><span className="sc-eyebrow">BETWEEN STREAMS</span><h2 id="content-title">Content</h2>
+    <div className="sc-head"><div><span className="sc-eyebrow"><b>08</b> / CONTENT · BETWEEN STREAMS</span><h2 id="content-title">Content</h2>
       <p>Your streams live on as VODs, clips become Shorts, and the podcast and watch-alongs keep the channel busy on nights you're not throwing.</p></div>
       <div className="sc-stats"><span><Clapperboard aria-hidden /> <span><b>{c.vods.live}</b> VOD{c.vods.live === 1 ? "" : "s"} earning · {formatPence(c.vods.earnedPence)} so far</span></span></div></div>
     <div className="sc-content-grid">

@@ -46,6 +46,11 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/podcast", authedWriteRateLimit, async (req, res) => { res.json(await service.recordPodcast(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/sets", authedWriteRateLimit, async (req, res) => { res.json(await service.buySet(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/watch-along", authedWriteRateLimit, async (req, res) => { res.json(await service.watchAlong(res.locals.careerActor, id(req), req.body)); });
+  router.post("/saves/:id/streaming/merch", authedWriteRateLimit, async (req, res) => { res.json(await service.dropMerch(res.locals.careerActor, id(req), req.body)); });
+  router.post("/saves/:id/streaming/affiliates/:affiliateId", authedWriteRateLimit, async (req, res) => {
+    res.json(await service.answerAffiliate(res.locals.careerActor, id(req), careerIdSchema.parse(String(req.params.affiliateId)), req.body)); });
+  router.post("/saves/:id/streaming/team", authedWriteRateLimit, async (req, res) => { res.json(await service.setTeam(res.locals.careerActor, id(req), req.body)); });
+  router.post("/saves/:id/streaming/platform", authedWriteRateLimit, async (req, res) => { res.json(await service.answerPlatform(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/emotes", authedWriteRateLimit, async (req, res) => { res.json(await service.nameEmote(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/streams/:streamId/end", authedWriteRateLimit, async (req, res) => { res.json(await service.end(res.locals.careerActor, id(req), stream(req))); });
   router.post("/saves/:id/streaming/deals/:dealId", authedWriteRateLimit, async (req, res) => {

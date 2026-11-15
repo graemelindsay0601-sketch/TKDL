@@ -14,7 +14,7 @@ export function CommunitySection({ saveId, d, retired }: { saveId: string; d: St
   const set = (key: string, next: "NONE" | "MOD" | "VIP") => role.mutate({ key, role: next }, { onSuccess: () => setMessage(""), onError: e => setMessage(errorMessage(e)) });
   return <section className="sc-panel" id="community" aria-labelledby="community-title">
     <div className="sc-head">
-      <div><span className="sc-eyebrow">YOUR COMMUNITY</span><h2 id="community-title">The regulars</h2>
+      <div><span className="sc-eyebrow"><b>10</b> / YOUR COMMUNITY</span><h2 id="community-title">The regulars</h2>
         <p>Viewers who come back show after show. Each has their own personality in chat. They grow loyal when they catch your streams and drift away if you go quiet for weeks.</p></div>
       <div className="sc-stats">
         <span><Users aria-hidden /> <span><b>{c.size}</b> of {c.target} regulars</span></span>
@@ -54,7 +54,7 @@ export function SceneSection({ d }: { d: StreamingView }) {
   const shown = d.scene.creators.filter(c => region === "ALL" || c.region === region);
   return <section className="sc-panel" id="scene" aria-labelledby="scene-title">
     <div className="sc-head">
-      <div><span className="sc-eyebrow">THE SCENE</span><h2 id="scene-title">DartCast creators</h2>
+      <div><span className="sc-eyebrow"><b>11</b> / THE SCENE</span><h2 id="scene-title">DartCast creators</h2>
         <p>{d.scene.creators.length} channels across {regions.length} countries. New faces debut each season, and a few legends hang up the headset.</p></div>
       {(d.scene.rookies.length > 0 || d.scene.retired.length > 0) && <div className="sc-news">
         {d.scene.rookies.length > 0 && <span><Sparkles aria-hidden /> New this season: {d.scene.rookies.join(", ")}</span>}

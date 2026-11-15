@@ -12,6 +12,7 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { answerRequest, overlayVisit, recapFor } from "./overlay.ts";
 import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.ts";
+import { AFFILIATE, MERCH, MERCH_ITEMS, PLATFORM, TEAM, tierAtLeast, type MerchKey, type TeamRole } from "./business.ts";
 import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
@@ -73,7 +74,8 @@ export type StreamingView = {
   community: CommunityView;
   scene: { creators: SceneCreator[]; rookies: string[]; retired: string[] };
   emotes: { prefix: string; slots: EmoteSlot[] };
-  cups: { current: CupView | null; next: { name: string; opens: number } | null; history: CupRecord[]; trophies: number };
+  cups: { current: CupView | null; next: { name: string; opens: number } | null; history: CupRecord[]; trophies: number;
+    season: { n: number; name: string; opens: number; status: "WON" | "PLAYED" | "OPEN" | "UPCOMING" | "MISSED" }[] };
   celebration: { milestone: number } | null;
   content: {
     vods: { live: number; earnedPence: number; viewsThisSeason: number };
@@ -84,6 +86,13 @@ export type StreamingView = {
       topics: { key: string; name: string; blurb: string }[]; episodes: number };
     watchAlongs: { eventId: string; name: string; tier: string; champion: string; done: boolean }[];
     sets: { key: string; name: string; blurb: string; costPence: number; bonusPercent: number; formats: string[]; owned: boolean }[];
+  };
+  business: {
+    merch: { items: { key: string; name: string; unitCostPence: number; pricePence: number }[]; batches: number[]; open: boolean; why: string | null;
+      drops: { id: string; item: string; units: number; sold: number; revenuePence: number; costPence: number; season: number; week: number; onSale: boolean }[] };
+    affiliate: { offer: { id: string; brand: string } | null; active: { id: string; brand: string; paidPence: number } | null; why: string | null };
+    team: { role: string; name: string; blurb: string; wagePence: number; hired: boolean; available: boolean; why: string | null }[];
+    platform: { name: string; offer: number | null; active: boolean; declined: boolean };
   };
   awards: { seasons: { season: number; results: { award: string; name: string; winner: string; nominees: string[]; youNominated: boolean; youWon: boolean }[] }[]; trophies: number; nextAt: number };
   marathons: { subathon: { open: boolean; why: string | null }; marathon: { open: boolean; why: string | null; targetPence: number } };
@@ -131,17 +140,22 @@ async function emoteCodes(tx: CareerExecutor, root: Root) {
 const NOTIFY_BONUS = 1.1;
 const monthOf = (week: number) => Math.ceil(week / STREAM_MONEY.monthWeeks);
 
+export type PlatformDeal = { status: "OFFERED" | "ACTIVE" | "DECLINED"; season: number; offerPence: number };
+/** A platform exclusivity deal in force this season: smaller rooms, no collabs. */
+const exclusive = (p: PlatformDeal | null, season: number) => p?.status === "ACTIVE" && p.season === season;
 /** Your channel (made on first visit, its first followers drawn from your fan base). */
 async function channel(tx: CareerExecutor, root: Root) {
   const row = (await tx.execute(sql`SELECT * FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
   if (row) return { handle: String(row.handle), followers: Number(row.followers), subscribers: Number(row.subscribers ?? 0), studioLevel: Number(row.studio_level ?? 0),
     pollPick: (row.poll_pick as StreamFormat | null) ?? null, subGoal: (row.sub_goal as Omit<SubGoal, "progress" | "endsWeek"> | null) ?? null,
-    emotes: ((row.emotes as (string | null)[] | null) ?? []), celebrated: Number(row.celebrated ?? 0), sets: ((row.sets as string[] | null) ?? []) };
+    emotes: ((row.emotes as (string | null)[] | null) ?? []), celebrated: Number(row.celebrated ?? 0), sets: ((row.sets as string[] | null) ?? []),
+    team: ((row.team as string[] | null) ?? []), platform: (row.platform as PlatformDeal | null) ?? null };
   const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
   const name = String((await tx.execute(sql`SELECT career_name FROM career_saves WHERE id=${root.id}`)).rows[0]?.career_name ?? "Darts").replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || "Darts";
   const handle = `${name}Darts`, followers = followersFromFans(fans);
   await tx.execute(sql`INSERT INTO career_stream_channels (career_save_id, handle, followers) VALUES (${root.id}, ${handle}, ${followers}) ON CONFLICT DO NOTHING`);
-  return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null, emotes: [] as (string | null)[], celebrated: 0, sets: [] as string[] };
+  return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null, emotes: [] as (string | null)[], celebrated: 0, sets: [] as string[],
+    team: [] as string[], platform: null as PlatformDeal | null };
 }
 
 const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), brand: String(r.brand_name), what: BRANDS.find(b => b.key === r.brand_key)?.what ?? "a brand",
@@ -363,7 +377,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const upcoming = nextCup(cupDef ? cupDef.closes + 1 : week);
     const history: CupRecord[] = cupRows.map(c => ({ season: Number(c.season), n: Number(c.cup_no), name: String(c.name), size: Number(c.size), wins: Number(c.wins), won: c.won === true,
       prizePence: Number(c.prize_pence), champion: String(c.champion), knockedOutBy: c.knocked_out_by ? String(c.knocked_out_by) : null, fans: Number(c.fans) }));
-    const cups = { current, next: upcoming ? { name: upcoming.name, opens: upcoming.opens } : null, history, trophies: history.filter(h => h.won).length };
+    const seasonCups = CUPS.weeks.map((opens, i) => { const rec = history.find(h => h.season === season && h.n === i + 1);
+      const status = rec ? (rec.won ? "WON" : "PLAYED") : current && current.n === i + 1 ? "OPEN" : week < opens ? "UPCOMING" : "MISSED";
+      return { n: i + 1, name: CUPS.names[i], opens, status: status as "WON" | "PLAYED" | "OPEN" | "UPCOMING" | "MISSED" }; });
+    const cups = { current, next: upcoming ? { name: upcoming.name, opens: upcoming.opens } : null, history, trophies: history.filter(h => h.won).length, season: seasonCups };
     const milestone = [...CELEBRATION_MILESTONES].reverse().find(m => ch.followers >= m && m > ch.celebrated) ?? null;
     const celebration = milestone !== null && !rows.some(r => r.status === "LIVE" && r.format === "CELEBRATION") ? { milestone } : null;
     const marathonWhy = (kind: "SUBATHON" | "MARATHON") => root.status !== "ACTIVE" ? "Career is retired" : tier.key === "NEWCOMER" ? "From Affiliate (viewers can support)"
@@ -375,7 +392,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
       award: String(r.award), name: String(r.name), winner: String(r.winner), nominees: (r.nominees as string[]) ?? [], youNominated: r.you_nominated === true, youWon: r.you_won === true })) }));
     const awards = { seasons: awardSeasons, trophies: awardRows.filter(r => r.you_won === true).length, nextAt: 52 };
     const content = await contentView(tx, root, ch, tier.key, scene.creators, season, week);
-    return { community, emotes, cups, celebration, marathons, awards, content, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
+    const business = await businessView(tx, root, ch, tier.key, season);
+    return { community, emotes, cups, celebration, marathons, awards, content, business, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: perWeekFor(root.settings_snapshot),
@@ -408,7 +426,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
       })(),
       charity: { doneThisMonth: rows.some(r => r.format === "CHARITY" && Number(r.season) === season && monthOf(Number(r.week)) === monthOf(week)),
         raisedPence: ended.reduce((n, r) => n + Number((r.tally as Tally).raisedPence ?? 0), 0) },
-       collabs: activeStreamers(season).map(st => { const followers = streamerFollowers(st.followers, season, week), a = collabAnswer(followers, ch.followers, collabbed.has(st.key));
+       collabs: activeStreamers(season).map(st => { const followers = streamerFollowers(st.followers, season, week),
+         a = exclusive(ch.platform, season) ? { ok: false as const, why: `You're exclusive to ${PLATFORM.name} this season` } : collabAnswer(followers, ch.followers, collabbed.has(st.key));
          return { key: st.key, handle: st.handle, followers, avg: st.avg, blurb: st.blurb, ok: a.ok, why: a.ok ? null : a.why,
            seriesFit: creatorSeriesCollabFit(arcDefinition?.key ?? null, st.key) }; }),
       clips: clips.map(c => ({ id: String(c.id), season: Number(c.season), week: Number(c.week), kind: c.kind as ClipKind, title: String(c.title), status: c.status as "NEW" | "VIRAL" | "SETTLED",
@@ -471,6 +490,28 @@ export function createCareerStreamingService(database: CareerDatabase) {
         formats: [...set.formats], owned: ch.sets.includes(set.key) })),
     };
     void tier;
+  }
+
+  /** The business desk: merch, affiliate codes, your team and the platform offer. */
+  async function businessView(tx: CareerExecutor, root: Root, ch: Awaited<ReturnType<typeof channel>>, tier: TierKey, season: number): Promise<StreamingView["business"]> {
+    const drops = (await tx.execute(sql`SELECT * FROM career_stream_merch WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC LIMIT 6`)).rows;
+    const aff = (await tx.execute(sql`SELECT * FROM career_stream_affiliates WHERE career_save_id=${root.id} AND status IN ('OFFERED','ACTIVE') ORDER BY n DESC`)).rows;
+    const offer = aff.find(r => r.status === "OFFERED"), active = aff.find(r => r.status === "ACTIVE");
+    const onSale = drops.some(d => Number(d.sold) < Number(d.units) && Number(d.weeks_paid) < MERCH.weeks);
+    const merchWhy = root.status !== "ACTIVE" ? "Career is retired" : ch.followers < MERCH.minFollowers ? `From ${MERCH.minFollowers} followers` : onSale ? "One drop at a time: let this one sell" : null;
+    return {
+      merch: { items: MERCH_ITEMS.map(m => ({ key: m.key, name: m.name, unitCostPence: m.unitCostPence, pricePence: m.pricePence })), batches: [...MERCH.batches], open: merchWhy === null, why: merchWhy,
+        drops: drops.map(d => ({ id: String(d.id), item: MERCH_ITEMS.find(m => m.key === d.item)?.name ?? String(d.item), units: Number(d.units), sold: Number(d.sold),
+          revenuePence: Number(d.revenue_pence), costPence: Number(d.cost_pence), season: Number(d.season), week: Number(d.week),
+          onSale: Number(d.sold) < Number(d.units) && Number(d.weeks_paid) < MERCH.weeks })) },
+      affiliate: { offer: offer ? { id: String(offer.id), brand: String(offer.brand_name) } : null,
+        active: active ? { id: String(active.id), brand: String(active.brand_name), paidPence: Number(active.paid_pence) } : null,
+        why: tierAtLeast(tier, AFFILIATE.minTier) ? null : "Brands offer codes from Affiliate" },
+      team: (Object.keys(TEAM) as TeamRole[]).map(role => { const t = TEAM[role], available = tierAtLeast(tier, t.minTier);
+        return { role, name: t.name, blurb: t.blurb, wagePence: t.wagePence, hired: ch.team.includes(role), available, why: available ? null : `From ${t.minTier.charAt(0)}${t.minTier.slice(1).toLowerCase()}` }; }),
+      platform: { name: PLATFORM.name, offer: ch.platform?.status === "OFFERED" && ch.platform.season === season ? ch.platform.offerPence : null,
+        active: exclusive(ch.platform, season), declined: ch.platform?.status === "DECLINED" && ch.platform.season === season },
+    };
   }
 
   /** A Creator Cup over: the bracket settled, your record (with fans and a follower bonus for a deep run), and who you met. */
@@ -839,6 +880,70 @@ export function createCareerStreamingService(database: CareerDatabase) {
         return sessionFrom(await live(tx, root, id), v.handle, v.tier.key, v.followers);
       });
     },
+    /** Order a merch drop: you pay for the stock now; it sells over the next few weeks. */
+    async dropMerch(actor: CareerActor, saveId: string, body: unknown) {
+      const { item, units } = z.object({ item: z.enum(MERCH_ITEMS.map(m => m.key) as [MerchKey, ...MerchKey[]]), units: z.number().int() }).strict().parse(body);
+      if (!MERCH.batches.includes(units)) throw new CareerError(400, "Pick one of the batch sizes");
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        const v = await view(tx, root);
+        if (!v.business.merch.open) throw new CareerError(409, v.business.merch.why ?? "Merch isn't open");
+        const def = MERCH_ITEMS.find(m => m.key === item)!, cost = def.unitCostPence * units;
+        const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence ?? 0);
+        const reserved = Number((await tx.execute(sql`SELECT COALESCE(SUM(estimated_trip_pence),0)::bigint AS reserved FROM career_event_finance
+          WHERE career_save_id=${root.id} AND status='ENTERED'`)).rows[0]?.reserved ?? 0);
+        if (balance - reserved < cost) throw new InsufficientFundsError(cost, balance - reserved);
+        const season = Number(root.current_season), week = Number(root.current_week);
+        const n = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_merch WHERE career_save_id=${root.id}`)).rows[0]?.n ?? 0);
+        const dropId = stableUuid(root.world_seed, STREAM.version, "stream-merch", root.id, n);
+        await post(tx, root, { operationKey: `adjustment:merch-stock:${dropId}`, category: "ADJUSTMENT", headline: "EXPENSE", amountPence: -cost,
+          reason: `DartCast merch: ${units} × ${def.name}`, season, week, detail: { type: "DARTCAST_MERCH_STOCK", item, units } });
+        await tx.execute(sql`INSERT INTO career_stream_merch (career_save_id, id, season, week, item, units, cost_pence, price_pence)
+          VALUES (${root.id}, ${dropId}, ${season}, ${week}, ${item}, ${units}, ${cost}, ${def.pricePence})`);
+        return view(tx, root);
+      });
+    },
+    /** Take or turn down an affiliate code; or end the one you have. */
+    async answerAffiliate(actor: CareerActor, saveId: string, affiliateId: string, body: unknown) {
+      const { action } = z.object({ action: z.enum(["ACCEPT", "DECLINE", "END"]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        const row = (await tx.execute(sql`SELECT * FROM career_stream_affiliates WHERE career_save_id=${root.id} AND id=${affiliateId}`)).rows[0];
+        if (!row) throw new CareerError(404, "Affiliate code not found");
+        const want = action === "END" ? "ACTIVE" : "OFFERED";
+        if (row.status !== want) throw new CareerError(409, action === "END" ? "That code isn't running" : "That offer has gone");
+        if (action === "ACCEPT") await tx.execute(sql`UPDATE career_stream_affiliates SET status='ENDED' WHERE career_save_id=${root.id} AND status='ACTIVE'`);
+        await tx.execute(sql`UPDATE career_stream_affiliates SET status=${action === "ACCEPT" ? "ACTIVE" : action === "DECLINE" ? "DECLINED" : "ENDED"}
+          WHERE career_save_id=${root.id} AND id=${affiliateId}`);
+        return view(tx, root);
+      });
+    },
+    /** Hire or let go of an editor or manager (weekly wages while they work for you). */
+    async setTeam(actor: CareerActor, saveId: string, body: unknown) {
+      const { role, hire } = z.object({ role: z.enum(Object.keys(TEAM) as [TeamRole, ...TeamRole[]]), hire: z.boolean() }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const ch = await channel(tx, root), tier = tierFor(ch.followers).key;
+        if (hire && !tierAtLeast(tier, TEAM[role].minTier)) throw new CareerError(409, `${TEAM[role].name}s work with channels from ${TEAM[role].minTier.toLowerCase()}`);
+        const team = hire ? [...new Set([...ch.team, role])] : ch.team.filter(r => r !== role);
+        await tx.execute(sql`UPDATE career_stream_channels SET team=${JSON.stringify(team)}::jsonb WHERE career_save_id=${root.id}`);
+        return view(tx, root);
+      });
+    },
+    /** Answer the platform's exclusivity offer. */
+    async answerPlatform(actor: CareerActor, saveId: string, body: unknown) {
+      const { accept } = z.object({ accept: z.boolean() }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        const ch = await channel(tx, root), season = Number(root.current_season);
+        if (ch.platform?.status !== "OFFERED" || ch.platform.season !== season) throw new CareerError(409, "No platform offer on the table");
+        if (accept) await post(tx, root, { operationKey: `stream-platform:${season}`, category: "STREAM_INCOME", amountPence: ch.platform.offerPence,
+          reason: `${PLATFORM.name} exclusivity deal (season ${season})`, season, week: Number(root.current_week), detail: { platform: PLATFORM.name } });
+        await tx.execute(sql`UPDATE career_stream_channels SET platform = platform || ${JSON.stringify({ status: accept ? "ACTIVE" : "DECLINED" })}::jsonb WHERE career_save_id=${root.id}`);
+        return view(tx, root);
+      });
+    },
     async setRegularRole(actor: CareerActor, saveId: string, key: string, body: unknown) {
       const { role } = z.object({ role: z.enum(["NONE", "MOD", "VIP"]) }).strict().parse(body);
       if (!/^r\d{1,6}$/.test(key)) throw new CareerError(404, "That regular isn't in your community");
@@ -959,6 +1064,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
         const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" || cupNight || format === "CELEBRATION" || isMarathon(format) ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
           * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id)) * (1 + setBonus((await channel(tx, root)).sets, format))
+          * (exclusive((await channel(tx, root)).platform, season) ? PLATFORM.viewerPenalty : 1)
           * (planned || v.pathway.scheduledNights.includes(dayOfWeek) ? NOTIFY_BONUS : 1)
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));
         const id = stableUuid(root.world_seed, STREAM.version, "stream", root.id, key);

@@ -9,6 +9,7 @@ import type { ShellContext } from "../shell";
 import { CommunitySection, SceneSection } from "./stream-community";
 import { BigNightsSection, CupsSection } from "./stream-cups";
 import { ContentSection } from "./stream-content";
+import { BusinessSection } from "./stream-business";
 import "./streaming.css";
 
 function StreamFormatIcon({ format }: { format: StreamFormat }) {
@@ -86,6 +87,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             <a href="#cups"><Trophy aria-hidden /> Cups</a>
             <a href="#big-nights"><Sparkles aria-hidden /> Big nights</a>
             <a href="#content"><Clapperboard aria-hidden /> Content</a>
+            <a href="#business"><CircleDollarSign aria-hidden /> Business</a>
             <a href="#community"><HeartHandshake aria-hidden /> Community</a>
             <a href="#scene"><Sparkles aria-hidden /> The scene</a>
             <a href="#vault"><Clapperboard aria-hidden /> Production vault</a>
@@ -266,13 +268,6 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
               {!goalThisMonth && <><p>Set a goal for this month. Hit it and the buzz wins you followers.</p><div className="goal-controls"><div><small>SUB TARGET</small><div className="goal-options" role="radiogroup" aria-label="Sub target">{d.goalOptions.targets.map(t => <button type="button" key={t} role="radio" aria-checked={goalTarget === t} onClick={() => setGoalTarget(t)}>{t} subs</button>)}</div></div><div><small>YOUR PROMISE</small><div className="promise-options" role="radiogroup" aria-label="Your promise">{d.goalOptions.promises.map(p => <button type="button" key={p} role="radio" aria-checked={promise === p} onClick={() => setPromise(p)}>{p}</button>)}</div></div><button className="button-gold goal-submit" type="button" disabled={goalTarget === null || promise === null || goal.isPending} onClick={() => goal.mutate({ target: goalTarget!, promise: promise! }, { onError: e => setMessage(errorMessage(e)) })}>{goal.isPending ? "Setting goal…" : "Set the goal"} <ArrowUpRight aria-hidden /></button></div></>}
             </div>}
           </section>}
-          <CupsSection d={d} night={pick} canGo={!futureWeek && !retired && !d.live && pick !== null} busy={live.isPending}
-            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
-          <BigNightsSection d={d} night={pick} canGo={canGo} busy={live.isPending}
-            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
-          <ContentSection saveId={id} d={d} night={pick} canGo={canGo} retired={retired} onWatched={sid => navigate(`/career/${id}/streaming/${sid}`)} />
-          <CommunitySection saveId={id} d={d} retired={retired} />
-          <SceneSection d={d} />
           <section className="growth-map">
             <div className="growth-copy"><span className="eyebrow">04 / CHANNEL GROWTH</span><h2>A long game.<br /><em>Your own pace.</em></h2><p>Another way up in darts: build an audience. You’re {d.tier.name.toLowerCase()} today; {d.next ? `${(d.next.followers - d.followers).toLocaleString("en-GB")} more followers to ${d.next.name}.` : "you have reached the top tier."}</p></div>
             <div className="growth-steps">{d.tiers.map((tier, i) => <div className={`growth-step ${tier.reached ? "reached" : ""}`} key={tier.key}><span className="step-index">0{i + 1}</span><div className="step-info"><div><b>{tier.reached && <Check aria-hidden />} {tier.name}</b><small>{tier.followers ? `${tier.followers.toLocaleString("en-GB")} followers` : "Start here"}</small></div><p>{tier.perks}</p></div></div>)}</div>
@@ -293,6 +288,14 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
             <div className="field-panel"><div className="field-title"><span>INVITATIONAL FIELD</span><small>SEVEN INVITED CHANNELS</small></div><div className="field-list">{d.invitational.field.map((s, i) => <div className="field-member" key={s.handle}><span>0{i + 1}</span><b>{s.handle}</b><small>{s.followers.toLocaleString("en-GB")} followers</small><strong>AVG {s.avg}</strong></div>)}</div>
               {d.invitational.result ? <p>{d.invitational.result.wins >= 3 ? "You won the Invitational!" : `You won ${d.invitational.result.wins} match${d.invitational.result.wins === 1 ? "" : "es"}.`} Prize: {money(d.invitational.result.prizePence)}.</p> : d.invitational.open ? <button className="button-gold" type="button" disabled={!canGo || live.isPending} onClick={() => live.mutate({ dayOfWeek: pick!, format: "INVITATIONAL" }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })}>Play the Invitational{pick ? ` on ${dayLabel(pick)}` : ""} <ArrowUpRight aria-hidden /></button> : <p>Entry opens at week {d.invitational.fromWeek}. {d.invitational.why}</p>}</div>
           </section>
+          <CupsSection d={d} night={pick} canGo={!futureWeek && !retired && !d.live && pick !== null} busy={live.isPending}
+            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
+          <BigNightsSection d={d} night={pick} canGo={canGo} busy={live.isPending}
+            onGo={f => live.mutate({ dayOfWeek: pick!, format: f }, { onSuccess: s => navigate(`/career/${id}/streaming/${s.id}`), onError: e => setMessage(errorMessage(e)) })} />
+          <ContentSection saveId={id} d={d} night={pick} canGo={canGo} retired={retired} onWatched={sid => navigate(`/career/${id}/streaming/${sid}`)} />
+          <BusinessSection saveId={id} d={d} retired={retired} />
+          <CommunitySection saveId={id} d={d} retired={retired} />
+          <SceneSection d={d} />
           <footer className="studio-footer"><span>DARTCAST <b>CREATOR STUDIO</b></span><span>SEASON {d.season} · WEEK {d.week} <i /> {d.handle.toUpperCase()}</span></footer>
         </div>
       </div>

@@ -119,4 +119,17 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     season integer NOT NULL, week integer NOT NULL, guest_key text NOT NULL, guest_handle text NOT NULL, topic text NOT NULL,
     listeners integer NOT NULL, followers integer NOT NULL, sponsor_pence integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, season, week))`);
+  // Business: merch drops, affiliate codes, the team you hire, and a platform exclusivity deal.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_merch (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, season integer NOT NULL, week integer NOT NULL, item text NOT NULL, units integer NOT NULL CHECK (units > 0),
+    cost_pence integer NOT NULL, price_pence integer NOT NULL, sold integer NOT NULL DEFAULT 0, revenue_pence integer NOT NULL DEFAULT 0, weeks_paid integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id))`);
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_affiliates (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, n integer NOT NULL, brand_key text NOT NULL, brand_name text NOT NULL, season integer NOT NULL, week integer NOT NULL,
+    status text NOT NULL CHECK (status IN ('OFFERED','ACTIVE','ENDED','DECLINED','EXPIRED')), paid_pence integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, n))`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS team jsonb NOT NULL DEFAULT '[]'::jsonb`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS platform jsonb`);
 }
