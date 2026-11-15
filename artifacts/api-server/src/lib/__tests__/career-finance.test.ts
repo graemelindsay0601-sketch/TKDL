@@ -646,7 +646,7 @@ test("a ranking win pays prize exactly once; losing early pays nothing", async (
   await playThrough(save.id, ranking.dates.startWeek + 1, true, "winner");
   const awards = await rows(sql`SELECT event_id, finishing_position, cash_award_pence, ranking_eligible_pence, classification, ledger_entry_id FROM career_prize_awards WHERE career_save_id = ${save.id} AND event_id = ${ranking.id}`);
   assert.deepEqual(awards.map(a => [a.event_id, a.finishing_position, Number(a.cash_award_pence), Number(a.ranking_eligible_pence), a.classification]),
-    [[ranking.id, 1, 2500, 2500, "RANKING"]]);
+    [[ranking.id, 1, 4000, 4000, "RANKING"]]);
   assert.equal((await ledger(save.id)).filter(r => r.id === awards[0].ledger_entry_id && r.category === "PRIZE").length, 1);
   // Retried completion processing is a no-op.
   await withRoot(save.id, async (tx, root) => {
@@ -658,7 +658,7 @@ test("a ranking win pays prize exactly once; losing early pays nothing", async (
   assert.equal((await ledger(save.id)).filter(r => r.id === awards[0].ledger_entry_id && r.category === "PRIZE").length, 1, "no duplicate prize");
   await rejectsWith(db.execute(sql`UPDATE career_prize_awards SET cash_award_pence = 1 WHERE career_save_id = ${save.id}`), /immutable/);
   const s = await finance.summary(actor, save.id);
-  assert.equal(s.careerEarningsPence, 2500); assert.equal(s.reconciled, true);
+  assert.equal(s.careerEarningsPence, 4000); assert.equal(s.reconciled, true);
   const tables = await rows(sql`SELECT COUNT(*)::int n, COUNT(*) FILTER (WHERE classification = 'SPECIAL' AND ranking_eligible)::int bad FROM career_event_prize_tables WHERE career_save_id = ${save.id}`);
   assert.ok(Number(tables[0].n) > 10, "prize tables snapshotted for every completed event (A5 input)"); assert.equal(tables[0].bad, 0);
   // Loser path: early exit in a paying event earns zero, recorded as a factual award row.
@@ -793,8 +793,8 @@ test("accepting a sponsor: one contract, one signing bonus, snapshot terms, cove
   const sponsorRows = (await ledger(save.id)).filter(r => r.headline === "SPONSOR").map(r => [r.category, Number(r.amount_pence)]).sort();
   assert.deepEqual(sponsorRows, [["SPONSOR_EVENT_PAYMENT", 1000], ["SPONSOR_PERFORMANCE_BONUS", 2500], ["SPONSOR_SIGNING_BONUS", 10000]]);
   const s = await finance.summary(actor, save.id);
-  assert.deepEqual([s.sponsorEarningsPence, s.careerEarningsPence, s.careerExpensesPence, s.sponsorCoveredExpensesPence, s.reconciled], [13500, 2500, 250, 250, true]);
-  assert.equal(s.balancePence, 25000 + 13500 + 2500 - 250);
+  assert.deepEqual([s.sponsorEarningsPence, s.careerEarningsPence, s.careerExpensesPence, s.sponsorCoveredExpensesPence, s.reconciled], [13500, 4000, 250, 250, true]);
+  assert.equal(s.balancePence, 25000 + 13500 + 4000 - 250);
   const commercial = (await finance.sponsors(actor, save.id)).commercial!;
   const eventCap = commercial.conditionalEventPayments.find(payment => payment.contractId === a.contractId);
   assert.ok(eventCap);

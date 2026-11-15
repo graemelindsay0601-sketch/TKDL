@@ -158,7 +158,13 @@ export const PRIZE_PROFILES_V1: Record<string, PrizeProfile> = {
 /** v2 improves the amateur ladder so traveling events can fund genuine progression. */
 export const PRIZE_PROFILES: Record<string, PrizeProfile> = {
   ...PRIZE_PROFILES_V1,
-  "prize:county": prize("prize:county", 10000, 5000, 2500),
+  /**
+   * Pub knockouts pay like a pot (about what the field puts in), and county events pay four rounds deep, so a player who
+   * wins half their matches roughly breaks even close to home (full-season runs had them losing ~£15-20 per county trip
+   * and ~£3 per paid pub knockout). Bigger events stay as they were: there the money is for the players who go deep.
+   */
+  "prize:grassroots": prize("prize:grassroots", 4000, 2000, 1000, 500),
+  "prize:county": prize("prize:county", 15000, 7500, 4000, 2000),
   "prize:regional": prize("prize:regional", 75000, 40000, 20000, 10000, 5000, 2500),
   "prize:national_amateur": prize("prize:national_amateur", 250000, 125000, 60000, 30000, 15000, 7500),
 };

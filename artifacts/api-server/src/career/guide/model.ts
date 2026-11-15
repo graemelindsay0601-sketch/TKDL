@@ -182,6 +182,10 @@ export function buildGuide(g: GuideInput) {
     action: { label: "Play it", href: `${base}/matches/${g.pendingMatch.matchId}/play` } });
   else if (g.activeTournament) add({ key: "tournament", tone: "now", title: `Back to ${g.activeTournament.name}`, why: "You're in a tournament.", action: { label: "Open it", href: `${base}/tournaments/${g.activeTournament.eventId}` } });
   for (const w of waitingOn.filter(w => !w.label.startsWith("Your match"))) add({ key: `wait:${w.label}`, tone: "now", title: w.label, why: "The week is waiting for it.", action: { label: "Go", href: w.href } });
+  // Booked DartCast shows this week: Continue stops for each, so say so up front (not only once the week is waiting).
+  if (!g.streaming?.live && streamDays.length && phase === "START_OF_WEEK")
+    add({ key: "shows", tone: "soon", title: `Your DartCast show${streamDays.length > 1 ? "s" : ""} this week: ${streamDays.map(d => dayName(d).slice(0, 3)).join(", ")}`,
+      why: "You booked them: Continue stops on each night until you've gone live.", action: { label: "Go live", href: `${base}/streaming#go-live` } });
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
   for (const c of closing.slice(0, 1)) { const ev = g.events.find(e => e.id === c.id);
     add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}${ev ? cost(ev) : ""}.${ev && fits(ev) ? " It fits your next step." : " A cheap night of darts near home."}`,
@@ -195,11 +199,15 @@ export function buildGuide(g: GuideInput) {
     : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id)) ?? fitting[0];
   const suggest = (e: GuideEvent) => add({ key: `path:${e.id}`, tone: "soon", title: `Enter ${e.name}`, why: `${when(e)}${cost(e)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
     action: { label: "Enter", enterEventId: e.id, href: `${base}/events/${e.id}` } });
-  if (pathPick) {
+  const committed = () => steps.reduce((a, st) => a + (g.events.find(e => e.id === st.action.enterEventId)?.finance?.estimatedPlayerCostPence ?? 0), 0);
+  if (pathPick && (steps.some(st => st.action.enterEventId === pathPick.id) || committed() + (pathPick.finance?.estimatedPlayerCostPence ?? 0) <= spendCap)) {
     suggest(pathPick);
     // A second night this week if there's one: a different day from anything already suggested.
     const taken = new Set(steps.map(s => g.events.find(e => e.id === s.action.enterEventId)?.dates.startDay).filter(Boolean));
-    const second = fitting.find(e => e.dates.startWeek === week && !taken.has(e.dates.startDay) && e.id !== pathPick.id);
+    // ...and within what's left of the week's sensible spend once the earlier picks are paid for.
+    const spent = committed();
+    const second = fitting.find(e => e.dates.startWeek === week && !taken.has(e.dates.startDay) && e.id !== pathPick.id
+      && spent + (e.finance?.estimatedPlayerCostPence ?? 0) <= spendCap);
     if (second && !bookedThisWeek) suggest(second);
   }
   else if (currentDef && !currentDef.circuits.length) add({ key: "creator", tone: "soon", title: currentDef.title, why: currentDef.how, action: { label: "Open DartCast", href: `${base}/streaming` } });
