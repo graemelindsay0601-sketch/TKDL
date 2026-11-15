@@ -42,6 +42,10 @@ export function createCareerStreamingRouter(service: ReturnType<typeof createCar
   router.post("/saves/:id/streaming/streams/:streamId/darts", async (req, res) => { res.json(await service.darts(res.locals.careerActor, id(req), stream(req), req.body)); });
   router.post("/saves/:id/streaming/streams/:streamId/request", authedWriteRateLimit, async (req, res) => { res.json(await service.answerRequest(res.locals.careerActor, id(req), stream(req), req.body)); });
   router.post("/saves/:id/streaming/streams/:streamId/raid", authedWriteRateLimit, async (req, res) => { res.json(await service.raid(res.locals.careerActor, id(req), stream(req), req.body)); });
+  router.post("/saves/:id/streaming/shorts", authedWriteRateLimit, async (req, res) => { res.json(await service.makeShort(res.locals.careerActor, id(req), req.body)); });
+  router.post("/saves/:id/streaming/podcast", authedWriteRateLimit, async (req, res) => { res.json(await service.recordPodcast(res.locals.careerActor, id(req), req.body)); });
+  router.post("/saves/:id/streaming/sets", authedWriteRateLimit, async (req, res) => { res.json(await service.buySet(res.locals.careerActor, id(req), req.body)); });
+  router.post("/saves/:id/streaming/watch-along", authedWriteRateLimit, async (req, res) => { res.json(await service.watchAlong(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/emotes", authedWriteRateLimit, async (req, res) => { res.json(await service.nameEmote(res.locals.careerActor, id(req), req.body)); });
   router.post("/saves/:id/streaming/streams/:streamId/end", authedWriteRateLimit, async (req, res) => { res.json(await service.end(res.locals.careerActor, id(req), stream(req))); });
   router.post("/saves/:id/streaming/deals/:dealId", authedWriteRateLimit, async (req, res) => {

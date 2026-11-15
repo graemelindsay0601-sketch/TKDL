@@ -12,6 +12,7 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { answerRequest, overlayVisit, recapFor } from "./overlay.ts";
 import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.ts";
+import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
@@ -74,6 +75,16 @@ export type StreamingView = {
   emotes: { prefix: string; slots: EmoteSlot[] };
   cups: { current: CupView | null; next: { name: string; opens: number } | null; history: CupRecord[]; trophies: number };
   celebration: { milestone: number } | null;
+  content: {
+    vods: { live: number; earnedPence: number; viewsThisSeason: number };
+    shorts: { list: { id: string; title: string; kind: ClipKind; boosted: boolean; status: "NEW" | "SETTLED"; views: number; followers: number; season: number; week: number }[];
+      makeable: { clipId: string; title: string }[]; boostUsed: boolean; boostPence: number };
+    podcast: { thisWeek: { guest: string; topic: string; listeners: number; followers: number; sponsorPence: number } | null;
+      guests: { key: string; handle: string; followers: number; relationship: string; ok: boolean; why: string | null }[];
+      topics: { key: string; name: string; blurb: string }[]; episodes: number };
+    watchAlongs: { eventId: string; name: string; tier: string; champion: string; done: boolean }[];
+    sets: { key: string; name: string; blurb: string; costPence: number; bonusPercent: number; formats: string[]; owned: boolean }[];
+  };
   awards: { seasons: { season: number; results: { award: string; name: string; winner: string; nominees: string[]; youNominated: boolean; youWon: boolean }[] }[]; trophies: number; nextAt: number };
   marathons: { subathon: { open: boolean; why: string | null }; marathon: { open: boolean; why: string | null; targetPence: number } };
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
@@ -125,12 +136,12 @@ async function channel(tx: CareerExecutor, root: Root) {
   const row = (await tx.execute(sql`SELECT * FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
   if (row) return { handle: String(row.handle), followers: Number(row.followers), subscribers: Number(row.subscribers ?? 0), studioLevel: Number(row.studio_level ?? 0),
     pollPick: (row.poll_pick as StreamFormat | null) ?? null, subGoal: (row.sub_goal as Omit<SubGoal, "progress" | "endsWeek"> | null) ?? null,
-    emotes: ((row.emotes as (string | null)[] | null) ?? []), celebrated: Number(row.celebrated ?? 0) };
+    emotes: ((row.emotes as (string | null)[] | null) ?? []), celebrated: Number(row.celebrated ?? 0), sets: ((row.sets as string[] | null) ?? []) };
   const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
   const name = String((await tx.execute(sql`SELECT career_name FROM career_saves WHERE id=${root.id}`)).rows[0]?.career_name ?? "Darts").replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || "Darts";
   const handle = `${name}Darts`, followers = followersFromFans(fans);
   await tx.execute(sql`INSERT INTO career_stream_channels (career_save_id, handle, followers) VALUES (${root.id}, ${handle}, ${followers}) ON CONFLICT DO NOTHING`);
-  return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null, emotes: [] as (string | null)[], celebrated: 0 };
+  return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null, emotes: [] as (string | null)[], celebrated: 0, sets: [] as string[] };
 }
 
 const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), brand: String(r.brand_name), what: BRANDS.find(b => b.key === r.brand_key)?.what ?? "a brand",
@@ -318,10 +329,12 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const cupRows = (await tx.execute(sql`SELECT * FROM career_stream_cups WHERE career_save_id=${root.id} ORDER BY season DESC, cup_no DESC`)).rows;
     const met = new Map<string, number>(), beatYou = new Map<string, number>();
     for (const c of cupRows) { for (const k of (c.met as string[]) ?? []) met.set(k, (met.get(k) ?? 0) + 1); if (c.knocked_out_by) beatYou.set(String(c.knocked_out_by), (beatYou.get(String(c.knocked_out_by)) ?? 0) + 1); }
+    const guested = new Map((await tx.execute(sql`SELECT guest_key, COUNT(*)::int AS n FROM career_stream_podcasts WHERE career_save_id=${root.id} GROUP BY 1`)).rows
+      .map(r => [String(r.guest_key), Number(r.n)]));
     const sceneNow = activeStreamers(season);
     const scene = {
       creators: sceneNow.map(c => { const n = collabCounts.get(c.key) ?? 0, out = raidCount(c.key, "OUT"), inn = raidCount(c.key, "IN"), cupMeetings = met.get(c.key) ?? 0,
-        bond = n * 2 + out + inn + cupMeetings, rival = cupMeetings >= 2 && (beatYou.get(c.key) ?? 0) >= 1 && n * 2 + out + inn < 8;
+        bond = n * 2 + out + inn + cupMeetings + (guested.get(c.key) ?? 0) * 2, rival = cupMeetings >= 2 && (beatYou.get(c.key) ?? 0) >= 1 && n * 2 + out + inn < 8;
         return { key: c.key, handle: c.handle, region: c.region, style: c.style, blurb: c.blurb, catchphrase: c.catchphrase,
           followers: streamerFollowers(c.followers, season, week), avg: c.avg, rookie: c.debut === season && season > 1, collabs: n, raidsOut: out, raidsIn: inn, cupMeetings,
           relationship: (rival ? "RIVAL" : bond >= 8 ? "BESTIE" : bond >= 4 ? "FRIEND" : bond >= 1 ? "KNOWN" : "NEW") as SceneCreator["relationship"] }; })
@@ -361,7 +374,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const awardSeasons = [...new Set(awardRows.map(r => Number(r.season)))].slice(0, 3).map(s2 => ({ season: s2, results: awardRows.filter(r => Number(r.season) === s2).map(r => ({
       award: String(r.award), name: String(r.name), winner: String(r.winner), nominees: (r.nominees as string[]) ?? [], youNominated: r.you_nominated === true, youWon: r.you_won === true })) }));
     const awards = { seasons: awardSeasons, trophies: awardRows.filter(r => r.you_won === true).length, nextAt: 52 };
-    return { community, emotes, cups, celebration, marathons, awards, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
+    const content = await contentView(tx, root, ch, tier.key, scene.creators, season, week);
+    return { community, emotes, cups, celebration, marathons, awards, content, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: perWeekFor(root.settings_snapshot),
@@ -423,6 +437,42 @@ export function createCareerStreamingService(database: CareerDatabase) {
   }
 
   /** Finish a stream: followers banked (a bonus for wins), the night's money paid, and chat votes on what you play next. */
+  /** The content desk: VOD earnings, Shorts, the podcast, watch-alongs available and studio sets. */
+  async function contentView(tx: CareerExecutor, root: Root, ch: Awaited<ReturnType<typeof channel>>, tier: TierKey, scene: SceneCreator[], season: number, week: number): Promise<StreamingView["content"]> {
+    const vodRows = (await tx.execute(sql`SELECT COALESCE(SUM(vod_views),0)::int AS v, COUNT(*) FILTER (WHERE status='ENDED' AND ((${season}-season)*52 + ${week} - week) BETWEEN 1 AND ${CONTENT.vodWeeks})::int AS live
+      FROM career_streams WHERE career_save_id=${root.id} AND season=${season}`)).rows[0];
+    const earned = Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence),0)::bigint AS n FROM career_finance_entries WHERE career_save_id=${root.id}
+      AND category='STREAM_INCOME' AND operation_key LIKE 'stream-vod:%'`)).rows[0]?.n ?? 0);
+    const shorts = (await tx.execute(sql`SELECT * FROM career_stream_shorts WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC LIMIT 8`)).rows;
+    const makeable = (await tx.execute(sql`SELECT c.id, c.title FROM career_stream_clips c WHERE c.career_save_id=${root.id}
+      AND NOT EXISTS (SELECT 1 FROM career_stream_shorts s WHERE s.career_save_id=c.career_save_id AND s.clip_id=c.id) ORDER BY c.season DESC, c.week DESC LIMIT 6`)).rows;
+    const boostUsed = shorts.some(r => r.boosted === true && Number(r.season) === season && Number(r.week) === week);
+    const pod = (await tx.execute(sql`SELECT * FROM career_stream_podcasts WHERE career_save_id=${root.id} AND season=${season} AND week=${week}`)).rows[0];
+    const episodes = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_podcasts WHERE career_save_id=${root.id}`)).rows[0]?.n ?? 0);
+    const events = (await tx.execute(sql`SELECT i.id, i.name, i.presentation_tier, i.champion_participant_key AS champ,
+        p.first_name, p.surname,
+        EXISTS (SELECT 1 FROM career_streams s WHERE s.career_save_id=i.career_save_id AND s.format='WATCHALONG' AND s.challenger->>'eventId' = i.id::text) AS done
+      FROM career_event_instances i LEFT JOIN career_world_players p ON p.career_save_id=i.career_save_id AND p.id::text=i.champion_participant_key
+      WHERE i.career_save_id=${root.id} AND i.season=${season} AND i.status='COMPLETED' AND i.presentation_tier IN ('TELEVISED','MAJOR','WORLD')
+        AND i.end_week BETWEEN ${week - 1} AND ${week} ORDER BY i.end_week DESC, i.name LIMIT 6`)).rows;
+    return {
+      vods: { live: Number(vodRows?.live ?? 0), earnedPence: earned, viewsThisSeason: Number(vodRows?.v ?? 0) },
+      shorts: { list: shorts.map(r => ({ id: String(r.id), title: String(r.title), kind: r.kind as ClipKind, boosted: r.boosted === true, status: r.status as "NEW" | "SETTLED",
+          views: Number(r.views), followers: Number(r.followers), season: Number(r.season), week: Number(r.week) })),
+        makeable: makeable.map(r => ({ clipId: String(r.id), title: String(r.title) })), boostUsed, boostPence: CONTENT.boostPence },
+      podcast: { thisWeek: pod ? { guest: String(pod.guest_handle), topic: PODCAST_TOPICS.find(t => t.key === pod.topic)?.name ?? String(pod.topic), listeners: Number(pod.listeners),
+          followers: Number(pod.followers), sponsorPence: Number(pod.sponsor_pence) } : null,
+        guests: [...scene].sort((a, b) => Number(b.relationship !== "NEW") - Number(a.relationship !== "NEW") || Math.abs(Math.log(Math.max(1, a.followers) / Math.max(1, ch.followers))) - Math.abs(Math.log(Math.max(1, b.followers) / Math.max(1, ch.followers))))
+          .slice(0, 8).map(c => { const a = guestAnswer(c.relationship, c.followers, ch.followers); return { key: c.key, handle: c.handle, followers: c.followers, relationship: c.relationship, ok: a.ok, why: a.why }; }),
+        topics: PODCAST_TOPICS.map(t => ({ key: t.key, name: t.name, blurb: t.blurb })), episodes },
+      watchAlongs: events.map(r => ({ eventId: String(r.id), name: String(r.name), tier: String(r.presentation_tier),
+        champion: r.champ === "HUMAN" ? ch.handle : r.first_name ? `${r.first_name} ${r.surname}` : "the champion", done: r.done === true })),
+      sets: STUDIO_SETS.map(set => ({ key: set.key, name: set.name, blurb: set.blurb, costPence: set.costPence, bonusPercent: Math.round(set.bonus * 100),
+        formats: [...set.formats], owned: ch.sets.includes(set.key) })),
+    };
+    void tier;
+  }
+
   /** A Creator Cup over: the bracket settled, your record (with fans and a follower bonus for a deep run), and who you met. */
   async function recordCup(tx: CareerExecutor, root: Root, row: Record<string, unknown>, cup: CupState, tier: TierKey, wins: number, prize: number) {
     const rounds = ((row.rounds as StreamSession["rounds"]) ?? []);
@@ -695,6 +745,100 @@ export function createCareerStreamingService(database: CareerDatabase) {
         return sessionFrom(await live(tx, root, streamId), ch.handle, tierFor(ch.followers).key, ch.followers);
       });
     },
+    /** Cut a clip into a Short (optionally boosted, once a week). It runs at the end of the week. */
+    async makeShort(actor: CareerActor, saveId: string, body: unknown) {
+      const { clipId, boost } = z.object({ clipId: z.string().uuid(), boost: z.boolean().default(false) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const season = Number(root.current_season), week = Number(root.current_week);
+        const clip = (await tx.execute(sql`SELECT * FROM career_stream_clips WHERE career_save_id=${root.id} AND id=${clipId}`)).rows[0];
+        if (!clip) throw new CareerError(404, "Clip not found");
+        if ((await tx.execute(sql`SELECT 1 FROM career_stream_shorts WHERE career_save_id=${root.id} AND clip_id=${clipId}`)).rows.length) throw new CareerError(409, "That clip is already a Short");
+        if (boost) {
+          if ((await tx.execute(sql`SELECT 1 FROM career_stream_shorts WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND boosted`)).rows.length)
+            throw new CareerError(409, "One boosted Short a week");
+          await post(tx, root, { operationKey: `adjustment:short-boost:${clipId}`, category: "ADJUSTMENT", headline: "EXPENSE", amountPence: -CONTENT.boostPence,
+            reason: `DartCast Short boost: ${clip.title}`, season, week, detail: { type: "DARTCAST_SHORT_BOOST", clipId } });
+        }
+        await tx.execute(sql`INSERT INTO career_stream_shorts (career_save_id, id, clip_id, season, week, kind, title, boosted)
+          VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-short", root.id, clipId)}, ${clipId}, ${season}, ${week}, ${String(clip.kind)}, ${String(clip.title)}, ${boost})`);
+        return view(tx, root);
+      });
+    },
+    /** Record this week's podcast: a guest from the scene and a topic. Extra to stream nights. */
+    async recordPodcast(actor: CareerActor, saveId: string, body: unknown) {
+      const { guest, topic } = z.object({ guest: z.string().min(1).max(40), topic: z.enum(PODCAST_TOPICS.map(t => t.key) as [PodcastTopic, ...PodcastTopic[]]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const v = await view(tx, root);
+        if (v.content.podcast.thisWeek) throw new CareerError(409, "One episode a week");
+        const g = v.scene.creators.find(c => c.key === guest);
+        if (!g) throw new CareerError(404, "That creator isn't on the scene");
+        const answer = guestAnswer(g.relationship, g.followers, v.followers);
+        if (!answer.ok) throw new CareerError(409, `${g.handle}: ${answer.why}`);
+        const season = Number(root.current_season), week = Number(root.current_week);
+        const out = podcastOutcome(root.world_seed, `${root.id}:${season}:${week}`, v.followers, g.followers, topic, g.relationship === "RIVAL", v.tier.key);
+        await tx.execute(sql`INSERT INTO career_stream_podcasts (career_save_id, season, week, guest_key, guest_handle, topic, listeners, followers, sponsor_pence)
+          VALUES (${root.id}, ${season}, ${week}, ${g.key}, ${g.handle}, ${topic}, ${out.listeners}, ${out.followers}, ${out.sponsorPence})`);
+        await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${out.followers}::int WHERE career_save_id=${root.id}`);
+        if (topic === "QA") await tx.execute(sql`UPDATE career_stream_regulars SET loyalty = LEAST(100, loyalty + 3) WHERE career_save_id=${root.id} AND status='ACTIVE'`);
+        if (out.sponsorPence > 0) await post(tx, root, { operationKey: `stream-podcast:${season}:${week}`, category: "STREAM_INCOME", amountPence: out.sponsorPence,
+          reason: `DartCast podcast sponsor read (with ${g.handle})`, season, week, detail: { guest: g.key, topic, listeners: out.listeners } });
+        return view(tx, root);
+      });
+    },
+    /** Buy a studio set (yours for good). */
+    async buySet(actor: CareerActor, saveId: string, body: unknown) {
+      const { set } = z.object({ set: z.enum(STUDIO_SETS.map(s => s.key) as [StudioSetKey, ...StudioSetKey[]]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const ch = await channel(tx, root), def = STUDIO_SETS.find(s => s.key === set)!;
+        if (ch.sets.includes(set)) throw new CareerError(409, "You've already built that set");
+        const balance = Number((await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id=${root.id}`)).rows[0]?.balance_pence ?? 0);
+        const reserved = Number((await tx.execute(sql`SELECT COALESCE(SUM(estimated_trip_pence),0)::bigint AS reserved FROM career_event_finance
+          WHERE career_save_id=${root.id} AND status='ENTERED'`)).rows[0]?.reserved ?? 0);
+        if (balance - reserved < def.costPence) throw new InsufficientFundsError(def.costPence, balance - reserved);
+        await post(tx, root, { operationKey: `adjustment:studio-set:${set}`, category: "ADJUSTMENT", headline: "EXPENSE", amountPence: -def.costPence,
+          reason: `DartCast studio set: ${def.name}`, season: Number(root.current_season), week: Number(root.current_week), detail: { type: "DARTCAST_STUDIO_SET", set } });
+        await tx.execute(sql`UPDATE career_stream_channels SET sets = sets || ${JSON.stringify([set])}::jsonb WHERE career_save_id=${root.id}`);
+        return view(tx, root);
+      });
+    },
+    /** Co-stream a televised event that has just finished: uses a stream night, no darts, chat reacts to the real result. */
+    async watchAlong(actor: CareerActor, saveId: string, body: unknown) {
+      const { eventId, dayOfWeek } = z.object({ eventId: z.string().uuid(), dayOfWeek: z.number().int().min(1).max(7) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const v = await view(tx, root);
+        if (v.live) throw new CareerError(409, "You're already live: finish that stream first");
+        if (v.streamsThisWeek >= v.perWeek) throw new CareerError(409, `You've streamed ${v.perWeek} times this week`);
+        if (!v.freeNights.includes(dayOfWeek)) throw new CareerError(409, "You're booked that night");
+        const ev = v.content.watchAlongs.find(e => e.eventId === eventId);
+        if (!ev) throw new CareerError(404, "That event isn't one you can watch along to this week");
+        if (ev.done) throw new CareerError(409, "You've already watched along to that one");
+        const season = Number(root.current_season), week = Number(root.current_week), key = `${season}:${week}:watch:${eventId}`;
+        const id = stableUuid(root.world_seed, STREAM.version, "stream-watchalong", root.id, eventId);
+        const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
+        const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, null) * formatByKey("WATCHALONG").crowd
+          * (ev.tier === "WORLD" ? 1.4 : ev.tier === "MAJOR" ? 1.2 : 1) * studioAudienceMultiplier(v.studio.level) * (1 + setBonus((await channel(tx, root)).sets, "WATCHALONG"))));
+        let tally: Tally = { viewers, peak: viewers, hype: 1, followersGained: 0, followerCarry: 0, bitsPence: 0, superchatsPence: 0, subs: 0, studioLevel: v.studio.level,
+          ov: { startFollowers: v.followers, openedWith: viewers } };
+        const regulars = await activeRegulars(tx, root.id);
+        const chat: ChatEvent[] = [{ kind: "CHAT", user: "DartCast", text: `Watch-along: ${ev.name}. Grab a drink, chat's here` }];
+        const script = ["IDLE", "THEM_180", "IDLE", "THEM_CHECKOUT", "IDLE", "THEM_180", "IDLE", "THEM_CHECKOUT", "IDLE", "THEM_180", "IDLE", "WON"];
+        script.forEach((moment, i) => { const out = chatForMoment(root.world_seed, key, i, moment, tally, v.tier.key, false, regulars); tally = out.tally; chat.push(...out.events); });
+        chat.push({ kind: "ALERT", alert: "MILESTONE", text: `${ev.champion} wins the ${ev.name}! 🏆` });
+        await tx.execute(sql`INSERT INTO career_streams (career_save_id, id, season, week, day, status, format, challenger, first_thrower, tally, chat, processed_visits)
+          VALUES (${root.id}, ${id}, ${season}, ${week}, ${absoluteDay(week, dayOfWeek)}, 'LIVE', 'WATCHALONG', ${JSON.stringify({ name: ev.name, avg: 0, bot: null, eventId })}::jsonb, 0,
+            ${JSON.stringify(tally)}::jsonb, ${JSON.stringify(chat)}::jsonb, 0)`);
+        await finish(tx, root, await live(tx, root, id), null, tally, chat, script.length);
+        return sessionFrom(await live(tx, root, id), v.handle, v.tier.key, v.followers);
+      });
+    },
     async setRegularRole(actor: CareerActor, saveId: string, key: string, body: unknown) {
       const { role } = z.object({ role: z.enum(["NONE", "MOD", "VIP"]) }).strict().parse(body);
       if (!/^r\d{1,6}$/.test(key)) throw new CareerError(404, "That regular isn't in your community");
@@ -814,7 +958,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const since = last && Number(last.season) === season ? Math.max(0, day - Number(last.day)) : null;
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
         const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" || cupNight || format === "CELEBRATION" || isMarathon(format) ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
-          * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id))
+          * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id)) * (1 + setBonus((await channel(tx, root)).sets, format))
           * (planned || v.pathway.scheduledNights.includes(dayOfWeek) ? NOTIFY_BONUS : 1)
           + (partner ? partner.followers * COLLAB.tuneIn : 0)));
         const id = stableUuid(root.world_seed, STREAM.version, "stream", root.id, key);

@@ -5,6 +5,7 @@ import { scopedRandom, stableUuid } from "../world/random.ts";
 import { CLIP_OF_WEEK, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
 import { settleCommunity } from "./community.ts";
 import { holdAwards } from "./awards.ts";
+import { CONTENT, shortOutcome, vodPence, vodViews } from "./content.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
@@ -61,6 +62,8 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
       WHERE career_save_id=${root.id} AND id=${String(c.id)} AND status='NEW'`);
     if (o.followers) { await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${o.followers} WHERE career_save_id=${root.id}`); ch.followers = Number(ch.followers) + o.followers; }
   }
+  // VODs: every stream keeps earning views for a few weeks (paid at the ad rate); Shorts run and settle.
+  await settleContent(tx, root, season, week, Number(ch.followers));
   // Clip of the Week: DartCast's weekly vote. Your best clip of the week is in it; win and the spotlight brings followers.
   const already = (await tx.execute(sql`SELECT 1 FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND clip_of_week LIMIT 1`)).rows.length > 0;
   const best = already ? undefined : (await tx.execute(sql`SELECT id, status, views FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week}
@@ -152,3 +155,34 @@ export async function subsThisMonth(tx: CareerExecutor, saveId: string, season: 
     AND status='ENDED' AND week BETWEEN ${last - STREAM_MONEY.monthWeeks + 1} AND ${last}`)).rows[0].n);
 }
 
+
+/** The week's VOD views and Shorts: views, a few followers and a little money. Settled once per week. */
+async function settleContent(tx: CareerExecutor, root: Root, season: number, week: number, followers: number) {
+  const abs = (season - 1) * 52 + week;
+  let views = 0, gained = 0;
+  for (const r of (await tx.execute(sql`SELECT id, season, week, processed_visits, tally FROM career_streams WHERE career_save_id=${root.id} AND status='ENDED'
+      AND ((season-1)*52 + week) BETWEEN ${abs - CONTENT.vodWeeks} AND ${abs - 1}`)).rows) {
+    const after = abs - ((Number(r.season) - 1) * 52 + Number(r.week));
+    const v = vodViews(Number((r.tally as { peak?: number }).peak ?? 0), Number(r.processed_visits ?? 0), after);
+    if (!v) continue;
+    // Each stream's VOD week is counted once: the views are stored as they accrue, keyed by how many weeks have been paid.
+    const done = (await tx.execute(sql`UPDATE career_streams SET vod_views = vod_views + ${v}::int,
+        tally = jsonb_set(tally, '{vodWeeks}', to_jsonb(${after}::int)) WHERE career_save_id=${root.id} AND id=${String(r.id)}
+        AND COALESCE((tally->>'vodWeeks')::int, 0) < ${after}::int RETURNING 1`)).rows.length > 0;
+    if (done) { views += v; gained += Math.floor(v / 1000 * CONTENT.vodFollowersPerThousand); }
+  }
+  const pay = vodPence(views);
+  if (pay > 0) await post(tx, root, { operationKey: `stream-vod:${season}:${week}`, category: "STREAM_INCOME", amountPence: pay,
+    reason: `DartCast VODs: ${views.toLocaleString("en-GB")} views this week`, season, week, detail: { views } });
+  for (const sh of (await tx.execute(sql`SELECT id, kind, boosted FROM career_stream_shorts WHERE career_save_id=${root.id} AND status='NEW'
+      AND (season < ${season} OR week <= ${week})`)).rows) {
+    const o = shortOutcome(root.world_seed, String(sh.id), sh.kind as never, followers, sh.boosted === true);
+    const settled = (await tx.execute(sql`UPDATE career_stream_shorts SET status='SETTLED', views=${o.views}, followers=${o.followers}, pence=${o.pence}
+      WHERE career_save_id=${root.id} AND id=${String(sh.id)} AND status='NEW' RETURNING 1`)).rows.length > 0;
+    if (!settled) continue;
+    gained += o.followers;
+    if (o.pence > 0) await post(tx, root, { operationKey: `stream-short:${sh.id}`, category: "STREAM_INCOME", amountPence: o.pence,
+      reason: `DartCast Short: ${o.views.toLocaleString("en-GB")} views`, season, week, detail: { shortId: String(sh.id), views: o.views } });
+  }
+  if (gained) await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${gained}::int WHERE career_save_id=${root.id}`);
+}

@@ -83,6 +83,14 @@ export const useSetRegularRole = (saveId: string) => useSaveMutation(saveId, ({ 
   send<StreamingView>("POST", `/saves/${saveId}/streaming/regulars/${encodeURIComponent(key)}/role`, { role }));
 export const useNameEmote = (saveId: string) => useSaveMutation(saveId, ({ slot, name }: { slot: number; name: string }) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/emotes`, { slot, name }));
+export const useMakeShort = (saveId: string) => useSaveMutation(saveId, (input: { clipId: string; boost: boolean }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/shorts`, input));
+export const useRecordPodcast = (saveId: string) => useSaveMutation(saveId, (input: { guest: string; topic: string }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/podcast`, input));
+export const useBuyStudioSet = (saveId: string) => useSaveMutation(saveId, (set: string) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/sets`, { set }));
+export const useWatchAlong = (saveId: string) => useSaveMutation(saveId, (input: { eventId: string; dayOfWeek: number }) =>
+  send<StreamSession>("POST", `/saves/${saveId}/streaming/watch-along`, input));
 export const useAnswerStreamCampaign=(saveId:string)=>useSaveMutation(saveId,({campaignId,accept}:{campaignId:string;accept:boolean})=>
   send<StreamingView>("POST",`/saves/${saveId}/streaming/campaigns/${campaignId}`,{accept}));
 export type MatchStream = import("../../../../api-server/src/career/streaming/service").MatchStream;
