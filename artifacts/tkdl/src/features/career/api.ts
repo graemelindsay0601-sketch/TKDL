@@ -91,6 +91,14 @@ export const useBuyStudioSet = (saveId: string) => useSaveMutation(saveId, (set:
   send<StreamingView>("POST", `/saves/${saveId}/streaming/sets`, { set }));
 export const useWatchAlong = (saveId: string) => useSaveMutation(saveId, (input: { eventId: string; dayOfWeek: number }) =>
   send<StreamSession>("POST", `/saves/${saveId}/streaming/watch-along`, input));
+export const useDropMerch = (saveId: string) => useSaveMutation(saveId, (input: { item: string; units: number }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/merch`, input));
+export const useAnswerAffiliate = (saveId: string) => useSaveMutation(saveId, ({ id, action }: { id: string; action: "ACCEPT" | "DECLINE" | "END" }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/affiliates/${id}`, { action }));
+export const useSetTeam = (saveId: string) => useSaveMutation(saveId, (input: { role: string; hire: boolean }) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/team`, input));
+export const useAnswerPlatform = (saveId: string) => useSaveMutation(saveId, (accept: boolean) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/platform`, { accept }));
 export const useAnswerStreamCampaign=(saveId:string)=>useSaveMutation(saveId,({campaignId,accept}:{campaignId:string;accept:boolean})=>
   send<StreamingView>("POST",`/saves/${saveId}/streaming/campaigns/${campaignId}`,{accept}));
 export type MatchStream = import("../../../../api-server/src/career/streaming/service").MatchStream;

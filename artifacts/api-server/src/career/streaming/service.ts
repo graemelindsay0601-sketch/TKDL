@@ -74,7 +74,8 @@ export type StreamingView = {
   community: CommunityView;
   scene: { creators: SceneCreator[]; rookies: string[]; retired: string[] };
   emotes: { prefix: string; slots: EmoteSlot[] };
-  cups: { current: CupView | null; next: { name: string; opens: number } | null; history: CupRecord[]; trophies: number };
+  cups: { current: CupView | null; next: { name: string; opens: number } | null; history: CupRecord[]; trophies: number;
+    season: { n: number; name: string; opens: number; status: "WON" | "PLAYED" | "OPEN" | "UPCOMING" | "MISSED" }[] };
   celebration: { milestone: number } | null;
   content: {
     vods: { live: number; earnedPence: number; viewsThisSeason: number };
@@ -376,7 +377,10 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const upcoming = nextCup(cupDef ? cupDef.closes + 1 : week);
     const history: CupRecord[] = cupRows.map(c => ({ season: Number(c.season), n: Number(c.cup_no), name: String(c.name), size: Number(c.size), wins: Number(c.wins), won: c.won === true,
       prizePence: Number(c.prize_pence), champion: String(c.champion), knockedOutBy: c.knocked_out_by ? String(c.knocked_out_by) : null, fans: Number(c.fans) }));
-    const cups = { current, next: upcoming ? { name: upcoming.name, opens: upcoming.opens } : null, history, trophies: history.filter(h => h.won).length };
+    const seasonCups = CUPS.weeks.map((opens, i) => { const rec = history.find(h => h.season === season && h.n === i + 1);
+      const status = rec ? (rec.won ? "WON" : "PLAYED") : current && current.n === i + 1 ? "OPEN" : week < opens ? "UPCOMING" : "MISSED";
+      return { n: i + 1, name: CUPS.names[i], opens, status: status as "WON" | "PLAYED" | "OPEN" | "UPCOMING" | "MISSED" }; });
+    const cups = { current, next: upcoming ? { name: upcoming.name, opens: upcoming.opens } : null, history, trophies: history.filter(h => h.won).length, season: seasonCups };
     const milestone = [...CELEBRATION_MILESTONES].reverse().find(m => ch.followers >= m && m > ch.celebrated) ?? null;
     const celebration = milestone !== null && !rows.some(r => r.status === "LIVE" && r.format === "CELEBRATION") ? { milestone } : null;
     const marathonWhy = (kind: "SUBATHON" | "MARATHON") => root.status !== "ACTIVE" ? "Career is retired" : tier.key === "NEWCOMER" ? "From Affiliate (viewers can support)"
