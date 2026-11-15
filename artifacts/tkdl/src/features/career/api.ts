@@ -54,6 +54,21 @@ export const useHostingPreview = (saveId: string, q: { feePence: number; topUpPe
     queryFn: () => get<HostingPreview>(`/saves/${saveId}/hosting/preview${qs(q)}`) });
 export const useBookHosting = (saveId: string) => useSaveMutation(saveId, (input: { name?: string; week: number; dayOfWeek: number; fieldSize: number; feePence: number; topUpPence: number }) =>
   send<{ eventId: string; turnout: number; view: HostingView }>("POST", `/saves/${saveId}/hosting`, input));
+export type InboxView = import("../../../../api-server/src/career/inbox/service").InboxView;
+export const useInbox = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "inbox"), queryFn: () => get<InboxView>(`/saves/${saveId}/inbox`), staleTime: 30_000, enabled: enabled && !!saveId });
+/** Read state only: updates the inbox in place without refetching the rest of the Career. */
+export const useUpdateInbox = (saveId: string) => { const client = useQueryClient(); return useMutation({
+  mutationFn: (body: { seen?: string[]; dismiss?: string[]; mute?: string; unmute?: string }) => send<InboxView>("POST", `/saves/${saveId}/inbox`, body),
+  onSuccess: data => client.setQueryData(careerKey(saveId, "inbox"), data) }); };
+export type LocalNightsView = Awaited<ReturnType<ReturnType<typeof import("../../../../api-server/src/career/local/service").createCareerLocalNightsService>["read"]>>;
+export type LocalSession = import("../../../../api-server/src/career/local/service").LocalSession;
+export const useLocalNights = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "local"), queryFn: () => get<LocalNightsView>(`/saves/${saveId}/local`), staleTime: STALE });
+export const useBookLocalNight = (saveId: string) => useSaveMutation(saveId, (body: { kind: string; dayOfWeek: number; routine?: string }) =>
+  send<{ view: LocalNightsView; nightId: string }>("POST", `/saves/${saveId}/local/book`, body));
+export const useJoinPubLeague = (saveId: string) => useSaveMutation(saveId, () => send<LocalNightsView>("POST", `/saves/${saveId}/local/pub-league`, {}));
+export const useLocalSession = (saveId: string, nightId: string) => useQuery({ queryKey: careerKey(saveId, "local-night", nightId),
+  queryFn: () => get<LocalSession>(`/saves/${saveId}/local/nights/${nightId}`), enabled: !!nightId, staleTime: Infinity });
+export const localNightApi = { darts: (saveId: string, nightId: string, darts: unknown[]) => send<LocalSession>("POST", `/saves/${saveId}/local/nights/${nightId}/darts`, { darts }) };
 export type StreamingView = import("../../../../api-server/src/career/streaming/service").StreamingView;
 export type StreamSession = import("../../../../api-server/src/career/streaming/service").StreamSession;
 export type ChatEvent = import("../../../../api-server/src/career/streaming/model").ChatEvent;

@@ -1,3 +1,4 @@
+import { settleLocalWeek } from "../local/service.ts";
 import { MIDWEEK_SUMMARIES } from "../content/season-v15.ts";
 import { viabilityOf } from "./viability.ts";
 import type { QualificationOutput } from "./catalogue.ts";
@@ -566,6 +567,8 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       await settleCamWeek(tx, root, s, w);
       // Pro-Am nights: a missed slot, or the night you were booked to be the pro.
       await settleProAmWeek(tx, root, s, w);
+      // Local nights: coaching paid, unplayed nights missed, the pub league's round played out.
+      await settleLocalWeek(tx, root, s, w);
       return { season: s, week: w, summary, blocked: false };
     });
     if (played.blocked) return { ...played, advancedTo: null };

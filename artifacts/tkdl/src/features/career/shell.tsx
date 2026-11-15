@@ -6,6 +6,7 @@ import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, useStreaming, errorMessage, errorStatus } from "./api";
 import { UNLOCKS, useUnlocks, type UnlockKey } from "./unlocks";
+import { useInboxUnread } from "./inbox";
 import { CAREER_NAV, dayLabel, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -247,6 +248,7 @@ export function CareerNav({ saveId, save }: { saveId: string; save?: CareerSave 
   const contextNav = useRef<HTMLDivElement>(null);
   // Unlock as you go: Nights Out extras are listed once they're useful (their pages still open from any link).
   const unlocks = useUnlocks(save ?? { id: saveId, currentSeason: 99, status: "ACTIVE" });
+  const inboxUnread = useInboxUnread(save && save.status === "ACTIVE" ? save : undefined);
   const listed = (key: string) => !(UNLOCKS as readonly { key: string }[]).some(u => u.key === key) || unlocks.isOpen(key as UnlockKey);
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
@@ -266,6 +268,7 @@ export function CareerNav({ saveId, save }: { saveId: string; save?: CareerSave 
             aria-current={current ? (section.items.length === 1 ? "page" : "true") : undefined}>
             {current && <img className="career-nav-plate" src={plate.src} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={e => { e.currentTarget.style.display = "none"; }} />}
             <span className="career-destination-icon" aria-hidden><Icon size={18}/></span>
+            {section.layer === "HOME" && inboxUnread > 0 && <span className="career-nav-inbox-badge" aria-label={`${inboxUnread} new in your inbox`}>{inboxUnread > 9 ? "9+" : inboxUnread}</span>}
             <span className="career-nav-label-full">{section.label}</span>
             <span className="career-nav-label-short">{section.layer === "DARTS_WORLD" ? "World" : section.layer === "MY_CAREER" ? "Career" : section.layer === "NIGHTS" ? "Nights" : section.label}</span>
           </Link>

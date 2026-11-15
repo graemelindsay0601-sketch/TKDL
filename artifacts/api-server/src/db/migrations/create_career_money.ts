@@ -47,6 +47,8 @@ export async function ensureMoneyMatches(tx: CareerExecutor): Promise<void> {
     log jsonb NOT NULL DEFAULT '[]'::jsonb CHECK(jsonb_typeof(log)='array'),
     updated_at timestamptz NOT NULL DEFAULT NOW(),
     PRIMARY KEY(career_save_id,season,week,opponent_key))`);
+  // A money match takes a night of the week (the night it was played), so the week shows it.
+  await tx.execute(sql`ALTER TABLE career_money_match_sessions ADD COLUMN IF NOT EXISTS day integer`);
   if (await constraintAlreadyAdmits(tx, "career_finance_entries_category_check", "MANAGER_COMMISSION")) return;
   await tx.execute(sql`ALTER TABLE career_finance_entries DROP CONSTRAINT IF EXISTS career_finance_entries_category_check`);
   await tx.execute(sql`ALTER TABLE career_finance_entries ADD CONSTRAINT career_finance_entries_category_check CHECK (

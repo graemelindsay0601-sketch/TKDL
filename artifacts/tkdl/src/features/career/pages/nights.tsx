@@ -2,7 +2,7 @@ import { useEffect, type CSSProperties, type ReactNode } from "react";
 import { markVisited } from "../welcome";
 import { markSeen, nextUnlockLine, useUnlocks, type UnlockKey } from "../unlocks";
 import { Link } from "wouter";
-import { CalendarDays, Car, ChevronRight, Coins, Heart, Moon, Radio, Shield, Star, Video } from "lucide-react";
+import { CalendarDays, Car, ChevronRight, Coins, Heart, Moon, Radio, Shield, Star, Target, Video } from "lucide-react";
 import { useCamLeague, useMoneyMatches, useProAm, useRoadTrips, useStreaming, useTeamNights, useWeekNights } from "../api";
 import { CareerSection } from "../components";
 import { CareerPageHero } from "../page-hero";
@@ -14,11 +14,11 @@ import { ProAmNights } from "../pro-am";
 import "./nights-redesign.css";
 
 /** Calendar items the week strip names (events and commitments come with their own label). */
-const KIND: Record<string, string> = { EVENT: "event", LIFE: "life", stream: "stream", trip: "trip", league: "league", proam: "proam", team: "team" };
-const KIND_LABEL: Record<string, string> = { EVENT: "Tournament", LIFE: "Personal", stream: "DartCast", trip: "Road trip", league: "Webcam league", proam: "Pro-Am", team: "Club night" };
+const KIND: Record<string, string> = { EVENT: "event", LIFE: "life", stream: "stream", trip: "trip", league: "league", proam: "proam", team: "team", local: "team", money: "proam" };
+const KIND_LABEL: Record<string, string> = { EVENT: "Tournament", LIFE: "Personal", stream: "DartCast", trip: "Road trip", league: "Webcam league", proam: "Pro-Am", team: "Club night", local: "Local night", money: "Money match" };
 const KIND_ICON: Record<string, ReactNode> = {
   EVENT: <CalendarDays aria-hidden />, LIFE: <Heart aria-hidden />, stream: <Radio aria-hidden />, trip: <Car aria-hidden />,
-  league: <Video aria-hidden />, proam: <Star aria-hidden />, team: <Shield aria-hidden />,
+  league: <Video aria-hidden />, proam: <Star aria-hidden />, team: <Shield aria-hidden />, local: <Target aria-hidden />, money: <Coins aria-hidden />,
 };
 
 export function weekPlanItemHref(saveId: string, kind: string, id: string) {
@@ -31,6 +31,8 @@ export function weekPlanItemHref(saveId: string, kind: string, id: string) {
     league: `${base}/cam-league`,
     proam: `${base}/pro-am`,
     team: `${base}/club#team-nights`,
+    local: `${base}/local`,
+    money: `${base}/money-matches`,
   }[kind] ?? `${base}/nights`);
 }
 
@@ -116,6 +118,8 @@ export function NightsPage({ ctx }: { ctx: ShellContext }) {
         <Card href={`${base}/club`} icon={<Shield />} title="Your club" accent="#7ec8a4"
           status={teamNight ? `Team night Wednesday ${teamNight.home ? "v" : "at"} ${teamNight.opponent}${teamNight.youFree ? "" : ` · you're busy (${teamNight.clash ?? "booked"})`}`
             : team.data?.next ? `Next team night week ${team.data.next.week}` : "Table, members and your own tournament"} />
+        <Card href={`${base}/local`} icon={<Target />} title="Local nights" accent="#7ec8a4"
+          status="Pub league Tuesdays · club knockout Thursdays · practice any night · friendlies, exhibitions and coaching" />
         <Card href={`${base}/money-matches`} icon={<Coins />} title="Money matches" accent="#d9b96f" action={!!m?.challenge}
           status={!m ? "…" : m.challenge ? `${m.challenge.name} has challenged you for ${formatPence(m.challenge.stakePence)}` : moneyLeft > 0 ? `${moneyLeft} left to play this week` : "Done for this week"} />
         {unlocks.isOpen("road-trips") && <Card isNew={unlocks.isNew("road-trips")} href={`${base}/road-trips`} icon={<Car />} title="Road trips" accent="#e08a5b" action={!!r?.visitor}

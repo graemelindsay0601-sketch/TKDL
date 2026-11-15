@@ -97,7 +97,7 @@ export function PlanMyWeek({ saveId, events, week }: { saveId: string; events: C
       <p className="plan-week__note">Picks events that pay back their cost early, one a day, at most four in a week including what you have booked. Series that run over several weeks are entered from their own event page.</p>
       <section className="plan-week__options" aria-labelledby="plan-week-options-title">
         <h3 id="plan-week-options-title">Optional free-night ideas</h3>
-        <p>Club and Nights Out are options only; the DartCast route slots below are reserved. Open a feature to choose other activities.</p>
+        <p>Local nights, Club and Nights Out are options only; the DartCast route slots below are reserved. Open a feature to choose other activities.</p>
         {streaming.data?.week === week && streaming.data.pathway.focus === "DARTCAST" && <>
           <h3>Streamer route · {streaming.data.pathway.weeklyFrequency} night{streaming.data.pathway.weeklyFrequency === 1 ? "" : "s"} planned per week</h3>
           {streaming.data.pathway.scheduledNights.length
@@ -113,6 +113,7 @@ export function PlanMyWeek({ saveId, events, week }: { saveId: string; events: C
           {team.isLoading ? "Checking the Wednesday team-night schedule." : "Wednesday availability could not be confirmed, so no Wednesday option is shown."}</p>}
         {nightsAreForWeek && freeNights.length ? <ul className="plan-week__options-list">
           {freeNights.map(day => <li key={day}><b>{dayLabel(day)}</b><span>
+            <Link href={`/career/${saveId}/local`}><Moon aria-hidden /> {day === 2 ? "Pub league" : day === 4 ? "Club knockout" : "Practice night"}</Link>
             <Link href={`/career/${saveId}/club`}><Moon aria-hidden /> Club</Link>
             <Link href={`/career/${saveId}/nights`}><Moon aria-hidden /> Nights Out</Link>
             {streamNights.includes(day) && <Link href={`/career/${saveId}/streaming`}><Radio aria-hidden /> DartCast</Link>}

@@ -3,6 +3,7 @@ import "./career.css";
 import { CareerShell } from "./shell";
 import { SavesPage } from "./pages/saves";
 import { HomePage } from "./pages/home";
+import { InboxPage } from "./inbox";
 import { CalendarPage } from "./pages/calendar";
 import { EventPage } from "./pages/event";
 import { RankingsPage } from "./pages/rankings";
@@ -34,6 +35,7 @@ import {TeamMatchPage} from "./team-match";
 import {MoneyMatchLivePage} from "./money-match-live";
 import {RoadTripLivePage} from "./road-trips";
 import {NightsPage,MoneyMatchesPage,RoadTripsPage,ProAmPage} from "./pages/nights";
+import { LocalNightsPage, LocalNightPlayPage } from "./local-nights";
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
 import {PlayPage} from "./pages/play";
@@ -80,6 +82,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/my-career/remembered"><MyCareerPage ctx={ctx} section="remembered"/></Route>
           <Route path="/career/:saveId/my-career"><MyCareerPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/play"><PlayPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/inbox"><InboxPage save={ctx.save} /></Route>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/health"><SaveHealthPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/sponsors"><SponsorHQPage ctx={ctx}/></Route>
@@ -105,6 +108,8 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/nights"><NightsPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/money-matches/:matchId/play">{(p:{matchId:string})=><MoneyMatchLivePage ctx={ctx} matchId={p.matchId}/>}</Route>
           <Route path="/career/:saveId/money-matches"><MoneyMatchesPage ctx={ctx}/></Route>
+          <Route path="/career/:saveId/local/:nightId">{(p:{nightId:string})=><LocalNightPlayPage ctx={ctx} nightId={p.nightId}/>}</Route>
+          <Route path="/career/:saveId/local"><LocalNightsPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/road-trips/:matchId/play">{(p:{matchId:string})=><RoadTripLivePage ctx={ctx} matchId={p.matchId}/>}</Route>
           <Route path="/career/:saveId/road-trips"><RoadTripsPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/pro-am"><ProAmPage ctx={ctx}/></Route>

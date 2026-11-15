@@ -43,6 +43,10 @@ import { createCareerProAmService } from "../career/proam/service.ts";
 import { createCareerProAmRouter } from "../career/proam/router.ts";
 import { createCareerNightsRouter } from "../career/nights-router.ts";
 import { createCareerMoneyService } from "../career/money/service.ts";
+import { createCareerInboxService } from "../career/inbox/service.ts";
+import { createCareerInboxRouter } from "../career/inbox/router.ts";
+import { createCareerLocalNightsService } from "../career/local/service.ts";
+import { createCareerLocalNightsRouter } from "../career/local/router.ts";
 import { createCareerMoneyRouter } from "../career/money/router.ts";
 import { createCareerManagerService } from "../career/manager/service.ts";
 import { createCareerManagerRouter } from "../career/manager/router.ts";
@@ -71,12 +75,15 @@ router.use(createCareerLegacyRouter(createCareerLegacyService(db)));
 router.use(createCareerRecordsRouter(createCareerRecordsService(db)));
 router.use(createCareerClubRouter(createCareerClubService(db), createCareerTeamNightsService(db), createCareerCountyLiveService(db),
   createCareerCountyTrialService(db), createCareerLocalCompetitionService(db)));
-router.use(createCareerMoneyRouter(createCareerMoneyService(db)));
+const money = createCareerMoneyService(db), streaming = createCareerStreamingService(db);
+router.use(createCareerMoneyRouter(money));
+router.use(createCareerInboxRouter(createCareerInboxService(db, { calendar: sporting.calendar, streaming, money })));
 router.use(createCareerHostingRouter(createCareerHostingService(db)));
-router.use(createCareerStreamingRouter(createCareerStreamingService(db)));
+router.use(createCareerStreamingRouter(streaming));
 router.use(createCareerRoadTripRouter(createCareerRoadTripService(db)));
 router.use(createCareerCamLeagueRouter(createCareerCamLeagueService(db)));
 router.use(createCareerProAmRouter(createCareerProAmService(db)));
+router.use(createCareerLocalNightsRouter(createCareerLocalNightsService(db)));
 router.use(createCareerNightsRouter(db));
 router.use(createCareerManagerRouter(createCareerManagerService(db)));
 // A6.5: Career identity endpoints + PROFILE_INCOMPLETE gate (first, so it guards sporting routes).
