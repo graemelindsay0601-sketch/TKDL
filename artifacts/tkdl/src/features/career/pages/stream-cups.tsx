@@ -1,4 +1,4 @@
-import { PartyPopper, Swords, Trophy } from "lucide-react";
+import { Award, HeartHandshake, PartyPopper, Swords, Timer, Trophy } from "lucide-react";
 import type { StreamFormat, StreamingView } from "../api";
 import { dayLabel, formatPence } from "../model";
 import "./stream-community.css";
@@ -34,5 +34,27 @@ export function CupsSection({ d, night, canGo, busy, onGo }: { d: StreamingView;
     </>}
     {d.cups.history.length > 0 && <div className="sc-trophies"><h3>Cup history</h3><ul>{d.cups.history.slice(0, 8).map(h => <li key={`${h.season}-${h.n}`} data-won={h.won || undefined}>
       <Trophy aria-hidden /><div><b>S{h.season} {h.name}</b><small>{h.won ? `Champion · ${formatPence(h.prizePence)}${h.fans ? ` · +${h.fans} fans` : ""}` : `${h.wins} win${h.wins === 1 ? "" : "s"} · won by ${h.champion}`}</small></div></li>)}</ul></div>}
+  </section>;
+}
+
+/** The season's big nights: the Subathon and the Charity Marathon (once a season each), and the Creator Awards. */
+export function BigNightsSection({ d, night, canGo, busy, onGo }: { d: StreamingView; night: number | null; canGo: boolean; busy: boolean; onGo: (f: StreamFormat) => void }) {
+  if (!d.marathons || !d.awards) return null;
+  const latest = d.awards.seasons[0];
+  return <section className="sc-panel" id="big-nights" aria-labelledby="big-nights-title">
+    <div className="sc-head"><div><span className="sc-eyebrow">ONCE A SEASON</span><h2 id="big-nights-title">Big nights</h2>
+      <p>Marathon streams against viewer after viewer on a clock, and the Creator Awards at the end of every season.</p></div>
+      <div className="sc-stats"><span><Award aria-hidden /> <span><b>{d.awards.trophies}</b> award{d.awards.trophies === 1 ? "" : "s"} won</span></span></div></div>
+    <div className="sc-nights">
+      <article><Timer aria-hidden /><div><b>Subathon</b><small>Game after game of one-leg 501 on a timer. Subs, super chats and cheers add time, and support goals unlock as you go. Losing a leg never ends it.</small></div>
+        {d.marathons.subathon.open ? <button type="button" disabled={!canGo || busy} onClick={() => onGo("SUBATHON")}>Start the subathon{night ? ` on ${dayLabel(night)}` : ""}</button> : <em>{d.marathons.subathon.why}</em>}</article>
+      <article><HeartHandshake aria-hidden /><div><b>Charity Marathon</b><small>The same clock, but every cheer goes to the cause and creators chip in as the total climbs. Target: {formatPence(d.marathons.marathon.targetPence)}.</small></div>
+        {d.marathons.marathon.open ? <button type="button" disabled={!canGo || busy} onClick={() => onGo("MARATHON")}>Start the marathon{night ? ` on ${dayLabel(night)}` : ""}</button> : <em>{d.marathons.marathon.why}</em>}</article>
+    </div>
+    <div className="sc-awards"><h3><Award aria-hidden /> Creator Awards {latest ? `· Season ${latest.season}` : ""}</h3>
+      {latest ? <ul>{latest.results.map(r => <li key={r.award} data-won={r.youWon || undefined} data-nom={r.youNominated || undefined}>
+        <b>{r.name}</b><small>{r.youWon ? "🏆 You won!" : `Winner: ${r.winner}${r.youNominated ? " · you were nominated" : ""}`}</small></li>)}</ul>
+        : <p className="sc-note">Held at the end of every season (week {d.awards.nextAt}). Eight categories, judged on your season against the whole scene.</p>}
+    </div>
   </section>;
 }

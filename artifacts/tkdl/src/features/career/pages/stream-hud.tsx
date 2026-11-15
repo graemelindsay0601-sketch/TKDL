@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, ChevronDown, Siren, ChevronUp, Eye, Flame, Inbox, Target, TrainFront, X } from "lucide-react";
+import { Check, ChevronDown, Siren, Timer, ChevronUp, Eye, Flame, Inbox, Target, TrainFront, X } from "lucide-react";
 import { errorMessage, streamingApi, useStreaming, type ChatEvent, type StreamSession } from "../api";
 import { formatPence } from "../model";
 import { hudAlertText, isHudAlert } from "./stream-hud-model";
@@ -42,6 +42,7 @@ export function StreamHud({ session, chat, fresh, onAnswer, answering, inline, c
       {current ? <span className="dc-hud__alert" role="status">{hudAlertText(current)}</span> : <>
         {offer || active ? <span className="sr-only">{live ? "Live" : "Ended"}</span> : <span className="dc__badge" data-live={live || undefined}><i aria-hidden />{live ? "LIVE" : "ENDED"}</span>}
         <span className="dc-hud__stat"><Eye aria-hidden />{t.viewers.toLocaleString("en-GB")}</span>
+        {ov.marathon && <span className="dc-hud__stat dc-hud__stat--train"><Timer aria-hidden />{ov.marathon.visitsLeft}</span>}
         {train && <span className="dc-hud__stat dc-hud__stat--train"><TrainFront aria-hidden />{train.level}</span>}
         {offer ? <span className="dc-hud__pill"><Inbox aria-hidden /> Request</span> : active ? <span className="dc-hud__pill dc-hud__pill--active"><Target aria-hidden /> On it</span> : null}
       </>}
@@ -53,6 +54,11 @@ export function StreamHud({ session, chat, fresh, onAnswer, answering, inline, c
         {session.tier !== "NEWCOMER" && <Meter icon={<TrainFront aria-hidden />} label={train ? `Hype train · level ${train.level}` : "Hype train"}
           value={train ? (train.level >= 5 ? 100 : train.progress) : Math.min(99, ov.train?.progress ?? 0)}
           text={train ? `${train.visitsLeft} visit${train.visitsLeft === 1 ? "" : "s"} to keep it going` : "Cheers in a row start it"} />}
+        {ov.marathon && <Meter icon={<Timer aria-hidden />} label={`Clock · ${ov.marathon.visitsLeft} visit${ov.marathon.visitsLeft === 1 ? "" : "s"} left`}
+          value={Math.min(100, Math.round(ov.marathon.visitsLeft / Math.max(1, 30 + ov.marathon.extended) * 100))} text={`+${ov.marathon.extended} added by chat`} />}
+        {ov.marathon?.kind === "SUBATHON" && <Meter icon={<Target aria-hidden />} label={`Support goals · ${ov.marathon.goalsHit}/5`} value={Math.min(100, ov.marathon.goalsHit * 20)} text={`${ov.marathon.support} support`} />}
+        {ov.marathon?.kind === "MARATHON" && ov.marathon.targetPence ? <Meter label="Raised for the cause" value={Math.min(100, Math.round((t.bitsPence + t.superchatsPence) / ov.marathon.targetPence * 100))}
+          text={`${formatPence(t.bitsPence + t.superchatsPence)} / ${formatPence(ov.marathon.targetPence)}`} /> : null}
         {session.goal && <Meter label={session.goal.label} value={Math.min(100, Math.round(session.goal.current / Math.max(1, session.goal.target) * 100))}
           text={`${session.goal.current.toLocaleString("en-GB")} / ${session.goal.target.toLocaleString("en-GB")}`} />}
       </div>

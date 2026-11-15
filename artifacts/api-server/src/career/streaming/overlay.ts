@@ -19,7 +19,11 @@ export type Recap = { topChatter: string | null; requestsDone: number; requestsT
 export type Overlay = { train?: HypeTrain; request?: StreamRequest | null; requests?: { offered: number; tried: number; done: number };
   prediction?: Prediction | null; predictions?: { called: number; upsets: number }; startFollowers?: number; seenFollowers?: number; recap?: Recap;
   /** A creator who raided you as you went live, and who you raided at the end. */
-  raidIn?: { key: string; handle: string; viewers: number }; raidOut?: { key: string; handle: string; viewers: number } };
+  raidIn?: { key: string; handle: string; viewers: number }; raidOut?: { key: string; handle: string; viewers: number };
+  /** A Subathon or Charity Marathon: the timer, support and goals. */
+  marathon?: import("./marathon.ts").MarathonState;
+  /** Viewers at go-live (a collab's audience included): the ceiling never drops below it. */
+  openedWith?: number };
 
 export const REQUESTS: Record<RequestKind, { label: string; reward: number; unit: "LEGS" | "VISITS"; left: number; weight: number }> = {
   TON: { label: "Hit a ton (100+) this leg", reward: 1, unit: "LEGS", left: 1, weight: 5 },
