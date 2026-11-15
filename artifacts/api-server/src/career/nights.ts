@@ -12,6 +12,8 @@ const SOURCES = [
   { kind: "trip", table: "career_road_trips", label: "Road trip", where: sql`` },
   { kind: "league", table: "career_cam_fixtures", label: "Webcam league match", where: sql`AND day IS NOT NULL` },
   { kind: "proam", table: "career_proam_nights", label: "Pro-Am night", where: sql`AND status <> 'CANCELLED'` },
+  { kind: "money", table: "career_money_match_sessions", label: "Money match", where: sql`AND day IS NOT NULL` },
+  { kind: "local", table: "career_local_nights", label: "Local night", where: sql`AND status <> 'MISSED'` },
 ] as const;
 export type NightKind = typeof SOURCES[number]["kind"];
 

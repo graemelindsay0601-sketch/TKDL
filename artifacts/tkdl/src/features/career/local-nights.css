@@ -1,0 +1,20 @@
+.local-nights__list, .local-nights__booked { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.local-nights__list li { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px; border:1px solid #ffffff12; background:linear-gradient(160deg,#182833,#0f1a23); }
+.local-nights__list li[data-off] { opacity:.6; }
+.local-nights__list li > div:nth-child(2) { display:grid; gap:3px; min-width:0; }
+.local-nights__list b { color:#ecf0f0; }
+.local-nights__list small { color:#9fadb4; font-size:12px; }
+.local-nights__fee { color:#ecd084 !important; font-family:"DM Mono",monospace; }
+.local-nights__why { color:#ff9aa2 !important; }
+.local-nights__icon svg { box-sizing:content-box; width:16px; height:16px; padding:8px; border:1px solid #9a7f465c; background:#24262a; color:var(--gold,#e5bd68); }
+.local-nights__go { display:flex; flex-wrap:wrap; gap:6px; align-items:center; justify-content:flex-end; }
+.local-nights__go select { padding:7px 8px; border:1px solid #ffffff22; background:#0f1a23; color:#ecf0f0; }
+.local-nights__booked li { display:flex; gap:10px; align-items:center; padding:10px 12px; border:1px solid #ffffff12; background:#0f1a23; }
+.local-nights__booked li span { flex:1; color:#ecf0f0; }
+.local-nights__booked small { color:#9fadb4; }
+.local-nights__table { width:100%; border-collapse:collapse; font-size:13px; }
+.local-nights__table th, .local-nights__table td { padding:6px 8px; border-bottom:1px solid #ffffff12; text-align:left; }
+.local-nights__table tr[data-you] td { color:#ffe08a; font-weight:700; }
+.local-nights__note, .local-nights__msg { color:#9fadb4; font-size:13px; }
+.local-nights__done ul { padding-left:18px; }
+@media (max-width: 620px) { .local-nights__list li { grid-template-columns:auto minmax(0,1fr); } .local-nights__go { grid-column:1 / -1; justify-content:flex-start; } }

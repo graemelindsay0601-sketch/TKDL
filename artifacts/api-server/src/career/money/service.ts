@@ -1,3 +1,5 @@
+import { freeNightsInWeek } from "../nights.ts";
+import { absoluteDay } from "../calendar/generation.ts";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
@@ -231,9 +233,11 @@ export function createCareerMoneyService(database: CareerDatabase) {
         const key = `money-match:${season}:${week}:${member.key}`;
         const id = stableUuid(root.world_seed, MONEY.version, "money-match-live", root.id, key);
         const config = botConfig(root, opponent, key);
+        // It takes the first free night of the week (or none, if every night's already booked).
+        const night = (await freeNightsInWeek(tx, root.id, season, week))[0];
         const row = (await tx.execute(sql`INSERT INTO career_money_match_sessions
-          (career_save_id,id,season,week,opponent_key,opponent_name,stake_pence,game_format,origin,bot,bot_seed,status,darts)
-          VALUES (${root.id},${id},${season},${week},${member.key},${member.name},${input.stakePence},${input.gameFormat},
+          (career_save_id,id,season,week,day,opponent_key,opponent_name,stake_pence,game_format,origin,bot,bot_seed,status,darts)
+          VALUES (${root.id},${id},${season},${week},${night === undefined ? null : absoluteDay(week, night)},${member.key},${member.name},${input.stakePence},${input.gameFormat},
             ${theirs ? "THEY_CHALLENGED" : "YOU_CHALLENGED"},${JSON.stringify(config)}::jsonb,
             ${stableUuid(root.world_seed,MONEY.version,"money-match-bot",key)},'LIVE','[]'::jsonb)
           ON CONFLICT (career_save_id,season,week,opponent_key) DO NOTHING RETURNING *`)).rows[0]

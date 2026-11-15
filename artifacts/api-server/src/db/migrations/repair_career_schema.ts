@@ -12,6 +12,7 @@ import { ensureCareerCountyTeams } from "./create_career_county_teams.ts";
 import { ensureHostingLedger } from "./create_career_hosting.ts";
 import { ensureStreaming } from "./create_career_streaming.ts";
 import { ensureInbox } from "../../career/inbox/service.ts";
+import { ensureLocalNights } from "../../career/local/service.ts";
 import { ensureRoadTrips } from "./create_career_road_trips.ts";
 import { ensureCamLeagues } from "./create_career_cam_leagues.ts";
 import { ensureProAm } from "./create_career_proam.ts";
@@ -72,6 +73,7 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureHostingLedger(tx);
     await ensureStreaming(tx);
     await ensureInbox(tx);
+    await ensureLocalNights(tx);
     await ensureRoadTrips(tx);
     await ensureCamLeagues(tx);
     await ensureProAm(tx);

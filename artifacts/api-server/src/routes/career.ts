@@ -45,6 +45,8 @@ import { createCareerNightsRouter } from "../career/nights-router.ts";
 import { createCareerMoneyService } from "../career/money/service.ts";
 import { createCareerInboxService } from "../career/inbox/service.ts";
 import { createCareerInboxRouter } from "../career/inbox/router.ts";
+import { createCareerLocalNightsService } from "../career/local/service.ts";
+import { createCareerLocalNightsRouter } from "../career/local/router.ts";
 import { createCareerMoneyRouter } from "../career/money/router.ts";
 import { createCareerManagerService } from "../career/manager/service.ts";
 import { createCareerManagerRouter } from "../career/manager/router.ts";
@@ -81,6 +83,7 @@ router.use(createCareerStreamingRouter(streaming));
 router.use(createCareerRoadTripRouter(createCareerRoadTripService(db)));
 router.use(createCareerCamLeagueRouter(createCareerCamLeagueService(db)));
 router.use(createCareerProAmRouter(createCareerProAmService(db)));
+router.use(createCareerLocalNightsRouter(createCareerLocalNightsService(db)));
 router.use(createCareerNightsRouter(db));
 router.use(createCareerManagerRouter(createCareerManagerService(db)));
 // A6.5: Career identity endpoints + PROFILE_INCOMPLETE gate (first, so it guards sporting routes).

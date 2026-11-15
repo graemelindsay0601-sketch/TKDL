@@ -64,7 +64,7 @@ export function InboxPage({ save }: { save: CareerSave }) {
   const cats = Object.entries(q.data!.categories) as [keyof InboxView["categories"], string][];
   return <section className="career-inbox" aria-labelledby="inbox-title">
     <header><h1 id="inbox-title"><InboxIcon aria-hidden /> Inbox</h1>
-      <p>{q.data!.manager ? `${q.data!.manager.name} keeps you posted: ` : ""}what you've qualified for, what's opened up, offers waiting for an answer and your milestones. Nothing here changes your darts.</p></header>
+      <p>{q.data!.manager ? `${q.data!.manager.name} keeps you posted: what` : "What"} you've qualified for, what's opened up, offers waiting for an answer and your milestones. Nothing here changes your darts.</p></header>
     {cats.map(([key, label]) => {
       const list = items.filter(i => i.category === key), muted = q.data!.muted.includes(key);
       return <div className="career-inbox__group" key={key} data-muted={muted || undefined}>
