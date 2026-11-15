@@ -109,10 +109,12 @@ export function createCareerLocalNightsService(database: CareerDatabase) {
       if (k === "KNOCKOUT") return week < LOCAL.knockout.firstWeek || week > LOCAL.knockout.lastWeek ? "Not on this week" : !free.includes(LOCAL.knockout.day) ? "You're booked on Thursday"
         : members < LOCAL.knockout.size - 1 ? "Not enough club members" : null;
       if (k === "FRIENDLY") return LOCAL.friendly.weeks.includes(week) ? (members ? null : "No club members to play") : "Pre-season (weeks 1–3) and after the season (47–52)";
+      if (k === "EXHIBITION" && lastExhibition !== null && week - lastExhibition < LOCAL.exhibition.everyWeeks) return `Next one from week ${lastExhibition + LOCAL.exhibition.everyWeeks}`;
       if (k === "EXHIBITION") return canExhibit(fans, rank) ? null : `Once you're known: ${LOCAL.exhibition.minFans.toLocaleString("en-GB")} fans or a top ${LOCAL.exhibition.maxRank} ranking`;
       if (k === "COACHING") return canCoach(fans, rank) ? null : `Once you're known a little: ${LOCAL.coaching.minFans.toLocaleString("en-GB")} fans or a top ${LOCAL.coaching.maxRank} ranking`;
       return null;
     };
+    const lastExhibition = rows.filter(r => r.kind === "EXHIBITION").reduce<number | null>((m, r) => Math.max(m ?? 0, Number(r.week)), null);
     const fixedDay: Partial<Record<LocalKind, number>> = { PUB_LEAGUE: LOCAL.pub.day, KNOCKOUT: LOCAL.knockout.day };
     const pbs = new Map<string, number>();
     for (const r of (await tx.execute(sql`SELECT result FROM career_local_nights WHERE career_save_id=${root.id} AND kind='PRACTICE' AND status='DONE'`)).rows) {

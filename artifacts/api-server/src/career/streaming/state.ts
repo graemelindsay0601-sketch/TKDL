@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
-import { CLIP_OF_WEEK, PLAQUES, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
+import { CAMPAIGN_PAY, CLIP_OF_WEEK, monthlyChurn, PLAQUES, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
 import { settleCommunity } from "./community.ts";
 import { holdAwards } from "./awards.ts";
 import { CONTENT, shortOutcome, vodPence, vodViews } from "./content.ts";
@@ -38,7 +38,7 @@ type Root = { id: string; world_seed: string };
  */
 export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season: number, week: number) {
   if (!await ready(tx)) return;
-  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through, sub_goal, team, platform, emotes, plaques FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
+  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through, churned_through, sub_goal, team, platform, emotes, plaques FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
   if (!ch) return;
   const month = `${season}:${week}`;
   // The month's sub goal: hit it and the buzz wins followers; either way it's settled once.
@@ -48,6 +48,14 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
     await tx.execute(sql`UPDATE career_stream_channels SET sub_goal = sub_goal || ${JSON.stringify({ status: hit ? "HIT" : "MISSED" })}::jsonb,
       followers = followers + ${hit ? goalBonus(goal.target) : 0} WHERE career_save_id=${root.id}`);
     if (hit) ch.followers = Number(ch.followers) + goalBonus(goal.target);
+  }
+  // A few followers drift away each month (more if you went quiet): once a month, recorded with the renewal mark.
+  if (week % STREAM_MONEY.monthWeeks === 0 && ch.churned_through !== month) {
+    const streamed = (await tx.execute(sql`SELECT 1 FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND status='ENDED'
+      AND week BETWEEN ${week - STREAM_MONEY.monthWeeks + 1} AND ${week} LIMIT 1`)).rows.length > 0;
+    const lost = monthlyChurn(Number(ch.followers), streamed);
+    await tx.execute(sql`UPDATE career_stream_channels SET followers = GREATEST(0, followers - ${lost}::int), churned_through=${month} WHERE career_save_id=${root.id}`);
+    ch.followers = Math.max(0, Number(ch.followers) - lost);
   }
   if (week % STREAM_MONEY.monthWeeks === 0 && ch.renewed_through !== month && Number(ch.subscribers) > 0) {
     const streamed = (await tx.execute(sql`SELECT 1 FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND status='ENDED'
@@ -141,7 +149,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
         ["CHALLENGER","KING","CHECKOUTS","BOBS_27","SCORING"] as const;
       const requiredFormat=formats[Math.floor(rng()*formats.length)]!;
       const profile=brand.terms.commercialProfile;
-      const payout=Math.round(Math.min(100_000,Math.max(5_000,dealFee(averageViewers)*4))*(team.includes("MANAGER")?MANAGER_FEES:1));
+      const payout=Math.round(Math.min(CAMPAIGN_PAY.capPence,Math.max(CAMPAIGN_PAY.floorPence,dealFee(averageViewers)*CAMPAIGN_PAY.multiple))*(team.includes("MANAGER")?MANAGER_FEES:1));
       const id=stableUuid(root.world_seed,STREAM.version,"dartcast-sponsored-campaign",root.id,season,campaignMonth);
       const brief=`${series?`For your ${series.name} series, `:""}showcase ${profile?.benefitFocus.toLowerCase()??"the brand"} and tell viewers why ${brand.terms.displayName} backs your channel.`;
       await tx.execute(sql`INSERT INTO career_stream_campaigns

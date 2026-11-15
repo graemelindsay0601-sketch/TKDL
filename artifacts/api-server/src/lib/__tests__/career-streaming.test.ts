@@ -22,7 +22,7 @@ import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerStreamingService } from "../../career/streaming/service.ts";
 import { createCareerHostingService } from "../../career/hosting/service.ts";
-import { STREAM, STREAM_MONEY, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, chatForVisit, chatForMoment, openingViewers, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
+import { CAMPAIGN_PAY, STREAM, STREAM_MONEY, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, chatForVisit, chatForMoment, openingViewers, dealFee, renewals, streamIncome, streamerCanBeInvited, subPayout, tierFor, type Tally } from "../../career/streaming/model.ts";
 import { settleStreamingWeek } from "../../career/streaming/state.ts";
 import { settleLifeCommitments } from "../../career/life/commitments.ts";
 
@@ -47,8 +47,9 @@ test("season-long streaming income grows with cadence and audience; Partner spon
   assert.equal(light.streams,52);assert.ok(light.totalPence>=20_000&&light.totalPence<30_000);assert.equal(light.campaignsPence,0);
   assert.ok(steady.totalPence>light.totalPence);assert.equal(steady.campaignsPence,0);
   assert.ok(heavy.followers>=1000&&heavy.campaignsPence>0&&heavy.dealsPence>0);
-  assert.ok(heavy.totalPence>600_000,"an active channel can reach Partner and earn over £6,000 gross in this seeded season");
-  assert.ok(partner.totalPence>2_500_000,"an established, consistently streamed Partner channel can support a streamer-first route");
+  // Rebalanced (DartCast balance pass): a first season reaching Partner earns a few thousand, not a living yet.
+  assert.ok(heavy.totalPence>300_000&&heavy.totalPence<1_000_000,`an active channel can reach Partner and earn £3,000-£10,000 gross in this seeded season (${heavy.totalPence})`);
+  assert.ok(partner.totalPence>1_000_000,`an established, consistently streamed Partner channel earns over £10,000 before sponsorships (${partner.totalPence})`);
 });
 
 test("optional studio tiers improve reach without affecting darts ability",()=>{
@@ -94,7 +95,7 @@ function streamerSeasonProjection(startFollowers:number,streamsPerWeek:number,vi
       subscribers=renewals(subscribers,true);renewalsIncome+=subPayout(subscribers);
       const average=viewerMinutes/(monthWeeks*streamsPerWeek*visitsPerStream*STREAM_MONEY.adMinutesPerVisit);
       if(partnerAtMonthStart){
-        campaigns+=Math.min(100_000,Math.max(5_000,dealFee(priorAverage)*4));
+        campaigns+=Math.min(CAMPAIGN_PAY.capPence,Math.max(CAMPAIGN_PAY.floorPence,dealFee(priorAverage)*CAMPAIGN_PAY.multiple));
         if(dealCount<STREAM_MONEY.dealsPerSeason){deals+=dealFee(priorAverage)*STREAM_MONEY.dealStreams;dealCount++;}
       }
       priorAverage=average;viewerMinutes=0;monthWeeks=0;

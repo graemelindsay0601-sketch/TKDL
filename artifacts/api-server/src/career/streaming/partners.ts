@@ -1,6 +1,6 @@
 import { scopedRandom } from "../world/random.ts";
 import { CUPS } from "./cups.ts";
-import { STREAM, tierAtLeast, type TierKey } from "./model.ts";
+import { STREAM, brandViewers, tierAtLeast, type TierKey } from "./model.ts";
 
 /**
  * Brand partners: how real creators are sponsored beyond one headline name. Alongside the sponsor ladder you hold a few
@@ -70,8 +70,8 @@ export const PARTNERS = Object.freeze({
   /** An offer every this many weeks while a slot is free (a manager finds one every two). */
   offerEvery: 3, managerOfferEvery: 2, offerWeeks: 2,
   /** Weekly retainer base by tier, plus a share of the average audience. */
-  retainerBase: { NEWCOMER: 1_000, AFFILIATE: 2_500, PARTNER: 8_000, STAR: 25_000, ICON: 40_000, LEGEND: 60_000 } as Record<TierKey, number>,
-  retainerPerViewer: 20, retainerWeeks: 8, ambassadorWeeks: 26, ambassadorRate: 2,
+  retainerBase: { NEWCOMER: 1_000, AFFILIATE: 1_500, PARTNER: 2_000, STAR: 7_000, ICON: 14_000, LEGEND: 24_000 } as Record<TierKey, number>,
+  retainerPerViewer: 6, retainerWeeks: 8, ambassadorWeeks: 26, ambassadorRate: 2,
   giveawayFee: 3, giveawayFollowers: { NEWCOMER: 10, AFFILIATE: 40, PARTNER: 200, STAR: 900, ICON: 3_000, LEGEND: 10_000 } as Record<TierKey, number>,
   seedingWeeks: 6, seedingTrust: 2,
   cupTitleFee: 4, appearanceFee: 2, appearanceFollowers: { NEWCOMER: 5, AFFILIATE: 20, PARTNER: 80, STAR: 300, ICON: 1_000, LEGEND: 3_000 } as Record<TierKey, number>,
@@ -84,7 +84,7 @@ export const trustBonus = (trust: number) => Math.min(PARTNERS.trustCap, Math.ma
 
 /** A retainer's weekly fee: by tier and audience, with brand trust and a manager. Rounded to whole pounds. */
 export function retainerPence(tier: TierKey, averageViewers: number, trust: number, manager: boolean) {
-  const base = PARTNERS.retainerBase[tier] + Math.max(0, averageViewers) * PARTNERS.retainerPerViewer;
+  const base = PARTNERS.retainerBase[tier] + brandViewers(averageViewers) * PARTNERS.retainerPerViewer;
   return Math.round(base * (1 + trustBonus(trust)) * (manager ? PARTNER_MANAGER : 1) / 100) * 100;
 }
 

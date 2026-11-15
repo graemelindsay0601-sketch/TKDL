@@ -46,7 +46,7 @@ after(async () => { await pg.close(); });
 import { SPONSOR_LADDER, sponsorBrand, sponsorWeeklyPence } from "../../career/streaming/business.ts";
 
 test("ladder rules: fees grow with the rung and the audience; a manager adds 20%; brands belong to their rung", () => {
-  assert.equal(sponsorWeeklyPence(1, 0, false), 1_500);
+  assert.equal(sponsorWeeklyPence(1, 0, false), SPONSOR_LADDER[0].basePence);
   assert.ok(sponsorWeeklyPence(4, 300, false) > sponsorWeeklyPence(3, 300, false));
   assert.ok(sponsorWeeklyPence(2, 400, false) > sponsorWeeklyPence(2, 40, false));
   assert.equal(sponsorWeeklyPence(3, 100, true), Math.round(sponsorWeeklyPence(3, 100, false) * 1.2 / 100) * 100);
