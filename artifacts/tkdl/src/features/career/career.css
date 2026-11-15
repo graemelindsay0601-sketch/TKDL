@@ -2093,3 +2093,33 @@
   .career-navigation:not(:has(.career-context-nav)) { display:none; }
 }
 .career-why-not { color:#ffb3a3; }
+.career-page-intro { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0; padding:10px 14px; border:1px solid #ffffff14; border-radius:12px; background:#ffffff06; color:#dfe6ec; font-size:14px; }
+.career-page-intro > svg { width:16px; height:16px; color:#ecd084; flex:none; }
+.career-page-intro > span { flex:1 1 220px; }
+.career-page-intro__go { display:inline-flex; align-items:center; gap:4px; padding:6px 12px; border-radius:999px; background:#ecd084; color:#1a1406; font-weight:700; font-size:13px; white-space:nowrap; }
+.career-page-intro__go svg { width:14px; height:14px; }
+/* Phones: the Career header is one slim sticky block (name, week and day, the next action, Attention and Menu). */
+@media (max-width:640px) {
+  .career-root > .career-header { position:sticky; top:0; z-index:25; padding:8px 12px !important; border-radius:0 0 14px 14px; }
+  .career-root > .career-header > :not(.career-hero__stage) { margin-top:0 !important; }
+  .career-header .career-hero__labels, .career-header .career-hero__portrait, .career-header .career-hero__extra { display:none !important; }
+  .career-header .career-hero__title { font-size:1.15rem !important; line-height:1.1 !important; }
+  .career-header .career-hero__when { font-size:.72rem !important; }
+  .career-header > div:first-of-type { flex-direction:row !important; align-items:center !important; gap:8px !important; }
+  .career-header .career-btn { min-height:38px; padding:6px 12px; font-size:.85rem; }
+  .career-header .career-header-tools { margin-top:6px !important; padding-top:6px !important; gap:6px !important; }
+  .career-header .career-attention-trigger, .career-header .career-sections-trigger { min-height:34px; padding:4px 10px; font-size:.8rem; }
+  .career-header .career-attention-bell svg, .career-header .career-sections-trigger svg { width:15px; height:15px; }
+}
+@media (max-width:640px) {
+  .career-header .career-header-tools { position:absolute; top:8px; right:10px; margin:0 !important; padding:0 !important; border:0 !important; z-index:2; }
+  .career-header .career-sections-trigger { display:none !important; }
+  .career-header .career-attention-trigger > span:nth-of-type(2) { display:none; }
+  .career-header .career-attention-trigger { min-height:32px; padding:3px 8px !important; gap:4px; }
+  .career-header .career-hero__title { padding-right:84px; }
+}
+.career-continue-outcome__missed { margin-top:8px; padding-top:8px; border-top:1px solid #ffffff14; font-size:13px; }
+.career-continue-outcome__missed b { color:#ffb547; font-weight:600; }
+.career-continue-outcome__missed ul { margin:4px 0; padding-left:18px; }
+.career-continue-outcome__missed small { color:#9fadb4; }
+.career-continue-outcome__missed a { color:#ecd084; text-decoration:underline; text-underline-offset:2px; }

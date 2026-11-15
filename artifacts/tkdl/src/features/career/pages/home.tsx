@@ -47,7 +47,7 @@ function TodayHome({ ctx }: { ctx: ShellContext }) {
   });
   return (
     <main className="career-home career-home--guide">
-      <CareerGuide save={save}>
+      <CareerGuide save={save} overview={ctx.overview}>
         <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
           onEnter={onEnter} entering={enter.isPending} message={message} embedded />
       </CareerGuide>

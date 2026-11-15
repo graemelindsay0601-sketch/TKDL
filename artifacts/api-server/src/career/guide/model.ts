@@ -10,7 +10,7 @@ export type GuideEvent = {
   dates: { startWeek: number; startDayOfWeek: number; startDay: number };
   registration?: { opensWeek: number; closesWeek: number } | null;
   venue?: { city?: string } | null;
-  finance?: { estimatedPlayerCostPence?: number; firstPrizePence?: number | null } | null;
+  finance?: { estimatedPlayerCostPence?: number; topPrizePence?: number | null; firstPrizePence?: number | null } | null;
   human: { canEnter: boolean; eligible: boolean; relationship: string; denials?: string[] } | null;
 };
 export type GuideStreaming = { tierKey: string; tierName: string; followers: number; nextTier: { name: string; followers: number } | null;
@@ -27,6 +27,8 @@ export type GuideInput = {
   booked: { eventId: string; name: string; week: number } | null;
   streaming: GuideStreaming;
   moneyChallenge: { name: string; stakePence: number } | null;
+  /** Career prize money won so far (for the money path). */
+  earningsPence?: number;
 };
 export type GuideAction = { label: string; href?: string; enterEventId?: string };
 export type GuideStep = { key: string; title: string; why: string; action: GuideAction; tone: "now" | "soon" | "tip" };
@@ -42,8 +44,8 @@ const best = (f: SportingFacts, circuits: string[]) => Math.min(Infinity, ...cir
 const playedAnything = (f: SportingFacts) => f.titles > 0 || Object.keys(f.bestFinishByCircuit).length > 0;
 const ranked = (f: SportingFacts) => f.worldRanking !== null && f.worldRanking < 100_000 ? f.worldRanking : null;
 
-type StageDef = { key: string; title: string; unlocks: string; how: string; circuits: string[]; done: (f: SportingFacts, s: GuideStreaming) => boolean;
-  progress?: (f: SportingFacts, s: GuideStreaming) => string | null };
+type StageDef = { key: string; title: string; unlocks: string; how: string; circuits: string[]; done: (f: SportingFacts, s: GuideStreaming, earnings: number) => boolean;
+  progress?: (f: SportingFacts, s: GuideStreaming, earnings: number) => string | null };
 const DARTS: StageDef[] = [
   { key: "first-event", title: "Play your first event", unlocks: "Your first results, ranking-point history and form.", how: "Enter a local event: they're cheap and near home.",
     circuits: LOCAL, done: playedAnything },
@@ -83,15 +85,27 @@ const CREATOR: StageDef[] = [
   tierStage("ICON", "Icon", 100000, "More brand partners and bigger cup prizes."),
   tierStage("LEGEND", "Legend", 500000, "The biggest name in darts streaming."),
 ];
+const moneyStage = (pence: number, unlocks: string, how: string, circuits: string[]): StageDef => ({ key: `prize-${pence}`,
+  title: pence <= 100 ? "Win your first prize money" : `Win ${pounds(pence)} in prize money`, unlocks, how, circuits,
+  done: (_f, _s, e) => e >= pence, progress: (_f, _s, e) => `${pounds(e)} won so far` });
+const MONEY: StageDef[] = [
+  moneyStage(100, "Proof the darts can pay.", "Local events with a cash prize: check the first prize before you enter.", [...LOCAL]),
+  moneyStage(10_000, "Your entry fees start paying for themselves.", "Local and county events with decent prizes; money matches at your club help too.", [...LOCAL, ...COUNTY]),
+  moneyStage(100_000, "A real second income.", "County and national amateur events, and Vault nights.", [...COUNTY, "VAULT"]),
+  moneyStage(1_000_000, "A living from darts.", "Challenger and Pro Tour events: bigger prizes, bigger costs.", [...ROAD, ...PRO]),
+  moneyStage(10_000_000, "Rich from darts.", "Majors and televised events.", [...PRO, ...MAJORS]),
+];
 export const PATHS: Record<GuideFocus, { label: string; blurb: string; stages: StageDef[] }> = {
   OPEN_SCHEDULE: { label: "See how far you get", blurb: "No fixed plan: the guide follows the darts ladder and points out anything good.", stages: DARTS },
   AMATEUR_CIRCUIT: { label: "Amateur star", blurb: "Be the best player around without turning pro: local, county and national titles.", stages: AMATEUR },
   PROFESSIONAL_PATHWAY: { label: "Turn pro", blurb: "Earn a Tour Card and climb the world rankings.", stages: DARTS },
   MAJOR_QUALIFICATION: { label: "Chase the majors", blurb: "Get to the big televised events and win one.", stages: DARTS },
-  PRIZE_MONEY: { label: "Make it pay", blurb: "Play where the prize money is worth the trip.", stages: DARTS },
+  PRIZE_MONEY: { label: "Make it pay", blurb: "Play where the prize money is worth the trip.", stages: MONEY },
   DARTCAST_CREATOR: { label: "Darts creator", blurb: "Build a DartCast channel; play darts for the content.", stages: CREATOR },
 };
 
+/** What an event could pay you over what it costs (its top prize less your costs). */
+const worth = (e: GuideEvent) => (e.finance?.topPrizePence ?? e.finance?.firstPrizePence ?? 0) - (e.finance?.estimatedPlayerCostPence ?? 0);
 const open = (e: GuideEvent) => !!e.human?.canEnter && !["COMPLETED", "CANCELLED"].includes(e.status);
 const when = (e: GuideEvent) => `Wk ${e.dates.startWeek} ${dayName(e.dates.startDayOfWeek).slice(0, 3)}`;
 const cost = (e: GuideEvent) => e.finance?.estimatedPlayerCostPence ? ` · about ${pounds(e.finance.estimatedPlayerCostPence)}` : " · free";
@@ -101,11 +115,11 @@ export function buildGuide(g: GuideInput) {
   // ---- the path: every stage, the first not done is the current one
   let currentSeen = false;
   const stages: GuideStage[] = path.stages.map(st => {
-    const done = st.done(g.facts, g.streaming), current = !done && !currentSeen;
+    const earned = g.earningsPence ?? 0, done = st.done(g.facts, g.streaming, earned), current = !done && !currentSeen;
     if (current) currentSeen = true;
-    return { key: st.key, title: st.title, unlocks: st.unlocks, done, current, progress: st.progress?.(g.facts, g.streaming) ?? null, how: st.how };
+    return { key: st.key, title: st.title, unlocks: st.unlocks, done, current, progress: st.progress?.(g.facts, g.streaming, earned) ?? null, how: st.how };
   });
-  const currentDef = path.stages.find(st => !st.done(g.facts, g.streaming)) ?? null;
+  const currentDef = path.stages.find(st => !st.done(g.facts, g.streaming, g.earningsPence ?? 0)) ?? null;
   const fits = (e: GuideEvent) => !currentDef || !currentDef.circuits.length || currentDef.circuits.includes(e.circuit);
 
   // ---- today
@@ -130,7 +144,7 @@ export function buildGuide(g: GuideInput) {
     && !BOOKED.has(e.human.relationship) && (e.human.denials ?? []).every(d => ["EVENT_FINISHED", "REGISTRATION_CLOSED", "FIELD_LOCKED", "INSUFFICIENT_FUNDS"].includes(d))
     && currentDef?.circuits.includes(e.circuit))
     .sort((a, b) => b.dates.startDay - a.dates.startDay).slice(0, 5)
-    .map(e => ({ id: e.id, name: e.name, when: when(e), why: `It fitted your next step: ${currentDef!.title.toLowerCase()}.` }));
+    .map(e => ({ id: e.id, name: e.name, week: e.dates.startWeek, when: when(e), why: `It fitted your next step: ${currentDef!.title.toLowerCase()}.` }));
   const closing = upcoming.filter(e => (e.registration?.closesWeek ?? e.dates.startWeek) === week && fits(e)).slice(0, 4)
     .map(e => ({ id: e.id, name: e.name, when: when(e), href: `${base}/events/${e.id}` }));
 
@@ -148,7 +162,11 @@ export function buildGuide(g: GuideInput) {
   for (const w of waitingOn.filter(w => !w.label.startsWith("Your match"))) add({ key: `wait:${w.label}`, tone: "now", title: w.label, why: "The week is waiting for it.", action: { label: "Go", href: w.href } });
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
   for (const c of closing.slice(0, 1)) add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}. It fits your next step.`, action: { label: "Enter", enterEventId: c.id, href: c.href } });
-  const pathPick = currentDef?.circuits.length ? upcoming.find(e => currentDef.circuits.includes(e.circuit)) : undefined;
+  const fitting = currentDef?.circuits.length ? upcoming.filter(e => currentDef.circuits.includes(e.circuit)) : [];
+  // Make it pay: the best prize for the cost; every other path: the soonest event that fits.
+  const pathPick = g.focus === "PRIZE_MONEY"
+    ? [...fitting].sort((a, b) => worth(b) - worth(a))[0]
+    : fitting[0];
   if (pathPick) add({ key: `path:${pathPick.id}`, tone: "soon", title: `Enter ${pathPick.name}`, why: `${when(pathPick)}${cost(pathPick)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
     action: { label: "Enter", enterEventId: pathPick.id, href: `${base}/events/${pathPick.id}` } });
   else if (currentDef && !currentDef.circuits.length) add({ key: "creator", tone: "soon", title: currentDef.title, why: currentDef.how, action: { label: "Open DartCast", href: `${base}/streaming` } });

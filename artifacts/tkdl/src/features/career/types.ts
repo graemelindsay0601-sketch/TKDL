@@ -342,6 +342,6 @@ export type GuideView = {
     current: { key: string; title: string; unlocks: string; progress: string | null; how: string } | null };
   paths: { key: GuideFocus; label: string; blurb: string }[];
   nextSteps: { key: string; title: string; why: string; action: GuideAction; tone: "now" | "soon" | "tip" }[];
-  missed: { id: string; name: string; when: string; why: string }[];
+  missed: { id: string; name: string; week: number; when: string; why: string }[];
   closing: { id: string; name: string; when: string; href: string }[];
 };

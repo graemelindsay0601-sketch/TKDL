@@ -1,4 +1,4 @@
-import { Route, Switch, useParams } from "wouter";
+import { Redirect, Route, Switch, useParams } from "wouter";
 import "./career.css";
 import { CareerShell } from "./shell";
 import { SavesPage } from "./pages/saves";
@@ -38,7 +38,6 @@ import {NightsPage,MoneyMatchesPage,RoadTripsPage,ProAmPage} from "./pages/night
 import { LocalNightsPage, LocalNightPlayPage } from "./local-nights";
 import "./pages/trophy-cabinet.css";
 import {MyCareerPage} from "./pages/my-career";
-import {PlayPage} from "./pages/play";
 import { RoadToTourPage } from "./pages/road";
 import {SponsorHQPage} from "./pages/sponsor-hq";
 import {NewsroomPage,StoryArticle} from "./pages/newsroom";
@@ -82,7 +81,8 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/my-career/remembered"><MyCareerPage ctx={ctx} section="remembered"/></Route>
           <Route path="/career/:saveId/details"><HomePage ctx={ctx} mode="details"/></Route>
           <Route path="/career/:saveId/my-career"><MyCareerPage ctx={ctx}/></Route>
-          <Route path="/career/:saveId/play"><PlayPage ctx={ctx} /></Route>
+          {/* Play mode was an older Home; Today (the Career Guide) replaces it. */}
+          <Route path="/career/:saveId/play"><Redirect to={`/career/${ctx.save.id}`} replace /></Route>
           <Route path="/career/:saveId/inbox"><InboxPage save={ctx.save} /></Route>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/health"><SaveHealthPage ctx={ctx} /></Route>

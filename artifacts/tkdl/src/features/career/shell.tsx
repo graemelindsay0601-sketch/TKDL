@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, useStreaming, errorMessage, errorStatus } from "./api";
 import { UNLOCKS, useUnlocks, type UnlockKey } from "./unlocks";
 import { useInboxFresh } from "./inbox";
+import { PageIntro } from "./page-intro";
 import { CAREER_NAV, dayLabel, dayName, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -40,6 +41,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
       {focused ? <PlayBar save={save.data} /> : <>
         <CareerHeader save={save.data} overview={overview} retired={retired} />
         {!location.includes("/play")&&<CareerNav saveId={saveId} save={save.data} />}
+        {!location.includes("/play")&&<PageIntro saveId={saveId} />}
       </>}
       {!retired && <ProfileIncompleteBanner saveId={saveId} />}
       {retired && (
@@ -129,7 +131,7 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
   const stage = resolveAtmosphere({ eventClass: save.hasTourCard ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
   const [menuOpen, setMenuOpen] = useState(false);
   return (
-    <header className="pdc-card career-hero career-hero--stage px-4 py-3 space-y-2.5">
+    <header className="pdc-card career-hero career-hero--stage career-header px-4 py-3 space-y-2.5">
       <CareerStageBackdrop atmosphere={stage} spectacle={spectacleFor("ARRIVAL", stage.level)} documentary={retired} animate={false} eager className="career-hero__stage" />
       <div className="flex flex-col sm:flex-row sm:items-start gap-3">
         <div className="flex items-start gap-2 flex-1 min-w-0">
@@ -138,11 +140,11 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
             <ArrowLeft className="w-4 h-4" style={{ color: "rgba(255,255,255,0.62)" }} />
           </Link>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 whitespace-nowrap"><Label color="#3d8bff">TKDL</Label><Label color="#ff005c">Career</Label><Label>· Slot {save.slotNumber}</Label></div>
-            <h1 className="font-black uppercase leading-tight break-words" style={{ ...OSWALD, fontSize: "clamp(1.3rem, 4.5vw, 2rem)", color: "#fff", letterSpacing: "0.04em" }}>
+            <div className="career-hero__labels flex items-center gap-1.5 whitespace-nowrap"><Label color="#3d8bff">TKDL</Label><Label color="#ff005c">Career</Label><Label>· Slot {save.slotNumber}</Label></div>
+            <h1 className="career-hero__title font-black uppercase leading-tight break-words" style={{ ...OSWALD, fontSize: "clamp(1.3rem, 4.5vw, 2rem)", color: "#fff", letterSpacing: "0.04em" }}>
               {save.careerName ?? "My Career"}
             </h1>
-            <div className="text-xs mt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em" }}>
+            <div className="career-hero__when text-xs mt-0.5" style={{ ...OSWALD, color: "rgba(255,255,255,0.7)", letterSpacing: "0.06em" }}>
               {weekLabel(save.currentSeason, save.currentWeek)}{overview?.today?.week === save.currentWeek ? <> · <b className="career-hero__day" title={overview.today.phase === "MID_WEEK" ? "The rest of this week has been played; your event is waiting" : "The start of the week: nothing played yet"}>{dayName(overview.today.dayOfWeek)}</b></> : null}<span className="career-hero__extra">{overview ? ` · ${overview.grouping.name}` : ""}</span><HeaderAge saveId={save.id} />
             </div>
           </div>
@@ -211,7 +213,7 @@ function AdvanceControl({ save, pendingEventId, pendingMatchId, pendingCount, hu
       {(seasonReview.error||tournament.error)&&<CareerError error={seasonReview.error||tournament.error} onRetry={()=>{void seasonReview.refetch();void tournament.refetch();}}/>}
       {go.pending && <ContinueProgress saveId={save.id} from={go.from} toEvent={nextEntry} />}
       {go.dialog}
-      {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} />}
+      {go.outcome && <ContinueOutcomeCard outcome={go.outcome} onClose={go.clear} saveId={save.id} />}
     </div>
   );
 }
