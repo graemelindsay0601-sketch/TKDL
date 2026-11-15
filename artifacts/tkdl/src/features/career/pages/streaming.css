@@ -1138,3 +1138,4 @@
 .plaque.earned.plaque-gold { border-color:#e5bd68; background:linear-gradient(160deg,#3a2c0c,#141a20); }
 .plaque.earned.plaque-diamond { border-color:#9fe3f2; }
 @media (max-width: 620px) { .plaque-wall { grid-template-columns:1fr; } }
+.format-reach em.trending { border-color:#e94a5688; color:#ff9aa2; }

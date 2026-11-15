@@ -15,13 +15,14 @@ import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.t
 import { BRAND_CATEGORIES, DEAL_KINDS, PARTNERS, brandByKey, type BrandCategory, type DealKind } from "./partners.ts";
 import { brandTrust } from "./state.ts";
 import { AFFILIATE, MERCH, MERCH_ITEMS, PLATFORM, SPONSOR_LADDER, TEAM, tierAtLeast, type MerchKey, type TeamRole } from "./business.ts";
-import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, setFor, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
+import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, VLOG, setFor, vlogOutcome, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
 import { CREATOR_SPONSOR_PREMIUM, PRO_GUEST, proGuests } from "./career-links.ts";
-import { PLAQUES, TIER_ORDER, STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, trickShotTargets, crowdFor, followersFromFans,
+import { localityByKey } from "../calendar/geography.ts";
+import { PLAQUES, TIER_ORDER, TREND, trendBonus, trendFor, STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, trickShotTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -89,6 +90,7 @@ export type StreamingView = {
       pros: { key: string; handle: string; rank: number | null; meetings: number; record: string; rival: boolean; ok: boolean; why: string | null }[];
       topics: { key: string; name: string; blurb: string }[]; episodes: number };
     watchAlongs: { eventId: string; name: string; tier: string; champion: string; done: boolean }[];
+    vlogs: { available: { source: string; title: string }[]; posted: { title: string; views: number; followers: number; pence: number; season: number; week: number }[] };
     sets: { key: string; name: string; blurb: string; costPence: number; bonusPercent: number; formats: string[]; owned: boolean }[];
   };
   business: {
@@ -118,6 +120,7 @@ export type StreamingView = {
   awards: { seasons: { season: number; results: { award: string; name: string; winner: string; nominees: string[]; youNominated: boolean; youWon: boolean }[] }[]; trophies: number; nextAt: number };
   marathons: { subathon: { open: boolean; why: string | null }; marathon: { open: boolean; why: string | null; targetPence: number } };
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
+  trend: { format: string; name: string; endsWeek: number; bonusPercent: number };
   plaques: { key: string; name: string; followers: number; fans: number; earned: { season: number; week: number } | null }[];
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
@@ -418,6 +421,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const business = await businessView(tx, root, ch, tier.key, season);
     return { community, emotes, cups, celebration, marathons, awards, content, business, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
+      trend: (() => { const t = trendFor(root.world_seed, season, week); return { format: t.format, name: formatByKey(t.format).name, endsWeek: t.endsWeek, bonusPercent: Math.round((TREND.bonus - 1) * 100) }; })(),
       plaques: PLAQUES.map(p => { const e = ch.plaques.find(x => x.key === p.key); return { key: p.key, name: p.name, followers: p.followers, fans: p.fans, earned: e ? { season: e.season, week: e.week } : null }; }),
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: perWeekFor(root.settings_snapshot),
@@ -456,7 +460,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
            seriesFit: creatorSeriesCollabFit(arcDefinition?.key ?? null, st.key) }; }),
       clips: clips.map(c => ({ id: String(c.id), season: Number(c.season), week: Number(c.week), kind: c.kind as ClipKind, title: String(c.title), status: c.status as "NEW" | "VIRAL" | "SETTLED",
         views: Number(c.views), followersGained: Number(c.followers_gained), fansGained: Number(c.fans_gained), clipOfWeek: c.clip_of_week === true })),
-      formats: FORMATS.map(f => ({ key: f.key, name: f.name, blurb: f.blurb, crowd: Math.round(crowdFor(f.key, lastFormat, ch.pollPick) * 100) / 100,
+      formats: FORMATS.map(f => ({ key: f.key, name: f.name, blurb: f.blurb, crowd: Math.round(crowdFor(f.key, lastFormat, ch.pollPick) * trendBonus(f.key, trendFor(root.world_seed, season, week)) * 100) / 100,
         why: setFor(f.key) && !ch.sets.includes(setFor(f.key)!.key) ? `Needs the ${setFor(f.key)!.name.toLowerCase()} (studio sets)`
           : f.key === "COMMUNITY" ? (community.size < COMMUNITY.nightMin ? `Needs ${COMMUNITY.nightMin} regulars (you have ${community.size})` : null)
           : f.key !== "CHARITY" ? null : tier.key === "NEWCOMER" ? "From Affiliate (viewers can cheer)"
@@ -512,10 +516,31 @@ export function createCareerStreamingService(database: CareerDatabase) {
         topics: PODCAST_TOPICS.map(t => ({ key: t.key, name: t.name, blurb: t.blurb })), episodes },
       watchAlongs: events.map(r => ({ eventId: String(r.id), name: String(r.name), tier: String(r.presentation_tier),
         champion: r.champ === "HUMAN" ? ch.handle : r.first_name ? `${r.first_name} ${r.surname}` : "the champion", done: r.done === true })),
+      vlogs: await vlogView(tx, root, season, week),
       sets: STUDIO_SETS.map(set => ({ key: set.key, name: set.name, blurb: set.blurb, costPence: set.costPence, bonusPercent: Math.round(set.bonus * 100),
         formats: [...set.formats], owned: ch.sets.includes(set.key) })),
     };
     void tier;
+  }
+
+  /** Tour vlogs you could cut (events played and road trips in the last few weeks, not yet vlogged) and the latest posted. */
+  async function vlogSources(tx: CareerExecutor, root: Root, season: number, week: number) {
+    const from = Math.max(1, week - VLOG.recentWeeks);
+    const events = (await tx.execute(sql`SELECT DISTINCT i.id, i.name, i.city, i.presentation_tier FROM career_tournament_matches m
+      JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
+      WHERE m.career_save_id=${root.id} AND i.season=${season} AND (m.a_key='HUMAN' OR m.b_key='HUMAN') AND m.status='COMPLETED'
+        AND i.end_day BETWEEN ${(from - 1) * 7 + 1} AND ${week * 7}`)).rows;
+    const trips = (await tx.execute(sql`SELECT id, locality_key FROM career_road_trips WHERE career_save_id=${root.id} AND season=${season} AND week BETWEEN ${from} AND ${week}`)).rows;
+    const done = new Set((await tx.execute(sql`SELECT source_key FROM career_stream_vlogs WHERE career_save_id=${root.id}`)).rows.map(r => String(r.source_key)));
+    return [
+      ...events.map(e => ({ source: `event:${e.id}`, title: `Tour vlog: ${e.name}${e.city ? `, ${e.city}` : ""}`, tier: String(e.presentation_tier ?? "") })),
+      ...trips.map(t => ({ source: `trip:${t.id}`, title: `Road trip vlog: ${localityByKey(String(t.locality_key))?.city ?? String(t.locality_key)}`, tier: "" })),
+    ].filter(x => !done.has(x.source));
+  }
+  async function vlogView(tx: CareerExecutor, root: Root, season: number, week: number): Promise<StreamingView["content"]["vlogs"]> {
+    const posted = (await tx.execute(sql`SELECT * FROM career_stream_vlogs WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC LIMIT 5`)).rows;
+    return { available: (await vlogSources(tx, root, season, week)).map(({ source, title }) => ({ source, title })),
+      posted: posted.map(r => ({ title: String(r.title), views: Number(r.views), followers: Number(r.followers), pence: Number(r.pence), season: Number(r.season), week: Number(r.week) })) };
   }
 
   /** The business desk: merch, affiliate codes, your team and the platform offer. */
@@ -916,6 +941,27 @@ export function createCareerStreamingService(database: CareerDatabase) {
         return view(tx, root);
       });
     },
+    /** Post a tour vlog from an event you played or a road trip (once each). Views, a little ad money, followers. */
+    async postVlog(actor: CareerActor, saveId: string, body: unknown) {
+      const { source } = z.object({ source: z.string().min(3).max(80) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const season = Number(root.current_season), week = Number(root.current_week);
+        const src = (await vlogSources(tx, root, season, week)).find(x => x.source === source);
+        if (!src) throw new CareerError(409, "Nothing to vlog there: play an event or take a road trip first");
+        const ch = await channel(tx, root);
+        const out = vlogOutcome(root.world_seed, `${root.id}:${source}`, ch.followers, src.tier, ch.team.includes("EDITOR"));
+        const inserted = (await tx.execute(sql`INSERT INTO career_stream_vlogs (career_save_id, source_key, season, week, title, views, followers, pence)
+          VALUES (${root.id}, ${source}, ${season}, ${week}, ${src.title}, ${out.views}, ${out.followers}, ${out.pence}) ON CONFLICT DO NOTHING RETURNING 1`)).rows.length > 0;
+        if (inserted) {
+          await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${out.followers}::int WHERE career_save_id=${root.id}`);
+          if (out.pence > 0) await post(tx, root, { operationKey: `stream-vlog:${source}`, category: "STREAM_INCOME", amountPence: out.pence,
+            reason: `DartCast vlog: ${src.title}`, season, week, detail: { source, views: out.views } });
+        }
+        return view(tx, root);
+      });
+    },
     /** Buy a studio set (yours for good). */
     async buySet(actor: CareerActor, saveId: string, body: unknown) {
       const { set } = z.object({ set: z.enum(STUDIO_SETS.map(s => s.key) as [StudioSetKey, ...StudioSetKey[]]) }).strict().parse(body);
@@ -1193,7 +1239,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const day = absoluteDay(week, dayOfWeek);
         const since = last && Number(last.season) === season ? Math.max(0, day - Number(last.day)) : null;
         const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
-        const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" || cupNight || format === "CELEBRATION" || isMarathon(format) ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick))
+        const viewers = Math.max(1, Math.round(openingViewers(root.world_seed, key, v.followers, fans, dayOfWeek, since) * (format === "COLLAB" ? 1 : format === "INVITATIONAL" || cupNight || format === "CELEBRATION" || isMarathon(format) ? formatByKey(format).crowd : crowdFor(format, v.lastFormat, v.pollPick)) * trendBonus(String(format), v.trend)
           * studioAudienceMultiplier(v.studio.level) * (1 + await modViewerBonus(tx, root.id)) * (1 + setBonus((await channel(tx, root)).sets, format))
           * (exclusive((await channel(tx, root)).platform, season) ? PLATFORM.viewerPenalty : 1)
           * (planned || v.pathway.scheduledNights.includes(dayOfWeek) ? NOTIFY_BONUS : 1)

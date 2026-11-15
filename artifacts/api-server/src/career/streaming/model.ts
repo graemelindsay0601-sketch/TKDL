@@ -558,3 +558,19 @@ export function raidIn(seed: string, streamKey: string, you: number, candidates:
 }
 /** Clip of the Week: chance your best clip of the week wins (viral or not), and the follower spotlight it brings. */
 export const CLIP_OF_WEEK = Object.freeze({ viral: 0.55, plain: 0.15, share: 0.01, minFollowers: 5 });
+
+/**
+ * Algorithm shifts: every six weeks the platform favours one kind of show for a while. Lean into it and the room's
+ * bigger; ignore it and nothing's lost. Deterministic per save and block, never the same show twice in a row.
+ */
+export const TREND = Object.freeze({ weeks: 6, bonus: 1.25,
+  formats: ["CHALLENGER", "KING", "CHECKOUTS", "BOBS_27", "SCORING", "COMMUNITY", "TRICKSHOTS", "HEAD_TO_HEAD", "COLLAB"] as readonly string[] });
+export function trendFor(seed: string, season: number, week: number) {
+  const block = Math.floor((Math.max(1, week) - 1) / TREND.weeks);
+  const pick = (b: number) => TREND.formats[Math.floor(scopedRandom(seed, STREAM.version, "stream-trend", season, b)() * TREND.formats.length)];
+  // Walk the season's blocks so a show never trends twice in a row (at most nine blocks).
+  let format = pick(0);
+  for (let b = 1; b <= block; b++) { const next = pick(b); format = next === format ? TREND.formats[(TREND.formats.indexOf(next) + 1) % TREND.formats.length] : next; }
+  return { format, endsWeek: Math.min(52, (block + 1) * TREND.weeks) };
+}
+export const trendBonus = (format: string, trend: { format: string } | null) => trend && trend.format === format ? TREND.bonus : 1;

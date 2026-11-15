@@ -89,6 +89,8 @@ export const useRecordPodcast = (saveId: string) => useSaveMutation(saveId, (inp
   send<StreamingView>("POST", `/saves/${saveId}/streaming/podcast`, input));
 export const useBuyStudioSet = (saveId: string) => useSaveMutation(saveId, (set: string) =>
   send<StreamingView>("POST", `/saves/${saveId}/streaming/sets`, { set }));
+export const usePostVlog = (saveId: string) => useSaveMutation(saveId, (source: string) =>
+  send<StreamingView>("POST", `/saves/${saveId}/streaming/vlogs`, { source }));
 export const useWatchAlong = (saveId: string) => useSaveMutation(saveId, (input: { eventId: string; dayOfWeek: number }) =>
   send<StreamSession>("POST", `/saves/${saveId}/streaming/watch-along`, input));
 export const useDropMerch = (saveId: string) => useSaveMutation(saveId, (input: { item: string; units: number }) =>

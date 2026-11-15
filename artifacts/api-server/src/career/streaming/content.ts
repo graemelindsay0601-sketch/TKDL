@@ -89,3 +89,16 @@ export function podcastOutcome(seed: string, key: string, yours: number, guestFo
 }
 /** The set a format needs before you can run it (the board camera, the second board), if any. */
 export const setFor = (format: string) => STUDIO_SETS.find(s => s.unlocks === format) ?? null;
+
+/**
+ * Tour vlogs: the life on the road between the darts. Any event you've played in the last few weeks, or a road trip,
+ * can be cut into a vlog: views from your audience and the size of the event (an editor makes it travel further), a
+ * little ad money and some followers. One vlog per trip or event.
+ */
+export const VLOG = Object.freeze({ recentWeeks: 4, followerShare: 0.15, base: 400, followersPerThousand: 10,
+  prestige: { WORLD: 4, MAJOR: 2.5, TELEVISED: 1.8 } as Record<string, number>, editor: 1.4 });
+export function vlogOutcome(seed: string, key: string, followers: number, tier: string | null, editor: boolean) {
+  const rng = scopedRandom(seed, STREAM.version, "stream-vlog", key);
+  const views = Math.round((Math.max(0, followers) * VLOG.followerShare + VLOG.base) * (VLOG.prestige[tier ?? ""] ?? 1) * (0.7 + rng() * 0.6) * (editor ? VLOG.editor : 1));
+  return { views, followers: Math.round(views / 1000 * VLOG.followersPerThousand), pence: vodPence(views) };
+}
