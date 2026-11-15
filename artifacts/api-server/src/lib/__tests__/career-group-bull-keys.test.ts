@@ -1,4 +1,4 @@
-/** World Cup groups (A to L) and league stages can settle ties with a bull-off; the old A-D rule refused them. */
+/** World Cup groups: ties settled by bull-offs in any group (A to L), and a champion who dropped a group game is allowed. */
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -43,4 +43,10 @@ test("bull-offs accept every group the layouts use, and older databases are repa
   assert.ok((await groupCheck()).includes("'L'"), "repaired at boot");
   await db.transaction(tx => ensureCareerGroupSchema(tx));
   assert.ok((await groupCheck()).includes("'K'"), "and repeatable");
+});
+
+test("a World Cup champion may have lost a group game (as in group-knockout and league events)", async () => {
+  const def = String((await db.execute(sql`SELECT pg_get_constraintdef(oid) AS d FROM pg_constraint
+    WHERE conrelid = 'career_event_results'::regclass AND conname = 'career_event_results_champion_check'`)).rows[0]?.d ?? "");
+  for (const s of ["GROUP_KNOCKOUT", "LEAGUE", "WORLD_CUP"]) assert.ok(def.includes(`'${s}'`), s);
 });

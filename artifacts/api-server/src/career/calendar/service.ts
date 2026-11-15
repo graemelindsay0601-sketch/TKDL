@@ -469,7 +469,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     const pending = (await tx.execute(sql`SELECT m.id, m.event_id FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
       WHERE m.career_save_id = ${root.id} AND m.status = 'AWAITING_HUMAN' AND i.season = ${season}`)).rows;
     const pendingTournamentActions:{eventId:string;kind:"GROUP_BULL_UP";group:string}[]=[];
-    const groupEvents=await loadInstances(tx,root.id,sql`season=${season} AND status='IN_PROGRESS' AND snapshot->'format'->>'structure' IN ('GROUP_KNOCKOUT','LEAGUE')`);
+    const groupEvents=await loadInstances(tx,root.id,sql`season=${season} AND status='IN_PROGRESS' AND snapshot->'format'->>'structure' IN ('GROUP_KNOCKOUT','LEAGUE','WORLD_CUP')`);
     for(const e of groupEvents) {
       const withdrawn=new Set((await tx.execute(sql`SELECT participant_key FROM career_event_entries WHERE career_save_id=${root.id}
         AND event_id=${e.id} AND status='WITHDRAWN'`)).rows.map(r=>String(r.participant_key)));
