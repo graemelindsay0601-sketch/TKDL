@@ -138,6 +138,16 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     weeks_paid integer NOT NULL DEFAULT 0, paid_pence integer NOT NULL DEFAULT 0, fans integer NOT NULL DEFAULT 0, last_paid text, closed_week integer,
     status text NOT NULL CHECK (status IN ('OFFERED','ACTIVE','COMPLETED','ENDED','DECLINED','EXPIRED')),
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, n))`);
+  // Brand partners: category sponsors held alongside the headline sponsor, in several kinds of deal.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_partner_deals (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    id uuid NOT NULL, n integer NOT NULL, brand_key text NOT NULL, brand_name text NOT NULL, category text NOT NULL,
+    kind text NOT NULL CHECK (kind IN ('RETAINER','GIVEAWAY','SEEDING','AMBASSADOR','CUP_TITLE','APPEARANCE')),
+    season integer NOT NULL, week integer NOT NULL, fee_pence integer NOT NULL CHECK (fee_pence >= 0), weeks_total integer NOT NULL CHECK (weeks_total > 0),
+    weeks_paid integer NOT NULL DEFAULT 0, paid_pence integer NOT NULL DEFAULT 0, followers integer NOT NULL DEFAULT 0,
+    cup_season integer, cup_no integer, last_paid text, closed_week integer,
+    status text NOT NULL CHECK (status IN ('OFFERED','ACTIVE','COMPLETED','ENDED','DECLINED','EXPIRED')),
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, n))`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS team jsonb NOT NULL DEFAULT '[]'::jsonb`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS platform jsonb`);
 }

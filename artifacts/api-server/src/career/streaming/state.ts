@@ -8,6 +8,8 @@ import { holdAwards } from "./awards.ts";
 import { CONTENT, shortOutcome, vodPence, vodViews } from "./content.ts";
 import { AFFILIATE, EDITOR_SHORT, EDITOR_VOD, MANAGER_FEES, MERCH, PLATFORM, TEAM, SPONSOR, SPONSOR_LADDER, affiliateBrand, affiliatePayout, merchSales, platformOfferPence, sponsorBrand, sponsorWeeklyPence, tierAtLeast, type TeamRole } from "./business.ts";
 import { CURRENT_SPONSOR_DATABASE_VERSION, sponsorCatalogue } from "../finance/sponsors.catalogue.ts";
+import { CUPS } from "./cups.ts";
+import { DEAL_KINDS, PARTNERS, brandByKey, dealTerms, nextOffer, type DealKind } from "./partners.ts";
 
 /** Once the tables are known to exist they always will (the schema repair adds them at startup; some test databases skip it). */
 let seen = false;
@@ -116,6 +118,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   const audienceVisits=recentStreams.reduce((sum,r)=>sum+Number(r.processed_visits??0),0);
   const averageViewers=audienceVisits>0?audienceMinutes/(audienceVisits*STREAM_MONEY.adMinutesPerVisit):0;
   await settleSponsorLadder(tx, root, season, week, followers, averageViewers, ((ch.team as string[] | null) ?? []).includes("MANAGER"));
+  await settlePartners(tx, root, season, week, followers, averageViewers, ((ch.team as string[] | null) ?? []).includes("MANAGER"));
   if(tier==="PARTNER"||tier==="STAR"){
     const campaignOpen=(await tx.execute(sql`SELECT 1 FROM career_stream_campaigns WHERE career_save_id=${root.id}
       AND status IN ('OFFERED','ACTIVE','IN_PROGRESS') LIMIT 1`)).rows.length>0;
@@ -285,4 +288,67 @@ async function settleSponsorLadder(tx: CareerExecutor, root: Root, season: numbe
   await tx.execute(sql`INSERT INTO career_stream_sponsors (career_save_id, id, n, rung, brand_key, brand_name, season, week, weekly_pence, weeks_total, status)
     VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-sponsor", root.id, n)}, ${n}, ${next.rung}, ${brand.key}, ${brand.name}, ${season}, ${week},
       ${sponsorWeeklyPence(next.rung, averageViewers, manager)}, ${next.weeks}, 'OFFERED') ON CONFLICT DO NOTHING`);
+}
+
+/** How well each brand knows you: finished deals (gifted kit counts double) and headline runs you've seen through. */
+export async function brandTrust(tx: CareerExecutor, saveId: string) {
+  const trust = new Map<string, number>();
+  for (const r of (await tx.execute(sql`SELECT brand_key, kind FROM career_stream_partner_deals WHERE career_save_id=${saveId} AND status='COMPLETED'`)).rows)
+    trust.set(String(r.brand_key), (trust.get(String(r.brand_key)) ?? 0) + (r.kind === "SEEDING" ? PARTNERS.seedingTrust : 1));
+  for (const r of (await tx.execute(sql`SELECT brand_key FROM career_stream_sponsors WHERE career_save_id=${saveId} AND status='COMPLETED'`)).rows)
+    trust.set(String(r.brand_key), (trust.get(String(r.brand_key)) ?? 0) + 1);
+  return trust;
+}
+
+/**
+ * Brand partners, once a week: running deals pay (weekly kinds for a live week; a giveaway on your next live week; a cup
+ * title when you've played that cup) and finish; gifted kit runs its weeks; unanswered offers lapse; and while you've a
+ * free slot a new offer arrives every few weeks (more often with a manager).
+ */
+async function settlePartners(tx: CareerExecutor, root: Root, season: number, week: number, followers: number, averageViewers: number, manager: boolean) {
+  const abs = (season - 1) * 52 + week, tag = `${season}:${week}`, tier = tierFor(followers).key;
+  const live = (await tx.execute(sql`SELECT 1 FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND status='ENDED' LIMIT 1`)).rows.length > 0;
+  for (const d of (await tx.execute(sql`SELECT * FROM career_stream_partner_deals WHERE career_save_id=${root.id} AND status='ACTIVE' AND last_paid IS DISTINCT FROM ${tag}`)).rows) {
+    const kind = d.kind as DealKind, fee = Number(d.fee_pence);
+    let pay = 0, tick = false, close: "COMPLETED" | "EXPIRED" | null = null;
+    if (kind === "RETAINER" || kind === "AMBASSADOR") { if (live) { pay = fee; tick = true; if (Number(d.weeks_paid) + 1 >= Number(d.weeks_total)) close = "COMPLETED"; } }
+    else if (kind === "GIVEAWAY") { if (live) { pay = fee; tick = true; close = "COMPLETED"; } }
+    else if (kind === "SEEDING") { tick = true; if (Number(d.weeks_paid) + 1 >= Number(d.weeks_total)) close = "COMPLETED"; }
+    else if (kind === "CUP_TITLE") {
+      const played = (await tx.execute(sql`SELECT 1 FROM career_stream_cups WHERE career_save_id=${root.id} AND season=${Number(d.cup_season)} AND cup_no=${Number(d.cup_no)} LIMIT 1`)).rows.length > 0;
+      if (played) { pay = fee; tick = true; close = "COMPLETED"; }
+      else if (season > Number(d.cup_season) || week > (CUPS.weeks[Number(d.cup_no) - 1] ?? 0) + CUPS.window - 1) close = "EXPIRED";
+    }
+    if (!tick && !close) continue;
+    const gained = close === "COMPLETED" && kind === "GIVEAWAY" ? Number(d.followers) : 0;
+    const done = (await tx.execute(sql`UPDATE career_stream_partner_deals SET weeks_paid = weeks_paid + ${tick ? 1 : 0}::int, paid_pence = paid_pence + ${pay}::int,
+      last_paid=${tag}, status=${close ?? "ACTIVE"}, closed_week=${close ? abs : null}
+      WHERE career_save_id=${root.id} AND id=${String(d.id)} AND status='ACTIVE' AND last_paid IS DISTINCT FROM ${tag} RETURNING 1`)).rows.length > 0;
+    if (!done) continue;
+    if (pay > 0) await post(tx, root, { operationKey: `stream-partner:${d.id}:${tag}`, category: "STREAM_INCOME", amountPence: pay,
+      reason: `${d.brand_name}: ${DEAL_KINDS[kind].name.toLowerCase()}`, season, week, detail: { partnerDealId: String(d.id), kind } });
+    if (gained > 0) await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${gained}::int WHERE career_save_id=${root.id}`);
+  }
+  await tx.execute(sql`UPDATE career_stream_partner_deals SET status='EXPIRED', closed_week=${abs} WHERE career_save_id=${root.id} AND status='OFFERED'
+    AND ((season-1)*52 + week) <= ${abs - PARTNERS.offerWeeks}`);
+  // A new offer while you've room for another partner.
+  const slots = PARTNERS.slots[tier] ?? 0;
+  if (slots === 0) return;
+  const rows = (await tx.execute(sql`SELECT n, brand_key, category, status, season, week FROM career_stream_partner_deals WHERE career_save_id=${root.id} ORDER BY n`)).rows;
+  const open = rows.filter(r => r.status === "ACTIVE" || r.status === "OFFERED");
+  if (open.length >= slots || open.some(r => r.status === "OFFERED")) return;
+  const last = rows.at(-1), every = manager ? PARTNERS.managerOfferEvery : PARTNERS.offerEvery;
+  if (last && abs - ((Number(last.season) - 1) * 52 + Number(last.week)) < every) return;
+  const headline = (await tx.execute(sql`SELECT brand_key FROM career_stream_sponsors WHERE career_save_id=${root.id} AND status='ACTIVE' LIMIT 1`)).rows[0];
+  const blocked = new Set(open.map(r => String(r.category)));
+  const hc = headline ? brandByKey(String(headline.brand_key))?.category : null;
+  if (hc) blocked.add(hc);
+  const trust = await brandTrust(tx, root.id), n = rows.length;
+  const offer = nextOffer(root.world_seed, n, tier, week, blocked, trust);
+  if (!offer) return;
+  const terms = dealTerms(offer.kind, tier, averageViewers, trust.get(offer.brand.key) ?? 0, manager);
+  await tx.execute(sql`INSERT INTO career_stream_partner_deals (career_save_id, id, n, brand_key, brand_name, category, kind, season, week, fee_pence, weeks_total, followers,
+      cup_season, cup_no, status)
+    VALUES (${root.id}, ${stableUuid(root.world_seed, STREAM.version, "stream-partner", root.id, n)}, ${n}, ${offer.brand.key}, ${offer.brand.name}, ${offer.brand.category},
+      ${offer.kind}, ${season}, ${week}, ${terms.feePence}, ${terms.weeks}, ${terms.followers}, ${offer.cup ? season : null}, ${offer.cup?.n ?? null}, 'OFFERED') ON CONFLICT DO NOTHING`);
 }

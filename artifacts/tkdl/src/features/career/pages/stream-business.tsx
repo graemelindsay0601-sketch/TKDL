@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Award, BadgePercent, Briefcase, Clapperboard, Handshake, Lock, Shirt, Store, UserPlus } from "lucide-react";
-import { errorMessage, useAnswerAffiliate, useAnswerPlatform, useAnswerSponsor, useDropMerch, useSetTeam, type StreamingView } from "../api";
+import { Award, BadgePercent, Gift, Megaphone, Package, Trophy, Repeat, Crown, MapPin, Briefcase, Clapperboard, Handshake, Lock, Shirt, Store, UserPlus } from "lucide-react";
+import { errorMessage, useAnswerAffiliate, useAnswerPartner, useAnswerPlatform, useAnswerSponsor, useDropMerch, useSetTeam, type StreamingView } from "../api";
 import { formatPence } from "../model";
 import "./stream-community.css";
 
 /** The business desk: merch drops, affiliate codes, the team you hire, and the platform's exclusivity offer. */
 export function BusinessSection({ saveId, d, retired }: { saveId: string; d: StreamingView; retired: boolean }) {
   const b = d.business;
-  const drop = useDropMerch(saveId), aff = useAnswerAffiliate(saveId), team = useSetTeam(saveId), platform = useAnswerPlatform(saveId), sponsor = useAnswerSponsor(saveId);
+  const drop = useDropMerch(saveId), aff = useAnswerAffiliate(saveId), team = useSetTeam(saveId), platform = useAnswerPlatform(saveId), sponsor = useAnswerSponsor(saveId), partner = useAnswerPartner(saveId);
   const [item, setItem] = useState("SHIRT"), [units, setUnits] = useState(50), [message, setMessage] = useState("");
   if (!b) return null;
   const fail = (e: unknown) => setMessage(errorMessage(e)), ok = () => setMessage("");
@@ -26,6 +26,8 @@ export function BusinessSection({ saveId, d, retired }: { saveId: string; d: Str
     {b.platform.active && <p className="sc-note">You're exclusive to {b.platform.name} this season: no collabs, smaller rooms, the money's in the bank.</p>}
     {b.sponsor && <SponsorLadder s={b.sponsor} retired={retired} busy={sponsor.isPending}
       answer={(id, action) => sponsor.mutate({ id, action }, { onSuccess: ok, onError: fail })} />}
+    {b.partners && <BrandPartners p={b.partners} retired={retired} busy={partner.isPending}
+      answer={(id, action) => partner.mutate({ id, action }, { onSuccess: ok, onError: fail })} />}
     <div className="sc-content-grid">
       <article className="sc-card"><h3><Shirt aria-hidden /> Merch drops</h3>
         <p className="sc-note">You pay for the stock now; it sells over four weeks to loyal regulars and followers. Named emotes on the design sell better. The stock is the most you can lose.</p>
@@ -89,5 +91,42 @@ function SponsorLadder({ s, retired, busy, answer }: { s: StreamingView["busines
       <button type="button" disabled={retired || busy} onClick={() => answer(s.offer!.id, "ACCEPT")}>Sign</button>
       <button type="button" className="sc-ghost" disabled={busy} onClick={() => answer(s.offer!.id, "DECLINE")}>Not now</button>
     </div> : s.why ? <p className="sc-note">{s.why}</p> : null}
+  </div>;
+}
+
+const KIND_ICON = { RETAINER: Repeat, GIVEAWAY: Gift, SEEDING: Package, AMBASSADOR: Crown, CUP_TITLE: Trophy, APPEARANCE: MapPin } as const;
+
+/** Brand partners: category sponsors alongside the headline one, each offer a different kind of deal. */
+function BrandPartners({ p, retired, busy, answer }: { p: StreamingView["business"]["partners"]; retired: boolean; busy: boolean;
+  answer: (id: string, action: "ACCEPT" | "DECLINE" | "END") => void }) {
+  const terms = (o: { kind: string; feePence: number; weeks: number; followers: number }) =>
+    o.kind === "RETAINER" || o.kind === "AMBASSADOR" ? `${formatPence(o.feePence)} a live week · ${o.weeks} weeks`
+    : o.kind === "SEEDING" ? `Free kit · ${o.weeks} weeks · brand trust`
+    : o.kind === "GIVEAWAY" ? `${formatPence(o.feePence)} · +${o.followers} followers · next live week`
+    : o.kind === "APPEARANCE" ? `${formatPence(o.feePence)} now · +${o.followers} followers` : `${formatPence(o.feePence)} when you play it`;
+  return <div className="sc-ladder sc-partners">
+    <h3>Brand partners <small>{p.used}/{p.slots} slots · one brand per category · alongside your headline sponsor</small></h3>
+    {p.offers.length > 0 && <ul className="sc-partner-list">{p.offers.map(o => { const Icon = KIND_ICON[o.kind] ?? Megaphone;
+      return <li key={o.id} className="sc-partner" data-offer>
+        <Icon aria-hidden />
+        <div><span className="sc-partner-name"><b>{o.brand}</b><i className="sc-kind">{o.kindName}</i></span><small>{o.what} · {o.category}{o.cup ? ` · the ${o.cup}` : ""}</small>
+          <small>{o.blurb}</small><span className="sc-terms">{terms(o)} · offer open until week {o.expiresWeek}</span>
+          {o.clash && <small className="sc-clash">{o.clash}</small>}</div>
+        <span className="sc-pair"><button type="button" disabled={retired || busy || !!o.clash} onClick={() => answer(o.id, "ACCEPT")}>{o.kind === "APPEARANCE" ? "Go" : "Sign"}</button>
+          <button type="button" disabled={busy} onClick={() => answer(o.id, "DECLINE")}>No thanks</button></span>
+      </li>; })}</ul>}
+    {p.active.length > 0 && <ul className="sc-partner-list">{p.active.map(a => { const Icon = KIND_ICON[a.kind] ?? Megaphone;
+      return <li key={a.id} className="sc-partner">
+        <Icon aria-hidden />
+        <div><span className="sc-partner-name"><b>{a.brand}</b><i className="sc-kind">{a.kindName}</i></span><small>{a.what} · {a.category}{a.cup ? ` · the ${a.cup}` : ""}</small>
+          {(a.kind === "RETAINER" || a.kind === "AMBASSADOR" || a.kind === "SEEDING") ? <>
+            <span className="sc-loyalty" role="meter" aria-label={`${a.brand} run`} aria-valuemin={0} aria-valuemax={a.weeksTotal} aria-valuenow={a.weeksPaid}>
+              <span style={{ width: `${Math.round(a.weeksPaid / a.weeksTotal * 100)}%` }} /></span>
+            <small>{a.weeksPaid} of {a.weeksTotal} {a.kind === "SEEDING" ? "weeks" : "live weeks"}{a.paidPence ? ` · ${formatPence(a.paidPence)} so far` : ""}</small></>
+            : <small>{a.kind === "GIVEAWAY" ? "Runs on your next live stream" : "Paid when you play the cup"}</small>}</div>
+        <button type="button" disabled={busy} onClick={() => answer(a.id, "END")}>End</button>
+      </li>; })}</ul>}
+    {p.why && <p className="sc-note">{p.why}</p>}
+    {p.brands.length > 0 && <p className="sc-note">Brands that know you: {p.brands.map(x => `${x.brand} (+${x.bonusPercent}%${x.ambassador ? ", ambassador" : ""})`).join(" · ")}. Every finished deal makes a brand pay more; two and they'll offer an ambassadorship.</p>}
   </div>;
 }

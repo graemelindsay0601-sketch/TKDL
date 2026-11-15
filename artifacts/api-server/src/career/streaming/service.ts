@@ -12,6 +12,8 @@ import { fansForEffects } from "../fans/service.ts";
 import { subsThisMonth } from "./state.ts";
 import { answerRequest, overlayVisit, recapFor } from "./overlay.ts";
 import { MARATHON, isMarathon, marathonVisit, startMarathon } from "./marathon.ts";
+import { BRAND_CATEGORIES, DEAL_KINDS, PARTNERS, brandByKey, type BrandCategory, type DealKind } from "./partners.ts";
+import { brandTrust } from "./state.ts";
 import { AFFILIATE, MERCH, MERCH_ITEMS, PLATFORM, SPONSOR_LADDER, TEAM, tierAtLeast, type MerchKey, type TeamRole } from "./business.ts";
 import { CONTENT, PODCAST_TOPICS, STUDIO_SETS, guestAnswer, podcastOutcome, setBonus, vodViews, type PodcastTopic, type StudioSetKey } from "./content.ts";
 import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, legsToWinIn, nextCup, roundName, roundsFor, type CupEntrant, type CupState } from "./cups.ts";
@@ -97,6 +99,15 @@ export type StreamingView = {
       rungs: { rung: number; name: string; blurb: string; minTier: TierKey; weeks: number; fans: number; status: "BANKED" | "CURRENT" | "NEXT" | "LOCKED"; brand: string | null }[];
       offer: { id: string; rung: number; brand: string; what: string; weeklyPence: number; weeks: number; expiresWeek: number } | null;
       active: { id: string; rung: number; brand: string; what: string; weeklyPence: number; weeksPaid: number; weeksTotal: number; paidPence: number } | null;
+      why: string | null;
+    };
+    partners: {
+      slots: number; used: number;
+      offers: { id: string; brand: string; what: string; category: string; kind: DealKind; kindName: string; blurb: string; feePence: number; weeks: number; followers: number;
+        cup: string | null; expiresWeek: number; clash: string | null }[];
+      active: { id: string; brand: string; what: string; category: string; kind: DealKind; kindName: string; feePence: number; weeksPaid: number; weeksTotal: number; paidPence: number; cup: string | null }[];
+      brands: { brand: string; deals: number; bonusPercent: number; ambassador: boolean }[];
+      recent: { brand: string; kindName: string; status: string; paidPence: number; followers: number }[];
       why: string | null;
     };
   };
@@ -518,6 +529,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
       platform: { name: PLATFORM.name, offer: ch.platform?.status === "OFFERED" && ch.platform.season === season ? ch.platform.offerPence : null,
         active: exclusive(ch.platform, season), declined: ch.platform?.status === "DECLINED" && ch.platform.season === season },
       sponsor: await sponsorView(tx, root, ch.followers, tier),
+      partners: await partnersView(tx, root, tier),
     };
   }
 
@@ -539,6 +551,35 @@ export function createCareerStreamingService(database: CareerDatabase) {
       active: a ? { id: String(a.id), rung: Number(a.rung), brand: String(a.brand_name), what: what(Number(a.rung), String(a.brand_key)), weeklyPence: Number(a.weekly_pence),
         weeksPaid: Number(a.weeks_paid), weeksTotal: Number(a.weeks_total), paidPence: Number(a.paid_pence) } : null,
       why,
+    };
+  }
+
+  /** Brand partners: your slots, offers on the table (and any category clash), running deals, and the brands that know you. */
+  async function partnersView(tx: CareerExecutor, root: Root, tier: TierKey): Promise<StreamingView["business"]["partners"]> {
+    const rows = (await tx.execute(sql`SELECT * FROM career_stream_partner_deals WHERE career_save_id=${root.id} ORDER BY n DESC`)).rows;
+    const active = rows.filter(r => r.status === "ACTIVE"), slots = PARTNERS.slots[tier] ?? 0;
+    const headline = (await tx.execute(sql`SELECT brand_key, brand_name FROM career_stream_sponsors WHERE career_save_id=${root.id} AND status='ACTIVE' LIMIT 1`)).rows[0];
+    const cat = (c: unknown) => BRAND_CATEGORIES[c as BrandCategory] ?? String(c);
+    const cupName = (r: Record<string, unknown>) => r.cup_no ? `${r.brand_name} ${CUPS.names[Number(r.cup_no) - 1]}` : null;
+    const clash = (r: Record<string, unknown>) => {
+      const same = active.find(a => a.category === r.category);
+      if (same) return `You already have ${same.brand_name} for ${cat(r.category).toLowerCase()}`;
+      if (headline && brandByKey(String(headline.brand_key))?.category === r.category) return `${headline.brand_name}, your headline sponsor, is in that category`;
+      return active.length >= slots && r.kind !== "APPEARANCE" ? `Your ${slots} partner slot${slots === 1 ? " is" : "s are"} full` : null;
+    };
+    const trust = await brandTrust(tx, root.id);
+    return {
+      slots, used: active.length,
+      offers: rows.filter(r => r.status === "OFFERED").map(r => { const k = r.kind as DealKind; return { id: String(r.id), brand: String(r.brand_name), what: brandByKey(String(r.brand_key))?.what ?? "",
+        category: cat(r.category), kind: k, kindName: DEAL_KINDS[k].name, blurb: DEAL_KINDS[k].blurb, feePence: Number(r.fee_pence), weeks: Number(r.weeks_total),
+        followers: Number(r.followers), cup: cupName(r), expiresWeek: Number(r.week) + PARTNERS.offerWeeks - 1, clash: clash(r) }; }),
+      active: active.map(r => { const k = r.kind as DealKind; return { id: String(r.id), brand: String(r.brand_name), what: brandByKey(String(r.brand_key))?.what ?? "", category: cat(r.category),
+        kind: k, kindName: DEAL_KINDS[k].name, feePence: Number(r.fee_pence), weeksPaid: Number(r.weeks_paid), weeksTotal: Number(r.weeks_total), paidPence: Number(r.paid_pence), cup: cupName(r) }; }),
+      brands: [...trust].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([key, t]) => ({ brand: brandByKey(key)?.name ?? key, deals: t,
+        bonusPercent: Math.round(Math.min(PARTNERS.trustCap, t * PARTNERS.trustStep) * 100), ambassador: t >= PARTNERS.ambassadorTrust })),
+      recent: rows.filter(r => ["COMPLETED", "ENDED", "EXPIRED"].includes(String(r.status)) && r.kind !== undefined).slice(0, 5).map(r => ({ brand: String(r.brand_name),
+        kindName: DEAL_KINDS[r.kind as DealKind].name, status: String(r.status), paidPence: Number(r.paid_pence), followers: r.status === "COMPLETED" ? Number(r.followers) : 0 })),
+      why: slots === 0 ? "Brand partners work with channels from Affiliate" : active.length >= slots ? null : rows.some(r => r.status === "OFFERED") ? null : "Brands are looking: an offer every few weeks while you've a free slot",
     };
   }
 
@@ -958,6 +999,34 @@ export function createCareerStreamingService(database: CareerDatabase) {
         const closed = action === "ACCEPT" ? null : (Number(root.current_season) - 1) * 52 + Number(root.current_week);
         await tx.execute(sql`UPDATE career_stream_sponsors SET status=${action === "ACCEPT" ? "ACTIVE" : action === "DECLINE" ? "DECLINED" : "ENDED"}, closed_week=${closed}
           WHERE career_save_id=${root.id} AND id=${sponsorId}`);
+        return view(tx, root);
+      });
+    },
+    /** Answer a brand partner's offer (an appearance is done and paid there and then), or end a running deal early. */
+    async answerPartner(actor: CareerActor, saveId: string, dealId: string, body: unknown) {
+      const { action } = z.object({ action: z.enum(["ACCEPT", "DECLINE", "END"]) }).strict().parse(body);
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as unknown as Root;
+        if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
+        const row = (await tx.execute(sql`SELECT * FROM career_stream_partner_deals WHERE career_save_id=${root.id} AND id=${dealId}`)).rows[0];
+        if (!row) throw new CareerError(404, "Brand deal not found");
+        if (row.status !== (action === "END" ? "ACTIVE" : "OFFERED")) throw new CareerError(409, action === "END" ? "That deal isn't running" : "That offer has gone");
+        const season = Number(root.current_season), week = Number(root.current_week), abs = (season - 1) * 52 + week;
+        if (action === "ACCEPT") {
+          const v = await view(tx, root);
+          const clash = v.business.partners.offers.find(o => o.id === dealId)?.clash;
+          if (clash) throw new CareerError(409, clash);
+          if (row.kind === "APPEARANCE") {
+            await tx.execute(sql`UPDATE career_stream_partner_deals SET status='COMPLETED', weeks_paid=1, paid_pence=fee_pence, last_paid=${`${season}:${week}`}, closed_week=${abs}
+              WHERE career_save_id=${root.id} AND id=${dealId}`);
+            if (Number(row.fee_pence) > 0) await post(tx, root, { operationKey: `stream-partner:${dealId}:appearance`, category: "STREAM_INCOME", amountPence: Number(row.fee_pence),
+              reason: `${row.brand_name}: appearance`, season, week, detail: { partnerDealId: dealId, kind: "APPEARANCE" } });
+            await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${Number(row.followers)}::int WHERE career_save_id=${root.id}`);
+            return view(tx, root);
+          }
+        }
+        await tx.execute(sql`UPDATE career_stream_partner_deals SET status=${action === "ACCEPT" ? "ACTIVE" : action === "DECLINE" ? "DECLINED" : "ENDED"},
+          closed_week=${action === "ACCEPT" ? null : abs} WHERE career_save_id=${root.id} AND id=${dealId}`);
         return view(tx, root);
       });
     },
