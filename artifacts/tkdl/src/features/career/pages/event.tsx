@@ -3,7 +3,7 @@ import {CareerEventIdentity, CareerShirt} from "../identity";
 import {ContextHelp} from "../guidance";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, Coins, MapPin, Play, ShieldCheck, Swords, Ticket, Trophy, Users } from "lucide-react";
-import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, errorMessage } from "../api";
+import { useEnterEvent, useEvent, useEventFinance, useEventHistory, useQualification, usePresentation, useWithdrawEvent, useGuide, errorMessage } from "../api";
 import { eventCircuitLabel, denialLabel, eventDateLabel, eventLifecycle, eventMatchFormatLine, formatLabel, formatRuleLines, formatPence, listLabel, ordinal, roundName, routeLines, stageLabel, tierStyle, titleCase, TONES, isJuniorEvent, ageReason, viabilityText, worthIt } from "../model";
 import { CareerEmptyState, CareerError, CareerEventStakes, CareerLoading, CareerSection, ConfirmButton, Flag, JuniorBadge, Label, OSWALD, Segmented, StatusBadge, TierBadge } from "../components";
 import type { ShellContext } from "../shell";
@@ -49,6 +49,7 @@ export function EventView({ ctx, detail, palace }: { ctx: ShellContext; detail: 
         <span className="career-event-edition">SEASON <b>{e.season}</b></span>
       </header>
       {!palace && <Link href={`/career/${save.id}/calendar`} className="career-btn career-btn-ghost career-event-back"><ArrowLeft className="w-4 h-4" aria-hidden /> Calendar</Link>}
+      {!retired && <EventVerdict saveId={save.id} event={e} balancePence={save.balancePence} />}
       <section className="pdc-card overflow-hidden relative career-event-hero" style={{ borderColor: `${tier.accent}${tier.emphasis >= 4 ? "66" : "33"}`, ["--event-accent" as string]: tier.accent }}
         aria-label={`${e.name} at ${e.venue.name}`}>
         {/* The event's own venue art sits behind the title (decorative); the venue name stays in the text below. */}
@@ -433,4 +434,25 @@ function RankingTab({ saveId, detail, retired }: { saveId: string; detail: Event
       </div>
     </CareerSection>
   );
+}
+
+/** "Should I enter?" in one line: can you, can you afford it, is it worth it, does it fit your path. */
+function EventVerdict({ saveId, event: e, balancePence }: { saveId: string; event: EventDetail["event"]; balancePence: number }) {
+  const guide = useGuide(saveId);
+  if (["COMPLETED", "CANCELLED"].includes(e.status) || !e.human) return null;
+  const entered = e.human.entryStatus && e.human.entryStatus !== "WITHDRAWN";
+  const fits = !!guide.data?.path.circuits.includes(e.circuit), step = guide.data?.path.current?.title.toLowerCase();
+  const worth = worthIt(e.finance);
+  const cost = e.finance?.estimatedPlayerCostPence ?? 0;
+  let tone: "good" | "fair" | "poor" | "neutral", head: string;
+  if (entered) { tone = "good"; head = "You're entered."; }
+  else if (!e.human.canEnter) { tone = "poor"; head = `You can't enter: ${[...new Set(e.human.denials.map(denialLabel))].slice(0, 2).join(" · ")}.`; }
+  else if (cost > balancePence) { tone = "poor"; head = "You can't afford this one right now."; }
+  else if (worth?.tone === "good" || (fits && worth?.tone !== "poor")) { tone = "good"; head = fits ? "Good pick: it fits your path." : "Good pick."; }
+  else if (worth?.tone === "poor") { tone = "poor"; head = "Probably not worth it."; }
+  else { tone = "fair"; head = "Worth a go."; }
+  return <div className="career-event-verdict" data-tone={tone} role="note">
+    <b>{head}</b>
+    <span>{[worth?.label, fits && step && !entered ? `Moves you towards: ${step}.` : null].filter(Boolean).join(" ")}</span>
+  </div>;
 }

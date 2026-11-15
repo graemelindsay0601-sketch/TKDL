@@ -31,7 +31,7 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
       });
       // Events without the season overview (its read of every week ahead); today and waiting matches come from the cheap glance.
       const [cal, glance] = await Promise.all([
-        deps.calendar.calendar(actor, saveId, { scope: "RELEVANT", fromWeek: Math.max(1, root.week - 2), toWeek: Math.min(52, root.week + 4) }, { overview: false }),
+        deps.calendar.calendar(actor, saveId, { scope: "RELEVANT", fromWeek: Math.max(1, root.week - 6), toWeek: Math.min(52, root.week + 4) }, { overview: false }),
         deps.calendar.glance(actor, saveId)]);
       const overview = glance as Overview;
       const events = cal.events as GuideEvent[];
@@ -50,7 +50,7 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
         today: overview?.today ?? { week: root.week, dayOfWeek: 1, phase: "START_OF_WEEK" },
         facts: sponsors.facts ?? EMPTY_FACTS, sponsorTiers: sponsors.prospects ?? [], events,
         pendingMatch: pending ? { matchId: pending.matchId, eventId: pending.eventId, name: events.find(e => e.id === pending.eventId)?.name ?? "your event" } : null,
-        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, earningsPence: Number((goals as { context?: { earningsPence?: number } }).context?.earningsPence ?? 0),
+        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, missedWeeks: 6, earningsPence: Number((goals as { context?: { earningsPence?: number } }).context?.earningsPence ?? 0),
       });
     },
   };

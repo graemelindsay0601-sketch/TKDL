@@ -432,3 +432,12 @@
 .career-skip-warning__list { display:grid; gap:6px; margin:4px 0 10px; padding:0; list-style:none; font-size:14px; }
 .career-skip-warning__list b { color:#ecd084; margin-right:4px; }
 .career-skip-warning__quiet { display:flex; gap:8px; align-items:center; font-size:13px; color:#9fadb4; }
+/* Career details: one tab at a time (everything stays on the page; the tab decides what shows). */
+.career-details-tabs { display:flex; gap:6px; flex-wrap:wrap; }
+.career-details-tabs button { padding:7px 14px; border:1px solid #ffffff1f; border-radius:999px; background:#ffffff08; color:#c9d3da; font-weight:600; font-size:13.5px; }
+.career-details-tabs button[aria-pressed="true"] { border-color:#ecd084; background:#ecd0841c; color:#ffe9a8; }
+.career-home--details .home-more__summary { display:none; }
+.career-home--details[data-dtab="pathway"] [data-section]:not([data-section="pathway"]),
+.career-home--details[data-dtab="rankings"] [data-section]:not([data-section="rankings"]),
+.career-home--details[data-dtab="results"] [data-section]:not([data-section="results"]),
+.career-home--details[data-dtab="news"] [data-section]:not([data-section="news"]) { display:none; }

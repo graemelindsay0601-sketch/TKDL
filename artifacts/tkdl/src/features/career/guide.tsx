@@ -88,6 +88,8 @@ export function CareerGuide({ save, overview, children }: { save: CareerSave; ov
   </div>;
   if (!q.data) return null;
   const g = q.data, t = g.today;
+  // The guide keeps six weeks of missed chances (the results card after a long skip uses them); Today shows the last two.
+  const recentMissed = g.missed.filter(m => m.week >= t.week - 2);
   const showPicker = picking || (!dismissed && !asked(save.id) && g.path.focus === "OPEN_SCHEDULE");
   return <div className="career-guide">
     <Walkthrough saveId={save.id} />
@@ -120,12 +122,12 @@ export function CareerGuide({ save, overview, children }: { save: CareerSave; ov
 
     {!showPicker && <PathCard saveId={save.id} guide={g} onChange={() => setPicking(true)} />}
 
-    {(g.closing.length > 0 || g.missed.length > 0) && <section className="guide-card guide-chances" aria-labelledby="guide-chances-title">
+    {(g.closing.length > 0 || recentMissed.length > 0) && <section className="guide-card guide-chances" aria-labelledby="guide-chances-title">
       <h2 id="guide-chances-title"><AlertTriangle aria-hidden /> Don't miss out</h2>
       {g.closing.length > 0 && <><b className="guide-chances__label">Entries close this week</b>
         <ul>{g.closing.map(c => <li key={c.id}><Link href={c.href}>{c.name}</Link><small>{c.when}</small></li>)}</ul></>}
-      {g.missed.length > 0 && <><b className="guide-chances__label">You missed these (they fitted your path)</b>
-        <ul>{g.missed.map(m => <li key={m.id}><span>{m.name}</span><small>{m.when}</small></li>)}</ul>
+      {recentMissed.length > 0 && <><b className="guide-chances__label">You missed these (they fitted your path)</b>
+        <ul>{recentMissed.map(m => <li key={m.id}><span>{m.name}</span><small>{m.when}</small></li>)}</ul>
         <p className="guide-muted">Book ahead in the week planner so the next ones don't slip by.</p></>}
     </section>}
   </div>;

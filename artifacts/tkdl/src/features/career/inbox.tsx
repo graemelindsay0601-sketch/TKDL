@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from "react";
 import { Link } from "wouter";
 import { BellOff, Bell, CheckCircle2, Clock, Inbox as InboxIcon, Sparkles, Trophy, X } from "lucide-react";
-import { useInbox, useUpdateInbox, errorMessage, type InboxView } from "./api";
+import { useInbox, useUpdateInbox, useMilestones, useCareerLife, errorMessage, type InboxView } from "./api";
+import { milestoneLabel } from "./model";
 import { UNLOCKS, useUnlocks } from "./unlocks";
 import type { CareerSave } from "./types";
 import "./inbox.css";
@@ -81,6 +82,22 @@ export function InboxPage({ save }: { save: CareerSave }) {
           : <p className="career-inbox__note">Nothing here right now.</p>}
       </div>;
     })}
+    <RecentElsewhere saveId={save.id} />
     {update.error && <p role="alert">{errorMessage(update.error)}</p>}
   </section>;
+}
+
+/** Your recent career milestones and darts-world news (these used to sit in the Attention bell). */
+function RecentElsewhere({ saveId }: { saveId: string }) {
+  const milestones = useMilestones(saveId, 4), life = useCareerLife(saveId);
+  const ms = milestones.data?.milestones.slice(0, 4) ?? [], news = life.data?.news.slice(0, 4) ?? [];
+  if (!ms.length && !news.length) return null;
+  return <div className="career-inbox__group">
+    {ms.length > 0 && <><div className="career-inbox__group-head"><h2>Your milestones</h2></div>
+      <ul>{ms.map((m, i) => <li key={`${m.kind}-${m.season}-${i}`} className="career-inbox-item"><span className="career-inbox-item__icon" aria-hidden><Trophy /></span>
+        <div className="career-inbox-item__body"><b>{milestoneLabel(m).title}</b><p>Season {m.season}{m.week ? `, week ${m.week}` : ""}</p></div></li>)}</ul></>}
+    {news.length > 0 && <><div className="career-inbox__group-head"><h2>Darts world news</h2><Link href={`/career/${saveId}/stories`}>All stories</Link></div>
+      <ul>{news.map(n => <li key={n.id} className="career-inbox-item"><span className="career-inbox-item__icon" aria-hidden><Sparkles /></span>
+        <div className="career-inbox-item__body"><b>{n.title}</b></div></li>)}</ul></>}
+  </div>;
 }

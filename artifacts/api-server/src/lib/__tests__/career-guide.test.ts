@@ -77,3 +77,19 @@ test("make it pay: stages run on prize money and the pick is the best prize for 
   assert.equal(g.path.current?.progress, "£250 won so far");
   assert.equal(g.nextSteps.find(s => s.key.startsWith("path:"))?.action.enterEventId, "rich");
 });
+
+test("sensible picks: near and affordable first, a second night, no far-flung trips", () => {
+  const far = (id: string, dow: number) => ev(id, "GRASSROOTS", 10, dow, { finance: { estimatedPlayerCostPence: 19_000, travelBand: "UK_IRELAND" } });
+  const local = (id: string, dow: number) => ev(id, "GRASSROOTS", 10, dow, { finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const g = buildGuide(base({ events: [far("galway", 1), local("mon", 1), local("fri", 5)] }));
+  const picked = g.nextSteps.map(s => s.action.enterEventId).filter(Boolean);
+  assert.ok(!picked.includes("galway"), "never a flight for a pub night");
+  assert.ok(picked.includes("mon") && picked.includes("fri"), `two nights suggested: ${picked.join(",")}`);
+});
+
+test("missed ignores far events and nights you were busy", () => {
+  const done = (id: string, dow: number, band: string, rel = "AVAILABLE") => ev(id, "GRASSROOTS", 9, dow, { status: "COMPLETED", finance: { travelBand: band },
+    human: { canEnter: false, eligible: true, relationship: rel, denials: ["EVENT_FINISHED"] } });
+  const g = buildGuide(base({ events: [done("near", 5, "LOCAL"), done("abroad", 5, "EUROPE"), done("played", 2, "LOCAL", "COMPLETED"), done("same-night", 2, "LOCAL")] }));
+  assert.deepEqual(g.missed.map(m => m.id), ["near"]);
+});
