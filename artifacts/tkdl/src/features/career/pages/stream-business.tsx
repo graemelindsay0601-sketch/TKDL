@@ -23,6 +23,10 @@ export function BusinessSection({ saveId, d, retired }: { saveId: string; d: Str
       <button type="button" disabled={retired || platform.isPending} onClick={() => platform.mutate(true, { onSuccess: ok, onError: fail })}>Sign</button>
       <button type="button" className="sc-ghost" disabled={retired || platform.isPending} onClick={() => platform.mutate(false, { onSuccess: ok, onError: fail })}>Turn it down</button>
     </div>}
+    {b.dartsSponsors && <p className="sc-note">{b.dartsSponsors.premiumPercent > 0
+      ? <>Darts sponsors have noticed the channel: <b>+{b.dartsSponsors.premiumPercent}%</b> on the signing bonus of your darts-career sponsor offers.</>
+      : "Darts sponsors notice a big channel: from Partner, your darts-career sponsor offers come with a bigger signing bonus."}
+      {b.dartsSponsors.next ? ` ${TIER_NAME[b.dartsSponsors.next.tier]}: +${b.dartsSponsors.next.premiumPercent}%.` : ""}</p>}
     {b.platform.active && <p className="sc-note">You're exclusive to {b.platform.name} this season: no collabs, smaller rooms, the money's in the bank.</p>}
     {b.sponsor && <SponsorLadder s={b.sponsor} retired={retired} busy={sponsor.isPending}
       answer={(id, action) => sponsor.mutate({ id, action }, { onSuccess: ok, onError: fail })} />}

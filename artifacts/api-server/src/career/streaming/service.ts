@@ -20,7 +20,8 @@ import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, l
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { PLAQUES, STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { CREATOR_SPONSOR_PREMIUM, PRO_GUEST, proGuests } from "./career-links.ts";
+import { PLAQUES, TIER_ORDER, STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -85,6 +86,7 @@ export type StreamingView = {
       makeable: { clipId: string; title: string }[]; boostUsed: boolean; boostPence: number };
     podcast: { thisWeek: { guest: string; topic: string; listeners: number; followers: number; sponsorPence: number } | null;
       guests: { key: string; handle: string; followers: number; relationship: string; ok: boolean; why: string | null }[];
+      pros: { key: string; handle: string; rank: number | null; meetings: number; record: string; rival: boolean; ok: boolean; why: string | null }[];
       topics: { key: string; name: string; blurb: string }[]; episodes: number };
     watchAlongs: { eventId: string; name: string; tier: string; champion: string; done: boolean }[];
     sets: { key: string; name: string; blurb: string; costPence: number; bonusPercent: number; formats: string[]; owned: boolean }[];
@@ -95,6 +97,8 @@ export type StreamingView = {
     affiliate: { offer: { id: string; brand: string } | null; active: { id: string; brand: string; paidPence: number } | null; why: string | null };
     team: { role: string; name: string; blurb: string; wagePence: number; hired: boolean; available: boolean; why: string | null }[];
     platform: { name: string; offer: number | null; active: boolean; declined: boolean };
+    /** Darts sponsors notice a big channel: the extra on darts-career signing bonuses. */
+    dartsSponsors: { premiumPercent: number; next: { tier: string; premiumPercent: number } | null };
     sponsor: {
       rungs: { rung: number; name: string; blurb: string; minTier: TierKey; weeks: number; fans: number; status: "BANKED" | "CURRENT" | "NEXT" | "LOCKED"; brand: string | null }[];
       offer: { id: string; rung: number; brand: string; what: string; weeklyPence: number; weeks: number; expiresWeek: number } | null;
@@ -503,6 +507,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
           followers: Number(pod.followers), sponsorPence: Number(pod.sponsor_pence) } : null,
         guests: [...scene].sort((a, b) => Number(b.relationship !== "NEW") - Number(a.relationship !== "NEW") || Math.abs(Math.log(Math.max(1, a.followers) / Math.max(1, ch.followers))) - Math.abs(Math.log(Math.max(1, b.followers) / Math.max(1, ch.followers))))
           .slice(0, 8).map(c => { const a = guestAnswer(c.relationship, c.followers, ch.followers); return { key: c.key, handle: c.handle, followers: c.followers, relationship: c.relationship, ok: a.ok, why: a.why }; }),
+        pros: (await proGuests(tx, root.id, tierFor(ch.followers).key, tierAtLeast)).map(({ followers: _f, ...p }) => p),
         topics: PODCAST_TOPICS.map(t => ({ key: t.key, name: t.name, blurb: t.blurb })), episodes },
       watchAlongs: events.map(r => ({ eventId: String(r.id), name: String(r.name), tier: String(r.presentation_tier),
         champion: r.champ === "HUMAN" ? ch.handle : r.first_name ? `${r.first_name} ${r.surname}` : "the champion", done: r.done === true })),
@@ -532,6 +537,8 @@ export function createCareerStreamingService(database: CareerDatabase) {
       platform: { name: PLATFORM.name, offer: ch.platform?.status === "OFFERED" && ch.platform.season === season ? ch.platform.offerPence : null,
         active: exclusive(ch.platform, season), declined: ch.platform?.status === "DECLINED" && ch.platform.season === season },
       sponsor: await sponsorView(tx, root, ch.followers, tier),
+      dartsSponsors: { premiumPercent: Math.round((CREATOR_SPONSOR_PREMIUM[tier] ?? 0) * 100),
+        next: (() => { const k = TIER_ORDER.slice(TIER_ORDER.indexOf(tier) + 1).find(t => CREATOR_SPONSOR_PREMIUM[t]); return k ? { tier: k, premiumPercent: Math.round(CREATOR_SPONSOR_PREMIUM[k]! * 100) } : null; })() },
       partners: await partnersView(tx, root, tier),
     };
   }
@@ -887,14 +894,20 @@ export function createCareerStreamingService(database: CareerDatabase) {
         if (root.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
         const v = await view(tx, root);
         if (v.content.podcast.thisWeek) throw new CareerError(409, "One episode a week");
-        const g = v.scene.creators.find(c => c.key === guest);
-        if (!g) throw new CareerError(404, "That creator isn't on the scene");
-        const answer = guestAnswer(g.relationship, g.followers, v.followers);
-        if (!answer.ok) throw new CareerError(409, `${g.handle}: ${answer.why}`);
+        // A pro you've played (or a top-16 name once you're a Star), or a creator from the scene.
+        const pro = guest.startsWith("pro:") ? (await proGuests(tx, root.id, v.tier.key, tierAtLeast)).find(p => p.key === guest) : null;
+        if (guest.startsWith("pro:") && !pro) throw new CareerError(404, "That pro won't come on");
+        if (pro && !pro.ok) throw new CareerError(409, `${pro.handle}: ${pro.why}`);
+        const creator = pro ? null : v.scene.creators.find(c => c.key === guest);
+        if (!pro && !creator) throw new CareerError(404, "That creator isn't on the scene");
+        const answer = creator ? guestAnswer(creator.relationship, creator.followers, v.followers) : { ok: true, why: null };
+        if (!answer.ok) throw new CareerError(409, `${creator!.handle}: ${answer.why}`);
+        const g = pro ? { key: pro.key, handle: pro.handle, followers: pro.followers, rival: pro.rival } : { key: creator!.key, handle: creator!.handle, followers: creator!.followers, rival: creator!.relationship === "RIVAL" };
         const season = Number(root.current_season), week = Number(root.current_week);
-        const out = podcastOutcome(root.world_seed, `${root.id}:${season}:${week}`, v.followers, g.followers, topic, g.relationship === "RIVAL", v.tier.key);
-        await tx.execute(sql`INSERT INTO career_stream_podcasts (career_save_id, season, week, guest_key, guest_handle, topic, listeners, followers, sponsor_pence)
-          VALUES (${root.id}, ${season}, ${week}, ${g.key}, ${g.handle}, ${topic}, ${out.listeners}, ${out.followers}, ${out.sponsorPence})`);
+        const out = podcastOutcome(root.world_seed, `${root.id}:${season}:${week}`, v.followers, g.followers, topic, g.rival, v.tier.key);
+        const fans = pro ? Math.round(out.listeners * PRO_GUEST.fansPerListener) : 0;
+        await tx.execute(sql`INSERT INTO career_stream_podcasts (career_save_id, season, week, guest_key, guest_handle, topic, listeners, followers, sponsor_pence, fans)
+          VALUES (${root.id}, ${season}, ${week}, ${g.key}, ${g.handle}, ${topic}, ${out.listeners}, ${out.followers}, ${out.sponsorPence}, ${fans})`);
         await tx.execute(sql`UPDATE career_stream_channels SET followers = followers + ${out.followers}::int WHERE career_save_id=${root.id}`);
         if (topic === "QA") await tx.execute(sql`UPDATE career_stream_regulars SET loyalty = LEAST(100, loyalty + 3) WHERE career_save_id=${root.id} AND status='ACTIVE'`);
         if (out.sponsorPence > 0) await post(tx, root, { operationKey: `stream-podcast:${season}:${week}`, category: "STREAM_INCOME", amountPence: out.sponsorPence,

@@ -63,6 +63,9 @@ async function streamFans(tx: CareerExecutor, saveId: string) {
   if (plaquesSeen) for (const r of (await tx.execute(sql`SELECT p->>'season' AS season, p->>'fans' AS fans FROM career_stream_channels c, jsonb_array_elements(c.plaques) p
       WHERE c.career_save_id=${saveId}`)).rows)
     add(Number(r.season), Number(r.fans));
+  // A pro on your podcast too.
+  if (plaquesSeen) for (const r of (await tx.execute(sql`SELECT season, SUM(fans)::int AS n FROM career_stream_podcasts WHERE career_save_id=${saveId} GROUP BY season`)).rows)
+    add(Number(r.season), Number(r.n));
   return [...bySeason].filter(([, fans]) => fans > 0).map(([season, fans]) => ({ season, fans }));
 }
 

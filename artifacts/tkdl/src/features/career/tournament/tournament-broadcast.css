@@ -206,3 +206,8 @@
 .tb-roundup li{display:flex;gap:10px;align-items:baseline;font-size:14px}
 .tb-roundup__stage{flex:0 0 auto;min-width:96px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9fb0c8}
 .tb-roundup__upset span:last-child{color:#ffd24a}
+
+/* Your DartCast community in the hall at your walk-on. */
+.tb-walkon__chant { margin:10px auto 0; max-width:640px; padding:9px 14px; border:1px solid #e5bd6866; background:linear-gradient(90deg,#e5bd681a,transparent); color:#dfe6e8; font-size:13px; line-height:1.45; text-align:center; }
+.tb-walkon__chant b { color:#ffe08a; }
+.tb-walkon__chant i { color:#e5bd68; font-style:normal; font-family:"DM Mono",monospace; font-size:11px; }

@@ -1,3 +1,4 @@
+import { channelReach, walkOnCrowd } from "../streaming/career-links.ts";
 import {sql} from "drizzle-orm";
 import {z} from "zod";
 import {Router,type Request,type Response,type NextFunction} from "express";
@@ -169,6 +170,7 @@ export function createCareerTournamentService(database:CareerDatabase,calendar:C
           classification:event.classification,format:event.snapshot.format,executable:event.executable,fieldLocked:!!event.field_locked_at,drawLocked:!!event.drawn_at,
           venue:venueContent(event.venue_key),venueFallback:{city:event.city,country:event.country},content:meta,level,
           trophy:TROPHIES.find(t=>t.id===meta?.trophyId)??null,qualificationOutputs:event.snapshot.qualificationOutputs,qSchool:event.snapshot.qSchool??null},
+        dartcast:walkOnCrowd(await channelReach(tx,saveId),String(field.find(p=>p.key==="HUMAN")?.name??root.career_name)),
         presentation,depth:presentationDepth(level,presentation.mode,presentation.reducedMotion),phase,field,routes,matches,groups,history,
         nextMatchId:next?.status==="AWAITING_HUMAN"?next.id:null,session,latestMatch:latest,humanResult:result,results,
         groupBull:bull?{...bull,row:bull.row}:null,championKey:event.champion_participant_key,position,
