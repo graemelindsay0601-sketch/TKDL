@@ -36,7 +36,7 @@ import {
 } from "../../career/finance/sponsors.catalogue.ts";
 import { FINANCE_VERSION, PRIZE_PROFILES, PRIZE_PROFILES_V1, prizeForPosition, FEE_PROFILES } from "../../career/finance/config.ts";
 import { lockRoot } from "../../career/world/service.ts";
-import type { RootRow } from "../../career/calendar/engine.ts";
+import { GUEST_TOP_UP_FROM, type RootRow } from "../../career/calendar/engine.ts";
 import { HARNESS_SEED } from "../../career/world/harness.ts";
 import { DEFAULT_PROVIDERS } from "../../career/calendar/providers.ts";
 
@@ -673,7 +673,9 @@ test("a ranking win pays prize exactly once; losing early pays nothing", async (
 test("cancelled events refund entry once; unsupported events can never be charged", async () => {
   const save = await career();
   const list = await events(save.id, { scope: "AVAILABLE" });
-  const target = list.find(e => e.capability.executable && e.finance.entryFeePence > 0 && e.finance.travelBand === "LOCAL" && e.dates.startWeek >= 2 && !e.series)!;
+  // Only events from editions before guest top-ups can be left short (newer ones fill with club players and still run).
+  const cancellable = new Set((await rows(sql`SELECT id FROM career_event_instances WHERE career_save_id = ${save.id} AND event_database_version < ${GUEST_TOP_UP_FROM}`)).map(r => String(r.id)));
+  const target = list.find(e => cancellable.has(e.id) && e.capability.executable && e.finance.entryFeePence > 0 && e.finance.travelBand === "LOCAL" && e.dates.startWeek >= 2 && !e.series)!;
   await finance.calendar.enter(actor, save.id, { eventId: target.id });
   // Force an organiser cancellation (unfillable field) through A3's own lock path.
   await db.execute(sql`UPDATE career_event_instances SET minimum_entrants = 128 WHERE career_save_id = ${save.id} AND id = ${target.id}`);

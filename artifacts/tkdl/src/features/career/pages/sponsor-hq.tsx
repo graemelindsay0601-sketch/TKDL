@@ -85,11 +85,9 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
     </CareerPageHero>
     <SponsorProspects saveId={save.id}/>
 
-    <CareerSection title="Active sponsor portfolio" id="sponsor-portfolio" icon={<Briefcase size={15}/>} accent="#d8b669">
-      {portfolio.length===0?<div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5">
-        <h3 className="text-base text-white" style={OSWALD}>No sponsors yet</h3>
-        <p className="mt-1 text-sm text-white/55">Win events and climb the rankings and brands will start to notice you. Offers show up on your Finances page; once you sign one, its details, what it pays and anything it asks of you will be here.</p>
-      </div>:<div className="sponsor-hq__portfolio sponsor-hq__grid">{portfolio.map(contract=>{
+    {/* Empty sections are hidden: with no sponsors yet, "Who could sign you next" above is the whole story. */}
+    {portfolio.length>0&&<CareerSection title="Active sponsor portfolio" id="sponsor-portfolio" icon={<Briefcase size={15}/>} accent="#d8b669">
+      {<div className="sponsor-hq__portfolio sponsor-hq__grid">{portfolio.map(contract=>{
         const representative=contract.representative;
         const category=contract.category??"Partnership";
         const eventPayment=contract.terms.eventPayment;
@@ -122,7 +120,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
           </div> : <p className="sponsor-hq__no-event-cap">No per-event sponsor payment is included in this contract.</p>}
         </article>;
       })}</div>}
-    </CareerSection>
+    </CareerSection>}
 
     {!nothingYet&&<>
     <CareerSection title="Contract decisions" id="sponsor-decisions" icon={<FileSignature size={15}/>} accent="#69b8ec">
@@ -188,7 +186,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         </div>}
     </CareerSection>
 
-    <CareerSection title="Compliance and contract releases" icon={<ShieldCheck size={15}/>} accent="#5ee39b">
+    {(portfolio.length>0||(query.data.sponsorHQ?.notices??[]).length>0||(query.data.sponsorHQ?.releases??[]).length>0)&&<CareerSection title="Compliance and contract releases" icon={<ShieldCheck size={15}/>} accent="#5ee39b">
       <div className="sponsor-hq__body">
       <details className="career-note mb-3"><summary>When notices and releases apply</summary><p>Notices appear only when a required activity was genuinely missed and the signed agreement explicitly includes a material-breach term. Releases are limited to signed clauses; no existing agreement is changed.</p></details>
       <div className="grid gap-3 lg:grid-cols-2">
@@ -233,9 +231,9 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         </section>
       </div>
       </div>
-    </CareerSection>
+    </CareerSection>}
 
-    <CareerSection title="Contractual commitments and opportunities" id="sponsor-activities" icon={<CalendarCheck size={15}/>} accent="#eb8b59">
+    {activities.length>0&&<CareerSection title="Contractual commitments and opportunities" id="sponsor-activities" icon={<CalendarCheck size={15}/>} accent="#eb8b59">
       <div className="sponsor-hq__body">
       <details className="career-note mb-3"><summary>Duties and optional activities</summary><p>Required duties are included in the agreement. Optional activities are unpaid and declining them has no penalty.</p></details>
       {activities.length===0?<div className="rounded-lg border border-dashed border-white/15 p-5">
@@ -267,7 +265,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         </article>;
       })}</div>}
       </div>
-    </CareerSection>
+    </CareerSection>}
 
     <CareerSection title="Representative communications and sponsor history" id="sponsor-history" icon={<HistoryIcon size={15}/>} accent="#a98bff">
       {journeys.length===0&&history.length===0?<p className="rounded-lg border border-dashed border-white/15 p-4 text-sm text-white/55">Your talks with sponsors and past deals will show here.</p>:

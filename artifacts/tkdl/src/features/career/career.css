@@ -2076,3 +2076,20 @@
   .career-scorer-stage .x01-keypad-dock > button { min-height: 28px !important; }
   .career-scorer-stage .x01-player-grid svg { height: 48px !important; }
 }
+/* Career bar: replaces the app's bottom navigation inside a save (phones and tablets). */
+.career-bar { position:fixed; left:0; right:0; bottom:0; z-index:30; display:flex; padding-bottom:env(safe-area-inset-bottom,0px);
+  background:rgba(8,6,14,.97); border-top:1px solid #ff3d7f33; backdrop-filter:blur(20px); }
+.career-bar__item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:9px 0 8px;
+  border:0; background:none; color:rgba(255,255,255,.55); font:400 .6rem/1 Oswald,sans-serif; letter-spacing:.08em; text-transform:uppercase; position:relative; }
+.career-bar__item svg { width:20px; height:20px; }
+.career-bar__item[aria-current="page"] { color:#ff7aa8; font-weight:700; }
+.career-bar__item[aria-current="page"]::before { content:""; position:absolute; top:0; left:50%; width:32px; height:2px; margin-left:-16px; border-radius:2px; background:#ff3d7f; box-shadow:0 0 8px #ff3d7f; }
+@media (min-width:1024px) { .career-bar { display:none; } }
+.career-menu__exit { display:flex; align-items:center; gap:8px; margin-top:12px; padding:12px 14px; border:1px solid #ffffff22; border-radius:12px; color:#ffb3cb; font-weight:600; }
+.career-menu__exit svg { width:18px; height:18px; }
+/* Phones: the Career bar does the top-level destinations, so the section row only shows that section's pages. */
+@media (max-width:1023px) {
+  .career-navigation .career-primary-nav { display:none; }
+  .career-navigation:not(:has(.career-context-nav)) { display:none; }
+}
+.career-why-not { color:#ffb3a3; }

@@ -1,3 +1,5 @@
+import { Glossary } from "../glossary";
+import "../guide.css";
 import {useState} from "react";
 import {Link,useSearch} from "wouter";
 import {useWorldContent,useWorldMap,useWorldPlayers,useTrophyCabinet,usePresentation,useEditPresentation,useLaunchSignature,errorMessage} from "../api";
@@ -23,11 +25,11 @@ export function WorldPage({ctx,guide=false}:{ctx:ShellContext;guide?:boolean}) {
   if(world.error||!world.data)return <CareerError error={world.error} onRetry={()=>world.refetch()}/>;
   const d=world.data;
   return <div className={guide?"career-guide-page":"space-y-3"}>
-    {guide?<CareerPageHero kicker="Career Guide" title="How Career works" accent="#69b8ec" stage={{venue:{venueType:"conference"},eventClass:"PROFESSIONAL_TOUR"}}
+    {guide?<CareerPageHero kicker="Career Guide" title="How darts careers work" accent="#69b8ec" stage={{venue:{venueType:"conference"},eventClass:"PROFESSIONAL_TOUR"}}
       watermark={`${d.guide.length}`} subtitle={<p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p>}
       stats={[{label:"Guide topics",value:d.guide.length,tone:"gold"},{label:"Organisations",value:d.organisations.length},{label:"Circuits",value:d.circuits.length},{label:"Venues",value:d.venues.length}]}/>
     :<><h1>Darts World / Almanac</h1><p>Build a darts career your way. Professional darts is an opportunity, not a mandatory objective.</p></>}
-    {guide?<><CareerPathOverview saveId={ctx.save.id} headingId="career-guide-paths-title"/><GuidanceSettings saveId={ctx.save.id}/>
+    {guide?<><Glossary/><CareerPathOverview saveId={ctx.save.id} headingId="career-guide-paths-title"/><GuidanceSettings saveId={ctx.save.id}/>
       <div className="career-guide-grid">{d.guide.map((g,i)=><details className="career-guide-topic" key={g.id}><summary><span aria-hidden="true">{String(i+1).padStart(2,"0")}</span>{g.title}</summary><p>{publicText(g.body)}</p></details>)}</div></>:<>
       <CareerSection title="Organisations & circuits"><div className="p-4 space-y-2">{d.organisations.map(o=><p key={o.id}><strong>{o.shortName}</strong> — {o.name}: {o.role}</p>)}
         <p>{d.circuits.map(c=>c.name).join(" · ")}</p></div></CareerSection>

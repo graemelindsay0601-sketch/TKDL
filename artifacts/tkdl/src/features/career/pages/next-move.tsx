@@ -27,10 +27,12 @@ import { useCamLeague, useProAm, useRoadTrips, useStreaming, useTeamNights, useW
 const VALUE_RANK = { good: 0, fair: 1, neutral: 2, poor: 3 } as const;
 const valueRank = (e: CareerEvent) => VALUE_RANK[worthIt(e.finance)?.tone ?? "neutral"];
 
-export function NextMove({ save, overview, events, activeTournament, pendingReview, onEnter, entering, message }: {
+export function NextMove({ save, overview, events, activeTournament, pendingReview, onEnter, entering, message, embedded = false }: {
   save: CareerSave; overview: CalendarOverview | null; events: CareerEvent[];
   activeTournament: { eventId: string; name: string } | undefined; pendingReview: boolean;
   onEnter: (eventId: string) => void; entering: boolean; message: string;
+  /** Inside the Career Guide: the guide already says what's next, so this is just the week. */
+  embedded?: boolean;
 }) {
   const booked = overview?.nextHumanEntry ?? null;
   const go = useContinueCareer(save, booked);
@@ -62,12 +64,12 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
       {go.pending ? <Loader2 className="animate-spin" aria-hidden /> : <FastForward aria-hidden />} Play on to your match</button></Lead>;
 
   return (
-    <section className="next-move panel" aria-labelledby="next-move-title">
-      <div className="next-move__kicker"><span className="live-indicator" aria-hidden /> Play</div>
-      <h2 id="next-move-title" className="next-move__title">Your next move</h2>
+    <section id="week-planner" className="next-move panel" data-embedded={embedded || undefined} aria-labelledby="next-move-title">
+      {!embedded && <div className="next-move__kicker"><span className="live-indicator" aria-hidden /> Play</div>}
+      <h2 id="next-move-title" className="next-move__title">{embedded ? "This week" : "Your next move"}</h2>
       <CareerWelcome save={save} entered={!!booked} />
       <TourCardOffer saveId={id} />
-      {lead}
+      {!embedded && lead}
       {!match && !activeTournament && !pendingReview && <>
         <div className="next-move__subhead"><span>{booked ? "Add another event" : "Pick an event to play"}</span>
           <Link href={`/career/${id}/calendar`} className="next-move__link"><CalendarDays aria-hidden /> Full calendar</Link></div>

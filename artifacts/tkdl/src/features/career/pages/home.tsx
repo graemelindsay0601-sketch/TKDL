@@ -23,9 +23,10 @@ import { NextMove } from "./next-move";
 import type { ShellContext } from "../shell";
 import type { CareerEvent, QualificationEvent } from "../types";
 import "./home.css";
+import { CareerGuide } from "../guide";
 
 /** Career headquarters: the next decision is prominent; every fact is server-backed. */
-export function HomePage({ ctx }: { ctx: ShellContext }) {
+export function HomePage({ ctx, mode = "guide" }: { ctx: ShellContext; mode?: "guide" | "details" }) {
   const { save, retired } = ctx;
   const id = save.id;
   const sporting = useSporting(id);
@@ -58,12 +59,26 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
     onError: error => setMessage(errorMessage(error)),
   });
 
+  // Home is the Career Guide: today, what to do next, this week's planner, your path. The full dashboard is "Career details".
+  if (!retired && mode === "guide") return (
+    <main className="career-home career-home--guide">
+      <CareerGuide save={save}>
+        <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
+          onEnter={onEnter} entering={enter.isPending} message={message} embedded />
+      </CareerGuide>
+      <InboxStrip save={save} />
+      <nav className="career-home__explore" aria-label="More of your career">
+        <Link href={`/career/${id}/details`}>Career details<small>Rankings, results, news, your pathway</small></Link>
+        <Link href={`/career/${id}/calendar`}>Calendar<small>Every event this season</small></Link>
+        <Link href={`/career/${id}/local`}>Local nights<small>Practice, pub league, knockouts</small></Link>
+        <Link href={`/career/${id}/sponsors`}>Sponsor HQ<small>Who could sign you next</small></Link>
+        <Link href={`/career/${id}/streaming`}>DartCast<small>Your channel</small></Link>
+      </nav>
+      <ContextHelp saveId={id} topic="home" />
+    </main>
+  );
   return (
     <main className="career-home">
-      {/* Your next move comes first: the rest of Home is reference you can scroll to. */}
-      {!retired && <InboxStrip save={save} />}
-      {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
-        onEnter={onEnter} entering={enter.isPending} message={message} />}
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#c52842" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}

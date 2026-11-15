@@ -292,14 +292,14 @@ test("save selection: feature-gated 404 shows an honest unavailable state", () =
 // ---------------------------------------------------------------- home
 test("Career Home, new amateur: unranked, no Tour Card, self-funded, affordable Enter", () => {
   const s = save();
-  const t = text(render(h(M.HomePage, { ctx: ctx(s) }), homeSeed(s, [event({ name: "Newcastle Friday Night 501" })])));
+  const t = text(render(h(M.HomePage, { ctx: ctx(s), mode: "details" }), homeSeed(s, [event({ name: "Newcastle Friday Night 501" })])));
   for (const x of ["Next Up","Newcastle Friday Night 501", "Enter · £65", "Unranked", "No Tour Card", "Self-funded", "£250", "No entered commitments", "No results yet"]) assert.ok(t.includes(x), x);
 });
 
 test("Career Home: unaffordable next event says Cannot afford and offers no Enter", () => {
   const s = save();
   const e = event({ name: "Vault Qualifier", human: human({ canEnter: false, denials: ["INSUFFICIENT_FUNDS"] }), finance: { affordable: false, estimatedPlayerCostPence: 69000 } });
-  const html = render(h(M.HomePage, { ctx: ctx(s) }), homeSeed(s, [e]));
+  const html = render(h(M.HomePage, { ctx: ctx(s), mode: "details" }), homeSeed(s, [e]));
   assert.ok(text(html).includes("Cannot afford"));
   assert.ok(!/>\s*Enter/.test(html), "no Enter button");
 });
@@ -312,7 +312,7 @@ test("Career Home, ranked professional with sponsor and a pending match: real fi
   seed[calendarIndex] = [seed[calendarIndex][0], { overview: overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] }), season: 1, scope: "WORLD", events: [live] }];
   seed.push([key("event", live.id), eventDetail(live, { human: { nextMatch: { id: "m1", stage: "main", round: 1, roundName: "LAST_128", slot: 31, bestOf: 11, scheduledDay: 79,
     a: { key: "HUMAN", name: "You" }, b: { key: "npc", name: "Arno Auenberg" }, status: "AWAITING_HUMAN", winnerKey: null, legs: null, firstThrow: null, firstThrowMethod: "BULL_UP", resultSource: null, summary: null }, result: null } })]);
-  const html = render(h(M.HomePage, { ctx: ctx(s, overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] })) }), seed);
+  const html = render(h(M.HomePage, { ctx: ctx(s, overview({ week: 12, pendingHumanMatches: [{ matchId: "m1", eventId: live.id }] })), mode: "details" }), seed);
   const t = text(html);
   for (const x of ["42nd", "£14,690", "Active", "Ochre Darts Co.", "Your match is waiting", "Play match"]) assert.ok(t.includes(x), x);
   // Play match opens the same server-owned A6.5 session directly; never a client-reported result.
@@ -322,7 +322,7 @@ test("Career Home, ranked professional with sponsor and a pending match: real fi
 
 test("retired Career Home is read-only: no next-event hero, no Enter, no Continue", () => {
   const s = save({ status: "RETIRED", retiredAt: "2026-10-04T05:39:45Z" });
-  const html = render(h(M.HomePage, { ctx: ctx(s) }), homeSeed(s, [event()]));
+  const html = render(h(M.HomePage, { ctx: ctx(s), mode: "details" }), homeSeed(s, [event()]));
   const t = text(html);
   assert.ok(t.includes("Career record")||t.includes("Career record".replace("record","Record")));assert.ok(t.includes("Retired"));
   assert.ok(!/>\s*Enter/.test(html));
@@ -691,12 +691,12 @@ test("A8.3 navigation has five compact destinations and only the current section
 test("A8.3 Home prioritises an actual active tournament, then the mandatory season review",()=>{
   const active={tournaments:[{eventId:"active",name:"Fixture Open",terminal:false,phase:"MATCH_READY"}]};
   const seed=[...homeSeed(save(),[event({id:"opportunity"})]),[key("tournaments"),active]] as [unknown[],unknown][];
-  const html=render(h(M.HomePage,{ctx:ctx()}),seed);
+  const html=render(h(M.HomePage,{ctx:ctx(),mode:"details"}),seed);
   assert.match(text(html),/Next Up Tournament in progress Fixture Open Return to Tournament/);
   assert.match(html,/tournaments\/active/);
-  const reviewing=render(h(M.HomePage,{ctx:ctx()}),[...seed,[key("legacy-summary"),{pendingReview:1,recentReviews:[]}]]);
+  const reviewing=render(h(M.HomePage,{ctx:ctx(),mode:"details"}),[...seed,[key("legacy-summary"),{pendingReview:1,recentReviews:[]}]]);
   assert.match(text(reviewing),/Continue Season Review/);assert.doesNotMatch(text(reviewing),/Return to Tournament/);
-  browserScene("home",render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.HomePage,{ctx:ctx()})),seed));
+  browserScene("home",render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.HomePage,{ctx:ctx(),mode:"details"})),seed));
 });
 test("Career Home presents verified progression, eligibility and personal focus",()=>{
   const s=save();
@@ -709,7 +709,7 @@ test("Career Home presents verified progression, eligibility and personal focus"
     [key("milestones",12),{participantKey:"HUMAN",milestones:[{id:"ranking-entry",kind:"FIRST_RANKING_ENTRY",list_key:"pro-world",season:1,week:4,detail:{position:25}}]}],
     [key("goals"),goalsFixture()],
   ];
-  const html=render(h(M.HomePage,{ctx:ctx(s)}),seed);
+  const html=render(h(M.HomePage,{ctx:ctx(s),mode:"details"}),seed);
   const t=text(html);
   for(const label of ["Your next decision","The route ahead","Regional Championship","Top 32","Entry windows","Open Entry","Focus & goals","Latest milestones","First ranking entry","never give you rewards or shortcuts"]) assert.ok(t.includes(label),label);
   assert.ok(html.includes(`/career/${SAVE_ID}/calendar`));
@@ -794,10 +794,10 @@ test("A9 establishment copy is new-save-only; Career Calendar fixture remains bo
   const seed:[unknown[],unknown][]=[[key("calendar",{scope:"RELEVANT",fromWeek:1,toWeek:9}),{overview:overview(),events:[event()]}],
     [key("finance"),finance()],[key("sporting"),sporting()],[key("tournaments"),{tournaments:[]}],[key("legacy-summary"),{pendingReview:null,recentReviews:[]}],
     [key("guidance"),{mode:"GUIDED",dismissed:[],canEdit:false}]];
-  const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5}))}),seed);
+  const html=render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:5})),mode:"details"}),seed);
   assert.match(text(html),/Your first season/);assert.match(text(html),/Tour Card routes this season/);assert.match(text(html),/Turning professional is up to you/);
   assert.ok(html.indexOf("Your first season") < html.indexOf('class="home-more"'),"first-season guidance stays outside the collapsed Career details");
-  assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4}))}),seed)),/Your first season/);
+  assert.doesNotMatch(text(render(h(M.HomePage,{ctx:ctx(save({eventDatabaseVersion:4})),mode:"details"}),seed)),/Your first season/);
   if(process.env.A9_BROWSER_DIR){
     const q={scope:"WORLD",season:1,fromWeek:1,toWeek:9,circuit:undefined};
     const markup=render(h("div",{className:"career-root"},h(M.CareerNav,{saveId:SAVE_ID}),h(M.CalendarPage,{ctx:ctx()})),
@@ -847,7 +847,7 @@ test("Career Compass presents one selected ambition and evidence instead of a pr
   goals.mainGoalId="ambition-1";
   goals.goals=[{id:"ambition-1",definition:{type:"WIN_TITLE"},label:"Win a Career title",status:"ACTIVE",created:{season:1,week:1},
     progress:{current:0,target:1,unit:"achievement",note:null},completion:null,evidence:null}];
-  const html=render(h(M.HomePage,{ctx:ctx()}),[...homeSeed(save(),[event()]),[key("goals"),goals]]);
+  const html=render(h(M.HomePage,{ctx:ctx(),mode:"details"}),[...homeSeed(save(),[event()]),[key("goals"),goals]]);
   const t=text(html);
   assert.match(t,/Main ambition/);
   assert.match(t,/Win a Career title/);
@@ -954,6 +954,10 @@ test("Nights week plan sends booked items straight to their Career activity", ()
   assert.ok(page.includes('class="nights-live__day-link"'));
 });
 
+
+/** DartCast shows one studio area at a time: render every tab and read them together. */
+const STUDIO_TABS = ["overview", "programming", "audience", "cups", "big-nights", "content", "business", "community", "scene", "vault"];
+const allTabs = (seed: Parameters<typeof render>[1], url: string) => STUDIO_TABS.map(tab => text(render(h(M.StreamingPage, { ctx: ctx() }), seed, `${url}${url.includes("?") ? "&" : "?"}tab=${tab}`))).join(" ");
 test("DartCast channel: followers and the streamer route, nights to go live, and past streams", () => {
   const view = { community: { size: 1, target: 6, modSlots: 1, vipSlots: 2, mods: 0, vips: 0, modLoyalty: 60, vipLoyalty: 40, viewerBonusPercent: 0, recentlyLeft: [],
       members: [{ key: "r0", name: "DartDad77", persona: "HYPE", personaName: "Hype merchant", emoji: "🔥", loyalty: 70, streams: 9, role: "NONE", joinedSeason: 1, joinedWeek: 3, canMod: true, canVip: true }] },
@@ -976,7 +980,7 @@ test("DartCast channel: followers and the streamer route, nights to go live, and
     studio: { level: 0, name: "Kitchen table", audienceBonusPercent: 0, next: null, upgrades: [] },
     platform: { adsEligible: false, viewerMinutesThisMonth: 0, streamedWeeksThisMonth: 0, estimatedAdPence: 0, adRatePencePerThousandMinutes: 0, fullRateWeeks: 3 },
     creatorSeries: { selected: null, options: [], startedWeek: null, chapters: [], completed: 0, availableChapters: 0, finale: "NOT_STARTED" } };
-  const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
+  const t = allTabs([[key("streaming"), view]], `/career/${SAVE_ID}/streaming`);
   for (const fact of ["Dart Cast", "AyrDarts", "640", "FOLLOWERS", "Affiliate", "SHOWS", "14", "£184.50", "CAREER EARNED",
     "CHALLENGERS BEATEN", "Go live on Tue", "1 of 3 streams used this week",
     "360 more followers to Partner", "Stream vs OcheGremlin12", "41 peak", "+12", "£23.50",
@@ -1008,7 +1012,7 @@ test("DartCast channel money: subs that renew, a brand's offer to answer, and a 
     studio: { level: 0, name: "Kitchen table", audienceBonusPercent: 0, next: null, upgrades: [] },
     platform: { adsEligible: false, viewerMinutesThisMonth: 0, streamedWeeksThisMonth: 0, estimatedAdPence: 0, adRatePencePerThousandMinutes: 0, fullRateWeeks: 3 },
     creatorSeries: { selected: null, options: [], startedWeek: null, chapters: [], completed: 0, availableChapters: 0, finale: "NOT_STARTED" } };
-  const t = text(render(h(M.StreamingPage, { ctx: ctx() }), [[key("streaming"), view]], `/career/${SAVE_ID}/streaming`));
+  const t = allTabs([[key("streaming"), view]], `/career/${SAVE_ID}/streaming`);
   for (const fact of ["Channel money", "14", "active subscribers", "Week 12", "£17.50", "FlightDeck", "flights and stems", "£69", "/ STREAM", "Next 6 streams",
     "WEEK 13", "Take the deal", "No thanks", "Televised invitations are listed in your calendar",
     "Subscriber goal", "4", "10 subs", "Your promise · Throw in fancy dress", "You won the Invitational!", "£4,000", "RAISED FOR CHARITY ON STREAM", "£123.45",

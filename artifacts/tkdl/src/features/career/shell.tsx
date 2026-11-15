@@ -49,6 +49,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
       )}
       {header.error && !overview ? (errorStatus(header.error) === 409 && !retired ? <InitializeCareer saveId={saveId} /> : <CareerError error={header.error} onRetry={() => header.refetch()} />)
         : header.isLoading ? <CareerLoading label="Loading Career world" /> : <main id="career-content" tabIndex={-1}>{children({ save: save.data, overview, retired })}</main>}
+      {!/\/(matches|money-matches|road-trips)\/[^/]+\/play/.test(location) && <CareerBar save={save.data} />}
     </div>
   );
 }
@@ -126,7 +127,6 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
   // G1: the header stands on the player's real stage — club room as an amateur, the professional floor with a
   // Tour Card, archival grade once retired. Decorative only; nothing here names a venue or claims a result.
   const stage = resolveAtmosphere({ eventClass: save.hasTourCard ? "PROFESSIONAL_TOUR" : "GRASSROOTS" });
-  const [toolsOpen, setToolsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <header className="pdc-card career-hero career-hero--stage px-4 py-3 space-y-2.5">
@@ -137,7 +137,6 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
           <Link href="/career" className="p-2 -ml-2 rounded-lg hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ff005c]" aria-label="Back to Career saves">
             <ArrowLeft className="w-4 h-4" style={{ color: "rgba(255,255,255,0.62)" }} />
           </Link>
-          <Link className="career-header-home" href={`/career/${save.id}`}><House aria-hidden /><span>Overview</span></Link>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 whitespace-nowrap"><Label color="#3d8bff">TKDL</Label><Label color="#ff005c">Career</Label><Label>· Slot {save.slotNumber}</Label></div>
             <h1 className="font-black uppercase leading-tight break-words" style={{ ...OSWALD, fontSize: "clamp(1.3rem, 4.5vw, 2rem)", color: "#fff", letterSpacing: "0.04em" }}>
@@ -150,13 +149,12 @@ function CareerHeader({ save, overview, retired }: { save: CareerSave; overview:
         </div>
         {!retired && <AdvanceControl save={save} pendingEventId={pending[0]?.eventId ?? null} pendingMatchId={pending[0]?.matchId ?? null} pendingCount={pending.length} hubAction={!!overview?.pendingTournamentActions?.length} nextEntry={overview?.nextHumanEntry ?? null} />}
       </div>
-      {/* Phones: Attention and a "More" toggle; the rest of the tools open beneath it. */}
-      <div className="career-header-tools" data-open={toolsOpen || undefined}>
+      {/* Attention and the full Career menu. (Phones also have the Career bar at the bottom.) */}
+      <div className="career-header-tools">
         <CareerAttention saveId={save.id} season={save.currentSeason} week={save.currentWeek} retired={retired}/>
-        <button type="button" className="career-header-more" aria-expanded={toolsOpen} onClick={() => setToolsOpen(o => !o)}>{toolsOpen ? "Less" : "More"}</button>
-        <button type="button" className="career-sections-trigger" aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="Career sections"
-          onClick={() => setMenuOpen(true)}><LayoutGrid aria-hidden /><span>Career sections</span></button>
-         {!retired && <Link href={`/career/${save.id}/play`} className="career-header-play"><span className="career-header-play-icon" aria-hidden="true"><Gamepad2 /></span> Play mode</Link>}<WorldSearch saveId={save.id}/><Link href={`/career/${save.id}/guide`}>Career Guide</Link><Link href={`/career/${save.id}/health`}>Save health</Link></div>
+        <button type="button" className="career-sections-trigger" aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="Career menu"
+          onClick={() => setMenuOpen(true)}><LayoutGrid aria-hidden /><span>Menu</span></button>
+      </div>
       {menuOpen && <CareerMenu save={save} onClose={() => setMenuOpen(false)} />}
     </header>
   );
@@ -376,4 +374,28 @@ export function decodeCareerAttentionReadIds(raw:string|null):Set<string>{
 function readCareerAttention(saveId:string):Set<string>{
   try{return decodeCareerAttentionReadIds(localStorage.getItem(careerAttentionKey(saveId)));}
   catch{return new Set();}
+}
+
+/**
+ * Phones: inside a save, Career's own bar replaces the app's bottom navigation, so a stray tap never drops you out of
+ * your career. Leaving is deliberate: Menu, then Exit Career.
+ */
+function CareerBar({ save }: { save: CareerSave }) {
+  const [location] = useLocation();
+  const [menu, setMenu] = useState(false);
+  const base = `/career/${save.id}`, active = activeNavKey(location), layer = navLayerOf(active).layer;
+  const items: { key: string; label: string; href: string; icon: LucideIcon; on: boolean }[] = [
+    { key: "home", label: "Today", href: base, icon: House, on: layer === "HOME" },
+    { key: "calendar", label: "Calendar", href: `${base}/calendar`, icon: CalendarDays, on: layer === "CALENDAR" || layer === "MAP" },
+    { key: "nights", label: "Nights", href: `${base}/nights`, icon: Moon, on: layer === "NIGHTS" },
+    { key: "world", label: "World", href: `${base}/rankings`, icon: Globe2, on: layer === "DARTS_WORLD" },
+    { key: "career", label: "Career", href: `${base}/my-career`, icon: UserRound, on: layer === "MY_CAREER" },
+  ];
+  return <>
+    <nav className="career-bar" aria-label="Career">
+      {items.map(i => <Link key={i.key} href={i.href} className="career-bar__item" aria-current={i.on ? "page" : undefined}><i.icon aria-hidden /><span>{i.label}</span></Link>)}
+      <button type="button" className="career-bar__item" aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu(true)}><LayoutGrid aria-hidden /><span>Menu</span></button>
+    </nav>
+    {menu && <CareerMenu save={save} onClose={() => setMenu(false)} />}
+  </>;
 }

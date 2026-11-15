@@ -330,3 +330,18 @@ export type LiveSession = {
     facts: { human: { average: number; darts: number }; opponent: { average: number; darts: number } } };
   duplicate?: boolean;
 };
+
+/** GET /saves/:id/guide */
+export type GuideAction = { label: string; href?: string; enterEventId?: string };
+export type GuideFocus = "OPEN_SCHEDULE" | "AMATEUR_CIRCUIT" | "PROFESSIONAL_PATHWAY" | "MAJOR_QUALIFICATION" | "PRIZE_MONEY" | "DARTCAST_CREATOR";
+export type GuideView = {
+  today: { season: number; week: number; dayOfWeek: number; dayName: string; phase: "START_OF_WEEK" | "MID_WEEK"; headline: string; waitingOn: GuideAction[];
+    options: { id: string; name: string; detail: string; fits: boolean }[]; laterThisWeek: number };
+  path: { focus: GuideFocus; label: string; blurb: string; done: number; total: number;
+    stages: { key: string; title: string; unlocks: string; done: boolean; current: boolean; progress: string | null; how: string }[];
+    current: { key: string; title: string; unlocks: string; progress: string | null; how: string } | null };
+  paths: { key: GuideFocus; label: string; blurb: string }[];
+  nextSteps: { key: string; title: string; why: string; action: GuideAction; tone: "now" | "soon" | "tip" }[];
+  missed: { id: string; name: string; when: string; why: string }[];
+  closing: { id: string; name: string; when: string; href: string }[];
+};

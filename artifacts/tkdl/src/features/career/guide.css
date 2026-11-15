@@ -1,0 +1,57 @@
+.career-guide { display:grid; gap:12px; }
+.guide-card { padding:14px 16px; border:1px solid #ffffff1a; border-radius:14px; background:linear-gradient(180deg,#151b26f2,#0f141df2); color:#dfe6ec; }
+.guide-card h2 { display:flex; align-items:center; gap:8px; margin:0 0 6px; font:700 15px/1.2 "Oswald",sans-serif; letter-spacing:.04em; text-transform:uppercase; color:#fff; }
+.guide-card h2 svg { width:17px; height:17px; color:#ecd084; }
+.guide-card__head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.guide-muted { color:#9fadb4; font-size:12.5px; margin:4px 0 0; }
+.guide-link { padding:0; border:0; background:none; color:#ecd084; font-size:13px; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.guide-action { white-space:nowrap; }
+.guide-action svg { width:15px; height:15px; }
+.guide-msg { margin:8px 0 0; color:#bff0cf; font-size:13px; }
+.guide-today { border-color:#ff3d7f55; background:radial-gradient(120% 140% at 0% 0%,#ff3d7f22,transparent 60%),linear-gradient(180deg,#171c28,#10141d); }
+.guide-today__date { display:flex; align-items:center; gap:6px; margin:0; color:#ffb3cb; font:600 12px/1 "DM Mono",monospace; letter-spacing:.08em; text-transform:uppercase; }
+.guide-today__date svg { width:14px; height:14px; }
+.guide-today .guide-today__day { margin:6px 0 2px; font:800 30px/1.05 "Oswald",sans-serif; text-transform:none; letter-spacing:.01em; }
+.guide-today__day small { font:500 13px/1 Inter,sans-serif; color:#9fadb4; margin-left:6px; }
+.guide-today__headline { margin:0 0 8px; font-size:15px; color:#fff; }
+.guide-today__waiting { display:flex; flex-wrap:wrap; gap:8px; }
+.guide-today__tonight b { display:block; margin:8px 0 4px; font-size:12px; color:#ecd084; text-transform:uppercase; letter-spacing:.06em; }
+.guide-today__tonight ul, .guide-chances ul { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
+.guide-today__tonight li { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; background:#ffffff08; }
+.guide-today__tonight li small, .guide-chances li small { display:block; color:#9fadb4; font-size:12px; }
+.guide-steps ol { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.guide-steps li { display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:center; padding:10px; border-radius:10px; background:#ffffff07; border:1px solid #ffffff10; }
+.guide-steps li[data-tone="now"] { border-color:#ff3d7f66; background:#ff3d7f14; }
+.guide-steps li p { margin:2px 0 0; color:#9fadb4; font-size:12.5px; }
+.guide-steps__n { display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:#ecd08422; color:#ecd084; font:700 13px/1 "DM Mono",monospace; }
+@media (max-width:560px) { .guide-steps li { grid-template-columns:auto 1fr; } .guide-steps li .guide-action { grid-column:2; justify-self:start; } }
+.guide-path__bar { height:6px; border-radius:3px; background:#ffffff12; overflow:hidden; margin-top:4px; }
+.guide-path__bar span { display:block; height:100%; background:linear-gradient(90deg,#7ee0a1,#ecd084); }
+.guide-path__stages { display:grid; gap:6px; margin:10px 0 6px; padding:0; list-style:none; }
+.guide-path__stages li { display:grid; grid-template-columns:auto 1fr; gap:8px; align-items:start; color:#9fadb4; }
+.guide-path__stages li svg { width:17px; height:17px; margin-top:1px; }
+.guide-path__stages li[data-done] { color:#7ee0a1; }
+.guide-path__stages li[data-done] b { color:#bff0cf; font-weight:500; }
+.guide-path__stages li[data-current] { padding:8px 10px; border-radius:10px; background:#ecd08414; border:1px solid #ecd08444; color:#fff; }
+.guide-path__stages li[data-current] svg { color:#ecd084; }
+.guide-path__stages li p { margin:3px 0 0; font-size:13px; color:#dfe6ec; }
+.guide-path__progress { color:#ecd084 !important; font:600 12.5px "DM Mono",monospace !important; }
+.guide-picker p { margin:0 0 10px; color:#c9d3da; font-size:14px; }
+.guide-picker__grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px; margin-bottom:8px; }
+.guide-picker__option { display:grid; gap:4px; padding:10px 12px; border:1px solid #ffffff22; border-radius:10px; background:#ffffff08; color:#fff; text-align:left; cursor:pointer; }
+.guide-picker__option small { color:#9fadb4; font-size:12.5px; }
+.guide-picker__option[data-current] { border-color:#ecd084; }
+.guide-picker__option:hover { border-color:#ff3d7f; }
+.guide-chances__label { display:block; margin:6px 0 4px; font-size:12px; color:#ffb547; text-transform:uppercase; letter-spacing:.06em; }
+.guide-chances li { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid #ffffff0d; }
+.guide-chances li a { color:#ecd084; }
+.career-home__explore { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+.career-home__explore a { padding:10px 12px; border:1px solid #ffffff14; border-radius:10px; background:#ffffff06; color:#dfe6ec; font-size:13.5px; }
+.career-home__explore a small { display:block; color:#9fadb4; font-size:12px; }
+.career-glossary dl { display:grid; gap:8px; margin:6px 0 0; }
+.career-glossary dt { color:#ecd084; font-weight:600; font-size:14px; }
+.career-glossary dd { margin:2px 0 0; color:#c9d3da; font-size:13.5px; }
+.career-walkthrough { border-color:#7ee0a155; background:linear-gradient(180deg,#132019,#0f141d); }
+.career-walkthrough b { display:block; color:#fff; font-size:15px; }
+.career-walkthrough p { margin:4px 0 10px; color:#c9d3da; font-size:14px; }
+.career-walkthrough__nav { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
