@@ -56,11 +56,15 @@ export const nextTier = (followers: number) => STREAM.tiers.find(t => t.follower
 export const followersFromFans = (fans: number) => Math.floor(Math.max(0, fans) / 10);
 
 /** Viewers when you go live: followers who tune in, fans who drop by, more at the weekend and after a break. */
+export const STREAM_NEWCOMER_VIEWERS = 8, STREAM_NEWCOMER_UNTIL = 60;
 export function openingViewers(seed: string, streamKey: string, followers: number, fans: number, dayOfWeek: number, daysSinceLast: number | null) {
   const rng = scopedRandom(seed, STREAM.version, "stream-open", streamKey);
   const weekend = dayOfWeek >= 5 ? 1.3 : 1;
   const fresh = daysSinceLast === null ? 1.2 : Math.min(1.25, 0.85 + daysSinceLast * 0.06);
-  return Math.max(1, Math.round((2 + followers * 0.06 + Math.max(0, fans) * 0.005) * weekend * fresh * (0.85 + rng() * 0.3)));
+  // New channels: the platform shows newcomers to a few curious viewers, fading out as the channel finds its own audience
+  // (a scripted creator season grew ~3 followers a week from 2 viewers a stream: Affiliate took four months).
+  const newcomer = STREAM_NEWCOMER_VIEWERS * Math.max(0, 1 - followers / STREAM_NEWCOMER_UNTIL);
+  return Math.max(1, Math.round((2 + newcomer + followers * 0.06 + Math.max(0, fans) * 0.005) * weekend * fresh * (0.85 + rng() * 0.3)));
 }
 
 /**

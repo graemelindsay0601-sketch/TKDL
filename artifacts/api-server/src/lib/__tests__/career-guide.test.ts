@@ -115,3 +115,15 @@ test("when the next step isn't open, the guide says when and keeps you playing l
   assert.match(tip?.title ?? "", /entries open week 11|save up/);
   assert.ok(g.nextSteps.some(s => s.action.enterEventId === "pub"), "keeps playing locally meanwhile");
 });
+
+test("booked DartCast shows are named at the start of the week", () => {
+  const g = buildGuide(base({ streaming: { tierKey: "NEWCOMER", tierName: "Newcomer", followers: 3, nextTier: null, week: 10, scheduledNights: [1, 5, 7], streamsThisWeek: 0, perWeek: 3, live: null } }));
+  assert.match(g.nextSteps.find(s => s.key === "shows")?.title ?? "", /Mon, Fri, Sun/);
+});
+
+test("two suggestions in a week stay within a sensible spend together", () => {
+  const facts = { careerStarted: true, titles: 4, bestFinishByCircuit: { GRASSROOTS: 1, COUNTY: 2 }, qualifications: [], professionalStatus: "AMATEUR" as const, tourCard: false, worldRanking: null };
+  const ct = (id: string, dow: number) => ev(id, "CHALLENGER", 10, dow, { finance: { estimatedPlayerCostPence: 22_800, travelBand: "DOMESTIC" } });
+  const g = buildGuide(base({ facts, balancePence: 54_200, events: [ct("sat", 6), ct("sun", 7)] }));
+  assert.equal(g.nextSteps.filter(s => s.action.enterEventId).length, 1);
+});
