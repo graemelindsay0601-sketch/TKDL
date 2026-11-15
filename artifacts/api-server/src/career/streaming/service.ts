@@ -20,7 +20,7 @@ import { CUPS, bracket, cupField, cupOpponent, cupPrize, cupSize, cupThisWeek, l
 import { activeRegulars, arrivals, attendStream, communityChallenger, communityNightBonus, communityView, modViewerBonus, setRole, type CommunityView } from "./community.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { loadNpcs } from "../world/repository.ts";
-import { STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
+import { PLAQUES, STREAM, STREAM_MONEY, BRANDS, FORMATS, CREATOR_SERIES, creatorSeriesCollabFit, creatorSeriesFor, creatorSeriesEpisodeBonus, KING_ROUNDS, SUB_GOAL, CLIPS, COLLAB, clipFor, collabAnswer, collabBot, collabFollowers, STREAMERS, activeStreamers, CELEBRATION_MILESTONES, EXTRA_FORMATS, perWeekFor, EMOTES, COMMUNITY, emotePrefix, raidIn, STUDIO_UPGRADES, adRevenuePence, studioAudienceMultiplier, studioUpgradeForLevel, streamerFollowers, challengerFor, chatForDrillVisit, chatForMoment, chatForVisit, checkoutTargets, crowdFor, followersFromFans,
   formatByKey, INVITATIONAL, CHARITY, invitationalField, invitationalOpponent, invitationalPrize, nextTier, openingViewers, pollFor, scoringTarget, streamIncome, tierFor, type ChatEvent, type ClipKind, type StreamFormat, type Tally, type TierKey } from "./model.ts";
 
 type Root = { id: string; world_seed: string; current_season: number | string; current_week: number | string; status: string; career_name?: string | null; settings_snapshot?: Record<string, unknown> };
@@ -114,6 +114,7 @@ export type StreamingView = {
   awards: { seasons: { season: number; results: { award: string; name: string; winner: string; nominees: string[]; youNominated: boolean; youWon: boolean }[] }[]; trophies: number; nextAt: number };
   marathons: { subathon: { open: boolean; why: string | null }; marathon: { open: boolean; why: string | null; targetPence: number } };
   season: number; week: number; currentWeek: number; handle: string; followers: number; tier: { key: TierKey; name: string; perks: string };
+  plaques: { key: string; name: string; followers: number; fans: number; earned: { season: number; week: number } | null }[];
   next: { name: string; followers: number; perks: string } | null; tiers: { key: string; name: string; followers: number; perks: string; reached: boolean }[];
   streamsThisWeek: number; perWeek: number; freeNights: number[]; live: string | null;
   pathway: { focus: "OPEN" | "DARTCAST" | "CREATOR"; weeklyFrequency: number; scheduledNights: number[] };
@@ -166,13 +167,14 @@ async function channel(tx: CareerExecutor, root: Root) {
   if (row) return { handle: String(row.handle), followers: Number(row.followers), subscribers: Number(row.subscribers ?? 0), studioLevel: Number(row.studio_level ?? 0),
     pollPick: (row.poll_pick as StreamFormat | null) ?? null, subGoal: (row.sub_goal as Omit<SubGoal, "progress" | "endsWeek"> | null) ?? null,
     emotes: ((row.emotes as (string | null)[] | null) ?? []), celebrated: Number(row.celebrated ?? 0), sets: ((row.sets as string[] | null) ?? []),
-    team: ((row.team as string[] | null) ?? []), platform: (row.platform as PlatformDeal | null) ?? null };
+    team: ((row.team as string[] | null) ?? []), platform: (row.platform as PlatformDeal | null) ?? null,
+    plaques: ((row.plaques as { key: string; season: number; week: number }[] | null) ?? []) };
   const fans = Math.max(0, (await fansForEffects(tx, root.id)) ?? 0);
   const name = String((await tx.execute(sql`SELECT career_name FROM career_saves WHERE id=${root.id}`)).rows[0]?.career_name ?? "Darts").replace(/[^A-Za-z0-9]/g, "").slice(0, 16) || "Darts";
   const handle = `${name}Darts`, followers = followersFromFans(fans);
   await tx.execute(sql`INSERT INTO career_stream_channels (career_save_id, handle, followers) VALUES (${root.id}, ${handle}, ${followers}) ON CONFLICT DO NOTHING`);
   return { handle, followers, subscribers: 0, studioLevel: 0, pollPick: null, subGoal: null, emotes: [] as (string | null)[], celebrated: 0, sets: [] as string[],
-    team: [] as string[], platform: null as PlatformDeal | null };
+    team: [] as string[], platform: null as PlatformDeal | null, plaques: [] as { key: string; season: number; week: number }[] };
 }
 
 const dealFrom = (r: Record<string, unknown>): Deal => ({ id: String(r.id), brand: String(r.brand_name), what: BRANDS.find(b => b.key === r.brand_key)?.what ?? "a brand",
@@ -309,7 +311,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const lastFormat = (ended[0]?.format as StreamFormat | undefined) ?? null;
     const collabbed = new Set((await tx.execute(sql`SELECT DISTINCT challenger->'streamer'->>'key' AS k FROM career_streams WHERE career_save_id=${root.id} AND season=${season} AND format='COLLAB'`)).rows.map(r => String(r.k)));
     const clips = (await tx.execute(sql`SELECT * FROM career_stream_clips WHERE career_save_id=${root.id} ORDER BY (status='VIRAL') DESC, views DESC, season DESC, week DESC LIMIT 8`)).rows;
-    const partner = tier.key === "PARTNER" || tier.key === "STAR";
+    const partner = tierAtLeast(tier.key, "PARTNER");
     const monthStart=(monthOf(week)-1)*STREAM_MONEY.monthWeeks+1;
     const monthStreams=ended.filter(r=>Number(r.season)===season&&Number(r.week)>=monthStart&&Number(r.week)<=week&&r.format!=="CHARITY");
     const streamedWeeksThisMonth=new Set(monthStreams.map(r=>Number(r.week))).size;
@@ -412,6 +414,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
     const business = await businessView(tx, root, ch, tier.key, season);
     return { community, emotes, cups, celebration, marathons, awards, content, business, scene, season, week, currentWeek, handle: ch.handle, followers: ch.followers, tier: { key: tier.key, name: tier.name, perks: tier.perks },
       next: next ? { name: next.name, followers: next.followers, perks: next.perks } : null,
+      plaques: PLAQUES.map(p => { const e = ch.plaques.find(x => x.key === p.key); return { key: p.key, name: p.name, followers: p.followers, fans: p.fans, earned: e ? { season: e.season, week: e.week } : null }; }),
       tiers: STREAM.tiers.map(t => ({ key: t.key, name: t.name, followers: t.followers, perks: t.perks, reached: ch.followers >= t.followers })),
       streamsThisWeek: nights.filter(r => Number(r.season) === season && Number(r.week) === week).length, perWeek: perWeekFor(root.settings_snapshot),
       freeNights: root.status === "ACTIVE" ? await freeNights(tx, root, week) : [], live: rows.find(r => r.status === "LIVE" && r.format !== "MATCH")?.id as string ?? null,
@@ -432,7 +435,7 @@ export function createCareerStreamingService(database: CareerDatabase) {
       subscribers: ch.subscribers, renewsWeek: monthOf(week) * STREAM_MONEY.monthWeeks,
       dealOffer: offer ? dealFrom(offer) : null, deal: deal ? dealFrom(deal) : null,
       campaignOffer:campaignOffer?campaignFrom(campaignOffer):null,campaign:activeCampaign?campaignFrom(activeCampaign):null,
-      invitations: tier.key === "STAR",
+      invitations: tierAtLeast(tier.key, "STAR"),
       invitational: (() => {
         const played = rows.find(r => r.format === "INVITATIONAL" && Number(r.season) === season && r.status === "ENDED");
         const wins = played ? ((played.rounds as StreamSession["rounds"]) ?? []).filter(r => r.result === "WON").length : 0;

@@ -64,7 +64,7 @@ export function BusinessSection({ saveId, d, retired }: { saveId: string; d: Str
   </section>;
 }
 
-const TIER_NAME: Record<string, string> = { NEWCOMER: "Newcomer", AFFILIATE: "Affiliate", PARTNER: "Partner", STAR: "Star" };
+const TIER_NAME: Record<string, string> = { NEWCOMER: "Newcomer", AFFILIATE: "Affiliate", PARTNER: "Partner", STAR: "Star", ICON: "Icon", LEGEND: "Legend" };
 const RUNG_ICON = [Store, Briefcase, BadgePercent, Award];
 
 /** The sponsor ladder: one headline sponsor at a time, local backer to signature range. */

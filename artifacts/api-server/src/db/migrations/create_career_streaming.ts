@@ -150,4 +150,6 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, n))`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS team jsonb NOT NULL DEFAULT '[]'::jsonb`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS platform jsonb`);
+  // Creator plaques won (silver, gold, diamond), each with the season and week it arrived.
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS plaques jsonb NOT NULL DEFAULT '[]'::jsonb`);
 }

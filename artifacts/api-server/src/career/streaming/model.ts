@@ -21,6 +21,8 @@ export const STREAM = Object.freeze({
     { key: "AFFILIATE", name: "Affiliate", followers: 50, perks: "Earn platform ad revenue; viewers can cheer with bits and send super chats." },
     { key: "PARTNER", name: "Partner", followers: 1000, perks: "Add paid fan memberships (£2.50 a month, half to you) and brand opportunities." },
     { key: "STAR", name: "Star", followers: 25000, perks: "A household name in darts streaming: the biggest audiences and the biggest tips." },
+    { key: "ICON", name: "Icon", followers: 100000, perks: "One of the faces of darts streaming: a silver plaque, a bigger community, more brand partners and bigger cup prizes." },
+    { key: "LEGEND", name: "Legend", followers: 500000, perks: "The biggest name the scene has: a gold plaque, the largest community, the most brand partners and the richest cups." },
   ] as const,
   /** A pound of bits is 100 bits; DartCast keeps half of every subscription. */
   subPence: 250, subShare: 0.5,
@@ -34,6 +36,19 @@ export const STUDIO_UPGRADES = Object.freeze([
 export const studioUpgradeForLevel = (level: number) => STUDIO_UPGRADES.find(item => item.level === level) ?? null;
 export const studioAudienceMultiplier = (level: number) => 1 + (studioUpgradeForLevel(level)?.audienceBonus ?? 0);
 export type TierKey = typeof STREAM.tiers[number]["key"];
+/** The tiers in order, and whether a channel's tier is at least another (Icon and Legend count as Star and above). */
+export const TIER_ORDER: readonly TierKey[] = STREAM.tiers.map(t => t.key);
+export const tierAtLeast = (tier: TierKey, min: TierKey) => TIER_ORDER.indexOf(tier) >= TIER_ORDER.indexOf(min);
+/**
+ * Creator plaques: the platform's thank-you for a follower milestone, once each. A plaque goes on the channel's wall and
+ * wins fans for your darts career too.
+ */
+export const PLAQUES = [
+  { key: "SILVER", name: "Silver plaque", followers: 100_000, fans: 500 },
+  { key: "GOLD", name: "Gold plaque", followers: 500_000, fans: 1_500 },
+  { key: "DIAMOND", name: "Diamond plaque", followers: 1_000_000, fans: 4_000 },
+] as const;
+export type PlaqueKey = typeof PLAQUES[number]["key"];
 export const tierFor = (followers: number) => [...STREAM.tiers].reverse().find(t => followers >= t.followers)!;
 export const nextTier = (followers: number) => STREAM.tiers.find(t => t.followers > followers) ?? null;
 
@@ -171,7 +186,7 @@ export function chatForMoment(seed: string, streamKey: string, index: number, mo
       supers += pence; events.push({ kind: "SUPERCHAT", user: someone(), pence, text: pick(rng, ["What a player. Keep it up!", "Watching from the pub, cheers mate", "Get that tour card!", "Best darts stream going", "One more leg!"]) });
     }
   }
-  if ((tier === "PARTNER" || tier === "STAR") && rng() < Math.min(0.3, 0.02 + room * 0.1 + lift * 0.06)) {
+  if (tierAtLeast(tier, "PARTNER") && rng() < Math.min(0.3, 0.02 + room * 0.1 + lift * 0.06)) {
     subs++; events.push({ kind: "SUB", user: someone(), months: 1 + Math.floor(rng() * 6) });
   }
   // Follows: a share of the room on every visit, and a big moment wins one or two even in a tiny room; whole follows carry over.
@@ -245,7 +260,7 @@ export function brandFor(seed: string, season: number, n: number) {
 }
 /** Stars get invitations to televised invitationals; nobody streams their way into a national team. */
 export const streamerCanBeInvited = (tier: TierKey | null, event: { circuit: string; definitionKey: string; takesInvitations: boolean }) =>
-  tier === "STAR" && event.takesInvitations && event.circuit === "INVITATIONAL" && !NOT_FOR_SALE.has(event.definitionKey);
+  tier !== null && tierAtLeast(tier, "STAR") && event.takesInvitations && event.circuit === "INVITATIONAL" && !NOT_FOR_SALE.has(event.definitionKey);
 
 /**
  * Stream formats. Each draws its own crowd: King of the Oche (viewer after viewer until one beats you) pulls the most, the
@@ -291,7 +306,7 @@ export const EXTRA_FORMATS = ["MATCH", "CUP"] as const;
 export const perWeekFor = (settings: unknown) =>
   (settings as { careerPathway?: { focus?: string } } | null | undefined)?.careerPathway?.focus === "CREATOR" ? STREAM.creatorPerWeek : STREAM.perWeek;
 /** Follower milestones that earn a celebration stream (once each). */
-export const CELEBRATION_MILESTONES = [100, 1000, 10000, 100000] as const;
+export const CELEBRATION_MILESTONES = [100, 1000, 10000, 100000, 500000, 1000000] as const;
 const COLLAB_FORMAT = { key: "COLLAB", name: "Collab", blurb: "A match against another streamer, on both channels.", crowd: 1 } as const;
 const SPECIAL_FORMATS = {
   COLLAB: COLLAB_FORMAT,
@@ -477,9 +492,9 @@ export const PERSONAS = {
 export type Persona = keyof typeof PERSONAS;
 export const COMMUNITY = Object.freeze({
   /** How many regulars a channel of each tier keeps. */
-  size: { NEWCOMER: 3, AFFILIATE: 6, PARTNER: 15, STAR: 30 } as Record<TierKey, number>,
-  modSlots: { NEWCOMER: 0, AFFILIATE: 1, PARTNER: 3, STAR: 5 } as Record<TierKey, number>,
-  vipSlots: { NEWCOMER: 0, AFFILIATE: 2, PARTNER: 5, STAR: 10 } as Record<TierKey, number>,
+  size: { NEWCOMER: 3, AFFILIATE: 6, PARTNER: 15, STAR: 30, ICON: 40, LEGEND: 50 } as Record<TierKey, number>,
+  modSlots: { NEWCOMER: 0, AFFILIATE: 1, PARTNER: 3, STAR: 5, ICON: 7, LEGEND: 9 } as Record<TierKey, number>,
+  vipSlots: { NEWCOMER: 0, AFFILIATE: 2, PARTNER: 5, STAR: 10, ICON: 15, LEGEND: 20 } as Record<TierKey, number>,
   modLoyalty: 60, vipLoyalty: 40, startLoyalty: 25,
   /** Loyalty for catching a show, and lost each week after `graceWeeks` without a stream (mods lose half). */
   attend: 6, decay: 5, graceWeeks: 2,

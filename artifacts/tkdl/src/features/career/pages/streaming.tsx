@@ -271,6 +271,10 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
           <section className="growth-map">
             <div className="growth-copy"><span className="eyebrow">04 / CHANNEL GROWTH</span><h2>A long game.<br /><em>Your own pace.</em></h2><p>Another way up in darts: build an audience. You’re {d.tier.name.toLowerCase()} today; {d.next ? `${(d.next.followers - d.followers).toLocaleString("en-GB")} more followers to ${d.next.name}.` : "you have reached the top tier."}</p></div>
             <div className="growth-steps">{d.tiers.map((tier, i) => <div className={`growth-step ${tier.reached ? "reached" : ""}`} key={tier.key}><span className="step-index">0{i + 1}</span><div className="step-info"><div><b>{tier.reached && <Check aria-hidden />} {tier.name}</b><small>{tier.followers ? `${tier.followers.toLocaleString("en-GB")} followers` : "Start here"}</small></div><p>{tier.perks}</p></div></div>)}</div>
+            {d.plaques && <div className="plaque-wall" aria-label="Creator plaques">{d.plaques.map(p => <div className={`plaque plaque-${p.key.toLowerCase()} ${p.earned ? "earned" : ""}`} key={p.key}>
+              <span className="plaque-disc" aria-hidden><Play fill="currentColor" /></span>
+              <div><b>{p.name}</b><small>{p.earned ? `Arrived S${p.earned.season} wk ${p.earned.week} · +${p.fans.toLocaleString("en-GB")} fans` : `${p.followers.toLocaleString("en-GB")} followers`}</small></div>
+            </div>)}</div>}
           </section>
           <section className="production-vault" id="vault">
             <div className="section-heading"><div><span className="eyebrow">05 / PRODUCTION VAULT</span><h2>Moments worth keeping</h2></div><span className="heading-meta">CLIPS · COLLABS · REPLAYS</span></div>

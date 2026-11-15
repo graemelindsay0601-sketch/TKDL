@@ -18,7 +18,7 @@ export const CONTENT = Object.freeze({
   vodFollowersPerThousand: 6,
   shortBase: { MAX: 900, BIG_FINISH: 1400, BIG_FISH: 3000, NINE: 9000, BOBS_BULL: 1100 } as Record<ClipKind, number>,
   shortFollowersPerThousand: 14, shortPencePerThousand: 20, boostPence: 2_000, boostReach: 2.5,
-  podcastListenersShare: 0.06, podcastGuestShare: 0.01, podcastSponsorPence: { NEWCOMER: 0, AFFILIATE: 0, PARTNER: 3_000, STAR: 12_000 } as Record<TierKey, number>,
+  podcastListenersShare: 0.06, podcastGuestShare: 0.01, podcastSponsorPence: { NEWCOMER: 0, AFFILIATE: 0, PARTNER: 3_000, STAR: 12_000, ICON: 25_000, LEGEND: 50_000 } as Record<TierKey, number>,
   watchAlongCrowd: 1.4,
 });
 

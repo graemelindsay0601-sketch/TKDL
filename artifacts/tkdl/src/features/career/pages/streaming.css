@@ -1121,3 +1121,20 @@
 .dc-chat__badge { display:inline-block; margin-right:4px; padding:0 4px; border-radius:3px; font:700 .62rem/1.5 system-ui, sans-serif; font-style:normal; vertical-align:1px; }
 .dc-chat__badge[data-role="MOD"] { background:#12403d; color:#7ff0e8; }
 .dc-chat__badge[data-role="VIP"] { background:#4d3a0a; color:#ffe08a; }
+
+/* Creator plaques */
+.plaque-wall { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; grid-column:1 / -1; margin-top:14px; }
+.plaque { display:flex; gap:10px; align-items:center; padding:12px; border:1px solid #ffffff12; background:#0f1a23; opacity:.55; }
+.plaque.earned { opacity:1; }
+.plaque div { display:grid; gap:2px; min-width:0; }
+.plaque b { color:#ecf0f0; font:700 13px "Space Grotesk",sans-serif; }
+.plaque small { color:#9fadb4; font:500 10px "DM Mono",monospace; letter-spacing:.04em; }
+.plaque-disc { display:grid; flex:none; place-items:center; width:38px; height:38px; border-radius:50%; color:#0f1a23; }
+.plaque-disc svg { width:14px; height:14px; }
+.plaque-silver .plaque-disc { background:linear-gradient(135deg,#f4f6f8,#9aa6ad); }
+.plaque-gold .plaque-disc { background:linear-gradient(135deg,#ffe08a,#b8872c); }
+.plaque-diamond .plaque-disc { background:linear-gradient(135deg,#e6fbff,#7fd0e8 55%,#c8b8ff); }
+.plaque.earned.plaque-silver { border-color:#c9d1d6; }
+.plaque.earned.plaque-gold { border-color:#e5bd68; background:linear-gradient(160deg,#3a2c0c,#141a20); }
+.plaque.earned.plaque-diamond { border-color:#9fe3f2; }
+@media (max-width: 620px) { .plaque-wall { grid-template-columns:1fr; } }

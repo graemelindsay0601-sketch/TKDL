@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { post } from "../finance/ledger.ts";
 import { scopedRandom, stableUuid } from "../world/random.ts";
-import { CLIP_OF_WEEK, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
+import { CLIP_OF_WEEK, PLAQUES, STREAM, STREAM_MONEY, adRevenuePence, brandFor, clipOutcome, creatorSeriesFor, dealFee, goalBonus, renewals, subPayout, tierFor, type ClipKind, type TierKey } from "./model.ts";
 import { settleCommunity } from "./community.ts";
 import { holdAwards } from "./awards.ts";
 import { CONTENT, shortOutcome, vodPence, vodViews } from "./content.ts";
@@ -38,7 +38,7 @@ type Root = { id: string; world_seed: string };
  */
 export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season: number, week: number) {
   if (!await ready(tx)) return;
-  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through, sub_goal, team, platform, emotes FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
+  const ch = (await tx.execute(sql`SELECT followers, subscribers, renewed_through, sub_goal, team, platform, emotes, plaques FROM career_stream_channels WHERE career_save_id=${root.id}`)).rows[0];
   if (!ch) return;
   const month = `${season}:${week}`;
   // The month's sub goal: hit it and the buzz wins followers; either way it's settled once.
@@ -69,6 +69,10 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   const team = (ch.team as string[] | null) ?? [];
   await settleContent(tx, root, season, week, Number(ch.followers), team.includes("EDITOR"));
   await settleBusiness(tx, root, season, week, ch);
+  // Creator plaques: once each, the week the channel passes the milestone.
+  const have = new Set(((ch.plaques as { key: string }[] | null) ?? []).map(p => p.key));
+  const won = PLAQUES.filter(p => Number(ch.followers) >= p.followers && !have.has(p.key)).map(p => ({ key: p.key, season, week, fans: p.fans }));
+  if (won.length) await tx.execute(sql`UPDATE career_stream_channels SET plaques = plaques || ${JSON.stringify(won)}::jsonb WHERE career_save_id=${root.id}`);
   // Clip of the Week: DartCast's weekly vote. Your best clip of the week is in it; win and the spotlight brings followers.
   const already = (await tx.execute(sql`SELECT 1 FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week} AND clip_of_week LIMIT 1`)).rows.length > 0;
   const best = already ? undefined : (await tx.execute(sql`SELECT id, status, views FROM career_stream_clips WHERE career_save_id=${root.id} AND season=${season} AND week=${week}
@@ -119,7 +123,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
   const averageViewers=audienceVisits>0?audienceMinutes/(audienceVisits*STREAM_MONEY.adMinutesPerVisit):0;
   await settleSponsorLadder(tx, root, season, week, followers, averageViewers, ((ch.team as string[] | null) ?? []).includes("MANAGER"));
   await settlePartners(tx, root, season, week, followers, averageViewers, ((ch.team as string[] | null) ?? []).includes("MANAGER"));
-  if(tier==="PARTNER"||tier==="STAR"){
+  if(tierAtLeast(tier, "PARTNER")){
     const campaignOpen=(await tx.execute(sql`SELECT 1 FROM career_stream_campaigns WHERE career_save_id=${root.id}
       AND status IN ('OFFERED','ACTIVE','IN_PROGRESS') LIMIT 1`)).rows.length>0;
     const campaignMonthStart=Math.floor((week-1)/STREAM_MONEY.monthWeeks)*STREAM_MONEY.monthWeeks+1;
@@ -146,7 +150,7 @@ export async function settleStreamingWeek(tx: CareerExecutor, root: Root, season
           ${requiredFormat},${brief},${payout},'OFFERED',${series?.key??null}) ON CONFLICT DO NOTHING`);
     }
   }
-  if (tier !== "PARTNER" && tier !== "STAR") return;
+  if (!tierAtLeast(tier, "PARTNER")) return;
   const open = (await tx.execute(sql`SELECT 1 FROM career_stream_deals WHERE career_save_id=${root.id} AND status IN ('OFFERED','ACTIVE') LIMIT 1`)).rows.length > 0;
   const thisSeason = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_stream_deals WHERE career_save_id=${root.id} AND season=${season}`)).rows[0].n);
   if (open || thisSeason >= STREAM_MONEY.dealsPerSeason || week > 46) return;
@@ -247,7 +251,7 @@ async function settleBusiness(tx: CareerExecutor, root: Root, season: number, we
   }
   // The platform offer: a Star gets one in week 20 each season (unless already exclusive).
   const p = ch.platform as { status?: string; season?: number } | null;
-  if (tier === "STAR" && week === PLATFORM.offerWeek && p?.season !== season)
+  if (tierAtLeast(tier, "STAR") && week === PLATFORM.offerWeek && p?.season !== season)
     await tx.execute(sql`UPDATE career_stream_channels SET platform=${JSON.stringify({ status: "OFFERED", season, offerPence: platformOfferPence(followers) })}::jsonb
       WHERE career_save_id=${root.id}`);
   if (p?.status === "OFFERED" && p.season === season && week > PLATFORM.offerWeek + 2)
