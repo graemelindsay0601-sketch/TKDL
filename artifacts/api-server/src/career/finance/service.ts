@@ -1,3 +1,4 @@
+import { sponsorProspects } from "./sponsor-prospects.ts";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
@@ -548,6 +549,8 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
             status: SPONSOR_GUARANTEE_CONFIGURATION_STATUS,
             catalogueVersion: CURRENT_SPONSOR_DATABASE_VERSION,
           },
+          // Who could sign you next, tier by tier, and what they want (offers still arrive by themselves).
+          prospects: sponsorProspects(sporting, active.map(a => String(a.tier))),
           active: active[0]?presentContract(active[0]):null, activeContracts:active.map(presentContract),
           pendingContracts:contracts.filter(c=>c.status==="SCHEDULED").map(presentContract),portfolioLimit:portfolioLimit(sporting),
           commercial: {

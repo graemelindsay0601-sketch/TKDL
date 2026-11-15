@@ -1,3 +1,4 @@
+import { SponsorProspects } from "../sponsor-prospects";
 import { useMemo, useState, type CSSProperties } from "react";
 import { Link } from "wouter";
 import { Briefcase, CalendarCheck, FileSignature, History as HistoryIcon, ShieldCheck } from "lucide-react";
@@ -82,6 +83,7 @@ export function SponsorHQPage({ctx}:{ctx:ShellContext}){
         <Link href={`/career/${save.id}/history`}>Commercial legacy</Link>
       </nav>
     </CareerPageHero>
+    <SponsorProspects saveId={save.id}/>
 
     <CareerSection title="Active sponsor portfolio" id="sponsor-portfolio" icon={<Briefcase size={15}/>} accent="#d8b669">
       {portfolio.length===0?<div className="rounded-lg border border-dashed border-white/15 bg-black/10 p-5">

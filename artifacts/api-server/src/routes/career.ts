@@ -77,7 +77,7 @@ router.use(createCareerClubRouter(createCareerClubService(db), createCareerTeamN
   createCareerCountyTrialService(db), createCareerLocalCompetitionService(db)));
 const money = createCareerMoneyService(db), streaming = createCareerStreamingService(db);
 router.use(createCareerMoneyRouter(money));
-router.use(createCareerInboxRouter(createCareerInboxService(db, { calendar: sporting.calendar, streaming, money })));
+router.use(createCareerInboxRouter(createCareerInboxService(db, { calendar: sporting.calendar, streaming, money, sponsors: sporting.finance })));
 router.use(createCareerHostingRouter(createCareerHostingService(db)));
 router.use(createCareerStreamingRouter(streaming));
 router.use(createCareerRoadTripRouter(createCareerRoadTripService(db)));

@@ -12,6 +12,7 @@ import { TourCardOffer } from "./road";
 import { LastWeekMoney } from "../week-money";
 import { SavingsGoalLine } from "../savings-goal";
 import { PlanMyWeek } from "../plan-week";
+import { NextSponsorLine } from "../sponsor-prospects";
 import { MoneyChallengeLine } from "../money-matches";
 import { RoadVisitorLine } from "../road-trips";
 import { TeamNightLine } from "../team-nights";
@@ -70,17 +71,21 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
       {!match && !activeTournament && !pendingReview && <>
         <div className="next-move__subhead"><span>{booked ? "Add another event" : "Pick an event to play"}</span>
           <Link href={`/career/${id}/calendar`} className="next-move__link"><CalendarDays aria-hidden /> Full calendar</Link></div>
-        <LastWeekMoney saveId={id} currentWeek={save.currentWeek} />
-        <SavingsGoalLine saveId={id} />
-        <MoneyChallengeLine saveId={id} />
-        <RoadVisitorLine saveId={id} />
-        <TeamNightLine saveId={id} week={save.currentWeek} />
-        <NightsLine saveId={id} week={save.currentWeek} save={save} />
+        {/* The week first: pick a day, and that day's events are right underneath. */}
         <WeekPlanner saveId={id} events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan} />
-        {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
-        {enterable.length ? <div className="next-move__events">
+        {enterable.length ? <div className="next-move__events" aria-label={plan.day ? `Events you can enter on ${dayLabel(plan.day)}` : `Events you can enter in week ${planWeek}`}>
           {enterable.map(e => <CareerEventCard key={e.id} event={e} saveId={id} compact onEnter={onEnter} entering={entering} />)}
-        </div> : <p className="next-move__empty">{open.length ? `Nothing you can enter ${plan.day ? `on ${dayLabel(plan.day)}` : "that week"}. Pick another day or week.` : "Nothing you can enter in the next few weeks. Skip ahead and new entries will open."}</p>}
+        </div> : <WhyNothing saveId={id} events={events} week={planWeek} day={plan.day} anyOpen={open.length > 0} currentWeek={save.currentWeek} onNextWeek={() => setPlan({ week: Math.min(52, planWeek + 1), day: null })} />}
+        {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
+        <div className="next-move__lines" aria-label="This week at a glance">
+          <NextSponsorLine saveId={id} />
+          <LastWeekMoney saveId={id} currentWeek={save.currentWeek} />
+          <SavingsGoalLine saveId={id} />
+          <MoneyChallengeLine saveId={id} />
+          <RoadVisitorLine saveId={id} />
+          <TeamNightLine saveId={id} week={save.currentWeek} />
+          <NightsLine saveId={id} week={save.currentWeek} save={save} />
+        </div>
         {message && <p className="next-move__message" role="status">{message}</p>}
         {!booked && <button type="button" className="career-btn career-btn-ghost next-move__skip" disabled={go.pending || go.blocked} onClick={() => { void go.run(); }}>
           {go.pending ? <Loader2 className="animate-spin" aria-hidden /> : <FastForward aria-hidden />} Skip ahead to the next date</button>}
@@ -163,6 +168,7 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
       options.push({ label: "Plan a road trip", href: `${activityHref("trip")}${query}` });
     if (proAm.data?.week === week && proAm.data.nights.some(n => n.dayOfWeek === d && n.free))
       options.push({ label: "Book a Pro-Am night", href: `${activityHref("proam")}${query}` });
+    if (week === currentWeek) options.push({ label: "A local night (practice, pub league, knockout)", href: `/career/${saveId}/local` });
     return options;
   };
   const onDay = (d: number) => {
@@ -202,11 +208,13 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
             <div>{mine.map(e => <Link key={`event:${e.id}`} href={`/career/${saveId}/events/${encodeURIComponent(e.id)}`}>{e.name}<small>{e.dates.endDay > dayNumber ? ` · through ${dayLabel(((e.dates.endDay - 1) % 7) + 1)}` : " · booked"}</small></Link>)}
               {activities.map(item => <Link key={`${item.kind}:${item.id}`} href={activityHref(item.kind)}>{item.label}<small> · open activity</small></Link>)}
               {!mine.length && !activities.length ? <span className="week-planner__agenda-empty">No event booked</span> : null}
-              {options.length > 0 && <small>{options.length} event option{options.length === 1 ? "" : "s"} to review below</small>}
-              {!mine.length && !activities.length && activityOptions(d).length > 0 && <div className="week-planner__book-options" aria-label={`Activities available on ${dayLabel(d)}`}>
-                <b>Book something this day</b>
-                {activityOptions(d).map(option => <Link key={option.label} href={option.href}>{option.label}<small> · {dayLabel(d)} selected</small></Link>)}
-              </div>}
+              {options.length > 0 && <button type="button" className="week-planner__see" onClick={() => onPick({ week, day: d })}>{options.length} event{options.length === 1 ? "" : "s"} you can enter{day === d ? " (shown below)" : ": show them"}</button>}
+              {!mine.length && !activities.length && activityOptions(d).length > 0 && (day === d
+                ? <div className="week-planner__book-options" aria-label={`Activities available on ${dayLabel(d)}`}>
+                  <b>Or do something else this night</b>
+                  {activityOptions(d).map(option => <Link key={option.label} href={option.href}>{option.label}</Link>)}
+                </div>
+                : <span className="week-planner__also">Free night: {activityOptions(d).map((option, i) => <span key={option.label}>{i ? " · " : ""}<Link href={option.href}>{option.label}</Link></span>)}</span>)}
             </div>
           </div>;
         })}
@@ -216,4 +224,26 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick }: {
         : "Nothing booked this week yet."}{day ? <> · showing {dayLabel(day)} <button type="button" className="week-planner__clear" onClick={() => onPick({ week, day: null })}>show all</button></> : null}</p>
     </div>
   );
+}
+
+const DENIAL_WHY: Record<string, string> = { INSUFFICIENT_FUNDS: "you don't have enough money free", REGISTRATION_NOT_OPEN: "entries haven't opened yet",
+  SCHEDULE_CONFLICT: "you're already booked", REGISTRATION_CLOSED: "entries have closed", FIELD_FULL: "the field is full", NOT_ELIGIBLE: "you're not eligible" };
+/** When nothing can be entered: say why (from the events' own denials) and what to do instead. */
+function WhyNothing({ saveId, events, week, day, anyOpen, currentWeek, onNextWeek }: { saveId: string; events: CareerEvent[]; week: number; day: number | null; anyOpen: boolean;
+  currentWeek: number; onNextWeek: () => void }) {
+  const inWeek = events.filter(e => e.dates.startWeek === week && (day === null || e.dates.startDayOfWeek === day));
+  const allPlayed = inWeek.length > 0 && inWeek.every(e => e.status === "COMPLETED" || e.status === "CANCELLED");
+  const there = events.filter(e => e.dates.startWeek === week && (day === null || e.dates.startDayOfWeek === day) && e.human && !e.human.canEnter
+    && !["COMPLETED", "CANCELLED"].includes(e.status) && e.human.eligible);
+  const counts = new Map<string, number>();
+  for (const e of there) for (const d of e.human!.denials ?? []) if (DENIAL_WHY[d]) counts.set(d, (counts.get(d) ?? 0) + 1);
+  const top = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 2);
+  const opens = Math.min(99, ...there.filter(e => (e.human!.denials ?? []).includes("REGISTRATION_NOT_OPEN")).map(e => e.registration?.opensWeek ?? 99).filter(w => w > currentWeek));
+  const where = day ? `on ${dayLabel(day)}` : `in week ${week}`;
+  return <div className="next-move__empty next-move__why">
+    <p>{allPlayed && !top.length ? <>{day ? `${dayLabel(day)}'s` : "This week's"} events have all been played. <button type="button" className="week-planner__see" onClick={onNextWeek}>Look at week {week + 1}</button> or play on.</> : top.length ? <>Nothing you can enter {where}: {top.map(([k, n]) => `${n} because ${DENIAL_WHY[k]}`).join("; ")}{counts.has("REGISTRATION_NOT_OPEN") ? (opens < 99 ? ` (entries open in week ${opens})` : " (entries open once you play on)") : ""}.</>
+      : anyOpen ? `Nothing you can enter ${where}. Pick another day or week.` : "Nothing you can enter in the next few weeks. Skip ahead and new entries will open."}</p>
+    <p className="next-move__why-tips">{counts.has("INSUFFICIENT_FUNDS") ? "Short of money? Free local events, local nights (practice, the pub league, the knockout) and money matches at your club cost little or nothing. " : ""}
+      <Link href={`/career/${saveId}/local`}>Local nights</Link> · <Link href={`/career/${saveId}/calendar`}>Full calendar</Link></p>
+  </div>;
 }

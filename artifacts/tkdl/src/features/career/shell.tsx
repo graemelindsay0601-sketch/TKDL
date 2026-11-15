@@ -2,11 +2,11 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { DobPicker } from "./dob-picker";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, FastForward, Loader2, Lock, Swords, House, Map, CalendarDays, Globe2, UserRound, Bell, X,
-  Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, Moon, Shield, Coins, Car, Star, Video, Radio, type LucideIcon } from "lucide-react";
+  Activity, BookOpen, Gamepad2, Briefcase, Landmark, LayoutGrid, ListOrdered, Medal, ScrollText, Sparkles, Trophy, Users, Newspaper, Moon, Shield, Coins, Car, Star, Video, Radio, Inbox, Beer, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCalendar, useCareerSave, useSaveLifecycle, useLiveSession, useCareerProfile, useSetCareerProfile, usePresentation, useCareerLegacySummary, useActiveTournament, useFinance, useCareerLife, useSporting, useStreaming, errorMessage, errorStatus } from "./api";
 import { UNLOCKS, useUnlocks, type UnlockKey } from "./unlocks";
-import { useInboxUnread } from "./inbox";
+import { useInboxFresh } from "./inbox";
 import { CAREER_NAV, dayLabel, milestoneLabel, activeNavKey, navLayerOf, weekLabel, ageOnDate, HOME_REGIONS, MINIMUM_CAREER_START_AGE, registrationAlerts } from "./model";
 import { CareerError, CareerLoading, Label, OSWALD, SeasonProgress } from "./components";
 import type { CareerSave, CalendarOverview } from "./types";
@@ -240,6 +240,7 @@ const DESTINATIONS: Record<string, { icon: LucideIcon | typeof DartboardIcon; ac
 };
 const SUB_ICONS: Record<string, LucideIcon> = {
   rankings: ListOrdered, players: Users, "world-events": Trophy, venues: Landmark, "world-history": ScrollText,
+  home: House, inbox: Inbox, local: Beer,
   nights: Moon, club: Shield, "money-matches": Coins, "road-trips": Car, "pro-am": Star, "cam-league": Video, streaming: Radio,
   overview: LayoutGrid, performance: Activity, achievements: Medal, "career-life": Sparkles, history: BookOpen, sponsors: Briefcase,
 };
@@ -248,7 +249,6 @@ export function CareerNav({ saveId, save }: { saveId: string; save?: CareerSave 
   const contextNav = useRef<HTMLDivElement>(null);
   // Unlock as you go: Nights Out extras are listed once they're useful (their pages still open from any link).
   const unlocks = useUnlocks(save ?? { id: saveId, currentSeason: 99, status: "ACTIVE" });
-  const inboxUnread = useInboxUnread(save && save.status === "ACTIVE" ? save : undefined);
   const listed = (key: string) => !(UNLOCKS as readonly { key: string }[]).some(u => u.key === key) || unlocks.isOpen(key as UnlockKey);
   const active = activeNavKey(location);
   const layer = navLayerOf(active);
@@ -268,7 +268,6 @@ export function CareerNav({ saveId, save }: { saveId: string; save?: CareerSave 
             aria-current={current ? (section.items.length === 1 ? "page" : "true") : undefined}>
             {current && <img className="career-nav-plate" src={plate.src} alt="" aria-hidden="true" loading="lazy" decoding="async" onError={e => { e.currentTarget.style.display = "none"; }} />}
             <span className="career-destination-icon" aria-hidden><Icon size={18}/></span>
-            {section.layer === "HOME" && inboxUnread > 0 && <span className="career-nav-inbox-badge" aria-label={`${inboxUnread} new in your inbox`}>{inboxUnread > 9 ? "9+" : inboxUnread}</span>}
             <span className="career-nav-label-full">{section.label}</span>
             <span className="career-nav-label-short">{section.layer === "DARTS_WORLD" ? "World" : section.layer === "MY_CAREER" ? "Career" : section.layer === "NIGHTS" ? "Nights" : section.label}</span>
           </Link>
@@ -296,6 +295,7 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
   useEffect(()=>setReadIds(readCareerAttention(saveId)),[saveId]);
   const t=useActiveTournament(saveId),seasonReview=useCareerLegacySummary(saveId),finance=useFinance(saveId,open),life=useCareerLife(saveId,open),sporting=useSporting(saveId,open);
   const entryCalendar=useCalendar(saveId,{scope:"AVAILABLE",season,fromWeek:week,toWeek:Math.min(52,week+1)},open&&!retired);
+  const inbox=useInboxFresh({id:saveId,currentSeason:season,currentWeek:week,status:retired?"RETIRED":"ACTIVE"});
   const active=t.data?.tournaments.find(x=>!x.terminal),base=`/career/${saveId}`;
   const entryWindows=retired?[]:registrationAlerts(entryCalendar.data?.events??[],season,week);
   const actions=!retired?[...(active?[{title:`Return to ${active.name}`,path:`${base}/tournaments/${active.eventId}`}]:[]),
@@ -311,7 +311,8 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
     ...milestones.map(m=>`milestone:${m.kind}:${m.season}`),
     ...news.map(n=>`news:${n.id}`),
   ];
-  const unreadCount=itemIds.filter(id=>!readIds.has(id)).length;
+  // One badge: Attention's own items plus anything new in the inbox (the inbox tracks its own read state).
+  const unreadCount=itemIds.filter(id=>!readIds.has(id)).length+inbox.length;
   const markRead=(ids:string[])=>setReadIds(previous=>{
     const next=new Set(previous);ids.forEach(id=>next.add(id));
     try{localStorage.setItem(careerAttentionKey(saveId),JSON.stringify([...next].slice(-200)));}catch{/* Per-device convenience; the panel still works when storage is unavailable. */}
@@ -342,6 +343,12 @@ export function CareerAttention({saveId,season,week,retired=false}:{saveId:strin
           {entryWindows.slice(0,3).map(e=>{const id=`entry:${e.id}`;return <Link key={e.id} className="is-action" data-read={readIds.has(id)||undefined} data-testid={`link-registration-alert-${e.id}`} href={`${base}/events/${encodeURIComponent(e.id)}`} onClick={()=>markRead([id])}><CalendarDays size={14} aria-hidden/><span>{e.name}<small>Entry closes {e.registration.closesWeek===week?"this week":"next week"}</small></span></Link>;})}
           {entryWindows.length>3&&<Link href={`${base}/calendar`}>View all {entryWindows.length} entry windows</Link>}
           {!actionCount&&<p>{finance.isLoading||entryCalendar.isLoading?"Checking pending decisions and entry windows…":"No pending action reported."}</p>}
+        </section>
+        <section className="career-attention-group" aria-labelledby={`${panelId}-inbox`}>
+          <h3 id={`${panelId}-inbox`}>New in your inbox</h3>
+          {inbox.slice(0,4).map(i=><Link key={i.key} className={i.category==="CLOSING"||i.category==="QUALIFIED"?"is-action":undefined} href={i.action?.href??`${base}/inbox`} onClick={()=>setOpen(false)}><Inbox size={14} aria-hidden/><span>{i.title}</span></Link>)}
+          {!inbox.length&&<p>Nothing new.</p>}
+          <Link data-testid="link-open-inbox" href={`${base}/inbox`} onClick={()=>setOpen(false)}>Open inbox{inbox.length>4?` (${inbox.length} new)`:""}</Link>
         </section>
         <section className="career-attention-group" aria-labelledby={`${panelId}-career`}>
           <h3 id={`${panelId}-career`}>Career updates</h3>

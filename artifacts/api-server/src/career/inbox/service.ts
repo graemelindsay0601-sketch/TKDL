@@ -22,7 +22,8 @@ async function ensureState(tx: CareerExecutor) {
   stateSeen = true;
 }
 
-export function createCareerInboxService(database: CareerDatabase, deps: { calendar: CalendarRead; streaming: StreamingRead; money: MoneyRead }) {
+export function createCareerInboxService(database: CareerDatabase, deps: { calendar: CalendarRead; streaming: StreamingRead; money: MoneyRead;
+  sponsors?: { sponsors(actor: CareerActor, saveId: string): Promise<{ prospects?: { tier: string; name: string; met: boolean; signed: boolean; sponsors: number }[] }> } }) {
   /** Everything the inbox could say right now (before read state), from the facts. */
   async function gather(actor: CareerActor, saveId: string) {
     const { root, offers, channel, manager } = await database.transaction(async tx => {
@@ -66,6 +67,14 @@ export function createCareerInboxService(database: CareerDatabase, deps: { calen
         body: `${t.displayName ?? "A sponsor"} has made you an offer${t.signingBonusPence ? ` with a ${pounds(t.signingBonusPence)} signing bonus` : ""}. It's open until week ${o.expires_week}.`,
         action: { label: "See the offer", href: `${base}/sponsors` } });
     }
+    // Sponsor tiers you now qualify for (offers arrive by themselves; this says so, once per tier).
+    if (deps.sponsors) try {
+      const sp = await deps.sponsors.sponsors(actor, saveId);
+      for (const p of sp.prospects ?? []) if (p.met && !p.signed)
+        add({ key: `sponsor-qualify:${p.tier}`, category: "MILESTONE", title: `You now qualify for ${p.name.toLowerCase()}`, week, expiresWeek: null,
+          body: `Your results have caught the eye of ${p.name.toLowerCase()} (${p.sponsors} of them). Offers arrive by themselves over the next few weeks, as long as you have room in your portfolio.`,
+          action: { label: "Sponsor HQ", href: `${base}/sponsors` } });
+    } catch { /* no sponsor facts yet */ }
     // A member's money-match challenge.
     try {
       const m = await deps.money.read(actor, saveId);

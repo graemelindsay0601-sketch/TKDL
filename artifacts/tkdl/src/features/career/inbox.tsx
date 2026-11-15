@@ -27,6 +27,12 @@ export function useInboxUnread(save: Pick<CareerSave, "id" | "currentSeason" | "
   return save ? (q.data?.unread ?? 0) + UNLOCKS.filter(u => unlocks.isNew(u.key)).length : 0;
 }
 
+/** The unread inbox items (for the Attention panel). */
+export function useInboxFresh(save: Pick<CareerSave, "id" | "currentSeason" | "status" | "currentWeek">) {
+  const { items } = useItems(save);
+  return items.filter(i => i.isNew && !i.muted);
+}
+
 /** Home: the newest few things, and the way in to the full inbox. */
 export function InboxStrip({ save }: { save: CareerSave }) {
   const { items, unread } = useItems(save);
