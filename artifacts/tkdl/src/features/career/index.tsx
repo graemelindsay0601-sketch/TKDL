@@ -3,6 +3,7 @@ import "./career.css";
 import { CareerShell } from "./shell";
 import { SavesPage } from "./pages/saves";
 import { HomePage } from "./pages/home";
+import { InboxPage } from "./inbox";
 import { CalendarPage } from "./pages/calendar";
 import { EventPage } from "./pages/event";
 import { RankingsPage } from "./pages/rankings";
@@ -80,6 +81,7 @@ function CareerSaveRoutes() {
           <Route path="/career/:saveId/my-career/remembered"><MyCareerPage ctx={ctx} section="remembered"/></Route>
           <Route path="/career/:saveId/my-career"><MyCareerPage ctx={ctx}/></Route>
           <Route path="/career/:saveId/play"><PlayPage ctx={ctx} /></Route>
+          <Route path="/career/:saveId/inbox"><InboxPage save={ctx.save} /></Route>
           <Route path="/career/:saveId/calendar"><CalendarPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/health"><SaveHealthPage ctx={ctx} /></Route>
           <Route path="/career/:saveId/sponsors"><SponsorHQPage ctx={ctx}/></Route>

@@ -1,0 +1,29 @@
+.career-inbox { display:grid; gap:18px; max-width:880px; margin:0 auto; padding:8px 16px 40px; }
+.career-inbox header h1 { display:flex; gap:10px; align-items:center; margin:0; font:800 26px "Space Grotesk",sans-serif; letter-spacing:.02em; text-transform:uppercase; }
+.career-inbox header h1 svg { color:var(--gold,#e5bd68); }
+.career-inbox header p, .career-inbox__note { color:#9fadb4; font-size:13px; }
+.career-inbox__group { display:grid; gap:8px; padding:14px; border:1px solid #ffffff12; background:linear-gradient(160deg,#152430,#0e1820); }
+.career-inbox__group[data-muted] { opacity:.6; }
+.career-inbox__group-head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.career-inbox__group-head h2 { margin:0; color:#ecf0f0; font:700 13px "Space Grotesk",sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.career-inbox__group-head h2 small { margin-left:6px; color:#8b9a9f; font:500 11px "DM Mono",monospace; }
+.career-inbox__group ul, .career-inbox-strip ul { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.career-inbox-item { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; padding:11px 12px; border:1px solid #ffffff10; background:#0f1a23; }
+.career-inbox-item[data-new] { box-shadow:inset 2px 0 var(--gold,#e5bd68); }
+.career-inbox-item[data-category="CLOSING"] { box-shadow:inset 2px 0 var(--red,#e94a56); }
+.career-inbox-item__icon svg { box-sizing:content-box; width:16px; height:16px; padding:8px; border:1px solid #9a7f465c; background:#24262a; color:var(--gold,#e5bd68); }
+.career-inbox-item__body { display:grid; gap:3px; min-width:0; }
+.career-inbox-item__body b { display:flex; flex-wrap:wrap; gap:6px; align-items:center; color:#ecf0f0; font-size:14px; }
+.career-inbox-item__body b i { padding:2px 6px; border:1px solid #e5bd68; color:#ffe08a; font:500 9px "DM Mono",monospace; font-style:normal; letter-spacing:.08em; text-transform:uppercase; }
+.career-inbox-item__from { color:#8b9a9f; font:500 10px "DM Mono",monospace; letter-spacing:.06em; text-transform:uppercase; }
+.career-inbox-item__body p { margin:0; color:#b9c4c8; font-size:13px; line-height:1.45; }
+.career-inbox-item__actions { display:flex; gap:6px; align-items:center; }
+.career-inbox-item__actions svg { width:14px; height:14px; }
+.career-inbox-strip { display:grid; gap:10px; margin:0 0 14px; padding:14px; border:1px solid #e5bd6855; background:linear-gradient(110deg,#2a2412,#101a23 60%); }
+.career-inbox-strip__head { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.career-inbox-strip__head b { display:flex; gap:8px; align-items:center; color:#ffe08a; font:700 13px "Space Grotesk",sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.career-inbox-strip__head svg { width:16px; height:16px; }
+.career-inbox-strip__head a { color:#ecd084; font:500 11px "DM Mono",monospace; letter-spacing:.06em; text-transform:uppercase; }
+.career-nav-inbox-badge { position:absolute; top:4px; right:6px; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--red,#e94a56); color:#fff; font:700 10px/16px "DM Mono",monospace; text-align:center; }
+@media (max-width: 620px) { .career-inbox-item { grid-template-columns:auto minmax(0,1fr); } .career-inbox-item__actions { grid-column:1 / -1; } }
+.career-nav-link { position: relative; }

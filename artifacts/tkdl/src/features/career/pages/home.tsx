@@ -1,3 +1,4 @@
+import { InboxStrip } from "../inbox";
 import { useState } from "react";
 import { Link } from "wouter";
 import { ArrowUpRight, Award, CalendarDays, CircleDollarSign, Flag, History, Medal, Target, TrendingUp, X } from "lucide-react";
@@ -60,6 +61,7 @@ export function HomePage({ ctx }: { ctx: ShellContext }) {
   return (
     <main className="career-home">
       {/* Your next move comes first: the rest of Home is reference you can scroll to. */}
+      {!retired && <InboxStrip save={save} />}
       {!retired && <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
         onEnter={onEnter} entering={enter.isPending} message={message} />}
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
