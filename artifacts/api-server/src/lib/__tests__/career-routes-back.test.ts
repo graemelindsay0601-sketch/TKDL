@@ -82,7 +82,7 @@ test("v38 Champions Cup: local, club and county champions without a card; finali
 
 test("a new Career has the Cup on its calendar; an older Career gets it from the next week, once", async () => {
   const fresh = await newSave(1);
-  assert.deepEqual((await cups(fresh)).map(r => [r.start_week, r.event_database_version]), [[CHAMPIONS_CUP_WEEK, 38]]);
+  assert.deepEqual((await cups(fresh)).map(r => [r.start_week, r.event_database_version]), [[CHAMPIONS_CUP_WEEK, CURRENT_EVENT_DATABASE_VERSION]]);
 
   const old = await newSave(2, 37);
   assert.equal((await cups(old)).length, 0, "a v37 season has no Cup");
