@@ -770,7 +770,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           WHERE career_save_id=${root.id} AND season=${season} AND status NOT IN ('COMPLETED','DECLINED','EXPIRED','CANCELLED')
           AND COALESCE(scheduled_week,available_from_week) BETWEEN ${q.fromWeek??1} AND ${q.toWeek??52}
           ORDER BY COALESCE(scheduled_week,available_from_week),id`)).rows;
-        return { overview: options.overview === false ? null : await overview(tx, root, seasonRow, current ? { events: ahead, human, windows } : undefined), season, scope: q.scope, events: rows,
+        // Lists leave out each event's travel choices (the event page loads them): a full season was ~12MB, a third of it these.
+        const listed = rows.map(e => e.finance ? { ...e, finance: { ...(e.finance as Record<string, unknown>), travelOptions: undefined } } : e);
+        return { overview: options.overview === false ? null : await overview(tx, root, seasonRow, current ? { events: ahead, human, windows } : undefined), season, scope: q.scope, events: listed,
           sponsorActivities:[...sponsorCommitments,...sponsorOpportunities] };
       });
     },

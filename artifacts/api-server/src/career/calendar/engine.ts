@@ -40,6 +40,7 @@ import { V35_WDF_RANKED_EVENT_KEYS } from "../content/season-v35.ts";
 import { V36_WDF_AGE_EVENT_KEYS } from "../content/season-v36.ts";
 import { V37_U23_WDF_FIXTURE_KEYS } from "../content/season-v37.ts";
 import { V38_ADDED_EVENT_KEYS } from "../content/season-v38.ts";
+import { V39_ADDED_EVENT_KEYS } from "../content/season-v39.ts";
 import { updateWorldRecords } from "../records/service.ts";
 import { nationTeams, localTeams, insertPairs, loadPairs, dartsNation, selectionRank, nationalFallbackRank, type PairRow, type PairCandidate } from "./pairs.ts";
 
@@ -186,7 +187,7 @@ export async function ensureCurrentEventCatalogue(tx: CareerExecutor, root: Root
       VALUES (${root.id}, ${season}, ${`career-events-v${CURRENT_EVENT_DATABASE_VERSION}`})
       ON CONFLICT DO NOTHING RETURNING season`)).rows.length > 0;
     if (claimed) {
-      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS, ...V29_CALENDAR_REFRESH_KEYS, ...V30_CALENDAR_REFRESH_KEYS, ...V31_CALENDAR_REFRESH_KEYS, ...V32_WDF_RANKED_EVENT_KEYS, ...V35_WDF_RANKED_EVENT_KEYS, ...V36_WDF_AGE_EVENT_KEYS, ...V37_U23_WDF_FIXTURE_KEYS, ...V38_ADDED_EVENT_KEYS];
+      const refreshedKeys = [...V19_ADDED_EVENT_KEYS, ...V20_RENAMED_EVENT_KEYS, ...V21_CALENDAR_REFRESH_KEYS, ...V22_CALENDAR_REFRESH_KEYS, ...V23_CALENDAR_REFRESH_KEYS, ...V24_CALENDAR_REFRESH_KEYS, ...V25_CALENDAR_REFRESH_KEYS, ...V26_CALENDAR_REFRESH_KEYS, ...V28_CALENDAR_REFRESH_KEYS, ...V29_CALENDAR_REFRESH_KEYS, ...V30_CALENDAR_REFRESH_KEYS, ...V31_CALENDAR_REFRESH_KEYS, ...V32_WDF_RANKED_EVENT_KEYS, ...V35_WDF_RANKED_EVENT_KEYS, ...V36_WDF_AGE_EVENT_KEYS, ...V37_U23_WDF_FIXTURE_KEYS, ...V38_ADDED_EVENT_KEYS, ...V39_ADDED_EVENT_KEYS];
       await tx.execute(sql`DELETE FROM career_event_instances i
         WHERE i.career_save_id = ${root.id} AND i.season = ${season}
           AND i.start_week > ${Number(root.current_week)}

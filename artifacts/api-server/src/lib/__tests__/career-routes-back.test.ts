@@ -1,3 +1,4 @@
+import { CURRENT_EVENT_DATABASE_VERSION } from "../../career/calendar/config.ts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -88,7 +89,7 @@ test("a new Career has the Cup on its calendar; an older Career gets it from the
   await calendar.calendar(actor, old, { fromWeek: 1, toWeek: 2 });
   assert.deepEqual((await cups(old)).map(r => r.start_week), [CHAMPIONS_CUP_WEEK], "added by the catalogue upgrade");
   const [root] = (await db.execute(sql`SELECT event_database_version FROM career_saves WHERE id = ${old}`)).rows;
-  assert.equal(Number(root.event_database_version), 38);
+  assert.equal(Number(root.event_database_version), CURRENT_EVENT_DATABASE_VERSION, "on the current catalogue");
   await calendar.calendar(actor, old, { fromWeek: 1, toWeek: 2 });
   assert.equal((await cups(old)).length, 1, "idempotent");
 });
