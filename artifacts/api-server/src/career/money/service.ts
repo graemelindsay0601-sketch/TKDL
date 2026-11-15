@@ -1,3 +1,4 @@
+import { channelReach, walkOnCrowd } from "../streaming/career-links.ts";
 import { freeNightsInWeek } from "../nights.ts";
 import { absoluteDay } from "../calendar/generation.ts";
 import { sql } from "drizzle-orm";
@@ -41,7 +42,7 @@ export type MoneyMatchResult = { id: string; season: number; week: number; oppon
 type MoneyBotConfig = { avg: number; sd: number; checkoutPct: number; hitAcc: number };
 export type MoneyMatchSession = { id: string; status: "LIVE" | "PLAYED"; stakePence: number; gameFormat: MoneyGameFormat; origin: "YOU_CHALLENGED" | "THEY_CHALLENGED"; you: string;
   opponent: { name: string; bot: { config: MoneyBotConfig; seed: string } };
-  format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null };
+  format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null; crowd: ReturnType<typeof walkOnCrowd> };
 const MONEY_CONTEXT = { category: "local" as const, roundImportance: 0.5, elimination: true };
 export type MoneyMatchesView = {
   season: number; week: number; club: string | null; availablePence: number; perWeek: number; playedThisWeek: number; bestOf: number;
@@ -167,7 +168,8 @@ export function createCareerMoneyService(database: CareerDatabase) {
       LEFT JOIN career_profiles p ON p.career_save_id=s.id WHERE s.id=${root.id}`)).rows[0];
     return { id: String(row.id), status: row.status as "LIVE" | "PLAYED", stakePence: Number(row.stake_pence), gameFormat, origin: row.origin as MoneyMatchSession["origin"], you: String(you?.name ?? "You"),
       opponent: { name: String(row.opponent_name), bot: { config: row.bot as MoneyBotConfig, seed: String(row.bot_seed) } },
-      format: MONEY_FORMATS[gameFormat], firstThrower: 0, darts: row.darts as unknown[] ?? [], won: row.won === null ? null : row.won === true };
+      format: MONEY_FORMATS[gameFormat], firstThrower: 0, darts: row.darts as unknown[] ?? [], won: row.won === null ? null : row.won === true,
+      crowd: walkOnCrowd(await channelReach(tx, root.id), String(you?.name ?? "You"), 60) };
   }
   async function settleLive(tx: CareerExecutor, root: Root, row: Row, darts: unknown[], winner: number) {
     const gameFormat = gameFormatOf(row.game_format), format = MONEY_FORMATS[gameFormat];

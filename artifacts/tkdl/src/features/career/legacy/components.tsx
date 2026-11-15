@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "wouter";
 import { Award, BadgeCheck, Briefcase, ChevronLeft, ChevronRight, Clapperboard, Crown, Film, Flag, Medal, RotateCcw, SkipForward, Star, Swords, TrendingUp, Trophy, X } from "lucide-react";
-import { useCareerProfile, useLegacy, usePresentation, useSeasonReview, useSporting, useTrophyCabinet } from "../api";
+import { useCareerProfile, useLegacy, useLocalNights, usePresentation, useSeasonReview, useSporting, useStreaming, useTrophyCabinet } from "../api";
+import { useUnlocks } from "../unlocks";
 import { BoundedList, CareerError, CareerLoading, Label, OSWALD, QueryState, StatusBadge } from "../components";
 import { CareerEventIdentity, CareerPlayerCard } from "../identity";
 import { AwardPresentation, awardLabel, resolveAward, trophyArt } from "../trophies";
@@ -168,6 +169,7 @@ export function TrophyCabinet({ ctx }: { ctx: ShellContext }) {
           <div><strong>{a.kind.replace(/_/g, " ").toLowerCase().replace(/^\w/, x => x.toUpperCase())} · season {a.season}</strong><small>{a.reason}</small></div></li>)}</ul>
           : <p className="pl-empty">No season awards yet. They're handed out at the end of each season.</p>}
       </section>
+      <OffTheOcheShelf ctx={ctx} />
       {(offset > 0 || cabinet.data.nextOffset !== null) && <div className="pl-pager">
         <button className="career-btn career-btn-ghost" disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 50))}>Newer titles</button>
         <button className="career-btn career-btn-ghost" disabled={cabinet.data.nextOffset === null} onClick={() => cabinet.data!.nextOffset !== null && setOffset(cabinet.data!.nextOffset)}>Older titles</button>
@@ -339,4 +341,23 @@ export function Documentary({ v, saveId, preview, initialStep = -1 }: { v: Playe
       <p className="pl-doc__source pl-small pl-dim">{publicText(v.source)}</p>
     </section>
   );
+}
+
+/** DartCast and the club: plaques, Creator Cups and Awards, and the club's honours (shown once DartCast is open, so reading it never sets up a channel). */
+function OffTheOcheShelf({ ctx }: { ctx: ShellContext }) {
+  const id = ctx.save.id, unlocks = useUnlocks(ctx.save), stream = useStreaming(id, undefined, unlocks.isOpen("streaming")), local = useLocalNights(id);
+  const s = stream.data, plaques = (s?.plaques ?? []).filter(p => p.earned);
+  const cups = (s?.cups.history ?? []).filter(c => c.won);
+  const awards = (s?.awards.seasons ?? []).flatMap(x => x.results.filter(r => r.youWon).map(r => ({ season: x.season, name: r.name })));
+  const club = local.data?.honours.filter(h => h.award !== "CHAMPIONSHIP_RUN") ?? [];
+  if (!plaques.length && !cups.length && !awards.length && !club.length) return null;
+  return <section className="pl-panel" aria-label="Creator and club honours">
+    <h2 className="pl-panel__title"><Trophy size={15} aria-hidden /> Creator & club honours</h2>
+    <ul className="pl-awards">
+      {plaques.map(p => <li key={p.key}><Award size={18} aria-hidden /><div><strong>{p.name}</strong><small>DartCast · {p.followers.toLocaleString("en-GB")} followers · season {p.earned!.season}</small></div></li>)}
+      {cups.map(c => <li key={`${c.season}:${c.n}`}><Trophy size={18} aria-hidden /><div><strong>{c.name} winner</strong><small>DartCast Creator Cup · season {c.season}</small></div></li>)}
+      {awards.map(a => <li key={`${a.season}:${a.name}`}><Star size={18} aria-hidden /><div><strong>{a.name}</strong><small>DartCast Creator Awards · season {a.season}</small></div></li>)}
+      {club.map(h => <li key={`${h.season}:${h.award}`}><Crown size={18} aria-hidden /><div><strong>{h.award === "CLUB_CHAMPION" ? "Club Champion" : "Club Player of the Year"}</strong><small>Your club · season {h.season}</small></div></li>)}
+    </ul>
+  </section>;
 }

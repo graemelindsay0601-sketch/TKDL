@@ -1139,3 +1139,9 @@
 .plaque.earned.plaque-diamond { border-color:#9fe3f2; }
 @media (max-width: 620px) { .plaque-wall { grid-template-columns:1fr; } }
 .format-reach em.trending { border-color:#e94a5688; color:#ff9aa2; }
+/* The studio's look: the theme colours the live screen's frame and highlights. */
+.dc-live[data-look] .dc-live__stage { border-color: color-mix(in srgb, var(--look-accent) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--look-accent) 25%, transparent), 0 18px 40px -24px var(--look-accent); }
+.dc-live[data-look] .dc-live__title { color: var(--look-accent); }
+.dc-live[data-look="NEON"] .dc-live__stage { background-image: radial-gradient(circle at 20% 0%, #ff4fa31f, transparent 60%); }
+.dc-live[data-look="RETRO"] .dc-live__stage { background-image: linear-gradient(180deg, #3a24141f, transparent 70%); }
+.dc-live[data-look="STAGE"] .dc-live__stage { background-image: radial-gradient(ellipse at 50% -10%, #4fc3f726, transparent 65%); }

@@ -70,3 +70,18 @@ test("locked until bought; then trick shots run as a board-cam drill and head-to
   const ch = (await rows(sql`SELECT challenger FROM career_streams WHERE career_save_id=${id} AND id=${h.id}`))[0].challenger as { name: string; avg: number; bot: unknown };
   assert.ok(v.collabs.some(c => c.handle === ch.name), "a creator from the scene"); assert.ok(ch.bot && ch.avg > 0);
 });
+
+test("the studio's look: buy a theme or lighting once, switch freely; lighting is a small crowd bonus", async () => {
+  await db.execute(sql`UPDATE career_saves SET balance_pence=5000000 WHERE id=${id}`);
+  let v = await streaming.read(actor, id);
+  assert.equal(v.look.theme, "CLUB"); assert.equal(v.look.lighting, "DESK");
+  const before = Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${id}`))[0].balance_pence);
+  v = await streaming.setLook(actor, id, { key: "NEON" });
+  assert.equal(v.look.theme, "NEON"); assert.ok(v.look.themes.find(t => t.key === "NEON")!.owned);
+  v = await streaming.setLook(actor, id, { key: "CLUB" }); v = await streaming.setLook(actor, id, { key: "NEON" });
+  v = await streaming.setLook(actor, id, { key: "RIG" });
+  assert.equal(v.look.lighting, "RIG"); assert.equal(v.look.lights.find(l => l.key === "RIG")!.bonusPercent, 4);
+  const after = Number((await rows(sql`SELECT balance_pence FROM career_saves WHERE id=${id}`))[0].balance_pence);
+  assert.equal(before - after, 15_000 + 50_000, "each bought once");
+  await assert.rejects(streaming.setLook(actor, id, { key: "GOLD" }), "an unknown look is refused");
+});

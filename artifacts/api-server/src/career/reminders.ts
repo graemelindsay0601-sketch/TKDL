@@ -10,6 +10,13 @@ export const REMINDER = { afterDays: 3, giveUpAfterDays: 30 } as const;
 
 export type CareerReminder = { playerId: number; saveId: string; title: string; body: string; url: string; dedupeKey: string };
 
+/** A row from a table that may not exist on an older database (the read is skipped, never failed). */
+const known = new Map<string, boolean>();
+async function optional(tx: CareerExecutor, table: string, q: ReturnType<typeof sql>) {
+  if (!known.has(table)) known.set(table, (await tx.execute(sql`SELECT to_regclass(${table}) IS NOT NULL AS ok`)).rows[0]?.ok === true);
+  return known.get(table) ? (await tx.execute(q)).rows[0] : undefined;
+}
+
 export async function findCareerReminders(tx: CareerExecutor): Promise<CareerReminder[]> {
   // Each player's most recently played active Career, if it has been left long enough (and not too long).
   const saves = (await tx.execute(sql`SELECT DISTINCT ON (player_id) id, player_id, career_name, current_season, current_week, updated_at
@@ -27,9 +34,15 @@ export async function findCareerReminders(tx: CareerExecutor): Promise<CareerRem
         AND i.status NOT IN ('COMPLETED', 'CANCELLED') ORDER BY i.start_day LIMIT 1`)).rows[0];
     const offer = match || booked ? undefined : (await tx.execute(sql`SELECT 1 FROM career_sponsor_offers WHERE career_save_id = ${id} AND status = 'AVAILABLE'
       AND (expires_season > ${season} OR (expires_season = ${season} AND expires_week >= ${week})) LIMIT 1`)).rows[0];
+    // Then the inbox's "running out" and booked nights: a local night this week, a DartCast offer waiting for an answer.
+    const local = match || booked || offer ? undefined : await optional(tx, "career_local_nights", sql`SELECT title FROM career_local_nights WHERE career_save_id = ${id} AND season = ${season} AND week = ${week} AND status = 'BOOKED' LIMIT 1`);
+    const dartcast = match || booked || offer || local ? undefined : await optional(tx, "career_stream_partner_deals", sql`SELECT brand_name FROM career_stream_partner_deals WHERE career_save_id = ${id} AND status = 'OFFERED'
+      UNION ALL SELECT brand_name FROM career_stream_sponsors WHERE career_save_id = ${id} AND status = 'OFFERED' LIMIT 1`);
     const body = match ? `Your match at ${match.name} is waiting for you at the oche.`
       : booked ? `You're booked into ${booked.name} in week ${booked.start_week}. Play on when you're ready.`
-      : offer ? "A sponsor's offer is waiting for your answer before it runs out." : null;
+      : offer ? "A sponsor's offer is waiting for your answer before it runs out."
+      : local ? `${local.title}: you're booked in this week.`
+      : dartcast ? `${dartcast.brand_name} are waiting for an answer on DartCast before their offer runs out.` : null;
     if (!body) continue;
     out.push({ playerId: Number(s.player_id), saveId: id, title: s.career_name ? `${s.career_name}: your Career is waiting` : "Your Career is waiting", body,
       url: `/career/${id}/play`, dedupeKey: `career-reminder:${id}:${new Date(String(s.updated_at)).toISOString()}` });
