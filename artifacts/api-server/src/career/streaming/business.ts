@@ -1,5 +1,5 @@
 import { scopedRandom } from "../world/random.ts";
-import { BRANDS, STREAM, type TierKey } from "./model.ts";
+import { BRANDS, STREAM, tierAtLeast, type TierKey } from "./model.ts";
 import { BRAND_ROSTER } from "./partners.ts";
 
 /**
@@ -54,8 +54,7 @@ export const PLATFORM = Object.freeze({ name: "Tilt", offerWeek: 20, perFollower
 /** The platform offer: a guaranteed sum for a season of exclusivity. */
 export const platformOfferPence = (followers: number) => Math.max(PLATFORM.minPence, Math.round(followers * PLATFORM.perFollowerPence / 100_00) * 100_00);
 
-const TIER_ORDER: TierKey[] = ["NEWCOMER", "AFFILIATE", "PARTNER", "STAR"];
-export const tierAtLeast = (tier: TierKey, min: TierKey) => TIER_ORDER.indexOf(tier) >= TIER_ORDER.indexOf(min);
+export { tierAtLeast };
 
 /**
  * The sponsor ladder: one headline channel sponsor at a time, climbing from a local backer to a darts maker's signature

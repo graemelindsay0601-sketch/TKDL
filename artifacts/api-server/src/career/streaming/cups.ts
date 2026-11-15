@@ -1,5 +1,5 @@
 import { scopedRandom } from "../world/random.ts";
-import { STREAM, activeStreamers, streamerFollowers, type TierKey } from "./model.ts";
+import { STREAM, tierAtLeast, activeStreamers, streamerFollowers, type TierKey } from "./model.ts";
 
 /**
  * Creator Cups: four one-night knockout tournaments a season, streamed live on DartCast and extra to your stream nights.
@@ -14,7 +14,7 @@ export const CUPS = Object.freeze({
   names: ["Spring Cup", "Summer Cup", "Autumn Cup", "Winter Cup"] as readonly string[],
   legsToWin: 3, finalLegsToWin: 4,
   /** Prize pool by tier (pence): what the winner takes; earlier exits take a share. */
-  winnerPrize: { NEWCOMER: 5_000, AFFILIATE: 15_000, PARTNER: 60_000, STAR: 200_000 } as Record<TierKey, number>,
+  winnerPrize: { NEWCOMER: 5_000, AFFILIATE: 15_000, PARTNER: 60_000, STAR: 200_000, ICON: 400_000, LEGEND: 750_000 } as Record<TierKey, number>,
   /** Share of the winner's prize by round reached (out in round 1, round 2, ...). */
   share8: [0.05, 0.15, 0.4, 1] as readonly number[], share16: [0.03, 0.08, 0.18, 0.4, 1] as readonly number[],
   winnerFans: { 8: 120, 16: 350 } as Record<number, number>, finalistFans: { 8: 40, 16: 110 } as Record<number, number>,
@@ -35,7 +35,7 @@ export function nextCup(week: number): CupDef | null {
   const i = CUPS.weeks.findIndex(w => w + CUPS.window - 1 >= week);
   return i < 0 ? null : { n: i + 1, name: CUPS.names[i], opens: CUPS.weeks[i], closes: CUPS.weeks[i] + CUPS.window - 1 };
 }
-export const cupSize = (tier: TierKey) => tier === "PARTNER" || tier === "STAR" ? 16 : 8;
+export const cupSize = (tier: TierKey) => tierAtLeast(tier, "PARTNER") ? 16 : 8;
 export const roundsFor = (size: number) => Math.round(Math.log2(size));
 export function roundName(size: number, round: number) {
   const left = roundsFor(size) - round;

@@ -150,4 +150,14 @@ export async function ensureStreaming(tx: CareerExecutor): Promise<void> {
     created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, id), UNIQUE (career_save_id, n))`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS team jsonb NOT NULL DEFAULT '[]'::jsonb`);
   await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS platform jsonb`);
+  // Creator plaques won (silver, gold, diamond), each with the season and week it arrived.
+  // Tour vlogs: one per event played or road trip.
+  await tx.execute(sql`CREATE TABLE IF NOT EXISTS career_stream_vlogs (
+    career_save_id uuid NOT NULL REFERENCES career_saves(id) ON DELETE CASCADE,
+    source_key text NOT NULL, season integer NOT NULL, week integer NOT NULL, title text NOT NULL,
+    views integer NOT NULL, followers integer NOT NULL, pence integer NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT NOW(), PRIMARY KEY (career_save_id, source_key))`);
+  // A pro on the podcast wins fans for your darts career.
+  await tx.execute(sql`ALTER TABLE career_stream_podcasts ADD COLUMN IF NOT EXISTS fans integer NOT NULL DEFAULT 0`);
+  await tx.execute(sql`ALTER TABLE career_stream_channels ADD COLUMN IF NOT EXISTS plaques jsonb NOT NULL DEFAULT '[]'::jsonb`);
 }

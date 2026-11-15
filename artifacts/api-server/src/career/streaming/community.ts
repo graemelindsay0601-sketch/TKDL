@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { scopedRandom } from "../world/random.ts";
-import { COMMUNITY, PERSONAS, STREAM, handleFor, tierFor, type ChatEvent, type Persona, type Regular, type TierKey } from "./model.ts";
+import { COMMUNITY, PERSONAS, STREAM, tierAtLeast, handleFor, tierFor, type ChatEvent, type Persona, type Regular, type TierKey } from "./model.ts";
 
 /**
  * Your community: regulars join as the channel grows, grow loyal by catching your shows, and fade (then drift away)
@@ -37,7 +37,7 @@ export async function attendStream(tx: CareerExecutor, root: { id: string; world
     WHERE career_save_id=${root.id} AND status='ACTIVE'`);
   const tier = tierFor(followers).key, target = COMMUNITY.size[tier];
   // From Partner, loyal regulars may subscribe (their sub anniversaries are celebrated on stream).
-  if (tier === "PARTNER" || tier === "STAR") {
+  if (tierAtLeast(tier, "PARTNER")) {
     const abs = (season - 1) * 52 + week;
     for (const r of (await tx.execute(sql`SELECT key FROM career_stream_regulars WHERE career_save_id=${root.id} AND status='ACTIVE' AND subbed_week IS NULL
         AND loyalty >= ${COMMUNITY.subLoyalty}::int ORDER BY key`)).rows) {

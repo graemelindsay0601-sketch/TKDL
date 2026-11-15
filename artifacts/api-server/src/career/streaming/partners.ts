@@ -1,6 +1,6 @@
 import { scopedRandom } from "../world/random.ts";
 import { CUPS } from "./cups.ts";
-import { STREAM, type TierKey } from "./model.ts";
+import { STREAM, tierAtLeast, type TierKey } from "./model.ts";
 
 /**
  * Brand partners: how real creators are sponsored beyond one headline name. Alongside the sponsor ladder you hold a few
@@ -15,8 +15,6 @@ import { STREAM, type TierKey } from "./model.ts";
  * Brands remember you: every finished deal with a brand makes its next offers better. A manager finds more of them.
  * Money and followers only; none of it touches your darts.
  */
-const ORDER: TierKey[] = ["NEWCOMER", "AFFILIATE", "PARTNER", "STAR"];
-const tierAtLeast = (tier: TierKey, min: TierKey) => ORDER.indexOf(tier) >= ORDER.indexOf(min);
 /** A manager's cut-better rate (the same as on brand deals). */
 export const PARTNER_MANAGER = 1.2;
 
@@ -68,15 +66,15 @@ export type DealKind = keyof typeof DEAL_KINDS;
 
 export const PARTNERS = Object.freeze({
   /** Category partners you can hold at once, by tier. */
-  slots: { NEWCOMER: 0, AFFILIATE: 1, PARTNER: 2, STAR: 3 } as Record<TierKey, number>,
+  slots: { NEWCOMER: 0, AFFILIATE: 1, PARTNER: 2, STAR: 3, ICON: 4, LEGEND: 5 } as Record<TierKey, number>,
   /** An offer every this many weeks while a slot is free (a manager finds one every two). */
   offerEvery: 3, managerOfferEvery: 2, offerWeeks: 2,
   /** Weekly retainer base by tier, plus a share of the average audience. */
-  retainerBase: { NEWCOMER: 1_000, AFFILIATE: 2_500, PARTNER: 8_000, STAR: 25_000 } as Record<TierKey, number>,
+  retainerBase: { NEWCOMER: 1_000, AFFILIATE: 2_500, PARTNER: 8_000, STAR: 25_000, ICON: 40_000, LEGEND: 60_000 } as Record<TierKey, number>,
   retainerPerViewer: 20, retainerWeeks: 8, ambassadorWeeks: 26, ambassadorRate: 2,
-  giveawayFee: 3, giveawayFollowers: { NEWCOMER: 10, AFFILIATE: 40, PARTNER: 200, STAR: 900 } as Record<TierKey, number>,
+  giveawayFee: 3, giveawayFollowers: { NEWCOMER: 10, AFFILIATE: 40, PARTNER: 200, STAR: 900, ICON: 3_000, LEGEND: 10_000 } as Record<TierKey, number>,
   seedingWeeks: 6, seedingTrust: 2,
-  cupTitleFee: 4, appearanceFee: 2, appearanceFollowers: { NEWCOMER: 5, AFFILIATE: 20, PARTNER: 80, STAR: 300 } as Record<TierKey, number>,
+  cupTitleFee: 4, appearanceFee: 2, appearanceFollowers: { NEWCOMER: 5, AFFILIATE: 20, PARTNER: 80, STAR: 300, ICON: 1_000, LEGEND: 3_000 } as Record<TierKey, number>,
   /** Each finished deal with a brand adds this to its next fees, up to the cap. Ambassador needs this much history. */
   trustStep: 0.1, trustCap: 0.5, ambassadorTrust: 2,
 });

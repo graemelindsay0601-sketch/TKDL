@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { fansForEffects } from "../fans/service.ts";
+import { creatorSponsorPremium } from "../streaming/career-links.ts";
 import { fanSponsorPremium } from "../fans/model.ts";
 import { activeManager, managerInviteFor } from "../manager/state.ts";
 import { hostedPrize, organiserTake, type HostedTerms } from "../hosting/model.ts";
@@ -316,8 +317,13 @@ async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: stri
   const expires = expiry ?? fromIndex(timeIndex(season, week) + OFFER_LIFETIME_WEEKS);
   // Player database v7: a big following earns a bigger signing bonus (up to +50%, rounded to £10); recorded on the offer.
   const fans = await fansForEffects(tx, root.id), premium = fans === null ? 0 : fanSponsorPremium(fans);
-  const fanTerms = premium > 0 ? { ...baseTerms, signingBonusPence: Math.round(baseTerms.signingBonusPence * (1 + premium) / 1000) * 1000 } : baseTerms;
-  const fanSource = premium > 0 ? { ...baseSource, fanPremium: { fans, premium, baseSigningBonusPence: baseTerms.signingBonusPence } } : baseSource;
+  const fanTerms0 = premium > 0 ? { ...baseTerms, signingBonusPence: Math.round(baseTerms.signingBonusPence * (1 + premium) / 1000) * 1000 } : baseTerms;
+  const fanSource0 = premium > 0 ? { ...baseSource, fanPremium: { fans, premium, baseSigningBonusPence: baseTerms.signingBonusPence } } : baseSource;
+  // Darts sponsors notice a big DartCast channel too: a creator premium on the signing bonus from Partner up (recorded on the offer).
+  const creator = await creatorSponsorPremium(tx, root.id);
+  const fanTerms = creator && fanTerms0.signingBonusPence > 0
+    ? { ...fanTerms0, signingBonusPence: Math.round(fanTerms0.signingBonusPence * (1 + creator.premium) / 1000) * 1000 } : fanTerms0;
+  const fanSource = fanTerms !== fanTerms0 ? { ...fanSource0, creatorPremium: { ...creator, beforePence: fanTerms0.signingBonusPence } } : fanSource0;
   // Your manager negotiates a bigger signing bonus on top (recorded on the offer, like the fan premium).
   const manager = await activeManager(tx, root.id);
   const terms = manager && fanTerms.signingBonusPence > 0 ? { ...fanTerms, signingBonusPence: boosted(fanTerms.signingBonusPence, manager.signingBonusBoost) } : fanTerms;

@@ -23,7 +23,7 @@ export const MARATHON = Object.freeze({
   goalRewards: ["Chat picks your next checkout", "Walk-on music vote", "Left-handed leg (just for fun)", "Viewer-designed flights giveaway", "Retro shirt for the rest of the stream"] as readonly string[],
   goalFollowers: 4,
   /** Charity target by tier (pence), and creator donations at each quarter of it. */
-  target: { NEWCOMER: 5_000, AFFILIATE: 10_000, PARTNER: 40_000, STAR: 150_000 } as Record<TierKey, number>,
+  target: { NEWCOMER: 5_000, AFFILIATE: 10_000, PARTNER: 40_000, STAR: 150_000, ICON: 300_000, LEGEND: 600_000 } as Record<TierKey, number>,
   donationShare: 0.08, targetFollowers: 0.03, crowd: 1.35,
 });
 

@@ -259,6 +259,9 @@ export function WalkOn({ v, match, playHref, onSkip }: { v: TView; match: TMatch
         {them && <WalkOnCard p={them} order={1} caption="Walking on first" />}
         {me && <WalkOnCard p={me} order={2} caption="And now walking on" />}
       </div>
+      {v.dartcast && <p className="tb-walkon__chant" role="status">
+        <span aria-hidden>📣</span> About {v.dartcast.inHall.toLocaleString("en-GB")} of your {v.dartcast.handle} community are in the hall: <b>“{v.dartcast.chant}”</b>{v.dartcast.emote ? <i> {v.dartcast.emote} {v.dartcast.emote}</i> : null}
+      </p>}
       <p className="tb-walkon__format">{formatLine(v.event.format, match.best_of)} · first throw decided by the real bull-up</p>
       <div className="tb-walkon__actions">
         <Link href={playHref} className="career-btn career-btn-gold"><Target size={16} aria-hidden /> To the oche · bull-up</Link>

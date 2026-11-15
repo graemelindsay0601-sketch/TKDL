@@ -1,5 +1,5 @@
 import { scopedRandom } from "../world/random.ts";
-import { STREAM, handleFor, type ChatEvent, type Regular, type Tally, type TierKey } from "./model.ts";
+import { STREAM, tierAtLeast, handleFor, type ChatEvent, type Regular, type Tally, type TierKey } from "./model.ts";
 
 /**
  * The live overlay: what a real stream shows on screen instead of leaving it buried in chat.
@@ -34,7 +34,7 @@ export const REQUESTS: Record<RequestKind, { label: string; reward: number; unit
   BULL_FINISH: { label: "Finish on the bull", reward: 3, unit: "LEGS", left: 2, weight: 1 },
 };
 const DRILL_REQUESTS: RequestKind[] = ["TON", "MAX"];
-const BASE_REWARD: Record<TierKey, number> = { NEWCOMER: 0, AFFILIATE: 500, PARTNER: 1200, STAR: 3000 };
+const BASE_REWARD: Record<TierKey, number> = { NEWCOMER: 0, AFFILIATE: 500, PARTNER: 1200, STAR: 3000, ICON: 5000, LEGEND: 8000 };
 export const MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 250000];
 /** First-time chatters: how often one says hello, and the chance they follow (better when a mod welcomes them). */
 export const FIRST_CHAT = { chance: 0.06, follow: 0.3, followWithMod: 0.6 };
@@ -119,7 +119,7 @@ export function overlayVisit(seed: string, streamKey: string, index: number, v: 
 
   // VIPs at Partner and above sometimes gift subs to the room (a separate draw, so streams without VIPs are unchanged).
   const vips = regulars.filter(r => r.role === "VIP");
-  if (vips.length && (tier === "PARTNER" || tier === "STAR") && v.you) {
+  if (vips.length && tierAtLeast(tier, "PARTNER") && v.you) {
     const g = scopedRandom(seed, STREAM.version, "stream-vip-gift", streamKey, index);
     if (g() < VIP_GIFT.chance * Math.min(3, vips.length)) {
       const who = vips[Math.floor(g() * vips.length)].name, n = 1 + Math.floor(g() * VIP_GIFT.max);

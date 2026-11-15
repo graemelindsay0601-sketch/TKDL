@@ -34,7 +34,7 @@ export async function loadFanEvidence(tx: CareerExecutor, saveId: string): Promi
  * Fans won on DartCast, by season (none on a database without streaming): viral clips, a share of the followers your
  * streams won, and the goodwill of charity streams.
  */
-let clipsSeen = false, cupsSeen = false, awardsSeen = false, sponsorsSeen = false;
+let clipsSeen = false, cupsSeen = false, awardsSeen = false, sponsorsSeen = false, plaquesSeen = false;
 async function streamFans(tx: CareerExecutor, saveId: string) {
   if (!clipsSeen) clipsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_clips') IS NOT NULL AS ok`)).rows[0]?.ok === true;
   if (!clipsSeen) return [];
@@ -57,6 +57,14 @@ async function streamFans(tx: CareerExecutor, saveId: string) {
   if (!sponsorsSeen) sponsorsSeen = (await tx.execute(sql`SELECT to_regclass('career_stream_sponsors') IS NOT NULL AS ok`)).rows[0]?.ok === true;
   if (sponsorsSeen) for (const r of (await tx.execute(sql`SELECT split_part(last_paid, ':', 1)::int AS season, SUM(fans)::int AS n FROM career_stream_sponsors
       WHERE career_save_id=${saveId} AND status='COMPLETED' AND last_paid IS NOT NULL GROUP BY 1`)).rows)
+    add(Number(r.season), Number(r.n));
+  // And so does every creator plaque.
+  if (!plaquesSeen) plaquesSeen = (await tx.execute(sql`SELECT 1 FROM information_schema.columns WHERE table_name='career_stream_channels' AND column_name='plaques'`)).rows.length > 0;
+  if (plaquesSeen) for (const r of (await tx.execute(sql`SELECT p->>'season' AS season, p->>'fans' AS fans FROM career_stream_channels c, jsonb_array_elements(c.plaques) p
+      WHERE c.career_save_id=${saveId}`)).rows)
+    add(Number(r.season), Number(r.fans));
+  // A pro on your podcast too.
+  if (plaquesSeen) for (const r of (await tx.execute(sql`SELECT season, SUM(fans)::int AS n FROM career_stream_podcasts WHERE career_save_id=${saveId} GROUP BY season`)).rows)
     add(Number(r.season), Number(r.n));
   return [...bySeason].filter(([, fans]) => fans > 0).map(([season, fans]) => ({ season, fans }));
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Clapperboard, Mic, Rocket, Tv, Warehouse } from "lucide-react";
-import { errorMessage, useBuyStudioSet, useMakeShort, useRecordPodcast, useWatchAlong, type StreamingView } from "../api";
+import { Clapperboard, Map as MapIcon, Mic, Rocket, Tv, Warehouse } from "lucide-react";
+import { errorMessage, useBuyStudioSet, useMakeShort, usePostVlog, useRecordPodcast, useWatchAlong, type StreamingView } from "../api";
 import { dayLabel, formatPence } from "../model";
 import "./stream-community.css";
 
@@ -11,7 +11,7 @@ import "./stream-community.css";
 export function ContentSection({ saveId, d, night, canGo, retired, onWatched }: { saveId: string; d: StreamingView; night: number | null; canGo: boolean; retired: boolean;
   onWatched: (streamId: string) => void }) {
   const c = d.content;
-  const short = useMakeShort(saveId), pod = useRecordPodcast(saveId), set = useBuyStudioSet(saveId), watch = useWatchAlong(saveId);
+  const short = useMakeShort(saveId), pod = useRecordPodcast(saveId), set = useBuyStudioSet(saveId), watch = useWatchAlong(saveId), vlog = usePostVlog(saveId);
   const [guest, setGuest] = useState(""), [topic, setTopic] = useState("STORY"), [boost, setBoost] = useState(false), [message, setMessage] = useState("");
   if (!c) return null;
   const fail = (e: unknown) => setMessage(errorMessage(e)), ok = () => setMessage("");
@@ -35,7 +35,11 @@ export function ContentSection({ saveId, d, night, canGo, retired, onWatched }: 
         {c.podcast.thisWeek ? <p className="sc-note">This week: <b>{c.podcast.thisWeek.topic}</b> with {c.podcast.thisWeek.guest}. {c.podcast.thisWeek.listeners.toLocaleString("en-GB")} listeners, +{c.podcast.thisWeek.followers} followers{c.podcast.thisWeek.sponsorPence ? `, ${formatPence(c.podcast.thisWeek.sponsorPence)} sponsor read` : ""}.</p> : <>
           <p className="sc-note">One episode a week, extra to your stream nights. Friends always say yes; bigger names want to know you first. Episodes so far: {c.podcast.episodes}.</p>
           {!c.podcast.guests.some(g => g.ok) && <p className="sc-note">Nobody will come on just yet: collab with, raid or meet creators in a cup first, or grow the channel a little.</p>}
-          <label className="sc-field-label">Guest<select value={guestPick} onChange={e => setGuest(e.target.value)}>{c.podcast.guests.map(g => <option key={g.key} value={g.key} disabled={!g.ok}>{g.handle} ({g.followers.toLocaleString("en-GB")}){g.ok ? "" : ` · ${g.why}`}</option>)}</select></label>
+          <label className="sc-field-label">Guest<select value={guestPick} onChange={e => setGuest(e.target.value)}>
+            <optgroup label="Creators">{c.podcast.guests.map(g => <option key={g.key} value={g.key} disabled={!g.ok}>{g.handle} ({g.followers.toLocaleString("en-GB")}){g.ok ? "" : ` · ${g.why}`}</option>)}</optgroup>
+            {c.podcast.pros?.length > 0 && <optgroup label="Pros (fans for your darts career)">{c.podcast.pros.map(p => <option key={p.key} value={p.key} disabled={!p.ok}>
+              {p.handle}{p.rank ? ` · world #${p.rank}` : ""}{p.meetings ? ` · you're ${p.record}${p.rival ? " (rival)" : ""}` : ""}{p.ok ? "" : ` · ${p.why}`}</option>)}</optgroup>}
+          </select></label>
           <label className="sc-field-label">Topic<select value={topic} onChange={e => setTopic(e.target.value)}>{c.podcast.topics.map(t => <option key={t.key} value={t.key}>{t.name}: {t.blurb}</option>)}</select></label>
           <button type="button" className="sc-enter" disabled={retired || pod.isPending || !guestPick} onClick={() => pod.mutate({ guest: guestPick, topic }, { onSuccess: ok, onError: fail })}><Mic aria-hidden /> Record the episode</button>
         </>}
@@ -46,6 +50,14 @@ export function ContentSection({ saveId, d, night, canGo, retired, onWatched }: 
           {e.done ? <small>Watched</small> : <button type="button" disabled={!canGo || watch.isPending} onClick={() => watch.mutate({ eventId: e.eventId, dayOfWeek: night! }, { onSuccess: s => onWatched(s.id), onError: fail })}>Watch along{night ? ` on ${dayLabel(night)}` : ""}</button>}</li>)}</ul>
           : <p className="sc-note">No televised event has finished this week or last.</p>}
       </article>
+      {c.vlogs && <article className="sc-card"><h3><MapIcon aria-hidden /> Tour vlogs</h3>
+        <p className="sc-note">Life on the road between the darts: cut a vlog from an event you've just played or a road trip. Bigger events travel further; an editor helps.</p>
+        {c.vlogs.available.length ? <ul className="sc-rows">{c.vlogs.available.map(x => <li key={x.source}><span><b>{x.title}</b></span>
+          <button type="button" disabled={retired || vlog.isPending} onClick={() => vlog.mutate(x.source, { onSuccess: ok, onError: fail })}>Post it</button></li>)}</ul>
+          : <p className="sc-note">Nothing to vlog right now: play an event or take a road trip, then come back within {4} weeks.</p>}
+        {c.vlogs.posted.length > 0 && <ul className="sc-rows">{c.vlogs.posted.map(x => <li key={x.title + x.week}><span><b>{x.title}</b><small> · S{x.season} wk {x.week}</small></span>
+          <small>{x.views.toLocaleString("en-GB")} views · +{x.followers} · {formatPence(x.pence)}</small></li>)}</ul>}
+      </article>}
       <article className="sc-card"><h3><Warehouse aria-hidden /> Studio sets</h3>
         <ul className="sc-rows">{c.sets.map(x => <li key={x.key}><span><b>{x.name}</b><small> · +{x.bonusPercent}% crowd for {x.formats.map(f => f.toLowerCase().replace(/_/g, " ")).join(", ")}</small></span>
           {x.owned ? <small>Built</small> : <button type="button" disabled={retired || set.isPending} onClick={() => set.mutate(x.key, { onSuccess: ok, onError: fail })}>Build · {formatPence(x.costPence)}</button>}</li>)}</ul>

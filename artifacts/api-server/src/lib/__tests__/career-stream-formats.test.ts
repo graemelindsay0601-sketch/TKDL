@@ -1,4 +1,5 @@
 /** Stream formats: King of the Oche, the drills (checkouts, Bob's 27, the average challenge), chat's poll and the monthly sub goal. */
+import { TREND } from "../../career/streaming/model.ts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -109,7 +110,7 @@ test("King of the Oche: viewer after viewer, one leg each, until one beats you",
   assert.equal(v.videos[0].title, "King of the Oche"); assert.equal(v.lastFormat, "KING");
   assert.equal(v.pollPick, r3.session.poll!.winner);
   const king = v.formats.find(f => f.key === "KING")!;
-  assert.equal(king.crowd, Math.round(1.25 * VARIETY.repeat * (v.pollPick === "KING" ? VARIETY.pollPick : 1) * 100) / 100, "the same again draws fewer");
+  assert.equal(king.crowd, Math.round(1.25 * VARIETY.repeat * (v.pollPick === "KING" ? VARIETY.pollPick : 1) * (v.trend.format === "KING" ? TREND.bonus : 1) * 100) / 100, "the same again draws fewer");
 });
 
 test("the checkout challenge, Bob's 27 and the average challenge on stream (pledges pay only on a win)", async () => {

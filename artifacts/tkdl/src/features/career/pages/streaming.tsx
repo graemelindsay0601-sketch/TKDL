@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { markSeen } from "../unlocks";
 import { Link, useLocation, useSearch } from "wouter";
-import { Activity, ArrowUpRight, Check, CircleDollarSign, Clapperboard, Crosshair, Crown, Eye, HeartHandshake, Loader2, Play, Radio, Search, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users } from "lucide-react";
+import { Activity, ArrowUpRight, Check, CircleDollarSign, Clapperboard, Crosshair, Crown, Eye, HeartHandshake, Loader2, Play, Radio, Search, SlidersHorizontal, Sparkles, Target, TrendingUp, Trophy, Users, Video, Swords } from "lucide-react";
 import { useAnswerBrandDeal, useAnswerStreamCampaign, useGoLive, useSetSubGoal, useStreaming, useSetStreamingPathway, useScheduleStreamingPathway, useScheduleStreamNight, useBuyStudioUpgrade, useChooseCreatorSeries, errorMessage, type StreamFormat } from "../api";
 import { CareerError, CareerLoading } from "../components";
 import { dayLabel, formatPence } from "../model";
@@ -21,6 +21,8 @@ function StreamFormatIcon({ format }: { format: StreamFormat }) {
     case "SCORING": return <TrendingUp aria-hidden />;
     case "CHARITY": return <HeartHandshake aria-hidden />;
     case "COMMUNITY": return <Users aria-hidden />;
+    case "TRICKSHOTS": return <Video aria-hidden />;
+    case "HEAD_TO_HEAD": return <Swords aria-hidden />;
     default: return <Radio aria-hidden />;
   }
 }
@@ -189,10 +191,10 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
           </section>
           <section className="programming-desk" id="programming">
             <div className="section-heading"><div><span className="eyebrow">02 / SESSION BUILDER</span><h2>Build your next stream</h2></div><span className="heading-meta">SELECT FORMAT <i>→</i> PICK A NIGHT</span></div>
-            <div className="program-topline"><div><b>WHAT’S THE SHOW?</b><span>Chat’s pick is marked. Your last format is noted.</span></div><span className="weekly-limit">WEEKLY LIMIT <b>{d.streamsThisWeek} / {d.perWeek}</b></span></div>
+            <div className="program-topline"><div><b>WHAT’S THE SHOW?</b><span>Chat’s pick is marked. Your last format is noted.{d.trend ? ` The platform's pushing ${d.trend.name} shows until week ${d.trend.endsWeek}: +${d.trend.bonusPercent}% reach.` : ""}</span></div><span className="weekly-limit">WEEKLY LIMIT <b>{d.streamsThisWeek} / {d.perWeek}</b></span></div>
             <div className="format-list" role="radiogroup" aria-label="What to stream">{d.formats.map((f, index) => <button key={f.key} className={`format-row ${chosen === f.key ? "selected" : ""}`} type="button" role="radio" aria-checked={chosen === f.key} disabled={!!f.why} onClick={() => setFormat(f.key)}>
               <span className="format-index">0{index + 1}</span><span className="format-icon"><StreamFormatIcon format={f.key} /></span><span className="format-title"><b>{f.name}</b><small>{f.blurb}</small></span>
-              <span className="format-reach">{f.why ?? crowd(f.crowd).toUpperCase()}{d.pollPick === f.key ? <em>CHAT’S PICK</em> : d.lastFormat === f.key ? <em>LAST SHOW</em> : null}</span><span className="format-check">{chosen === f.key && <Check aria-hidden />}</span>
+              <span className="format-reach">{f.why ?? crowd(f.crowd).toUpperCase()}{d.trend?.format === f.key ? <em className="trending">TRENDING +{d.trend.bonusPercent}%</em> : null}{d.pollPick === f.key ? <em>CHAT’S PICK</em> : d.lastFormat === f.key ? <em>LAST SHOW</em> : null}</span><span className="format-check">{chosen === f.key && <Check aria-hidden />}</span>
             </button>)}</div>
             <div className="schedule-picker"><div><span className="eyebrow">{futureWeek ? "SCHEDULE FOR WEEK" : "WHEN ARE YOU LIVE?"}</span><small>{futureWeek ? `Choose a free night in week ${d.week}; you can go live when it begins.` : "Choosing a night books it like any other event; no events can be scheduled then."}</small></div>
               {streamDays.length ? <div className="night-choices" role="radiogroup" aria-label="Night to stream">{streamDays.map(day => <button key={day} type="button" role="radio" aria-checked={pick === day} disabled={retired} onClick={() => setNight(day)}><b>{dayLabel(day)}</b><small>{d.pathway.scheduledNights.includes(day) ? "SCHEDULED" : "FREE NIGHT"}</small></button>)}</div> : <p className="dc__note">No free nights left this week.</p>}
@@ -271,6 +273,10 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
           <section className="growth-map">
             <div className="growth-copy"><span className="eyebrow">04 / CHANNEL GROWTH</span><h2>A long game.<br /><em>Your own pace.</em></h2><p>Another way up in darts: build an audience. You’re {d.tier.name.toLowerCase()} today; {d.next ? `${(d.next.followers - d.followers).toLocaleString("en-GB")} more followers to ${d.next.name}.` : "you have reached the top tier."}</p></div>
             <div className="growth-steps">{d.tiers.map((tier, i) => <div className={`growth-step ${tier.reached ? "reached" : ""}`} key={tier.key}><span className="step-index">0{i + 1}</span><div className="step-info"><div><b>{tier.reached && <Check aria-hidden />} {tier.name}</b><small>{tier.followers ? `${tier.followers.toLocaleString("en-GB")} followers` : "Start here"}</small></div><p>{tier.perks}</p></div></div>)}</div>
+            {d.plaques && <div className="plaque-wall" aria-label="Creator plaques">{d.plaques.map(p => <div className={`plaque plaque-${p.key.toLowerCase()} ${p.earned ? "earned" : ""}`} key={p.key}>
+              <span className="plaque-disc" aria-hidden><Play fill="currentColor" /></span>
+              <div><b>{p.name}</b><small>{p.earned ? `Arrived S${p.earned.season} wk ${p.earned.week} · +${p.fans.toLocaleString("en-GB")} fans` : `${p.followers.toLocaleString("en-GB")} followers`}</small></div>
+            </div>)}</div>}
           </section>
           <section className="production-vault" id="vault">
             <div className="section-heading"><div><span className="eyebrow">05 / PRODUCTION VAULT</span><h2>Moments worth keeping</h2></div><span className="heading-meta">CLIPS · COLLABS · REPLAYS</span></div>
