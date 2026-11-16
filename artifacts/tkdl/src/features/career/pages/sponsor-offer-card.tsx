@@ -23,6 +23,12 @@ export function renewalNote(source: Record<string, unknown> | undefined): string
   const why = [titles ? `${titles} title${titles === 1 ? "" : "s"} on this deal` : "", terms && !missed ? `${terms} term${terms === 1 ? "" : "s"} with them` : ""].filter(Boolean).join(", ");
   return `Pays ${raise}% more${why ? `: ${why}` : ""}${missed ? ` (no loyalty raise: ${missed} missed appearance${missed === 1 ? "" : "s"})` : ""}`;
 }
+/** What keeps a deal, in a sentence: a season check that you don't meet yet is the catch to know before signing. */
+export function keepNote(keep: { when: "SEASON" | "RENEWAL"; text: string; met: boolean }): string {
+  const what = keep.text.charAt(0).toUpperCase() + keep.text.slice(1);
+  if (keep.when === "SEASON") return keep.met ? `To keep it: ${keep.text} (checked each new season)` : `Catch: ${what} by the start of next season, or they drop you`;
+  return `To renew: ${keep.text}${keep.met ? "" : " (not yet)"}`;
+}
 export const unsignableOfferReason = (offer: Pick<SponsorOffer, "acceptance">) =>
   offer.acceptance && !offer.acceptance.signable
     ? UNSIGNABLE_REASON[offer.acceptance.code ?? ""] ?? offer.acceptance.reason ?? "This offer cannot be signed under your current agreements and calendar."
@@ -147,6 +153,7 @@ export function SponsorOfferCard({
               {offer.kind === "RENEWAL" ? "Renewal offer" : "New partnership"}
             </span>
             {offer.kind === "RENEWAL" && renewalNote(offer.source) && <span className="career-sponsor-offer__category" data-loyalty>{renewalNote(offer.source)}</span>}
+            {offer.keep && <span className="career-sponsor-offer__category" data-keep={offer.keep.met ? "met" : "unmet"}>{keepNote(offer.keep)}</span>}
             {terms.category && <span className="career-sponsor-offer__category">{titleCase(terms.category.replaceAll("_", " "))}</span>}
             <span className="career-sponsor-offer__category">{offerEdition}</span>
           </div>

@@ -745,17 +745,19 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
       WHERE career_save_id=${root.id} AND id=${contract.offer_id}`)).rows[0]?.id??"");
     const previous=previousId?(await tx.execute(sql`SELECT status,end_season,end_week FROM career_sponsor_contracts
       WHERE career_save_id=${root.id} AND id=${previousId}`)).rows[0]:undefined;
-    if(!previous||previous.status==="ACTIVE"||timeIndex(Number(previous.end_season),Number(previous.end_week))>=now)
-      throw new CareerError(409,"A renewal cannot activate before its original agreement has concluded");
-    if(conflicts(contract.terms,await activeContracts(tx,root.id)).length)
-      throw new CareerError(409,"An accepted renewal conflicts with an active agreement and needs review");
+    // These run as the calendar moves, so they wait rather than throw (a throw here stopped every week from then on):
+    // a renewal starts once its original agreement has concluded and nothing active clashes with it.
+    if(!previous||previous.status==="ACTIVE"||timeIndex(Number(previous.end_season),Number(previous.end_week))>=now)continue;
+    if(conflicts(contract.terms,await activeContracts(tx,root.id)).length)continue;
     await tx.execute(sql`UPDATE career_sponsor_contracts SET status='ACTIVE'
       WHERE career_save_id=${root.id} AND id=${contract.id} AND status='SCHEDULED'`);
     // The renewal's loyalty bonus, now its term has begun (idempotent by contract).
     if (contract.terms.signingBonusPence > 0) await postSigningMoney(tx, root, contract.id, "RENEWAL", contract.terms, contract.sponsor_key, contract.offer_id, season, week);
     const spec=contract.terms.contractFoundation?.activitySpecification;
+    // A renewal starting as the calendar moves: its duties are set up even if they don't all fit around what you've booked
+    // since signing (you can free a week; a missed one costs the loyalty bonus). The week must never be stopped by it.
     if(spec)await materializeSponsorActivities(tx,{saveId:root.id,contractId:contract.id,sponsorKey:contract.sponsor_key,
-      worldSeed:root.world_seed,season:contract.start_season,week:contract.start_week,endSeason:contract.end_season,endWeek:contract.end_week,specification:spec});
+      worldSeed:root.world_seed,season:contract.start_season,week:contract.start_week,endSeason:contract.end_season,endWeek:contract.end_week,specification:spec},{lenient:true});
     const journey=(await tx.execute(sql`SELECT id FROM career_sponsor_journeys
       WHERE career_save_id=${root.id} AND signed_contract_id=${contract.id} ORDER BY created_at DESC LIMIT 1`)).rows[0];
     if(journey)await appendSponsorJourneyEvent(tx,root,{journeyId:String(journey.id),eventKey:`contract-activated:${contract.id}`,

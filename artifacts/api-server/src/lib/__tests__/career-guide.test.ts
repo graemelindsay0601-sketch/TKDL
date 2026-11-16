@@ -213,3 +213,8 @@ test("a sponsor appearance to book is a step with its deadline and what missing 
   assert.equal(thisWeek?.title, "Forge Workwear appearance this week");
   assert.ok(!buildGuide(base({ appearance: { id: "a1", sponsor: "Forge Workwear", dueWeek: 14, scheduledWeek: 13 } })).nextSteps.some(s => s.key === "appearance:a1"), "booked for later: nothing to do");
 });
+
+test("a deal with a season check you don't meet yet says the catch before you sign", () => {
+  const g = buildGuide(base({ sponsorOffer: { id: "p1", name: "Ironflight", signingBonusPence: 756_000, expiresWeek: 12, count: 1, catch: "hold a Tour Card" } }));
+  assert.match(g.nextSteps.find(s => s.key === "sponsor-offer:p1")?.why ?? "", /Catch: hold a Tour Card by next season or they drop you\./);
+});

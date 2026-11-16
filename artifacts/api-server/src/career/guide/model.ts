@@ -30,6 +30,8 @@ export type GuideInput = {
   moneyChallenge: { name: string; stakePence: number } | null;
   /** The best sponsor offer waiting on you (they expire if you don't answer). */
   sponsorOffer?: { id: string; name: string; signingBonusPence: number; expiresWeek: number | null; count: number;
+    /** A season check you don't meet yet (e.g. hold a Tour Card): they'd drop you at the next season start. */
+    catch?: string | null;
     /** A renewal of a deal you have: how much better it is for your titles on it. */
     renewal?: { raisePercent: number; titles: number; termsServed?: number; missedAppearances?: number } | null } | null;
   /** Career prize money won so far (for the money path). */
@@ -221,7 +223,7 @@ export function buildGuide(g: GuideInput) {
     const r = o.renewal, reasons = r ? [r.titles ? `${r.titles} title${r.titles === 1 ? "" : "s"}` : "", r.termsServed && !missed ? `${r.termsServed} term${r.termsServed === 1 ? "" : "s"} loyal` : ""].filter(Boolean) : [];
     const raise = r?.raisePercent ? ` (+${r.raisePercent}%: ${reasons.join(", ")})` : "";
     add({ key: `sponsor-offer:${o.id}`, tone: last ? "now" : "soon", title: o.renewal ? `${o.name} wants to renew your deal${raise}` : `${o.name} wants to sign you`,
-      why: `${o.signingBonusPence > 0 ? `${pounds(o.signingBonusPence)} ${r ? "loyalty bonus" : "for signing"}, ` : ""}help with your costs and bonuses for results.${missed ? ` No loyalty bonus: you missed ${missed} appearance${missed === 1 ? "" : "s"} on the deal.` : ""} ${last ? "Last week to answer" : o.expiresWeek == null ? "Open into next season" : `Open until week ${o.expiresWeek}`}${o.count > 1 ? ` · ${o.count} offers waiting` : ""}.`,
+      why: `${o.signingBonusPence > 0 ? `${pounds(o.signingBonusPence)} ${r ? "loyalty bonus" : "for signing"}, ` : ""}help with your costs and bonuses for results.${o.catch ? ` Catch: ${o.catch} by next season or they drop you.` : ""}${missed ? ` No loyalty bonus: you missed ${missed} appearance${missed === 1 ? "" : "s"} on the deal.` : ""} ${last ? "Last week to answer" : o.expiresWeek == null ? "Open into next season" : `Open until week ${o.expiresWeek}`}${o.count > 1 ? ` · ${o.count} offers waiting` : ""}.`,
       action: { label: "See the offer", href: `${base}/sponsors` } }); }
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
   for (const c of closing.slice(0, 1)) { const ev = g.events.find(e => e.id === c.id);

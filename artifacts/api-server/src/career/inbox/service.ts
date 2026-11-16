@@ -41,7 +41,7 @@ export function createCareerInboxService(database: CareerDatabase, deps: { calen
     // Events: qualified for, newly open, and entry closing this week.
     const cal = await deps.calendar.calendar(actor, saveId, { scope: "AVAILABLE", fromWeek: week, toWeek: Math.min(52, week + INBOX.lookAheadWeeks) }, { overview: false });
     const told = new Set<string>();
-    const opened: { id: string; name: string; dates: { startWeek: number } }[] = [];
+    const opened: { id: string; name: string; dates: { startWeek: number }; finance?: unknown }[] = [];
     for (const e0 of [...cal.events].sort((a, b) => a.dates.startWeek - b.dates.startWeek || a.dates.startDayOfWeek - b.dates.startDayOfWeek)) {
       if (!e0.human || !e0.human.canEnter || e0.status === "CANCELLED") continue;
       const name = seriesName(e0.name);
@@ -63,7 +63,8 @@ export function createCareerInboxService(database: CareerDatabase, deps: { calen
     }
     // Newly open events near you: one digest a week, not one item per event.
     if (opened.length) add({ key: `open-digest:${root.current_season}:${week}`, category: "OPEN", week, expiresWeek: week,
-      title: opened.length === 1 ? `${opened[0].name} is open` : `${opened.length} events near you are open`,
+      // "Near you" only when they all are: a home-nations trip is open to you, not near.
+      title: opened.length === 1 ? `${opened[0].name} is open` : `${opened.length} events ${opened.every(e => (e.finance as { travelBand?: string } | null | undefined)?.travelBand === "LOCAL") ? "near you are" : "you can enter are"} open`,
       body: `Entries are open for ${opened.slice(0, 3).map(e => `${e.name} (week ${e.dates.startWeek})`).join(", ")}${opened.length > 3 ? ` and ${opened.length - 3} more` : ""}.`,
       action: opened.length === 1 ? { label: "Have a look", href: `${base}/events/${opened[0].id}` } : { label: "See them", href: `${base}/calendar` } });
     // Sponsor offers for your darts career.

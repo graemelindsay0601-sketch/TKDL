@@ -37,8 +37,11 @@ export async function ensureCareerProfileSchema(tx: CareerExecutor): Promise<voi
       RETURN NEW;
     END $$ LANGUAGE plpgsql
   `);
-  await tx.execute(sql`DROP TRIGGER IF EXISTS career_profiles_immutable_trg ON career_profiles`);
-  await tx.execute(sql`CREATE TRIGGER career_profiles_immutable_trg BEFORE UPDATE ON career_profiles FOR EACH ROW EXECUTE FUNCTION career_profiles_immutable()`);
+  // Only when missing: re-creating it every start locked career_profiles against live play (the function above is
+  // replaced in place, so an existing trigger already runs the current rule).
+  const trigger = await tx.execute(sql`SELECT 1 FROM pg_trigger WHERE tgname = 'career_profiles_immutable_trg' AND tgrelid = 'career_profiles'::regclass`);
+  if (!trigger.rows.length)
+    await tx.execute(sql`CREATE TRIGGER career_profiles_immutable_trg BEFORE UPDATE ON career_profiles FOR EACH ROW EXECUTE FUNCTION career_profiles_immutable()`);
 }
 
 /**
@@ -80,5 +83,8 @@ export async function ensureCareerMatchSessionSchema(tx: CareerExecutor): Promis
     )
   `);
   // Event database v13 pairs: the human's partner and the opposing partner (each a seeded bot). Additive.
-  await tx.execute(sql`ALTER TABLE career_match_sessions ADD COLUMN IF NOT EXISTS team JSONB CHECK (team IS NULL OR jsonb_typeof(team) = 'object')`);
+  // Checked first: ALTER TABLE takes its lock before IF NOT EXISTS is considered.
+  const team = await tx.execute(sql`SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'career_match_sessions' AND column_name = 'team'`);
+  if (!team.rows.length)
+    await tx.execute(sql`ALTER TABLE career_match_sessions ADD COLUMN IF NOT EXISTS team JSONB CHECK (team IS NULL OR jsonb_typeof(team) = 'object')`);
 }
