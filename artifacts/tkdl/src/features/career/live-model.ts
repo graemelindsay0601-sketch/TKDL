@@ -125,3 +125,30 @@ export function scoreLine(session: Pick<LiveSession, "format" | "result">): stri
   if (!r) return "";
   return session.format.unit === "SETS" && r.sets ? `${r.sets[0]}–${r.sets[1]} sets (${r.legs[0]}–${r.legs[1]} legs)` : `${r.legs[0]}–${r.legs[1]}`;
 }
+
+/** One side's match in numbers, from the dart log (the server's averages stay the source for averages). */
+export type SideStats = { legs: number; oneEighties: number; tonPlus: number; bestCheckout: number | null; checkouts: number; bestLegDarts: number | null };
+/** Both sides' stats (you first), or null when the log can't be replayed. */
+export function matchStats(session: Pick<LiveSession, "format" | "firstThrower" | "darts">): [SideStats, SideStats] | null {
+  if (session.firstThrower === null) return null;
+  let s: X01MatchState;
+  try { s = replay(session.format as X01Format, session.firstThrower, session.darts as Dart[]); } catch { return null; }
+  const side = (p: 0 | 1): SideStats => {
+    const visits = s.visits.filter(v => v.thrower === p && !v.game);
+    const outs = visits.filter(v => v.checkout);
+    const won = s.legsLog.filter(l => l.winner === p);
+    return { legs: won.length, oneEighties: visits.filter(v => v.points === 180).length, tonPlus: visits.filter(v => v.points >= 100).length,
+      bestCheckout: outs.length ? Math.max(...outs.map(v => v.points)) : null, checkouts: outs.length,
+      bestLegDarts: won.length ? Math.min(...won.map(l => l.darts[p])) : null };
+  };
+  return [side(0), side(1)];
+}
+/** Leg by leg, in order: who won it, in how many of their darts, and the checkout. */
+export type LegSummary = { winner: 0 | 1; darts: number; checkout: number };
+export function legSummaries(session: Pick<LiveSession, "format" | "firstThrower" | "darts">): LegSummary[] {
+  if (session.firstThrower === null) return [];
+  try {
+    return replay(session.format as X01Format, session.firstThrower, session.darts as Dart[]).legsLog
+      .map(l => ({ winner: l.winner as 0 | 1, darts: l.darts[l.winner], checkout: l.checkout }));
+  } catch { return []; }
+}

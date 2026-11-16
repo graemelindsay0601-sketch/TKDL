@@ -10,7 +10,8 @@ import { resolveBullUp, type Dart, type X01Format } from "@/lib/darts-rules";
 import { useWakeLock, useZoomLock } from "@/lib/nativeParity";
 import { liveApi, errorMessage, useTournament, useAdvance, useTournamentAction } from "../api";
 import { MatchStreamPanel, type MatchStreamPanelHandle } from "./match-stream";
-import { MatchContextStrip, ResultBanner } from "../tournament/components";
+import { MatchContextStrip } from "../tournament/components";
+import { MatchResultCard } from "../match-result";
 import { resultMoment } from "../tournament/model";
 import { formatPence, matchFormatLine } from "../model";
 import { OSWALD, Label, StatusBadge } from "../components";
@@ -199,7 +200,7 @@ export function noPrizeLine(bands: { upToPosition: number; amountPence: number }
 }
 
 function Overlay({ children }: { children: React.ReactNode }) {
-  return createPortal(<div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "safe center", justifyContent: "center", overflowY: "auto", overscrollBehavior: "contain", padding: 16, background: "rgba(4,4,10,0.96)" }}>{children}</div>, document.body);
+  return createPortal(<div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column", gap: 12, alignItems: "center", justifyContent: "safe center", overflowY: "auto", overscrollBehavior: "contain", padding: 16, background: "rgba(4,4,10,0.96)" }}>{children}</div>, document.body);
 }
 
 /** Career result transition: score, significance from the saved tournament state, what happens next. No narrative (A7). */
@@ -234,30 +235,18 @@ function PostMatch({ ctx, session }: { ctx: ShellContext; session: LiveSession }
   return (
     <Overlay>
       <MatchStreamPanel saveId={saveId} matchId={session.matchId} />
-      <div className="pdc-card career-hero p-5 space-y-4 w-full" style={{ maxWidth: 440 }} role="dialog" aria-label="Match result">
-        <div className="flex items-center gap-2"><Swords className="w-4 h-4" style={{ color: "#ffd24a" }} aria-hidden /><Label color="#ffd24a">Match result</Label>
-          <StatusBadge label={r.humanWon ? "Won" : "Lost"} tone={r.humanWon ? "success" : "danger"} /></div>
-        <div className="font-black uppercase leading-tight" style={{ ...OSWALD, color: "#fff", fontSize: "1.4rem" }}>
-          {session.player.name} {scoreLine(session)} {session.opponent.name}
-        </div>
-        {moment && <ResultBanner moment={moment} />}
-        <dl className="grid grid-cols-2 gap-2 text-sm">
-          <div><dt><Label>Your average</Label></dt><dd style={{ color: "#fff" }}>{r.facts?.human.average.toFixed(2)}</dd></div>
-          <div><dt><Label>Opponent average</Label></dt><dd style={{ color: "#fff" }}>{r.facts?.opponent.average.toFixed(2)}</dd></div>
-        </dl>
-        {prize !== null && prize > 0 && <p className="text-sm" style={{ color: "#ffd24a" }}>{t.data?.money.paid ? "Prize settled" : "Prize secured so far"}: {formatPence(prize)}</p>}
-        {finished && prize === 0 && <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{noPrizeLine(t.data?.money.bands)}</p>}
-        <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{nextState}</p>
-        <div className="flex flex-wrap gap-2">
+      <MatchResultCard saveId={saveId} session={session} tournament={t.data} moment={moment} prizePence={prize} prizePaid={!!t.data?.money.paid}
+        noPrize={finished && prize === 0 ? noPrizeLine(t.data?.money.bands) : null} next={nextState}>
           {next ? <button className="career-btn career-btn-gold" onClick={() => play(next)}><Swords className="w-4 h-4" aria-hidden /> Play next match</button>
             : finished ? <button className="career-btn career-btn-gold" disabled={dismiss.isPending || t.isLoading} onClick={backToCareer}><Home className="w-4 h-4" aria-hidden /> Back to Career</button>
             : <button className="career-btn career-btn-gold" disabled={advance.isPending || t.isLoading} onClick={continueToNext}>
                 {advance.isPending ? <Loader2 className="w-4 h-4 animate-spin motion-reduce:animate-none" aria-hidden /> : <FastForward className="w-4 h-4" aria-hidden />}
                 {advance.isPending ? "Playing the round…" : "Continue to next match"}</button>}
-          <Link href={`/career/${saveId}/tournaments/${session.eventId}`} className="career-btn career-btn-primary"><Trophy className="w-4 h-4" aria-hidden /> Tournament Hub</Link>
-          {!finished && <Link href={`/career/${saveId}`} className="career-btn career-btn-ghost"><Home className="w-4 h-4" aria-hidden /> Career Home</Link>}
-          <Link href={`/career/${saveId}/calendar`} className="career-btn career-btn-ghost"><ListOrdered className="w-4 h-4" aria-hidden /> Calendar</Link>
-        </div>
+          <Link href={`/career/${saveId}/tournaments/${session.eventId}`} className="career-btn career-btn-primary"><Trophy className="w-4 h-4" aria-hidden /> Tournament</Link>
+          {!finished ? <Link href={`/career/${saveId}`} className="career-btn career-btn-ghost"><Home className="w-4 h-4" aria-hidden /> Career Home</Link>
+            : <Link href={`/career/${saveId}/calendar`} className="career-btn career-btn-ghost"><ListOrdered className="w-4 h-4" aria-hidden /> Calendar</Link>}
+      </MatchResultCard>
+      <div className="mr-after">
         {note && <p role="alert" className="text-sm" style={{ color: "#ff8fb4" }}>{note}</p>}
         {advance.isPending && <ContinueProgress saveId={saveId} from={{ season: ctx.save.currentSeason, week: ctx.save.currentWeek }} toEvent={null} />}
       </div>
