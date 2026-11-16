@@ -16,6 +16,13 @@ const UNSIGNABLE_REASON: Record<string, string> = {
   FUTURE_TERM_CONFLICT: "This offer clashes with a sponsor agreement you have already accepted for a later date.",
   ACTIVITY_SCHEDULE_UNAVAILABLE: "Your calendar has no free weeks for the appearances this contract requires, so it cannot be signed right now.",
 };
+/** Why a renewal pays more: the titles you won on the deal and the terms you've stayed (from the server's renewal source). */
+export function renewalNote(source: Record<string, unknown> | undefined): string | null {
+  const raise = Number(source?.raisePercent ?? 0), titles = Number(source?.titlesOnDeal ?? 0), terms = Number(source?.termsServed ?? 0);
+  if (!raise) return null;
+  const why = [titles ? `${titles} title${titles === 1 ? "" : "s"} on this deal` : "", terms ? `${terms} term${terms === 1 ? "" : "s"} with them` : ""].filter(Boolean).join(", ");
+  return `Pays ${raise}% more${why ? `: ${why}` : ""}`;
+}
 export const unsignableOfferReason = (offer: Pick<SponsorOffer, "acceptance">) =>
   offer.acceptance && !offer.acceptance.signable
     ? UNSIGNABLE_REASON[offer.acceptance.code ?? ""] ?? offer.acceptance.reason ?? "This offer cannot be signed under your current agreements and calendar."
@@ -139,6 +146,7 @@ export function SponsorOfferCard({
             <span className={`career-sponsor-offer__kind ${offer.kind === "RENEWAL" ? "is-renewal" : ""}`}>
               {offer.kind === "RENEWAL" ? "Renewal offer" : "New partnership"}
             </span>
+            {offer.kind === "RENEWAL" && renewalNote(offer.source) && <span className="career-sponsor-offer__category" data-loyalty>{renewalNote(offer.source)}</span>}
             {terms.category && <span className="career-sponsor-offer__category">{titleCase(terms.category.replaceAll("_", " "))}</span>}
             <span className="career-sponsor-offer__category">{offerEdition}</span>
           </div>
@@ -146,7 +154,7 @@ export function SponsorOfferCard({
 
         <div className="career-sponsor-offer__headline-terms">
           <div className="career-sponsor-offer__signing">
-            <span>{terms.signingBonusPence > 0 ? "Signing bonus" : "Upfront payment"}</span>
+            <span>{terms.signingBonusPence > 0 ? (offer.kind === "RENEWAL" ? "Loyalty bonus" : "Signing bonus") : "Upfront payment"}</span>
             <strong>{terms.signingBonusPence > 0 ? formatPence(terms.signingBonusPence) : "None"}</strong>
           </div>
           <div className="career-sponsor-offer__hero-detail">

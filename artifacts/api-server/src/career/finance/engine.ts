@@ -315,14 +315,29 @@ async function recordContractConclusion(tx:CareerExecutor,root:RootRow,contractI
 }
 /** Renewal raise for titles won during a deal: 10% a title, up to 50%. */
 export const renewalRaise = (titles: number) => Math.min(0.5, Math.max(0, titles) * 0.1);
-/** The deal's money terms raised by `raise` (coverage and duties unchanged). */
-export function raisedRenewalTerms(terms: SponsorTerms, raise: number): SponsorTerms {
-  const next = structuredClone(terms), up = (p: number) => Math.round(p * (1 + raise));
-  if (!raise) return next;
-  if (next.contractFoundation) next.contractFoundation.guaranteedPayments = next.contractFoundation.guaranteedPayments.map(g => ({ ...g, amountPence: up(g.amountPence) }));
-  if (next.eventPayment) next.eventPayment = { ...next.eventPayment, amountPence: up(next.eventPayment.amountPence) };
-  next.performanceBonuses = next.performanceBonuses.map(b => ({ ...b, amountPence: up(b.amountPence) }));
+/** Loyalty raise: 5% for each term served with the sponsor, up to 25%. */
+export const loyaltyRaise = (termsServed: number) => Math.min(0.25, Math.max(0, termsServed) * 0.05);
+/** Loyalty bonus on renewal: half the sponsor's signing fee after one term, the full fee from two. */
+export const loyaltyBonus = (signingFeePence: number, termsServed: number) => Math.round(Math.max(0, signingFeePence) * Math.min(1, Math.max(0, termsServed) * 0.5));
+/**
+ * The deal's money terms after a renewal raise: each amount is the sponsor's standard amount raised by `raise`, or what
+ * the deal already pays if that is more (a negotiated deal keeps its gains; raises never compound). Coverage and duties
+ * are unchanged. Without the standard terms the deal renews as it is.
+ */
+export function raisedRenewalTerms(terms: SponsorTerms, raise: number, standard: SponsorTerms | null = terms): SponsorTerms {
+  const next = structuredClone(terms);
+  if (!raise || !standard) return next;
+  const up = (current: number, base: number | undefined) => base === undefined ? current : Math.max(current, Math.round(base * (1 + raise)));
+  if (next.contractFoundation) next.contractFoundation.guaranteedPayments = next.contractFoundation.guaranteedPayments
+    .map((g, i) => ({ ...g, amountPence: up(g.amountPence, standard.contractFoundation?.guaranteedPayments[i]?.amountPence) }));
+  if (next.eventPayment) next.eventPayment = { ...next.eventPayment, amountPence: up(next.eventPayment.amountPence, standard.eventPayment?.amountPence) };
+  next.performanceBonuses = next.performanceBonuses.map(b => ({ ...b, amountPence: up(b.amountPence, standard.performanceBonuses.find(x => x.key === b.key)?.amountPence) }));
   return next;
+}
+/** Terms served with a sponsor: completed deals plus the one ending now. */
+async function termsServedWith(tx: CareerExecutor, saveId: string, sponsorKey: string) {
+  return 1 + Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_contracts
+    WHERE career_save_id = ${saveId} AND sponsor_key = ${sponsorKey} AND status = 'COMPLETED'`)).rows[0]?.n ?? 0);
 }
 async function titlesSince(tx: CareerExecutor, saveId: string, season: number, week: number) {
   return Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_results r JOIN career_event_instances i ON i.career_save_id = r.career_save_id AND i.id = r.event_id
@@ -636,14 +651,19 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
       && evaluateRequirement(active.terms.renewalRequirement, await getFacts()) === true) {
     const operationKey = `renewal:${active.id}`;
     const expiry = fromIndex(endIndex + OFFER_LIFETIME_WEEKS);
-    // A renewal rewards what you did on the deal: 10% more per title won during it (up to +50%) on the guaranteed
-    // pay, event pay and bonuses, and a loyalty bonus (a quarter of the original signing fee) if you won anything.
+    // Staying pays. A renewal raises the deal for the titles you won on it (10% a title, up to +50%) and for loyalty
+    // (5% a term served with this sponsor, up to +25%), worked out from the sponsor's standard terms so raises never
+    // compound, and pays a loyalty bonus in place of a signing fee: half the sponsor's signing fee after one term,
+    // the full fee from two terms on. A rival's fresh offer has none of this.
     const titlesOnDeal = await titlesSince(tx, root.id, active.start_season, active.start_week);
-    const raise = renewalRaise(titlesOnDeal);
-    const renewalTerms = raisedRenewalTerms(active.terms, raise);
-    renewalTerms.signingBonusPence = titlesOnDeal > 0 ? Math.round(active.terms.signingBonusPence / 4) : 0;
+    const termsServed = await termsServedWith(tx, root.id, active.sponsor_key);
+    const raise = renewalRaise(titlesOnDeal) + loyaltyRaise(termsServed);
+    const standard = sponsorCatalogue(active.terms.sponsorDatabaseVersion).find(d => d.key === active.sponsor_key)?.terms ?? null;
+    const renewalTerms = raisedRenewalTerms(active.terms, raise, standard);
+    renewalTerms.signingBonusPence = loyaltyBonus(standard?.signingBonusPence ?? active.terms.signingBonusPence, termsServed);
     if (await insertOffer(tx, root, operationKey, "RENEWAL", renewalTerms,
-      { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4, titlesOnDeal, raisePercent: Math.round(raise * 100),
+      { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4, titlesOnDeal, termsServed, raisePercent: Math.round(raise * 100),
+        loyaltyBonusPence: renewalTerms.signingBonusPence,
         eligibilityEvidence:{requirement:active.terms.renewalRequirement,evaluatedAt:{season,week},eligible:true} }, season, week, expiry)) {
       const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers
         WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;

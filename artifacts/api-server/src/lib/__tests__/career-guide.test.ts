@@ -185,6 +185,21 @@ test("a weekend event takes both nights: nothing else is suggested on its second
 });
 
 test("a renewal says it's a renewal and what your titles earned you", () => {
-  const g = buildGuide(base({ sponsorOffer: { id: "r1", name: "Forge Workwear", signingBonusPence: 2_500, expiresWeek: 12, count: 1, renewal: { raisePercent: 20, titles: 2 } } }));
-  assert.equal(g.nextSteps.find(s => s.key === "sponsor-offer:r1")?.title, "Forge Workwear wants to renew your deal (+20%: your 2 titles)");
+  const g = buildGuide(base({ sponsorOffer: { id: "r1", name: "Forge Workwear", signingBonusPence: 10_000, expiresWeek: 12, count: 1, renewal: { raisePercent: 30, titles: 2, termsServed: 2 } } }));
+  const step = g.nextSteps.find(s => s.key === "sponsor-offer:r1");
+  assert.equal(step?.title, "Forge Workwear wants to renew your deal (+30%: 2 titles, 2 terms loyal)");
+  assert.match(step?.why ?? "", /^£100 loyalty bonus, /);
+});
+
+test("an invitation you hold is a step on any path: free entry, what the winner gets", () => {
+  const cup = ev("cup", "NATIONAL_AMATEUR", 11, 6, { name: "Grassroots Champions Cup", classification: "INVITATIONAL_EXHIBITION",
+    finance: { estimatedPlayerCostPence: 0, topPrizePence: 200_000, travelBand: "DOMESTIC" } });
+  const g = buildGuide(base({ focus: "DARTCAST_CREATOR", events: [cup] }));
+  const step = g.nextSteps.find(s => s.key === "invite:cup");
+  assert.equal(step?.title, "You're in: Grassroots Champions Cup");
+  assert.match(step?.why ?? "", /free to enter · £2,000 to the winner\. An invitation/);
+  assert.equal(step?.action.enterEventId, "cup");
+  // A pub-level free night isn't an "invitation" step (it's an ordinary local pick).
+  const pub = ev("free", "GRASSROOTS", 11, 2, { classification: "INVITATIONAL_EXHIBITION", finance: { estimatedPlayerCostPence: 0, travelBand: "LOCAL" } });
+  assert.ok(!buildGuide(base({ events: [pub] })).nextSteps.some(s => s.key.startsWith("invite:")));
 });

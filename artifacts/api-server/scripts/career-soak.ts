@@ -35,6 +35,8 @@ import { createCareerLocalCompetitionService } from "../src/career/club/local-co
 
 const weeks = Number(process.argv[2] ?? 60), focus = process.argv[3] ?? "OPEN_SCHEDULE";
 const winRate = Number(process.env.WIN_RATE ?? 0.5), streamRate = Number(process.env.STREAM_RATE ?? 0.25);
+/** MONEY=0: a player who never plays money matches (the floor without gambling). */
+const moneyMatches = process.env.MONEY !== "0";
 const logPath = process.env.LOG ?? `/tmp/career-soak-${focus.toLowerCase()}.log`;
 // Seeded randomness, so a run that finds something can be replayed.
 let seed = Number(process.env.SEED ?? Math.floor(Math.random() * 1e9));
@@ -105,7 +107,7 @@ async function playLog(what: string, send: (darts: object[]) => Promise<unknown>
 const playerId = Number(process.argv[4] ?? (await db.execute(sql`SELECT player_id AS id FROM career_saves ORDER BY created_at DESC LIMIT 1`)).rows[0]?.id);
 const actor = { playerId, isAdmin: false };
 let saveId = process.argv[5];
-writeFileSync(logPath, `career soak · focus ${focus} · seed ${startSeed} · win ${winRate}\n`);
+writeFileSync(logPath, `career soak · focus ${focus} · seed ${startSeed} · win ${winRate} · money matches ${moneyMatches ? "on" : "off"}\n`);
 if (!saveId) {
   const used = new Set((await db.execute(sql`SELECT slot_number FROM career_saves WHERE player_id = ${playerId} AND status = 'ACTIVE'`)).rows.map(r => Number(r.slot_number)));
   const slot = [1, 2, 3].find(s => !used.has(s));
@@ -261,7 +263,7 @@ for (let i = 0; i < weeks; i++) {
   }
   // The rest of a player's week, at random.
   if (focus === "DARTCAST_CREATOR" || rand() < streamRate) await doStream();
-  await doMoney();
+  if (moneyMatches) await doMoney();
   await doLocal(root.currentWeek);
   if (rand() < 0.1) await act("join team nights", () => teams.join(actor, id), [/already|no team|not|full|season|club/i]);
 

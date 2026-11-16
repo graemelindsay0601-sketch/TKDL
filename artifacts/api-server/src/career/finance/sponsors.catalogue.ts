@@ -626,12 +626,24 @@ export const SPONSOR_CATALOGUE_V9:readonly SponsorDefinition[]=Object.freeze(SPO
  * a local title now pays a local sponsor £75 (was £25) and regional bonuses double. Professional and elite deals,
  * earlier offers and signed contracts are unchanged.
  */
+function withoutVaultWins(rule:Requirement):Requirement{
+  if("all" in rule)return {all:rule.all.map(withoutVaultWins)};
+  if("any" in rule)return {any:rule.any.map(withoutVaultWins)};
+  if(rule.fact==="circuitFinish"&&rule.circuits.includes("VAULT")){
+    const circuits=rule.circuits.filter(c=>c!=="VAULT");
+    return circuits.length?{...rule,circuits}:{...rule,circuits:["CHALLENGER"]};
+  }
+  return structuredClone(rule);
+}
 const V10_PERFORMANCE:Readonly<Record<SponsorTier,number>>=Object.freeze({LOCAL:3,REGIONAL:2,PROFESSIONAL:1,ELITE:1});
 export const SPONSOR_CATALOGUE_V10:readonly SponsorDefinition[]=Object.freeze(SPONSOR_CATALOGUE_V9.map(definition=>{
   const terms=structuredClone(definition.terms);
   terms.sponsorDatabaseVersion=10;
   terms.performanceBonuses=terms.performanceBonuses.map(bonus=>({...bonus,amountPence:Math.round(bonus.amountPence*V10_PERFORMANCE[terms.tier])}));
-  return { key: definition.key, offerRequirement: structuredClone(definition.offerRequirement), terms };
+  // A professional deal is for professional-level results: winning a Vault night (a pub-level invitational) no longer
+  // brings one, a Challenger Tour title, a Tour Card or a world ranking still do.
+  const offerRequirement=terms.tier==="PROFESSIONAL"?withoutVaultWins(definition.offerRequirement):structuredClone(definition.offerRequirement);
+  return { key: definition.key, offerRequirement, terms };
 }));
 
 export function validateSponsorCatalogues():void {
