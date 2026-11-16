@@ -31,7 +31,15 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
         const later = (await tx.execute(sql`SELECT DISTINCT ON (circuit) circuit, id, name, start_week, registration_opens_week FROM career_event_instances
           WHERE career_save_id = ${saveId} AND season = ${r.current_season} AND start_week > ${Number(r.current_week) + 4} AND status NOT IN ('COMPLETED', 'CANCELLED')
           ORDER BY circuit, start_week, name`)).rows.map(e => ({ circuit: String(e.circuit), id: String(e.id), name: String(e.name), week: Number(e.start_week), opensWeek: Number(e.registration_opens_week) }));
-        return { season: Number(r.current_season), week: Number(r.current_week), balancePence: Number(balance ?? 0), channel, pendingReview: review == null ? null : Number(review), later };
+        // The next sponsor appearance you owe this season (booked or not).
+        const duty = (await tx.execute(sql`SELECT c.id, c.due_week, c.scheduled_week, c.status, s.terms->>'displayName' AS sponsor
+          FROM career_sponsor_commitments c JOIN career_sponsor_contracts s ON s.career_save_id = c.career_save_id AND s.id = c.contract_id
+          WHERE c.career_save_id = ${saveId} AND c.required AND c.season = ${r.current_season} AND c.status IN ('AVAILABLE', 'CONFIRMED')
+            AND (c.scheduled_week IS NULL OR c.scheduled_week >= ${r.current_week})
+          ORDER BY c.due_week, c.id LIMIT 1`)).rows[0];
+        const appearance = duty ? { id: String(duty.id), sponsor: String(duty.sponsor ?? "Your sponsor"), dueWeek: Number(duty.due_week),
+          scheduledWeek: duty.scheduled_week == null ? null : Number(duty.scheduled_week) } : null;
+        return { season: Number(r.current_season), week: Number(r.current_week), balancePence: Number(balance ?? 0), channel, pendingReview: review == null ? null : Number(review), later, appearance };
       });
       // Events without the season overview (its read of every week ahead); today and waiting matches come from the cheap glance.
       const [cal, glance] = await Promise.all([
@@ -50,7 +58,7 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
         week: Number(streaming.week), scheduledNights: streaming.pathway?.scheduledNights ?? [], streamsThisWeek: Number(streaming.streamsThisWeek ?? 0),
         perWeek: Number(streaming.perWeek ?? 0), live: streaming.live ?? null } : null;
       // The best waiting offer you can actually sign: the biggest signing bonus, then the one closing first.
-      type Offer = { id: string; status: string; terms: { displayName?: string; signingBonusPence?: number }; expires: { season: number; week: number }; acceptance?: { signable: boolean } | null; kind?: string; source?: { raisePercent?: number; titlesOnDeal?: number; termsServed?: number } | null };
+      type Offer = { id: string; status: string; terms: { displayName?: string; signingBonusPence?: number }; expires: { season: number; week: number }; acceptance?: { signable: boolean } | null; kind?: string; source?: { raisePercent?: number; titlesOnDeal?: number; termsServed?: number; missedAppearances?: number } | null };
       const offers = ((sponsors as { offers?: Offer[] }).offers ?? []).filter(o => o.status === "AVAILABLE" && o.acceptance?.signable !== false
         && (Number(o.expires.season) > root.season || Number(o.expires.week) >= root.week))
         .sort((a, b) => (b.terms.signingBonusPence ?? 0) - (a.terms.signingBonusPence ?? 0) || (a.expires.season - b.expires.season) * 100 + a.expires.week - b.expires.week);
@@ -59,12 +67,12 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
         sponsorOffer: offer ? { id: String(offer.id), name: offer.terms.displayName ?? "A sponsor", signingBonusPence: Number(offer.terms.signingBonusPence ?? 0),
           expiresWeek: Number(offer.expires.season) > root.season ? null : Number(offer.expires.week), count: offers.length,
           renewal: offer.kind === "RENEWAL" ? { raisePercent: Number(offer.source?.raisePercent ?? 0), titles: Number(offer.source?.titlesOnDeal ?? 0),
-            termsServed: Number(offer.source?.termsServed ?? 1) } : null } : null,
+            termsServed: Number(offer.source?.termsServed ?? 1), missedAppearances: Number(offer.source?.missedAppearances ?? 0) } : null } : null,
         saveId, season: root.season, balancePence: root.balancePence, focus: (goals.focus as GuideFocus) ?? "OPEN_SCHEDULE",
         today: overview?.today ?? { week: root.week, dayOfWeek: 1, phase: "START_OF_WEEK" },
         facts: sponsors.facts ?? EMPTY_FACTS, sponsorTiers: sponsors.prospects ?? [], events,
         pendingMatch: pending ? { matchId: pending.matchId, eventId: pending.eventId, name: events.find(e => e.id === pending.eventId)?.name ?? "your event" } : null,
-        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, missedWeeks: 6, later: root.later, earningsPence: Number((goals as { context?: { earningsPence?: number } }).context?.earningsPence ?? 0),
+        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, missedWeeks: 6, later: root.later, appearance: root.appearance, earningsPence: Number((goals as { context?: { earningsPence?: number } }).context?.earningsPence ?? 0),
       });
     },
   };

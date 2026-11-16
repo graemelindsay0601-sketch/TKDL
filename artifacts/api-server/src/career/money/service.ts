@@ -18,7 +18,7 @@ import { post } from "../finance/ledger.ts";
 import { reservedPence } from "../finance/engine.ts";
 import type { RootRow } from "../calendar/engine.ts";
 import { replay, type X01Format } from "../../shared/darts-rules/x01.ts";
-import { MONEY, appetiteFor, averageForLevel, lineFor, oddsFor, replyTo, weeklyChallenge, willingFor, type Odds } from "./model.ts";
+import { MONEY, appetiteFor, averageForLevel, lineFor, oddsFor, replyTo, stakeCeiling, weeklyChallenge, willingFor, type Odds } from "./model.ts";
 
 type Row = Record<string, unknown>;
 export type Member = { key: string; name: string; professional: boolean; average: number | null };
@@ -45,7 +45,7 @@ export type MoneyMatchSession = { id: string; status: "LIVE" | "PLAYED"; stakePe
   format: X01Format; firstThrower: 0; darts: unknown[]; won: boolean | null; crowd: ReturnType<typeof walkOnCrowd> };
 const MONEY_CONTEXT = { category: "local" as const, roundImportance: 0.5, elimination: true };
 export type MoneyMatchesView = {
-  season: number; week: number; club: string | null; availablePence: number; perWeek: number; playedThisWeek: number; bestOf: number;
+  season: number; week: number; club: string | null; availablePence: number; maxStakePence: number; perWeek: number; playedThisWeek: number; bestOf: number;
   liveMatches: { id: string; season: number; week: number; opponentKey: string; opponentName: string; stakePence: number; gameFormat: MoneyGameFormat }[];
   /** Your Career average (null until enough live darts are thrown). */
   yourAverage: number | null;
@@ -152,7 +152,7 @@ export function createCareerMoneyService(database: CareerDatabase) {
     const challenger = offer && !thisWeek.some(r => r.opponentKey === offer.opponentKey) && !talks.has(offer.opponentKey) && thisWeek.filter(r => r.status === "PLAYED").length < MONEY.perWeek
       ? members.find(m => m.key === offer.opponentKey) : undefined;
     return {
-      season, week, club: locality ? `${locality.city} Darts Club` : null, availablePence: available, perWeek: MONEY.perWeek, bestOf: MONEY.bestOf,
+      season, week, club: locality ? `${locality.city} Darts Club` : null, availablePence: available, maxStakePence: stakeCeiling(available), perWeek: MONEY.perWeek, bestOf: MONEY.bestOf,
       playedThisWeek: thisWeek.filter(r => r.status === "PLAYED").length + liveMatches.filter(m => m.season === season && m.week === week).length, liveMatches, yourAverage,
       members: priced.map(({ willing: _hidden, ...m }) => ({ ...m, thisWeek: thisWeek.find(r => r.opponentKey === m.key) ?? null, talk: talks.get(m.key) ?? null })),
       challenge: challenger && offer ? { opponentKey: challenger.key, name: challenger.name, stakePence: offer.stakePence, odds: oddsFor(yourPlaying, challenger.average), average: challenger.average } : null,
@@ -299,6 +299,7 @@ export function createCareerMoneyService(database: CareerDatabase) {
         if (member.talk && member.talk.status !== "OPEN") throw new CareerError(409, member.talk.status === "WALKED" ? `${member.name} has walked away for this week` : "You have already shaken on a stake");
         if (input.stakePence < MONEY.minimumPence || input.stakePence % MONEY.stepPence) throw new CareerError(400, "Offer a whole number of pounds, at least £5");
         if (input.stakePence > before.availablePence) throw new CareerError(409, "You do not have that much money free");
+        if (input.stakePence > stakeCeiling(before.availablePence)) throw new CareerError(409, `Keep some back: the most you can put on one game is ${fmt(stakeCeiling(before.availablePence))}, half of what you have free`);
         const { members } = await clubMembers(tx, root);
         const form = await loadHumanForm(tx, root);
         const offset = CAREER_DIFFICULTY_CONFIG[root.difficulty as keyof typeof CAREER_DIFFICULTY_CONFIG]?.abilityOffset ?? 0;
@@ -306,7 +307,7 @@ export function createCareerMoneyService(database: CareerDatabase) {
         const m = members.find(x => x.key === member.key)!;
         const willing = willingFor(appetiteFor(root.world_seed, season, m), oddsFor(yourPlaying, m.average));
         const ask = (member.talk ? MONEY.asks - member.talk.asksLeft : 0) + 1;
-        const reply = replyTo(input.stakePence, Math.min(willing, Math.max(MONEY.minimumPence, before.availablePence)), member.odds, ask,
+        const reply = replyTo(input.stakePence, Math.min(willing, Math.max(MONEY.minimumPence, stakeCeiling(before.availablePence))), member.odds, ask,
           (kind, pence) => lineFor(root.world_seed, season, week, member.key, ask, kind, pence, input.stakePence));
         const log = [...(member.talk?.log ?? []), { who: "YOU" as const, text: `${fmt(input.stakePence)}, first to four?`, pence: input.stakePence },
           { who: "THEM" as const, text: reply.line, pence: reply.pence }];

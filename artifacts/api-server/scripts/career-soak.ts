@@ -121,7 +121,7 @@ if (!saveId) {
 const id = saveId!;
 console.log(`soak save ${id} · focus ${focus} · seed ${startSeed} · log ${logPath}`);
 const balance = async () => Number((await db.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${id}`)).rows[0]?.balance_pence ?? 0);
-const stats = { entries: 0, matches: 0, streams: 0, moneyMatches: 0, localNights: 0, sponsorsSigned: 0, blockers: {} as Record<string, number> };
+const stats = { entries: 0, matches: 0, streams: 0, moneyMatches: 0, localNights: 0, sponsorsSigned: 0, appearancesBooked: 0, blockers: {} as Record<string, number> };
 
 // ---------------------------------------------------------------- a player's week
 async function doStream() {
@@ -261,6 +261,15 @@ for (let i = 0; i < weeks; i++) {
       [/requirement|no longer|expired|full|commit|conflict/i]);
     if (r) { stats.sponsorsSigned++; log(`  signed: ${s.title.replace(" wants to sign you", "")}`); }
   }
+  // A sponsor appearance to book: the first week from now to the deadline that's free.
+  for (const s of g?.nextSteps ?? []) if (s.key.startsWith("appearance:") && s.title.startsWith("Book")) {
+    const activityId = s.key.slice("appearance:".length), due = Number(/by week (\d+)/.exec(s.why)?.[1] ?? root.currentWeek);
+    for (let w = root.currentWeek; w <= due; w++) {
+      const r = await act(`book appearance wk ${w}`, () => sporting.finance.updateSponsorActivity(actor, id, activityId, { action: "SCHEDULE", week: w }),
+        [/conflicts|already scheduled|valid window|not ready|not active/i]);
+      if (r) { stats.appearancesBooked++; log(`  booked appearance: week ${w}`); break; }
+    }
+  }
   // The rest of a player's week, at random.
   if (focus === "DARTCAST_CREATOR" || rand() < streamRate) await doStream();
   if (moneyMatches) await doMoney();
@@ -290,7 +299,7 @@ for (let i = 0; i < weeks; i++) {
 const end = await guide.read(actor, id).catch(() => null);
 const kinds = new Map<string, Finding[]>();
 for (const f of findings) kinds.set(f.kind, [...(kinds.get(f.kind) ?? []), f]);
-console.log(`\n${weeks} weeks · ${stats.entries} entries · ${stats.matches} matches · ${stats.streams} streams · ${stats.moneyMatches} money matches · ${stats.localNights} local nights · ${stats.sponsorsSigned} sponsors signed`);
+console.log(`\n${weeks} weeks · ${stats.entries} entries · ${stats.matches} matches · ${stats.streams} streams · ${stats.moneyMatches} money matches · ${stats.localNights} local nights · ${stats.sponsorsSigned} sponsors signed · ${stats.appearancesBooked} appearances booked`);
 console.log(`blockers resolved: ${JSON.stringify(stats.blockers)}`);
 console.log(`balance £${((await balance()) / 100).toFixed(0)} · path ${end?.path.label}: ${end?.path.done}/${end?.path.total} (${end?.path.current?.title ?? "complete"})`);
 console.log(findings.length ? `\nFINDINGS (${findings.length}):` : "\nNo findings.");

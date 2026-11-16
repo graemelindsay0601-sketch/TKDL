@@ -18,10 +18,10 @@ const UNSIGNABLE_REASON: Record<string, string> = {
 };
 /** Why a renewal pays more: the titles you won on the deal and the terms you've stayed (from the server's renewal source). */
 export function renewalNote(source: Record<string, unknown> | undefined): string | null {
-  const raise = Number(source?.raisePercent ?? 0), titles = Number(source?.titlesOnDeal ?? 0), terms = Number(source?.termsServed ?? 0);
-  if (!raise) return null;
-  const why = [titles ? `${titles} title${titles === 1 ? "" : "s"} on this deal` : "", terms ? `${terms} term${terms === 1 ? "" : "s"} with them` : ""].filter(Boolean).join(", ");
-  return `Pays ${raise}% more${why ? `: ${why}` : ""}`;
+  const raise = Number(source?.raisePercent ?? 0), titles = Number(source?.titlesOnDeal ?? 0), terms = Number(source?.termsServed ?? 0), missed = Number(source?.missedAppearances ?? 0);
+  if (!raise) return missed ? `No loyalty raise or bonus: ${missed} missed appearance${missed === 1 ? "" : "s"}` : null;
+  const why = [titles ? `${titles} title${titles === 1 ? "" : "s"} on this deal` : "", terms && !missed ? `${terms} term${terms === 1 ? "" : "s"} with them` : ""].filter(Boolean).join(", ");
+  return `Pays ${raise}% more${why ? `: ${why}` : ""}${missed ? ` (no loyalty raise: ${missed} missed appearance${missed === 1 ? "" : "s"})` : ""}`;
 }
 export const unsignableOfferReason = (offer: Pick<SponsorOffer, "acceptance">) =>
   offer.acceptance && !offer.acceptance.signable

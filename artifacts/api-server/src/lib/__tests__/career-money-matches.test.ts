@@ -21,7 +21,7 @@ import { repairCareerSchema } from "../../db/migrations/repair_career_schema.ts"
 import { createCareerService } from "../../career/service.ts";
 import { createCareerSportingService } from "../../career/sporting/service.ts";
 import { createCareerMoneyService } from "../../career/money/service.ts";
-import { MONEY, appetiteFor, oddsFor, replyTo, weeklyChallenge, willingFor } from "../../career/money/model.ts";
+import { MONEY, appetiteFor, oddsFor, replyTo, stakeCeiling, weeklyChallenge, willingFor } from "../../career/money/model.ts";
 
 const pg = new PGlite(), db = drizzle(pg);
 const saves = createCareerService(db), career = createCareerSportingService(db), money = createCareerMoneyService(db);
@@ -60,15 +60,20 @@ test("rules: what members will risk, how much of it by who they think wins, and 
   assert.equal(replyTo(1000, 40000, "UNDERDOG", 2, line).kind, "ACCEPT", "but takes it if you insist");
   assert.equal(oddsFor(55, 50), "FAVOURITE"); assert.equal(oddsFor(50, 52), "EVEN"); assert.equal(oddsFor(45, 50), "UNDERDOG"); assert.equal(oddsFor(45, null), "UNKNOWN");
   const members = Array.from({ length: 6 }, (_, i) => ({ key: `m${i}`, professional: false, willing: 20000 }));
-  const weeks = Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 30000));
+  const weeks = Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 100000));
   assert.ok(weeks.some(Boolean) && weeks.some(c => !c), "some weeks bring a challenge, some do not");
   assert.ok(weeks.every(c => !c || (c.stakePence <= 20000 && c.stakePence >= 10000)), "they open with some of what they'd risk");
   assert.ok(Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 400)).every(c => c === null), "nobody challenges you for money you have not got");
+  // A challenger asks for at most a quarter of what you have free; you can offer at most half.
+  assert.ok(Array.from({ length: 52 }, (_, w) => weeklyChallenge(SEED, 1, w + 1, members, 30000)).every(c => !c || c.stakePence <= 7500), "a quarter of £300 at most");
+  assert.equal(stakeCeiling(30000), 15000); assert.equal(stakeCeiling(1099), 500); assert.equal(stakeCeiling(0), 0);
 });
 
 test("haggle, shake on it, play: the agreed stake moves through the ledger", async () => {
+  await db.execute(sql`UPDATE career_saves SET balance_pence = 60000 WHERE id = ${id}`);
   const view = await money.read(actor, id);
   assert.ok(view.club && view.members.length >= 2, `club members to play: ${view.members.length}`);
+  assert.equal(view.maxStakePence, stakeCeiling(view.availablePence), "the view says the most you can put on one game");
   const member = view.members[0];
   // Too much for anyone at the club: they come back with their figure.
   const first = (await money.offer(actor, id, { opponentKey: member.key, stakePence: 20000 })).members.find(m => m.key === member.key)!;
@@ -126,11 +131,12 @@ test("offers must be whole pounds you have free, and push too often and they wal
   await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 250 }), (e: { status: number }) => e.status === 400);
   await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 1050 }), (e: { status: number }) => e.status === 400);
   await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 10_000_000 }), (e: { status: number }) => e.status === 409);
+  await assert.rejects(money.offer(actor, id, { opponentKey: member.key, stakePence: 15_000 }), /Keep some back: the most you can put on one game is £100/, "more than half of £200 free");
   await assert.rejects(money.offer(actor, id, { opponentKey: "00000000-0000-4000-8000-000000000000", stakePence: 500 }), (e: { status: number }) => e.status === 404);
   const free = await balance();
   let talk = null;
   for (let i = 0; i < MONEY.asks && talk?.status !== "AGREED"; i++)
-    talk = (await money.offer(actor, id, { opponentKey: member.key, stakePence: Math.floor(free / 100) * 100 })).members.find(m => m.key === member.key)!.talk;
+    talk = (await money.offer(actor, id, { opponentKey: member.key, stakePence: stakeCeiling(free) })).members.find(m => m.key === member.key)!.talk;
   if (talk!.status !== "AGREED") {
     assert.equal(talk!.status, "WALKED", "three asks above their figure and they walk away");
     assert.equal(talk!.asksLeft, 0);

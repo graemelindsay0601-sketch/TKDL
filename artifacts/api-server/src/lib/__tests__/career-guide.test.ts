@@ -203,3 +203,13 @@ test("an invitation you hold is a step on any path: free entry, what the winner 
   const pub = ev("free", "GRASSROOTS", 11, 2, { classification: "INVITATIONAL_EXHIBITION", finance: { estimatedPlayerCostPence: 0, travelBand: "LOCAL" } });
   assert.ok(!buildGuide(base({ events: [pub] })).nextSteps.some(s => s.key.startsWith("invite:")));
 });
+
+test("a sponsor appearance to book is a step with its deadline and what missing it costs; a booked one shows on its week", () => {
+  const due = buildGuide(base({ appearance: { id: "a1", sponsor: "Forge Workwear", dueWeek: 11, scheduledWeek: null } })).nextSteps.find(s => s.key === "appearance:a1");
+  assert.equal(due?.title, "Book your Forge Workwear appearance");
+  assert.equal(due?.tone, "now", "due next week");
+  assert.match(due?.why ?? "", /by week 11\. Miss it and you lose the loyalty bonus/);
+  const thisWeek = buildGuide(base({ appearance: { id: "a1", sponsor: "Forge Workwear", dueWeek: 12, scheduledWeek: 10 } })).nextSteps.find(s => s.key === "appearance:a1");
+  assert.equal(thisWeek?.title, "Forge Workwear appearance this week");
+  assert.ok(!buildGuide(base({ appearance: { id: "a1", sponsor: "Forge Workwear", dueWeek: 14, scheduledWeek: 13 } })).nextSteps.some(s => s.key === "appearance:a1"), "booked for later: nothing to do");
+});

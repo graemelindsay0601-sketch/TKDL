@@ -92,7 +92,8 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
     <div className="money-match">
       <p className="money-match__intro">Choose 301, 501 or 701. Money matches are first to {(d.bestOf + 1) / 2} legs; the winner takes the stake. Name your price: they'll put more up when they fancy
         their chances, haggle when it's too rich, and walk away if you push too often. Up to {d.perWeek} a week.
-        {" "}You have <b>{formatPence(d.availablePence)}</b> free{d.yourAverage ? <> and you're averaging about <b>{d.yourAverage.toFixed(1)}</b></> : null}.</p>
+        {" "}You have <b>{formatPence(d.availablePence)}</b> free{d.yourAverage ? <> and you're averaging about <b>{d.yourAverage.toFixed(1)}</b></> : null}.
+        {" "}You can put up to <b>{formatPence(d.maxStakePence ?? d.availablePence)}</b> on one game (half of what's free), so a bad night never empties the bank.</p>
       <label className="money-match__format-picker">Game format
         <select value={gameFormat} onChange={e => setGameFormat(e.target.value as MoneyGameFormat)} disabled={busy}>
           <option value="301">301 · double out</option>
@@ -120,7 +121,7 @@ export function MoneyMatches({ saveId, retired }: { saveId: string; retired: boo
           href={`/career/${saveId}/money-matches/${m.id}/play`}>{m.opponentName} · {m.gameFormat} · Season {m.season}, week {m.week} · {formatPence(m.stakePence)}</Link>)}
       </section>}
       {d.members.length ? <ul className="money-match__members">
-        {shown.map(m => <MemberRow key={m.key} m={m} busy={busy} canPlay={canPlay} perWeek={d.perWeek} available={d.availablePence}
+        {shown.map(m => <MemberRow key={m.key} m={m} busy={busy} canPlay={canPlay} perWeek={d.perWeek} available={d.maxStakePence ?? d.availablePence}
           onOffer={p => ask(m.key, p)} onPlay={p => go(m.key, p)} />)}
       </ul> : <p className="money-match__note">Nobody at the club to play yet.</p>}
       {shown.length < d.members.length && <button type="button" className="career-btn career-btn-ghost money-match__more" onClick={() => setShowAll(true)}>

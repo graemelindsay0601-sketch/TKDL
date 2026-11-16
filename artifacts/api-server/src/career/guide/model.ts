@@ -31,11 +31,13 @@ export type GuideInput = {
   /** The best sponsor offer waiting on you (they expire if you don't answer). */
   sponsorOffer?: { id: string; name: string; signingBonusPence: number; expiresWeek: number | null; count: number;
     /** A renewal of a deal you have: how much better it is for your titles on it. */
-    renewal?: { raisePercent: number; titles: number; termsServed?: number } | null } | null;
+    renewal?: { raisePercent: number; titles: number; termsServed?: number; missedAppearances?: number } | null } | null;
   /** Career prize money won so far (for the money path). */
   earningsPence?: number;
   /** How many weeks back "missed" looks (default two; more after a long skip). */
   missedWeeks?: number;
+  /** The next sponsor appearance you owe this season: booked (scheduledWeek) or still to book. */
+  appearance?: { id: string; sponsor: string; dueWeek: number; scheduledWeek: number | null } | null;
   /** The next event on each circuit after the events window, this season. */
   later?: { circuit: string; id: string; name: string; week: number; opensWeek: number }[];
 };
@@ -207,11 +209,19 @@ export function buildGuide(g: GuideInput) {
     add({ key: `invite:${invite.id}`, tone: "soon", title: `You're in: ${invite.name}`,
       why: `${when(invite)} · ${fee ? `about ${pounds(fee)} with travel` : "free to enter"}${top ? ` · ${pounds(top)} to the winner` : ""}. ${invite.human!.relationship === "QUALIFIED" ? "You qualified for it" : "An invitation"}: enter before entries close.`,
       action: { label: "Enter", enterEventId: invite.id, href: `${base}/events/${invite.id}` } }); }
+  // A sponsor appearance you owe: book it (it takes a week with no events), or it's this week.
+  if (g.appearance) { const a = g.appearance;
+    if (a.scheduledWeek == null) add({ key: `appearance:${a.id}`, tone: a.dueWeek - week <= 1 ? "now" : "soon", title: `Book your ${a.sponsor} appearance`,
+      why: `It takes a week with no events: pick one by week ${a.dueWeek}. Miss it and you lose the loyalty bonus when the deal renews.`,
+      action: { label: "Book it", href: `${base}/sponsors#sponsor-activities` } });
+    else if (a.scheduledWeek === week) add({ key: `appearance:${a.id}`, tone: "tip", title: `${a.sponsor} appearance this week`,
+      why: "You're booked for it: it counts once you play on through the week.", action: { label: "See it", href: `${base}/sponsors#sponsor-activities` } }); }
   if (g.sponsorOffer) { const o = g.sponsorOffer, last = o.expiresWeek != null && o.expiresWeek <= week;
-    const r = o.renewal, reasons = r ? [r.titles ? `${r.titles} title${r.titles === 1 ? "" : "s"}` : "", r.termsServed ? `${r.termsServed} term${r.termsServed === 1 ? "" : "s"} loyal` : ""].filter(Boolean) : [];
+    const missed = o.renewal?.missedAppearances ?? 0;
+    const r = o.renewal, reasons = r ? [r.titles ? `${r.titles} title${r.titles === 1 ? "" : "s"}` : "", r.termsServed && !missed ? `${r.termsServed} term${r.termsServed === 1 ? "" : "s"} loyal` : ""].filter(Boolean) : [];
     const raise = r?.raisePercent ? ` (+${r.raisePercent}%: ${reasons.join(", ")})` : "";
     add({ key: `sponsor-offer:${o.id}`, tone: last ? "now" : "soon", title: o.renewal ? `${o.name} wants to renew your deal${raise}` : `${o.name} wants to sign you`,
-      why: `${o.signingBonusPence > 0 ? `${pounds(o.signingBonusPence)} ${r ? "loyalty bonus" : "for signing"}, ` : ""}help with your costs and bonuses for results. ${last ? "Last week to answer" : o.expiresWeek == null ? "Open into next season" : `Open until week ${o.expiresWeek}`}${o.count > 1 ? ` · ${o.count} offers waiting` : ""}.`,
+      why: `${o.signingBonusPence > 0 ? `${pounds(o.signingBonusPence)} ${r ? "loyalty bonus" : "for signing"}, ` : ""}help with your costs and bonuses for results.${missed ? ` No loyalty bonus: you missed ${missed} appearance${missed === 1 ? "" : "s"} on the deal.` : ""} ${last ? "Last week to answer" : o.expiresWeek == null ? "Open into next season" : `Open until week ${o.expiresWeek}`}${o.count > 1 ? ` · ${o.count} offers waiting` : ""}.`,
       action: { label: "See the offer", href: `${base}/sponsors` } }); }
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
   for (const c of closing.slice(0, 1)) { const ev = g.events.find(e => e.id === c.id);
