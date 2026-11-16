@@ -124,7 +124,8 @@ export function createCareerMoneyService(database: CareerDatabase) {
     const available = await availableOf(tx, root.id);
     const rows = (await tx.execute(sql`SELECT * FROM career_money_matches WHERE career_save_id=${root.id} ORDER BY season DESC, week DESC, created_at DESC`)).rows;
     const names = new Map(members.map(m => [m.key, m.name]));
-    const missing = [...new Set(rows.map(r => String(r.opponent_key)).filter(k => !names.has(k)))];
+    // Only real player ids go to the database (a stray key, e.g. from an old test or import, used to break the whole page).
+    const missing = [...new Set(rows.map(r => String(r.opponent_key)).filter(k => !names.has(k) && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(k)))];
     if (missing.length) for (const p of (await tx.execute(sql`SELECT id,first_name,surname FROM career_world_players WHERE career_save_id=${root.id}
       AND id IN (${sql.join(missing.map(k => sql`${k}::uuid`), sql`,`)})`)).rows) names.set(String(p.id), nameOf(p));
     const all = rows.map(r => resultFrom(r, names));

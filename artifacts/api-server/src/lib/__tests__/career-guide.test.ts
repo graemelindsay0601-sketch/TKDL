@@ -127,3 +127,10 @@ test("two suggestions in a week stay within a sensible spend together", () => {
   const g = buildGuide(base({ facts, balancePence: 54_200, events: [ct("sat", 6), ct("sun", 7)] }));
   assert.equal(g.nextSteps.filter(s => s.action.enterEventId).length, 1);
 });
+
+test("never two suggestions on the same night", () => {
+  const wed = (id: string) => ev(id, "GRASSROOTS", 10, 3, { finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const g = buildGuide(base({ events: [wed("flier"), wed("open")] }));
+  const days = g.nextSteps.map(s => s.action.enterEventId).filter(Boolean);
+  assert.equal(days.length, 1, `one Wednesday pick, got ${days.join(",")}`);
+});

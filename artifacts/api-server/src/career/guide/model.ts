@@ -190,13 +190,16 @@ export function buildGuide(g: GuideInput) {
   for (const c of closing.slice(0, 1)) { const ev = g.events.find(e => e.id === c.id);
     add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}${ev ? cost(ev) : ""}.${ev && fits(ev) ? " It fits your next step." : " A cheap night of darts near home."}`,
       action: { label: "Enter", enterEventId: c.id, href: c.href } }); }
+  /** Nights already taken by an earlier suggestion: one event a night (you can't play two on the same night). */
+  const takenDays = () => new Set(steps.map(st => g.events.find(e => e.id === st.action.enterEventId)?.dates.startDay).filter((d): d is number => d !== undefined));
   const fitting = (currentDef?.circuits.length ? upcoming.filter(e => currentDef.circuits.includes(e.circuit)) : [])
     .filter(e => affordable(e) && sensibleTrip(e)).sort(sensible);
   // Make it pay: the best prize for the cost; every other path: the soonest event that fits.
   const pathPick = g.focus === "PRIZE_MONEY"
     ? [...fitting].filter(e => (e.finance?.estimatedPlayerCostPence ?? 0) === 0 || (e.finance?.topPrizePence ?? e.finance?.firstPrizePence ?? 0) >= 6 * (e.finance?.estimatedPlayerCostPence ?? 0))
-        .sort((a, b) => worth(b) - worth(a))[0]
-    : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id)) ?? fitting[0];
+        .filter(e => !takenDays().has(e.dates.startDay) || steps.some(st => st.action.enterEventId === e.id)).sort((a, b) => worth(b) - worth(a))[0]
+    : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id) && !takenDays().has(e.dates.startDay))
+      ?? fitting.find(e => steps.some(st => st.action.enterEventId === e.id));
   const suggest = (e: GuideEvent) => add({ key: `path:${e.id}`, tone: "soon", title: `Enter ${e.name}`, why: `${when(e)}${cost(e)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
     action: { label: "Enter", enterEventId: e.id, href: `${base}/events/${e.id}` } });
   const committed = () => steps.reduce((a, st) => a + (g.events.find(e => e.id === st.action.enterEventId)?.finance?.estimatedPlayerCostPence ?? 0), 0);
@@ -223,7 +226,7 @@ export function buildGuide(g: GuideInput) {
       why: next ? `${when(next)}, about ${pounds(nextCost)} to play${short ? `. You have ${pounds(g.balancePence)}: local nights and money matches can make up the difference` : ""}.`
         : `${currentDef.how} Entries open a few weeks before each event, so keep an eye on the calendar.`,
       action: next ? { label: "Have a look", href: `${base}/events/${next.id}` } : { label: "Calendar", href: `${base}/calendar` } });
-    const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e)).sort(sensible)[0];
+    const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e) && !takenDays().has(e.dates.startDay)).sort(sensible)[0];
     if (local) add({ key: `keep-playing:${local.id}`, tone: "soon", title: `Meanwhile: ${local.name}`, why: `${when(local)}${cost(local)}. Keeps your form up and can win you entry money.`,
       action: { label: "Enter", enterEventId: local.id, href: `${base}/events/${local.id}` } });
   }
