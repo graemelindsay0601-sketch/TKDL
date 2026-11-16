@@ -575,9 +575,15 @@
 .dc-match__panel .dc-chat__alert em { color: #ffd27e; }
 .dc-match__panel .dc__note { flex: none; margin: 0; padding: 7px 8px; border: 1px solid #ffc66f55; border-radius: 5px; background: #ffc66f12; color: #ffe1a8; font-size: .72rem; }
 .dc-match__panel + .dc__warn { padding: 7px 9px; border: 1px solid #ff668e77; border-radius: 6px; background: #321a2c; }
+.dc-match__short { display: none; }
+/* Phones: a short "Stream" chip in the gap between the scorer's Minimise and Fullscreen buttons, so it covers neither the
+   scores nor the keypad (it used to sit over the bottom row of buttons). The live panel opens below it. */
 @media (max-width: 560px) {
-  .dc-match { top: auto; right: 8px; bottom: 8px; width: min(360px, calc(100vw - 16px)); max-width: min(360px, calc(100vw - 16px)); }
-  .dc-match__panel { max-height: 34vh; }
+  .dc-match { top: 14px; bottom: auto; right: auto; left: 50%; transform: translateX(-50%); align-items: center; width: auto; max-width: calc(100vw - 16px); }
+  .dc-match__long { display: none; }
+  .dc-match__short { display: inline; }
+  .dc-match__chip { min-height: 34px; padding: 5px 10px; }
+  .dc-match__panel { width: min(360px, calc(100vw - 16px)); max-height: 34vh; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dc-match__chip { transition: none; }

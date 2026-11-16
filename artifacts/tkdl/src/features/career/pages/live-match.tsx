@@ -189,6 +189,14 @@ export function LiveMatchPage({ ctx, matchId }: { ctx: ShellContext; matchId: st
       )}
     </CareerScorerStage>);
 }
+/** No prize this time: say so, and where the money starts, so "nothing" isn't mistaken for "not shown". */
+export function noPrizeLine(bands: { upToPosition: number; amountPence: number }[] | undefined): string {
+  const paying = (bands ?? []).filter(b => b.amountPence > 0).map(b => b.upToPosition);
+  if (!paying.length) return "No prize money in this event.";
+  const deepest = Math.max(...paying);
+  const where = deepest <= 1 ? "for the winner" : deepest === 2 ? "in the final" : deepest <= 4 ? "at the semi-finals" : deepest <= 8 ? "at the quarter-finals" : `in the last ${deepest}`;
+  return `No prize money for this finish: it starts ${where}.`;
+}
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return createPortal(<div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "safe center", justifyContent: "center", overflowY: "auto", overscrollBehavior: "contain", padding: 16, background: "rgba(4,4,10,0.96)" }}>{children}</div>, document.body);
@@ -238,6 +246,7 @@ function PostMatch({ ctx, session }: { ctx: ShellContext; session: LiveSession }
           <div><dt><Label>Opponent average</Label></dt><dd style={{ color: "#fff" }}>{r.facts?.opponent.average.toFixed(2)}</dd></div>
         </dl>
         {prize !== null && prize > 0 && <p className="text-sm" style={{ color: "#ffd24a" }}>{t.data?.money.paid ? "Prize settled" : "Prize secured so far"}: {formatPence(prize)}</p>}
+        {finished && prize === 0 && <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{noPrizeLine(t.data?.money.bands)}</p>}
         <p className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{nextState}</p>
         <div className="flex flex-wrap gap-2">
           {next ? <button className="career-btn career-btn-gold" onClick={() => play(next)}><Swords className="w-4 h-4" aria-hidden /> Play next match</button>
