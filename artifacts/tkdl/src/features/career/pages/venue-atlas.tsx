@@ -87,7 +87,7 @@ export function CareerVenueAtlas({ ctx, data, localities, events, detailId, even
   const reset = () => { setScope("ALL"); setSearch(""); setCountry("ALL"); setFamily("ALL"); setCapacity("ALL"); setPage(0); };
   const choose = (id: string) => { setActiveId(id); setPage(Math.max(0, filtered.findIndex(v => v.id === id) / PAGE_SIZE | 0)); };
 
-  return <main className="career-venue-atlas">
+  return <div className="career-venue-atlas">
     <header className="cva-mast">
       <div className="cva-mast-copy">
         <div className="cva-kicker"><i/>Career world <i/> venue atlas</div>
@@ -187,5 +187,5 @@ export function CareerVenueAtlas({ ctx, data, localities, events, detailId, even
       </aside>}
     </div>
     {scope !== "WORLD" && <p className="cva-source-note">Local club and county identities are generated from authored Career localities. They are possibilities until an event in your season is scheduled there; no venue history or event is invented here.</p>}
-  </main>;
+  </div>;
 }

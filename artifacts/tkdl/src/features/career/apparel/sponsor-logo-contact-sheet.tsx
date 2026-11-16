@@ -7,7 +7,7 @@ const sectors = [...new Set([...SPONSOR_LOGO_ASSETS.values()].map(brand => brand
 /** Review surface for checking all current sponsor identities side by side. */
 export function SponsorLogoContactSheet() {
   return (
-    <main className="career-sponsor-sheet">
+    <div className="career-sponsor-sheet">
       <header className="career-sponsor-sheet__header">
         <div><span>CAREER COMMERCIAL IDENTITY</span><h1>Sponsor mark review</h1></div>
         <strong>{SPONSOR_LOGO_ASSETS.size} catalogue identities</strong>
@@ -35,6 +35,6 @@ export function SponsorLogoContactSheet() {
           </div>
         </section>;
       })}
-    </main>
+    </div>
   );
 }

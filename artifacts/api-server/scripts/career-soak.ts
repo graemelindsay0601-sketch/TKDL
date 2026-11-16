@@ -35,6 +35,8 @@ import { createCareerLocalCompetitionService } from "../src/career/club/local-co
 
 const weeks = Number(process.argv[2] ?? 60), focus = process.argv[3] ?? "OPEN_SCHEDULE";
 const winRate = Number(process.env.WIN_RATE ?? 0.5), streamRate = Number(process.env.STREAM_RATE ?? 0.25);
+/** MONEY=0: a player who never plays money matches (the floor without gambling). */
+const moneyMatches = process.env.MONEY !== "0";
 const logPath = process.env.LOG ?? `/tmp/career-soak-${focus.toLowerCase()}.log`;
 // Seeded randomness, so a run that finds something can be replayed.
 let seed = Number(process.env.SEED ?? Math.floor(Math.random() * 1e9));
@@ -105,7 +107,7 @@ async function playLog(what: string, send: (darts: object[]) => Promise<unknown>
 const playerId = Number(process.argv[4] ?? (await db.execute(sql`SELECT player_id AS id FROM career_saves ORDER BY created_at DESC LIMIT 1`)).rows[0]?.id);
 const actor = { playerId, isAdmin: false };
 let saveId = process.argv[5];
-writeFileSync(logPath, `career soak · focus ${focus} · seed ${startSeed} · win ${winRate}\n`);
+writeFileSync(logPath, `career soak · focus ${focus} · seed ${startSeed} · win ${winRate} · money matches ${moneyMatches ? "on" : "off"}\n`);
 if (!saveId) {
   const used = new Set((await db.execute(sql`SELECT slot_number FROM career_saves WHERE player_id = ${playerId} AND status = 'ACTIVE'`)).rows.map(r => Number(r.slot_number)));
   const slot = [1, 2, 3].find(s => !used.has(s));
@@ -119,7 +121,7 @@ if (!saveId) {
 const id = saveId!;
 console.log(`soak save ${id} · focus ${focus} · seed ${startSeed} · log ${logPath}`);
 const balance = async () => Number((await db.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${id}`)).rows[0]?.balance_pence ?? 0);
-const stats = { entries: 0, matches: 0, streams: 0, moneyMatches: 0, localNights: 0, blockers: {} as Record<string, number> };
+const stats = { entries: 0, matches: 0, streams: 0, moneyMatches: 0, localNights: 0, sponsorsSigned: 0, blockers: {} as Record<string, number> };
 
 // ---------------------------------------------------------------- a player's week
 async function doStream() {
@@ -249,9 +251,19 @@ for (let i = 0; i < weeks; i++) {
       else if (r) find("guide-bad-pick", `${s.title}: ${r.denials.join(",")}`);
     }
   }
+  // A sponsor offer on the Guide: look at it and sign, swapping out a deal it clashes with (as a player keen on the money would).
+  for (const s of g?.nextSteps ?? []) if (s.key.startsWith("sponsor-offer:")) {
+    const offerId = s.key.slice("sponsor-offer:".length);
+    const view = await act("sponsors.read", () => sporting.finance.sponsors(actor, id)) as { offers: { id: string; kind: string; conflictingContractIds: string[]; portfolioFull: boolean }[] } | undefined;
+    const o = view?.offers.find(x => String(x.id) === offerId);
+    if (!o || (o.portfolioFull && !o.conflictingContractIds.length)) { log(`  (sponsor offer: ${o ? "portfolio full" : "gone"})`); continue; }
+    const r = await act(`sign ${s.title}`, () => sporting.finance.acceptOffer(actor, id, { offerId, ...(o.kind !== "RENEWAL" && o.conflictingContractIds.length ? { replaceContractIds: o.conflictingContractIds } : {}) }),
+      [/requirement|no longer|expired|full|commit|conflict/i]);
+    if (r) { stats.sponsorsSigned++; log(`  signed: ${s.title.replace(" wants to sign you", "")}`); }
+  }
   // The rest of a player's week, at random.
   if (focus === "DARTCAST_CREATOR" || rand() < streamRate) await doStream();
-  await doMoney();
+  if (moneyMatches) await doMoney();
   await doLocal(root.currentWeek);
   if (rand() < 0.1) await act("join team nights", () => teams.join(actor, id), [/already|no team|not|full|season|club/i]);
 
@@ -278,7 +290,7 @@ for (let i = 0; i < weeks; i++) {
 const end = await guide.read(actor, id).catch(() => null);
 const kinds = new Map<string, Finding[]>();
 for (const f of findings) kinds.set(f.kind, [...(kinds.get(f.kind) ?? []), f]);
-console.log(`\n${weeks} weeks · ${stats.entries} entries · ${stats.matches} matches · ${stats.streams} streams · ${stats.moneyMatches} money matches · ${stats.localNights} local nights`);
+console.log(`\n${weeks} weeks · ${stats.entries} entries · ${stats.matches} matches · ${stats.streams} streams · ${stats.moneyMatches} money matches · ${stats.localNights} local nights · ${stats.sponsorsSigned} sponsors signed`);
 console.log(`blockers resolved: ${JSON.stringify(stats.blockers)}`);
 console.log(`balance £${((await balance()) / 100).toFixed(0)} · path ${end?.path.label}: ${end?.path.done}/${end?.path.total} (${end?.path.current?.title ?? "complete"})`);
 console.log(findings.length ? `\nFINDINGS (${findings.length}):` : "\nNo findings.");

@@ -61,7 +61,7 @@ export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
     SELECT ${saveId}, ${FINANCE_VERSION},
       CASE
-        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-9]$'
+        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-9][0-9]*$'
           THEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation')::integer
         WHEN event_database_version >= 5 THEN 3
         WHEN event_database_version >= 3 THEN 2
@@ -313,6 +313,44 @@ async function recordContractConclusion(tx:CareerExecutor,root:RootRow,contractI
       summary:status==="COMPLETED"?"The agreed partnership term has ended. Completed history and earnings remain recorded.":`The agreement ended (${reason.toLowerCase().replaceAll("_"," ")}). Completed history and earnings remain recorded.`},
   });
 }
+/** Renewal raise for titles won during a deal: 10% a title, up to 50%. */
+export const renewalRaise = (titles: number) => Math.min(0.5, Math.max(0, titles) * 0.1);
+/** Loyalty raise: 5% for each term served with the sponsor, up to 25%. */
+export const loyaltyRaise = (termsServed: number) => Math.min(0.25, Math.max(0, termsServed) * 0.05);
+/** Loyalty bonus on renewal: half the sponsor's signing fee after one term, the full fee from two. */
+export const loyaltyBonus = (signingFeePence: number, termsServed: number) => Math.round(Math.max(0, signingFeePence) * Math.min(1, Math.max(0, termsServed) * 0.5));
+/**
+ * The deal's money terms after a renewal raise: each amount is the sponsor's standard amount raised by `raise`, or what
+ * the deal already pays if that is more (a negotiated deal keeps its gains; raises never compound). Coverage and duties
+ * are unchanged. Without the standard terms the deal renews as it is.
+ */
+export function raisedRenewalTerms(terms: SponsorTerms, raise: number, standard: SponsorTerms | null = terms): SponsorTerms {
+  const next = structuredClone(terms);
+  if (!raise || !standard) return next;
+  const up = (current: number, base: number | undefined) => base === undefined ? current : Math.max(current, Math.round(base * (1 + raise)));
+  if (next.contractFoundation) next.contractFoundation.guaranteedPayments = next.contractFoundation.guaranteedPayments
+    .map((g, i) => ({ ...g, amountPence: up(g.amountPence, standard.contractFoundation?.guaranteedPayments[i]?.amountPence) }));
+  if (next.eventPayment) next.eventPayment = { ...next.eventPayment, amountPence: up(next.eventPayment.amountPence, standard.eventPayment?.amountPence) };
+  next.performanceBonuses = next.performanceBonuses.map(b => ({ ...b, amountPence: up(b.amountPence, standard.performanceBonuses.find(x => x.key === b.key)?.amountPence) }));
+  return next;
+}
+/** Terms served with a sponsor: completed deals plus the one ending now. */
+async function termsServedWith(tx: CareerExecutor, saveId: string, sponsorKey: string) {
+  return 1 + Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_contracts
+    WHERE career_save_id = ${saveId} AND sponsor_key = ${sponsorKey} AND status = 'COMPLETED'`)).rows[0]?.n ?? 0);
+}
+async function titlesSince(tx: CareerExecutor, saveId: string, season: number, week: number) {
+  return Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_event_results r JOIN career_event_instances i ON i.career_save_id = r.career_save_id AND i.id = r.event_id
+    WHERE r.career_save_id = ${saveId} AND r.participant_key = ${HUMAN} AND r.is_champion
+      AND (i.season > ${season} OR (i.season = ${season} AND i.end_week >= ${week}))`)).rows[0]?.n ?? 0);
+}
+/** Signing money for a contract: a signing bonus, or on a renewal a loyalty bonus. Once per contract. */
+async function postSigningMoney(tx: CareerExecutor, root: RootRow, contractId: string, kind: string, terms: SponsorTerms, sponsorKey: string, offerId: string, season: number, week: number) {
+  const renewal = kind === "RENEWAL";
+  await post(tx, root, { operationKey: `sponsor-signing:${contractId}`, category: "SPONSOR_SIGNING_BONUS", amountPence: terms.signingBonusPence,
+    reason: renewal ? `${terms.displayName} loyalty bonus (renewal)` : `${terms.displayName} signing bonus`,
+    season, week, contractId, detail: { sponsorKey, offerId, ...(renewal ? { loyalty: true } : {}) } });
+}
 async function insertOffer(tx: CareerExecutor, root: RootRow, operationKey: string, kind: "NEW" | "RENEWAL", baseTerms: SponsorTerms, baseSource: Record<string, unknown>, season: number, week: number, expiry?: {season:number;week:number}) {
   const expires = expiry ?? fromIndex(timeIndex(season, week) + OFFER_LIFETIME_WEEKS);
   // Player database v7: a big following earns a bigger signing bonus (up to +50%, rounded to £10); recorded on the offer.
@@ -357,6 +395,15 @@ export async function evaluateOffers(
   const version=(await tx.execute(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${root.id}`)).rows[0];
   const offers = (await tx.execute(sql`SELECT sponsor_key, status, offered_season FROM career_sponsor_offers WHERE career_save_id = ${root.id}`)).rows;
   const blocked = new Set(offers.filter(o => o.status === "AVAILABLE" || (["DECLINED","EXPIRED","ACCEPTED","COUNTERED","WITHDRAWN"].includes(String(o.status)) && Number(o.offered_season) === season)).map(o => String(o.sponsor_key)));
+  // A sponsor that let you go because your results fell short comes back only once you meet what it asked of you to
+  // stay (its retention requirement), not straight away with a fresh signing fee.
+  const dropped = (await tx.execute(sql`SELECT sponsor_key, terms, end_reason FROM career_sponsor_contracts WHERE career_save_id = ${root.id}
+    AND end_reason IN ('RETENTION_REQUIREMENT_NOT_MET', 'RENEWAL_REQUIREMENT_NOT_MET')`)).rows;
+  for (const row of dropped) {
+    const terms = parseSponsorTerms(row.terms);
+    const asked = row.end_reason === "RETENTION_REQUIREMENT_NOT_MET" ? terms.retentionRequirement ?? terms.renewalRequirement : terms.renewalRequirement;
+    if (asked && evaluateRequirement(asked, facts) !== true) blocked.add(String(row.sponsor_key));
+  }
   const catalogue = sponsorCatalogue(Number(version?.sponsor_database_version??1));
   const candidates = catalogue
     .filter(d => evaluateRequirement(d.offerRequirement, facts) === true)
@@ -464,7 +511,7 @@ export type OfferAcceptanceBlock = { code:
   | "REPLACEMENT_NOT_RELEASABLE" | "EXCLUSIVITY_CONFLICT" | "REQUIREMENT_UNMET" | "LOCALITY_MISMATCH" | "INVALID_ACTIVITY_CLAUSES"
   | "FUTURE_TERM_CONFLICT" | "PORTFOLIO_FULL" | "ACTIVITY_SCHEDULE_UNAVAILABLE"; message: string };
 /** Blocks the player can clear in the offer card by choosing contracts to replace. */
-export const REPLACEMENT_RESOLVABLE_BLOCKS: ReadonlySet<OfferAcceptanceBlock["code"]> = new Set(["REPLACEMENT_NOT_RELEASABLE", "EXCLUSIVITY_CONFLICT", "PORTFOLIO_FULL"]);
+export const REPLACEMENT_RESOLVABLE_BLOCKS: ReadonlySet<OfferAcceptanceBlock["code"]> = new Set(["EXCLUSIVITY_CONFLICT", "PORTFOLIO_FULL"]);
 
 /**
  * Read-only: every rule acceptOffer enforces for an AVAILABLE offer, in the same order.
@@ -500,8 +547,11 @@ export async function assessOfferAcceptance(tx: CareerExecutor, root: RootRow, o
   if ([...replacements].some(id=>!previous.some(c=>c.id===id)))return block("REPLACEMENT_NOT_OWNED","Replacement must name an active owned contract");
   for(const contract of previous.filter(candidate=>replacements.has(candidate.id))){
     const release=contract.terms.contractFoundation?.releaseClause;
-    if(!options.listing&&(release?.playerNoticeWeeks!==0||release?.buyoutPence!==0))
-      return block("REPLACEMENT_NOT_RELEASABLE","This active contract has no supported immediate, no-cost release. The rival offer cannot replace it.");
+    // Listing too: an offer is only shown as signable-by-swap when the deal it would replace can really be ended now.
+    if(release?.playerNoticeWeeks!==0||release?.buyoutPence!==0)
+      return block("REPLACEMENT_NOT_RELEASABLE",options.listing
+        ?`You'd have to drop ${contract.terms.displayName??"a current sponsor"}, and that deal can't be ended early. It runs to season ${contract.end_season}, week ${contract.end_week}.`
+        :"This active contract has no supported immediate, no-cost release. The rival offer cannot replace it.");
   }
   const remaining=previous.filter(c=>!replacements.has(c.id)&&c.id!==renewalPrevious?.id), incompatible=conflicts(offer.terms,remaining);
   if(incompatible.length)return block("EXCLUSIVITY_CONFLICT",`Sponsor exclusivity/slot conflict; explicitly replace: ${incompatible.join(", ")}`);
@@ -570,10 +620,8 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   }
   await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'ACCEPTED', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId} AND status = 'AVAILABLE'`);
   // Other open offers stay open; a lower/equal-tier one can still be accepted to switch.
-  if (!scheduled&&offer.terms.signingBonusPence > 0) {
-    await post(tx, root, { operationKey: `sponsor-signing:${contractId}`, category: "SPONSOR_SIGNING_BONUS", amountPence: offer.terms.signingBonusPence,
-      reason: `${offer.terms.displayName} signing bonus`, season, week, contractId, detail: { sponsorKey: offer.sponsor_key, offerId } });
-  }
+  // Signing money is paid when the term starts: now, or (a renewal signed before the old deal ends) on activation.
+  if (!scheduled && offer.terms.signingBonusPence > 0) await postSigningMoney(tx, root, contractId, offer.kind, offer.terms, offer.sponsor_key, offerId, season, week);
   await syncSponsorCache(tx, root.id);
   return { contract: (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND id = ${contractId}`)).rows[0] as ContractRow, created: true, expired: false as const };
 }
@@ -617,10 +665,19 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
       && evaluateRequirement(active.terms.renewalRequirement, await getFacts()) === true) {
     const operationKey = `renewal:${active.id}`;
     const expiry = fromIndex(endIndex + OFFER_LIFETIME_WEEKS);
-    const renewalTerms = structuredClone(active.terms);
-    renewalTerms.signingBonusPence = 0; // one-time signing cash is not repeated on renewal
+    // Staying pays. A renewal raises the deal for the titles you won on it (10% a title, up to +50%) and for loyalty
+    // (5% a term served with this sponsor, up to +25%), worked out from the sponsor's standard terms so raises never
+    // compound, and pays a loyalty bonus in place of a signing fee: half the sponsor's signing fee after one term,
+    // the full fee from two terms on. A rival's fresh offer has none of this.
+    const titlesOnDeal = await titlesSince(tx, root.id, active.start_season, active.start_week);
+    const termsServed = await termsServedWith(tx, root.id, active.sponsor_key);
+    const raise = renewalRaise(titlesOnDeal) + loyaltyRaise(termsServed);
+    const standard = sponsorCatalogue(active.terms.sponsorDatabaseVersion).find(d => d.key === active.sponsor_key)?.terms ?? null;
+    const renewalTerms = raisedRenewalTerms(active.terms, raise, standard);
+    renewalTerms.signingBonusPence = loyaltyBonus(standard?.signingBonusPence ?? active.terms.signingBonusPence, termsServed);
     if (await insertOffer(tx, root, operationKey, "RENEWAL", renewalTerms,
-      { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4,
+      { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4, titlesOnDeal, termsServed, raisePercent: Math.round(raise * 100),
+        loyaltyBonusPence: renewalTerms.signingBonusPence,
         eligibilityEvidence:{requirement:active.terms.renewalRequirement,evaluatedAt:{season,week},eligible:true} }, season, week, expiry)) {
       const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers
         WHERE career_save_id = ${root.id} AND operation_key = ${operationKey}`)).rows[0]?.id;
@@ -690,6 +747,8 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
       throw new CareerError(409,"An accepted renewal conflicts with an active agreement and needs review");
     await tx.execute(sql`UPDATE career_sponsor_contracts SET status='ACTIVE'
       WHERE career_save_id=${root.id} AND id=${contract.id} AND status='SCHEDULED'`);
+    // The renewal's loyalty bonus, now its term has begun (idempotent by contract).
+    if (contract.terms.signingBonusPence > 0) await postSigningMoney(tx, root, contract.id, "RENEWAL", contract.terms, contract.sponsor_key, contract.offer_id, season, week);
     const spec=contract.terms.contractFoundation?.activitySpecification;
     if(spec)await materializeSponsorActivities(tx,{saveId:root.id,contractId:contract.id,sponsorKey:contract.sponsor_key,
       worldSeed:root.world_seed,season:contract.start_season,week:contract.start_week,endSeason:contract.end_season,endWeek:contract.end_week,specification:spec});

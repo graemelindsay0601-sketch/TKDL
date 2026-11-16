@@ -192,7 +192,7 @@ async function playThrough(saveId: string, untilWeek: number, win: boolean, tag:
 
 // ------------------------------------------------------------------ ledger authority
 test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Career saves", async () => {
-  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 9);
+  assert.equal(CURRENT_SPONSOR_DATABASE_VERSION, 10);
   assert.equal(finance.versions.sponsorDatabaseVersion, CURRENT_SPONSOR_DATABASE_VERSION);
   assert.equal(SPONSOR_GUARANTEE_CONFIGURATION_STATUS, "APPROVED");
   for (const version of [1, 2, 3, 4]) {
@@ -217,7 +217,7 @@ test("SP-Economy preserves v1-v4 and enables approved guarantees only for new Ca
   }
 
   const save = await careerWithCurrentCatalogue();
-  assert.equal(Number((await rows(sql`SELECT settings_snapshot->>'sponsorDatabaseVersionAtCreation' AS version FROM career_saves WHERE id=${save.id}`))[0]?.version), 9,
+  assert.equal(Number((await rows(sql`SELECT settings_snapshot->>'sponsorDatabaseVersionAtCreation' AS version FROM career_saves WHERE id=${save.id}`))[0]?.version), CURRENT_SPONSOR_DATABASE_VERSION,
     "new Career saves advertise their exact sponsor catalogue version");
   const financeState = (await rows(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id = ${save.id}`))[0];
   assert.equal(Number(financeState.sponsor_database_version), CURRENT_SPONSOR_DATABASE_VERSION,
@@ -1493,7 +1493,10 @@ test("coverage caps, decline, expiry, contract end with renewal or loss, replace
       assert.equal(view.offers.filter(x=>x.kind==="RENEWAL").length,1,"repeated calendar advancement does not duplicate the renewal");
       assert.equal(view.offers.find(x=>x.kind==="RENEWAL")!.id,renewal.id,"renewal identity is stable across retries");
     }
-    if (renewal) assert.equal(renewal.terms.signingBonusPence, 0, "a renewal does not duplicate one-time signing cash");
+    // A renewal pays a loyalty bonus in place of a second signing fee: half the sponsor's signing fee after one term.
+    if (renewal) assert.equal(renewal.terms.signingBonusPence,
+      Math.round(sponsorCatalogue(renewal.terms.sponsorDatabaseVersion).find(d => d.key === renewal.sponsorKey)!.terms.signingBonusPence / 2),
+      "a renewal after one term pays half the signing fee as a loyalty bonus");
     await withRoot(s.id, (tx, root) => advanceSponsorLifecycle(tx, root, async () => structuredClone(fixture), 2, 1));
     view = await finance.sponsors(actor, s.id);
     assert.equal(view.history.contracts[0].status, expected);
@@ -1507,7 +1510,11 @@ test("coverage caps, decline, expiry, contract end with renewal or loss, replace
       const renewed=await finance.sponsors(actor,s.id);
       assert.equal(renewed.active?.sponsorKey,"forge-workwear");
       assert.equal(renewed.history.contracts[0].status,"COMPLETED");
-      assert.equal((await rows(sql`SELECT COUNT(*)::int AS n FROM career_finance_entries WHERE career_save_id=${s.id} AND category='SPONSOR_SIGNING_BONUS'`))[0].n,beforePayments,"renewal does not repeat signing cash");
+      // Re-signing pays the loyalty bonus (once), labelled as such.
+      const loyalty=await rows(sql`SELECT amount_pence, reason FROM career_finance_entries WHERE career_save_id=${s.id} AND category='SPONSOR_SIGNING_BONUS' ORDER BY created_at DESC, id`);
+      assert.equal(loyalty.length,Number(beforePayments)+1,"one loyalty payment on renewal");
+      assert.equal(Number(loyalty[0].amount_pence),renewalAfterExpiry.terms.signingBonusPence);
+      assert.match(String(loyalty[0].reason),/loyalty bonus/);
     }else{
       assert.equal(view.active,null);
       assert.equal((await saves.read(1, s.id)).sponsor, null);
@@ -1670,7 +1677,12 @@ test("SP-E1B accepts a renewal before expiry and activates it once through Caree
   assert.equal(state.active?.status,"ACTIVE");
   assert.equal(state.pendingContracts?.length,0);
   assert.equal(state.history.contracts.find(c=>c.id===originalId)?.status,"COMPLETED");
-  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id=${save.id} AND contract_id=${next.id} AND category='SPONSOR_SIGNING_BONUS'`))[0].n,0);
+  // The renewal's loyalty bonus is paid once, when its term begins (nothing was paid while it was scheduled).
+  const loyalty=await rows(sql`SELECT amount_pence, reason FROM career_finance_entries WHERE career_save_id=${save.id} AND contract_id=${next.id} AND category='SPONSOR_SIGNING_BONUS'`);
+  assert.equal(loyalty.length,1);
+  assert.equal(Number(loyalty[0].amount_pence),renewal.terms.signingBonusPence);
+  assert.ok(renewal.terms.signingBonusPence>0,"a renewal pays a loyalty bonus");
+  assert.match(String(loyalty[0].reason),/loyalty bonus/);
   const acceptedAgain=await finance.acceptOffer(actor,save.id,{offerId:renewal.id});
   assert.equal(acceptedAgain.created,false);
   assert.equal((await activeContracts(db,save.id)).filter(c=>c.id===next.id).length,1);
@@ -1873,4 +1885,29 @@ test("SP-E2B materializes a permitted notice during Career advancement, not the 
   await finance.sponsors(actor,save.id);
   const afterRead=(await rows(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_compliance_notices WHERE career_save_id=${save.id}`))[0]!;
   assert.equal(Number(afterRead.n),1,"Sponsor HQ reads do not create duplicate notices");
+});
+
+test("a sponsor that dropped you for results comes back only once you meet what it asked to keep you", async () => {
+  const save = await careerWithCurrentCatalogue(1, 3);
+  const ironflight = sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).find(d => d.key === "ironflight")!.terms;
+  const offerId = "00000000-0000-4000-8000-000000000301", contractId = "00000000-0000-4000-8000-000000000302";
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+    VALUES(${save.id},${offerId},'dropped-offer','ironflight',${CURRENT_SPONSOR_DATABASE_VERSION},'PROFESSIONAL','NEW',${JSON.stringify(ironflight)}::jsonb,'{}'::jsonb,1,1,1,8,'ACCEPTED',NOW())`);
+  await db.execute(sql`INSERT INTO career_sponsor_contracts
+    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status,end_reason,ended_at)
+    VALUES(${save.id},${contractId},${offerId},'ironflight',${CURRENT_SPONSOR_DATABASE_VERSION},'PROFESSIONAL',${JSON.stringify(ironflight)}::jsonb,1,1,2,52,'TERMINATED','RETENTION_REQUIREMENT_NOT_MET',NOW())`);
+  const offered = async (f: SportingFacts, key: string) => {
+    await withRoot(save.id, (tx, root) => evaluateOffers(tx, root, f, key, 2, 10));
+    return (await rows(sql`SELECT 1 FROM career_sponsor_offers WHERE career_save_id=${save.id} AND sponsor_key='ironflight' AND status='AVAILABLE'`)).length > 0;
+  };
+  // Still a Challenger finalist (its offer rule), but no Tour Card (what it asked to keep you): no fresh signing fee.
+  assert.equal(await offered({ ...fixture, bestFinishByCircuit: { CHALLENGER: 2 }, titles: 3 }, "dropped:again"), false);
+  // Win the Tour Card and they're interested again (the other professional sponsors were turned down this season, so
+  // only Ironflight's own eligibility decides).
+  for (const d of sponsorCatalogue(CURRENT_SPONSOR_DATABASE_VERSION).filter(d => (d.terms.tier === "PROFESSIONAL" || d.terms.tier === "ELITE") && d.key !== "ironflight"))
+    await db.execute(sql`INSERT INTO career_sponsor_offers
+      (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+      VALUES(${save.id},gen_random_uuid(),${`declined:${d.key}`},${d.key},${CURRENT_SPONSOR_DATABASE_VERSION},${d.terms.tier},'NEW',${JSON.stringify(d.terms)}::jsonb,'{}'::jsonb,2,1,2,8,'DECLINED',NOW())`);
+  assert.equal(await offered({ ...fixture, bestFinishByCircuit: { CHALLENGER: 2 }, titles: 3, tourCard: true, professionalStatus: "PROFESSIONAL" }, "dropped:card"), true);
 });

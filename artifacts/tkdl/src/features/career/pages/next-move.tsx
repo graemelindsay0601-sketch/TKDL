@@ -67,7 +67,8 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
     <section id="week-planner" className="next-move panel" data-embedded={embedded || undefined} aria-labelledby="next-move-title">
       {!embedded && <div className="next-move__kicker"><span className="live-indicator" aria-hidden /> Play</div>}
       <h2 id="next-move-title" className="next-move__title">{embedded ? "This week" : "Your next move"}</h2>
-      <CareerWelcome save={save} entered={!!booked} />
+      {/* Inside the Guide its steps are the getting-started list; the checklist would say it twice. */}
+      {!embedded && <CareerWelcome save={save} entered={!!booked} />}
       <TourCardOffer saveId={id} />
       {!embedded && lead}
       {!match && !activeTournament && !pendingReview && <>
@@ -76,7 +77,8 @@ export function NextMove({ save, overview, events, activeTournament, pendingRevi
         {/* The week first: pick a day, and that day's events are right underneath. */}
         <WeekPlanner saveId={id} events={events} open={open} currentWeek={save.currentWeek} week={planWeek} day={plan.day} onPick={setPlan}
           today={overview?.today?.week === save.currentWeek ? overview.today.dayOfWeek : 1} />
-        {enterable.length ? <div className="next-move__events" aria-label={plan.day ? `Events you can enter on ${dayLabel(plan.day)}` : `Events you can enter in week ${planWeek}`}>
+        {embedded && plan.day === null && enterable.length ? <p className="next-move__pick-day">Tap a day above to see what's on that night.</p>
+        : enterable.length ? <div className="next-move__events" aria-label={plan.day ? `Events you can enter on ${dayLabel(plan.day)}` : `Events you can enter in week ${planWeek}`}>
           {enterable.map(e => <CareerEventCard key={e.id} event={e} saveId={id} compact onEnter={onEnter} entering={entering} />)}
         </div> : <WhyNothing saveId={id} events={events} week={planWeek} day={plan.day} anyOpen={open.length > 0} currentWeek={save.currentWeek} onNextWeek={() => setPlan({ week: Math.min(52, planWeek + 1), day: null })} />}
         {!save.retiredAt && <PlanMyWeek saveId={id} events={events} week={planWeek} />}
@@ -219,10 +221,17 @@ function WeekPlanner({ saveId, events, open, currentWeek, week, day, onPick, tod
                   <b>Or do something else this night</b>
                   {activityOptions(d).map(option => <Link key={option.label} href={option.href}>{option.label}</Link>)}
                 </div>
-                : <span className="week-planner__also">Free night: {activityOptions(d).map((option, i) => <span key={option.label}>{i ? " · " : ""}<Link href={option.href}>{option.label}</Link></span>)}</span>)}
+                : null)}
             </div>
           </div>;
         })}
+        {day === null && (() => {
+          // One line for the week, not the same line under every day: what a free night can hold (Thursday adds Pro-Am nights).
+          const free = [1, 2, 3, 4, 5, 6, 7].filter(d => !onDay(d).mine.length && !onDay(d).activities.length);
+          const options = [...new Map(free.flatMap(d => activityOptions(d)).map(o => [o.label, o])).values()];
+          return free.length > 0 && options.length > 0 ? <p className="week-planner__also">On a free night you can also: {options.map((option, i) =>
+            <span key={option.label}>{i ? " · " : ""}<Link href={option.href}>{option.label}</Link></span>)}</p> : null;
+        })()}
       </div>
       <p className="week-planner__sum">{booked.length
         ? <>{booked.length} booked · about {formatPence(cost)} in entry and travel{prizes ? <> · up to {formatPence(prizes)} to win</> : null}</>

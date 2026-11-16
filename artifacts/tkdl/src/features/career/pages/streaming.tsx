@@ -78,7 +78,7 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
   const canGo = !futureWeek && !retired && !d.live && d.streamsThisWeek < d.perWeek && pick !== null;
   const money = formatPence;
   return (
-    <main className="studio">
+    <div className="studio">
       <header className="studio-top">
         <a className="studio-brand" href="#studio-home" aria-label="DartCast creator studio"><span className="brand-mark"><Radio aria-hidden /></span><span>DART<b>CAST</b><small>CREATOR STUDIO</small></span><span className="sr-only">Dart Cast</span></a>
         <div className="studio-top-status"><i /> SEASON {d.season} <span>/</span> WEEK {d.week}</div>
@@ -316,6 +316,6 @@ export function StreamingPage({ ctx }: { ctx: ShellContext }) {
           <footer className="studio-footer"><span>DARTCAST <b>CREATOR STUDIO</b></span><span>SEASON {d.season} · WEEK {d.week} <i /> {d.handle.toUpperCase()}</span></footer>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

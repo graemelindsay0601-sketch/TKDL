@@ -192,7 +192,7 @@ export function RoadToTourPage({ ctx }: { ctx: ShellContext }) {
   const pro = !!p?.tourCard && !p.tourCard.offer;
   if (q.isLoading) return <CareerLoading label="Reading your routes" />;
   if (q.error || !p) return <CareerError error={q.error} onRetry={() => q.refetch()} />;
-  return <main className="rt-page" id="road-to-tour-top">
+  return <div className="rt-page" id="road-to-tour-top">
     <header className="rt-hero">
       <div className="rt-hero__image" aria-hidden="true" /><div className="rt-hero__grain" aria-hidden="true" />
       <div className="rt-hero__content">
@@ -217,5 +217,5 @@ export function RoadToTourPage({ ctx }: { ctx: ShellContext }) {
       <p>Route standings, qualification status and event examples are live from this Career save.</p>
       <button type="button" onClick={() => document.getElementById("road-to-tour-top")?.scrollIntoView({ behavior: "smooth", block: "start" })}>BACK TO TOP <ArrowDownRight size={14} aria-hidden /></button>
     </footer>
-  </main>;
+  </div>;
 }

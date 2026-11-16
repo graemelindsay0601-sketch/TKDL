@@ -254,7 +254,7 @@
 .next-move__subhead { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#d2b677; font:700 .66rem Oswald,system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase; }
 .next-move__link { display:inline-flex; align-items:center; gap:6px; color:#c5d9e8; font-size:.74rem; letter-spacing:0; text-transform:none; text-decoration:none; }
 .next-move__link svg { width:14px; height:14px; }
-.next-move__empty, .next-move__message { margin:0; color:#adbdca; font-size:.82rem; }
+.next-move__empty, .next-move__message, .next-move__pick-day { margin:0; color:#adbdca; font-size:.82rem; }
 .next-move__message { color:#e9d9a8; }
 .next-move__skip { justify-self:start; }
 .home-more { border:1px solid var(--home-line); border-radius:16px; background:#ffffff03; }
@@ -425,7 +425,7 @@
 .next-move__why-tips a { color:#ecd084; text-decoration:underline; text-underline-offset:2px; }
 .week-planner__see { justify-self:start; padding:2px 0; border:0; background:none; color:#ecd084; font-size:12px; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
 .sponsor-line b { color:#ecd084; }
-.week-planner__also { display:block; color:#9fadb4; font-size:12px; }
+.week-planner__also { display:block; color:#9fadb4; font-size:12px; } .week-planner__agenda > .week-planner__also { margin:10px 0 0; font-size:13px; line-height:1.6; }
 .week-planner__also a { color:#ecd084; }
 .week-planner__day[data-state="past"] { opacity:.45; }
 .week-planner__today { display:block; margin-top:2px; font-style:normal; font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:#ff7aa8; }

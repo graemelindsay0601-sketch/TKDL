@@ -621,3 +621,14 @@ export function matchFormatLine(f: { startingScore: number; inRule: string; outR
   const start = f.inRule === "DOUBLE" ? " Start each leg with a double." : "";
   return `${f.startingScore}, ${length}. ${finish}${start}`.trim();
 }
+
+/** The Guide's paths (mirrors the server's list): chosen when you create a Career, changeable any time from Home. */
+export const GUIDE_PATHS = [
+  { key: "OPEN_SCHEDULE", label: "See how far you get", blurb: "No fixed plan: the guide follows the darts ladder and points out anything good." },
+  { key: "AMATEUR_CIRCUIT", label: "Amateur star", blurb: "Be the best player around without turning pro: local, county and national titles." },
+  { key: "PROFESSIONAL_PATHWAY", label: "Turn pro", blurb: "Earn a Tour Card and climb the world rankings." },
+  { key: "MAJOR_QUALIFICATION", label: "Chase the majors", blurb: "Get to the big televised events and win one." },
+  { key: "PRIZE_MONEY", label: "Make it pay", blurb: "Play where the prize money is worth the trip." },
+  { key: "DARTCAST_CREATOR", label: "Darts creator", blurb: "Build a DartCast channel; play darts for the content." },
+] as const;
+export type GuidePathKey = typeof GUIDE_PATHS[number]["key"];

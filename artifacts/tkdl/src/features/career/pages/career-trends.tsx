@@ -53,7 +53,7 @@ export function CareerPerformanceTrend({ saveId, season, week, retired = false }
     ["Checkouts completed", performance.checkoutsCompleted ?? "—"],
     ["Darts recorded", performance.darts ?? "—"],
   ];
-  return <main className="cp-live">
+  return <div className="cp-live">
     <header className="cp-live-hero" style={{ backgroundImage: "linear-gradient(90deg,rgba(5,7,11,.96) 3%,rgba(5,7,11,.72) 55%,rgba(5,7,11,.18)),url('/assets/career-performance-stage.jpg')" }}>
       <div className="cp-live-top"><span>TKDL <i /> MY CAREER</span><span className="cp-live-season">{retired ? "CAREER COMPLETE" : "ACTIVE CAREER"} <b>S{season} · W{week}</b></span></div>
       <div className="cp-live-title"><span className="cp-live-kicker">MATCH NIGHT · PERFORMANCE REPORT</span><h1>Your game,<br/><em>in the numbers.</em></h1>
@@ -90,7 +90,7 @@ export function CareerPerformanceTrend({ saveId, season, week, retired = false }
       <div className="cp-live-figures">{figures.map(([label,value],i)=><article className={`cp-live-figure cp-tone-${i%3}`} key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
       <p className="cp-live-footnote">A missing figure means the scorer did not record that evidence. Checkout attempts are not currently available; no values are estimated.</p>
     </section>
-  </main>;
+  </div>;
 }
 
 /** Milestone eras use the venue plates already used by Career broadcast backdrops. */

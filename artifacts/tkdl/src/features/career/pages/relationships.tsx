@@ -85,7 +85,7 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
     const labelled = data.opponents.filter(opponent => opponent.labels.length > 0).length;
     const leader = featured ? featured.humanWins > featured.npcWins : false;
 
-    return <main className="rel3-page">
+    return <div className="rel3-page">
       <div className="rel3-shell">
         <div className="rel3-topline">
           <div className="rel3-brand"><span className="rel3-brand__block">TK<span>DL</span></span><span className="rel3-brand__sub">CAREER / COMPETITION RECORD</span></div>
@@ -184,6 +184,6 @@ export function RelationshipsPage({ ctx }: { ctx: ShellContext }) {
         {world.length > limit && <button className="rel3-more" onClick={() => setLimit(limit + 30)}>Show more <span>({world.length - limit} remaining)</span><ChevronDown size={16} aria-hidden /></button>}
         <footer className="rel3-footer"><span>TKDL <i>/</i> Career archive</span><span>All records are from this save</span></footer>
       </div>
-    </main>;
+    </div>;
   }}</QueryState>;
 }

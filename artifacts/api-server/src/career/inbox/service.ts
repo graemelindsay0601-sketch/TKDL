@@ -50,11 +50,13 @@ export function createCareerInboxService(database: CareerDatabase, deps: { calen
       const e = { ...e0, name, human: e0.human };
       const where = e.venue?.city ? ` in ${e.venue.city}` : "", closes = e.registration?.closesWeek ?? e.dates.startWeek;
       const invited = !!e.human.managerInvite || !!e.human.streamInvite;
-      if (QUALIFIED_CIRCUITS.has(e.circuit) || invited)
+      // "You're in" only when you really qualified or were invited; events open to anyone go in the "now open" digest.
+      const qualified = e.human.relationship === "QUALIFIED" || invited;
+      if (qualified)
         add({ key: `qualified:${e.id}`, category: "QUALIFIED", title: `You're in for ${e.name}`, week: e.dates.startWeek, expiresWeek: closes,
           body: `${invited ? (e.human.streamInvite ? "Your DartCast audience earned an invitation" : "Your manager got you an invitation") : "You've qualified"} for ${e.name}${where}, week ${e.dates.startWeek}. Qualifying doesn't enter you: enter by week ${closes}.`,
           action: { label: "Enter", href: `${base}/events/${e.id}` } });
-      else if (OPEN_CIRCUITS.has(e.circuit) && ["LOCAL", "DOMESTIC", undefined].includes((e.finance as { travelBand?: string } | null | undefined)?.travelBand)) opened.push(e);
+      else if ((OPEN_CIRCUITS.has(e.circuit) || QUALIFIED_CIRCUITS.has(e.circuit)) && ["LOCAL", "DOMESTIC", undefined].includes((e.finance as { travelBand?: string } | null | undefined)?.travelBand)) opened.push(e);
       if (closes === week && (QUALIFIED_CIRCUITS.has(e.circuit) || OPEN_CIRCUITS.has(e.circuit) || invited))
         add({ key: `closing:${e.id}:${week}`, category: "CLOSING", title: `Last week to enter ${e.name}`, week, expiresWeek: week,
           body: `Entries for ${e.name} close this week.`, action: { label: "Enter", href: `${base}/events/${e.id}` } });

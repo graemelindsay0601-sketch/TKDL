@@ -48,7 +48,7 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
       {title:"History",sub:"Champions & past seasons",href:`${base}/world/history`,icon:Crown,tone:"gold"},
       {title:"Records Book",sub:"Nine-darters & best performances",href:`${base}/world/records`,icon:Medal,tone:"red"},
     ];
-    return <main className="career-world-hub">
+    return <div className="career-world-hub">
       <div className="dw-shell">
         <section className="dw-hero">
           <div className="dw-hero-copy">
@@ -114,7 +114,7 @@ export function WorldHub({ctx,section="landing",detail}:{ctx:ShellContext;sectio
         </div>
         <footer className="dw-footer"><span>Live Career rankings, calendar and world news</span><Link href={`${base}/world`}>Darts World · Return to hub</Link></footer>
       </div>
-    </main>;
+    </div>;
   }
   const searchBox=<label className="career-world-search"><Search size={16} aria-hidden="true"/><span className="sr-only">Search</span><input type="search" maxLength={80} value={search} onChange={e=>{setSearch(e.target.value);setPage(0);}} placeholder="Names, cities, circuits"/></label>;
   const seasonEditions=map.data?.events??[];
@@ -176,7 +176,7 @@ function WorldPlayersPremiumDirectory({ctx}:{ctx:ShellContext}) {
   const q=useWorldPlayers(ctx.save.id,offset,search,status),players=q.data?.players??[],total=q.data?.total??0;
   const base=`/career/${ctx.save.id}`;
   const start=total?offset+1:0,end=Math.min(offset+players.length,total);
-  return <main className="career-world-players-page">
+  return <div className="career-world-players-page">
     <header className="pwr-masthead">
       <Link className="pwr-brand" href={base}><span className="pwr-brand__crest"><Users size={17}/></span><span><b>TKDL</b><small>CAREER WORLD</small></span></Link>
       <nav aria-label="Career location"><span>CAREER</span><i>/</i><Link href={`${base}/world`}>DARTS WORLD</Link><i>/</i><strong>PLAYERS</strong></nav>
@@ -235,7 +235,7 @@ function WorldPlayersPremiumDirectory({ctx}:{ctx:ShellContext}) {
       </footer>}
     </section>
     <footer className="pwr-bottom"><span>TKDL <i>×</i> DARTS WORLD</span><p>Public Career player facts only.</p><Link href={`${base}/world`}>DARTS WORLD <ArrowRight size={13}/></Link></footer>
-  </main>;
+  </div>;
 }
 
 export function WorldPlayerDirectory(props:{ctx:ShellContext;search?:string;id?:string}) {

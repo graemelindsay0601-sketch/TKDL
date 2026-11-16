@@ -203,6 +203,8 @@ export const useLifeChoice = (saveId:string) => useSaveMutation(saveId,(input:{k
 export const useMerchandiseChoice = (saveId:string) => useSaveMutation(saveId,(choice:string)=>send("POST",`/saves/${saveId}/life/merchandise`,{choice}));
 export const useNpcRecognition = (saveId: string, npcId?: string) => useQuery({ queryKey: careerKey(saveId, "recognition", "npc", npcId ?? ""), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition/npcs/${npcId}`), enabled:!!npcId, staleTime: STALE });
 export const useCareerGoals = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "goals"), queryFn: () => get<GoalsView>(`/saves/${saveId}/goals`), staleTime: STALE });
+/** Set the Guide path straight after creating a save (no save-scoped cache to invalidate yet). */
+export const setCareerFocus = (saveId: string, focus: Focus) => send<{focus:Focus}>("POST",`/saves/${saveId}/focus`,{focus});
 export const useCareerFocus = (saveId: string) => useSaveMutation(saveId, (focus: Focus) => send<{focus:Focus}>("POST",`/saves/${saveId}/focus`,{focus}));
 export const useCreateCareerGoal = (saveId: string) => useSaveMutation(saveId, (body: {requestKey:string;definition:GoalDefinition}) => send<{id:string;created:boolean}>("POST",`/saves/${saveId}/goals`,body));
 export const useSetMainCareerGoal = (saveId: string) => useSaveMutation(saveId, (goalId:string|null) => send<{mainGoalId:string|null}>("PUT",`/saves/${saveId}/goals/main`,{goalId}));

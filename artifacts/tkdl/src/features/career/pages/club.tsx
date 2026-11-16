@@ -21,7 +21,7 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
   const d: ClubView = club.data;
   if (!d.club || !d.table) return <CareerEmptyState title="No home club yet">Your home club comes from your home area. Set it in your Career profile.</CareerEmptyState>;
   const mine = d.table.rows.find(r => r.you)!, honours = d.history.filter(h => h.champions);
-  return <main className="tk-club career-club">
+  return <div className="tk-club career-club">
     <section className="club-hero">
       <div className="club-hero-kicker"><span className="career-eyebrow">{d.club.region} · YOUR HOME CLUB</span>
         <span className="club-member-chip"><i />{d.legend ? "CLUB LEGEND" : "CLUB MEMBER"}</span></div>
@@ -188,5 +188,5 @@ export function ClubPage({ ctx }: { ctx: ShellContext }) {
       <CareerSection title="Run your own tournament" icon={<Trophy aria-hidden />} accent="#d9bd69"><HostTournament saveId={ctx.save.id} retired={!!ctx.save.retiredAt} /></CareerSection>
     </div>
     <div className="club-footer-rule"><span>{d.club.name.toUpperCase()}</span><i /><span>{d.club.region.toUpperCase()} · COUNTY CIRCUIT</span><i /><span>CAREER / CLUB</span></div>
-  </main>;
+  </div>;
 }

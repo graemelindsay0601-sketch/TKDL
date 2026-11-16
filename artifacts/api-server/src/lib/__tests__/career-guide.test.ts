@@ -150,7 +150,56 @@ test("a quiet stretch on the path names the next chance this season, or says it'
   const closed = ev("ct", "CHALLENGER", 11, 2, { human: { canEnter: false, eligible: false, relationship: "AVAILABLE", denials: ["NOT_ELIGIBLE"] } });
   const shut = buildGuide(base({ facts, events: [pub, closed], later: [{ circuit: "CHALLENGER", id: "ct9", name: "Challenge Tour 9", week: 20, opensWeek: 16 }] }));
   assert.match(shut.nextSteps.find(s => s.key === "path-none")?.title ?? "", /nothing more this season/);
+  assert.match(shut.nextSteps.find(s => s.key === "path-none")?.why ?? "", /Q-School comes round at the start of next season \(weeks 2 to 4\): about £300 to enter/);
   const none = buildGuide(base({ facts, events: [pub], later: [] })).nextSteps.find(s => s.key === "path-none");
   assert.match(none?.title ?? "", /nothing more this season/);
-  assert.match(none?.why ?? "", /next chances come next season/);
+  assert.match(none?.why ?? "", /Q-School comes round at the start of next season/);
+});
+
+test("a sponsor offer waiting is a step: what it's worth and when it closes", () => {
+  const g = buildGuide(base({ sponsorOffer: { id: "o1", name: "Forge Workwear", signingBonusPence: 10_000, expiresWeek: 12, count: 2 } }));
+  const s = g.nextSteps.find(x => x.key === "sponsor-offer:o1");
+  assert.equal(s?.title, "Forge Workwear wants to sign you");
+  assert.match(s?.why ?? "", /£100 for signing.*Open until week 12 · 2 offers waiting/);
+  assert.ok(s?.action.href?.endsWith("/sponsors"));
+  const last = buildGuide(base({ sponsorOffer: { id: "o1", name: "Forge Workwear", signingBonusPence: 0, expiresWeek: 10, count: 1 } })).nextSteps.find(x => x.key === "sponsor-offer:o1");
+  assert.equal(last?.tone, "now");
+  assert.match(last?.why ?? "", /^help with your costs.*Last week to answer\.$/);
+});
+
+test("closed entries aren't offered as the next step; a clash says you're booked", () => {
+  const blocked = (id: string, denials: string[]) => ev(id, "GRASSROOTS", 11, 1, { human: { canEnter: false, eligible: true, relationship: "AVAILABLE", denials } });
+  const closed = buildGuide(base({ events: [blocked("league", ["REGISTRATION_CLOSED"])] })).nextSteps.find(s => s.key === "path-none");
+  assert.doesNotMatch(closed?.title ?? "", /league/);
+  const clash = buildGuide(base({ events: [blocked("night", ["SCHEDULE_CONFLICT"])] })).nextSteps.find(s => s.key === "path-none");
+  assert.match(clash?.title ?? "", /night: you're booked that night/);
+});
+
+test("a weekend event takes both nights: nothing else is suggested on its second day", () => {
+  const weekend = ev("w", "GRASSROOTS", 10, 6, { dates: { startWeek: 10, startDayOfWeek: 6, startDay: 69, endDay: 70 }, registration: { opensWeek: 8, closesWeek: 10 }, finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const sunday = ev("s", "GRASSROOTS", 10, 7, { finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const g = buildGuide(base({ events: [weekend, sunday] }));
+  const picks = g.nextSteps.map(s => s.action.enterEventId).filter(Boolean);
+  assert.ok(picks.includes("w"), "the weekend event is offered");
+  assert.ok(!picks.includes("s"), "not the Sunday night it overlaps");
+});
+
+test("a renewal says it's a renewal and what your titles earned you", () => {
+  const g = buildGuide(base({ sponsorOffer: { id: "r1", name: "Forge Workwear", signingBonusPence: 10_000, expiresWeek: 12, count: 1, renewal: { raisePercent: 30, titles: 2, termsServed: 2 } } }));
+  const step = g.nextSteps.find(s => s.key === "sponsor-offer:r1");
+  assert.equal(step?.title, "Forge Workwear wants to renew your deal (+30%: 2 titles, 2 terms loyal)");
+  assert.match(step?.why ?? "", /^£100 loyalty bonus, /);
+});
+
+test("an invitation you hold is a step on any path: free entry, what the winner gets", () => {
+  const cup = ev("cup", "NATIONAL_AMATEUR", 11, 6, { name: "Grassroots Champions Cup", classification: "INVITATIONAL_EXHIBITION",
+    finance: { estimatedPlayerCostPence: 0, topPrizePence: 200_000, travelBand: "DOMESTIC" } });
+  const g = buildGuide(base({ focus: "DARTCAST_CREATOR", events: [cup] }));
+  const step = g.nextSteps.find(s => s.key === "invite:cup");
+  assert.equal(step?.title, "You're in: Grassroots Champions Cup");
+  assert.match(step?.why ?? "", /free to enter · £2,000 to the winner\. An invitation/);
+  assert.equal(step?.action.enterEventId, "cup");
+  // A pub-level free night isn't an "invitation" step (it's an ordinary local pick).
+  const pub = ev("free", "GRASSROOTS", 11, 2, { classification: "INVITATIONAL_EXHIBITION", finance: { estimatedPlayerCostPence: 0, travelBand: "LOCAL" } });
+  assert.ok(!buildGuide(base({ events: [pub] })).nextSteps.some(s => s.key.startsWith("invite:")));
 });
