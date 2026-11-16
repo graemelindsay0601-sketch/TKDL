@@ -1932,3 +1932,10 @@ test("a renewal starting as the calendar moves never stops the week, even when i
   assert.equal(duty.length, 1, "the renewal's duty is set up anyway: free a week, or miss it and lose the loyalty bonus");
   assert.equal(Number(duty[0].due_week), 11);
 });
+
+test("an Oceania Premier League night pays a night's purse; the Finals Night keeps the invitational purse", () => {
+  const night = (key: string) => profileFor({ definition_key: key, classification: "INVITATIONAL_EXHIBITION", snapshot: { profiles: { entryFee: "fee:invitational", prize: "prize:invitational" } } } as never);
+  assert.equal(prizeForPosition(night("anz-premier-night-3").prize, 1), 1_000_000, "£10,000 to a night's winner");
+  assert.equal(prizeForPosition(night("anz-premier-night-3").prize, 8), 125_000);
+  assert.equal(prizeForPosition(night("anz-premier-finals").prize, 1), 6_000_000, "the finals still pay the big purse");
+});
