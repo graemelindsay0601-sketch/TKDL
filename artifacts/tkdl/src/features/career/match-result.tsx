@@ -125,7 +125,7 @@ export function MatchResultCard({ saveId, session, tournament, moment, prizePenc
     {legs.length > 0 && <ol className="mr__legs" aria-label="Leg by leg">
       {legs.map((leg, i) => <li key={i} data-you={leg.winner === 0 || undefined} style={{ animationDelay: `${0.25 + i * 0.08}s` }}>
         <small>Leg {i + 1}</small><b>{leg.winner === 0 ? "You" : session.opponent.name.split(" ")[0]}</b>
-        <span>{leg.checkout ? `${leg.checkout} out` : "won"} · {leg.darts} darts</span>
+        <span>{leg.darts} darts{leg.checkout ? <><br />{leg.checkout} out</> : null}</span>
       </li>)}
     </ol>}
 

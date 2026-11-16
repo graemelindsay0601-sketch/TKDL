@@ -184,6 +184,12 @@
   white-space: nowrap;
 }
 
+/* The heading's "leaves" note is for screens that hide the line under the darts (Career's scorer). */
+.x01-visit-heading__leaves {
+  display: none;
+  font-style: normal;
+}
+
 .x01-keypad-dock {
   padding: 8px 7px 5px;
   border: 1px solid rgba(224, 232, 242, .13);

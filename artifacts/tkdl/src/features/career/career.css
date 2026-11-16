@@ -2070,22 +2070,56 @@
 @media (min-width: 1024px) { .career-scorer-resume { bottom: 64px; } }
 @keyframes career-scorer-pulse { 0%, 100% { box-shadow: 0 10px 28px rgba(255,0,92,.45); } 50% { box-shadow: 0 10px 34px rgba(255,0,92,.75); } }
 @media (prefers-reduced-motion: reduce) { .career-scorer-stage:not([hidden]), .career-scorer-paused, .career-scorer-resume { animation: none; } }
-/* Short phones (browser bars showing): keep names, legs, remaining scores and this visit above the keypad.
+/* This visit stays in sight: it pins to the bottom of the scrolling area, just above the keypad, so the darts you've thrown
+   are never hidden behind it however many checkout lines show. The plain "enter your score" and "CPU throwing" lines are
+   dropped because the This visit heading already names who's throwing (bust and double-in messages still show). */
+.career-scorer-stage .x01-visit-card { position: sticky; bottom: 0; z-index: 3; padding-top: 6px; }
+.career-scorer-stage .x01-visit-card .pdc-card { background: linear-gradient(110deg, #141f2b, #09111b); }
+.career-scorer-stage .x01-turn-banner--plain { display: none !important; }
+.career-scorer-stage .x01-visit-heading { font-size: 9px; }
+.career-scorer-stage .x01-visit-heading i { font-size: 8px; }
+/* One fixed height whether or not darts are in: each dart shows its label only, the total sits beside them, and what's
+   left goes in the heading, so the strip never grows over the scores. */
+.career-scorer-stage .x01-visit-heading__leaves { display: inline; color: #ffd24a; }
+.career-scorer-stage .x01-visit-leaves { display: none !important; }
+.career-scorer-stage .x01-visit-heading + div > div { min-height: 34px; padding: .2rem .4rem !important; display: grid; place-items: center; align-content: center; }
+.career-scorer-stage .x01-visit-heading + div > div > div:first-child:not(:only-child),
+.career-scorer-stage .x01-visit-heading + div > div > div:nth-child(3) { display: none; }
+.career-scorer-stage .x01-visit-heading + div > div > div:nth-child(2) { font-size: 1.15rem !important; line-height: 1.1 !important; }
+/* Phones (and short screens): keep names, legs, remaining scores and this visit above the keypad.
    Career only; the shared scorer is unchanged elsewhere. */
-@media (max-height: 760px) {
-  .career-scorer-stage .x01-match-content > * + * { margin-top: .4rem !important; }
+@media (max-height: 940px) and (orientation: portrait), (max-height: 760px) {
+  .career-scorer-stage .x01-match-content > * + * { margin-top: .3rem !important; }
   /* The event header repeats what the legs line, the lit card and This visit already show. */
   .career-scorer-stage .x01-event-header, .career-scorer-stage .x01-divider { display: none !important; }
-  .career-scorer-stage .x01-player-grid .pdc-card { padding: .4rem .5rem; }
-  .career-scorer-stage .x01-player-grid svg { height: 60px !important; }
+  .career-scorer-stage .x01-player-grid .pdc-card { min-height: 0 !important; padding: .4rem .5rem; }
+  .career-scorer-stage .x01-player-grid svg { height: 44px !important; }
+  .career-scorer-stage .x01-player-grid .text-xs { margin-bottom: 0; }
+  /* Only the thrower's checkout on a short screen (the other player's comes back on their turn), on one slim line. */
+  .career-scorer-stage .x01-checkout:not(.x01-checkout--active) { display: none !important; }
+  .career-scorer-stage .x01-checkout { padding-top: .3rem; padding-bottom: .3rem; }
+  .career-scorer-stage .x01-checkout span.py-1 { padding-top: .1rem; padding-bottom: .1rem; }
+  /* With a checkout to show, the score towers give way to plain numbers so the route fits above This visit. */
+  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid svg { display: none; }
+  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card { flex-direction: row; align-items: center; justify-content: space-between; gap: .4rem; padding: .3rem .6rem; }
+  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card > .text-xs { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .08em; }
+  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card > div:not(.text-xs):not(.absolute) { margin: 0 !important; }
+  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card > div > div { position: static !important; transform: none !important; line-height: 1.1; font-size: 1.45rem !important; }
+  .career-scorer-stage .x01-match-content:has(.x01-bust-banner) .x01-checkout { display: none !important; }
+  .career-scorer-stage .x01-checkout { flex-wrap: nowrap; justify-content: flex-start; gap: .6rem; padding-left: .6rem; padding-right: .6rem; }
+  .career-scorer-stage .x01-checkout > .shrink-0 { display: none; }
+  .career-scorer-stage .x01-checkout::before { content: "Out"; flex-shrink: 0; font: 800 .55rem/1 Oswald, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: #ffd24a; }
+  .career-scorer-stage .x01-checkout > div:last-child { flex-wrap: nowrap; justify-content: flex-start; gap: .35rem; }
+  .career-scorer-stage .x01-visit-card .pdc-card { padding: 7px 12px; }
+  .career-scorer-stage .x01-visit-heading { margin-bottom: 5px; }
   .career-scorer-stage .x01-keypad-dock button { min-height: 42px !important; }
   .career-scorer-stage .x01-keypad-dock button:not([style*="padding: 0px"]) { padding-top: .35rem !important; padding-bottom: .35rem !important; }
-  .career-scorer-stage .x01-keypad-dock > button { min-height: 30px !important; padding-top: .2rem !important; padding-bottom: .2rem !important; }
+  .career-scorer-stage .x01-keypad-dock > button { min-height: 26px !important; padding-top: .1rem !important; padding-bottom: .1rem !important; }
 }
 @media (max-height: 620px) {
   .career-scorer-stage .x01-keypad-dock button { min-height: 38px !important; }
   .career-scorer-stage .x01-keypad-dock > button { min-height: 28px !important; }
-  .career-scorer-stage .x01-player-grid svg { height: 48px !important; }
+  .career-scorer-stage .x01-player-grid svg { height: 36px !important; }
 }
 /* Career bar: replaces the app's bottom navigation inside a save (phones and tablets). */
 .career-bar { position:fixed; left:0; right:0; bottom:0; z-index:30; display:flex; padding-bottom:env(safe-area-inset-bottom,0px);
