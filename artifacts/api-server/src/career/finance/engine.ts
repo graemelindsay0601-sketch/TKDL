@@ -61,7 +61,7 @@ export async function ensureFinanceState(tx: CareerExecutor, saveId: string) {
   await tx.execute(sql`INSERT INTO career_finance_state (career_save_id, finance_version, sponsor_database_version)
     SELECT ${saveId}, ${FINANCE_VERSION},
       CASE
-        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-9]$'
+        WHEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation') ~ '^[1-9][0-9]*$'
           THEN (settings_snapshot->>'sponsorDatabaseVersionAtCreation')::integer
         WHEN event_database_version >= 5 THEN 3
         WHEN event_database_version >= 3 THEN 2
@@ -388,6 +388,15 @@ export async function evaluateOffers(
   const version=(await tx.execute(sql`SELECT sponsor_database_version FROM career_finance_state WHERE career_save_id=${root.id}`)).rows[0];
   const offers = (await tx.execute(sql`SELECT sponsor_key, status, offered_season FROM career_sponsor_offers WHERE career_save_id = ${root.id}`)).rows;
   const blocked = new Set(offers.filter(o => o.status === "AVAILABLE" || (["DECLINED","EXPIRED","ACCEPTED","COUNTERED","WITHDRAWN"].includes(String(o.status)) && Number(o.offered_season) === season)).map(o => String(o.sponsor_key)));
+  // A sponsor that let you go because your results fell short comes back only once you meet what it asked of you to
+  // stay (its retention requirement), not straight away with a fresh signing fee.
+  const dropped = (await tx.execute(sql`SELECT sponsor_key, terms, end_reason FROM career_sponsor_contracts WHERE career_save_id = ${root.id}
+    AND end_reason IN ('RETENTION_REQUIREMENT_NOT_MET', 'RENEWAL_REQUIREMENT_NOT_MET')`)).rows;
+  for (const row of dropped) {
+    const terms = parseSponsorTerms(row.terms);
+    const asked = row.end_reason === "RETENTION_REQUIREMENT_NOT_MET" ? terms.retentionRequirement ?? terms.renewalRequirement : terms.renewalRequirement;
+    if (asked && evaluateRequirement(asked, facts) !== true) blocked.add(String(row.sponsor_key));
+  }
   const catalogue = sponsorCatalogue(Number(version?.sponsor_database_version??1));
   const candidates = catalogue
     .filter(d => evaluateRequirement(d.offerRequirement, facts) === true)
@@ -604,9 +613,11 @@ export async function acceptOffer(tx: CareerExecutor, root: RootRow, offerId: st
   }
   await tx.execute(sql`UPDATE career_sponsor_offers SET status = 'ACCEPTED', resolved_at = NOW() WHERE career_save_id = ${root.id} AND id = ${offerId} AND status = 'AVAILABLE'`);
   // Other open offers stay open; a lower/equal-tier one can still be accepted to switch.
-  if (!scheduled&&offer.terms.signingBonusPence > 0) {
+  // A renewal's loyalty bonus is paid when you re-sign, even though the new term starts when the old one ends.
+  if ((!scheduled || offer.kind === "RENEWAL") && offer.terms.signingBonusPence > 0) {
     await post(tx, root, { operationKey: `sponsor-signing:${contractId}`, category: "SPONSOR_SIGNING_BONUS", amountPence: offer.terms.signingBonusPence,
-      reason: `${offer.terms.displayName} signing bonus`, season, week, contractId, detail: { sponsorKey: offer.sponsor_key, offerId } });
+      reason: offer.kind === "RENEWAL" ? `${offer.terms.displayName} loyalty bonus (renewal)` : `${offer.terms.displayName} signing bonus`,
+      season, week, contractId, detail: { sponsorKey: offer.sponsor_key, offerId, ...(offer.kind === "RENEWAL" ? { loyalty: true } : {}) } });
   }
   await syncSponsorCache(tx, root.id);
   return { contract: (await tx.execute(sql`SELECT * FROM career_sponsor_contracts WHERE career_save_id = ${root.id} AND id = ${contractId}`)).rows[0] as ContractRow, created: true, expired: false as const };
