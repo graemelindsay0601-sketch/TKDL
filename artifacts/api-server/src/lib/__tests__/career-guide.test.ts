@@ -174,3 +174,17 @@ test("closed entries aren't offered as the next step; a clash says you're booked
   const clash = buildGuide(base({ events: [blocked("night", ["SCHEDULE_CONFLICT"])] })).nextSteps.find(s => s.key === "path-none");
   assert.match(clash?.title ?? "", /night: you're booked that night/);
 });
+
+test("a weekend event takes both nights: nothing else is suggested on its second day", () => {
+  const weekend = ev("w", "GRASSROOTS", 10, 6, { dates: { startWeek: 10, startDayOfWeek: 6, startDay: 69, endDay: 70 }, registration: { opensWeek: 8, closesWeek: 10 }, finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const sunday = ev("s", "GRASSROOTS", 10, 7, { finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const g = buildGuide(base({ events: [weekend, sunday] }));
+  const picks = g.nextSteps.map(s => s.action.enterEventId).filter(Boolean);
+  assert.ok(picks.includes("w"), "the weekend event is offered");
+  assert.ok(!picks.includes("s"), "not the Sunday night it overlaps");
+});
+
+test("a renewal says it's a renewal and what your titles earned you", () => {
+  const g = buildGuide(base({ sponsorOffer: { id: "r1", name: "Forge Workwear", signingBonusPence: 2_500, expiresWeek: 12, count: 1, renewal: { raisePercent: 20, titles: 2 } } }));
+  assert.equal(g.nextSteps.find(s => s.key === "sponsor-offer:r1")?.title, "Forge Workwear wants to renew your deal (+20%: your 2 titles)");
+});

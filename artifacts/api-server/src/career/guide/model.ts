@@ -8,7 +8,7 @@ import { FEE_PROFILES } from "../finance/config.ts";
 export type GuideFocus = "OPEN_SCHEDULE" | "AMATEUR_CIRCUIT" | "PROFESSIONAL_PATHWAY" | "MAJOR_QUALIFICATION" | "PRIZE_MONEY" | "DARTCAST_CREATOR";
 export type GuideEvent = {
   id: string; name: string; circuit: string; status: string;
-  dates: { startWeek: number; startDayOfWeek: number; startDay: number };
+  dates: { startWeek: number; startDayOfWeek: number; startDay: number; endDay?: number };
   registration?: { opensWeek: number; closesWeek: number } | null;
   venue?: { city?: string } | null;
   finance?: { estimatedPlayerCostPence?: number; topPrizePence?: number | null; firstPrizePence?: number | null; travelBand?: string } | null;
@@ -29,7 +29,9 @@ export type GuideInput = {
   streaming: GuideStreaming;
   moneyChallenge: { name: string; stakePence: number } | null;
   /** The best sponsor offer waiting on you (they expire if you don't answer). */
-  sponsorOffer?: { id: string; name: string; signingBonusPence: number; expiresWeek: number | null; count: number } | null;
+  sponsorOffer?: { id: string; name: string; signingBonusPence: number; expiresWeek: number | null; count: number;
+    /** A renewal of a deal you have: how much better it is for your titles on it. */
+    renewal?: { raisePercent: number; titles: number } | null } | null;
   /** Career prize money won so far (for the money path). */
   earningsPence?: number;
   /** How many weeks back "missed" looks (default two; more after a long skip). */
@@ -44,6 +46,9 @@ export type GuideStage = { key: string; title: string; unlocks: string; done: bo
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 export const dayName = (d: number) => DAY_NAMES[(d - 1 + 7) % 7] ?? "";
 const pounds = (p: number) => `£${(p / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
+/** Every day an event takes up (a weekend open runs Saturday and Sunday). */
+const span = (e: GuideEvent) => { const from = e.dates.startDay, to = Math.max(from, e.dates.endDay ?? from); return Array.from({ length: to - from + 1 }, (_, i) => from + i); };
+const clashes = (e: GuideEvent, days: ReadonlySet<number>) => span(e).some(d => days.has(d));
 const BOOKED = new Set(["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED"]);
 /** Why you can't enter yet, when it's something you can wait out or fix (not closed entries or a locked field). */
 const WAITABLE = ["REGISTRATION_NOT_OPEN", "INSUFFICIENT_FUNDS", "SCHEDULE_CONFLICT"];
@@ -166,9 +171,9 @@ export function buildGuide(g: GuideInput) {
 
   // ---- what you missed (the last two weeks, events that fitted your path and you could have played)
   // Missed: near home, on a night you had nothing else on (an event across the country, or on a night you played, isn't missed).
-  const busyDays = new Set(g.events.filter(e => e.human && BOOKED.has(e.human.relationship)).flatMap(e => [e.dates.startDay]));
+  const busyDays = new Set(g.events.filter(e => e.human && BOOKED.has(e.human.relationship)).flatMap(span));
   const missed = g.events.filter(e => e.status === "COMPLETED" && e.dates.startWeek >= week - (g.missedWeeks ?? 2) && e.dates.startWeek <= week && e.human?.eligible
-    && (e.finance?.travelBand ?? "LOCAL") === "LOCAL" && !busyDays.has(e.dates.startDay)
+    && (e.finance?.travelBand ?? "LOCAL") === "LOCAL" && !clashes(e, busyDays)
     && !BOOKED.has(e.human.relationship) && (e.human.denials ?? []).every(d => ["EVENT_FINISHED", "REGISTRATION_CLOSED", "FIELD_LOCKED", "INSUFFICIENT_FUNDS"].includes(d))
     && currentDef?.circuits.includes(e.circuit))
     .sort((a, b) => b.dates.startDay - a.dates.startDay).slice(0, 5)
@@ -194,7 +199,8 @@ export function buildGuide(g: GuideInput) {
     add({ key: "shows", tone: "soon", title: `Your DartCast show${streamDays.length > 1 ? "s" : ""} this week: ${streamDays.map(d => dayName(d).slice(0, 3)).join(", ")}`,
       why: "You booked them: Continue stops on each night until you've gone live.", action: { label: "Go live", href: `${base}/streaming#go-live` } });
   if (g.sponsorOffer) { const o = g.sponsorOffer, last = o.expiresWeek != null && o.expiresWeek <= week;
-    add({ key: `sponsor-offer:${o.id}`, tone: last ? "now" : "soon", title: `${o.name} wants to sign you`,
+    const raise = o.renewal?.raisePercent ? ` (+${o.renewal.raisePercent}%: your ${o.renewal.titles} title${o.renewal.titles === 1 ? "" : "s"})` : "";
+    add({ key: `sponsor-offer:${o.id}`, tone: last ? "now" : "soon", title: o.renewal ? `${o.name} wants to renew your deal${raise}` : `${o.name} wants to sign you`,
       why: `${o.signingBonusPence > 0 ? `${pounds(o.signingBonusPence)} for signing, ` : ""}help with your costs and bonuses for results. ${last ? "Last week to answer" : o.expiresWeek == null ? "Open into next season" : `Open until week ${o.expiresWeek}`}${o.count > 1 ? ` · ${o.count} offers waiting` : ""}.`,
       action: { label: "See the offer", href: `${base}/sponsors` } }); }
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
@@ -202,14 +208,14 @@ export function buildGuide(g: GuideInput) {
     add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}${ev ? cost(ev) : ""}.${ev && fits(ev) ? " It fits your next step." : " A cheap night of darts near home."}`,
       action: { label: "Enter", enterEventId: c.id, href: c.href } }); }
   /** Nights already taken by an earlier suggestion: one event a night (you can't play two on the same night). */
-  const takenDays = () => new Set(steps.map(st => g.events.find(e => e.id === st.action.enterEventId)?.dates.startDay).filter((d): d is number => d !== undefined));
+  const takenDays = () => new Set(steps.flatMap(st => { const e = g.events.find(x => x.id === st.action.enterEventId); return e ? span(e) : []; }));
   const fitting = (currentDef?.circuits.length ? upcoming.filter(e => currentDef.circuits.includes(e.circuit)) : [])
     .filter(e => affordable(e) && sensibleTrip(e)).sort(sensible);
   // Make it pay: the best prize for the cost; every other path: the soonest event that fits.
   const pathPick = g.focus === "PRIZE_MONEY"
     ? [...fitting].filter(e => (e.finance?.estimatedPlayerCostPence ?? 0) === 0 || (e.finance?.topPrizePence ?? e.finance?.firstPrizePence ?? 0) >= 6 * (e.finance?.estimatedPlayerCostPence ?? 0))
-        .filter(e => !takenDays().has(e.dates.startDay) || steps.some(st => st.action.enterEventId === e.id)).sort((a, b) => worth(b) - worth(a))[0]
-    : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id) && !takenDays().has(e.dates.startDay))
+        .filter(e => !clashes(e, takenDays()) || steps.some(st => st.action.enterEventId === e.id)).sort((a, b) => worth(b) - worth(a))[0]
+    : fitting.find(e => !steps.some(st => st.action.enterEventId === e.id) && !clashes(e, takenDays()))
       ?? fitting.find(e => steps.some(st => st.action.enterEventId === e.id));
   const suggest = (e: GuideEvent) => add({ key: `path:${e.id}`, tone: "soon", title: `Enter ${e.name}`, why: `${when(e)}${cost(e)}. Your next step: ${currentDef!.title.toLowerCase()}.`,
     action: { label: "Enter", enterEventId: e.id, href: `${base}/events/${e.id}` } });
@@ -217,10 +223,10 @@ export function buildGuide(g: GuideInput) {
   if (pathPick && (steps.some(st => st.action.enterEventId === pathPick.id) || committed() + (pathPick.finance?.estimatedPlayerCostPence ?? 0) <= spendCap)) {
     suggest(pathPick);
     // A second night this week if there's one: a different day from anything already suggested.
-    const taken = new Set(steps.map(s => g.events.find(e => e.id === s.action.enterEventId)?.dates.startDay).filter(Boolean));
+    const taken = takenDays();
     // ...and within what's left of the week's sensible spend once the earlier picks are paid for.
     const spent = committed();
-    const second = fitting.find(e => e.dates.startWeek === week && !taken.has(e.dates.startDay) && e.id !== pathPick.id
+    const second = fitting.find(e => e.dates.startWeek === week && !clashes(e, taken) && e.id !== pathPick.id
       && spent + (e.finance?.estimatedPlayerCostPence ?? 0) <= spendCap);
     if (second && !bookedThisWeek) suggest(second);
   }
@@ -248,7 +254,7 @@ export function buildGuide(g: GuideInput) {
           ? `Q-School comes round at the start of next season (weeks 2 to 4): about ${pounds(FEE_PROFILES["fee:q_school"].entryFeePence)} to enter, plus travel, so start saving now. ${meanwhile}`
           : `${currentDef.how} The next chances come next season. ${meanwhile}`,
       action: next ? { label: "Have a look", href: `${base}/events/${next.id}` } : later ? { label: "Have a look", href: `${base}/events/${later.id}` } : { label: "Calendar", href: `${base}/calendar` } });
-    const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e) && !takenDays().has(e.dates.startDay)).sort(sensible)[0];
+    const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e) && !clashes(e, takenDays())).sort(sensible)[0];
     if (local) add({ key: `keep-playing:${local.id}`, tone: "soon", title: `Meanwhile: ${local.name}`, why: `${when(local)}${cost(local)}. Keeps your form up and can win you entry money.`,
       action: { label: "Enter", enterEventId: local.id, href: `${base}/events/${local.id}` } });
   }

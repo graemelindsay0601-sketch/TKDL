@@ -252,10 +252,10 @@ for (let i = 0; i < weeks; i++) {
   // A sponsor offer on the Guide: look at it and sign, swapping out a deal it clashes with (as a player keen on the money would).
   for (const s of g?.nextSteps ?? []) if (s.key.startsWith("sponsor-offer:")) {
     const offerId = s.key.slice("sponsor-offer:".length);
-    const view = await act("sponsors.read", () => sporting.finance.sponsors(actor, id)) as { offers: { id: string; conflictingContractIds: string[]; portfolioFull: boolean }[] } | undefined;
+    const view = await act("sponsors.read", () => sporting.finance.sponsors(actor, id)) as { offers: { id: string; kind: string; conflictingContractIds: string[]; portfolioFull: boolean }[] } | undefined;
     const o = view?.offers.find(x => String(x.id) === offerId);
     if (!o || (o.portfolioFull && !o.conflictingContractIds.length)) { log(`  (sponsor offer: ${o ? "portfolio full" : "gone"})`); continue; }
-    const r = await act(`sign ${s.title}`, () => sporting.finance.acceptOffer(actor, id, { offerId, ...(o.conflictingContractIds.length ? { replaceContractIds: o.conflictingContractIds } : {}) }),
+    const r = await act(`sign ${s.title}`, () => sporting.finance.acceptOffer(actor, id, { offerId, ...(o.kind !== "RENEWAL" && o.conflictingContractIds.length ? { replaceContractIds: o.conflictingContractIds } : {}) }),
       [/requirement|no longer|expired|full|commit|conflict/i]);
     if (r) { stats.sponsorsSigned++; log(`  signed: ${s.title.replace(" wants to sign you", "")}`); }
   }

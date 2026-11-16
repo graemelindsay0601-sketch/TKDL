@@ -18,7 +18,7 @@ const UNSIGNABLE_REASON: Record<string, string> = {
 };
 export const unsignableOfferReason = (offer: Pick<SponsorOffer, "acceptance">) =>
   offer.acceptance && !offer.acceptance.signable
-    ? UNSIGNABLE_REASON[offer.acceptance.code ?? ""] ?? "This offer cannot be signed under your current agreements and calendar."
+    ? UNSIGNABLE_REASON[offer.acceptance.code ?? ""] ?? offer.acceptance.reason ?? "This offer cannot be signed under your current agreements and calendar."
     : null;
 
 type SponsorOfferCardProps = {

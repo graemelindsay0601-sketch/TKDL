@@ -4,8 +4,8 @@ import {BRANDS,SPONSOR_CATEGORIES,type Brand,type RelationshipSlot,type SponsorC
 import {representativeById} from "../content/sponsor-representatives.ts";
 
 /** Latest supported catalogue. Offers and signed contracts retain their stored terms when a save advances. */
-export const CURRENT_SPONSOR_DATABASE_VERSION = 9;
-export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6,7,8,9] as const);
+export const CURRENT_SPONSOR_DATABASE_VERSION = 10;
+export const SUPPORTED_SPONSOR_DATABASE_VERSIONS=Object.freeze([1,2,3,4,5,6,7,8,9,10] as const);
 /** Annual GBP guarantee schedule approved for new v5 sponsor offers. */
 export const SPONSOR_GUARANTEE_CONFIGURATION_STATUS = "APPROVED" as const;
 
@@ -228,7 +228,7 @@ const sponsorTermsSchema=z.object({
   sponsorKey:z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   displayName:z.string().trim().min(2).max(80),
   tier:z.enum(SPONSOR_TIERS),
-  sponsorDatabaseVersion:z.number().int().min(1).max(9),
+  sponsorDatabaseVersion:z.number().int().min(1).max(10),
   duration:z.union([z.object({kind:z.literal("REMAINDER_OF_SEASON")}).strict(),
     z.object({kind:z.literal("SEASONS"),seasons:z.number().int().min(1).max(5)}).strict()]),
   signingBonusPence:penceSchema,
@@ -377,7 +377,8 @@ export function sponsorCatalogue(version: number):readonly SponsorDefinition[] {
   if (version === 6) return SPONSOR_CATALOGUE_V6;
   if (version === 7) return SPONSOR_CATALOGUE_V7;
   if (version === 8) return SPONSOR_CATALOGUE_V8;
-  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V9;
+  if (version === 9) return SPONSOR_CATALOGUE_V9;
+  if (version === CURRENT_SPONSOR_DATABASE_VERSION) return SPONSOR_CATALOGUE_V10;
   throw new Error(`Unsupported sponsor database version ${version}`);
 }
 /**
@@ -620,8 +621,21 @@ export const SPONSOR_CATALOGUE_V9:readonly SponsorDefinition[]=Object.freeze(SPO
   return { key: definition.key, offerRequirement, terms };
 }));
 
+/**
+ * v10: results pay at the bottom of the ladder. Local and regional performance bonuses were a few pounds a season;
+ * a local title now pays a local sponsor £75 (was £25) and regional bonuses double. Professional and elite deals,
+ * earlier offers and signed contracts are unchanged.
+ */
+const V10_PERFORMANCE:Readonly<Record<SponsorTier,number>>=Object.freeze({LOCAL:3,REGIONAL:2,PROFESSIONAL:1,ELITE:1});
+export const SPONSOR_CATALOGUE_V10:readonly SponsorDefinition[]=Object.freeze(SPONSOR_CATALOGUE_V9.map(definition=>{
+  const terms=structuredClone(definition.terms);
+  terms.sponsorDatabaseVersion=10;
+  terms.performanceBonuses=terms.performanceBonuses.map(bonus=>({...bonus,amountPence:Math.round(bonus.amountPence*V10_PERFORMANCE[terms.tier])}));
+  return { key: definition.key, offerRequirement: structuredClone(definition.offerRequirement), terms };
+}));
+
 export function validateSponsorCatalogues():void {
-  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6],[7,SPONSOR_CATALOGUE_V7],[8,SPONSOR_CATALOGUE_V8],[9,SPONSOR_CATALOGUE_V9]] as const){
+  for(const [version,catalogue] of [[1,SPONSOR_CATALOGUE_V1],[2,SPONSOR_CATALOGUE_V2],[3,SPONSOR_CATALOGUE_V3],[4,SPONSOR_CATALOGUE_V4],[5,SPONSOR_CATALOGUE_V5],[6,SPONSOR_CATALOGUE_V6],[7,SPONSOR_CATALOGUE_V7],[8,SPONSOR_CATALOGUE_V8],[9,SPONSOR_CATALOGUE_V9],[10,SPONSOR_CATALOGUE_V10]] as const){
     const keys=new Set<string>();
     for(const definition of catalogue){
       if(keys.has(definition.key))throw new Error(`Duplicate sponsor definition in v${version}: ${definition.key}`);
