@@ -31,6 +31,8 @@ export type GuideInput = {
   earningsPence?: number;
   /** How many weeks back "missed" looks (default two; more after a long skip). */
   missedWeeks?: number;
+  /** The next event on each circuit after the events window, this season. */
+  later?: { circuit: string; id: string; name: string; week: number; opensWeek: number }[];
 };
 export type GuideAction = { label: string; href?: string; enterEventId?: string };
 export type GuideStep = { key: string; title: string; why: string; action: GuideAction; tone: "now" | "soon" | "tip" };
@@ -221,11 +223,19 @@ export function buildGuide(g: GuideInput) {
     const next = blocked[0], nextCost = next?.finance?.estimatedPlayerCostPence ?? 0;
     const opens = next && (next.human?.denials ?? []).includes("REGISTRATION_NOT_OPEN") ? next.registration?.opensWeek : undefined;
     const short = next && nextCost > g.balancePence;
+    // Nothing in the next few weeks: name the next event on the path this season, or say the path picks up next season.
+    // (Not a circuit you're shut out of: if every one of its events in view says you can't play, its later ones won't either.)
+    const shutOut = (circuit: string) => { const seen = g.events.filter(e => e.circuit === circuit && e.human);
+      return seen.length > 0 && seen.every(e => e.human && !e.human.eligible); };
+    const later = next ? undefined : (g.later ?? []).filter(l => currentDef.circuits.includes(l.circuit) && !shutOut(l.circuit)).sort((a, b) => a.week - b.week)[0];
+    const meanwhile = "Until then, local nights and money matches keep your form sharp and your bank balance up.";
     add({ key: "path-none", tone: "tip",
-      title: next ? `${next.name}: ${short ? "save up for it" : opens ? `entries open week ${opens}` : "not open to you yet"}` : `${currentDef.title}: nothing open yet`,
+      title: next ? `${next.name}: ${short ? "save up for it" : opens ? `entries open week ${opens}` : "not open to you yet"}`
+        : later ? `${currentDef.title}: next chance week ${later.week}` : `${currentDef.title}: nothing more this season`,
       why: next ? `${when(next)}, about ${pounds(nextCost)} to play${short ? `. You have ${pounds(g.balancePence)}: local nights and money matches can make up the difference` : ""}.`
-        : `${currentDef.how} Entries open a few weeks before each event, so keep an eye on the calendar.`,
-      action: next ? { label: "Have a look", href: `${base}/events/${next.id}` } : { label: "Calendar", href: `${base}/calendar` } });
+        : later ? `${later.name} is in week ${later.week}${later.opensWeek > week ? `; entries open week ${later.opensWeek}` : ""}. ${meanwhile}`
+        : `${currentDef.how} The next chances come next season. ${meanwhile}`,
+      action: next ? { label: "Have a look", href: `${base}/events/${next.id}` } : later ? { label: "Have a look", href: `${base}/events/${later.id}` } : { label: "Calendar", href: `${base}/calendar` } });
     const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e) && !takenDays().has(e.dates.startDay)).sort(sensible)[0];
     if (local) add({ key: `keep-playing:${local.id}`, tone: "soon", title: `Meanwhile: ${local.name}`, why: `${when(local)}${cost(local)}. Keeps your form up and can win you entry money.`,
       action: { label: "Enter", enterEventId: local.id, href: `${base}/events/${local.id}` } });
