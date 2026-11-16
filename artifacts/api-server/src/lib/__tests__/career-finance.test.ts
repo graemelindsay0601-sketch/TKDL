@@ -1677,7 +1677,12 @@ test("SP-E1B accepts a renewal before expiry and activates it once through Caree
   assert.equal(state.active?.status,"ACTIVE");
   assert.equal(state.pendingContracts?.length,0);
   assert.equal(state.history.contracts.find(c=>c.id===originalId)?.status,"COMPLETED");
-  assert.equal((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id=${save.id} AND contract_id=${next.id} AND category='SPONSOR_SIGNING_BONUS'`))[0].n,0);
+  // The renewal's loyalty bonus is paid once, when its term begins (nothing was paid while it was scheduled).
+  const loyalty=await rows(sql`SELECT amount_pence, reason FROM career_finance_entries WHERE career_save_id=${save.id} AND contract_id=${next.id} AND category='SPONSOR_SIGNING_BONUS'`);
+  assert.equal(loyalty.length,1);
+  assert.equal(Number(loyalty[0].amount_pence),renewal.terms.signingBonusPence);
+  assert.ok(renewal.terms.signingBonusPence>0,"a renewal pays a loyalty bonus");
+  assert.match(String(loyalty[0].reason),/loyalty bonus/);
   const acceptedAgain=await finance.acceptOffer(actor,save.id,{offerId:renewal.id});
   assert.equal(acceptedAgain.created,false);
   assert.equal((await activeContracts(db,save.id)).filter(c=>c.id===next.id).length,1);
