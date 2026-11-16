@@ -73,15 +73,15 @@
 .mr__score small { grid-column: 1 / -1; margin-top: 6px; font: 700 .6rem/1 Oswald, sans-serif; letter-spacing: .24em; text-transform: uppercase; color: var(--mr-muted); }
 
 /* Leg by leg. */
-.mr__legs { list-style: none; display: flex; gap: 8px; margin: 12px 14px 0; padding: 0 0 2px; overflow-x: auto; scrollbar-width: none; }
-.mr__legs::-webkit-scrollbar { display: none; }
-.mr__legs li { flex: 1 0 96px; display: grid; gap: 3px; padding: 9px 10px; border-radius: 12px; border: 1px solid var(--mr-line); background: #ffffff07;
+/* Every leg on show: the tiles wrap onto more rows rather than running off the card. */
+.mr__legs { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 12px 14px 0; padding: 0; }
+.mr__legs li { min-width: 0; display: grid; gap: 3px; padding: 9px 10px; border-radius: 12px; border: 1px solid var(--mr-line); background: #ffffff07;
   animation: mr-pop .4s ease-out both; }
 .mr__legs li[data-you] { border-color: var(--mr-accent-soft); background: linear-gradient(180deg, var(--mr-accent-soft), #ffffff05); }
 .mr__legs small { font: 700 .58rem/1 Oswald, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--mr-muted); }
 .mr__legs b { font: 700 .95rem/1.1 Oswald, sans-serif; text-transform: uppercase; color: #ffffffc0; }
 .mr__legs li[data-you] b { color: var(--mr-accent); }
-.mr__legs span { font-size: .72rem; color: var(--mr-muted); white-space: nowrap; }
+.mr__legs span { font-size: .72rem; line-height: 1.3; color: var(--mr-muted); }
 
 /* Highlights. */
 .mr__notes { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 12px 14px 0; padding: 0; }

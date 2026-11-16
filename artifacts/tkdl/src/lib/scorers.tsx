@@ -208,11 +208,11 @@ function dartChipStyle(dart: string): React.CSSProperties {
   return                                       { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.12)" };
 }
 
-function CheckoutBar({ checkout, playerName, playerIdx }: { checkout: string; playerName: string; playerIdx: 0|1 }) {
+function CheckoutBar({ checkout, playerName, playerIdx, active }: { checkout: string; playerName: string; playerIdx: 0|1; active?: boolean }) {
   const darts = checkout.split(" ");
   const accent = P_COLOR(playerIdx);
   return (
-    <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+    <div className={`x01-checkout rounded-xl px-4 py-3 flex items-center gap-3${active ? " x01-checkout--active" : ""}`}
       style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${accent}33` }}>
       <div className="shrink-0">
         <div className="text-xs font-black uppercase tracking-widest" style={{ color: accent, fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>
@@ -239,9 +239,9 @@ function CheckoutBar({ checkout, playerName, playerIdx }: { checkout: string; pl
   );
 }
 
-function TurnBanner({ name, turn, msg }: { name: string; turn: 0 | 1; msg?: string }) {
+function TurnBanner({ name, turn, msg, className = "" }: { name: string; turn: 0 | 1; msg?: string; className?: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 text-sm"
+    <div className={`flex items-center justify-center gap-2 text-sm ${className}`}
       style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
       <Zap className="w-3.5 h-3.5" style={{ color: P_COLOR(turn) }} />
       <span style={{ color: P_COLOR(turn), fontWeight: 700 }}>{name}</span>
@@ -252,7 +252,7 @@ function TurnBanner({ name, turn, msg }: { name: string; turn: 0 | 1; msg?: stri
 
 function BustBanner({ msg }: { msg: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 text-sm font-bold uppercase"
+    <div className="x01-bust-banner flex items-center justify-center gap-2 text-sm font-bold uppercase"
       style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
       <AlertTriangle className="w-4 h-4" /> {msg}
     </div>
@@ -2143,15 +2143,15 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         const liveRem = (i === turn && !bust) ? projected : scores[i];
         const co = (liveRem <= 170 && liveRem >= 2 && (!doubleIn || started[i])) ? CHECKOUTS[liveRem] : undefined;
         if (!co) return null;
-        return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} />;
+        return <CheckoutBar key={i} checkout={co} playerName={names[i]} playerIdx={i as 0|1} active={i === turn} />;
       })}
-      {bust ? <BustBanner msg={bustMsg} /> : partnerTurn ? <TurnBanner name={names[0]} turn={0} msg="— PARTNER THROWING…" /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} />}
+      {bust ? <BustBanner msg={bustMsg} /> : partnerTurn ? <TurnBanner name={names[0]} turn={0} msg="— PARTNER THROWING…" className="x01-turn-banner--plain" /> : isBotTurnX01 ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" className="x01-turn-banner--plain" /> : <TurnBanner name={names[turn]} turn={turn} msg={doubleIn && !started[turn] ? "— hit a double to start" : undefined} className={doubleIn && !started[turn] ? "" : "x01-turn-banner--plain"} />}
       <div className="x01-visit-card">
         <SectionCard accentColor={scorerThemeColor}>
-          <div className="x01-visit-heading"><span>THIS VISIT</span><b>{names[turn]}</b><i>{visitDarts.length}/3 DARTS</i></div>
+          <div className="x01-visit-heading"><span>THIS VISIT</span><b>{names[turn]}</b><i>{visitDarts.length}/3 DARTS{visitDarts.length > 0 && <em className="x01-visit-heading__leaves"> · LEAVES {(scores[turn] - cappedCum) >= 0 ? scores[turn] - cappedCum : "BUST"}</em>}</i></div>
           <VisitDarts darts={visitDarts} cappedTotal={isCardClash ? cappedCum : undefined} />
           {visitDarts.length > 0 && (
-            <div className="text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+            <div className="x01-visit-leaves text-center text-xs mt-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
               {cappedCum} scored{cappedCum !== cum ? ` (${cum} capped)` : ""} → leaves {(scores[turn] - cappedCum) >= 0 ? scores[turn] - cappedCum : "BUST"}
             </div>
           )}
