@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { AlertTriangle, ArrowRight, CheckCircle2, Circle, Compass, Loader2, MapPin, Sparkles, Sun } from "lucide-react";
-import { useCareerFocus, useEnterEvent, useGuide, errorMessage } from "./api";
-import { dayName, denialLabel } from "./model";
+import { useCareerFocus, useCareerProfile, useChooseHome, useEnterEvent, useGuide, errorMessage } from "./api";
+import { HOME_REGIONS, dayName, denialLabel } from "./model";
 import type { CalendarOverview, CareerSave, GuideAction, GuideFocus, GuideView } from "./types";
 import "./guide.css";
 import { Walkthrough } from "./glossary";
@@ -21,6 +21,22 @@ function ActionButton({ saveId, action, primary, onEntered }: { saveId: string; 
       onError: e => onEntered(errorMessage(e)) })}>
     {enter.isPending ? <Loader2 className="animate-spin" aria-hidden /> : null}{action.label}</button>;
   return action.href ? <Link href={action.href} className={cls}>{action.label} <ArrowRight aria-hidden /></Link> : null;
+}
+
+/** Saves that never chose a home play out of Ayrshire: say so, and let the player pick their real home once. */
+function HomeClubLine({ saveId }: { saveId: string }) {
+  const profile = useCareerProfile(saveId), choose = useChooseHome(saveId);
+  const [open, setOpen] = useState(false), [home, setHome] = useState("ayrshire");
+  if (profile.data?.status !== "COMPLETE" || profile.data.homeLocality) return null;
+  return <p className="guide-home">
+    You play out of <b>Kilbirnie, Ayrshire</b> (the default): your club, local nights and money matches are there.{" "}
+    {open ? <span className="guide-home__pick">
+      <select value={home} onChange={e => setHome(e.target.value)} aria-label="Home area">{HOME_REGIONS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}</select>
+      <button type="button" className="career-btn career-btn-gold" disabled={choose.isPending} onClick={() => choose.mutate(home)}>Make it my home</button>
+      <small>You can only choose once.</small>
+      {choose.error && <small role="alert">{errorMessage(choose.error)}</small>}
+    </span> : <button type="button" className="guide-link" onClick={() => setOpen(true)}>Choose your home area</button>}
+  </p>;
 }
 
 /** First time on a save: which career do you want? (Changeable any time from the path card.) */
@@ -97,6 +113,7 @@ export function CareerGuide({ save, overview, children }: { save: CareerSave; ov
       <p className="guide-today__date"><Sun aria-hidden /> Season {t.season} · Week {t.week}</p>
       <h2 id="guide-today-title" className="guide-today__day">{t.dayName}{t.phase === "MID_WEEK" ? <small> (rest of the week played)</small> : null}</h2>
       <p className="guide-today__headline">{t.headline}</p>
+      <HomeClubLine saveId={save.id} />
       {t.waitingOn.length > 0 && <p className="guide-today__waiting">Waiting on: {t.waitingOn.map(w => w.label).join(" · ")} (see step 1 below)</p>}
       {t.options.length > 0 && <div className="guide-today__tonight">
         <b>On tonight you can enter</b>

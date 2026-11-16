@@ -180,3 +180,17 @@ test("no home chosen (older saves, or 'keep default'): the club is Ayrshire's, n
   const after = await money.read(actor, other);
   assert.ok(after.members.length > 0);
 });
+
+test("a save that never chose a home can choose one once: the club and the calendar follow it", async () => {
+  const { createCareerIdentityService } = await import("../../career/identity/service.ts");
+  const identity = createCareerIdentityService(db);
+  const other = (await saves.create(1, { slot: 3, careerName: "Choosing", dateOfBirth: "1990-03-02" })).id;
+  await career.initialize(actor, other);
+  const before = (await money.read(actor, other)).members.map(m => m.key).sort().join();
+  const p = await identity.chooseHome(actor, other, { homeLocality: "highlands" });
+  assert.equal(p.homeLocality, "highlands");
+  const snap = (await db.execute(sql`SELECT settings_snapshot->>'homeLocality' AS h FROM career_saves WHERE id=${other}`)).rows[0].h;
+  assert.equal(snap, "highlands", "the calendar reads it from the save's settings");
+  assert.notEqual((await money.read(actor, other)).members.map(m => m.key).sort().join(), before, "a different club");
+  await assert.rejects(identity.chooseHome(actor, other, { homeLocality: "ayrshire" }), /already set/);
+});

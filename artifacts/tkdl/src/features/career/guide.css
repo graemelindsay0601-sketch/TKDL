@@ -55,3 +55,8 @@
 .career-walkthrough b { display:block; color:#fff; font-size:15px; }
 .career-walkthrough p { margin:4px 0 10px; color:#c9d3da; font-size:14px; }
 .career-walkthrough__nav { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.guide-home { margin:6px 0 0; font-size:13px; color:#c9d3da; }
+.guide-home b { color:#fff; }
+.guide-home__pick { display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:4px; }
+.guide-home__pick select { padding:6px 8px; border-radius:8px; background:#0c1018; color:#fff; border:1px solid #ffffff2a; }
+.guide-home__pick small { color:#9fadb4; }
