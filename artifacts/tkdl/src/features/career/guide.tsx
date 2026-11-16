@@ -9,7 +9,7 @@ import { Walkthrough } from "./glossary";
 
 const askedKey = (saveId: string) => `tkdl-career-guide-path-asked:${saveId}`;
 const asked = (saveId: string) => { try { return localStorage.getItem(askedKey(saveId)) === "1"; } catch { return true; } };
-const markAsked = (saveId: string) => { try { localStorage.setItem(askedKey(saveId), "1"); } catch { /* this device only */ } };
+export const markAsked = (saveId: string) => { try { localStorage.setItem(askedKey(saveId), "1"); } catch { /* this device only */ } };
 
 /** One action: enter an event in place, or go somewhere. */
 function ActionButton({ saveId, action, primary, onEntered }: { saveId: string; action: GuideAction; primary?: boolean; onEntered: (msg: string) => void }) {
@@ -106,6 +106,9 @@ export function CareerGuide({ save, overview, children }: { save: CareerSave; ov
   const g = q.data, t = g.today;
   // The guide keeps six weeks of missed chances (the results card after a long skip uses them); Today shows the last two.
   const recentMissed = g.missed.filter(m => m.week >= t.week - 2);
+  // Closing entries the steps or tonight's list already offer aren't repeated here.
+  const offered = new Set([...g.nextSteps.map(s => s.action.enterEventId), ...t.options.map(o => o.id)].filter(Boolean));
+  const closing = g.closing.filter(c => !offered.has(c.id));
   const showPicker = picking || (!dismissed && !asked(save.id) && g.path.focus === "OPEN_SCHEDULE");
   return <div className="career-guide">
     <Walkthrough saveId={save.id} />
@@ -139,10 +142,10 @@ export function CareerGuide({ save, overview, children }: { save: CareerSave; ov
 
     {!showPicker && <PathCard saveId={save.id} guide={g} onChange={() => setPicking(true)} />}
 
-    {(g.closing.length > 0 || recentMissed.length > 0) && <section className="guide-card guide-chances" aria-labelledby="guide-chances-title">
+    {(closing.length > 0 || recentMissed.length > 0) && <section className="guide-card guide-chances" aria-labelledby="guide-chances-title">
       <h2 id="guide-chances-title"><AlertTriangle aria-hidden /> Don't miss out</h2>
-      {g.closing.length > 0 && <><b className="guide-chances__label">Entries close this week</b>
-        <ul>{g.closing.map(c => <li key={c.id}><Link href={c.href}>{c.name}</Link><small>{c.when}</small></li>)}</ul></>}
+      {closing.length > 0 && <><b className="guide-chances__label">Entries close this week</b>
+        <ul>{closing.map(c => <li key={c.id}><Link href={c.href}>{c.name}</Link><small>{c.when}</small></li>)}</ul></>}
       {recentMissed.length > 0 && <><b className="guide-chances__label">You missed these (they fitted your path)</b>
         <ul>{recentMissed.map(m => <li key={m.id}><span>{m.name}</span><small>{m.when}</small></li>)}</ul>
         <p className="guide-muted">Book ahead in the week planner so the next ones don't slip by.</p></>}

@@ -92,7 +92,7 @@ export function NewsroomPage({ ctx }: NewsroomProps) {
             <button type="button" className="news-action" onClick={() => void life.refetch()}>Retry newsroom</button>
           </div>}
           {!life.isLoading && !life.error && life.data && <div className="news-layout">
-            <main className="news-main-column" aria-live="polite">
+            <div className="news-main-column" aria-live="polite">
               <div className="news-section-heading"><h2>Latest reports</h2><span>{filtered.length} shown</span></div>
               {filtered.length ? <div className="news-story-list">
                 {filtered.slice(0, visibleCount).map((story, index) => <Link key={story.id} href={`/career/${ctx.save.id}/world/news/${encodeURIComponent(story.id)}`} className={`news-story ${index === 0 ? "news-story--lead" : ""}`}
@@ -113,7 +113,7 @@ export function NewsroomPage({ ctx }: NewsroomProps) {
               {filtered.length > visibleCount && <button type="button" className="news-action mt-3" onClick={() => setVisibleCount(count => Math.min(count + 12, filtered.length))} aria-label={`Show ${Math.min(12, filtered.length - visibleCount)} more reports`}>
                 Show more reports ({filtered.length - visibleCount} remaining)
               </button>}
-            </main>
+            </div>
             <aside className="news-rail" aria-label="About the newsroom">
               <div className="flex items-center gap-2"><Newspaper size={17} aria-hidden /><h2>Evidence first</h2></div>
               <p>Headlines, story threads and source references are drawn from this save’s Life story record. Filters only organise the stories already returned.</p>

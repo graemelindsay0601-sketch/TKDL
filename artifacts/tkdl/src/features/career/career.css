@@ -1241,6 +1241,17 @@
 .career-root .career-new-career__steps b { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#ffffff12; color:#fff; }
 .career-root .career-new-career__steps .is-current { color:#fff; border-color:#ff005c88; background:#ff005c1f; } .career-root .career-new-career__steps .is-current b { background:#ff005c; }
 .career-root .career-new-career__steps .is-done { color:#5ee39b; } .career-root .career-new-career__steps .is-done b { background:#5ee39b33; color:#5ee39b; }
+.career-root .career-new-career__paths { border:0; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:10px; }
+.career-root .career-new-career__paths legend { grid-column:1 / -1; margin-bottom:10px; color:#ffffffb3; font-size:.9rem; line-height:1.4; }
+.career-root .career-new-career__path { display:flex; gap:12px; align-items:flex-start; padding:14px; border-radius:14px; border:1px solid #ffffff1a; background:#ffffff08; cursor:pointer; min-height:44px; }
+.career-root .career-new-career__path[data-current] { border-color:#ff005c99; background:#ff005c1a; }
+.career-root .career-new-career__path input { margin-top:3px; accent-color:#ff005c; width:18px; height:18px; flex:none; }
+.career-root .career-new-career__path b { display:block; color:#fff; font:700 1rem Oswald,sans-serif; letter-spacing:.04em; text-transform:uppercase; }
+.career-root .career-new-career__path small { display:block; margin-top:3px; color:#ffffffa6; font-size:.85rem; line-height:1.35; }
+.career-root .career-new-career__paths .career-new-career__frequency { grid-column:1 / -1; }
+.career-root .career-new-career__more { margin-top:14px; } .career-root .career-new-career__more summary { cursor:pointer; color:#ffffffb3; font-weight:600; min-height:44px; display:flex; align-items:center; }
+/* Phones: the four step pills only fit as numbers, with the current step's name. */
+@media (max-width:560px) { .career-root .career-new-career__steps li:not(.is-current) { font-size:0; gap:0; padding:4px; } .career-root .career-new-career__steps li:not(.is-current) b { font-size:.68rem; } .career-root .career-new-career__steps li { white-space:nowrap; } }
 .career-root .career-new-career__fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr)); gap:14px; }
 .career-root .career-new-career__fields--row { align-items:end; }
 .career-root .career-new-career__fields input, .career-root .career-new-career__fields select { min-height:44px; border-radius:10px !important; background:#070b12 !important; border-color:#ffffff26 !important; color:#fff; padding:8px 12px; }
@@ -1675,7 +1686,7 @@
 /* Touch screens: text links in lists and tables (player names, "view" links) are ~17px tall. Vertical padding on an
    inline link widens what a thumb can hit without moving any text. */
 @media (pointer: coarse) {
-  .career-root main :is(li, td, p, span, dd) > a:not(.career-btn) { padding-block: 5px; }
+  .career-root #career-content :is(li, td, p, span, dd) > a:not(.career-btn) { padding-block: 5px; }
 }
 
 /* Phones: a slimmer Career header. Attention and "More" stay; search, Play mode, the guide and save health open on demand. */

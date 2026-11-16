@@ -150,7 +150,27 @@ test("a quiet stretch on the path names the next chance this season, or says it'
   const closed = ev("ct", "CHALLENGER", 11, 2, { human: { canEnter: false, eligible: false, relationship: "AVAILABLE", denials: ["NOT_ELIGIBLE"] } });
   const shut = buildGuide(base({ facts, events: [pub, closed], later: [{ circuit: "CHALLENGER", id: "ct9", name: "Challenge Tour 9", week: 20, opensWeek: 16 }] }));
   assert.match(shut.nextSteps.find(s => s.key === "path-none")?.title ?? "", /nothing more this season/);
+  assert.match(shut.nextSteps.find(s => s.key === "path-none")?.why ?? "", /Q-School comes round at the start of next season \(weeks 2 to 4\): about £300 to enter/);
   const none = buildGuide(base({ facts, events: [pub], later: [] })).nextSteps.find(s => s.key === "path-none");
   assert.match(none?.title ?? "", /nothing more this season/);
-  assert.match(none?.why ?? "", /next chances come next season/);
+  assert.match(none?.why ?? "", /Q-School comes round at the start of next season/);
+});
+
+test("a sponsor offer waiting is a step: what it's worth and when it closes", () => {
+  const g = buildGuide(base({ sponsorOffer: { id: "o1", name: "Forge Workwear", signingBonusPence: 10_000, expiresWeek: 12, count: 2 } }));
+  const s = g.nextSteps.find(x => x.key === "sponsor-offer:o1");
+  assert.equal(s?.title, "Forge Workwear wants to sign you");
+  assert.match(s?.why ?? "", /£100 for signing.*Open until week 12 · 2 offers waiting/);
+  assert.ok(s?.action.href?.endsWith("/sponsors"));
+  const last = buildGuide(base({ sponsorOffer: { id: "o1", name: "Forge Workwear", signingBonusPence: 0, expiresWeek: 10, count: 1 } })).nextSteps.find(x => x.key === "sponsor-offer:o1");
+  assert.equal(last?.tone, "now");
+  assert.match(last?.why ?? "", /^help with your costs.*Last week to answer\.$/);
+});
+
+test("closed entries aren't offered as the next step; a clash says you're booked", () => {
+  const blocked = (id: string, denials: string[]) => ev(id, "GRASSROOTS", 11, 1, { human: { canEnter: false, eligible: true, relationship: "AVAILABLE", denials } });
+  const closed = buildGuide(base({ events: [blocked("league", ["REGISTRATION_CLOSED"])] })).nextSteps.find(s => s.key === "path-none");
+  assert.doesNotMatch(closed?.title ?? "", /league/);
+  const clash = buildGuide(base({ events: [blocked("night", ["SCHEDULE_CONFLICT"])] })).nextSteps.find(s => s.key === "path-none");
+  assert.match(clash?.title ?? "", /night: you're booked that night/);
 });

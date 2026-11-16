@@ -3,6 +3,7 @@
  * what the next step is on the path they chose. Pure: the service gathers the facts, this decides what to say.
  */
 import type { SportingFacts } from "../finance/sponsors.catalogue.ts";
+import { FEE_PROFILES } from "../finance/config.ts";
 
 export type GuideFocus = "OPEN_SCHEDULE" | "AMATEUR_CIRCUIT" | "PROFESSIONAL_PATHWAY" | "MAJOR_QUALIFICATION" | "PRIZE_MONEY" | "DARTCAST_CREATOR";
 export type GuideEvent = {
@@ -27,6 +28,8 @@ export type GuideInput = {
   booked: { eventId: string; name: string; week: number } | null;
   streaming: GuideStreaming;
   moneyChallenge: { name: string; stakePence: number } | null;
+  /** The best sponsor offer waiting on you (they expire if you don't answer). */
+  sponsorOffer?: { id: string; name: string; signingBonusPence: number; expiresWeek: number | null; count: number } | null;
   /** Career prize money won so far (for the money path). */
   earningsPence?: number;
   /** How many weeks back "missed" looks (default two; more after a long skip). */
@@ -42,6 +45,8 @@ const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satu
 export const dayName = (d: number) => DAY_NAMES[(d - 1 + 7) % 7] ?? "";
 const pounds = (p: number) => `£${(p / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
 const BOOKED = new Set(["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED"]);
+/** Why you can't enter yet, when it's something you can wait out or fix (not closed entries or a locked field). */
+const WAITABLE = ["REGISTRATION_NOT_OPEN", "INSUFFICIENT_FUNDS", "SCHEDULE_CONFLICT"];
 const LOCAL = ["GRASSROOTS", "LOCAL"], COUNTY = ["COUNTY", "REGIONAL", "NATIONAL_AMATEUR", "SOFT_TIP"], ROAD = ["CHALLENGER", "Q_SCHOOL", "VAULT"],
   PRO = ["PRO_CIRCUIT", "EUROPEAN_SERIES", "WORLD_SERIES"], MAJORS = ["MAJOR", "WORLD_CHAMPIONSHIP"];
 const best = (f: SportingFacts, circuits: string[]) => Math.min(Infinity, ...circuits.map(c => f.bestFinishByCircuit[c] ?? Infinity));
@@ -188,6 +193,10 @@ export function buildGuide(g: GuideInput) {
   if (!g.streaming?.live && streamDays.length && phase === "START_OF_WEEK")
     add({ key: "shows", tone: "soon", title: `Your DartCast show${streamDays.length > 1 ? "s" : ""} this week: ${streamDays.map(d => dayName(d).slice(0, 3)).join(", ")}`,
       why: "You booked them: Continue stops on each night until you've gone live.", action: { label: "Go live", href: `${base}/streaming#go-live` } });
+  if (g.sponsorOffer) { const o = g.sponsorOffer, last = o.expiresWeek != null && o.expiresWeek <= week;
+    add({ key: `sponsor-offer:${o.id}`, tone: last ? "now" : "soon", title: `${o.name} wants to sign you`,
+      why: `${o.signingBonusPence > 0 ? `${pounds(o.signingBonusPence)} for signing, ` : ""}help with your costs and bonuses for results. ${last ? "Last week to answer" : o.expiresWeek == null ? "Open into next season" : `Open until week ${o.expiresWeek}`}${o.count > 1 ? ` · ${o.count} offers waiting` : ""}.`,
+      action: { label: "See the offer", href: `${base}/sponsors` } }); }
   if (g.moneyChallenge) add({ key: "money", tone: "soon", title: `${g.moneyChallenge.name} has challenged you`, why: `A money match for ${pounds(g.moneyChallenge.stakePence)} each, this week only.`, action: { label: "Answer", href: `${base}/money-matches` } });
   for (const c of closing.slice(0, 1)) { const ev = g.events.find(e => e.id === c.id);
     add({ key: `closing:${c.id}`, tone: "soon", title: `Last week to enter ${c.name}`, why: `${c.when}${ev ? cost(ev) : ""}.${ev && fits(ev) ? " It fits your next step." : " A cheap night of darts near home."}`,
@@ -219,7 +228,8 @@ export function buildGuide(g: GuideInput) {
   else if (currentDef) {
     // Nothing on your path you can enter now: say exactly why (cost, when entries open), and keep you playing locally.
     const blocked = g.events.filter(e => e.status !== "COMPLETED" && e.status !== "CANCELLED" && e.dates.startWeek >= week && currentDef.circuits.includes(e.circuit)
-      && e.human?.eligible && !e.human.canEnter).sort((a, b) => a.dates.startDay - b.dates.startDay);
+      && e.human?.eligible && !e.human.canEnter && (e.human.denials ?? []).length > 0 && (e.human.denials ?? []).every(d => WAITABLE.includes(d)))
+      .sort((a, b) => a.dates.startDay - b.dates.startDay);
     const next = blocked[0], nextCost = next?.finance?.estimatedPlayerCostPence ?? 0;
     const opens = next && (next.human?.denials ?? []).includes("REGISTRATION_NOT_OPEN") ? next.registration?.opensWeek : undefined;
     const short = next && nextCost > g.balancePence;
@@ -230,11 +240,13 @@ export function buildGuide(g: GuideInput) {
     const later = next ? undefined : (g.later ?? []).filter(l => currentDef.circuits.includes(l.circuit) && !shutOut(l.circuit)).sort((a, b) => a.week - b.week)[0];
     const meanwhile = "Until then, local nights and money matches keep your form sharp and your bank balance up.";
     add({ key: "path-none", tone: "tip",
-      title: next ? `${next.name}: ${short ? "save up for it" : opens ? `entries open week ${opens}` : "not open to you yet"}`
+      title: next ? `${next.name}: ${short ? "save up for it" : opens ? `entries open week ${opens}` : "you're booked that night"}`
         : later ? `${currentDef.title}: next chance week ${later.week}` : `${currentDef.title}: nothing more this season`,
       why: next ? `${when(next)}, about ${pounds(nextCost)} to play${short ? `. You have ${pounds(g.balancePence)}: local nights and money matches can make up the difference` : ""}.`
         : later ? `${later.name} is in week ${later.week}${later.opensWeek > week ? `; entries open week ${later.opensWeek}` : ""}. ${meanwhile}`
-        : `${currentDef.how} The next chances come next season. ${meanwhile}`,
+        : currentDef.circuits.includes("Q_SCHOOL")
+          ? `Q-School comes round at the start of next season (weeks 2 to 4): about ${pounds(FEE_PROFILES["fee:q_school"].entryFeePence)} to enter, plus travel, so start saving now. ${meanwhile}`
+          : `${currentDef.how} The next chances come next season. ${meanwhile}`,
       action: next ? { label: "Have a look", href: `${base}/events/${next.id}` } : later ? { label: "Have a look", href: `${base}/events/${later.id}` } : { label: "Calendar", href: `${base}/calendar` } });
     const local = upcoming.filter(e => e.dates.startWeek === week && LOCAL.includes(e.circuit) && affordable(e) && sensibleTripLocal(e) && !takenDays().has(e.dates.startDay)).sort(sensible)[0];
     if (local) add({ key: `keep-playing:${local.id}`, tone: "soon", title: `Meanwhile: ${local.name}`, why: `${when(local)}${cost(local)}. Keeps your form up and can win you entry money.`,

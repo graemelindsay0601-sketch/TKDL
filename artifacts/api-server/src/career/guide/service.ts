@@ -41,7 +41,7 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
       const events = cal.events as GuideEvent[];
       const [goals, sponsors, streaming, money] = await Promise.all([
         deps.goals.read(actor, saveId).catch(() => ({ focus: "OPEN_SCHEDULE" })),
-        deps.sponsors.sponsors(actor, saveId).catch(() => ({ facts: undefined, prospects: [] })),
+        deps.sponsors.sponsors(actor, saveId).catch(() => ({ facts: undefined, prospects: [], offers: [] })),
         root.channel ? deps.streaming.read(actor, saveId).catch(() => null) : Promise.resolve(null),
         deps.money.read(actor, saveId).catch(() => ({ challenge: null })),
       ]);
@@ -49,7 +49,15 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
       const stream: GuideStreaming = streaming ? { tierKey: streaming.tier?.key, tierName: streaming.tier?.name, followers: Number(streaming.followers ?? 0), nextTier: null,
         week: Number(streaming.week), scheduledNights: streaming.pathway?.scheduledNights ?? [], streamsThisWeek: Number(streaming.streamsThisWeek ?? 0),
         perWeek: Number(streaming.perWeek ?? 0), live: streaming.live ?? null } : null;
+      // The best waiting offer: the biggest signing bonus, then the one closing first.
+      type Offer = { id: string; status: string; terms: { displayName?: string; signingBonusPence?: number }; expires: { season: number; week: number } };
+      const offers = ((sponsors as { offers?: Offer[] }).offers ?? []).filter(o => o.status === "AVAILABLE"
+        && (Number(o.expires.season) > root.season || Number(o.expires.week) >= root.week))
+        .sort((a, b) => (b.terms.signingBonusPence ?? 0) - (a.terms.signingBonusPence ?? 0) || (a.expires.season - b.expires.season) * 100 + a.expires.week - b.expires.week);
+      const offer = offers[0];
       return buildGuide({
+        sponsorOffer: offer ? { id: String(offer.id), name: offer.terms.displayName ?? "A sponsor", signingBonusPence: Number(offer.terms.signingBonusPence ?? 0),
+          expiresWeek: Number(offer.expires.season) > root.season ? null : Number(offer.expires.week), count: offers.length } : null,
         saveId, season: root.season, balancePence: root.balancePence, focus: (goals.focus as GuideFocus) ?? "OPEN_SCHEDULE",
         today: overview?.today ?? { week: root.week, dayOfWeek: 1, phase: "START_OF_WEEK" },
         facts: sponsors.facts ?? EMPTY_FACTS, sponsorTiers: sponsors.prospects ?? [], events,

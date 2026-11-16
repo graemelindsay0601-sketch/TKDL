@@ -119,7 +119,7 @@ if (!saveId) {
 const id = saveId!;
 console.log(`soak save ${id} · focus ${focus} · seed ${startSeed} · log ${logPath}`);
 const balance = async () => Number((await db.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${id}`)).rows[0]?.balance_pence ?? 0);
-const stats = { entries: 0, matches: 0, streams: 0, moneyMatches: 0, localNights: 0, blockers: {} as Record<string, number> };
+const stats = { entries: 0, matches: 0, streams: 0, moneyMatches: 0, localNights: 0, sponsorsSigned: 0, blockers: {} as Record<string, number> };
 
 // ---------------------------------------------------------------- a player's week
 async function doStream() {
@@ -249,6 +249,16 @@ for (let i = 0; i < weeks; i++) {
       else if (r) find("guide-bad-pick", `${s.title}: ${r.denials.join(",")}`);
     }
   }
+  // A sponsor offer on the Guide: look at it and sign, swapping out a deal it clashes with (as a player keen on the money would).
+  for (const s of g?.nextSteps ?? []) if (s.key.startsWith("sponsor-offer:")) {
+    const offerId = s.key.slice("sponsor-offer:".length);
+    const view = await act("sponsors.read", () => sporting.finance.sponsors(actor, id)) as { offers: { id: string; conflictingContractIds: string[]; portfolioFull: boolean }[] } | undefined;
+    const o = view?.offers.find(x => String(x.id) === offerId);
+    if (!o || (o.portfolioFull && !o.conflictingContractIds.length)) { log(`  (sponsor offer: ${o ? "portfolio full" : "gone"})`); continue; }
+    const r = await act(`sign ${s.title}`, () => sporting.finance.acceptOffer(actor, id, { offerId, ...(o.conflictingContractIds.length ? { replaceContractIds: o.conflictingContractIds } : {}) }),
+      [/requirement|no longer|expired|full|commit|conflict/i]);
+    if (r) { stats.sponsorsSigned++; log(`  signed: ${s.title.replace(" wants to sign you", "")}`); }
+  }
   // The rest of a player's week, at random.
   if (focus === "DARTCAST_CREATOR" || rand() < streamRate) await doStream();
   await doMoney();
@@ -278,7 +288,7 @@ for (let i = 0; i < weeks; i++) {
 const end = await guide.read(actor, id).catch(() => null);
 const kinds = new Map<string, Finding[]>();
 for (const f of findings) kinds.set(f.kind, [...(kinds.get(f.kind) ?? []), f]);
-console.log(`\n${weeks} weeks · ${stats.entries} entries · ${stats.matches} matches · ${stats.streams} streams · ${stats.moneyMatches} money matches · ${stats.localNights} local nights`);
+console.log(`\n${weeks} weeks · ${stats.entries} entries · ${stats.matches} matches · ${stats.streams} streams · ${stats.moneyMatches} money matches · ${stats.localNights} local nights · ${stats.sponsorsSigned} sponsors signed`);
 console.log(`blockers resolved: ${JSON.stringify(stats.blockers)}`);
 console.log(`balance £${((await balance()) / 100).toFixed(0)} · path ${end?.path.label}: ${end?.path.done}/${end?.path.total} (${end?.path.current?.title ?? "complete"})`);
 console.log(findings.length ? `\nFINDINGS (${findings.length}):` : "\nNo findings.");

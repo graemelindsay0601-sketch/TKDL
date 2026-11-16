@@ -50,7 +50,7 @@ export function CareerShell({ saveId, children }: { saveId: string; children: (c
         </div>
       )}
       {header.error && !overview ? (errorStatus(header.error) === 409 && !retired ? <InitializeCareer saveId={saveId} /> : <CareerError error={header.error} onRetry={() => header.refetch()} />)
-        : header.isLoading ? <CareerLoading label="Loading Career world" /> : <main id="career-content" tabIndex={-1}>{children({ save: save.data, overview, retired })}</main>}
+        : header.isLoading ? <CareerLoading label="Loading Career world" /> : <div id="career-content" tabIndex={-1}>{children({ save: save.data, overview, retired })}</div>}
       {!/\/(matches|money-matches|road-trips)\/[^/]+\/play/.test(location) && <CareerBar save={save.data} />}
     </div>
   );

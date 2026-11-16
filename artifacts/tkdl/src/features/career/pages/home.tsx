@@ -46,7 +46,7 @@ function TodayHome({ ctx }: { ctx: ShellContext }) {
     onError: error => setMessage(errorMessage(error)),
   });
   return (
-    <main className="career-home career-home--guide">
+    <div className="career-home career-home--guide">
       <CareerGuide save={save} overview={ctx.overview}>
         <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
           onEnter={onEnter} entering={enter.isPending} message={message} embedded />
@@ -60,7 +60,7 @@ function TodayHome({ ctx }: { ctx: ShellContext }) {
         <Link href={`/career/${id}/streaming`}>DartCast<small>Your channel</small></Link>
       </nav>
       <ContextHelp saveId={id} topic="home" />
-    </main>
+    </div>
   );
 }
 
@@ -100,7 +100,7 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
 
   const DTABS = [["pathway", "Pathway"], ["rankings", "Rankings"], ["results", "Results"], ["news", "News"]] as const;
   return (
-    <main className={`career-home${mode === "details" ? " career-home--details" : ""}`} data-dtab={mode === "details" ? dtab : undefined}>
+    <div className={`career-home${mode === "details" ? " career-home--details" : ""}`} data-dtab={mode === "details" ? dtab : undefined}>
       <CareerPageHero kicker={`Career headquarters · Season ${save.currentSeason} / Week ${save.currentWeek}`}
         title={profile.data?.displayName ?? save.careerName ?? "My Career"} accent="#c52842" archival={retired}
         watermark={`S${String(save.currentSeason).padStart(2, "0")} · W${String(save.currentWeek).padStart(2, "0")}`}
@@ -295,7 +295,7 @@ function DashboardHome({ ctx, mode }: { ctx: ShellContext; mode: "guide" | "deta
       </div>
       </div>
       </details>
-    </main>
+    </div>
   );
 }
 
