@@ -1043,16 +1043,32 @@ async function completeEvents(tx: CareerExecutor, root: RootRow, finished: reado
     const { results, champion } = eventResults(root, event, matches, rounds, entries, teams);
     return { event, results, champion };
   });
-  await tx.execute(sql`INSERT INTO career_event_results (career_save_id, event_id, participant_key, participant_kind, npc_id, season, definition_key, finishing_position,
+  // Results are permanent: an event that already holds a champion (an interrupted week replayed, an old save's history)
+  // keeps its results. Writing a second champion failed the whole transaction, so the player's match couldn't be saved.
+  const settled = new Set((await tx.execute(sql`SELECT DISTINCT event_id FROM career_event_results WHERE career_save_id = ${root.id}
+    AND is_champion AND event_id IN (${sql.join(ids, sql`, `)})`)).rows.map(r => String(r.event_id)));
+  const fresh = done.filter(d => !settled.has(d.event.id));
+  // A settled event carries its stored results onward (status, money, rankings), so every consumer sees the same facts.
+  if (settled.size) {
+    const stored = (await tx.execute(sql`SELECT event_id, participant_key, participant_kind, npc_id, finishing_position, stage_reached, is_champion, matches_played,
+        wins, losses, legs_for, legs_against, metadata FROM career_event_results WHERE career_save_id = ${root.id}
+        AND event_id IN (${sql.join([...settled].map(id => sql`${id}::uuid`), sql`, `)}) ORDER BY finishing_position, participant_key`)).rows;
+    for (const d of done) if (settled.has(d.event.id)) {
+      const rows = stored.filter(r => String(r.event_id) === d.event.id).map(({ event_id: _e, ...r }) => r);
+      d.results = rows as unknown as typeof d.results;
+      d.champion = String(rows.find(r => r.is_champion)!.participant_key) as typeof d.champion;
+    }
+  }
+  if (fresh.length) await tx.execute(sql`INSERT INTO career_event_results (career_save_id, event_id, participant_key, participant_kind, npc_id, season, definition_key, finishing_position,
       stage_reached, is_champion, matches_played, wins, losses, legs_for, legs_against, metadata)
     SELECT ${root.id}::uuid, r.event_id, r.participant_key, r.participant_kind, r.npc_id, r.season, r.definition_key, r.finishing_position,
       r.stage_reached, r.is_champion, r.matches_played, r.wins, r.losses, r.legs_for, r.legs_against, r.metadata
-    FROM jsonb_to_recordset(${JSON.stringify(done.flatMap(d => d.results.map(r => ({ ...r, event_id: d.event.id, season: d.event.season, definition_key: d.event.definition_key }))))}::jsonb)
+    FROM jsonb_to_recordset(${JSON.stringify(fresh.flatMap(d => d.results.map(r => ({ ...r, event_id: d.event.id, season: d.event.season, definition_key: d.event.definition_key }))))}::jsonb)
       AS r(event_id uuid, season integer, definition_key text, participant_key text, participant_kind text, npc_id uuid, finishing_position integer, stage_reached text,
       is_champion boolean, matches_played integer, wins integer, losses integer, legs_for integer, legs_against integer, metadata jsonb)
     ON CONFLICT (career_save_id, event_id, participant_key) DO NOTHING`);
-  for (const season of new Set(done.map(d => d.event.season))) {
-    const grants = done.filter(d => d.event.season === season).flatMap(({ event, results }) => eventGrants(root, event, results));
+  for (const season of new Set(fresh.map(d => d.event.season))) {
+    const grants = fresh.filter(d => d.event.season === season).flatMap(({ event, results }) => eventGrants(root, event, results));
     if (grants.length) await insertEntitlements(tx, root.id, season, grants, "EVENT_RESULT");
   }
   for (const { event } of done.filter(d => d.event.definition_key === "anz-premier-night-5"))

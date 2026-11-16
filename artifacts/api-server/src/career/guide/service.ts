@@ -27,7 +27,11 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
           && (await tx.execute(sql`SELECT 1 FROM career_stream_channels WHERE career_save_id = ${saveId}`)).rows.length > 0;
         const review = (await tx.execute(sql`SELECT to_regclass('career_legacy_reviews') IS NOT NULL AS ok`)).rows[0]?.ok === true
           ? (await tx.execute(sql`SELECT season FROM career_legacy_reviews WHERE career_save_id = ${saveId} AND acknowledged = false ORDER BY season LIMIT 1`)).rows[0]?.season : undefined;
-        return { season: Number(r.current_season), week: Number(r.current_week), balancePence: Number(balance ?? 0), channel, pendingReview: review == null ? null : Number(review) };
+        // Beyond the four-week window: the next event on each circuit this season, so a quiet stretch can say when the path picks up again.
+        const later = (await tx.execute(sql`SELECT DISTINCT ON (circuit) circuit, id, name, start_week, registration_opens_week FROM career_event_instances
+          WHERE career_save_id = ${saveId} AND season = ${r.current_season} AND start_week > ${Number(r.current_week) + 4} AND status NOT IN ('COMPLETED', 'CANCELLED')
+          ORDER BY circuit, start_week, name`)).rows.map(e => ({ circuit: String(e.circuit), id: String(e.id), name: String(e.name), week: Number(e.start_week), opensWeek: Number(e.registration_opens_week) }));
+        return { season: Number(r.current_season), week: Number(r.current_week), balancePence: Number(balance ?? 0), channel, pendingReview: review == null ? null : Number(review), later };
       });
       // Events without the season overview (its read of every week ahead); today and waiting matches come from the cheap glance.
       const [cal, glance] = await Promise.all([
@@ -50,7 +54,7 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
         today: overview?.today ?? { week: root.week, dayOfWeek: 1, phase: "START_OF_WEEK" },
         facts: sponsors.facts ?? EMPTY_FACTS, sponsorTiers: sponsors.prospects ?? [], events,
         pendingMatch: pending ? { matchId: pending.matchId, eventId: pending.eventId, name: events.find(e => e.id === pending.eventId)?.name ?? "your event" } : null,
-        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, missedWeeks: 6, earningsPence: Number((goals as { context?: { earningsPence?: number } }).context?.earningsPence ?? 0),
+        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, missedWeeks: 6, later: root.later, earningsPence: Number((goals as { context?: { earningsPence?: number } }).context?.earningsPence ?? 0),
       });
     },
   };

@@ -127,3 +127,30 @@ test("two suggestions in a week stay within a sensible spend together", () => {
   const g = buildGuide(base({ facts, balancePence: 54_200, events: [ct("sat", 6), ct("sun", 7)] }));
   assert.equal(g.nextSteps.filter(s => s.action.enterEventId).length, 1);
 });
+
+test("never two suggestions on the same night", () => {
+  const wed = (id: string) => ev(id, "GRASSROOTS", 10, 3, { finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const g = buildGuide(base({ events: [wed("flier"), wed("open")] }));
+  const days = g.nextSteps.map(s => s.action.enterEventId).filter(Boolean);
+  assert.equal(days.length, 1, `one Wednesday pick, got ${days.join(",")}`);
+});
+
+test("a quiet stretch on the path names the next chance this season, or says it's next season", () => {
+  const facts = { careerStarted: true, titles: 4, bestFinishByCircuit: { GRASSROOTS: 1, COUNTY: 2, CHALLENGER: 9 }, qualifications: [], professionalStatus: "AMATEUR" as const, tourCard: false, worldRanking: null };
+  const pub = ev("pub", "GRASSROOTS", 10, 5, { finance: { estimatedPlayerCostPence: 300, travelBand: "LOCAL" } });
+  const later = [{ circuit: "Q_SCHOOL", id: "qs", name: "Q-School Stage 1", week: 47, opensWeek: 40 }, { circuit: "PRO_TOUR", id: "pt", name: "Players Championship 20", week: 15, opensWeek: 12 }];
+  const g = buildGuide(base({ facts, events: [pub], later }));
+  assert.equal(g.path.current?.key, "tour-card");
+  const tip = g.nextSteps.find(s => s.key === "path-none");
+  assert.match(tip?.title ?? "", /next chance week 47/);
+  assert.match(tip?.why ?? "", /Q-School Stage 1 is in week 47; entries open week 40\. Until then, local nights/);
+  assert.ok(tip?.action.href?.endsWith("/events/qs"), "links to the event");
+  assert.ok(g.nextSteps.some(s => s.action.enterEventId === "pub"), "keeps playing locally meanwhile");
+  // Shut out of a circuit (every event in view says you can't play): its later events aren't a chance.
+  const closed = ev("ct", "CHALLENGER", 11, 2, { human: { canEnter: false, eligible: false, relationship: "AVAILABLE", denials: ["NOT_ELIGIBLE"] } });
+  const shut = buildGuide(base({ facts, events: [pub, closed], later: [{ circuit: "CHALLENGER", id: "ct9", name: "Challenge Tour 9", week: 20, opensWeek: 16 }] }));
+  assert.match(shut.nextSteps.find(s => s.key === "path-none")?.title ?? "", /nothing more this season/);
+  const none = buildGuide(base({ facts, events: [pub], later: [] })).nextSteps.find(s => s.key === "path-none");
+  assert.match(none?.title ?? "", /nothing more this season/);
+  assert.match(none?.why ?? "", /next chances come next season/);
+});

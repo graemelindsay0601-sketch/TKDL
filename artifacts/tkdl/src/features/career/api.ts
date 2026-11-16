@@ -537,6 +537,13 @@ export const useSetCareerProfile = (saveId: string) => {
     method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
     onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); } });
 };
+/** Choose a home area once (saves that never picked one play out of Ayrshire until then). */
+export const useChooseHome = (saveId: string) => {
+  const client = useQueryClient();
+  return useMutation({ mutationFn: (homeLocality: string) => apiFetchJson<CareerProfile>(`${BASE}/saves/${saveId}/profile/home`, {
+    method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ homeLocality }) }),
+    onSettled: async () => { await client.invalidateQueries({ queryKey: ["career", saveId] }); } });
+};
 /** Existing session for a match, or null (404 = none yet). Never creates one. */
 export const useLiveSession = (saveId: string, matchId: string | null | undefined) => useQuery({
   queryKey: careerKey(saveId, "live", matchId ?? "none"), enabled: !!matchId, staleTime: 2_000, retry: false,

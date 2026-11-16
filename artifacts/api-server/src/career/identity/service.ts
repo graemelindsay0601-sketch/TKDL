@@ -69,6 +69,23 @@ export function createCareerIdentityService(database: CareerDatabase) {
         return present(root, await profileOf(tx, root.id));
       });
     },
+    /**
+     * Choose a home area once, for saves that never picked one (older saves, or "keep default" at setup). They play out
+     * of Ayrshire until then. Written to the profile and the save's settings (which the calendar reads) together.
+     */
+    async chooseHome(actor: CareerActor, saveId: string, body: unknown) {
+      const { homeLocality } = z.object({ homeLocality: z.string().min(1).max(80) }).strict().parse(body);
+      if (!LOCALITIES.some(l => l.key === homeLocality)) throw new CareerError(409, "Unknown home locality");
+      return database.transaction(async tx => {
+        const root = await lockRoot(tx, actor, saveId) as never as { id: string; current_season: number; current_week: number; career_name: string | null; created_at: Date | string; settings_snapshot: Record<string, unknown> };
+        const existing = await profileOf(tx, root.id);
+        if (existing?.home_locality || root.settings_snapshot?.homeLocality) throw new CareerError(409, "Your home area is already set");
+        if (!existing) throw new CareerError(409, "Set your date of birth first");
+        await tx.execute(sql`UPDATE career_profiles SET home_locality = ${homeLocality}, updated_at = NOW() WHERE career_save_id = ${root.id}`);
+        await tx.execute(sql`UPDATE career_saves SET settings_snapshot = jsonb_set(COALESCE(settings_snapshot, '{}'::jsonb), '{homeLocality}', to_jsonb(${homeLocality}::text)) WHERE id = ${root.id}`);
+        return present(root, await profileOf(tx, root.id));
+      });
+    },
     /** True when the save may make sporting progress (has a DOB). Retired saves are read-only anyway. */
     async complete(actor: CareerActor, saveId: string) {
       const row = (await database.execute(sql`SELECT p.date_of_birth FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id
@@ -106,6 +123,7 @@ export function createCareerIdentityRouter(service: CareerIdentityService, isAva
   router.post("/saves/:id/calendar/advance", auth, gate);
   router.post("/saves/:id/matches/:matchId/session", auth, gate);
   router.get("/saves/:id/profile", auth, async (req, res, next) => { try { res.json(await service.read(res.locals.careerActor, String(req.params.id))); } catch (e) { next(e); } });
+  router.put("/saves/:id/profile/home", auth, authedWriteRateLimit, async (req, res, next) => { try { res.json(await service.chooseHome(res.locals.careerActor, String(req.params.id), req.body)); } catch (e) { next(e); } });
   router.put("/saves/:id/profile", auth, authedWriteRateLimit, async (req, res, next) => { try { res.json(await service.set(res.locals.careerActor, String(req.params.id), req.body)); } catch (e) { next(e); } });
   router.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
     if (error instanceof ZodError) res.status(400).json({ error: "Invalid Career request", issues: error.issues });
