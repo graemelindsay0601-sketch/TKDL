@@ -42,6 +42,8 @@ const logPath = process.env.LOG ?? `/tmp/career-soak-${focus.toLowerCase()}.log`
 let seed = Number(process.env.SEED ?? Math.floor(Math.random() * 1e9));
 const rand = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
 const startSeed = seed;
+// A fresh id per run, so resuming a save (even with the same seed) never reuses an earlier run's operation keys.
+const runId = Date.now().toString(36);
 
 const pg = createRequire(new URL("../../../lib/db/package.json", import.meta.url))("pg") as typeof import("pg");
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
@@ -284,7 +286,7 @@ for (let i = 0; i < weeks; i++) {
   for (let step = 0; step < 40; step++) {
     const now = await saves.read(playerId, id);
     if (now.currentWeek !== root.currentWeek || now.currentSeason !== root.currentSeason) { moved = true; break; }
-    const r = await act("advance", () => sporting.calendar.advance(actor, id, { operationKey: `soak-${startSeed}-${i}-${step}`, expectedSeason: now.currentSeason, expectedWeek: now.currentWeek,
+    const r = await act("advance", () => sporting.calendar.advance(actor, id, { operationKey: `soak-${runId}-${startSeed}-${i}-${step}`, expectedSeason: now.currentSeason, expectedWeek: now.currentWeek,
       target: { kind: "WEEKS", weeks: 1 } })) as { stop: { reason: string; detail?: Record<string, unknown> } } | undefined;
     if (!r) break;
     if (!["TARGET_REACHED", "LIMIT", "MEANINGFUL_DATE", "SEASON_BOUNDARY"].includes(r.stop.reason)) await resolve(r.stop, now);
