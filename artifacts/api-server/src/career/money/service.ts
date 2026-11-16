@@ -73,9 +73,12 @@ const resultFrom = (r: Row, names: Map<string, string>): MoneyMatchResult => {
 };
 
 /** Your home area's key (from your profile, else the save's settings). */
+/** No home chosen (older saves, or "keep default" at setup): the calendar already treats you as from Ayrshire, so
+ * everything else does too. Without this, money matches, road-trip visitors and the like found an empty club. */
+export const DEFAULT_HOME_LOCALITY = "ayrshire";
 export async function homeLocalityOf(tx: CareerExecutor, root: Pick<Root, "id" | "settings_snapshot">) {
   return String((await tx.execute(sql`SELECT home_locality FROM career_profiles WHERE career_save_id=${root.id}`)).rows[0]?.home_locality
-    ?? (root.settings_snapshot as { homeLocality?: string } | undefined)?.homeLocality ?? "");
+    ?? (root.settings_snapshot as { homeLocality?: string } | undefined)?.homeLocality ?? DEFAULT_HOME_LOCALITY);
 }
 
 /** The members of your home club you can play (active players from your home area), with their typical average. */

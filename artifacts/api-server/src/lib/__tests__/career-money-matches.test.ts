@@ -169,3 +169,14 @@ test("a brand-new player is left to settle in: no challenge in the opening weeks
     assert.equal((await money.read(actor, id)).challenge, null, `week ${week}`);
   }
 });
+
+test("no home chosen (older saves, or 'keep default'): the club is Ayrshire's, not empty, and stray opponent keys don't break the page", async () => {
+  const other = (await saves.create(1, { slot: 2, careerName: "No home", dateOfBirth: "1990-03-02" })).id;
+  await career.initialize(actor, other);
+  const v = await money.read(actor, other);
+  assert.ok(v.members.length > 0, "a club to play");
+  await db.execute(sql`INSERT INTO career_money_matches (career_save_id, season, week, opponent_key, stake_pence, origin, status)
+    VALUES (${other}, 1, 1, 'not-a-player-id', 500, 'YOU_CHALLENGED', 'DECLINED')`);
+  const after = await money.read(actor, other);
+  assert.ok(after.members.length > 0);
+});

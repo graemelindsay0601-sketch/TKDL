@@ -124,7 +124,17 @@ const stats = { entries: 0, matches: 0, streams: 0, moneyMatches: 0, localNights
 // ---------------------------------------------------------------- a player's week
 async function doStream() {
   const v = await act("streaming.read", () => streaming.read(actor, id)) as { freeNights: number[]; streamsThisWeek: number; perWeek: number; pathway: { scheduledNights: number[] }; formats: { key: string; why: string | null }[]; live: string | null } | undefined;
-  if (!v || v.live) return;
+  if (!v) return;
+  // A stream left running (you closed the app mid-stream): pick it up and finish it, as "Resume stream" does.
+  if (v.live) {
+    const win = rand() < winRate;
+    for (let n = 0; n < 9; n++) {
+      const r = await act("resume stream darts", () => streaming.darts(actor, id, v.live!, { darts: leg(n % 2 === 0, win) })) as { session: { status: string } } | undefined;
+      if (!r || r.session.status !== "LIVE") break;
+    }
+    await act("end resumed stream", () => streaming.end(actor, id, v.live!), [/not live|ended/i]);
+    return;
+  }
   const nights = [...new Set([...v.pathway.scheduledNights, ...v.freeNights])].slice(0, Math.max(0, v.perWeek - v.streamsThisWeek));
   for (const d of nights) {
     const format = v.formats.find(f => !f.why && ["CHALLENGER", "COMMUNITY", "KING"].includes(f.key))?.key;
@@ -143,16 +153,22 @@ async function doStream() {
 async function doMoney() {
   const v = await act("money.read", () => money.read(actor, id)) as { challenge: { opponentKey: string; stakePence: number } | null; members: { key: string; thisWeek: unknown }[] } | undefined;
   if (!v) return;
+  if (!v.members.length && !v.challenge) { log("   (no club members to play for money)"); return; }
   const bal = await balance();
   let session: { session: { id: string } | null } | undefined;
   if (v.challenge && v.challenge.stakePence <= bal && rand() < 0.6)
     session = await act("answer money challenge", () => money.play(actor, id, { opponentKey: v.challenge!.opponentKey, stakePence: v.challenge!.stakePence })) as typeof session;
   else if (v.challenge) { await act("decline money challenge", () => money.decline(actor, id)); return; }
-  else if (rand() < 0.2 && bal > 2_000) {
+  else if (rand() < 0.35 && bal > 2_000) {
     const m = v.members.find(x => !x.thisWeek);
     if (!m) return;
     const talk = await act("offer money match", () => money.offer(actor, id, { opponentKey: m.key, stakePence: 1_000 }), [/already|can't afford|walked/i]) as { members?: { key: string; talk: { status: string; agreedPence: number | null } | null }[] } | undefined;
-    const agreed = talk?.members?.find(x => x.key === m.key)?.talk;
+    let agreed = talk?.members?.find(x => x.key === m.key)?.talk as { status: string; agreedPence: number | null; theirOfferPence?: number | null } | null | undefined;
+    // They usually come back with a number: take it if it's affordable, as a player would.
+    if (agreed?.status === "OPEN" && agreed.theirOfferPence && agreed.theirOfferPence <= bal) {
+      const again = await act("accept their money counter", () => money.offer(actor, id, { opponentKey: m.key, stakePence: agreed!.theirOfferPence! }), [/already|walked|afford/i]) as typeof talk;
+      agreed = again?.members?.find(x => x.key === m.key)?.talk as typeof agreed;
+    }
     if (agreed?.status === "AGREED" && agreed.agreedPence) session = await act("play agreed money match", () => money.play(actor, id, { opponentKey: m.key, stakePence: agreed.agreedPence! })) as typeof session;
   }
   if (session?.session) { stats.moneyMatches++; await playLog("money match darts", darts => money.darts(actor, id, session!.session!.id, { darts })); }
@@ -178,9 +194,15 @@ async function resolve(stop: { reason: string; detail?: Record<string, unknown> 
   switch (stop.reason) {
     case "HUMAN_MATCH_PENDING":
       for (const matchId of (d.matchIds as string[] | undefined) ?? []) {
-        const m = (await db.execute(sql`SELECT best_of FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`)).rows[0];
-        const need = (Number(m?.best_of ?? 3) + 1) / 2, win = rand() < winRate;
-        await act("record match", () => sporting.calendar.recordHumanMatchResult(actor, id, { matchId, humanLegs: win ? need : rand() < 0.5 ? 0 : need - 1, opponentLegs: win ? 0 : need, humanThrewFirst: true }));
+        const m = (await db.execute(sql`SELECT best_of, i.snapshot->'format' AS format FROM career_tournament_matches t JOIN career_event_instances i ON i.career_save_id = t.career_save_id AND i.id = t.event_id
+          WHERE t.career_save_id = ${id} AND t.id = ${matchId}`)).rows[0] as { best_of: number; format: { scoringUnit?: string; legsPerSet?: number } } | undefined;
+        const need = (Number(m?.best_of ?? 3) + 1) / 2, win = rand() < winRate, lose = Math.floor(rand() * need);
+        // Set play (majors, the World Championship): best_of counts sets, and each set won takes a majority of its legs.
+        const setPlay = m?.format?.scoringUnit === "SETS", perSet = (Number(m?.format?.legsPerSet ?? 5) + 1) / 2;
+        const sets = setPlay ? { humanSets: win ? need : lose, opponentSets: win ? lose : need } : {};
+        const legs = setPlay ? { humanLegs: (win ? need : lose) * perSet, opponentLegs: (win ? lose : need) * perSet }
+          : { humanLegs: win ? need : lose, opponentLegs: win ? lose : need };
+        await act("record match", () => sporting.calendar.recordHumanMatchResult(actor, id, { matchId, ...legs, ...sets, humanThrewFirst: true }));
         stats.matches++;
       }
       return;
