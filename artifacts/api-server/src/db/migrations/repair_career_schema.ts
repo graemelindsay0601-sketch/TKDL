@@ -1,6 +1,7 @@
 import { ensureRankingContributionUnits } from "./add_career_ranking_contribution_units.ts";
 import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 import { sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { ensureSoftTipCircuit, ensureTeamEventClassification, ensureLeagueRounds, ensureEventPairs, ensureQuickSimSource, ensureCareerForeignKeyIndexes, ensureEntryTier, syncEventDefinitions, insertMissingEventDefinitions } from "./create_career_calendar.ts";
 import { ensureCareerMatchSessionSchema, ensureCareerProfileSchema } from "./create_career_live.ts";
 import { ensureCareerGroupSchema } from "./create_career_groups.ts";
@@ -39,7 +40,7 @@ import { ensureLegacySeasonTotals, ensureWorldRecords, ensureClubSeasons, ensure
  * anything, so this runs on EVERY startup — a new repair belongs here, never inside a ledgered migration.
  */
 export async function repairCareerSchema(database: CareerDatabase): Promise<void> {
-  await database.transaction(async tx => {
+  await politely(database, async tx => {
     await ensureSoftTipCircuit(tx);
     await ensureQualificationEntitlementSourceConstraint(tx);
     await ensureLeagueRounds(tx);
@@ -86,9 +87,112 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
   });
 }
 
+/**
+ * Every-boot schema work runs while players are mid-game (a deploy restarts the server under live traffic). Most repairs
+ * are no-ops, but DDL takes its table lock before it checks (ALTER TABLE ... IF NOT EXISTS, CREATE INDEX IF NOT EXISTS),
+ * and queued behind a player's transaction that is a deadlock in which Postgres may abort the player. So the repair waits
+ * at most half a second for any lock (under the one-second deadlock check: it gives way before any player's game is
+ * chosen as the victim), and tries again a few times, pausing longer each time. If the tables stay busy it gives up and
+ * the server starts anyway: an up-to-date database loses nothing, and the next start tries again.
+ */
+const LOCK_WAIT = "500ms", ATTEMPTS = 6;
+const dialect = new PgDialect();
+type Tx = Parameters<Parameters<CareerDatabase["transaction"]>[0]>[0];
+/**
+ * The executor the repairs see: an "ADD COLUMN IF NOT EXISTS" for a column that exists, or a "CREATE INDEX IF NOT EXISTS" for an
+ * index that exists, is a no-op by definition, so it is skipped after a catalog read (which takes no table lock) instead of
+ * locking the table to find that out. Everything else runs as written.
+ */
+export function skippingNoOps(tx: Tx): { tx: Tx; flush: () => Promise<void> } {
+  const execute = tx.execute.bind(tx);
+  const textOf = (query: unknown) => { try { return dialect.sqlToQuery(query as Parameters<PgDialect["sqlToQuery"]>[0]).sql; } catch { return null; } };
+  const has = async (q: ReturnType<typeof sql>) => (await execute(q)).rows.length > 0;
+  // "DROP CONSTRAINT IF EXISTS c" is held back for one statement: when the next re-adds the same CHECK constraint
+  // unchanged, both are skipped (the re-add would lock the table and re-check every row on every start).
+  let pendingDrop: { kind: "CONSTRAINT" | "TRIGGER"; table: string; name: string; query: Parameters<Tx["execute"]>[0] } | null = null;
+  const exists = (kind: "CONSTRAINT" | "TRIGGER", table: string, name: string) => kind === "CONSTRAINT"
+    ? has(sql`SELECT 1 FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid WHERE t.relname = ${table} AND t.relnamespace = current_schema()::regnamespace AND c.conname = ${name}`)
+    : has(sql`SELECT 1 FROM pg_trigger g JOIN pg_class t ON t.oid = g.tgrelid WHERE t.relname = ${table} AND t.relnamespace = current_schema()::regnamespace AND g.tgname = ${name} AND NOT g.tgisinternal`);
+  // A held-back drop runs only if there is something to drop.
+  const flush = async () => { if (pendingDrop) { const d = pendingDrop; pendingDrop = null; if (await exists(d.kind, d.table, d.name)) await execute(d.query); } };
+  let probes = 0;
+  const sameCheck = async (table: string, name: string, definition: string) => {
+    const existing = (await execute(sql`SELECT pg_get_constraintdef(c.oid) AS def FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+      WHERE t.relname = ${table} AND t.relnamespace = current_schema()::regnamespace AND c.conname = ${name} AND c.contype = 'c'`)).rows[0];
+    if (!existing) return false;
+    // Postgres's own normal form for the new definition: add it to an empty temporary copy of the table (no lock on the real one).
+    const probe = `career_repair_probe_${++probes}`;
+    await execute(sql.raw(`CREATE TEMP TABLE ${probe} (LIKE "${table}") ON COMMIT DROP`));
+    await execute(sql.raw(`ALTER TABLE ${probe} ADD CONSTRAINT "${name}" ${definition}`));
+    const fresh = (await execute(sql`SELECT pg_get_constraintdef(c.oid) AS def FROM pg_constraint c WHERE c.conrelid = ${probe}::regclass AND c.conname = ${name}`)).rows[0];
+    await execute(sql.raw(`DROP TABLE ${probe}`));
+    return !!fresh && String(fresh.def) === String(existing.def);
+  };
+  const sameTrigger = async (table: string, name: string, createText: string) => {
+    const existing = (await execute(sql`SELECT pg_get_triggerdef(g.oid) AS def FROM pg_trigger g JOIN pg_class t ON t.oid = g.tgrelid
+      WHERE t.relname = ${table} AND t.relnamespace = current_schema()::regnamespace AND g.tgname = ${name} AND NOT g.tgisinternal`)).rows[0];
+    if (!existing) return false;
+    const probe = `career_repair_probe_${++probes}`;
+    const onProbe = createText.replace(new RegExp(`\\bON\\s+"?${table}"?(?=\\s)`, "i"), `ON ${probe}`);
+    if (onProbe === createText) return false;
+    await execute(sql.raw(`CREATE TEMP TABLE ${probe} (LIKE "${table}") ON COMMIT DROP`));
+    await execute(sql.raw(onProbe));
+    const fresh = (await execute(sql`SELECT pg_get_triggerdef(g.oid) AS def FROM pg_trigger g WHERE g.tgrelid = ${probe}::regclass AND g.tgname = ${name}`)).rows[0];
+    await execute(sql.raw(`DROP TABLE ${probe}`));
+    const normal = (def: unknown) => String(def).replace(/\bON\s+\S+\s/, "ON _ ");
+    return !!fresh && normal(fresh.def) === normal(existing.def);
+  };
+  const run = async (query: Parameters<Tx["execute"]>[0]) => {
+    const text = textOf(query);
+    const single = text !== null && !/,\s*(ADD|DROP|ALTER)\s/i.test(text);
+    const drop = single ? /^\s*ALTER\s+TABLE\s+"?(\w+)"?\s+DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+"?(\w+)"?\s*;?\s*$/i.exec(text!) : null;
+    const add = single ? /^\s*ALTER\s+TABLE\s+"?(\w+)"?\s+ADD\s+CONSTRAINT\s+"?(\w+)"?\s+(CHECK\s*\([\s\S]*\))\s*;?\s*$/i.exec(text!) : null;
+    const createTrigger = text ? /^\s*CREATE\s+TRIGGER\s+"?(\w+)"?\s[\s\S]*?\bON\s+"?(\w+)"?\s/i.exec(text) : null;
+    if (pendingDrop?.kind === "CONSTRAINT" && add && add[1] === pendingDrop.table && add[2] === pendingDrop.name && await sameCheck(add[1], add[2], add[3])) {
+      pendingDrop = null; return { rows: [], rowCount: 0 };
+    }
+    if (pendingDrop?.kind === "TRIGGER" && createTrigger && createTrigger[1] === pendingDrop.name && createTrigger[2] === pendingDrop.table
+      && await sameTrigger(createTrigger[2], createTrigger[1], text!)) { pendingDrop = null; return { rows: [], rowCount: 0 }; }
+    await flush();
+    if (drop) { pendingDrop = { kind: "CONSTRAINT", table: drop[1], name: drop[2], query }; return { rows: [], rowCount: 0 }; }
+    const dropTrigger = text ? /^\s*DROP\s+TRIGGER\s+IF\s+EXISTS\s+"?(\w+)"?\s+ON\s+"?(\w+)"?\s*;?\s*$/i.exec(text) : null;
+    if (dropTrigger) { pendingDrop = { kind: "TRIGGER", table: dropTrigger[2], name: dropTrigger[1], query }; return { rows: [], rowCount: 0 }; }
+    const column = single ? /^\s*ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?"?(\w+)"?\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+"?(\w+)"?/i.exec(text!) : null;
+    if (column && await has(sql`SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = ${column[1]} AND column_name = ${column[2]}`)) return { rows: [], rowCount: 0 };
+    const index = text ? /^\s*CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?IF\s+NOT\s+EXISTS\s+"?(\w+)"?/i.exec(text) : null;
+    if (index && await has(sql`SELECT 1 FROM pg_class WHERE relname = ${index[1]} AND relkind IN ('i', 'I')
+      AND relnamespace = current_schema()::regnamespace`)) return { rows: [], rowCount: 0 };
+    return execute(query);
+  };
+  const wrapped = new Proxy(tx, { get(target, prop, receiver) {
+    if (prop === "execute") return run;
+    return Reflect.get(target, prop, receiver);
+  } }) as Tx;
+  return { tx: wrapped, flush };
+}
+async function politely(database: CareerDatabase, work: (tx: Parameters<Parameters<CareerDatabase["transaction"]>[0]>[0]) => Promise<void>) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await database.transaction(async tx => {
+        await tx.execute(sql`SET LOCAL lock_timeout = '${sql.raw(LOCK_WAIT)}'`);
+        const quiet = skippingNoOps(tx);
+        await work(quiet.tx);
+        await quiet.flush();
+      });
+      return;
+    } catch (err) {
+      const code = (err as { code?: string; cause?: { code?: string } }).cause?.code ?? (err as { code?: string }).code;
+      // 55P03 lock_not_available (gave way), 40P01 deadlock: busy tables, try again shortly. Anything else is a real failure.
+      if (!(code === "55P03" || code === "40P01") || attempt >= ATTEMPTS) throw err;
+      await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+    }
+  }
+}
+
 /** Shipped event definitions for every supported version (insert-only; its own step so a refusal cannot undo the repairs). */
 export async function syncCareerEventDefinitions(database: CareerDatabase): Promise<void> {
   // Missing rows first, in their own transaction, so a refused sync below still leaves every edition complete.
-  await database.transaction(async tx => { await ensureTeamEventClassification(tx); await insertMissingEventDefinitions(tx); });
-  await database.transaction(tx => syncEventDefinitions(tx));
+  await politely(database, async tx => { await ensureTeamEventClassification(tx); await insertMissingEventDefinitions(tx); });
+  await politely(database, async tx => { await syncEventDefinitions(tx); });
 }

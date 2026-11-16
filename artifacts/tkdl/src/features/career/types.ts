@@ -243,7 +243,9 @@ export type SponsorSigningReveal = {
   terms: SponsorTerms; start: { season: number; week: number }; end: { season: number; week: number };
 };
 export type SponsorOffer = { id: string; sponsorKey: string; tier: string; kind: "NEW" | "RENEWAL"; terms: SponsorTerms; status: string; statusReason: string | null;
-  slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean;source?:Record<string,unknown>; journey?:SponsorJourney|null;
+  slot?:string;conflictingContractIds?:string[];portfolioFull?:boolean;source?:Record<string,unknown>;
+  /** What keeps the deal: checked every season, or needed for a renewal; and whether you meet it now. */
+  keep?:{when:"SEASON"|"RENEWAL";text:string;met:boolean}; journey?:SponsorJourney|null;
   /** Server signability (same rules as signing). signable=false: Accept is refused whatever the player selects. */
   acceptance?:{signable:boolean;code:string|null;reason:string|null}|null;
   offered: { season: number; week: number }; expires: { season: number; week: number } };

@@ -18,10 +18,16 @@ const UNSIGNABLE_REASON: Record<string, string> = {
 };
 /** Why a renewal pays more: the titles you won on the deal and the terms you've stayed (from the server's renewal source). */
 export function renewalNote(source: Record<string, unknown> | undefined): string | null {
-  const raise = Number(source?.raisePercent ?? 0), titles = Number(source?.titlesOnDeal ?? 0), terms = Number(source?.termsServed ?? 0);
-  if (!raise) return null;
-  const why = [titles ? `${titles} title${titles === 1 ? "" : "s"} on this deal` : "", terms ? `${terms} term${terms === 1 ? "" : "s"} with them` : ""].filter(Boolean).join(", ");
-  return `Pays ${raise}% more${why ? `: ${why}` : ""}`;
+  const raise = Number(source?.raisePercent ?? 0), titles = Number(source?.titlesOnDeal ?? 0), terms = Number(source?.termsServed ?? 0), missed = Number(source?.missedAppearances ?? 0);
+  if (!raise) return missed ? `No loyalty raise or bonus: ${missed} missed appearance${missed === 1 ? "" : "s"}` : null;
+  const why = [titles ? `${titles} title${titles === 1 ? "" : "s"} on this deal` : "", terms && !missed ? `${terms} term${terms === 1 ? "" : "s"} with them` : ""].filter(Boolean).join(", ");
+  return `Pays ${raise}% more${why ? `: ${why}` : ""}${missed ? ` (no loyalty raise: ${missed} missed appearance${missed === 1 ? "" : "s"})` : ""}`;
+}
+/** What keeps a deal, in a sentence: a season check that you don't meet yet is the catch to know before signing. */
+export function keepNote(keep: { when: "SEASON" | "RENEWAL"; text: string; met: boolean }): string {
+  const what = keep.text.charAt(0).toUpperCase() + keep.text.slice(1);
+  if (keep.when === "SEASON") return keep.met ? `To keep it: ${keep.text} (checked each new season)` : `Catch: ${what} by the start of next season, or they drop you`;
+  return `To renew: ${keep.text}${keep.met ? "" : " (not yet)"}`;
 }
 export const unsignableOfferReason = (offer: Pick<SponsorOffer, "acceptance">) =>
   offer.acceptance && !offer.acceptance.signable
@@ -147,6 +153,7 @@ export function SponsorOfferCard({
               {offer.kind === "RENEWAL" ? "Renewal offer" : "New partnership"}
             </span>
             {offer.kind === "RENEWAL" && renewalNote(offer.source) && <span className="career-sponsor-offer__category" data-loyalty>{renewalNote(offer.source)}</span>}
+            {offer.keep && <span className="career-sponsor-offer__category" data-keep={offer.keep.met ? "met" : "unmet"}>{keepNote(offer.keep)}</span>}
             {terms.category && <span className="career-sponsor-offer__category">{titleCase(terms.category.replaceAll("_", " "))}</span>}
             <span className="career-sponsor-offer__category">{offerEdition}</span>
           </div>

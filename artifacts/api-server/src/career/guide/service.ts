@@ -22,7 +22,11 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
     async read(actor: CareerActor, saveId: string) {
       const root = await database.transaction(async tx => {
         const r = await lockRoot(tx, actor, saveId, false) as unknown as { id: string; current_season: number; current_week: number };
-        const balance = (await tx.execute(sql`SELECT balance_pence FROM career_saves WHERE id = ${saveId}`)).rows[0]?.balance_pence;
+        const saveRow = (await tx.execute(sql`SELECT balance_pence, career_focus FROM career_saves WHERE id = ${saveId}`)).rows[0];
+        const balance = saveRow?.balance_pence, focus = String(saveRow?.career_focus ?? "OPEN_SCHEDULE");
+        // Career prize earnings (the money path's milestones): the ledger's EARNINGS headline, read directly.
+        const earnings = Number((await tx.execute(sql`SELECT COALESCE(SUM(amount_pence), 0)::bigint AS n FROM career_finance_entries
+          WHERE career_save_id = ${saveId} AND headline = 'EARNINGS'`)).rows[0]?.n ?? 0);
         const channel = (await tx.execute(sql`SELECT to_regclass('career_stream_channels') IS NOT NULL AS ok`)).rows[0]?.ok === true
           && (await tx.execute(sql`SELECT 1 FROM career_stream_channels WHERE career_save_id = ${saveId}`)).rows.length > 0;
         const review = (await tx.execute(sql`SELECT to_regclass('career_legacy_reviews') IS NOT NULL AS ok`)).rows[0]?.ok === true
@@ -31,26 +35,33 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
         const later = (await tx.execute(sql`SELECT DISTINCT ON (circuit) circuit, id, name, start_week, registration_opens_week FROM career_event_instances
           WHERE career_save_id = ${saveId} AND season = ${r.current_season} AND start_week > ${Number(r.current_week) + 4} AND status NOT IN ('COMPLETED', 'CANCELLED')
           ORDER BY circuit, start_week, name`)).rows.map(e => ({ circuit: String(e.circuit), id: String(e.id), name: String(e.name), week: Number(e.start_week), opensWeek: Number(e.registration_opens_week) }));
-        return { season: Number(r.current_season), week: Number(r.current_week), balancePence: Number(balance ?? 0), channel, pendingReview: review == null ? null : Number(review), later };
+        // The next sponsor appearance you owe this season (booked or not).
+        const duty = (await tx.execute(sql`SELECT c.id, c.due_week, c.scheduled_week, c.status, s.terms->>'displayName' AS sponsor
+          FROM career_sponsor_commitments c JOIN career_sponsor_contracts s ON s.career_save_id = c.career_save_id AND s.id = c.contract_id
+          WHERE c.career_save_id = ${saveId} AND c.required AND c.season = ${r.current_season} AND c.status IN ('AVAILABLE', 'CONFIRMED')
+            AND (c.scheduled_week IS NULL OR c.scheduled_week >= ${r.current_week})
+          ORDER BY c.due_week, c.id LIMIT 1`)).rows[0];
+        const appearance = duty ? { id: String(duty.id), sponsor: String(duty.sponsor ?? "Your sponsor"), dueWeek: Number(duty.due_week),
+          scheduledWeek: duty.scheduled_week == null ? null : Number(duty.scheduled_week) } : null;
+        return { season: Number(r.current_season), week: Number(r.current_week), balancePence: Number(balance ?? 0), channel, pendingReview: review == null ? null : Number(review), later, appearance, focus, earnings };
       });
-      // Events without the season overview (its read of every week ahead); today and waiting matches come from the cheap glance.
-      const [cal, glance] = await Promise.all([
+      // Every read at once. Events without the season overview (its read of every week ahead); today and waiting matches
+      // come from the cheap glance; the path and prize earnings were read above (not the full goals view).
+      const [cal, glance, sponsors, streaming, money] = await Promise.all([
         deps.calendar.calendar(actor, saveId, { scope: "RELEVANT", fromWeek: Math.max(1, root.week - 6), toWeek: Math.min(52, root.week + 4) }, { overview: false }),
-        deps.calendar.glance(actor, saveId)]);
-      const overview = glance as Overview;
-      const events = cal.events as GuideEvent[];
-      const [goals, sponsors, streaming, money] = await Promise.all([
-        deps.goals.read(actor, saveId).catch(() => ({ focus: "OPEN_SCHEDULE" })),
+        deps.calendar.glance(actor, saveId),
         deps.sponsors.sponsors(actor, saveId).catch(() => ({ facts: undefined, prospects: [], offers: [] })),
         root.channel ? deps.streaming.read(actor, saveId).catch(() => null) : Promise.resolve(null),
         deps.money.read(actor, saveId).catch(() => ({ challenge: null })),
       ]);
+      const overview = glance as Overview;
+      const events = cal.events as GuideEvent[];
       const pending = overview?.pendingHumanMatches[0];
       const stream: GuideStreaming = streaming ? { tierKey: streaming.tier?.key, tierName: streaming.tier?.name, followers: Number(streaming.followers ?? 0), nextTier: null,
         week: Number(streaming.week), scheduledNights: streaming.pathway?.scheduledNights ?? [], streamsThisWeek: Number(streaming.streamsThisWeek ?? 0),
         perWeek: Number(streaming.perWeek ?? 0), live: streaming.live ?? null } : null;
       // The best waiting offer you can actually sign: the biggest signing bonus, then the one closing first.
-      type Offer = { id: string; status: string; terms: { displayName?: string; signingBonusPence?: number }; expires: { season: number; week: number }; acceptance?: { signable: boolean } | null; kind?: string; source?: { raisePercent?: number; titlesOnDeal?: number; termsServed?: number } | null };
+      type Offer = { id: string; status: string; terms: { displayName?: string; signingBonusPence?: number }; expires: { season: number; week: number }; acceptance?: { signable: boolean } | null; kind?: string; keep?: { when: string; text: string; met: boolean }; source?: { raisePercent?: number; titlesOnDeal?: number; termsServed?: number; missedAppearances?: number } | null };
       const offers = ((sponsors as { offers?: Offer[] }).offers ?? []).filter(o => o.status === "AVAILABLE" && o.acceptance?.signable !== false
         && (Number(o.expires.season) > root.season || Number(o.expires.week) >= root.week))
         .sort((a, b) => (b.terms.signingBonusPence ?? 0) - (a.terms.signingBonusPence ?? 0) || (a.expires.season - b.expires.season) * 100 + a.expires.week - b.expires.week);
@@ -58,13 +69,14 @@ export function createCareerGuideService(database: CareerDatabase, deps: Deps) {
       return buildGuide({
         sponsorOffer: offer ? { id: String(offer.id), name: offer.terms.displayName ?? "A sponsor", signingBonusPence: Number(offer.terms.signingBonusPence ?? 0),
           expiresWeek: Number(offer.expires.season) > root.season ? null : Number(offer.expires.week), count: offers.length,
+          catch: offer.keep?.when === "SEASON" && !offer.keep.met ? offer.keep.text : null,
           renewal: offer.kind === "RENEWAL" ? { raisePercent: Number(offer.source?.raisePercent ?? 0), titles: Number(offer.source?.titlesOnDeal ?? 0),
-            termsServed: Number(offer.source?.termsServed ?? 1) } : null } : null,
-        saveId, season: root.season, balancePence: root.balancePence, focus: (goals.focus as GuideFocus) ?? "OPEN_SCHEDULE",
+            termsServed: Number(offer.source?.termsServed ?? 1), missedAppearances: Number(offer.source?.missedAppearances ?? 0) } : null } : null,
+        saveId, season: root.season, balancePence: root.balancePence, focus: root.focus as GuideFocus,
         today: overview?.today ?? { week: root.week, dayOfWeek: 1, phase: "START_OF_WEEK" },
         facts: sponsors.facts ?? EMPTY_FACTS, sponsorTiers: sponsors.prospects ?? [], events,
         pendingMatch: pending ? { matchId: pending.matchId, eventId: pending.eventId, name: events.find(e => e.id === pending.eventId)?.name ?? "your event" } : null,
-        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, missedWeeks: 6, later: root.later, earningsPence: Number((goals as { context?: { earningsPence?: number } }).context?.earningsPence ?? 0),
+        pendingReview: root.pendingReview, activeTournament: null, booked: overview?.nextHumanEntry ?? null, streaming: stream, moneyChallenge: money.challenge, missedWeeks: 6, later: root.later, appearance: root.appearance, earningsPence: root.earnings,
       });
     },
   };

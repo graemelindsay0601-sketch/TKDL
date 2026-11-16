@@ -89,13 +89,15 @@ export async function sponsorActivityScheduleIssue(tx:CareerExecutor,input:Activ
 export async function materializeSponsorActivities(
   tx:CareerExecutor,
   input:{saveId:string;contractId:string;sponsorKey:string;worldSeed:string;season:number;week:number;endSeason:number;endWeek:number;specification?:SponsorActivitySpecification},
+  /** Set up the duties even when they can't all fit right now (a renewal starting as the calendar moves: it must never stop the week). */
+  options:{lenient?:boolean}={},
 ){
   const spec=input.specification;
   if(!spec)return {commitments:0,opportunities:0};
   let commitments=0,opportunities=0;
   for(let season=input.season;season<=input.endSeason;season++){
     const {requiredTasks,issue}=await requiredTasksForSeason(tx,input,season,[]);
-    if(issue)throw new Error(issue);
+    if(issue&&!options.lenient)throw new Error(issue);
     for(const {clause,occurrence,from,to} of requiredTasks){
       const id=stableUuid(input.worldSeed,1,"sponsor-commitment",input.contractId,clause.id,season,occurrence);
       const operationKey=`spd:${input.contractId}:${clause.id}:${season}:${occurrence}`;

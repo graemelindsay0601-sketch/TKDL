@@ -671,12 +671,16 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
     // the full fee from two terms on. A rival's fresh offer has none of this.
     const titlesOnDeal = await titlesSince(tx, root.id, active.start_season, active.start_week);
     const termsServed = await termsServedWith(tx, root.id, active.sponsor_key);
-    const raise = renewalRaise(titlesOnDeal) + loyaltyRaise(termsServed);
+    // Loyalty is earned by turning up: a required appearance missed on this deal costs the loyalty raise and bonus.
+    const missedAppearances = Number((await tx.execute(sql`SELECT COUNT(*)::int AS n FROM career_sponsor_commitments
+      WHERE career_save_id = ${root.id} AND contract_id = ${active.id} AND required AND status = 'MISSED'`)).rows[0]?.n ?? 0);
+    const loyal = missedAppearances === 0;
+    const raise = renewalRaise(titlesOnDeal) + (loyal ? loyaltyRaise(termsServed) : 0);
     const standard = sponsorCatalogue(active.terms.sponsorDatabaseVersion).find(d => d.key === active.sponsor_key)?.terms ?? null;
     const renewalTerms = raisedRenewalTerms(active.terms, raise, standard);
-    renewalTerms.signingBonusPence = loyaltyBonus(standard?.signingBonusPence ?? active.terms.signingBonusPence, termsServed);
+    renewalTerms.signingBonusPence = loyal ? loyaltyBonus(standard?.signingBonusPence ?? active.terms.signingBonusPence, termsServed) : 0;
     if (await insertOffer(tx, root, operationKey, "RENEWAL", renewalTerms,
-      { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4, titlesOnDeal, termsServed, raisePercent: Math.round(raise * 100),
+      { trigger: operationKey, previousContractId: active.id, renewalWindowWeeks: 4, titlesOnDeal, termsServed, missedAppearances, raisePercent: Math.round(raise * 100),
         loyaltyBonusPence: renewalTerms.signingBonusPence,
         eligibilityEvidence:{requirement:active.terms.renewalRequirement,evaluatedAt:{season,week},eligible:true} }, season, week, expiry)) {
       const offerId = (await tx.execute(sql`SELECT id FROM career_sponsor_offers
@@ -741,17 +745,19 @@ export async function advanceSponsorLifecycle(tx: CareerExecutor, root: RootRow,
       WHERE career_save_id=${root.id} AND id=${contract.offer_id}`)).rows[0]?.id??"");
     const previous=previousId?(await tx.execute(sql`SELECT status,end_season,end_week FROM career_sponsor_contracts
       WHERE career_save_id=${root.id} AND id=${previousId}`)).rows[0]:undefined;
-    if(!previous||previous.status==="ACTIVE"||timeIndex(Number(previous.end_season),Number(previous.end_week))>=now)
-      throw new CareerError(409,"A renewal cannot activate before its original agreement has concluded");
-    if(conflicts(contract.terms,await activeContracts(tx,root.id)).length)
-      throw new CareerError(409,"An accepted renewal conflicts with an active agreement and needs review");
+    // These run as the calendar moves, so they wait rather than throw (a throw here stopped every week from then on):
+    // a renewal starts once its original agreement has concluded and nothing active clashes with it.
+    if(!previous||previous.status==="ACTIVE"||timeIndex(Number(previous.end_season),Number(previous.end_week))>=now)continue;
+    if(conflicts(contract.terms,await activeContracts(tx,root.id)).length)continue;
     await tx.execute(sql`UPDATE career_sponsor_contracts SET status='ACTIVE'
       WHERE career_save_id=${root.id} AND id=${contract.id} AND status='SCHEDULED'`);
     // The renewal's loyalty bonus, now its term has begun (idempotent by contract).
     if (contract.terms.signingBonusPence > 0) await postSigningMoney(tx, root, contract.id, "RENEWAL", contract.terms, contract.sponsor_key, contract.offer_id, season, week);
     const spec=contract.terms.contractFoundation?.activitySpecification;
+    // A renewal starting as the calendar moves: its duties are set up even if they don't all fit around what you've booked
+    // since signing (you can free a week; a missed one costs the loyalty bonus). The week must never be stopped by it.
     if(spec)await materializeSponsorActivities(tx,{saveId:root.id,contractId:contract.id,sponsorKey:contract.sponsor_key,
-      worldSeed:root.world_seed,season:contract.start_season,week:contract.start_week,endSeason:contract.end_season,endWeek:contract.end_week,specification:spec});
+      worldSeed:root.world_seed,season:contract.start_season,week:contract.start_week,endSeason:contract.end_season,endWeek:contract.end_week,specification:spec},{lenient:true});
     const journey=(await tx.execute(sql`SELECT id FROM career_sponsor_journeys
       WHERE career_save_id=${root.id} AND signed_contract_id=${contract.id} ORDER BY created_at DESC LIMIT 1`)).rows[0];
     if(journey)await appendSponsorJourneyEvent(tx,root,{journeyId:String(journey.id),eventKey:`contract-activated:${contract.id}`,
@@ -1064,6 +1070,17 @@ export function createFinanceHooks(calendarProviders: () => CalendarProviders, f
       await tx.execute(sql`UPDATE career_sponsor_commitments SET status='AVAILABLE',updated_at=NOW()
         WHERE career_save_id=${root.id} AND status='PLANNED' AND scheduling_requirements->>'activitySpecVersion'='1'
           AND season=${season} AND available_from_week<=${week} AND due_week>=${week}`);
+      // A booked appearance is done once its week has been played: you turned up (no separate "complete" tap needed).
+      await tx.execute(sql`UPDATE career_sponsor_commitments SET status='COMPLETED',
+          resolution_evidence=jsonb_build_object('season',season,'week',scheduled_week,'action','WEEK_PLAYED'),updated_at=NOW()
+        WHERE career_save_id=${root.id} AND status='CONFIRMED' AND scheduled_week IS NOT NULL
+          AND (season<${season} OR (season=${season} AND scheduled_week<${week}))`);
+      await tx.execute(sql`UPDATE career_sponsor_opportunities SET status='COMPLETED',
+          terms=terms||jsonb_build_object('completedSeason',season,'completedWeek',scheduled_week),updated_at=NOW()
+        WHERE career_save_id=${root.id} AND status='CONFIRMED' AND scheduled_week IS NOT NULL
+          AND (season<${season} OR (season=${season} AND scheduled_week<${week}))`);
+      await tx.execute(sql`UPDATE career_sponsor_week_bookings SET status='COMPLETED'
+        WHERE career_save_id=${root.id} AND status='CONFIRMED' AND (season<${season} OR (season=${season} AND week<${week}))`);
       await tx.execute(sql`UPDATE career_sponsor_commitments SET status='MISSED',updated_at=NOW()
         WHERE career_save_id=${root.id} AND required=true AND status IN ('PLANNED','AVAILABLE','CONFIRMED')
           AND scheduling_requirements->>'activitySpecVersion'='1'

@@ -1,4 +1,4 @@
-import { sponsorProspects } from "./sponsor-prospects.ts";
+import { describeRequirement, sponsorProspects } from "./sponsor-prospects.ts";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { CareerDatabase, CareerExecutor } from "../database.ts";
@@ -492,7 +492,10 @@ export function createCareerFinanceService(database: CareerDatabase, options: { 
         }
         const presentOffer = (o: Record<string, unknown>) => {
           const terms=parseSponsorTerms(o.terms);
-          return { id: o.id, sponsorKey: o.sponsor_key, tier: o.tier, kind: o.kind, terms, ...relationship(terms),
+          // What keeps the deal, in plain words: checked every season (retention) or at the end (renewal), and whether you meet it now.
+          const keep = terms.retentionRequirement ? { when: "SEASON" as const, ...describeRequirement(terms.retentionRequirement, sporting) }
+            : { when: "RENEWAL" as const, ...describeRequirement(terms.renewalRequirement, sporting) };
+          return { id: o.id, sponsorKey: o.sponsor_key, tier: o.tier, kind: o.kind, terms, ...relationship(terms), keep: { when: keep.when, text: keep.text, met: keep.met },
             journey: journeyByOffer.get(String(o.id)) ?? null, acceptance: acceptance.get(String(o.id)) ?? null,
             conflictingContractIds:conflicts(terms,active),portfolioFull:active.length>=portfolioLimit(sporting),source: o.source, status: o.status,
             statusReason: o.status_reason, offered: { season: o.offered_season, week: o.offered_week }, expires: { season: o.expires_season, week: o.expires_week } };

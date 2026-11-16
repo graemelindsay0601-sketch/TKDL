@@ -1911,3 +1911,31 @@ test("a sponsor that dropped you for results comes back only once you meet what 
       VALUES(${save.id},gen_random_uuid(),${`declined:${d.key}`},${d.key},${CURRENT_SPONSOR_DATABASE_VERSION},${d.terms.tier},'NEW',${JSON.stringify(d.terms)}::jsonb,'{}'::jsonb,2,1,2,8,'DECLINED',NOW())`);
   assert.equal(await offered({ ...fixture, bestFinishByCircuit: { CHALLENGER: 2 }, titles: 3, tourCard: true, professionalStatus: "PROFESSIONAL" }, "dropped:card"), true);
 });
+
+test("a renewal starting as the calendar moves never stops the week, even when its appearances can't all fit", async () => {
+  const save = await careerWithCurrentCatalogue(1, 3);
+  const offerId = "00000000-0000-4000-8000-000000000401", contractId = "00000000-0000-4000-8000-000000000402";
+  await db.execute(sql`INSERT INTO career_sponsor_offers
+    (career_save_id,id,operation_key,sponsor_key,sponsor_database_version,tier,kind,terms,source,offered_season,offered_week,expires_season,expires_week,status,resolved_at)
+    VALUES(${save.id},${offerId},'busy-offer','fixture-local',3,'LOCAL','RENEWAL','{}'::jsonb,'{}'::jsonb,1,1,1,52,'ACCEPTED',NOW())`);
+  await db.execute(sql`INSERT INTO career_sponsor_contracts
+    (career_save_id,id,offer_id,sponsor_key,sponsor_database_version,tier,terms,start_season,start_week,end_season,end_week,status)
+    VALUES(${save.id},${contractId},${offerId},'fixture-local',3,'LOCAL','{}'::jsonb,1,1,1,52,'ACTIVE')`);
+  // Every week of the duty's window is already taken (booked since the renewal was signed).
+  for (let week = 8; week <= 11; week++) await db.execute(sql`INSERT INTO career_sponsor_week_bookings(career_save_id,season,week,activity_id,activity_kind,status)
+    VALUES(${save.id},1,${week},gen_random_uuid(),'OPPORTUNITY','CONFIRMED')`);
+  const input = { saveId: save.id, contractId, sponsorKey: "fixture-local", worldSeed: HARNESS_SEED, season: 1, week: 1, endSeason: 1, endWeek: 52,
+    specification: { version: 1 as const, required: [{ id: "busy-duty", type: "COMMUNITY_APPEARANCE" as const, maxPerSeason: 1 as const, windowWeeks: 4, firstWindowWeek: 8, extraCompensationPence: 0 as const }], optional: [] } };
+  await assert.rejects(db.transaction(tx => materializeSponsorActivities(tx, input)), /no complete, non-overlapping schedule/, "signing still refuses a deal that can't fit");
+  await db.transaction(tx => materializeSponsorActivities(tx, input, { lenient: true }));
+  const duty = (await rows(sql`SELECT due_week FROM career_sponsor_commitments WHERE career_save_id=${save.id} AND contract_id=${contractId}`));
+  assert.equal(duty.length, 1, "the renewal's duty is set up anyway: free a week, or miss it and lose the loyalty bonus");
+  assert.equal(Number(duty[0].due_week), 11);
+});
+
+test("an Oceania Premier League night pays a night's purse; the Finals Night keeps the invitational purse", () => {
+  const night = (key: string) => profileFor({ definition_key: key, classification: "INVITATIONAL_EXHIBITION", snapshot: { profiles: { entryFee: "fee:invitational", prize: "prize:invitational" } } } as never);
+  assert.equal(prizeForPosition(night("anz-premier-night-3").prize, 1), 1_000_000, "£10,000 to a night's winner");
+  assert.equal(prizeForPosition(night("anz-premier-night-3").prize, 8), 125_000);
+  assert.equal(prizeForPosition(night("anz-premier-finals").prize, 1), 6_000_000, "the finals still pay the big purse");
+});

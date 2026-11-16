@@ -79,7 +79,7 @@ export const MatchStreamPanel = forwardRef<MatchStreamPanelHandle, { saveId: str
   </>;
   return (
     <div className="dc-match">
-      <button type="button" className="dc-match__chip" onClick={start}><Radio aria-hidden /> Stream this match on DartCast</button>
+      <button type="button" className="dc-match__chip" onClick={start} aria-label="Stream this match on DartCast"><Radio aria-hidden /> <span className="dc-match__long">Stream this match on DartCast</span><span className="dc-match__short" aria-hidden>Stream</span></button>
       {note && <p className="dc__warn" role="alert">{note}</p>}
     </div>
   );

@@ -89,12 +89,15 @@ export const oddsFor = (yourAverage: number, theirAverage: number | null): Odds 
  * This week's challenge from a member, if any: the same answer every time for a save, season and week. They name their price
  * (some of what they would happily risk), never more than you have free: nobody challenges you for money you have not got.
  */
+/** The most you can put on one game: half of what you have free (in whole pounds), so one bad night can't end a career. */
+export const stakeCeiling = (availablePence: number) => Math.max(0, Math.floor(availablePence / 2 / MONEY.stepPence) * MONEY.stepPence);
 export function weeklyChallenge(seed: string, season: number, week: number, members: readonly { key: string; professional: boolean; willing: number }[], availablePence: number) {
   if (!members.length) return null;
   const rng = scopedRandom(seed, MONEY.version, "money-challenge", season, week);
   if (rng() >= MONEY.challengeChance) return null;
   const member = pick(rng, [...members].sort((a, b) => a.key.localeCompare(b.key)));
-  const stake = Math.min(pounds(member.willing * (0.5 + rng() * 0.5)), Math.floor(availablePence / 500) * 500);
+  // A challenger asks for at most a quarter of what you have free.
+  const stake = Math.min(pounds(member.willing * (0.5 + rng() * 0.5)), Math.floor(availablePence / 4 / 500) * 500);
   if (stake < MONEY.minimumPence) return null;
   return { opponentKey: member.key, stakePence: stake };
 }

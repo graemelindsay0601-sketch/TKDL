@@ -179,6 +179,9 @@ export const PRIZE_OVERRIDES_V1: Record<string, PrizeProfile> = {
 };
 export const PRIZE_OVERRIDES: Record<string, PrizeProfile> = {
   ...PRIZE_OVERRIDES_V1,
+  // Oceania Premier League: a league night pays a night's purse (as a Premier League night does), not the full invitational
+  // purse each night (six nights of that made one series worth more than a major). The Finals Night keeps the big purse.
+  ...Object.fromEntries([1, 2, 3, 4, 5].map(n => [`anz-premier-night-${n}`, prize("prize:anz-night", 1000000, 500000, 250000, 125000)])),
   "open-championship-qualifier": prize("prize:qualifier-small", 15000, 7500),
   "european-series-qualifier": prize("prize:qualifier-small", 15000, 7500),
   "world-championship-qualifier": prize("prize:qualifier-medium", 30000, 15000, 7500),

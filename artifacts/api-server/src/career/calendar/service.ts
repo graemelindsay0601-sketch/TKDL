@@ -649,8 +649,14 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     if (excluded.has(HUMAN)) return { created: false, denied: ["NOT_ELIGIBLE"] as DenialReason[], view };
     const financeDenials = providers.finance ? await providers.finance.entryCheck(tx, root, event, siblings, travelChoice) : [];
     if (financeDenials.length) return { created: false, denied: financeDenials, view };
+    // A series enters every night you can: nights you're already in are left as they are (re-booking their days was a
+    // duplicate-key error), and nights whose entries aren't open yet are entered when you enter them later (stopping at the
+    // first such night used to leave the earlier ones half-entered).
+    const alreadyIn = new Set((await tx.execute(sql`SELECT event_id FROM career_event_entries WHERE career_save_id = ${root.id} AND participant_key = ${HUMAN}
+      AND status <> 'WITHDRAWN' AND event_id IN (${sql.join(siblings.map(t => sql`${t.id}::uuid`), sql`, `)})`)).rows.map(r => String(r.event_id)));
     for (const target of siblings) {
-      if (target.status !== "REGISTRATION_OPEN") return { created: false, denied: ["REGISTRATION_CLOSED"] as DenialReason[], view };
+      if (alreadyIn.has(target.id)) continue;
+      if (target.status !== "REGISTRATION_OPEN") { if (target.id === event.id) return { created: false, denied: ["REGISTRATION_CLOSED"] as DenialReason[], view }; continue; }
       await tx.execute(sql`INSERT INTO career_event_entries (career_save_id, event_id, participant_key, participant_kind, npc_id, source, status, entered_season, entered_week)
         VALUES (${root.id}, ${target.id}, ${HUMAN}, 'HUMAN', NULL, 'HUMAN_ENTRY', 'ENTERED', ${season}, ${root.current_week})
         ON CONFLICT (career_save_id, event_id, participant_key) DO UPDATE SET status = 'ENTERED', withdrawn_at = NULL, created_at = NOW()
