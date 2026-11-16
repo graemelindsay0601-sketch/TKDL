@@ -2089,22 +2089,21 @@
 /* Phones (and short screens): keep names, legs, remaining scores and this visit above the keypad.
    Career only; the shared scorer is unchanged elsewhere. */
 @media (max-height: 940px) and (orientation: portrait), (max-height: 760px) {
-  .career-scorer-stage .x01-match-content > * + * { margin-top: .3rem !important; }
+  .career-scorer-stage .x01-match-content > * + * { margin-top: .25rem !important; }
   /* The event header repeats what the legs line, the lit card and This visit already show. */
   .career-scorer-stage .x01-event-header, .career-scorer-stage .x01-divider { display: none !important; }
-  .career-scorer-stage .x01-player-grid .pdc-card { min-height: 0 !important; padding: .4rem .5rem; }
-  .career-scorer-stage .x01-player-grid svg { height: 44px !important; }
-  .career-scorer-stage .x01-player-grid .text-xs { margin-bottom: 0; }
+  /* Score cards: the name and what's left on the left, the tower that fills as you score on the right. One shape in
+     every state, short enough to leave room for a checkout route and This visit. */
+  .career-scorer-stage .x01-player-grid .pdc-card { min-height: 0 !important; display: grid !important; grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto; align-items: center; column-gap: .5rem; row-gap: 1px; padding: .35rem .6rem; text-align: left; }
+  .career-scorer-stage .x01-player-grid .pdc-card > .text-xs { grid-area: 1 / 1; margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .1em; }
+  .career-scorer-stage .x01-player-grid .pdc-card > div:not(.text-xs):not(.absolute) { display: contents !important; }
+  .career-scorer-stage .x01-player-grid svg { grid-area: 1 / 2 / 3 / 3; height: 42px !important; width: auto !important; }
+  .career-scorer-stage .x01-player-grid .pdc-card > div > div { grid-area: 2 / 1; position: static !important; transform: none !important; line-height: 1; font-size: 1.6rem !important; }
   /* Only the thrower's checkout on a short screen (the other player's comes back on their turn), on one slim line. */
   .career-scorer-stage .x01-checkout:not(.x01-checkout--active) { display: none !important; }
-  .career-scorer-stage .x01-checkout { padding-top: .3rem; padding-bottom: .3rem; }
+  .career-scorer-stage .x01-checkout { padding-top: .2rem; padding-bottom: .2rem; }
   .career-scorer-stage .x01-checkout span.py-1 { padding-top: .1rem; padding-bottom: .1rem; }
-  /* With a checkout to show, the score towers give way to plain numbers so the route fits above This visit. */
-  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid svg { display: none; }
-  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card { flex-direction: row; align-items: center; justify-content: space-between; gap: .4rem; padding: .3rem .6rem; }
-  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card > .text-xs { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: .08em; }
-  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card > div:not(.text-xs):not(.absolute) { margin: 0 !important; }
-  .career-scorer-stage .x01-match-content:has(.x01-checkout--active, .x01-bust-banner) .x01-player-grid .pdc-card > div > div { position: static !important; transform: none !important; line-height: 1.1; font-size: 1.45rem !important; }
   .career-scorer-stage .x01-match-content:has(.x01-bust-banner) .x01-checkout { display: none !important; }
   .career-scorer-stage .x01-checkout { flex-wrap: nowrap; justify-content: flex-start; gap: .6rem; padding-left: .6rem; padding-right: .6rem; }
   .career-scorer-stage .x01-checkout > .shrink-0 { display: none; }
