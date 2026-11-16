@@ -634,3 +634,21 @@ test("a new Career initializes even when the current edition's definitions are m
   assert.equal(Number(count.n), catalogueFor(v).length);
   await db.execute(sql`UPDATE career_event_definitions SET definition_hash = ${stored.definition_hash} WHERE event_database_version = ${v} AND definition_key = 'monday-league-night'`);
 });
+
+test("a series night you're not in yet can be entered later, without re-booking the nights you're already in", async () => {
+  const save = await careerFor();
+  const { events } = await calendar.calendar(actor, save.id, { circuit: "Q_SCHOOL" });
+  const key = (d: string) => events.find(e => e.definitionKey === `q-school-first-uk_ireland-${d}`)!.id;
+  assert.equal((await calendar.enter(actor, save.id, { eventId: key("d1") })).entered, true);
+  // Half-entered (what entering used to leave when a later night wasn't open yet): in days 1 and 2, not day 3.
+  await db.execute(sql`UPDATE career_event_entries SET status = 'WITHDRAWN', withdrawn_at = NOW() WHERE career_save_id = ${save.id} AND event_id = ${key("d3")} AND participant_key = 'HUMAN'`);
+  await db.execute(sql`DELETE FROM career_participant_bookings WHERE career_save_id = ${save.id} AND event_id = ${key("d3")} AND participant_key = 'HUMAN'`);
+  const fees = async () => Number((await rows(sql`SELECT COUNT(*)::int n FROM career_finance_entries WHERE career_save_id = ${save.id} AND category = 'ENTRY_FEE'`))[0].n);
+  const charged = await fees();
+  // Entering day 3 now books just that night (re-booking days 1 and 2 was a duplicate-key error).
+  assert.equal((await calendar.enter(actor, save.id, { eventId: key("d3") })).entered, true);
+  const entered = (await rows(sql`SELECT i.definition_key FROM career_event_entries e JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
+    WHERE e.career_save_id = ${save.id} AND e.participant_key = 'HUMAN' AND e.status <> 'WITHDRAWN' ORDER BY 1`)).map(r => r.definition_key);
+  assert.deepEqual(entered, ["q-school-first-uk_ireland-d1", "q-school-first-uk_ireland-d2", "q-school-first-uk_ireland-d3"]);
+  assert.equal(await fees(), charged, "the series fee isn't charged again");
+});
