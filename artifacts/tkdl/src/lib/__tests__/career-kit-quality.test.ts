@@ -6,7 +6,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createServer, type ViteDevServer } from "vite";
@@ -21,13 +21,25 @@ before(async () => {
 });
 after(async () => { await vite?.close(); });
 
+/** Canvas width from a WebP header (VP8X, VP8 lossy or VP8L lossless). */
+function webpWidth(b: Buffer): number {
+  const chunk = b.toString("ascii", 12, 16);
+  if (chunk === "VP8X") return 1 + b.readUIntLE(24, 3);
+  if (chunk === "VP8 ") return b.readUInt16LE(26) & 0x3fff;
+  if (chunk === "VP8L") return 1 + ((b[21] | (b[22] << 8)) & 0x3fff);
+  return 0;
+}
+
 test("all 250 kits keep their IDs and are full raster garments (no clip-art placeholders)", () => {
   assert.equal(CAREER_KIT_DESIGNS.length, 250);
   assert.equal(new Set(CAREER_KIT_DESIGNS.map(k => k.id)).size, 250);
   for (const k of CAREER_KIT_DESIGNS) {
     assert.match(k.image, /\.webp$/, `${k.id} is a raster garment`);
-    const bytes = statSync(path.join(ROOT, "public/assets/career-kit-library", k.image)).size;
-    assert.ok(bytes > 20_000, `${k.id}: ${bytes} bytes is not a production garment render`);
+    const file = path.join(ROOT, "public/assets/career-kit-library", k.image);
+    const bytes = statSync(file).size;
+    // Full renditions are 480px (shown at most 220 CSS px; 2x screens plus margin), 13-40 KB as WebP.
+    assert.ok(bytes > 8_000, `${k.id}: ${bytes} bytes is not a production garment render`);
+    assert.ok(webpWidth(readFileSync(file)) >= 480, `${k.id} is a full-size render`);
     assert.ok(statSync(path.join(ROOT, "public/assets/career-kit-library/thumb", k.image)).size > 2_000, `${k.id} has a small-size rendition`);
   }
   assert.deepEqual(CAREER_KIT_DESIGNS.filter(k => k.id.startsWith("kit-pro-")).map(k => k.image),

@@ -2,6 +2,7 @@ import { addMissingCareerColumns, driftCount, findCareerSchemaDrift } from "./db
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import compression from "compression";
 import rateLimit from "express-rate-limit";
 import path from "path";
 import pinoHttp from "pino-http";
@@ -180,6 +181,10 @@ if (!process.env.ADMIN_PIN) {
 }
 
 const app: Express = express();
+// Bandwidth: compress every compressible response here (JSON, HTML, JS, CSS) instead of relying on the platform's
+// proxy. A Career calendar season is ~12 MB of JSON raw and ~0.6 MB gzipped. Images are already compressed and skipped.
+// If the proxy compresses too it sees Content-Encoding and leaves the body alone.
+app.use(compression({ threshold: 1024 }));
 const frontendDist = process.env.FRONTEND_DIST
   ?? path.resolve(process.cwd(), "artifacts/tkdl/dist/public");
 
@@ -229,6 +234,11 @@ if (process.env.NODE_ENV === "production") {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       } else if (/\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot)$/i.test(filePath)) {
         res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      } else if (/\.(webp|avif|jpeg|mp3|ogg|wav|m4a|webm|mp4)$/i.test(filePath)) {
+        // Bandwidth: most Career / Card Clash art is .webp and had no cache rule, so browsers asked again every
+        // visit and re-downloaded everything after each deploy. Their names are not content-hashed, so 30 days
+        // (not immutable): a replaced image still reaches players within a month.
+        res.setHeader("Cache-Control", "public, max-age=2592000");
       }
     },
   }));
@@ -243,7 +253,7 @@ if (process.env.NODE_ENV === "production") {
 
 // PERFORMANCE: Cache static assets in browser (prevents re-download)
 // Mobile users benefit massively - no re-download on page reload
-// Note: Gzip compression handled by Render reverse proxy (no external dependency)
+// Note: responses are compressed by the compression() middleware registered first (see above).
 app.use((req, res, next) => {
   // Service worker scripts must never get the long-lived immutable
   // treatment below, even though the filename ends in .js — unlike the
@@ -263,6 +273,10 @@ app.use((req, res, next) => {
   else if (req.url.match(/\.(js|css|png|jpg|gif|svg|woff|woff2|ttf|eot)$/i)) {
     res.set('Cache-Control', 'public, max-age=31536000, immutable');
     res.set('ETag', undefined); // Let browser use max-age, not ETag
+  }
+  // Same rule as the production static handler above: not content-hashed, so a month rather than immutable.
+  else if (req.url.match(/\.(webp|avif|jpeg|mp3|ogg|wav|m4a|webm|mp4)$/i)) {
+    res.set('Cache-Control', 'public, max-age=2592000');
   }
   // Standings change immediately after a submitted result. A five-minute
   // browser cache here made Singles look stale even though POST /matches had

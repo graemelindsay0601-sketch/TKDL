@@ -76,9 +76,9 @@ export function TrophyPage({ctx}:{ctx:ShellContext}) {
   const wins=(n:number)=>`${n} recorded win${n===1?"":"s"}`;
   const awardName=(a:ReturnType<typeof resolveAward>)=>a.designId?trophyArt(a.designId)?.name??awardLabel(a):awardLabel(a);
   const art=[
-    {src:trophyAssetUrl("catalogue/premium-gold-cup-clean.png"),label:"Gold championship cup"},
-    {src:trophyAssetUrl("catalogue/premium-silver-cup-clean.png"),label:"Silver championship cup"},
-    {src:trophyAssetUrl("catalogue/premium-champions-shield-clean.png"),label:"Champions shield award"},
+    {src:trophyAssetUrl("catalogue/premium-gold-cup-clean.webp"),label:"Gold championship cup"},
+    {src:trophyAssetUrl("catalogue/premium-silver-cup-clean.webp"),label:"Silver championship cup"},
+    {src:trophyAssetUrl("catalogue/premium-champions-shield-clean.webp"),label:"Champions shield award"},
   ];
   const physicalWins=silverware.reduce((n,g)=>n+g.editions.length,0);
   const designCount=new Set(silverware.map(g=>g.award.designId??`${g.award.award}:${g.award.recognition??"none"}`)).size;
