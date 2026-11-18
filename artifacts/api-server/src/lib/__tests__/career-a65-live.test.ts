@@ -58,6 +58,8 @@ import { replay, throwDart, type X01Format, type Dart } from "../../shared/darts
 import { planBotX01Visit, type BotSkill } from "../../shared/darts-rules/bot.ts";
 import { seededRandom } from "../../shared/darts-rules/random.ts";
 import { CURRENT_EVENT_DATABASE_VERSION } from "../../career/calendar/config.ts";
+import { post as postLedger } from "../../career/finance/ledger.ts";
+import { lockRoot } from "../../career/world/service.ts";
 const { adoptLiveCursor, recoveryFromLog } = await import(new URL("../../../../tkdl/src/features/career/live-model.ts", import.meta.url).href);
 
 /**
@@ -78,7 +80,7 @@ const thisYear = new Date().getUTCFullYear();
 const dobForAge = (age: number) => `${thisYear - age}-06-15`; // age at 1 Jan of this year = age - 1 (birthday in June)
 
 before(async () => {
-  await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2);
+  await pg.exec(`CREATE TABLE players (id INTEGER PRIMARY KEY); INSERT INTO players VALUES (1), (2), (3);
     CREATE TABLE feature_flags (feature_name TEXT UNIQUE, enabled BOOLEAN, admin_test_mode BOOLEAN, description TEXT);
     INSERT INTO feature_flags VALUES ('tour_career_2', true, false, 'test')`);
   await createCareerSaves(db); await createCareerWorld(db); await createCareerSponsorshipFoundation(db); await createCareerNpcSponsorMarketSPF(db); await createCareerCalendar(db); await createCareerFinance(db); await createCareerSponsorJourneysSPB(db); await createCareerSponsorJourneysSPB3(db); await createCareerFinanceSPC(db); await createCareerSponsorHQSPD(db); await createCareerSponsorContractActionsSPE2(db); await createCareerSporting(db);
@@ -1357,3 +1359,47 @@ test("certification current v5 season: all NPC events, real week-52 A5/A7 bounda
   assert.equal((await call("GET",`/saves/${id}/legacy`)).body.pendingReview,null);
   assert.deepEqual((await call("GET",`/saves/${id}/legacy/seasons/1`)).body,review);
 });
+
+// Regression (live save): a DartCast show booked later in the week must not stop "play on to your match" before
+// an earlier tournament day. Only a show on or before the human's next tournament day comes first.
+for (const [slot, showOn, expected] of [[1, "after", "HUMAN_MATCH_PENDING"], [2, "before", "STREAM_PENDING"]] as const) {
+  test(`booked DartCast show ${showOn} the Q-School match: NEXT_MATCH stops with ${expected}`, async () => {
+    const made = await call("POST", "/saves", { slot, careerName: `Show ${showOn}`, dateOfBirth: dobForAge(30), homeLocality: "ayrshire" }, 3);
+    assert.equal(made.status, 201, JSON.stringify(made.body));
+    const id = made.body.id as string;
+    try {
+      assert.equal((await call("POST", `/saves/${id}/initialize`, {}, 3)).status, 200);
+      await db.transaction(async tx => postLedger(tx, await lockRoot(tx, { playerId: 3 }, id),
+        { operationKey: "adjustment:test-funding", category: "ADJUSTMENT", amountPence: 500000, headline: "START", reason: "test funding" }));
+      const days = await q(sql`SELECT id, start_day, start_week FROM career_event_instances WHERE career_save_id=${id} AND season=1
+        AND definition_key LIKE 'q-school-first-uk_ireland-d%' ORDER BY start_day`);
+      assert.ok(days.length > 0, "current catalogue has a UK/Ireland Q-School First Stage");
+      for (const d of days) {
+        const entered = await call("POST", `/saves/${id}/events/${d.id}/entry`, undefined, 3);
+        assert.equal(entered.body?.entered, true, JSON.stringify(entered.body));
+      }
+      const week = Number(days[0].start_week), firstDay = Number(days[0].start_day);
+      for (let i = 0; i < 60; i++) {
+        const save = (await call("GET", `/saves/${id}`, undefined, 3)).body;
+        if (save.currentWeek >= week) break;
+        const r = await call("POST", `/saves/${id}/calendar/advance`, { operationKey: `show-${showOn}-${i}`,
+          expectedSeason: save.currentSeason, expectedWeek: save.currentWeek, target: { kind: "NEXT_MEANINGFUL" } }, 3);
+        assert.equal(r.status, 200, JSON.stringify(r.body));
+        assert.notEqual(r.body.stop.reason, "HUMAN_MATCH_PENDING", "reached the Q-School week before its first match");
+      }
+      const save = (await call("GET", `/saves/${id}`, undefined, 3)).body;
+      assert.equal(save.currentWeek, week);
+      const showDay = showOn === "after" ? (week - 1) * 7 + 5 : (week - 1) * 7 + 1; // Friday / Monday of that week
+      assert.ok(showOn === "after" ? showDay > firstDay : showDay <= firstDay);
+      await db.execute(sql`INSERT INTO career_life_commitments (career_save_id, id, family, title, season, day, fee_pence, status)
+        VALUES (${id}, ${randomUUID()}, 'DARTCAST', 'Test show', 1, ${showDay}, 0, 'ACCEPTED')`);
+      const r = await call("POST", `/saves/${id}/calendar/advance`, { operationKey: `show-${showOn}-match`,
+        expectedSeason: save.currentSeason, expectedWeek: save.currentWeek, target: { kind: "NEXT_MATCH" } }, 3);
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      assert.equal(r.body.stop.reason, expected, JSON.stringify(r.body.stop));
+      if (expected === "STREAM_PENDING") assert.equal(r.body.stop.detail.day, showDay);
+    } finally {
+      await saves.delete(3, id);
+    }
+  });
+}
