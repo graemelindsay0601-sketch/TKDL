@@ -6,7 +6,7 @@ import type { Area } from "./catalogue.ts";
 import type { AreaFacts } from "./evaluate.ts";
 import { evaluateLeague, type LeagueContext, type LeagueMatch, type LeagueSeason, type LeagueStanding } from "./league.ts";
 
-type Exec = { execute: (q: ReturnType<typeof sql>) => Promise<{ rows: Record<string, unknown>[] }> };
+export type Exec = { execute: (q: ReturnType<typeof sql>) => Promise<{ rows: Record<string, unknown>[] }> };
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 const opt = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 const date = (v: unknown) => (v ? new Date(String(v)) : null);
@@ -195,19 +195,23 @@ export function areaFacts(data: AreaData, playerId: number, now = new Date()): P
 }
 
 export type AreaReport = { area: Area; summary: ReturnType<typeof summarise> };
-/** History credit for every area, each summarised on its own (read only). */
-export async function allHistoryCredit(db: Exec): Promise<AreaReport[]> {
-  const league = await leagueHistoryCredit(db);
+export type AreaPlayers = Record<Exclude<Area, "TOUR">, PlayerAchievements[]>;
+/** Every player's achievement states in every area, worked out from the recorded data (read only). */
+export async function computeAll(db: Exec, now = new Date()): Promise<AreaPlayers> {
+  const out: AreaPlayers = { LEAGUE: await leagueHistoryCredit(db), TEAMS: [], PRACTICE: [], MASTER501: [], MODES: [] };
   const data = await loadAreas(db);
-  const perArea: Record<Exclude<Area, "LEAGUE" | "TOUR">, PlayerAchievements[]> = { TEAMS: [], PRACTICE: [], MASTER501: [], MODES: [] };
   for (const p of data.players) {
-    const facts = areaFacts(data, p.id);
-    for (const area of Object.keys(perArea) as (keyof typeof perArea)[]) {
+    const facts = areaFacts(data, p.id, now);
+    for (const area of ["TEAMS", "PRACTICE", "MASTER501", "MODES"] as const) {
       const f = facts[area]; if (!f) continue;
       const states = evaluate(catalogueFor(area), f);
-      perArea[area].push({ playerId: p.id, name: p.name, states, score: states.reduce((n, s) => n + s.points, 0) });
+      out[area].push({ playerId: p.id, name: p.name, states, score: states.reduce((n, s) => n + s.points, 0) });
     }
   }
-  return [{ area: "LEAGUE", summary: summarise(league, "LEAGUE") },
-    ...(Object.keys(perArea) as (keyof typeof perArea)[]).map(area => ({ area, summary: summarise(perArea[area], area) }))];
+  return out;
+}
+/** History credit for every area, each summarised on its own (read only). */
+export async function allHistoryCredit(db: Exec): Promise<AreaReport[]> {
+  const all = await computeAll(db);
+  return (Object.keys(all) as (keyof AreaPlayers)[]).map(area => ({ area, summary: summarise(all[area], area) }));
 }
