@@ -44,11 +44,49 @@ async function league(tx: CareerExecutor, root: Root) {
 /** Is the human free on this day (no event booking, no off-board commitment)? */
 const humanFree = (tx: CareerExecutor, saveId: string, season: number, day: number) => freeOn(tx, saveId, season, day);
 
+/**
+ * Club league night is a fixed commitment, as in real club darts: on a night the club plays, its regulars (the
+ * strongest TEAMS.singles + 1 members, the reserve included) turn out for the club and aren't taken by local events.
+ * Without this, full local fields left clubs with nobody free; an empty side then gave walkovers and took the player's
+ * own single away. Covers every club night from `fromWeek` on, because league-format local events book their
+ * players for many weeks ahead. Returns team night day -> committed NPC ids (empty when no league).
+ */
+export async function teamNightCommitments(tx: CareerExecutor, root: Root, season: number, fromWeek: number, npcs: readonly Npc[]): Promise<Map<number, Set<string>>> {
+  const out = new Map<number, Set<string>>();
+  if (!(await tx.execute(sql`SELECT to_regclass('career_club_fixtures') IS NOT NULL AS ok`)).rows[0]?.ok) return out;
+  const lg = await league(tx, root);
+  if (!lg) return out;
+  const prior = (await tx.execute(sql`SELECT round,week,home_key,away_key,home_score,away_score,status FROM career_club_fixtures WHERE career_save_id=${root.id} AND season=${season}`)).rows;
+  const results: FixtureResult[] = prior.filter(r => r.status === "COMPLETED").map(r => ({ round: Number(r.round), week: Number(r.week), home: String(r.home_key), away: String(r.away_key), homeScore: Number(r.home_score), awayScore: Number(r.away_score) }));
+  const fixtures = [...fixturesFor(lg.clubs), ...playoffFixtures(lg.clubs, results)].filter(f => f.week >= fromWeek);
+  if (!fixtures.length) return out;
+  const level = (n: Npc) => (n.ability.scoring + n.ability.finishing) / 2;
+  const regulars = new Map<string, string[]>();
+  for (const n of npcs) {
+    if (n.status !== "ACTIVE" || n.nationality !== lg.country) continue;
+    const club = localityByRegion(n.homeRegion)?.key;
+    if (club && lg.clubs.includes(club)) regulars.set(club, [...(regulars.get(club) ?? []), n.id]);
+  }
+  const byId = new Map(npcs.map(n => [n.id, n]));
+  for (const [club, ids] of regulars) regulars.set(club, ids.sort((a, b) => level(byId.get(b)!) - level(byId.get(a)!) || a.localeCompare(b)).slice(0, TEAMS.singles + 1));
+  for (const f of fixtures) {
+    const day = teamNightDay(f.week);
+    const keys = out.get(day) ?? new Set<string>();
+    for (const club of [f.home, f.away]) for (const id of regulars.get(club) ?? []) keys.add(id);
+    out.set(day, keys);
+  }
+  return out;
+}
+
 /** Resolve the other team rubbers and leave a joined player's single live when they are free. */
 export async function playTeamNights(tx: CareerExecutor, root: Root, season: number, week: number) {
   if (!(await tx.execute(sql`SELECT to_regclass('career_club_fixtures') IS NOT NULL AS ok`)).rows[0]?.ok) return null;
   const lg = await league(tx, root);
   if (!lg) return null;
+  // Repair: a playoff once re-run in a later week was flipped back to IN_PROGRESS with nothing live in it, and Continue
+  // then waited on a club single that could never be played. Such a fixture is finished.
+  await tx.execute(sql`UPDATE career_club_fixtures f SET status='COMPLETED' WHERE f.career_save_id=${root.id} AND f.status='IN_PROGRESS'
+    AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(f.rubbers) r WHERE r->'humanMatch'->>'status' = 'LIVE')`);
   const prior = (await tx.execute(sql`SELECT round,week,home_key,away_key,home_score,away_score,rubbers,status FROM career_club_fixtures WHERE career_save_id=${root.id} AND season=${season}`)).rows;
   const asRubbers = (r: Record<string, unknown>) => Array.isArray(r.rubbers) ? r.rubbers as Rubber[] : [];
   const pending = prior.flatMap(r => asRubbers(r as Record<string, unknown>)).find(r => r.humanMatch?.status === "LIVE");
@@ -57,7 +95,9 @@ export async function playTeamNights(tx: CareerExecutor, root: Root, season: num
   const fixtures = [...fixturesFor(lg.clubs), ...playoffFixtures(lg.clubs, results)]
     .filter(f => f.round >= 15 ? f.week <= week : f.week === week);
   if (!fixtures.length) return null;
-  const done = new Set(prior.filter(r => Number(r.week) === week).map(r => `${r.round}:${r.home_key}`));
+  // Every fixture already recorded this season, whatever week it was played in: playoffs may run after their own week
+  // (f.week <= week above), and re-running a recorded one replayed it every week after.
+  const done = new Set(prior.map(r => `${r.round}:${r.home_key}`));
   const todo = fixtures.filter(f => !done.has(`${f.round}:${f.home}`));
   if (!todo.length) return null;
   const joined = (await tx.execute(sql`SELECT 1 FROM career_club_team_memberships WHERE career_save_id=${root.id} AND season=${season} AND club_key=${lg.home}`)).rows.length > 0;
@@ -125,9 +165,11 @@ export async function playTeamNights(tx: CareerExecutor, root: Root, season: num
     const youPlayed = rubbers.some(r => r.humanMatch?.status === "PLAYED");
     const youWereNeeded = joined && (f.home === lg.home || f.away === lg.home);
     const inProgress = rubbers.some(r => r.humanMatch?.status === "LIVE");
-    await tx.execute(sql`INSERT INTO career_club_fixtures (career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,you_played,you_unavailable)
+    const inserted = (await tx.execute(sql`INSERT INTO career_club_fixtures (career_save_id,season,round,week,home_key,away_key,home_score,away_score,rubbers,you_played,you_unavailable)
       VALUES (${root.id},${season},${f.round},${week},${f.home},${f.away},${homeScore},${awayScore},${JSON.stringify(rubbers)}::jsonb,${youPlayed},${youWereNeeded && !youFree})
-      ON CONFLICT DO NOTHING`);
+      ON CONFLICT DO NOTHING RETURNING round`)).rows.length > 0;
+    // Only a fixture written just now can be waiting on your single; an existing one keeps its own status.
+    if (!inserted) { if (humanMatchId && rubbers.some(r => r.humanMatch?.id === humanMatchId)) humanMatchId = null; continue; }
     if (inProgress) await tx.execute(sql`UPDATE career_club_fixtures SET status='IN_PROGRESS' WHERE career_save_id=${root.id} AND season=${season} AND round=${f.round} AND home_key=${f.home}`);
   }
   return humanMatchId;
