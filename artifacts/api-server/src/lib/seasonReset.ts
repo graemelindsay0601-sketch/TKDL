@@ -6,6 +6,7 @@ import type { LeagueType } from "@workspace/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { checkSeasonAchievements } from "./achievements";
+import { scheduleSync as scheduleAchievementsV2Sync } from "./achievements-v2/live.ts";
 import { drawDoublesTeams } from "./doublesDraw";
 import { decideSinglesChampion } from "./singles-champion";
 import { createNotification } from "../services/notificationService";
@@ -165,6 +166,7 @@ async function performSeasonResetLocked(
 
     // Grant season achievements
     await checkSeasonAchievements(currentSeason.id, sorted, champion?.id ?? null);
+    scheduleAchievementsV2Sync(); // season feats and goals settle when a season finishes
 
     // Auto-grant the season-champion-exclusive "League Champion" name style
     // (see services/cosmetics-service.ts's CHAMPION_EXCLUSIVES) — a

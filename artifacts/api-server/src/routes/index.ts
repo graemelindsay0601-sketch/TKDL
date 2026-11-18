@@ -6,6 +6,7 @@ import seasonsRouter       from "./seasons";
 import leaderboardRouter   from "./leaderboard";
 import achievementsRouter  from "./achievements";
 import achievementsV2Router from "./achievements-v2";
+import { achievementsV2Trigger } from "../lib/achievements-v2/live.ts";
 import statsRouter         from "./stats";
 import adminRouter         from "./admin";
 import authRouter          from "./auth";
@@ -71,6 +72,7 @@ router.use((req, res, next) => {
   next();
 });
 
+router.use(achievementsV2Trigger);
 router.use(healthRouter);
 router.use(authRouter);
 router.use(playersRouter);
