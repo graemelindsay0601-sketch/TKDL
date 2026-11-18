@@ -519,6 +519,21 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
     };
   }
 
+  /**
+   * The earliest day of week `w` on which the human still has a tournament to play: entered (not withdrawn),
+   * not finished or cancelled, and not already knocked out. null when there is none.
+   */
+  async function earliestHumanEventDay(tx: CareerExecutor, saveId: string, s: number, w: number): Promise<number | null> {
+    const first = (w - 1) * 7 + 1, last = w * 7;
+    const row = (await tx.execute(sql`SELECT MIN(GREATEST(i.start_day, ${first}))::int AS day
+      FROM career_event_entries e JOIN career_event_instances i ON i.career_save_id = e.career_save_id AND i.id = e.event_id
+      WHERE e.career_save_id = ${saveId} AND e.participant_key = ${HUMAN} AND e.status <> 'WITHDRAWN'
+        AND i.season = ${s} AND i.start_day <= ${last} AND i.end_day >= ${first} AND i.status NOT IN ('COMPLETED','CANCELLED')
+        AND NOT EXISTS (SELECT 1 FROM career_tournament_matches m WHERE m.career_save_id = i.career_save_id AND m.event_id = i.id
+          AND m.status IN ('COMPLETED','WALKOVER') AND (m.a_key = ${HUMAN} OR m.b_key = ${HUMAN}) AND m.winner_key IS DISTINCT FROM ${HUMAN})`)).rows[0];
+    return row?.day === null || row?.day === undefined ? null : Number(row.day);
+  }
+
   // -------------------------------------------------------------- one week step (several short transactions)
   async function stepWeek(actor: CareerActor, saveId: string) {
     const played = await database.transaction(async tx => {
@@ -568,7 +583,9 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         WHERE l.career_save_id=${saveId} AND l.season=${s} AND l.family='DARTCAST' AND l.status='ACCEPTED'
           AND l.day BETWEEN ${(w - 1) * 7 + 1} AND ${w * 7}
         ORDER BY l.day LIMIT 1`)).rows[0] : undefined;
-      if (plannedStream) return { season: s, week: w, summary: null as unknown, blocked: true,
+      // A booked show only comes first when it is ON or BEFORE the day of your next tournament this week.
+      const humanEventDay = plannedStream ? await earliestHumanEventDay(tx, saveId, s, w) : null;
+      if (plannedStream && (humanEventDay === null || Number(plannedStream.day) <= humanEventDay)) return { season: s, week: w, summary: null as unknown, blocked: true,
         blocker: { kind: "STREAM" as const, day: Number(plannedStream.day) } };
       if (Number(season.played_week) >= w) return { season: s, week: w, summary: null as unknown, blocked: false };
       const summary = await playWeek(tx, root, state, s, w, await bind(tx, root));
