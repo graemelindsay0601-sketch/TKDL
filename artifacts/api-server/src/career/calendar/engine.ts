@@ -327,7 +327,17 @@ type FactsContext = {
   results: { SAME: Map<string, Map<string, number>>; PREVIOUS: Map<string, Map<string, number>> }; // participant -> definition -> best position
   champions: Map<string, Set<string>>;      // previous-season "definition:ordinal" -> champion participant keys
 };
+// Per transaction: a save's start date doesn't change inside one, and field locks ask for it once per event.
+const startDates = new WeakMap<object, Map<string, string>>();
 async function careerStartDateForSave(tx: CareerExecutor, saveId: string): Promise<string> {
+  const known = startDates.get(tx as object)?.get(saveId);
+  if (known) return known;
+  const value = await readCareerStartDate(tx, saveId);
+  if (!startDates.has(tx as object)) startDates.set(tx as object, new Map());
+  startDates.get(tx as object)!.set(saveId, value);
+  return value;
+}
+async function readCareerStartDate(tx: CareerExecutor, saveId: string): Promise<string> {
   const row = (await tx.execute(sql`SELECT COALESCE(to_char(p.career_start_date, 'YYYY-MM-DD'),
       to_char(date_trunc('year', s.created_at)::date, 'YYYY-MM-DD')) AS start_date
     FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId}`)).rows[0];
@@ -459,13 +469,26 @@ function bookingsInsert(saveId: string, season: number, event: InstanceRow, part
   return sql`INSERT INTO career_participant_bookings (career_save_id, season, participant_key, day, event_id)
     SELECT ${saveId}::uuid, ${season}, b.participant_key, b.day, ${event.id}::uuid FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS b(participant_key text, day integer)`;
 }
+// Per transaction and season: which events sit in an exclusive group (snapshots never change), so each lock reads
+// entries by id instead of scanning every event's snapshot JSON.
+const exclusiveEvents = new WeakMap<object, Map<string, { id: string; key: string; variant: string }[]>>();
 async function exclusiveConflicts(tx: CareerExecutor, saveId: string, event: InstanceRow): Promise<Set<string>> {
   const group = event.snapshot.exclusiveGroup;
   if (!group) return new Set();
-  return new Set((await tx.execute(sql`SELECT DISTINCT e.participant_key FROM career_event_entries e JOIN career_event_instances i
-      ON i.career_save_id = e.career_save_id AND i.id = e.event_id
-    WHERE e.career_save_id = ${saveId} AND i.season = ${event.season} AND e.status <> 'WITHDRAWN'
-      AND i.snapshot->'exclusiveGroup'->>'key' = ${group.key} AND i.snapshot->'exclusiveGroup'->>'variant' <> ${group.variant}`)).rows.map(row => String(row.participant_key)));
+  const cacheKey = `${saveId}:${event.season}`;
+  let grouped = exclusiveEvents.get(tx as object)?.get(cacheKey);
+  if (!grouped) {
+    grouped = (await tx.execute(sql`SELECT id, snapshot->'exclusiveGroup'->>'key' AS key, snapshot->'exclusiveGroup'->>'variant' AS variant
+      FROM career_event_instances WHERE career_save_id = ${saveId} AND season = ${event.season} AND snapshot ? 'exclusiveGroup'
+        AND snapshot->'exclusiveGroup'->>'key' IS NOT NULL`)).rows.map(r => ({ id: String(r.id), key: String(r.key), variant: String(r.variant) }));
+    if (!exclusiveEvents.has(tx as object)) exclusiveEvents.set(tx as object, new Map());
+    exclusiveEvents.get(tx as object)!.set(cacheKey, grouped);
+  }
+  const others = grouped.filter(g => g.key === group.key && g.variant !== group.variant && g.variant !== "null").map(g => g.id);
+  if (!others.length) return new Set();
+  return new Set((await tx.execute(sql`SELECT DISTINCT participant_key FROM career_event_entries
+    WHERE career_save_id = ${saveId} AND status <> 'WITHDRAWN'
+      AND event_id IN (${sql.join(others.map(id => sql`${id}::uuid`), sql`, `)})`)).rows.map(row => String(row.participant_key)));
 }
 export { exclusiveConflicts };
 
@@ -473,13 +496,36 @@ export { exclusiveConflicts };
  * Players contracted to a multi-day series (a Premier League's nights, a Q-School stage): everyone in the series'
  * day-1 field is committed to its later days, so other events on those days cannot take them, as in real life.
  */
+// Per transaction and season: every later series day's dates (the schedule doesn't move), so events that overlap none skip the query.
+const seriesLaterDays = new WeakMap<object, Map<string, { key: string; start: number; end: number }[]>>();
 async function seriesCommitments(tx: CareerExecutor, saveId: string, event: InstanceRow): Promise<string[]> {
+  const cacheKey = `${saveId}:${event.season}`;
+  let days = seriesLaterDays.get(tx as object)?.get(cacheKey);
+  if (!days) {
+    days = (await tx.execute(sql`SELECT series_key, start_day, end_day FROM career_event_instances
+      WHERE career_save_id = ${saveId} AND season = ${event.season} AND series_key IS NOT NULL AND series_day > 1`)).rows
+      .map(r => ({ key: String(r.series_key), start: Number(r.start_day), end: Number(r.end_day) }));
+    if (!seriesLaterDays.has(tx as object)) seriesLaterDays.set(tx as object, new Map());
+    seriesLaterDays.get(tx as object)!.set(cacheKey, days);
+  }
+  if (!days.some(d => d.key !== event.series_key && d.start <= Number(event.end_day) && d.end >= Number(event.start_day))) return [];
   // Series with a later day overlapping this event (few rows), then their day-1 fields.
   const series = (await tx.execute(sql`SELECT DISTINCT series_key FROM career_event_instances
     WHERE career_save_id = ${saveId} AND season = ${event.season} AND series_key IS NOT NULL AND series_day > 1
       AND series_key IS DISTINCT FROM ${event.series_key}::text AND status NOT IN ('COMPLETED','CANCELLED')
       AND start_day <= ${event.end_day}::int AND end_day >= ${event.start_day}::int`)).rows.map(row => String(row.series_key));
   if (!series.length) return [];
+  // Day-1 fields only change when a first day locks (lockField forgets these then), so the same series set is read once.
+  const fieldsKey = `${saveId}:${event.season}:${[...series].sort().join("|")}`;
+  const fields = seriesFields.get(tx as object)?.get(fieldsKey);
+  if (fields) return fields;
+  const read = await readSeriesFields(tx, saveId, event, series);
+  if (!seriesFields.has(tx as object)) seriesFields.set(tx as object, new Map());
+  seriesFields.get(tx as object)!.set(fieldsKey, read);
+  return read;
+}
+const seriesFields = new WeakMap<object, Map<string, string[]>>();
+async function readSeriesFields(tx: CareerExecutor, saveId: string, event: InstanceRow, series: string[]): Promise<string[]> {
   return (await tx.execute(sql`SELECT DISTINCT e.participant_key FROM career_event_instances d1 JOIN career_event_entries e
       ON e.career_save_id = d1.career_save_id AND e.event_id = d1.id
     WHERE d1.career_save_id = ${saveId} AND d1.season = ${event.season} AND d1.series_day = 1
@@ -559,6 +605,12 @@ type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; np
  * REGISTRATION_CLOSED so this can never run twice for the same event.
  */
 export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload,
+  committed?: ReadonlyMap<number, ReadonlySet<string>>): Promise<{ locked: boolean; entrants: number }> {
+  try { return await lockFieldOnce(tx, root, event, npcs, providers, week, pre, committed); }
+  // A series' first day sets who is committed to its later days: forget the remembered commitments once one locks.
+  finally { if (event.series_key && Number(event.series_day) === 1) seriesFields.delete(tx as object); }
+}
+async function lockFieldOnce(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload,
   committed?: ReadonlyMap<number, ReadonlySet<string>>): Promise<{ locked: boolean; entrants: number }> {
   const saveId = root.id, snapshot = event.snapshot;
   if (pre && pre.season !== event.season) throw new Error("Lock preload is for another season");
@@ -1371,6 +1423,8 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
   const committed = npcs.length ? await teamNightCommitments(tx, root, season, week, npcs) : undefined;
   // Close every starting event's registration in one write (each row's transition is still checked).
   await closeRegistrations(tx, starting);
+  // Each lock pass starts from fresh reads (play and calendar upkeep between passes can change them).
+  seriesFields.delete(tx as object); seriesLaterDays.delete(tx as object); exclusiveEvents.delete(tx as object);
   const pre = starting.some(e => e.status === "REGISTRATION_CLOSED" && e.executable) ? await preloadLocks(tx, root.id, season, starting) : undefined;
   for (const event of starting) {
     if (event.status === "REGISTRATION_CLOSED") {
