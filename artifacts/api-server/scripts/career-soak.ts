@@ -12,7 +12,8 @@
  *
  * Usage (DATABASE_URL must point at a dev database; it creates saves):
  *   node scripts/career-soak.ts [weeks=60] [focus=OPEN_SCHEDULE] [playerId] [saveId to continue an existing save]
- * Env: WIN_RATE (0.5), STREAM_RATE (0.25 of weeks; creators always), SEED (random), LOG (path for the week log).
+ * Env: WIN_RATE (0.5), STREAM_RATE (0.25 of weeks; creators always), SEED (random), LOG (path for the week log),
+ *   SOAK_HOME (home area key, default ayrshire).
  */
 import { sql } from "drizzle-orm";
 import { createRequire } from "node:module";
@@ -112,7 +113,8 @@ if (!saveId) {
   const used = new Set((await db.execute(sql`SELECT slot_number FROM career_saves WHERE player_id = ${playerId} AND status = 'ACTIVE'`)).rows.map(r => Number(r.slot_number)));
   const slot = [1, 2, 3].find(s => !used.has(s));
   if (!slot) throw new Error("No free Career slot for this player");
-  const save = await saves.create(playerId, { slot, careerName: `Soak ${focus.toLowerCase()} ${startSeed}`, dateOfBirth: "1998-04-02" });
+  // A home area gives the save a club (team nights, club knockouts, local competitions); SOAK_HOME= picks another one.
+  const save = await saves.create(playerId, { slot, careerName: `Soak ${focus.toLowerCase()} ${startSeed}`, dateOfBirth: "1998-04-02", homeLocality: process.env.SOAK_HOME ?? "ayrshire" });
   saveId = save.id;
   await sporting.initialize(actor, saveId);
   if (focus !== "OPEN_SCHEDULE") await goals.focus(actor, saveId, { focus });
