@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { useCareerGoals, useCareerFocus, useCreateCareerGoal, useAbandonCareerGoal, useSetMainCareerGoal, useSetCareerRoute, useStreaming, errorMessage } from "../api";
 import { CareerSection, CareerEmptyState, QueryState } from "../components";
@@ -6,8 +6,10 @@ import { formatPence, denialLabel } from "../model";
 import type { ShellContext } from "../shell";
 import type { Focus, GoalDefinition, GoalView } from "../../../../../api-server/src/career/goals/types";
 import "./goals.css";
+import { markVisited } from "../welcome";
 
 export function GoalsPage({ctx}: {ctx:ShellContext}) {
+  useEffect(() => { markVisited(ctx.save.id, "goals"); }, [ctx.save.id]);
   const query=useCareerGoals(ctx.save.id),focus=useCareerFocus(ctx.save.id),create=useCreateCareerGoal(ctx.save.id),abandon=useAbandonCareerGoal(ctx.save.id),setMain=useSetMainCareerGoal(ctx.save.id),setRoute=useSetCareerRoute(ctx.save.id);
   const streaming=useStreaming(ctx.save.id,undefined,query.data?.focus==="DARTCAST_CREATOR");
   const [selected,setSelected]=useState(""),[message,setMessage]=useState<string|null>(null);
