@@ -1,0 +1,30 @@
+name: Wake TKDL for the day
+
+# The server keeps itself awake from 08:00 to midnight London time (src/lib/keep-awake.ts), but a sleeping
+# free Render service can't wake itself. This wakes it at the start of the day and checks in a few times in
+# case a restart left it asleep. GitHub cron is UTC and can run late; both GMT and BST morning times are listed.
+# Public repository: GitHub-hosted runner minutes are free. /api/healthz does not touch the database.
+
+on:
+  schedule:
+    - cron: "50 6 * * *"    # 07:50 BST
+    - cron: "50 7 * * *"    # 07:50 GMT / 08:50 BST
+    - cron: "0 12,16,20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Request the health check until the server answers
+        shell: bash
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if curl --silent --fail --max-time 45 https://tkdl-wt7y.onrender.com/api/healthz; then echo; echo "awake"; exit 0; fi
+            sleep 10
+          done
+          echo "TKDL did not answer; it will wake on the next visit."

@@ -5,6 +5,7 @@ import { deploymentBootstrapKey, ensureBootstrapLedger, isBootstrapComplete, mar
 import { markStartupFailed, markStartupReady, setStartupPhase } from "./lib/startup-state";
 import { getFeatureFlag, FEATURES } from "./services/feature-flags-service";
 import { assertSafeDevelopmentDatabase } from "./lib/local-db-guard";
+import { startKeepAwake } from "./lib/keep-awake";
 
 assertSafeDevelopmentDatabase({
   nodeEnv: process.env.NODE_ENV,
@@ -105,6 +106,7 @@ async function initializeApplication() {
 const server = app.listen(port, () => {
   logger.info({ port }, "Server listening; phased initialization starting");
   void initializeApplication();
+  startKeepAwake(message => logger.info(message));
 });
 server.on("error", err => {
   logger.error({ err }, "Error listening on port");
