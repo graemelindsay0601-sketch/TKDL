@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { leagueHistoryCredit, reportHtml, summarise } from "../lib/achievements-v2/report.ts";
+import { allHistoryCredit, reportHtml } from "../lib/achievements-v2/report.ts";
 
 /**
  * Achievements v2, before launch: an admin-only, read-only report of what history credit would give every player.
@@ -9,9 +9,9 @@ import { leagueHistoryCredit, reportHtml, summarise } from "../lib/achievements-
  */
 const router: IRouter = Router();
 router.get("/admin/achievements-v2/report", requireAdminSession, async (req, res) => {
-  const summary = summarise(await leagueHistoryCredit(db as never));
+  const reports = await allHistoryCredit(db as never);
   res.set("Cache-Control", "no-store");
-  if (req.query.format === "json") { res.json(summary); return; }
-  res.type("html").send(reportHtml(summary));
+  if (req.query.format === "json") { res.json(reports); return; }
+  res.type("html").send(reportHtml(reports));
 });
 export default router;

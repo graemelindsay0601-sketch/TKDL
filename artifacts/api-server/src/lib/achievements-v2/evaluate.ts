@@ -25,7 +25,7 @@ export function evaluate(defs: readonly AchievementDef[], facts: AreaFacts): Ach
       const earnedAt = d.liveOnly ? null : facts.feats[d.metric] ?? null;
       return { kind: "FEAT", key: d.key, area: d.area, title: d.title, goal: d.goal, earnedAt, secret: !!d.secret, liveOnly: !!d.liveOnly, points: earnedAt ? d.points : 0 };
     }
-    const perSeason = [...facts.seasons].map(([seasonId, m]) => { const value = m[d.metric] ?? 0; return { seasonId, value, completed: d.targets.filter(t => value >= t).length }; })
+    const perSeason = [...facts.seasons].filter(([, m]) => d.metric in m).map(([seasonId, m]) => { const value = m[d.metric] ?? 0; return { seasonId, value, completed: d.targets.filter(t => value >= t).length }; })
       .sort((a, b) => a.seasonId - b.seasonId);
     return { kind: "SEASON", key: d.key, area: d.area, title: d.title, perSeason, points: perSeason.reduce((n, s) => n + s.completed * SEASON_GOAL_POINTS, 0) };
   });
