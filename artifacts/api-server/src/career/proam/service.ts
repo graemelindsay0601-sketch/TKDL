@@ -65,8 +65,9 @@ export function createCareerProAmService(database: CareerDatabase) {
     const town = LOCALITIES.find(l => l.key === localityKey);
     if (!town) return [];
     const nearby = destinationsFrom(town.key).sort((a, b) => tripCostTo(town.key, a).pence - tripCostTo(town.key, b).pence).slice(0, 5);
-    const members = [await playersOf(tx, root, town), ...(await Promise.all(nearby.map(l => playersOf(tx, root, l))))].flat();
-    return [...new Map(members.filter(m => !m.professional).map(m => [m.key, m])).values()].slice(0, PROAM.amateurs);
+    const members = [await playersOf(tx, root, town)];
+    for (const l of nearby) members.push(await playersOf(tx, root, l));
+    return [...new Map(members.flat().filter(m => !m.professional).map(m => [m.key, m])).values()].slice(0, PROAM.amateurs);
   }
 
   async function offers(tx: CareerExecutor, root: Root, side: "AMATEUR" | "PRO", season = Number(root.current_season), week = Number(root.current_week)) {
@@ -77,8 +78,11 @@ export function createCareerProAmService(database: CareerDatabase) {
     const towns = [{ key: home.key, t: home, cost: { pence: 0 } }, ...near.map(n => ({ key: n.t.key, t: n.t, cost: n.cost }))];
     const proList = side === "AMATEUR" ? await pros(tx, root) : [];
     const picked = weekNights(root.world_seed, season, week, towns, proList);
-    const proEligible = side === "PRO" ? new Set((await Promise.all(picked.map(async p =>
-      (await nearbyAmateurs(tx, root, p.town.key)).length === PROAM.amateurs ? p.town.key : undefined))).filter(Boolean)) : null;
+    let proEligible: Set<string> | null = null;
+    if (side === "PRO") {
+      proEligible = new Set();
+      for (const p of picked) if ((await nearbyAmateurs(tx, root, p.town.key)).length === PROAM.amateurs) proEligible.add(p.town.key);
+    }
     const npcs = new Map((await loadNpcs(tx, root.id, { ids: picked.flatMap(p => p.pro ? [p.pro.key] : []) })).map(n => [n.id, n]));
     const free = await freeNightsInWeek(tx, root.id, season, week), rank = side === "PRO" ? await yourRank(tx, root) : null;
     return picked.map((p, i) => {

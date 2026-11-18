@@ -78,7 +78,8 @@ export const UNBOUND_SEEDING: SeedingProvider = { id: "A5_RANKING_SEEDING_UNBOUN
 
 export async function bindSporting(tx: CareerExecutor, root: RootRow) {
   await ensureSporting(tx, root);
-  const [holders, positions] = await Promise.all([cardHoldersIn(tx, root.id, Number(root.current_season)), currentPositions(tx, root.id)]);
+  // One transaction runs one query at a time: sequential awaits (pg@9 drops queued concurrent queries on a client).
+  const holders = await cardHoldersIn(tx, root.id, Number(root.current_season)), positions = await currentPositions(tx, root.id);
   return { sportingStatus: boundStatus(holders, positions), seeding: boundSeeding(positions), holders, positions };
 }
 

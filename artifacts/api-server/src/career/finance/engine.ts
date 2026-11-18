@@ -212,7 +212,9 @@ export function applyCoverage(contract: ContractRow | undefined, usage: Coverage
 export type CoveragePortfolio = { contracts: ContractRow[]; usage: Map<string,CoverageUsage> };
 async function loadCoveragePortfolio(tx:CareerExecutor,saveId:string,season:number):Promise<CoveragePortfolio> {
   const contracts=await activeContracts(tx,saveId);
-  return {contracts,usage:new Map(await Promise.all(contracts.map(async c=>[c.id,await coverageUsage(tx,saveId,c,season)] as const)))};
+  const usage=new Map<string,CoverageUsage>();
+  for(const c of contracts) usage.set(c.id,await coverageUsage(tx,saveId,c,season));
+  return {contracts,usage};
 }
 function clonePortfolio(p:ContractRow|CoveragePortfolio|undefined) {
   return p && "contracts" in p ? {...p,usage:new Map([...p.usage].map(([id,u])=>[id,new Map(u)]))} : p;
