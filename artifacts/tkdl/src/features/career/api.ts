@@ -215,7 +215,7 @@ export const useAbandonCareerGoal = (saveId: string) => useSaveMutation(saveId, 
 export const useCareerSaves = (enabled = true) => useQuery({ queryKey: ["career", "saves"], queryFn: () => get<CareerSaveList>("/saves"), enabled, staleTime: STALE, retry: false });
 export const useCareerSave = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "save"), queryFn: () => get<CareerSave>(`/saves/${saveId}`), staleTime: STALE });
 export const useSporting = (saveId: string, enabled=true) => useQuery({ queryKey: careerKey(saveId, "sporting"), queryFn: () => get<SportingSummary>(`/saves/${saveId}/sporting`), enabled, staleTime: STALE });
-export type CalendarQuery = { scope?: "WORLD" | "MY_SCHEDULE" | "AVAILABLE" | "FEATURED" | "RELEVANT"; season?: number; fromWeek?: number; toWeek?: number; circuit?: string; classification?: string;
+export type CalendarQuery = { scope?: "WORLD" | "MY_SCHEDULE" | "AVAILABLE" | "FEATURED" | "RELEVANT"; season?: number; fromWeek?: number; toWeek?: number; circuit?: string; classification?: string; /** Home locality key: the server sends only events near home, with no locality, or that you are in. */ near?: string;
   /** "overview": the season overview only, no events (the Career header). */
   view?: "overview" };
 export const useCalendar = (saveId: string, q: CalendarQuery, enabled = true) => useQuery({ queryKey: careerKey(saveId, "calendar", q), enabled, staleTime: STALE,

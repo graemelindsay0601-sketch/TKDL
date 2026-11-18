@@ -68,6 +68,8 @@ const calendarQuerySchema = z.object({
   // RELEVANT: events you can enter, are eligible for, or are booked into or played (Home: a few hundred, not the whole world).
   scope: z.enum(["WORLD", "MY_SCHEDULE", "AVAILABLE", "FEATURED", "RELEVANT"]).default("WORLD"),
   circuit: z.enum(CIRCUITS).optional(), classification: z.enum(CLASSIFICATIONS).optional(), family: z.string().max(80).optional(),
+  // near=<home locality key>: only events at home, with no locality (the big ones), or that you're entered in (the calendar's "near home").
+  near: z.string().max(80).optional(),
 }).strict();
 const providerEntitlementSchema = z.object({
   idempotencyKey: z.string().min(1).max(160), providerId: z.string().min(1).max(80),
@@ -869,7 +871,10 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const human = await loadHumanContext(tx, root, season, [...events, ...ahead.filter(e => !seen.has(e.id))], await bind(tx, root));
         const windows = seriesWindowsOf(await loadSeriesRows(tx, root.id, season));
         // Scope filters run before the money previews (the costly part), so a filtered view only prices what it shows.
-        const views = events.map(event => ({ event, human: humanView(event, human, windows) }));
+        // Filters that need no human view run first, so only what can be shown is worked out (and priced below).
+        const yours = (e: InstanceRow) => human.entries.has(e.id) || human.results.has(e.id);
+        const candidates = events.filter(e => (q.scope !== "MY_SCHEDULE" || yours(e)) && (!q.near || !e.locality_key || e.locality_key === q.near || yours(e)));
+        const views = candidates.map(event => ({ event, human: humanView(event, human, windows) }));
         const shown = views.filter(({ human: h }) => q.scope === "MY_SCHEDULE" ? !!h && ["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED", "WITHDRAWN"].includes(h.relationship)
           : q.scope === "AVAILABLE" ? !!h?.canEnter
           : q.scope === "RELEVANT" ? !!h && (h.canEnter || h.eligible || !["AVAILABLE", "NOT_ELIGIBLE"].includes(h.relationship))

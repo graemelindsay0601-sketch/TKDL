@@ -16,7 +16,7 @@ before(async () => {
   app.get("/saves/:id/tournaments/:eventId", (_req, res) => { computed++; res.json({ n: computed }); });
   app.get("/saves/:id/inbox", (_req, res) => { computed++; res.status(409).json({ error: "not yet" }); });
   app.post("/saves/:id/calendar/advance", (_req, res) => { res.json({ ok: true }); });
-  await new Promise<void>(r => { server = app.listen(0, r); });
+  await new Promise<void>(r => { server = app.listen(0, () => r()); });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 after(() => { server.close(); delete process.env.CAREER_READ_CACHE_SETTLE_MS; });
