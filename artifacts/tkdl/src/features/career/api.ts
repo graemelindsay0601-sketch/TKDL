@@ -189,6 +189,15 @@ export const useCountyTrialMatch = (saveId: string, matchId: string) => useQuery
   queryFn: () => get<CountyTrialSession>(`/saves/${saveId}/club/county-trials/${matchId}`), staleTime: 0 });
 export const countyTrialApi = { darts: (saveId: string, matchId: string, darts: unknown[]) =>
   send<CountyTrialSession>("POST", `/saves/${saveId}/club/county-trials/${matchId}/darts`, { darts }) };
+export type DoubleStat = { double: string; attempts: number; hits: number; percent: number | null };
+export type DartStats = { matches: number; legsPlayed: number; legsWon: number; darts: number; average: number | null; first9Average: number | null;
+  tons: { "100+": number; "140+": number; "180": number };
+  checkout: { attempts: number; hits: number; percent: number | null; highest: number | null; bySize: { upTo40: number; from41To100: number; over100: number } };
+  doubles: DoubleStat[]; favouriteDouble: DoubleStat | null; weakestDouble: DoubleStat | null; bestLeg: number | null;
+  deciders: { played: number; won: number; average: number | null }; minimumAttempts: number };
+/** Dart-by-dart statistics from the matches you threw yourself: this season and the whole Career. */
+export const useDartStats = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "dart-stats"),
+  queryFn: () => get<{ season: number; thisSeason: DartStats; career: DartStats }>(`/saves/${saveId}/dart-stats`), staleTime: STALE });
 export const useCareerFacts = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "facts"), queryFn: () => get<CareerFacts>(`/saves/${saveId}/facts`), staleTime: STALE });
 export const useCareerRelationships = (saveId: string) => useQuery({ queryKey: careerKey(saveId, "relationships"), queryFn: () => get<CareerRelationships>(`/saves/${saveId}/relationships`), staleTime: STALE });
 export const useCareerRecognition = (saveId: string, enabled = true) => useQuery({ queryKey: careerKey(saveId, "recognition"), queryFn: () => get<RecognitionView>(`/saves/${saveId}/recognition`), enabled, staleTime: STALE });

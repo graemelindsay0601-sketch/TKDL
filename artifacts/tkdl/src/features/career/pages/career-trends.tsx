@@ -1,4 +1,5 @@
 import { useCareerFacts, useRankingHistory, useTourCard } from "../api";
+import { DartStatsSection } from "./dart-stats";
 import { CareerEmptyState, CareerError, CareerLoading, CareerSection } from "../components";
 import { PLATES } from "../atmosphere";
 import { ordinal } from "../model";
@@ -60,7 +61,7 @@ export function CareerPerformanceTrend({ saveId, season, week, retired = false }
         <p>Every completed match, event and ranking in your Career, recorded from the oche.</p></div>
       <div className="cp-live-stats">{cards.map(([label,value,note]) => <div key={label}><small>{label}</small><strong>{value}</strong><span>{note}</span></div>)}</div>
     </header>
-    <nav className="cp-live-nav" aria-label="Performance report sections"><a href="#cp-seasons">01 <span>Season evidence</span></a><a href="#cp-record">02 <span>Career record</span></a><a href="#cp-playing">03 <span>Playing statistics</span></a></nav>
+    <nav className="cp-live-nav" aria-label="Performance report sections"><a href="#cp-seasons">01 <span>Season evidence</span></a><a href="#cp-record">02 <span>Career record</span></a><a href="#cp-playing">03 <span>Playing statistics</span></a><a href="#cp-doubles">04 <span>At the double</span></a></nav>
     <section className="cp-live-section" id="cp-seasons">
       <div className="cp-live-section-heading"><div><span>01 / THE CAMPAIGN</span><h2>Season by season</h2></div><p>Only completed results and published ranking records are shown.</p></div>
       <div className="cp-live-charts">
@@ -88,8 +89,9 @@ export function CareerPerformanceTrend({ saveId, season, week, retired = false }
     <section className="cp-live-section cp-live-playing" id="cp-playing">
       <div className="cp-live-section-heading"><div><span>03 / SCORING EVIDENCE</span><h2>The game behind the results</h2></div><p>{performance.recordedMatches} matches with recorded darts · {performance.unavailableMatches} without dart-level data</p></div>
       <div className="cp-live-figures">{figures.map(([label,value],i)=><article className={`cp-live-figure cp-tone-${i%3}`} key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
-      <p className="cp-live-footnote">A missing figure means the scorer did not record that evidence. Checkout attempts are not currently available; no values are estimated.</p>
+      <p className="cp-live-footnote">A missing figure means the scorer did not record that evidence; no values are estimated.</p>
     </section>
+    <DartStatsSection saveId={saveId} />
   </div>;
 }
 
