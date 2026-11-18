@@ -541,3 +541,34 @@ test("county trial invitations count only completed singles the player actually 
   await repairCareerSchema(db);
   assert.ok((await rows(sql`SELECT to_regclass('career_county_trials') AS table_name`))[0].table_name);
 });
+
+// Regression (soak tester, end of season 1): playoffs may be played after their own week, but the "already played"
+// check only looked at this week's fixtures. In weeks 51-52 the week-50 final was re-run every week: it set up a new
+// live single for the player, flipped the finished final back to IN_PROGRESS, and Continue waited on it for good.
+test("a recorded club final is not replayed in later weeks, and a final wrongly left IN_PROGRESS is repaired", async () => {
+  const { LOCALITIES } = await import("../../career/calendar/geography.ts");
+  const { dartsNation } = await import("../../career/calendar/pairs.ts");
+  const home = LOCALITIES.find(l => l.key === "ayrshire")!;
+  const league = LOCALITIES.filter(l => l.country === home.country && dartsNation(l.country, l.key) === dartsNation(home.country, home.key)).map(l => l.key);
+  const season = 7; // its own season, clear of the other tests' fixtures
+  await db.execute(sql`INSERT INTO career_club_team_memberships (career_save_id, season, club_key, joined_week) VALUES (${id}, ${season}, 'ayrshire', 1) ON CONFLICT DO NOTHING`);
+  const insert = (f: { round: number; week: number; home: string; away: string }, status: string, rubbers: unknown[] = []) =>
+    db.execute(sql`INSERT INTO career_club_fixtures (career_save_id, season, round, week, home_key, away_key, home_score, away_score, rubbers, you_played, status)
+      VALUES (${id}, ${season}, ${f.round}, ${f.week}, ${f.home}, ${f.away}, 4, 2, ${JSON.stringify(rubbers)}::jsonb, false, ${status})`);
+  const regular = fixturesFor(league);
+  for (const f of regular) await insert(f, "COMPLETED");
+  const results = regular.map(f => ({ round: f.round, week: f.week, home: f.home, away: f.away, homeScore: 4, awayScore: 2 }));
+  const semis = playoffFixtures(league, results);
+  for (const f of semis) await insert(f, "COMPLETED");
+  const final = playoffFixtures(league, [...results, ...semis.map(f => ({ round: f.round, week: f.week, home: f.home, away: f.away, homeScore: 4, awayScore: 2 }))])[0];
+  assert.equal(final.round, TEAM_PLAYOFFS_FINAL);
+  // The finished final, as the bug left it: your single PLAYED, nothing live, but status IN_PROGRESS.
+  await insert(final, "IN_PROGRESS", [{ home: "HUMAN", away: "x", homeLegs: 3, awayLegs: 0, averages: null, humanMatch: { id: "played-single", status: "PLAYED", won: true } }]);
+  const playSeason = (week: number) => db.transaction(async tx => playTeamNights(tx, await lockRoot(tx, actor, id) as never, season, week));
+  for (const week of [51, 52]) assert.equal(await playSeason(week), null, `week ${week}: nothing to play once the final is recorded`);
+  const after = await rows(sql`SELECT round, status, rubbers FROM career_club_fixtures WHERE career_save_id=${id} AND season=${season} AND round=${final.round}`);
+  assert.equal(after.length, 1);
+  assert.equal(after[0].status, "COMPLETED", "the stuck final is repaired");
+  assert.ok(!(after[0].rubbers as { humanMatch?: { status: string } }[]).some(r => r.humanMatch?.status === "LIVE"), "no new live single");
+});
+const TEAM_PLAYOFFS_FINAL = 16;

@@ -44,8 +44,19 @@ export const careerStartDateFor = (createdAt: Date) => `${createdAt.getUTCFullYe
 /** Real calendar date of a Career day (season 1+, day-of-season 1..364). */
 export function careerDate(startDate: string, season: number, dayOfSeason: number): string {
   if (!Number.isInteger(season) || season < 1 || !Number.isInteger(dayOfSeason) || dayOfSeason < 1 || dayOfSeason > DAYS_PER_SEASON) throw new Error("Invalid Career day");
-  return iso(new Date(parse(startDate).getTime() + ((season - 1) * DAYS_PER_SEASON + dayOfSeason - 1) * MS_PER_DAY));
+  // Pure, and asked for the same event date once per NPC per field lock (parsing dominated "Play on"): remembered.
+  const key = `${startDate}|${season}|${dayOfSeason}`;
+  let date = careerDates.get(key);
+  if (date === undefined) {
+    date = iso(new Date(parse(startDate).getTime() + ((season - 1) * DAYS_PER_SEASON + dayOfSeason - 1) * MS_PER_DAY));
+    if (careerDates.size >= DATE_CACHE_LIMIT) careerDates.clear();
+    careerDates.set(key, date);
+  }
+  return date;
 }
+const DATE_CACHE_LIMIT = 50_000;
+const careerDates = new Map<string, string>();
+const yearEnds = new Map<string, string>();
 /** First day of a Career week. */
 export const careerWeekDate = (startDate: string, season: number, week: number) => careerDate(startDate, season, (week - 1) * DAYS_PER_WEEK + 1);
 
@@ -59,8 +70,13 @@ export function ageOn(dateOfBirth: string, onDate: string): number {
 
 /** WDF Youth/U23 eligibility is judged against 31 December of the event's calendar year. */
 export function calendarYearEnd(onDate: string): string {
-  const year = parse(onDate).getUTCFullYear();
-  return `${year}-12-31`;
+  let end = yearEnds.get(onDate);
+  if (end === undefined) {
+    end = `${parse(onDate).getUTCFullYear()}-12-31`;
+    if (yearEnds.size >= DATE_CACHE_LIMIT) yearEnds.clear();
+    yearEnds.set(onDate, end);
+  }
+  return end;
 }
 
 /**

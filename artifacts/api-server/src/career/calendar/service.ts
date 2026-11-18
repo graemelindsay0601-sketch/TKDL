@@ -34,7 +34,7 @@ import { canInvite } from "../manager/model.ts";
 import { loadHumanForm } from "../form/human.ts";
 import {
   HUMAN, ensureSeason, openRegistrations, loadInstances, loadFactsContext, factsFor, humanParticipant, playWeek, progressEvent, loadMatches,
-  insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, refreshCapabilities, anzLeagueStandings, type InstanceRow, type RootRow, type MatchRow,
+  insertBookings, exclusiveConflicts, ensureMidweekCircuit, ensurePathwayEvents, ensureCurrentEventCatalogue, insertEntitlements, lastDayOfWeek, progressEvents, refreshCapabilities, anzLeagueStandings, type InstanceRow, type RootRow, type MatchRow,
 } from "./engine.ts";
 
 const eventRefSchema = z.object({ eventId: z.string().uuid(), travelChoice: z.enum(["AUTO", "GROUND_COMMUTE", "AIR_STAY"]).optional() }).strict();
@@ -194,6 +194,17 @@ function humanView(event: InstanceRow, human: HumanContext, seriesWindows: Serie
   };
 }
 type SeriesWindows = Map<string, { spans: Map<string, { start: number; end: number }> }>;
+const OVERVIEW_NEAR_WEEKS = 6;
+/** Play on answers once the player's own match is ready and plays the rest of the week just after (CAREER_CATCH_UP=0 turns it off). */
+const BACKGROUND_CATCH_UP = process.env.CAREER_CATCH_UP !== "0";
+const CATCH_UP_CHUNK = 6;
+const catchingUp = new Set<string>();
+/** Only what series windows need (the full rows carry each event's large snapshot). */
+async function loadSeriesRows(tx: CareerExecutor, saveId: string, season: number): Promise<InstanceRow[]> {
+  return (await tx.execute(sql`SELECT id, series_key, start_day, end_day FROM career_event_instances
+    WHERE career_save_id = ${saveId} AND season = ${season} AND series_key IS NOT NULL`)).rows
+    .map(r => ({ id: String(r.id), series_key: String(r.series_key), start_day: Number(r.start_day), end_day: Number(r.end_day) }) as unknown as InstanceRow);
+}
 function seriesWindowsOf(events: readonly InstanceRow[]): SeriesWindows {
   const map: SeriesWindows = new Map();
   for (const e of events) {
@@ -338,9 +349,11 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       : request.target.kind === "WEEK" ? (request.expectedSeason - 1) * WEEKS_PER_SEASON + request.target.week - 1 + (request.target.week <= request.expectedWeek ? WEEKS_PER_SEASON : 0) : null;
     const steps: unknown[] = [];
     let stop: { reason: string; detail?: unknown } = { reason: "LIMIT" };
+    let deferred = false;
     for (let i = 0; i < MAX_WEEKS_PER_ADVANCE; i++) {
       const step = await stepWeek(actor, saveId);
       if (step.blocked) {
+        deferred = !!(step.summary as { deferred?: number } | null)?.deferred;
         const blocker = step.blocker;
         stop = blocker?.kind === "MONEY_MATCH"
           ? { reason: "MONEY_MATCH_PENDING", detail: { matchId: blocker.id } }
@@ -382,12 +395,49 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         .map(r => ({ name: String(r.name), circuit: String(r.circuit), tier: String(r.tier), champion: r.champion ? String(r.champion) : null, you: r.you === true }));
       const result = { operationKey: request.operationKey, from: { season: request.expectedSeason, week: request.expectedWeek },
         to: { season: Number(root.current_season), week: Number(root.current_week) }, stop, weeksPlayed: steps.length, steps, headlines };
+      if (deferred) setImmediate(() => { void catchUp(actor, saveId); });
       // Blocked advances are recorded (resumable from the same position); completed ones are final.
       await tx.execute(sql`UPDATE career_calendar_operations SET result = ${JSON.stringify(result)}::jsonb,
         completed_at = ${["HUMAN_MATCH_PENDING", "TEAM_MATCH_PENDING", "COUNTY_TRIAL_PENDING", "MONEY_MATCH_PENDING", "STREAM_PENDING", "LOCAL_COMPETITION_PENDING"].includes(stop.reason) ? null : sql`NOW()`}
         WHERE career_save_id = ${saveId} AND operation_key = ${request.operationKey} AND completed_at IS NULL`);
       return result;
     });
+  }
+  /**
+   * Plays this week's computer-only events after Play on has answered (it stopped for the player's own match and left
+   * them). Short transactions of a few events each, so screens opened meanwhile wait for at most one. Nothing depends on
+   * it finishing: the next week step plays whatever is still left, exactly as before.
+   */
+  async function catchUp(actor: CareerActor, saveId: string) {
+    if (catchingUp.has(saveId)) return;
+    catchingUp.add(saveId);
+    try {
+      const plan = await database.transaction(async tx => {
+        const { root } = await requireSeason(tx, actor, saveId);
+        const s = Number(root.current_season), w = Number(root.current_week);
+        const ids = (await tx.execute(sql`SELECT i.id FROM career_event_instances i WHERE i.career_save_id = ${saveId} AND i.season = ${s}
+            AND i.status = 'IN_PROGRESS' AND i.start_week <= ${w}
+            AND NOT EXISTS (SELECT 1 FROM career_event_entries e WHERE e.career_save_id = i.career_save_id AND e.event_id = i.id
+              AND e.participant_key = ${HUMAN} AND e.status <> 'WITHDRAWN')
+          ORDER BY i.start_day, i.instance_key`)).rows.map(r => String(r.id));
+        return { s, w, ids };
+      });
+      for (let i = 0; i < plan.ids.length; i += CATCH_UP_CHUNK) {
+        const chunk = plan.ids.slice(i, i + CATCH_UP_CHUNK);
+        const moved = await database.transaction(async tx => {
+          const { root, world: state } = await requireSeason(tx, actor, saveId);
+          if (Number(root.current_season) !== plan.s || Number(root.current_week) !== plan.w) return true;
+          const events = await loadInstances(tx, saveId, sql`season = ${plan.s} AND status = 'IN_PROGRESS'
+            AND id IN (${sql.join(chunk.map(id => sql`${id}::uuid`), sql`, `)})`);
+          if (events.length) await progressEvents(tx, root, state, events, lastDayOfWeek(plan.w), await bind(tx, root));
+          return false;
+        });
+        if (moved) break;
+      }
+    } catch (error) {
+      // Best effort only: the next week step plays anything left.
+      console.warn(`[career] background catch-up for ${saveId} stopped: ${(error as Error).message}`);
+    } finally { catchingUp.delete(saveId); }
   }
   /** A5: sporting status/seeding bound to this save's persisted state, after the root lock. Without A5 the A3 placeholders apply. */
   async function bind(tx: CareerExecutor, root: RootRow): Promise<CalendarProviders> {
@@ -477,13 +527,13 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
   async function meaningfulReasons(tx: CareerExecutor, root: RootRow, season: number, week: number) {
     const events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week = ${week}`);
     const human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
-    const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
+    const windows = seriesWindowsOf(await loadSeriesRows(tx, root.id, season));
     return reasonsFor(events, human, windows, season, week);
   }
 
   /** Calendar overview with next meaningful date, computed from one season load. */
   async function overview(tx: CareerExecutor, root: RootRow, seasonRow: Record<string, unknown>,
-    loaded?: { events: InstanceRow[]; human: HumanContext; windows: SeriesWindows }) {
+    loaded?: { events: InstanceRow[]; human: HumanContext; windows: SeriesWindows; throughWeek?: number }) {
     const season = Number(root.current_season), week = Number(root.current_week);
     const pending = (await tx.execute(sql`SELECT m.id, m.event_id FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id = m.career_save_id AND i.id = m.event_id
       WHERE m.career_save_id = ${root.id} AND m.status = 'AWAITING_HUMAN' AND i.season = ${season}`)).rows;
@@ -496,13 +546,23 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         if(g.pending?.pair.includes(HUMAN))pendingTournamentActions.push({eventId:e.id,kind:"GROUP_BULL_UP",group:g.key});
     }
     // The calendar read passes the current season's context it already loaded (one load, not two).
-    const events = loaded ? loaded.events.filter(e => e.start_week >= week) : await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
-    const human = loaded?.human ?? await loadHumanContext(tx, root, season, events, await bind(tx, root));
-    const windows = loaded?.windows ?? seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
+    let events = loaded ? loaded.events.filter(e => e.start_week >= week) : await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
+    let human = loaded?.human ?? await loadHumanContext(tx, root, season, events, await bind(tx, root));
+    const windows = loaded?.windows ?? seriesWindowsOf(await loadSeriesRows(tx, root.id, season));
     let next: { season: number; week: number; reasons: unknown[] } | null = null;
-    for (let w = week + 1; w <= WEEKS_PER_SEASON && !next; w++) {
+    // A read that loaded only the weeks just ahead looks there first; past them it falls back to the whole season.
+    const lastWeek = Math.min(WEEKS_PER_SEASON, loaded?.throughWeek ?? WEEKS_PER_SEASON);
+    for (let w = week + 1; w <= lastWeek && !next; w++) {
       const reasons = reasonsFor(events.filter(e => e.start_week === w), human, windows, season, w);
       if (reasons.length) next = { season, week: w, reasons };
+    }
+    if (!next && lastWeek < WEEKS_PER_SEASON) {
+      events = await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${week}`);
+      human = await loadHumanContext(tx, root, season, events, await bind(tx, root));
+      for (let w = lastWeek + 1; w <= WEEKS_PER_SEASON && !next; w++) {
+        const reasons = reasonsFor(events.filter(e => e.start_week === w), human, windows, season, w);
+        if (reasons.length) next = { season, week: w, reasons };
+      }
     }
     next ??= { season: season + 1, week: 1, reasons: [{ type: "SEASON_BOUNDARY" }] };
     const today = await todayOf(tx, root.id, season, week, pending.length);
@@ -588,7 +648,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
       if (plannedStream && (humanEventDay === null || Number(plannedStream.day) <= humanEventDay)) return { season: s, week: w, summary: null as unknown, blocked: true,
         blocker: { kind: "STREAM" as const, day: Number(plannedStream.day) } };
       if (Number(season.played_week) >= w) return { season: s, week: w, summary: null as unknown, blocked: false };
-      const summary = await playWeek(tx, root, state, s, w, await bind(tx, root));
+      const summary = await playWeek(tx, root, state, s, w, await bind(tx, root), { humanFirst: BACKGROUND_CATCH_UP });
       if (summary.awaitingHuman.length) return { season: s, week: w, summary, blocked: true };
       const clubMatchId = await playTeamNights(tx, root, s, w);
       if (clubMatchId) return { season: s, week: w, summary, blocked: true, blocker: { kind: "TEAM_MATCH" as const, id: clubMatchId } };
@@ -657,7 +717,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
   async function enterInTx(tx: CareerExecutor, root: RootRow, event: InstanceRow, travelChoice = "AUTO") {
     const season = Number(root.current_season);
     const siblings = event.series_key ? await loadInstances(tx, root.id, sql`season = ${event.season} AND series_key = ${event.series_key}`) : [event];
-    const all = await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`);
+    const all = await loadSeriesRows(tx, root.id, season);
     const human = await loadHumanContext(tx, root, season, siblings, await bind(tx, root));
     const view = humanView(event, human, seriesWindowsOf(all));
     if (view.denials.includes("ALREADY_ENTERED") && view.denials.length === 1) return { created: false, view };
@@ -801,11 +861,13 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const current = season === Number(root.current_season) && options.overview !== false;
         // Reuse the requested events when they already cover every week from now on (the whole-season and map reads).
         const coversAhead = (!q.fromWeek || q.fromWeek <= Number(root.current_week)) && (!q.toWeek || q.toWeek >= 52) && !q.circuit && !q.classification && !q.family && q.scope !== "FEATURED";
+        // Narrow reads load only the next few weeks for the overview (the whole rest of the season was most of their cost).
+        const throughWeek = coversAhead ? undefined : Number(root.current_week) + OVERVIEW_NEAR_WEEKS;
         const ahead = !current ? [] : coversAhead ? events.filter(e => e.start_week >= Number(root.current_week))
-          : await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${Number(root.current_week)}`);
+          : await loadInstances(tx, root.id, sql`season = ${season} AND start_week >= ${Number(root.current_week)} AND start_week <= ${throughWeek!}`);
         const seen = new Set(events.map(e => e.id));
         const human = await loadHumanContext(tx, root, season, [...events, ...ahead.filter(e => !seen.has(e.id))], await bind(tx, root));
-        const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${season} AND series_key IS NOT NULL`));
+        const windows = seriesWindowsOf(await loadSeriesRows(tx, root.id, season));
         // Scope filters run before the money previews (the costly part), so a filtered view only prices what it shows.
         const views = events.map(event => ({ event, human: humanView(event, human, windows) }));
         const shown = views.filter(({ human: h }) => q.scope === "MY_SCHEDULE" ? !!h && ["ENTERED", "CONFIRMED", "PLAYING", "COMPLETED", "WITHDRAWN"].includes(h.relationship)
@@ -828,7 +890,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
           ORDER BY COALESCE(scheduled_week,available_from_week),id`)).rows;
         // Lists leave out each event's travel choices (the event page loads them): a full season was ~12MB, a third of it these.
         const listed = rows.map(e => e.finance ? { ...e, finance: { ...(e.finance as Record<string, unknown>), travelOptions: undefined } } : e);
-        return { overview: options.overview === false ? null : await overview(tx, root, seasonRow, current ? { events: ahead, human, windows } : undefined), season, scope: q.scope, events: listed,
+        return { overview: options.overview === false ? null : await overview(tx, root, seasonRow, current ? { events: ahead, human, windows, throughWeek } : undefined), season, scope: q.scope, events: listed,
           sponsorActivities:[...sponsorCommitments,...sponsorOpportunities] };
       });
     },
@@ -839,7 +901,7 @@ export function createCareerCalendarService(database: CareerDatabase, options: {
         const { root } = await requireSeason(tx, actor, saveId, false);
         const event = await eventOwned(tx, root.id, eventId);
         const human = await loadHumanContext(tx, root, event.season, [event], await bind(tx, root));
-        const windows = seriesWindowsOf(await loadInstances(tx, root.id, sql`season = ${event.season} AND series_key IS NOT NULL`));
+        const windows = seriesWindowsOf(await loadSeriesRows(tx, root.id, event.season));
         const entries = (await tx.execute(sql`SELECT e.participant_key, e.participant_kind, e.npc_id, e.source, e.status, e.draw_seed, p.first_name, p.surname, p.nickname, p.nationality, p.tier
           FROM career_event_entries e LEFT JOIN career_world_players p ON p.career_save_id = e.career_save_id AND p.id = e.npc_id
           WHERE e.career_save_id = ${root.id} AND e.event_id = ${eventId} ORDER BY e.draw_seed NULLS LAST, e.participant_key`)).rows;

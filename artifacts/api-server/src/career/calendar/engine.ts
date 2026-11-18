@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { loadNpcs, persistNpcs } from "../world/repository.ts";
+import { teamNightCommitments } from "../club/team-service.ts";
 import { scopedRandom, stableUuid, normal } from "../world/random.ts";
 import { simulateMatchesInTransaction, type Root, type World } from "../world/service.ts";
 import type { Npc } from "../world/types.ts";
@@ -326,7 +327,17 @@ type FactsContext = {
   results: { SAME: Map<string, Map<string, number>>; PREVIOUS: Map<string, Map<string, number>> }; // participant -> definition -> best position
   champions: Map<string, Set<string>>;      // previous-season "definition:ordinal" -> champion participant keys
 };
+// Per transaction: a save's start date doesn't change inside one, and field locks ask for it once per event.
+const startDates = new WeakMap<object, Map<string, string>>();
 async function careerStartDateForSave(tx: CareerExecutor, saveId: string): Promise<string> {
+  const known = startDates.get(tx as object)?.get(saveId);
+  if (known) return known;
+  const value = await readCareerStartDate(tx, saveId);
+  if (!startDates.has(tx as object)) startDates.set(tx as object, new Map());
+  startDates.get(tx as object)!.set(saveId, value);
+  return value;
+}
+async function readCareerStartDate(tx: CareerExecutor, saveId: string): Promise<string> {
   const row = (await tx.execute(sql`SELECT COALESCE(to_char(p.career_start_date, 'YYYY-MM-DD'),
       to_char(date_trunc('year', s.created_at)::date, 'YYYY-MM-DD')) AS start_date
     FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId}`)).rows[0];
@@ -413,8 +424,20 @@ export function humanInvited(participant: { kind: "HUMAN" | "NPC"; rankings: Rec
   const rank = participant.rankings["pro-world"];
   return participant.kind === "HUMAN" && Number(event.event_database_version) >= 6 && !!policy && rank !== undefined && rank <= policy.count;
 }
-export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age, womenEligible: npc.worldKey.startsWith("women:"),
+const buildNpcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age, womenEligible: npc.worldKey.startsWith("women:"),
   professionalStatus: providers.sportingStatus.npcProfessionalStatus?.(npc) ?? npc.professionalStatus, tourCard: providers.sportingStatus.npcTourCard(npc), rankings: providers.sportingStatus.rankings(npc.id) });
+/**
+ * An NPC's facts don't depend on the event, and every field lock of a week used to rebuild them for every NPC (about
+ * 2,000 NPCs x ~90 events a week). Cached per NPC object (NPCs are reloaded each week) and per providers binding.
+ */
+const participantCache = new WeakMap<Npc, { providers: CalendarProviders; value: ReturnType<typeof buildNpcParticipant> }>();
+export const npcParticipant = (npc: Npc, providers: CalendarProviders) => {
+  const hit = participantCache.get(npc);
+  if (hit && hit.providers === providers) return hit.value;
+  const value = buildNpcParticipant(npc, providers);
+  participantCache.set(npc, { providers, value });
+  return value;
+};
 export const humanParticipant = (root: RootRow, providers: CalendarProviders) => {
   const profile = providers.sportingStatus.human(root);
   return { key: HUMAN, kind: "HUMAN" as const, country: profile.country, zone: profile.zone, locality: profile.locality,
@@ -446,13 +469,26 @@ function bookingsInsert(saveId: string, season: number, event: InstanceRow, part
   return sql`INSERT INTO career_participant_bookings (career_save_id, season, participant_key, day, event_id)
     SELECT ${saveId}::uuid, ${season}, b.participant_key, b.day, ${event.id}::uuid FROM jsonb_to_recordset(${JSON.stringify(rows)}::jsonb) AS b(participant_key text, day integer)`;
 }
+// Per transaction and season: which events sit in an exclusive group (snapshots never change), so each lock reads
+// entries by id instead of scanning every event's snapshot JSON.
+const exclusiveEvents = new WeakMap<object, Map<string, { id: string; key: string; variant: string }[]>>();
 async function exclusiveConflicts(tx: CareerExecutor, saveId: string, event: InstanceRow): Promise<Set<string>> {
   const group = event.snapshot.exclusiveGroup;
   if (!group) return new Set();
-  return new Set((await tx.execute(sql`SELECT DISTINCT e.participant_key FROM career_event_entries e JOIN career_event_instances i
-      ON i.career_save_id = e.career_save_id AND i.id = e.event_id
-    WHERE e.career_save_id = ${saveId} AND i.season = ${event.season} AND e.status <> 'WITHDRAWN'
-      AND i.snapshot->'exclusiveGroup'->>'key' = ${group.key} AND i.snapshot->'exclusiveGroup'->>'variant' <> ${group.variant}`)).rows.map(row => String(row.participant_key)));
+  const cacheKey = `${saveId}:${event.season}`;
+  let grouped = exclusiveEvents.get(tx as object)?.get(cacheKey);
+  if (!grouped) {
+    grouped = (await tx.execute(sql`SELECT id, snapshot->'exclusiveGroup'->>'key' AS key, snapshot->'exclusiveGroup'->>'variant' AS variant
+      FROM career_event_instances WHERE career_save_id = ${saveId} AND season = ${event.season} AND snapshot ? 'exclusiveGroup'
+        AND snapshot->'exclusiveGroup'->>'key' IS NOT NULL`)).rows.map(r => ({ id: String(r.id), key: String(r.key), variant: String(r.variant) }));
+    if (!exclusiveEvents.has(tx as object)) exclusiveEvents.set(tx as object, new Map());
+    exclusiveEvents.get(tx as object)!.set(cacheKey, grouped);
+  }
+  const others = grouped.filter(g => g.key === group.key && g.variant !== group.variant && g.variant !== "null").map(g => g.id);
+  if (!others.length) return new Set();
+  return new Set((await tx.execute(sql`SELECT DISTINCT participant_key FROM career_event_entries
+    WHERE career_save_id = ${saveId} AND status <> 'WITHDRAWN'
+      AND event_id IN (${sql.join(others.map(id => sql`${id}::uuid`), sql`, `)})`)).rows.map(row => String(row.participant_key)));
 }
 export { exclusiveConflicts };
 
@@ -460,13 +496,36 @@ export { exclusiveConflicts };
  * Players contracted to a multi-day series (a Premier League's nights, a Q-School stage): everyone in the series'
  * day-1 field is committed to its later days, so other events on those days cannot take them, as in real life.
  */
+// Per transaction and season: every later series day's dates (the schedule doesn't move), so events that overlap none skip the query.
+const seriesLaterDays = new WeakMap<object, Map<string, { key: string; start: number; end: number }[]>>();
 async function seriesCommitments(tx: CareerExecutor, saveId: string, event: InstanceRow): Promise<string[]> {
+  const cacheKey = `${saveId}:${event.season}`;
+  let days = seriesLaterDays.get(tx as object)?.get(cacheKey);
+  if (!days) {
+    days = (await tx.execute(sql`SELECT series_key, start_day, end_day FROM career_event_instances
+      WHERE career_save_id = ${saveId} AND season = ${event.season} AND series_key IS NOT NULL AND series_day > 1`)).rows
+      .map(r => ({ key: String(r.series_key), start: Number(r.start_day), end: Number(r.end_day) }));
+    if (!seriesLaterDays.has(tx as object)) seriesLaterDays.set(tx as object, new Map());
+    seriesLaterDays.get(tx as object)!.set(cacheKey, days);
+  }
+  if (!days.some(d => d.key !== event.series_key && d.start <= Number(event.end_day) && d.end >= Number(event.start_day))) return [];
   // Series with a later day overlapping this event (few rows), then their day-1 fields.
   const series = (await tx.execute(sql`SELECT DISTINCT series_key FROM career_event_instances
     WHERE career_save_id = ${saveId} AND season = ${event.season} AND series_key IS NOT NULL AND series_day > 1
       AND series_key IS DISTINCT FROM ${event.series_key}::text AND status NOT IN ('COMPLETED','CANCELLED')
       AND start_day <= ${event.end_day}::int AND end_day >= ${event.start_day}::int`)).rows.map(row => String(row.series_key));
   if (!series.length) return [];
+  // Day-1 fields only change when a first day locks (lockField forgets these then), so the same series set is read once.
+  const fieldsKey = `${saveId}:${event.season}:${[...series].sort().join("|")}`;
+  const fields = seriesFields.get(tx as object)?.get(fieldsKey);
+  if (fields) return fields;
+  const read = await readSeriesFields(tx, saveId, event, series);
+  if (!seriesFields.has(tx as object)) seriesFields.set(tx as object, new Map());
+  seriesFields.get(tx as object)!.set(fieldsKey, read);
+  return read;
+}
+const seriesFields = new WeakMap<object, Map<string, string[]>>();
+async function readSeriesFields(tx: CareerExecutor, saveId: string, event: InstanceRow, series: string[]): Promise<string[]> {
   return (await tx.execute(sql`SELECT DISTINCT e.participant_key FROM career_event_instances d1 JOIN career_event_entries e
       ON e.career_save_id = d1.career_save_id AND e.event_id = d1.id
     WHERE d1.career_save_id = ${saveId} AND d1.season = ${event.season} AND d1.series_day = 1
@@ -545,7 +604,14 @@ type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; np
  * bookings and consumed entitlements once; the instance then leaves
  * REGISTRATION_CLOSED so this can never run twice for the same event.
  */
-export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload): Promise<{ locked: boolean; entrants: number }> {
+export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload,
+  committed?: ReadonlyMap<number, ReadonlySet<string>>): Promise<{ locked: boolean; entrants: number }> {
+  try { return await lockFieldOnce(tx, root, event, npcs, providers, week, pre, committed); }
+  // A series' first day sets who is committed to its later days: forget the remembered commitments once one locks.
+  finally { if (event.series_key && Number(event.series_day) === 1) seriesFields.delete(tx as object); }
+}
+async function lockFieldOnce(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload,
+  committed?: ReadonlyMap<number, ReadonlySet<string>>): Promise<{ locked: boolean; entrants: number }> {
   const saveId = root.id, snapshot = event.snapshot;
   if (pre && pre.season !== event.season) throw new Error("Lock preload is for another season");
   const eventDays = event.snapshot.format.structure === "LEAGUE" ? playingDays(event) : Array.from({ length: event.end_day - event.start_day + 1 }, (_, i) => event.start_day + i);
@@ -553,6 +619,9 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     : await bookedParticipants(tx, saveId, event.season, event.start_day, event.end_day);
   const excluded = await exclusiveConflicts(tx, saveId, event);
   for (const key of await seriesCommitments(tx, saveId, event)) excluded.add(key);
+  // Club regulars are committed to their league nights (see teamNightCommitments), including future nights a
+  // league-format event would book.
+  if (committed?.size) for (const day of eventDays) for (const key of committed.get(day) ?? []) excluded.add(key);
   const existing = pre ? pre.entries.get(event.id) ?? [] : (await tx.execute(sql`SELECT * FROM career_event_entries WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`)).rows;
   const taken = new Set(existing.map(row => String(row.participant_key)));
   const capacity = event.field_size;
@@ -563,7 +632,14 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   const add = (npc: Npc, source: string, entitlementId: string | null = null) => {
     taken.add(npc.id); additions.push({ participant_key: npc.id, participant_kind: "NPC", npc_id: npc.id, source, entitlement_id: entitlementId, tier: npc.tier });
   };
-  const eligible = (npc: Npc, invited = false) => evaluate(event, factsFor(npcParticipant(npc, providers), ctx, event, invited)).eligible;
+  // Several steps below ask about the same NPC; each answer is computed once per lock.
+  const eligibleMemo = new Map<string, boolean>();
+  const eligible = (npc: Npc, invited = false) => {
+    const key = invited ? `i:${npc.id}` : npc.id;
+    let answer = eligibleMemo.get(key);
+    if (answer === undefined) eligibleMemo.set(key, answer = evaluate(event, factsFor(npcParticipant(npc, providers), ctx, event, invited)).eligible);
+    return answer;
+  };
   const byId = new Map(npcs.map(npc => [npc.id, npc]));
   const tierOf = (npc: Npc) => providers.sportingStatus.selectionTier?.(npc) ?? npc.tier;
 
@@ -987,6 +1063,8 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
   let live = events.filter(e => e.status === "IN_PROGRESS").sort((a, b) => a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
   let simulated = 0, completed = 0;
   let awaiting: MatchRow[] = [];
+  // NPCs are loaded once and their form carried from round to round in memory; written once at the end.
+  const npcCache = new Map<string, Npc>(), touched = new Set<string>();
   for (let guard = 0; guard < 60 && live.length; guard++) {
     let structureChanged = false;
     const ids = live.map(e => sql`${e.id}::uuid`);
@@ -1057,7 +1135,9 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       if (!slotUpdates.length && !walkovers.length && !finishedEvents.length && !structureChanged) break;
       continue;
     }
-    const npcs = new Map((await loadNpcs(tx, root.id, { ids: [...new Set(npcReady.flatMap(r => [r.match.a_key!, r.match.b_key!]))] })).map(n => [n.id, n]));
+    const wanted = [...new Set(npcReady.flatMap(r => [r.match.a_key!, r.match.b_key!]))].filter(id => !npcCache.has(id));
+    if (wanted.length) for (const n of await loadNpcs(tx, root.id, { ids: wanted })) npcCache.set(n.id, n);
+    const npcs = npcCache;
     const pairEvents = [...new Set(npcReady.filter(r => r.event.snapshot.format.sideSize === 2).map(r => r.event.id))];
     const teams = await loadPairs(tx, root.id, pairEvents);
     const partnerOf = (eventId: string, captain: string) => {
@@ -1074,7 +1154,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
         format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow),
         ...(event.snapshot.format.sideSize === 2 ? { partners: [partnerOf(event.id, m.a_key!), partnerOf(event.id, m.b_key!)] as [string, string] } : {}) };
     });
-    const results = await simulateMatchesInTransaction(tx, root, world, requests, { record: false });
+    const results = await simulateMatchesInTransaction(tx, root, world, requests, { record: false, players: npcCache, touched });
     simulated += results.length;
     const done = npcReady.map(({ event, match: m }, i) => {
       const r = results[i];
@@ -1097,6 +1177,8 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
         first_throw_detail jsonb, simulated_match_key text, summary jsonb)
       WHERE t.career_save_id = ${root.id} AND t.id = d.id AND t.status = 'PENDING'`);
   }
+  // Every NPC that played this call has its form written once (an error rolls the whole transaction back).
+  if (touched.size) await persistNpcs(tx, root.id, [...touched].map(id => npcCache.get(id)!));
   return { completed, awaitingHuman: awaiting, simulated };
 }
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -1329,17 +1411,21 @@ export const lastDayOfWeek = (week: number) => week * DAYS_PER_WEEK;
  * cancel unsupported/unfillable events explicitly, draw, then progress every live
  * tournament through rounds scheduled up to the end of the week.
  */
-export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, season: number, week: number, providers: CalendarProviders) {
+export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, season: number, week: number, providers: CalendarProviders,
+  options: { humanFirst?: boolean } = {}) {
   if (week < 1 || week > WEEKS_PER_SEASON) throw new CareerError(409, "Week outside season");
   await openRegistrations(tx, root.id, season, week);
   await providers.finance?.beforeWeek(tx, root, season, week);
   const starting = (await loadInstances(tx, root.id, sql`season = ${season} AND start_week = ${week} AND status IN ('REGISTRATION_OPEN','REGISTRATION_CLOSED','DRAW_PENDING')`))
     // Priority first; within a priority, earlier days first (so series day 1 locks before later days copy it).
     .sort((a, b) => b.calendar_priority - a.calendar_priority || a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
-  const summary = { week, locked: 0, cancelledUnsupported: 0, cancelledUnfilled: 0, drawn: 0, completed: 0, simulatedMatches: 0, awaitingHuman: [] as string[] };
+  const summary = { week, locked: 0, cancelledUnsupported: 0, cancelledUnfilled: 0, drawn: 0, completed: 0, simulatedMatches: 0, awaitingHuman: [] as string[], deferred: 0 };
   const npcs = starting.length ? await loadNpcs(tx, root.id, { activeOnly: true }) : [];
+  const committed = npcs.length ? await teamNightCommitments(tx, root, season, week, npcs) : undefined;
   // Close every starting event's registration in one write (each row's transition is still checked).
   await closeRegistrations(tx, starting);
+  // Each lock pass starts from fresh reads (play and calendar upkeep between passes can change them).
+  seriesFields.delete(tx as object); seriesLaterDays.delete(tx as object); exclusiveEvents.delete(tx as object);
   const pre = starting.some(e => e.status === "REGISTRATION_CLOSED" && e.executable) ? await preloadLocks(tx, root.id, season, starting) : undefined;
   for (const event of starting) {
     if (event.status === "REGISTRATION_CLOSED") {
@@ -1351,7 +1437,7 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
         summary.cancelledUnsupported++;
         continue;
       }
-      const lock = await lockField(tx, root, event, npcs, providers, week, pre);
+      const lock = await lockField(tx, root, event, npcs, providers, week, pre, committed);
       if (!lock.locked) { summary.cancelledUnfilled++; continue; }
       summary.locked++;
     }
@@ -1360,8 +1446,22 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
   const toDraw = starting.filter(e => e.status === "DRAW_PENDING");
   await makeDraws(tx, root, toDraw, providers);
   summary.drawn += toDraw.length;
-  const live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
-  const progress = await progressEvents(tx, root, world, live, lastDayOfWeek(week), providers);
+  let live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
+  let progress: Awaited<ReturnType<typeof progressEvents>> | null = null;
+  if (options.humanFirst && live.length) {
+    // The player's own events first: if one stops for their match, answer now and leave the computer-only events
+    // to catchUpWeek (run straight after, while they play). Anything still left is played by the next step as before.
+    const mineIds = new Set((await tx.execute(sql`SELECT event_id FROM career_event_entries WHERE career_save_id = ${root.id}
+      AND participant_key = ${HUMAN} AND status <> 'WITHDRAWN' AND event_id IN (${sql.join(live.map(e => sql`${e.id}::uuid`), sql`, `)})`)).rows.map(r => String(r.event_id)));
+    const mine = live.filter(e => mineIds.has(e.id));
+    if (mine.length && mine.length < live.length) {
+      const first = await progressEvents(tx, root, world, mine, lastDayOfWeek(week), providers);
+      if (first.awaitingHuman.length) { progress = first; live = mine; summary.deferred = 1; }
+      else live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
+      if (!progress) { summary.simulatedMatches += first.simulated; summary.completed += first.completed; }
+    }
+  }
+  progress ??= await progressEvents(tx, root, world, live, lastDayOfWeek(week), providers);
   summary.simulatedMatches += progress.simulated;
   summary.completed += progress.completed;
   summary.awaitingHuman.push(...progress.awaitingHuman.map(m => m.id));

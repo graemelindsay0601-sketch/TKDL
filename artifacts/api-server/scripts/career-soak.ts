@@ -12,7 +12,8 @@
  *
  * Usage (DATABASE_URL must point at a dev database; it creates saves):
  *   node scripts/career-soak.ts [weeks=60] [focus=OPEN_SCHEDULE] [playerId] [saveId to continue an existing save]
- * Env: WIN_RATE (0.5), STREAM_RATE (0.25 of weeks; creators always), SEED (random), LOG (path for the week log).
+ * Env: WIN_RATE (0.5), STREAM_RATE (0.25 of weeks; creators always), SEED (random), LOG (path for the week log),
+ *   SOAK_HOME (home area key, default ayrshire).
  */
 import { sql } from "drizzle-orm";
 import { createRequire } from "node:module";
@@ -64,8 +65,10 @@ const msg = (e: unknown) => (e as Error)?.message?.split("\n")[0]?.slice(0, 200)
 async function act<T>(what: string, fn: () => Promise<T>, expected: RegExp[] = []): Promise<T | undefined> {
   try { return await fn(); } catch (e) { if (!expected.some(r => r.test(msg(e)))) find("error", `${what}: ${msg(e)}`); else log(`  (${what}: ${msg(e)})`); return undefined; }
 }
+const times = new Map<string, number[]>();
+const note = (what: string, ms: number) => { const l = times.get(what) ?? []; l.push(ms); times.set(what, l); };
 async function timed<T>(what: string, fn: () => Promise<T>, limitMs = 2000): Promise<T | undefined> {
-  const t = Date.now(); const r = await act(what, fn); const ms = Date.now() - t;
+  const t = Date.now(); const r = await act(what, fn); const ms = Date.now() - t; note(what, ms);
   if (ms > limitMs) find("slow", `${what} took ${ms} ms`);
   return r;
 }
@@ -112,7 +115,8 @@ if (!saveId) {
   const used = new Set((await db.execute(sql`SELECT slot_number FROM career_saves WHERE player_id = ${playerId} AND status = 'ACTIVE'`)).rows.map(r => Number(r.slot_number)));
   const slot = [1, 2, 3].find(s => !used.has(s));
   if (!slot) throw new Error("No free Career slot for this player");
-  const save = await saves.create(playerId, { slot, careerName: `Soak ${focus.toLowerCase()} ${startSeed}`, dateOfBirth: "1998-04-02" });
+  // A home area gives the save a club (team nights, club knockouts, local competitions); SOAK_HOME= picks another one.
+  const save = await saves.create(playerId, { slot, careerName: `Soak ${focus.toLowerCase()} ${startSeed}`, dateOfBirth: "1998-04-02", homeLocality: process.env.SOAK_HOME ?? "ayrshire" });
   saveId = save.id;
   await sporting.initialize(actor, saveId);
   if (focus !== "OPEN_SCHEDULE") await goals.focus(actor, saveId, { focus });
@@ -284,10 +288,16 @@ for (let i = 0; i < weeks; i++) {
   for (let step = 0; step < 40; step++) {
     const now = await saves.read(playerId, id);
     if (now.currentWeek !== root.currentWeek || now.currentSeason !== root.currentSeason) { moved = true; break; }
+    const advanceStarted = Date.now();
     const r = await act("advance", () => sporting.calendar.advance(actor, id, { operationKey: `soak-${startSeed}-${i}-${step}`, expectedSeason: now.currentSeason, expectedWeek: now.currentWeek,
       target: { kind: "WEEKS", weeks: 1 } })) as { stop: { reason: string; detail?: Record<string, unknown> } } | undefined;
+    note(r && !["TARGET_REACHED", "LIMIT", "MEANINGFUL_DATE", "SEASON_BOUNDARY"].includes(r.stop.reason) ? "advance (stops for your match)" : "advance (whole week)", Date.now() - advanceStarted);
     if (!r) break;
-    if (!["TARGET_REACHED", "LIMIT", "MEANINGFUL_DATE", "SEASON_BOUNDARY"].includes(r.stop.reason)) await resolve(r.stop, now);
+    if (!["TARGET_REACHED", "LIMIT", "MEANINGFUL_DATE", "SEASON_BOUNDARY"].includes(r.stop.reason)) {
+      // A real player takes minutes over a match; SOAK_THINK_MS stands in for that.
+      if (process.env.SOAK_THINK_MS) await new Promise(r => setTimeout(r, Number(process.env.SOAK_THINK_MS)));
+      await resolve(r.stop, now);
+    }
   }
   if (!moved) {
     const now = await saves.read(playerId, id);
@@ -302,6 +312,8 @@ for (const f of findings) kinds.set(f.kind, [...(kinds.get(f.kind) ?? []), f]);
 console.log(`\n${weeks} weeks · ${stats.entries} entries · ${stats.matches} matches · ${stats.streams} streams · ${stats.moneyMatches} money matches · ${stats.localNights} local nights · ${stats.sponsorsSigned} sponsors signed · ${stats.appearancesBooked} appearances booked`);
 console.log(`blockers resolved: ${JSON.stringify(stats.blockers)}`);
 console.log(`balance £${((await balance()) / 100).toFixed(0)} · path ${end?.path.label}: ${end?.path.done}/${end?.path.total} (${end?.path.current?.title ?? "complete"})`);
+for (const [what, l] of [...times].sort()) { const v = [...l].sort((a, b) => a - b);
+  console.log(`time ${what}: n=${v.length} median ${v[Math.floor(v.length / 2)]} ms, p90 ${v[Math.floor(v.length * 0.9)]} ms, total ${Math.round(v.reduce((a, b) => a + b, 0) / 1000)} s`); }
 console.log(findings.length ? `\nFINDINGS (${findings.length}):` : "\nNo findings.");
 for (const [k, list] of kinds) {
   const distinct = [...new Map(list.map(f => [f.detail.replace(/[0-9a-f-]{36}/g, ":id").replace(/\d+ ms/, "N ms"), f])).values()];

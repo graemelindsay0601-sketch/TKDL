@@ -152,15 +152,24 @@ export async function standingsAt(tx: CareerExecutor, root: RootRow, rulesVersio
 export async function publishRankings(tx: CareerExecutor, root: RootRow, rulesVersion: number, season: number, week: number, force: boolean) {
   const P = timeIndex(season, week);
   const published: string[] = [];
-  for (const list of rankingListsFor(rulesVersion)) {
-    if ((await tx.execute(sql`SELECT 1 FROM career_ranking_snapshots WHERE career_save_id = ${root.id} AND list_key = ${list.key} AND publication_index = ${P}`)).rows.length) continue;
-    const last = (await tx.execute(sql`SELECT sequence, publication_index FROM career_ranking_snapshots WHERE career_save_id = ${root.id} AND list_key = ${list.key}
-      ORDER BY sequence DESC LIMIT 1`)).rows[0];
-    const lastP = last ? Number(last.publication_index) : 0;
-    const changes = (await tx.execute(sql`SELECT COUNT(*) FILTER (WHERE completion_index > ${lastP} AND completion_index <= ${P})::int AS added,
-        COUNT(*) FILTER (WHERE expires_index > ${lastP} AND expires_index <= ${P} AND completion_index <= ${lastP})::int AS expired
-      FROM career_ranking_contributions WHERE career_save_id = ${root.id} AND list_key = ${list.key} AND (completion_index > ${lastP} OR expires_index > ${lastP})`)).rows[0];
-    const added = Number(changes.added), expired = Number(changes.expired);
+  const lists = rankingListsFor(rulesVersion);
+  // Every list's state in one round trip (lists are independent: publishing one never changes another's rows).
+  const states = lists.length ? new Map((await tx.execute(sql`SELECT l.key, l.ord,
+      EXISTS (SELECT 1 FROM career_ranking_snapshots s WHERE s.career_save_id = ${root.id} AND s.list_key = l.key AND s.publication_index = ${P}) AS done,
+      last.sequence, last.publication_index, ch.added, ch.expired
+    FROM (VALUES ${sql.join(lists.map((list, i) => sql`(${list.key}::text, ${i}::int)`), sql`, `)}) AS l(key, ord)
+    LEFT JOIN LATERAL (SELECT sequence, publication_index FROM career_ranking_snapshots
+      WHERE career_save_id = ${root.id} AND list_key = l.key ORDER BY sequence DESC LIMIT 1) last ON true
+    LEFT JOIN LATERAL (SELECT COUNT(*) FILTER (WHERE completion_index > COALESCE(last.publication_index, 0) AND completion_index <= ${P})::int AS added,
+        COUNT(*) FILTER (WHERE expires_index > COALESCE(last.publication_index, 0) AND expires_index <= ${P} AND completion_index <= COALESCE(last.publication_index, 0))::int AS expired
+      FROM career_ranking_contributions WHERE career_save_id = ${root.id} AND list_key = l.key
+        AND (completion_index > COALESCE(last.publication_index, 0) OR expires_index > COALESCE(last.publication_index, 0))) ch ON true`)).rows
+    .map(r => [String(r.key), r])) : new Map();
+  for (const list of lists) {
+    const state = states.get(list.key)!;
+    if (state.done) continue;
+    const last = state.sequence === null || state.sequence === undefined ? undefined : { sequence: state.sequence, publication_index: state.publication_index };
+    const added = Number(state.added), expired = Number(state.expired);
     if (!added && !expired && !(force && last)) continue;
     await publishList(tx, root, rulesVersion, list, season, week, P, (last ? Number(last.sequence) : 0) + 1, added, expired, added || expired ? "RESULTS" : "SEASON_REVIEW");
     published.push(list.key);
