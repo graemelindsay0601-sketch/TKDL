@@ -456,6 +456,23 @@ async function exclusiveConflicts(tx: CareerExecutor, saveId: string, event: Ins
 }
 export { exclusiveConflicts };
 
+/**
+ * Players contracted to a multi-day series (a Premier League's nights, a Q-School stage): everyone in the series'
+ * day-1 field is committed to its later days, so other events on those days cannot take them, as in real life.
+ */
+async function seriesCommitments(tx: CareerExecutor, saveId: string, event: InstanceRow): Promise<string[]> {
+  // Series with a later day overlapping this event (few rows), then their day-1 fields.
+  const series = (await tx.execute(sql`SELECT DISTINCT series_key FROM career_event_instances
+    WHERE career_save_id = ${saveId} AND season = ${event.season} AND series_key IS NOT NULL AND series_day > 1
+      AND series_key IS DISTINCT FROM ${event.series_key}::text AND status NOT IN ('COMPLETED','CANCELLED')
+      AND start_day <= ${event.end_day}::int AND end_day >= ${event.start_day}::int`)).rows.map(row => String(row.series_key));
+  if (!series.length) return [];
+  return (await tx.execute(sql`SELECT DISTINCT e.participant_key FROM career_event_instances d1 JOIN career_event_entries e
+      ON e.career_save_id = d1.career_save_id AND e.event_id = d1.id
+    WHERE d1.career_save_id = ${saveId} AND d1.season = ${event.season} AND d1.series_day = 1
+      AND d1.series_key IN (${sql.join(series.map(k => sql`${k}`), sql`, `)}) AND e.status = 'CONFIRMED' AND e.participant_kind = 'NPC'`)).rows.map(row => String(row.participant_key));
+}
+
 // ------------------------------------------------------------------ week preload (batched field locks)
 /**
  * What every field lock of one week reads, loaded once and kept current in memory as each event locks
@@ -535,6 +552,7 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   const booked = pre ? bookedFrom(pre, eventDays) : event.snapshot.format.structure === "LEAGUE" ? await bookedOnDays(tx, saveId, event.season, eventDays)
     : await bookedParticipants(tx, saveId, event.season, event.start_day, event.end_day);
   const excluded = await exclusiveConflicts(tx, saveId, event);
+  for (const key of await seriesCommitments(tx, saveId, event)) excluded.add(key);
   const existing = pre ? pre.entries.get(event.id) ?? [] : (await tx.execute(sql`SELECT * FROM career_event_entries WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`)).rows;
   const taken = new Set(existing.map(row => String(row.participant_key)));
   const capacity = event.field_size;
@@ -585,9 +603,11 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     for (const npc of weightedSample(pool, npc => 0.05 + tierWeight(snapshot.npcTierWeights, npc, tierOf), capacity - taken.size, exemptRng)) add(npc, "SELECTION");
   }
   const rng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "field", event.season, event.instance_key);
-  // Later days of a series copy day 1; anyone from day 1 booked elsewhere is replaced from the eligible pool.
+  // Later days of a series copy day 1. Anyone from day 1 who cannot play is replaced for that day only from the
+  // eligible pool; for an invitation series that is a one-night "contender", favouring players local to the venue
+  // (as the 2019 Premier League replaced an absent player).
   if (snapshot.fieldPolicy === "SERIES_FIRST_DAY" && !qSchoolFinal && taken.size < capacity) {
-    const pool = npcs.filter(npc => npc.status === "ACTIVE" && free(npc) && eligible(npc));
+    const pool = npcs.filter(npc => npc.status === "ACTIVE" && free(npc) && eligible(npc, true));
     const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
     const seriesRng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "series-top-up", event.season, event.instance_key);
     for (const npc of weightedSample(pool, npc => Math.max(0.01, tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc)),
@@ -667,6 +687,15 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
       }
     }
   }
+  // Still short of a qualified field? Real tours call up the reserve list rather than run a short draw:
+  // - a Tour Card event tops up from the Challenger Series ranking (as Players Championships take Challenge Tour
+  //   players when fewer than 128 card holders enter), then the strongest non-card players;
+  // - a ranking-qualified event takes the next players down the qualifying ranking (PDC rule 3.7: a withdrawn
+  //   qualifier is replaced by the next non-qualified player on the Order of Merit).
+  if (!pairs && taken.size < capacity && snapshot.fieldPolicy === "SELECTION" && !snapshot.invitationPolicy) {
+    for (const npc of reserveList(event, npcs.filter(npc => npc.status === "ACTIVE" && free(npc)), npc => factsFor(npcParticipant(npc, providers), ctx, event), tierOf,
+      capacity - taken.size)) add(npc, "SELECTION");
+  }
   if (pairs && snapshot.format.pairing === "LOCAL") {
     const order = [...existing.map(row => String(row.participant_key)), ...additions.map(a => a.participant_key)];
     const human = humanParticipant(root, providers);
@@ -717,6 +746,40 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
 export const runsWith = (event: Pick<InstanceRow, "event_database_version" | "minimum_entrants" | "snapshot">) =>
   event.event_database_version >= GUEST_TOP_UP_FROM && !isGroupedStructure(event.snapshot.format.structure)
     ? Math.min(event.minimum_entrants, event.snapshot.format.sideSize === 2 ? 4 : 2) : event.minimum_entrants;
+
+const TIER_STRENGTH: Record<string, number> = { ELITE: 4, PROFESSIONAL: 3, AMATEUR: 2, GRASSROOTS: 1 };
+function rulesOf(rule: Rule): Rule[] {
+  if ("all" in rule) return rule.all.flatMap(rulesOf);
+  if ("any" in rule) return rule.any.flatMap(rulesOf);
+  if ("not" in rule) return [];
+  return [rule];
+}
+function relaxRankings(rule: Rule): Rule {
+  if ("all" in rule) return { all: rule.all.map(relaxRankings) } as Rule;
+  if ("any" in rule) return { any: rule.any.map(relaxRankings) } as Rule;
+  if ("type" in rule && rule.type === "RANKING") return { ...rule, maxPosition: Number.MAX_SAFE_INTEGER };
+  return rule;
+}
+/** The reserve list for a short qualified field, best first (see lockField). Pure; exported for tests. */
+export function reserveList(event: InstanceRow, pool: readonly Npc[], facts: (npc: Npc) => ParticipantFacts, tierOf: (npc: Npc) => string, count: number): Npc[] {
+  if (count <= 0) return [];
+  const rules = rulesOf(event.snapshot.eligibility);
+  const strength = (npc: Npc) => TIER_STRENGTH[tierOf(npc)] ?? 0;
+  const byStrength = (a: Npc, b: Npc) => strength(b) - strength(a) || (a.id < b.id ? -1 : 1);
+  if (rules.some(r => "type" in r && r.type === "TOUR_CARD")) {
+    const candidates = pool.map(npc => ({ npc, f: facts(npc) })).filter(({ f }) => f.tourCard !== true);
+    const ranked = candidates.filter(c => c.f.rankings.challenger !== undefined).sort((a, b) => a.f.rankings.challenger - b.f.rankings.challenger);
+    const rest = candidates.filter(c => c.f.rankings.challenger === undefined).map(c => c.npc).sort(byStrength);
+    return [...ranked.map(c => c.npc), ...rest].slice(0, count);
+  }
+  const ranking = rules.find((r): r is Extract<Rule, { type: "RANKING" }> => "type" in r && r.type === "RANKING");
+  if (!ranking) return [];
+  const relaxed = relaxRankings(event.snapshot.eligibility);
+  return pool.map(npc => ({ npc, f: facts(npc) }))
+    .filter(({ f }) => f.rankings[ranking.list] !== undefined && evaluateRule(relaxed, f).eligible)
+    .sort((a, b) => a.f.rankings[ranking.list] - b.f.rankings[ranking.list] || (a.npc.id < b.npc.id ? -1 : 1))
+    .slice(0, count).map(c => c.npc);
+}
 
 /** Substitutes make up any open selection field (not invitation or national-team fields) to capacity, on every save. */
 export const substitutesApply = (event: InstanceRow) => event.snapshot.fieldPolicy === "SELECTION" && !event.snapshot.invitationPolicy
