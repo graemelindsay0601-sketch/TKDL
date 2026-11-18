@@ -1,4 +1,6 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
+import { AchievementsShelf } from "@/components/achievements-v2/AchievementsShelf";
+import { useAchievementsV2Status } from "@/components/achievements-v2/api";
 import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
@@ -90,6 +92,7 @@ export default function PlayerDetail() {
   const [achFilter, setAchFilter] = useState<"all" | "unlocked" | "locked" | "close">("all");
   const [achTab, setAchTab] = useState<"all" | "league" | "m501" | "bot" | "tour">("league");
   const [showAllAch, setShowAllAch] = useState(false);
+  const v2Live = useAchievementsV2Status();
   const [openAchievements, setOpenAchievements] = useState(true);
 
   const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot" | "stats">("matches");
@@ -1825,12 +1828,15 @@ export default function PlayerDetail() {
         <SeasonRecapModal playerId={playerId} seasonId={recapSeasonId} playerName={player.name} onClose={() => setRecapSeasonId(null)} />
       )}
 
-      {/* ══ ACHIEVEMENTS ══ */}
+      {/* ══ ACHIEVEMENTS (new) — shows only once live, or for an admin preview ══ */}
+      <AchievementsShelf playerId={playerId} />
+
+      {/* ══ ACHIEVEMENTS (the old badges; Classics once the new ones are live) ══ */}
       <div>
         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <div>
-              <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Achievements</h2>
+              <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{v2Live ? "Classics" : "Achievements"}</h2>
               <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
                 <span style={{ color: "#ffd24a" }}>{unlockedCount}</span> unlocked ·{" "}
                 <span style={{ color: "#a855f7" }}>{closeCount}</span> within reach
