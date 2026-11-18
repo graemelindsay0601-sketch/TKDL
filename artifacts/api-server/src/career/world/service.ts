@@ -10,7 +10,7 @@ import { geographicalIdentities, geographicalIdentitiesV3 } from "./geographical
 import { worldExpansion } from "./expansion.ts";
 import { teamComposite } from "./team.ts";
 import { loadNpcs, persistNpcs, presentNpc } from "./repository.ts";
-import { matchContextSchema, matchFormatSchema, type SimulatedMatch } from "./types.ts";
+import { matchContextSchema, matchFormatSchema, type Npc, type SimulatedMatch } from "./types.ts";
 import { simulateNpcMatch } from "./simulation.ts";
 import { stableUuid } from "./random.ts";
 import { formAfterMatch } from "./form.ts";
@@ -76,7 +76,7 @@ const storedMatch = ({ performance: _p, format: _f, context: _c, ...kept }: Simu
  * PENDING, in the same transaction that completes it), so a separate copy would only duplicate it.
  */
 export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Root, world: World, requests: readonly z.infer<typeof simulationSchema>[],
-  options: { record?: boolean } = {}): Promise<StoredMatch[]> {
+  options: { record?: boolean; players?: Map<string, Npc>; touched?: Set<string> } = {}): Promise<StoredMatch[]> {
   const record = options.record ?? true;
   if (!requests.length) return [];
   const parsed = requests.map(request => simulationSchema.parse(request));
@@ -86,10 +86,14 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
   const stored = new Map(!record ? [] : (await tx.execute(sql`SELECT match_key, request, result FROM career_simulated_matches WHERE career_save_id = ${saveId}
     AND match_key IN (${sql.join(keys.map(key => sql`${key}`), sql`, `)})`)).rows.map(row => [String(row.match_key), row]));
   const ids = [...new Set(parsed.flatMap(request => [request.playerAId, request.playerBId, ...(request.partners ?? [])]))];
-  const players = new Map((await loadNpcs(tx, saveId, { ids })).map(player => [player.id, player]));
+  // A caller simulating several rounds in one transaction can share its players (each round sees the form the last
+  // round left) and persist the touched ones once at the end (`touched`), instead of a load and a write every round.
+  const players = options.players ?? new Map<string, Npc>();
+  const missing = ids.filter(id => !players.has(id));
+  if (missing.length) for (const player of await loadNpcs(tx, saveId, { ids: missing })) players.set(player.id, player);
   const results: StoredMatch[] = [];
   const inserts: unknown[] = [];
-  const touched = new Set<string>();
+  const touched = options.touched ?? new Set<string>();
   for (const request of parsed) {
     const existing = stored.get(request.matchKey);
     if (existing) { checkRetry(existing.request, request); results.push(existing.result as StoredMatch); continue; }
@@ -117,7 +121,7 @@ export async function simulateMatchesInTransaction(tx: CareerExecutor, root: Roo
       SELECT ${saveId}::uuid, m.id, m.match_key, m.season, m.period, m.simulation_version, m.player_a_id, m.player_b_id, m.winner_id, m.request, m.input_snapshot, m.result
       FROM jsonb_to_recordset(${JSON.stringify(inserts)}::jsonb) AS m(id uuid, match_key text, season integer, period integer, simulation_version integer,
         player_a_id uuid, player_b_id uuid, winner_id uuid, request jsonb, input_snapshot jsonb, result jsonb)`);
-    await persistNpcs(tx, saveId, [...touched].map(id => players.get(id)!));
+    if (!options.touched) await persistNpcs(tx, saveId, [...touched].map(id => players.get(id)!));
     await tx.execute(sql`UPDATE career_saves SET updated_at = NOW() WHERE id = ${saveId}`);
   }
   return results;

@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { CareerExecutor } from "../database.ts";
 import { CareerError } from "../service.ts";
 import { loadNpcs, persistNpcs } from "../world/repository.ts";
+import { teamNightCommitments } from "../club/team-service.ts";
 import { scopedRandom, stableUuid, normal } from "../world/random.ts";
 import { simulateMatchesInTransaction, type Root, type World } from "../world/service.ts";
 import type { Npc } from "../world/types.ts";
@@ -413,8 +414,20 @@ export function humanInvited(participant: { kind: "HUMAN" | "NPC"; rankings: Rec
   const rank = participant.rankings["pro-world"];
   return participant.kind === "HUMAN" && Number(event.event_database_version) >= 6 && !!policy && rank !== undefined && rank <= policy.count;
 }
-export const npcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age, womenEligible: npc.worldKey.startsWith("women:"),
+const buildNpcParticipant = (npc: Npc, providers: CalendarProviders) => ({ key: npc.id, kind: "NPC" as const, ...npcFacts(npc), age: npc.age, womenEligible: npc.worldKey.startsWith("women:"),
   professionalStatus: providers.sportingStatus.npcProfessionalStatus?.(npc) ?? npc.professionalStatus, tourCard: providers.sportingStatus.npcTourCard(npc), rankings: providers.sportingStatus.rankings(npc.id) });
+/**
+ * An NPC's facts don't depend on the event, and every field lock of a week used to rebuild them for every NPC (about
+ * 2,000 NPCs x ~90 events a week). Cached per NPC object (NPCs are reloaded each week) and per providers binding.
+ */
+const participantCache = new WeakMap<Npc, { providers: CalendarProviders; value: ReturnType<typeof buildNpcParticipant> }>();
+export const npcParticipant = (npc: Npc, providers: CalendarProviders) => {
+  const hit = participantCache.get(npc);
+  if (hit && hit.providers === providers) return hit.value;
+  const value = buildNpcParticipant(npc, providers);
+  participantCache.set(npc, { providers, value });
+  return value;
+};
 export const humanParticipant = (root: RootRow, providers: CalendarProviders) => {
   const profile = providers.sportingStatus.human(root);
   return { key: HUMAN, kind: "HUMAN" as const, country: profile.country, zone: profile.zone, locality: profile.locality,
@@ -545,7 +558,8 @@ type NewEntry = { participant_key: string; participant_kind: "HUMAN" | "NPC"; np
  * bookings and consumed entitlements once; the instance then leaves
  * REGISTRATION_CLOSED so this can never run twice for the same event.
  */
-export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload): Promise<{ locked: boolean; entrants: number }> {
+export async function lockField(tx: CareerExecutor, root: RootRow, event: InstanceRow, npcs: readonly Npc[], providers: CalendarProviders, week: number, pre?: LockPreload,
+  committed?: ReadonlyMap<number, ReadonlySet<string>>): Promise<{ locked: boolean; entrants: number }> {
   const saveId = root.id, snapshot = event.snapshot;
   if (pre && pre.season !== event.season) throw new Error("Lock preload is for another season");
   const eventDays = event.snapshot.format.structure === "LEAGUE" ? playingDays(event) : Array.from({ length: event.end_day - event.start_day + 1 }, (_, i) => event.start_day + i);
@@ -553,6 +567,9 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     : await bookedParticipants(tx, saveId, event.season, event.start_day, event.end_day);
   const excluded = await exclusiveConflicts(tx, saveId, event);
   for (const key of await seriesCommitments(tx, saveId, event)) excluded.add(key);
+  // Club regulars are committed to their league nights (see teamNightCommitments), including future nights a
+  // league-format event would book.
+  if (committed?.size) for (const day of eventDays) for (const key of committed.get(day) ?? []) excluded.add(key);
   const existing = pre ? pre.entries.get(event.id) ?? [] : (await tx.execute(sql`SELECT * FROM career_event_entries WHERE career_save_id = ${saveId} AND event_id = ${event.id} AND status <> 'WITHDRAWN'`)).rows;
   const taken = new Set(existing.map(row => String(row.participant_key)));
   const capacity = event.field_size;
@@ -563,7 +580,14 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
   const add = (npc: Npc, source: string, entitlementId: string | null = null) => {
     taken.add(npc.id); additions.push({ participant_key: npc.id, participant_kind: "NPC", npc_id: npc.id, source, entitlement_id: entitlementId, tier: npc.tier });
   };
-  const eligible = (npc: Npc, invited = false) => evaluate(event, factsFor(npcParticipant(npc, providers), ctx, event, invited)).eligible;
+  // Several steps below ask about the same NPC; each answer is computed once per lock.
+  const eligibleMemo = new Map<string, boolean>();
+  const eligible = (npc: Npc, invited = false) => {
+    const key = invited ? `i:${npc.id}` : npc.id;
+    let answer = eligibleMemo.get(key);
+    if (answer === undefined) eligibleMemo.set(key, answer = evaluate(event, factsFor(npcParticipant(npc, providers), ctx, event, invited)).eligible);
+    return answer;
+  };
   const byId = new Map(npcs.map(npc => [npc.id, npc]));
   const tierOf = (npc: Npc) => providers.sportingStatus.selectionTier?.(npc) ?? npc.tier;
 
@@ -987,6 +1011,8 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
   let live = events.filter(e => e.status === "IN_PROGRESS").sort((a, b) => a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
   let simulated = 0, completed = 0;
   let awaiting: MatchRow[] = [];
+  // NPCs are loaded once and their form carried from round to round in memory; written once at the end.
+  const npcCache = new Map<string, Npc>(), touched = new Set<string>();
   for (let guard = 0; guard < 60 && live.length; guard++) {
     let structureChanged = false;
     const ids = live.map(e => sql`${e.id}::uuid`);
@@ -1057,7 +1083,9 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
       if (!slotUpdates.length && !walkovers.length && !finishedEvents.length && !structureChanged) break;
       continue;
     }
-    const npcs = new Map((await loadNpcs(tx, root.id, { ids: [...new Set(npcReady.flatMap(r => [r.match.a_key!, r.match.b_key!]))] })).map(n => [n.id, n]));
+    const wanted = [...new Set(npcReady.flatMap(r => [r.match.a_key!, r.match.b_key!]))].filter(id => !npcCache.has(id));
+    if (wanted.length) for (const n of await loadNpcs(tx, root.id, { ids: wanted })) npcCache.set(n.id, n);
+    const npcs = npcCache;
     const pairEvents = [...new Set(npcReady.filter(r => r.event.snapshot.format.sideSize === 2).map(r => r.event.id))];
     const teams = await loadPairs(tx, root.id, pairEvents);
     const partnerOf = (eventId: string, captain: string) => {
@@ -1074,7 +1102,7 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
         format: a2MatchFormat(event.snapshot.format, m.best_of, bull.firstThrow),
         ...(event.snapshot.format.sideSize === 2 ? { partners: [partnerOf(event.id, m.a_key!), partnerOf(event.id, m.b_key!)] as [string, string] } : {}) };
     });
-    const results = await simulateMatchesInTransaction(tx, root, world, requests, { record: false });
+    const results = await simulateMatchesInTransaction(tx, root, world, requests, { record: false, players: npcCache, touched });
     simulated += results.length;
     const done = npcReady.map(({ event, match: m }, i) => {
       const r = results[i];
@@ -1097,6 +1125,8 @@ export async function progressEvents(tx: CareerExecutor, root: RootRow, world: W
         first_throw_detail jsonb, simulated_match_key text, summary jsonb)
       WHERE t.career_save_id = ${root.id} AND t.id = d.id AND t.status = 'PENDING'`);
   }
+  // Every NPC that played this call has its form written once (an error rolls the whole transaction back).
+  if (touched.size) await persistNpcs(tx, root.id, [...touched].map(id => npcCache.get(id)!));
   return { completed, awaitingHuman: awaiting, simulated };
 }
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -1338,6 +1368,7 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
     .sort((a, b) => b.calendar_priority - a.calendar_priority || a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
   const summary = { week, locked: 0, cancelledUnsupported: 0, cancelledUnfilled: 0, drawn: 0, completed: 0, simulatedMatches: 0, awaitingHuman: [] as string[] };
   const npcs = starting.length ? await loadNpcs(tx, root.id, { activeOnly: true }) : [];
+  const committed = npcs.length ? await teamNightCommitments(tx, root, season, week, npcs) : undefined;
   // Close every starting event's registration in one write (each row's transition is still checked).
   await closeRegistrations(tx, starting);
   const pre = starting.some(e => e.status === "REGISTRATION_CLOSED" && e.executable) ? await preloadLocks(tx, root.id, season, starting) : undefined;
@@ -1351,7 +1382,7 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
         summary.cancelledUnsupported++;
         continue;
       }
-      const lock = await lockField(tx, root, event, npcs, providers, week, pre);
+      const lock = await lockField(tx, root, event, npcs, providers, week, pre, committed);
       if (!lock.locked) { summary.cancelledUnfilled++; continue; }
       summary.locked++;
     }
