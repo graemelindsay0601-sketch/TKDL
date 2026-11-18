@@ -26,8 +26,10 @@ export function substitutesFor(seed: string, version: number, event: InstanceRow
   const rules = rulesIn(event.snapshot.eligibility);
   const women = rules.some(r => "type" in r && r.type === "WOMEN");
   const age = rules.find((r): r is Extract<Rule, { type: "AGE" }> => "type" in r && r.type === "AGE");
+  // A CALENDAR_YEAR_END age rule counts the age a player reaches by 31 December, so the top year is one lower.
+  const top = age ? (age.maxAgeExclusive ?? 61) - (age.basis === "CALENDAR_YEAR_END" ? 2 : 1) : 60;
   const ageRange: readonly [number, number] | undefined = age
-    ? [Math.max(16, age.minAge ?? 16), Math.max(Math.max(16, age.minAge ?? 16), Math.min(60, (age.maxAgeExclusive ?? 61) - 1))] : undefined;
+    ? [Math.max(16, age.minAge ?? 16), Math.max(Math.max(16, age.minAge ?? 16), Math.min(60, top))] : undefined;
   const tier = TIER_ORDER.find(t => (tierWeights[t] ?? 0) > 0) ?? "AMATEUR";
   const region = event.locality_key ? LOCALITIES.find(l => l.key === event.locality_key)?.region ?? null : null;
   const used = new Set(existing.map(p => `${p.firstName} ${p.surname}`));
