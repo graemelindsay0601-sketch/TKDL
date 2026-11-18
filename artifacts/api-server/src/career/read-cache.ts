@@ -14,7 +14,7 @@ import { bumpSaveVersion, saveVersion } from "./save-version.ts";
  * CAREER_READ_CACHE=0 turns it off.
  */
 const TTL_MS = 120_000, MAX_ENTRIES = 400, MAX_BODY = 1_500_000, MAX_TOTAL = 40_000_000;
-const CACHED = /^\/saves\/([0-9a-f-]{36})\/(calendar(\/season-plan)?|guide|guidance|inbox|commercial-inbox|goals|history|milestones|records|recognition|relationships|life|legacy(\/summary|\/player|\/seasons\/\d+)?|sponsors(\/market)?|sporting|finance(\/ledger|\/weeks|\/goal|\/purchases)?|tour-card|q-school|qualification|pathways|rankings(-movers|\/[A-Za-z0-9_:-]+(\/history|\/explain)?)?|trophy-cabinet|world-content|world-localities|world-map|world-players|entitlements|form|club|club\/team-nights|club\/local-competitions|local|nights|hosting|road-trips|pro-am|manager|cam-league|money-matches|equipment-studio|presentation|profile)$/;
+const CACHED = /^\/saves\/([0-9a-f-]{36})\/(calendar(\/season-plan)?|dart-stats|guide|guidance|inbox|commercial-inbox|goals|history|milestones|records|recognition|relationships|life|legacy(\/summary|\/player|\/seasons\/\d+)?|sponsors(\/market)?|sporting|finance(\/ledger|\/weeks|\/goal|\/purchases)?|tour-card|q-school|qualification|pathways|rankings(-movers|\/[A-Za-z0-9_:-]+(\/history|\/explain)?)?|trophy-cabinet|world-content|world-localities|world-map|world-players|entitlements|form|club|club\/team-nights|club\/local-competitions|local|nights|hosting|road-trips|pro-am|manager|cam-league|money-matches|equipment-studio|presentation|profile)$/;
 const SAVE_PATH = /^\/saves\/([0-9a-f-]{36})(\/|$)/;
 
 type Entry = { version: number; at: number; body: string; size: number };
