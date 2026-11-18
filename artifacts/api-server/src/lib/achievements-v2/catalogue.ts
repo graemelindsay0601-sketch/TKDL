@@ -77,7 +77,73 @@ export const LEAGUE_CATALOGUE: AchievementDef[] = [
   season("LEAGUE", "season-top-five", "Finish strong", "Finish the season in the top 5", "seasonTopFive", [1]),
 ];
 
-export const CATALOGUE: AchievementDef[] = [...LEAGUE_CATALOGUE];
+export const TEAMS_CATALOGUE: AchievementDef[] = [
+  // Doubles
+  track("TEAMS", "doubles-wins", "Team wins", "Win {n} doubles matches", "teamWins", [1, 5, 10, 20, 35, 50]),
+  track("TEAMS", "doubles-matches", "Team matches played", "Play {n} doubles matches", "teamMatches", [5, 10, 25, 50, 100]),
+  track("TEAMS", "doubles-partners", "Partners you've won with", "Win with {n} different partners", "partnersWonWith", [1, 2, 3, 5]),
+  track("TEAMS", "doubles-teams-beaten", "Different teams beaten", "Beat {n} different teams", "teamsBeaten", [1, 3, 5, 8, 12]),
+  track("TEAMS", "doubles-seasons", "Seasons in a team", "Play {n} doubles seasons", "teamSeasons", [1, 2, 3, 5]),
+  feat("TEAMS", "lone-wolf", "Lone wolf", "Win a combined match as the solo side", "loneWolf", 50),
+  feat("TEAMS", "safe-pair-of-hands", "Safe pair of hands", "Win a team match on a stake of 20+", "safePair", 30),
+  feat("TEAMS", "in-sync", "In sync", "Win 5 team matches in a row", "inSync", 40),
+  feat("TEAMS", "top-pair", "Top pair", "Finish a season top of the doubles table", "topPair", 80),
+  feat("TEAMS", "podium-pair", "Podium pair", "Finish a doubles season in the top 3", "neverSplit", 40),
+  season("TEAMS", "season-team-wins", "Team season goal", "Win {n} doubles matches this season", "seasonTeamWins", [5, 10]),
+  // Shift Wars (a department's recorded results count for its members)
+  track("TEAMS", "shift-wins", "Department wins", "Your department wins {n} Shift Wars matches", "deptWins", [1, 5, 10, 25, 50]),
+  track("TEAMS", "shift-matches", "Shift Wars matches played", "Your department plays {n} Shift Wars matches", "deptMatches", [5, 10, 25, 50, 100]),
+  track("TEAMS", "shift-depts-beaten", "Departments beaten", "Beat {n} different departments", "deptsBeaten", [1, 2]),
+  track("TEAMS", "shift-seasons", "Seasons on the rota", "Be on the rota for {n} Shift Wars seasons", "seasonsOnRota", [1, 2, 3, 5]),
+  feat("TEAMS", "clocking-in", "Clocking in", "Play your department's first match of a season", "clockingIn", 20, { liveOnly: true }),
+  feat("TEAMS", "overtime", "Overtime", "Win a multi-department match", "overtime", 30),
+  feat("TEAMS", "big-shift", "Big shift", "Win on a stake of 20+", "bigShift", 30),
+  feat("TEAMS", "night-shift", "Night shift", "Play 3 Shift Wars matches on one day", "nightShift", 30),
+  feat("TEAMS", "employee-of-the-month", "Employee of the month", "Your department wins the Shift Wars season", "employeeOfMonth", 80),
+  season("TEAMS", "season-dept-matches", "Department season goal", "Play {n} matches for your department this season", "monthMatches", [5]),
+  season("TEAMS", "season-rota-regular", "Rota regular", "Play in {n} different weeks this season", "monthWeeks", [3]),
+];
+
+export const PRACTICE_CATALOGUE: AchievementDef[] = [
+  track("PRACTICE", "practice-sessions", "Practice sessions", "Play {n} practice sessions", "practiceSessions", [5, 10, 25, 50, 100, 200, 400]),
+  track("PRACTICE", "practice-darts", "Darts thrown in practice", "Throw {n} darts in practice", "practiceDarts", [500, 2000, 5000, 10000, 25000, 50000, 100000]),
+  track("PRACTICE", "practice-180s", "Practice 180s", "Hit {n} 180s in practice", "practice180s", [1, 5, 10, 25, 50, 100, 250]),
+  track("PRACTICE", "practice-checkouts", "Practice checkouts", "Hit {n} checkouts in practice", "practiceCheckouts", [5, 25, 50, 100, 250, 500]),
+  track("PRACTICE", "practice-checkout-rate", "Checkout rate", "Hit {n}% of your last 100 darts at a double in practice", "practiceCheckoutRate", [10, 15, 20, 25, 30, 35, 40], { unit: "%" }),
+  track("PRACTICE", "practice-games", "Practice games tried", "Try {n} different practice games", "practiceGames", [2, 4, 6, 10, 15, 20]),
+  track("PRACTICE", "practice-days", "Days practised", "Practise on {n} different days", "practiceDays", [3, 7, 14, 30, 60, 100]),
+  track("PRACTICE", "practice-streak", "Practice streak", "Practise {n} days in a row", "practiceStreak", [2, 3, 5, 7, 14, 30]),
+  track("PRACTICE", "shadow-level", "Shadow level", "Train your Shadow Bot to level {n} (Amateur to Elite)", "shadowLevel", [1, 2, 3, 4, 5]),
+  feat("PRACTICE", "long-session", "Long session", "Throw 300+ darts in one session", "longSession", 20),
+  season("PRACTICE", "season-practice-days", "Regular", "Practise on {n} different days this season", "seasonPracticeDays", [8]),
+  season("PRACTICE", "season-practice-180s", "Max out", "Hit {n} practice 180s this season", "seasonPractice180s", [10]),
+  season("PRACTICE", "season-sharpshooter", "Sharpshooter", "Raise your practice checkout rate over last season", "seasonRateUp", [1]),
+];
+
+export const MASTER501_CATALOGUE: AchievementDef[] = [
+  track("MASTER501", "m501-ladder", "Ladder climbed", "Clear round {n} of the Master-501 ladder", "m501Ladder", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+  track("MASTER501", "m501-runs", "Runs completed", "Complete {n} Master-501 runs", "m501Runs", [5, 10, 25, 50, 100, 200]),
+  track("MASTER501", "m501-wins", "Master-501 wins", "Win {n} Master-501 matches", "m501Wins", [1, 5, 10, 25, 50, 100]),
+  track("MASTER501", "m501-run", "Winning run", "Win {n} Master-501 matches in a row", "m501Run", [2, 3, 5, 8, 12]),
+  feat("MASTER501", "m501-flawless", "Flawless", "Win a best-of-5 without dropping a leg", "flawless", 30),
+  feat("MASTER501", "m501-last-gasp", "Last gasp", "Win a match in the deciding leg", "lastGasp", 20),
+  feat("MASTER501", "m501-clean-tier", "Clean tier", "Clear a tier without losing a match", "cleanTier", 60),
+  feat("MASTER501", "m501-world-champion", "World champion", "Win the World Championship tier", "worldChampion", 100),
+];
+
+export const MODES_CATALOGUE: AchievementDef[] = [
+  track("MODES", "board-curse-wins", "Board Curse wins", "Win {n} Board Curse matches", "bcWins", [1, 5, 10, 25, 50]),
+  track("MODES", "board-curse-streak", "Endless streak", "Reach a {n}-run Endless streak", "bcStreak", [5, 10, 25, 50]),
+  feat("MODES", "quick-clear", "Quick clear", "Clear a board in 12 visits or fewer", "quickClear", 40),
+  feat("MODES", "both-sides", "Both sides", "Beat a bot and a local opponent in Board Curse", "bothSides", 20),
+  track("MODES", "bosses-defeated", "Bosses defeated", "Defeat {n} bosses on the ladder", "bossesDefeated", [1, 2, 3, 4, 5, 6]),
+  track("MODES", "boss-ascension", "Ascension", "Reach ascension {n} on any boss", "bossAscension", [1, 2]),
+  feat("MODES", "first-time", "First time", "Beat a boss on your first attempt", "firstTime", 40),
+  feat("MODES", "never-gave-up", "Never gave up", "Beat a boss after 5 or more attempts", "neverGaveUp", 30),
+  feat("MODES", "boss-clean-sweep", "Clean sweep", "Beat a boss with a clean sweep", "bossCleanSweep", 50),
+];
+
+export const CATALOGUE: AchievementDef[] = [...LEAGUE_CATALOGUE, ...TEAMS_CATALOGUE, ...PRACTICE_CATALOGUE, ...MASTER501_CATALOGUE, ...MODES_CATALOGUE];
 
 /** Metal for a track level: Diamond only when the track is complete; the levels before it are spread across
  *  Bronze, Silver, Gold and Platinum in order (a short track can skip a metal). */
