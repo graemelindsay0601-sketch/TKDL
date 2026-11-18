@@ -573,7 +573,26 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
       if (row.consumption === "SINGLE_USE") consumed.push(String(row.id));
     }
   }
+  // Q-School Final Stage: First Stage qualifiers come first, then exempt places (eligible non-card holders in the
+  // pathway, strongest first) fill the field, as the real Final Stage does. The human still has to qualify.
+  const qSchoolFinal = snapshot.qSchool?.stage === "FINAL";
+  if (qSchoolFinal && snapshot.fieldPolicy !== "SELECTION" && taken.size < capacity) {
+    const intake = snapshot.entitlementIntake;
+    const exempt = (npc: Npc) => { const facts = factsFor(npcParticipant(npc, providers), ctx, event);
+      return evaluate(event, { ...facts, entitlementTargets: new Set([...facts.entitlementTargets, ...intake]) }).eligible; };
+    const pool = npcs.filter(npc => npc.status === "ACTIVE" && free(npc) && exempt(npc));
+    const exemptRng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "q-school-exempt", event.season, event.instance_key);
+    for (const npc of weightedSample(pool, npc => 0.05 + tierWeight(snapshot.npcTierWeights, npc, tierOf), capacity - taken.size, exemptRng)) add(npc, "SELECTION");
+  }
   const rng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "field", event.season, event.instance_key);
+  // Later days of a series copy day 1; anyone from day 1 booked elsewhere is replaced from the eligible pool.
+  if (snapshot.fieldPolicy === "SERIES_FIRST_DAY" && !qSchoolFinal && taken.size < capacity) {
+    const pool = npcs.filter(npc => npc.status === "ACTIVE" && free(npc) && eligible(npc));
+    const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
+    const seriesRng = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "series-top-up", event.season, event.instance_key);
+    for (const npc of weightedSample(pool, npc => Math.max(0.01, tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc)),
+      capacity - taken.size, seriesRng)) add(npc, "SELECTION");
+  }
   if (snapshot.invitationPolicy && snapshot.fieldPolicy === "SELECTION") {
     const policy = snapshot.invitationPolicy;
     // No-general-filler selection events still have genuine qualifying places
@@ -616,26 +635,28 @@ export async function lockField(tx: CareerExecutor, root: RootRow, event: Instan
     teams = selected.teams;
   } else if (snapshot.fieldPolicy === "SELECTION") {
     const fill = (MIDWEEK_KEYS as readonly string[]).includes(event.definition_key) ? MIDWEEK_FIELD_FILL : snapshot.npcFill;
-    const target = Math.max(taken.size, fillTarget(capacity, fill, rng));
+    // Fields aim for capacity: an event's turnout range only ever drew the random stream (kept so draws stay
+    // reproducible). Every save, new or existing, gets full fields whenever enough eligible players exist.
+    fillTarget(capacity, fill, rng);
+    const target = capacity;
     const pool = npcs.filter(npc => free(npc) && eligible(npc));
     const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
     for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * geographyWeight(snapshot.geography, geo, npc), target - taken.size, rng)) add(npc, "SELECTION");
   }
-  // v14+: a local, county or regional selection event short of its minimum is topped up with guests from further
-  // afield (nearest first, same level and status rules, only their home location relaxed) instead of being cancelled.
-  // National titles and tours keep their own field, and are cancelled honestly when it is too thin.
-  if (!pairs && guestTopUpApplies(event) && taken.size < event.minimum_entrants) {
+  // v14+: a short local, county or regional selection field is topped up to capacity with guests from further
+  // afield (nearest first, same level and status rules, only their home location relaxed).
+  if (!pairs && guestTopUpApplies(event) && taken.size < capacity) {
     const guest = (npc: Npc) => guestEligible(event, factsFor(npcParticipant(npc, providers), ctx, event));
     const geo = { country: event.country, zone: event.zone, localityKey: event.locality_key };
     const pool = npcs.filter(npc => free(npc) && guest(npc));
     const topUp = scopedRandom(root.world_seed, CALENDAR_GENERATION_VERSION, "field-top-up", event.season, event.instance_key);
     for (const npc of weightedSample(pool, npc => tierWeight(snapshot.npcTierWeights, npc, tierOf) * Math.max(0.01, geographyWeight(snapshot.geography, geo, npc)),
-      Math.min(capacity, event.minimum_entrants) - taken.size, topUp)) add(npc, "SELECTION");
+      capacity - taken.size, topUp)) add(npc, "SELECTION");
   }
-  // v14+: still short (everyone eligible is playing elsewhere that day)? Substitute club players from the event's
-  // own area make up the field, as real events always find players. They join the world as ordinary players.
+  // Still short (everyone eligible is playing elsewhere that day)? Substitute players from the event's own area
+  // make up any open selection field to capacity. They join the world as ordinary players and are reused later.
   if (substitutesApply(event)) {
-    let want = Math.min(capacity, Math.max(event.minimum_entrants, pairs ? 4 : 2));
+    let want = capacity;
     if (pairs && want % 2) want = Math.min(capacity - capacity % 2, want + 1);
     if (taken.size < want) {
       const subs = substitutesFor(root.world_seed, root.world_generation_version, event, want - taken.size, npcs, snapshot.npcTierWeights)
@@ -697,11 +718,9 @@ export const runsWith = (event: Pick<InstanceRow, "event_database_version" | "mi
   event.event_database_version >= GUEST_TOP_UP_FROM && !isGroupedStructure(event.snapshot.format.structure)
     ? Math.min(event.minimum_entrants, event.snapshot.format.sideSize === 2 ? 4 : 2) : event.minimum_entrants;
 
-/**
- * Substitute club players only ever fill local, county and regional events (v14+). Bigger events lock first each
- * week and take the players they want; they never need made-up players (and run with byes if ever short).
- */
-export const substitutesApply = (event: InstanceRow) => guestTopUpApplies(event) && event.snapshot.format.pairing !== "NATION";
+/** Substitutes make up any open selection field (not invitation or national-team fields) to capacity, on every save. */
+export const substitutesApply = (event: InstanceRow) => event.snapshot.fieldPolicy === "SELECTION" && !event.snapshot.invitationPolicy
+  && event.snapshot.format.pairing !== "NATION";
 
 /** Event database version from which short fields are topped up with guests rather than cancelled. */
 export const GUEST_TOP_UP_FROM = 14;
