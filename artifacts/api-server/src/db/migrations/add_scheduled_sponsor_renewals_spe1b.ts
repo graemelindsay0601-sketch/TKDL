@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { CareerDatabase } from "../../career/database.ts";
+import type { CareerDatabase, CareerExecutor } from "../../career/database.ts";
 
 /** Adds a dormant state for accepted renewals; existing contracts are untouched. */
 export async function addScheduledSponsorRenewalsSPE1B(database: CareerDatabase): Promise<void> {
@@ -26,7 +26,20 @@ export async function addScheduledSponsorRenewalsSPE1B(database: CareerDatabase)
         AND (status IN ('ACTIVE','SCHEDULED')) = (end_reason IS NULL)
         AND (end_season > start_season OR (end_season = start_season AND end_week >= start_week))
       )`);
-    await tx.execute(sql`
+    await ensureSponsorContractGuard(tx);
+  });
+}
+
+/**
+ * The contract guard that lets a SCHEDULED renewal become ACTIVE. The A9 content upgrade re-runs the A4 finance
+ * migration, which reinstalls the original guard (only ACTIVE contracts may change); on a database where A9 ran after
+ * SP-E1b (every fresh database) a renewal could then never start and every Continue from its start week failed with
+ * "Ended sponsor contracts are history". Called from the every-boot repair; changes nothing when already current.
+ */
+export async function ensureSponsorContractGuard(tx: CareerExecutor): Promise<void> {
+  const current = String((await tx.execute(sql`SELECT prosrc FROM pg_proc WHERE proname = 'career_sponsor_contract_guard' LIMIT 1`)).rows[0]?.prosrc ?? "");
+  if (current.includes("NOT IN ('ACTIVE','SCHEDULED')")) return;
+  await tx.execute(sql`
       CREATE OR REPLACE FUNCTION career_sponsor_contract_guard() RETURNS trigger AS $$
       BEGIN
         IF OLD.status NOT IN ('ACTIVE','SCHEDULED') THEN RAISE EXCEPTION 'Ended sponsor contracts are history'; END IF;
@@ -39,5 +52,4 @@ export async function addScheduledSponsorRenewalsSPE1B(database: CareerDatabase)
         RETURN NEW;
       END; $$ LANGUAGE plpgsql
     `);
-  });
 }

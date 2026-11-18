@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+# Crawlers have no business in the API: every request there is outbound bandwidth on Render.
+Disallow: /api/
