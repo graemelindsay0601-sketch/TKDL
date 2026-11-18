@@ -135,6 +135,7 @@ import { initializeCareerReminderScheduler } from "./services/careerReminderSche
 import { initializeRankSnapshotScheduler } from "./services/rankSnapshotScheduler";
 import { initializePushBatchScheduler } from "./services/pushBatchScheduler";
 import { initializeFeaturedCardScheduler } from "./services/featured-card-shop-service";
+import { CARD_CLASH_BENCHED } from "./lib/card-clash-bench";
 import { initializeCommunityTopPostScheduler } from "./services/communityTopPostScheduler";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
@@ -1596,8 +1597,11 @@ async function initSchemaAndData(): Promise<boolean> {
   // Card Clash used to mutate its schema as a fire-and-forget side effect of
   // importing the route module. Keeping it in the readiness-gated startup
   // sequence prevents requests racing those ALTER TABLE statements.
-  await runInitStep("initializeCardClashSchema", initializeCardClashSchema);
-  await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
+  // Card Clash is benched (lib/card-clash-bench.ts): its own schema fixes, scheduler and season checks don't run.
+  if (!CARD_CLASH_BENCHED) {
+    await runInitStep("initializeCardClashSchema", initializeCardClashSchema);
+    await runInitStep("ensureCardClashAchievementTables", ensureCardClashAchievementTables);
+  }
   await runInitStep("initializeFeatureFlags", initializeFeatureFlags);
   // Record the ledgered Career migrations as they go, so the schema drift check at the end of init can run them again.
   collectingCareerSteps = true;
@@ -1649,7 +1653,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("addMatchParticipantDeltas", addMatchParticipantDeltas);
   await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
   await runInitStep("seedCardDefinitions", seedCardDefinitions);
-  await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
+  if (!CARD_CLASH_BENCHED) await runInitStep("initializeFeaturedCardShopTables", initializeFeaturedCardShopTables);
 
   await runMigrationStep("addDailyChallengeKeyColumn", addDailyChallengeKeyColumn);
   await runMigrationStep("addLongestLossStreakColumn", addLongestLossStreakColumn);
@@ -1829,7 +1833,7 @@ async function initRuntime() {
   // maintenance, editorial generation and timer registration.
   await runInitStep("maybeAutoResetLeagueSeasons", maybeAutoResetLeagueSeasons);
   await runInitStep("backfillCurrentStreaks", backfillCurrentStreaks);
-  await runInitStep("rotateFeatureCards", async () => {
+  if (!CARD_CLASH_BENCHED) await runInitStep("rotateFeatureCards", async () => {
     const { rotateFeatureCards } = await import("./services/featured-card-shop-service");
     await rotateFeatureCards();
   });
@@ -1837,7 +1841,7 @@ async function initRuntime() {
   await runInitStep("initializeCareerReminderScheduler", initializeCareerReminderScheduler);
   await runInitStep("initializeRankSnapshotScheduler", initializeRankSnapshotScheduler);
   await runInitStep("initializePushBatchScheduler", initializePushBatchScheduler);
-  await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
+  if (!CARD_CLASH_BENCHED) await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
   await runInitStep("initializeCommunityTopPostScheduler", initializeCommunityTopPostScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
   // One-off storage clean-ups for long careers, after startup and one after the other (each records when it is done).
@@ -1853,7 +1857,7 @@ async function initRuntime() {
     logger.error({ err }, "sweepAllPlayerTitles failed (non-blocking)"));
 
   // Initialize Card Clash season auto-check
-  await runInitStep("checkAndEndSeasonIfNeeded", async () => {
+  if (!CARD_CLASH_BENCHED) await runInitStep("checkAndEndSeasonIfNeeded", async () => {
     const { checkAndEndSeasonIfNeeded } = await import("./services/card-clash-season-rewards");
     await checkAndEndSeasonIfNeeded();
   });

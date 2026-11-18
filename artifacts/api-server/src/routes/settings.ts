@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "../lib/card-clash-bench";
 import { Router } from "express";
 import { db, featureFlagsTable } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
@@ -24,7 +25,7 @@ router.get("/settings", async (req, res): Promise<void> => {
   
   // Add feature flags
   for (const flag of flags) {
-    if (flag.featureName === "card_clash") out["card_clash_enabled"] = flag.enabled;
+    if (flag.featureName === "card_clash") out["card_clash_enabled"] = flag.enabled && !CARD_CLASH_BENCHED;
     if (flag.featureName === "card_shop") out["card_shop_enabled"] = flag.enabled;
     if (flag.featureName === "coins") out["coins_enabled"] = flag.enabled;
     // Only reflects "live for everyone" — the admin-preview-only state is

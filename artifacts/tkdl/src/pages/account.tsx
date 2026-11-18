@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/context/auth";
@@ -562,7 +563,9 @@ export default function AccountPage() {
 
   // ── Tab + Community state ────────────────────────────────────────────
   type AccountTab = "overview" | "activity" | "achievements" | "coach" | "social" | "stats" | "analytics" | "cards" | "challenges" | "cosmetics" | "wallet";
-  const ACCOUNT_TABS: readonly AccountTab[] = ["overview", "activity", "achievements", "coach", "social", "stats", "analytics", "cards", "challenges", "cosmetics", "wallet"];
+  // The Cards tab is Card Clash's collection book: hidden while Card Clash is benched (lib/card-clash-bench.ts).
+  const ACCOUNT_TABS: readonly AccountTab[] = (["overview", "activity", "achievements", "coach", "social", "stats", "analytics", "cards", "challenges", "cosmetics", "wallet"] as const)
+    .filter(tab => !(CARD_CLASH_BENCHED && tab === "cards"));
   const [activeTab, setActiveTab] = useState<AccountTab>(() => {
     const requested = new URLSearchParams(window.location.search).get("tab");
     return ACCOUNT_TABS.includes(requested as AccountTab) ? requested as AccountTab : "overview";
@@ -1445,7 +1448,7 @@ export default function AccountPage() {
           { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
           { id: "achievements"  as const, label: "Earned",    Icon: Award                            },
           { id: "coach"         as const, label: "Coach",     Icon: Brain                            },
-          { id: "cards"         as const, label: "Cards",     Icon: Sparkles                         },
+          ...(CARD_CLASH_BENCHED ? [] : [{ id: "cards" as const, label: "Cards", Icon: Sparkles }]),
           { id: "wallet"        as const, label: "Wallet",    Icon: Coins                            },
           { id: "cosmetics"     as const, label: "Customize", Icon: Palette                          },
           { id: "challenges"    as const, label: "Challenges", Icon: Trophy                          },
@@ -2892,7 +2895,7 @@ export default function AccountPage() {
         </div>
       )}
 
-      {activeTab === "cards" && user?.playerId && (
+      {!CARD_CLASH_BENCHED && activeTab === "cards" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <CoinBalance playerId={user.playerId} />
           <div style={{

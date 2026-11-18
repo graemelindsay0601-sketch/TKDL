@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { useState, useEffect, useMemo } from "react";
 import {
   useGetStatsSummary,
@@ -652,7 +653,7 @@ function ExploreAndReference({ settings }: { settings: any }) {
     // Card Clash defaults to hidden (not true like the other toggles below) —
     // it's under an explicit kill switch, so a settings-load hiccup or a
     // failed fetch should never flash its tile back into view.
-    { key: "cardclash",  label: "Card Clash",   icon: <Layers className="w-3 h-3" />,       accent: "#f97316", href: "/card-clash",  show: settings?.card_clash_enabled ?? false },
+    { key: "cardclash",  label: "Card Clash",   icon: <Layers className="w-3 h-3" />,       accent: "#f97316", href: "/card-clash",  show: !CARD_CLASH_BENCHED && (settings?.card_clash_enabled ?? false) },
     { key: "doubles",    label: "Doubles",      icon: <Users className="w-3 h-3" />,        accent: "#0066ff", href: "/leaderboard?mode=doubles", show: settings?.doubles_event_enabled ?? true },
     { key: "shiftwars",  label: "Shift Wars",   icon: <Building2 className="w-3 h-3" />,    accent: "#22c55e", href: "/leaderboard?mode=shiftwars", show: settings?.shift_wars_enabled ?? true },
     { key: "bossbattle", label: "Boss Battle",  icon: <Skull className="w-3 h-3" />,        accent: "#ef4444", href: "/boss-battle", show: settings?.boss_battle_enabled ?? true },

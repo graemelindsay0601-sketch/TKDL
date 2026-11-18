@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { lazy, Suspense, type ReactNode } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -142,7 +143,8 @@ function AppRoutes() {
               <RoutePage><PosterLibrary /></RoutePage>
             </Route>
             <Route path="/card-clash">
-              <RoutePage><CardClash /></RoutePage>
+              {/* Benched (lib/card-clash-bench.ts): the Card Clash page and its art are never loaded. */}
+              <RoutePage>{CARD_CLASH_BENCHED ? <CardClashBenched /> : <CardClash />}</RoutePage>
             </Route>
             <Route path="/boss-battle">
               <RoutePage><BossBattle /></RoutePage>
@@ -219,5 +221,15 @@ export default function App() {
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function CardClashBenched() {
+  return (
+    <div style={{ maxWidth: 520, margin: "64px auto", padding: "0 20px", textAlign: "center", color: "rgba(255,255,255,0.75)" }}>
+      <h1 style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.6rem", color: "#fff", marginBottom: 8 }}>Card Clash is resting</h1>
+      <p>Card Clash is switched off for now. Your cards and coins are safe and will be here when it comes back.</p>
+      <a href="/" style={{ display: "inline-block", marginTop: 18, color: "#00d9ff" }}>Back to TKDL</a>
+    </div>
   );
 }

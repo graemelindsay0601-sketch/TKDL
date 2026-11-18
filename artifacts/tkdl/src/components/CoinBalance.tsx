@@ -30,8 +30,11 @@ export function CoinBalance({ playerId }: CoinBalanceProps) {
     // avoidable, continuous source of database load for anyone sitting on
     // this page. 15 seconds still feels responsive while cutting the
     // request volume by ~87%.
-    const interval = setInterval(loadCoins, 15000);
-    return () => clearInterval(interval);
+    // Bandwidth: no timer. The balance reloads when you come back to the tab (purchases on this page reload it
+    // themselves); a 15-second poll on an open Account page was a steady trickle of requests for nothing.
+    const onVisible = () => { if (document.visibilityState === "visible") loadCoins(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [playerId]);
 
   // No loading gate here on purpose — this used to return null entirely

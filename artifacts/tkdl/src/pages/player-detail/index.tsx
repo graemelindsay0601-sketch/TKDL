@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-client-react";
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
@@ -315,7 +316,7 @@ export default function PlayerDetail() {
     fetch(`/api/master501/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setMaster501).catch(() => setMaster501(null));
     fetch(`/api/players/${playerId}/shadow-bot-stats`).then(r => r.ok ? r.json() : null).then(setShadowStats).catch(() => setShadowStats(null));
     fetch(`/api/boss-battles/progress/${playerId}`).then(r => r.ok ? r.json() : null).then(setBossBattle).catch(() => setBossBattle(null));
-    fetch(`/api/card-clash/player/${playerId}/stats`).then(r => r.ok ? r.json() : null).then(setCardClashStats).catch(() => setCardClashStats(null));
+    if (!CARD_CLASH_BENCHED) fetch(`/api/card-clash/player/${playerId}/stats`).then(r => r.ok ? r.json() : null).then(setCardClashStats).catch(() => setCardClashStats(null));
     fetch(`/api/tour/runs/${playerId}`).then(r => r.ok ? r.json() : []).then(d => setTourRuns(Array.isArray(d) ? d : [])).catch(() => setTourRuns([]));
     Promise.all([
       fetch(`/api/board-curse/record/${playerId}/bot`).then(r => r.ok ? r.json() : null).catch(() => null),
@@ -688,9 +689,9 @@ export default function PlayerDetail() {
               ? `${shadowStats.totalMatches ?? 0} matches · ${shadowStats.matchWinRate ?? 0}% win`
               : shadowStats?.locked ? "Locked — keep practicing" : "Not started"}
           </ModeTile>
-          <ModeTile href="/card-clash" icon={<Layers className="w-3.5 h-3.5" />} accent="#f97316" label="Card Clash">
+          {!CARD_CLASH_BENCHED && <ModeTile href="/card-clash" icon={<Layers className="w-3.5 h-3.5" />} accent="#f97316" label="Card Clash">
             {cardClashStats ? `${cardClashStats.cardsOwned} cards · ${cardClashStats.wins}-${cardClashStats.losses}` : "Not started"}
-          </ModeTile>
+          </ModeTile>}
           <ModeTile href={doublesTeam ? `/seasons/${doublesTeam.seasonId}?tab=doubles` : "/leaderboard?mode=doubles"} icon={<Users className="w-3.5 h-3.5" />} accent="#0066ff" label="Doubles Event">
             {doublesTeam ? `${doublesTeam.wins}-${doublesTeam.losses} · ${doublesTeam.points}pts${doublesTeam.isEliminated ? " · Eliminated" : ""}` : "No team this season"}
           </ModeTile>

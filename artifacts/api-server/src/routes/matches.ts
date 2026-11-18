@@ -13,6 +13,7 @@ import { createAutoPost } from "../lib/communityNotify";
 import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 import { addCoinsToPlayer, removeCardFromPlayer } from "../services/card-shop-service";
+import { CARD_CLASH_BENCHED } from "../lib/card-clash-bench";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { logAdminAction } from "../lib/adminAudit";
 import { reverseRecordedParticipant } from "../lib/match-rollback";
@@ -444,8 +445,8 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     const winnerAllCards = [...winnerCards.goodCards, ...winnerCards.badCards];
     const loserAllCards  = [...loserCards.goodCards,  ...loserCards.badCards];
 
-    if (winnerAllCards.length === 0 && loserAllCards.length === 0) {
-      return; // No cards used
+    if (CARD_CLASH_BENCHED || (winnerAllCards.length === 0 && loserAllCards.length === 0)) {
+      return; // No cards used (or Card Clash is benched)
     }
 
     try {
@@ -646,8 +647,10 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         });
 
         // Update seasonal quests
-        const { seasonalQuestService } = await import("../services/seasonal-quest-service");
-        await seasonalQuestService.updateSeasonalProgress(winnerId, "league_dominator", 1);
+        if (!CARD_CLASH_BENCHED) {
+          const { seasonalQuestService } = await import("../services/seasonal-quest-service");
+          await seasonalQuestService.updateSeasonalProgress(winnerId, "league_dominator", 1);
+        }
       } catch (coinErr) {
         // Log coin errors but don't fail the match
         console.error("Card Clash coin/challenge/quest awarding error:", coinErr);
