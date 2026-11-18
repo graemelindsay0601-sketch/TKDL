@@ -82,16 +82,19 @@ export function createCareerGoalsService(database: CareerDatabase) {
       if (d.type==="IMPROVE_H2H" && !o?.meetings) throw new CareerError(409,"H2H improvement requires an existing played opponent");
       if (d.type==="BEAT_RELATIONSHIP" && !o?.labels.includes(d.relationship)) throw new CareerError(409,"That sporting relationship is not currently evidenced");
     }
-    if (d.type==="WIN_EVENT" && !events.some(e=>e.id===d.eventId && e.eligible &&
-      ["SCHEDULED","REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS"].includes(e.status) &&
-      (["ENTERED","CONFIRMED","PLAYING"].includes(e.relationship) ||
-       (["SCHEDULED","REGISTRATION_OPEN"].includes(e.status) && s.currentWeek<=e.registration.closesWeek)))) {
+    if (d.type==="WIN_EVENT" && !events.some(e=>e.id===d.eventId && winnable(e,s))) {
       throw new CareerError(409,"Choose an eligible upcoming or entered event in this Career");
     }
     if (d.type==="EARN_TOUR_CARD" && (s.holdsCard || s.facts.records.firstTourCard)) throw new CareerError(409,"First Tour Card already achieved");
     if (d.type==="REACH_WORLD_RANK" && (s.facts.records.bestWorldRanking?.position??Infinity)<=d.target) throw new CareerError(409,"That Career ranking milestone is already achieved");
     if (d.type==="EARNINGS" && s.earningsPence>=d.target) throw new CareerError(409,"Choose a prize-earnings milestone above existing earnings");
     if (d.type==="MAXIMUMS" && (s.facts.performance.maximums??0)>=d.target) throw new CareerError(409,"Choose a maximums milestone above the verified total");
+  }
+  /** An event a WIN_EVENT goal can target: eligible, still to be played, and entered or still open to enter. */
+  function winnable(e: Opportunity, s: GoalSources) {
+    return e.eligible && ["SCHEDULED","REGISTRATION_OPEN","REGISTRATION_CLOSED","DRAW_PENDING","DRAWN","IN_PROGRESS"].includes(e.status) &&
+      (["ENTERED","CONFIRMED","PLAYING"].includes(e.relationship) ||
+       (["SCHEDULED","REGISTRATION_OPEN"].includes(e.status) && s.currentWeek<=e.registration.closesWeek));
   }
   function options(s: GoalSources, events: Opportunity[], retired: boolean) {
     if (retired) return [];
@@ -104,10 +107,9 @@ export function createCareerGoalsService(database: CareerDatabase) {
       defs.push({type:"BEAT_OPPONENT",opponentId:o.player.id},{type:"IMPROVE_H2H",opponentId:o.player.id});
       for (const relationship of ["Career Rival","Nemesis"] as const) if (o.labels.includes(relationship)) defs.push({type:"BEAT_RELATIONSHIP",opponentId:o.player.id,relationship});
     }
-    for (const e of events) {
-      const def: GoalDefinition={type:"WIN_EVENT",eventId:e.id};
-      try {validate(def,s,events);defs.push(def);} catch(e) {if (!(e instanceof CareerError)) throw e;}
-    }
+    // Same test validate() applies, checked directly (it was a scan of every event plus a thrown error per miss).
+    const winnableIds=new Set(events.filter(e=>winnable(e,s)).map(e=>e.id));
+    for (const e of events) if (winnableIds.has(e.id)) defs.push({type:"WIN_EVENT",eventId:e.id});
     return defs.map(definition=>({definition,label:goalLabel(definition,s,events)}));
   }
   function view(saveId: string, root: Root, goals: GoalRow[], s: GoalSources, events: Opportunity[]): GoalsView {
