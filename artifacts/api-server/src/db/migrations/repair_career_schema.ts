@@ -17,6 +17,7 @@ import { ensureLocalNights } from "./create_career_local_nights.ts";
 import { ensureRoadTrips } from "./create_career_road_trips.ts";
 import { ensureCamLeagues } from "./create_career_cam_leagues.ts";
 import { ensureProAm } from "./create_career_proam.ts";
+import { ensureSponsorContractGuard } from "./add_scheduled_sponsor_renewals_spe1b.ts";
 
 async function ensureQualificationEntitlementSourceConstraint(tx: CareerExecutor): Promise<void> {
   const row = (await tx.execute(sql`SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
@@ -60,6 +61,8 @@ export async function repairCareerSchema(database: CareerDatabase): Promise<void
     await ensureRankingContributionUnits(tx);
     await ensureTeamEventClassification(tx);
     await ensureCareerGroupSchema(tx);
+    // Scheduled sponsor renewals must be able to start (the A9 upgrade reinstalled the older guard on fresh databases).
+    await ensureSponsorContractGuard(tx);
     await ensureDevelopmentCardSource(tx);
     await ensureRankingArchive(tx);
     await ensureTourCardOffers(tx);
