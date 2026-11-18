@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   useListPlayers, useResetSeason, useListMatches, useDeleteMatch, useGetCurrentSeason,
@@ -56,7 +57,7 @@ const ADMIN_TOOLS = [
   ["match-corrections", "Match Corrections", "edit delete results"],
   ["notifications", "Notifications", "delivery history queue analytics test"],
   ["tkdl-live-admin", "TKDL Live", "broadcast editions show"],
-  ["card-clash-admin", "Card Clash", "cards coins matches"],
+  ...(CARD_CLASH_BENCHED ? [] : [["card-clash-admin", "Card Clash", "cards coins matches"] as const]),
   ["challenges-admin", "Challenges", "daily weekly"],
   ["data-backup", "Data Backup", "export recovery"],
   ["audit-log", "Audit Log", "admin history"],
@@ -592,7 +593,7 @@ function AdminContent({ onLock }: { onLock: () => void }) {
       <CollapsibleAdminSection sectionId="tkdl-live-admin" title="TKDL Live Control Room" icon={Radio} accent="#ff005c"><Suspense fallback={<AdminLoading />}><AdminBroadcastPanel /></Suspense></CollapsibleAdminSection>
 
       <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Gamepad2 className="w-4 h-4" />Games and diagnostics</div>
-      <CollapsibleAdminSection sectionId="card-clash-admin" title="Card Clash Administration" icon={Gamepad2} accent="#00b4ff"><Suspense fallback={<AdminLoading />}><AdminCardClashPanel /></Suspense></CollapsibleAdminSection>
+      {!CARD_CLASH_BENCHED && <CollapsibleAdminSection sectionId="card-clash-admin" title="Card Clash Administration" icon={Gamepad2} accent="#00b4ff"><Suspense fallback={<AdminLoading />}><AdminCardClashPanel /></Suspense></CollapsibleAdminSection>}
       <CollapsibleAdminSection sectionId="challenges-admin" title="Challenge Administration" icon={Trophy} accent="#22c55e"><Suspense fallback={<AdminLoading />}><AdminChallengesPanel /></Suspense></CollapsibleAdminSection>
       <SweepTool />
       <PracticeAnalytics />

@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey } from "@workspace/api-client-react";
@@ -2051,7 +2052,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
 export default function Play() {
   const { data: appSettings }       = useSettings();
   const currentUser                 = useCurrentPlayer();
-  const cardClashEnabled            = appSettings?.card_clash_enabled ?? false;
+  const cardClashEnabled            = !CARD_CLASH_BENCHED && (appSettings?.card_clash_enabled ?? false);
 
   const [initialRecovery] = useState(() => {
     const raw = readMatchSnapshot<unknown>(PLAY_SNAPSHOT_KEY);

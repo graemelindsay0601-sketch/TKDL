@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "./card-clash-bench";
 import { db } from "@workspace/db";
 import { cardDefinitionsTable, cardInventoryTable, cardPityTable, playerCurrencyTable, cardClashMatchesTable, cardClashSeasonsTable, cardClashStandingsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -30,6 +31,37 @@ export async function initializeCardTables() {
       CREATE UNIQUE INDEX IF NOT EXISTS feature_flags_feature_name_unique
       ON feature_flags(feature_name)
     `);
+
+    // Card Clash is benched (card-clash-bench.ts): only the tables other features share are set up — Coins
+    // (player_currency) and notifications. Card Clash's own tables and column fixes are left alone until it returns.
+    if (CARD_CLASH_BENCHED) {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS player_currency (
+          id SERIAL PRIMARY KEY,
+          player_id INTEGER UNIQUE NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+          card_points INTEGER NOT NULL DEFAULT 0,
+          lifetime_coins_earned INTEGER NOT NULL DEFAULT 0,
+          pack_tokens INTEGER NOT NULL DEFAULT 0,
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS notifications (
+          id SERIAL PRIMARY KEY,
+          player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+          type VARCHAR(50) NOT NULL,
+          title VARCHAR(255) NOT NULL,
+          body TEXT,
+          data JSONB,
+          read BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      logger.info("Card tables: Card Clash benched; shared Coins and notifications tables checked");
+      return;
+    }
 
     // Create card_definitions table if it doesn't exist
     await db.execute(sql`

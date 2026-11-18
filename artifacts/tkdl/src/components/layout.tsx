@@ -1,3 +1,4 @@
+import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase } from "lucide-react";
@@ -249,7 +250,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { data: appSettings }           = useSettings();
   const liveScorer       = appSettings?.live_scorer_enabled ?? false;
   const communityEnabled = appSettings?.community_enabled   ?? false;
-  const cardClashEnabled = appSettings?.card_clash_enabled  ?? false;
+  const cardClashEnabled = !CARD_CLASH_BENCHED && (appSettings?.card_clash_enabled ?? false);
   const bossBattleEnabled = appSettings?.boss_battle_enabled ?? false;
   const boardCurseEnabled = appSettings?.board_curse_enabled ?? false;
   const tkdlLiveEnabled  = appSettings?.tkdl_live_enabled   ?? false;

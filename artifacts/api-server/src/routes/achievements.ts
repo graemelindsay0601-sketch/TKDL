@@ -4,6 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { SHADOW_BOT_ACHIEVEMENT_DEFS, gamerscoreForRarity } from "../lib/shadow-bot-achievements";
 import { CC_ACHIEVEMENT_DEFS } from "../lib/card-clash-achievements";
+import { CARD_CLASH_BENCHED } from "../lib/card-clash-bench";
 import { PINNABLE_SYSTEMS, getPinnedAchievements, setPinnedAchievements } from "../lib/pinned-achievements";
 
 const router = Router();
@@ -115,6 +116,7 @@ router.get("/achievements/detail/:system/:key", async (req, res): Promise<void> 
     }
 
     if (system === "card-clash") {
+      if (CARD_CLASH_BENCHED) { res.status(404).json({ error: "Card Clash is not available right now" }); return; }
       const def = CC_ACHIEVEMENT_DEFS.find(d => d.key === key);
       if (!def) { res.status(404).json({ error: "Achievement not found" }); return; }
       const holders = await holdersOrEmpty<{ player_id: number; player_name: string; earned_at: string }>(db.execute(sql`
@@ -235,6 +237,7 @@ router.get("/achievements/shadow-bot-definitions", async (_req, res): Promise<vo
 });
 
 router.get("/achievements/card-clash-definitions", async (_req, res): Promise<void> => {
+  if (CARD_CLASH_BENCHED) { res.json([]); return; }
   try {
     const rows = (await db.execute(sql`
       SELECT achievement_key, COUNT(*)::int AS unlock_count
