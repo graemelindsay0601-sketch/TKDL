@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db as rawDb } from "@workspace/db";
 import { careerRequestScope, readRetryingCareerDatabase } from "../career/request-scope.ts";
+import { careerReadCache } from "../career/read-cache.ts";
 import { createCareerService } from "../career/service.ts";
 import { createCareerRouter } from "../career/router.ts";
 import { createCareerCalendarRouter } from "../career/calendar/router.ts";
@@ -66,6 +67,7 @@ const available = (isAdmin: boolean) => saves.isAvailable(isAdmin);
 const live = createCareerLiveMatchService(db, sporting.calendar);
 const router = Router();
 router.use(careerRequestScope);
+router.use(careerReadCache);
 router.use(createCareerTournamentRouter(createCareerTournamentService(db,sporting.calendar),sporting.calendar,available));
 router.use(createCareerContentRouter(createCareerContentService(db,sporting)));
 router.use(createCareerFactsRouter(createCareerFactsService(db)));

@@ -276,11 +276,13 @@ export function CalendarPage({ ctx }: { ctx: ShellContext }) {
   const isCurrentSeason = season === save.currentSeason;
   const fromWeek = isCurrentSeason ? Math.max(1, focusWeek - 2) : 1;
   const toWeek = Math.min(52, (isCurrentSeason ? focusWeek : 1) + 8);
+  // "Near home" is filtered on the server too, so the far-away events it hides are never sent (or priced).
+  const nearbyKey = nearby && view !== "MY_SCHEDULE" && view !== "PLAN" && homeLocality ? homeLocality : undefined;
   const query: CalendarQuery = view === "PLAN"
     ? { scope: "WORLD", season, fromWeek: isCurrentSeason ? save.currentWeek : 1, toWeek: Math.min(52, (isCurrentSeason ? save.currentWeek : 1) + 7) }
     : view === "UPCOMING"
-      ? { scope: "WORLD", season, fromWeek, toWeek, circuit: circuit || undefined }
-      : { scope: "WORLD", season, circuit: circuit || undefined };
+      ? { scope: "WORLD", season, fromWeek, toWeek, circuit: circuit || undefined, near: nearbyKey }
+      : { scope: "WORLD", season, circuit: circuit || undefined, near: nearbyKey };
   const calendar = useCalendar(save.id, query);
   const enter = useEnterEvent(save.id);
   const pending = useMemo(() => new Set(calendar.data?.overview.pendingHumanMatches.map(item => item.eventId) ?? []), [calendar.data]);

@@ -32,7 +32,7 @@ export function createCareerCalendarRouter(service: CareerCalendarService, isAva
   router.get("/saves/:id/calendar", async (req, res) => {
     const q = req.query;
     const calendar = await service.calendar(res.locals.careerActor, id(req), Object.fromEntries(Object.entries({
-      season: num(q.season), fromWeek: num(q.fromWeek), toWeek: num(q.toWeek), scope: str(q.scope), circuit: str(q.circuit), classification: str(q.classification), family: str(q.family),
+      season: num(q.season), fromWeek: num(q.fromWeek), toWeek: num(q.toWeek), scope: str(q.scope), circuit: str(q.circuit), classification: str(q.classification), family: str(q.family), near: str(q.near),
     }).filter(([, v]) => v !== undefined)));
     // view=overview: just the season overview (the Career header on every page), without the week's event list.
     res.json({ ...calendar, events: str(q.view) === "overview" ? [] : calendar.events.map(listEvent) });

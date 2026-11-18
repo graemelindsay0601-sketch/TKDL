@@ -17,6 +17,7 @@ import { formAfterMatch } from "./form.ts";
 import { breakthroughs, developNpc, evolveOffSeason, isBasePopulation, steadyIntakes } from "./development.ts";
 import {persistInitialNpcSponsorRelationships} from "../sponsorship/npc-foundation.ts";
 import { isCareerRead } from "../request-scope.ts";
+import { bumpSaveVersion } from "../save-version.ts";
 
 export type CareerActor = { playerId: number; isAdmin?: boolean };
 export type Root = { id: string; world_seed: string; world_generation_version: number; difficulty: CareerDifficulty; current_season: number };
@@ -37,6 +38,8 @@ export async function lockRoot(tx: CareerExecutor, actor: CareerActor, saveId: s
   const row = (await tx.execute(sql`SELECT s.*, to_char(p.date_of_birth, 'YYYY-MM-DD') AS identity_dob, to_char(p.career_start_date, 'YYYY-MM-DD') AS identity_start
     FROM career_saves s LEFT JOIN career_profiles p ON p.career_save_id = s.id WHERE s.id = ${saveId} AND s.player_id = ${actor.playerId} ${isCareerRead() ? sql`FOR SHARE OF s` : sql`FOR UPDATE OF s`}`)).rows[0];
   if (!row) throw new CareerError(404, "Career not found");
+  // A write is about to change this save: answers remembered before now are stale (read-cache.ts).
+  if (!isCareerRead()) bumpSaveVersion(saveId);
   if (active && row.status !== "ACTIVE") throw new CareerError(409, "Career is retired");
   assertGenerationVersion(Number(row.world_generation_version));
   return row as Root;
