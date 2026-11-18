@@ -88,3 +88,20 @@ test("two syncs at once cannot pay the same unlock twice", async () => {
   await Promise.all([syncAll(db as never, setting, pay), syncAll(db as never, setting, pay)]);
   assert.equal(paid.filter(p => p.detail === "v2:league-wins:2").length, 1);
 });
+
+test("the page reads the same from saved rows as from a live preview, and hides secrets until earned", async () => {
+  const { pg, db, setting, pay } = await setup();
+  const { toView, storedStates, liveStates } = await import("../achievements-v2/view.ts");
+  await pg.exec("INSERT INTO matches (season_id,winner_id,loser_id,stake,elo_change,game_type,played_at) SELECT 1,1,3,5,8,'501','2026-01-06'::timestamptz + (g || ' hours')::interval FROM generate_series(1,4) g");
+  await syncAll(db as never, setting, pay);
+  const saved = toView(await storedStates(db as never, 1), 1), live = toView(await liveStates(db as never, 1), 1);
+  const strip = (v: typeof saved) => v.areas.map(a => [a.area, a.score, a.tracks.map(t => [t.key, t.value, t.level, t.metal, t.next]), a.feats.map(f => [f.key, !!f.earnedAt]), a.seasonGoals.map(g => [g.key, g.value, g.completed])]);
+  assert.deepEqual(strip(saved), strip(live));
+  const league = saved.areas.find(a => a.area === "LEAGUE")!;
+  const wins = league.tracks.find(t => t.key === "league-wins")!;
+  assert.deepEqual([wins.value, wins.level, wins.metal, wins.next], [5, 2, "BRONZE", "Win 10 league matches"]);
+  assert.equal(league.feats.find(f => f.key === "back-from-the-brink")?.title, "Secret");
+  assert.equal(league.seasonGoals.find(g => g.key === "season-wins")?.value, 5);
+  assert.ok(saved.nearly.length > 0 && saved.nearly.every(t => t.progress > 0 && t.progress < 1));
+  assert.equal(saved.areas.length, 5);
+});

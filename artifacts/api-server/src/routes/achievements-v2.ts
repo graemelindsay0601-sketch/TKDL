@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { allHistoryCredit, reportHtml } from "../lib/achievements-v2/report.ts";
 import { settings, isEnabled, syncNow, lastSync } from "../lib/achievements-v2/live.ts";
+import { toView, storedStates, liveStates, currentSeasonId, recentUnlocks } from "../lib/achievements-v2/view.ts";
 import { ENABLED_KEY, LAUNCHED_KEY, WELCOME_COINS } from "../lib/achievements-v2/store.ts";
 
 /**
@@ -35,4 +36,19 @@ router.post("/admin/achievements-v2/sync", requireAdminSession, async (_req, res
   if (!(await isEnabled())) { res.status(409).json({ error: "Achievements v2 is switched off" }); return; }
   res.json({ result: await syncNow() });
 });
+
+/** One player's achievements for the page and the profile shelf. Before launch only an admin can preview (worked out live). */
+router.get("/achievements-v2/players/:id", async (req, res) => {
+  const playerId = Number(req.params.id);
+  if (!Number.isInteger(playerId) || playerId <= 0) { res.status(400).json({ error: "Invalid player" }); return; }
+  const enabled = await isEnabled();
+  const preview = !enabled && req.query.preview === "1" && !!(req.session as { isAdmin?: boolean } | undefined)?.isAdmin;
+  if (!enabled && !preview) { res.json({ enabled: false }); return; }
+  const exec = db as never;
+  const states = preview ? await liveStates(exec, playerId) : await storedStates(exec, playerId);
+  res.set("Cache-Control", "no-store");
+  res.json({ enabled, preview, view: toView(states, await currentSeasonId(exec)), recent: preview ? [] : await recentUnlocks(exec, playerId) });
+});
+/** Whether the new achievements are live (the app hides the page and shelf until they are). */
+router.get("/achievements-v2/status", async (_req, res) => { res.json({ enabled: await isEnabled() }); });
 export default router;

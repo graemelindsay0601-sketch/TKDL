@@ -4,7 +4,8 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/context/auth";
+import { AuthProvider, useAuth } from "@/context/auth";
+import { useAchievementsV2Status } from "@/components/achievements-v2/api";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { lazyWithRetry } from "@/lib/lazy-with-retry";
@@ -18,6 +19,7 @@ const PlayerDetail = lazyWithRetry(() => import("@/pages/player-detail"), "playe
 const Seasons = lazyWithRetry(() => import("@/pages/seasons"), "seasons");
 const SeasonDetail = lazyWithRetry(() => import("@/pages/season-detail"), "season-detail");
 const Achievements = lazyWithRetry(() => import("@/pages/achievements"), "achievements");
+const AchievementsV2 = lazyWithRetry(() => import("@/pages/achievements-v2"), "achievements-v2");
 const AchievementDetail = lazyWithRetry(() => import("@/pages/achievement-detail"), "achievement-detail");
 const Admin = lazyWithRetry(() => import("@/pages/admin"), "admin");
 const Rules = lazyWithRetry(() => import("@/pages/rules"), "rules");
@@ -65,6 +67,13 @@ function PageLoader() {
       <TkdlLoader />
     </div>
   );
+}
+
+/** The new achievements once they're switched on (admins see a preview before); the old page lives on as Classics. */
+function AchievementsHome() {
+  const enabled = useAchievementsV2Status();
+  const { user } = useAuth();
+  return enabled || user?.isAdmin ? <AchievementsV2 /> : <Achievements />;
 }
 
 function RoutePage({ children }: { children: ReactNode }) {
@@ -124,8 +133,11 @@ function AppRoutes() {
             <Route path="/achievements/:system/:key">
               <RoutePage><AchievementDetail /></RoutePage>
             </Route>
-            <Route path="/achievements">
+            <Route path="/achievements/classics">
               <RoutePage><Achievements /></RoutePage>
+            </Route>
+            <Route path="/achievements">
+              <RoutePage><AchievementsHome /></RoutePage>
             </Route>
             <Route path="/rules">
               <RoutePage><Rules /></RoutePage>
