@@ -1411,14 +1411,15 @@ export const lastDayOfWeek = (week: number) => week * DAYS_PER_WEEK;
  * cancel unsupported/unfillable events explicitly, draw, then progress every live
  * tournament through rounds scheduled up to the end of the week.
  */
-export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, season: number, week: number, providers: CalendarProviders) {
+export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, season: number, week: number, providers: CalendarProviders,
+  options: { humanFirst?: boolean } = {}) {
   if (week < 1 || week > WEEKS_PER_SEASON) throw new CareerError(409, "Week outside season");
   await openRegistrations(tx, root.id, season, week);
   await providers.finance?.beforeWeek(tx, root, season, week);
   const starting = (await loadInstances(tx, root.id, sql`season = ${season} AND start_week = ${week} AND status IN ('REGISTRATION_OPEN','REGISTRATION_CLOSED','DRAW_PENDING')`))
     // Priority first; within a priority, earlier days first (so series day 1 locks before later days copy it).
     .sort((a, b) => b.calendar_priority - a.calendar_priority || a.start_day - b.start_day || (a.instance_key < b.instance_key ? -1 : 1));
-  const summary = { week, locked: 0, cancelledUnsupported: 0, cancelledUnfilled: 0, drawn: 0, completed: 0, simulatedMatches: 0, awaitingHuman: [] as string[] };
+  const summary = { week, locked: 0, cancelledUnsupported: 0, cancelledUnfilled: 0, drawn: 0, completed: 0, simulatedMatches: 0, awaitingHuman: [] as string[], deferred: 0 };
   const npcs = starting.length ? await loadNpcs(tx, root.id, { activeOnly: true }) : [];
   const committed = npcs.length ? await teamNightCommitments(tx, root, season, week, npcs) : undefined;
   // Close every starting event's registration in one write (each row's transition is still checked).
@@ -1445,8 +1446,22 @@ export async function playWeek(tx: CareerExecutor, root: RootRow, world: World, 
   const toDraw = starting.filter(e => e.status === "DRAW_PENDING");
   await makeDraws(tx, root, toDraw, providers);
   summary.drawn += toDraw.length;
-  const live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
-  const progress = await progressEvents(tx, root, world, live, lastDayOfWeek(week), providers);
+  let live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
+  let progress: Awaited<ReturnType<typeof progressEvents>> | null = null;
+  if (options.humanFirst && live.length) {
+    // The player's own events first: if one stops for their match, answer now and leave the computer-only events
+    // to catchUpWeek (run straight after, while they play). Anything still left is played by the next step as before.
+    const mineIds = new Set((await tx.execute(sql`SELECT event_id FROM career_event_entries WHERE career_save_id = ${root.id}
+      AND participant_key = ${HUMAN} AND status <> 'WITHDRAWN' AND event_id IN (${sql.join(live.map(e => sql`${e.id}::uuid`), sql`, `)})`)).rows.map(r => String(r.event_id)));
+    const mine = live.filter(e => mineIds.has(e.id));
+    if (mine.length && mine.length < live.length) {
+      const first = await progressEvents(tx, root, world, mine, lastDayOfWeek(week), providers);
+      if (first.awaitingHuman.length) { progress = first; live = mine; summary.deferred = 1; }
+      else live = await loadInstances(tx, root.id, sql`season = ${season} AND status = 'IN_PROGRESS' AND start_week <= ${week}`);
+      if (!progress) { summary.simulatedMatches += first.simulated; summary.completed += first.completed; }
+    }
+  }
+  progress ??= await progressEvents(tx, root, world, live, lastDayOfWeek(week), providers);
   summary.simulatedMatches += progress.simulated;
   summary.completed += progress.completed;
   summary.awaitingHuman.push(...progress.awaitingHuman.map(m => m.id));
