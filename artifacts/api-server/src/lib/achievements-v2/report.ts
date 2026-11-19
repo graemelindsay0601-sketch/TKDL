@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { Metal } from "./catalogue.ts";
+import { CATALOGUE, type Metal } from "./catalogue.ts";
 import { evaluate, catalogueFor, type AchievementState } from "./evaluate.ts";
 import { evaluateDoubles, evaluateShiftWars, evaluatePractice, evaluateMaster501, evaluateModes, type DoublesTeam, type DoublesResult, type ShiftResult } from "./areas.ts";
 import type { Area } from "./catalogue.ts";
@@ -123,6 +123,14 @@ export function seasonDays(seasons: { id: number; startDate: Date | null; endDat
   for (const s of seasons) if (!s.isActive && s.startDate && s.endDate) out.set(s.id, Math.round((day(s.endDate) - day(s.startDate)) / 86400000) + 1);
   return out;
 }
+/** The first Shift Wars match of each season and the departments in it. */
+function shiftFirsts(data: AreaData, seasonOf: (d: Date) => number | null) {
+  const firsts = new Map<number, { at: Date; teams: Set<number> }>();
+  for (const [team, results] of data.shift) for (const r of results) { const sid = seasonOf(r.playedAt); if (sid === null) continue;
+    const f = firsts.get(sid);
+    if (!f || r.playedAt < f.at) firsts.set(sid, { at: r.playedAt, teams: new Set([team]) }); else if (r.playedAt.getTime() === f.at.getTime()) f.teams.add(team); }
+  return firsts;
+}
 export type AreaData = Awaited<ReturnType<typeof loadAreas>>;
 /** Every row the non-league evaluators need, for every player (an admin report; these tables are small). */
 export async function loadAreas(db: Exec) {
@@ -198,6 +206,7 @@ export function areaFacts(data: AreaData, playerId: number, now = new Date()): P
   const shiftFacts = evaluateShiftWars({ departmentId: dept, results: dept === null ? [] : data.shift.get(dept) ?? [],
     championMonths: deptHistory.filter(h => h.is_champion === true).map(h => ({ seasonId: num(h.season_id), at: ts(h.recorded_at) })),
     seasonsOnRota: new Set(deptHistory.map(h => num(h.season_id))).size, seasonWeeks: seasonWeeks(data.seasons) }, seasonOf);
+  if (dept !== null) for (const [sid, first] of shiftFirsts(data, seasonOf)) if (first.teams.has(dept) && !shiftFacts.feats.clockingIn) { shiftFacts.feats.clockingIn = first.at; void sid; }
   if ((doubles.metrics.teamMatches ?? 0) > 0 || (shiftFacts.metrics.deptMatches ?? 0) > 0) out.TEAMS = mergeFacts(doubles, shiftFacts);
   const practice = data.practice.get(playerId);
   if (practice?.length) out.PRACTICE = evaluatePractice(practice, seasonOf, seasonDays(data.seasons));
@@ -213,6 +222,9 @@ export type AreaPlayers = Record<Exclude<Area, "TOUR">, PlayerAchievements[]>;
 /** Every player's achievement states in every area, worked out from the recorded data (read only). */
 export async function computeAll(db: Exec, now = new Date()): Promise<AreaPlayers> {
   const out: AreaPlayers = { LEAGUE: await leagueHistoryCredit(db), TEAMS: [], PRACTICE: [], MASTER501: [], MODES: [] };
+  // live-only feats recorded as they happened
+  let live: Record<string, unknown>[] = [];
+  try { live = (await db.execute(sql`SELECT player_id, feat, at FROM achievement_v2_live`)).rows; } catch { live = []; }
   const data = await loadAreas(db);
   for (const p of data.players) {
     const facts = areaFacts(data, p.id, now);
@@ -222,6 +234,8 @@ export async function computeAll(db: Exec, now = new Date()): Promise<AreaPlayer
       out[area].push({ playerId: p.id, name: p.name, states, score: states.reduce((n, s) => n + s.points, 0) });
     }
   }
+  for (const r of live) for (const list of Object.values(out)) { const p = list.find(x => x.playerId === Number(r.player_id)); if (!p) continue;
+    for (const s of p.states) { const d = CATALOGUE.find(c => c.key === s.key); if (s.kind === "FEAT" && d?.kind === "FEAT" && d.metric === r.feat && !s.earnedAt) { s.earnedAt = new Date(String(r.at)); s.points = d.points; p.score += d.points; } } }
   return out;
 }
 /** History credit for every area, each summarised on its own (read only). */

@@ -1,0 +1,26 @@
+.av2-unlock { position: fixed; inset: 0; z-index: 2147483647; display: flex; justify-content: center; overflow: hidden; color: #fff; animation: av2-in .35s ease-out; }
+.av2-unlock .bg { position: absolute; inset: 0; background: radial-gradient(70% 45% at 50% 34%, #3b2a12 0%, #160f1f 55%, #07080c 100%); }
+.av2-unlock.showpiece .bg { background: radial-gradient(70% 45% at 50% 34%, #5a3f12 0%, #1d1226 55%, #07080c 100%); }
+.av2-unlock .rays { position: absolute; left: 50%; top: 32%; width: 1100px; height: 1100px; margin: -550px 0 0 -550px; background: repeating-conic-gradient(from 0deg, rgba(255,214,120,.14) 0 6deg, transparent 6deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 0, transparent 60%); mask: radial-gradient(circle, #000 0, transparent 60%); animation: av2-spin 40s linear infinite; }
+.av2-unlock .spark { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px 2px rgba(255,220,140,.9); animation: av2-twinkle 2s ease-in-out infinite; }
+.av2-unlock .inner { position: relative; width: 100%; max-width: 430px; padding: max(40px, env(safe-area-inset-top)) 22px 24px; overflow-y: auto; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.av2-unlock .chip { font-family: Oswald, sans-serif; text-transform: uppercase; letter-spacing: .06em; font-size: 13px; font-weight: 700; color: #ffd24a; padding: 6px 14px; border-radius: 999px; background: rgba(255,210,74,.12); border: 1px solid rgba(255,210,74,.4); }
+.av2-unlock img.piece { width: min(320px, 78vw); height: min(380px, 44vh); object-fit: contain; margin: 6px 0 -4px; filter: drop-shadow(0 30px 30px rgba(0,0,0,.7)) drop-shadow(0 0 40px rgba(255,200,90,.25)); animation: av2-rise .7s cubic-bezier(.2,.9,.3,1.2); }
+.av2-unlock img.seal { width: 190px; height: 210px; object-fit: contain; margin: 26px 0 14px; filter: drop-shadow(0 20px 20px rgba(0,0,0,.6)) drop-shadow(0 0 30px rgba(255,200,90,.3)); animation: av2-rise .7s cubic-bezier(.2,.9,.3,1.2); }
+.av2-unlock h2 { font-family: Oswald, sans-serif; text-transform: uppercase; font-size: 36px; font-weight: 700; line-height: 1; margin: 0; }
+.av2-unlock .metal { font-family: Oswald, sans-serif; text-transform: uppercase; letter-spacing: .12em; color: #ffd24a; font-size: 18px; margin-top: 6px; }
+.av2-unlock .desc { color: rgba(255,255,255,.55); font-size: 14px; margin-top: 8px; }
+.av2-unlock .nextcard { width: 100%; margin-top: 16px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); font-size: 13px; text-align: left; }
+.av2-unlock .rewards { margin-top: 14px; }
+.av2-unlock .coins { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; font-weight: 800; font-size: 15px; background: rgba(255,210,74,.1); border: 1px solid rgba(255,210,74,.35); }
+.av2-unlock .coins i { width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3b0, #f2c230 55%, #a8740a); box-shadow: 0 0 6px rgba(255,210,74,.6); }
+.av2-unlock .buttons { display: flex; gap: 10px; width: 100%; margin-top: 22px; }
+.av2-unlock button { flex: 1; padding: 14px; border-radius: 14px; font-family: Oswald, sans-serif; text-transform: uppercase; font-size: 15px; letter-spacing: .04em; }
+.av2-unlock button.ghost { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #fff; }
+.av2-unlock button.go { background: linear-gradient(180deg, #ffd24a, #d99a12); color: #2a1a00; font-weight: 700; border: 0; }
+@keyframes av2-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes av2-rise { from { opacity: 0; transform: translateY(30px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes av2-spin { to { transform: rotate(360deg); } }
+@keyframes av2-twinkle { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .av2-unlock, .av2-unlock .rays, .av2-unlock img, .av2-unlock .spark { animation: none !important; } }

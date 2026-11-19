@@ -39,11 +39,19 @@ export function ensureTables(db: Exec) {
       source TEXT NOT NULL, seen BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       UNIQUE (player_id, key, level, season_id))`);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS achievement_v2_unlocks_player_idx ON achievement_v2_unlocks (player_id, created_at DESC)`);
+    await db.execute(sql`CREATE TABLE IF NOT EXISTS achievement_v2_live (
+      player_id INTEGER NOT NULL REFERENCES players(id) ON DELETE CASCADE, feat TEXT NOT NULL, at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (player_id, feat))`);
     await db.execute(sql`CREATE TABLE IF NOT EXISTS achievement_v2_welcome (
       player_id INTEGER PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE, coins INTEGER NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
   })().catch(err => { ensured.delete(db); throw err; });
   ensured.set(db, p);
   return p;
+}
+
+/** Facts only visible as they happen (e.g. the points a winner had before the match), kept for the evaluators. */
+export async function recordLiveFeat(db: Exec, playerId: number, feat: string, at: Date) {
+  await ensureTables(db);
+  await db.execute(sql`INSERT INTO achievement_v2_live (player_id, feat, at) VALUES (${playerId}, ${feat}, ${at.toISOString()}::timestamptz) ON CONFLICT DO NOTHING`);
 }
 
 type Unlock = { playerId: number; key: string; area: Area; kind: string; level: number; seasonId: number; coins: number };

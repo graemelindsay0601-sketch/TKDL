@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
 import { allHistoryCredit, reportHtml } from "../lib/achievements-v2/report.ts";
 import { settings, isEnabled, syncNow, lastSync } from "../lib/achievements-v2/live.ts";
-import { toView, storedStates, liveStates, currentSeasonId, recentUnlocks } from "../lib/achievements-v2/view.ts";
+import { toView, storedStates, liveStates, currentSeasonId, recentUnlocks, unseenUnlocks, markSeen } from "../lib/achievements-v2/view.ts";
 import { ENABLED_KEY, LAUNCHED_KEY, WELCOME_COINS } from "../lib/achievements-v2/store.ts";
 
 /**
@@ -51,4 +51,19 @@ router.get("/achievements-v2/players/:id", async (req, res) => {
 });
 /** Whether the new achievements are live (the app hides the page and shelf until they are). */
 router.get("/achievements-v2/status", async (_req, res) => { res.json({ enabled: await isEnabled() }); });
+
+/** The signed-in player's new unlocks to celebrate, and marking them shown. */
+router.get("/achievements-v2/me/unseen", async (req, res) => {
+  const playerId = (req.session as { playerId?: number } | undefined)?.playerId;
+  res.set("Cache-Control", "no-store");
+  if (!playerId || !(await isEnabled())) { res.json({ unlocks: [] }); return; }
+  res.json({ unlocks: await unseenUnlocks(db as never, playerId) });
+});
+router.post("/achievements-v2/me/seen", async (req, res) => {
+  const playerId = (req.session as { playerId?: number } | undefined)?.playerId;
+  if (!playerId) { res.status(401).json({ error: "Login required" }); return; }
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter((n: number) => Number.isInteger(n) && n > 0).slice(0, 50);
+  await markSeen(db as never, playerId, ids);
+  res.json({ ok: true });
+});
 export default router;
