@@ -103,3 +103,22 @@ export async function recentUnlocks(db: Exec, playerId: number, limit = 12) {
       metal: d?.kind === "TRACK" ? metalFor(Number(r.level), d.levels.length) : null, coins: Number(r.coins), at: new Date(String(r.created_at)).toISOString() };
   });
 }
+
+/** Live unlocks the player hasn't been shown yet (oldest first), for the unlock pop-up. */
+export async function unseenUnlocks(db: Exec, playerId: number) {
+  await ensureTables(db);
+  return (await db.execute(sql`SELECT id, key, area, kind, level, season_id, coins, created_at FROM achievement_v2_unlocks
+    WHERE player_id = ${playerId} AND seen = false AND source = 'live' ORDER BY created_at, id LIMIT 10`)).rows.map(r => {
+    const d = defs.get(String(r.key));
+    const next = d?.kind === "TRACK" ? d.levels[Number(r.level)] ?? null : null;
+    return { id: Number(r.id), key: String(r.key), title: d?.title ?? String(r.key), area: String(r.area), kind: String(r.kind), level: Number(r.level),
+      levels: d?.kind === "TRACK" ? d.levels.length : 0, metal: d?.kind === "TRACK" ? metalFor(Number(r.level), d.levels.length) : null,
+      reached: d?.kind === "TRACK" ? d.levels[Number(r.level) - 1] : null, next, nextGoal: d?.kind === "TRACK" && next !== null ? goalText(d.goal, next) : null,
+      goal: d && d.kind !== "TRACK" ? (d.kind === "SEASON" ? d.goal.replace("{n}", String(d.targets[Math.min(d.targets.length, Number(r.level)) - 1])) : d.goal) : null,
+      showpiece: d?.kind === "FEAT" ? !!d.showpiece : false, coins: Number(r.coins), at: new Date(String(r.created_at)).toISOString() };
+  });
+}
+export async function markSeen(db: Exec, playerId: number, ids: number[]) {
+  if (!ids.length) return;
+  await db.execute(sql`UPDATE achievement_v2_unlocks SET seen = true WHERE player_id = ${playerId} AND id IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
+}

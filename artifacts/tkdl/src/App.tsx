@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/auth";
 import { useAchievementsV2Status } from "@/components/achievements-v2/api";
+import { UnlockCelebration } from "@/components/achievements-v2/UnlockCelebration";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { lazyWithRetry } from "@/lib/lazy-with-retry";
@@ -108,6 +109,7 @@ function AppRoutes() {
       </Route>
       <Route>
         <Layout>
+          <UnlockCelebration />
           <Switch>
             <Route path="/">
               <RoutePage><Dashboard /></RoutePage>

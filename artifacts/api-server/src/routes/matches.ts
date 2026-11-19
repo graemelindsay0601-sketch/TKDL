@@ -18,6 +18,7 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
 import { logAdminAction } from "../lib/adminAudit";
 import { reverseRecordedParticipant } from "../lib/match-rollback";
 import { upsertResultPoster } from "../services/matchPosterService";
+import { recordLiveFeat } from "../lib/achievements-v2/store.ts";
 
 const SubmitMatchBody = z.object({
   winnerId:                z.number().int().positive(),
@@ -364,6 +365,8 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     winnerEloBefore     = result.winnerEloBefore;
     loserEloBefore      = result.loserEloBefore;
     winnerStreakAfter   = result.winnerStreakAfter;
+    // Achievements v2: Back from the brink can only be seen at the moment it happens (points before aren't stored)
+    if (result.winnerPointsBefore === 1) void recordLiveFeat(db as never, winnerId, "backFromBrink", new Date()).catch(() => {});
   } catch (err) {
     if (err instanceof MatchConflictError) {
       res.status(400).json({ error: err.message });

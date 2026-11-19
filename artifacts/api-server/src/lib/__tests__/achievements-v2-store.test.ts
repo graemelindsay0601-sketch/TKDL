@@ -105,3 +105,19 @@ test("the page reads the same from saved rows as from a live preview, and hides 
   assert.ok(saved.nearly.length > 0 && saved.nearly.every(t => t.progress > 0 && t.progress < 1));
   assert.equal(saved.areas.length, 5);
 });
+
+test("a live feat recorded as it happens is awarded, shows as unseen and can be marked seen", async () => {
+  const { pg, db, setting, pay, paid } = await setup();
+  const { recordLiveFeat } = await import("../achievements-v2/store.ts");
+  const { unseenUnlocks, markSeen } = await import("../achievements-v2/view.ts");
+  await syncAll(db as never, setting, pay);                    // launch
+  await recordLiveFeat(db as never, 1, "backFromBrink", new Date("2026-01-08T20:00:00Z"));
+  await recordLiveFeat(db as never, 1, "backFromBrink", new Date("2026-01-09T20:00:00Z"));   // once only
+  await syncAll(db as never, setting, pay);
+  assert.ok(paid.some(p => p.pid === 1 && p.detail === "v2:back-from-the-brink:1" && p.coins === 80));
+  const unseen = await unseenUnlocks(db as never, 1);
+  assert.ok(unseen.some(u => u.key === "back-from-the-brink" && u.coins === 80));
+  await markSeen(db as never, 1, unseen.map(u => u.id));
+  assert.equal((await unseenUnlocks(db as never, 1)).length, 0);
+  assert.equal((await q(pg, "SELECT count(*)::int AS n FROM achievement_v2_live"))[0].n, 1);
+});

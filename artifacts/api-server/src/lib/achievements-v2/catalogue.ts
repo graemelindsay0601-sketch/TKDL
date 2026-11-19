@@ -113,7 +113,7 @@ export const TEAMS_CATALOGUE: AchievementDef[] = [
   track("TEAMS", "shift-matches", "Shift Wars matches played", "Your department plays {n} Shift Wars matches", "deptMatches", [5, 10, 25, 50, 100]),
   track("TEAMS", "shift-depts-beaten", "Departments beaten", "Beat {n} different departments", "deptsBeaten", [1, 2]),
   track("TEAMS", "shift-seasons", "Seasons on the rota", "Be on the rota for {n} Shift Wars seasons", "seasonsOnRota", [1, 2, 3, 5]),
-  feat("TEAMS", "clocking-in", "Clocking in", "Play your department's first match of a season", "clockingIn", 20, { liveOnly: true }),
+  feat("TEAMS", "clocking-in", "Clocking in", "Your department plays the first Shift Wars match of a season", "clockingIn", 20),
   feat("TEAMS", "overtime", "Overtime", "Win a multi-department match", "overtime", 30),
   feat("TEAMS", "big-shift", "Big shift", "Win on a stake of 20+", "bigShift", 30),
   feat("TEAMS", "night-shift", "Night shift", "Play 3 Shift Wars matches on one day", "nightShift", 30),
