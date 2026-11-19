@@ -101,3 +101,12 @@ test("achievement cosmetics: granted once from current states, seeded as award-o
   const defs = (await pg.query<{ n: number }>(`SELECT count(*)::int n FROM cosmetic_definitions WHERE purchasable = false AND price = 0`)).rows[0].n;
   assert.equal(defs, REWARDS.length); assert.equal(Object.keys(EARNED_BY).length, REWARDS.length);
 });
+
+test("the unlock pop-up names the cosmetic an unlock brings", async () => {
+  const { rewardForUnlock } = await import("../achievements-v2/rewards.ts");
+  assert.equal(rewardForUnlock("career-wins", "CAREER", "TRACK", 5, 5), "Career Diamond profile frame");
+  assert.equal(rewardForUnlock("career-wins", "CAREER", "TRACK", 4, 5), null);
+  assert.equal(rewardForUnlock("untouchable", "LEAGUE", "TRACK", 5, 5), "League Diamond profile frame + UNTOUCHABLE leaderboard tag");
+  assert.equal(rewardForUnlock("hall-of-famer", "CAREER", "FEAT", 1, 0), "Hall of Fame banner");
+  assert.equal(rewardForUnlock("maiden-title", "CAREER", "FEAT", 1, 0), null);
+});

@@ -9,7 +9,10 @@ import { getSetting, setSetting } from "../settingsService";
 import { getDefaultLeagueId } from "../currentLeague";
 import { addCoinsToPlayer } from "../../services/card-shop-service";
 import { ensurePlayerCurrency } from "../cardTablesMigration";
-import { syncAll, ENABLED_KEY, type Setting, type SyncResult } from "./store.ts";
+import { syncAll, ENABLED_KEY, type Setting, type SyncResult, type Notify } from "./store.ts";
+import { createNotification } from "../../services/notificationService";
+import { CATALOGUE, metalFor } from "./catalogue.ts";
+import { rewardForUnlock } from "./rewards.ts";
 
 export const settings: Setting = {
   get: async key => getSetting(await getDefaultLeagueId(), key),
@@ -22,6 +25,21 @@ const pay = async (playerId: number, coins: number, detail: string) => {
   catch (err) { logger.error({ err, playerId, detail }, "achievements v2: coin payment failed"); }
 };
 
+const defs = new Map(CATALOGUE.map(d => [d.key, d]));
+/** One push per player per sync: the best unlock named, the rest counted. Respects the player's "achievements" notification setting. */
+const notify: Notify = async (playerId, unlocks) => {
+  const named = unlocks.map(u => { const d = defs.get(u.key); const metal = d?.kind === "TRACK" ? metalFor(u.level, d.levels.length) : null;
+    const rank = d?.kind === "FEAT" && d.showpiece ? 9 : metal === "DIAMOND" ? 8 : d?.kind === "FEAT" ? 5 : metal === "PLATINUM" ? 4 : metal === "GOLD" ? 3 : 1;
+    const reward = rewardForUnlock(u.key, d?.area ?? "", u.kind, u.level, d?.kind === "TRACK" ? d.levels.length : 0);
+    return { u, rank, text: `${d?.title ?? u.key}${metal ? ` (${metal[0]}${metal.slice(1).toLowerCase()})` : ""}`, reward }; }).sort((a, b) => b.rank - a.rank);
+  const top = named[0]; if (!top) return;
+  const coins = unlocks.reduce((n, u) => n + u.coins, 0), more = named.length - 1;
+  await createNotification({ playerId, type: "achievement_unlocked",
+    title: named.length > 1 ? `🏆 ${named.length} new achievements` : top.rank >= 9 ? "🏆 Showpiece unlocked!" : "🏆 Achievement unlocked",
+    body: `${top.text}${more ? ` and ${more} more` : ""}${coins ? ` · +${coins} coins` : ""}${top.reward ? ` · ${top.reward}` : ""}`,
+    data: { url: "/achievements" }, dedupeKey: `av2:${playerId}:${unlocks.map(u => `${u.key}.${u.level}`).join(",")}` });
+};
+
 let running: Promise<SyncResult | null> = Promise.resolve(null);
 let timer: NodeJS.Timeout | null = null;
 export let lastSync: (SyncResult & { at: string }) | { error: string; at: string } | null = null;
@@ -31,7 +49,7 @@ export function syncNow(force = false): Promise<SyncResult | null> {
   running = running.catch(() => null).then(async () => {
     if (!force && !(await isEnabled())) return null;
     try {
-      const r = await syncAll(db as never, settings, pay);
+      const r = await syncAll(db as never, settings, pay, new Date(), notify);
       lastSync = { ...r, at: new Date().toISOString() };
       logger.info(r, "achievements v2 sync");
       return r;

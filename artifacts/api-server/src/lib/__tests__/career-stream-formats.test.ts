@@ -149,9 +149,11 @@ test("the monthly sub goal: set once a month from Partner up, settled at the mon
   await status(streaming.setSubGoal(actor, id, { target: 10, promise: SUB_GOAL.promises[1] }), 409);
   const s = await saves.read(1, id), month = v.subGoal!.month, end = month * 4;
   // Five subs from this month's streams.
-  await db.execute(sql`UPDATE career_streams SET week=${end}, tally = tally || '{"subs":5}'::jsonb WHERE career_save_id=${id} AND id = (SELECT id FROM career_streams WHERE career_save_id=${id} AND status='ENDED' ORDER BY created_at DESC LIMIT 1)`);
-  // Earlier streams' clips are settled already (a viral one would add followers here).
-  await db.execute(sql`UPDATE career_stream_clips SET status='SETTLED' WHERE career_save_id=${id}`);
+  // One ended stream, pinned to this season and the month's last week (streams made in the same millisecond tie on created_at, so order by id too).
+  await db.execute(sql`UPDATE career_streams SET season=${s.currentSeason}, week=${end}, tally = tally || '{"subs":5}'::jsonb WHERE career_save_id=${id}
+    AND id = (SELECT id FROM career_streams WHERE career_save_id=${id} AND status='ENDED' ORDER BY created_at DESC, id DESC LIMIT 1)`);
+  // Earlier streams' clips play no part here: a viral one, or one voted Clip of the Week (random per world seed), would add followers.
+  await db.execute(sql`DELETE FROM career_stream_clips WHERE career_save_id=${id}`);
   const root = { id, world_seed: String((await rows(sql`SELECT world_seed FROM career_saves WHERE id=${id}`))[0].world_seed) };
   await settleStreamingWeek(db, root, s.currentSeason, end);
   await settleStreamingWeek(db, root, s.currentSeason, end);

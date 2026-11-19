@@ -83,3 +83,12 @@ export function rewardCounts(all: Record<string, { playerId: number; states: Ach
   for (const list of Object.values(all)) for (const p of list) byPlayer.set(p.playerId, [...(byPlayer.get(p.playerId) ?? []), ...p.states]);
   return REWARDS.map(r => ({ name: r.cosmetic.name, category: r.cosmetic.category, earnedBy: r.earnedBy, players: [...byPlayer.values()].filter(r.earned).length }));
 }
+
+/** The cosmetic (if any) that one unlock grants, for the unlock pop-up and notifications. */
+export function rewardForUnlock(key: string, area: string, kind: string, level: number, levels: number): string | null {
+  if (kind === "FEAT") return REWARD_FOR_FEAT[key] ?? null;
+  if (kind !== "TRACK" || level < levels) return null;
+  const frame = REWARDS.find(r => r.cosmetic.id === `frame-av2-${area.toLowerCase()}`)?.cosmetic.name;
+  const parts = [frame ? `${frame} profile frame` : null, key === "untouchable" ? "UNTOUCHABLE leaderboard tag" : null].filter(Boolean);
+  return parts.length ? parts.join(" + ") : null;
+}
