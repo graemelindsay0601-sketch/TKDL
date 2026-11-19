@@ -1,5 +1,4 @@
 import { Link } from "wouter";
-import { useAuth } from "@/context/auth";
 import { useAchievementsV2, METALS, METAL_NAME, fmt, type Metal } from "./api";
 import { trackArt, featArt } from "./art";
 
@@ -8,8 +7,7 @@ const METAL_COLOUR: Record<Metal, string> = { BRONZE: "#d79a6b", SILVER: "#dde2e
 
 /** The new achievements on a profile: a lit display case with the best five pieces (best in the middle), metals and latest feats. */
 export function AchievementsShelf({ playerId }: { playerId: number }) {
-  const { user } = useAuth();
-  const { data } = useAchievementsV2(playerId, !!user?.isAdmin);
+  const { data } = useAchievementsV2(playerId, true);
   if (!data || !("view" in data)) return null;
   const v = data.view;
   const top = v.areas.flatMap(a => a.tracks.filter(t => t.metal)).sort((a, b) => METAL_RANK[b.metal!] - METAL_RANK[a.metal!] || b.level - a.level).slice(0, 5);

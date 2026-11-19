@@ -50,7 +50,7 @@ router.get("/achievements-v2/players/:id", async (req, res) => {
   res.json({ enabled, preview, view: toView(states, await currentSeasonId(exec)), recent: preview ? [] : await recentUnlocks(exec, playerId) });
 });
 /** Whether the new achievements are live (the app hides the page and shelf until they are). */
-router.get("/achievements-v2/status", async (_req, res) => { res.json({ enabled: await isEnabled() }); });
+router.get("/achievements-v2/status", async (req, res) => { res.set("Cache-Control", "no-store"); res.json({ enabled: await isEnabled(), admin: !!(req.session as { isAdmin?: boolean } | undefined)?.isAdmin }); });
 
 /** The signed-in player's new unlocks to celebrate, and marking them shown. */
 router.get("/achievements-v2/me/unseen", async (req, res) => {
