@@ -155,7 +155,9 @@ export const MASTER501_CATALOGUE: AchievementDef[] = [
   feat("MASTER501", "m501-flawless", "Flawless", "Win a best-of-5 without dropping a leg", "flawless", 30),
   feat("MASTER501", "m501-last-gasp", "Last gasp", "Win a match in the deciding leg", "lastGasp", 20),
   feat("MASTER501", "m501-clean-tier", "Clean tier", "Clear a tier without losing a match", "cleanTier", 60),
-  feat("MASTER501", "m501-world-champion", "World champion", "Win the World Championship tier", "worldChampion", 100),
+  feat("MASTER501", "m501-world-champion", "World champion", "Win the World Championship tier", "worldChampion", 150, { showpiece: true }),
+  feat("MASTER501", "m501-speed-run", "Speed run", "Win three Master-501 rounds in one day", "speedRun", 30),
+  feat("MASTER501", "m501-tier-jumper", "Tier jumper", "Clear two tiers within a week", "tierJumper", 40),
 ];
 
 export const MODES_CATALOGUE: AchievementDef[] = [
@@ -167,6 +169,7 @@ export const MODES_CATALOGUE: AchievementDef[] = [
   track("MODES", "boss-ascension", "Ascension", "Reach ascension {n} on any boss", "bossAscension", [1, 2]),
   feat("MODES", "first-time", "First time", "Beat a boss on your first attempt", "firstTime", 40),
   feat("MODES", "never-gave-up", "Never gave up", "Beat a boss after 5 or more attempts", "neverGaveUp", 30),
+  feat("MODES", "boss-slayer", "Boss slayer", "Beat all six bosses at the top ascension", "bossSlayer", 150, { showpiece: true }),
   feat("MODES", "boss-clean-sweep", "Clean sweep", "Beat a boss with a clean sweep", "bossCleanSweep", 50),
 ];
 

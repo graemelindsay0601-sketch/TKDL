@@ -146,6 +146,11 @@ export function evaluateMaster501(runs: M501Run[]): AreaFacts {
       if (r.tier === 5 && r.round === 3) earn("worldChampion", at);
     }
   }
+  // speed run: three ladder rounds won in one day; tier jumper: two tiers cleared within a week
+  const winsByDay = new Map<string, number>(), cleared: Date[] = [];
+  for (const r of done) { if (r.result !== "win" || !r.completedAt) continue;
+    const k = londonParts(r.completedAt).day; winsByDay.set(k, (winsByDay.get(k) ?? 0) + 1); if ((winsByDay.get(k) ?? 0) >= 3) earn("speedRun", r.completedAt);
+    if (r.round === 3) { cleared.push(r.completedAt); if (cleared.length >= 2 && r.completedAt.getTime() - cleared[cleared.length - 2].getTime() <= 7 * 86400000) earn("tierJumper", r.completedAt); } }
   for (let tier = 1; tier <= 5; tier++) {
     const inTier = done.filter(r => r.tier === tier);
     if ([1, 2, 3].every(round => inTier.some(r => r.round === round && r.result === "win")) && inTier.every(r => r.result === "win")) earn("cleanTier", inTier.at(-1)?.completedAt ?? new Date());
@@ -169,6 +174,8 @@ export function evaluateModes(records: BoardCurseRecord[], best: BoardCurseBest[
     if (b.wins > 0 && b.attempts - b.wins >= 4) earn("neverGaveUp", now);
     if (b.cleanSweep) earn("bossCleanSweep", now);
   }
+  // the whole ladder at the top ascension
+  if (bosses.filter(b => b.wins > 0 && b.highestAscension >= 2).length >= 6) earn("bossSlayer", now);
   return { metrics: { bcWins: records.reduce((n, r) => n + r.wins, 0), bcStreak: Math.max(0, ...best.map(b => b.bestStreak ?? 0)),
     bossesDefeated: bosses.filter(b => b.wins > 0).length, bossAscension: Math.max(0, ...bosses.map(b => b.highestAscension)) }, feats, seasons: new Map() };
 }
