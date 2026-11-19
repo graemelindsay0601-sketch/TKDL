@@ -109,6 +109,14 @@ export function seasonFinder(seasons: { id: number; startDate: Date | null; endD
   };
 }
 
+/** How many Monday-start weeks each finished season touched (Full rota needs a match in every one). */
+export function seasonWeeks(seasons: { id: number; startDate: Date | null; endDate: Date | null; isActive: boolean }[]) {
+  const out = new Map<number, number>();
+  for (const s of seasons) { if (s.isActive || !s.startDate || !s.endDate) continue;
+    const monday = (d: Date) => { const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.getTime(); };
+    out.set(s.id, Math.round((monday(s.endDate) - monday(s.startDate)) / (7 * 86400000)) + 1); }
+  return out;
+}
 export type AreaData = Awaited<ReturnType<typeof loadAreas>>;
 /** Every row the non-league evaluators need, for every player (an admin report; these tables are small). */
 export async function loadAreas(db: Exec) {
@@ -183,7 +191,7 @@ export function areaFacts(data: AreaData, playerId: number, now = new Date()): P
   const deptHistory = data.history.filter(h => dept !== null && num(h.team_id) === dept);
   const shiftFacts = evaluateShiftWars({ departmentId: dept, results: dept === null ? [] : data.shift.get(dept) ?? [],
     championMonths: deptHistory.filter(h => h.is_champion === true).map(h => ({ seasonId: num(h.season_id), at: ts(h.recorded_at) })),
-    seasonsOnRota: new Set(deptHistory.map(h => num(h.season_id))).size }, seasonOf);
+    seasonsOnRota: new Set(deptHistory.map(h => num(h.season_id))).size, seasonWeeks: seasonWeeks(data.seasons) }, seasonOf);
   if ((doubles.metrics.teamMatches ?? 0) > 0 || (shiftFacts.metrics.deptMatches ?? 0) > 0) out.TEAMS = mergeFacts(doubles, shiftFacts);
   const practice = data.practice.get(playerId);
   if (practice?.length) out.PRACTICE = evaluatePractice(practice, seasonOf);

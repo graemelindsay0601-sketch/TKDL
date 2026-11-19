@@ -103,6 +103,10 @@ export const TEAMS_CATALOGUE: AchievementDef[] = [
   feat("TEAMS", "in-sync", "In sync", "Win 5 team matches in a row", "inSync", 40),
   feat("TEAMS", "top-pair", "Top pair", "Finish a season top of the doubles table", "topPair", 80),
   feat("TEAMS", "podium-pair", "Podium pair", "Finish a doubles season in the top 3", "neverSplit", 40),
+  feat("TEAMS", "inseparable", "Inseparable", "Win the doubles season without losing a match", "inseparable", 150, { showpiece: true }),
+  feat("TEAMS", "doubles-debut", "Partners in crime", "Win your first ever doubles match", "doublesDebut", 20),
+  feat("TEAMS", "threes-company", "Three's company", "Play a doubles season in a team of three", "threesCompany", 20),
+  feat("TEAMS", "reunited", "Reunited", "Get drawn with the same partner in two different seasons", "reunited", 30),
   season("TEAMS", "season-team-wins", "Team season goal", "Win {n} doubles matches this season", "seasonTeamWins", [5, 10]),
   // Shift Wars (a department's recorded results count for its members)
   track("TEAMS", "shift-wins", "Department wins", "Your department wins {n} Shift Wars matches", "deptWins", [1, 5, 10, 25, 50]),
@@ -114,6 +118,8 @@ export const TEAMS_CATALOGUE: AchievementDef[] = [
   feat("TEAMS", "big-shift", "Big shift", "Win on a stake of 20+", "bigShift", 30),
   feat("TEAMS", "night-shift", "Night shift", "Play 3 Shift Wars matches on one day", "nightShift", 30),
   feat("TEAMS", "employee-of-the-month", "Employee of the month", "Your department wins the Shift Wars season", "employeeOfMonth", 80),
+  feat("TEAMS", "friday-feeling", "Friday feeling", "Your department wins a Shift Wars match on a Friday", "fridayFeeling", 20),
+  feat("TEAMS", "full-rota", "Full rota", "Your department plays in every week of a Shift Wars season", "fullRota", 40),
   season("TEAMS", "season-dept-matches", "Department season goal", "Play {n} matches for your department this season", "monthMatches", [5]),
   season("TEAMS", "season-rota-regular", "Rota regular", "Play in {n} different weeks this season", "monthWeeks", [3]),
 ];
