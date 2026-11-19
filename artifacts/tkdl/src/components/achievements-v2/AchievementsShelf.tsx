@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "wouter";
+import { InspectSheet, type InspectItem } from "./InspectSheet";
 import { useAchievementsV2, METALS, METAL_NAME, fmt, type Metal } from "./api";
 import { trackArt, featArt } from "./art";
 
@@ -8,6 +10,7 @@ const METAL_COLOUR: Record<Metal, string> = { BRONZE: "#d79a6b", SILVER: "#dde2e
 /** The new achievements on a profile: a lit display case with the best five pieces (best in the middle), metals and latest feats. */
 export function AchievementsShelf({ playerId }: { playerId: number }) {
   const { data } = useAchievementsV2(playerId, true);
+  const [inspect, setInspect] = useState<InspectItem | null>(null);
   if (!data || !("view" in data)) return null;
   const v = data.view;
   const top = v.areas.flatMap(a => a.tracks.filter(t => t.metal)).sort((a, b) => METAL_RANK[b.metal!] - METAL_RANK[a.metal!] || b.level - a.level).slice(0, 5);
@@ -27,8 +30,8 @@ export function AchievementsShelf({ playerId }: { playerId: number }) {
         {order.length === 0 && showpieces.length === 0
           ? <p style={{ position: "relative", padding: "24px 4px 30px", textAlign: "center", color: "rgba(255,255,255,.4)", fontSize: 13 }}>Nothing on the shelf yet.</p>
           : <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-around", padding: "0 2px 12px", position: "relative" }}>
-              {showpieces.slice(0, 1).map(f => <img key={f.key} src={featArt(f.key)} alt={f.title} title={f.title} style={{ width: 96, height: 124, objectFit: "contain", filter: "drop-shadow(0 10px 8px rgba(0,0,0,.6)) drop-shadow(0 0 14px rgba(255,200,90,.3))" }} />)}
-              {order.map((t, i) => <img key={t!.key} src={trackArt(t!.key, t!.metal)} alt={t!.title} title={`${t!.title} · ${METAL_NAME[t!.metal!]}`}
+              {showpieces.slice(0, 1).map(f => <img key={f.key} className="av2-tap" onClick={() => setInspect({ kind: "feat", f })} src={featArt(f.key)} alt={f.title} title={f.title} style={{ width: 96, height: 124, objectFit: "contain", filter: "drop-shadow(0 10px 8px rgba(0,0,0,.6)) drop-shadow(0 0 14px rgba(255,200,90,.3))" }} />)}
+              {order.map((t, i) => <img key={t!.key} className="av2-tap" onClick={() => setInspect({ kind: "track", t: t! })} src={trackArt(t!.key, t!.metal)} alt={t!.title} title={`${t!.title} · ${METAL_NAME[t!.metal!]}`}
                 style={{ width: sizes[i] * 0.78, height: sizes[i], objectFit: "contain", filter: "drop-shadow(0 10px 8px rgba(0,0,0,.6))" }} />)}
             </div>}
         <div style={{ height: 14, margin: "0 -12px", background: "linear-gradient(#5a3a22,#2e1c10)", boxShadow: "inset 0 1px 0 rgba(255,220,180,.25)" }} />
@@ -38,11 +41,12 @@ export function AchievementsShelf({ playerId }: { playerId: number }) {
       </div>
       {feats.length > 0 && (
         <div style={{ display: "flex", gap: 6, alignItems: "center", margin: "12px 0 4px" }}>
-          {feats.map(f => <img key={f.key} src={featArt(f.key)} alt={f.title} title={f.title} style={{ width: 48, height: 52, objectFit: "contain" }} />)}
+          {feats.map(f => <img key={f.key} className="av2-tap" onClick={() => setInspect({ kind: "feat", f })} src={featArt(f.key)} alt={f.title} title={f.title} style={{ width: 48, height: 52, objectFit: "contain" }} />)}
           <div style={{ marginLeft: "auto", textAlign: "right", fontSize: 12 }}><b>{v.featsEarned} feats</b><div style={{ color: "rgba(255,255,255,.45)" }}>latest: {feats[0].title}</div></div>
         </div>
       )}
       <Link href={`/achievements?player=${playerId}`} className="inline-block mt-2 text-xs font-bold uppercase" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>See the full cabinet →</Link>
+      {inspect && <InspectSheet item={inspect} onClose={() => setInspect(null)} />}
     </div>
   );
 }

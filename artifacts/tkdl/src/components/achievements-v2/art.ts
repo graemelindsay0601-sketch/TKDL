@@ -83,6 +83,8 @@ const SEAL: Record<string, string> = {
   "variety-pack": "shapes",
   "weekend-grinder": "weekend"
 };
+const SHOWPIECE_MODEL: Record<string, string> = { "clean-sweep": "grand-slam", "inseparable": "inseparable", "iron-discipline": "grindstone",
+  "m501-world-champion": "dart-in-stone", "boss-slayer": "boss-slayer", "world-champion": "world-champion" };
 const SHOWPIECES = new Set(["clean-sweep", "inseparable", "iron-discipline", "m501-world-champion", "boss-slayer", "world-champion"]);
 
 /** A track's piece in its metal (the gold piece stands in, as a silhouette, while locked). */
@@ -92,3 +94,14 @@ export const isShowpiece = (key: string) => SHOWPIECES.has(key);
 export const featArt = (key: string) => SHOWPIECES.has(key) ? `${BASE}/${key}-showpiece.webp` : `${BASE}/seal-${SEAL[key] ?? "star"}.webp`;
 /** CSS that turns a piece into a locked silhouette. */
 export const LOCKED = { filter: "brightness(0) drop-shadow(0 0 1px rgba(255,255,255,.35))", opacity: 0.5 } as const;
+
+/** The 3D model behind a piece of art: a track in a metal, a feat's seal, or a showpiece. */
+export const trackModel = (key: string, metal: Metal) => ({ id: key, tier: metal });
+export const featModel = (key: string) => SHOWPIECES.has(key) ? { id: SHOWPIECE_MODEL[key] ?? key, tier: "SHOWPIECE" } : { id: `feat-seal~${SEAL[key] ?? "star"}`, tier: "GOLD" };
+const METAL_ORDER: Metal[] = ["BRONZE", "SILVER", "GOLD", "PLATINUM"];
+/** Metal for a track level (mirrors the server): Diamond only when complete; the rest spread across the other four. */
+export function metalFor(level: number, levels: number): Metal | null {
+  if (level <= 0) return null;
+  if (level >= levels) return "DIAMOND";
+  return METAL_ORDER[Math.min(4, 1 + Math.floor(((level - 1) / (levels - 1)) * 4)) - 1];
+}

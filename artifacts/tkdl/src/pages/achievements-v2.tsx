@@ -5,6 +5,7 @@ import { useAuth } from "@/context/auth";
 import { useFetch } from "@/hooks/use-fetch";
 import { useAchievementsV2, METALS, METAL_NAME, fmt, seasonGoalText, type AreaView, type TrackView, type FeatView, type SeasonView, type Metal } from "@/components/achievements-v2/api";
 import { trackArt, featArt, LOCKED } from "@/components/achievements-v2/art";
+import { InspectSheet, type InspectItem } from "@/components/achievements-v2/InspectSheet";
 import "./achievements-v2.css";
 
 const METAL_RANK: Record<Metal, number> = { BRONZE: 1, SILVER: 2, GOLD: 3, PLATINUM: 4, DIAMOND: 5 };
@@ -16,10 +17,10 @@ function Bar({ value, tone = "gold" }: { value: number; tone?: "gold" | "green" 
 }
 
 /** One piece on a shelf: its art in its current metal, or a silhouette while locked. */
-function ShelfItem({ t }: { t: TrackView }) {
+function ShelfItem({ t, onOpen }: { t: TrackView; onOpen: () => void }) {
   const done = t.nextTarget === null;
   return (
-    <div className={`av2-item${t.metal ? "" : " locked"}`} title={done ? `${t.title}: complete` : `${t.next} (${fmt(t.value, t.unit)} / ${fmt(t.nextTarget!, t.unit)})`}>
+    <div className={`av2-item av2-tap${t.metal ? "" : " locked"}`} role="button" tabIndex={0} onClick={onOpen} onKeyDown={e => { if (e.key === "Enter") onOpen(); }} title={done ? `${t.title}: complete` : `${t.next} (${fmt(t.value, t.unit)} / ${fmt(t.nextTarget!, t.unit)})`}>
       <img src={trackArt(t.key, t.metal)} alt="" loading="lazy" style={t.metal ? undefined : LOCKED} />
       <div className="n">{t.title}</div>
       <div className="l">{metalLabel(t)}</div>
@@ -29,10 +30,10 @@ function ShelfItem({ t }: { t: TrackView }) {
   );
 }
 
-function FeatTile({ f }: { f: FeatView }) {
+function FeatTile({ f, onOpen }: { f: FeatView; onOpen: () => void }) {
   const earned = !!f.earnedAt;
   return (
-    <div className={`av2-feat${earned ? "" : " locked"}`} title={f.goal}>
+    <div className={`av2-feat av2-tap${earned ? "" : " locked"}`} role="button" tabIndex={0} onClick={onOpen} onKeyDown={e => { if (e.key === "Enter") onOpen(); }} title={f.goal}>
       <img src={featArt(f.key)} alt="" loading="lazy" style={earned ? undefined : LOCKED} />
       <div className="n">{f.title}</div>
       <div className="g">{earned ? format(new Date(f.earnedAt!), "d MMM yyyy") : f.goal}</div>
@@ -42,10 +43,10 @@ function FeatTile({ f }: { f: FeatView }) {
 }
 
 /** The area's showpiece in a lit glass case. */
-function Showpiece({ f }: { f: FeatView }) {
+function Showpiece({ f, onOpen }: { f: FeatView; onOpen: () => void }) {
   const earned = !!f.earnedAt;
   return (
-    <div className={`av2-show${earned ? " earned" : ""}`}>
+    <div className={`av2-show av2-tap${earned ? " earned" : ""}`} role="button" tabIndex={0} onClick={onOpen} onKeyDown={e => { if (e.key === "Enter") onOpen(); }}>
       <div className="glass" />
       <img src={featArt(f.key)} alt="" style={earned ? undefined : { ...LOCKED, opacity: 0.75 }} />
       <div className="txt">
@@ -100,6 +101,7 @@ export default function AchievementsV2Page() {
   const { data, loading } = useAchievementsV2(playerId, true);
   const { data: player } = useFetch<{ name?: string }>(playerId ? `/api/players/${playerId}` : null);
   const [tab, setTab] = useState<AreaView["area"]>("LEAGUE");
+  const [inspect, setInspect] = useState<InspectItem | null>(null);
   const view = data && "view" in data ? data.view : null;
   const area = useMemo(() => view?.areas.find(a => a.area === tab) ?? null, [view, tab]);
   const best = useMemo(() => (view?.areas ?? []).flatMap(a => a.tracks.filter(t => t.metal))
@@ -123,9 +125,9 @@ export default function AchievementsV2Page() {
         <div className="sub">{player?.name ?? "Player"} · <b>{fmt(view.score)}</b> points · {view.featsEarned} feats{view.nearly.length ? <> · <span className="purple">{view.nearly.length} nearly there</span></> : null}</div>
         <div className="stage">
           <div className="beam" /><div className="beam l" /><div className="beam r" /><div className="floor" />
-          {best[1] && <img className="side l" src={trackArt(best[1].key, best[1].metal)} alt="" />}
-          {best[0] && <img className="main" src={trackArt(best[0].key, best[0].metal)} alt="" />}
-          {best[2] && <img className="side r" src={trackArt(best[2].key, best[2].metal)} alt="" />}
+          {best[1] && <img className="side l av2-tap" src={trackArt(best[1].key, best[1].metal)} alt="" onClick={() => setInspect({ kind: "track", t: best[1] })} />}
+          {best[0] && <img className="main av2-tap" src={trackArt(best[0].key, best[0].metal)} alt="" onClick={() => setInspect({ kind: "track", t: best[0] })} />}
+          {best[2] && <img className="side r av2-tap" src={trackArt(best[2].key, best[2].metal)} alt="" onClick={() => setInspect({ kind: "track", t: best[2] })} />}
           {!best.length && <div className="nothing">Your best pieces go on show here.</div>}
         </div>
       </header>
@@ -138,7 +140,7 @@ export default function AchievementsV2Page() {
         <section>
           <h2>Nearly there <small>next level</small></h2>
           {view.nearly.map(t => (
-            <div key={t.key} className="av2-near">
+            <div key={t.key} className="av2-near av2-tap" onClick={() => setInspect({ kind: "track", t })}>
               <img src={trackArt(t.key, t.metal)} alt="" style={t.metal ? undefined : LOCKED} />
               <div className="body"><div className="t">{t.title}</div><div className="g">{t.next} · {fmt(t.value, t.unit)} / {fmt(t.nextTarget!, t.unit)}</div><Bar value={t.progress} /></div>
             </div>
@@ -176,14 +178,15 @@ export default function AchievementsV2Page() {
           ))}
         </div>
         {tab === "CAREER" && <p className="av2-career-note">Bragging rights only: these count across all your Career saves and never change anything inside Career. 180s, checkouts, averages and nine-darters count from matches you throw live.</p>}
-        {showpiece && <Showpiece f={showpiece} />}
+        {showpiece && <Showpiece f={showpiece} onOpen={() => setInspect({ kind: "feat", f: showpiece })} />}
         {area?.reward && <p className="av2-reward-note">Reach Diamond on any {AREA_TAB[area.area]} track to unlock the <b>{area.reward}</b> profile frame{area.tracks.some(t => t.metal === "DIAMOND") ? " (unlocked)" : ""}.</p>}
         <div className="av2-cabinet">
-          {shelves.map((row, i) => <div key={i} className="av2-shelf">{row.map(t => <ShelfItem key={t.key} t={t} />)}</div>)}
+          {shelves.map((row, i) => <div key={i} className="av2-shelf">{row.map(t => <ShelfItem key={t.key} t={t} onOpen={() => setInspect({ kind: "track", t })} />)}</div>)}
         </div>
         <h2 className="feats">Feats <small>{feats.filter(f => f.earnedAt).length} / {feats.length}</small></h2>
-        <div className="av2-feats">{feats.map(f => <FeatTile key={f.key} f={f} />)}</div>
+        <div className="av2-feats">{feats.map(f => <FeatTile key={f.key} f={f} onOpen={() => setInspect({ kind: "feat", f })} />)}</div>
       </section>
+      {inspect && <InspectSheet item={inspect} onClose={() => setInspect(null)} />}
     </div>
   );
 }
