@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { createPortal } from "react-dom";
 import { useSearch } from "wouter";
 import { useListPlayers } from "@workspace/api-client-react";
@@ -1102,6 +1103,8 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
           {saved ? "✓ Practice session saved for analytics" : error ? `⚠ ${error}` : "Saving…"}
         </div>
       </div>
+
+      {saved && currentPlayer?.playerId && <NearlyThere players={[{ id: currentPlayer.playerId }]} areas={["PRACTICE"]} />}
 
       <div className="grid grid-cols-2 gap-3">
         <button onClick={onBack} className="py-3 rounded-xl font-bold uppercase tracking-widest text-sm flex items-center justify-center gap-2"

@@ -8,7 +8,7 @@ import { trackArt, featArt } from "./art";
 import "./unlock.css";
 
 type Unlock = { id: number; key: string; title: string; area: Area; kind: "TRACK" | "FEAT" | "SEASON"; level: number; levels: number; metal: Metal | null;
-  reached: number | null; next: number | null; nextGoal: string | null; goal: string | null; showpiece: boolean; coins: number; at: string };
+  reached: number | null; next: number | null; nextGoal: string | null; goal: string | null; showpiece: boolean; coins: number; at: string; reachedText?: string | null; cosmetic?: string | null };
 
 /**
  * The unlock moment: a full-screen reveal for each new achievement, one after another.
@@ -54,9 +54,9 @@ export function UnlockCelebration() {
         <img src={art} alt="" className={current.kind === "TRACK" || current.showpiece ? "piece" : "seal"} />
         <h2>{current.title}</h2>
         {current.kind === "TRACK" && current.metal && <div className="metal">{METAL_NAME[current.metal]} · level {current.level} of {current.levels}</div>}
-        <div className="desc">{current.kind === "TRACK" ? (current.reached !== null ? `Reached ${current.reached.toLocaleString("en-GB")}` : "") : current.goal}</div>
+        <div className="desc">{current.kind === "TRACK" ? (current.reachedText ? `Reached ${current.reachedText}` : current.reached !== null ? `Reached ${current.reached.toLocaleString("en-GB")}` : "") : current.goal}</div>
         {current.kind === "TRACK" && <div className="nextcard">{current.nextGoal ? <><b>Next:</b> {current.nextGoal}</> : <b>Track complete</b>}</div>}
-        <div className="rewards"><span className="coins"><i />+{current.coins} coins</span></div>
+        <div className="rewards"><span className="coins"><i />+{current.coins} coins</span>{current.cosmetic && <span className="cosmetic">✦ {current.cosmetic}</span>}</div>
         <div className="buttons">
           <button className="ghost" onClick={toCabinet}>See cabinet</button>
           <button className="go" onClick={next}>{queue.length > 1 ? "Next unlock →" : "Nice one"}</button>

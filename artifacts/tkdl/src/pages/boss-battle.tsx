@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { Swords, Lock, Trophy, Skull, Clock, Users, Shield, Ghost, LockKeyhole, Zap, Sparkles, CheckCircle2, Heart, Gauge } from "lucide-react";
 import { useCurrentPlayer } from "@/context/auth";
 import { BOSSES, type Boss } from "@/lib/boss-battles-data";
@@ -362,6 +363,7 @@ export default function BossBattlePage() {
           <div className={`bb-save-state ${saveState}`}>
             {saveState === "saving" ? "Saving arcade result…" : saveState === "saved" ? "Result saved · records and rewards updated" : saveState === "error" ? "Result shown, but it could not be saved" : "Arcade result"}
           </div>
+          {playerId && <div style={{ margin: "14px 0", textAlign: "left" }}><NearlyThere players={[{ id: playerId }]} areas={["MODES"]} /></div>}
           <div className="bb-vs-actions">
             <button className="bb-btn-ghost" onClick={() => setScreen({ kind: "ladder" })}>Ladder</button>
             <button className="bb-btn-primary" onClick={() => setScreen({ kind: "entrance", boss, ascension })}>Run it back</button>

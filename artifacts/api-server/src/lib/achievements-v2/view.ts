@@ -7,7 +7,7 @@ import { CATALOGUE, SEASON_GOAL_POINTS, goalText, trackLevel, levelPoints, metal
 import type { AchievementState } from "./evaluate.ts";
 import { computeAll, type Exec } from "./report.ts";
 import { ensureTables } from "./store.ts";
-import { REWARDS, REWARD_FOR_FEAT } from "./rewards.ts";
+import { REWARDS, REWARD_FOR_FEAT, rewardForUnlock } from "./rewards.ts";
 
 export const AREA_ORDER: { area: Area; name: string }[] = [
   { area: "LEAGUE", name: "League" }, { area: "TEAMS", name: "Doubles and Shift Wars" }, { area: "PRACTICE", name: "Practice" },
@@ -116,7 +116,10 @@ export async function unseenUnlocks(db: Exec, playerId: number) {
       levels: d?.kind === "TRACK" ? d.levels.length : 0, metal: d?.kind === "TRACK" ? metalFor(Number(r.level), d.levels.length) : null,
       reached: d?.kind === "TRACK" ? d.levels[Number(r.level) - 1] : null, next, nextGoal: d?.kind === "TRACK" && next !== null ? goalText(d.goal, next) : null,
       goal: d && d.kind !== "TRACK" ? (d.kind === "SEASON" ? d.goal.replace("{n}", String(d.targets[Math.min(d.targets.length, Number(r.level)) - 1])) : d.goal) : null,
-      showpiece: d?.kind === "FEAT" ? !!d.showpiece : false, coins: Number(r.coins), at: new Date(String(r.created_at)).toISOString() };
+      showpiece: d?.kind === "FEAT" ? !!d.showpiece : false, coins: Number(r.coins),
+      reachedText: d?.kind === "TRACK" && d.levels[Number(r.level) - 1] !== undefined ? (d.unit === "rank" ? (d.levels[Number(r.level) - 1] === 1 ? "World No.1" : `Top ${d.levels[Number(r.level) - 1]}`)
+        : `${d.levels[Number(r.level) - 1].toLocaleString("en-GB")}${d.unit === "%" ? "%" : ""}`) : null,
+      cosmetic: rewardForUnlock(String(r.key), String(r.area), String(r.kind), Number(r.level), d?.kind === "TRACK" ? d.levels.length : 0), at: new Date(String(r.created_at)).toISOString() };
   });
 }
 export async function markSeen(db: Exec, playerId: number, ids: number[]) {

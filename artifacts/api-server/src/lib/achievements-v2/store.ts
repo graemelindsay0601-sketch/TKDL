@@ -63,7 +63,9 @@ const defs = new Map(CATALOGUE.map(d => [d.key, d]));
 const featPoints = (key: string) => { const d = defs.get(key); return d?.kind === "FEAT" ? d.points : 0; };
 
 /** Work everything out, save what changed and record (and, after launch, pay for) every new unlock. */
-export async function syncAll(db: Exec, setting: Setting, pay: Pay, now = new Date()): Promise<SyncResult> {
+/** Tell a player about their new unlocks (one call per player per sync). */
+export type Notify = (playerId: number, unlocks: { key: string; kind: string; level: number; coins: number }[]) => Promise<void>;
+export async function syncAll(db: Exec, setting: Setting, pay: Pay, now = new Date(), notify?: Notify): Promise<SyncResult> {
   const t0 = Date.now();
   await ensureTables(db);
   const launched = !!(await setting.get(LAUNCHED_KEY));
@@ -120,6 +122,7 @@ export async function syncAll(db: Exec, setting: Setting, pay: Pay, now = new Da
 
   // Only the insert that lands pays, so two syncs racing can never pay twice.
   let made = 0, coinsPaid = 0;
+  const landed = new Map<number, Unlock[]>();
   const byKey = new Map(unlocks.map(u => [`${u.playerId}|${u.key}|${u.level}|${u.seasonId}`, u]));
   for (const batch of chunks(unlocks)) {
     const ins = await db.execute(sql`INSERT INTO achievement_v2_unlocks (player_id, key, area, kind, level, season_id, coins, source, seen)
@@ -128,9 +131,12 @@ export async function syncAll(db: Exec, setting: Setting, pay: Pay, now = new Da
     for (const r of ins.rows) {
       made++;
       const u = byKey.get(`${r.player_id}|${r.key}|${r.level}|${r.season_id}`);
+      if (mode === "live" && u) landed.set(u.playerId, [...(landed.get(u.playerId) ?? []), u]);
       if (mode === "live" && u && u.coins > 0) { await pay(u.playerId, u.coins, `v2:${u.key}:${u.level}${u.seasonId ? `:s${u.seasonId}` : ""}`); coinsPaid += u.coins; }
     }
   }
+
+  if (notify) for (const [pid, list] of landed) { try { await notify(pid, list); } catch { /* a notification never fails a sync */ } }
 
   let welcomed = 0;
   if (mode === "history") {

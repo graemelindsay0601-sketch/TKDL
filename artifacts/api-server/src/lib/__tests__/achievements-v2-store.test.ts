@@ -46,7 +46,10 @@ const q = async (pg: PGlite, s: string) => (await pg.query<Record<string, unknow
 
 test("launch sync credits history with no coins, pays the welcome bonus once, then live unlocks pay their points", async () => {
   const { pg, db, setting, store, paid, pay } = await setup();
-  const first = await syncAll(db as never, setting, pay);
+  const told: { pid: number; keys: string[] }[] = [];
+  const notify = async (pid: number, list: { key: string; level: number }[]) => { told.push({ pid, keys: list.map(u => `${u.key}:${u.level}`) }); };
+  const first = await syncAll(db as never, setting, pay, new Date(), notify);
+  assert.equal(told.length, 0, "history credit sends no notifications");
   assert.equal(first.mode, "history"); assert.ok(store.get(LAUNCHED_KEY));
   assert.ok(first.unlocks > 0);
   assert.deepEqual(paid.map(p => p.detail), ["v2:welcome", "v2:welcome"], "Alice (a win) and Bob (a match) get the welcome bonus; Cara has nothing");
@@ -61,8 +64,10 @@ test("launch sync credits history with no coins, pays the welcome bonus once, th
 
   // Alice wins 4 more: league wins reaches level 2 (5 wins) live, paying 20 coins, unseen
   await pg.exec("INSERT INTO matches (season_id,winner_id,loser_id,stake,elo_change,game_type,played_at) SELECT 1,1,3,5,8,'501','2026-01-06'::timestamptz + (g || ' hours')::interval FROM generate_series(1,4) g");
-  const live = await syncAll(db as never, setting, pay);
+  const live = await syncAll(db as never, setting, pay, new Date(), notify);
   assert.equal(live.mode, "live");
+  assert.equal(new Set(told.map(t => t.pid)).size, told.length, "one notification per player per sync");
+  assert.ok(told.find(t => t.pid === 1)?.keys.includes("league-wins:2"));
   const winsUnlock = await q(pg, "SELECT level, coins, source, seen FROM achievement_v2_unlocks WHERE player_id = 1 AND key = 'league-wins' ORDER BY level");
   assert.deepEqual(winsUnlock, [{ level: 1, coins: 0, source: "history", seen: true }, { level: 2, coins: 20, source: "live", seen: false }]);
   assert.ok(paid.some(p => p.pid === 1 && p.detail === "v2:league-wins:2" && p.coins === 20));

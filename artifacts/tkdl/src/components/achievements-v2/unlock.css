@@ -24,3 +24,5 @@
 @keyframes av2-spin { to { transform: rotate(360deg); } }
 @keyframes av2-twinkle { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .av2-unlock, .av2-unlock .rays, .av2-unlock img, .av2-unlock .spark { animation: none !important; } }
+.av2-unlock .rewards { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.av2-unlock .rewards .cosmetic { padding: 6px 12px; border-radius: 999px; background: rgba(111,233,255,.12); border: 1px solid rgba(111,233,255,.45); color: #bff6ff; font-weight: 700; font-size: 13px; }

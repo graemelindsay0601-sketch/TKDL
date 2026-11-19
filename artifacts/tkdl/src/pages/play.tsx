@@ -11,6 +11,7 @@ import { CustomHandicapCard, CUSTOM_HANDICAP_KEY } from "@/components/custom-han
 import { UnevenX01Card, UnevenCricketCard, UNEVEN_X01_KEY, UNEVEN_CRICKET_KEY, buildUnevenX01GameType } from "@/components/uneven-teams-picker";
 import { RulesModal } from "@/components/rules-modal";
 import { MatchStatsCard } from "@/components/match-stats-card";
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { CardEquipmentSelector } from "@/components/CardEquipmentSelector";
 import { useCurrentPlayer } from "@/context/auth";
 import { useCosmeticsCatalog, resultThemeColor, checkoutEffect, rankUpEffect } from "@/lib/cosmetics";
@@ -1950,6 +1951,8 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           accentColor={textGlowColor}
         />
       )}
+
+      <NearlyThere players={[...winnerTeam, ...loserTeam].filter(p => typeof p.id === "number" && p.id > 0).map(p => ({ id: p.id, name: p.name }))} areas={["LEAGUE", "TEAMS"]} />
 
       <div className="pdc-card p-4 text-left space-y-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
         <div className="text-xs uppercase tracking-widest mb-2 font-bold" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>Match Summary</div>

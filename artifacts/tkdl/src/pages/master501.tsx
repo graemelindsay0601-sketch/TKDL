@@ -5,6 +5,7 @@ import { Master501Scorer } from "@/lib/scorers";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
 import { useCurrentPlayer } from "@/context/auth";
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { useWakeLock, useZoomLock, useExitGuard, useMatchSnapshot, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
 import { useToast } from "@/hooks/use-toast";
 
@@ -330,6 +331,8 @@ export default function Master501() {
               )}
             </div>
           )}
+
+          {playerId && <div className="w-full max-w-sm text-left"><NearlyThere players={[{ id: playerId }]} areas={["MASTER501"]} /></div>}
 
           <button onClick={handlePlayAgain} className="px-8 py-3 rounded-xl font-black uppercase tracking-widest text-sm"
             style={{ fontFamily: "Oswald,sans-serif", cursor: "pointer", background: acc + "20", border: `1px solid ${acc}50`, color: acc }}>

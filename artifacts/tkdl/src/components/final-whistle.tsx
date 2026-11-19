@@ -1,3 +1,4 @@
+import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { Award, ChevronRight, Crown, ExternalLink, Medal, Skull, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Link } from "wouter";
 import { ShareCardButton } from "@/components/ShareCardButton";
@@ -81,6 +82,8 @@ export function FinalWhistle({ receipt, onClose }: { receipt: FinalWhistleReceip
         </div>
 
         <div className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background:"rgba(168,85,247,.055)", border:"1px solid rgba(168,85,247,.18)" }}><Award className="shrink-0 mt-0.5 text-purple-400" size={18}/><div><strong className="block text-xs uppercase tracking-wider text-purple-300" style={{ fontFamily:"Oswald, sans-serif" }}>Awards check running</strong><p className="mt-0.5 text-xs leading-relaxed text-white/40">Achievements and notifications finish safely in the background. Any new award will appear in the player’s profile and notification centre.</p></div></div>
+        {/* singles and team-match receipts carry player ids (doubles and Shift Wars carry team ids, so no nudges there) */}
+        {(receipt.competition === "Singles League" || receipt.competition.endsWith("Team Match")) && <NearlyThere players={receipt.participants.filter(p => typeof p.id === "number").map(p => ({ id: p.id!, name: p.name }))} areas={["LEAGUE"]} />}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <Link href={`/match-centre/${receipt.matchKey}`} onClick={onClose} className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-3 text-xs font-black uppercase tracking-wider text-white" style={{ background:"rgba(0,102,255,.15)", border:"1px solid rgba(0,102,255,.3)", fontFamily:"Oswald, sans-serif" }}><ExternalLink size={14}/>Match record</Link>
