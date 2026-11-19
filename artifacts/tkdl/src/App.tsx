@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/context/auth";
-import { useAchievementsV2Status } from "@/components/achievements-v2/api";
+import { useAchievementsV2Access } from "@/components/achievements-v2/api";
 import { UnlockCelebration } from "@/components/achievements-v2/UnlockCelebration";
 import { Layout } from "@/components/layout";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -72,9 +72,9 @@ function PageLoader() {
 
 /** The new achievements once they're switched on (admins see a preview before); the old page lives on as Classics. */
 function AchievementsHome() {
-  const enabled = useAchievementsV2Status();
+  const { enabled, admin } = useAchievementsV2Access();
   const { user } = useAuth();
-  return enabled || user?.isAdmin ? <AchievementsV2 /> : <Achievements />;
+  return enabled || admin || user?.isAdmin ? <AchievementsV2 /> : <Achievements />;
 }
 
 function RoutePage({ children }: { children: ReactNode }) {

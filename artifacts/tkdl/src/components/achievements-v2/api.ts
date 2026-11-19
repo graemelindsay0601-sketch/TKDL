@@ -16,8 +16,13 @@ export const METALS: Metal[] = ["BRONZE", "SILVER", "GOLD", "PLATINUM", "DIAMOND
 export const METAL_NAME: Record<Metal, string> = { BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold", PLATINUM: "Platinum", DIAMOND: "Diamond" };
 
 export function useAchievementsV2Status() {
-  const { data } = useFetch<{ enabled: boolean }>("/api/achievements-v2/status");
+  const { data } = useFetch<{ enabled: boolean; admin?: boolean }>("/api/achievements-v2/status");
   return data?.enabled ?? false;
+}
+/** Live, plus whether this session can preview it before launch (admin PIN entered). */
+export function useAchievementsV2Access() {
+  const { data } = useFetch<{ enabled: boolean; admin?: boolean }>("/api/achievements-v2/status");
+  return { enabled: data?.enabled ?? false, admin: !!data?.admin, loaded: !!data };
 }
 
 /** A player's achievements. `preview` asks for the admin preview before launch (the server only allows it for a verified admin). */

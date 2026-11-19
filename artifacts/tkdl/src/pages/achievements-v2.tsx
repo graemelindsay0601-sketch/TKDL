@@ -73,7 +73,7 @@ export default function AchievementsV2Page() {
   const { user } = useAuth();
   const search = new URLSearchParams(useSearch());
   const playerId = Number(search.get("player")) || user?.playerId || null;
-  const { data, loading } = useAchievementsV2(playerId, !!user?.isAdmin);
+  const { data, loading } = useAchievementsV2(playerId, true);
   const { data: player } = useFetch<{ name?: string }>(playerId ? `/api/players/${playerId}` : null);
   const [tab, setTab] = useState<AreaView["area"]>("LEAGUE");
   const view = data && "view" in data ? data.view : null;

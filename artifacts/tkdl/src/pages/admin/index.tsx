@@ -37,6 +37,7 @@ import { IntegrityHealth } from "./integrity-health";
 import { OperationsDashboard } from "./operations-dashboard";
 import { BroadcastHealth } from "./broadcast-health";
 import { ArcadeBalance } from "./arcade-balance";
+import { AchievementsV2Admin } from "./achievements-v2-admin";
 
 const AdminCardClashPanel = lazy(() => import("@/components/admin-card-clash-panel"));
 const AdminChallengesPanel = lazy(() => import("@/components/admin-challenges-panel"));
@@ -46,6 +47,7 @@ const ADMIN_TOOLS = [
   ["operations", "Operations Centre", "status season notifications database"],
   ["broadcast-health", "Broadcast Health", "live programme stories diagnostics rebuild"],
   ["arcade-balance", "Arcade Balancing", "boss battle board curse difficulty runs"],
+  ["achievements-v2", "Achievements", "new achievements cabinet switch on preview report coins"],
   ["feature-flags", "Feature Flags", "access settings toggles"],
   ["game-types", "Game Types", "scorer formats"],
   ["user-accounts", "User Accounts", "login password players"],
@@ -317,6 +319,11 @@ function AdminContent({ onLock }: { onLock: () => void }) {
 
       <div className="flex items-center gap-2 text-xs uppercase tracking-[.18em] font-bold text-white/30"><Layers3 className="w-4 h-4" />Access and configuration</div>
 
+      <div id="achievements-v2" className="scroll-mt-24">
+        <CollapsibleAdminSection sectionId="achievements-v2" title="Achievements (new)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.25)" background="rgba(255,210,74,0.03)" defaultOpen>
+          <AchievementsV2Admin />
+        </CollapsibleAdminSection>
+      </div>
       <div id="feature-flags" className="scroll-mt-24"><FeatureFlags /></div>
       <div id="game-types" className="scroll-mt-24"><GameTypesManager /></div>
       <div id="user-accounts" className="scroll-mt-24"><UserAccountsManager players={players} /></div>
