@@ -1,0 +1,29 @@
+.av2-inspect { position: fixed; inset: 0; z-index: 2147483000; background: rgba(4, 4, 10, .82); backdrop-filter: blur(6px); display: flex; align-items: flex-end; justify-content: center; animation: av2i-in .18s ease-out; }
+@keyframes av2i-in { from { opacity: 0 } to { opacity: 1 } }
+.av2-inspect .sheet { position: relative; width: min(560px, 100%); max-height: 96vh; overflow: auto; background: radial-gradient(120% 70% at 50% 0%, #2a2140 0%, #121019 55%, #0b0a10 100%);
+  border: 1px solid rgba(255, 210, 74, .25); border-bottom: 0; border-radius: 22px 22px 0 0; padding: 14px 18px 26px; box-shadow: 0 -20px 60px rgba(0,0,0,.6); }
+@media (min-width: 700px) { .av2-inspect { align-items: center; } .av2-inspect .sheet { border-radius: 22px; border-bottom: 1px solid rgba(255, 210, 74, .25); } }
+.av2-inspect .x { position: absolute; top: 8px; right: 12px; z-index: 2; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.4); color: #fff; font-size: 24px; line-height: 1; }
+.av2-inspect .stage { position: relative; height: min(56vh, 460px); display: flex; align-items: center; justify-content: center; }
+.av2-inspect .stage img { max-height: 100%; max-width: 100%; object-fit: contain; filter: drop-shadow(0 16px 18px rgba(0,0,0,.6)); }
+.av2-inspect .hint { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: 11px; color: rgba(255,255,255,.45); letter-spacing: .04em; pointer-events: none; }
+.av2-3d { position: relative; width: 100%; height: 100%; }
+.av2-3d canvas { display: block; width: 100% !important; height: 100% !important; cursor: grab; }
+.av2-3d-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: rgba(255,210,74,.8); font-size: 13px; letter-spacing: .06em; }
+.av2-inspect .info { text-align: center; }
+.av2-inspect .kicker { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: #ffd24a; margin-top: 4px; }
+.av2-inspect h3 { margin: 4px 0 10px; font-size: 24px; font-weight: 800; color: #fff; }
+.av2-inspect .metals { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 10px; }
+.av2-inspect .metals button { padding: 6px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.05); color: #fff; }
+.av2-inspect .metals button.on { box-shadow: 0 0 0 2px #ffd24a inset; background: rgba(255,210,74,.14); }
+.av2-inspect .metals button.locked { opacity: .45; }
+.av2-inspect .metals .bronze { color: #e0a070 } .av2-inspect .metals .silver { color: #e7eaee } .av2-inspect .metals .gold { color: #ffd877 }
+.av2-inspect .metals .platinum { color: #cfe0f0 } .av2-inspect .metals .diamond { color: #8ff0ff }
+.av2-inspect .now { margin: 4px 0; color: rgba(255,255,255,.85); font-size: 14px; }
+.av2-inspect .goal { margin: 4px 0 8px; color: rgba(255,255,255,.65); font-size: 13.5px; }
+.av2-inspect .goal.done { color: #8ff0ff; }
+.av2-inspect .rw { margin-top: 6px; color: #ffd24a; font-weight: 700; font-size: 13px; }
+.av2-inspect .av2-bar { margin: 0 auto; max-width: 280px; }
+.av2-inspect .av2-bar { height: 6px; border-radius: 9px; background: rgba(255,255,255,.08); overflow: hidden; }
+.av2-inspect .av2-bar i { display: block; height: 100%; border-radius: 9px; background: linear-gradient(90deg,#a855f7,#ffd24a); }
+.av2-tap { cursor: pointer; }
