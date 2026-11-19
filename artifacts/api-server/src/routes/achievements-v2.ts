@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { allHistoryCredit, reportHtml } from "../lib/achievements-v2/report.ts";
+import { allHistoryCredit, reportHtml, winsCheck } from "../lib/achievements-v2/report.ts";
 import { settings, isEnabled, syncNow, lastSync } from "../lib/achievements-v2/live.ts";
 import { toView, storedStates, liveStates, currentSeasonId, recentUnlocks, unseenUnlocks, markSeen } from "../lib/achievements-v2/view.ts";
+import { resetClassicsFrozenCache } from "../lib/achievement-grant";
 import { ENABLED_KEY, LAUNCHED_KEY, WELCOME_COINS } from "../lib/achievements-v2/store.ts";
 
 /**
@@ -13,9 +14,10 @@ import { ENABLED_KEY, LAUNCHED_KEY, WELCOME_COINS } from "../lib/achievements-v2
 const router: IRouter = Router();
 router.get("/admin/achievements-v2/report", requireAdminSession, async (req, res) => {
   const reports = await allHistoryCredit(db as never);
+  const checks = await winsCheck(db as never).catch(() => undefined);
   res.set("Cache-Control", "no-store");
-  if (req.query.format === "json") { res.json(reports); return; }
-  res.type("html").send(reportHtml(reports));
+  if (req.query.format === "json") { res.json({ reports, checks }); return; }
+  res.type("html").send(reportHtml(reports, checks));
 });
 
 /** The switch and its state. Turning it on runs the history credit in the background (no coins except the welcome bonus). */
@@ -25,11 +27,13 @@ router.get("/admin/achievements-v2/status", requireAdminSession, async (_req, re
 });
 router.post("/admin/achievements-v2/enable", requireAdminSession, async (_req, res) => {
   await settings.set(ENABLED_KEY, "true");
+  resetClassicsFrozenCache();
   void syncNow();
   res.json({ enabled: true, started: true });
 });
 router.post("/admin/achievements-v2/disable", requireAdminSession, async (_req, res) => {
   await settings.set(ENABLED_KEY, "false");
+  resetClassicsFrozenCache();
   res.json({ enabled: false });
 });
 router.post("/admin/achievements-v2/sync", requireAdminSession, async (_req, res) => {

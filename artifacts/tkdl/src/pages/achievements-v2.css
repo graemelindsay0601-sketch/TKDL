@@ -94,3 +94,16 @@
 .av2-feat.locked .n { color: rgba(255,255,255,.5); }
 
 @media (min-width: 640px) { .av2-hero .stage img.main { width: 240px; height: 290px; left: calc(50% - 120px); } .av2-item img { height: 150px; } }
+
+/* the "what's changed" notice */
+.av2-notice { margin: 14px 16px 0; padding: 14px 16px; border-radius: 16px; background: linear-gradient(135deg, rgba(255,210,74,.12), rgba(168,85,247,.10)); border: 1px solid rgba(255,210,74,.35); }
+.av2-notice .kicker { font-family: Oswald, sans-serif; text-transform: uppercase; letter-spacing: .18em; font-size: 11px; color: #ffd24a; }
+.av2-notice h2 { font-size: 20px; margin: 4px 0 8px; display: block; }
+.av2-notice ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; color: rgba(255,255,255,.75); }
+.av2-notice ul b { color: #fff; }
+.av2-notice ul a { color: #ffd24a; text-decoration: underline; }
+.av2-notice .actions { display: flex; gap: 8px; margin-top: 12px; }
+.av2-notice .actions a, .av2-notice .actions button { flex: 1; text-align: center; padding: 10px; border-radius: 12px; font-family: Oswald, sans-serif; text-transform: uppercase; font-size: 13px; letter-spacing: .04em; }
+.av2-notice .actions .ghost { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); }
+.av2-notice .actions button { background: linear-gradient(180deg, #ffd24a, #d99a12); color: #2a1a00; font-weight: 700; }
+.av2-notice-mini { margin: 12px 16px 0; font-size: 12px; color: rgba(255,255,255,.5); text-decoration: underline; }

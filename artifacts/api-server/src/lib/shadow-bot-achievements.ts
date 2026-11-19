@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
-import { awardAchievementRewards } from "./achievement-grant";
+import { classicsFrozen, awardAchievementRewards } from "./achievement-grant";
 import { createNotification } from "./communityNotify";
 
 export function gamerscoreForRarity(rarity: string): number {
@@ -565,6 +565,7 @@ export const SHADOW_BOT_ACHIEVEMENT_DEFS: ShadowBotAchievementDef[] = [
 // no-op, and never paid out the coinReward/packReward or sent a
 // notification that every other achievement system already grants.
 async function awardShadowBotAchievement(playerId: number, def: ShadowBotAchievementDef): Promise<void> {
+  if (await classicsFrozen()) return;   // the Classics are frozen once the new achievements are live
   const result = await db.execute(sql`
     INSERT INTO shadow_bot_achievements (player_id, achievement_key)
     VALUES (${playerId}, ${def.key})
