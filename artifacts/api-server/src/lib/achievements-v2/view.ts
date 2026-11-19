@@ -3,21 +3,22 @@
  * or worked out live for an admin preview before launch; both go through toView so the page sees one shape.
  */
 import { sql } from "drizzle-orm";
-import { CATALOGUE, SEASON_GOAL_POINTS, goalText, levelPoints, metalFor, type Area, type Metal } from "./catalogue.ts";
+import { CATALOGUE, SEASON_GOAL_POINTS, goalText, trackLevel, levelPoints, metalFor, type Area, type Metal } from "./catalogue.ts";
 import type { AchievementState } from "./evaluate.ts";
 import { computeAll, type Exec } from "./report.ts";
 import { ensureTables } from "./store.ts";
+import { REWARDS, REWARD_FOR_FEAT } from "./rewards.ts";
 
-export const AREA_ORDER: { area: Exclude<Area, "TOUR">; name: string }[] = [
+export const AREA_ORDER: { area: Area; name: string }[] = [
   { area: "LEAGUE", name: "League" }, { area: "TEAMS", name: "Doubles and Shift Wars" }, { area: "PRACTICE", name: "Practice" },
-  { area: "MASTER501", name: "Master-501" }, { area: "MODES", name: "Board Curse and Boss Battle" },
+  { area: "MASTER501", name: "Master-501" }, { area: "MODES", name: "Board Curse and Boss Battle" }, { area: "CAREER", name: "Career" },
 ];
 
 export type TrackView = { key: string; title: string; value: number; level: number; levels: number[]; metal: Metal | null; next: string | null;
-  nextTarget: number | null; progress: number; unit: "%" | null; scorer: boolean };
-export type FeatView = { key: string; title: string; goal: string; earnedAt: string | null; secret: boolean; liveOnly: boolean; points: number; scorer: boolean; showpiece: boolean };
+  nextTarget: number | null; progress: number; unit: "%" | "rank" | null; scorer: boolean };
+export type FeatView = { key: string; title: string; goal: string; earnedAt: string | null; secret: boolean; liveOnly: boolean; points: number; scorer: boolean; showpiece: boolean; reward: string | null };
 export type SeasonView = { key: string; title: string; goal: string; targets: number[]; value: number; completed: number; seasonsCompleted: number };
-export type AreaView = { area: Area; name: string; score: number; tracks: TrackView[]; feats: FeatView[]; seasonGoals: SeasonView[]; earned: number; total: number };
+export type AreaView = { area: Area; name: string; score: number; tracks: TrackView[]; feats: FeatView[]; seasonGoals: SeasonView[]; earned: number; total: number; reward: string | null };
 export type PlayerView = { score: number; areas: AreaView[]; nearly: (TrackView & { area: Area })[]; metals: Record<Metal, number>; featsEarned: number };
 
 const defs = new Map(CATALOGUE.map(d => [d.key, d]));
@@ -32,15 +33,15 @@ export function toView(states: AchievementState[], currentSeasonId: number | nul
       const s = mine.get(d.key); score += s?.points ?? 0;
       if (d.kind === "TRACK") {
         const value = s?.kind === "TRACK" ? s.value : 0, level = s?.kind === "TRACK" ? s.level : 0, nextTarget = d.levels[level] ?? null;
-        const prev = level > 0 ? d.levels[level - 1] : 0;
+        const progress = nextTarget === null ? 1 : trackLevel(d, value).progress;
         tracks.push({ key: d.key, title: d.title, value, level, levels: d.levels, metal: metalFor(level, d.levels.length), nextTarget,
-          next: nextTarget === null ? null : goalText(d.goal, nextTarget), progress: nextTarget === null ? 1 : Math.max(0, Math.min(1, (value - prev) / (nextTarget - prev))),
+          next: nextTarget === null ? null : goalText(d.goal, nextTarget, d.unit), progress,
           unit: d.unit ?? null, scorer: !!d.scorer });
       } else if (d.kind === "FEAT") {
         const earnedAt = s?.kind === "FEAT" && s.earnedAt ? s.earnedAt.toISOString() : null;
         // A secret feat shows only its hint until it's earned.
         feats.push({ key: d.key, title: d.secret && !earnedAt ? "Secret" : d.title, goal: d.secret && !earnedAt ? d.secret.hint : d.goal, earnedAt,
-          secret: !!d.secret, liveOnly: !!d.liveOnly, points: d.points, scorer: !!d.scorer, showpiece: !!d.showpiece });
+          secret: !!d.secret, liveOnly: !!d.liveOnly, points: d.points, scorer: !!d.scorer, showpiece: !!d.showpiece, reward: d.secret && !earnedAt ? null : REWARD_FOR_FEAT[d.key] ?? null });
       } else {
         const per = s?.kind === "SEASON" ? s.perSeason : [];
         const cur = per.find(p => p.seasonId === currentSeasonId);
@@ -49,7 +50,7 @@ export function toView(states: AchievementState[], currentSeasonId: number | nul
       }
     }
     const earned = tracks.filter(t => t.level > 0).length + feats.filter(f => f.earnedAt).length;
-    return { area, name, score, tracks, feats, seasonGoals, earned, total: tracks.length + feats.length };
+    return { area, name, score, tracks, feats, seasonGoals, earned, total: tracks.length + feats.length, reward: REWARDS.find(r => r.cosmetic.id === `frame-av2-${area.toLowerCase()}`)?.cosmetic.name ?? null };
   });
   const allTracks = areas.flatMap(a => a.tracks.map(t => ({ ...t, area: a.area })));
   const nearly = allTracks.filter(t => t.nextTarget !== null && t.progress > 0).sort((a, b) => b.progress - a.progress).slice(0, 5);

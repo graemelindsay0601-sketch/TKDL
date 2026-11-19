@@ -554,6 +554,9 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
                   <div style={{ fontSize: "0.58rem", color: rColor, fontWeight: 700, letterSpacing: "0.08em", marginTop: "1px" }}>
                     {c.rarity}
                   </div>
+                  {(c as { earnedBy?: string }).earnedBy && !itemOwned && (
+                    <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.5)", marginTop: "3px", lineHeight: 1.25 }}>{(c as { earnedBy?: string }).earnedBy}</div>
+                  )}
                 </div>
 
                 {meta.equippable === false && itemOwned ? (
@@ -584,7 +587,7 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
                   </button>
                 ) : !c.purchasable ? (
                   <div
-                    title="Awarded automatically — not for sale"
+                    title={(c as { earnedBy?: string }).earnedBy ?? "Awarded automatically — not for sale"}
                     style={{
                       display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
                       fontSize: "0.6rem", fontWeight: 700, fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em",
@@ -592,7 +595,7 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
                       border: "1px dashed rgba(255,255,255,0.12)", borderRadius: "6px", padding: "5px 0",
                     }}
                   >
-                    <Lock className="w-3 h-3" /> Exclusive
+                    <Lock className="w-3 h-3" /> {(c as { earnedBy?: string }).earnedBy ? "Achievement" : "Exclusive"}
                   </div>
                 ) : (
                   <button

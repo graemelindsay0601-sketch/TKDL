@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { requireAdminSession } from "../middleware/requireAdminSession";
-import { allHistoryCredit, reportHtml, winsCheck } from "../lib/achievements-v2/report.ts";
+import { allHistoryCredit, computeAll, reportHtml, winsCheck } from "../lib/achievements-v2/report.ts";
+import { rewardCounts } from "../lib/achievements-v2/rewards.ts";
 import { settings, isEnabled, syncNow, lastSync } from "../lib/achievements-v2/live.ts";
 import { toView, storedStates, liveStates, currentSeasonId, recentUnlocks, unseenUnlocks, markSeen } from "../lib/achievements-v2/view.ts";
 import { resetClassicsFrozenCache } from "../lib/achievement-grant";
@@ -13,11 +14,13 @@ import { ENABLED_KEY, LAUNCHED_KEY, WELCOME_COINS } from "../lib/achievements-v2
  */
 const router: IRouter = Router();
 router.get("/admin/achievements-v2/report", requireAdminSession, async (req, res) => {
-  const reports = await allHistoryCredit(db as never);
+  const all = await computeAll(db as never);
+  const reports = await allHistoryCredit(db as never, all);
   const checks = await winsCheck(db as never).catch(() => undefined);
+  const rewards = rewardCounts(all);
   res.set("Cache-Control", "no-store");
-  if (req.query.format === "json") { res.json({ reports, checks }); return; }
-  res.type("html").send(reportHtml(reports, checks));
+  if (req.query.format === "json") { res.json({ reports, checks, rewards }); return; }
+  res.type("html").send(reportHtml(reports, checks, rewards));
 });
 
 /** The switch and its state. Turning it on runs the history credit in the background (no coins except the welcome bonus). */

@@ -8,7 +8,7 @@ import { trackArt, featArt, LOCKED } from "@/components/achievements-v2/art";
 import "./achievements-v2.css";
 
 const METAL_RANK: Record<Metal, number> = { BRONZE: 1, SILVER: 2, GOLD: 3, PLATINUM: 4, DIAMOND: 5 };
-const AREA_TAB: Record<string, string> = { LEAGUE: "League", TEAMS: "Teams", PRACTICE: "Practice", MASTER501: "Master-501", MODES: "Modes" };
+const AREA_TAB: Record<string, string> = { LEAGUE: "League", TEAMS: "Teams", PRACTICE: "Practice", MASTER501: "Master-501", MODES: "Modes", CAREER: "Career" };
 const metalLabel = (t: TrackView) => t.metal ? `${METAL_NAME[t.metal]} · ${fmt(t.value, t.unit)}` : t.value > 0 ? `${fmt(t.value, t.unit)} so far` : "Not started";
 
 function Bar({ value, tone = "gold" }: { value: number; tone?: "gold" | "green" }) {
@@ -36,6 +36,7 @@ function FeatTile({ f }: { f: FeatView }) {
       <img src={featArt(f.key)} alt="" loading="lazy" style={earned ? undefined : LOCKED} />
       <div className="n">{f.title}</div>
       <div className="g">{earned ? format(new Date(f.earnedAt!), "d MMM yyyy") : f.goal}</div>
+      {f.reward && <div className="rw">{earned ? "Unlocked" : "Unlocks"}: {f.reward}</div>}
     </div>
   );
 }
@@ -52,6 +53,7 @@ function Showpiece({ f }: { f: FeatView }) {
         <div className="title">{f.title}</div>
         <div className="goal">{f.goal}</div>
         <div className={earned ? "won" : "pts"}>{earned ? `Earned ${format(new Date(f.earnedAt!), "d MMM yyyy")}` : `${f.points} points`}</div>
+        {f.reward && <div className="rw">{earned ? "Unlocked" : "Unlocks"}: {f.reward}</div>}
       </div>
     </div>
   );
@@ -84,6 +86,7 @@ function UpdateNotice() {
         <li><b>The Classics are now frozen.</b> No new Classic badges are given out from here on. Everything new is earned in this cabinet instead.</li>
         <li><b>Your history counts.</b> The new achievements were worked out from everything you've already played, so you start with the pieces you've earned.</li>
         <li><b>New unlocks pay coins.</b> Every new level, feat and season goal from now on pays coins, plus a one-off welcome bonus if you'd already earned something before the update.</li>
+        <li><b>Career has its own tab.</b> Career mode achievements are for bragging rights only. They never give you anything inside Career.</li>
       </ul>
       <div className="actions"><Link href="/achievements/classics" className="ghost">See my Classics</Link><button onClick={close}>Got it</button></div>
     </div>
@@ -172,7 +175,9 @@ export default function AchievementsV2Page() {
             <button key={a.area} onClick={() => setTab(a.area)} className={tab === a.area ? "on" : ""}>{AREA_TAB[a.area] ?? a.name} <span>{a.earned}/{a.total}</span></button>
           ))}
         </div>
+        {tab === "CAREER" && <p className="av2-career-note">Bragging rights only: these count across all your Career saves and never change anything inside Career. 180s, checkouts, averages and nine-darters count from matches you throw live.</p>}
         {showpiece && <Showpiece f={showpiece} />}
+        {area?.reward && <p className="av2-reward-note">Reach Diamond on any {AREA_TAB[area.area]} track to unlock the <b>{area.reward}</b> profile frame{area.tracks.some(t => t.metal === "DIAMOND") ? " (unlocked)" : ""}.</p>}
         <div className="av2-cabinet">
           {shelves.map((row, i) => <div key={i} className="av2-shelf">{row.map(t => <ShelfItem key={t.key} t={t} />)}</div>)}
         </div>
