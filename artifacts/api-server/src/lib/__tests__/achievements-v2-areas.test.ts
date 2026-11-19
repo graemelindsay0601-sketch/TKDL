@@ -128,3 +128,30 @@ test("the full report reads every area's tables, saves nothing and gives one sec
   for (const id of ["league", "teams", "practice", "master501", "modes"]) assert.ok(html.includes(`id="${id}"`), id);
   assert.equal(Number((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM doubles_matches")).rows[0].n), 2, "nothing written");
 });
+
+test("teams fun ones: Inseparable, Three's company, Reunited, debut, Friday feeling and Full rota", () => {
+  const teams = [
+    { id: 1, seasonId: 1, players: [10, 11, 12], points: 120, wins: 3, losses: 0, isEliminated: false },
+    { id: 2, seasonId: 1, players: [13, 14], points: 40, wins: 0, losses: 3, isEliminated: false },
+    { id: 3, seasonId: 2, players: [10, 11], points: 60, wins: 1, losses: 1, isEliminated: false },
+  ];
+  const results = [1, 2, 3].map(i => ({ teamId: 1, opponentTeamIds: [2], won: true, stake: 5, playedAt: at(`2026-01-0${i}`), kind: "MATCH" as const, seasonId: 1 }));
+  results.push({ teamId: 3, opponentTeamIds: [2], won: true, stake: 5, playedAt: at("2026-02-03"), kind: "MATCH" as const, seasonId: 2 });
+  const f = evaluateDoubles({ playerId: 10, teams, results, finishedSeasons: new Set([1]) });
+  for (const k of ["inseparable", "threesCompany", "reunited", "doublesDebut"]) assert.ok(f.feats[k], k);
+  const g = evaluateDoubles({ playerId: 13, teams, results: results.map(r => ({ ...r, teamId: 2, won: false })), finishedSeasons: new Set([1]) });
+  assert.equal(g.feats.inseparable, undefined); assert.equal(g.feats.doublesDebut, undefined);
+
+  // a Friday (2026-01-09) win, and a match in each of the three weeks of season 1
+  const shift = ["2026-01-05", "2026-01-09", "2026-01-14", "2026-01-19"].map((d, i) => ({ won: i === 1, stake: 5, playedAt: at(d), opponentTeamIds: [2], kind: "MATCH" as const }));
+  const s = evaluateShiftWars({ departmentId: 1, results: shift, championMonths: [], seasonsOnRota: 1, seasonWeeks: new Map([[1, 3]]) }, () => 1);
+  assert.ok(s.feats.fridayFeeling); assert.ok(s.feats.fullRota);
+  const s2 = evaluateShiftWars({ departmentId: 1, results: shift.slice(0, 2), championMonths: [], seasonsOnRota: 1, seasonWeeks: new Map([[1, 3]]) }, () => 1);
+  assert.equal(s2.feats.fullRota, undefined, "missed a week");
+});
+
+test("seasonWeeks counts the Monday-start weeks a finished season touched", async () => {
+  const { seasonWeeks } = await import("../achievements-v2/report.ts");
+  const w = seasonWeeks([{ id: 1, startDate: at("2026-01-01"), endDate: at("2026-01-31"), isActive: false }, { id: 2, startDate: at("2026-02-01"), endDate: null, isActive: true }]);
+  assert.equal(w.get(1), 5); assert.equal(w.has(2), false);
+});

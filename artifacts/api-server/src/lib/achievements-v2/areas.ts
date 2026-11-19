@@ -3,6 +3,7 @@
  * Pure: loaders hand over plain rows. Every area returns the same shape (metrics, feats with the time earned, per-season
  * values), so the catalogue, the report and the page treat them alike.
  */
+import { londonParts } from "./league.ts";
 import type { AreaFacts } from "./evaluate.ts";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
@@ -22,6 +23,7 @@ export function evaluateDoubles(ctx: DoublesContext): AreaFacts {
   const feats: Record<string, Date | null> = {}, earn = earner(feats);
   let run = 0;
   const partnersWonWith = new Set<number>(), beaten = new Set<number>();
+  if (list[0]?.won) earn("doublesDebut", list[0].playedAt);
   for (const r of list) {
     if (r.won) {
       run++; if (run >= 5) earn("inSync", r.playedAt);
@@ -40,15 +42,23 @@ export function evaluateDoubles(ctx: DoublesContext): AreaFacts {
       const last = list.filter(r => r.teamId === t.id).at(-1)?.playedAt ?? new Date();
       if (table[0]?.id === t.id && t.wins > 0) earn("topPair", last);
       if (table.slice(0, 3).some(x => x.id === t.id) && t.wins > 0) earn("neverSplit", last);
+      if (table[0]?.id === t.id && t.wins > 0 && t.losses === 0) earn("inseparable", last);
     }
+    if (t.players.length >= 3) earn("threesCompany", list.find(r => r.teamId === t.id)?.playedAt ?? null);
   }
+  // reunited: drawn with the same partner in two different seasons
+  const seen = new Map<number, number>();
+  for (const t of [...mineTeams].sort((a, b) => a.seasonId - b.seasonId)) for (const p of t.players) { if (p === ctx.playerId) continue;
+    const first = seen.get(p); if (first !== undefined && first !== t.seasonId) earn("reunited", list.find(r => r.teamId === t.id)?.playedAt ?? null); else if (first === undefined) seen.set(p, t.seasonId); }
   return { metrics: { teamWins: list.filter(r => r.won).length, teamMatches: list.length, partnersWonWith: partnersWonWith.size, teamsBeaten: beaten.size,
     teamSeasons: new Set(mineTeams.map(t => t.seasonId)).size }, feats, seasons };
 }
 
 // ---------------------------------------------------------------- Shift Wars
 export type ShiftResult = { won: boolean; stake: number; playedAt: Date; opponentTeamIds: number[]; kind: "MATCH" | "MULTI" | "COMBINED" };
-export type ShiftContext = { departmentId: number | null; results: ShiftResult[]; championMonths: { seasonId: number; at: Date }[]; seasonsOnRota: number };
+export type ShiftContext = { departmentId: number | null; results: ShiftResult[]; championMonths: { seasonId: number; at: Date }[]; seasonsOnRota: number;
+  /** Finished league seasons and how many weeks each ran, for Full rota. */
+  seasonWeeks?: Map<number, number> };
 
 /** Departments are fixed and admin-assigned, so a member is credited with their department's recorded results. */
 /** Shift Wars resets with the league season, so its season goals are keyed by league season (seasonOf maps a date to one). */
@@ -60,7 +70,8 @@ export function evaluateShiftWars(ctx: ShiftContext, seasonOf: (d: Date) => numb
   const months = new Map<number, { matches: number; weeks: Set<string> }>();
   for (const r of list) {
     perDay.set(dayKey(r.playedAt), (perDay.get(dayKey(r.playedAt)) ?? 0) + 1); if ((perDay.get(dayKey(r.playedAt)) ?? 0) >= 3) earn("nightShift", r.playedAt);
-    if (r.won) { r.opponentTeamIds.forEach(o => beaten.add(o)); if (r.stake >= 20) earn("bigShift", r.playedAt); if (r.kind === "MULTI") earn("overtime", r.playedAt); }
+    if (r.won) { r.opponentTeamIds.forEach(o => beaten.add(o)); if (r.stake >= 20) earn("bigShift", r.playedAt); if (r.kind === "MULTI") earn("overtime", r.playedAt);
+      if (londonParts(r.playedAt).wd === "Fri") earn("fridayFeeling", r.playedAt); }
     const mk = seasonOf(r.playedAt);
     if (mk === null) continue;
     const m = months.get(mk) ?? { matches: 0, weeks: new Set<string>() };
@@ -68,7 +79,8 @@ export function evaluateShiftWars(ctx: ShiftContext, seasonOf: (d: Date) => numb
   }
   for (const c of ctx.championMonths) earn("employeeOfMonth", c.at);
   const seasons = new Map<number, Record<string, number>>();
-  for (const [mk, m] of months) seasons.set(mk, { monthMatches: m.matches, monthWeeks: m.weeks.size });
+  for (const [mk, m] of months) { seasons.set(mk, { monthMatches: m.matches, monthWeeks: m.weeks.size });
+    const need = ctx.seasonWeeks?.get(mk); if (need && m.weeks.size >= need) earn("fullRota", list.filter(r => seasonOf(r.playedAt) === mk).at(-1)?.playedAt ?? null); }
   return { metrics: { deptWins: list.filter(r => r.won).length, deptMatches: list.length, deptsBeaten: beaten.size, seasonsOnRota: ctx.seasonsOnRota }, feats, seasons };
 }
 
