@@ -8,6 +8,8 @@ export type LeagueMatch = {
   winner180s: number | null; loser180s: number | null; winner140s: number | null; loser140s: number | null; winner170s: number | null; loser170s: number | null;
   winner100s: number | null; loser100s: number | null; winnerDarts: number | null; loserDarts: number | null;
   winnerCheckoutAttempts: number | null; winnerCheckoutHits: number | null; loserCheckoutAttempts: number | null; loserCheckoutHits: number | null;
+  /** A team-match row added for one non-captain player: it counts only for that player, so nobody else sees the match twice. */
+  onlyFor?: number;
 };
 export type LeagueSeason = { id: number; startDate: Date | null; endDate: Date | null; isActive: boolean; championId: number | null };
 export type LeagueStanding = { seasonId: number; playerId: number; position: number; wins: number; losses: number; points: number; isChampion: boolean };
@@ -34,7 +36,7 @@ const weekKey = (d: Date) => { const x = new Date(Date.UTC(d.getUTCFullYear(), d
 
 export function evaluateLeague(ctx: LeagueContext): LeagueResult {
   const me = ctx.player.id;
-  const mine = ctx.matches.filter(m => m.winnerId === me || m.loserId === me)
+  const mine = ctx.matches.filter(m => (m.winnerId === me || m.loserId === me) && (m.onlyFor === undefined || m.onlyFor === me))
     .sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime() || a.id - b.id);
   const won = (m: LeagueMatch) => m.winnerId === me;
   const opp = (m: LeagueMatch) => (won(m) ? m.loserId : m.winnerId);

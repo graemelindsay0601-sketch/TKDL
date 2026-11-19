@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { AchievementRewardModal } from "../components/AchievementRewardModal";
 import { useAchievementModal } from "../utils/use-achievement-modal";
 import { useFetch } from "@/hooks/use-fetch";
+import { Link } from "wouter";
+import { useAchievementsV2Status } from "@/components/achievements-v2/api";
 
 // ── League achievement helpers ─────────────────────────────────────────────────
 
@@ -663,14 +665,26 @@ export default function Achievements() {
     useAchievementModal();
 
   const active = TABS.find(t => t.key === tab)!;
+  const v2Live = useAchievementsV2Status();
 
   return (
     <div className="space-y-6">
       <div className="pdc-divider" />
 
+      {v2Live && (
+        <div className="rounded-2xl p-4" style={{ background: "linear-gradient(135deg, rgba(255,210,74,.12), rgba(168,85,247,.10))", border: "1px solid rgba(255,210,74,.35)" }}>
+          <div className="text-[11px] uppercase font-bold" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: ".18em", color: "#ffd24a" }}>Classics</div>
+          <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,.75)" }}>
+            These are the original achievements, kept exactly as you earned them. They're now frozen: the League, Practice, Master-501, Doubles, Shift Wars,
+            arcade and Shadow Bot badges here won't be given out any more, because the new achievements have replaced them.
+          </p>
+          <Link href="/achievements" className="inline-block mt-2 text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>Go to the new cabinet →</Link>
+        </div>
+      )}
+
       <div>
         <h1 className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-          Achievement Centre
+          {v2Live ? "Classics" : "Achievement Centre"}
         </h1>
         <p className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em" }}>
           League · Tour · Shadow Bot · Trophies

@@ -30,3 +30,27 @@ test("history credit report reads the league tables, saves nothing and summarise
   assert.match(reportHtml(s), /What history credit would give|what history credit would give/i);
   assert.equal(Number((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM matches")).rows[0].n), 9, "nothing written");
 });
+
+test("team matches credit every player on the team, and the wins check flags anyone who differs from the Hall of Fame", async () => {
+  const { winsCheck } = await import("../achievements-v2/report.ts");
+  const pg = new PGlite(); const db = drizzle(pg);
+  await pg.exec(`
+    CREATE TABLE players (id int primary key, name text, career_peak_elo int, eliminations_count int, longest_win_streak int, career_wins int);
+    CREATE TABLE seasons (id int primary key, start_date timestamptz, end_date timestamptz, is_active boolean, champion_id int);
+    CREATE TABLE season_standings (season_id int, player_id int, position int, wins int, losses int, points int, is_champion boolean);
+    CREATE TABLE matches (id serial primary key, season_id int, winner_id int, loser_id int, stake int, elo_change int, game_type text, played_at timestamptz,
+      winner_darts int, winner_100s int, winner_140s int, winner_170s int, winner_180s int, winner_checkout_attempts int, winner_checkout_hits int,
+      loser_darts int, loser_100s int, loser_140s int, loser_170s int, loser_180s int, loser_checkout_attempts int, loser_checkout_hits int);
+    CREATE TABLE match_participants (id serial primary key, match_id int, player_id int, team text);
+    INSERT INTO players VALUES (1,'Cap',1000,0,0,2),(2,'Mate',1000,0,0,1),(3,'Opp',1000,0,0,0),(4,'OppMate',1000,0,0,0),(5,'Old',1000,0,0,9);
+    INSERT INTO seasons VALUES (1,'2026-01-01',null,true,null);
+    INSERT INTO matches (season_id,winner_id,loser_id,stake,elo_change,game_type,played_at) VALUES (1,1,3,5,8,'team_501','2026-01-05'),(1,1,3,5,8,'501','2026-01-06'),(1,5,3,5,8,'501','2026-01-07');
+    INSERT INTO match_participants (match_id,player_id,team) VALUES (1,1,'winner'),(1,2,'winner'),(1,3,'loser'),(1,4,'loser');`);
+  const players = await leagueHistoryCredit(db as never);
+  const wins = (id: number) => { const s = players.find(p => p.playerId === id)?.states.find(x => x.key === "league-wins"); return s?.kind === "TRACK" ? s.value : 0; };
+  const matches = (id: number) => { const s = players.find(p => p.playerId === id)?.states.find(x => x.key === "league-matches"); return s?.kind === "TRACK" ? s.value : 0; };
+  assert.deepEqual([wins(1), wins(2), wins(3), wins(4)], [2, 1, 0, 0]);
+  assert.deepEqual([matches(2), matches(3), matches(4)], [1, 3, 1], "the opposing captain isn't counted twice for the team match");
+  const checks = await winsCheck(db as never);
+  assert.deepEqual(checks.map(c => [c.name, c.achievements, c.hallOfFame]), [["Old", 1, 9]], "only the player whose wins predate the match records");
+});

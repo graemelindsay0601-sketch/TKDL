@@ -69,6 +69,27 @@ function SeasonCard({ g }: { g: SeasonView }) {
   );
 }
 
+/** Tells everyone what changed: a new system, and nothing from the old one is lost (it lives on as the Classics). */
+function UpdateNotice() {
+  const KEY = "tkdl:av2-update-notice";
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(KEY) !== "seen"; } catch { return true; } });
+  const close = () => { setOpen(false); try { localStorage.setItem(KEY, "seen"); } catch { /* fine */ } };
+  if (!open) return <button className="av2-notice-mini" onClick={() => setOpen(true)}>What's changed?</button>;
+  return (
+    <div className="av2-notice" role="note">
+      <div className="kicker">New update</div>
+      <h2>Achievements have been rebuilt</h2>
+      <ul>
+        <li><b>Your old achievements aren't lost.</b> Every badge you earned is kept, exactly as it was, in <Link href="/achievements/classics">Classics</Link> and on your profile.</li>
+        <li><b>The Classics are now frozen.</b> No new Classic badges are given out from here on. Everything new is earned in this cabinet instead.</li>
+        <li><b>Your history counts.</b> The new achievements were worked out from everything you've already played, so you start with the pieces you've earned.</li>
+        <li><b>New unlocks pay coins.</b> Every new level, feat and season goal from now on pays coins, plus a one-off welcome bonus if you'd already earned something before the update.</li>
+      </ul>
+      <div className="actions"><Link href="/achievements/classics" className="ghost">See my Classics</Link><button onClick={close}>Got it</button></div>
+    </div>
+  );
+}
+
 export default function AchievementsV2Page() {
   const { user } = useAuth();
   const search = new URLSearchParams(useSearch());
@@ -93,6 +114,7 @@ export default function AchievementsV2Page() {
   return (
     <div className="av2">
       {data && "preview" in data && data.preview && <div className="av2-preview">Admin preview, worked out live from history. Players can't see this until achievements are switched on.</div>}
+      <UpdateNotice />
       <header className="av2-hero">
         <h1>Achievements</h1>
         <div className="sub">{player?.name ?? "Player"} · <b>{fmt(view.score)}</b> points · {view.featsEarned} feats{view.nearly.length ? <> · <span className="purple">{view.nearly.length} nearly there</span></> : null}</div>

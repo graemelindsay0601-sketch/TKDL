@@ -26,6 +26,18 @@ export async function loadLeague(db: Exec) {
     seasonId: num(r.season_id), playerId: num(r.player_id), position: num(r.position), wins: num(r.wins), losses: num(r.losses), points: num(r.points), isChampion: r.is_champion === true }));
   const players = (await db.execute(sql`SELECT id, name, career_peak_elo, eliminations_count, longest_win_streak FROM players`)).rows.map(r => ({
     id: num(r.id), name: String(r.name), careerPeakElo: num(r.career_peak_elo), eliminationsCount: num(r.eliminations_count), longestWinStreak: num(r.longest_win_streak) }));
+  // Team matches store only each side's captain on the match row; everyone else is in match_participants.
+  // The league credits every player on the team (career wins and losses), so each teammate gets their own row too.
+  const byId = new Map(matches.map(m => [m.id, m]));
+  let partRows: Record<string, unknown>[] = [];
+  try { partRows = (await db.execute(sql`SELECT match_id, player_id, team FROM match_participants`)).rows; } catch { partRows = []; }
+  for (const r of partRows) {
+    const m = byId.get(num(r.match_id)), pid = num(r.player_id); if (!m || pid === m.winnerId || pid === m.loserId) continue;
+    const blank = { winner180s: null, loser180s: null, winner140s: null, loser140s: null, winner170s: null, loser170s: null, winner100s: null, loser100s: null,
+      winnerDarts: null, loserDarts: null, winnerCheckoutAttempts: null, winnerCheckoutHits: null, loserCheckoutAttempts: null, loserCheckoutHits: null };
+    matches.push(r.team === "winner" ? { ...m, ...blank, winnerId: pid, onlyFor: pid } : { ...m, ...blank, loserId: pid, onlyFor: pid });
+  }
+  matches.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime() || a.id - b.id);
   const participants = new Map<number, Set<number>>();
   for (const m of matches) { const s = participants.get(m.seasonId) ?? new Set<number>(); s.add(m.winnerId); s.add(m.loserId); participants.set(m.seasonId, s); }
   return { matches, seasons, standings, players, participants };
@@ -69,7 +81,7 @@ const AREA_NOTES: Partial<Record<Area, string>> = {
   MODES: "These modes only keep totals, so feats found in history would be dated at launch.",
 };
 /** A plain admin page for the sign-off: no styling dependencies, readable on a phone. One section per area. */
-export function reportHtml(reports: AreaReport[] | ReturnType<typeof summarise>) {
+export function reportHtml(reports: AreaReport[] | ReturnType<typeof summarise>, checks?: WinsCheck[]) {
   const list: AreaReport[] = Array.isArray(reports) ? reports : [{ area: "LEAGUE", summary: reports }];
   const table = (head: string[], rows: unknown[][]) => `<table><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   const section = ({ area, summary }: AreaReport) => `<section id="${area.toLowerCase()}"><h2>${esc(AREA_NAMES[area])}</h2>
@@ -83,6 +95,9 @@ ${summary.seasonGoals.length ? `<h3>Season goals</h3>${table(["Goal", "Seasons c
 <h1>Achievements v2: what history credit would give</h1>
 <p>Read only. Nothing has been saved or awarded. Each track row counts players at their current metal.</p>
 <nav>${list.map(r => `<a href="#${r.area.toLowerCase()}">${esc(AREA_NAMES[r.area])}</a>`).join("")}</nav>
+${checks ? `<section id="checks"><h2>Check: league wins against the Hall of Fame</h2>
+<p>${checks.length ? `${checks.length} players' league wins here differ from the career win total on the Hall of Fame. Any gap is usually wins from before match records were kept, or matches since deleted.` : "Every player's league wins match the Hall of Fame."}</p>
+${checks.length ? table(["Player", "Achievements", "Hall of Fame", "Difference"], checks.map(c => [c.name, c.achievements, c.hallOfFame, c.hallOfFame - c.achievements])) : ""}</section>` : ""}
 ${list.map(section).join("\n")}
 </body></html>`;
 }
@@ -242,4 +257,14 @@ export async function computeAll(db: Exec, now = new Date()): Promise<AreaPlayer
 export async function allHistoryCredit(db: Exec): Promise<AreaReport[]> {
   const all = await computeAll(db);
   return (Object.keys(all) as (keyof AreaPlayers)[]).map(area => ({ area, summary: summarise(all[area], area) }));
+}
+
+export type WinsCheck = { playerId: number; name: string; achievements: number; hallOfFame: number };
+/** League wins as the achievements count them, against the career win total the Hall of Fame shows; only players that differ. */
+export async function winsCheck(db: Exec): Promise<WinsCheck[]> {
+  const league = await leagueHistoryCredit(db);
+  const wins = new Map(league.map(p => { const s = p.states.find(x => x.key === "league-wins"); return [p.playerId, s?.kind === "TRACK" ? s.value : 0]; }));
+  const rows = (await db.execute(sql`SELECT id, name, career_wins FROM players`)).rows;
+  return rows.map(r => ({ playerId: num(r.id), name: String(r.name), achievements: wins.get(num(r.id)) ?? 0, hallOfFame: num(r.career_wins) }))
+    .filter(r => r.achievements !== r.hallOfFame).sort((a, b) => Math.abs(b.hallOfFame - b.achievements) - Math.abs(a.hallOfFame - a.achievements));
 }
