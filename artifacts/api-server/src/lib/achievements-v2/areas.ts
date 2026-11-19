@@ -7,7 +7,7 @@ import { londonParts } from "./league.ts";
 import type { AreaFacts } from "./evaluate.ts";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
-const earner = (feats: Record<string, Date | null>) => (key: string, at: Date) => { if (!feats[key]) feats[key] = at; };
+const earner = (feats: Record<string, Date | null>) => (key: string, at: Date | null | undefined) => { if (at && !feats[key]) feats[key] = at; };
 const bestRunOf = (results: boolean[]) => { let r = 0, best = 0; for (const w of results) { r = w ? r + 1 : 0; best = Math.max(best, r); } return best; };
 
 // ---------------------------------------------------------------- Doubles
@@ -44,12 +44,12 @@ export function evaluateDoubles(ctx: DoublesContext): AreaFacts {
       if (table.slice(0, 3).some(x => x.id === t.id) && t.wins > 0) earn("neverSplit", last);
       if (table[0]?.id === t.id && t.wins > 0 && t.losses === 0) earn("inseparable", last);
     }
-    if (t.players.length >= 3) earn("threesCompany", list.find(r => r.teamId === t.id)?.playedAt ?? null);
+    if (t.players.length >= 3) earn("threesCompany", list.find(r => r.teamId === t.id)?.playedAt);
   }
   // reunited: drawn with the same partner in two different seasons
   const seen = new Map<number, number>();
   for (const t of [...mineTeams].sort((a, b) => a.seasonId - b.seasonId)) for (const p of t.players) { if (p === ctx.playerId) continue;
-    const first = seen.get(p); if (first !== undefined && first !== t.seasonId) earn("reunited", list.find(r => r.teamId === t.id)?.playedAt ?? null); else if (first === undefined) seen.set(p, t.seasonId); }
+    const first = seen.get(p); if (first !== undefined && first !== t.seasonId) earn("reunited", list.find(r => r.teamId === t.id)?.playedAt); else if (first === undefined) seen.set(p, t.seasonId); }
   return { metrics: { teamWins: list.filter(r => r.won).length, teamMatches: list.length, partnersWonWith: partnersWonWith.size, teamsBeaten: beaten.size,
     teamSeasons: new Set(mineTeams.map(t => t.seasonId)).size }, feats, seasons };
 }
@@ -80,7 +80,7 @@ export function evaluateShiftWars(ctx: ShiftContext, seasonOf: (d: Date) => numb
   for (const c of ctx.championMonths) earn("employeeOfMonth", c.at);
   const seasons = new Map<number, Record<string, number>>();
   for (const [mk, m] of months) { seasons.set(mk, { monthMatches: m.matches, monthWeeks: m.weeks.size });
-    const need = ctx.seasonWeeks?.get(mk); if (need && m.weeks.size >= need) earn("fullRota", list.filter(r => seasonOf(r.playedAt) === mk).at(-1)?.playedAt ?? null); }
+    const need = ctx.seasonWeeks?.get(mk); if (need && m.weeks.size >= need) earn("fullRota", list.filter(r => seasonOf(r.playedAt) === mk).at(-1)?.playedAt); }
   return { metrics: { deptWins: list.filter(r => r.won).length, deptMatches: list.length, deptsBeaten: beaten.size, seasonsOnRota: ctx.seasonsOnRota }, feats, seasons };
 }
 
