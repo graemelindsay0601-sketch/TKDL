@@ -1,4 +1,4 @@
-import { CATALOGUE, SEASON_GOAL_POINTS, goalText, levelPoints, metalFor, type AchievementDef, type Area, type Metal } from "./catalogue.ts";
+import { CATALOGUE, SEASON_GOAL_POINTS, goalText, trackLevel, levelPoints, metalFor, type AchievementDef, type Area, type Metal } from "./catalogue.ts";
 
 /** One achievement's state for one player, ready for the page and for the report. */
 export type TrackState = { kind: "TRACK"; key: string; area: Area; title: string; value: number; level: number; levels: number; metal: Metal | null;
@@ -13,13 +13,11 @@ export function evaluate(defs: readonly AchievementDef[], facts: AreaFacts): Ach
   return defs.map((d): AchievementState => {
     if (d.kind === "TRACK") {
       const value = facts.metrics[d.metric] ?? 0;
-      const level = d.levels.filter(t => value >= t).length;
+      const { level, progress } = trackLevel(d, value);
       const nextTarget = d.levels[level];
-      const prev = level > 0 ? d.levels[level - 1] : 0;
-      const progress = nextTarget === undefined ? 1 : Math.max(0, Math.min(1, (value - prev) / (nextTarget - prev)));
       let points = 0; for (let i = 1; i <= level; i++) points += levelPoints(i);
       return { kind: "TRACK", key: d.key, area: d.area, title: d.title, value, level, levels: d.levels.length, metal: metalFor(level, d.levels.length),
-        next: nextTarget === undefined ? null : { target: nextTarget, text: goalText(d.goal, nextTarget) }, progress, points };
+        next: nextTarget === undefined ? null : { target: nextTarget, text: goalText(d.goal, nextTarget, d.unit) }, progress, points };
     }
     if (d.kind === "FEAT") {
       const earnedAt = d.liveOnly ? null : facts.feats[d.metric] ?? null;

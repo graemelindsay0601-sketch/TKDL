@@ -103,7 +103,7 @@ test("the page reads the same from saved rows as from a live preview, and hides 
   assert.equal(league.feats.find(f => f.key === "back-from-the-brink")?.title, "Secret");
   assert.equal(league.seasonGoals.find(g => g.key === "season-wins")?.value, 5);
   assert.ok(saved.nearly.length > 0 && saved.nearly.every(t => t.progress > 0 && t.progress < 1));
-  assert.equal(saved.areas.length, 5);
+  assert.equal(saved.areas.length, 6);
 });
 
 test("a live feat recorded as it happens is awarded, shows as unseen and can be marked seen", async () => {

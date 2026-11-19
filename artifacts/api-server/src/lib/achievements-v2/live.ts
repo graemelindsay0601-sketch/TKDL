@@ -53,7 +53,7 @@ export function scheduleSync() {
 }
 
 // Anything that records a result. Matched on the path below /api.
-const RESULT_PATHS = /^\/(matches|team-matches|live-match|doubles|shift-wars|practice|master501|board-curse|boss-battles|admin\/(matches|seasons|doubles|shift-wars))\b/;
+const RESULT_PATHS = /^\/(matches|team-matches|live-match|doubles|shift-wars|practice|master501|board-curse|boss-battles|career|admin\/(matches|seasons|doubles|shift-wars))\b/;
 /** After a successful write to a results route, queue a sync. Cheap when the switch is off (one settings read, later). */
 export function achievementsV2Trigger(req: Request, res: Response, next: NextFunction) {
   if (req.method !== "GET" && RESULT_PATHS.test(req.path)) res.on("finish", () => { if (res.statusCode < 400) scheduleSync(); });

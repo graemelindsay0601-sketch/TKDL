@@ -3,6 +3,7 @@ import { db, playersTable, playerCurrencyTable, cosmeticDefinitionsTable, player
 import { eq, and, asc } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { EARNED_BY } from "../lib/achievements-v2/rewards.ts";
 
 const router = Router();
 
@@ -26,7 +27,8 @@ router.get("/cosmetics/catalog", async (_req, res): Promise<void> => {
       .from(cosmeticDefinitionsTable)
       .where(eq(cosmeticDefinitionsTable.enabled, true))
       .orderBy(asc(cosmeticDefinitionsTable.category), asc(cosmeticDefinitionsTable.sortOrder));
-    res.json(rows);
+    // award-only cosmetics from achievements say how they're earned
+    res.json(rows.map(r => EARNED_BY[r.id] ? { ...r, earnedBy: EARNED_BY[r.id] } : r));
   } catch (err) {
     logger.error({ err }, "Failed to get cosmetics catalog");
     res.status(500).json({ error: "Failed to get cosmetics catalog" });

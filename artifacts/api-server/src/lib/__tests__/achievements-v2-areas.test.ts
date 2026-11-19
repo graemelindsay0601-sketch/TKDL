@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { evaluateCareer } from "../achievements-v2/career.ts";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
@@ -15,6 +16,7 @@ test("every catalogue key is unique and every non-league metric is produced by a
     ...Object.keys(evaluateDoubles({ playerId: 1, teams: [], results: [], finishedSeasons: new Set() }).metrics),
     ...Object.keys(evaluateShiftWars({ departmentId: 1, results: [], championMonths: [], seasonsOnRota: 0 }, () => 1).metrics),
     ...Object.keys(evaluatePractice([], () => 1).metrics), ...Object.keys(evaluateMaster501([]).metrics), ...Object.keys(evaluateModes([], [], [], new Date()).metrics),
+    ...Object.keys(evaluateCareer({ saves: [], matches: [], results: [], cards: [], bestRank: null, inducted: [] }).metrics),
   ]);
   for (const d of CATALOGUE.filter(d => d.kind === "TRACK" && d.area !== "LEAGUE")) assert.ok(produced.has(d.metric), `${d.key} uses ${d.metric}`);
 });
@@ -115,7 +117,7 @@ test("the full report reads every area's tables, saves nothing and gives one sec
     INSERT INTO board_curse_records VALUES (2,'bot',2,1);
     INSERT INTO boss_battle_stats VALUES (2,'rookie-wall',1,1,90,false,0);`);
   const reports = await allHistoryCredit(db as never);
-  assert.deepEqual(reports.map(r => r.area), ["LEAGUE", "TEAMS", "PRACTICE", "MASTER501", "MODES"]);
+  assert.deepEqual(reports.map(r => r.area), ["LEAGUE", "TEAMS", "PRACTICE", "MASTER501", "MODES", "CAREER"]);
   const teams = reports.find(r => r.area === "TEAMS")!.summary;
   assert.equal(teams.players, 4, "Alice and Bob by department and doubles, Cara and Dan by doubles");
   assert.equal(teams.feats.find(f => f.key === "employee-of-the-month")?.earned, 1);

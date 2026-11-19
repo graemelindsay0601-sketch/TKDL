@@ -11,6 +11,7 @@
  */
 import { sql } from "drizzle-orm";
 import { computeAll, type Exec } from "./report.ts";
+import { grantRewards } from "./rewards.ts";
 import { CATALOGUE, levelPoints, SEASON_GOAL_POINTS, type Area } from "./catalogue.ts";
 import type { AchievementState } from "./evaluate.ts";
 
@@ -55,7 +56,7 @@ export async function recordLiveFeat(db: Exec, playerId: number, feat: string, a
 }
 
 type Unlock = { playerId: number; key: string; area: Area; kind: string; level: number; seasonId: number; coins: number };
-export type SyncResult = { mode: "history" | "live"; players: number; itemsWritten: number; unlocks: number; coinsPaid: number; welcomed: number; ms: number };
+export type SyncResult = { mode: "history" | "live"; players: number; itemsWritten: number; unlocks: number; coinsPaid: number; welcomed: number; cosmetics: number; cosmeticsError?: string; ms: number };
 
 const chunks = <T,>(list: T[], size = 250) => { const out: T[][] = []; for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size)); return out; };
 const defs = new Map(CATALOGUE.map(d => [d.key, d]));
@@ -139,5 +140,12 @@ export async function syncAll(db: Exec, setting: Setting, pay: Pay, now = new Da
     }
     await setting.set(LAUNCHED_KEY, now.toISOString());
   }
-  return { mode, players: new Set(Object.values(all).flatMap(a => a.map(p => p.playerId))).size, itemsWritten, unlocks: made, coinsPaid, welcomed, ms: Date.now() - t0 };
+  // cosmetics earned from achievements (award-only; history counts too)
+  let cosmetics = 0, cosmeticsError: string | undefined;
+  try {
+    const byPlayer = new Map<number, AchievementState[]>();
+    for (const list of Object.values(all)) for (const p of list) byPlayer.set(p.playerId, [...(byPlayer.get(p.playerId) ?? []), ...p.states]);
+    cosmetics = (await grantRewards(db, byPlayer)).length;
+  } catch (err) { cosmeticsError = String((err as Error)?.message ?? err); }
+  return { mode, cosmetics, ...(cosmeticsError ? { cosmeticsError } : {}), players: new Set(Object.values(all).flatMap(a => a.map(p => p.playerId))).size, itemsWritten, unlocks: made, coinsPaid, welcomed, ms: Date.now() - t0 };
 }

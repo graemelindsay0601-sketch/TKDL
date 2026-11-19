@@ -4,6 +4,7 @@ import { evaluate, catalogueFor, type AchievementState } from "./evaluate.ts";
 import { evaluateDoubles, evaluateShiftWars, evaluatePractice, evaluateMaster501, evaluateModes, type DoublesTeam, type DoublesResult, type ShiftResult } from "./areas.ts";
 import type { Area } from "./catalogue.ts";
 import type { AreaFacts } from "./evaluate.ts";
+import { evaluateCareer, type CareerData } from "./career.ts";
 import { evaluateLeague, type LeagueContext, type LeagueMatch, type LeagueSeason, type LeagueStanding } from "./league.ts";
 
 export type Exec = { execute: (q: ReturnType<typeof sql>) => Promise<{ rows: Record<string, unknown>[] }> };
@@ -75,13 +76,15 @@ export function summarise(players: PlayerAchievements[], area: Area = "LEAGUE") 
 }
 
 const esc = (s: unknown) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
-const AREA_NAMES: Record<Area, string> = { LEAGUE: "League", TEAMS: "Doubles and Shift Wars", PRACTICE: "Practice and Shadow Bot", MASTER501: "Master-501", MODES: "Board Curse and Boss Battle", TOUR: "Tour" };
+const AREA_NAMES: Record<Area, string> = { LEAGUE: "League", TEAMS: "Doubles and Shift Wars", PRACTICE: "Practice and Shadow Bot", MASTER501: "Master-501", MODES: "Board Curse and Boss Battle", CAREER: "Career" };
 const AREA_NOTES: Partial<Record<Area, string>> = {
   TEAMS: "Shift Wars never recorded who played, so a department's results count for everyone in it now.",
   MODES: "These modes only keep totals, so feats found in history would be dated at launch.",
+  CAREER: "Counted across all of a player's saves. Darts feats (180s, checkouts, averages, nine-darters) count live matches only. Hall of Fame has no recorded date, so it is dated at retirement or launch.",
 };
 /** A plain admin page for the sign-off: no styling dependencies, readable on a phone. One section per area. */
-export function reportHtml(reports: AreaReport[] | ReturnType<typeof summarise>, checks?: WinsCheck[]) {
+export type RewardCount = { name: string; category: string; earnedBy: string; players: number };
+export function reportHtml(reports: AreaReport[] | ReturnType<typeof summarise>, checks?: WinsCheck[], rewards?: RewardCount[]) {
   const list: AreaReport[] = Array.isArray(reports) ? reports : [{ area: "LEAGUE", summary: reports }];
   const table = (head: string[], rows: unknown[][]) => `<table><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   const section = ({ area, summary }: AreaReport) => `<section id="${area.toLowerCase()}"><h2>${esc(AREA_NAMES[area])}</h2>
@@ -98,6 +101,9 @@ ${summary.seasonGoals.length ? `<h3>Season goals</h3>${table(["Goal", "Seasons c
 ${checks ? `<section id="checks"><h2>Check: league wins against the Hall of Fame</h2>
 <p>${checks.length ? `${checks.length} players' league wins here differ from the career win total on the Hall of Fame. Any gap is usually wins from before match records were kept, or matches since deleted.` : "Every player's league wins match the Hall of Fame."}</p>
 ${checks.length ? table(["Player", "Achievements", "Hall of Fame", "Difference"], checks.map(c => [c.name, c.achievements, c.hallOfFame, c.hallOfFame - c.achievements])) : ""}</section>` : ""}
+${rewards ? `<section id="cosmetics"><h2>Cosmetics earned from achievements</h2>
+<p>Award-only cosmetics (never sold in the shop). Granted automatically on each sync once the system is on, history included.</p>
+${table(["Cosmetic", "Type", "Earned by", "Players who'd get it"], rewards.map(r => [r.name, r.category, r.earnedBy, r.players]))}</section>` : ""}
 ${list.map(section).join("\n")}
 </body></html>`;
 }
@@ -210,6 +216,47 @@ export async function loadAreas(db: Exec) {
   return { seasons, finished, players, teams, doubles, shift, history, practice, m501, bcRecords, bcBest, bosses };
 }
 
+/** Every player's Career evidence, across all their saves (only the human's own rows). Empty when Career isn't set up. */
+export async function loadCareer(db: Exec): Promise<Map<number, CareerData>> {
+  const out = new Map<number, CareerData>();
+  try {
+    const saves = (await db.execute(sql`SELECT id, player_id, status, retired_at FROM career_saves`)).rows;
+    if (!saves.length) return out;
+    const owner = new Map<string, number>();
+    for (const r of saves) {
+      owner.set(String(r.id), num(r.player_id));
+      const d = out.get(num(r.player_id)) ?? { saves: [], matches: [], results: [], cards: [], bestRank: null, inducted: [] };
+      d.saves.push({ id: String(r.id), status: String(r.status), retiredAt: date(r.retired_at) }); out.set(num(r.player_id), d);
+    }
+    const of = (saveId: unknown) => out.get(owner.get(String(saveId)) ?? -1);
+    for (const r of (await db.execute(sql`SELECT m.career_save_id, m.id, m.event_id, m.round, m.slot, m.scheduled_day, m.winner_key, m.completed_at, i.season,
+        m.summary->'live'->'facts'->'human' AS live
+      FROM career_tournament_matches m JOIN career_event_instances i ON i.career_save_id=m.career_save_id AND i.id=m.event_id
+      WHERE (m.a_key='HUMAN' OR m.b_key='HUMAN') AND m.status='COMPLETED' AND COALESCE(m.result_source,'') NOT IN ('BYE','WALKOVER')`)).rows) {
+      const l = r.live as Record<string, unknown> | null;
+      of(r.career_save_id)?.matches.push({ saveId: String(r.career_save_id), id: String(r.id), eventId: String(r.event_id), season: num(r.season), day: num(r.scheduled_day),
+        round: num(r.round), slot: num(r.slot), won: r.winner_key === "HUMAN", completedAt: date(r.completed_at),
+        live: l && typeof l === "object" ? { average: num(l.average), maximums: num(l.maximums), highestCheckout: num(l.highestCheckout), nineDarters: num(l.nineDarters) } : null });
+    }
+    for (const r of (await db.execute(sql`SELECT r.career_save_id, r.event_id, r.season, r.is_champion, r.stage_reached, r.recorded_at, i.end_day, i.classification, i.presentation_tier, i.circuit
+      FROM career_event_results r JOIN career_event_instances i ON i.career_save_id=r.career_save_id AND i.id=r.event_id
+      WHERE r.participant_key='HUMAN' AND i.status='COMPLETED'`)).rows)
+      of(r.career_save_id)?.results.push({ saveId: String(r.career_save_id), eventId: String(r.event_id), season: num(r.season), endDay: num(r.end_day),
+        champion: r.is_champion === true, final: r.is_champion !== true && r.stage_reached === "FINAL", qualifier: r.classification === "QUALIFIER",
+        tier: String(r.presentation_tier ?? ""), circuit: String(r.circuit ?? ""), recordedAt: date(r.recorded_at) });
+    for (const r of (await db.execute(sql`SELECT career_save_id, status, source, awarded_season, awarded_week, ended_season, ended_week, created_at
+      FROM career_tour_cards WHERE participant_key='HUMAN'`)).rows)
+      of(r.career_save_id)?.cards.push({ saveId: String(r.career_save_id), status: String(r.status), source: String(r.source), awardedSeason: num(r.awarded_season),
+        awardedWeek: num(r.awarded_week), endedSeason: opt(r.ended_season), endedWeek: opt(r.ended_week), createdAt: date(r.created_at) });
+    for (const r of (await db.execute(sql`SELECT career_save_id, MIN(position) AS best FROM career_ranking_snapshot_rows
+      WHERE participant_key='HUMAN' AND list_key='pro-world' GROUP BY career_save_id`)).rows) {
+      const d = of(r.career_save_id); if (d && opt(r.best)) d.bestRank = d.bestRank === null ? num(r.best) : Math.min(d.bestRank, num(r.best));
+    }
+    for (const r of (await db.execute(sql`SELECT career_save_id FROM career_legacy_inductions WHERE participant_key='HUMAN'`)).rows) of(r.career_save_id)?.inducted.push(String(r.career_save_id));
+  } catch { return new Map(); }
+  return out;
+}
+
 /** One player's facts for every non-league area (null when they have done nothing there). */
 export function areaFacts(data: AreaData, playerId: number, now = new Date()): Partial<Record<Area, AreaFacts>> {
   const player = data.players.find(p => p.id === playerId);
@@ -233,15 +280,20 @@ export function areaFacts(data: AreaData, playerId: number, now = new Date()): P
 }
 
 export type AreaReport = { area: Area; summary: ReturnType<typeof summarise> };
-export type AreaPlayers = Record<Exclude<Area, "TOUR">, PlayerAchievements[]>;
+export type AreaPlayers = Record<Area, PlayerAchievements[]>;
 /** Every player's achievement states in every area, worked out from the recorded data (read only). */
 export async function computeAll(db: Exec, now = new Date()): Promise<AreaPlayers> {
-  const out: AreaPlayers = { LEAGUE: await leagueHistoryCredit(db), TEAMS: [], PRACTICE: [], MASTER501: [], MODES: [] };
+  const out: AreaPlayers = { LEAGUE: await leagueHistoryCredit(db), TEAMS: [], PRACTICE: [], MASTER501: [], MODES: [], CAREER: [] };
   // live-only feats recorded as they happened
   let live: Record<string, unknown>[] = [];
   try { live = (await db.execute(sql`SELECT player_id, feat, at FROM achievement_v2_live`)).rows; } catch { live = []; }
-  const data = await loadAreas(db);
+  const data = await loadAreas(db), career = await loadCareer(db);
   for (const p of data.players) {
+    const c = career.get(p.id);
+    if (c && (c.matches.length || c.results.length || c.cards.length)) {
+      const states = evaluate(catalogueFor("CAREER"), evaluateCareer(c, now));
+      out.CAREER.push({ playerId: p.id, name: p.name, states, score: states.reduce((n, s) => n + s.points, 0) });
+    }
     const facts = areaFacts(data, p.id, now);
     for (const area of ["TEAMS", "PRACTICE", "MASTER501", "MODES"] as const) {
       const f = facts[area]; if (!f) continue;
@@ -254,8 +306,8 @@ export async function computeAll(db: Exec, now = new Date()): Promise<AreaPlayer
   return out;
 }
 /** History credit for every area, each summarised on its own (read only). */
-export async function allHistoryCredit(db: Exec): Promise<AreaReport[]> {
-  const all = await computeAll(db);
+export async function allHistoryCredit(db: Exec, precomputed?: AreaPlayers): Promise<AreaReport[]> {
+  const all = precomputed ?? await computeAll(db);
   return (Object.keys(all) as (keyof AreaPlayers)[]).map(area => ({ area, summary: summarise(all[area], area) }));
 }
 

@@ -9,10 +9,10 @@
  *
  * Each item names a `metric`, worked out by the area's evaluator (league.ts and friends). Text uses {n} for the target.
  */
-export type Area = "LEAGUE" | "TEAMS" | "PRACTICE" | "MASTER501" | "MODES" | "TOUR";
+export type Area = "LEAGUE" | "TEAMS" | "PRACTICE" | "MASTER501" | "MODES" | "CAREER";
 export type Metal = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 
-export type TrackDef = { kind: "TRACK"; key: string; area: Area; title: string; goal: string; metric: string; levels: number[]; unit?: "%" ; scorer?: boolean };
+export type TrackDef = { kind: "TRACK"; key: string; area: Area; title: string; goal: string; metric: string; levels: number[]; unit?: "%" | "rank"; scorer?: boolean };
 export type FeatDef = { kind: "FEAT"; key: string; area: Area; title: string; goal: string; metric: string; points: number; secret?: { hint: string }; liveOnly?: boolean; scorer?: boolean; showpiece?: boolean };
 export type SeasonDef = { kind: "SEASON"; key: string; area: Area; title: string; goal: string; metric: string; targets: number[] };
 export type AchievementDef = TrackDef | FeatDef | SeasonDef;
@@ -173,7 +173,30 @@ export const MODES_CATALOGUE: AchievementDef[] = [
   feat("MODES", "boss-clean-sweep", "Clean sweep", "Beat a boss with a clean sweep", "bossCleanSweep", 50),
 ];
 
-export const CATALOGUE: AchievementDef[] = [...LEAGUE_CATALOGUE, ...TEAMS_CATALOGUE, ...PRACTICE_CATALOGUE, ...MASTER501_CATALOGUE, ...MODES_CATALOGUE];
+/** Career mode, for bragging rights only: counted across all of a player's saves, never fed back into Career itself.
+ *  Darts feats (180s, checkouts, averages, nine-darters) count only matches the player threw live, not simulated ones. */
+export const CAREER_CATALOGUE: AchievementDef[] = [
+  track("CAREER", "career-wins", "Pro Circuit", "Win {n} Career matches", "careerWins", [25, 100, 250, 500, 1000]),
+  track("CAREER", "career-titles", "Silverware", "Win {n} Career titles", "careerTitles", [1, 5, 15, 30, 60]),
+  track("CAREER", "career-majors", "Big Stage", "Win {n} Career Major titles", "careerMajors", [1, 3, 6, 10, 20]),
+  track("CAREER", "career-180s", "Maximum Man", "Hit {n} 180s in live Career matches", "career180s", [10, 50, 150, 400, 1000]),
+  track("CAREER", "career-ranking", "Climber", "Reach world ranking {n}", "careerBestRank", [64, 32, 16, 8, 1], { unit: "rank" }),
+  track("CAREER", "career-seasons", "Long Haul", "Play {n} seasons on one save", "careerSeasons", [2, 4, 6, 10, 15]),
+  feat("CAREER", "turning-pro", "Turning Pro", "Earn a Tour Card", "turningPro", 20),
+  feat("CAREER", "second-chance", "Second Chance", "Lose your Tour Card, then win it back", "secondChance", 40),
+  feat("CAREER", "maiden-title", "Maiden Title", "Win your first Career title", "maidenTitle", 20),
+  feat("CAREER", "bridesmaid", "Bridesmaid", "Lose three finals before winning your first title", "bridesmaid", 30),
+  feat("CAREER", "ton-plus-finish", "Ton-Plus Finish", "Check out 100 or more in a live Career match", "tonPlusFinish", 20),
+  feat("CAREER", "big-fish", "Big Fish", "Check out 170 in a live Career match", "bigFish", 60),
+  feat("CAREER", "hot-streak", "Hot Streak", "Win 10 Career matches in a row", "hotStreak", 40),
+  feat("CAREER", "on-fire", "On Fire", "Average 100 or more in a live Career match", "onFire", 50),
+  feat("CAREER", "perfection", "Perfection", "Throw a nine-darter in a live Career match", "perfection", 100, { secret: { hint: "Nine darts. That's all it takes." } }),
+  feat("CAREER", "hall-of-famer", "Hall of Famer", "Get inducted into the Career Hall of Fame", "hallOfFamer", 60),
+  feat("CAREER", "gold-watch", "Gold Watch", "Retire a save with at least one title", "goldWatch", 30),
+  feat("CAREER", "world-champion", "World Champion", "Win the World Championship in Career", "worldChampion", 150, { showpiece: true }),
+];
+
+export const CATALOGUE: AchievementDef[] = [...LEAGUE_CATALOGUE, ...TEAMS_CATALOGUE, ...PRACTICE_CATALOGUE, ...MASTER501_CATALOGUE, ...MODES_CATALOGUE, ...CAREER_CATALOGUE];
 
 /** Metal for a track level: Diamond only when the track is complete; the levels before it are spread across
  *  Bronze, Silver, Gold and Platinum in order (a short track can skip a metal). */
@@ -186,4 +209,13 @@ export function metalFor(level: number, levels: number): Metal | null {
 /** Points for reaching track level `level` (1-based): grows with the level. */
 export const levelPoints = (level: number) => 10 * level;
 export const SEASON_GOAL_POINTS = 15;
-export const goalText = (goal: string, n: number) => goal.replace("{n}", n.toLocaleString("en-GB"));
+export const goalText = (goal: string, n: number, unit?: TrackDef["unit"]) => goal.replace("{n}", unit === "rank" ? (n === 1 ? "No.1" : `top ${n}`) : n.toLocaleString("en-GB"));
+/** A track's level and progress to the next one. A "rank" track counts down (a best ranking of 0 means none yet). */
+export function trackLevel(d: TrackDef, value: number): { level: number; progress: number } {
+  const rank = d.unit === "rank", meets = (t: number) => rank ? value > 0 && value <= t : value >= t;
+  const level = d.levels.filter(meets).length, next = d.levels[level];
+  if (next === undefined) return { level, progress: 1 };
+  if (rank) { const prev = level > 0 ? d.levels[level - 1] : 2 * d.levels[0]; return { level, progress: value <= 0 ? 0 : Math.max(0, Math.min(1, (prev - value) / (prev - next))) }; }
+  const prev = level > 0 ? d.levels[level - 1] : 0;
+  return { level, progress: Math.max(0, Math.min(1, (value - prev) / (next - prev))) };
+}
