@@ -164,3 +164,12 @@ test("practice fun ones and Iron discipline", () => {
   for (const k of ["earlyBird", "midnightOil", "newYear", "tonUpSession", "varietyPack", "weekendGrinder", "ironDiscipline"]) assert.ok(f.feats[k], k);
   assert.equal(evaluatePractice(sessions, () => 1, new Map([[1, 6]])).feats.ironDiscipline, undefined, "a day missed");
 });
+
+test("Master-501 Speed run and Tier jumper, and Boss slayer", () => {
+  const run = (tier: number, round: number, iso: string) => ({ tier, round, legsFormat: 3, legsWon: 2, legsLost: 0, result: "win", completedAt: new Date(iso) });
+  const f = evaluateMaster501([run(1, 1, "2026-01-05T10:00:00Z"), run(1, 2, "2026-01-05T11:00:00Z"), run(1, 3, "2026-01-05T12:00:00Z"), run(2, 1, "2026-01-07T10:00:00Z"), run(2, 2, "2026-01-08T10:00:00Z"), run(2, 3, "2026-01-09T10:00:00Z")]);
+  assert.ok(f.feats.speedRun); assert.ok(f.feats.tierJumper);
+  const bosses = ["a", "b", "c", "d", "e", "f"].map(id => ({ bossId: id, attempts: 3, wins: 1, cleanSweep: false, highestAscension: 2 }));
+  assert.ok(evaluateModes([], [], bosses, new Date()).feats.bossSlayer);
+  assert.equal(evaluateModes([], [], bosses.slice(0, 5), new Date()).feats.bossSlayer, undefined);
+});
