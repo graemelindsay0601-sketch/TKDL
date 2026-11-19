@@ -13,7 +13,7 @@ export type Area = "LEAGUE" | "TEAMS" | "PRACTICE" | "MASTER501" | "MODES" | "TO
 export type Metal = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 
 export type TrackDef = { kind: "TRACK"; key: string; area: Area; title: string; goal: string; metric: string; levels: number[]; unit?: "%" ; scorer?: boolean };
-export type FeatDef = { kind: "FEAT"; key: string; area: Area; title: string; goal: string; metric: string; points: number; secret?: { hint: string }; liveOnly?: boolean; scorer?: boolean };
+export type FeatDef = { kind: "FEAT"; key: string; area: Area; title: string; goal: string; metric: string; points: number; secret?: { hint: string }; liveOnly?: boolean; scorer?: boolean; showpiece?: boolean };
 export type SeasonDef = { kind: "SEASON"; key: string; area: Area; title: string; goal: string; metric: string; targets: number[] };
 export type AchievementDef = TrackDef | FeatDef | SeasonDef;
 
@@ -56,8 +56,22 @@ export const LEAGUE_CATALOGUE: AchievementDef[] = [
   feat("LEAGUE", "bounce-back", "Bounce back", "Win 3 in a row straight after losing 3 in a row", "bounceBack", 40),
   feat("LEAGUE", "big-night", "Big night", "Win 3 league matches on the same day", "bigNight", 30),
   feat("LEAGUE", "perfect-week", "Perfect week", "Win 5 matches in a week without a loss", "perfectWeek", 50),
-  feat("LEAGUE", "clean-sweep", "Clean sweep", "Beat every other active player at least once in one season", "cleanSweep", 100),
+  feat("LEAGUE", "clean-sweep", "The Grand Slam", "Play and beat every other active player in one season", "cleanSweep", 150, { showpiece: true }),
+  feat("LEAGUE", "full-house", "Full house", "Play every other active player in one season", "fullHouse", 40),
   feat("LEAGUE", "unbeaten-season", "Unbeaten season", "Finish a season with 10+ matches and no losses", "unbeatenSeason", 100),
+  track("LEAGUE", "untouchable", "Untouchable", "Finish {n} seasons in a row without being eliminated", "survivedStreak", [1, 2, 3, 5, 8]),
+  track("LEAGUE", "ever-present", "Ever-present", "Play in {n} seasons in a row", "presentStreak", [2, 3, 5, 8, 12]),
+  feat("LEAGUE", "debut-win", "Dream debut", "Win your very first league match", "debutWin", 20),
+  feat("LEAGUE", "milestone-match", "Milestone match", "Win your 100th league match", "milestoneMatch", 40),
+  feat("LEAGUE", "founding-member", "Founding member", "Play in the league's first ever season", "foundingMember", 50),
+  feat("LEAGUE", "seven-days", "Seven-day wonder", "Win a league match on every day of the week", "sevenDays", 40),
+  feat("LEAGUE", "night-owl", "Night owl", "Win a league match after 10pm", "nightOwl", 20),
+  feat("LEAGUE", "early-doors", "Early doors", "Win a league match before midday", "earlyDoors", 20),
+  feat("LEAGUE", "marathon-night", "Marathon night", "Play 5 league matches in one day", "marathonNight", 30),
+  feat("LEAGUE", "double-take", "Double take", "Beat the same player twice in one day", "doubleTake", 20),
+  feat("LEAGUE", "giant-leap", "Giant leap", "Gain 100 ELO in a single week", "giantLeap", 50),
+  feat("LEAGUE", "festive-fixture", "Festive fixture", "Win a league match between Christmas Eve and Boxing Day", "festive", 30),
+  feat("LEAGUE", "friday-13th", "Unlucky for some", "Win a league match on Friday the 13th", "friday13", 40, { secret: { hint: "Some dates are unluckier than others." } }),
   feat("LEAGUE", "survivor", "Survivor", "Play 20+ matches in a season and finish it on points", "survivor", 40),
   feat("LEAGUE", "rivalry", "Rivalry", "Play the same opponent 10 times", "rivalry10", 20),
   feat("LEAGUE", "nemesis", "Nemesis", "Beat the player who has beaten you most, once they've beaten you 3 times", "nemesis", 50),

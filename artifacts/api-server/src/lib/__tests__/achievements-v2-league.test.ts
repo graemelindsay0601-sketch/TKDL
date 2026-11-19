@@ -73,3 +73,30 @@ test("scoring tracks and feats use only scorer matches; live-only feats are neve
   const brink = evaluate(catalogueFor("LEAGUE"), { ...r, feats: { ...r.feats, backFromBrink: day(1) } }).find(s => s.key === "back-from-the-brink");
   assert.ok(brink && brink.kind === "FEAT"); assert.equal(brink.earnedAt, null);
 });
+
+test("the fun ones: time of day, dates, debut, marathon night, double take and the full house", () => {
+  const at = (iso: string) => new Date(iso);
+  const ms = [
+    match(1, ME, 2, at("2026-01-13T22:30:00Z")),   // debut win, Tuesday, after 10pm London (GMT)
+    match(1, ME, 3, at("2026-02-13T10:00:00Z")),   // Friday 13th, before midday
+    match(1, ME, 3, at("2026-02-13T11:00:00Z")),   // same player twice in a day
+    match(1, 4, ME, at("2026-02-13T12:00:00Z")), match(1, ME, 4, at("2026-02-13T13:00:00Z")), match(1, ME, 5, at("2026-02-13T14:00:00Z")), // 6 that day
+    match(1, ME, 5, at("2025-12-25T15:00:00Z")),   // Christmas Day
+  ];
+  const r = evaluateLeague(ctx(ms, { seasons: [{ id: 1, startDate: at("2025-12-01T00:00:00Z"), endDate: at("2026-02-28T00:00:00Z"), isActive: false, championId: 2 }] }));
+  for (const k of ["nightOwl", "earlyDoors", "friday13", "doubleTake", "marathonNight", "festive", "fullHouse", "foundingMember"]) assert.ok(r.feats[k], k);
+  assert.equal(r.feats.debutWin?.toISOString(), "2025-12-25T15:00:00.000Z", "the debut is the earliest match");
+  assert.equal(r.feats.sevenDays, undefined);
+  // 10pm in summer is 21:00 UTC (BST)
+  assert.ok(evaluateLeague(ctx([match(1, ME, 2, at("2026-07-01T21:15:00Z"))])).feats.nightOwl);
+  assert.equal(evaluateLeague(ctx([match(1, ME, 2, at("2026-01-01T21:15:00Z"))])).feats.nightOwl, undefined, "9:15pm in winter");
+});
+
+test("Untouchable and Ever-present count seasons in a row (and an eliminated season breaks Untouchable)", () => {
+  const seasons = [1, 2, 3, 4].map(id => ({ id, startDate: new Date(Date.UTC(2026, id - 1, 1)), endDate: new Date(Date.UTC(2026, id - 1, 27)), isActive: false, championId: 9 }));
+  const ms = [1, 2, 3, 4].map(id => match(id, ME, 2, new Date(Date.UTC(2026, id - 1, 10))));
+  const standings = [{ seasonId: 1, points: 50 }, { seasonId: 2, points: 0 }, { seasonId: 3, points: 30 }, { seasonId: 4, points: 20 }].map(s => ({ ...s, playerId: ME, position: 2, wins: 1, losses: 0, isChampion: false }));
+  const r = evaluateLeague(ctx(ms, { seasons, standings }));
+  assert.equal(r.metrics.presentStreak, 4); assert.equal(r.metrics.survivedStreak, 2, "seasons 3 and 4, after being eliminated in 2");
+  assert.ok(r.feats.foundingMember);
+});

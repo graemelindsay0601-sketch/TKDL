@@ -5,7 +5,7 @@ export type Metal = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM" | "DIAMOND";
 export type Area = "LEAGUE" | "TEAMS" | "PRACTICE" | "MASTER501" | "MODES";
 export type TrackView = { key: string; title: string; value: number; level: number; levels: number[]; metal: Metal | null; next: string | null;
   nextTarget: number | null; progress: number; unit: "%" | null; scorer: boolean };
-export type FeatView = { key: string; title: string; goal: string; earnedAt: string | null; secret: boolean; liveOnly: boolean; points: number; scorer: boolean };
+export type FeatView = { key: string; title: string; goal: string; earnedAt: string | null; secret: boolean; liveOnly: boolean; points: number; scorer: boolean; showpiece: boolean };
 export type SeasonView = { key: string; title: string; goal: string; targets: number[]; value: number; completed: number; seasonsCompleted: number };
 export type AreaView = { area: Area; name: string; score: number; tracks: TrackView[]; feats: FeatView[]; seasonGoals: SeasonView[]; earned: number; total: number };
 export type PlayerView = { score: number; areas: AreaView[]; nearly: (TrackView & { area: Area })[]; metals: Record<Metal, number>; featsEarned: number };
