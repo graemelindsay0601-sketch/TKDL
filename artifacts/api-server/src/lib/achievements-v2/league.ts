@@ -25,6 +25,10 @@ export type LeagueResult = {
 };
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
+/** The league plays in the UK, so time-of-day and date feats go by London time (BST/GMT handled). */
+const LONDON = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23", weekday: "short" });
+export const londonParts = (d: Date) => { const p = Object.fromEntries(LONDON.formatToParts(d).map(x => [x.type, x.value]));
+  return { y: Number(p.year), m: Number(p.month), d: Number(p.day), h: Number(p.hour), wd: String(p.weekday), day: `${p.year}-${p.month}-${p.day}` }; };
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 const weekKey = (d: Date) => { const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return dayKey(x); };
 
@@ -133,6 +137,39 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     }
   }
 
+  // ---- the fun ones: when and where you played, not just what you scored
+  const lp = mine.map(m => ({ m, t: londonParts(m.playedAt) }));
+  const winDays = new Set<string>(); const perDay = new Map<string, number>(), beatToday = new Map<string, number>(), eloWeek = new Map<string, number>();
+  lp.forEach(({ m, t }, i) => {
+    const w = won(m), at = m.playedAt;
+    perDay.set(t.day, (perDay.get(t.day) ?? 0) + 1); if ((perDay.get(t.day) ?? 0) >= 5) earn("marathonNight", at);
+    const wk = weekKey(at); eloWeek.set(wk, (eloWeek.get(wk) ?? 0) + (w ? m.eloChange : -m.eloChange)); if ((eloWeek.get(wk) ?? 0) >= 100) earn("giantLeap", at);
+    if (i === 0 && w) earn("debutWin", at);
+    if (i === 99 && w) earn("milestoneMatch", at);
+    if (!w) return;
+    winDays.add(t.wd); if (winDays.size === 7) earn("sevenDays", at);
+    if (t.h >= 22 || t.h < 4) earn("nightOwl", at);
+    if (t.h >= 4 && t.h < 12) earn("earlyDoors", at);
+    if (t.d === 13 && t.wd === "Fri") earn("friday13", at);
+    if (t.m === 12 && t.d >= 24 && t.d <= 26) earn("festive", at);
+    const k = `${t.day}|${opp(m)}`; beatToday.set(k, (beatToday.get(k) ?? 0) + 1); if ((beatToday.get(k) ?? 0) >= 2) earn("doubleTake", at);
+  });
+  // full house: played every other active player in a finished season
+  for (const [sid, list] of bySeason) { if (!finished(sid)) continue;
+    const others = [...(ctx.participants.get(sid) ?? [])].filter(p => p !== me), met = new Set(list.map(opp));
+    if (others.length >= 4 && others.every(p => met.has(p))) earn("fullHouse", list[list.length - 1].playedAt); }
+  // founding member: played in the league's first season
+  const firstSeason = [...ctx.seasons].filter(s => s.startDate).sort((a, b) => a.startDate!.getTime() - b.startDate!.getTime())[0] ?? [...ctx.seasons].sort((a, b) => a.id - b.id)[0];
+  if (firstSeason && bySeason.has(firstSeason.id)) earn("foundingMember", bySeason.get(firstSeason.id)![0].playedAt);
+  // streaks across seasons, in season order: seasons in a row played, and seasons in a row finished still on points
+  const order = [...ctx.seasons].filter(s => !s.isActive).sort((a, b) => (a.startDate?.getTime() ?? a.id) - (b.startDate?.getTime() ?? b.id) || a.id - b.id);
+  let present = 0, bestPresent = 0, safe = 0, bestSafe = 0;
+  for (const s of order) {
+    if (bySeason.has(s.id)) { present++; bestPresent = Math.max(bestPresent, present); } else present = 0;
+    const st = standing(s.id, me);
+    if (bySeason.has(s.id) && st && st.points > 0) { safe++; bestSafe = Math.max(bestSafe, safe); } else if (bySeason.has(s.id)) safe = 0;
+  }
+
   const seasonRows = ctx.standings.filter(s => s.playerId === me && finished(s.seasonId));
   const metrics: Record<string, number> = {
     wins: mine.filter(won).length,
@@ -148,6 +185,7 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     top3Finishes: seasonRows.filter(s => s.position <= 3).length,
     titles: ctx.seasons.filter(s => !s.isActive && championOf(s.id) === me).length,
     s180, s140plus: s140, s100plus: s100, checkouts, checkoutRate, scorerMatches,
+    survivedStreak: bestSafe, presentStreak: bestPresent,
   };
   return { metrics, feats, seasons };
 }
