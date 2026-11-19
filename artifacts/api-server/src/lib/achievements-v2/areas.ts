@@ -91,16 +91,25 @@ export const shadowLevel = (darts: number, score: number) => {
   if (darts < 150) return 0; const avg = (score / darts) * 3;
   return avg >= 108 ? 5 : avg >= 95 ? 4 : avg >= 80 ? 3 : avg >= 62 ? 2 : avg >= 45 ? 1 : 0;
 };
-export function evaluatePractice(sessions: PracticeSession[], seasonOf: (d: Date) => number | null): AreaFacts {
+/** seasonDays: finished league seasons and how many calendar days each ran (for Iron discipline). */
+export function evaluatePractice(sessions: PracticeSession[], seasonOf: (d: Date) => number | null, seasonDays?: Map<number, number>): AreaFacts {
   const list = [...sessions].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   const feats: Record<string, Date | null> = {}, earn = earner(feats);
   let darts = 0, score = 0, s180 = 0, hits = 0;
   const days = new Set<string>(), games = new Set<string>();
   const seasons = new Map<number, { days: Set<string>; s180: number; att: number; hits: number }>();
+  const gamesByDay = new Map<string, Set<string>>(), weekend = new Map<string, Set<string>>();
   for (const s of list) {
     darts += s.darts; score += s.score; s180 += s.s180; hits += s.checkoutHits;
     days.add(dayKey(s.createdAt)); games.add(s.gameTypeKey);
     if (s.darts >= 300) earn("longSession", s.createdAt);
+    const t = londonParts(s.createdAt);
+    if (t.h >= 4 && t.h < 8) earn("earlyBird", s.createdAt);
+    if (t.h < 4) earn("midnightOil", s.createdAt);
+    if (t.m === 1 && t.d === 1) earn("newYear", s.createdAt);
+    if (s.s180 >= 3) earn("tonUpSession", s.createdAt);
+    const gd = gamesByDay.get(t.day) ?? new Set<string>(); gd.add(s.gameTypeKey); gamesByDay.set(t.day, gd); if (gd.size >= 5) earn("varietyPack", s.createdAt);
+    if (t.wd === "Sat" || t.wd === "Sun") { const wk = new Date(s.createdAt); wk.setUTCDate(wk.getUTCDate() - ((wk.getUTCDay() + 6) % 7)); const k = dayKey(wk), w = weekend.get(k) ?? new Set<string>(); w.add(t.wd); weekend.set(k, w); if (w.size === 2) earn("weekendGrinder", s.createdAt); }
     const sid = seasonOf(s.createdAt);
     if (sid !== null) { const x = seasons.get(sid) ?? { days: new Set<string>(), s180: 0, att: 0, hits: 0 }; x.days.add(dayKey(s.createdAt)); x.s180 += s.s180; x.att += s.checkoutAttempts; x.hits += s.checkoutHits; seasons.set(sid, x); }
   }
@@ -109,6 +118,7 @@ export function evaluatePractice(sessions: PracticeSession[], seasonOf: (d: Date
   for (const d of sorted) { const t = Date.parse(d + "T00:00:00Z") / 86400000; streak = prev !== null && t - prev === 1 ? streak + 1 : 1; best = Math.max(best, streak); prev = t; }
   // checkout rate over the most recent 100 darts at a double
   let att = 0, h = 0; for (const s of [...list].reverse()) { att += s.checkoutAttempts; h += s.checkoutHits; if (att >= 100) break; }
+  for (const [sid, x] of seasons) { const need = seasonDays?.get(sid); if (need && x.days.size >= need) earn("ironDiscipline", list.filter(s => seasonOf(s.createdAt) === sid).at(-1)?.createdAt); }
   const seasonRows = new Map<number, Record<string, number>>();
   const ordered = [...seasons].sort((a, b) => a[0] - b[0]);
   ordered.forEach(([sid, x], i) => {
