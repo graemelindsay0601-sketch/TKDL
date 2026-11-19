@@ -155,3 +155,12 @@ test("seasonWeeks counts the Monday-start weeks a finished season touched", asyn
   const w = seasonWeeks([{ id: 1, startDate: at("2026-01-01"), endDate: at("2026-01-31"), isActive: false }, { id: 2, startDate: at("2026-02-01"), endDate: null, isActive: true }]);
   assert.equal(w.get(1), 5); assert.equal(w.has(2), false);
 });
+
+test("practice fun ones and Iron discipline", () => {
+  const mk = (iso: string, extra: Partial<{ gameTypeKey: string; s180: number }> = {}) => ({ gameTypeKey: extra.gameTypeKey ?? "501", darts: 60, score: 1200, s180: extra.s180 ?? 0, checkoutAttempts: 5, checkoutHits: 1, won: null, createdAt: new Date(iso) });
+  const sessions = [mk("2026-01-01T07:00:00Z"), mk("2026-01-02T00:30:00Z"), mk("2026-01-03T12:00:00Z"), mk("2026-01-04T12:00:00Z", { s180: 3 }),
+    ...["atc", "bobs27", "shanghai", "cricket", "170"].map((g, i) => mk(`2026-01-05T1${i}:00:00Z`, { gameTypeKey: g }))];
+  const f = evaluatePractice(sessions, () => 1, new Map([[1, 5]]));
+  for (const k of ["earlyBird", "midnightOil", "newYear", "tonUpSession", "varietyPack", "weekendGrinder", "ironDiscipline"]) assert.ok(f.feats[k], k);
+  assert.equal(evaluatePractice(sessions, () => 1, new Map([[1, 6]])).feats.ironDiscipline, undefined, "a day missed");
+});

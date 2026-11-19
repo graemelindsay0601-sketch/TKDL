@@ -117,6 +117,12 @@ export function seasonWeeks(seasons: { id: number; startDate: Date | null; endDa
     out.set(s.id, Math.round((monday(s.endDate) - monday(s.startDate)) / (7 * 86400000)) + 1); }
   return out;
 }
+/** How many calendar days each finished season ran (inclusive). */
+export function seasonDays(seasons: { id: number; startDate: Date | null; endDate: Date | null; isActive: boolean }[]) {
+  const out = new Map<number, number>(), day = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  for (const s of seasons) if (!s.isActive && s.startDate && s.endDate) out.set(s.id, Math.round((day(s.endDate) - day(s.startDate)) / 86400000) + 1);
+  return out;
+}
 export type AreaData = Awaited<ReturnType<typeof loadAreas>>;
 /** Every row the non-league evaluators need, for every player (an admin report; these tables are small). */
 export async function loadAreas(db: Exec) {
@@ -194,7 +200,7 @@ export function areaFacts(data: AreaData, playerId: number, now = new Date()): P
     seasonsOnRota: new Set(deptHistory.map(h => num(h.season_id))).size, seasonWeeks: seasonWeeks(data.seasons) }, seasonOf);
   if ((doubles.metrics.teamMatches ?? 0) > 0 || (shiftFacts.metrics.deptMatches ?? 0) > 0) out.TEAMS = mergeFacts(doubles, shiftFacts);
   const practice = data.practice.get(playerId);
-  if (practice?.length) out.PRACTICE = evaluatePractice(practice, seasonOf);
+  if (practice?.length) out.PRACTICE = evaluatePractice(practice, seasonOf, seasonDays(data.seasons));
   const runs = data.m501.get(playerId);
   if (runs?.length) out.MASTER501 = evaluateMaster501(runs);
   const rec = data.bcRecords.get(playerId) ?? [], best = data.bcBest.get(playerId) ?? [], boss = data.bosses.get(playerId) ?? [];
