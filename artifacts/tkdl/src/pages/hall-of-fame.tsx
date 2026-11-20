@@ -1,3 +1,4 @@
+import { Glow, DartboardBackdrop, Chapter } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Banknote, Crown, History, Percent } from "lucide-react";
@@ -64,30 +65,30 @@ function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = 
   };
 
   return (
-    <div className="pdc-card overflow-hidden">
-      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }} />
-      <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.06)", background: `${accent}08` }}>
-        <span style={{ color: accent }}>{icon}</span>
-        <span className="font-black uppercase text-xs tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: accent, fontSize: "0.62rem", letterSpacing: "0.16em" }}>{label}</span>
+    <div className="pm-card overflow-hidden relative" style={{ ["--pm-acc" as any]: accent }}>
+      <div className="absolute pointer-events-none" style={{ right: -60, top: -60, width: 200, height: 200, borderRadius: "50%", background: `radial-gradient(circle, ${accent}2e, transparent 70%)` }} />
+      <div className="relative px-4 pt-3.5 pb-1 flex items-center gap-2">
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ color: accent, background: `${accent}1c`, border: `1px solid ${accent}55`, boxShadow: `0 0 12px ${accent}33` }}>{icon}</span>
+        <span className="pm-lab" style={{ color: accent, fontSize: 10.5 }}>{label}</span>
       </div>
 
       {/* Winner */}
-      <div className="px-4 py-3 flex items-center gap-3">
-        <div className="text-2xl leading-none">{medals[0]}</div>
+      <div className="relative px-4 py-3 flex items-center gap-3">
+        <div className="shrink-0 flex items-center justify-center rounded-full text-2xl" style={{ width: 46, height: 46, background: `radial-gradient(circle at 35% 30%, ${accent}40, rgba(13,11,20,.9))`, border: `1px solid ${accent}77`, boxShadow: `0 0 16px ${accent}44` }}>{medals[0]}</div>
         <div className="flex-1 min-w-0">
           <Link href={`/players/${winner.id}`}>
-            <div className={`font-black uppercase text-sm truncate cursor-pointer hover:opacity-70 transition-opacity ${nameStyleClassName(nameStyle)}`}
-              style={{ fontFamily: "Oswald, sans-serif", color: rankColors[0], letterSpacing: "0.06em", ...nameStyleCSS(nameStyle) }}>
+            <div className={`uppercase truncate cursor-pointer hover:opacity-70 transition-opacity ${nameStyle ? nameStyleClassName(nameStyle) : ""}`}
+              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 19, color: rankColors[0], letterSpacing: "0.04em", ...nameStyleCSS(nameStyle) }}>
               {winner.name}
             </div>
           </Link>
-          <div className="font-black text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Share Tech Mono, monospace", fontSize: "0.6rem" }}>
+          <div className="pm-lab mt-0.5" style={{ fontSize: 9 }}>
             {top[1]?.[valueKey] === winner[valueKey] ? "JOINT RECORD HOLDER" : subtitle}{context ? ` · ${context(winner)}` : ""}
           </div>
         </div>
         <div className="text-right shrink-0">
           <div className="font-black leading-none tabular-nums"
-            style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.9rem", color: accent, textShadow: `0 0 20px ${accent}55` }}>
+            style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "2.3rem", color: accent, textShadow: `0 0 22px ${accent}aa` }}>
             {val.toLocaleString()}{suffix}
           </div>
         </div>
@@ -95,7 +96,7 @@ function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = 
 
       {/* Runners up */}
       {top.slice(1).filter(p => (p[valueKey] as number) > 0 || valueKey === "careerWinRate").map((p, i) => (
-        <div key={p.id} className="px-4 py-2 flex items-center gap-2.5 border-t" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+        <div key={p.id} className="relative px-4 py-2.5 flex items-center gap-2.5 border-t" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
           <span className="text-base leading-none">{medals[rankFor(i + 1)]}</span>
           <Link href={`/players/${p.id}`}>
             <span className="font-bold text-xs uppercase truncate cursor-pointer hover:opacity-70 transition-opacity"
@@ -104,21 +105,21 @@ function RecordCard({ icon, label, accent, top, valueKey, suffix = "", medals = 
             </span>
           </Link>
           <span className="ml-auto font-bold text-xs tabular-nums"
-            style={{ fontFamily: "Share Tech Mono, monospace", color: "rgba(255,255,255,0.35)" }}>
+            style={{ fontFamily: "Oswald, sans-serif", fontSize: 14, color: "#cfcade" }}>
             {(p[valueKey] as number).toLocaleString()}{suffix}
           </span>
           {context && <span className="hidden sm:inline text-[0.55rem]" style={{ color: "rgba(255,255,255,0.22)" }}>{context(p)}</span>}
         </div>
       ))}
-      {description && <div className="px-4 py-2 border-t text-[0.62rem] leading-relaxed" style={{ borderColor: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.28)" }}>{description}</div>}
+      {description && <div className="relative px-4 py-2.5 border-t text-[0.66rem] leading-relaxed" style={{ borderColor: "rgba(255,255,255,0.07)", color: "#8f8aa3" }}>{description}</div>}
     </div>
   );
 }
 
 function SectionTitle({ icon, eyebrow, title, description, accent }: { icon: React.ReactNode; eyebrow: string; title: string; description: string; accent: string }) {
-  return <div className="flex items-center gap-3 mt-8 mb-4">
-    <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ color: accent, background: `${accent}16`, border: `1px solid ${accent}35` }}>{icon}</div>
-    <div><div className="text-[0.55rem] font-black tracking-[0.2em]" style={{ color: `${accent}99` }}>{eyebrow}</div><h2 className="text-xl font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: accent }}>{title}</h2><p className="text-xs" style={{ color: "rgba(255,255,255,0.32)" }}>{description}</p></div>
+  return <div className="mt-8 mb-1">
+    <Chapter title={title} accent={accent} aside={<span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ color: accent, background: `${accent}1c`, border: `1px solid ${accent}55` }}>{icon}</span>} />
+    <p className="text-xs -mt-1 mb-3" style={{ color: "#8f8aa3" }}><span className="pm-lab mr-1.5" style={{ color: accent, fontSize: 9 }}>{eyebrow}</span>{description}</p>
   </div>;
 }
 
@@ -138,7 +139,7 @@ export default function HallOfFame() {
     playerId ? cosmeticsCatalog.find(c => c.id === nameStylesById[playerId]) : undefined;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pm-page">
       {/* Header */}
       <div>
         <Link href="/leaderboard" className="inline-flex items-center gap-1.5 text-xs mb-4 transition-opacity hover:opacity-70"
@@ -146,27 +147,16 @@ export default function HallOfFame() {
           <ArrowLeft className="w-3 h-3" /> LEAGUE
         </Link>
 
-        <div className="relative overflow-hidden rounded-2xl px-6 py-8 mb-2"
-          style={{ background: "linear-gradient(135deg, rgba(255,210,74,0.12) 0%, rgba(255,210,74,0.03) 50%, rgba(0,0,0,0) 100%)", border: "1px solid rgba(255,210,74,0.2)" }}>
-          <div className="absolute inset-0 pointer-events-none" style={{ background: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffd24a' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
-          <div className="relative">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,210,74,0.15)", border: "1px solid rgba(255,210,74,0.3)" }}>
-                <Award className="w-5 h-5" style={{ color: "#ffd24a", filter: "drop-shadow(0 0 6px rgba(255,210,74,0.6))" }} />
-              </div>
-              <div>
-                <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.5)", fontSize: "0.6rem", letterSpacing: "0.2em" }}>
-                  TKDL
-                </div>
-                <h1 className="pm-title font-black uppercase leading-none"
-                  style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2rem, 5vw, 3.2rem)", color: "#ffd24a", letterSpacing: "0.06em", textShadow: "0 0 30px rgba(255,210,74,0.4)" }}>
-                  HALL OF FAME
-                </h1>
-              </div>
-            </div>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
-              All-time records. Permanent legacy.
-            </p>
+        <div className="relative overflow-hidden" style={{ borderRadius: 24, border: "1px solid rgba(255,210,74,.35)", background: "linear-gradient(160deg, rgba(255,210,74,.2) 0%, #17112a 48%, #06060b 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(255,210,74,.1)" }}>
+          <Glow x="85%" y="5%" color="#ffd24a" size={440} opacity={0.3} />
+          <Glow x="5%" y="95%" color="#a855f7" size={380} opacity={0.22} />
+          <DartboardBackdrop size={460} opacity={0.08} style={{ right: -170, top: -100, transform: "rotate(8deg)" }} />
+          <div className="relative p-5" style={{ zIndex: 1 }}>
+            <span className="pm-lab inline-flex items-center gap-1.5" style={{ color: "#ffd24a" }}><Award className="w-3.5 h-3.5" /> TKDL · All-time</span>
+            <h1 className="pm-title pm-title-gold uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.4rem, 11vw, 3.6rem)", letterSpacing: "0.03em", lineHeight: 0.98, marginTop: 6 }}>
+              Hall of Fame
+            </h1>
+            <p className="text-sm mt-2" style={{ color: "#a9a4bd" }}>All-time records. Permanent legacy.</p>
           </div>
         </div>
       </div>
@@ -184,9 +174,9 @@ export default function HallOfFame() {
         <>
           <div data-testid="hall-legends">
           <SectionTitle icon={<Crown className="w-4 h-4"/>} eyebrow="THE HONOURS BOARD" title="League Legends" description="Championships and competitive records from the TKDL league." accent="#ffd24a" />
-          {data.champions.length > 0 && <div className="pdc-card overflow-hidden mb-4">
-            <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor:"rgba(255,255,255,.06)", background:"rgba(255,210,74,.05)" }}><History className="w-4 h-4" style={{color:"#ffd24a"}}/><strong className="text-xs tracking-widest" style={{fontFamily:"Oswald, sans-serif",color:"#ffd24a"}}>CHAMPIONS TIMELINE</strong></div>
-            <div className="flex gap-3 overflow-x-auto p-4">{data.champions.map((season,index)=><div key={season.id} className="min-w-[155px] rounded-xl p-3" style={{background:index===0?"rgba(255,210,74,.1)":"rgba(255,255,255,.025)",border:"1px solid rgba(255,210,74,.14)"}}><div className="text-[0.55rem] tracking-widest" style={{color:"rgba(255,210,74,.55)"}}>{season.endDate ? new Date(`${season.endDate}T12:00:00`).getFullYear() : "SEASON"}</div><div className="font-black uppercase truncate mt-1" style={{fontFamily:"Oswald, sans-serif",color:"#fff"}}>{season.name}</div><Link href={`/players/${season.championId}`}><div className="text-xs font-bold mt-2 truncate" style={{color:"#ffd24a"}}>🏆 {season.championName}</div></Link></div>)}</div>
+          {data.champions.length > 0 && <div className="pm-card overflow-hidden mb-4" style={{ ["--pm-acc" as any]: "#ffd24a" }}>
+            <div className="px-4 pt-3.5 flex items-center gap-2"><History className="w-4 h-4" style={{color:"#ffd24a"}}/><span className="pm-lab" style={{color:"#ffd24a", fontSize: 10.5}}>Champions timeline</span></div>
+            <div className="flex gap-3 overflow-x-auto p-4">{data.champions.map((season,index)=><div key={season.id} className="min-w-[155px] rounded-xl p-3" style={{background:index===0?"linear-gradient(160deg, rgba(255,210,74,.24), rgba(20,17,30,.95))":"linear-gradient(160deg, rgba(255,255,255,.06), rgba(20,17,30,.95))",border:`1px solid ${index===0?"rgba(255,210,74,.6)":"rgba(255,210,74,.2)"}`,boxShadow:index===0?"0 0 18px rgba(255,210,74,.2)":undefined}}><div className="text-[0.55rem] tracking-widest" style={{color:"rgba(255,210,74,.55)"}}>{season.endDate ? new Date(`${season.endDate}T12:00:00`).getFullYear() : "SEASON"}</div><div className="font-black uppercase truncate mt-1" style={{fontFamily:"Oswald, sans-serif",color:"#fff"}}>{season.name}</div><Link href={`/players/${season.championId}`}><div className="text-xs font-bold mt-2 truncate" style={{color:"#ffd24a"}}>🏆 {season.championName}</div></Link></div>)}</div>
           </div>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <RecordCard icon={<Crown className="w-4 h-4" />} label="Most League Titles" accent="#ffd24a" top={data.mostTitles} valueKey="leagueTitles" description="Completed Singles championships won." nameStyle={nameStyleFor(data.mostTitles?.[0]?.id)} />
@@ -211,9 +201,10 @@ export default function HallOfFame() {
           </div>
 
           <div data-testid="wall-shame">
-          <div className="relative overflow-hidden rounded-2xl px-6 py-6 mb-4 mt-8"
-            style={{ background: "linear-gradient(135deg, rgba(255,0,92,0.12) 0%, rgba(255,0,92,0.03) 50%, rgba(0,0,0,0) 100%)", border: "1px solid rgba(255,0,92,0.2)" }}>
-            <div className="flex items-center gap-3">
+          <div className="relative overflow-hidden rounded-3xl px-5 py-6 mb-4 mt-10"
+            style={{ background: "linear-gradient(160deg, rgba(255,0,92,.22) 0%, #170a14 50%, #06060b 100%)", border: "1px solid rgba(255,0,92,.4)", boxShadow: "0 20px 50px rgba(0,0,0,.5), 0 0 30px rgba(255,0,92,.12)" }}>
+            <Glow x="90%" y="10%" color="#ff005c" size={360} opacity={0.26} />
+            <div className="relative flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(255,0,92,0.15)", border: "1px solid rgba(255,0,92,0.3)" }}>
                 <Skull className="w-5 h-5" style={{ color: "#ff005c", filter: "drop-shadow(0 0 6px rgba(255,0,92,0.6))" }} />
               </div>
@@ -226,7 +217,7 @@ export default function HallOfFame() {
                 </h2>
               </div>
             </div>
-            <p className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
+            <p className="relative text-sm mt-2" style={{ color: "#c9a3b3", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
               Every league needs a villain arc. Worn with pride, or at least denial.
             </p>
           </div>

@@ -1,3 +1,4 @@
+import { Glow, DartboardBackdrop, PmCard, Chapter } from "@/components/premium/Premium";
 import { useState, useEffect, type CSSProperties } from "react";
 import { Link, useSearch } from "wouter";
 import { ArrowLeft, Swords, TrendingUp, Target, Flame, Trophy, History, Crown, Coins, Gauge, Sparkles } from "lucide-react";
@@ -74,12 +75,12 @@ function WinBar({ p1Wins, p2Wins, p1Name, p2Name }: { p1Wins: number; p2Wins: nu
   const p2Pct = 100 - p1Pct;
   return (
     <div className="space-y-2">
-      <div className="flex h-4 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+      <div className="flex h-3 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)", boxShadow: "0 0 14px rgba(255,255,255,.08)" }}>
         {p1Wins > 0 && (
-          <div className="transition-all duration-500" style={{ width: `${p1Pct}%`, background: "#ff005c" }} />
+          <div className="transition-all duration-500" style={{ width: `${p1Pct}%`, background: "linear-gradient(90deg,#a3003b,#ff2f72)", boxShadow: "0 0 10px #ff005c" }} />
         )}
         {p2Wins > 0 && (
-          <div className="transition-all duration-500" style={{ width: `${p2Pct}%`, background: "#0066ff" }} />
+          <div className="transition-all duration-500" style={{ width: `${p2Pct}%`, background: "linear-gradient(90deg,#3d8bff,#0047c2)", boxShadow: "0 0 10px #0066ff" }} />
         )}
       </div>
       <div className="flex justify-between text-xs font-bold" style={{ fontFamily: "Share Tech Mono, monospace" }}>
@@ -129,17 +130,40 @@ export default function HeadToHead() {
   useEffect(() => setShowFullTimeline(false), [p1Id, p2Id]);
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
-      <div className="pdc-divider" />
-      <Link href="/leaderboard" className="flex items-center gap-1 text-xs hover:underline" style={{ color: "rgba(255,255,255,0.35)" }}>
+    <div className="space-y-6 max-w-3xl mx-auto pm-page">
+      <Link href="/leaderboard" className="flex items-center gap-1 text-xs hover:underline" style={{ color: "#a9a4bd" }}>
         <ArrowLeft className="w-3 h-3" /> Back
       </Link>
 
-      <div className="flex items-center gap-3">
-        <Swords className="w-5 h-5" style={{ color: "#ff005c" }} />
-        <h1 className="pm-title text-3xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
-          Head to Head
-        </h1>
+      <div className="relative overflow-hidden" style={{ borderRadius: 24, border: "1px solid rgba(255,255,255,.14)", background: "linear-gradient(120deg, rgba(255,0,92,.22) 0%, #14102a 48%, rgba(0,102,255,.22) 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55)" }}>
+        <Glow x="0%" y="40%" color="#ff005c" size={360} opacity={0.26} />
+        <Glow x="100%" y="60%" color="#0066ff" size={360} opacity={0.3} />
+        <DartboardBackdrop size={420} opacity={0.07} style={{ left: "50%", top: -150, transform: "translateX(-50%)" }} />
+        <div className="relative p-5" style={{ zIndex: 1 }}>
+          <span className="pm-lab inline-flex items-center gap-1.5" style={{ color: "#ffd24a" }}><Swords className="w-3.5 h-3.5" /> Rivalry</span>
+          <h1 className="pm-title uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.2rem, 10vw, 3.2rem)", letterSpacing: "0.03em", lineHeight: 0.98, marginTop: 6 }}>
+            Head to Head
+          </h1>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end mt-4">
+            <div>
+              <label className="pm-lab block mb-1.5" style={{ color: "#ff7aa6" }}>Player 1</label>
+              <select value={p1Id} onChange={e => setP1Id(Number(e.target.value))} className="w-full rounded-full px-3 text-sm uppercase"
+                style={{ height: 42, background: "linear-gradient(180deg, rgba(255,0,92,.22), rgba(255,0,92,.06))", border: "1px solid rgba(255,0,92,.55)", color: "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", boxShadow: "0 0 16px rgba(255,0,92,.2)" }}>
+                <option value={0}>Pick…</option>
+                {activePlayers.map((p: PlayerOption) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+              </select>
+            </div>
+            <div className="pm-metal pb-2" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 22 }}>VS</div>
+            <div>
+              <label className="pm-lab block mb-1.5 text-right" style={{ color: "#9cc6ff" }}>Player 2</label>
+              <select value={p2Id} onChange={e => setP2Id(Number(e.target.value))} className="w-full rounded-full px-3 text-sm uppercase"
+                style={{ height: 42, background: "linear-gradient(180deg, rgba(0,102,255,.25), rgba(0,102,255,.06))", border: "1px solid rgba(0,102,255,.6)", color: "#fff", fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", boxShadow: "0 0 16px rgba(0,102,255,.22)" }}>
+                <option value={0}>Pick…</option>
+                {activePlayers.filter((p: PlayerOption) => p.id !== p1Id).map((p: PlayerOption) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
 
       {playersError && (
@@ -154,41 +178,6 @@ export default function HeadToHead() {
         </div>
       )}
 
-      {/* Player pickers */}
-      <div className="pdc-card p-5">
-        <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
-          <div>
-            <label className="text-xs uppercase font-bold tracking-widest mb-1 block" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Player 1</label>
-            <select
-              value={p1Id}
-              onChange={e => setP1Id(Number(e.target.value))}
-              className="w-full rounded-lg px-3 py-2 text-sm font-bold"
-              style={{ background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.25)", color: "#fff", fontFamily: "Oswald, sans-serif" }}
-            >
-              <option value={0}>Select player…</option>
-              {activePlayers.map((p: PlayerOption) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="text-2xl font-black text-center pt-5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)" }}>VS</div>
-          <div>
-            <label className="text-xs uppercase font-bold tracking-widest mb-1 block" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>Player 2</label>
-            <select
-              value={p2Id}
-              onChange={e => setP2Id(Number(e.target.value))}
-              className="w-full rounded-lg px-3 py-2 text-sm font-bold"
-              style={{ background: "rgba(0,102,255,0.08)", border: "1px solid rgba(0,102,255,0.25)", color: "#fff", fontFamily: "Oswald, sans-serif" }}
-            >
-              <option value={0}>Select player…</option>
-              {activePlayers.filter((p: PlayerOption) => p.id !== p1Id).map((p: PlayerOption) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
       {/* Loading */}
       {loading && (
         <div className="flex justify-center py-12">
@@ -198,7 +187,7 @@ export default function HeadToHead() {
 
       {/* Nothing picked yet — the page was otherwise blank below the picker */}
       {!loading && (!p1Id || !p2Id) && (
-        <div className="pdc-card p-8 text-center">
+        <div className="pm-card p-8 text-center">
           <Swords className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.15)" }} />
           <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             Pick two players above
@@ -210,8 +199,8 @@ export default function HeadToHead() {
       )}
 
       {/* Picked, but the lookup came back empty (fetch failed / no such pair) */}
-      {!loading && p1Id && p2Id && !h2h && (
-        <div className="pdc-card p-8 text-center">
+      {!loading && p1Id > 0 && p2Id > 0 && !h2h && (
+        <div className="pm-card p-8 text-center">
           <Target className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.15)" }} />
           <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             No data available
@@ -225,16 +214,17 @@ export default function HeadToHead() {
       {h2h && (
         <>
           {/* Head-to-head scoreboard */}
-          <div className="pdc-card overflow-hidden">
-            <div className="h-1 w-full" style={{ background: "linear-gradient(90deg, #ff005c, #0066ff)" }} />
-            <div className="px-6 py-5">
+          <PmCard accent="#ffd24a" className="relative overflow-hidden">
+            <Glow x="0%" y="30%" color="#ff005c" size={260} opacity={0.2} />
+            <Glow x="100%" y="30%" color="#0066ff" size={260} opacity={0.24} />
+            <div className="relative px-4 py-5" style={{ zIndex: 1 }}>
               {/* Players row */}
               <div className="grid grid-cols-3 gap-4 items-center mb-6">
                 {/* P1 */}
                 <div className="text-left">
                   <Link href={`/players/${h2h.player1.id}`}>
                     <div className="font-black uppercase text-xl leading-tight hover:opacity-70 transition-opacity"
-                      style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", letterSpacing: "0.06em" }}>
+                      style={{ fontFamily: "Oswald, sans-serif", color: "#ff7aa6", letterSpacing: "0.04em", textShadow: "0 0 14px rgba(255,0,92,.5)" }}>
                       {h2h.player1.name}
                     </div>
                   </Link>
@@ -248,12 +238,12 @@ export default function HeadToHead() {
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-3">
                     <span className="font-black leading-none"
-                      style={{ fontFamily: "Oswald, sans-serif", fontSize: "3.5rem", color: h2h.player1.wins >= h2h.player2.wins ? "#ff005c" : "rgba(255,0,92,0.4)" }}>
+                      style={{ fontFamily: "Oswald, sans-serif", fontSize: "3.5rem", color: h2h.player1.wins >= h2h.player2.wins ? "#ff5c93" : "rgba(255,0,92,0.4)", textShadow: h2h.player1.wins >= h2h.player2.wins ? "0 0 22px rgba(255,0,92,.7)" : undefined }}>
                       {h2h.player1.wins}
                     </span>
                     <span className="font-black text-xl" style={{ color: "rgba(255,255,255,0.2)" }}>–</span>
                     <span className="font-black leading-none"
-                      style={{ fontFamily: "Oswald, sans-serif", fontSize: "3.5rem", color: h2h.player2.wins >= h2h.player1.wins ? "#0066ff" : "rgba(0,102,255,0.4)" }}>
+                      style={{ fontFamily: "Oswald, sans-serif", fontSize: "3.5rem", color: h2h.player2.wins >= h2h.player1.wins ? "#7fb4ff" : "rgba(0,102,255,0.4)", textShadow: h2h.player2.wins >= h2h.player1.wins ? "0 0 22px rgba(0,102,255,.8)" : undefined }}>
                       {h2h.player2.wins}
                     </span>
                   </div>
@@ -269,7 +259,7 @@ export default function HeadToHead() {
                 <div className="text-right">
                   <Link href={`/players/${h2h.player2.id}`}>
                     <div className="font-black uppercase text-xl leading-tight hover:opacity-70 transition-opacity"
-                      style={{ fontFamily: "Oswald, sans-serif", color: "#0066ff", letterSpacing: "0.06em" }}>
+                      style={{ fontFamily: "Oswald, sans-serif", color: "#9cc6ff", letterSpacing: "0.04em", textShadow: "0 0 14px rgba(0,102,255,.6)" }}>
                       {h2h.player2.name}
                     </div>
                   </Link>
@@ -332,16 +322,11 @@ export default function HeadToHead() {
                 </div>
               )}
             </div>
-          </div>
+          </PmCard>
 
           {/* Stat comparison */}
-          <div className="pdc-card overflow-hidden">
-            <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-              <TrendingUp className="w-4 h-4" style={{ color: "#ffd24a" }} />
-              <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-                Career Comparison
-              </h2>
-            </div>
+          <Chapter title="Career comparison" accent="#ffd24a" aside={<TrendingUp className="w-4 h-4" style={{ color: "#ffd24a" }} />} />
+          <PmCard accent="#ffd24a">
             <div className="px-4 py-4 space-y-4">
               {[
                 { label: "Current Elo", v1: h2h.player1.elo as number | null, v2: h2h.player2.elo as number | null, suffix: "", lowerIsBetter: false },
@@ -379,7 +364,7 @@ export default function HeadToHead() {
                         {row.v2 != null ? `${row.v2}${row.suffix}` : "—"}
                       </span>
                     </div>
-                    <div className="h-1 rounded-full overflow-hidden flex" style={{ background: "rgba(255,255,255,0.06)" }}>
+                    <div className="h-2 rounded-full overflow-hidden flex" style={{ background: "rgba(255,255,255,0.06)" }}>
                       <div style={{ width: `${p1Share}%`, background: "#ff005c", opacity: winner === 1 ? 1 : 0.3 }} />
                       <div style={{ flex: 1, background: "#0066ff", opacity: winner === 2 ? 1 : 0.3 }} />
                     </div>
@@ -387,7 +372,7 @@ export default function HeadToHead() {
                 );
               })}
             </div>
-          </div>
+          </PmCard>
 
           {/* Rivalry timeline — every stored meeting in chronological order,
               with milestones derived only from that match sequence. */}
@@ -459,7 +444,7 @@ export default function HeadToHead() {
           )}
 
           {h2h.totalMatches === 0 && (
-            <div className="pdc-card p-8 text-center">
+            <div className="pm-card p-8 text-center">
               <Target className="w-8 h-8 mx-auto mb-3" style={{ color: "rgba(255,255,255,0.15)" }} />
               <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
                 These two have never faced each other

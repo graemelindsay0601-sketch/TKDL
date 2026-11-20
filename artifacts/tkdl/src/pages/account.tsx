@@ -1,3 +1,4 @@
+import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useLocation, Link } from "wouter";
@@ -295,24 +296,27 @@ function SectionCard({ title, icon: Icon, accent = "#ff005c", children, collapsi
     // Master 501, Tour Mode, Shadow Bot, Practice, Change Password, Admin
     // Panel, and the four Analytics tab panels), so fixing it here brings
     // all of them onto the shared system in one place.
-    <div className="pdc-card overflow-hidden">
+    <div className="pm-card overflow-hidden relative" style={{ ["--pm-acc" as any]: accent }}>
+      <div className="absolute pointer-events-none" style={{ right: -70, top: -70, width: 200, height: 200, borderRadius: "50%", background: `radial-gradient(circle, ${accent}24, transparent 70%)` }} />
       <button
-        className="w-full flex items-center gap-2.5 px-5 py-3.5"
-        style={{ borderBottom: open ? "1px solid rgba(255,255,255,0.05)" : undefined, cursor: collapsible ? "pointer" : "default" }}
+        className="relative w-full flex items-center gap-2.5 px-5 pt-4 pb-3"
+        style={{ borderBottom: open ? "1px solid rgba(255,255,255,0.07)" : undefined, cursor: collapsible ? "pointer" : "default" }}
         onClick={() => collapsible && setOpen(v => !v)}
         disabled={!collapsible}
       >
-        <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: accent }} />
-        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.18em",
-          color: "rgba(255,255,255,0.35)", textTransform: "uppercase", flex: 1, textAlign: "left" }}>
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${accent}1c`, border: `1px solid ${accent}55`, boxShadow: `0 0 12px ${accent}30` }}>
+          <Icon className="w-3.5 h-3.5" style={{ color: accent }} />
+        </span>
+        <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "1rem", letterSpacing: "0.06em", fontWeight: 600,
+          color: "#f2eefc", textTransform: "uppercase", flex: 1, textAlign: "left" }}>
           {title}
         </span>
         {collapsible && (open
-          ? <ChevronDown className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.2)" }} />
-          : <ChevronRight className="w-3.5 h-3.5" style={{ color: "rgba(255,255,255,0.2)" }} />
+          ? <ChevronDown className="w-4 h-4" style={{ color: accent }} />
+          : <ChevronRight className="w-4 h-4" style={{ color: accent }} />
         )}
       </button>
-      {open && <div className="px-5 py-4">{children}</div>}
+      {open && <div className="relative px-5 py-4">{children}</div>}
     </div>
   );
 }
@@ -1219,21 +1223,23 @@ export default function AccountPage() {
   const gsM501   = gamerscore?.master501 ?? 0;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 pb-8">
+    <div className="max-w-2xl mx-auto space-y-4 pb-8 pm-page">
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       {/* An equipped banner replaces the default tier-tinted background
           entirely (bannerCSS() returns {} when nothing's equipped, so this
           falls back to the existing look unchanged); an equipped frame
           overrides the avatar square's default tier-coloured border. */}
-      <div className="rounded-2xl relative overflow-hidden"
-        style={{ background: `linear-gradient(135deg, ${tCol}1e 0%, rgba(8,6,20,0.98) 55%)`, border: `1px solid ${tCol}35`, boxShadow: `0 0 60px ${tCol}14`, ...bannerCSS(equippedBanner) }}>
-        <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(90deg, ${tCol} 0%, ${tCol}55 40%, transparent 100%)` }} />
+      <div className="relative overflow-hidden"
+        style={{ borderRadius: 24, background: `linear-gradient(160deg, ${tCol}30 0%, #14102a 48%, #06060b 100%)`, border: `1px solid ${tCol}55`, boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 40px ${tCol}1a`, ...bannerCSS(equippedBanner) }}>
+        <Glow x="88%" y="5%" color={tCol} size={400} opacity={0.26} />
+        <Glow x="5%" y="95%" color="#a855f7" size={360} opacity={0.2} />
+        <DartboardBackdrop size={440} opacity={0.07} style={{ right: -170, top: -110, transform: "rotate(8deg)" }} />
 
-        <div className="p-5">
+        <div className="relative p-5" style={{ zIndex: 1 }}>
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative group/avatar"
-              style={{ background: `linear-gradient(135deg, ${tCol}28, ${tCol}0a)`, border: `1px solid ${tCol}55`, overflow: "hidden", ...frameStyle(equippedFrame) }}>
+              style={{ background: `radial-gradient(circle at 35% 30%, ${tCol}40, #0d0b14)`, border: `1.5px solid ${tCol}aa`, boxShadow: `0 0 20px ${tCol}55`, overflow: "hidden", ...frameStyle(equippedFrame) }}>
               {player?.avatarUpdatedAt ? (
                 <img src={`/api/players/${user.playerId}/avatar-image?v=${encodeURIComponent(player.avatarUpdatedAt)}`}
                   alt="" className="absolute inset-0 w-full h-full object-cover z-10" />
@@ -1266,8 +1272,8 @@ export default function AccountPage() {
             </div>
 
             <div className="flex-1 min-w-0">
-              <div className={`truncate ${nameStyleClassName(equippedNameStyle)}`} style={{ fontFamily: "Oswald, sans-serif", fontSize: "2rem", fontWeight: 900,
-                color: "#fff", letterSpacing: "0.04em", lineHeight: 1, textShadow: "0 2px 20px rgba(0,0,0,0.9)", ...nameStyleCSS(equippedNameStyle) }}>
+              <div className={`truncate uppercase ${equippedNameStyle ? nameStyleClassName(equippedNameStyle) : "pm-chrome"}`} style={{ fontFamily: "Oswald, sans-serif", fontSize: "2.1rem", fontWeight: 700,
+                letterSpacing: "0.03em", lineHeight: 1.02, ...(equippedNameStyle ? { color: "#fff", textShadow: "0 2px 20px rgba(0,0,0,0.9)" } : {}), ...nameStyleCSS(equippedNameStyle) }}>
                 {user.playerName}
               </div>
               {taglineEditing ? (
@@ -1312,8 +1318,7 @@ export default function AccountPage() {
                 </button>
               )}
               <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                <span className="px-2 py-0.5 rounded-md" style={{ background: `${tCol}22`, fontFamily: "Oswald, sans-serif",
-                  fontSize: "0.58rem", color: tCol, letterSpacing: "0.14em", fontWeight: 800, border: `1px solid ${tCol}44` }}>
+                <span className="pm-chip" style={{ color: tCol, borderColor: `${tCol}77`, background: `${tCol}1f` }}>
                   {tier}
                 </span>
                 {player?.avatarUpdatedAt && (
@@ -1338,14 +1343,6 @@ export default function AccountPage() {
                     </span>
                   );
                 })()}
-                <span style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
-                  ELO {player?.elo ?? "–"}
-                </span>
-                {player?.seasonWins !== undefined && (
-                  <span style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
-                    {player.seasonWins}W–{player.seasonLosses}L
-                  </span>
-                )}
                 {user.isAdmin && (
                   <span className="flex items-center gap-0.5">
                     <Shield className="w-3 h-3" style={{ color: "#ffd24a" }} />
@@ -1353,54 +1350,52 @@ export default function AccountPage() {
                   </span>
                 )}
               </div>
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.48rem", color: "rgba(255,255,255,0.18)", letterSpacing: "0.1em", marginTop: "0.25rem" }}>
+              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", color: "#7d7893", letterSpacing: "0.1em", marginTop: "0.35rem" }}>
                 @{user.username}
               </div>
             </div>
 
-            <div className="text-right shrink-0">
-              <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", fontWeight: 900,
-                color: "#ff005c", lineHeight: 0.85, textShadow: "0 0 28px rgba(255,0,92,0.9)" }}>
-                {player?.points ?? "–"}
+          </div>
+
+          {/* Plaques — points / ELO / season, same family as the player page hero. */}
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            {[
+              { l: "Points", v: player?.points ?? "–", c: "#ff7aa6", g: "rgba(255,0,92,.5)" },
+              { l: "ELO", v: player?.elo ?? "–", c: "#9cc6ff", g: "rgba(0,102,255,.55)" },
+              { l: "Season", v: player?.seasonWins !== undefined ? <><span style={{ color: "#4ade80" }}>{player.seasonWins}</span><span style={{ color: "#6b6680" }}>–</span><span style={{ color: "#ff7a9c" }}>{player.seasonLosses}</span></> : "–", c: "#fff", g: "rgba(255,255,255,.2)" },
+            ].map(t => (
+              <div key={t.l} className="rounded-2xl px-2 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.08)" }}>
+                <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 28, color: t.c, textShadow: `0 0 16px ${t.g}` }}>{t.v}</div>
+                <div className="pm-lab justify-center mt-1" style={{ fontSize: 9 }}>{t.l}</div>
               </div>
-              <div style={{ fontSize: "0.44rem", color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.2em", marginTop: "2px" }}>PTS</div>
+            ))}
+          </div>
+          {((player?.currentWinStreak ?? player?.win_streak ?? 0) >= 3 || (player?.currentLossStreak ?? player?.loss_streak ?? 0) >= 3) && (
+            <div className="flex gap-2 mt-3 flex-wrap">
               {(player?.currentWinStreak ?? player?.win_streak ?? 0) >= 3 && (
-                // #ff005c, not orange — matches the same win-streak Flame
-                // badge everywhere else it appears (leaderboard.tsx,
-                // community.tsx, player-detail/index.tsx all use this exact
-                // color + the streak-fire class); a visual-consistency pass
-                // on 2026-09-25 found this was the one place still on an
-                // independently-chosen orange.
-                <div className="mt-1.5 flex items-center justify-end gap-1">
-                  <Flame className="w-3.5 h-3.5 streak-fire" style={{ color: "#ff005c", filter: "drop-shadow(0 0 5px #ff005c)" }} />
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", color: "#ff005c", fontWeight: 900, letterSpacing: "0.06em" }}>
-                    {player?.currentWinStreak ?? player?.win_streak} STREAK
-                  </span>
-                </div>
+                <span className="pm-chip" style={{ color: "#ff9ab8", borderColor: "rgba(255,0,92,.55)", background: "rgba(255,0,92,.12)" }}>
+                  <Flame className="w-3.5 h-3.5 streak-fire" style={{ color: "#ff005c" }} />{player?.currentWinStreak ?? player?.win_streak} win streak
+                </span>
               )}
               {(player?.currentLossStreak ?? player?.loss_streak ?? 0) >= 3 && (
-                <div className="mt-1.5 text-right">
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", color: "rgba(255,0,92,0.7)", fontWeight: 700, letterSpacing: "0.08em" }}>
-                    {player?.currentLossStreak ?? player?.loss_streak}L RUN
-                  </span>
-                </div>
+                <span className="pm-chip" style={{ color: "#ff9ab8", borderColor: "rgba(255,0,92,.4)" }}>{player?.currentLossStreak ?? player?.loss_streak}L run</span>
               )}
             </div>
-          </div>
+          )}
 
           {/* View Profile + Sign Out */}
           <div className="flex items-center gap-2 mt-4">
             <Link href={`/players/${user.playerId}`}
-              className="flex-1 py-2 rounded-xl flex items-center justify-center gap-1.5 transition-opacity hover:opacity-80"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.45)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: "0.7rem" }}>
+              className="flex-1 rounded-full flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90 uppercase"
+              style={{ minHeight: 40, background: "linear-gradient(180deg, #ffe58a, #e0a800)", border: "1px solid #ffd24a",
+                color: "#1a1200", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", fontSize: "0.75rem", boxShadow: "0 0 16px rgba(255,210,74,.35)" }}>
               <User className="w-3 h-3" />
               Full Profile
             </Link>
             <button onClick={handleLogout}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl transition-opacity hover:opacity-70"
-              style={{ background: "rgba(255,0,92,0.07)", border: "1px solid rgba(255,0,92,0.18)",
-                color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", fontSize: "0.7rem" }}>
+              className="flex items-center gap-1.5 px-4 rounded-full transition-opacity hover:opacity-80 uppercase"
+              style={{ minHeight: 40, background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.45)",
+                color: "#ff7aa6", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", fontSize: "0.72rem" }}>
               <LogOut className="w-3.5 h-3.5" />
               Sign Out
             </button>
@@ -1417,13 +1412,13 @@ export default function AccountPage() {
             ...(user.isAdmin ? [{ href: "/admin",   icon: Shield,       label: "Admin",    col: "#ffd24a" }] : []),
           ];
           return (
-            <div className={`grid gap-2 px-4 pb-4`} style={{ gridTemplateColumns: `repeat(${actions.length}, 1fr)` }}>
+            <div className={`relative grid gap-2 px-4 pb-4`} style={{ zIndex: 1, gridTemplateColumns: `repeat(${actions.length}, 1fr)` }}>
               {actions.map(({ href, icon: Icon, label, col }) => (
                 <Link key={href} href={href}
-                  className="rounded-xl py-3 flex flex-col items-center gap-1.5 transition-all hover:opacity-85 active:scale-95"
-                  style={{ background: `${col}10`, border: `1px solid ${col}28` }}>
-                  <Icon className="w-4 h-4" style={{ color: col }} />
-                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.12em",
+                  className="rounded-2xl py-3 flex flex-col items-center gap-1.5 transition-all hover:opacity-90 active:scale-95"
+                  style={{ background: `linear-gradient(180deg, ${col}26, ${col}08)`, border: `1px solid ${col}55`, boxShadow: `0 0 14px ${col}22, inset 0 1px 0 rgba(255,255,255,.08)` }}>
+                  <Icon className="w-5 h-5" style={{ color: col, filter: `drop-shadow(0 0 6px ${col})` }} />
+                  <span style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.12em",
                     color: col, textTransform: "uppercase", fontWeight: 700 }}>{label}</span>
                 </Link>
               ))}
@@ -1441,8 +1436,8 @@ export default function AccountPage() {
           fixed, readable width and the strip scrolls instead, same pattern
           as the horizontal scrollers on community.tsx (overflow-x-auto +
           scrollbarWidth:"none" on the track, shrink-0 on each item). */}
-      <div className="flex gap-1 p-1 rounded-2xl overflow-x-auto"
-        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", scrollbarWidth: "none" }}>
+      <div className="flex gap-1.5 p-1.5 rounded-2xl overflow-x-auto"
+        style={{ background: "linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,0.1)", scrollbarWidth: "none" }}>
         {([
           { id: "overview"      as const, label: "Overview",  Icon: User                               },
           { id: "activity"      as const, label: "Activity",  Icon: Zap                              },
@@ -1460,13 +1455,14 @@ export default function AccountPage() {
             className="shrink-0 relative flex flex-col items-center justify-center gap-1 py-2 rounded-xl text-xs font-bold transition-all"
             style={{
               width: "68px",
-              background: activeTab === tab.id ? `${accountAccent}2e` : "transparent",
-              border:     activeTab === tab.id ? `1px solid ${accountAccent}59` : "1px solid transparent",
-              color:      activeTab === tab.id ? accountAccent : "rgba(255,255,255,0.35)",
+              background: activeTab === tab.id ? `linear-gradient(180deg, ${accountAccent}55, ${accountAccent}1a)` : "transparent",
+              border:     activeTab === tab.id ? `1px solid ${accountAccent}` : "1px solid transparent",
+              color:      activeTab === tab.id ? "#fff" : "#a9a4bd",
+              boxShadow:  activeTab === tab.id ? `0 0 14px ${accountAccent}55` : undefined,
               fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em",
             }}>
             <tab.Icon className="w-3.5 h-3.5 shrink-0" />
-            <span style={{ fontSize: "0.55rem", lineHeight: 1, whiteSpace: "nowrap" }}>{tab.label.toUpperCase()}</span>
+            <span style={{ fontSize: "0.6rem", lineHeight: 1, whiteSpace: "nowrap" }}>{tab.label.toUpperCase()}</span>
             {"badge" in tab && (tab as any).badge > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-white"
                 style={{ background: "#ff005c", fontSize: "0.45rem", fontFamily: "Oswald, sans-serif", fontWeight: 900 }}>
@@ -2865,7 +2861,7 @@ export default function AccountPage() {
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <StreakWidget playerId={user.playerId} />
             <TimeOfDayPerformance playerId={user.playerId} />
           </div>
