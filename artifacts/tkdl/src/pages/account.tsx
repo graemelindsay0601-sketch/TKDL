@@ -2861,7 +2861,7 @@ export default function AccountPage() {
       {/* ── Stats Tab ─────────────────────────────────────────────── */}
       {activeTab === "stats" && user?.playerId && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <StreakWidget playerId={user.playerId} />
             <TimeOfDayPerformance playerId={user.playerId} />
           </div>

@@ -400,18 +400,23 @@ export function AdvancedAnalyticsDashboard({ playerId }: { playerId?: number }) 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* View Selector */}
-      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "12px" }}>
+      <div style={{ display: "flex", gap: "6px", overflowX: "auto", scrollbarWidth: "none", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "12px" }}>
         {(["overview", "leaderboard", "trends", "formats"] as const).map(view => (
           <button
             key={view}
             onClick={() => setSelectedView(view)}
             style={{
-              padding: "8px 16px",
+              padding: "8px 14px",
               fontSize: "12px",
-              background: selectedView === view ? "rgba(255,0,92,0.15)" : "transparent",
-              border: selectedView === view ? "1px solid rgba(255,0,92,0.3)" : "1px solid transparent",
-              color: selectedView === view ? "#ff005c" : "rgba(255,255,255,0.5)",
-              borderRadius: "4px",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              fontFamily: "Oswald, sans-serif",
+              letterSpacing: "0.06em",
+              background: selectedView === view ? "linear-gradient(180deg, rgba(255,0,92,.35), rgba(255,0,92,.1))" : "rgba(255,255,255,0.04)",
+              border: selectedView === view ? "1px solid rgba(255,0,92,0.7)" : "1px solid rgba(255,255,255,0.1)",
+              color: selectedView === view ? "#fff" : "rgba(255,255,255,0.6)",
+              boxShadow: selectedView === view ? "0 0 12px rgba(255,0,92,.35)" : undefined,
+              borderRadius: "999px",
               cursor: "pointer",
               textTransform: "capitalize",
             }}
