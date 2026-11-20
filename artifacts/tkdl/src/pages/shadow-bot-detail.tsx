@@ -403,40 +403,40 @@ export default function ShadowBotDetail() {
               <Zap className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
               Data Sources
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-xl px-3 py-2.5 sm:py-3 grid grid-cols-[1fr_auto] sm:flex sm:flex-col items-center sm:items-start gap-x-3 gap-y-0.5 sm:gap-1 min-w-0"
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl px-3 py-3 flex flex-col gap-1"
                 style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.14)" }}>
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <Dumbbell className="w-3 h-3 shrink-0" style={{ color: "#a78bfa" }}/>
-                  <span className="text-xs font-black uppercase whitespace-nowrap" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa", fontSize: "0.6rem", letterSpacing: "0.1em" }}>Practice</span>
+                  <Dumbbell className="w-3 h-3" style={{ color: "#a78bfa" }}/>
+                  <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa", fontSize: "0.52rem", letterSpacing: "0.1em" }}>Practice</span>
                 </div>
-                <div className="font-black text-2xl whitespace-nowrap col-start-2 row-start-1 row-span-2 sm:col-auto sm:row-auto text-right sm:text-left" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
+                <div className="font-black text-lg" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
                   {(stats.practiceDarts ?? 0).toLocaleString()}
                 </div>
                 <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
                   darts · {stats.totalSessions} session{stats.totalSessions !== 1 ? "s" : ""}
                 </div>
               </div>
-              <div className="rounded-xl px-3 py-2.5 sm:py-3 grid grid-cols-[1fr_auto] sm:flex sm:flex-col items-center sm:items-start gap-x-3 gap-y-0.5 sm:gap-1 min-w-0"
+              <div className="rounded-xl px-3 py-3 flex flex-col gap-1"
                 style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.14)" }}>
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }}/>
-                  <span className="text-xs font-black uppercase whitespace-nowrap" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.6rem", letterSpacing: "0.1em" }}>League</span>
+                  <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.52rem", letterSpacing: "0.1em" }}>League</span>
                 </div>
-                <div className="font-black text-2xl whitespace-nowrap col-start-2 row-start-1 row-span-2 sm:col-auto sm:row-auto text-right sm:text-left" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
+                <div className="font-black text-lg" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
                   {stats.matchWins ?? 0}W–{((stats.totalMatches ?? 0) - (stats.matchWins ?? 0))}L
                 </div>
                 <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
                   {stats.totalMatches ?? 0} match{(stats.totalMatches ?? 0) !== 1 ? "es" : ""}
                 </div>
               </div>
-              <div className="rounded-xl px-3 py-2.5 sm:py-3 grid grid-cols-[1fr_auto] sm:flex sm:flex-col items-center sm:items-start gap-x-3 gap-y-0.5 sm:gap-1 min-w-0"
+              <div className="rounded-xl px-3 py-3 flex flex-col gap-1"
                 style={{ background: "rgba(0,210,150,0.06)", border: "1px solid rgba(0,210,150,0.14)" }}>
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <TrendingUp className="w-3 h-3" style={{ color: "#00d296" }}/>
-                  <span className="text-xs font-black uppercase whitespace-nowrap" style={{ fontFamily: "Oswald, sans-serif", color: "#00d296", fontSize: "0.6rem", letterSpacing: "0.1em" }}>Elo rating</span>
+                  <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#00d296", fontSize: "0.52rem", letterSpacing: "0.1em" }}>Elo Rating</span>
                 </div>
-                <div className="font-black text-2xl whitespace-nowrap col-start-2 row-start-1 row-span-2 sm:col-auto sm:row-auto text-right sm:text-left" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)" }}>
+                <div className="font-black text-lg" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
                   {stats.playerElo ?? 1000}
                 </div>
                 <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
