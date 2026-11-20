@@ -1,3 +1,4 @@
+import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
 import {
   useListPlayers,
   useSubmitMatch,
@@ -1087,95 +1088,79 @@ function SinglesPlayerCard({ player: p, isYou, isWinner, isLoser, isOther, disab
   const winRate = (p.seasonGamesPlayed ?? 0) > 0
     ? Math.round(((p.seasonWins ?? 0) / (p.seasonGamesPlayed ?? 1)) * 100) : 0;
 
+  const acc = isWinner ? "#22c55e" : isLoser ? "#ff005c" : tierColor;
+  const form: string[] = Array.isArray(p.recentForm) ? p.recentForm.slice(0, 5) : [];
+
   return (
     <button
       ref={ref}
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="sm-tilt relative rounded-xl overflow-hidden text-left transition-all duration-150 focus:outline-none"
+      className="sm-tilt relative overflow-hidden text-left transition-all duration-150 focus:outline-none"
       style={{
-        background: isWinner
-          ? "rgba(34,197,94,0.1)"
-          : isLoser
-            ? "rgba(255,0,92,0.1)"
-            : "rgba(255,255,255,0.03)",
-        border: isWinner
-          ? "1px solid rgba(34,197,94,0.5)"
-          : isLoser
-            ? "1px solid rgba(255,0,92,0.5)"
-            : "1px solid rgba(255,255,255,0.07)",
-        boxShadow: isWinner
-          ? "0 0 16px rgba(34,197,94,0.15)"
-          : isLoser
-            ? "0 0 16px rgba(255,0,92,0.15)"
-            : undefined,
+        borderRadius: 16,
+        border: "1px solid transparent",
+        background: `linear-gradient(160deg, ${acc}${isWinner || isLoser ? "30" : "14"}, rgba(20,17,30,.97) 55%, rgba(10,9,15,.98)) padding-box, linear-gradient(160deg, ${acc}${isWinner || isLoser ? "ee" : "77"}, rgba(255,255,255,.08) 45%, ${acc}44) border-box`,
+        boxShadow: `0 10px 22px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07)${isWinner || isLoser ? `, 0 0 22px ${acc}44` : ""}`,
         opacity: isOther ? 0.4 : 1,
         transform: (isWinner || isLoser) ? "scale(1.02)" : undefined,
       }}
     >
-      {/* Tier accent bar */}
-      <div className="h-0.5 w-full" style={{ background: isWinner ? "#22c55e" : isLoser ? "#ff005c" : tierColor }} />
+      <div className="absolute pointer-events-none" style={{ right: -40, top: -40, width: 120, height: 120, borderRadius: "50%", background: `radial-gradient(circle, ${acc}33, transparent 70%)` }} />
 
-      {isYou && (
-        <span className="absolute top-1.5 left-1.5 text-[0.5rem] font-black uppercase tracking-wide rounded px-1.5 py-0.5"
-          style={{ fontFamily: "Oswald, sans-serif", color: "#1a1508", background: "linear-gradient(160deg, #ffe08a, #e8ab00)" }}>You</span>
-      )}
-
-      {/* Role badge */}
-      {isWinner && (
-        <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
-          style={{ background: "#22c55e" }}>
-          <Crown className="w-3 h-3" style={{ color: "#000" }} />
-        </div>
-      )}
-      {isLoser && (
-        <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
-          style={{ background: "#ff005c" }}>
-          <Skull className="w-3 h-3" style={{ color: "#fff" }} />
-        </div>
-      )}
-      {!isWinner && !isLoser && (
-        <div className="absolute top-2 right-2">
-          <TierBadge tier={tier} />
-        </div>
-      )}
-
-      <div className="p-3 pt-2">
-        <div className="font-black uppercase leading-tight pr-8 mb-2"
-          style={{
-            fontFamily: "Oswald, sans-serif",
-            fontSize: "0.95rem",
-            color: isWinner ? "#22c55e" : isLoser ? "#ff005c" : "rgba(255,255,255,0.85)",
-          }}>
-          {p.name}
-        </div>
-
-        <div className="flex items-baseline gap-2 mb-2">
-          <span className="font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.35rem", color: "#ff005c" }}>
-            {p.points}
-          </span>
-          <span className="text-xs font-bold" style={{ color: "rgba(255,0,92,0.5)", fontFamily: "Oswald, sans-serif" }}>pts</span>
-          <span className="text-xs font-mono ml-auto" style={{ color: "rgba(0,102,255,0.6)" }}>
-            {p.elo}
-          </span>
-        </div>
-
-        {/* Win rate bar */}
-        <div className="space-y-1 mb-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-mono" style={{ color: "#22c55e" }}>{p.seasonWins ?? 0}W</span>
-            <span className="text-xs font-mono" style={{ color: "#ff005c" }}>{p.seasonLosses ?? 0}L</span>
+      <div className="relative p-3">
+        <div className="flex items-center gap-2 mb-2.5">
+          <div className="shrink-0 rounded-full p-[2px] relative" style={{ background: `conic-gradient(from 200deg, ${acc}, #fff8, ${acc}, #0000 70%, ${acc})` }}>
+            {isYou && <span className="absolute z-10 text-[0.5rem] uppercase rounded px-1 whitespace-nowrap leading-tight" style={{ bottom: -5, left: "50%", transform: "translateX(-50%)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", color: "#1a1508", background: "linear-gradient(160deg, #ffe08a, #e8ab00)" }}>You</span>}
+            <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center" style={{ background: "radial-gradient(circle at 35% 30%, #2a2540, #0d0b14)" }}>
+              {p.avatarUpdatedAt
+                ? <img src={`/api/players/${p.playerId ?? p.id}/avatar-image?v=${encodeURIComponent(p.avatarUpdatedAt)}`} alt="" className="w-full h-full object-cover" loading="lazy" />
+                : <span style={{ fontFamily: "Oswald, sans-serif", fontSize: 16, color: "#fff" }}>{String(p.name).charAt(0).toUpperCase()}</span>}
+            </div>
           </div>
-          <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
-            <div className="h-full rounded-full"
-              style={{
-                width: `${winRate}%`,
-                background: isWinner ? "#22c55e" : isLoser ? "#ff005c" : (winRate >= 60 ? "#22c55e" : winRate >= 40 ? "#0066ff" : "#ff005c"),
-              }} />
+          <div className="min-w-0 flex-1">
+            <div className={`uppercase leading-tight truncate ${isWinner || isLoser ? "" : "pm-chrome"}`}
+              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "1rem", letterSpacing: "0.03em", color: isWinner ? "#4ade80" : isLoser ? "#ff7a9c" : undefined }}>
+              {p.name}
+            </div>
+            <div className="flex items-center gap-1 mt-0.5">
+              {!isWinner && !isLoser && <span style={{ transform: "scale(.85)", transformOrigin: "left" }}><TierBadge tier={tier} /></span>}
+              {isWinner && <span className="pm-lab inline-flex items-center gap-1" style={{ color: "#4ade80", fontSize: 9 }}><Crown className="w-3 h-3" />Winner</span>}
+              {isLoser && <span className="pm-lab inline-flex items-center gap-1" style={{ color: "#ff7a9c", fontSize: 9 }}><Skull className="w-3 h-3" />Loser</span>}
+            </div>
           </div>
         </div>
-        <FormDots form={(p as any).recentForm} />
+
+        <div className="grid grid-cols-2 gap-1.5 mb-2">
+          <div className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.08)" }}>
+            <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 19, color: "#ff7aa6", textShadow: "0 0 10px rgba(255,92,147,.45)" }}>{p.points}</div>
+            <div className="pm-lab" style={{ fontSize: 8 }}>pts</div>
+          </div>
+          <div className="rounded-lg px-2 py-1.5" style={{ background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.08)" }}>
+            <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 19, color: "#9cc6ff", textShadow: "0 0 10px rgba(127,180,255,.45)" }}>{p.elo}</div>
+            <div className="pm-lab" style={{ fontSize: 8 }}>ELO</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mb-1">
+          <span className="tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: 12 }}>
+            <span style={{ color: "#4ade80" }}>{p.seasonWins ?? 0}W</span><span style={{ color: "#6b6680" }}> · </span><span style={{ color: "#ff7a9c" }}>{p.seasonLosses ?? 0}L</span>
+          </span>
+          <div className="flex gap-[3px]">
+            {form.map((r, i) => (
+              <span key={i} style={{ width: 7, height: 7, borderRadius: 2, background: r === "W" ? "#34d27b" : "#ff2f72", boxShadow: r === "W" ? "0 0 5px #34d27b" : "0 0 5px #ff2f72" }} />
+            ))}
+          </div>
+        </div>
+        <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+          <div className="h-full rounded-full"
+            style={{
+              width: `${winRate}%`,
+              background: isWinner ? "#22c55e" : isLoser ? "#ff005c" : (winRate >= 60 ? "#22c55e" : winRate >= 40 ? "#7fb4ff" : "#ff005c"),
+              boxShadow: "0 0 8px currentColor",
+            }} />
+        </div>
       </div>
     </button>
   );
@@ -1303,18 +1288,23 @@ export default function SubmitMatch() {
   return (
     <div className="max-w-2xl mx-auto space-y-5 pb-8">
       {receipt && <FinalWhistle receipt={receipt} onClose={() => setReceipt(null)} />}
-      <div className="pdc-divider" />
-      <div>
-        <h1 className="pm-title text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
-          Submit Match
-        </h1>
-        <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {mode === "singles" && teamMode
-            ? "Tap players to build each team — any size, even uneven (2v1, 3v2…). Tap again to remove."
-            : mode === "singles"
-            ? "Tap a player to pick winner, tap another to pick loser. Tap again to deselect."
-            : "Tap a team to pick winner, tap another to pick loser. Tap again to deselect."}
-        </p>
+      <div className="relative overflow-hidden" style={{ borderRadius: 24, border: "1px solid rgba(255,210,74,.3)", background: "linear-gradient(160deg, rgba(255,210,74,.14) 0%, #14102a 45%, #06060b 100%)", boxShadow: "0 20px 50px rgba(0,0,0,.55)" }}>
+        <Glow x="88%" y="10%" color="#ffd24a" size={380} opacity={0.24} />
+        <Glow x="5%" y="95%" color="#ff005c" size={380} opacity={0.22} />
+        <DartboardBackdrop size={440} opacity={0.07} style={{ right: -170, top: -110, transform: "rotate(8deg)" }} />
+        <div className="relative p-5" style={{ zIndex: 1 }}>
+          <span className="pm-lab" style={{ color: "#ffd24a" }}>Result desk</span>
+          <h1 className="pm-title uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.2rem, 10vw, 3.2rem)", letterSpacing: "0.03em", lineHeight: 0.98, marginTop: 6 }}>
+            Submit Match
+          </h1>
+          <p className="text-sm mt-2" style={{ color: "#a9a4bd" }}>
+            {mode === "singles" && teamMode
+              ? "Tap players to build each team — any size, even uneven (2v1, 3v2…). Tap again to remove."
+              : mode === "singles"
+              ? "Tap a player to pick winner, tap another to pick loser. Tap again to deselect."
+              : "Tap a team to pick winner, tap another to pick loser. Tap again to deselect."}
+          </p>
+        </div>
       </div>
 
       {/* ── MODE TOGGLE ── */}
