@@ -683,7 +683,7 @@ export default function Achievements() {
       )}
 
       <div>
-        <h1 className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+        <h1 className="pm-title text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
           {v2Live ? "Classics" : "Achievement Centre"}
         </h1>
         <p className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em" }}>

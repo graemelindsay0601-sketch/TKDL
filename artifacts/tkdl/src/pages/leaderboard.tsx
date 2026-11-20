@@ -616,7 +616,7 @@ export default function Standings() {
       {/* Header */}
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-black uppercase"
+          <h1 className="pm-title font-black uppercase"
             style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.2)", lineHeight: 1 }}>
             {headings[mode]}
           </h1>

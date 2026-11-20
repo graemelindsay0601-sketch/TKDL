@@ -99,7 +99,7 @@ export default function ShadowBot() {
 
           {/* Main headline */}
           <div className="mb-6">
-            <h1 className="font-black uppercase leading-none mb-2"
+            <h1 className="pm-title font-black uppercase leading-none mb-2"
               style={{
                 fontFamily: "Oswald, sans-serif",
                 fontSize: "clamp(2.6rem, 7vw, 5rem)",

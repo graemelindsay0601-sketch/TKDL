@@ -193,7 +193,7 @@ export default function SeasonDetail() {
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6 justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+              <h1 className="pm-title text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
                 {season.name}
               </h1>
               {season.isActive && (

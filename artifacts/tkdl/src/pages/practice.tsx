@@ -401,7 +401,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           <Dumbbell className="w-5 h-5" style={{ color: "#a78bfa" }} />
         </div>
         <div>
-          <h1 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Practice</h1>
+          <h1 className="pm-title text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Practice</h1>
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>No stakes · No leaderboard · Just reps</p>
         </div>
       </div>

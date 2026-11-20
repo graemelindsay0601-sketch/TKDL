@@ -191,7 +191,7 @@ export default function ShadowBotDetail() {
                   </div>
 
                   {/* Name */}
-                  <h1 className="font-black uppercase leading-none mb-2"
+                  <h1 className="pm-title font-black uppercase leading-none mb-2"
                     style={{
                       fontFamily: "Oswald, sans-serif",
                       fontSize: "clamp(2.2rem, 6vw, 4rem)",

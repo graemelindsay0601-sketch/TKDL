@@ -160,7 +160,7 @@ export default function AchievementDetailPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-2xl md:text-3xl font-black" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
+            <h1 className="pm-title text-2xl md:text-3xl font-black" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
               {isHidden ? "Hidden Achievement" : data.name}
             </h1>
             <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>

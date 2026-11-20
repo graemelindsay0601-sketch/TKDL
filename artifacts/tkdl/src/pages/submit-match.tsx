@@ -1305,7 +1305,7 @@ export default function SubmitMatch() {
       {receipt && <FinalWhistle receipt={receipt} onClose={() => setReceipt(null)} />}
       <div className="pdc-divider" />
       <div>
-        <h1 className="text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+        <h1 className="pm-title text-4xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
           Submit Match
         </h1>
         <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
