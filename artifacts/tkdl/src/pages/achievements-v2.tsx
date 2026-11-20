@@ -33,7 +33,7 @@ function ShelfItem({ t, onOpen }: { t: TrackView; onOpen: () => void }) {
 function FeatTile({ f, onOpen }: { f: FeatView; onOpen: () => void }) {
   const earned = !!f.earnedAt;
   return (
-    <div className={`av2-feat av2-tap${earned ? "" : " locked"}`} role="button" tabIndex={0} onClick={onOpen} onKeyDown={e => { if (e.key === "Enter") onOpen(); }} title={f.goal}>
+    <div className={`av2-feat av2-tap${earned ? " earned" : " locked"}`} role="button" tabIndex={0} onClick={onOpen} onKeyDown={e => { if (e.key === "Enter") onOpen(); }} title={f.goal}>
       <img src={featArt(f.key)} alt="" loading="lazy" style={earned ? undefined : LOCKED} />
       <div className="n">{f.title}</div>
       <div className="g">{earned ? format(new Date(f.earnedAt!), "d MMM yyyy") : f.goal}</div>
@@ -121,8 +121,14 @@ export default function AchievementsV2Page() {
       {data && "preview" in data && data.preview && <div className="av2-preview">Admin preview, worked out live from history. Players can't see this until achievements are switched on.</div>}
       <UpdateNotice />
       <header className="av2-hero">
+        <div className="kicker">Trophy room · {player?.name ?? "Player"}</div>
         <h1>Achievements</h1>
-        <div className="sub">{player?.name ?? "Player"} · <b>{fmt(view.score)}</b> points · {view.featsEarned} feats{view.nearly.length ? <> · <span className="purple">{view.nearly.length} nearly there</span></> : null}</div>
+        <div className="av2-plaques">
+          <div><b className="gold">{fmt(view.score)}</b><span>Points</span></div>
+          <div><b className="pink">{view.featsEarned}</b><span>Feats</span></div>
+          <div><b className="blue">{view.areas.reduce((t, a) => t + a.earned, 0)}<small>/{view.areas.reduce((t, a) => t + a.total, 0)}</small></b><span>Unlocked</span></div>
+          <div><b className="purple">{view.nearly.length}</b><span>Nearly there</span></div>
+        </div>
         <div className="stage">
           <div className="beam" /><div className="beam l" /><div className="beam r" /><div className="floor" />
           {best[1] && <img className="side l av2-tap" src={trackArt(best[1].key, best[1].metal)} alt="" onClick={() => setInspect({ kind: "track", t: best[1] })} />}

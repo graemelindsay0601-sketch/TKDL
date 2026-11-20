@@ -156,3 +156,47 @@
 .av2-recent .r { width: 124px; padding: 10px 8px 12px; }
 .av2-recent img { height: 108px; filter: drop-shadow(0 8px 10px rgba(0,0,0,.55)); }
 .av2-feat img { width: 66px; height: 80px; filter: drop-shadow(0 6px 8px rgba(0,0,0,.5)); }
+
+/* ── Deeper premium pass ─────────────────────────────────────────────────── */
+.av2-hero { padding-top: 22px; border: 1px solid rgba(255,210,74,.28); border-top: 0; box-shadow: 0 20px 50px rgba(0,0,0,.5), 0 0 40px rgba(255,210,74,.08); }
+.av2-hero .kicker { position: relative; font: 500 11px Oswald, sans-serif; letter-spacing: .3em; text-transform: uppercase; color: #ffd24a; margin-bottom: 6px; }
+.av2-plaques { position: relative; z-index: 3; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.av2-plaques > div { text-align: center; padding: 9px 2px 8px; border-radius: 14px; background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.02)); border: 1px solid rgba(255,255,255,.13); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); backdrop-filter: blur(4px); }
+.av2-plaques b { display: block; font: 700 21px/1 Oswald, sans-serif; white-space: nowrap; }
+.av2-plaques b small { font-size: 11px; color: rgba(255,255,255,.45); font-weight: 500; }
+.av2-plaques span { display: block; margin-top: 4px; font: 500 8.5px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #a9a4bd; }
+.av2-plaques .gold { color: #ffd24a; text-shadow: 0 0 14px rgba(255,210,74,.55); }
+.av2-plaques .pink { color: #ff7aa6; text-shadow: 0 0 14px rgba(255,0,92,.5); }
+.av2-plaques .blue { color: #9cc6ff; text-shadow: 0 0 14px rgba(0,102,255,.55); }
+.av2-plaques .purple { color: #c4a6ff; text-shadow: 0 0 14px rgba(168,85,247,.55); }
+
+/* Medal count: one glowing tile per metal */
+.av2-metals { display: grid !important; grid-template-columns: repeat(5, minmax(0,1fr)) auto; gap: 6px; padding: 10px !important; margin-top: 10px !important; }
+.av2-metals .m { padding: 8px 0 7px; border-radius: 12px; background: rgba(0,0,0,.25); border: 1px solid rgba(255,255,255,.07); font: 500 8.5px Oswald, sans-serif !important; letter-spacing: .08em; text-transform: uppercase; }
+.av2-metals .m i { width: 26px !important; height: 26px !important; }
+.av2-metals .m b { font-size: 20px !important; line-height: 1; }
+.av2-metals .bronze { box-shadow: inset 0 -16px 22px -16px rgba(205,127,50,.45); }
+.av2-metals .silver { box-shadow: inset 0 -16px 22px -16px rgba(200,210,230,.4); }
+.av2-metals .gold { box-shadow: inset 0 -16px 22px -16px rgba(255,210,74,.5); }
+.av2-metals .platinum { box-shadow: inset 0 -16px 22px -16px rgba(127,224,214,.45); }
+.av2-metals .diamond { box-shadow: inset 0 -16px 22px -16px rgba(150,230,255,.55); }
+.av2-metals .classics { writing-mode: vertical-rl; transform: rotate(180deg); padding: 8px 5px !important; font: 500 9px Oswald, sans-serif !important; letter-spacing: .14em; text-transform: uppercase; }
+
+/* Numbered sections, like the player page chapters */
+.av2 { counter-reset: av2ch; }
+.av2 section > h2:first-child { counter-increment: av2ch; position: relative; padding-top: 16px; }
+.av2 section > h2:first-child::before { content: "Chapter " counter(av2ch, decimal-leading-zero); position: absolute; top: 0; left: 0; font: 500 10px Oswald, sans-serif; letter-spacing: .28em; text-transform: uppercase; -webkit-text-fill-color: #ff7aa6; }
+
+/* This season: tighter glowing rows with a tick on finished goals */
+.av2-season { border-radius: 16px !important; }
+.av2-season.done .row b::before { content: "✓"; display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 7px; border-radius: 50%; font-size: 11px; color: #04210f; background: linear-gradient(180deg, #4ade80, #15803d); box-shadow: 0 0 8px rgba(74,222,128,.6); vertical-align: 1px; }
+
+/* Feats: earned ones sit on a lit card */
+.av2-feat { padding: 10px 4px 10px; border-radius: 16px; }
+.av2-feat.earned {
+  border: 1px solid transparent;
+  background: radial-gradient(80% 60% at 50% 30%, rgba(255,210,74,.16), transparent 70%) padding-box, linear-gradient(160deg, rgba(23,20,31,.95), rgba(10,9,15,.98)) padding-box, linear-gradient(160deg, rgba(255,210,74,.6), rgba(255,255,255,.06) 50%, rgba(168,85,247,.35)) border-box;
+  box-shadow: 0 8px 18px rgba(0,0,0,.35);
+}
+.av2-feat.earned .n { font-family: Oswald, sans-serif; font-weight: 600; letter-spacing: .02em; font-size: 12px; }
+.av2-feat.locked { opacity: .7; }

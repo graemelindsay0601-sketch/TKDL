@@ -591,11 +591,36 @@ export default function Seasons() {
               Every campaign leaves its mark. Revisit the seasons, the matches played, and the names written into the TKDL record.
             </p>
           </div>
-          <div className="intro-count" aria-label={`${seasons?.length ?? 0} seasons in the archive`}>
-            <strong>{String(seasons?.length ?? 0).padStart(2, "0")}</strong>
-            <span>Seasons<br />on record</span>
+          <div className="archive-plaques">
+            <div><b className="gold">{String(seasons?.length ?? 0).padStart(2, "0")}</b><span>Seasons</span></div>
+            <div><b className="green">{completedCount}</b><span>Done</span></div>
+            <div><b className="pink">{(seasons ?? []).reduce((t: number, x: any) => t + (x.totalMatches ?? 0), 0)}</b><span>Matches</span></div>
+            <div><b className="blue">{new Set((seasons ?? []).map((x: any) => x.championId).filter(Boolean)).size}</b><span>Winners</span></div>
           </div>
+          {liveSeason && (
+            <div className="archive-live"><span className="live-dot" /><span>Live now · <b>{liveSeason.name}</b> · {liveSeason.totalMatches ?? 0} {(liveSeason.totalMatches ?? 0) === 1 ? "match" : "matches"} so far</span></div>
+          )}
         </section>
+
+        {(() => {
+          const champs = [...(seasons ?? [])].filter((x: any) => x.championName && !x.isActive)
+            .sort((a: any, b: any) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()).slice(0, 6);
+          if (!champs.length) return null;
+          return (
+            <section className="roll-of-honour" aria-label="Roll of champions">
+              <div className="roh-head"><span>Roll of champions</span><i /></div>
+              <div className="roh-row">
+                {champs.map((c: any, i: number) => (
+                  <Link key={c.id} href={`/seasons/${c.id}`} className={`roh-card${i === 0 ? " latest" : ""}`}>
+                    <span className="roh-cup"><Trophy size={i === 0 ? 20 : 16} /></span>
+                    <b>{c.championName}</b>
+                    <small>{c.name}</small>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
 
         <section aria-label="Season archive controls">
           <div className="archive-toolbar">
