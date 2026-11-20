@@ -51,7 +51,7 @@ export default function ShadowLeague() {
               Shadow Bot
             </span>
           </div>
-          <h1 className="font-black uppercase leading-none mb-2"
+          <h1 className="pm-title font-black uppercase leading-none mb-2"
             style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2rem, 5vw, 3.2rem)", color: "#fff", letterSpacing: "0.04em" }}>
             Shadow{" "}
             <span style={{ color: "#ffd24a", textShadow: "0 0 32px rgba(255,210,74,0.5)" }}>League</span>

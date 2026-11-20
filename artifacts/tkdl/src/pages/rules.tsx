@@ -73,7 +73,7 @@ export default function Rules() {
       <div>
         <div className="flex items-center gap-3 mb-2">
           <BookOpen className="w-8 h-8" style={{ color: "#ff005c", filter: "drop-shadow(0 0 8px rgba(255,0,92,0.6))" }} />
-          <h1 className="font-black uppercase"
+          <h1 className="pm-title font-black uppercase"
             style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.2)", lineHeight: 1 }}>
             League Rules
           </h1>

@@ -137,7 +137,7 @@ export default function HeadToHead() {
 
       <div className="flex items-center gap-3">
         <Swords className="w-5 h-5" style={{ color: "#ff005c" }} />
-        <h1 className="text-3xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
+        <h1 className="pm-title text-3xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.06em" }}>
           Head to Head
         </h1>
       </div>

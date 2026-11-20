@@ -205,7 +205,7 @@ export default function Tour() {
               TKDL TOUR MODE
             </span>
           </div>
-          <h1 className="font-black uppercase leading-none mb-1"
+          <h1 className="pm-title font-black uppercase leading-none mb-1"
             style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2rem, 5.5vw, 3.4rem)", letterSpacing: "0.06em", color: "#fff" }}>
             FROM THE PUB OCHE<br /><span style={{ color: "#ff005c" }}>TO ALLY PALLY.</span>
           </h1>

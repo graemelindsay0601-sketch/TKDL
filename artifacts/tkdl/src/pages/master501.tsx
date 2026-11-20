@@ -537,7 +537,7 @@ export default function Master501() {
               TKDL MASTER-501
             </span>
           </div>
-          <h1 className="font-black uppercase leading-none mb-3"
+          <h1 className="pm-title font-black uppercase leading-none mb-3"
             style={{ fontFamily: "Oswald,sans-serif", fontSize: "clamp(1.8rem, 5vw, 3rem)", letterSpacing: "0.06em", color: "#fff" }}>
             CAN YOU BEAT<br />THE CLOCK?
           </h1>

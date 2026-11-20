@@ -158,7 +158,7 @@ export default function HallOfFame() {
                 <div className="text-xs font-bold uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,210,74,0.5)", fontSize: "0.6rem", letterSpacing: "0.2em" }}>
                   TKDL
                 </div>
-                <h1 className="font-black uppercase leading-none"
+                <h1 className="pm-title font-black uppercase leading-none"
                   style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2rem, 5vw, 3.2rem)", color: "#ffd24a", letterSpacing: "0.06em", textShadow: "0 0 30px rgba(255,210,74,0.4)" }}>
                   HALL OF FAME
                 </h1>

@@ -256,27 +256,35 @@
 
 /* ── Glass card (primary) ────────────────────────────────────────────────── */
 .pdc-card {
-  background: linear-gradient(145deg, rgba(18,18,26,0.95), rgba(8,8,12,0.97));
-  border: 1px solid rgba(255,255,255,0.07);
-  backdrop-filter: blur(16px);
+  /* Premium finish (see styles/premium.css): a glowing gradient edge in the card's
+     accent (--pm-acc, gold by default) over a deep panel. Pages that set their own
+     background inline keep it; Career keeps its own surfaces (career.css). */
+  --pm-acc: #ffd24a;
+  border: 1px solid transparent;
   border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--pm-acc) 9%, transparent), transparent 55%) padding-box,
+    linear-gradient(180deg, rgba(23,20,31,0.97), rgba(12,10,18,0.98)) padding-box,
+    linear-gradient(140deg, color-mix(in srgb, var(--pm-acc) 55%, transparent) 0%, rgba(255,255,255,.09) 28%, rgba(255,255,255,.03) 60%, color-mix(in srgb, var(--pm-acc) 35%, transparent) 100%) border-box;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.5), 0 0 26px color-mix(in srgb, var(--pm-acc) 6%, transparent), inset 0 1px 0 rgba(255,255,255,0.06);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 .pdc-card:hover {
-  border-color: rgba(255,255,255,0.12);
-  box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07);
+  box-shadow: 0 18px 44px rgba(0,0,0,0.55), 0 0 34px color-mix(in srgb, var(--pm-acc) 12%, transparent), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 /* ── Section card (larger) ───────────────────────────────────────────────── */
 .section-card {
+  --pm-acc: #ffd24a;
   position: relative;
   overflow: hidden;
   padding: 28px;
   border-radius: 28px;
-  background: linear-gradient(145deg, rgba(18,18,26,0.95), rgba(8,8,12,0.97));
-  border: 1px solid rgba(255,255,255,0.06);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(23,20,31,0.97), rgba(10,9,16,0.98)) padding-box,
+    linear-gradient(140deg, color-mix(in srgb, var(--pm-acc) 55%, transparent) 0%, rgba(255,255,255,.09) 30%, rgba(255,255,255,.03) 62%, color-mix(in srgb, var(--pm-acc) 35%, transparent) 100%) border-box;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
   backdrop-filter: blur(16px);
 }
 .section-card::before {
@@ -458,8 +466,8 @@
 
 /* ── Red divider ─────────────────────────────────────────────────────────── */
 .pdc-divider {
-  height: 2px;
-  background: linear-gradient(90deg, #ff005c 0%, rgba(255,0,92,0.3) 60%, transparent 100%);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,210,74,0.55) 30%, rgba(255,210,74,0.2) 70%, transparent);
   margin: 0.5rem 0;
 }
 

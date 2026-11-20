@@ -238,7 +238,7 @@ export default function Players() {
       <div className="pdc-divider" />
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="uppercase font-black"
+          <h1 className="pm-title uppercase font-black"
             style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.2)" }}>
             Player Registry
           </h1>
