@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/premium/Premium";
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactElement } from "react";
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
@@ -384,8 +385,9 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   return (
     <div id={`post-${post.id}`} className="rounded-2xl overflow-hidden scroll-mt-4"
       style={{
-        background: isPending ? "rgba(255,200,0,0.04)" : "rgba(255,255,255,0.03)",
-        border: `1px solid ${isPending ? "rgba(255,200,0,0.2)" : post.pinned ? "rgba(255,210,74,0.35)" : "rgba(255,255,255,0.07)"}`,
+        background: isPending ? "linear-gradient(160deg, rgba(255,200,0,.1), rgba(18,16,26,.96) 60%)" : "linear-gradient(160deg, rgba(255,255,255,.06), rgba(18,16,26,.96) 45%, rgba(10,9,15,.98))",
+        border: `1px solid ${isPending ? "rgba(255,200,0,0.35)" : post.pinned ? "rgba(255,210,74,0.55)" : "rgba(255,255,255,0.11)"}`,
+        boxShadow: `0 10px 24px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.07)${post.pinned ? ", 0 0 18px rgba(255,210,74,.15)" : ""}`,
         ...postAccent,
       }}>
 
@@ -1224,7 +1226,7 @@ export default function CommunityPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+    <div className="max-w-xl mx-auto px-4 py-6 space-y-4 pm-page">
 
       {/* Admin preview banner */}
       {communityEnabled === false && user?.isAdmin && (
@@ -1236,12 +1238,21 @@ export default function CommunityPage() {
       )}
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>OFF THE OCHE</h1>
-        <p className="text-xs italic mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Whatever's on your mind — on or off the oche.
-        </p>
-      </div>
+      <PageHero kicker="The clubhouse" icon={<MessageSquare className="w-3.5 h-3.5" />} title="Off the Oche" accent="#ff005c" accent2="#0066ff"
+        sub="Whatever's on your mind — on or off the oche.">
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { v: posts.length, l: "Posts", c: "#ff7aa6" },
+            { v: activeMembers.length, l: "Posting", c: "#9cc6ff" },
+            { v: posts.filter(p => p.photo_content_type).length, l: "Photos", c: "#ffd24a" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
+            </div>
+          ))}
+        </div>
+      </PageHero>
 
       {/* This day last year — a dismissible throwback, shown only when one
           actually exists (see GET /community/throwback's fuzzy ±3 day
@@ -1415,8 +1426,7 @@ export default function CommunityPage() {
       {user ? (
         showCreate ? (
           <form onSubmit={handleCreatePost}
-            className="rounded-2xl p-4 space-y-3"
-            style={{ background: "rgba(255,0,92,0.04)", border: "1px solid rgba(255,0,92,0.18)" }}>
+            className="pm-card p-4 space-y-3" style={{ ["--pm-acc" as any]: "#ff005c" }}>
             <textarea value={createText} onChange={e => setCreateText(e.target.value)}
               placeholder="What's happening in the darts room…"
               rows={3} maxLength={1000}
@@ -1479,14 +1489,14 @@ export default function CommunityPage() {
           </form>
         ) : (
           <button onClick={() => setShowCreate(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-colors hover:bg-white/[0.02]"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.15)" }}>
-            <span className="flex-1 text-sm italic" style={{ color: "rgba(255,255,255,0.3)" }}>
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-colors"
+            style={{ background: "linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02))", border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 1px 0 rgba(255,255,255,.06)" }}>
+            <span className="flex-1 text-sm italic" style={{ color: "#a9a4bd" }}>
               Chalk something up…
             </span>
             <ImageIcon className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
-            <span className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold"
-              style={{ background: "rgba(255,0,92,0.18)", border: "1px solid rgba(255,0,92,0.4)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+            <span className="shrink-0 px-4 py-1.5 rounded-full text-xs"
+              style={{ background: "linear-gradient(180deg, #ffe58a, #e0a800)", border: "1px solid #ffd24a", color: "#1a1200", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", boxShadow: "0 0 12px rgba(255,210,74,.35)" }}>
               POST
             </span>
           </button>
@@ -1595,8 +1605,8 @@ export default function CommunityPage() {
 
       {/* Tabs + sort — filters/reorders the feed already loaded above */}
       {!loading && posts.length > 0 && !searchQuery.trim() && (
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
             {([
               ["all", "All", null],
               ["photos", "Photos", "📸"],
@@ -1604,14 +1614,15 @@ export default function CommunityPage() {
               ["saved", "Saved", "🔖"],
             ] as const).filter(([key]) => key !== "saved" || !!user).map(([key, label, icon]) => (
               <button key={key} onClick={() => { setTab(key); setExpandedPhotoId(null); }}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] whitespace-nowrap transition-all"
                 style={{
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase",
-                  background: tab === key ? "rgba(255,0,92,0.22)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${tab === key ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.08)"}`,
-                  color: tab === key ? "#ff6b9c" : "rgba(255,255,255,0.4)",
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", textTransform: "uppercase",
+                  background: tab === key ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${tab === key ? "#ffd24a" : "rgba(255,255,255,0.12)"}`,
+                  color: tab === key ? "#1a1200" : "#cfcade",
+                  boxShadow: tab === key ? "0 0 12px rgba(255,210,74,.35)" : undefined,
                 }}>
-                {icon && <span>{icon}</span>}{label}
+                {icon && <span className="hidden sm:inline">{icon}</span>}{label}
               </button>
             ))}
           </div>

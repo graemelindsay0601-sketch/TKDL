@@ -63,3 +63,12 @@
 /* Leaderboard rows (all standings modes). */
 .pm-lbrow { border: 1px solid rgba(255,255,255,.09); box-shadow: 0 8px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06); background-color: rgba(18,16,26,.92); }
 .pm-lbrow:hover { box-shadow: 0 12px 26px rgba(0,0,0,.45), 0 0 18px rgba(255,210,74,.12), inset 0 1px 0 rgba(255,255,255,.08); }
+
+/* Season standings table: six fixed columns overflowed a 390px phone and squeezed the
+   player column to zero. On phones drop the tier column and tighten the numbers. */
+.sd-grid { grid-template-columns: 2.25rem minmax(0,1fr) 3.25rem 3.25rem 3.5rem; }
+.sd-grid > .sd-tier { display: none; }
+@media (min-width: 640px) {
+  .sd-grid { grid-template-columns: 3rem minmax(0,1fr) 7rem 5rem 5rem 5rem; }
+  .sd-grid > .sd-tier { display: flex; }
+}
