@@ -396,9 +396,9 @@ function PlayerSlot({ label, color, value, onChange, exclude, players }: {
         onChange={e => onChange(e.target.value)}
         className="w-full rounded-lg px-3 py-2 text-sm"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-        <option value="" style={{ color: "#111" }}>Select player…</option>
+        <option value="" style={{ color: "#111" }}>Pick…</option>
         {players.filter(p => !exclude.includes(String(p.id))).map(p => (
-          <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name} ({p.points}pts{p.balanceName ? " team" : ""})</option>
+          <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>
         ))}
       </select>
       {selected && (

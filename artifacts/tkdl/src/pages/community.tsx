@@ -1239,7 +1239,20 @@ export default function CommunityPage() {
 
       {/* Header */}
       <PageHero kicker="The clubhouse" icon={<MessageSquare className="w-3.5 h-3.5" />} title="Off the Oche" accent="#ff005c" accent2="#0066ff"
-        sub="Whatever's on your mind — on or off the oche." />
+        sub="Whatever's on your mind — on or off the oche.">
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { v: posts.length, l: "Posts", c: "#ff7aa6" },
+            { v: activeMembers.length, l: "Posting", c: "#9cc6ff" },
+            { v: posts.filter(p => p.photo_content_type).length, l: "Photos", c: "#ffd24a" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
+            </div>
+          ))}
+        </div>
+      </PageHero>
 
       {/* This day last year — a dismissible throwback, shown only when one
           actually exists (see GET /community/throwback's fuzzy ±3 day
@@ -1592,8 +1605,8 @@ export default function CommunityPage() {
 
       {/* Tabs + sort — filters/reorders the feed already loaded above */}
       {!loading && posts.length > 0 && !searchQuery.trim() && (
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
             {([
               ["all", "All", null],
               ["photos", "Photos", "📸"],
@@ -1601,14 +1614,15 @@ export default function CommunityPage() {
               ["saved", "Saved", "🔖"],
             ] as const).filter(([key]) => key !== "saved" || !!user).map(([key, label, icon]) => (
               <button key={key} onClick={() => { setTab(key); setExpandedPhotoId(null); }}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] whitespace-nowrap transition-all"
                 style={{
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", textTransform: "uppercase",
-                  background: tab === key ? "rgba(255,0,92,0.22)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${tab === key ? "rgba(255,0,92,0.45)" : "rgba(255,255,255,0.08)"}`,
-                  color: tab === key ? "#ff6b9c" : "rgba(255,255,255,0.4)",
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", textTransform: "uppercase",
+                  background: tab === key ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${tab === key ? "#ffd24a" : "rgba(255,255,255,0.12)"}`,
+                  color: tab === key ? "#1a1200" : "#cfcade",
+                  boxShadow: tab === key ? "0 0 12px rgba(255,210,74,.35)" : undefined,
                 }}>
-                {icon && <span>{icon}</span>}{label}
+                {icon && <span className="hidden sm:inline">{icon}</span>}{label}
               </button>
             ))}
           </div>
