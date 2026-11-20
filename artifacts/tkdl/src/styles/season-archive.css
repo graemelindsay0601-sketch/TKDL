@@ -180,3 +180,50 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Premium pass (2026-11-20): match the app-wide premium kit ─────────────── */
+.archive-premium {
+  padding: 16px 14px 72px;
+  background: transparent;
+  overflow: visible;
+}
+.archive-premium::before { display: none; }
+.archive-intro {
+  position: relative; overflow: hidden;
+  padding: 22px 20px !important; margin-top: 14px;
+  border: 1px solid rgba(255,210,74,.35); border-radius: 24px;
+  background:
+    radial-gradient(circle at 92% 2%, rgba(255,210,74,.26), transparent 36%),
+    radial-gradient(circle at 0% 95%, rgba(168,85,247,.24), transparent 42%),
+    linear-gradient(165deg, #1b1030 0%, #0e0b18 45%, #06060b 100%);
+  box-shadow: 0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(255,210,74,.08), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.archive-intro::after {
+  content: ""; position: absolute; top: -110px; right: -170px; width: 460px; height: 460px; border-radius: 50%; opacity: .07; transform: rotate(8deg); pointer-events: none;
+  background: repeating-conic-gradient(from 9deg, #fff 0 18deg, transparent 18deg 36deg);
+  -webkit-mask: radial-gradient(circle, #000 0 22%, transparent 22.5% 30%, #000 30.5% 62%, transparent 62.5% 70%, #000 70.5%);
+          mask: radial-gradient(circle, #000 0 22%, transparent 22.5% 30%, #000 30.5% 62%, transparent 62.5% 70%, #000 70.5%);
+}
+.archive-intro > * { position: relative; z-index: 1; }
+.archive-title { font-size: clamp(40px, 11vw, 80px) !important; letter-spacing: .01em !important; background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+.archive-title span { background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.filter-btn, .sort-btn { border-radius: 999px !important; font-family: Oswald, sans-serif; }
+.filter-btn[aria-pressed="true"] { color: #1a1200 !important; background: linear-gradient(180deg, #ffe58a, #e0a800) !important; border-color: #ffd24a !important; box-shadow: 0 0 12px rgba(255,210,74,.4); }
+.search-box { border-radius: 999px !important; background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02)) !important; border: 1px solid rgba(255,255,255,.14) !important; }
+.entry-panel {
+  border: 1px solid transparent !important; border-radius: 20px; overflow: hidden;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.06), rgba(20,17,30,.96) 40%, rgba(10,9,15,.98)) padding-box,
+    linear-gradient(160deg, rgba(255,210,74,.55), rgba(255,255,255,.08) 45%, rgba(168,85,247,.35)) border-box !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+.season-entry.is-live .entry-panel {
+  background:
+    linear-gradient(160deg, rgba(255,0,92,.18), rgba(20,17,30,.96) 45%, rgba(10,9,15,.98)) padding-box,
+    linear-gradient(160deg, rgba(255,0,92,.8), rgba(255,255,255,.08) 45%, rgba(255,0,92,.35)) border-box !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.4), 0 0 24px rgba(255,0,92,.18) !important;
+}
+.entry-marker i { width: 12px !important; height: 12px !important; border: 2px solid #ffd24a !important; background: #1a1200 !important; box-shadow: 0 0 10px rgba(255,210,74,.7); }
+.season-entry.is-live .entry-marker i { border-color: #ff005c !important; box-shadow: 0 0 12px #ff005c; }
+.summary-number { font-family: Oswald, sans-serif; color: #fff; text-shadow: 0 0 14px rgba(255,255,255,.25); }
+.summary-champion .summary-value, .gold-value { color: #ffd24a !important; text-shadow: 0 0 12px rgba(255,210,74,.45); }

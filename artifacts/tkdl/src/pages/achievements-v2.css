@@ -112,3 +112,42 @@
 .av2-feat .rw, .av2-show .rw { margin-top: 4px; font-size: 11px; color: #ffd24a; font-weight: 600; }
 .av2-reward-note { margin: 6px 0 10px; font-size: 12.5px; color: rgba(255,255,255,.7); }
 .av2-reward-note b { color: #6fe9ff; }
+
+/* ── Premium pass (2026-11-20): align with the app-wide premium kit ────────── */
+.av2-hero { border-radius: 0 0 24px 24px; }
+.av2-hero h1 { font-size: clamp(36px, 10vw, 48px); background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; }
+.av2 h2 {
+  font-size: 21px; letter-spacing: .06em; margin: 26px 2px 12px; padding-bottom: 8px;
+  background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, rgba(255,210,74,.6), transparent) 1;
+}
+.av2 h2 small { -webkit-text-fill-color: rgba(255,255,255,.55); }
+.av2-notice h2 { border: 0; padding: 0; margin-top: 0; }
+.av2-metals, .av2-near, .av2-card, .av2-recent .r {
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(160deg, rgba(255,255,255,.06), rgba(20,17,30,.96) 40%, rgba(10,9,15,.98)) padding-box,
+    linear-gradient(160deg, rgba(255,210,74,.55), rgba(255,255,255,.08) 45%, rgba(168,85,247,.4)) border-box !important;
+  box-shadow: 0 10px 24px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.av2-metals { border-radius: 18px; }
+.av2-metals .m b { font-family: Oswald, sans-serif; font-size: 18px; }
+.av2-near { border-radius: 18px; padding: 10px 14px; }
+.av2-near .t, .av2-season .row b, .av2-recent .n { font-family: Oswald, sans-serif; letter-spacing: .03em; text-transform: uppercase; font-weight: 600; }
+.av2-near { background:
+    linear-gradient(100deg, rgba(168,85,247,.22), rgba(20,17,30,.96) 50%) padding-box,
+    linear-gradient(160deg, rgba(168,85,247,.7), rgba(255,255,255,.08) 45%, rgba(255,210,74,.4)) border-box !important; }
+.av2-season.done { background:
+    linear-gradient(100deg, rgba(34,197,94,.18), rgba(20,17,30,.96) 50%) padding-box,
+    linear-gradient(160deg, rgba(34,197,94,.7), rgba(255,255,255,.08) 45%, rgba(34,197,94,.3)) border-box !important; }
+.av2-recent .r { border-radius: 18px; }
+.av2-bar { height: 6px !important; border-radius: 99px; }
+.av2-bar i { box-shadow: 0 0 8px currentColor; }
+.av2-tabs button { border-radius: 999px; font-family: Oswald, sans-serif; letter-spacing: .08em; padding: 8px 13px; }
+.av2-tabs button.on { background: linear-gradient(180deg, #ffe58a, #e0a800); border-color: #ffd24a; color: #1a1200; box-shadow: 0 0 12px rgba(255,210,74,.4); }
+.av2-cabinet { border-radius: 22px; border: 1px solid rgba(255,210,74,.25); box-shadow: inset 0 0 40px rgba(0,0,0,.6), 0 0 26px rgba(255,210,74,.08); }
+.av2-show { box-shadow: 0 16px 40px rgba(0,0,0,.5), 0 0 26px rgba(255,210,74,.15); }
+.av2-hero h1 { font-size: clamp(30px, 9vw, 46px); overflow-wrap: normal; word-break: normal; }
+.av2-recent .n { text-transform: none; letter-spacing: 0; font-family: Inter, system-ui, sans-serif; font-weight: 800; overflow-wrap: normal; word-break: normal; hyphens: none; }
+.av2 h2 { overflow-wrap: normal; word-break: normal; }
