@@ -651,23 +651,36 @@ const ICONS = {
   flame: (c, w) => { c.beginPath(); c.moveTo(.5 * w, .1 * w); c.bezierCurveTo(.85 * w, .45 * w, .78 * w, .9 * w, .5 * w, .9 * w); c.bezierCurveTo(.2 * w, .9 * w, .15 * w, .5 * w, .38 * w, .32 * w); c.bezierCurveTo(.38 * w, .5 * w, .46 * w, .55 * w, .5 * w, .1 * w); c.fill(); },
   skull: (c, w) => { c.beginPath(); c.arc(.5 * w, .44 * w, .26 * w, 0, 7); c.fill(); c.fillRect(.36 * w, .6 * w, .28 * w, .2 * w); c.fillStyle = "#000"; for (const x of [.4, .6]) { c.beginPath(); c.arc(x * w, .45 * w, .07 * w, 0, 7); c.fill(); } },
 };
-PIECES["feat-seal"] = { name: "", noPlinth: true, build(K, font, icon = "star") {
-  const g = new THREE.Group(); g.position.y = -0.2;
-  const gold = new THREE.MeshPhysicalMaterial({ color: 0xf2c25a, metalness: 1, roughness: 0.1, clearcoat: 0.4 });
-  // ribbon tails behind the seal
-  const rib = new THREE.Shape(); rib.moveTo(-0.14, 0); rib.lineTo(0.14, 0); rib.lineTo(0.14, -0.8); rib.lineTo(0, -0.66); rib.lineTo(-0.14, -0.8); rib.lineTo(-0.14, 0);
-  for (const s of [-1, 1]) { const r = extrude(rib, 0.015, K.enamel, 0.006); r.position.set(s * 0.17, 1.0, -0.08); r.rotation.z = s * 0.28; g.add(r); }
-  const seal = new THREE.Group(); seal.position.y = 1.15; g.add(seal);
-  // scalloped rosette rim, rope edge, enamel field and the relief icon
-  const ros = new THREE.Shape(); for (let i = 0; i <= 240; i++) { const a = i / 240 * Math.PI * 2, r = 0.55 + Math.sin(a * 24) * 0.025; i ? ros.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ros.moveTo(r, 0); }
-  seal.add(extrude(ros, 0.05, engrave(gold, sunburst(), 0.5), 0.015));
-  const rope = []; for (let i = 0; i <= 240; i++) { const a = i / 240 * Math.PI * 2, r = 0.44 + Math.sin(a * 50) * 0.006; rope.push([Math.cos(a) * r, Math.sin(a) * r, 0.045]); } seal.add(tube(rope, 0.018, gold, 480));
-  const tex = canvasTex(512, 512, (c, w) => { c.fillStyle = "#000"; c.fillRect(0, 0, w, w); c.fillStyle = "#fff"; (ICONS[icon] ?? ICONS.star)(c, w); });
+PIECES["feat-seal"] = { name: "", noPlinth: true, ry: -0.18, build(K, font, icon = "star") {
+  const g = new THREE.Group(); g.position.y = -0.3;
+  const gold = new THREE.MeshPhysicalMaterial({ color: 0xf2c35e, metalness: 1, roughness: 0.07, clearcoat: 0.7, clearcoatRoughness: 0.05 });
+  const frost = new THREE.MeshPhysicalMaterial({ color: 0xe0ad4a, metalness: 1, roughness: 0.45, bumpMap: sunburst(), bumpScale: 0.6 });
   const FIELD = { gem: 0x123a7a, pulse: 0x8a1020, broom: 0x0e4a2a, rocket: 0x3d1466, stairs: 0x6a3a10, stopwatch: 0x0f3f66, yinyang: 0x3d1466, first: 0x5a1020, flagpeak: 0x0e4a2a, crownskull: 0x111114, bird: 0x8a4a08, candle: 0x0b1840, weekend: 0x3d1466, tonup: 0x0e4a2a, shapes: 0x123a7a, hourglass: 0x6a3a10, fireworks: 0x111114, mask: 0x111114, trio: 0x0e4a2a, chain: 0x5a1020, pint: 0x6a3a10, rota: 0x123a7a, wolf: 0x222226, pair: 0x123a7a, sync: 0x3d1466, twostar: 0x5a1020, podium: 0x0e4a2a, card: 0x6a3a10, plusclock: 0x222226, chips: 0x111114, moonstar: 0x0b1840, rosette: 0x8a1020, skull: 0x1a1a1f, crown: 0x5a1020, up: 0x0e4a2a, spade: 0x111114, dice: 0x123a7a, swords: 0x5a1020, bounce: 0x0e4a2a, calendar: 0x123a7a, bolt: 0x3d1466, house: 0x6a3a10, shield: 0x123a7a, heart: 0x8a1020, vs: 0x5a1020, eye: 0x2a0a3a, king: 0x111114, flame: 0x7a2a08, anvil: 0x222226, one: 0x5a1020, max: 0x0e4a2a, hat: 0x3d1466, snow: 0x0f3f66, bubble: 0x123a7a, star: 0x5a1020, hundred: 0x0e4a2a, key: 0x6a3a10, seven: 0x3d1466, moon: 0x0b1840, sun: 0x8a4a08, clock: 0x222226, repeat: 0x0e4a2a, up2: 0x0e4a2a, tree: 0x0a4020, cat: 0x0a0a0c, bang: 0x8a1020, target: 0x5a1020, ticket: 0x0e4a2a, loop: 0x123a7a, trophy: 0x5a1020, rings: 0x3d1466, ton: 0x0e4a2a, fish: 0x0f3f66, ten: 0x7a2a08, torch: 0x7a2a08, nine: 0x111114, pillar: 0x123a7a, watch: 0x6a3a10 };
-  const fieldMat = K.enamel.clone(); if (FIELD[icon] !== undefined) fieldMat.color.setHex(FIELD[icon]); const field = new THREE.Mesh(new THREE.CircleGeometry(0.42, 128), fieldMat); field.position.z = 0.04; seal.add(field);
-  const relief = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62, 256, 256), new THREE.MeshPhysicalMaterial({ color: 0xf2c25a, metalness: 1, roughness: 0.12, alphaMap: tex, transparent: true, displacementMap: tex, displacementScale: 0.035, bumpMap: tex, bumpScale: 2 }));
-  relief.position.z = 0.045; seal.add(relief);
-  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; seal.add(at(ball(0.014, gold), Math.cos(a) * 0.5, Math.sin(a) * 0.5, 0.05)); }
+  const tint = new THREE.Color(FIELD[icon] ?? 0x5a1020);
+  const medal = new THREE.Group(); medal.position.y = 0.95; g.add(medal);
+  // thick body with a domed, rolled rim
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.12, 160), gold); body.rotation.x = Math.PI / 2; medal.add(body);
+  medal.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.565, 0.045, 32, 220), gold), 0, 0, 0.05));
+  // frosted sunburst field, polished inner bead ring and an enamel band carrying the colour
+  const field = new THREE.Mesh(new THREE.CircleGeometry(0.52, 160), frost); field.position.z = 0.062; medal.add(field);
+  const band = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.5, 160), new THREE.MeshPhysicalMaterial({ color: tint, roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.03 })); band.position.z = 0.066; medal.add(band);
+  medal.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.014, 16, 200), gold), 0, 0, 0.068));
+  medal.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.012, 16, 200), gold), 0, 0, 0.068));
+  for (let i = 0; i < 36; i++) { const a = i / 36 * Math.PI * 2; medal.add(at(ball(0.011, gold), Math.cos(a) * 0.45, Math.sin(a) * 0.45, 0.07)); }
+  const tex = canvasTex(512, 512, (c, w) => { c.fillStyle = "#000"; c.fillRect(0, 0, w, w); c.fillStyle = "#fff"; (ICONS[icon] ?? ICONS.star)(c, w); });
+  const relief = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.6, 256, 256), new THREE.MeshPhysicalMaterial({ color: 0xffd877, metalness: 1, roughness: 0.05, clearcoat: 0.8, alphaMap: tex, transparent: true, displacementMap: tex, displacementScale: 0.05, bumpMap: tex, bumpScale: 2.5 }));
+  relief.position.z = 0.07; medal.add(relief);
+  // bail and a wide woven neck ribbon rising in a V
+  medal.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.025, 16, 64), gold), 0, 0.64, 0));
+  const ribMat = (c) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.65, sheen: 1, sheenColor: new THREE.Color(0xffffff), sheenRoughness: 0.45, side: THREE.DoubleSide });
+  for (const sd of [-1, 1]) {
+    const strap = new THREE.Group(); strap.position.set(sd * 0.12, 1.55, -0.06); strap.rotation.z = -sd * 0.36; g.add(strap);
+    const w = 0.26, h = 0.95;
+    const parts = [[0x0c1430, w], [0xe2b04a, 0.03], [tint.getHex(), 0.06], [0xe2b04a, 0.03]];
+    strap.add(new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), ribMat(0x0c1430)));
+    for (const dx of [-0.03, 0.03]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.022, h, 0.022), ribMat(0xe2b04a)); st.position.x = dx * 1.6; strap.add(st); }
+    const mid = new THREE.Mesh(new THREE.BoxGeometry(0.05, h, 0.024), ribMat(tint.getHex())); strap.add(mid);
+  }
   return g; } };
 
 // ================================================================ new League tracks and the Grand Slam

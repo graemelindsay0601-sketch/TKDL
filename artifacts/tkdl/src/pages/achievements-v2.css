@@ -151,3 +151,8 @@
 .av2-hero h1 { font-size: clamp(30px, 9vw, 46px); overflow-wrap: normal; word-break: normal; }
 .av2-recent .n { text-transform: none; letter-spacing: 0; font-family: Inter, system-ui, sans-serif; font-weight: 800; overflow-wrap: normal; word-break: normal; hyphens: none; }
 .av2 h2 { overflow-wrap: normal; word-break: normal; }
+/* Recently earned: cards hug their content (no empty gap below the name), medal art a touch larger. */
+.av2-recent { align-items: flex-start; }
+.av2-recent .r { width: 124px; padding: 10px 8px 12px; }
+.av2-recent img { height: 108px; filter: drop-shadow(0 8px 10px rgba(0,0,0,.55)); }
+.av2-feat img { width: 66px; height: 80px; filter: drop-shadow(0 6px 8px rgba(0,0,0,.5)); }
