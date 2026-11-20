@@ -5,7 +5,7 @@ import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-cli
 import { useParams, Link } from "wouter";
 import { TierBadge } from "@/components/tier-badge";
 import { format } from "date-fns";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type CSSProperties } from "react";
 import { Trophy, Skull, Flame, ArrowLeft, ChevronDown, Zap, Dumbbell, CircuitBoard, X, MessageSquare, Sparkles, Building2, Pin, Layers, Users, Ghost, Calendar, Swords } from "lucide-react";
 import { useAuth } from "@/context/auth";
 import {
@@ -13,6 +13,7 @@ import {
   BigStat, StatPanel, ModeTile, TIER_GLOW, CollapsibleSection, ScorecardView, RARITY_COLORS,
 } from "./helpers";
 import { CategoryStatsEnhanced } from "@/components/stats";
+import { Chapter, PmCard, JumpBar, Glow, DartboardBackdrop, Ring, Bar, Dots, Tile } from "@/components/premium/Premium";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, taglineStyleCSS, playerCardFinish } from "@/lib/cosmetics";
 import { TrophyCase } from "@/components/TrophyCase";
 import { FeaturedStatBadge } from "@/components/FeaturedStatBadge";
@@ -73,6 +74,12 @@ function ActivityHeatmap({ days }: { days: { date: string; count: number }[] }) 
   );
 }
 
+const JUMP_ITEMS = [
+  { id: "pm-modes", label: "Modes" }, { id: "pm-season", label: "Season" }, { id: "pm-career", label: "Career" },
+  { id: "pm-matches", label: "Matches" }, { id: "pm-h2h", label: "Head to head" }, { id: "pm-practice", label: "Practice" },
+  { id: "pm-bot", label: "Bot" }, { id: "pm-stats", label: "Stats" }, { id: "pm-history", label: "History" }, { id: "pm-trophies", label: "Trophies" },
+];
+
 export default function PlayerDetail() {
   const params = useParams<{ id: string }>();
   const playerId = Number(params.id);
@@ -95,11 +102,10 @@ export default function PlayerDetail() {
   const v2Live = useAchievementsV2Status();
   const [openAchievements, setOpenAchievements] = useState(true);
 
-  const [profileTab, setProfileTab] = useState<"matches" | "h2h" | "practice" | "shadowbot" | "stats">("matches");
   const [expandedH2H, setExpandedH2H] = useState<number | null>(null);
   const [openSeasonHistory, setOpenSeasonHistory] = useState(true);
   const [openPractice, setOpenPractice] = useState(true);
-  const [openShadowBot, setOpenShadowBot] = useState(true);
+  const [openShadowBot, setOpenShadowBot] = useState(false);
   const [openTrophy, setOpenTrophy] = useState(true);
   const [openCareerJourney, setOpenCareerJourney] = useState(true);
 
@@ -460,6 +466,7 @@ export default function PlayerDetail() {
   };
 
   const streak = player.currentWinStreak ?? 0;
+  const seasonWinPct = (player.seasonGamesPlayed ?? 0) > 0 ? Math.round(((player.seasonWins ?? 0) / Math.max(1, player.seasonGamesPlayed ?? 1)) * 100) : 0;
   const lossStreak = player.currentLossStreak ?? 0;
   const equippedNameStyle = cosmeticsCatalog.find(c => c.id === (player as any).equippedNameStyleId);
   // Banner is the one cosmetic slot this page actually has room for — there's
@@ -479,8 +486,7 @@ export default function PlayerDetail() {
 
   return (
     <>
-    <div className="space-y-5 pb-8">
-      <div className="pdc-divider" />
+    <div className="pm-page space-y-5 pb-8">
 
       <div className="flex items-center justify-between">
         <Link href="/players" className="inline-flex items-center gap-1.5 text-xs hover:underline"
@@ -497,32 +503,24 @@ export default function PlayerDetail() {
         )}
       </div>
 
-      {/* ══ CINEMATIC HERO ══ */}
-      <div className="relative overflow-hidden rounded-2xl"
+      {/* ══ HERO ══ */}
+      <div className="relative overflow-hidden"
         style={{
+          borderRadius: 24,
+          border: `1px solid ${isEliminated ? "rgba(255,0,92,0.35)" : `${tierColor}44`}`,
           background: isEliminated
-            ? "linear-gradient(135deg, rgba(255,0,92,0.1) 0%, rgba(9,9,15,0.98) 60%)"
-            : `linear-gradient(135deg, ${tierColor}12 0%, rgba(9,9,15,0.98) 55%, rgba(0,102,255,0.05) 100%)`,
-          border: `1px solid ${isEliminated ? "rgba(255,0,92,0.25)" : `${tierColor}28`}`,
-          boxShadow: `0 0 60px ${isEliminated ? "rgba(255,0,92,0.08)" : `${tierColor}08`}`,
+            ? "linear-gradient(160deg, #2a0b16 0%, #12080e 45%, #06060b 100%)"
+            : `linear-gradient(160deg, ${tierColor}2e 0%, #14102a 42%, #06060b 100%)`,
+          boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 50px ${isEliminated ? "rgba(255,0,92,0.12)" : `${tierColor}14`}`,
           ...(isEliminated ? {} : bannerCSS(equippedBanner)),
         }}>
+        <Glow x="85%" y="12%" color={isEliminated ? "#ff005c" : tierColor} size={460} opacity={0.32} />
+        <Glow x="5%" y="65%" color="#a855f7" size={420} opacity={0.3} />
+        <Glow x="80%" y="105%" color="#ff005c" size={360} opacity={0.16} />
+        <DartboardBackdrop size={520} opacity={0.07} style={{ right: -190, top: -70, transform: "rotate(8deg)" }} />
+        <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.05, background: "repeating-linear-gradient(115deg,#fff 0 1px,transparent 1px 12px)" }} />
 
-        {/* Large rank watermark */}
-        {(stats as any).rank && (
-          <div className="absolute right-[-1.5rem] bottom-[-1rem] font-black pointer-events-none select-none leading-none"
-            style={{ fontFamily: "Oswald, sans-serif", fontSize: "min(20vw, 14rem)", color: `${tierColor}07`, zIndex: 0 }}>
-            #{(stats as any).rank}
-          </div>
-        )}
-
-        {/* Tier glow orb */}
-        <div className="absolute top-0 right-0 w-64 h-64 pointer-events-none"
-          style={{ background: `radial-gradient(circle at 80% 20%, ${tierColor}10, transparent 65%)`, zIndex: 0 }} />
-
-        {/* PLAYER_CARD_FINISH overlay — layered above the banner/tier glow,
-            below the actual content (zIndex 1). Each finish key gets its own
-            treatment; Holo/Prismatic sweep via .player-card-finish-shimmer. */}
+        {/* PLAYER_CARD_FINISH overlay — above the banner/backdrop, below the content. */}
         {finish && (
           <div
             className={`absolute inset-0 pointer-events-none ${finish.key === "holo" || finish.key === "prismatic" ? "player-card-finish-shimmer" : ""}`}
@@ -542,133 +540,110 @@ export default function PlayerDetail() {
           />
         )}
 
-        <div className="relative p-5 md:p-7" style={{ zIndex: 1 }}>
-          {/* Row 1: badges */}
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="relative p-5 md:p-7 flex flex-col gap-4" style={{ zIndex: 1 }}>
+          {/* Badges */}
+          <div className="flex items-center gap-2 flex-wrap">
             <TierBadge tier={tier} />
-            {identity.archetype && (
-              <span className="aura-badge text-xs" style={{ color: "rgba(255,255,255,0.45)", borderColor: "rgba(255,255,255,0.1)" }}>
-                {identity.archetype}
-              </span>
-            )}
-            {identity.aura && (
-              <span className="aura-badge text-xs" style={{ color: "#0066ff", borderColor: "rgba(0,102,255,0.3)", background: "rgba(0,102,255,0.06)" }}>
-                {identity.aura}
-              </span>
-            )}
+            {identity.archetype && <span className="pm-chip" style={{ color: "#e4e0f0", background: "rgba(0,0,0,.25)", borderColor: "rgba(255,255,255,.28)" }}>{identity.archetype}</span>}
+            {identity.aura && <span className="pm-chip" style={{ color: "#d6fbff", borderColor: "rgba(143,240,255,.6)", background: "linear-gradient(90deg, rgba(143,240,255,.25), rgba(143,240,255,.06))", boxShadow: "0 0 12px rgba(143,240,255,.3)" }}>{identity.aura}</span>}
             {isEliminated && (
-              <span className="aura-badge animate-pulse" style={{ color: "#ff005c", borderColor: "rgba(255,0,92,0.4)", background: "rgba(255,0,92,0.1)" }}>
-                <Skull className="w-3 h-3 inline mr-1" />ELIMINATED
+              <span className="pm-chip animate-pulse" style={{ color: "#ff5c8a", borderColor: "rgba(255,0,92,0.5)", background: "rgba(255,0,92,0.14)" }}>
+                <Skull className="w-3 h-3" />Eliminated
               </span>
             )}
           </div>
 
-          {/* Row 2: name + key stats */}
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-8">
-            <div className="flex-1 min-w-0">
-              {identity.title && (
-                <div className="text-sm mb-1" style={{ color: "rgba(255,210,74,0.7)", fontStyle: "italic" }}>
-                  "{identity.title}"
+          {/* Avatar + name */}
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="relative shrink-0" style={{ width: 96, height: 96 }}>
+              <div className="absolute pointer-events-none" style={{ inset: -8, borderRadius: "50%", background: `conic-gradient(from 0deg, transparent, ${tierColor}99, transparent 30%, #c4b5fd99, transparent 65%)`, filter: "blur(6px)" }} />
+              <div className="relative w-full h-full rounded-full" style={{ padding: 4, background: isEliminated ? "conic-gradient(from 200deg,#ff005c,#7a0f2e,#ff005c)" : `conic-gradient(from 200deg, ${tierColor}, #c4b5fd, ${tierColor}, #ffffff, ${tierColor})` }}>
+                <div className="w-full h-full rounded-full overflow-hidden flex items-center justify-center" style={{ background: "radial-gradient(circle at 35% 30%, #2f2850, #0f0d18)" }}>
+                  {(player as any).avatarUpdatedAt
+                    ? <img src={`/api/players/${player.id}/avatar-image?v=${encodeURIComponent((player as any).avatarUpdatedAt)}`} alt="" className="w-full h-full object-cover" />
+                    : <span className="pm-chrome" style={{ fontFamily: "Oswald, sans-serif", fontSize: 42, fontWeight: 700 }}>{player.name.slice(0, 1).toUpperCase()}</span>}
+                </div>
+              </div>
+              {(stats as any).rank && (
+                <div className="absolute flex items-center justify-center" style={{ right: -6, bottom: -2, width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(180deg,#ffe58a,#d99a00)", color: "#1a1200", fontFamily: "Oswald, sans-serif", fontSize: 14, border: "2px solid #0c0a12", boxShadow: "0 0 12px rgba(255,210,74,.6)" }}>
+                  #{(stats as any).rank}
                 </div>
               )}
-              <h1 className={`font-black uppercase leading-none mb-2 ${!isEliminated ? nameStyleClassName(equippedNameStyle) : ""}`}
-                style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2.2rem, 7vw, 4.5rem)", letterSpacing: "0.03em",
-                  color: isEliminated ? "#ff005c" : "#fff",
-                  textShadow: isEliminated ? "0 0 40px rgba(255,0,92,0.5)" : `0 0 40px ${tierColor}20`,
-                  // An eliminated player's red treatment communicates real game
-                  // state (see the colour/shadow above) — a cosmetic never
-                  // overrides that, only the normal in-play look.
+            </div>
+            <div className="min-w-0 flex-1">
+              {identity.title && (
+                <div className="pm-metal" style={{ fontFamily: "Oswald, sans-serif", fontStyle: "italic", fontSize: 17 }}>“{identity.title}”</div>
+              )}
+              <h1 className={`uppercase leading-none ${!isEliminated ? nameStyleClassName(equippedNameStyle) : ""} ${!isEliminated && !equippedNameStyle ? "pm-chrome" : ""}`}
+                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.4rem, 11vw, 4.6rem)", letterSpacing: "0.02em",
+                  overflowWrap: "anywhere",
+                  ...(isEliminated ? { color: "#ff005c", textShadow: "0 0 40px rgba(255,0,92,0.5)" } : { filter: "drop-shadow(0 4px 10px rgba(0,0,0,.6))" }),
+                  // An eliminated player's red treatment communicates real game state — a cosmetic never overrides it.
                   ...(isEliminated ? {} : nameStyleCSS(equippedNameStyle)) }}>
                 {player.name}
-                {streak >= 3 && <span className="ml-3 text-3xl animate-bounce inline-block">🔥</span>}
               </h1>
-
-              {/* Tagline — a short player-entered line (see account.tsx's
-                  editable version); previously only ever rendered on the
-                  owner's own account page, invisible here to everyone else
-                  looking the player up. */}
               {(player as any).tagline && (
-                <div className="mb-2" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem",
+                <div className="mt-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem",
                   letterSpacing: "0.06em", fontStyle: "italic", opacity: 0.9,
                   color: isEliminated ? "#ff005c" : tierColor, ...(isEliminated ? {} : taglineStyleCSS(equippedTaglineStyle)) }}>
                   "{(player as any).tagline}"
                 </div>
               )}
-
-              {/* Form strip */}
-              <FormStrip matches={recentMatches ?? []} playerId={player.id} />
-
-              {/* Prestige */}
               {identity.prestige && (
-                <div className="mt-2">
-                  <span className="aura-badge text-xs" style={{ color: "#ffd24a", borderColor: "rgba(255,210,74,0.3)", background: "rgba(255,210,74,0.06)" }}>
-                    ★ {identity.prestige}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Key 3 stats */}
-            <div className="flex items-center gap-4 sm:gap-6 shrink-0 py-2">
-              <BigStat value={player.points} label="Points" color={isEliminated ? "#ff005c" : "#ff005c"} />
-              <div className="w-px h-12 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} />
-              <BigStat value={player.elo} label="ELO" color="#0066ff" />
-              <div className="w-px h-12 rounded-full hidden sm:block" style={{ background: "rgba(255,255,255,0.08)" }} />
-              <div className="hidden sm:flex flex-col items-center">
-                <div className="font-black leading-none" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.4rem, 3vw, 2rem)" }}>
-                  <span style={{ color: "#22c55e" }}>{player.seasonWins ?? 0}</span>
-                  <span style={{ color: "rgba(255,255,255,0.18)" }}>-</span>
-                  <span style={{ color: "#ff005c" }}>{player.seasonLosses ?? 0}</span>
-                </div>
-                <div className="text-xs font-bold uppercase tracking-widest mt-1" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", fontSize: "0.58rem" }}>
-                  Season
-                </div>
-              </div>
-              <div className="w-px h-12 rounded-full hidden sm:block" style={{ background: "rgba(255,255,255,0.08)" }} />
-              <div className="hidden sm:flex">
-                <BigStat value={gamerscore?.total ?? 0} label="Gamerscore" color="#ffd24a" suffix="G" />
-              </div>
-              {playerCurrency && (
-                <>
-                  <div className="w-px h-12 rounded-full hidden sm:block" style={{ background: "rgba(255,255,255,0.08)" }} />
-                  <div className="hidden sm:flex">
-                    <BigStat value={playerCurrency.cardPoints ?? 0} label="Clash Coins" color="#00d9ff" suffix="₡" />
-                  </div>
-                </>
+                <div className="mt-2"><span className="pm-chip" style={{ color: "#ffd24a", borderColor: "rgba(255,210,74,0.4)", background: "rgba(255,210,74,0.08)" }}>★ {identity.prestige}</span></div>
               )}
             </div>
           </div>
 
-          {/* Streak alerts */}
+          <FormStrip matches={recentMatches ?? []} playerId={player.id} />
+
+          {/* Points and ELO plaques */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {([
+              { label: "Points", value: player.points, color: "#ff5c93", bg: "linear-gradient(180deg,#2a0f1d,#12080f)", sub: `Season ${player.seasonWins ?? 0}–${player.seasonLosses ?? 0}` },
+              { label: "ELO", value: player.elo, color: "#7fb4ff", bg: "linear-gradient(180deg,#0e1830,#080b14)", sub: `Peak ${player.careerPeakElo ?? player.elo}` },
+            ]).map(p => (
+              <div key={p.label} style={{ padding: 1, borderRadius: 16, background: `linear-gradient(140deg, ${p.color}, ${p.color}26 50%, ${p.color})` }}>
+                <div style={{ borderRadius: 15, padding: "12px 14px", background: p.bg }}>
+                  <span className="pm-lab">{p.label}</span>
+                  <BigStat value={p.value} label="" color={p.color} />
+                  <div style={{ fontSize: 11.5, color: "#a9a4bd", marginTop: 2 }}>{p.sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {(gamerscore?.total || playerCurrency) && (
+            <div className="flex gap-2 flex-wrap">
+              {gamerscore?.total ? <span className="pm-chip" style={{ color: "#ffe9a3", borderColor: "rgba(255,210,74,.45)", background: "rgba(255,210,74,.08)" }}>Gamerscore {gamerscore.total.toLocaleString("en-GB")}G</span> : null}
+              {playerCurrency && <span className="pm-chip" style={{ color: "#a5f3ff", borderColor: "rgba(0,217,255,.4)", background: "rgba(0,217,255,.08)" }}>{(playerCurrency.cardPoints ?? 0).toLocaleString("en-GB")} coins</span>}
+            </div>
+          )}
+
+          {/* Streak and nemesis */}
           {(streak >= 3 || lossStreak >= 3 || nemesis) && (
-            <div className="flex gap-2 mt-4 flex-wrap">
+            <div className="flex gap-2 flex-wrap">
               {streak >= 3 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
-                  style={{ background: "rgba(255,0,92,0.12)", border: "1px solid rgba(255,0,92,0.3)", color: "#ff005c", fontFamily: "Oswald, sans-serif" }}>
-                  <Flame className="w-4 h-4 streak-fire" />{streak}W STREAK — ON FIRE
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl" style={{ background: "linear-gradient(90deg, rgba(255,92,147,.3), rgba(255,92,147,.05))", border: "1px solid rgba(255,92,147,.5)", boxShadow: "0 0 16px rgba(255,92,147,.18)", color: "#ffd0df", fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <Flame className="w-4 h-4 streak-fire" style={{ color: "#ff7aa6" }} />{streak}-win streak
                 </div>
               )}
               {lossStreak >= 3 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
-                  style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.15)", color: "rgba(255,0,92,0.7)", fontFamily: "Oswald, sans-serif" }}>
-                  <Skull className="w-3.5 h-3.5" />{lossStreak}L STREAK — COLD RUN
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl" style={{ background: "linear-gradient(90deg, rgba(255,107,107,.2), rgba(255,107,107,.04))", border: "1px solid rgba(255,107,107,.4)", color: "#ffc2c2", fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <Skull className="w-3.5 h-3.5" />{lossStreak}-loss cold run
                 </div>
               )}
               {nemesis && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold"
-                  title={`${nemesis.winsAgainst}W–${nemesis.losses}L in this rivalry`}
-                  style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.3)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
-                  <Swords className="w-3.5 h-3.5" />NEMESIS: {nemesis.playerName} ({nemesis.losses}L)
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl" title={`${nemesis.winsAgainst}W–${nemesis.losses}L in this rivalry`}
+                  style={{ background: "linear-gradient(90deg, rgba(196,181,253,.28), rgba(196,181,253,.05))", border: "1px solid rgba(196,181,253,.5)", color: "#e7e0ff", fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  <Swords className="w-3.5 h-3.5" style={{ color: "#c4b5fd" }} />Nemesis: {nemesis.playerName} ({nemesis.losses}L)
                 </div>
               )}
             </div>
           )}
         </div>
-
-        {/* Bottom glow line */}
-        <div className="absolute bottom-0 left-0 right-0 h-px"
-          style={{ background: `linear-gradient(90deg, transparent, ${tierColor}40, transparent)` }} />
       </div>
+
+      <JumpBar items={JUMP_ITEMS} />
 
       <DartsLocker playerId={player.id} setup={(player as any).dartsSetup ?? null} editable={isOwnProfile} />
 
@@ -679,11 +654,8 @@ export default function PlayerDetail() {
           no data yet, so this page stays the full picture of a player
           whether you're looking at yourself or someone else. */}
       <div>
-        <div className="text-xs uppercase font-bold mb-2.5"
-          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
-          Game Modes
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        <Chapter title="Game modes" id="pm-modes" accent="#3ee0b4" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
           <ModeTile href="/master501" icon={<Zap className="w-3.5 h-3.5" />} accent="#00c8a0" label="Master-501">
             {master501 ? `Tier ${master501.currentTier} · Round ${master501.currentRound}` : "Not started"}
           </ModeTile>
@@ -718,45 +690,52 @@ export default function PlayerDetail() {
 
       {/* ══ ELO JOURNEY ══ */}
       {recentMatches && recentMatches.length >= 2 && (
-        <div className="pdc-card p-4">
-          <EloSparkline currentElo={player.elo} matches={recentMatches} playerId={player.id} />
+        <div>
+          <Chapter title="ELO journey" id="pm-elo" accent="#7fb4ff" />
+          <PmCard accent="#7fb4ff" className="p-4">
+            <EloSparkline currentElo={player.elo} matches={recentMatches} playerId={player.id} />
+          </PmCard>
         </div>
       )}
 
       {/* ══ SEASON STATS ══ */}
       <StatPanel
-        title="Current Season"
-        gridClass="grid-cols-3 sm:grid-cols-6"
+        title="This season"
+        id="pm-season"
+        accent="#4ade80"
+        cols={[3, 6]}
         stats={[
-          { label: "Wins",     value: player.seasonWins ?? 0,   accent: "#22c55e" },
-          { label: "Losses",   value: player.seasonLosses ?? 0, accent: "#ff005c" },
-          { label: "Played",   value: player.seasonGamesPlayed ?? 0 },
-          { label: "Win %",    value: (player.seasonGamesPlayed ?? 0) > 0 ? Math.round(((player.seasonWins ?? 0) / Math.max(1, player.seasonGamesPlayed ?? 1)) * 100) : 0, suffix: "%" },
-          { label: "W-Streak", value: streak,     accent: streak >= 3 ? "#ff005c" : undefined },
-          { label: "L-Streak", value: lossStreak, accent: lossStreak >= 3 ? "#ff005c" : undefined },
+          { label: "Wins",     value: player.seasonWins ?? 0,   accent: "#4ade80", viz: <Bar value={(player.seasonWins ?? 0) / Math.max(1, player.seasonGamesPlayed ?? 0)} color="#4ade80" /> },
+          { label: "Losses",   value: player.seasonLosses ?? 0, accent: "#ff6b6b", viz: <Bar value={(player.seasonLosses ?? 0) / Math.max(1, player.seasonGamesPlayed ?? 0)} color="#ff6b6b" /> },
+          { label: "Played",   value: player.seasonGamesPlayed ?? 0, viz: <Dots count={player.seasonGamesPlayed ?? 0} color="#e4e0f0" /> },
+          { label: "Win %",    value: seasonWinPct, suffix: "%", accent: "#ffd24a", viz: <Ring value={seasonWinPct / 100} color="#ffd24a" /> },
+          { label: "W-Streak", value: streak,     accent: "#4ade80", viz: <Dots count={streak} color="#4ade80" /> },
+          { label: "L-Streak", value: lossStreak, accent: "#ff6b6b", viz: <Dots count={lossStreak} color="#ff6b6b" /> },
         ]}
       />
 
       {/* ══ CAREER STATS ══ */}
       <StatPanel
         title="Career"
-        gridClass="grid-cols-4 sm:grid-cols-8"
+        id="pm-career"
+        accent="#7fb4ff"
+        cols={[4, 8]}
         stats={[
-          { label: "Wins",       value: player.careerWins ?? 0,   accent: "#22c55e" },
-          { label: "Losses",     value: player.careerLosses ?? 0, accent: "#ff005c" },
+          { label: "Wins",       value: player.careerWins ?? 0,   accent: "#4ade80", viz: <Bar value={(player.careerWins ?? 0) / Math.max(1, totalGames)} color="#4ade80" /> },
+          { label: "Losses",     value: player.careerLosses ?? 0, accent: "#ff6b6b", viz: <Bar value={(player.careerLosses ?? 0) / Math.max(1, totalGames)} color="#ff6b6b" /> },
           { label: "Played",     value: totalGames },
-          { label: "Win %",      value: winRate, suffix: "%", accent: winRate >= 60 ? "#ffd24a" : undefined },
-          { label: "Peak ELO",   value: player.careerPeakElo ?? player.elo, accent: "#0066ff" },
-          { label: "Career Pts", value: player.careerPoints ?? 0, accent: (player.careerPoints ?? 0) >= 0 ? "#22c55e" : "#ff005c" },
+          { label: "Win %",      value: winRate, suffix: "%", accent: "#ffd24a", viz: <Ring value={winRate / 100} color="#ffd24a" /> },
+          { label: "Peak ELO",   value: player.careerPeakElo ?? player.elo, accent: "#7fb4ff" },
+          { label: "Career Pts", value: player.careerPoints ?? 0, accent: (player.careerPoints ?? 0) >= 0 ? "#ff5c93" : "#ff6b6b" },
           { label: "Gamerscore", value: gamerscore?.total ?? 0, suffix: "G", accent: "#ffd24a" },
-          { label: "Best CO",    value: (practiceAgg as any)?.highest_checkout > 0 ? (practiceAgg as any).highest_checkout : null, accent: "#ff005c", placeholder: "—" },
+          { label: "Best CO",    value: (practiceAgg as any)?.highest_checkout > 0 ? (practiceAgg as any).highest_checkout : null, accent: "#ffd24a", placeholder: "—" },
         ]}
       />
 
       {/* ══ CAREER JOURNEY ══ */}
       {careerJourney.length > 0 && (
         <CollapsibleSection
-          title="Career Journey"
+          title="Career journey"
           icon={<Sparkles className="w-4 h-4" />}
           open={openCareerJourney}
           onToggle={() => setOpenCareerJourney(v => !v)}
@@ -833,7 +812,7 @@ export default function PlayerDetail() {
 
       {/* ══ HIGH CHECKOUTS ══ */}
       {((practiceAgg as any)?.highest_checkout > 0) && (
-        <div className="pdc-card overflow-hidden">
+        <div className="pm-card" style={{ ["--pm-acc" as string]: "#ffd24a" } as CSSProperties}>
           <button
             onClick={loadCheckouts}
             className="w-full flex items-center justify-between px-4 py-3 transition-all hover:bg-white/[0.03]"
@@ -912,99 +891,56 @@ export default function PlayerDetail() {
 
       {/* ══ RECENT MATCHES + H2H ══ */}
 
-      {/* Mobile tab switcher */}
-      <div className="lg:hidden flex rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-        {([
-          { key: "matches",  label: "Matches",  Icon: Zap,         activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
-          { key: "h2h",      label: "H2H",      Icon: Trophy,      activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
-          { key: "practice", label: "Practice", Icon: Dumbbell,    activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)"  },
-          { key: "shadowbot",label: "Bot",      Icon: CircuitBoard,activeColor: "#ff005c", activeBg: "rgba(255,0,92,0.12)"     },
-          { key: "stats",    label: "Stats",    Icon: Flame,       activeColor: "#ffd24a", activeBg: "rgba(255,210,74,0.12)"   },
-        ] as const).map(({ key, label, Icon, activeColor, activeBg }) => (
-          <button key={key} onClick={() => setProfileTab(key)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black uppercase tracking-widest transition-all"
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              letterSpacing: "0.1em",
-              background: profileTab === key ? activeBg : "rgba(255,255,255,0.02)",
-              color: profileTab === key ? activeColor : "rgba(255,255,255,0.35)",
-              borderBottom: profileTab === key ? `2px solid ${activeColor}` : "2px solid transparent",
-            }}>
-            <Icon className="w-3.5 h-3.5" />{label}
-          </button>
-        ))}
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Recent matches */}
-        <div className={`pdc-card overflow-hidden ${profileTab !== "matches" ? "hidden lg:block" : ""}`}>
-          <div className="px-4 py-3 border-b flex items-center justify-between"
-            style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Recent Matches
-            </h2>
-            <Zap className="w-3.5 h-3.5" style={{ color: "rgba(0,102,255,0.5)" }} />
-          </div>
+        <div className="min-w-0">
+          <Chapter title="Recent matches" id="pm-matches" accent="#4ade80" aside={<span className="pm-chip">Last {Math.min(8, recentMatches?.length ?? 0)}</span>} />
+          <PmCard accent="#4ade80">
           <div>
             {recentMatches?.slice(0, 8).map((m: any) => {
               const isWin = m.isWin !== undefined ? m.isWin : m.winnerId === player.id;
               const opponent = isWin ? m.loserName : m.winnerName;
               return (
-                <div key={m.id} className="px-4 py-3 flex items-center justify-between border-b hover:bg-white/[0.02] transition-colors"
-                  style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-1 h-8 rounded-full shrink-0" style={{ background: isWin ? "#22c55e" : "#ff005c" }} />
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="text-xs font-black uppercase tracking-wider"
-                          style={{ fontFamily: "Oswald, sans-serif", color: isWin ? "#22c55e" : "#ff005c", fontSize: "0.65rem" }}>
-                          {isWin ? "WIN" : "LOSS"}
-                        </div>
-                        {m.isTeamMatch && (
-                          <span className="text-xs font-black px-1 py-0.5 rounded" style={{ background: "rgba(0,200,150,0.12)", color: "#00c896", fontFamily: "Oswald, sans-serif", fontSize: "0.55rem" }}>TEAM</span>
-                        )}
-                      </div>
-                      <div className="text-sm font-bold truncate" style={{ color: "rgba(255,255,255,0.7)" }}>
-                        vs {opponent}
-                      </div>
-                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-                        {format(new Date(m.playedAt), "d MMM yy")}
-                      </div>
-                      {m.gameType && (
-                        <div className="text-xs italic truncate" style={{ color: "rgba(255,255,255,0.18)", maxWidth: "10rem" }}>
-                          {m.gameType}
-                        </div>
-                      )}
+                <div key={m.id} className="pm-row relative" style={{ background: `linear-gradient(90deg, ${isWin ? "rgba(74,222,128,.08)" : "rgba(255,107,107,.08)"}, transparent 45%)` }}>
+                  <i className="absolute left-0 rounded" style={{ top: 10, bottom: 10, width: 3, background: isWin ? "#4ade80" : "#ff6b6b", boxShadow: `0 0 10px ${isWin ? "#4ade80" : "#ff6b6b"}` }} />
+                  <div className="shrink-0 flex items-center justify-center" style={{ width: 46, height: 46, borderRadius: 13, fontFamily: "Oswald, sans-serif", fontSize: 12, letterSpacing: "0.12em", color: "#fff",
+                    background: `radial-gradient(circle at 30% 20%, ${isWin ? "rgba(74,222,128,.4)" : "rgba(255,107,107,.4)"}, ${isWin ? "rgba(74,222,128,.08)" : "rgba(255,107,107,.08)"})`,
+                    border: `1px solid ${isWin ? "rgba(74,222,128,.55)" : "rgba(255,107,107,.55)"}`, textShadow: `0 0 8px ${isWin ? "#4ade80" : "#ff6b6b"}` }}>
+                    {isWin ? "WIN" : "LOSS"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: 16, letterSpacing: "0.03em" }}>vs {opponent}</span>
+                      {m.isTeamMatch && <span className="pm-chip shrink-0" style={{ minHeight: 18, padding: "0 6px", fontSize: 9, color: "#7ff5d3", borderColor: "rgba(62,224,180,.4)", background: "rgba(62,224,180,.12)" }}>Team</span>}
+                    </div>
+                    <div className="truncate" style={{ fontSize: 12, color: "#a9a4bd", marginTop: 2 }}>
+                      {m.gameType ? `${m.gameType} · ` : ""}{format(new Date(m.playedAt), "d MMM yy")}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     {m.stake > 0 && (
-                      <div className="font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: isWin ? "#22c55e" : "#ff005c" }}>
-                        {isWin ? "+" : "-"}{m.stake}pts
+                      <div className="pm-num" style={{ fontSize: 18, color: isWin ? "#4ade80" : "#ff6b6b", textShadow: `0 0 10px ${isWin ? "rgba(74,222,128,.4)" : "rgba(255,107,107,.4)"}` }}>
+                        {isWin ? "+" : "−"}{m.stake} pts
                       </div>
                     )}
-                    <div className="text-xs font-mono" style={{ color: "rgba(0,102,255,0.55)" }}>
-                      {isWin ? "+" : "-"}{m.eloChange} ELO
+                    <div style={{ fontSize: 11, color: "#9cc6ff", marginTop: 2 }}>
+                      {isWin ? "+" : "−"}{m.eloChange} ELO
                     </div>
                   </div>
                 </div>
               );
             })}
             {(!recentMatches || recentMatches.length === 0) && (
-              <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>No matches yet</div>
+              <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>No matches yet</div>
             )}
           </div>
+          </PmCard>
         </div>
 
         {/* Head-to-head */}
-        <div className={`pdc-card overflow-hidden ${profileTab !== "h2h" ? "hidden lg:block" : ""}`}>
-          <div className="px-4 py-3 border-b flex items-center justify-between"
-            style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Head-to-Head
-            </h2>
-            <Trophy className="w-3.5 h-3.5" style={{ color: "rgba(255,210,74,0.5)" }} />
-          </div>
+        <div className="min-w-0">
+          <Chapter title="Head to head" id="pm-h2h" accent="#ff6b6b" aside={<span className="pm-chip">Most played</span>} />
+          <PmCard accent="#ff6b6b">
           <div>
             {headToHead.slice(0, 8).map((h: any) => {
               const total = h.wins + h.losses;
@@ -1105,42 +1041,24 @@ export default function PlayerDetail() {
               );
             })}
             {headToHead.length === 0 && (
-              <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>No match history</div>
+              <div className="px-4 py-8 text-center text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>No match history</div>
             )}
           </div>
+          </PmCard>
         </div>
       </div>
 
       {/* ══ PRACTICE STATS ══ */}
-      <div className={`pdc-card overflow-hidden ${profileTab !== "practice" ? "hidden lg:block" : ""}`}>
-        <div className="flex items-stretch"
-          style={{ borderBottom: openPractice ? "1px solid rgba(255,255,255,0.07)" : "none" }}>
-          <button
-            onClick={() => setOpenPractice(v => !v)}
-            className="flex-1 px-4 py-3 flex items-center gap-2 transition-colors hover:bg-white/[0.02] min-w-0">
-            <Dumbbell className="w-3.5 h-3.5 shrink-0" style={{ color: "rgba(167,139,250,0.5)" }} />
-            <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
-              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Practice Stats
-            </h2>
-            {practiceAgg && Number(practiceAgg.total_sessions) > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded-full font-bold mr-1"
-                style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa", fontFamily: "Oswald, sans-serif" }}>
-                {practiceAgg.total_sessions} sessions
-              </span>
-            )}
-            <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200"
-              style={{ color: "rgba(255,255,255,0.25)", transform: openPractice ? "rotate(180deg)" : "rotate(0deg)" }} />
-          </button>
-          <Link href={`/shadow-bot/${playerId}`}
-            className="flex items-center gap-1.5 px-3 transition-colors hover:bg-white/[0.03] shrink-0"
-            style={{ borderLeft: "1px solid rgba(255,255,255,0.06)" }}
-            title="My Shadow Bot">
-            <CircuitBoard className="w-3.5 h-3.5" style={{ color: "rgba(255,0,92,0.6)" }} />
-            <span className="text-xs font-black uppercase hidden md:inline"
-              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,0,92,0.6)", letterSpacing: "0.06em" }}>
-              My Bot
-            </span>
+      <div>
+      <Chapter title="Practice" id="pm-practice" accent="#ff5c93" onClick={() => setOpenPractice(v => !v)}
+        aside={<span className="flex items-center gap-2">
+          {practiceAgg && Number(practiceAgg.total_sessions) > 0 && <span className="pm-chip">{practiceAgg.total_sessions} sessions</span>}
+          <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-200" style={{ color: "rgba(255,255,255,0.45)", transform: openPractice ? "rotate(180deg)" : "rotate(0deg)" }} />
+        </span>} />
+      <PmCard accent="#ff5c93">
+        <div className="flex justify-end px-3 pt-3">
+          <Link href={`/shadow-bot/${playerId}`} className="pm-chip" style={{ color: "#ff8fb3", borderColor: "rgba(255,92,147,.45)" }} title="My Shadow Bot">
+            <CircuitBoard className="w-3.5 h-3.5" /> My bot
           </Link>
         </div>
 
@@ -1150,39 +1068,27 @@ export default function PlayerDetail() {
             {/* ── Row 1: core averages ── */}
             <div className="grid grid-cols-3 divide-x divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
               {[
-                { label: "3-Dart Avg",  value: practiceAgg.avg_three_dart,   color: "#a78bfa", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
-                { label: "Best Session Avg", value: practiceAgg.best_session_avg, color: "#c4b5fd", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
-                { label: "First 9 Avg", value: practiceAgg.visit_stats?.first9_avg, color: "#818cf8", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
+                { label: "3-Dart Avg",  value: practiceAgg.avg_three_dart,   color: "#ffd24a", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
+                { label: "Best session", value: practiceAgg.best_session_avg, color: "#ff8fb3", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
+                { label: "First 9 avg", value: practiceAgg.visit_stats?.first9_avg, color: "#c4b5fd", fmt: (v: number|null) => v != null ? Number(v).toFixed(1) : "—" },
               ].map(({ label, value, color, fmt }) => (
-                <div key={label} className="px-3 py-3 text-center">
-                  <div className="text-2xl font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", color }}>
-                    {fmt(value as any)}
-                  </div>
-                  <div className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.52rem" }}>
-                    {label}
-                  </div>
-                </div>
+                <Tile key={label} label={label} value={fmt(value as any)} color={color}
+                  viz={value != null ? <Bar value={Math.min(1, Number(value) / 100)} color={color} /> : undefined} />
               ))}
             </div>
 
             {/* ── Row 2: key counts ── */}
             <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y sm:divide-y-0 divide-white/[0.07]" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
               {[
-                { label: "Sessions",     value: practiceAgg.total_sessions ?? 0,   color: "rgba(255,255,255,0.6)", fmt: (v: number) => String(v) },
+                { label: "Sessions",     value: practiceAgg.total_sessions ?? 0,   color: "#e4e0f0", fmt: (v: number) => String(v) },
                 { label: "180s",         value: practiceAgg.total_180s ?? 0,        color: "#ffd24a",              fmt: (v: number) => String(v) },
                 { label: "140+",         value: practiceAgg.visit_stats?.v140 ?? 0, color: "#f97316",              fmt: (v: number) => String(v) },
                 { label: "100+",         value: practiceAgg.visit_stats?.v100 ?? 0, color: "#fb923c",              fmt: (v: number) => String(v) },
-                { label: "CO %",         value: practiceAgg.total_co_attempts > 0 ? Math.round((practiceAgg.total_co_hits / practiceAgg.total_co_attempts) * 100) : null, color: "#22c55e", fmt: (v: number|null) => v != null ? `${v}%` : "—" },
-                { label: "Best CO",      value: (practiceAgg as any).highest_checkout ?? 0, color: "#ff005c", fmt: (v: number) => v > 0 ? String(v) : "—" },
+                { label: "CO %",         value: practiceAgg.total_co_attempts > 0 ? Math.round((practiceAgg.total_co_hits / practiceAgg.total_co_attempts) * 100) : null, color: "#4ade80", fmt: (v: number|null) => v != null ? `${v}%` : "—" },
+                { label: "Best CO",      value: (practiceAgg as any).highest_checkout ?? 0, color: "#ffd24a", fmt: (v: number) => v > 0 ? String(v) : "—" },
               ].map(({ label, value, color, fmt }) => (
-                <div key={label} className="px-2 py-3 text-center">
-                  <div className="text-lg font-black tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", color }}>
-                    {fmt(value as any)}
-                  </div>
-                  <div className="text-xs mt-1 uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem" }}>
-                    {label}
-                  </div>
-                </div>
+                <Tile key={label} label={label} value={fmt(value as any)} color={color}
+                  viz={label === "CO %" && value != null ? <Ring value={Number(value) / 100} color={color} size={34} /> : undefined} />
               ))}
             </div>
 
@@ -1204,7 +1110,7 @@ export default function PlayerDetail() {
                 <div className="border-t px-4 py-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.52rem" }}>
-                      Visit Score Distribution
+                      Visit score distribution
                     </span>
                     <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
                       {total} visits · best {vs.best_visit ?? "—"}
@@ -1220,7 +1126,7 @@ export default function PlayerDetail() {
                             {b.label}
                           </span>
                           <div className="flex-1 h-4 rounded overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
-                            <div className="h-full rounded transition-all" style={{ width: `${barW}%`, background: b.color, opacity: 0.85 }} />
+                            <div className="h-full rounded transition-all" style={{ width: `${barW}%`, background: `linear-gradient(90deg, ${b.color}99, ${b.color})`, boxShadow: barW > 0 ? `0 0 10px ${b.color}66` : undefined }} />
                           </div>
                           <div className="shrink-0 flex gap-1.5 items-center" style={{ width: 52 }}>
                             <span className="text-xs font-black tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: b.color, fontSize: "0.65rem" }}>{b.val}</span>
@@ -1579,28 +1485,31 @@ export default function PlayerDetail() {
           <div className="px-4 py-10 text-center">
             <Dumbbell className="w-8 h-8 mx-auto mb-3 opacity-10" style={{ color: "#a78bfa" }} />
             <p className="text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>No practice sessions yet</p>
-            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.1)" }}>Complete a practice game to start tracking stats</p>
+            <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Complete a practice game to start tracking stats</p>
           </div>
         )}
         </>}
+      </PmCard>
       </div>
 
       {/* ══ SHADOW BOT ACHIEVEMENTS ══ */}
-      <div className={`pdc-card overflow-hidden ${profileTab !== "shadowbot" ? "hidden lg:block" : ""}`}>
+      <div>
+      <Chapter title="Bot achievements" id="pm-bot" accent="#4ade80" />
+      <div className="pm-card" style={{ ["--pm-acc" as string]: "#4ade80" } as CSSProperties}>
         <button className="w-full px-4 py-3 flex items-center justify-between" style={{ borderBottom: openShadowBot ? "1px solid rgba(255,255,255,0.07)" : undefined }} onClick={() => setOpenShadowBot(v => !v)}>
           <div className="flex items-center gap-2">
             <CircuitBoard className="w-3.5 h-3.5" style={{ color: "rgba(255,0,92,0.6)" }} />
-            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Bot Achievements
-            </h2>
+            <span style={{ fontFamily: "Oswald, sans-serif", fontSize: 14, letterSpacing: "0.06em", textTransform: "uppercase", color: "#e4e0f0" }}>
+              {openShadowBot ? "Hide list" : "Show all"}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {shadowAchs.length > 0 && (
               <>
-                <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
+                <span className="text-xs font-bold whitespace-nowrap" style={{ color: "#a9a4bd", fontFamily: "Oswald, sans-serif" }}>
                   {shadowAchs.filter(a => a.unlocked).length}/{shadowAchs.length}
                 </span>
-                <span className="text-xs font-black px-2 py-0.5 rounded" style={{ background: "rgba(255,210,74,0.12)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
+                <span className="text-xs px-2 py-0.5 rounded whitespace-nowrap" style={{ background: "rgba(255,210,74,0.12)", color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
                   {shadowAchs.filter(a => a.unlocked).reduce((s: number, a: any) => s + (a.gamerscore ?? 0), 0)}G
                 </span>
               </>
@@ -1676,20 +1585,14 @@ export default function PlayerDetail() {
           )}
         </div>
       </div>
+      </div>
 
       {/* Stats Tab */}
-      <div className={`pdc-card overflow-hidden ${profileTab !== "stats" ? "hidden lg:block" : ""}`} style={{ gridColumn: "1 / -1" }}>
-        <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-          <div className="flex items-center gap-2">
-            <Flame className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
-            <h2 className="font-bold uppercase text-sm tracking-wider" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-              Performance Stats
-            </h2>
-          </div>
-        </div>
-        <div className="p-4">
+      <div>
+        <Chapter title="Performance" id="pm-stats" accent="#ffd24a" />
+        <PmCard accent="#ffd24a" className="p-4">
           <CategoryStatsEnhanced playerId={playerId} />
-        </div>
+        </PmCard>
       </div>
 
 
@@ -1702,18 +1605,9 @@ export default function PlayerDetail() {
         const best = [...gameTypes].sort((a, b) => b.wins - a.wins || b.winRate - a.winRate)[0];
         const worst = [...gameTypes].filter(g => g.losses > g.wins).sort((a, b) => a.winRate - b.winRate)[0];
         return (
-          <div className="pdc-card overflow-hidden">
-            <div className="px-4 py-3 border-b flex items-center justify-between"
-              style={{ borderColor: "rgba(255,255,255,0.07)" }}>
-              <h2 className="font-bold uppercase text-sm tracking-wider"
-                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-                Format Stats
-              </h2>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(255,210,74,0.1)", color: "rgba(255,210,74,0.7)", border: "1px solid rgba(255,210,74,0.2)" }}>
-                {gameTypes.length} formats
-              </span>
-            </div>
+          <div>
+            <Chapter title="Format stats" accent="#7fb4ff" aside={<span className="pm-chip">{gameTypes.length} formats</span>} />
+            <div className="pm-card" style={{ ["--pm-acc" as string]: "#7fb4ff" } as CSSProperties}>
             <div>
               {gameTypes.map((g: any) => {
                 const isBest  = best  && g.gameType === best.gameType;
@@ -1773,6 +1667,7 @@ export default function PlayerDetail() {
                 );
               })}
             </div>
+            </div>
           </div>
         );
       })()}
@@ -1780,48 +1675,41 @@ export default function PlayerDetail() {
       {/* ══ SEASON HISTORY ══ */}
       {seasonHistory && seasonHistory.length > 0 && (
         <CollapsibleSection
-          title="Season History"
+          title="Season history"
+          id="pm-history"
           icon={<Trophy className="w-3.5 h-3.5" />}
           open={openSeasonHistory}
           onToggle={() => setOpenSeasonHistory(v => !v)}
           accentColor="#ffd24a"
           badge={`${seasonHistory.length} season${seasonHistory.length !== 1 ? "s" : ""}`}
         >
-          <div className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-            style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem 4.5rem", borderColor: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.22)", fontFamily: "Oswald, sans-serif" }}>
-            <div>Season</div><div className="text-center">Pos</div><div className="text-center">W-L</div><div className="text-right">ELO</div><div className="text-right">Pts</div><div />
-          </div>
-          {seasonHistory.map((s: any) => (
-            <div key={s.seasonId}
-              className="grid px-4 py-3 border-b items-center hover:bg-white/[0.02] transition-colors"
-              style={{ gridTemplateColumns: "1fr 4rem 5rem 4rem 5rem 4.5rem", borderColor: "rgba(255,255,255,0.04)" }}>
-              <div>
-                <Link href={`/seasons/${s.seasonId}`} className="text-sm font-semibold hover:underline"
-                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-                  {s.seasonName}
-                </Link>
-                {s.isChampion && <span className="ml-2 text-xs" style={{ color: "#ffd24a" }}>👑 Champion</span>}
-              </div>
-              <div className="text-center text-sm font-bold"
-                style={{ fontFamily: "Oswald, sans-serif", color: s.position === 1 ? "#ffd24a" : s.position <= 3 ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.3)" }}>
-                #{s.position}
-              </div>
-              <div className="text-center text-sm font-mono">
-                <span style={{ color: "#22c55e" }}>{s.wins}</span>
-                <span style={{ color: "rgba(255,255,255,0.2)" }}>-</span>
-                <span style={{ color: "#ff005c" }}>{s.losses}</span>
-              </div>
-              <div className="text-right text-sm font-mono" style={{ color: "#0066ff" }}>{s.elo}</div>
-              <div className="text-right font-bold text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>{s.points}pts</div>
-              <div className="text-right">
-                <button onClick={() => setRecapSeasonId(s.seasonId)}
-                  className="text-xs font-bold uppercase px-2 py-1 rounded-lg transition-colors hover:bg-white/[0.06]"
-                  style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          {/* One row per season: medal, name, record and ELO, points, recap. Fits a phone (the old six-column table didn't). */}
+          {seasonHistory.map((s: any) => {
+            const medal = s.position === 1 ? "linear-gradient(180deg,#ffe58a,#d99a00)" : s.position === 2 ? "linear-gradient(180deg,#ffffff,#9aa6bd)" : s.position === 3 ? "linear-gradient(180deg,#f0b27a,#9c5a2a)" : "linear-gradient(180deg,#3a3550,#1d1a2b)";
+            return (
+              <div key={s.seasonId} className="pm-row">
+                <div className="shrink-0 flex items-center justify-center" style={{ width: 42, height: 42, borderRadius: "50%", background: medal, color: s.position <= 3 ? "#141018" : "#e4e0f0", fontFamily: "Oswald, sans-serif", fontSize: 14, boxShadow: "0 0 12px rgba(255,255,255,.12)" }}>
+                  #{s.position}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Link href={`/seasons/${s.seasonId}`} className="truncate block hover:underline" style={{ fontFamily: "Oswald, sans-serif", fontSize: 15, color: "#fff" }}>
+                    {s.seasonName}{s.isChampion && <span style={{ color: "#ffd24a" }}> · 👑 Champion</span>}
+                  </Link>
+                  <div style={{ fontSize: 12, color: "#a9a4bd", marginTop: 2 }}>
+                    <span style={{ color: "#4ade80" }}>{s.wins}</span>–<span style={{ color: "#ff6b6b" }}>{s.losses}</span> · <span style={{ color: "#9cc6ff" }}>{s.elo} ELO</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="pm-num" style={{ fontSize: 18, color: "#ff7aa6" }}>{s.points}</div>
+                  <div className="pm-lab" style={{ fontSize: 8.5, justifyContent: "flex-end" }}>pts</div>
+                </div>
+                <button onClick={() => setRecapSeasonId(s.seasonId)} className="shrink-0"
+                  style={{ fontFamily: "Oswald, sans-serif", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase", color: "#ffd24a", border: "1px solid rgba(255,210,74,.4)", borderRadius: 999, padding: "7px 10px", minHeight: 32 }}>
                   Recap
                 </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </CollapsibleSection>
       )}
       {recapSeasonId != null && (
@@ -1829,15 +1717,15 @@ export default function PlayerDetail() {
       )}
 
       {/* ══ ACHIEVEMENTS (new) — shows only once live, or for an admin preview ══ */}
-      <AchievementsShelf playerId={playerId} />
+      <div id="pm-trophies" style={{ scrollMarginTop: 64 }}><AchievementsShelf playerId={playerId} /></div>
 
       {/* ══ ACHIEVEMENTS (the old badges; Classics once the new ones are live) ══ */}
       <div>
         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <div>
-              <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{v2Live ? "Classics" : "Achievements"}</h2>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
+              <h2 className="pm-metal uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 26, letterSpacing: "0.06em" }}>{v2Live ? "Classics" : "Achievements"}</h2>
+              <p className="text-xs mt-0.5" style={{ color: "#a9a4bd" }}>
                 <span style={{ color: "#ffd24a" }}>{unlockedCount}</span> unlocked ·{" "}
                 <span style={{ color: "#a855f7" }}>{closeCount}</span> within reach
               </p>
@@ -1952,14 +1840,13 @@ export default function PlayerDetail() {
         const totalG = tourTrophies.reduce((s: number, t: any) => s + (t.gamerscore ?? 0), 0);
 
         return (
-          <div className="pdc-card overflow-hidden">
+          <div className="pm-card" style={{ ["--pm-acc" as string]: "#ffd24a" } as CSSProperties}>
             <button className="w-full px-4 py-3 flex items-center gap-2" style={{ borderBottom: openTrophy ? "1px solid rgba(255,255,255,0.05)" : undefined }} onClick={() => setOpenTrophy(v => !v)}>
               <div style={{ background: "rgba(255,210,74,0.12)", borderRadius: "8px", padding: "6px" }}>
                 <Trophy className="w-4 h-4" style={{ color: "#ffd24a" }} />
               </div>
-              <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
-                style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-                Trophy Cabinet
+              <h2 className="pm-metal uppercase flex-1 text-left" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 18, letterSpacing: "0.06em" }}>
+                Tour trophies
               </h2>
               {tourTrophies.length > 0 && (
                 <span className="text-xs font-black px-2 py-0.5 rounded"

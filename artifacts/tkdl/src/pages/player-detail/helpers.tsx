@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
+import { Chapter, PmCard, Tile, TileGrid } from "@/components/premium/Premium";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { ChevronDown, CheckCircle, Pin } from "lucide-react";
@@ -31,12 +32,12 @@ export function FormStrip({ matches, playerId }: { matches: any[]; playerId: num
         const isWin = m.isWin !== undefined ? m.isWin : m.winnerId === playerId;
         return (
           <div key={i}
-            className="w-6 h-6 rounded flex items-center justify-center font-black"
+            className="w-6 h-6 rounded-md flex items-center justify-center"
             style={{
-              background: isWin ? "rgba(34,197,94,0.18)" : "rgba(255,0,92,0.18)",
-              border: `1px solid ${isWin ? "rgba(34,197,94,0.45)" : "rgba(255,0,92,0.45)"}`,
-              color: isWin ? "#22c55e" : "#ff005c",
-              fontFamily: "Oswald, sans-serif", fontSize: "0.6rem",
+              background: isWin ? "linear-gradient(180deg, rgba(74,222,128,.35), rgba(74,222,128,.08))" : "linear-gradient(180deg, rgba(255,107,107,.35), rgba(255,107,107,.08))",
+              border: `1px solid ${isWin ? "rgba(74,222,128,.6)" : "rgba(255,107,107,.6)"}`,
+              color: isWin ? "#b9ffd0" : "#ffc2c2", boxShadow: `0 0 8px ${isWin ? "rgba(74,222,128,.25)" : "rgba(255,107,107,.25)"}`,
+              fontFamily: "Oswald, sans-serif", fontSize: "0.68rem",
             }}>
             {isWin ? "W" : "L"}
           </div>
@@ -82,52 +83,48 @@ export function EloSparkline({ currentElo, matches, playerId }: { currentElo: nu
 
   if (pts.length < 2) return null;
 
-  const W = 300; const H = 80;
+  const W = 320; const H = 140;
   const lo = Math.min(...pts) - 15;
   const hi = Math.max(...pts) + 15;
   const rng = hi - lo || 100;
-
-  const coords = pts.map((v, i) => ({
-    x: (i / (pts.length - 1)) * W,
-    y: H - ((v - lo) / rng) * H,
-  }));
-
+  const coords = pts.map((v, i) => ({ x: (i / (pts.length - 1)) * W, y: 18 + (H - 24) - ((v - lo) / rng) * (H - 24) }));
   const path = coords.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
   const area = `${path} L ${W} ${H} L 0 ${H} Z`;
   const last = coords[coords.length - 1];
-  const trending = pts[pts.length - 1] >= pts[0];
-  const color = trending ? "#22c55e" : "#ff005c";
-  const uid = `sg-${playerId}`;
+  const change = pts[pts.length - 1] - pts[0];
   const minElo = Math.min(...pts);
   const maxElo = Math.max(...pts);
+  const peakIdx = pts.lastIndexOf(maxElo);
+  const peak = coords[peakIdx];
+  const uid = `sg-${playerId}`;
+  const line = "#9cc6ff";
 
   return (
     <div className="relative">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>
-          ELO Journey · {matchCount} matches
-        </span>
-        <span className="font-mono text-xs font-bold" style={{ color }}>
-          {trending ? "↑" : "↓"} {currentElo}
+      <div className="flex items-end justify-between">
+        <div>
+          <span className="pm-lab">Now · {matchCount} matches</span>
+          <span className="pm-num" style={{ fontSize: 40, color: line, textShadow: "0 0 18px rgba(127,180,255,.5)" }}>{currentElo}</span>
+        </div>
+        <span className="pm-chip" style={{ color: change >= 0 ? "#9dffbf" : "#ffb3b3", borderColor: change >= 0 ? "rgba(74,222,128,.45)" : "rgba(255,107,107,.45)", background: change >= 0 ? "rgba(74,222,128,.12)" : "rgba(255,107,107,.12)" }}>
+          {change >= 0 ? "↑" : "↓"} {Math.abs(change)} since start
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: 80, display: "block" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: 150, display: "block", marginTop: 10, overflow: "visible" }}>
         <defs>
           <linearGradient id={uid} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
+            <stop offset="0%" stopColor="#7fb4ff" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#7fb4ff" stopOpacity="0" />
           </linearGradient>
         </defs>
+        {[0.33, 0.66, 1].map(f => <path key={f} d={`M0 ${(H * f).toFixed(0)} H${W}`} stroke="rgba(255,255,255,.07)" strokeDasharray="3 5" vectorEffect="non-scaling-stroke" />)}
         <path d={area} fill={`url(#${uid})`} />
-        <path d={path} stroke={color} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        {coords.length <= 30 && coords.map((c, i) => (
-          <circle key={i} cx={c.x} cy={c.y} r="2" fill={color} opacity="0.35" />
-        ))}
-        <circle cx={last.x} cy={last.y} r="3.5" fill={color} style={{ filter: `drop-shadow(0 0 4px ${color})` }} />
+        <path d={path} stroke={line} strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" style={{ filter: "drop-shadow(0 0 6px #7fb4ff)" }} />
+        <circle cx={peak.x} cy={peak.y} r="4.5" fill="#ffd24a" style={{ filter: "drop-shadow(0 0 6px #ffd24a)" }} />
+        <circle cx={last.x} cy={last.y} r="3.5" fill={line} />
       </svg>
-      <div className="flex justify-between mt-0.5">
-        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>▼ {minElo}</span>
-        <span className="font-mono text-xs" style={{ color: "rgba(255,255,255,0.2)", fontSize: "0.58rem" }}>▲ {maxElo}</span>
+      <div className="flex justify-between mt-2" style={{ fontSize: 11, color: "#8b86a0" }}>
+        <span>Low {minElo}</span><span style={{ color: "#ffd24a" }}>Peak {maxElo}</span><span>Now {currentElo}</span>
       </div>
     </div>
   );
@@ -215,6 +212,7 @@ export function AchievementCard({
 // ── BigStat / SmallStat ────────────────────────────────────────────────────
 export function BigStat({ value, label, color, suffix = "" }: { value: number; label: string; color: string; suffix?: string }) {
   const animated = useCountUp(value);
+  if (!label) return <div className="pm-num tabular-nums" style={{ fontSize: 44, color, textShadow: `0 0 18px ${color}80`, marginTop: 2 }}>{animated}{suffix}</div>;
   return (
     <div className="flex flex-col items-center">
       <div className="font-black leading-none tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.8rem)", color, textShadow: `0 0 24px ${color}50` }}>
@@ -246,34 +244,19 @@ export function SmallStat({ value, label, accent, suffix = "", placeholder = "0"
 // ONE pdc-card with hairline dividers between cells instead of each number
 // getting its own full bordered/shadowed card. Cuts a page's worth of
 // repeated card chrome without touching a single colour or value.
-export type StatDef = { label: string; value: number | null; accent?: string; suffix?: string; placeholder?: string };
+export type StatDef = { label: string; value: number | null; accent?: string; suffix?: string; placeholder?: string; viz?: ReactNode; note?: ReactNode };
 
-function StatCell({ value, label, accent, suffix = "", placeholder = "0" }: StatDef) {
+function StatCell({ value, label, accent, suffix = "", placeholder = "0", viz, note }: StatDef) {
   const animated = useCountUp(value ?? 0);
-  return (
-    <div className="p-3 text-center" style={{ border: "1px solid rgba(255,255,255,0.06)", marginTop: "-1px", marginLeft: "-1px" }}>
-      <div className="text-xs uppercase tracking-widest mb-1.5 font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", fontSize: "0.58rem", letterSpacing: "0.15em" }}>
-        {label}
-      </div>
-      <div className="text-xl font-bold leading-none" style={{ fontFamily: "Oswald, sans-serif", color: value == null ? "rgba(255,255,255,0.2)" : (accent ?? "rgba(255,255,255,0.85)") }}>
-        {value == null ? placeholder : `${animated}${suffix}`}
-      </div>
-    </div>
-  );
+  return <Tile label={label} color={value == null ? "#6f6a82" : (accent ?? "#e4e0f0")} value={value == null ? placeholder : `${animated}${suffix}`} viz={viz} note={note} />;
 }
 
-export function StatPanel({ title, stats, gridClass = "grid-cols-3 sm:grid-cols-6" }: { title: string; stats: StatDef[]; gridClass?: string }) {
+/** A chapter of stat tiles. `cols` = [phone, wide]; gridClass is still accepted for older call sites. */
+export function StatPanel({ title, stats, cols = [3, 6], accent, id, aside }: { title: string; stats: StatDef[]; gridClass?: string; cols?: [number, number]; accent?: string; id?: string; aside?: ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase font-bold mb-2.5"
-        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.22)", letterSpacing: "0.15em" }}>
-        {title}
-      </div>
-      <div className="pdc-card" style={{ padding: 1, overflow: "hidden" }}>
-        <div className={`grid ${gridClass}`}>
-          {stats.map(s => <StatCell key={s.label} {...s} />)}
-        </div>
-      </div>
+      <Chapter title={title} accent={accent} id={id} aside={aside} />
+      <TileGrid cols={cols} accent={accent}>{stats.map(s => <StatCell key={s.label} {...s} />)}</TileGrid>
     </div>
   );
 }
@@ -290,18 +273,20 @@ export function ModeTile({ href, icon, label, accent, children }: {
 }) {
   return (
     <Link href={href}>
-      <div className="relative overflow-hidden rounded-xl px-3 py-3 cursor-pointer transition-all hover:-translate-y-0.5 h-full"
-        style={{ background: `${accent}0d`, border: `1px solid ${accent}33` }}>
-        <div className="flex items-center gap-2 mb-1.5">
+      <div className="relative overflow-hidden cursor-pointer transition-all hover:-translate-y-0.5 h-full"
+        style={{ padding: "13px 14px", borderRadius: 16, border: `1px solid ${accent}55`,
+          background: `radial-gradient(120% 90% at 100% 0%, ${accent}33, transparent 60%), linear-gradient(180deg, #17141f, #0d0b13)`,
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,.08), 0 10px 24px rgba(0,0,0,.35)" }}>
+        <div className="flex items-center gap-2 mb-2">
           <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: `${accent}1f`, color: accent, boxShadow: `0 0 12px ${accent}33` }}>
+            style={{ background: `${accent}26`, color: accent, boxShadow: `0 0 12px ${accent}44` }}>
             {icon}
           </div>
-          <div className="font-black uppercase text-xs leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.9)", letterSpacing: "0.03em" }}>
+          <div className="uppercase text-xs leading-tight" style={{ fontFamily: "Oswald, sans-serif", color: accent, letterSpacing: "0.14em" }}>
             {label}
           </div>
         </div>
-        <div className="text-xs" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", fontSize: "0.68rem" }}>
+        <div style={{ color: "#e4e0f0", fontFamily: "Oswald, sans-serif", fontSize: "0.95rem", letterSpacing: "0.02em", lineHeight: 1.25 }}>
           {children}
         </div>
       </div>
@@ -319,32 +304,21 @@ export const TIER_GLOW: Record<string, string> = {
 };
 
 // ── CollapsibleSection ─────────────────────────────────────────────────────
-export function CollapsibleSection({ title, icon, open, onToggle, badge, children, accentColor = "rgba(255,255,255,0.5)", extraHeader }: {
+export function CollapsibleSection({ title, icon, open, onToggle, badge, children, accentColor = "#ffd24a", extraHeader, id }: {
   title: string; icon: ReactNode; open: boolean; onToggle: () => void;
-  badge?: string; children: ReactNode; accentColor?: string; extraHeader?: ReactNode;
+  badge?: string; children: ReactNode; accentColor?: string; extraHeader?: ReactNode; id?: string;
 }) {
+  // accent for the chapter/card glow: only real colours (hex), else gold
+  const accent = /^#/.test(accentColor) ? accentColor : "#ffd24a";
   return (
-    <div className="pdc-card overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center gap-2 transition-colors hover:bg-white/[0.02]"
-        style={{ borderBottom: open ? "1px solid rgba(255,255,255,0.07)" : "none", cursor: "pointer" }}>
-        <span style={{ color: accentColor }}>{icon}</span>
-        <h2 className="font-bold uppercase text-sm tracking-wider flex-1 text-left"
-          style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-          {title}
-        </h2>
-        {badge && (
-          <span className="text-xs px-2 py-0.5 rounded-full font-bold"
-            style={{ background: `${accentColor}22`, color: accentColor, fontFamily: "Oswald, sans-serif" }}>
-            {badge}
-          </span>
-        )}
-        {extraHeader}
-        <ChevronDown className="w-4 h-4 shrink-0 transition-transform"
-          style={{ color: "rgba(255,255,255,0.25)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
-      </button>
-      {open && <div>{children}</div>}
+    <div>
+      <Chapter title={title} accent={accent} id={id} onClick={onToggle}
+        aside={<span className="flex items-center gap-2">
+          {badge && <span className="pm-chip">{badge}</span>}
+          {extraHeader}
+          <ChevronDown className="w-4 h-4 shrink-0 transition-transform" style={{ color: "rgba(255,255,255,0.45)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }} />
+        </span>} />
+      {open ? <PmCard accent={accent}>{children}</PmCard> : null}
     </div>
   );
 }
