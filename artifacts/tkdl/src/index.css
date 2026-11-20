@@ -3,6 +3,7 @@
 /* Geography contains no utility classes; don't scan its large path data. */
 @source not "./features/career/pages/world-land.svg";
 @import "./styles/viewport.css";
+@import "./styles/premium.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));

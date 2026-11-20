@@ -1,0 +1,56 @@
+/* ═══ Premium kit ════════════════════════════════════════════════════════
+   The "match night" finish: glowing-edge cards, chrome and gold lettering,
+   numbered chapters, stat tiles with small visuals. Accent colour per card
+   comes from --pm-acc (any CSS colour). Used by components/premium. */
+
+.pm-page { counter-reset: pm-ch; position: relative; }
+
+/* Card with a glowing gradient edge (single element: padding-box + border-box backgrounds). */
+.pm-card {
+  --pm-acc: #ffd24a;
+  position: relative; overflow: hidden; border-radius: 20px; border: 1px solid transparent;
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in srgb, var(--pm-acc) 13%, transparent), transparent 55%) padding-box,
+    linear-gradient(180deg, #17141f, #0c0a12) padding-box,
+    linear-gradient(140deg, color-mix(in srgb, var(--pm-acc) 70%, transparent) 0%, rgba(255,255,255,.1) 28%, rgba(255,255,255,.03) 60%, color-mix(in srgb, var(--pm-acc) 45%, transparent) 100%) border-box;
+  box-shadow: 0 14px 34px rgba(0,0,0,.5), 0 0 30px color-mix(in srgb, var(--pm-acc) 8%, transparent);
+}
+.pm-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent); pointer-events: none; }
+
+/* Chapter heading: auto-numbered, big outline number behind a gold title. */
+.pm-chapter { counter-increment: pm-ch; position: relative; display: flex; align-items: flex-end; gap: 10px; padding: 30px 4px 12px; }
+.pm-chapter::after { content: counter(pm-ch, decimal-leading-zero); position: absolute; right: 4px; top: -6px; font-family: Oswald, sans-serif; font-weight: 700; font-size: 88px; line-height: 1; color: transparent; -webkit-text-stroke: 1px color-mix(in srgb, var(--pm-acc, #ffd24a) 28%, transparent); pointer-events: none; }
+.pm-chapter .pm-kicker::after { content: "Chapter " counter(pm-ch, decimal-leading-zero); }
+.pm-chapter .pm-kicker { font-family: Oswald, sans-serif; font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: var(--pm-acc, #ffd24a); }
+.pm-chapter h2 { margin: 4px 0 0; font-family: Oswald, sans-serif; font-weight: 700; font-size: clamp(21px, 6.4vw, 26px); letter-spacing: .06em; text-transform: uppercase; line-height: 1.05; }
+.pm-chapter .pm-aside { position: relative; margin-left: auto; z-index: 1; }
+
+.pm-metal { background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pm-chrome { background: linear-gradient(180deg, #ffffff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pm-lab { font-family: Oswald, sans-serif; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: #a9a4bd; display: flex; align-items: center; gap: 6px; }
+.pm-num { font-family: Oswald, sans-serif; font-weight: 700; line-height: 1; }
+.pm-chip { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px; border-radius: 999px; font-family: Oswald, sans-serif; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); color: #cfcade; }
+.pm-hair { height: 1px; background: linear-gradient(90deg, transparent, rgba(255,210,74,.5), transparent); }
+
+/* Stat tiles grid: hairline dividers between tiles. */
+.pm-tiles { display: grid; }
+.pm-tile { position: relative; padding: 14px 12px 12px; display: flex; flex-direction: column; gap: 7px; min-width: 0; border-color: rgba(255,255,255,.07); }
+.pm-tile .pm-val { font-size: 30px; }
+
+/* Rows inside a card. */
+.pm-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.06); }
+.pm-row:first-child { border-top: 0; }
+
+/* Sticky chapter jump bar. */
+.pm-jump { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; padding: 10px 2px; overflow-x: auto; scrollbar-width: none; background: linear-gradient(180deg, rgba(14,12,22,.97), rgba(8,7,13,.95)); border-bottom: 1px solid rgba(255,210,74,.18); backdrop-filter: blur(10px); }
+.pm-jump::-webkit-scrollbar { display: none; }
+.pm-jump button { flex: none; height: 32px; padding: 0 13px; border-radius: 999px; font-family: Oswald, sans-serif; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: #cfcade; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); cursor: pointer; }
+.pm-jump button.on { background: linear-gradient(180deg, #ffe58a, #e0a800); color: #1a1200; border-color: #ffd24a; box-shadow: 0 0 14px rgba(255,210,74,.45); }
+
+/* Hero backdrop. */
+.pm-glow { position: absolute; border-radius: 50%; pointer-events: none; }
+
+/* Dense grids (4+ columns on a phone): smaller labels and numbers so nothing wraps mid-word. */
+.pm-tiles.dense .pm-tile { padding: 12px 8px 10px; gap: 6px; }
+.pm-tiles.dense .pm-lab { font-size: 8.5px; letter-spacing: .12em; white-space: nowrap; }
+.pm-tiles.dense .pm-val { font-size: 23px; white-space: nowrap; }

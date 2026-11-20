@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Chapter } from "@/components/premium/Premium";
 import { Link } from "wouter";
 import { InspectSheet, type InspectItem } from "./InspectSheet";
 import { useAchievementsV2, METALS, METAL_NAME, fmt, type Metal } from "./api";
@@ -20,10 +21,7 @@ export function AchievementsShelf({ playerId }: { playerId: number }) {
   const feats = v.areas.flatMap(a => a.feats.filter(f => f.earnedAt && !f.showpiece)).sort((a, b) => (b.earnedAt ?? "").localeCompare(a.earnedAt ?? "")).slice(0, 4);
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-        <h2 className="text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Trophy cabinet</h2>
-        <div style={{ fontSize: 12 }}><b style={{ color: "#ffd24a" }}>{fmt(v.score)}</b> <span style={{ color: "rgba(255,255,255,.45)" }}>points{data.preview ? " · admin preview" : ""}</span></div>
-      </div>
+      <Chapter title="Trophy cabinet" accent="#ffd24a" aside={<span className="pm-chip" style={{ color: "#ffe9a3", borderColor: "rgba(255,210,74,.45)" }}>{fmt(v.score)} pts{data.preview ? " · preview" : ""}</span>} />
       <div style={{ position: "relative", borderRadius: 18, padding: "14px 12px 0", overflow: "hidden", background: "linear-gradient(180deg,#221830,#100b18)",
         border: "1px solid rgba(255,210,74,.22)", boxShadow: "inset 0 0 50px rgba(0,0,0,.6), 0 0 30px rgba(255,210,74,.06)" }}>
         <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: "60%", background: "linear-gradient(180deg,rgba(255,255,255,.06),transparent)", pointerEvents: "none" }} />
