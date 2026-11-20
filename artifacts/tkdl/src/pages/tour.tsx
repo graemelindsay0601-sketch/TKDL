@@ -1,3 +1,4 @@
+import { PageHero, Chapter, PmCard } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useCurrentPlayer } from "@/context/auth";
@@ -190,171 +191,108 @@ export default function Tour() {
         </div>
       )}
 
-      {/* ── HERO / SALES PITCH ── */}
-      <div className="relative overflow-hidden rounded-2xl"
-        style={{ background: "linear-gradient(135deg, rgba(255,0,92,0.12) 0%, rgba(192,132,252,0.08) 50%, rgba(255,210,74,0.04) 100%)", border: "1px solid rgba(255,0,92,0.28)" }}>
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div style={{ position: "absolute", top: -80, right: -60, width: 300, height: 300, background: "radial-gradient(circle, rgba(255,0,92,0.22) 0%, transparent 65%)" }} />
-          <div style={{ position: "absolute", bottom: -50, left: -50, width: 220, height: 220, background: "radial-gradient(circle, rgba(192,132,252,0.15) 0%, transparent 65%)" }} />
-          <div style={{ position: "absolute", top: "40%", left: "40%", width: 160, height: 160, background: "radial-gradient(circle, rgba(255,210,74,0.06) 0%, transparent 65%)" }} />
+      {/* ── HERO ── */}
+      <PageHero kicker="TKDL Tour Mode" icon={<Crown className="w-3.5 h-3.5" />} accent="#ff005c" accent2="#ffd24a"
+        title={<>From the pub oche <span style={{ WebkitTextFillColor: "#ff2f72", textShadow: "0 0 24px rgba(255,0,92,.55)" }}>to Ally Pally.</span></>}
+        sub={<>61 events across 6 tiers — back-street pub nights to PDC Major glory. Collect trophies, earn your <b style={{ color: "#ffd24a" }}>PDC Tour Card</b>, then beat the best in the world.</>}>
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { v: "305", l: "Trophies", c: "#ffd24a" },
+            { v: "61", l: "Events", c: "#ff7aa6" },
+            { v: "5", l: "Difficulties", c: "#4ade80" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
+            </div>
+          ))}
         </div>
-        <div className="relative p-5 md:p-7">
-          <div className="flex items-center gap-2 mb-3">
-            <Crown className="w-3.5 h-3.5 fill-current" style={{ color: "#ff005c" }} />
-            <span className="text-xs font-black uppercase tracking-widest" style={{ color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.22em" }}>
-              TKDL TOUR MODE
-            </span>
-          </div>
-          <h1 className="pm-title font-black uppercase leading-none mb-1"
-            style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2rem, 5.5vw, 3.4rem)", letterSpacing: "0.06em", color: "#fff" }}>
-            FROM THE PUB OCHE<br /><span style={{ color: "#ff005c" }}>TO ALLY PALLY.</span>
-          </h1>
-          <p className="mt-3 text-sm leading-relaxed mb-5 max-w-xl" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "Oswald, sans-serif" }}>
-            Every darts career starts on a dodgy oche with a warm pint nearby. Yours starts here.
-            Grind through 61 events across 6 tiers — from back-street pub nights to PDC Major glory.
-            Unlock higher tiers. Collect trophies. Earn your <span style={{ color: "#ffd24a", fontWeight: 900 }}>PDC Tour Card</span>.
-            Then beat the best in the world.
-          </p>
 
-          {/* Feature grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 mb-5">
-            {[
-              { icon: <Trophy className="w-3.5 h-3.5" />,  color: "#ffd24a", title: "305 Trophies",    desc: "5 difficulties per event" },
-              { icon: <Zap className="w-3.5 h-3.5" />,     color: "#ff005c", title: "61 Events",       desc: "Knockout + Premier League" },
-              { icon: <Crown className="w-3.5 h-3.5" />,   color: "#c084fc", title: "PDC Majors",      desc: "Tier 6 — invite-only glory" },
-              { icon: <Target className="w-3.5 h-3.5" />,  color: "#38bdf8", title: "Tour Card",       desc: "Win any Q-School event" },
-              { icon: <Flame className="w-3.5 h-3.5" />,   color: "#4ade80", title: "5 Difficulties",  desc: "Amateur to Elite bots" },
-              { icon: <Star className="w-3.5 h-3.5 fill-current" />, color: "#ffd24a", title: "Gamerscore",     desc: "Every trophy counts" },
-            ].map(f => (
-              <div key={f.title} className="flex items-start gap-2 px-3 py-2.5 rounded-xl"
-                style={{ background: `${f.color}0d`, border: `1px solid ${f.color}25` }}>
-                <div className="shrink-0 mt-0.5" style={{ color: f.color }}>{f.icon}</div>
-                <div>
-                  <div className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: f.color, fontSize: "0.62rem", letterSpacing: "0.08em" }}>{f.title}</div>
-                  <div style={{ color: "rgba(255,255,255,0.32)", fontSize: "0.6rem" }}>{f.desc}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Tier roadmap */}
-          <div className="flex items-center gap-1.5 flex-wrap mb-5">
+        {/* Tier roadmap */}
+        <div className="mt-4 rounded-2xl p-3" style={{ background: "rgba(0,0,0,.25)", border: "1px solid rgba(255,255,255,.08)" }}>
+          <div className="pm-lab mb-2.5" style={{ fontSize: 9 }}>The road to the Majors</div>
+          <div className="grid grid-cols-6 gap-1.5">
             {TIERS.map((t, i) => (
-              <div key={t.num} className="flex items-center gap-1.5">
-                <div className="px-2 py-1 rounded-lg text-xs font-black uppercase"
-                  style={{ background: `${t.color}15`, border: `1px solid ${t.color}35`, color: t.color, fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.07em" }}>
-                  T{t.num} {t.label}
-                </div>
-                {i < TIERS.length - 1 && <ChevronRight className="w-3 h-3 shrink-0" style={{ color: "rgba(255,255,255,0.15)" }} />}
+              <div key={t.num} className="flex flex-col items-center min-w-0 text-center">
+                <div className="rounded-md w-full" style={{ height: 6 + i * 4, marginTop: 20 - i * 4, background: `linear-gradient(180deg, ${t.color}, ${t.color}33)`, boxShadow: `0 0 8px ${t.color}66` }} />
+                <span className="mt-1.5 tabular-nums" style={{ fontFamily: "Oswald, sans-serif", fontSize: 11, color: t.color }}>T{t.num}</span>
+                <span className="leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: 8, letterSpacing: ".02em", textTransform: "uppercase", color: "#a9a4bd" }}>{t.label}</span>
               </div>
             ))}
           </div>
+        </div>
 
-          {/* Progress bar + player selector */}
+        {/* Player selector + progress */}
+        <div className="mt-4">
+          <div className="pm-lab mb-2" style={{ fontSize: 9 }}>Select player</div>
+          <div className="flex flex-wrap gap-1.5">
+            {players.map(p => (
+              <button key={p.id} onClick={() => setSelectedPlayerId(p.id)}
+                className="px-3 py-1.5 rounded-full text-xs uppercase transition-all"
+                style={{
+                  fontFamily: "Oswald, sans-serif", letterSpacing: ".06em",
+                  background: selectedPlayerId === p.id ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "rgba(255,255,255,0.06)",
+                  color: selectedPlayerId === p.id ? "#1a1200" : "#cfcade",
+                  border: `1px solid ${selectedPlayerId === p.id ? "#ffd24a" : "rgba(255,255,255,0.12)"}`,
+                  boxShadow: selectedPlayerId === p.id ? "0 0 12px rgba(255,210,74,.4)" : undefined,
+                  cursor: "pointer",
+                }}>
+                {p.name}
+              </button>
+            ))}
+          </div>
           {selectedPlayer && totalPossible > 0 && totalTrophies > 0 && (
-            <div className="mb-4">
+            <div className="mt-3">
               <div className="flex justify-between text-xs mb-1.5" style={{ fontFamily: "Oswald, sans-serif" }}>
-                <span style={{ color: "rgba(255,255,255,0.4)" }}>{selectedPlayer.name}'s career progress</span>
+                <span style={{ color: "#a9a4bd" }}>{selectedPlayer.name}'s career</span>
                 <span style={{ color: "#ffd24a" }}>{totalTrophies} / {totalPossible} trophies</span>
               </div>
-              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-                <div className="h-full rounded-full transition-all"
-                  style={{ width: `${Math.round((totalTrophies / totalPossible) * 100)}%`, background: "linear-gradient(90deg, #ff005c, #c084fc, #ffd24a)" }} />
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${Math.round((totalTrophies / totalPossible) * 100)}%`, background: "linear-gradient(90deg, #ff005c, #c084fc, #ffd24a)", boxShadow: "0 0 10px rgba(255,210,74,.5)" }} />
               </div>
             </div>
           )}
-          <div>
-            <div className="text-xs font-black uppercase tracking-widest mb-2" style={{ color: "rgba(255,255,255,0.28)", fontFamily: "Oswald, sans-serif", letterSpacing: "0.18em" }}>
-              Select Player
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {players.map(p => (
-                <button key={p.id} onClick={() => setSelectedPlayerId(p.id)}
-                  className="px-3 py-1.5 rounded-lg text-sm font-bold transition-all"
-                  style={{
-                    fontFamily: "Oswald, sans-serif",
-                    background: selectedPlayerId === p.id ? "#ff005c" : "rgba(255,255,255,0.07)",
-                    color: selectedPlayerId === p.id ? "#fff" : "rgba(255,255,255,0.5)",
-                    border: `1px solid ${selectedPlayerId === p.id ? "#ff005c" : "rgba(255,255,255,0.1)"}`,
-                    cursor: "pointer",
-                  }}>
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
-      </div>
+      </PageHero>
 
       {/* ── TOUR LEADERBOARD ── */}
-      <div className="pdc-card overflow-hidden">
-        <div className="px-4 py-2.5 border-b flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          <div className="flex items-center gap-2">
-            <Trophy className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
-            <span className="font-black uppercase tracking-widest text-xs" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.5)", fontSize: "0.6rem", letterSpacing: "0.15em" }}>
-              TROPHY LEADERBOARD
-            </span>
+      <Chapter title="Trophy leaderboard" accent="#ffd24a" aside={<span className="pm-chip">Most trophies</span>} />
+      {tourLb.filter(r => r.totalTrophies > 0).length === 0 ? (
+        <PmCard accent="#ffd24a">
+          <div className="px-4 py-8 text-center">
+            <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center" style={{ background: "radial-gradient(circle at 35% 30%, rgba(255,210,74,.4), #0d0b14 75%)", border: "1px solid rgba(255,210,74,.6)", boxShadow: "0 0 18px rgba(255,210,74,.35)" }}><Trophy className="w-6 h-6" style={{ color: "#ffd24a" }} /></div>
+            <div className="pm-chrome uppercase mt-3" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 20 }}>No trophies yet</div>
+            <div className="text-sm" style={{ color: "#a9a4bd" }}>Complete your first tour event to get on the board</div>
           </div>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif", fontSize: "0.58rem" }}>Most trophies won</span>
-        </div>
-        {tourLb.filter(r => r.totalTrophies > 0).length === 0 ? (
-          <div className="px-4 py-8 text-center space-y-2">
-            <div className="text-3xl">🏆</div>
-            <div className="font-black uppercase text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>No trophies yet</div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>Complete your first tour event to get on the board</div>
-          </div>
-        ) : (
-          <div>
-            {tourLb.filter(r => r.totalTrophies > 0).slice(0, 6).map((row: any, idx: number) => {
-              // #c0c8d8 for 2nd, not #94a3b8 -- matches the #1/#2/#3 podium
-              // colors used everywhere else in the app (dashboard.tsx,
-              // season-detail.tsx, leaderboard.tsx), per a 2026-09-25
-              // visual-consistency pass.
-              const POS_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
-              const posColor   = POS_COLORS[idx] ?? "rgba(255,255,255,0.2)";
-              const highestTierMeta = row.highestTier > 0 ? TIERS[(row.highestTier - 1) as number] : null;
-              return (
-                <div key={row.playerId} className="px-4 py-2.5 border-b flex items-center gap-3"
-                  style={{ borderColor: "rgba(255,255,255,0.04)", background: idx === 0 ? "rgba(255,0,92,0.04)" : undefined }}>
-                  <span className="font-black text-sm w-5 shrink-0 text-center"
-                    style={{ fontFamily: "Oswald, sans-serif", color: posColor, fontSize: idx < 3 ? "0.85rem" : "0.7rem" }}>
-                    {idx < 3 ? ["🥇","🥈","🥉"][idx] : idx + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <span className="font-black uppercase text-sm" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.8)" }}>
-                      {row.playerName}
-                    </span>
-                    {highestTierMeta && (
-                      <div className="mt-0.5">
-                        <span className="text-xs px-1.5 py-0.5 rounded font-black uppercase"
-                          style={{ background: `${highestTierMeta.color}18`, color: highestTierMeta.color, border: `1px solid ${highestTierMeta.color}30`, fontFamily: "Oswald, sans-serif", fontSize: "0.55rem", letterSpacing: "0.08em" }}>
-                          T{row.highestTier} {highestTierMeta.label}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-center">
-                      <div className="font-black text-base tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", lineHeight: 1 }}>{row.totalTrophies}</div>
-                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem" }}>TROPHIES</div>
-                    </div>
-                    {row.eliteWins > 0 && (
-                      <div className="text-center">
-                        <div className="font-black text-base tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", lineHeight: 1 }}>{row.eliteWins}</div>
-                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem" }}>ELITE</div>
-                      </div>
-                    )}
-                    <div className="text-center hidden sm:block">
-                      <div className="font-black text-base tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#c084fc", lineHeight: 1 }}>{row.uniqueTours}</div>
-                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif", fontSize: "0.5rem" }}>EVENTS</div>
-                    </div>
+        </PmCard>
+      ) : (
+        <div className="space-y-2">
+          {tourLb.filter(r => r.totalTrophies > 0).slice(0, 6).map((row: any, idx: number) => {
+            const highestTierMeta = row.highestTier > 0 ? TIERS[(row.highestTier - 1) as number] : null;
+            const medal = ["linear-gradient(180deg,#ffe58a,#d99a00)", "linear-gradient(180deg,#ffffff,#9aa6bd)", "linear-gradient(180deg,#f0b27a,#9c5a2a)"][idx];
+            const pc = ["#ffd24a", "#c0c8d8", "#cd7f32"][idx];
+            return (
+              <div key={row.playerId} className="pm-lbrow flex items-center gap-3 rounded-2xl px-3 py-3"
+                style={{ background: idx < 3 ? `linear-gradient(90deg, ${pc}26, rgba(23,20,31,.95) 50%, rgba(12,10,18,.97))` : undefined, borderColor: idx < 3 ? `${pc}66` : undefined }}>
+                <div className="shrink-0 flex items-center justify-center rounded-full" style={{ width: 38, height: 38, background: medal ?? "linear-gradient(180deg,#3a3550,#1d1a2b)", color: medal ? "#141018" : "#e4e0f0", fontFamily: "Oswald, sans-serif", fontSize: 15, boxShadow: medal ? `0 0 14px ${pc}66` : "inset 0 1px 0 rgba(255,255,255,.1)" }}>{idx + 1}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: 16, letterSpacing: ".03em", color: "#fff" }}>{row.playerName}</div>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {highestTierMeta && <span className="pm-chip" style={{ fontSize: 9, padding: "2px 7px", color: highestTierMeta.color, borderColor: `${highestTierMeta.color}66`, background: `${highestTierMeta.color}14` }}>T{row.highestTier} {highestTierMeta.label}</span>}
+                    <span className="text-[11px]" style={{ color: "#a9a4bd", fontFamily: "Oswald, sans-serif" }}>{row.uniqueTours} events{row.eliteWins > 0 ? <> · <span style={{ color: "#ff7aa6" }}>{row.eliteWins}</span> elite</> : null}</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                <div className="shrink-0 text-right">
+                  <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 26, color: "#ffd24a", textShadow: "0 0 14px rgba(255,210,74,.55)" }}>{row.totalTrophies}</div>
+                  <div className="pm-lab justify-end" style={{ fontSize: 8.5 }}>trophies</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!loading && <Chapter title="Events" accent="#ff005c" />}
 
       {loading && (
         <div className="text-center py-12 text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>Loading tours…</div>
@@ -371,29 +309,29 @@ export default function Tour() {
           <div key={tier.num}>
             {/* Collapsible tier header */}
             <button onClick={() => toggleTier(tier.num)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mb-1"
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all mb-2"
               style={{
-                background: isOpen ? tier.bg : "rgba(255,255,255,0.02)",
-                border: `1px solid ${isOpen ? tier.color + "28" : "rgba(255,255,255,0.06)"}`,
+                background: allLocked ? "linear-gradient(90deg, rgba(255,255,255,.04), rgba(18,16,26,.95))" : `linear-gradient(90deg, ${tier.color}${isOpen ? "33" : "1c"}, rgba(18,16,26,.95) 60%)`,
+                border: `1px solid ${allLocked ? "rgba(255,255,255,0.08)" : tier.color + (isOpen ? "99" : "44")}`,
+                boxShadow: isOpen && !allLocked ? `0 0 18px ${tier.color}22, inset 0 1px 0 rgba(255,255,255,.07)` : "inset 0 1px 0 rgba(255,255,255,.05)",
                 cursor: "pointer",
               }}>
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm font-black shrink-0"
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-base shrink-0"
                 style={{
-                  background: allLocked ? "rgba(255,255,255,0.06)" : `${tier.color}1a`,
-                  color: allLocked ? "rgba(255,255,255,0.2)" : tier.color,
+                  background: allLocked ? "rgba(255,255,255,0.06)" : `linear-gradient(180deg, ${tier.color}, ${tier.color}88)`,
+                  color: allLocked ? "#6b6680" : "#141018",
                   fontFamily: "Oswald, sans-serif",
-                  border: `1px solid ${allLocked ? "rgba(255,255,255,0.1)" : tier.color + "35"}`,
+                  boxShadow: allLocked ? undefined : `0 0 12px ${tier.color}77`,
                 }}>
                 {tier.num}
               </div>
               <div className="flex-1 text-left">
-                <span className="font-black uppercase tracking-widest text-sm"
-                  style={{ fontFamily: "Oswald, sans-serif", color: allLocked ? "rgba(255,255,255,0.2)" : tier.color }}>
+                <div className="uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: 16, letterSpacing: ".05em", color: allLocked ? "#6b6680" : "#f2eefc" }}>
                   {tier.label}
-                </span>
-                <span className="text-xs ml-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+                </div>
+                <div className="text-xs" style={{ color: allLocked ? "#5d5873" : tier.color, fontFamily: "Oswald, sans-serif", letterSpacing: ".04em" }}>
                   {wonCount}/{tier.tours.length} events won
-                </span>
+                </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {hasActive && <span className="live-dot" style={{ width: 6, height: 6 }} />}
@@ -416,22 +354,17 @@ export default function Tour() {
 
                   return (
                     <div key={tour.slug}
-                      className="pdc-card overflow-hidden transition-all relative"
-                      style={{
-                        opacity: isLocked ? 0.42 : 1,
-                        borderColor: hasActiveTour ? `${tier.color}55` : isLocked ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.08)",
-                      }}>
-                      {/* Left tier accent */}
-                      <div className="absolute left-0 top-0 bottom-0 w-0.5"
-                        style={{ background: isLocked ? "rgba(255,255,255,0.08)" : tier.color }} />
+                      className="pm-card overflow-hidden transition-all relative"
+                      style={{ ["--pm-acc" as any]: isLocked ? "#5d5873" : tier.color, opacity: isLocked ? 0.5 : 1 }}>
+                      <div className="absolute pointer-events-none" style={{ right: -50, top: -50, width: 150, height: 150, borderRadius: "50%", background: `radial-gradient(circle, ${isLocked ? "#5d5873" : tier.color}26, transparent 70%)` }} />
 
-                      <div className="pl-4 pr-3 pt-3 pb-3">
+                      <div className="relative px-4 pt-3.5 pb-3.5">
                         {/* Header row */}
                         <div className="flex items-start gap-2 mb-2">
                           <span className="text-lg shrink-0 leading-none">{tour.emoji}</span>
                           <div className="flex-1 min-w-0">
-                            <div className="font-black uppercase leading-tight"
-                              style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.82rem", color: isLocked ? "rgba(255,255,255,0.35)" : "#fff" }}>
+                            <div className="uppercase leading-tight"
+                              style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, fontSize: "1rem", letterSpacing: ".03em", color: isLocked ? "#8f8aa3" : "#fff" }}>
                               {tour.name}
                             </div>
                             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -449,7 +382,7 @@ export default function Tour() {
 
                         {/* Description */}
                         <p className="text-xs leading-snug mb-2.5"
-                          style={{ color: "rgba(255,255,255,0.28)", fontSize: "0.63rem" }}>
+                          style={{ color: "#a9a4bd", fontSize: "0.72rem" }}>
                           {tour.description}
                         </p>
 
@@ -469,15 +402,16 @@ export default function Tour() {
                             <button
                               onClick={() => handleEnter(tour)}
                               disabled={isStarting}
-                              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-black uppercase transition-all"
+                              className="shrink-0 flex items-center gap-1 px-3.5 py-2 rounded-full uppercase transition-all"
                               style={{
                                 fontFamily: "Oswald, sans-serif",
-                                letterSpacing: "0.08em",
-                                fontSize: "0.62rem",
+                                letterSpacing: "0.1em",
+                                fontSize: "0.68rem",
                                 cursor: isStarting ? "wait" : "pointer",
-                                background: hasActiveTour ? tier.color : wonThis ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.07)",
-                                color: hasActiveTour ? "#000" : wonThis ? "#22c55e" : "rgba(255,255,255,0.85)",
-                                border: hasActiveTour ? "none" : wonThis ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.12)",
+                                background: hasActiveTour ? `linear-gradient(180deg, ${tier.color}, ${tier.color}aa)` : wonThis ? "rgba(34,197,94,0.14)" : "linear-gradient(180deg, #ffe58a, #e0a800)",
+                                color: hasActiveTour ? "#000" : wonThis ? "#4ade80" : "#1a1200",
+                                border: hasActiveTour ? "none" : wonThis ? "1px solid rgba(34,197,94,0.45)" : "1px solid #ffd24a",
+                                boxShadow: wonThis ? undefined : "0 0 12px rgba(255,210,74,.35)",
                               }}>
                               {isStarting ? (
                                 <RotateCcw className="w-3 h-3 animate-spin" />

@@ -72,3 +72,10 @@
   .sd-grid { grid-template-columns: 3rem minmax(0,1fr) 7rem 5rem 5rem 5rem; }
   .sd-grid > .sd-tier { display: flex; }
 }
+
+/* Chapter headings: never split a word mid-way; if the title and its chip don't
+   fit on one line, the chip drops underneath instead. */
+.pm-chapter { flex-wrap: wrap; row-gap: 8px; }
+.pm-chapter > div:first-child { flex: 1 1 auto; }
+.pm-chapter h2 { overflow-wrap: normal; word-break: normal; hyphens: none; }
+.pm-chapter .pm-aside { flex: 0 0 auto; }
