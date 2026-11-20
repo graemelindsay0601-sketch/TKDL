@@ -396,9 +396,9 @@ function PlayerSlot({ label, color, value, onChange, exclude, players }: {
         onChange={e => onChange(e.target.value)}
         className="w-full rounded-lg px-3 py-2 text-sm"
         style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: value ? "#fff" : "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-        <option value="" style={{ color: "#111" }}>Select player…</option>
+        <option value="" style={{ color: "#111" }}>Pick…</option>
         {players.filter(p => !exclude.includes(String(p.id))).map(p => (
-          <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name} ({p.points}pts{p.balanceName ? " team" : ""})</option>
+          <option key={p.id} value={p.id} style={{ color: "#111" }}>{p.name}</option>
         ))}
       </select>
       {selected && (
@@ -1479,12 +1479,13 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
           <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {tabs.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className="flex-1 py-1.5 text-xs font-bold uppercase rounded-lg transition-all"
+                className="flex-1 py-2 px-1 text-[0.68rem] sm:text-xs uppercase rounded-full whitespace-nowrap transition-all"
                 style={{
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em",
-                  background: tab === t.key ? "rgba(255,0,92,0.15)" : "transparent",
-                  color: tab === t.key ? "#ff005c" : "rgba(255,255,255,0.3)",
-                  border: tab === t.key ? "1px solid rgba(255,0,92,0.3)" : "1px solid transparent",
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em",
+                  background: tab === t.key ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "transparent",
+                  color: tab === t.key ? "#1a1200" : "rgba(255,255,255,0.6)",
+                  border: tab === t.key ? "1px solid #ffd24a" : "1px solid transparent",
+                  boxShadow: tab === t.key ? "0 0 12px rgba(255,210,74,.35)" : undefined,
                   cursor: "pointer",
                 }}>
                 {t.label}
@@ -1581,12 +1582,12 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
         onClick={handleStart}
         disabled={!canStart}
         aria-describedby={unevenActive && startIssues.length > 0 ? "uneven-start-issues" : undefined}
-        className="ms-live-start-button w-full py-4 text-base font-black uppercase tracking-widest rounded-xl transition-all"
-        style={{ background: canStart ? "linear-gradient(135deg, #ff005c, #cc0048)" : "rgba(255,255,255,0.04)",
-          color: canStart ? "#fff" : "rgba(255,255,255,0.2)",
-          border: canStart ? "none" : "1px solid rgba(255,255,255,0.06)",
-          fontFamily: "Oswald, sans-serif", cursor: canStart ? "pointer" : "not-allowed",
-          boxShadow: canStart ? "0 8px 32px rgba(255,0,92,0.3)" : undefined }}>
+        className="ms-live-start-button w-full px-4 py-4 text-sm sm:text-base uppercase rounded-full transition-all"
+        style={{ background: canStart ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "rgba(255,255,255,0.04)",
+          color: canStart ? "#1a1200" : "rgba(255,255,255,0.45)",
+          border: canStart ? "1px solid #ffd24a" : "1px solid rgba(255,255,255,0.1)",
+          fontFamily: "Oswald, sans-serif", letterSpacing: "0.1em", cursor: canStart ? "pointer" : "not-allowed",
+          boxShadow: canStart ? "0 0 26px rgba(255,210,74,0.45)" : undefined }}>
         {canStart
           ? format === "killer-ffa"
             ? `Start Killer — ${ffaCount} Players`

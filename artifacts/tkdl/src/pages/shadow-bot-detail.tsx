@@ -1,3 +1,4 @@
+import { Glow, DartboardBackdrop, Chapter, PmCard, Ring } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { Link, useParams } from "wouter";
 import { ArrowLeft, CircuitBoard, Lock, Dumbbell, Target, Zap, Trophy, ChevronRight, Ghost, TrendingUp, TrendingDown, Minus } from "lucide-react";
@@ -135,25 +136,25 @@ export default function ShadowBotDetail() {
   const matchLosses   = matches.filter(m => m.playerWon === true).length;
 
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-5 pm-page">
 
       {/* Back link */}
       <Link href="/shadow-bot"
-        className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider"
-        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.28)", letterSpacing: "0.12em" }}>
+        className="inline-flex items-center gap-2 text-xs uppercase"
+        style={{ fontFamily: "Oswald, sans-serif", color: "#a9a4bd", letterSpacing: "0.14em" }}>
         <ArrowLeft className="w-3.5 h-3.5" />
         Bot Roster
       </Link>
 
       {loading && (
-        <div className="section-card py-16 text-center animate-pulse"
+        <div className="pm-card py-16 text-center animate-pulse"
           style={{ color: "rgba(255,255,255,0.2)", fontFamily: "Oswald, sans-serif" }}>
           Loading shadow bot…
         </div>
       )}
 
       {error && (
-        <div className="section-card py-16 text-center"
+        <div className="pm-card py-16 text-center"
           style={{ color: "rgba(255,0,92,0.6)", fontFamily: "Oswald, sans-serif" }}>
           Could not load bot data
         </div>
@@ -162,515 +163,275 @@ export default function ShadowBotDetail() {
       {stats && !loading && (
         <>
           {/* ══ HERO ══ */}
-          <div className="relative overflow-hidden rounded-2xl"
-            style={{
-              background: stats.locked
-                ? "linear-gradient(135deg, rgba(255,0,92,0.05) 0%, rgba(9,9,15,0.98) 60%)"
-                : `linear-gradient(135deg, ${lvlColor}0a 0%, rgba(9,9,15,0.98) 55%, ${lvlColor}04 100%)`,
-              border: `1px solid ${stats.locked ? "rgba(255,0,92,0.18)" : `${lvlColor}28`}`,
-            }}>
-            <div className="absolute inset-0 pointer-events-none"
-              style={{ background: `radial-gradient(ellipse at 10% 50%, ${stats.locked ? "rgba(255,0,92,0.08)" : `${lvlColor}10`} 0%, transparent 65%)` }} />
-
-            <div className="relative p-6 md:p-8">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-                <div className="flex-1 min-w-0">
-                  {/* Eyebrow */}
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="p-1.5 rounded-lg"
-                      style={{ background: stats.locked ? "rgba(255,0,92,0.08)" : `${lvlColor}12`, border: `1px solid ${stats.locked ? "rgba(255,0,92,0.2)" : `${lvlColor}28`}` }}>
-                      {stats.locked
-                        ? <Lock className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />
-                        : <Ghost className="w-3.5 h-3.5" style={{ color: lvlColor }} />
-                      }
+          {(() => {
+            const acc = stats.locked ? "#ff005c" : lvlColor;
+            return (
+              <div className="relative overflow-hidden" style={{ borderRadius: 24, border: `1px solid ${acc}55`, background: `linear-gradient(160deg, ${acc}2e 0%, #14102a 46%, #06060b 100%)`, boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 40px ${acc}18` }}>
+                <Glow x="88%" y="5%" color={acc} size={420} opacity={0.3} />
+                <Glow x="5%" y="95%" color="#a855f7" size={360} opacity={0.2} />
+                <DartboardBackdrop size={460} opacity={0.07} style={{ right: -170, top: -110, transform: "rotate(8deg)" }} />
+                <div className="relative p-5" style={{ zIndex: 1 }}>
+                  <div className="flex items-start gap-4">
+                    <div className="shrink-0 rounded-full p-[3px]" style={{ background: stats.locked ? "linear-gradient(135deg,#ff005c55,#2a0010)" : `conic-gradient(from 200deg, ${acc}, #fff8, ${acc}, #0000 70%, ${acc})`, boxShadow: `0 0 22px ${acc}66` }}>
+                      <div className="w-[72px] h-[72px] rounded-full flex items-center justify-center" style={{ background: `radial-gradient(circle at 35% 30%, ${acc}44, #0d0b14 70%)` }}>
+                        {stats.locked
+                          ? <Lock className="w-8 h-8" style={{ color: "#ff5c93", filter: "drop-shadow(0 0 8px #ff005c)" }} />
+                          : <Ghost className="w-9 h-9" style={{ color: "#fff", filter: `drop-shadow(0 0 10px ${acc})` }} />}
+                      </div>
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest"
-                      style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.18em" }}>
-                      Shadow Bot · Player Clone
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="pm-lab" style={{ color: acc }}>Shadow bot · player clone</span>
+                      <h1 className="uppercase leading-none mt-1.5" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2rem, 9vw, 3.4rem)", letterSpacing: "0.03em" }}>
+                        <span className="pm-chrome" style={{ opacity: stats.locked ? 0.55 : 1 }}>Shadow</span>{" "}
+                        <span style={{ color: stats.locked ? "#8f8aa3" : acc, textShadow: stats.locked ? "none" : `0 0 24px ${acc}aa` }}>{stats.playerName}</span>
+                      </h1>
+                      <div className="flex flex-wrap gap-1.5 mt-2.5">
+                        {stats.locked
+                          ? <span className="pm-chip" style={{ color: "#ff9ab8", borderColor: "rgba(255,0,92,.55)", background: "rgba(255,0,92,.12)" }}><Lock className="w-3 h-3" /> Offline · {stats.dartsNeeded - stats.totalDarts} darts to go</span>
+                          : <span className="pm-chip" style={{ color: acc, borderColor: `${acc}88`, background: `${acc}1c` }}>{lvlLabel}</span>}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Name */}
-                  <h1 className="pm-title font-black uppercase leading-none mb-2"
-                    style={{
-                      fontFamily: "Oswald, sans-serif",
-                      fontSize: "clamp(2.2rem, 6vw, 4rem)",
-                      color: stats.locked ? "rgba(255,255,255,0.2)" : "#fff",
-                      letterSpacing: "0.04em",
-                      textShadow: stats.locked ? "none" : `0 0 40px ${lvlColor}30`,
-                    }}>
-                    Shadow{" "}
-                    <span style={{ color: stats.locked ? "rgba(255,255,255,0.18)" : lvlColor,
-                      textShadow: stats.locked ? "none" : `0 0 32px ${lvlColor}60` }}>
-                      {stats.playerName}
-                    </span>
-                  </h1>
-
-                  {/* Level or locked state */}
-                  {stats.locked ? (
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-                        style={{ background: "rgba(255,0,92,0.08)", border: "1px solid rgba(255,0,92,0.2)" }}>
-                        <Lock className="w-3 h-3" style={{ color: "#ff005c" }} />
-                        <span className="text-xs font-black uppercase"
-                          style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c", letterSpacing: "0.1em" }}>
-                          Offline — {stats.dartsNeeded - stats.totalDarts} darts to activate
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="px-3 py-1.5 rounded-lg"
-                        style={{ background: `${lvlColor}14`, border: `1px solid ${lvlColor}38` }}>
-                        <span className="text-xs font-black uppercase"
-                          style={{ fontFamily: "Oswald, sans-serif", color: lvlColor, letterSpacing: "0.1em" }}>
-                          {lvlLabel}
-                        </span>
-                      </div>
-                      {stats.computedAvg != null && (
-                        <div className="px-3 py-1.5 rounded-lg"
-                          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                          <span className="text-xs font-black" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-                            {stats.computedAvg.toFixed(1)} avg
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Description */}
-                  <p className="text-sm leading-relaxed max-w-lg" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  <p className="text-sm leading-relaxed mt-4" style={{ color: "#bdb8cf" }}>
                     {stats.locked
                       ? `A shadow bot that mirrors ${stats.playerName}'s dart-throwing DNA. Needs ${stats.dartsNeeded - stats.totalDarts} more darts of practice data before it can come online.`
-                      : `A living replica of ${stats.playerName}'s form, built from ${stats.totalDarts.toLocaleString()} darts of data. ${lvlDesc}`
-                    }
+                      : `A living replica of ${stats.playerName}'s form, built from ${stats.totalDarts.toLocaleString()} darts of data. ${lvlDesc}`}
                   </p>
-                </div>
 
-                {/* Right: CTA links */}
-                <div className="flex flex-col gap-2 shrink-0">
-                  <Link href={`/players/${playerId}`}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs uppercase whitespace-nowrap"
-                    style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em" }}>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                    Player Profile
-                  </Link>
-                  {stats.locked && (
-                    <Link href="/practice"
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs uppercase whitespace-nowrap"
-                      style={{ fontFamily: "Oswald, sans-serif", background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.28)", color: "#ff005c", letterSpacing: "0.08em" }}>
-                      <Dumbbell className="w-3.5 h-3.5" />
-                      Go Practice
-                    </Link>
-                  )}
                   {!stats.locked && (
-                    <Link href="/practice"
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs uppercase whitespace-nowrap"
-                      style={{ fontFamily: "Oswald, sans-serif", background: `${lvlColor}12`, border: `1px solid ${lvlColor}30`, color: lvlColor, letterSpacing: "0.08em" }}>
-                      <Dumbbell className="w-3.5 h-3.5" />
-                      Train More
-                    </Link>
-                  )}
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-2">
-                  {stats.locked ? (
-                    <>
-                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                        {stats.totalDarts} / {stats.dartsNeeded} darts to activate
-                      </span>
-                      <span className="text-xs font-bold" style={{ color: "#ff005c" }}>{stats.progressToNext}%</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: lvlColor }}>
-                        {lvlLabel}
-                      </span>
-                      {nextLabel ? (
-                        <span className="text-xs" style={{ color: "rgba(255,255,255,0.28)" }}>
-                          {stats.progressToNext}% → {nextLabel}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-black" style={{ color: "#ff005c" }}>MAX LEVEL</span>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                  <div className="h-full rounded-full transition-all duration-700"
-                    style={{
-                      width: `${stats.progressToNext}%`,
-                      background: stats.locked
-                        ? "linear-gradient(90deg, #ff005c, rgba(255,0,92,0.35))"
-                        : `linear-gradient(90deg, ${lvlColor}, ${lvlColor}60)`,
-                      boxShadow: `0 0 10px ${stats.locked ? "#ff005c" : lvlColor}50`,
-                    }} />
-                </div>
-              </div>
-
-              {/* Level pips */}
-              <div className="flex items-center gap-2.5 mt-4">
-                {LEVEL_STEPS.map((step, i) => {
-                  const isReached = !stats.locked && i <= activeLevelIdx;
-                  return (
-                    <div key={step.key} className="flex flex-col items-center gap-1">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center"
-                        style={{
-                          background: isReached ? `${step.color}20` : "rgba(255,255,255,0.04)",
-                          border: `1px solid ${isReached ? `${step.color}45` : "rgba(255,255,255,0.07)"}`,
-                        }}>
-                        <div className="w-2 h-2 rounded-full" style={{
-                          background: isReached ? step.color : "rgba(255,255,255,0.08)",
-                          boxShadow: isReached ? `0 0 6px ${step.color}` : "none",
-                        }} />
-                      </div>
-                      <span className="text-xs hidden sm:block"
-                        style={{ fontFamily: "Oswald, sans-serif", color: isReached ? step.color : "rgba(255,255,255,0.15)", fontSize: "0.48rem", fontWeight: 700, letterSpacing: "0.06em" }}>
-                        {step.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* ══ STATS GRID ══ */}
-          {!stats.locked && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: "Form Avg",     value: stats.computedAvg != null ? stats.computedAvg.toFixed(1) : "—",  color: lvlColor },
-                { label: "Checkout %",   value: stats.doubleHitPct != null ? `${Math.round(stats.doubleHitPct * 100)}%` : "—", color: "#22c55e" },
-                { label: "Practice Sessions", value: stats.totalSessions.toString(), color: "#a78bfa" },
-                { label: "Darts Logged", value: stats.totalDarts.toLocaleString(), color: "#ffd24a" },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="rounded-2xl px-4 py-4 text-center relative overflow-hidden"
-                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <div className="absolute inset-0 pointer-events-none"
-                    style={{ background: `radial-gradient(ellipse at 50% 0%, ${color}07 0%, transparent 70%)` }} />
-                  <div className="font-black text-2xl mb-1"
-                    style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.92)" }}>
-                    {value}
-                  </div>
-                  <div className="text-xs" style={{ color: "rgba(255,255,255,0.28)" }}>{label}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ══ BOT CAPABILITIES ══ */}
-          {!stats.locked && (stats.primarySeg != null || (stats.checkoutSegs && stats.checkoutSegs.length > 0)) && (
-            <div className="section-card">
-              <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
-                style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-                <Target className="w-3.5 h-3.5" style={{ color: lvlColor }} />
-                Dart Profile
-              </h2>
-              <div className="flex flex-wrap items-center gap-6">
-                {stats.primarySeg != null && (
-                  <div>
-                    <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.28)" }}>Primary Target</div>
-                    <div className="font-black text-2xl px-3 py-1 rounded-lg inline-block"
-                      style={{ fontFamily: "Oswald, sans-serif", background: `${lvlColor}14`, color: lvlColor, border: `1px solid ${lvlColor}30` }}>
-                      T{stats.primarySeg}
-                    </div>
-                  </div>
-                )}
-                {stats.checkoutSegs && stats.checkoutSegs.length > 0 && (
-                  <div>
-                    <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.28)" }}>Preferred Checkouts</div>
-                    <div className="flex gap-1.5">
-                      {stats.checkoutSegs.map(s => (
-                        <span key={s} className="font-black text-sm px-2.5 py-1.5 rounded-lg"
-                          style={{ fontFamily: "Oswald, sans-serif", background: `${lvlColor}12`, color: lvlColor, border: `1px solid ${lvlColor}28` }}>
-                          D{s}
-                        </span>
+                    <div className="grid grid-cols-3 gap-2 mt-4">
+                      {[
+                        { l: "Form avg", v: stats.computedAvg != null ? stats.computedAvg.toFixed(1) : "—", c: acc },
+                        { l: "Checkout", v: stats.doubleHitPct != null ? `${Math.round(stats.doubleHitPct * 100)}%` : "—", c: "#4ade80" },
+                        { l: "Darts", v: stats.totalDarts.toLocaleString(), c: "#ffd24a" },
+                      ].map(t => (
+                        <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+                          <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+                          <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
+                        </div>
                       ))}
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                  )}
 
-          {/* ══ DATA SOURCES ══ */}
-          <div className="section-card">
-            <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
-              style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-              <Zap className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
-              Data Sources
-            </h2>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl px-3 py-3 flex flex-col gap-1"
-                style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.14)" }}>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <Dumbbell className="w-3 h-3" style={{ color: "#a78bfa" }}/>
-                  <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa", fontSize: "0.52rem", letterSpacing: "0.1em" }}>Practice</span>
-                </div>
-                <div className="font-black text-lg" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
-                  {(stats.practiceDarts ?? 0).toLocaleString()}
-                </div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
-                  darts · {stats.totalSessions} session{stats.totalSessions !== 1 ? "s" : ""}
-                </div>
-              </div>
-              <div className="rounded-xl px-3 py-3 flex flex-col gap-1"
-                style={{ background: "rgba(255,210,74,0.06)", border: "1px solid rgba(255,210,74,0.14)" }}>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <Trophy className="w-3 h-3" style={{ color: "#ffd24a" }}/>
-                  <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", fontSize: "0.52rem", letterSpacing: "0.1em" }}>League</span>
-                </div>
-                <div className="font-black text-lg" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
-                  {stats.matchWins ?? 0}W–{((stats.totalMatches ?? 0) - (stats.matchWins ?? 0))}L
-                </div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
-                  {stats.totalMatches ?? 0} match{(stats.totalMatches ?? 0) !== 1 ? "es" : ""}
-                </div>
-              </div>
-              <div className="rounded-xl px-3 py-3 flex flex-col gap-1"
-                style={{ background: "rgba(0,210,150,0.06)", border: "1px solid rgba(0,210,150,0.14)" }}>
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <TrendingUp className="w-3 h-3" style={{ color: "#00d296" }}/>
-                  <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#00d296", fontSize: "0.52rem", letterSpacing: "0.1em" }}>Elo Rating</span>
-                </div>
-                <div className="font-black text-lg" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.85)" }}>
-                  {stats.playerElo ?? 1000}
-                </div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.6rem" }}>
-                  league rating
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ══ TRAINING BREAKDOWN ══ */}
-          {stats.gameModeSessions.length > 0 && (
-            <div className="section-card">
-              <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
-                style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-                <CircuitBoard className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />
-                Training by Game Mode
-              </h2>
-              <div className="space-y-3">
-                {stats.gameModeSessions.map(g => {
-                  const maxSess = stats.gameModeSessions[0]?.sessions ?? 1;
-                  const barPct  = Math.round((g.sessions / maxSess) * 100);
-                  const isThin  = g.sessions < 5;
-                  return (
-                    <div key={g.gameTypeKey} className="flex items-center gap-3">
-                      <div className="w-32 md:w-44 shrink-0 text-xs truncate"
-                        style={{ color: isThin ? "#ffd24a" : "rgba(255,255,255,0.55)" }}>
-                        {g.gameTypeName}
-                      </div>
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                        <div className="h-full rounded-full transition-all duration-500"
-                          style={{ width: `${barPct}%`, background: isThin ? "rgba(255,200,0,0.45)" : `${lvlColor}55` }} />
-                      </div>
-                      <div className="w-20 text-right text-xs font-mono shrink-0"
-                        style={{ color: isThin ? "#ffd24a" : "rgba(255,255,255,0.35)" }}>
-                        {g.sessions} session{g.sessions !== 1 ? "s" : ""}
-                      </div>
+                  {/* Level ladder */}
+                  <div className="mt-4 rounded-2xl p-3" style={{ background: "rgba(0,0,0,.25)", border: "1px solid rgba(255,255,255,.08)" }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="pm-lab" style={{ fontSize: 9, color: acc }}>{stats.locked ? `${stats.totalDarts} / ${stats.dartsNeeded} darts` : lvlLabel}</span>
+                      <span className="pm-lab" style={{ fontSize: 9 }}>{stats.locked ? `${stats.progressToNext}%` : nextLabel ? `${stats.progressToNext}% → ${nextLabel}` : "Max level"}</span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ══ IMPROVEMENT TIMELINE ══ */}
-          {timeline.filter(p => p.avg != null).length >= 2 && (
-            <div className="section-card">
-              <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
-                style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-                <TrendingUp className="w-3.5 h-3.5" style={{ color: "#a78bfa" }} />
-                Form Trend
-                <span className="ml-auto text-xs font-normal normal-case" style={{ color: "rgba(255,255,255,0.25)", letterSpacing: "normal" }}>
-                  Last {timeline.length} weeks
-                </span>
-              </h2>
-              {(() => {
-                const points = timeline.filter(p => p.avg != null);
-                const maxAvg = Math.max(...points.map(p => p.avg!));
-                const minAvg = Math.min(...points.map(p => p.avg!));
-                const range  = Math.max(maxAvg - minAvg, 5);
-                const first  = points[0]?.avg ?? 0;
-                const last   = points[points.length - 1]?.avg ?? 0;
-                const delta  = last - first;
-                const TrendIcon = delta > 2 ? TrendingUp : delta < -2 ? TrendingDown : Minus;
-                const trendColor = delta > 2 ? "#22c55e" : delta < -2 ? "#ff005c" : "rgba(255,255,255,0.35)";
-                return (
-                  <>
-                    <div className="flex items-end gap-1.5 h-20 mb-3">
-                      {timeline.map((p, i) => {
-                        const pct = p.avg != null ? ((p.avg - minAvg + 2) / (range + 4)) * 100 : 8;
-                        const isLast = i === timeline.length - 1;
-                        const color = p.avg == null ? "rgba(255,255,255,0.06)"
-                          : isLast ? lvlColor : `${lvlColor}70`;
+                    <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${stats.progressToNext}%`, background: `linear-gradient(90deg, ${acc}88, ${acc})`, boxShadow: `0 0 10px ${acc}` }} />
+                    </div>
+                    <div className="grid mt-3" style={{ gridTemplateColumns: `repeat(${LEVEL_STEPS.length}, minmax(0,1fr))` }}>
+                      {LEVEL_STEPS.map((step, i) => {
+                        const on = !stats.locked && i <= activeLevelIdx;
+                        const cur = !stats.locked && i === activeLevelIdx;
                         return (
-                          <div key={i} className="flex-1 flex flex-col items-center gap-0.5 min-w-0">
-                            <div className="w-full rounded-t-sm transition-all duration-500"
-                              style={{ height: `${Math.max(pct, 8)}%`, background: color }} />
-                            {i % 2 === 0 && (
-                              <span className="text-center leading-none" style={{ fontSize: "0.42rem", color: "rgba(255,255,255,0.18)", fontFamily: "Oswald, sans-serif" }}>
-                                {p.weekLabel.replace("Wk ", "")}
-                              </span>
+                          <div key={step.key} className="flex flex-col items-center gap-1 min-w-0">
+                            <div className="rounded-full" style={{ width: cur ? 14 : 10, height: cur ? 14 : 10, background: on ? step.color : "rgba(255,255,255,.1)", boxShadow: on ? `0 0 ${cur ? 12 : 6}px ${step.color}` : "none", border: cur ? "2px solid #fff" : undefined }} />
+                            {cur && (
+                              <span className="whitespace-nowrap" style={{ fontFamily: "Oswald, sans-serif", fontSize: 9, letterSpacing: ".06em", textTransform: "uppercase", color: on ? step.color : "#8f8aa3" }}>{step.label}</span>
                             )}
                           </div>
                         );
                       })}
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <TrendIcon className="w-3.5 h-3.5" style={{ color: trendColor }} />
-                        <span className="text-xs font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: trendColor, letterSpacing: "0.08em", fontSize: "0.62rem" }}>
-                          {delta > 2 ? `+${delta.toFixed(1)} improving` : delta < -2 ? `${delta.toFixed(1)} declining` : "holding form"}
-                        </span>
+                  </div>
+
+                  <div className="flex gap-2 mt-4">
+                    <Link href="/practice" className="flex-1 rounded-full flex items-center justify-center gap-1.5 uppercase"
+                      style={{ minHeight: 42, background: "linear-gradient(180deg, #ffe58a, #e0a800)", border: "1px solid #ffd24a", color: "#1a1200", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", fontSize: "0.75rem", boxShadow: "0 0 16px rgba(255,210,74,.35)" }}>
+                      <Dumbbell className="w-3.5 h-3.5" /> {stats.locked ? "Go practice" : "Train more"}
+                    </Link>
+                    <Link href={`/players/${playerId}`} className="flex-1 rounded-full flex items-center justify-center gap-1.5 uppercase"
+                      style={{ minHeight: 42, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.16)", color: "#e4e0f0", fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em", fontSize: "0.75rem" }}>
+                      Profile <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ══ DART PROFILE ══ */}
+          {!stats.locked && (stats.primarySeg != null || (stats.checkoutSegs && stats.checkoutSegs.length > 0)) && (
+            <>
+              <Chapter title="Dart profile" accent={lvlColor} aside={<Target className="w-4 h-4" style={{ color: lvlColor }} />} />
+              <PmCard accent={lvlColor}>
+                <div className="p-4 flex flex-wrap items-center gap-5">
+                  {stats.primarySeg != null && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: `radial-gradient(circle at 35% 30%, ${lvlColor}55, #0d0b14 75%)`, border: `1px solid ${lvlColor}aa`, boxShadow: `0 0 18px ${lvlColor}66` }}>
+                        <span style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 22, color: "#fff", textShadow: `0 0 10px ${lvlColor}` }}>T{stats.primarySeg}</span>
                       </div>
-                      <div className="flex items-center gap-3 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                        <span>Low <span className="font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>{minAvg.toFixed(1)}</span></span>
-                        <span>Peak <span className="font-bold" style={{ color: lvlColor }}>{maxAvg.toFixed(1)}</span></span>
+                      <div className="pm-lab" style={{ fontSize: 9 }}>Primary<br />target</div>
+                    </div>
+                  )}
+                  {stats.checkoutSegs && stats.checkoutSegs.length > 0 && (
+                    <div>
+                      <div className="pm-lab mb-1.5" style={{ fontSize: 9 }}>Preferred checkouts</div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {stats.checkoutSegs.map(s => (
+                          <span key={s} className="rounded-full px-3 py-1" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 15, color: "#fff", background: "linear-gradient(180deg, rgba(74,222,128,.35), rgba(74,222,128,.08))", border: "1px solid rgba(74,222,128,.6)", boxShadow: "0 0 10px rgba(74,222,128,.25)" }}>D{s}</span>
+                        ))}
                       </div>
                     </div>
-                  </>
-                );
-              })()}
-            </div>
+                  )}
+                </div>
+              </PmCard>
+            </>
           )}
+
+          {/* ══ DATA SOURCES ══ */}
+          <Chapter title="Built from" accent="#ffd24a" aside={<Zap className="w-4 h-4" style={{ color: "#ffd24a" }} />} />
+          <div className="space-y-2">
+            {[
+              { icon: Dumbbell, c: "#a78bfa", l: "Practice", v: (stats.practiceDarts ?? 0).toLocaleString(), n: `darts · ${stats.totalSessions} session${stats.totalSessions !== 1 ? "s" : ""}` },
+              { icon: Trophy, c: "#ffd24a", l: "League", v: `${stats.matchWins ?? 0}W–${(stats.totalMatches ?? 0) - (stats.matchWins ?? 0)}L`, n: `${stats.totalMatches ?? 0} match${(stats.totalMatches ?? 0) !== 1 ? "es" : ""}` },
+              { icon: TrendingUp, c: "#7fb4ff", l: "Elo rating", v: String(stats.playerElo ?? 1000), n: "league rating" },
+            ].map(r => (
+              <div key={r.l} className="pm-lbrow flex items-center gap-3 rounded-2xl px-3 py-3" style={{ borderColor: `${r.c}44`, background: `linear-gradient(90deg, ${r.c}1f, rgba(18,16,26,.95) 55%)` }}>
+                <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${r.c}22`, border: `1px solid ${r.c}66`, boxShadow: `0 0 12px ${r.c}33` }}><r.icon className="w-4 h-4" style={{ color: r.c }} /></span>
+                <div className="flex-1 min-w-0">
+                  <div className="uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: 14, letterSpacing: ".06em", color: "#f2eefc" }}>{r.l}</div>
+                  <div className="text-xs" style={{ color: "#8f8aa3" }}>{r.n}</div>
+                </div>
+                <div className="tabular-nums shrink-0" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: r.c, textShadow: `0 0 12px ${r.c}66` }}>{r.v}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ══ TRAINING BREAKDOWN ══ */}
+          {stats.gameModeSessions.length > 0 && (
+            <>
+              <Chapter title="Training by game mode" accent="#ff005c" aside={<CircuitBoard className="w-4 h-4" style={{ color: "#ff005c" }} />} />
+              <PmCard accent="#ff005c">
+                <div className="p-4 space-y-3">
+                  {stats.gameModeSessions.map(g => {
+                    const maxSess = stats.gameModeSessions[0]?.sessions ?? 1;
+                    const barPct  = Math.round((g.sessions / maxSess) * 100);
+                    const isThin  = g.sessions < 5;
+                    const c = isThin ? "#ffd24a" : lvlColor;
+                    return (
+                      <div key={g.gameTypeKey}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm truncate" style={{ color: "#e4e0f0", fontFamily: "Oswald, sans-serif", letterSpacing: ".03em" }}>{g.gameTypeName}</span>
+                          <span className="text-xs tabular-nums shrink-0" style={{ color: c, fontFamily: "Oswald, sans-serif" }}>{g.sessions} session{g.sessions !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+                          <div className="h-full rounded-full transition-all duration-500" style={{ width: `${barPct}%`, background: `linear-gradient(90deg, ${c}77, ${c})`, boxShadow: `0 0 8px ${c}88` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </PmCard>
+            </>
+          )}
+
+          {/* ══ IMPROVEMENT TIMELINE ══ */}
+          {timeline.filter(p => p.avg != null).length >= 2 && (() => {
+            const points = timeline.filter(p => p.avg != null);
+            const maxAvg = Math.max(...points.map(p => p.avg!));
+            const minAvg = Math.min(...points.map(p => p.avg!));
+            const range  = Math.max(maxAvg - minAvg, 5);
+            const delta  = (points[points.length - 1]?.avg ?? 0) - (points[0]?.avg ?? 0);
+            const TrendIcon = delta > 2 ? TrendingUp : delta < -2 ? TrendingDown : Minus;
+            const trendColor = delta > 2 ? "#4ade80" : delta < -2 ? "#ff5c93" : "#a9a4bd";
+            return (
+              <>
+                <Chapter title="Form trend" accent="#a78bfa" aside={<span className="pm-chip">Last {timeline.length} weeks</span>} />
+                <PmCard accent="#a78bfa">
+                  <div className="p-4">
+                    <div className="flex items-end gap-1.5 h-24 mb-3">
+                      {timeline.map((p, i) => {
+                        const pct = p.avg != null ? ((p.avg - minAvg + 2) / (range + 4)) * 100 : 8;
+                        const isLast = i === timeline.length - 1;
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0 h-full justify-end">
+                            <div className="w-full rounded-t-md transition-all duration-500"
+                              style={{ height: `${Math.max(pct, 8)}%`, background: p.avg == null ? "rgba(255,255,255,0.06)" : `linear-gradient(180deg, ${lvlColor}${isLast ? "" : "aa"}, ${lvlColor}22)`, boxShadow: isLast ? `0 0 14px ${lvlColor}` : undefined }} />
+                            {i % 2 === 0 && <span className="leading-none" style={{ fontSize: 8, color: "#6b6680", fontFamily: "Oswald, sans-serif" }}>{p.weekLabel.replace("Wk ", "")}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="pm-chip" style={{ color: trendColor, borderColor: `${trendColor}66` }}><TrendIcon className="w-3.5 h-3.5" />{delta > 2 ? `+${delta.toFixed(1)} improving` : delta < -2 ? `${delta.toFixed(1)} declining` : "Holding form"}</span>
+                      <span className="text-xs" style={{ color: "#8f8aa3", fontFamily: "Oswald, sans-serif" }}>Low <b style={{ color: "#e4e0f0" }}>{minAvg.toFixed(1)}</b> · Peak <b style={{ color: lvlColor }}>{maxAvg.toFixed(1)}</b></span>
+                    </div>
+                  </div>
+                </PmCard>
+              </>
+            );
+          })()}
 
           {/* ══ RIVALRY TRACKER ══ */}
           {rivalry.length > 0 && (
-            <div className="section-card">
-              <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
-                style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-                <Ghost className="w-3.5 h-3.5" style={{ color: "#ff005c" }} />
-                Who Beats This Bot
-              </h2>
+            <>
+              <Chapter title="Who beats this bot" accent="#ff005c" aside={<Ghost className="w-4 h-4" style={{ color: "#ff005c" }} />} />
               <div className="space-y-2">
                 {rivalry.map(r => {
                   const total = r.wins + r.losses;
                   const winPct = total > 0 ? Math.round((r.wins / total) * 100) : 0;
-                  const isPositive = r.wins >= r.losses;
+                  const good = r.wins >= r.losses;
+                  const c = good ? "#4ade80" : "#ff5c93";
                   return (
-                    <div key={r.playerId} className="flex items-center gap-3 px-3 py-2.5 rounded-xl"
-                      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                      <Link href={`/players/${r.playerId}`}
-                        className="flex-1 min-w-0 font-black text-sm truncate"
-                        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.8)" }}>
-                        {r.playerName}
-                      </Link>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs font-bold" style={{ color: isPositive ? "#22c55e" : "#ff005c", fontFamily: "Oswald, sans-serif" }}>
-                          {r.wins}W–{r.losses}L
-                        </span>
-                        <div className="w-16 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${winPct}%`, background: isPositive ? "#22c55e" : "#ff005c" }} />
+                    <Link key={r.playerId} href={`/players/${r.playerId}`}>
+                      <div className="pm-lbrow flex items-center gap-3 rounded-2xl px-3 py-3 cursor-pointer">
+                        <Ring value={winPct} color={c} size={42} width={4}><span style={{ fontFamily: "Oswald, sans-serif", fontSize: 11, color: "#fff" }}>{winPct}%</span></Ring>
+                        <div className="flex-1 min-w-0 uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: 16, letterSpacing: ".03em", color: "#fff" }}>{r.playerName}</div>
+                        <div className="tabular-nums shrink-0" style={{ fontFamily: "Oswald, sans-serif", fontSize: 18 }}>
+                          <span style={{ color: "#4ade80" }}>{r.wins}</span><span style={{ color: "#6b6680" }}>–</span><span style={{ color: "#ff7a9c" }}>{r.losses}</span>
                         </div>
-                        <span className="text-xs w-8 text-right" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                          {winPct}%
-                        </span>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
-            </div>
+            </>
           )}
 
           {/* ══ MATCH HISTORY VS THIS BOT ══ */}
-          <div className="section-card">
-            <h2 className="font-black uppercase text-sm mb-4 flex items-center gap-2"
-              style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>
-              <Ghost className="w-3.5 h-3.5" style={{ color: lvlColor }} />
-              Matches vs Shadow {stats.playerName}
-              {matches.length > 0 && (
-                <span className="ml-auto text-xs font-normal normal-case"
-                  style={{ color: "rgba(255,255,255,0.25)", letterSpacing: "normal" }}>
-                  {matchWins}W {matchLosses}L for the bot
-                </span>
-              )}
-            </h2>
-
-            {matches.length === 0 ? (
-              <div className="py-12 flex flex-col items-center justify-center text-center">
-                <Ghost className="w-10 h-10 mb-3" style={{ color: "rgba(255,255,255,0.05)" }} />
-                <div className="font-black uppercase text-sm mb-2"
-                  style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.15)", letterSpacing: "0.1em" }}>
-                  No matches yet
+          <Chapter title={`Matches vs Shadow ${stats.playerName}`} accent={lvlColor}
+            aside={matches.length > 0 ? <span className="pm-chip">{matchWins}W {matchLosses}L bot</span> : undefined} />
+          {matches.length === 0 ? (
+            <PmCard accent={lvlColor}>
+              <div className="py-10 px-5 flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: `radial-gradient(circle at 35% 30%, ${lvlColor}40, #0d0b14 75%)`, border: `1px solid ${lvlColor}88`, boxShadow: `0 0 20px ${lvlColor}55` }}>
+                  <Ghost className="w-7 h-7" style={{ color: "#fff" }} />
                 </div>
-                <p className="text-xs max-w-xs" style={{ color: "rgba(255,255,255,0.12)" }}>
-                  Play against Shadow {stats.playerName} in Practice mode and the results will appear here.
-                </p>
-                <Link href="/practice"
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg font-black text-xs uppercase"
-                  style={{ fontFamily: "Oswald, sans-serif", background: `${lvlColor}10`, border: `1px solid ${lvlColor}28`, color: lvlColor, letterSpacing: "0.08em" }}>
-                  <Dumbbell className="w-3.5 h-3.5" /> Challenge This Bot
+                <div className="pm-chrome uppercase mt-3" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 22, letterSpacing: ".04em" }}>No matches yet</div>
+                <p className="text-sm max-w-xs mt-1" style={{ color: "#a9a4bd" }}>Play against Shadow {stats.playerName} in Practice and the results will appear here.</p>
+                <Link href="/practice" className="mt-4 inline-flex items-center gap-2 px-5 rounded-full uppercase"
+                  style={{ minHeight: 40, fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", letterSpacing: "0.12em", background: "linear-gradient(180deg, #ffe58a, #e0a800)", border: "1px solid #ffd24a", color: "#1a1200", boxShadow: "0 0 16px rgba(255,210,74,.35)" }}>
+                  <Dumbbell className="w-3.5 h-3.5" /> Challenge this bot
                 </Link>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {matches.map(match => (
-                  <div key={match.id}
-                    className="flex items-center gap-3 px-3 py-3 rounded-xl"
-                    style={{
-                      background: match.playerWon ? "rgba(34,197,94,0.04)" : "rgba(255,0,92,0.04)",
-                      border: `1px solid ${match.playerWon ? "rgba(34,197,94,0.12)" : "rgba(255,0,92,0.12)"}`,
-                    }}>
-                    {/* Result pill */}
-                    <div className="shrink-0 w-14 text-center px-2 py-1 rounded-lg"
-                      style={{
-                        background: match.playerWon ? "rgba(34,197,94,0.1)" : "rgba(255,0,92,0.1)",
-                        border: `1px solid ${match.playerWon ? "rgba(34,197,94,0.25)" : "rgba(255,0,92,0.25)"}`,
-                      }}>
-                      <div className="font-black text-xs uppercase"
-                        style={{ fontFamily: "Oswald, sans-serif", color: match.playerWon ? "#22c55e" : "#ff005c", letterSpacing: "0.08em" }}>
-                        {match.playerWon ? "WIN" : "LOSS"}
-                      </div>
-                    </div>
-
-                    {/* Player */}
+            </PmCard>
+          ) : (
+            <div className="space-y-2">
+              {matches.map(match => {
+                const c = match.playerWon ? "#22c55e" : "#ff005c";
+                return (
+                  <div key={match.id} className="pm-lbrow flex items-center gap-3 rounded-2xl px-3 py-3" style={{ borderColor: `${c}55`, background: `linear-gradient(90deg, ${c}22, rgba(18,16,26,.95) 50%)` }}>
+                    <span className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 18, color: "#fff", background: match.playerWon ? "linear-gradient(180deg,#34d27b,#118a49)" : "linear-gradient(180deg,#ff4d86,#a3003b)", boxShadow: `0 0 12px ${c}66` }}>{match.playerWon ? "W" : "L"}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="font-black text-sm truncate"
-                        style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.82)" }}>
-                        {match.playerName}
-                      </div>
-                      <div className="text-xs" style={{ color: "rgba(255,255,255,0.28)" }}>
-                        {match.gameTypeName}
-                        {match.detail ? ` · ${match.detail}` : ""}
-                      </div>
+                      <div className="uppercase truncate" style={{ fontFamily: "Oswald, sans-serif", fontSize: 15, color: "#fff", letterSpacing: ".03em" }}>{match.playerName}</div>
+                      <div className="text-xs truncate" style={{ color: "#8f8aa3" }}>{match.gameTypeName}{match.detail ? ` · ${match.detail}` : ""} · {formatDate(match.createdAt)}</div>
                     </div>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-3 shrink-0">
-                      {match.p1Avg != null && (
-                        <div className="text-right hidden sm:block">
-                          <div className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.7)" }}>
-                            {match.p1Avg.toFixed(1)}
-                          </div>
-                          <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>avg</div>
-                        </div>
-                      )}
-                      {match.p1Darts != null && (
-                        <div className="text-right hidden md:block">
-                          <div className="font-black text-sm" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.5)" }}>
-                            {match.p1Darts}
-                          </div>
-                          <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>darts</div>
-                        </div>
-                      )}
-                      <div className="text-right">
-                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-                          {formatDate(match.createdAt)}
-                        </div>
+                    {match.p1Avg != null && (
+                      <div className="text-right shrink-0">
+                        <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 20, color: "#e4e0f0" }}>{match.p1Avg.toFixed(1)}</div>
+                        <div className="pm-lab justify-end" style={{ fontSize: 8 }}>avg{match.p1Darts != null ? ` · ${match.p1Darts}d` : ""}</div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
     </div>
