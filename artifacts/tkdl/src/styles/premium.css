@@ -59,3 +59,7 @@
    gradient, so they're swapped for a drop shadow). */
 .pm-title { background: linear-gradient(180deg, #ffffff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; text-shadow: none !important; filter: drop-shadow(0 4px 12px rgba(0,0,0,.6)); }
 .pm-title-gold { background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; text-shadow: none !important; }
+
+/* Leaderboard rows (all standings modes). */
+.pm-lbrow { border: 1px solid rgba(255,255,255,.09); box-shadow: 0 8px 20px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06); background-color: rgba(18,16,26,.92); }
+.pm-lbrow:hover { box-shadow: 0 12px 26px rgba(0,0,0,.45), 0 0 18px rgba(255,210,74,.12), inset 0 1px 0 rgba(255,255,255,.08); }
