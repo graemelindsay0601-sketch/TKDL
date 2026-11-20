@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/premium/Premium";
 import { useState, useEffect, useRef } from "react";
 import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { createPortal } from "react-dom";
@@ -395,25 +396,23 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     <>
     <div className="practice-refresh max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <div className="practice-refresh-header flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: "rgba(167,139,250,0.15)", border: "1px solid rgba(167,139,250,0.3)" }}>
-          <Dumbbell className="w-5 h-5" style={{ color: "#a78bfa" }} />
+      <PageHero kicker="Your next session" icon={<Dumbbell className="w-3.5 h-3.5" />} accent="#a78bfa" accent2="#ffd24a"
+        title={<>Make every visit <span style={{ WebkitTextFillColor: "#ffd24a", textShadow: "0 0 24px rgba(255,210,74,.5)" }}>count.</span></>}
+        sub="No stakes · no leaderboard · just reps. Choose who’s playing, pick a game, and get straight to the oche.">
+        <div className="grid grid-cols-3 gap-2 mt-4">
+          {[
+            { v: enabledGames.length || "—", l: "Games", c: "#c4b0ff" },
+            { v: 3, l: "Ways to play", c: "#ffd24a" },
+            { v: "0", l: "Pts at stake", c: "#4ade80" },
+          ].map(t => (
+            <div key={t.l} className="rounded-2xl px-1 py-2.5 text-center" style={{ background: "linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.015))", border: "1px solid rgba(255,255,255,.12)" }}>
+              <div className="tabular-nums leading-none" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 24, color: t.c, textShadow: `0 0 14px ${t.c}77` }}>{t.v}</div>
+              <div className="pm-lab justify-center mt-1" style={{ fontSize: 8.5, letterSpacing: ".12em" }}>{t.l}</div>
+            </div>
+          ))}
         </div>
-        <div>
-          <h1 className="pm-title text-2xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.12em" }}>Practice</h1>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>No stakes · No leaderboard · Just reps</p>
-        </div>
-      </div>
-      <section className="practice-refresh-hero" aria-label="Practice introduction">
-        <div>
-          <p className="practice-refresh-kicker">YOUR NEXT SESSION</p>
-          <h2>Make every visit <span>count.</span></h2>
-          <p>Choose who’s playing, pick a game, and get straight to the oche.</p>
-        </div>
-        <div className="practice-refresh-stamp" aria-hidden="true"><Target /><span>OPEN<br />PRACTICE</span></div>
-      </section>
-      <div className="pdc-divider" />
+      </PageHero>
+
 
       {/* Coach drill deep-link banner */}
       {coachDrill && !dismissedDrill && (
@@ -457,13 +456,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
         ]).map(({ v, l, d, icon }) => (
           <button key={v} onClick={() => setMode(v)}
             className={`practice-mode-option flex-1 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${mode === v ? "is-active" : ""}`}
-            style={{
-              fontFamily: "Oswald, sans-serif",
-              background: mode === v ? "rgba(167,139,250,0.15)" : "rgba(255,255,255,0.03)",
-              border: mode === v ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
-              color: mode === v ? "#a78bfa" : "rgba(255,255,255,0.3)",
-              cursor: "pointer",
-            }}>
+            style={{ fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
             {icon}<span className="practice-mode-copy"><b>{l}</b><small>{d}</small></span>
           </button>
         ))}
