@@ -222,3 +222,21 @@
   .bc-curse-grid{grid-template-columns:1fr}
   .bc-result{padding:42px 18px 24px;border-radius:17px}
 }
+
+/* ── Premium pass ─────────────────────────────────────────────────────────── */
+/* The title was a flex row, which squeezed "Board" and "Curse" into narrow columns on phones. */
+.bc-hero h1 { display: block !important; white-space: nowrap; font-size: clamp(2.6rem, 12vw, 5.7rem) !important; letter-spacing: -.02em !important; }
+.bc-hero h1 svg { display: inline-block; vertical-align: -.08em; margin-right: .12em; }
+.bc-hero h1 { background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.bc-hero h1 span { -webkit-text-fill-color: #b597ff; }
+.bc-hero { border-radius: 24px !important; border-color: rgba(139,92,246,.45) !important; box-shadow: 0 20px 50px rgba(0,0,0,.55), 0 0 40px rgba(139,92,246,.14), inset 0 1px 0 rgba(255,255,255,.1) !important; }
+.bc-setup-panel, .bc-signal-card, .bc-contract-card {
+  border: 1px solid transparent !important; border-radius: 20px !important;
+  background: linear-gradient(160deg, rgba(255,255,255,.06), rgba(20,17,30,.96) 40%, rgba(10,9,15,.98)) padding-box,
+              linear-gradient(160deg, rgba(139,92,246,.65), rgba(255,255,255,.08) 45%, rgba(255,0,92,.35)) border-box !important;
+  box-shadow: 0 12px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+.bc-format-card { border-radius: 16px !important; }
+.bc-panel-heading h2, .bc-panel-heading strong { text-transform: uppercase; letter-spacing: .06em; }
+.bc-hero h1 { white-space: normal !important; overflow-wrap: normal; word-break: keep-all; font-size: clamp(2.3rem, 10.5vw, 5.7rem) !important; }
+.bc-hero, .bc-hero-copy { min-width: 0; }

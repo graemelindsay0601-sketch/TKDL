@@ -154,6 +154,8 @@ test("the monthly sub goal: set once a month from Partner up, settled at the mon
     AND id = (SELECT id FROM career_streams WHERE career_save_id=${id} AND status='ENDED' ORDER BY created_at DESC, id DESC LIMIT 1)`);
   // Earlier streams' clips play no part here: a viral one, or one voted Clip of the Week (random per world seed), would add followers.
   await db.execute(sql`DELETE FROM career_stream_clips WHERE career_save_id=${id}`);
+  // Likewise Shorts posted by earlier tests: one settling this week can bring a follower or two (also seeded), which made this flaky.
+  await db.execute(sql`DELETE FROM career_stream_shorts WHERE career_save_id=${id}`);
   const root = { id, world_seed: String((await rows(sql`SELECT world_seed FROM career_saves WHERE id=${id}`))[0].world_seed) };
   await settleStreamingWeek(db, root, s.currentSeason, end);
   await settleStreamingWeek(db, root, s.currentSeason, end);
