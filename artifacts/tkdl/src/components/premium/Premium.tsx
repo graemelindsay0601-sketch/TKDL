@@ -139,3 +139,24 @@ export function DartboardBackdrop({ size = 520, opacity = 0.07, style }: { size?
 export function Glow({ x, y, color, size = 420, opacity = 0.28 }: { x: number | string; y: number | string; color: string; size?: number; opacity?: number }) {
   return <div className="pm-glow" style={{ left: x, top: y, width: size, height: size, transform: "translate(-50%,-50%)", background: `radial-gradient(circle, ${color} 0%, transparent 65%)`, opacity }} />;
 }
+
+/** Shared premium page header: glows, dartboard, kicker, chrome (or gold) title, optional sub and extra content. */
+export function PageHero({ kicker, title, sub, accent = "#ffd24a", accent2 = "#a855f7", icon, gold, children }: {
+  kicker?: ReactNode; title: ReactNode; sub?: ReactNode; accent?: string; accent2?: string; icon?: ReactNode; gold?: boolean; children?: ReactNode;
+}) {
+  return (
+    <div className="relative overflow-hidden" style={{ borderRadius: 24, border: `1px solid ${accent}55`, background: `linear-gradient(160deg, ${accent}2a 0%, #14102a 46%, #06060b 100%)`, boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 40px ${accent}14` }}>
+      <Glow x="88%" y="5%" color={accent} size={420} opacity={0.28} />
+      <Glow x="5%" y="95%" color={accent2} size={380} opacity={0.22} />
+      <DartboardBackdrop size={460} opacity={0.07} style={{ right: -170, top: -110, transform: "rotate(8deg)" }} />
+      <div className="relative p-5" style={{ zIndex: 1 }}>
+        {kicker && <span className="pm-lab" style={{ color: accent }}>{icon}{kicker}</span>}
+        <h1 className={`pm-title uppercase ${gold ? "pm-title-gold" : ""}`} style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.2rem, 10vw, 3.4rem)", letterSpacing: "0.03em", lineHeight: 0.98, marginTop: kicker ? 6 : 0 }}>
+          {title}
+        </h1>
+        {sub && <p className="text-sm mt-2" style={{ color: "#a9a4bd" }}>{sub}</p>}
+        {children}
+      </div>
+    </div>
+  );
+}

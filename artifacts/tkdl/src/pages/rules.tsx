@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/premium/Premium";
 import { Shield, Target, Trophy, Zap, Skull, Star, RefreshCw, BookOpen, Users, Coins, Layers, Tv2, Dumbbell, Bot, Flame, Swords, Medal } from "lucide-react";
 import { useFetch } from "@/hooks/use-fetch";
 
@@ -22,14 +23,12 @@ function RuleSection({
   icon: React.ReactNode; title: string; accent?: string; children: React.ReactNode;
 }) {
   return (
-    <div className="pdc-card p-6 relative overflow-hidden"
-      style={{ borderLeft: `3px solid ${accent}`, paddingLeft: "24px" }}>
-      <div className="absolute inset-0 pointer-events-none"
-        style={{ background: `radial-gradient(ellipse 300px 200px at -60px 50%, ${accent}0a, transparent 70%)` }} />
+    <div className="pm-card p-5 relative overflow-hidden" style={{ ["--pm-acc" as any]: accent }}>
+      <div className="absolute pointer-events-none" style={{ right: -70, top: -70, width: 220, height: 220, borderRadius: "50%", background: `radial-gradient(circle, ${accent}2a, transparent 70%)` }} />
       <div className="flex items-center gap-3 mb-4 relative">
-        <div style={{ color: accent, filter: `drop-shadow(0 0 6px ${accent}88)` }}>{icon}</div>
-        <h2 className="font-black uppercase text-lg"
-          style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em", color: "#fff" }}>
+        <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ color: accent, background: `${accent}1c`, border: `1px solid ${accent}55`, boxShadow: `0 0 14px ${accent}33` }}>{icon}</span>
+        <h2 className="uppercase text-lg"
+          style={{ fontFamily: "Oswald, sans-serif", fontWeight: 600, letterSpacing: "0.06em", color: "#f2eefc" }}>
           {title}
         </h2>
       </div>
@@ -40,8 +39,8 @@ function RuleSection({
 
 function Rule({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 text-sm" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.6 }}>
-      <span className="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full" style={{ background: "#ff005c", boxShadow: "0 0 6px rgba(255,0,92,0.6)" }} />
+    <div className="flex items-start gap-3 text-sm" style={{ color: "#cfcade", lineHeight: 1.6 }}>
+      <span className="shrink-0 mt-2 w-1.5 h-1.5 rotate-45" style={{ background: "#ffd24a", boxShadow: "0 0 6px rgba(255,210,74,0.7)" }} />
       <span>{children}</span>
     </div>
   );
@@ -66,22 +65,9 @@ function Blue({ children }: { children: React.ReactNode }) {
 export default function Rules() {
   const { data: achCounts } = useFetch<AchievementCounts>("/api/achievements/counts");
   return (
-    <div className="space-y-6">
-      <div className="pdc-divider" />
-
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          <BookOpen className="w-8 h-8" style={{ color: "#ff005c", filter: "drop-shadow(0 0 8px rgba(255,0,92,0.6))" }} />
-          <h1 className="pm-title font-black uppercase"
-            style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", letterSpacing: "0.04em", textShadow: "0 0 30px rgba(255,0,92,0.2)", lineHeight: 1 }}>
-            League Rules
-          </h1>
-        </div>
-        <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
-          The Tesco Kilbirnie Darts League — points wager format. Read before you play.
-        </p>
-      </div>
+    <div className="space-y-6 pm-page">
+      <PageHero kicker="The rulebook" icon={<BookOpen className="w-3.5 h-3.5" />} title="League Rules" accent="#ff005c" accent2="#ffd24a"
+        sub="The Tesco Kilbirnie Darts League — points wager format. Read before you play." />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 

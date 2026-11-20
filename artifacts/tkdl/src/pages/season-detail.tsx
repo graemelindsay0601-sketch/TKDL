@@ -470,11 +470,12 @@ export default function SeasonDetail() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className="flex-1 py-2 px-4 rounded-lg text-sm font-bold uppercase tracking-wider transition-all"
+            className="flex-1 py-2 px-2 rounded-full text-xs sm:text-sm uppercase whitespace-nowrap transition-all"
             style={{
               fontFamily: "Oswald, sans-serif",
-              background: activeTab === tab ? "#ff005c" : "transparent",
-              color: activeTab === tab ? "#fff" : "rgba(255,255,255,0.6)",
+              background: activeTab === tab ? "linear-gradient(180deg, #ffe58a, #e0a800)" : "transparent",
+              color: activeTab === tab ? "#1a1200" : "#cfcade",
+              boxShadow: activeTab === tab ? "0 0 14px rgba(255,210,74,.4)" : undefined,
               letterSpacing: "0.08em",
             }}
           >
@@ -494,12 +495,12 @@ export default function SeasonDetail() {
           </div>
 
           <div
-            className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-            style={{ gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+            className="grid sd-grid text-xs uppercase font-bold px-4 py-2 border-b"
+            style={{ borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
           >
             <div className="text-center">#</div>
             <div>Player</div>
-            <div className="text-center">Tier</div>
+            <div className="text-center sd-tier justify-center">Tier</div>
             <div className="text-center">Record</div>
             <div className="text-right">Elo</div>
             <div className="text-right">Points</div>
@@ -508,9 +509,8 @@ export default function SeasonDetail() {
           {standings?.map((entry, idx) => (
             <div
               key={entry.playerId}
-              className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+              className="grid sd-grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
               style={{
-                gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem",
                 borderColor: "rgba(255,255,255,0.05)",
                 background: idx === 0 ? "rgba(255,210,74,0.04)" : undefined,
               }}
@@ -532,7 +532,7 @@ export default function SeasonDetail() {
                 )}
               </div>
 
-              <div className="flex justify-center">
+              <div className="sd-tier justify-center">
                 <TierBadge tier={entry.tier} />
               </div>
 
@@ -660,12 +660,12 @@ export default function SeasonDetail() {
               ) : (
                 <>
                   <div
-                    className="grid text-xs uppercase font-bold px-4 py-2 border-b"
-                    style={{ gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem", borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
+                    className="grid sd-grid text-xs uppercase font-bold px-4 py-2 border-b"
+                    style={{ borderColor: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}
                   >
                     <div className="text-center">#</div>
                     <div>Team</div>
-                    <div className="text-center">Tier</div>
+                    <div className="text-center sd-tier justify-center">Tier</div>
                     <div className="text-center">Record</div>
                     <div className="text-right">Elo</div>
                     <div className="text-right">Points</div>
@@ -673,9 +673,8 @@ export default function SeasonDetail() {
                   {doublesTeams.map((team: any, idx: number) => (
                     <div
                       key={team.id}
-                      className="grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
+                      className="grid sd-grid items-center px-4 py-3 border-b transition-colors hover:bg-white/[0.025]"
                       style={{
-                        gridTemplateColumns: "3rem 1fr 7rem 5rem 5rem 5rem",
                         borderColor: "rgba(255,255,255,0.05)",
                         background: idx === 0 && !team.isEliminated ? "rgba(0,102,255,0.05)" : undefined,
                         opacity: team.isEliminated ? 0.5 : 1,
@@ -697,7 +696,7 @@ export default function SeasonDetail() {
                           ))}
                         </div>
                       </div>
-                      <div className="flex justify-center">
+                      <div className="sd-tier justify-center">
                         <TierBadge tier={team.tier} />
                       </div>
                       <div className="text-center text-sm font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>

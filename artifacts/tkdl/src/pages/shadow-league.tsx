@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/premium/Premium";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { CircuitBoard, Lock, Trophy, TrendingUp, Target, Zap } from "lucide-react";
@@ -29,38 +30,9 @@ export default function ShadowLeague() {
   }, []);
 
   return (
-    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 pb-10">
-      <div className="pdc-divider" />
-
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl"
-        style={{
-          background: "linear-gradient(135deg, rgba(255,210,74,0.07) 0%, rgba(9,9,15,0.99) 55%, rgba(255,0,92,0.03) 100%)",
-          border: "1px solid rgba(255,210,74,0.18)",
-          minHeight: 140,
-        }}>
-        <div className="absolute top-0 left-0 w-80 h-80 pointer-events-none"
-          style={{ background: "radial-gradient(circle at 10% 40%, rgba(255,210,74,0.1), transparent 55%)" }} />
-        <div className="relative p-6 md:p-8">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded-lg" style={{ background: "rgba(255,210,74,0.1)", border: "1px solid rgba(255,210,74,0.25)" }}>
-              <CircuitBoard className="w-3.5 h-3.5" style={{ color: "#ffd24a" }} />
-            </div>
-            <span className="text-xs font-black uppercase tracking-widest"
-              style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.18em" }}>
-              Shadow Bot
-            </span>
-          </div>
-          <h1 className="pm-title font-black uppercase leading-none mb-2"
-            style={{ fontFamily: "Oswald, sans-serif", fontSize: "clamp(2rem, 5vw, 3.2rem)", color: "#fff", letterSpacing: "0.04em" }}>
-            Shadow{" "}
-            <span style={{ color: "#ffd24a", textShadow: "0 0 32px rgba(255,210,74,0.5)" }}>League</span>
-          </h1>
-          <p className="text-sm max-w-lg" style={{ color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
-            All shadow bots ranked by form. Rankings update automatically as players log more practice data.
-          </p>
-        </div>
-      </div>
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 pb-10 pm-page">
+      <PageHero kicker="Shadow Bot" icon={<CircuitBoard className="w-3.5 h-3.5" />} title="Shadow League" gold accent="#ffd24a" accent2="#22d3ee"
+        sub="All shadow bots ranked by form. Rankings update automatically as players log more practice data." />
 
       {loading ? (
         <div className="section-card py-16 text-center">

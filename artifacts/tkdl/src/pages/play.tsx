@@ -1479,12 +1479,13 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
           <div className="flex gap-1 mb-3 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
             {tabs.map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className="flex-1 py-1.5 text-xs font-bold uppercase rounded-lg transition-all"
+                className="flex-1 py-1.5 px-1 text-[0.68rem] sm:text-xs uppercase rounded-full whitespace-nowrap transition-all"
                 style={{
-                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em",
-                  background: tab === t.key ? "rgba(255,0,92,0.15)" : "transparent",
-                  color: tab === t.key ? "#ff005c" : "rgba(255,255,255,0.3)",
-                  border: tab === t.key ? "1px solid rgba(255,0,92,0.3)" : "1px solid transparent",
+                  fontFamily: "Oswald, sans-serif", letterSpacing: "0.05em",
+                  background: tab === t.key ? "linear-gradient(180deg, rgba(255,0,92,.4), rgba(255,0,92,.12))" : "transparent",
+                  color: tab === t.key ? "#fff" : "rgba(255,255,255,0.55)",
+                  border: tab === t.key ? "1px solid rgba(255,0,92,0.7)" : "1px solid transparent",
+                  boxShadow: tab === t.key ? "0 0 12px rgba(255,0,92,.35)" : undefined,
                   cursor: "pointer",
                 }}>
                 {t.label}
