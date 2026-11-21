@@ -69,8 +69,8 @@ function PlayerCard({ player, leaderboardRank }: { player: any; leaderboardRank?
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <div className={`uppercase leading-tight truncate ${isElim ? "" : "pm-chrome"}`}
-                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "1.45rem", letterSpacing: "0.03em", color: isElim ? "#ff7a9c" : undefined }}>
+              <div className={`uppercase leading-tight truncate text-[1.45rem] ${player.name.length > 6 ? "lg:text-[1.08rem]" : ""} ${isElim ? "" : "pm-chrome"}`}
+                style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, letterSpacing: "0.03em", color: isElim ? "#ff7a9c" : undefined }}>
                 {player.name}
               </div>
               {player.nickname && <div className="text-xs truncate" style={{ color: "#a9a4bd", fontStyle: "italic" }}>"{player.nickname}"</div>}
