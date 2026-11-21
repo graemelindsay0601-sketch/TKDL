@@ -558,8 +558,13 @@ function PulseSection({ pulse, loading, previousVisit, currentPlayerId }: {
 }) {
   const [tab, setTab] = useState<"all" | PulseItem["category"]>("all");
   const [reacted, setReacted] = useState<Set<string>>(new Set());
+  // Short by default: the first few, then "Show more" adds a page at a time.
+  const PULSE_PAGE = 5;
+  const [shown, setShown] = useState(PULSE_PAGE);
 
-  const items = (pulse ?? []).filter(p => tab === "all" || p.category === tab);
+  const allItems = (pulse ?? []).filter(p => tab === "all" || p.category === tab);
+  const items = allItems.slice(0, shown);
+  const hiddenCount = allItems.length - items.length;
   const previousVisitMs = previousVisit ? new Date(previousVisit).getTime() : null;
   let dividerPlaced = false;
 
@@ -583,7 +588,7 @@ function PulseSection({ pulse, loading, previousVisit, currentPlayerId }: {
       <div className="flex items-center justify-between mb-3.5 flex-wrap gap-2.5">
         <div className="flex gap-1.5 flex-wrap">
           {PULSE_TABS.map(t => (
-            <button key={t.key} onClick={() => setTab(t.key)}
+            <button key={t.key} onClick={() => { setTab(t.key); setShown(PULSE_PAGE); }}
               className="font-black uppercase transition-all"
               style={{
                 fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.06em", padding: "0.32rem 0.7rem", borderRadius: 999,
@@ -640,6 +645,18 @@ function PulseSection({ pulse, loading, previousVisit, currentPlayerId }: {
           );
         })}
       </div>
+      {!loading && (hiddenCount > 0 || shown > PULSE_PAGE) && (
+        <div className="flex justify-center gap-2 mt-3">
+          {hiddenCount > 0 && (
+            <button onClick={() => setShown(n => n + 10)} className="pulse-more">
+              Show more <span>+{Math.min(10, hiddenCount)}{hiddenCount > 10 ? ` of ${hiddenCount}` : ""}</span>
+            </button>
+          )}
+          {shown > PULSE_PAGE && (
+            <button onClick={() => setShown(PULSE_PAGE)} className="pulse-more ghost">Show less</button>
+          )}
+        </div>
+      )}
     </div>
     </div>
   );

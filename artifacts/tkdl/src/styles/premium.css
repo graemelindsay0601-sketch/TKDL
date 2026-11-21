@@ -107,3 +107,9 @@
               linear-gradient(160deg, var(--pc), rgba(255,255,255,.08) 55%, color-mix(in srgb, var(--pc) 45%, transparent)) border-box !important;
   box-shadow: 0 14px 30px rgba(0,0,0,.4), 0 0 26px color-mix(in srgb, var(--pc) 30%, transparent) !important;
 }
+
+/* Hub › League pulse: "Show more / Show less" */
+.pulse-more { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(255,92,147,.45); background: rgba(255,92,147,.1); color: #ffc2d6; font-family: Oswald, sans-serif; font-weight: 700; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; }
+.pulse-more span { color: rgba(255,255,255,.55); font-weight: 600; letter-spacing: .06em; }
+.pulse-more:hover { background: rgba(255,92,147,.18); }
+.pulse-more.ghost { border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: #c9c5d8; }
