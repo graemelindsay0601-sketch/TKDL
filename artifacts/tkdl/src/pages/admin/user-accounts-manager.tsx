@@ -190,7 +190,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <input type="text" placeholder="New password (minimum 4 characters)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
+                  <input type="text" placeholder="New password (4+ characters)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
                     className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
                   <button onClick={() => handleReset(acc.id)} disabled={resetting === acc.id}
@@ -200,7 +200,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
                   </button>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <input type="text" placeholder="Rename player (sets their username too)" value={renameTo[acc.id] ?? ""} onChange={e => setRenameTo(p => ({ ...p, [acc.id]: e.target.value }))}
+                  <input type="text" placeholder="New name, e.g. Ronnie" value={renameTo[acc.id] ?? ""} onChange={e => setRenameTo(p => ({ ...p, [acc.id]: e.target.value }))}
                     className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
                   <button onClick={() => handleRename(acc.id)} disabled={renaming === acc.id || !(renameTo[acc.id] ?? "").trim()}
