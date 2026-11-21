@@ -318,14 +318,14 @@ router.get("/players/:id/practice-stats", async (req, res): Promise<void> => {
         FROM practice_sessions ps,
              jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
         WHERE ps.player1_id = ${playerId}
-          AND ps.session_data ? 'dartLog'
+          AND ps.session_data ? 'dartLog' AND NOT (dart ? 'typed')
           AND dart->>'phase' = 'checkout'
         UNION ALL
         SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult
         FROM practice_sessions ps,
              jsonb_array_elements(ps.session_data->'p2DartLog') AS t(dart)
         WHERE ps.player2_id = ${playerId}
-          AND ps.session_data ? 'p2DartLog'
+          AND ps.session_data ? 'p2DartLog' AND NOT (dart ? 'typed')
           AND dart->>'phase' = 'checkout'
       )
       SELECT
@@ -608,7 +608,7 @@ router.get("/players/:id/dart-profile", async (req, res): Promise<void> => {
         FROM practice_sessions,
           jsonb_array_elements(session_data->'dartLog') AS dart
         WHERE player1_id = ${playerId}
-          AND session_data ? 'dartLog'
+          AND session_data ? 'dartLog' AND NOT (dart ? 'typed')
         UNION ALL
         SELECT
           (dart->>'seg')::int   AS seg,
@@ -618,7 +618,7 @@ router.get("/players/:id/dart-profile", async (req, res): Promise<void> => {
         FROM practice_sessions,
           jsonb_array_elements(session_data->'p2DartLog') AS dart
         WHERE player2_id = ${playerId}
-          AND session_data ? 'p2DartLog'
+          AND session_data ? 'p2DartLog' AND NOT (dart ? 'typed')
       )
       SELECT seg, mult, phase, COUNT(*)::int AS throws
       FROM dart_data
@@ -877,7 +877,7 @@ router.get("/players/:id/shadow-bot-stats", async (req, res): Promise<void> => {
       WITH dart_data AS (
         SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
         FROM practice_sessions, jsonb_array_elements(session_data->'dartLog') AS dart
-        WHERE player1_id = ${playerId} AND session_data ? 'dartLog'
+        WHERE player1_id = ${playerId} AND session_data ? 'dartLog' AND NOT (dart ? 'typed')
       )
       SELECT seg, mult, phase, COUNT(*)::int AS throws
       FROM dart_data WHERE seg IS NOT NULL AND mult IS NOT NULL
@@ -919,7 +919,7 @@ router.get("/players/:id/shadow-profile", async (req, res): Promise<void> => {
         WITH dart_data AS (
           SELECT (dart->>'seg')::int AS seg, (dart->>'mult')::int AS mult, dart->>'phase' AS phase
           FROM practice_sessions, jsonb_array_elements(session_data->'dartLog') AS dart
-          WHERE player1_id = ${playerId} AND session_data ? 'dartLog'
+          WHERE player1_id = ${playerId} AND session_data ? 'dartLog' AND NOT (dart ? 'typed')
         )
         SELECT seg, mult, phase, COUNT(*)::int AS throws
         FROM dart_data WHERE seg IS NOT NULL AND mult IS NOT NULL
@@ -1276,7 +1276,7 @@ export async function generatePracticeRoutine(playerId: number) {
           FROM practice_sessions ps,
                jsonb_array_elements(ps.session_data->'dartLog') AS t(dart)
           WHERE ps.player1_id = ${playerId}
-            AND ps.session_data ? 'dartLog'
+            AND ps.session_data ? 'dartLog' AND NOT (dart ? 'typed')
             AND ps.game_type_key IN (SELECT key FROM game_types WHERE engine = 'X01')
         )
         SELECT seg, mult, phase, COUNT(*) AS throws
