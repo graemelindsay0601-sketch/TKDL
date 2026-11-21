@@ -61,10 +61,10 @@ export default function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="pm-lab mb-1.5" style={{ fontSize: 9 }}>Username</label>
-                <input type="text" autoComplete="username" value={username} onChange={e => setUsername(e.target.value)}
+                <label className="pm-lab mb-1.5" style={{ fontSize: 9 }}>Username or your name</label>
+                <input type="text" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={username} onChange={e => setUsername(e.target.value)}
                   className="w-full rounded-full px-5 text-sm outline-none transition-all" style={inputStyle} onFocus={focus} onBlur={blur}
-                  placeholder="e.g. graeme" required />
+                  placeholder="e.g. Ronald Augustine" required />
               </div>
               <div>
                 <label className="pm-lab mb-1.5" style={{ fontSize: 9 }}>Password</label>
