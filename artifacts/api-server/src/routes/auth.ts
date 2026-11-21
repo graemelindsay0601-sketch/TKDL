@@ -307,4 +307,36 @@ router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, 
   res.json({ ok: true, username: user.username });
 });
 
+// ── POST /api/admin/users/:id/rename ─────────────────────────────────────────
+// Renames the player and gives the account the matching username
+// ("Ronnie" -> ronnie), so what they're called is what they sign in with.
+const RenameBody = z.object({ name: z.string().trim().min(1).max(80) });
+
+router.post("/admin/users/:id/rename", requireAdminSession, async (req, res): Promise<void> => {
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId) || userId <= 0) { res.status(400).json({ error: "Invalid id" }); return; }
+  const parsed = RenameBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Name required" }); return; }
+  const name = parsed.data.name.replace(/\s+/g, " ");
+  const username = normaliseUsername(name);
+  if (!username) { res.status(400).json({ error: "Name needs at least one letter or number" }); return; }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  if (!user.playerId) { res.status(400).json({ error: "This account isn't linked to a player" }); return; }
+
+  const nameClash = await db.execute(sql`SELECT id FROM players WHERE lower(trim(name)) = lower(${name}) AND id <> ${user.playerId} LIMIT 1`);
+  if (nameClash.rows.length) { res.status(409).json({ error: `Another player is already called ${name}` }); return; }
+  const [userClash] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, username));
+  if (userClash && userClash.id !== userId) { res.status(409).json({ error: `The username ${username} is already taken` }); return; }
+
+  const before = await db.execute(sql`SELECT name FROM players WHERE id = ${user.playerId}`);
+  await db.transaction(async tx => {
+    await tx.execute(sql`UPDATE players SET name = ${name} WHERE id = ${user.playerId}`);
+    await tx.update(usersTable).set({ username }).where(eq(usersTable.id, userId));
+  });
+  logger.info({ userId, playerId: user.playerId, from: (before.rows[0] as { name?: string } | undefined)?.name, to: name, username }, "Player renamed by admin");
+  res.json({ ok: true, username, playerName: name });
+});
+
 export default router;

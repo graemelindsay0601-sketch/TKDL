@@ -90,6 +90,26 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
     setResetting(null);
   };
 
+  const [renameTo, setRenameTo] = useState<Record<number, string>>({});
+  const [renaming, setRenaming] = useState<number | null>(null);
+  const handleRename = async (userId: number) => {
+    const name = (renameTo[userId] ?? "").trim();
+    if (!name) return;
+    setRenaming(userId);
+    const res = await fetch(`/api/admin/users/${userId}/rename`, {
+      method: "POST", credentials: "include", headers: adminHeaders(), body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast({ title: `Renamed to ${data.playerName}`, description: `They now sign in as @${data.username}.` });
+      setRenameTo(p => ({ ...p, [userId]: "" }));
+      void load();
+    } else {
+      toast({ title: "Couldn't rename", description: data.error, variant: "destructive" });
+    }
+    setRenaming(null);
+  };
+
   const handleCreateNewPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
@@ -177,6 +197,16 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
                     className="px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-50"
                     style={{ background: "rgba(255,0,92,0.1)", border: "1px solid rgba(255,0,92,0.25)", color: "#ff005c", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
                     {resetting === acc.id ? "…" : "Reset"}
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input type="text" placeholder="Rename player (sets their username too)" value={renameTo[acc.id] ?? ""} onChange={e => setRenameTo(p => ({ ...p, [acc.id]: e.target.value }))}
+                    className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
+                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
+                  <button onClick={() => handleRename(acc.id)} disabled={renaming === acc.id || !(renameTo[acc.id] ?? "").trim()}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold transition-opacity disabled:opacity-50"
+                    style={{ background: "rgba(255,210,74,0.1)", border: "1px solid rgba(255,210,74,0.3)", color: "#ffd24a", fontFamily: "Oswald, sans-serif", letterSpacing: "0.08em" }}>
+                    {renaming === acc.id ? "…" : "Rename"}
                   </button>
                 </div>
               </div>
