@@ -156,6 +156,8 @@ test("the monthly sub goal: set once a month from Partner up, settled at the mon
   await db.execute(sql`DELETE FROM career_stream_clips WHERE career_save_id=${id}`);
   // Likewise Shorts posted by earlier tests: one settling this week can bring a follower or two (also seeded), which made this flaky.
   await db.execute(sql`DELETE FROM career_stream_shorts WHERE career_save_id=${id}`);
+  // And partner deals taken in earlier tests: a giveaway completing this week adds its followers.
+  await db.execute(sql`UPDATE career_stream_partner_deals SET status='EXPIRED' WHERE career_save_id=${id} AND status='ACTIVE'`);
   const root = { id, world_seed: String((await rows(sql`SELECT world_seed FROM career_saves WHERE id=${id}`))[0].world_seed) };
   await settleStreamingWeek(db, root, s.currentSeason, end);
   await settleStreamingWeek(db, root, s.currentSeason, end);
