@@ -52,7 +52,7 @@ export function UnlockCelebration() {
       <div className="inner">
         <div className="chip">{kicker}{queue.length > 1 ? ` · 1 of ${queue.length}` : ""}</div>
         <img src={art} alt="" className={current.kind === "TRACK" || current.showpiece ? "piece" : "seal"} />
-        <h2>{current.title}</h2>
+        <h2 className="pm-chrome">{current.title}</h2>
         {current.kind === "TRACK" && current.metal && <div className="metal">{METAL_NAME[current.metal]} · level {current.level} of {current.levels}</div>}
         <div className="desc">{current.kind === "TRACK" ? (current.reachedText ? `Reached ${current.reachedText}` : current.reached !== null ? `Reached ${current.reached.toLocaleString("en-GB")}` : "") : current.goal}</div>
         {current.kind === "TRACK" && <div className="nextcard">{current.nextGoal ? <><b>Next:</b> {current.nextGoal}</> : <b>Track complete</b>}</div>}
