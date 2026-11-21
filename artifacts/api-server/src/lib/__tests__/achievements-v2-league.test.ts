@@ -100,3 +100,22 @@ test("Untouchable and Ever-present count seasons in a row (and an eliminated sea
   assert.equal(r.metrics.presentStreak, 4); assert.equal(r.metrics.survivedStreak, 2, "seasons 3 and 4, after being eliminated in 2");
   assert.ok(r.feats.foundingMember);
 });
+
+test("a season entered as a final table only (no match rows) still counts: founding member, seasons played, seasons in a row", () => {
+  // Season 1 has no match rows at all, just the final table; ME is on it with games played.
+  const ms = [match(2, ME, 3, day(30)), match(2, 4, ME, day(31))];
+  const base = ctx(ms);
+  const seasons = [
+    { id: 1, startDate: day(0, 0), endDate: day(27, 23), isActive: false, championId: 2 },
+    { id: 2, startDate: day(28, 0), endDate: day(55, 23), isActive: false, championId: 3 },
+    // a Doubles event that started earlier must not count as "the league's first season"
+    { id: 9, startDate: day(-40, 0), endDate: day(-10, 0), isActive: false, championId: null, leagueType: "doubles" },
+  ];
+  const r = evaluateLeague({ ...base, seasons });
+  assert.ok(r.feats.foundingMember, "played season 1 per the final table");
+  assert.equal(r.metrics.seasonsPlayed, 2);
+  assert.equal(r.metrics.presentStreak, 2, "doubles season doesn't break the run");
+  // someone not on season 1's table doesn't get it
+  const other = evaluateLeague({ ...base, seasons, player: { id: 3, careerPeakElo: 1000, eliminationsCount: 0, longestWinStreak: 0 } });
+  assert.equal(other.feats.foundingMember, undefined);
+});
