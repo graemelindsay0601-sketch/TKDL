@@ -368,7 +368,7 @@ export default function Master501() {
             <div className="text-xs font-black uppercase tracking-widest" style={{ fontFamily: "Oswald,sans-serif", color: startCfg.color, letterSpacing: "0.22em" }}>
               {startCfg.name} · Master-501
             </div>
-            <div className="font-black uppercase" style={{ fontFamily: "Oswald,sans-serif", fontSize: "2.4rem", color: "#fff", lineHeight: 1 }}>
+            <div className="pm-chrome uppercase" style={{ fontFamily: "Oswald,sans-serif", fontWeight: 700, fontSize: "3rem", lineHeight: 1, letterSpacing: ".03em" }}>
               BULL UP
             </div>
             <div className="text-sm" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald,sans-serif" }}>

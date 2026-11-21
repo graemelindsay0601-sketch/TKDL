@@ -3733,7 +3733,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         {topBanner}
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: scorerThemeColor ?? undefined }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif", color: scorerThemeColor ?? undefined }}>
             {cutThroat ? "Cut-Throat Cricket" : "Cricket"}
           </h2>
           {cutThroat && <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Lowest score wins · Hitting closed numbers gives OPPONENT points</p>}
@@ -3986,7 +3986,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
       <div style={{ maxWidth:"512px", margin:"0 auto", padding:"1rem 0.5rem" }}>
         <div className="pdc-divider" />
         <div className="text-center mb-4">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Killer — Pick Numbers</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>Killer — Pick Numbers</h2>
           <p className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.4)" }}>
             <span style={{ color:P_COLOR(assigning) }}>{names[assigning]}</span>
             {assigning === 1 && botConfig ? " — CPU choosing…" : " — tap your number (1–20)"}
@@ -4026,7 +4026,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
-        <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily:"Oswald,sans-serif" }}>Killer</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide text-center" style={{ fontFamily:"Oswald,sans-serif" }}>Killer</h2>
         {newScoringUI ? (
           <LivesPods pods={[0,1].map(i => ({
             id: String(i), name: names[i], initial: names[i].charAt(0).toUpperCase(),
@@ -4263,7 +4263,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       <div className="max-w-lg mx-auto space-y-4">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Shanghai</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Shanghai</h2>
           <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Round {shanghaiRound} of {maxRounds} — Target: {shanghaiRound}</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -4293,7 +4293,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
       <div className="max-w-lg mx-auto space-y-4">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Straight Line</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Straight Line</h2>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             Pick a starting number — you'll work Double → Big → Treble → Small → Bull → Bullseye, then back out through its opposite number.
           </p>
@@ -4485,7 +4485,7 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>High-Low</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>High-Low</h2>
       </div>
 
       {/* Live target readout — the whole point of this HUD is that both
@@ -4655,7 +4655,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"}</h2>
         <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>
           Round {round+1}/{targets.length} — Target: {targetLabels[round]}
         </p>
@@ -4802,7 +4802,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>
             {bullsOnly ? `Bull Rush — First to ${target} Bulls`
               : accumulate ? "Accumulator"
               : noOuterBull ? `No Black — Race to ${target}`
@@ -4909,7 +4909,7 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Gotcha!</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Gotcha!</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Race to exactly {target}. Match opponent's score = GOTCHA — they reset to 0!</p>
       </div>
       {newScoringUI ? (
@@ -4983,7 +4983,7 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Baseball</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Baseball</h2>
         <p style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Inning {inning}/{innings} — Target: {inning}</p>
         <p className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Single=1 run · Double=2 · Treble=3</p>
       </div>
@@ -5079,7 +5079,7 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Scram — Phase {phase}/2</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Scram — Phase {phase}/2</h2>
         <div className="grid grid-cols-2 gap-3 mt-2 text-xs" style={{ fontFamily: "Oswald, sans-serif" }}>
           <div style={{ color: P_COLOR(stopper) }}>{names[stopper]}: 🔒 Stopper</div>
           <div style={{ color: P_COLOR(scorer) }}>{names[scorer]}: 💰 Scorer — {phaseScores[scorer]}pts</div>
@@ -5204,7 +5204,7 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Football Darts</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>Football Darts</h2>
           <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>
             Hit Bull to win/steal possession · Any double = goal when in possession · Possession is kept until opponent hits Bull · First to {goalsToWin} wins
           </p>
@@ -5300,7 +5300,7 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>Golf Darts</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>Golf Darts</h2>
           <p style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>Hole {hole}/{holes} — Target: {hole}</p>
           <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>Hit target in fewest darts. Miss all 3 = 4 strokes. LOWEST score wins.</p>
         </div>
@@ -5360,7 +5360,7 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
         <div className="pdc-divider" />
         <div className="text-center">
           <Target className="w-12 h-12 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Each player throws 3 darts. Closest dart to Bull wins.</p>
         </div>
         {phase === "throwing" ? (
@@ -5416,7 +5416,7 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
       <div className="pdc-divider" />
       <div className="text-center">
         <Target className="w-12 h-12 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Nearest the Bull</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>Pick your closest dart — bot throws automatically.</p>
       </div>
       {p1Score !== null && (
@@ -5463,7 +5463,7 @@ export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon
       <div className="pdc-divider" />
       <div className="text-center">
         <Crosshair className="w-10 h-10 mx-auto mb-2" style={{ color: "#a78bfa" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{gameName}</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{gameName}</h2>
         {rules && <p className="text-xs mt-2 px-4" style={{ color: "rgba(255,255,255,0.35)", lineHeight: 1.6 }}>{rules}</p>}
         <p className="text-sm mt-3" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
           Play your game — declare the winner when done
@@ -5573,7 +5573,7 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
           <>
             <div className="text-center">
               <Crosshair className="w-8 h-8 mx-auto mb-2" style={{ color: P_COLOR(callPhase) }} />
-              <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{names[callPhase]}, call your double</h2>
+              <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{names[callPhase]}, call your double</h2>
               <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>You must finish THIS leg on this double — no other checkout counts</p>
             </div>
             <SectionCard>
@@ -5598,7 +5598,7 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
       ) : (
         <>
           <div className="text-center">
-            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Pick a Double</h2>
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Pick a Double</h2>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[0,1].map(i => (
@@ -5706,7 +5706,7 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
         <>
           <div className="text-center">
             <Dices className="w-8 h-8 mx-auto mb-2" style={{ color: P_COLOR(picker) }} />
-            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>{names[picker]} picks the next leg</h2>
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{names[picker]} picks the next leg</h2>
             <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Choose a starting score between {minScore} and {maxScore}</p>
           </div>
           <SectionCard>
@@ -5736,7 +5736,7 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
       ) : (
         <>
           <div className="text-center">
-            <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Legs — First to {legsToWin}</h2>
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Legs — First to {legsToWin}</h2>
           </div>
           <div className="grid grid-cols-2 gap-3 text-xs text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
             {[0,1].map(i => <div key={i} style={{ color: P_COLOR(i) }}>{names[i]}: {legWins[i]} 🏆</div>)}
@@ -5811,7 +5811,7 @@ export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAband
       <div className="pdc-divider" />
       <div className="text-center">
         <Grid3X3 className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Noughts &amp; Crosses</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Noughts &amp; Crosses</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Hit numbers 1–9 to claim a square — three in a row wins</p>
       </div>
       <div className="grid grid-cols-2 gap-3 text-xs text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
@@ -5907,7 +5907,7 @@ export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onW
       <div className="pdc-divider" />
       <div className="text-center">
         <Target className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Checkout Challenge</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Checkout Challenge</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Fresh {startScore} every visit — check out in ONE visit to win. Honour the double!</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -5982,7 +5982,7 @@ export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Fives — Race to {target}</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Fives — Race to {target}</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Each visit must total a multiple of 5, or it scores nothing</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -6063,7 +6063,7 @@ export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, o
       <div className="pdc-divider" />
       <div className="text-center">
         <Shuffle className="w-8 h-8 mx-auto mb-2" style={{ color: "#c084fc" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Oche Roulette</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Oche Roulette</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {round > totalRounds ? "SUDDEN DEATH — tied, one more spin" : `Round ${round}/${totalRounds}`}
         </p>
@@ -6156,7 +6156,7 @@ export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
       <div className="pdc-divider" />
       <div className="text-center">
         <Dices className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b9d" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>180 Challenge</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>180 Challenge</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>T20 · T20 · T20 — first perfect visit wins</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -6273,7 +6273,7 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
       <div className="pdc-divider" />
       <div className="text-center">
         <Rabbit className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Hare and Hounds</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Hare and Hounds</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {names[0]} is the Hare, racing 1→20. {names[1]} is the Hound, chasing the same path — catch the Hare's number to win. Single = 1 length, double = 2, treble = 3.
         </p>
@@ -6406,7 +6406,7 @@ export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, on
       <div className="pdc-divider" />
       <div className="text-center">
         <Lock className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Prisoner</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Prisoner</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Round the Clock 1–20 — but hit the INNER ring and you're jailed, skipping your next visit</p>
       </div>
       {newScoringUI && (
@@ -6510,7 +6510,7 @@ export function KnockoutScorer({ p1Name, p2Name, config, botConfig, onWin, onAba
       <div className="pdc-divider" />
       <div className="text-center">
         <Swords className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Knockout</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Knockout</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Beat the bar or take a strike. {maxStrikes} strikes and you're out.</p>
       </div>
       <SectionCard>
@@ -6643,7 +6643,7 @@ export function TennisScorer({ p1Name, p2Name, config, botConfig, onWin, onAband
       <div className="pdc-divider" />
       <div className="text-center">
         <Award className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Darts Tennis</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Darts Tennis</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           Serve 3, return 3, at the half in play — highest visit wins the point. First to 4 points takes the game (no deuce), first to {gamesToWin} games wins the match.
         </p>
@@ -6795,7 +6795,7 @@ export function FollowTheLeaderScorer({ p1Name, p2Name, config, botConfig, onWin
       <div className="pdc-divider" />
       <div className="text-center">
         <Footprints className="w-8 h-8 mx-auto mb-2" style={{ color: "#c084fc" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Follow the Leader</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Follow the Leader</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>The leader calls one dart. Match it exactly within 3 darts or lose a life — match it and the lead swaps.</p>
       </div>
       {newScoringUI ? (
@@ -6917,7 +6917,7 @@ export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
       <div className="pdc-divider" />
       <div className="text-center">
         <Ship className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Battleship Darts</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Battleship Darts</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Each player has a secret 6-cell fleet on the board (1–20) — hidden even from themselves. Fire at your opponent's numbers to sink it.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -7047,7 +7047,7 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
       <div className="pdc-divider" />
       <div className="text-center">
         <EyeOff className="w-8 h-8 mx-auto mb-2" style={{ color: "#a78bfa" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Blind Killers</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Blind Killers</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Everyone's double is secret — even to themselves. Hit your own to go live, hit a live opponent's to take a life.</p>
       </div>
       {newScoringUI ? (
@@ -7161,7 +7161,7 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
       <div className="pdc-divider" />
       <div className="text-center">
         <PawPrint className="w-8 h-8 mx-auto mb-2" style={{ color: "#ffd24a" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Donkey Derby</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Donkey Derby</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {names[0]}'s donkey runs on {nums[0]}, {names[1]}'s on {nums[1]}. Hit your own number to advance — hit your rival's to knock them back. First to 20 lengths wins.
         </p>
@@ -7287,7 +7287,7 @@ export function LimboScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
       <div className="pdc-divider" />
       <div className="text-center">
         <ArrowDownToLine className="w-8 h-8 mx-auto mb-2" style={{ color: "#38bdf8" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Limbo</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Limbo</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           Score under the bar to clear it — the bar starts at {startBar} and only ever drops to whatever you scored. Miss it and lose a life. {maxLives} lives each.
         </p>
@@ -7399,7 +7399,7 @@ export function SnakesLaddersScorer({ p1Name, p2Name, botConfig, onWin, onAbando
       <div className="pdc-divider" />
       <div className="text-center">
         <LayoutGrid className="w-8 h-8 mx-auto mb-2" style={{ color: "#4ade80" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Snakes &amp; Ladders</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Snakes &amp; Ladders</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           One dart, any number — it converts to a 1-6 roll (Bull = 6). Land on a ladder and climb, land on a snake and slide. First to square 30 wins.
         </p>
@@ -7529,7 +7529,7 @@ export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
       <div className="pdc-divider" />
       <div className="text-center">
         <Target className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff9219" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Quackshot</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Quackshot</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {totalRounds} rounds, highest score wins — but the treble is a trap: it's worth less than missing wide. Aim for the bull.
         </p>
@@ -7656,7 +7656,7 @@ export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
       <div className="pdc-divider" />
       <div className="text-center">
         <Flame className="w-8 h-8 mx-auto mb-2" style={{ color: "#ff6b6b" }} />
-        <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Fight Game</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Fight Game</h2>
         <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>
           {names[0]} fights on {nums[0]}, {names[1]} fights on {nums[1]}. Hit your rival's number to damage them, hit your own to heal. {maxHp} HP each.
         </p>
@@ -7771,7 +7771,7 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Snooker Darts</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Snooker Darts</h2>
           <div className="flex items-center justify-center gap-2 mt-1">
             <span className="text-lg">{ball.emoji}</span>
             <span className="font-black text-sm" style={{fontFamily:"Oswald,sans-serif", color:ball.color}}>
@@ -7889,7 +7889,7 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>JDC Challenge 41</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>JDC Challenge 41</h2>
           <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>{label}</p>
           <p className="text-sm mt-1" style={{color:"rgba(255,255,255,0.5)",fontFamily:"Oswald,sans-serif"}}>
             Target: <strong style={{color:"#fff"}}>{phase==="dbl"?`D${target}`:target}</strong>
@@ -7962,7 +7962,7 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Exponential Bundle</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Exponential Bundle</h2>
           <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>Round {tIdx+1}/6 — Target: <strong>{target}</strong></p>
           <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>S={target} · D={target}²={target*target} · T={target}³={target*target*target} per dart</p>
         </div>
@@ -8047,7 +8047,7 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Shooting Gallery</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Shooting Gallery</h2>
           <p className="text-sm" style={{color:"#ffd24a",fontFamily:"Oswald,sans-serif"}}>Round {round+1}/{ROUNDS} — Target: <strong>{roundTarget}</strong></p>
           <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>Checkout in fewest darts. Bust or 9+ darts = +10. LOWEST score wins.</p>
         </div>
@@ -8125,7 +8125,7 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
       top={<div className="space-y-3">
         <div className="pdc-divider"/>
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Dead Centre</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Dead Centre</h2>
           <p className="text-xs" style={{color:"rgba(255,255,255,0.3)"}}>Hit Bull (25 or 50) every dart or score RESETS to 0. Race to {target}.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -8222,7 +8222,7 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider"/>
       <div className="text-center">
-        <h2 className="text-2xl font-bold uppercase" style={{fontFamily:"Oswald,sans-serif"}}>Three-in-a-Bed</h2>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{fontFamily:"Oswald,sans-serif"}}>Three-in-a-Bed</h2>
         <p className="text-xs mt-1" style={{color:"rgba(255,255,255,0.3)"}}>
           Call a treble, throw all 3 darts — all 3 must hit the same treble · First to {winsNeeded} rounds wins
         </p>
@@ -8595,7 +8595,7 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>
             Team {cutThroat ? "Cut-Throat " : ""}Cricket
           </h2>
         </div>
@@ -8755,7 +8755,7 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
       <div style={{ maxWidth: "512px", margin: "0 auto", padding: "1rem 0.5rem" }}>
         <div className="pdc-divider" />
         <div className="text-center mb-4">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif" }}>Killer — Pick Numbers</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Killer — Pick Numbers</h2>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
             <span style={{ color: pColor(assigningIdx) }}>{playerNames[assigningIdx]}</span> — tap your double (1–20)
           </p>
@@ -8796,7 +8796,7 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
-        <h2 className="text-2xl font-bold uppercase text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
+        <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide text-center" style={{ fontFamily: "Oswald, sans-serif" }}>
           Killer — {n} Players
         </h2>
         <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${Math.min(n, 3)},1fr)` }}>
@@ -8931,7 +8931,7 @@ export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, incl
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>{cutThroat ? "Cut-Throat Cricket" : "Cricket"} Doubles</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>{cutThroat ? "Cut-Throat Cricket" : "Cricket"} Doubles</h2>
         </div>
         <div className="grid grid-cols-2 gap-3">
           {([0,1] as const).map(i => (
@@ -9040,7 +9040,7 @@ export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"} Doubles</h2>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>{isBobs ? "Bob's 27" : "Halve-It"} Doubles</h2>
           <p className="text-sm" style={{ color:"#ffd24a", fontFamily:"Oswald,sans-serif" }}>Round {round+1}/{targets.length} — Target: {targetLabels[round]}</p>
           {!isBobs && <p className="text-xs" style={{ color:"rgba(255,255,255,0.3)" }}>Miss = team score halved</p>}
         </div>
@@ -9138,7 +9138,7 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
       top={<div className="space-y-3">
         <div className="pdc-divider" />
         <div className="text-center">
-          <h2 className="text-2xl font-bold uppercase" style={{ fontFamily:"Oswald,sans-serif" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>
             {bullsOnly ? "Bull Rush Doubles" : maxRounds > 0 ? "High Score Doubles" : "Count Up Doubles"}
           </h2>
           <p className="text-xs mt-1" style={{ color:"rgba(255,255,255,0.3)" }}>
