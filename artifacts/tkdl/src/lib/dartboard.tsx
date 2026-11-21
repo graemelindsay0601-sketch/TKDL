@@ -238,7 +238,7 @@ export function DartInputBoard({
   };
 
   return (
-    <div style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>
+    <div className="pm-keypad" style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>
 
       {/* ── Multiplier selector ─────────────────────────────────── */}
       {!distinguishSingleRing ? (

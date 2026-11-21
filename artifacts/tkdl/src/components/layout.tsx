@@ -487,7 +487,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {leader && (
         <Link href={`/players/${leader.playerId}`}>
           <div className={`sidebar-fade-in mt-3 rounded-xl cursor-pointer transition-opacity hover:opacity-80 ${collapsed ? "mx-2 px-2 py-2 flex flex-col items-center" : "mx-3 px-3 py-2.5"}`}
-            style={{ animationDelay: "70ms", background: "linear-gradient(135deg, rgba(255,210,74,0.12) 0%, rgba(255,210,74,0.03) 100%)", border: "1px solid rgba(255,210,74,0.22)", boxShadow: "0 4px 16px rgba(255,210,74,0.04)" } as React.CSSProperties}>
+            style={{ animationDelay: "70ms", border: "1px solid transparent", background: "radial-gradient(90% 120% at 100% 0%, rgba(255,210,74,.22), transparent 60%) padding-box, linear-gradient(160deg, rgba(30,24,16,.96), rgba(12,10,18,.98)) padding-box, linear-gradient(160deg, rgba(255,210,74,.75), rgba(255,255,255,.08) 50%, rgba(255,210,74,.3)) border-box", boxShadow: "0 8px 20px rgba(0,0,0,.4), 0 0 18px rgba(255,210,74,.12)" } as React.CSSProperties}>
             {collapsed ? (
               <>
                 <div style={{ fontSize: "0.8rem" }}>🏆</div>
@@ -501,7 +501,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.47rem", letterSpacing: "0.2em", color: "rgba(255,210,74,0.45)", textTransform: "uppercase", marginBottom: "0.3rem" }}>
                     🏆 Season Leader
                   </div>
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.88rem", fontWeight: 800, color: "#ffd24a", letterSpacing: "0.04em", lineHeight: 1.1 }} className="truncate">
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.05rem", fontWeight: 700, letterSpacing: "0.04em", lineHeight: 1.1, textTransform: "uppercase" }} className="truncate pm-metal">
                     {leader.playerName}
                   </div>
                   <div style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.28)", marginTop: 2 }}>
@@ -509,7 +509,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.55rem", fontWeight: 900, color: "#ff005c", lineHeight: 1, textShadow: "0 0 14px rgba(255,0,92,0.6)" }}>
+                  <div style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "#ffd24a", lineHeight: 1, textShadow: "0 0 16px rgba(255,210,74,0.6)" }}>
                     {leader.points}
                   </div>
                   <div style={{ fontSize: "0.5rem", color: "rgba(255,255,255,0.22)", lineHeight: 1 }}>pts</div>

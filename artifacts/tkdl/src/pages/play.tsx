@@ -1926,7 +1926,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
           {isTeam ? "Winning Team" : isFreeForAllResult ? "Survivor" : "Winner"}
         </div>
-        <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em", textShadow: `0 0 30px ${textGlowColor}66` }}>
+        <div className="pm-metal uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(2.4rem, 11vw, 3.4rem)", lineHeight: 1, letterSpacing: "0.05em", filter: `drop-shadow(0 0 18px ${textGlowColor}55)` }}>
           {winnerName}
         </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: themeColor, fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}

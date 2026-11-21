@@ -330,3 +330,11 @@
   .ms-live-format-desc { font-size: 9px; }
   .ms-live-section-title h2 { font-size: 15px; }
 }
+
+/* Start button: gold like every other primary action (the pink rule above used !important, so this does too). */
+.ms-live-start-button:not(:disabled) {
+  border: 1px solid #ffd24a !important;
+  background: linear-gradient(180deg, #ffe58a, #e0a800) !important;
+  color: #1a1200 !important;
+  box-shadow: 0 4px 0 #7a5600, 0 0 26px rgba(255,210,74,.45), inset 0 2px rgba(255,255,255,.45) !important;
+}

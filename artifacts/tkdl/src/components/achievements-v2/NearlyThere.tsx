@@ -23,7 +23,7 @@ function PlayerNudges({ playerId, name, areas }: { playerId: number; name?: stri
         <img src={trackArt(t.key, metal)} alt="" style={{ width: 34, height: 44, objectFit: "contain", filter: "brightness(0) drop-shadow(0 0 1px rgba(255,255,255,.4))", opacity: .7 }} />
         <div className="min-w-0 text-left">
           <div className="text-xs font-black uppercase tracking-wider" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>{name ? `${name}: ` : ""}{fmt(t.left!, t.unit === "rank" ? null : t.unit)}{t.unit === "rank" ? " places" : ""} away</div>
-          <div className="text-xs text-white/60 truncate">{t.title} {metal ? METAL_NAME[metal] : ""} · {t.next}</div>
+          <div className="text-xs text-white/60 leading-snug">{t.title} {metal ? METAL_NAME[metal] : ""} · {t.next}</div>
           <div className="mt-1 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.08)" }}><i className="block h-full" style={{ width: `${Math.round(t.progress * 100)}%`, background: "linear-gradient(90deg,#a855f7,#ffd24a)" }} /></div>
         </div>
       </Link>); })}</>;
