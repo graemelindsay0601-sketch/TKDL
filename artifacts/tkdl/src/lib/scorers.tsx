@@ -36,6 +36,8 @@ import { createMatchLogger, downloadMatchLog } from "./card-clash/matchLogger";
 import type { MatchLogger } from "./card-clash/matchLogger";
 import { RaceTrack, TrackStats, LivesPods, TerritoryGrid, MatchStrip, ScoreTower, LimboBar, SnakesLaddersBoard, CricketBoard, type LifePod } from "@/components/party-ui";
 import "./x01-scorer.css";
+import { ModernX01, type ModernMode } from "./modern-x01";
+import { useScorerStyle } from "./useScorerStyle";
 
 /**
  * Sends a match's accumulated log to the backend for later download from
@@ -1975,6 +1977,89 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
 
   const handleChaosCardActivationRef = useRef(handleChaosCardActivation);
   handleChaosCardActivationRef.current = handleChaosCardActivation;
+
+  // ── New scorer layouts (Visit total / Per dart) ─────────────────────────
+  // Presentation only: input still goes through handleDart, so rules, undo,
+  // the dart log and stats are the classic scorer's. Card Clash, Board Curse
+  // effects and soft-tip round limits keep the classic layout (their extra UI
+  // lives there). Visit total also needs plain double-out / straight-out
+  // rules, because it turns a typed score into darts.
+  const [preferredStyle] = useScorerStyle();
+  const [matchStyle, setMatchStyle] = useState<ModernMode | "classic" | null>(null);
+  const modernAllowed = !isCardClash && cardEffects.length === 0 && !roundLimit;
+  const totalAllowed = modernAllowed && !doubleIn && !noTrebles && !trebleOut && !masterOut && !bullFinish && !partnerVisitPlanner;
+  const wantedStyle: ModernMode | "classic" = matchStyle ?? preferredStyle;
+  const modernMode: ModernMode | null = !modernAllowed || wantedStyle === "classic" ? null : (wantedStyle === "total" && totalAllowed ? "total" : "perdart");
+  // Visit total queues its darts here; one dart per render so the engine sees each in order.
+  const synthQueueRef = useRef<Dart[]>([]);
+  const [synthTick, setSynthTick] = useState(0);
+  useEffect(() => {
+    if (synthQueueRef.current.length === 0) return;
+    if (bust) { synthQueueRef.current = []; return; }
+    const next = synthQueueRef.current.shift()!;
+    handleDartRef.current(next);
+  }, [synthTick, visitDarts, history.length, turn, bust, legNo]);
+  const queueVisit = (ds: Dart[]) => {
+    if (bust || isBotTurnX01 || visitDarts.length > 0 || synthQueueRef.current.length > 0) return;
+    synthQueueRef.current = [...ds];
+    setSynthTick(t => t + 1);
+  };
+
+  if (modernMode) {
+    const playerStats = ([0, 1] as const).map(i => {
+      const mine = history.filter(h => h.turn === i);
+      const darts = mine.reduce((n, h) => n + h.darts.length, 0);
+      const pts = mine.reduce((n, h) => n + h.score, 0);
+      const legDarts = mine.filter(h => (h.leg ?? legNo) === legNo).reduce((n, h) => n + h.darts.length, 0) + (turn === i ? visitDarts.length : 0);
+      return { avg: darts ? ((pts / darts) * 3).toFixed(1) : "–", darts: legDarts };
+    }) as [{ avg: string; darts: number }, { avg: string; darts: number }];
+    const lastVisit = ([0, 1] as const).map(i => {
+      const mine = history.filter(h => h.turn === i && (h.leg ?? legNo) === legNo);
+      return mine.length ? mine[mine.length - 1].score : null;
+    }) as [number | null, number | null];
+    const routes = ([0, 1] as const).map(i => {
+      const rem = i === turn && !bust ? projected : scores[i];
+      return rem <= 170 && rem >= 2 && (!doubleIn || started[i]) ? CHECKOUTS[rem] : undefined;
+    }) as [string | undefined, string | undefined];
+    const menu: { label: string; onClick: () => void; danger?: boolean }[] = [];
+    if (fsSupported) menu.push({ label: fs ? "Exit fullscreen" : "Fullscreen", onClick: toggleFs });
+    if (voiceEnabled) menu.push({ label: voiceMuted ? "Voice call-outs on" : "Voice call-outs off", onClick: toggleVoiceMuted });
+    menu.push({ label: "Use classic scorer for this match", onClick: () => setMatchStyle("classic") });
+    menu.push({ label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } });
+    const heading = `${startingScore} · Leg ${legNo}${legs ? ` of ${legs}` : ""}`;
+    const legsLine = setsToWin > 0 ? `First to ${setsNeeded} sets · ${legsNeeded} legs a set` : legsNeeded > 1 ? `First to ${legsNeeded} legs` : undefined;
+    return (
+      <ModernX01
+        mode={modernMode}
+        canTotal={totalAllowed}
+        onMode={m => setMatchStyle(m)}
+        names={[p1Name, p2Name]}
+        solo={soloMode}
+        scores={scores}
+        turn={turn}
+        heading={heading}
+        legsLine={legsLine}
+        legWins={legWins}
+        legsNeeded={legsNeeded}
+        setWins={setsToWin > 0 ? setWins : undefined}
+        stats={playerStats}
+        routes={routes}
+        visitDarts={visitDarts}
+        bust={bust}
+        bustMsg={bustMsg}
+        waitingMsg={partnerTurn ? "Partner throwing" : isBotTurnX01 ? `${p2Name} throwing` : doubleIn && !started[turn] ? "Hit a double to start" : undefined}
+        disabled={bust || isBotTurnX01 || synthQueueRef.current.length > 0}
+        doubleOut={!!doubleOut}
+        onDart={handleDart}
+        onMiss={handleMiss}
+        onUndo={handleUndo}
+        onDarts={queueVisit}
+        topBanner={topBanner}
+        menu={menu}
+        lastVisit={lastVisit}
+      />
+    );
+  }
 
   return (
     <>

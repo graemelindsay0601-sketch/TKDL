@@ -65,6 +65,7 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   if (!user) { res.status(401).json({ error: "Session invalid" }); return; }
 
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, user.playerId));
+  const scorerStyle = await readScorerStyle(user.id);
 
   res.json({
     id:          user.id,
@@ -73,7 +74,31 @@ router.get("/auth/me", async (req, res): Promise<void> => {
     playerId:    user.playerId,
     playerName:  player?.name ?? user.username,
     lastLoginAt: user.lastLoginAt,
+    scorerStyle,
   });
+});
+
+// ── Scorer style (which X01 scorer layout this player uses) ─────────────────
+export const SCORER_STYLES = ["total", "perdart", "classic"] as const;
+type ScorerStyle = (typeof SCORER_STYLES)[number];
+async function readScorerStyle(userId: number): Promise<ScorerStyle | null> {
+  try {
+    const r = await db.execute(sql`SELECT scorer_style FROM users WHERE id = ${userId}`);
+    const v = (r.rows[0] as { scorer_style?: string | null } | undefined)?.scorer_style ?? null;
+    return (SCORER_STYLES as readonly string[]).includes(v ?? "") ? (v as ScorerStyle) : null;
+  } catch {
+    return null; // column not there yet (boot migration pending): behave as "not chosen"
+  }
+}
+
+// ── PATCH /api/auth/scorer-style ─────────────────────────────────────────────
+router.patch("/auth/scorer-style", async (req, res): Promise<void> => {
+  const userId = (req.session as any).userId;
+  if (!userId) { res.status(401).json({ error: "Not authenticated" }); return; }
+  const style = (req.body ?? {}).style;
+  if (!(SCORER_STYLES as readonly string[]).includes(style)) { res.status(400).json({ error: "style must be one of total, perdart, classic" }); return; }
+  await db.execute(sql`UPDATE users SET scorer_style = ${style} WHERE id = ${userId}`);
+  res.json({ scorerStyle: style });
 });
 
 // ── PATCH /api/auth/password ──────────────────────────────────────────────────
