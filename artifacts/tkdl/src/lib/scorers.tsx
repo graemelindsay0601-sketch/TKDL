@@ -1186,6 +1186,12 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (fatBull && dart.segment === 25 && dart.multiplier === 1) {
       dart = { segment: 25, multiplier: 2 as const, value: 50, label: "Bull" };
     }
+    // Visit total: darts made up from a typed score are flagged `typed`. They
+    // score and count toward visit stats (180s, first 9) as normal, but the
+    // stats log keeps the flag so per-segment stats (treble/double rates,
+    // favourite doubles) can leave them out: nobody actually threw them.
+    const typedDart = !!(dart as Dart & { typed?: boolean }).typed;
+    if (typedDart) { const { typed: _t, ...plain } = dart as Dart & { typed?: boolean }; dart = plain; }
     pushDartLog([...dartLogRef.current, dart]);
 
     // Double-in: before started, only doubles open the scoring. A dart that
@@ -1220,11 +1226,11 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     // Record every dart for player profile building
     if (turn === 0) {
       const phase: "scoring" | "checkout" = scores[0] > 170 ? "scoring" : "checkout";
-      p1StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
+      p1StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase, ...(typedDart ? { typed: true } : {}) });
     }
     if (turn === 1 && isHumanVsHuman) {
       const phase: "scoring" | "checkout" = scores[1] > 170 ? "scoring" : "checkout";
-      p2StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase });
+      p2StatsRef.current.dartLog.push({ seg: dart.segment, mult: dart.multiplier, val: dart.value, phase, ...(typedDart ? { typed: true } : {}) });
     }
 
     // Card Clash: preprocess dart (segment redirects, multiplier changes, value floors/caps)
@@ -2001,7 +2007,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [synthTick, visitDarts, history.length, turn, bust, legNo]);
   const queueVisit = (ds: Dart[]) => {
     if (bust || isBotTurnX01 || visitDarts.length > 0 || synthQueueRef.current.length > 0) return;
-    synthQueueRef.current = [...ds];
+    synthQueueRef.current = ds.map(d => ({ ...d, typed: true }) as Dart);
     setSynthTick(t => t + 1);
   };
 
