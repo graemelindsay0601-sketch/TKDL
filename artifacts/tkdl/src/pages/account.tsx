@@ -1,3 +1,4 @@
+import { ScorerStylePicker } from "@/components/ScorerStylePicker";
 import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
@@ -1474,6 +1475,8 @@ export default function AccountPage() {
       </div>
 
       {activeTab === "overview" && (<>
+
+      <ScorerStylePicker />
 
       {user?.playerId && <DartsLocker playerId={user.playerId} setup={(player as any)?.dartsSetup ?? null} editable onSaved={(dartsSetup: DartsSetup) => setStats((prev: any) => prev ? { ...prev, player: { ...prev.player, dartsSetup } } : prev)} />}
 
