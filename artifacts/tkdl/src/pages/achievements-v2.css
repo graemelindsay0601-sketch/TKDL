@@ -200,3 +200,16 @@
 }
 .av2-feat.earned .n { font-family: Oswald, sans-serif; font-weight: 600; letter-spacing: .02em; font-size: 12px; }
 .av2-feat.locked { opacity: .7; }
+
+/* All six cabinet tabs visible at once (they used to scroll sideways, hiding Master-501, Modes and Career). */
+.av2-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; }
+.av2-tabs button { flex: initial; min-width: 0; padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.1; white-space: normal; text-align: center; }
+.av2-tabs button span { margin-left: 0; font-size: 11px; }
+@media (min-width: 720px) { .av2-tabs { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+/* Locked feats readable: a dark silhouette in a framed slot, not a faint ghost. */
+.av2-feat.locked { opacity: 1; background: rgba(255,255,255,.025); border: 1px dashed rgba(255,255,255,.14); }
+.av2-feat.locked img { opacity: .55; }
+.av2-feat.locked .n { color: rgba(255,255,255,.78); font-family: Oswald, sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .02em; }
+.av2-feat.locked .g { color: rgba(255,255,255,.55); }
+.av2-item.locked .n { color: rgba(255,255,255,.7); }

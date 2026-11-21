@@ -21,8 +21,9 @@ export async function loadLeague(db: Exec) {
     winner170s: opt(r.winner_170s), loser170s: opt(r.loser_170s), winner100s: opt(r.winner_100s), loser100s: opt(r.loser_100s),
     winnerDarts: opt(r.winner_darts), loserDarts: opt(r.loser_darts), winnerCheckoutAttempts: opt(r.winner_checkout_attempts), winnerCheckoutHits: opt(r.winner_checkout_hits),
     loserCheckoutAttempts: opt(r.loser_checkout_attempts), loserCheckoutHits: opt(r.loser_checkout_hits) }));
-  const seasons: LeagueSeason[] = (await db.execute(sql`SELECT id, start_date, end_date, is_active, champion_id FROM seasons`)).rows.map(r => ({
-    id: num(r.id), startDate: date(r.start_date), endDate: date(r.end_date), isActive: r.is_active === true, championId: opt(r.champion_id) }));
+  const seasons: LeagueSeason[] = (await db.execute(sql`SELECT id, start_date, end_date, is_active, champion_id, league_type FROM seasons`)).rows.map(r => ({
+    id: num(r.id), startDate: date(r.start_date), endDate: date(r.end_date), isActive: r.is_active === true, championId: opt(r.champion_id),
+    leagueType: r.league_type == null ? "singles" : String(r.league_type) }));
   const standings: LeagueStanding[] = (await db.execute(sql`SELECT season_id, player_id, position, wins, losses, points, is_champion FROM season_standings`)).rows.map(r => ({
     seasonId: num(r.season_id), playerId: num(r.player_id), position: num(r.position), wins: num(r.wins), losses: num(r.losses), points: num(r.points), isChampion: r.is_champion === true }));
   const players = (await db.execute(sql`SELECT id, name, career_peak_elo, eliminations_count, longest_win_streak FROM players`)).rows.map(r => ({
@@ -50,7 +51,9 @@ export type PlayerAchievements = { playerId: number; name: string; states: Achie
 export async function leagueHistoryCredit(db: Exec): Promise<PlayerAchievements[]> {
   const data = await loadLeague(db);
   const defs = catalogueFor("LEAGUE");
-  return data.players.filter(p => data.matches.some(m => m.winnerId === p.id || m.loserId === p.id)).map(p => {
+  // Anyone with a league match, or a place in a season table entered without match rows (the first season).
+  return data.players.filter(p => data.matches.some(m => m.winnerId === p.id || m.loserId === p.id)
+    || data.standings.some(st => st.playerId === p.id && st.wins + st.losses > 0)).map(p => {
     const ctx: LeagueContext = { matches: data.matches, seasons: data.seasons, standings: data.standings, participants: data.participants, player: p };
     const states = evaluate(defs, evaluateLeague(ctx));
     return { playerId: p.id, name: p.name, states, score: states.reduce((n, s) => n + s.points, 0) };

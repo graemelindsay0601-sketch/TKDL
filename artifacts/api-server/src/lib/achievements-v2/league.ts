@@ -11,7 +11,7 @@ export type LeagueMatch = {
   /** A team-match row added for one non-captain player: it counts only for that player, so nobody else sees the match twice. */
   onlyFor?: number;
 };
-export type LeagueSeason = { id: number; startDate: Date | null; endDate: Date | null; isActive: boolean; championId: number | null };
+export type LeagueSeason = { id: number; startDate: Date | null; endDate: Date | null; isActive: boolean; championId: number | null; leagueType?: string };
 export type LeagueStanding = { seasonId: number; playerId: number; position: number; wins: number; losses: number; points: number; isChampion: boolean };
 export type LeagueContext = {
   matches: LeagueMatch[];        // at least every match the player was in, in any order
@@ -160,16 +160,25 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
   for (const [sid, list] of bySeason) { if (!finished(sid)) continue;
     const others = [...(ctx.participants.get(sid) ?? [])].filter(p => p !== me), met = new Set(list.map(opp));
     if (others.length >= 4 && others.every(p => met.has(p))) earn("fullHouse", list[list.length - 1].playedAt); }
-  // founding member: played in the league's first season
-  const firstSeason = [...ctx.seasons].filter(s => s.startDate).sort((a, b) => a.startDate!.getTime() - b.startDate!.getTime())[0] ?? [...ctx.seasons].sort((a, b) => a.id - b.id)[0];
-  if (firstSeason && bySeason.has(firstSeason.id)) earn("foundingMember", bySeason.get(firstSeason.id)![0].playedAt);
+  // Seasons this player took part in. Early seasons were entered as final
+  // tables only (no match rows), so a standings row with games played counts too.
+  const singles = (s: LeagueSeason) => (s.leagueType ?? "singles") === "singles";
+  const singlesSeasons = ctx.seasons.filter(singles);
+  const playedSeasons = new Set<number>(bySeason.keys());
+  for (const st of ctx.standings) if (st.playerId === me && st.wins + st.losses > 0 && singlesSeasons.some(s => s.id === st.seasonId)) playedSeasons.add(st.seasonId);
+  // founding member: played in the league's first (singles) season
+  const firstSeason = [...singlesSeasons].filter(s => s.startDate).sort((a, b) => a.startDate!.getTime() - b.startDate!.getTime())[0] ?? [...singlesSeasons].sort((a, b) => a.id - b.id)[0];
+  if (firstSeason && playedSeasons.has(firstSeason.id)) {
+    const at = bySeason.get(firstSeason.id)?.[0]?.playedAt ?? firstSeason.endDate ?? firstSeason.startDate;
+    if (at) earn("foundingMember", at);
+  }
   // streaks across seasons, in season order: seasons in a row played, and seasons in a row finished still on points
-  const order = [...ctx.seasons].filter(s => !s.isActive).sort((a, b) => (a.startDate?.getTime() ?? a.id) - (b.startDate?.getTime() ?? b.id) || a.id - b.id);
+  const order = singlesSeasons.filter(s => !s.isActive).sort((a, b) => (a.startDate?.getTime() ?? a.id) - (b.startDate?.getTime() ?? b.id) || a.id - b.id);
   let present = 0, bestPresent = 0, safe = 0, bestSafe = 0;
   for (const s of order) {
-    if (bySeason.has(s.id)) { present++; bestPresent = Math.max(bestPresent, present); } else present = 0;
+    if (playedSeasons.has(s.id)) { present++; bestPresent = Math.max(bestPresent, present); } else present = 0;
     const st = standing(s.id, me);
-    if (bySeason.has(s.id) && st && st.points > 0) { safe++; bestSafe = Math.max(bestSafe, safe); } else if (bySeason.has(s.id)) safe = 0;
+    if (playedSeasons.has(s.id) && st && st.points > 0) { safe++; bestSafe = Math.max(bestSafe, safe); } else if (playedSeasons.has(s.id)) safe = 0;
   }
 
   const seasonRows = ctx.standings.filter(s => s.playerId === me && finished(s.seasonId));
@@ -180,7 +189,7 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     bestRun: Math.max(bestRun, ctx.player.longestWinStreak),
     stakePointsWon, stake10Wins,
     peakElo: ctx.player.careerPeakElo,
-    seasonsPlayed: bySeason.size,
+    seasonsPlayed: playedSeasons.size,
     eliminations: ctx.player.eliminationsCount,
     formatsWon: formats.size,
     mostBeatenWins: Math.max(0, ...winsVs.values()),
