@@ -952,7 +952,7 @@ export default function AccountPage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPwd !== confirmPwd) { toast({ title: "Passwords don't match", variant: "destructive" }); return; }
-    if (newPwd.length < 8)     { toast({ title: "Password must be at least 8 characters", variant: "destructive" }); return; }
+    if (newPwd.length < 4)     { toast({ title: "Password must be at least 4 characters", variant: "destructive" }); return; }
     setPwdLoad(true);
     try {
       const res  = await fetch("/api/auth/password", {

@@ -8,6 +8,9 @@ import { requireAdminSession } from "../middleware/requireAdminSession";
 
 const router = Router();
 
+/** Shortest password allowed. Kept short on purpose: players type it on a phone at the board. */
+export const MIN_PASSWORD = 4;
+
 const LoginBody = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
@@ -15,8 +18,30 @@ const LoginBody = z.object({
 
 const ChangePasswordBody = z.object({
   currentPassword: z.string().min(1),
-  newPassword:     z.string().min(8),
+  newPassword:     z.string().min(MIN_PASSWORD),
 });
+
+/**
+ * Usernames are made from the player's name ("Ronald Augustine" -> ronald_augustine),
+ * so accept what people actually type: any case, spaces instead of underscores,
+ * or their name as it appears in the league.
+ */
+export function normaliseUsername(input: string): string {
+  return input.toLowerCase().trim().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+async function findLoginUser(input: string) {
+  const raw = input.toLowerCase().trim();
+  for (const candidate of [...new Set([raw, normaliseUsername(input)])]) {
+    if (!candidate) continue;
+    const [u] = await db.select().from(usersTable).where(eq(usersTable.username, candidate));
+    if (u) return u;
+  }
+  // Their player name, when exactly one account belongs to a player of that name.
+  const rows = await db.execute(sql`SELECT u.id FROM users u JOIN players p ON p.id = u.player_id WHERE lower(trim(p.name)) = ${raw}`);
+  if (rows.rows.length !== 1) return undefined;
+  const [u] = await db.select().from(usersTable).where(eq(usersTable.id, Number((rows.rows[0] as { id: number }).id)));
+  return u;
+}
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
 router.post("/auth/login", async (req, res): Promise<void> => {
@@ -24,7 +49,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: "Username and password required" }); return; }
 
   const { username, password } = parsed.data;
-  const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username.toLowerCase().trim()));
+  const user = await findLoginUser(username);
   if (!user) { res.status(401).json({ error: "Invalid username or password" }); return; }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
@@ -142,13 +167,13 @@ router.get("/admin/users", requireAdminSession, async (req, res): Promise<void> 
 // ── POST /api/admin/users ─────────────────────────────────────────────────────
 const CreateUserBody = z.object({
   playerId: z.number().int().positive(),
-  password: z.string().min(8),
+  password: z.string().min(MIN_PASSWORD),
   isAdmin:  z.boolean().optional().default(false),
 });
 
 const OnboardPlayerBody = z.object({
   name:             z.string().trim().min(1).max(80),
-  password:         z.string().min(8),
+  password:         z.string().min(MIN_PASSWORD),
   isAdmin:          z.boolean().optional().default(false),
   isActive:         z.boolean().optional().default(true),
   practiceEnabled:  z.boolean().optional().default(true),
@@ -263,7 +288,7 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
 });
 
 // ── POST /api/admin/users/:id/reset-password ──────────────────────────────────
-const ResetPasswordBody = z.object({ password: z.string().min(8) });
+const ResetPasswordBody = z.object({ password: z.string().min(MIN_PASSWORD) });
 
 router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, res): Promise<void> => {
   const userId = Number(req.params.id);

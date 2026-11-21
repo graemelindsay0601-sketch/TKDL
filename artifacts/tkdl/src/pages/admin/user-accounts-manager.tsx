@@ -74,7 +74,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
 
   const handleReset = async (userId: number) => {
     const pwd = resetPwd[userId];
-    if (!pwd || pwd.length < 8) { toast({ title: "Password too short (minimum 8 characters)", variant: "destructive" }); return; }
+    if (!pwd || pwd.length < 4) { toast({ title: "Password too short (minimum 4 characters)", variant: "destructive" }); return; }
     setResetting(userId);
     const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
       method: "POST", credentials: "include", headers: adminHeaders(), body: JSON.stringify({ password: pwd }),
@@ -170,7 +170,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <input type="text" placeholder="New password (minimum 8 characters)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
+                  <input type="text" placeholder="New password (minimum 4 characters)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
                     className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
                   <button onClick={() => handleReset(acc.id)} disabled={resetting === acc.id}
@@ -203,7 +203,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
               </div>
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
-                <input type="text" placeholder="Set their password" value={createPwd} onChange={e => setCreatePwd(e.target.value)} required minLength={8}
+                <input type="text" placeholder="Set their password" value={createPwd} onChange={e => setCreatePwd(e.target.value)} required minLength={4}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
               </div>
@@ -242,7 +242,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
               </div>
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
-                <input type="text" placeholder="Set their password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={8}
+                <input type="text" placeholder="Set their password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={4}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
               </div>
