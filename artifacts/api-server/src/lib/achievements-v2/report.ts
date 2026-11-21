@@ -21,7 +21,7 @@ export async function loadLeague(db: Exec) {
     winner170s: opt(r.winner_170s), loser170s: opt(r.loser_170s), winner100s: opt(r.winner_100s), loser100s: opt(r.loser_100s),
     winnerDarts: opt(r.winner_darts), loserDarts: opt(r.loser_darts), winnerCheckoutAttempts: opt(r.winner_checkout_attempts), winnerCheckoutHits: opt(r.winner_checkout_hits),
     loserCheckoutAttempts: opt(r.loser_checkout_attempts), loserCheckoutHits: opt(r.loser_checkout_hits) }));
-  const seasons: LeagueSeason[] = (await db.execute(sql`SELECT id, start_date, end_date, is_active, champion_id, league_type FROM seasons`)).rows.map(r => ({
+  const seasons: LeagueSeason[] = (await db.execute(sql`SELECT * FROM seasons`)).rows.map(r => ({
     id: num(r.id), startDate: date(r.start_date), endDate: date(r.end_date), isActive: r.is_active === true, championId: opt(r.champion_id),
     leagueType: r.league_type == null ? "singles" : String(r.league_type) }));
   const standings: LeagueStanding[] = (await db.execute(sql`SELECT season_id, player_id, position, wins, losses, points, is_champion FROM season_standings`)).rows.map(r => ({
