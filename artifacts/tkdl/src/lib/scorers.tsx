@@ -181,8 +181,9 @@ function PlayerCard({ name, score, scoreSuffix = "", turn, active, sub }: {
   turn: boolean; active: boolean; sub?: string;
 }) {
   return (
-    <div className="pdc-card p-4 text-center relative overflow-hidden transition-all duration-200"
+    <div className={`pdc-card pm-score-card p-4 text-center relative overflow-hidden transition-all duration-200${active ? " is-on" : ""}`}
       style={{
+        ["--pc" as any]: P_COLOR(turn ? 1 : 0),
         borderColor: active ? P_COLOR(turn ? 1 : 0) : "rgba(255,255,255,0.06)",
         boxShadow: active ? `0 0 20px ${P_COLOR(turn ? 1 : 0)}22` : undefined,
       }}>
