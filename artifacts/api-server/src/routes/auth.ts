@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
+import { passwordVariants } from "../lib/password-variants";
 import { db, usersTable, playersTable } from "@workspace/db";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -18,7 +19,7 @@ const LoginBody = z.object({
 
 const ChangePasswordBody = z.object({
   currentPassword: z.string().min(1),
-  newPassword:     z.string().min(MIN_PASSWORD),
+  newPassword:     z.string().trim().min(MIN_PASSWORD),
 });
 
 /**
@@ -43,6 +44,11 @@ async function findLoginUser(input: string) {
   return u;
 }
 
+async function passwordMatches(pw: string, hash: string): Promise<boolean> {
+  for (const v of passwordVariants(pw)) if (await bcrypt.compare(v, hash)) return true;
+  return false;
+}
+
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
 router.post("/auth/login", async (req, res): Promise<void> => {
   const parsed = LoginBody.safeParse(req.body);
@@ -52,7 +58,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
   const user = await findLoginUser(username);
   if (!user) { res.status(401).json({ error: "Invalid username or password" }); return; }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
+  const valid = await passwordMatches(password, user.passwordHash);
   if (!valid) { res.status(401).json({ error: "Invalid username or password" }); return; }
 
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, user.playerId));
@@ -137,10 +143,10 @@ router.patch("/auth/password", async (req, res): Promise<void> => {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(401).json({ error: "Session invalid" }); return; }
 
-  const valid = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash);
+  const valid = await passwordMatches(parsed.data.currentPassword, user.passwordHash);
   if (!valid) { res.status(400).json({ error: "Current password is incorrect" }); return; }
 
-  const hash = await bcrypt.hash(parsed.data.newPassword, 12);
+  const hash = await bcrypt.hash(parsed.data.newPassword.trim(), 12);
   await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, user.id));
 
   req.log.info({ userId: user.id }, "Password changed");
@@ -167,13 +173,13 @@ router.get("/admin/users", requireAdminSession, async (req, res): Promise<void> 
 // ── POST /api/admin/users ─────────────────────────────────────────────────────
 const CreateUserBody = z.object({
   playerId: z.number().int().positive(),
-  password: z.string().min(MIN_PASSWORD),
+  password: z.string().trim().min(MIN_PASSWORD),
   isAdmin:  z.boolean().optional().default(false),
 });
 
 const OnboardPlayerBody = z.object({
   name:             z.string().trim().min(1).max(80),
-  password:         z.string().min(MIN_PASSWORD),
+  password:         z.string().trim().min(MIN_PASSWORD),
   isAdmin:          z.boolean().optional().default(false),
   isActive:         z.boolean().optional().default(true),
   practiceEnabled:  z.boolean().optional().default(true),
@@ -223,7 +229,7 @@ router.post("/admin/onboard-player", requireAdminSession, async (req, res): Prom
       const baseUsername = player.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") || `player_${player.id}`;
       const usernameRows = await tx.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.username, baseUsername));
       const username = usernameRows.length > 0 ? `${baseUsername}_${player.id}` : baseUsername;
-      const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+      const passwordHash = await bcrypt.hash(parsed.data.password.trim(), 12);
       const [user] = await tx.insert(usersTable).values({
         username,
         passwordHash,
@@ -266,7 +272,7 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
   const existingUsername = await db.select().from(usersTable).where(eq(usersTable.username, username));
   const finalUsername = existingUsername.length > 0 ? `${username}_${parsed.data.playerId}` : username;
 
-  const hash = await bcrypt.hash(parsed.data.password, 12);
+  const hash = await bcrypt.hash(parsed.data.password.trim(), 12);
   const [user] = await db.insert(usersTable).values({
     username:     finalUsername,
     passwordHash: hash,
@@ -288,7 +294,7 @@ router.post("/admin/users", requireAdminSession, async (req, res): Promise<void>
 });
 
 // ── POST /api/admin/users/:id/reset-password ──────────────────────────────────
-const ResetPasswordBody = z.object({ password: z.string().min(MIN_PASSWORD) });
+const ResetPasswordBody = z.object({ password: z.string().trim().min(MIN_PASSWORD) });
 
 router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, res): Promise<void> => {
   const userId = Number(req.params.id);
@@ -300,7 +306,7 @@ router.post("/admin/users/:id/reset-password", requireAdminSession, async (req, 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-  const hash = await bcrypt.hash(parsed.data.password, 12);
+  const hash = await bcrypt.hash(parsed.data.password.trim(), 12);
   await db.update(usersTable).set({ passwordHash: hash }).where(eq(usersTable.id, userId));
 
   logger.info({ userId }, "Password reset by admin");
