@@ -17,6 +17,7 @@ import { format } from "date-fns";
 
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
 import { CollapsibleAdminSection } from "./collapsible-section";
+import { SeasonTablesCheck } from "./season-tables-check";
 import { PageHero } from "@/components/premium/Premium";
 import "./admin-premium.css";
 import { FeatureFlags } from "./feature-flags";
@@ -55,6 +56,7 @@ const ADMIN_TOOLS = [
   ["user-accounts", "User Accounts", "login password players"],
   ["integrity-health", "Integrity & Health", "league checks problems"],
   ["singles-season", "Singles Season", "standings playoffs"],
+  ["season-tables", "Past season tables", "final tables standings no games tidy"],
   ["doubles-season", "Doubles Event", "draw teams champions"],
   ["shift-wars", "Shift Wars", "teams roster points"],
   ["roster", "Roster", "player access modes"],
@@ -341,6 +343,10 @@ function AdminContent({ onLock }: { onLock: () => void }) {
       {/* Season Manager — Singles */}
       <CollapsibleAdminSection sectionId="singles-season" title="Season Manager (Singles)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
         <div className="p-5"><SeasonEditor /></div>
+      </CollapsibleAdminSection>
+
+      <CollapsibleAdminSection sectionId="season-tables" title="Past season tables" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
+        <div className="p-5"><SeasonTablesCheck /></div>
       </CollapsibleAdminSection>
 
       {/* Season Manager — Doubles Event */}
