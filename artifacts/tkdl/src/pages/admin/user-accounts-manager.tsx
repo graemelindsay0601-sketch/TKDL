@@ -190,7 +190,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <input type="text" placeholder="New password (4+ characters)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
+                  <input type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="New password (4+ characters)" value={resetPwd[acc.id] ?? ""} onChange={e => setResetPwd(p => ({ ...p, [acc.id]: e.target.value }))}
                     className="flex-1 rounded-lg px-3 py-1.5 text-xs outline-none"
                     style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
                   <button onClick={() => handleReset(acc.id)} disabled={resetting === acc.id}
@@ -233,7 +233,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
               </div>
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
-                <input type="text" placeholder="Set their password" value={createPwd} onChange={e => setCreatePwd(e.target.value)} required minLength={4}
+                <input type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Set their password" value={createPwd} onChange={e => setCreatePwd(e.target.value)} required minLength={4}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
               </div>
@@ -272,7 +272,7 @@ export function UserAccountsManager({ players }: { players: any[] | undefined })
               </div>
               <div>
                 <label className="block mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.5rem", letterSpacing: "0.14em", color: "rgba(255,255,255,0.22)", textTransform: "uppercase" }}>Initial Password</label>
-                <input type="text" placeholder="Set their password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={4}
+                <input type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="Set their password" value={newPwd} onChange={e => setNewPwd(e.target.value)} required minLength={4}
                   className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#fff", fontFamily: "Oswald, sans-serif" }} />
               </div>
