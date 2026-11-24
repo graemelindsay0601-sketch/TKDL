@@ -121,6 +121,7 @@ import { addWeeklyChallengeYear } from "./db/migrations/add_weekly_challenge_yea
 import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
 import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
 import { addUsersScorerStyle } from "./db/migrations/add_users_scorer_style";
+import { tidyPastSeasonStandings } from "./db/migrations/tidy_past_season_standings";
 import { TEAM_LEADERSHIP_EFFECTIVE_DATE } from "./lib/shift-wars-season-name";
 import { addMatchParticipantDeltas } from "./db/migrations/add_match_participant_deltas";
 import { addDoublesMatchDeltas } from "./db/migrations/add_doubles_match_deltas";
@@ -1652,6 +1653,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runInitStep("addSeasonResetLock", addSeasonResetLock);
   await runInitStep("addUsersPlayerIdUnique", addUsersPlayerIdUnique);
   await runInitStep("addUsersScorerStyle", addUsersScorerStyle);
+  await runInitStep("tidyPastSeasonStandings", tidyPastSeasonStandings);
   await runMigrationStep("addMatchParticipantDeltas", addMatchParticipantDeltas);
   await runInitStep("seedBroadcastSettings", seedBroadcastSettings);
   await runInitStep("seedCardDefinitions", seedCardDefinitions);
