@@ -8,7 +8,7 @@ import { logger } from "./logger";
 import { checkSeasonAchievements } from "./achievements";
 import { scheduleSync as scheduleAchievementsV2Sync } from "./achievements-v2/live.ts";
 import { drawDoublesTeams } from "./doublesDraw";
-import { decideSinglesChampion } from "./singles-champion";
+import { decideSinglesChampion, finalStandingsOrder } from "./singles-champion";
 import { createNotification } from "../services/notificationService";
 import { createSeasonLaunchInterviews } from "./interviewDeskService";
 import {
@@ -117,7 +117,9 @@ async function performSeasonResetLocked(
 
   if (currentSeason) {
     const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
-    const sorted = [...players].sort((a, b) => b.points - a.points || b.elo - a.elo);
+    // Only players who played at least one match this season get a place in
+    // the final table (and can be champion); see finalStandingsOrder().
+    const sorted = finalStandingsOrder(players);
     const contenders = sorted.filter(p => p.status === "ACTIVE");
 
     // currentSeason.championId is only ever set here by the playoff-match
