@@ -332,7 +332,12 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     const isX01 = selectedGame?.key?.startsWith("x01") || selectedGame?.key?.startsWith("501") || selectedGame?.key?.startsWith("301");
     if (!isX01) return {};
     if (formatMode === "sets") {
-      return { legs: selectedSets.legsPerSet, setsToWin: selectedSets.sets, legsToWinSet: selectedSets.legsPerSet };
+      // The picker asks "first to": sets to win the match and legs to win a
+      // set. The scorer takes best-of counts (it wins at ceil(n / 2)), so
+      // first to N is best of 2N - 1.
+      const bestOfSets = selectedSets.sets * 2 - 1;
+      const bestOfLegs = selectedSets.legsPerSet * 2 - 1;
+      return { legs: bestOfLegs, setsToWin: bestOfSets, legsToWinSet: bestOfLegs };
     }
     if (selectedLegs > 1) return { legs: selectedLegs };
     return {};
@@ -821,7 +826,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           {formatMode === "legs" ? (
             <div>
               <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                Choose a single leg or a best-of leg format.
+                Pick how many legs it takes to win the match.
               </div>
               <div className="flex gap-2 flex-wrap">
                 {[1, 3, 5, 7, 9, 11].map(n => (
@@ -833,7 +838,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                       color: selectedLegs === n ? "#a78bfa" : "rgba(255,255,255,0.4)",
                       border: selectedLegs === n ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.07)",
                     }}>
-                    {n === 1 ? "Single" : `BO${n}`}
+                    {n === 1 ? "Single leg" : <>First to {(n + 1) / 2}<span className="block text-[10px] font-semibold normal-case opacity-70">best of {n}</span></>}
                   </button>
                 ))}
               </div>
@@ -841,7 +846,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           ) : (
             <div className="practice-set-config grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Sets to win match</div>
+                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.55)", fontFamily: "Oswald, sans-serif" }}>Sets to win the match (first to)</div>
                 <div className="flex gap-1.5 flex-wrap">
                   {[1, 2, 3, 4, 5].map(n => (
                     <button key={n} onClick={() => setSelectedSets(s => ({ ...s, sets: n }))}
@@ -858,9 +863,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Legs per set</div>
+                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.55)", fontFamily: "Oswald, sans-serif" }}>Legs to win a set (first to)</div>
                 <div className="flex gap-1.5 flex-wrap">
-                  {[3, 5, 7].map(n => (
+                  {[2, 3, 4].map(n => (
                     <button key={n} onClick={() => setSelectedSets(s => ({ ...s, legsPerSet: n }))}
                       className="w-10 h-10 rounded-lg text-sm font-black transition-all"
                       style={{
@@ -875,8 +880,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
                 </div>
               </div>
               <div className="col-span-2">
-                <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.15)", color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-                  First to {selectedSets.sets} {selectedSets.sets === 1 ? "set" : "sets"} · {selectedSets.legsPerSet} legs per set
+                <div className="px-3 py-2 rounded-lg text-xs" style={{ background: "rgba(167,139,250,0.05)", border: "1px solid rgba(167,139,250,0.15)", color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif" }}>
+                  First to {selectedSets.sets} {selectedSets.sets === 1 ? "set" : "sets"} (best of {selectedSets.sets * 2 - 1}) · first to {selectedSets.legsPerSet} legs wins a set (best of {selectedSets.legsPerSet * 2 - 1})
                 </div>
               </div>
             </div>

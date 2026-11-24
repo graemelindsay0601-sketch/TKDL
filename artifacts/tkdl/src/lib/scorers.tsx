@@ -2032,7 +2032,9 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     if (voiceEnabled) menu.push({ label: voiceMuted ? "Voice call-outs on" : "Voice call-outs off", onClick: toggleVoiceMuted });
     menu.push({ label: "Use classic scorer for this match", onClick: () => setMatchStyle("classic") });
     menu.push({ label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } });
-    const heading = `${startingScore} · Leg ${legNo}${legs ? ` of ${legs}` : ""}`;
+    const heading = setsToWin > 0
+      ? `${startingScore} · Set ${setWins[0] + setWins[1] + 1} · Leg ${legWins[0] + legWins[1] + 1}`
+      : `${startingScore} · Leg ${legNo}${legs ? ` of ${legs}` : ""}`;
     const legsLine = setsToWin > 0 ? `First to ${setsNeeded} sets · ${legsNeeded} legs a set` : legsNeeded > 1 ? `First to ${legsNeeded} legs` : undefined;
     return (
       <ModernX01
