@@ -18,8 +18,6 @@ import { format } from "date-fns";
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
 import { CollapsibleAdminSection } from "./collapsible-section";
 import { SeasonTablesCheck } from "./season-tables-check";
-import { ClubTabletSettings } from "./club-tablet";
-import { Tablet } from "lucide-react";
 import { PageHero } from "@/components/premium/Premium";
 import "./admin-premium.css";
 import { FeatureFlags } from "./feature-flags";
@@ -345,10 +343,6 @@ function AdminContent({ onLock }: { onLock: () => void }) {
       {/* Season Manager — Singles */}
       <CollapsibleAdminSection sectionId="singles-season" title="Season Manager (Singles)" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">
         <div className="p-5"><SeasonEditor /></div>
-      </CollapsibleAdminSection>
-
-      <CollapsibleAdminSection sectionId="club-tablet" title="Club tablet (this device)" icon={Tablet} accent="#4ade80" borderColor="rgba(74,222,128,0.15)" background="rgba(74,222,128,0.02)">
-        <div className="p-5"><ClubTabletSettings /></div>
       </CollapsibleAdminSection>
 
       <CollapsibleAdminSection sectionId="season-tables" title="Past season tables" icon={Trophy} accent="#ffd24a" borderColor="rgba(255,210,74,0.15)" background="rgba(255,210,74,0.02)">

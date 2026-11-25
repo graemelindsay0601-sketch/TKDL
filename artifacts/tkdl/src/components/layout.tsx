@@ -1,14 +1,12 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, Tablet } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
 import { useSettings } from "@/hooks/use-settings";
 import { NotificationOptInPrompt } from "@/components/NotificationOptInPrompt";
-import { ClubTabletIdle } from "@/components/ClubTabletIdle";
-import { useClubTablet } from "@/lib/club-tablet";
 import { useToast } from "@/hooks/use-toast";
 
 interface InstallPromptEvent extends Event {
@@ -184,21 +182,9 @@ function AccountWidget({ unreadCount = 0, collapsed = false }: { unreadCount?: n
   // actually changed since the cache was written, refresh() corrects
   // `user` and this re-renders — same as any other optimistic UI.
   const { user } = useAuth();
-  const clubTablet = useClubTablet();
   return (
     <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-      {!user && clubTablet ? (
-        <div className={`club-tablet-card mx-2 my-1.5 ${collapsed ? "is-collapsed" : ""}`}>
-          <div className="ico"><Tablet className="w-4 h-4" /></div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <div className="t">Club tablet</div>
-              <div className="s">No login needed</div>
-            </div>
-          )}
-          {!collapsed && <Link href="/login" className="in">Sign in</Link>}
-        </div>
-      ) : user ? (
+      {user ? (
         <Link href="/account"
           className={`flex items-center gap-2.5 mx-2 my-1.5 px-3 py-2 rounded-xl transition-colors hover:bg-white/5 ${collapsed ? "justify-center px-2" : ""}`}
           style={{ background: "rgba(255,0,92,0.06)", border: "1px solid rgba(255,0,92,0.12)" }}>
@@ -261,7 +247,6 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => { setDrawerOpen(false); }, [location]);
 
   const { user: authUser }              = useAuth();
-  const clubTablet                      = useClubTablet();
   const { data: appSettings }           = useSettings();
   const liveScorer       = appSettings?.live_scorer_enabled ?? false;
   const communityEnabled = appSettings?.community_enabled   ?? false;
@@ -442,25 +427,54 @@ export function Layout({ children }: { children: ReactNode }) {
     );
   }
 
-  // Each section is its own panel (premium "chapter" look). A section with a
-  // single item of the same name skips the header row — the panel and its
-  // colour already say what it is, and it saves a line of scrolling.
-  function NavSection({ label, items, color, sectionIndex }: { label: string; items: NavItem[]; color: string; sectionIndex: number }) {
-    const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const solo = items.length === 1 && norm(items[0].label) === norm(label);
+  // Each section is a premium card. One-page sections go straight to their
+  // page; the rest open to show their pages, and the section you're in is
+  // open already. The line under each title lists what's inside.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  function NavSection({ sectionKey, label, items, color, sectionIndex }: { sectionKey: string; label: string; items: NavItem[]; color: string; sectionIndex: number }) {
+    const hasActive = items.some(item => location === item.href || (item.href !== "/" && location.startsWith(item.href)));
+    const Icon = items[0].icon;
+    const list = (
+      <div className="navx-items">
+        {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
+      </div>
+    );
+    if (collapsed) return <section className="navx navx-collapsed" style={{ "--c": color } as React.CSSProperties}>{list}</section>;
+    const head = (inner: React.ReactNode) => (
+      <>
+        <span className="navx-ico"><Icon className="w-4 h-4" /></span>
+        <span className="navx-titles">
+          <span className="navx-title pm-metal">{label}</span>
+          {items.length > 1 && <span className="navx-sub">{items.map(i => i.label).join(" · ")}</span>}
+        </span>
+        {inner}
+      </>
+    );
+    if (items.length === 1) {
+      const it = items[0];
+      return (
+        <section className={`navx navx-acc ${hasActive ? "has-active" : ""}`} style={{ "--c": color } as React.CSSProperties}>
+          <Link href={it.href} className="navx-acc-head">
+            {head(<>
+              {it.href === "/community" && communityUnread > 0 && <span className="navx-badge">{communityUnread > 9 ? "9+" : communityUnread}</span>}
+              <ChevronRight className="navx-chev w-4 h-4" />
+            </>)}
+          </Link>
+        </section>
+      );
+    }
+    const open = openSections[sectionKey] ?? hasActive;
     return (
-      <section className={`nav-panel sidebar-fade-in ${collapsed ? "is-collapsed" : ""} ${solo ? "is-solo" : ""}`}
-        style={{ "--c": color, animationDelay: `${150 + sectionIndex * 45}ms` } as React.CSSProperties}>
-        {!collapsed && !solo && (
-          <div className="nav-panel-head">
-            <span className="dot" />
-            <span className="label">{label}</span>
-            <span className="rule" />
-          </div>
-        )}
-        <div className="nav-panel-items">
-          {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
-        </div>
+      <section className={`navx navx-acc ${open ? "open" : ""} ${hasActive ? "has-active" : ""}`} style={{ "--c": color } as React.CSSProperties}>
+        <button type="button" className="navx-acc-head" aria-expanded={open}
+          onClick={() => setOpenSections(prev => ({ ...prev, [sectionKey]: !open }))}>
+          {head(<>
+            <span className="navx-count">{items.length}</span>
+            <ChevronDown className="navx-chev w-4 h-4" />
+          </>)}
+        </button>
+        {open && list}
       </section>
     );
   }
@@ -540,9 +554,9 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
 
       {/* Navigation — one accent colour per section, see NAV_SECTIONS above */}
-      <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2.5 space-y-2">
+      <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2.5 navx-wrap">
         {visibleNavSections.map((section, si) => (
-          <NavSection key={section.key} label={section.label} items={section.items} color={section.color} sectionIndex={si} />
+          <NavSection key={section.key} sectionKey={section.key} label={section.label} items={section.items} color={section.color} sectionIndex={si} />
         ))}
       </nav>
 
@@ -658,8 +672,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       {!inCareerSave && <LiveTicker />}
 
-      {!clubTablet && <NotificationOptInPrompt />}
-      <ClubTabletIdle />
+      <NotificationOptInPrompt />
 
       {updateReady && !matchInProgressRoute && (
         <div className="fixed z-40 left-1/2 -translate-x-1/2 bottom-20 lg:bottom-10 flex items-center gap-3 rounded-xl px-4 py-3 shadow-2xl"
