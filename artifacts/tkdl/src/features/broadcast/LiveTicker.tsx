@@ -41,8 +41,8 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
 
   if (ordered.length === 0) {
     return (
-      <div className="ticker-bar broadcast-ticker-bar" style={{ height }}>
-        <div className="ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
+      <div className="ticker-bar broadcast-ticker-bar lv-ticker" style={{ height }}>
+        <div className="ticker-label lv-ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
           RESULTS
         </div>
         <div className="flex-1 flex items-center px-4">
@@ -55,8 +55,8 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
   }
 
   return (
-    <div className="ticker-bar broadcast-ticker-bar" style={{ height }}>
-      <div className="ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
+    <div className="ticker-bar broadcast-ticker-bar lv-ticker" style={{ height }}>
+      <div className="ticker-label lv-ticker-label" style={{ fontSize: compact ? "0.55rem" : "0.6rem" }}>
         RESULTS
       </div>
       <div className="ticker-scroll-wrap">
@@ -67,14 +67,11 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
           }}
         >
           {[...ordered, ...ordered].map((item, i) => (
-            <div key={`${item.matchId}-${i}`} className="ticker-item">
-              <span className="w-2.5 h-2.5 rounded-full" style={{ background: LEAGUE_ACCENT[item.leagueType], opacity: 0.9 }} />
-              <span className="font-black uppercase" style={{ color: "#22c55e" }}>{displayName(item.leagueType, item.winnerId, namesByKey)}</span>
-              <span className="text-xs px-1.5 py-0.5 rounded font-black uppercase" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)", fontSize: "0.55rem", letterSpacing: "0.1em" }}>
-                def.
-              </span>
-              <span className="font-bold uppercase" style={{ color: "rgba(255,255,255,0.7)" }}>{displayName(item.leagueType, item.loserId, namesByKey)}</span>
-              <div className="h-4 w-px mx-2" style={{ background: "rgba(255,255,255,0.15)" }} />
+            <div key={`${item.matchId}-${i}`} className="lv-tick">
+              <i style={{ background: LEAGUE_ACCENT[item.leagueType] }} />
+              <b>{displayName(item.leagueType, item.winnerId, namesByKey)}</b>
+              <em>def</em>
+              <span>{displayName(item.leagueType, item.loserId, namesByKey)}</span>
             </div>
           ))}
         </div>

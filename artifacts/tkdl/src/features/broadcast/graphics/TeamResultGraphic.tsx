@@ -49,11 +49,11 @@ export function TeamResultGraphic({ leagueType, data, compact = true }: { league
     <div
       className="panel-slide-in flex flex-col w-full min-w-0"
       style={{
-        background: "linear-gradient(160deg, #121c34 0%, #080d1a 58%, #050711 100%)",
+        // Premium hero card, matching kit.tsx's v4 skin.
+        background: `radial-gradient(120% 80% at 100% 0%, ${leagueAccent}33, transparent 55%), linear-gradient(160deg, ${leagueAccent}22 0%, #14102a 42%, #06060b 100%)`,
         border: `1px solid ${leagueAccent}55`,
-        borderLeft: `7px solid ${leagueAccent}`,
-        boxShadow: `0 24px 60px rgba(0,0,0,0.58), 0 0 42px ${leagueAccent}22`,
-        clipPath: "polygon(0 0, calc(100% - 24px) 0, 100% 24px, 100% 100%, 0 100%)",
+        borderRadius: compact ? 18 : 24,
+        boxShadow: `0 20px 50px rgba(0,0,0,0.55), 0 0 50px ${leagueAccent}18`,
         padding: compact ? "12px 14px 14px" : "22px 28px 26px",
         gap: compact ? 9 : 15,
       }}

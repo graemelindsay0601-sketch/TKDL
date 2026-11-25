@@ -11,23 +11,12 @@
 // (StudioSet.tsx's ScreenPanel) — top-anchoring keeps this clear of them
 // regardless of how tall the archive graphic itself renders.
 import { LEAGUE_ACCENT, LEAGUE_LABEL } from "../theme";
-import { SceneShell, SceneEyebrow, SceneHeadline } from "./SceneShell";
+import { StoryColumn } from "./SceneShell";
 import { renderGraphic, headlineFor, tierForSegment, type SceneProps } from "./scene-support";
 
 export function GraphicScene({ segment }: SceneProps) {
   const accent = segment.leagueType ? LEAGUE_ACCENT[segment.leagueType] : "#c084fc";
   const tier = tierForSegment(segment);
-  // ARCHIVE material is deliberately "ambient did-you-know filler" (this
-  // file's own original header), never a headline moment — so this stays
-  // compact even in the rare case an ARCHIVE story somehow lands "major"
-  // treatment, unlike AnalysisScene's deliberate always-fuller exception.
-  const graphic = renderGraphic(segment, { compact: true });
-
-  return (
-    <SceneShell justify="start">
-      <SceneEyebrow label={`${segment.leagueType ? LEAGUE_LABEL[segment.leagueType] + " · " : ""}From the Archive`} color={accent} />
-      <SceneHeadline tier={tier}>{headlineFor(segment)}</SceneHeadline>
-      <div className="fade-in-up-delayed mt-5 max-w-2xl w-full">{graphic}</div>
-    </SceneShell>
-  );
+  const graphic = renderGraphic(segment, { compact: false });
+  return <StoryColumn eyebrow={`${segment.leagueType ? LEAGUE_LABEL[segment.leagueType] + " · " : ""}From the Archive`} color={accent} tier={tier} headline={headlineFor(segment)} graphic={graphic} />;
 }

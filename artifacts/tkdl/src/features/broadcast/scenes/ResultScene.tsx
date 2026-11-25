@@ -9,23 +9,12 @@
 // (StudioSet.tsx's ScreenPanel) — top-anchoring here means an oversized
 // graphic trims at its own bottom instead of eating into the headline.
 import { LEAGUE_ACCENT, LEAGUE_LABEL } from "../theme";
-import { SceneShell, SceneEyebrow, SceneHeadline } from "./SceneShell";
+import { StoryColumn } from "./SceneShell";
 import { renderGraphic, headlineFor, tierForSegment, type SceneProps } from "./scene-support";
 
 export function ResultScene({ segment }: SceneProps) {
   const accent = segment.leagueType ? LEAGUE_ACCENT[segment.leagueType] : "#22c55e";
   const tier = tierForSegment(segment);
-  const graphic = renderGraphic(segment, { compact: tier !== "major" });
-
-  return (
-    <SceneShell justify="start">
-      <div className={tier === "major" ? "max-w-3xl w-full" : "max-w-xl"}>
-        <SceneEyebrow label={segment.leagueType ? `${LEAGUE_LABEL[segment.leagueType]} · Check-in` : "Check-in"} color={accent} />
-        <SceneHeadline tier={tier}>{headlineFor(segment)}</SceneHeadline>
-        {/* Wrapper width tracks the graphics/*.tsx skin `compact` selects —
-            see DeskScene's own comment on the same pattern. */}
-        {graphic && <div className={`fade-in-up-delayed mt-4 w-full ${tier === "major" ? "max-w-2xl" : "max-w-md"}`}>{graphic}</div>}
-      </div>
-    </SceneShell>
-  );
+  const graphic = renderGraphic(segment, { compact: false });
+  return <StoryColumn eyebrow={segment.leagueType ? `${LEAGUE_LABEL[segment.leagueType]} · Check-in` : "Check-in"} color={accent} tier={tier} headline={headlineFor(segment)} graphic={graphic} />;
 }

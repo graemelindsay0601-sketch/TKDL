@@ -14,7 +14,7 @@
 import {
   Panel, PanelTag, PanelBar, PanelFlag, PanelLine,
   BigPanel, BigPanelHeader, BigRow, BigMove, BigBadge, BigLine,
-  str, num,
+  str, num, staggerDelay,
 } from "./kit";
 import type { GraphicData, LeagueType } from "../types";
 import { LEAGUE_ACCENT } from "../theme";
@@ -38,36 +38,35 @@ export function LeagueTableGraphic({ leagueType, data, compact }: { leagueType: 
     return (
       <BigPanel accent={accent} fill>
         <BigPanelHeader icon="📊" kind={rowsHeader} leagueType={leagueType} accent={accent} />
-        <div className="w-full overflow-hidden rounded-lg border border-white/10">
-          <div
-            className="grid items-center gap-2 bg-white/10 px-3 py-2 text-[0.62rem] font-black uppercase tracking-[0.12em] text-white/55"
-            style={{ gridTemplateColumns: "2rem minmax(0,1fr) 2.8rem 2.8rem 3.2rem" }}
-          >
-            <span>Pos</span><span>Player</span><span>W</span><span>L</span><span>Pts</span>
+        <div className="w-full flex flex-col gap-1.5">
+          <div className="grid items-center gap-2 px-3" style={{ gridTemplateColumns: "2rem minmax(0,1fr) 3.4rem 3rem" }}>
+            <span className="pm-lab" style={{ fontSize: 9 }}>Pos</span><span className="pm-lab" style={{ fontSize: 9 }}>Player</span><span className="pm-lab" style={{ fontSize: 9, justifyContent: "center" }}>W–L</span><span className="pm-lab" style={{ fontSize: 9, justifyContent: "flex-end" }}>Pts</span>
           </div>
           {movementRows.map((row, index) => {
             const name = typeof row.name === "string" ? row.name : "Unknown";
             const afterPosition = typeof row.afterPosition === "number" ? row.afterPosition : index + 1;
             const beforePosition = typeof row.beforePosition === "number" ? row.beforePosition : afterPosition;
             const movement = row.movement === "up" || row.movement === "down" ? row.movement : "same";
-            const arrow = movement === "up" ? "▲" : movement === "down" ? "▼" : "—";
-            const movementColour = movement === "up" ? "#22c55e" : movement === "down" ? "#ff3b5c" : "rgba(255,255,255,0.38)";
+            const arrow = movement === "up" ? "▲" : movement === "down" ? "▼" : "";
+            const movementColour = movement === "up" ? "#4ade80" : movement === "down" ? "#ff6b6b" : "rgba(255,255,255,0.38)";
+            const coin = afterPosition === 1 ? "linear-gradient(180deg,#ffe58a,#d99a00)" : afterPosition === 2 ? "linear-gradient(180deg,#ffffff,#9aa3b8)" : afterPosition === 3 ? "linear-gradient(180deg,#f2b989,#9c5a2c)" : null;
             return (
               <div
                 key={`${name}-${afterPosition}`}
-                className="grid items-center gap-2 border-t border-white/10 px-3 py-2"
-                style={{ gridTemplateColumns: "2rem minmax(0,1fr) 2.8rem 2.8rem 3.2rem" }}
+                className="bug-chip-in grid items-center gap-2 px-3 py-1.5"
+                style={{ gridTemplateColumns: "2rem minmax(0,1fr) 3.4rem 3rem", borderRadius: 12, background: "linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.012))", border: `1px solid ${afterPosition === 1 ? "rgba(255,210,74,.45)" : "rgba(255,255,255,.08)"}`, animationDelay: staggerDelay(index) }}
               >
-                <span className="font-black text-white">{afterPosition}</span>
+                <span className="flex items-center justify-center rounded-full" style={{ width: 26, height: 26, fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: 12, color: coin ? "#1a1200" : "#cfcade", background: coin ?? "linear-gradient(180deg,#3a3550,#1c1a28)" }}>{afterPosition}</span>
                 <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-black uppercase" style={{ color: leagueAccent }}>{name}</span>
-                  <span className="text-[0.7rem] font-black" style={{ color: movementColour }} aria-label={`${name} moved ${movement}`}>
-                    {arrow}{beforePosition !== afterPosition ? Math.abs(beforePosition - afterPosition) : ""}
-                  </span>
+                  <span className="pm-chrome truncate uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "1.02rem" }}>{name}</span>
+                  {arrow && (
+                    <span className="text-[0.7rem] font-black" style={{ color: movementColour }} aria-label={`${name} moved ${movement}`}>
+                      {arrow}{beforePosition !== afterPosition ? Math.abs(beforePosition - afterPosition) : ""}
+                    </span>
+                  )}
                 </span>
-                <span className="font-bold text-white/80">{typeof row.wins === "number" ? row.wins : "—"}</span>
-                <span className="font-bold text-white/80">{typeof row.losses === "number" ? row.losses : "—"}</span>
-                <span className="font-black" style={{ color: accent }}>{typeof row.points === "number" ? row.points : "—"}</span>
+                <span className="text-center tabular-nums" style={{ fontFamily: "Oswald, sans-serif", color: "#cfcade", fontSize: "0.9rem" }}>{typeof row.wins === "number" ? row.wins : "—"}–{typeof row.losses === "number" ? row.losses : "—"}</span>
+                <span className="pm-num text-right tabular-nums" style={{ color: accent, fontSize: "1.15rem", textShadow: `0 0 10px ${accent}66` }}>{typeof row.points === "number" ? row.points : "—"}</span>
               </div>
             );
           })}

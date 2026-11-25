@@ -25,9 +25,10 @@
 // (practice activity, Shadow Bot promo, feature spotlight), whose own
 // bespoke facts shape hasn't been designed yet. Nothing else should reach
 // for it.
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { GraphicData, LeagueType } from "../types";
 import { LEAGUE_ACCENT, LEAGUE_LABEL } from "../theme";
+import { DartboardBackdrop, Glow } from "@/components/premium/Premium";
 
 /** A 0-1 fraction as a whole-number percent string. Every bespoke component below knows which of its OWN fields are fraction-shaped (unlike GraphicFrame's old generic key-name-suffix heuristic), so this is just the arithmetic. */
 export function pct(value: number): string {
@@ -79,424 +80,321 @@ export function withAlpha(color: string, alphaHex: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// ── Broadcast panel skin (v2) ─────────────────────────────────────────────
-// Real user feedback after seeing the original glass-chip kit (now removed
-// — see this file's own header) built and screenshotted: "far too much
-// like you've took an actual screenshot of the stats and just pasting it
-// in." The content shapes that kit had (versus split, probability bar,
-// hero stat...) were the right call, but the CONTAINER — translucent blur,
-// soft rounded corners, floating pills — was itself a generic web-app
-// "glassmorphism" dashboard-card look regardless of what's inside it,
-// which is exactly what read as "a snapshot of the app" rather than a TV
-// graphics package. This set of primitives is a deliberately different
-// skin: solid opaque panels with one hard-angled corner cut (not rounded),
-// a bold flat-colour badge behind the hero number (not coloured text
-// floating on blur), and a slide-in-from-the-edge entrance (not a
-// fade-up-in-place) — the same difference between a browser card and an
-// actual Sky Sports graphics package. Every graphics/*.tsx file now uses
-// this skin at `compact={true}` (quiet/featured visual tier); major tier
-// moved one step further still, onto the "BigBoard" skin below.
-export function Panel({ accent, compact = true, children }: { accent: string; compact?: boolean; children: ReactNode }) {
+// ── Premium skin (v4) ────────────────────────────────────────────────────
+// The owner asked for TKDL LIVE to carry the same premium look as the rest
+// of the app (the Hub's "Your standing" card, Standings, profiles), and
+// signed off a mockup built from those exact pieces. Every primitive below
+// keeps its v2/v3 name and props, so each graphics/*.tsx file picks up the
+// new look without changing its own layout logic:
+//  - panels are the app's hero card (purple-to-black gradient, soft glows,
+//    dartboard outline, faint diagonal lines, tinted border);
+//  - headers are a gold kicker and a gold-metal title;
+//  - hero numbers are the Hub's colour-bordered stat tiles;
+//  - names are chrome; ranks are gold/silver/bronze coins;
+//  - badges are pill chips; recent results are W/L form chips.
+// compact=true (quiet/featured tier) is the same card at a smaller scale.
+
+const OSWALD = "Oswald, sans-serif";
+
+function HeroCard({ accent, compact, fill = true, dense = false, maxWidth, children }: { accent: string; compact: boolean; fill?: boolean; dense?: boolean; maxWidth?: number | string; children: ReactNode }) {
   return (
     <div
-      className="panel-slide-in inline-flex flex-col"
+      className={`panel-slide-in relative overflow-hidden min-w-0 ${fill ? "flex w-full" : "inline-flex"} flex-col`}
       style={{
-        background: "linear-gradient(160deg, #14141f 0%, #050508 100%)",
-        clipPath: "polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%)",
-        borderLeft: `5px solid ${accent}`,
-        boxShadow: "0 18px 36px rgba(0,0,0,0.55)",
-        padding: compact ? "10px 18px 12px 14px" : "16px 24px 18px 19px",
-        gap: compact ? 8 : 10,
-        maxWidth: compact ? 320 : 440,
+        borderRadius: compact ? 18 : 24,
+        border: `1px solid ${withAlpha(accent, "55")}`,
+        background: `linear-gradient(160deg, ${withAlpha(accent, "2e")} 0%, #14102a 42%, #06060b 100%)`,
+        boxShadow: `0 20px 50px rgba(0,0,0,.55), 0 0 50px ${withAlpha(accent, "18")}`,
+        padding: compact ? "12px 16px 14px" : dense ? "16px 24px 18px" : "24px 30px 26px",
+        gap: compact ? 8 : dense ? 10 : 16,
+        maxWidth: maxWidth ?? "100%",
+        minWidth: fill ? undefined : (compact ? undefined : "min(380px, 100%)"),
       }}
     >
-      {children}
+      <Glow x="88%" y="10%" color={accent} size={compact ? 260 : 460} opacity={0.3} />
+      <Glow x="5%" y="85%" color="#a855f7" size={compact ? 240 : 420} opacity={0.26} />
+      <DartboardBackdrop size={compact ? 300 : 520} opacity={0.07} style={{ right: compact ? -130 : -200, top: compact ? -90 : -110, transform: "rotate(8deg)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.05, background: "repeating-linear-gradient(115deg,#fff 0 1px,transparent 1px 12px)" }} />
+      <div className="relative flex flex-col min-w-0" style={{ zIndex: 1, gap: "inherit" }}>{children}</div>
     </div>
   );
 }
 
-/** The panel's own identifying caption — a solid colour "wipe" bar in place of GraphicTag's fading gradient underline, since nothing in this skin fades in from transparency. */
-export function PanelTag({ icon, kind, leagueType, accent, compact = true }: { icon: string; kind: string; leagueType: LeagueType | null; accent: string; compact?: boolean }) {
+export function Panel({ accent, compact = true, children }: { accent: string; compact?: boolean; children: ReactNode }) {
+  return <HeroCard accent={accent} compact fill={false} maxWidth={compact ? 340 : 460}>{children}</HeroCard>;
+}
+
+function Kicker({ icon, kind, leagueType, accent, size }: { icon: string; kind: string; leagueType: LeagueType | null; accent: string; size: number }) {
   const leagueAccent = leagueType ? LEAGUE_ACCENT[leagueType] : accent;
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-1.5">
-        <span style={{ fontSize: compact ? "0.8rem" : "0.95rem", lineHeight: 1 }} aria-hidden="true">{icon}</span>
-        <span className="font-black uppercase" style={{ color: "#fff", letterSpacing: "0.14em", fontSize: compact ? "0.62rem" : "0.68rem" }}>{kind}</span>
-        {leagueType && (
-          <span className="font-bold uppercase" style={{ color: leagueAccent, letterSpacing: "0.1em", fontSize: "0.56rem" }}>· {LEAGUE_LABEL[leagueType]}</span>
-        )}
-      </div>
-      <div className="bar-wipe" style={{ height: 3, width: compact ? 38 : 54, background: accent }} />
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="live-dot" style={{ width: 6, height: 6, background: leagueAccent }} />
+      <span className="pm-lab" style={{ color: "#ffd24a", fontSize: size }}><span aria-hidden="true">{icon}</span>{kind}</span>
+      {leagueType && <span className="pm-lab" style={{ fontSize: size }}>· {LEAGUE_LABEL[leagueType]}</span>}
     </div>
   );
 }
 
-/** The hero number as a solid flat-colour badge (a parallelogram, not a rounded pill) — the shape a real scoreboard graphic gives its headline number, dark text on a bright fill rather than bright text floating on blur. */
-export function HeroBadge({ value, label, accent, compact = true }: { value: string; label: string; accent: string; compact?: boolean }) {
+/** The panel's caption: a gold kicker with the league, as on the app's hero cards. */
+export function PanelTag({ icon, kind, leagueType, accent, compact = true }: { icon: string; kind: string; leagueType: LeagueType | null; accent: string; compact?: boolean }) {
+  return <Kicker icon={icon} kind={kind} leagueType={leagueType} accent={accent} size={compact ? 9.5 : 10.5} />;
+}
+
+/**
+ * Counts a displayed number up from zero when it first appears ("2.93",
+ * "+18", "64%", "12"), keeping its prefix, suffix and decimal places.
+ * Anything that isn't a plain number is shown as-is.
+ */
+function useCountUp(value: string, ms = 900): string {
+  const m = /^([^0-9.-]*)(-?\d+(?:\.\d+)?)(.*)$/.exec(value);
+  const [shown, setShown] = useState(m ? `${m[1]}0${m[3]}` : value);
+  useEffect(() => {
+    if (!m) { setShown(value); return; }
+    const target = Number(m[2]);
+    const places = (m[2].split(".")[1] ?? "").length;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setShown(value); return; }
+    let raf = 0; const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / ms);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setShown(`${m[1]}${(target * eased).toFixed(places)}${m[3]}`);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  return shown;
+}
+
+/** A Hub-style stat tile: colour gradient border, dark tinted fill, glowing number. */
+function StatTile({ value, label, accent, big }: { value: string; label: string; accent: string; big: boolean }) {
+  const shown = useCountUp(value);
   return (
-    <div className="flex flex-col gap-1.5">
-      <div
-        className="badge-pop-in self-start"
-        style={{ background: accent, clipPath: "polygon(7% 0, 100% 0, 93% 100%, 0% 100%)", padding: compact ? "3px 20px" : "5px 26px" }}
-      >
-        <span className="font-black tabular-nums" style={{ color: "#08080c", fontSize: compact ? "1.9rem" : "2.6rem", lineHeight: 1.15 }}>{value}</span>
+    <div className="badge-pop-in self-start min-w-0" style={{ padding: 1, borderRadius: big ? 18 : 14, background: `linear-gradient(140deg, ${accent}, ${withAlpha(accent, "26")} 50%, ${accent})` }}>
+      <div style={{ borderRadius: big ? 17 : 13, padding: big ? "14px 22px 16px" : "8px 14px 10px", background: `linear-gradient(180deg, color-mix(in srgb, ${accent} 16%, #0c0a12), #0b0910)` }}>
+        <span className="pm-lab" style={{ fontSize: big ? 11 : 9 }}>{label}</span>
+        <div className="pm-num tabular-nums" style={{ fontSize: big ? "4.4rem" : "1.9rem", color: accent, textShadow: `0 0 18px ${withAlpha(accent, "80")}`, marginTop: big ? 6 : 3 }}>{shown}</div>
       </div>
-      <div className="uppercase font-bold" style={{ color: "rgba(255,255,255,0.55)", fontSize: compact ? "0.6rem" : "0.68rem", letterSpacing: "0.08em" }}>{label}</div>
     </div>
   );
 }
 
-/** A plain supporting line — flat text, no chip background, since this skin doesn't put every fact in its own container. */
-export function PanelLine({ children }: { children: ReactNode }) {
-  return <div style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.72rem", fontWeight: 600 }}>{children}</div>;
+export function HeroBadge({ value, label, accent, compact = true }: { value: string; label: string; accent: string; compact?: boolean }) {
+  return <StatTile value={value} label={label} accent={accent} big={!compact} />;
 }
 
-// `overflowWrap: "anywhere"` (both name spans below) prefers breaking at a
-// normal boundary — a space — and only breaks mid-word when a single token
-// genuinely has nowhere else to go. A real first name ("Richard") IS one
-// such token, and at this plate's fixed width it broke arbitrarily wherever
-// the line ran out of room ("RICHA" / "RD") rather than at anything a
-// person would call a syllable — real user feedback flagged this as part of
-// the show's "weird text," and it's not a rare edge case: most real names
-// in this league are 6+ letters, so it would have kept recurring. Shrinking
-// the ceiling for a longer single-word name lets it fit on one line instead
-// of relying on the break; a genuinely long multi-word name (a doubles team
-// name) still wraps normally at its own spaces either way, which reads
-// fine. `long` is deliberately a fixed, small clamp() rather than scaled
-// down from `regular` — screenshotted against real fixture names (Richard,
-// Graeme) until an 8-letter single word reliably held one line at this
-// plate's actual rendered width, not hand-calculated from font-metrics
-// assumptions that turned out optimistic in practice.
-function versusNameSize(name: string, regular: string, long: string): string {
+/** A plain supporting line. */
+export function PanelLine({ children }: { children: ReactNode }) {
+  return <div style={{ color: "#b9b3cc", fontSize: "0.76rem", fontWeight: 500 }}>{children}</div>;
+}
+
+function nameSize(name: string, regular: string, long: string): string {
   const longSingleWord = name.length > 6 && !name.includes(" ");
   return longSingleWord ? long : regular;
 }
 
-/** The versus split on this skin: two solid-fill name plates angled toward each other (a chevron meeting point) instead of two names floating on transparent background either side of a "VS" label. */
-export function VersusPanel({
-  leftName, rightName, leftAccent, rightAccent, splitFraction, splitLabel, compact = true,
-}: { leftName: string; rightName: string; leftAccent: string; rightAccent: string; splitFraction?: number; splitLabel?: string; compact?: boolean }) {
-  const namePad = compact ? "6px 10px" : "8px 14px";
+/** A player's initial in the app's glowing conic ring. */
+function InitialRing({ name, accent, size }: { name: string; accent: string; size: number }) {
   return (
-    // `min-w-0` down through every level here, and `truncate` in place of a
-    // bare `whitespace-nowrap`, for the same reason DeskScene's league-table
-    // card overflowed on a phone (real user screenshot: text clipped off the
-    // right edge in portrait) — a name plate sized to its own un-wrapped
-    // text has no ceiling, so a long player/team name just pushes this
-    // whole card wider than the screen instead of yielding to it.
-    <div className="flex flex-col gap-2 min-w-0">
-      <div className="flex items-stretch min-w-0" style={{ gap: 2 }}>
-        <div className="min-w-0" style={{ flex: "1 1 0%", background: leftAccent, clipPath: "polygon(0 0, 100% 0, 86% 100%, 0% 100%)", padding: namePad, paddingRight: compact ? 22 : 30 }}>
-          {/* `clamp()` + `overflowWrap: anywhere` in place of a bare `truncate`
-              — this file's own BigVersus below hit the same problem at a
-              bigger scale (see its header comment): ellipsizing a long
-              player/team name at this size cut it down to almost nothing. */}
-          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: versusNameSize(leftName, compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", compact ? "clamp(0.44rem, 1.8vw, 0.54rem)" : "clamp(0.6rem, 3vw, 0.8rem)"), lineHeight: 1.2, overflowWrap: "anywhere" }}>{leftName}</span>
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <div className="absolute pointer-events-none" style={{ inset: -5, borderRadius: "50%", background: `conic-gradient(from 0deg, transparent, ${withAlpha(accent, "99")}, transparent 30%, #c4b5fd99, transparent 65%)`, filter: "blur(5px)" }} />
+      <div className="relative w-full h-full rounded-full" style={{ padding: 3, background: `conic-gradient(from 200deg, ${accent}, #c4b5fd, ${accent}, #ffffff, ${accent})` }}>
+        <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: "radial-gradient(circle at 35% 30%, #2f2850, #0f0d18)" }}>
+          <span className="pm-chrome" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: size * 0.44 }}>{(name.trim()[0] ?? "?").toUpperCase()}</span>
         </div>
-        <div className="flex items-center justify-center font-black shrink-0" style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.64rem", letterSpacing: "0.05em" }}>VS</div>
-        <div className="min-w-0" style={{ flex: "1 1 0%", background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: namePad, paddingLeft: compact ? 22 : 30 }}>
-          <span className="font-black uppercase block" style={{ color: "#08080c", fontSize: versusNameSize(rightName, compact ? "clamp(0.68rem, 3.6vw, 0.92rem)" : "clamp(0.8rem, 4vw, 1.15rem)", compact ? "clamp(0.44rem, 1.8vw, 0.54rem)" : "clamp(0.6rem, 3vw, 0.8rem)"), lineHeight: 1.2, overflowWrap: "anywhere" }}>{rightName}</span>
+      </div>
+    </div>
+  );
+}
+
+function VersusRow({ leftName, rightName, leftAccent, rightAccent, splitFraction, splitLabel, big }: { leftName: string; rightName: string; leftAccent: string; rightAccent: string; splitFraction?: number; splitLabel?: string; big: boolean }) {
+  const ring = big ? 58 : 34;
+  const reg = big ? "clamp(1rem, 4.6vw, 1.9rem)" : "clamp(0.74rem, 3.4vw, 1rem)";
+  const lng = big ? "clamp(0.8rem, 3.6vw, 1.4rem)" : "clamp(0.62rem, 2.6vw, 0.8rem)";
+  return (
+    <div className="flex flex-col min-w-0" style={{ gap: big ? 12 : 8 }}>
+      <div className="flex items-center min-w-0" style={{ gap: big ? 14 : 8 }}>
+        <div className="flex items-center min-w-0" style={{ gap: big ? 12 : 8, flex: "1 1 0%" }}>
+          <InitialRing name={leftName} accent={leftAccent} size={ring} />
+          <span className="pm-chrome uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: nameSize(leftName, reg, lng), lineHeight: 1.05, whiteSpace: "nowrap" }}>{leftName}</span>
+        </div>
+        <span className="pm-lab shrink-0" style={{ fontSize: big ? 12 : 9 }}>vs</span>
+        <div className="flex items-center justify-end min-w-0" style={{ gap: big ? 12 : 8, flex: "1 1 0%" }}>
+          <span className="pm-chrome uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: nameSize(rightName, reg, lng), lineHeight: 1.05, whiteSpace: "nowrap", textAlign: "right" }}>{rightName}</span>
+          <InitialRing name={rightName} accent={rightAccent} size={ring} />
         </div>
       </div>
       {splitFraction !== undefined && (
         <div className="flex flex-col gap-1">
-          <div className="flex overflow-hidden" style={{ height: compact ? 5 : 7 }}>
-            <div className="bar-wipe h-full" style={{ width: `${Math.max(0, Math.min(1, splitFraction)) * 100}%`, background: leftAccent }} />
+          <div className="flex overflow-hidden" style={{ height: big ? 8 : 5, borderRadius: 999, background: "rgba(255,255,255,.08)" }}>
+            <div className="bar-wipe h-full" style={{ width: `${Math.max(0, Math.min(1, splitFraction)) * 100}%`, background: leftAccent, boxShadow: `0 0 12px ${withAlpha(leftAccent, "88")}` }} />
             <div className="h-full flex-1" style={{ background: rightAccent, opacity: 0.85 }} />
           </div>
-          {splitLabel && <div className="text-center uppercase font-bold" style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.58rem", letterSpacing: "0.08em" }}>{splitLabel}</div>}
+          {splitLabel && <div className="pm-lab" style={{ justifyContent: "center", fontSize: big ? 11 : 9 }}>{splitLabel}</div>}
         </div>
       )}
     </div>
   );
 }
 
-/** This skin's measured bar — a flat rectangle track with a solid-fill (not gradient) wipe, in place of MeasureBar's rounded/translucent track. */
-export function PanelBar({
-  label, valueLabel, fraction, accent, compact = true,
-}: { label: string; valueLabel: string; fraction: number; accent: string; compact?: boolean }) {
+export function VersusPanel(props: { leftName: string; rightName: string; leftAccent: string; rightAccent: string; splitFraction?: number; splitLabel?: string; compact?: boolean }) {
+  return <VersusRow {...props} big={props.compact === false} />;
+}
+
+/** A measured bar: label, coloured value, thin rounded glowing track. */
+export function PanelBar({ label, valueLabel, fraction, accent, compact = true }: { label: string; valueLabel: string; fraction: number; accent: string; compact?: boolean }) {
   const clamped = Math.max(0, Math.min(1, fraction));
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-bold truncate" style={{ color: "rgba(255,255,255,0.7)", fontSize: compact ? "0.64rem" : "0.7rem" }}>{label}</span>
-        <span className="font-black tabular-nums shrink-0" style={{ color: accent, fontSize: compact ? "0.7rem" : "0.8rem" }}>{valueLabel}</span>
+        <span className="uppercase truncate" style={{ fontFamily: OSWALD, color: "#e4e0f0", fontSize: compact ? "0.72rem" : "0.82rem", letterSpacing: ".06em" }}>{label}</span>
+        <span className="pm-num tabular-nums shrink-0" style={{ color: accent, fontSize: compact ? "0.82rem" : "0.95rem" }}>{valueLabel}</span>
       </div>
-      <div style={{ height: compact ? 5 : 7, background: "rgba(255,255,255,0.1)" }}>
-        <div className="bar-wipe h-full" style={{ width: `${clamped * 100}%`, background: accent }} />
+      <div style={{ height: compact ? 5 : 7, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+        <div className="bar-wipe h-full" style={{ width: `${clamped * 100}%`, background: accent, borderRadius: 999, boxShadow: `0 0 10px ${withAlpha(accent, "88")}` }} />
       </div>
     </div>
   );
 }
 
-/** A small solid-fill flag, this skin's version of kit.tsx's own `Flag` — a rectangle, not a rounded/bordered pill. */
+/** A small call-out flag as a pill chip. */
 export function PanelFlag({ children, accent }: { children: ReactNode; accent: string }) {
-  return (
-    <span className="inline-flex items-center font-black uppercase px-2 py-0.5 self-start" style={{ background: accent, color: "#08080c", fontSize: "0.56rem", letterSpacing: "0.1em" }}>
-      {children}
-    </span>
-  );
+  return <span className="pm-chip self-start" style={{ color: accent, borderColor: withAlpha(accent, "77"), background: withAlpha(accent, "1a") }}>{children}</span>;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// ── BigBoard skin (v3) ───────────────────────────────────────────────────
-// Real user feedback, after seeing the v2 broadcast-panel skin above built
-// and screenshotted on ResultGraphic/HeadToHeadGraphic: the shape was
-// closer, but still not it. The user then posted a reference "TKDL LIVE
-// Evening Edition" studio-screen mockup — dark navy background, glowing
-// blue/red angular panels, real standings tables, thick probability bars,
-// coloured badge pills, a radial gauge — and picked "go big like this, one
-// story at a time" from three options: the one-story-per-segment FORMAT
-// stays (hosts still talk through a single story, not a six-panel wall),
-// but that one story's own graphic should now fill most of the screen
-// behind them, not sit in a small corner card. This third skin is a
-// deliberately larger, bolder rebuild of the v2 pieces above: a dark-navy
-// (not near-black) gradient instead of v2's near-black one, a glowing
-// coloured border instead of a flat 5px borderLeft, a bold uppercase
-// header with its own glowing underline bar instead of a small caption, a
-// numbered-row table shape for ranked/standings data instead of a bare
-// bar, a THICK full-width bar (12px, glowing) instead of v2's 5-7px flat
-// track, and a giant glow-shadowed number for hero-stat cases. Critically,
-// none of these carry v2's `maxWidth` cap — they fill whatever width their
-// caller's own wrapper gives them, and scenes/*.tsx now hands them a much
-// wider one (see AnalysisScene/DeskScene/ResultScene) so the graphic can
-// actually dominate the frame the way the reference image does.
-//
-// Used at "major" visual tier (VisualTier, theme.ts) via scenes/*.tsx's
-// own `compact` prop (compact=false); compact=true segments — routine
-// Supporting/quiet-tier play — stay on the smaller v2 Panel skin above.
-// That's the same hierarchy-by-treatment idea theme.ts already documents
-// ("quiet" is the default, the bigger treatment is spent only on the
-// moment that's earned it) — this skin just raises how big "the bigger
-// treatment" actually is, per the user's explicit "go big" direction,
-// which now supersedes this file's own EARLIER (pre-reference-image)
-// assumption that "major" tier only needed to be modestly bigger than
-// "quiet." TitlePredictorGraphic.tsx and FormWatchGraphic.tsx were the
-// first two rebuilt on this skin (chosen because they map most directly
-// onto panels literally visible in the user's reference image — its
-// "Title Predictor" bar panel and "Streaks & Upsets" badge list) as a
-// direction check; every other graphics/*.tsx file now uses it too.
-/**
- * `fill` (default true) stretches the panel to its wrapper's full width —
- * right for row/table-shaped content (BigRow's bars genuinely want the
- * width to read as a measured bar, not a token-sized sliver). A panel
- * whose content is just a header plus one hero number/badge has nothing
- * to put in that width, so real user feedback on an early screenshot (a
- * Win Streak panel with a big dead blank strip down its right half) is
- * this prop: `fill={false}` sizes the panel to its own content instead,
- * the same "big and dominant but not padded out with empty air" shape
- * the reference image's own "Shift Wars" hero-number panels have.
- */
+// ── Major tier (big, one story filling the screen) ───────────────────────
 export function BigPanel({ accent, fill = true, dense = false, children }: { accent: string; fill?: boolean; dense?: boolean; children: ReactNode }) {
-  return (
-    <div
-      className={`panel-slide-in flex-col min-w-0 ${fill ? "flex w-full" : "inline-flex"}`}
-      style={{
-        background: "linear-gradient(165deg, #141d33 0%, #0a1120 55%, #070a14 100%)",
-        clipPath: "polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 0 100%)",
-        border: `1px solid ${withAlpha(accent, "50")}`,
-        borderLeft: `7px solid ${accent}`,
-        boxShadow: `0 0 0 1px rgba(255,255,255,0.04) inset, 0 28px 64px rgba(0,0,0,0.6), 0 0 46px ${withAlpha(accent, "26")}`,
-        padding: dense ? "12px 26px 14px 22px" : "26px 34px 30px 30px",
-        gap: dense ? 8 : 18,
-        // `fill=false` used to size this panel purely to its own content via
-        // a bare `minWidth: 380` floor with nothing capping the top end —
-        // fine for a short hero number, but a long player/team name inside
-        // (BigMove/BigVersus below) simply grew the panel past the floor
-        // with no ceiling, wider than the phone screen itself (real user
-        // screenshot: DeskScene's league-table card clipped at the right
-        // edge in portrait). `maxWidth: "100%"` never lets this panel exceed
-        // whatever width its own wrapper (scenes/*.tsx's own `max-w-*` div)
-        // actually has; `min(380px, 100%)` keeps the floor on anything wide
-        // enough to afford it while letting it yield below 380px instead of
-        // forcing that width regardless (min-width otherwise wins over
-        // max-width in a conflict, which would silently undo the cap above).
-        minWidth: fill ? undefined : "min(380px, 100%)",
-        maxWidth: "100%",
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <HeroCard accent={accent} compact={false} fill={fill} dense={dense}>{children}</HeroCard>;
 }
 
-/** This skin's identifying header — a real bold TV-graphics headline (not a small caption) with a glowing coloured underline bar in place of PanelTag's thin solid wipe. */
+/** Gold kicker over a gold-metal title — the app's chapter/hero heading. */
 export function BigPanelHeader({ icon, kind, leagueType, accent }: { icon: string; kind: string; leagueType: LeagueType | null; accent: string }) {
   const leagueAccent = leagueType ? LEAGUE_ACCENT[leagueType] : accent;
   return (
-    <div className="flex flex-col gap-2.5">
-      <div className="flex items-center gap-3">
-        <span style={{ fontSize: "1.4rem", lineHeight: 1 }} aria-hidden="true">{icon}</span>
-        <span className="font-black uppercase" style={{ color: "#fff", letterSpacing: "0.1em", fontSize: "1.2rem" }}>{kind}</span>
-        {leagueType && (
-          <span className="font-bold uppercase" style={{ color: leagueAccent, letterSpacing: "0.08em", fontSize: "0.76rem" }}>· {LEAGUE_LABEL[leagueType]}</span>
-        )}
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="live-dot" style={{ width: 6, height: 6, background: leagueAccent }} />
+        <span className="pm-lab" style={{ color: "#ffd24a", fontSize: 11 }}>{leagueType ? LEAGUE_LABEL[leagueType] : "TKDL LIVE"}</span>
       </div>
-      <div className="bar-wipe" style={{ height: 4, width: 104, background: accent, boxShadow: `0 0 14px ${withAlpha(accent, "cc")}` }} />
+      <div className="pm-metal uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: "clamp(1.6rem, 3.4vw, 2.5rem)", letterSpacing: ".03em", lineHeight: 1 }}>
+        <span aria-hidden="true" style={{ WebkitTextFillColor: "initial", marginRight: 10, fontSize: "0.8em" }}>{icon}</span>{kind}
+      </div>
     </div>
   );
 }
 
-/** The hero number for this skin — a genuinely giant glow-shadowed figure (the reference image's "Shift Wars" big numbers), not a badge-sized parallelogram. */
 export function BigHeroNumber({ value, label, accent }: { value: string; label: string; accent: string }) {
-  return (
-    <div className="badge-pop-in flex items-baseline gap-5">
-      <div className="font-black tabular-nums leading-none" style={{ fontSize: "5.4rem", color: accent, textShadow: `0 0 44px ${withAlpha(accent, "77")}, 0 0 10px ${withAlpha(accent, "dd")}` }}>{value}</div>
-      <div className="uppercase font-bold" style={{ color: "rgba(255,255,255,0.62)", fontSize: "1.05rem", letterSpacing: "0.07em", maxWidth: 200, lineHeight: 1.15 }}>{label}</div>
-    </div>
-  );
+  return <StatTile value={value} label={label} accent={accent} big />;
 }
 
-/** A single ranked table row — a numbered position chip, a name, and a thick glowing measured bar — the real shape of the reference image's standings/Title-Predictor rows, in place of v1's bare MeasureBar or v2's thin PanelBar. `rank` is optional (a two-name Dead Heat doesn't need position numbers). */
+const COIN: Record<number, string> = {
+  1: "linear-gradient(180deg,#ffe58a,#d99a00)",
+  2: "linear-gradient(180deg,#ffffff,#9aa3b8)",
+  3: "linear-gradient(180deg,#f2b989,#9c5a2c)",
+};
+
+/** A ranked row like the Standings page: coin, chrome name, coloured value, glowing bar. */
 export function BigRow({ rank, label, valueLabel, fraction, accent, delay = 0, dense = false }: { rank?: number; label: string; valueLabel: string; fraction: number; accent: string; delay?: number; dense?: boolean }) {
   const clamped = Math.max(0, Math.min(1, fraction));
+  const coin = rank !== undefined ? COIN[rank] : undefined;
   return (
-    <div className={`bug-chip-in flex items-center ${dense ? "gap-3" : "gap-4"}`} style={{ animationDelay: staggerDelay(delay) }}>
+    <div className={`bug-chip-in flex items-center ${dense ? "gap-3" : "gap-4"}`} style={{ animationDelay: staggerDelay(delay), padding: dense ? "6px 12px" : "9px 14px", borderRadius: 14, background: "linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.012))", border: `1px solid ${rank === 1 ? "rgba(255,210,74,.45)" : "rgba(255,255,255,.08)"}` }}>
       {rank !== undefined && (
-        <div className="flex items-center justify-center font-black shrink-0" style={{ width: dense ? 30 : 36, height: dense ? 30 : 36, background: withAlpha(accent, "1f"), border: `1px solid ${withAlpha(accent, "70")}`, color: accent, fontSize: dense ? "0.95rem" : "1.05rem" }}>
+        <div className="flex items-center justify-center shrink-0 rounded-full" style={{ width: dense ? 28 : 34, height: dense ? 28 : 34, fontFamily: OSWALD, fontWeight: 700, fontSize: dense ? 13 : 15, color: coin ? "#1a1200" : "#cfcade", background: coin ?? "linear-gradient(180deg,#3a3550,#1c1a28)", boxShadow: coin ? "0 0 10px rgba(255,210,74,.35)" : undefined }}>
           {rank}
         </div>
       )}
       <div className={`flex-1 min-w-0 flex flex-col ${dense ? "gap-1" : "gap-1.5"}`}>
         <div className="flex items-baseline justify-between gap-3">
-          <span className="font-bold uppercase truncate" style={{ color: "#fff", fontSize: dense ? "1rem" : "1.08rem" }}>{label}</span>
-          <span className="font-black tabular-nums shrink-0" style={{ color: accent, fontSize: dense ? "1.1rem" : "1.24rem" }}>{valueLabel}</span>
+          <span className="pm-chrome uppercase truncate" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: dense ? "1.02rem" : "1.18rem", letterSpacing: ".03em" }}>{label}</span>
+          <span className="pm-num tabular-nums shrink-0" style={{ color: accent, fontSize: dense ? "1.15rem" : "1.35rem", textShadow: `0 0 12px ${withAlpha(accent, "66")}` }}>{valueLabel}</span>
         </div>
-        <div style={{ height: dense ? 9 : 12, background: "rgba(255,255,255,0.07)" }}>
-          <div className="bar-wipe h-full" style={{ width: `${clamped * 100}%`, background: `linear-gradient(90deg, ${accent}, ${withAlpha(accent, "aa")})`, boxShadow: `0 0 18px ${withAlpha(accent, "80")}` }} />
+        <div style={{ height: dense ? 5 : 7, borderRadius: 999, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+          <div className="bar-wipe h-full" style={{ width: `${clamped * 100}%`, borderRadius: 999, background: `linear-gradient(90deg, ${accent}, ${withAlpha(accent, "aa")})`, boxShadow: `0 0 14px ${withAlpha(accent, "80")}` }} />
         </div>
       </div>
     </div>
   );
 }
 
-/** A "before -> after" move, sized for this skin — DeskScene/ResultScene's move-shaped stories (a table-position climb, a form swing) at genuinely large scale rather than v1's ~1-1.8rem numbers. */
+/** "Before -> after": old value dimmed and struck, new value in gold metal. */
 export function BigMove({ before, after, accent, improved }: { before: string; after: string; accent: string; improved: boolean }) {
-  // This was built for short numeric moves ("P3" -> "P1", "2/5" -> "4/5"),
-  // which never overflowed anything — but LeagueTableGraphic/
-  // TitlePredictorGraphic also feed this arbitrary player/team NAMES for a
-  // new-leader/new-favourite move, at up to 3.3rem with nothing to stop it
-  // pushing this row (and BigPanel's own width above it) past a phone's
-  // screen — a real user screenshot showed exactly that, a name clipped off
-  // the right edge in portrait. A first fix reached for `truncate`, same as
-  // every OTHER name in this file — wrong call here specifically: those are
-  // short win/loss strips at ~1rem, where ellipsizing a long name still
-  // leaves most of it readable; at this component's actual 2.3-3.3rem hero
-  // scale the same fix cut a real name down to a single letter and an
-  // ellipsis. `clamp()` (SceneShell.tsx's own SceneHeadline already sets
-  // this precedent) shrinks the type itself on a narrow viewport instead,
-  // and `overflowWrap: "anywhere"` lets a still-too-long name wrap onto a
-  // second line rather than either overflowing or disappearing — full name
-  // stays readable either way. Short numeric moves never get close to
-  // wrapping at any real viewport width, so they render exactly as before.
   return (
     <div className="bug-chip-in flex flex-wrap items-center gap-x-4 gap-y-1 min-w-0">
-      <span className="font-bold tabular-nums min-w-0" style={{ color: "rgba(255,255,255,0.35)", fontSize: "clamp(1.1rem, 4.5vw, 2.3rem)", lineHeight: 1.15, textDecoration: "line-through", textDecorationColor: "rgba(255,255,255,0.3)", overflowWrap: "anywhere" }}>{before}</span>
-      <span aria-hidden="true" className="shrink-0 flex items-center justify-center" style={{ color: accent, width: 36, height: 36 }}>
-        <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ transform: improved ? "rotate(-45deg)" : "rotate(45deg)" }}>
+      <span className="tabular-nums min-w-0 uppercase" style={{ fontFamily: OSWALD, fontWeight: 600, color: "rgba(255,255,255,0.35)", fontSize: "clamp(1.1rem, 4.5vw, 2.2rem)", lineHeight: 1.15, textDecoration: "line-through", textDecorationColor: "rgba(255,255,255,0.3)", overflowWrap: "anywhere" }}>{before}</span>
+      <span aria-hidden="true" className="shrink-0 flex items-center justify-center" style={{ color: accent, width: 34, height: 34 }}>
+        <svg viewBox="0 0 24 24" width="34" height="34" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ transform: improved ? "rotate(-45deg)" : "rotate(45deg)", filter: `drop-shadow(0 0 6px ${accent})` }}>
           <line x1="5" y1="12" x2="19" y2="12" />
           <polyline points="12 5 19 12 12 19" />
         </svg>
       </span>
-      <span className="font-black tabular-nums min-w-0" style={{ color: accent, fontSize: "clamp(1.3rem, 6vw, 3.3rem)", lineHeight: 1.1, textShadow: `0 0 26px ${withAlpha(accent, "70")}`, overflowWrap: "anywhere" }}>{after}</span>
+      <span className="pm-metal tabular-nums min-w-0 uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: "clamp(1.3rem, 6vw, 3.2rem)", lineHeight: 1.1, overflowWrap: "anywhere" }}>{after}</span>
     </div>
   );
 }
 
-/** A colour-filled badge pill — this skin's version of the reference image's "W5"/"UPSET"/"L3" streak badges and its "Dead Heat"/"Verified" call-out flags; one shape covers both uses. */
+/** A call-out as a glowing pill chip ("Dead Heat", "Verified", "W5"…). */
 export function BigBadge({ children, accent }: { children: ReactNode; accent: string }) {
   return (
-    <span
-      className="badge-pop-in inline-flex items-center font-black uppercase self-start"
-      style={{ background: accent, color: "#050810", padding: "7px 20px", fontSize: "0.88rem", letterSpacing: "0.05em", clipPath: "polygon(6% 0, 100% 0, 94% 100%, 0% 100%)", boxShadow: `0 0 20px ${withAlpha(accent, "55")}` }}
-    >
+    <span className="badge-pop-in pm-chip self-start" style={{ minHeight: 32, padding: "0 16px", fontSize: 13, color: accent, borderColor: withAlpha(accent, "88"), background: `linear-gradient(90deg, ${withAlpha(accent, "33")}, ${withAlpha(accent, "0d")})`, boxShadow: `0 0 18px ${withAlpha(accent, "33")}` }}>
       {children}
     </span>
   );
 }
 
-/** A plain supporting line at this skin's larger scale. */
 export function BigLine({ children }: { children: ReactNode }) {
-  return <div style={{ color: "rgba(255,255,255,0.68)", fontSize: "1.02rem", fontWeight: 600 }}>{children}</div>;
+  return <div style={{ color: "#b9b3cc", fontSize: "1.02rem", fontWeight: 500 }}>{children}</div>;
 }
 
-/** The versus split at this skin's scale — the same two-solid-plate chevron shape as v2's VersusPanel, sized up (genuinely large names, a thicker glowing split bar) for HeadToHeadGraphic's own BigBoard branch. */
-export function BigVersus({
-  leftName, rightName, leftAccent, rightAccent, splitFraction, splitLabel,
-}: { leftName: string; rightName: string; leftAccent: string; rightAccent: string; splitFraction?: number; splitLabel?: string }) {
-  // Same overflow class as BigMove above (this file's own comment there) —
-  // HeadToHeadGraphic feeds this arbitrary player/team names at 1.7rem with
-  // `whitespace-nowrap` and nothing to stop a long one pushing the whole
-  // versus row (and BigPanel above it) past the viewport. `min-w-0` +
-  // `flex: 1 1 0%` lets each name plate actually shrink; `clamp()` shrinks
-  // the type itself on a narrow viewport and `overflowWrap: "anywhere"`
-  // lets a still-too-long name wrap onto a second line — a bare `truncate`
-  // was tried first and rejected here (see BigMove's own header): at this
-  // hero scale it cut a real name down to a single letter and an ellipsis
-  // rather than leaving it readable.
-  return (
-    <div className="flex flex-col gap-3 min-w-0">
-      <div className="flex items-stretch min-w-0" style={{ gap: 3 }}>
-        <div className="min-w-0" style={{ flex: "1 1 0%", background: leftAccent, clipPath: "polygon(0 0, 100% 0, 86% 100%, 0% 100%)", padding: "12px 20px", paddingRight: 40, boxShadow: `0 0 24px ${withAlpha(leftAccent, "44")}` }}>
-          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: versusNameSize(leftName, "clamp(0.95rem, 4.6vw, 1.7rem)", "clamp(0.62rem, 3.4vw, 1.05rem)"), lineHeight: 1.15, overflowWrap: "anywhere" }}>{leftName}</span>
-        </div>
-        <div className="flex items-center justify-center font-black shrink-0" style={{ color: "rgba(255,255,255,0.4)", fontSize: "0.85rem", letterSpacing: "0.06em" }}>VS</div>
-        <div className="min-w-0" style={{ flex: "1 1 0%", background: rightAccent, clipPath: "polygon(14% 0, 100% 0, 100% 100%, 0% 100%)", padding: "12px 20px", paddingLeft: 40 }}>
-          <span className="font-black uppercase block" style={{ color: "#050810", fontSize: versusNameSize(rightName, "clamp(0.95rem, 4.6vw, 1.7rem)", "clamp(0.62rem, 3.4vw, 1.05rem)"), lineHeight: 1.15, overflowWrap: "anywhere" }}>{rightName}</span>
-        </div>
-      </div>
-      {splitFraction !== undefined && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex overflow-hidden" style={{ height: 10 }}>
-            <div className="bar-wipe h-full" style={{ width: `${Math.max(0, Math.min(1, splitFraction)) * 100}%`, background: leftAccent, boxShadow: `0 0 14px ${withAlpha(leftAccent, "77")}` }} />
-            <div className="h-full flex-1" style={{ background: rightAccent, opacity: 0.85 }} />
-          </div>
-          {splitLabel && <div className="text-center uppercase font-bold" style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.72rem", letterSpacing: "0.06em" }}>{splitLabel}</div>}
-        </div>
-      )}
-    </div>
-  );
+export function BigVersus(props: { leftName: string; rightName: string; leftAccent: string; rightAccent: string; splitFraction?: number; splitLabel?: string }) {
+  return <VersusRow {...props} big />;
 }
 
 /**
- * A short strip of recent-result chips, oldest to newest left to right (the
- * standard form-strip/ticker convention) — shared by FormWatchGraphic (a
- * player's own recent win/loss sequence) and HeadToHeadGraphic (who won
- * each of the last N meetings in THIS pairing). `values` is newest-first,
- * matching every story detector's own already-capped "recent history" fact
- * shape (story-detectors-form.ts's recentResultsNewestFirst,
- * story-detectors-h2h.ts's recentMeetings); reversed once here for display.
- * Each chip dims a little further back in time so the strip itself reads as
- * "then -> now" without a separate axis label, and the most recent result
- * gets its own small glow so it reads as the live edge of the sequence. One
- * size for both skins (via `compact`), not a separate Panel/BigPanel
- * variant — a form strip is a small decorative accent either way, never the
- * component carrying the whole graphic's own layout weight.
+ * Recent results as the app's W/L form chips, oldest to newest left to
+ * right. `values` is newest-first (every story detector's own convention);
+ * reversed once here. True results use `trueAccent`, false `falseAccent`.
  */
 export function ResultStrip({ values, trueAccent, falseAccent, compact = false }: { values: boolean[]; trueAccent: string; falseAccent: string; compact?: boolean }) {
   if (values.length === 0) return null;
   const display = [...values].reverse();
-  const size = compact ? 9 : 15;
-  const gap = compact ? 3 : 5;
+  const size = compact ? 16 : 24;
   return (
-    <div className="flex items-center" style={{ gap }} role="img" aria-label="Recent results, oldest to newest">
+    <div className="flex items-center" style={{ gap: compact ? 3 : 4 }} role="img" aria-label="Recent results, oldest to newest">
       {display.map((isTrue, i) => {
         const color = isTrue ? trueAccent : falseAccent;
-        const isLatest = i === display.length - 1;
         return (
-          <div
-            key={i}
-            className="bug-chip-in shrink-0"
-            style={{
-              width: size, height: size, animationDelay: staggerDelay(i),
-              background: color,
-              opacity: 0.4 + (i / Math.max(1, display.length - 1)) * 0.6,
-              boxShadow: isLatest ? `0 0 10px ${withAlpha(color, "88")}` : undefined,
-            }}
-          />
+          <span key={i} className="bug-chip-in shrink-0 flex items-center justify-center" style={{ width: size, height: size, borderRadius: compact ? 5 : 7, animationDelay: staggerDelay(i), fontFamily: OSWALD, fontSize: compact ? 9 : 11, color: "#fff", background: `linear-gradient(180deg, ${withAlpha(color, "59")}, ${withAlpha(color, "14")})`, border: `1px solid ${withAlpha(color, "99")}` }}>
+            {isTrue ? "W" : "L"}
+          </span>
         );
       })}
+    </div>
+  );
+}
+
+/** "Winner def. loser" in the mockup style: chrome winner with a green "Winner" label, dimmer chrome loser with a red "Lost" label. */
+export function WinnerBeat({ winner, loser, big = false }: { winner: ReactNode; loser: ReactNode; big?: boolean }) {
+  const ring = big ? 50 : 30;
+  const w = typeof winner === "string" ? winner : "";
+  const l = typeof loser === "string" ? loser : "";
+  return (
+    <div className="bug-chip-in flex items-center min-w-0 flex-wrap" style={{ gap: big ? 12 : 8, animationDelay: "80ms" }}>
+      <div className="flex items-center min-w-0" style={{ gap: big ? 10 : 7 }}>
+        {w && <InitialRing name={w} accent="#4ade80" size={ring} />}
+        <div className="min-w-0">
+          <div className="pm-chrome uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: big ? "clamp(1.2rem, 3vw, 1.9rem)" : "1.05rem", lineHeight: 1.02, overflowWrap: "anywhere" }}>{winner}</div>
+          <span className="pm-lab" style={{ color: "#4ade80", fontSize: big ? 10 : 8.5 }}>Winner</span>
+        </div>
+      </div>
+      <span className="pm-lab" style={{ fontSize: big ? 11 : 9 }}>def.</span>
+      <div className="flex items-center min-w-0" style={{ gap: big ? 10 : 7, opacity: 0.85 }}>
+        {l && <InitialRing name={l} accent="#ff6b6b" size={ring * 0.85} />}
+        <div className="min-w-0">
+          <div className="pm-chrome uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: big ? "clamp(1rem, 2.4vw, 1.5rem)" : "0.92rem", lineHeight: 1.02, overflowWrap: "anywhere" }}>{loser}</div>
+          <span className="pm-lab" style={{ color: "#ff6b6b", fontSize: big ? 10 : 8.5 }}>Lost</span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { ReplayLibrary } from "@/features/broadcast/ReplayLibrary";
 import { LiveExtras } from "@/features/broadcast/LiveExtras";
 import { ChannelHome } from "@/features/broadcast/ChannelHome";
 import "./tkdl-live.css";
+import { Menu, X, Home, Radio, PlaySquare, Trophy, LayoutList, ArrowLeft } from "lucide-react";
 
 /**
  * TKDL LIVE — the automated broadcast "show" (see the handover doc's
@@ -38,6 +39,7 @@ export default function TkdlLive() {
   const [showAwards, setShowAwards] = useState(false);
   const [showReplays, setShowReplays] = useState(false);
   const [showExtras, setShowExtras] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showHome, setShowHome] = useState(true);
 
   useEffect(() => {
@@ -110,63 +112,35 @@ export default function TkdlLive() {
         // (real user screenshot: "TKDL LIVE" and this pill rendering right
         // on top of "09:43"). `env(safe-area-inset-top)` is 0 on any device
         // that doesn't need it, so this is a no-op everywhere else.
-        <div className="absolute left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-1.5 rounded-full"
-          style={{ top: "max(1.5rem, calc(env(safe-area-inset-top) + 0.75rem))", background: "rgba(255,210,74,0.14)", border: "1px solid rgba(255,210,74,0.4)", backdropFilter: "blur(8px)" }}>
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#ffd24a" }} />
-          <span className="font-black uppercase text-xs" style={{ color: "#ffd24a", letterSpacing: "0.15em" }}>
-            Admin Preview — players can't see this yet
-          </span>
-        </div>
+        <div className="lv-admin-chip"><span className="w-1.5 h-1.5 rounded-full" style={{ background: "#ffd24a" }} />Admin preview</div>
       )}
 
       {/* Stacked (not side-by-side) so neither link's width has to be
           guessed — /broadcast (the plain standings board) is the other
           full-bleed kiosk screen, previously reachable only by its own URL
           with no way across from here. */}
-      <nav className="tkdl-live-actions" aria-label="TKDL LIVE destinations">
-        <button
-          type="button"
-          onClick={() => setShowHome(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "#07030d", background: "white", border: "1px solid rgba(255,255,255,0.2)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Channel Home</span><span className="tkdl-live-actions__mobile-label">Home</span></span>
-          <span aria-hidden="true">⌂</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowExtras(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "white", background: "linear-gradient(90deg, rgba(255,0,92,0.82), rgba(0,102,255,0.82))", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 0 24px rgba(255,0,92,0.18)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Inside the League</span><span className="tkdl-live-actions__mobile-label">Inside</span></span>
-          <span aria-hidden="true">◎</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowReplays(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "white", background: "rgba(7,5,15,0.84)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(10px)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">Replay Library</span><span className="tkdl-live-actions__mobile-label">Replays</span></span>
-          <span aria-hidden="true">▶</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowAwards(true)}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-xs font-black uppercase transition-transform hover:scale-105"
-          style={{ color: "#07030d", background: "#ffd24a", boxShadow: "0 0 24px rgba(255,210,74,0.3)", letterSpacing: "0.13em" }}
-        >
-          <span className="tkdl-live-actions__label"><span className="tkdl-live-actions__desktop-label">League Awards</span><span className="tkdl-live-actions__mobile-label">Awards</span></span>
-          <span aria-hidden="true">🏆</span>
-        </button>
-        <Link href="/broadcast" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
-          Standings Board →
-        </Link>
-        <Link href="/" className="text-xs font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)", letterSpacing: "0.15em" }}>
-          ← Back to the Hub
-        </Link>
-      </nav>
+      <button type="button" className="lv-menu-btn" aria-expanded={menuOpen} aria-label="TKDL LIVE menu" onClick={() => setMenuOpen(o => !o)}>
+        {menuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />} Menu
+      </button>
+      {menuOpen && (
+        <nav className="lv-menu" aria-label="TKDL LIVE destinations">
+          <div className="lv-menu-k">TKDL LIVE</div>
+          {([
+            [() => setShowHome(true), Home, "#ffffff", "Channel home", "Every show and segment"],
+            [() => setShowExtras(true), Radio, "#ff5c93", "Inside the league", "Profiles, voices and stats"],
+            [() => setShowReplays(true), PlaySquare, "#7fb4ff", "Replay library", "Watch earlier editions"],
+            [() => setShowAwards(true), Trophy, "#ffd24a", "League awards", "This season's winners"],
+          ] as const).map(([go, Icon, c, label, sub]) => (
+            <button key={label} type="button" onClick={() => { setMenuOpen(false); go(); }}>
+              <span className="ico" style={{ ["--c" as any]: c }}><Icon className="w-4 h-4" /></span>
+              <span>{label}<small>{sub}</small></span>
+            </button>
+          ))}
+          <hr />
+          <Link href="/broadcast"><span className="ico" style={{ ["--c" as any]: "#4ade80" }}><LayoutList className="w-4 h-4" /></span><span>Standings board<small>The big-screen table</small></span></Link>
+          <Link href="/"><span className="ico" style={{ ["--c" as any]: "#a9a4bd" }}><ArrowLeft className="w-4 h-4" /></span><span>Back to the Hub</span></Link>
+        </nav>
+      )}
     </div>
   );
 }

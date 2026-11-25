@@ -20,7 +20,7 @@ export function SceneShell({ children, background, justify = "start" }: SceneShe
     justifyContent: justify === "center" ? "center" : "flex-start",
   };
   return (
-    <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden px-6 py-4 md:px-12 md:py-8 lg:px-16" style={style}>
+    <div className="lv-scene-shell flex-1 min-h-0 w-full flex flex-col overflow-hidden px-6 py-4 md:px-12 md:py-8 lg:px-16" style={style}>
       {children}
     </div>
   );
@@ -28,12 +28,9 @@ export function SceneShell({ children, background, justify = "start" }: SceneShe
 
 export function SceneEyebrow({ label, color }: { label: string; color: string }) {
   return (
-    <div
-      className="font-black uppercase mb-2 flex items-center gap-2"
-      style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", letterSpacing: "0.2em", color, textShadow: "0 2px 8px rgba(0,0,0,0.65)" }}
-    >
-      <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, display: "inline-block" }} />
-      {label}
+    <div className="mb-2 flex items-center gap-2">
+      <span className="live-dot" style={{ width: 6, height: 6, background: color }} />
+      <span className="pm-lab" style={{ color: "#ffd24a", textShadow: "0 2px 8px rgba(0,0,0,0.7)" }}>{label}</span>
     </div>
   );
 }
@@ -63,9 +60,10 @@ export function SceneHeadline({ children, tier = "quiet" }: { children: ReactNod
   return (
     <h2
       data-broadcast-headline
-      className="font-black uppercase text-white"
+      className="pm-metal uppercase"
       style={{
         fontFamily: "Oswald, sans-serif",
+        fontWeight: 700,
         fontSize: HEADLINE_SIZE[tier],
         lineHeight: 1.08,
         letterSpacing: "0.01em",
@@ -82,10 +80,29 @@ export function SceneHeadline({ children, tier = "quiet" }: { children: ReactNod
         // own header explains why there's no card behind them any more) —
         // this shadow is what keeps white text legible over the backdrop's
         // own busy art in place of a panel.
-        textShadow: "0 2px 14px rgba(0,0,0,0.8), 0 1px 3px rgba(0,0,0,0.85)",
+        // Gold-metal text can't carry a text-shadow (it's clipped to the
+        // gradient), so a drop-shadow filter keeps it legible over the studio.
+        filter: "drop-shadow(0 3px 10px rgba(0,0,0,0.85))",
       }}
     >
       {children}
     </h2>
+  );
+}
+
+/**
+ * The premium story layout (signed-off mockup): one left-hand column with a
+ * gold kicker, the gold-metal headline and the story card underneath, kept
+ * clear of the presenters on a wide screen. Full width on a phone.
+ */
+export function StoryColumn({ eyebrow, color, tier, headline, graphic }: { eyebrow: string; color: string; tier: HeadlineTier; headline: ReactNode; graphic: ReactNode | null }) {
+  return (
+    <SceneShell justify="start">
+      <div className="lv-story-col">
+        <SceneEyebrow label={eyebrow} color={color} />
+        <SceneHeadline tier={tier}>{headline}</SceneHeadline>
+        {graphic && <div className="fade-in-up-delayed mt-4 w-full min-w-0">{graphic}</div>}
+      </div>
+    </SceneShell>
   );
 }
