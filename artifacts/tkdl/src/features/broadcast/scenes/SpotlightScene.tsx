@@ -22,29 +22,12 @@
 // floor so it never grows down into the hosts standing at the real desk
 // (StudioSet.tsx's ScreenPanel).
 import { LEAGUE_ACCENT, LEAGUE_LABEL } from "../theme";
-import { SceneShell, SceneEyebrow, SceneHeadline } from "./SceneShell";
+import { StoryColumn } from "./SceneShell";
 import { renderGraphic, headlineFor, tierForSegment, type SceneProps } from "./scene-support";
 
 export function SpotlightScene({ segment }: SceneProps) {
   const accent = segment.leagueType ? LEAGUE_ACCENT[segment.leagueType] : "#ff005c";
   const tier = tierForSegment(segment);
-  const graphic = renderGraphic(segment, { compact: tier !== "major" });
-
-  return (
-    <SceneShell justify="start">
-      <SceneEyebrow label="Spotlight" color={accent} />
-
-      <div className="spotlight-strip" style={{ borderColor: `${accent}47` }}>
-        <div className="min-w-0">
-          {segment.leagueType && (
-            <div className="uppercase font-bold mb-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.65rem", letterSpacing: "0.16em", color: accent }}>
-              {LEAGUE_LABEL[segment.leagueType]}
-            </div>
-          )}
-          <SceneHeadline tier={tier}>{headlineFor(segment)}</SceneHeadline>
-        </div>
-        {graphic && <div className="fade-in-up-delayed w-full sm:w-[280px] shrink-0">{graphic}</div>}
-      </div>
-    </SceneShell>
-  );
+  const graphic = renderGraphic(segment, { compact: false });
+  return <StoryColumn eyebrow={segment.leagueType ? `${LEAGUE_LABEL[segment.leagueType]} · Spotlight` : "Spotlight"} color={accent} tier={tier} headline={headlineFor(segment)} graphic={graphic} />;
 }

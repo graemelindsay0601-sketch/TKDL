@@ -10,7 +10,7 @@
 // On kit.tsx's v3 "BigBoard" skin at `compact={false}` (major visual tier)
 // and the v2 "broadcast panel" skin at `compact={true}` (quiet/featured
 // tier).
-import { Panel, PanelTag, PanelBar, PanelLine, BigPanel, BigPanelHeader, BigHeroNumber, BigRow, BigLine, str, num } from "./kit";
+import { Panel, PanelTag, PanelBar, PanelLine, BigPanel, BigPanelHeader, BigHeroNumber, BigRow, BigLine, str, num, WinnerBeat } from "./kit";
 import type { GraphicData, LeagueType } from "../types";
 import { LEAGUE_ACCENT } from "../theme";
 
@@ -60,11 +60,7 @@ export function WagerGraphic({ leagueType, data, compact }: { leagueType: League
         <BigPanelHeader icon="💰" kind={header} leagueType={leagueType} accent={ACCENT} />
         <BigHeroNumber value={String(stake)} label={stakeLabel} accent={ACCENT} />
         {winner && loser && (
-          <div className="bug-chip-in flex items-baseline gap-3" style={{ animationDelay: "160ms" }}>
-            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.1rem" }}>{winner}</span>
-            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.9rem" }}>beat</span>
-            <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.55)", fontSize: "1.1rem" }}>{loser}</span>
-          </div>
+          <WinnerBeat winner={winner} loser={loser} big />
         )}
         {!winner && soloPlayer && (
           <div className="bug-chip-in" style={{ animationDelay: "160ms" }}>
@@ -90,11 +86,7 @@ export function WagerGraphic({ leagueType, data, compact }: { leagueType: League
       <PanelTag icon="💰" kind={header} leagueType={leagueType} accent={ACCENT} compact />
       <div className="badge-pop-in font-black tabular-nums" style={{ color: ACCENT, fontSize: "1.9rem" }}>{stake}<span className="uppercase font-bold ml-2" style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.6rem", letterSpacing: "0.06em" }}>{stakeLabel}</span></div>
       {winner && loser && (
-        <div className="bug-chip-in flex items-baseline gap-2" style={{ animationDelay: "160ms" }}>
-          <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.72rem" }}>{winner}</span>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.66rem" }}>beat</span>
-          <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.72rem" }}>{loser}</span>
-        </div>
+        <WinnerBeat winner={winner} loser={loser} />
       )}
       {!winner && soloPlayer && (
         <div className="bug-chip-in" style={{ animationDelay: "160ms" }}>

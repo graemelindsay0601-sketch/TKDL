@@ -87,10 +87,30 @@ export const SCENE_LABEL: Record<Scene, string> = {
  * upper-cases either source correctly and changes nothing for the
  * already-uppercase inputs this function was originally written for.
  */
+// Running-order slots with no story attached arrive as their slot "purpose"
+// (director-math.ts). Those read like internal labels, so each gets a
+// broadcast-style title instead.
+const PURPOSE_TITLE: Record<string, string> = {
+  opening: "Tonight on TKDL LIVE",
+  headlines: "The Headlines",
+  main_story: "Top Story",
+  second_major_story: "Also Tonight",
+  analysis_or_predictor: "The Title Race",
+  supporting_story_or_checkin: "Around the League",
+  form_h2h_or_spotlight: "In Focus",
+  third_league_current_state: "Around the Leagues",
+  lighter_or_archive_or_callback: "From the Archive",
+  what_to_watch: "What to Watch",
+  closing: "That's the Show",
+  cold_open: "Tonight's Big Moment",
+  season_highlight: "Season Highlight",
+};
+
 export function humanizeStoryType(storyType: string): string {
+  if (PURPOSE_TITLE[storyType]) return PURPOSE_TITLE[storyType];
   return storyType
     .split("_")
-    .map(word => (/^\d+$/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
+    .map(word => (/^\d+$/.test(word) || /^H2H$/i.test(word) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
     .join(" ");
 }
 
@@ -138,4 +158,28 @@ export function formatFactValue(key: string, value: unknown): string {
   if (Array.isArray(value)) return value.map(v => String(v)).join(", ");
   if (value === null || value === undefined) return "—";
   return String(value);
+}
+
+/** Internal metric ids as viewers should read them. */
+export const METRIC_LABEL: Readonly<Record<string, string>> = {
+  scoringRate30: "Scoring rate",
+  checkoutRate: "Checkout rate",
+};
+export function metricLabel(metric: string): string {
+  return METRIC_LABEL[metric] ?? humanizeFactKey(metric);
+}
+/** A number for display: rounded to 2 places (1 once it's 10+), never a raw float. */
+export function displayNumber(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value)) return String(Number(value.toFixed(value >= 10 ? 1 : 2)));
+  return String(value);
+}
+/**
+ * Presenter lines saved before the server started rounding numbers can still
+ * hold raw floats or metric ids ("…scoringRate30… 2.9333333333333336").
+ * Tidy those on the way to the screen; already-clean lines are unchanged.
+ */
+export function cleanLine(text: string): string {
+  return text
+    .replace(/\b\d+\.\d{3,}\b/g, m => displayNumber(Number(m)))
+    .replace(/\b(scoringRate30|checkoutRate)\b/g, m => METRIC_LABEL[m].toLowerCase());
 }

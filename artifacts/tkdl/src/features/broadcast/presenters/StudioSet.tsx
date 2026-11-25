@@ -69,6 +69,7 @@ export function StudioBackdrop({ variant = "main" }: { variant?: StudioBackdropV
   return (
     <div
       aria-hidden="true"
+      className="lv-studio-push"
       style={{
         position: "absolute",
         inset: 0,
@@ -109,38 +110,12 @@ export function ShowTitleBar({ subtitle, special = false, specialLabel = "Season
   // ceremony rather than routine coverage: a gold ribbon in place of the
   // normal pink-to-dark wipe, plus a small trophy badge ahead of the
   // subtitle instead of relying on the subtitle text alone.
-  const gold = "#ffd24a";
   return (
-    <div className="relative shrink-0 w-full shadow-2xl" style={{ zIndex: 10 }}>
-      <div
-        className="flex items-center justify-between px-6 md:px-10"
-        style={{
-          minHeight: 48,
-          paddingTop: "env(safe-area-inset-top)",
-          background: special
-            ? `linear-gradient(90deg, rgba(255,210,74,0.95) 0%, rgba(6,4,14,0.98) 30%, rgba(6,4,14,0.98) 100%)`
-            : "linear-gradient(90deg, rgba(255,0,92,0.95) 0%, rgba(6,4,14,0.98) 30%, rgba(6,4,14,0.98) 100%)",
-          borderBottom: special ? `2px solid ${gold}66` : "2px solid rgba(255,255,255,0.1)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <span className="font-black uppercase text-white drop-shadow-md" style={{ fontFamily: "Oswald, sans-serif", fontSize: "1.15rem", letterSpacing: "0.02em" }}>
-            TKDL<span style={{ color: gold }}>LIVE</span>
-          </span>
-          <span className="live-dot shadow-lg" aria-hidden="true" style={{ background: gold }} />
-          {special && (
-            <span className="font-black uppercase hidden sm:inline" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.68rem", letterSpacing: "0.12em", color: "#08080c", background: gold, padding: "2px 9px", clipPath: "polygon(6% 0, 100% 0, 94% 100%, 0% 100%)" }}>
-              🏆 {specialLabel}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.75rem", letterSpacing: "0.2em", color: "rgba(255,255,255,0.7)" }}>
-            {subtitle}
-          </span>
-        </div>
-      </div>
-      <div style={{ height: 3, background: special ? `linear-gradient(90deg, ${gold}, #ff005c, ${gold})` : "linear-gradient(90deg, #ff005c, #ffd24a, #0066ff)" }} />
+    <div className={`lv-top ${special ? "is-special" : ""}`}>
+      <span className="lv-mark"><span className="pm-chrome">TKDL</span><b>LIVE</b></span>
+      <span className="lv-live"><i className="live-dot" />Live</span>
+      {special && <span className="lv-special">🏆 {specialLabel}</span>}
+      <span className="lv-sub">{subtitle}</span>
     </div>
   );
 }

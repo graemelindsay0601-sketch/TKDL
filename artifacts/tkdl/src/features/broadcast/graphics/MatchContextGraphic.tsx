@@ -12,44 +12,18 @@
 // tier). None of this family's shapes are row/table-like, so every
 // BigPanel below is `fill={false}` (sized to its own content — see
 // BigPanel's own comment on why).
-import { Panel, PanelTag, PanelLine, BigPanel, BigPanelHeader, BigMove, BigLine, pct, str, num } from "./kit";
+import { Panel, PanelTag, PanelLine, BigPanel, BigPanelHeader, BigMove, BigLine, pct, str, num, WinnerBeat } from "./kit";
 import type { GraphicData, LeagueType } from "../types";
 import { LEAGUE_ACCENT } from "../theme";
 
 const ACCENT = "#ff005c";
 
-function WinLoseStrip({ winner, loser, leagueAccent, compact }: { winner: string; loser: string; leagueAccent: string; compact?: boolean }) {
-  return (
-    <div className="bug-chip-in flex items-center gap-2.5" style={{ animationDelay: "80ms" }}>
-      <div className="flex items-baseline gap-1.5 min-w-0">
-        <span className="font-black shrink-0" style={{ color: "#22c55e", fontSize: compact ? "0.62rem" : "0.68rem" }}>W</span>
-        <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: compact ? "1rem" : "1.3rem" }}>{winner}</span>
-      </div>
-      <span style={{ color: "rgba(255,255,255,0.25)" }}>–</span>
-      <div className="flex items-baseline gap-1.5 min-w-0">
-        <span className="font-black shrink-0" style={{ color: "#ff005c", fontSize: compact ? "0.62rem" : "0.68rem" }}>L</span>
-        <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.55)", fontSize: compact ? "0.9rem" : "1.1rem" }}>{loser}</span>
-      </div>
-    </div>
-  );
+function WinLoseStrip({ winner, loser, compact }: { winner: string; loser: string; leagueAccent: string; compact?: boolean }) {
+  return <WinnerBeat winner={winner} loser={loser} big={!compact} />;
 }
 
-/** This skin's version of WinLoseStrip above — solid-fill W/L badges (the same shape as kit.tsx's own BigBadge) instead of small coloured letters, at genuinely large scale. */
-function BigWinLoseStrip({ winner, loser, leagueAccent }: { winner: string; loser: string; leagueAccent: string }) {
-  const badgeStyle = (bg: string) => ({ background: bg, color: "#050810", padding: "5px 12px", fontSize: "0.85rem", clipPath: "polygon(6% 0, 100% 0, 94% 100%, 0% 100%)" }) as const;
-  return (
-    <div className="bug-chip-in flex items-center gap-4" style={{ animationDelay: "80ms" }}>
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="font-black" style={badgeStyle("#22c55e")}>W</span>
-        <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.7rem" }}>{winner}</span>
-      </div>
-      <span style={{ color: "rgba(255,255,255,0.25)", fontSize: "1.4rem" }}>–</span>
-      <div className="flex items-center gap-3 min-w-0">
-        <span className="font-black" style={badgeStyle("#ff005c")}>L</span>
-        <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.6)", fontSize: "1.35rem" }}>{loser}</span>
-      </div>
-    </div>
-  );
+function BigWinLoseStrip({ winner, loser }: { winner: string; loser: string; leagueAccent: string }) {
+  return <WinnerBeat winner={winner} loser={loser} big />;
 }
 
 export function MatchContextGraphic({ leagueType, data, compact }: { leagueType: LeagueType | null; data: GraphicData; compact?: boolean }) {

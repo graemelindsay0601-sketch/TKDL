@@ -26,10 +26,11 @@
 // the broadcast filler-content build still queued after this) renders
 // through the old GraphicFrame generic chip grid rather than showing
 // nothing, at either tier.
+import { displayNumber, metricLabel } from "../theme";
 import {
   Panel, PanelTag, HeroBadge, PanelBar, PanelLine, PanelFlag,
   BigPanel, BigPanelHeader, BigHeroNumber, BigRow, BigLine, BigBadge, BigMove,
-  pct, str, num, bool,
+  pct, str, num, bool, WinnerBeat,
 } from "./kit";
 import { GraphicFrame } from "./GraphicFrame";
 import type { GraphicData, LeagueType } from "../types";
@@ -68,11 +69,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
         return (
           <BigPanel accent={leagueAccent} fill={false}>
             <BigPanelHeader icon="✓" kind="Confirmed Result" leagueType={leagueType} accent={leagueAccent} />
-            <div className="flex items-baseline gap-3">
-              <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.7rem" }}>{winner}</span>
-              <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "0.9rem" }}>beat</span>
-              <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.72)", fontSize: "1.4rem" }}>{loser}</span>
-            </div>
+            <WinnerBeat winner={winner} loser={loser} big />
             {movement && <BigLine>{movement}</BigLine>}
           </BigPanel>
         );
@@ -80,11 +77,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
       return (
         <Panel accent={leagueAccent} compact>
           <PanelTag icon="✓" kind="Confirmed Result" leagueType={leagueType} accent={leagueAccent} compact />
-          <div className="flex items-baseline gap-2">
-            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.95rem" }}>{winner}</span>
-            <span style={{ color: "rgba(255,255,255,0.42)", fontSize: "0.66rem" }}>beat</span>
-            <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.72)", fontSize: "0.85rem" }}>{loser}</span>
-          </div>
+          <WinnerBeat winner={winner} loser={loser} />
           {movement && <PanelLine>{movement}</PanelLine>}
         </Panel>
       );
@@ -100,7 +93,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
         <BigPanel accent={ACCENT} fill={false}>
           <BigPanelHeader icon="🏆" kind="Verified Best" leagueType={leagueType} accent={ACCENT} />
           {subject && <Subject name={subject} leagueAccent={leagueAccent} big />}
-          <BigHeroNumber value={String(recordValue)} label={metric} accent={ACCENT} />
+          <BigHeroNumber value={displayNumber(recordValue)} label={metricLabel(metric)} accent={ACCENT} />
           <BigBadge accent={ACCENT}>Verified</BigBadge>
         </BigPanel>
       );
@@ -109,7 +102,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
       <Panel accent={ACCENT} compact>
         <PanelTag icon="🏆" kind="Verified Best" leagueType={leagueType} accent={ACCENT} compact />
         {subject && <Subject name={subject} leagueAccent={leagueAccent} />}
-        <HeroBadge value={String(recordValue)} label={metric} accent={ACCENT} compact />
+        <HeroBadge value={displayNumber(recordValue)} label={metricLabel(metric)} accent={ACCENT} compact />
         <PanelFlag accent={ACCENT}>Verified</PanelFlag>
       </Panel>
     );
@@ -256,11 +249,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
       return (
         <BigPanel accent={tone} fill={false}>
           <BigPanelHeader icon={droughtEnded ? "☀️" : "❌"} kind={droughtEnded ? "Drought Ended" : "Eliminated"} leagueType={leagueType} accent={tone} />
-          <div className="flex items-baseline gap-3">
-            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.7rem" }}>{winnerName}</span>
-            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.9rem" }}>beat</span>
-            <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.55)", fontSize: "1.4rem" }}>{loserName}</span>
-          </div>
+          <WinnerBeat winner={winnerName} loser={loserName} big />
           {droughtEnded && <BigLine>Ended a {endedLossStreak}-match losing run</BigLine>}
           {!droughtEnded && stake !== null && <BigLine>{stake} points on the line</BigLine>}
            {!droughtEnded && loserPointsBefore !== null && loserPointsAfter === 0 && (
@@ -272,11 +261,7 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
     return (
       <Panel accent={tone} compact>
         <PanelTag icon={droughtEnded ? "☀️" : "❌"} kind={droughtEnded ? "Drought Ended" : "Eliminated"} leagueType={leagueType} accent={tone} compact />
-        <div className="flex items-baseline gap-2">
-          <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.95rem" }}>{winnerName}</span>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.66rem" }}>beat</span>
-          <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.85rem" }}>{loserName}</span>
-        </div>
+        <WinnerBeat winner={winnerName} loser={loserName} />
         {droughtEnded && <PanelLine>Ended a {endedLossStreak}-match losing run</PanelLine>}
         {!droughtEnded && stake !== null && <PanelLine>{stake} points on the line</PanelLine>}
         {!droughtEnded && loserPointsBefore !== null && loserPointsAfter === 0 && (
@@ -294,22 +279,14 @@ export function ResultGraphic({ leagueType, data, compact }: { leagueType: Leagu
       return (
         <BigPanel accent="#ff005c" fill={false}>
           <BigPanelHeader icon="❌" kind="Eliminated" leagueType={leagueType} accent="#ff005c" />
-          <div className="flex items-baseline gap-3">
-            <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "1.7rem" }}>{winnerTeamName}</span>
-            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.9rem" }}>beat</span>
-            <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.55)", fontSize: "1.4rem" }}>{loserTeamName}</span>
-          </div>
+          <WinnerBeat winner={winnerTeamName} loser={loserTeamName} big />
         </BigPanel>
       );
     }
     return (
       <Panel accent="#ff005c" compact>
         <PanelTag icon="❌" kind="Eliminated" leagueType={leagueType} accent="#ff005c" compact />
-        <div className="flex items-baseline gap-2">
-          <span className="font-black uppercase truncate" style={{ color: leagueAccent, fontSize: "0.95rem" }}>{winnerTeamName}</span>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "0.66rem" }}>beat</span>
-          <span className="font-bold uppercase truncate" style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.85rem" }}>{loserTeamName}</span>
-        </div>
+        <WinnerBeat winner={winnerTeamName} loser={loserTeamName} />
       </Panel>
     );
   }
