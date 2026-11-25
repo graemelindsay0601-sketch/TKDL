@@ -218,7 +218,7 @@ function VersusRow({ leftName, rightName, leftAccent, rightAccent, splitFraction
           <InitialRing name={leftName} accent={leftAccent} size={ring} />
           <span className="pm-chrome uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: nameSize(leftName, reg, lng), lineHeight: 1.05, whiteSpace: "nowrap" }}>{leftName}</span>
         </div>
-        <span className="pm-lab shrink-0" style={{ fontSize: big ? 12 : 9 }}>vs</span>
+        <span className="pm-lab shrink-0" style={{ fontSize: big ? 12 : 9, padding: big ? "0 10px" : "0 6px" }}>vs</span>
         <div className="flex items-center justify-end min-w-0" style={{ gap: big ? 12 : 8, flex: "1 1 0%" }}>
           <span className="pm-chrome uppercase" style={{ fontFamily: OSWALD, fontWeight: 700, fontSize: nameSize(rightName, reg, lng), lineHeight: 1.05, whiteSpace: "nowrap", textAlign: "right" }}>{rightName}</span>
           <InitialRing name={rightName} accent={rightAccent} size={ring} />

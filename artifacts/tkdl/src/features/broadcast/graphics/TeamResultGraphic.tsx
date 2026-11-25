@@ -19,23 +19,26 @@ function Side({
     <div
       className="min-w-0 flex-1 flex flex-col justify-between"
       style={{
-        background: `linear-gradient(145deg, ${accent}24, rgba(7,12,25,0.96) 65%)`,
-        borderTop: `3px solid ${accent}`,
-        boxShadow: `0 0 28px ${accent}18 inset`,
-        padding: compact ? "10px 12px 12px" : "18px 22px 20px",
-        minHeight: compact ? 92 : 142,
+        // Hub-style tile: colour gradient edge, dark tinted fill.
+        borderRadius: compact ? 14 : 18,
+        border: `1px solid ${accent}66`,
+        background: `linear-gradient(180deg, ${accent}1f, #0b0910 75%)`,
+        boxShadow: `0 0 22px ${accent}14`,
+        padding: compact ? "10px 12px 12px" : "16px 20px 18px",
+        minHeight: compact ? 92 : 136,
+        gap: 6,
       }}
     >
-      <div className="font-black uppercase" style={{ color: accent, fontSize: compact ? "0.58rem" : "0.72rem", letterSpacing: "0.14em" }}>{label}</div>
+      <span className="pm-lab" style={{ color: accent, fontSize: compact ? 9 : 10.5 }}>{label}</span>
       <div
-        className="font-black uppercase"
-        style={{ color: "#fff", fontSize: compact ? "clamp(0.75rem, 3.5vw, 1rem)" : "clamp(1.05rem, 4.5vw, 1.7rem)", lineHeight: 1.1, overflowWrap: "anywhere", textShadow: `0 0 20px ${accent}45` }}
+        className="pm-chrome uppercase"
+        style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: compact ? "clamp(0.8rem, 3.5vw, 1.05rem)" : "clamp(1.1rem, 4.5vw, 1.75rem)", lineHeight: 1.08, overflowWrap: "anywhere" }}
       >
         {name}
       </div>
-      <div className="uppercase font-bold" style={{ color: "rgba(255,255,255,0.48)", fontSize: compact ? "0.55rem" : "0.68rem", letterSpacing: "0.08em" }}>
+      <span className="pm-lab" style={{ fontSize: compact ? 8.5 : 10 }}>
         {count} {count === 1 ? "side member" : "side members"}
-      </div>
+      </span>
     </div>
   );
 }
@@ -60,24 +63,24 @@ export function TeamResultGraphic({ leagueType, data, compact = true }: { league
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="font-black uppercase" style={{ color: "#fff", fontSize: compact ? "0.9rem" : "1.28rem", letterSpacing: "0.09em" }}>Team Result</div>
-          <div className="font-bold uppercase" style={{ color: leagueAccent, fontSize: compact ? "0.58rem" : "0.76rem", letterSpacing: "0.12em" }}>{model.formatLabel}</div>
+          <div className="flex items-center gap-2"><span className="live-dot" style={{ width: 6, height: 6, background: leagueAccent }} /><span className="pm-lab" style={{ color: "#ffd24a" }}>{model.formatLabel}</span></div>
+          <div className="pm-metal uppercase" style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: compact ? "1.15rem" : "clamp(1.6rem, 3.4vw, 2.4rem)", lineHeight: 1, marginTop: 4 }}>Team Result</div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="font-bold uppercase" style={{ color: "rgba(255,255,255,0.42)", fontSize: compact ? "0.52rem" : "0.66rem", letterSpacing: "0.12em" }}>{model.valueLabel}</div>
+          <span className="pm-lab" style={{ justifyContent: "flex-end" }}>{model.valueLabel}</span>
           <div className="font-black tabular-nums" style={{ color: "#ffd24a", fontSize: compact ? "1.25rem" : "2rem", lineHeight: 1, textShadow: "0 0 18px rgba(255,210,74,0.45)" }}>{model.value}</div>
         </div>
       </div>
 
       <div className="flex items-stretch min-w-0" style={{ gap: compact ? 5 : 9 }}>
         <Side name={model.winnerName} label="Winners" count={model.winnerCount} accent={WINNER_ACCENT} compact={compact} />
-        <div className="flex items-center justify-center shrink-0 font-black" style={{ color: "rgba(255,255,255,0.42)", fontSize: compact ? "0.62rem" : "0.82rem", letterSpacing: "0.08em" }}>BEAT</div>
+        <div className="flex items-center justify-center shrink-0"><span className="pm-lab" style={{ fontSize: compact ? 9 : 11 }}>def.</span></div>
         <Side name={model.loserName} label="Opposition" count={model.loserCount} accent={LOSER_ACCENT} compact={compact} />
       </div>
 
       <div className="flex items-center gap-2">
         <div style={{ height: 2, width: compact ? 28 : 44, background: leagueAccent, boxShadow: `0 0 10px ${leagueAccent}` }} />
-        <div className="font-bold uppercase" style={{ color: "rgba(255,255,255,0.58)", fontSize: compact ? "0.56rem" : "0.72rem", letterSpacing: "0.08em" }}>{model.contextLabel}</div>
+        <span className="pm-lab" style={{ color: "#b9b3cc" }}>{model.contextLabel}</span>
       </div>
     </div>
   );

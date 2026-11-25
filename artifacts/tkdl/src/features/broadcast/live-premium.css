@@ -86,3 +86,9 @@
 .presenter-bust-active{animation:lvTalk 2.8s ease-in-out infinite}
 @keyframes lvTalk{0%,100%{translate:0 0;rotate:0deg}30%{translate:0 -2px;rotate:-.4deg}65%{translate:0 1px;rotate:.3deg}}
 @media (prefers-reduced-motion: reduce){.lv-studio-push,[data-broadcast-region="presenters"],.presenter-bust-active{animation:none}}
+
+/* Takeovers on a big screen: everything a size up so it fills the frame. */
+@media(min-width:1000px) and (min-height:620px){
+  .lv-takeover .lv-story-col{zoom:1.2}
+  .lv-takeover .lv-scene-shell>.grid,.lv-takeover .lv-scene-shell>div:not(.lv-story-col){zoom:1.15}
+}
