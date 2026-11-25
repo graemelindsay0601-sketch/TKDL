@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Award, ChevronLeft, ChevronRight, Crown, Pause, Play, Target, Trophy, Users, X } from "lucide-react";
 import "./league-awards-show.css";
+import "./live-side-premium.css";
 import { ShareCardButton } from "@/components/ShareCardButton";
 
 type LeagueType = "singles" | "doubles" | "shift_wars";

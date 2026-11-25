@@ -3,6 +3,7 @@ import { Check, ChevronDown, ChevronUp, MessageSquareQuote, Mic2, Radio, Target,
 import { humanizeStoryType } from "./theme";
 import { PlayerFocusPanel, type PlayerFocus } from "./PlayerFocusPanel";
 import "./live-extras.css";
+import "./live-side-premium.css";
 
 type Pick = { playerId: number; playerName: string; probability: number };
 type ScoredPick = Pick & { correct: boolean };
