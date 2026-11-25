@@ -38,8 +38,10 @@ export function decideSinglesChampion<P extends { id: number; points: number }>(
  * league position, can't be champion and earns no finishing-position
  * achievements. Ordered by points, then Elo.
  */
-export function finalStandingsOrder<P extends { points: number; elo: number; seasonWins: number; seasonLosses: number; seasonGamesPlayed?: number | null }>(players: P[]): P[] {
+export function finalStandingsOrder<P extends { id?: number; points: number; elo: number; seasonWins: number; seasonLosses: number; seasonGamesPlayed?: number | null }>(players: P[], playedInSeason?: Set<number>): P[] {
+  // Played = the running counters say so, OR there is a match row for them
+  // this season (so a counter that drifted can never cost someone their place).
   return players
-    .filter(p => p.seasonWins + p.seasonLosses > 0 || (p.seasonGamesPlayed ?? 0) > 0)
+    .filter(p => p.seasonWins + p.seasonLosses > 0 || (p.seasonGamesPlayed ?? 0) > 0 || (p.id !== undefined && !!playedInSeason?.has(p.id)))
     .sort((a, b) => b.points - a.points || b.elo - a.elo);
 }
