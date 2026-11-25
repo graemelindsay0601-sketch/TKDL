@@ -14,7 +14,20 @@ export const SCORER_STYLES: ScorerStyle[] = ["total", "perdart", "classic"];
 export const DEFAULT_SCORER_STYLE: ScorerStyle = "total";
 const KEY = "tkdl:scorer-style";
 
+// One-off (Nov 2026): a Classic choice saved on this device while the new
+// scorer was being tried out is cleared once, so the new default shows.
+// Picking Classic again afterwards sticks.
+const RESET_KEY = "tkdl:scorer-style-reset-2026-11";
+function resetOnce() {
+  try {
+    if (localStorage.getItem(RESET_KEY)) return;
+    if (localStorage.getItem(KEY) === "classic") localStorage.removeItem(KEY);
+    localStorage.setItem(RESET_KEY, "1");
+  } catch { /* storage off */ }
+}
+
 function readLocal(): ScorerStyle | null {
+  resetOnce();
   try {
     const v = localStorage.getItem(KEY);
     return SCORER_STYLES.includes(v as ScorerStyle) ? (v as ScorerStyle) : null;

@@ -136,3 +136,32 @@
 .team-events-row .res.l { background:rgba(255,0,92,.15); color:#ff5c8a; }
 .team-events-row .who { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:rgba(255,255,255,.8); }
 .team-events-row .tag { font-size:.68rem; color:rgba(255,255,255,.4); white-space:nowrap; }
+
+/* ── Sidebar: one premium panel per section ──────────────────────── */
+.nav-panel { --c:#888; position:relative; border-radius:16px; padding:.35rem .3rem .3rem .45rem; overflow:hidden;
+  border:1px solid transparent;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--c) 16%, transparent), transparent 55%) padding-box,
+    linear-gradient(165deg, rgba(22,20,32,.92), rgba(10,10,16,.88)) padding-box,
+    linear-gradient(160deg, color-mix(in srgb, var(--c) 55%, transparent), rgba(255,255,255,.05) 45%, color-mix(in srgb, var(--c) 18%, transparent)) border-box;
+  box-shadow:0 6px 18px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04); }
+.nav-panel::before { content:""; position:absolute; left:0; top:12px; bottom:12px; width:2px; border-radius:2px;
+  background:linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 10%, transparent)); box-shadow:0 0 10px var(--c); opacity:.85; }
+.nav-panel.is-collapsed { padding:.25rem; }
+.nav-panel.is-collapsed::before { display:none; }
+.nav-panel-head { display:flex; align-items:center; gap:.45rem; padding:.3rem .5rem .2rem .45rem; font-family:Oswald, sans-serif; text-transform:uppercase; }
+.nav-panel-head .dot { width:6px; height:6px; border-radius:50%; background:var(--c); box-shadow:0 0 8px var(--c); flex-shrink:0; }
+.nav-panel-head .label { font-size:.64rem; font-weight:700; letter-spacing:.2em; color:rgba(255,255,255,.86); }
+.nav-panel-head .rule { flex:1; height:1px; background:linear-gradient(90deg, color-mix(in srgb, var(--c) 45%, transparent), transparent); }
+.nav-panel-items { display:flex; flex-direction:column; gap:1px; }
+.nav-panel .nav-item.active { background:linear-gradient(90deg, color-mix(in srgb, var(--c) 26%, transparent), color-mix(in srgb, var(--c) 6%, transparent)); }
+
+/* ── Club tablet badge in the sidebar ─────────────────────────────── */
+.club-tablet-card { display:flex; align-items:center; gap:.6rem; padding:.55rem .7rem; border-radius:14px;
+  background:linear-gradient(160deg, rgba(74,222,128,.14), rgba(10,14,12,.9)); border:1px solid rgba(74,222,128,.35);
+  box-shadow:0 0 16px rgba(74,222,128,.12); }
+.club-tablet-card.is-collapsed { justify-content:center; padding:.45rem; }
+.club-tablet-card .ico { width:1.9rem; height:1.9rem; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#4ade80; background:rgba(74,222,128,.15); border:1px solid rgba(74,222,128,.4); flex-shrink:0; }
+.club-tablet-card .t { font-family:Oswald, sans-serif; font-weight:700; font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; color:#fff; }
+.club-tablet-card .s { font-family:Oswald, sans-serif; font-size:.56rem; letter-spacing:.06em; color:rgba(255,255,255,.45); }
+.club-tablet-card .in { font-family:Oswald, sans-serif; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.55); padding:.3rem .55rem; border-radius:999px; border:1px solid rgba(255,255,255,.14); }
