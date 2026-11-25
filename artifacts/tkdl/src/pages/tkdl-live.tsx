@@ -6,6 +6,7 @@ import { ReplayLibrary } from "@/features/broadcast/ReplayLibrary";
 import { LiveExtras } from "@/features/broadcast/LiveExtras";
 import { ChannelHome } from "@/features/broadcast/ChannelHome";
 import "./tkdl-live.css";
+import { DartboardBackdrop, Glow } from "@/components/premium/Premium";
 import { Menu, X, Home, Radio, PlaySquare, Trophy, LayoutList, ArrowLeft } from "lucide-react";
 
 /**
@@ -66,15 +67,20 @@ export default function TkdlLive() {
 
   if (failed || !status?.available) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center select-none" style={SHELL_STYLE}>
-        <div className="text-center px-6">
-          <div className="font-black uppercase text-white/80" style={{ fontSize: "1.4rem", letterSpacing: "0.2em" }}>
-            TKDL LIVE
+      <div className="fixed inset-0 flex items-center justify-center select-none overflow-hidden" style={{ ...SHELL_STYLE, background: "linear-gradient(160deg, #1a1430 0%, #0d0a18 45%, #06060b 100%)" }}>
+        <Glow x="85%" y="12%" color="#ffd24a" size={520} opacity={0.26} />
+        <Glow x="8%" y="80%" color="#a855f7" size={480} opacity={0.26} />
+        <Glow x="80%" y="105%" color="#ff005c" size={420} opacity={0.16} />
+        <DartboardBackdrop size={620} opacity={0.07} style={{ right: -220, top: -140, transform: "rotate(8deg)" }} />
+        <div className="relative text-center px-6" style={{ zIndex: 1, maxWidth: 420 }}>
+          <span className="pm-chip" style={{ color: "#ff8fb3", borderColor: "rgba(255,92,147,.5)", background: "rgba(255,0,92,.12)" }}><span className="live-dot" style={{ width: 6, height: 6 }} />On air soon</span>
+          <div style={{ fontFamily: "Oswald, sans-serif", fontWeight: 700, fontSize: "clamp(3rem, 14vw, 4.6rem)", lineHeight: 1, marginTop: 14 }}>
+            <span className="pm-chrome">TKDL</span><span className="pm-metal">LIVE</span>
           </div>
-          <div className="mt-3 text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>
-            Coming soon.
-          </div>
-          <Link href="/" className="inline-block mt-6 text-xs font-bold uppercase" style={{ color: "#ff005c", letterSpacing: "0.15em" }}>
+          <p className="mt-3 text-sm" style={{ color: "#a9a4bd", fontFamily: "Inter, sans-serif" }}>
+            The league's own TV show: match-night stories, rivalries and the title race, presented by Chalky and Ton. It's being finished off and goes live for everyone soon.
+          </p>
+          <Link href="/" className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-full uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: 13, letterSpacing: "0.14em", color: "#1a1200", background: "linear-gradient(180deg,#ffe58a,#e0a800)", boxShadow: "0 0 22px rgba(255,210,74,.35)" }}>
             ← Back to the Hub
           </Link>
         </div>

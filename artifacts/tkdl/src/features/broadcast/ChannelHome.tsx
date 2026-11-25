@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Award, BarChart3, ChevronRight, Clapperboard, Film, Flame, History, Library, Mic2, Play, Radio, Sparkles, Swords, Trophy, Tv, UsersRound } from "lucide-react";
 import { PowerRankingsPanel, type PowerRankings } from "./PowerRankingsPanel";
 import "./channel-home.css";
+import "./live-side-premium.css";
 import { MatchSpotlight } from "@/components/MatchSpotlight";
 
 type LeagueType = "singles" | "doubles" | "shift_wars";

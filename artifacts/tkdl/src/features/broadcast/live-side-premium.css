@@ -1,0 +1,61 @@
+/* TKDL LIVE side screens (Channel Home, Replay Library, League Awards,
+   Inside the League) in the app's premium look: hero-card ground, upright
+   gold-metal titles, gradient-edged cards, pill chips. Loaded after each
+   screen's own stylesheet, so it only restyles; layout is untouched. */
+.channel-home, .replay-library, .league-awards, .live-extras {
+  background:
+    radial-gradient(60% 40% at 88% 6%, rgba(255,210,74,.2), transparent 60%),
+    radial-gradient(55% 45% at 4% 70%, rgba(168,85,247,.22), transparent 60%),
+    radial-gradient(50% 40% at 80% 105%, rgba(255,0,92,.14), transparent 60%),
+    linear-gradient(160deg, #1a1430 0%, #0d0a18 45%, #06060b 100%) !important;
+}
+.channel-home__header, .replay-library__header, .league-awards__header, .live-extras__header {
+  background: rgba(10,8,18,.82) !important; border-bottom: 1px solid rgba(255,210,74,.18) !important;
+}
+
+/* Titles: upright, gold metal (the italic slab look was the odd one out). */
+.channel-hero h1, .channel-archive__title h1, .channel-detail__hero h1,
+.replay-library__hero h1, .league-awards__intro h1, .live-extras h1, .live-extras h2 {
+  font-style: normal !important; letter-spacing: .02em !important; font-weight: 700 !important;
+  background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%) !important;
+  -webkit-background-clip: text !important; background-clip: text !important; color: transparent !important;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,.6));
+}
+.channel-hero h1 *, .channel-archive__title h1 *, .replay-library__hero h1 *, .league-awards__intro h1 * {
+  -webkit-text-fill-color: transparent; color: transparent !important; font-style: normal !important;
+}
+
+/* Cards and rows: the app's gradient-edged premium card. */
+.archive-row, .replay-card, .league-awards__champion, .league-awards__award, .pundit-card, .voice-card,
+.channel-collections a, .channel-collections button, .channel-match-spotlight, .night-summary, .season-film__stats,
+.replay-library__awards, .focus-card, .channel-verdict {
+  border-radius: 20px !important; border: 1px solid transparent !important;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(255,210,74,.1), transparent 55%) padding-box,
+    linear-gradient(180deg, #17141f, #0c0a12) padding-box,
+    linear-gradient(140deg, rgba(255,210,74,.6) 0%, rgba(255,255,255,.1) 28%, rgba(255,255,255,.03) 60%, rgba(255,210,74,.35) 100%) border-box !important;
+  box-shadow: 0 14px 34px rgba(0,0,0,.5), 0 0 30px rgba(255,210,74,.06) !important;
+}
+.archive-row strong, .replay-card strong, .league-awards__champion strong, .voice-card__title {
+  background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+
+/* Buttons and filters: pill chips; the primary action gold. */
+.replay-library__filters button, .live-extras__tabs button, .league-awards__controls button {
+  border-radius: 999px !important; border: 1px solid rgba(255,255,255,.14) !important; background: rgba(255,255,255,.05) !important;
+}
+.replay-library__filters button.is-active, .replay-library__filters button[aria-pressed="true"],
+.live-extras__tabs button.is-active, .live-extras__tabs button[aria-selected="true"] {
+  background: linear-gradient(180deg,#ffe58a,#e0a800) !important; color: #1a1200 !important; border-color: transparent !important;
+}
+.channel-primary-link, .channel-home__header button {
+  border-radius: 999px !important; background: linear-gradient(180deg,#ffe58a,#e0a800) !important; color: #1a1200 !important;
+  box-shadow: 0 0 22px rgba(255,210,74,.35) !important; border: 0 !important;
+}
+.replay-library__search, .replay-library__search input { border-radius: 999px !important; }
+.channel-hero h1 { line-height: .95 !important; }
+.channel-hero aside button { border-radius: 16px !important; border: 1px solid rgba(255,210,74,.22) !important; background: linear-gradient(180deg, rgba(23,20,31,.9), rgba(12,10,18,.92)) !important; }
+.channel-hero aside button b { color: #fff; }
+.channel-hero > div > button { border-radius: 999px !important; background: linear-gradient(180deg,#ffe58a,#e0a800) !important; color: #1a1200 !important; box-shadow: 0 0 22px rgba(255,210,74,.35) !important; }
+.channel-collections strong { background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
