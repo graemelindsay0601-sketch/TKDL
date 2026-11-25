@@ -508,6 +508,9 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
               <div className="text-xs uppercase font-bold mb-3" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.25)", letterSpacing: "0.12em" }}>
                 {isLive ? "Current Standings" : "League Standings"}
               </div>
+                            {!isLive && detail.standings.every((s: any) => !s.points) && (
+                <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.45)" }}>Round robin, before the points system, so win rate is shown instead of points.</div>
+              )}
               <div className="space-y-1">
                 {[...detail.standings].sort((a: any, b: any) => isLive ? (b.points - a.points || (b.elo ?? 1000) - (a.elo ?? 1000)) : a.position - b.position).map((s: any, idx: number) => (
                   <Link key={s.playerId} href={`/players/${s.playerId}`}>
@@ -519,15 +522,21 @@ function SeasonCard({ season, idx }: { season: any; idx: number }) {
                       </span>
                       {s.isChampion && <span className="text-xs">👑</span>}
                       <span className="text-sm font-bold flex-1 truncate group-hover:underline"
-                        style={{ fontFamily: "Oswald, sans-serif", color: s.points === 0 ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.75)" }}>
+                        style={{ fontFamily: "Oswald, sans-serif", color: s.points === 0 && !(!isLive && detail.standings.every((x: any) => !x.points)) ? "rgba(255,0,92,0.5)" : "rgba(255,255,255,0.75)" }}>
                         {s.playerName}
-                        {s.points === 0 && <span className="ml-1 text-xs opacity-60">☠</span>}
+                        {s.points === 0 && !(!isLive && detail.standings.every((x: any) => !x.points)) && <span className="ml-1 text-xs opacity-60">☠</span>}
                       </span>
                       <span className="text-xs font-mono" style={{ color: "#22c55e", minWidth: "2rem", textAlign: "right" }}>{s.wins}W</span>
                       <span className="text-xs font-mono" style={{ color: "#ff005c" }}>{s.losses}L</span>
+                      {!isLive && detail.standings.every((x: any) => !x.points) ? (
+                        <span className="text-sm font-black ml-2" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", minWidth: "3rem", textAlign: "right" }}>
+                          {s.wins + s.losses > 0 ? Math.round((s.wins / (s.wins + s.losses)) * 100) : 0}%
+                        </span>
+                      ) : (
                       <span className="text-sm font-black ml-2" style={{ fontFamily: "Oswald, sans-serif", color: s.points === 0 ? "rgba(255,0,92,0.5)" : "#ff005c", minWidth: "3rem", textAlign: "right" }}>
                         {s.points}pts
                       </span>
+                      )}
                     </div>
                   </Link>
                 ))}
