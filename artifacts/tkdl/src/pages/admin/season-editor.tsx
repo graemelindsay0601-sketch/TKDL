@@ -180,13 +180,13 @@ export function SeasonEditor() {
               {season.standings && season.standings.length > 0 && (
                 <div>
                   <div className="text-xs uppercase tracking-wider mb-2 font-bold" style={{ color: "rgba(255,255,255,0.35)", fontFamily: "Oswald, sans-serif" }}>
-                    Standings — click champion trophy to crown a player
+                    Standings — edit a place, record or points; click the trophy to crown a player
                   </div>
                   <div className="space-y-1 overflow-x-auto pb-1">
                     {season.standings.map((s: any) => (
                       <div key={s.playerId} className="grid items-center gap-2 px-3 py-2 rounded"
-                        style={{ gridTemplateColumns: "1.5rem 7rem 3.5rem 3.5rem 3.5rem 3.5rem auto", minWidth:"25rem", background: s.isChampion ? "rgba(255,210,74,0.06)" : "rgba(255,255,255,0.03)", border: s.isChampion ? "1px solid rgba(255,210,74,0.2)" : "1px solid rgba(255,255,255,0.06)" }}>
-                        <span className="text-xs font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.4)" }}>{s.position}</span>
+                        style={{ gridTemplateColumns: "2.75rem 7rem 3.5rem 3.5rem 3.5rem 3.5rem auto", minWidth:"26.5rem", background: s.isChampion ? "rgba(255,210,74,0.06)" : "rgba(255,255,255,0.03)", border: s.isChampion ? "1px solid rgba(255,210,74,0.2)" : "1px solid rgba(255,255,255,0.06)" }}>
+                        <input type="number" min={1} aria-label={`${s.playerName} position`} defaultValue={s.position} className="w-full px-1 py-0.5 rounded text-xs text-center font-bold" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", fontFamily: "Oswald, sans-serif" }} onBlur={e => { const v = Number(e.target.value); if (v >= 1 && v !== s.position) patchStanding(season.id, s.playerId, { ...s, position: v }); }} />
                         <span className="text-xs font-bold truncate" style={{ fontFamily: "Oswald, sans-serif", color: s.isChampion ? "#ffd24a" : "rgba(255,255,255,0.8)" }}>
                           {s.playerName}{s.isChampion && " 🏆"}
                         </span>
