@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { syncPlayerNames } from "../lib/player-rename";
 import { eq, sql } from "drizzle-orm";
 import { passwordVariants } from "../lib/password-variants";
 import { db, usersTable, playersTable } from "@workspace/db";
@@ -340,6 +341,7 @@ router.post("/admin/users/:id/rename", requireAdminSession, async (req, res): Pr
   await db.transaction(async tx => {
     await tx.execute(sql`UPDATE players SET name = ${name} WHERE id = ${user.playerId}`);
     await tx.update(usersTable).set({ username }).where(eq(usersTable.id, userId));
+    await syncPlayerNames(tx, user.playerId!);
   });
   logger.info({ userId, playerId: user.playerId, from: (before.rows[0] as { name?: string } | undefined)?.name, to: name, username }, "Player renamed by admin");
   res.json({ ok: true, username, playerName: name });

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { syncPlayerNames } from "../lib/player-rename";
 import { eq, or, desc, and, inArray, sql, gte } from "drizzle-orm";
 import { db, playersTable, matchesTable, matchParticipantsTable, playerAchievementsTable, achievementsTable, seasonStandingsTable, seasonsTable, currencyTransactionsTable } from "@workspace/db";
 import { z } from "zod";
@@ -132,6 +133,7 @@ router.patch("/players/:id", requireAdminSession, async (req, res): Promise<void
   const [existing]=await db.select().from(playersTable).where(eq(playersTable.id,params.data.id));
   if(!existing){res.status(404).json({error:"Player not found"});return;}
   const [player] = await db.update(playersTable).set(parsed.data).where(eq(playersTable.id, params.data.id)).returning();
+  if (typeof (parsed.data as any).name === "string" && (parsed.data as any).name !== existing.name) await syncPlayerNames(db, player.id);
   const changes:Record<string,{before:unknown;after:unknown}>={};
   for(const [field,after] of Object.entries(parsed.data)){
     const before=(existing as any)[field];
