@@ -271,7 +271,10 @@ export default function SeasonDetail() {
         const stats = [
           { icon: <Flame className="w-4 h-4" />, color: "#ff005c", label: "Season Dominator", value: mostWins?.playerName ?? "—", sub: `${mostWins?.wins ?? 0}W–${mostWins?.losses ?? 0}L · ${winPct}% win rate` },
           { icon: <Zap className="w-4 h-4" />,   color: "#0066ff", label: "Peak Elo",          value: `${highestElo?.elo ?? 0}`,    sub: highestElo?.playerName ?? "—" },
-          { icon: <Crown className="w-4 h-4" />, color: "#ffd24a", label: "Points Leader",     value: `${mostPoints?.points ?? 0}`, sub: mostPoints?.playerName ?? "—" },
+          sorted.every(e => !e.points)
+            // Round robin season (before the points system): no points to lead.
+            ? { icon: <Crown className="w-4 h-4" />, color: "#ffd24a", label: "Best Win Rate", value: (() => { const b = [...sorted].filter(e => (e.wins ?? 0) + (e.losses ?? 0) > 0).sort((a, b2) => (b2.wins ?? 0) / Math.max((b2.wins ?? 0) + (b2.losses ?? 0), 1) - (a.wins ?? 0) / Math.max((a.wins ?? 0) + (a.losses ?? 0), 1))[0]; return b ? `${Math.round(((b.wins ?? 0) / Math.max((b.wins ?? 0) + (b.losses ?? 0), 1)) * 100)}%` : "—"; })(), sub: [...sorted].filter(e => (e.wins ?? 0) + (e.losses ?? 0) > 0).sort((a, b2) => (b2.wins ?? 0) / Math.max((b2.wins ?? 0) + (b2.losses ?? 0), 1) - (a.wins ?? 0) / Math.max((a.wins ?? 0) + (a.losses ?? 0), 1))[0]?.playerName ?? "—" }
+            : { icon: <Crown className="w-4 h-4" />, color: "#ffd24a", label: "Points Leader",     value: `${mostPoints?.points ?? 0}`, sub: mostPoints?.playerName ?? "—" },
           { icon: <BarChart3 className="w-4 h-4" />, color: "#4ade80", label: "Total Matches",  value: totalMatches,                  sub: `${sorted.length} players` },
         ];
 
@@ -503,7 +506,7 @@ export default function SeasonDetail() {
             <div className="text-center sd-tier justify-center">Tier</div>
             <div className="text-center">Record</div>
             <div className="text-right">Elo</div>
-            <div className="text-right">Points</div>
+            <div className="text-right">{!season.isActive && standings?.every(e => !e.points) ? "Win %" : "Points"}</div>
           </div>
 
           {standings?.map((entry, idx) => (
@@ -547,10 +550,16 @@ export default function SeasonDetail() {
               </div>
 
               <div className="text-right">
+                {!season.isActive && standings?.every(e => !e.points) ? (
+                  <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "rgba(255,255,255,0.75)" }}>
+                    {(entry.wins ?? 0) + (entry.losses ?? 0) > 0 ? Math.round(((entry.wins ?? 0) / ((entry.wins ?? 0) + (entry.losses ?? 0))) * 100) : 0}%
+                  </span>
+                ) : (<>
                 <span className="font-bold text-lg" style={{ fontFamily: "Oswald, sans-serif", color: idx === 0 ? "#ffd24a" : "#ff005c" }}>
                   {entry.points}
                 </span>
                 <span className="text-xs ml-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>pts</span>
+                </>)}
               </div>
             </div>
           ))}

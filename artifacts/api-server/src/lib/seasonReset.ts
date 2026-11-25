@@ -119,7 +119,14 @@ async function performSeasonResetLocked(
     const players = await db.select().from(playersTable).where(eq(playersTable.isActive, true));
     // Only players who played at least one match this season get a place in
     // the final table (and can be champion); see finalStandingsOrder().
-    const sorted = finalStandingsOrder(players);
+    // Cross-check against match rows: anyone with a league match tagged to this
+    // season, or played since it started, counts as having played.
+    const playedRows = (await db.execute(sql`
+      SELECT DISTINCT pid FROM (
+        SELECT winner_id AS pid FROM matches WHERE season_id = ${currentSeason.id} OR (${currentSeason.startDate}::date IS NOT NULL AND played_at >= ${currentSeason.startDate}::date)
+        UNION SELECT loser_id FROM matches WHERE season_id = ${currentSeason.id} OR (${currentSeason.startDate}::date IS NOT NULL AND played_at >= ${currentSeason.startDate}::date)
+      ) x WHERE pid IS NOT NULL`)).rows as { pid: number }[];
+    const sorted = finalStandingsOrder(players, new Set(playedRows.map(r => Number(r.pid))));
     const contenders = sorted.filter(p => p.status === "ACTIVE");
 
     // currentSeason.championId is only ever set here by the playoff-match
