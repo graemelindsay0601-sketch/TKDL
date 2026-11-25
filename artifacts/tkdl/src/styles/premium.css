@@ -180,3 +180,29 @@
   .navx-count { display:none; }
   .navx-sub { font-size:.55rem; }
 }
+
+/* Final Whistle: card rises in, winner pops. */
+.fw-in { animation: fwIn .45s cubic-bezier(.2,.8,.2,1) both; }
+.fw-pop { animation: fwPop .6s .15s cubic-bezier(.2,1.4,.4,1) both; }
+@keyframes fwIn { from { opacity: 0; transform: translateY(24px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes fwPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fw-in, .fw-pop { animation: none; } }
+
+/* ── Pop-up messages (toasts): premium card instead of a flat black box ── */
+.tkdl-toast { border-radius: 18px !important; padding: 14px 40px 14px 18px !important; border: 1px solid transparent !important; color: #fff !important;
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(74,222,128,.18), transparent 55%) padding-box,
+    linear-gradient(180deg, #1b1828, #0c0a12) padding-box,
+    linear-gradient(140deg, rgba(74,222,128,.75), rgba(255,255,255,.1) 35%, rgba(255,255,255,.03) 65%, rgba(255,210,74,.5)) border-box !important;
+  box-shadow: 0 18px 40px rgba(0,0,0,.6), 0 0 26px rgba(74,222,128,.12) !important; }
+.tkdl-toast::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: #4ade80; box-shadow: 0 0 10px #4ade80; }
+.tkdl-toast-title { font-family: Oswald, sans-serif; font-weight: 700 !important; font-size: 15px !important; letter-spacing: .1em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tkdl-toast-desc { color: #cfcade !important; opacity: 1 !important; font-size: 13px !important; margin-top: 2px; }
+.tkdl-toast.destructive { background:
+    radial-gradient(120% 90% at 0% 0%, rgba(255,107,107,.2), transparent 55%) padding-box,
+    linear-gradient(180deg, #24101a, #0f080c) padding-box,
+    linear-gradient(140deg, rgba(255,107,107,.8), rgba(255,255,255,.08) 40%, rgba(255,107,107,.4)) border-box !important;
+  box-shadow: 0 18px 40px rgba(0,0,0,.6), 0 0 26px rgba(255,107,107,.15) !important; }
+.tkdl-toast.destructive::before { background: #ff6b6b; box-shadow: 0 0 10px #ff6b6b; }
+.tkdl-toast.destructive .tkdl-toast-title { background: none; color: #ffb3b3; -webkit-text-fill-color: #ffb3b3; }
