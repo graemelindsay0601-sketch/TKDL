@@ -1,7 +1,7 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -403,7 +403,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
     return (
       <Link href={item.href}
-        className={`nav-item sidebar-fade-in flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-sm relative ${
+        className={`nav-item sidebar-fade-in flex items-center gap-3 px-2.5 py-2 rounded-xl transition-colors duration-200 text-sm relative ${
           isActive ? "active text-white" : "text-white/60 hover:text-white"
         } ${collapsed ? "justify-center px-2" : ""}`}
         style={{ "--c": color, animationDelay: `${delayMs}ms` } as React.CSSProperties}
@@ -427,22 +427,55 @@ export function Layout({ children }: { children: ReactNode }) {
     );
   }
 
-  function NavSection({ label, items, color, sectionIndex }: { label: string; items: NavItem[]; color: string; sectionIndex: number }) {
-    return (
-      <div>
-        <div className={`px-3 mb-1 flex items-center gap-1.5 sidebar-fade-in ${collapsed ? "justify-center px-0" : ""}`}
-          style={{ animationDelay: `${150 + sectionIndex * 45}ms` } as React.CSSProperties}>
-          <span className="nav-section-dot shrink-0" style={{ "--c": color, width: 5, height: 5, borderRadius: "50%" } as React.CSSProperties} />
-          {!collapsed && (
-            <span className="nav-section-label" style={{ "--c": color, fontFamily: "Oswald, sans-serif", fontSize: "0.58rem", letterSpacing: "0.15em", fontWeight: 700, textTransform: "uppercase" } as React.CSSProperties}>
-              {label}
-            </span>
-          )}
-        </div>
-        <div className="space-y-0.5">
-          {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
-        </div>
+  // Each section is a premium card. One-page sections go straight to their
+  // page; the rest open to show their pages, and the section you're in is
+  // open already. The line under each title lists what's inside.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  function NavSection({ sectionKey, label, items, color, sectionIndex }: { sectionKey: string; label: string; items: NavItem[]; color: string; sectionIndex: number }) {
+    const hasActive = items.some(item => location === item.href || (item.href !== "/" && location.startsWith(item.href)));
+    const Icon = items[0].icon;
+    const list = (
+      <div className="navx-items">
+        {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
       </div>
+    );
+    if (collapsed) return <section className="navx navx-collapsed" style={{ "--c": color } as React.CSSProperties}>{list}</section>;
+    const head = (inner: React.ReactNode) => (
+      <>
+        <span className="navx-ico"><Icon className="w-4 h-4" /></span>
+        <span className="navx-titles">
+          <span className="navx-title pm-metal">{label}</span>
+          {items.length > 1 && <span className="navx-sub">{items.map(i => i.label).join(" · ")}</span>}
+        </span>
+        {inner}
+      </>
+    );
+    if (items.length === 1) {
+      const it = items[0];
+      return (
+        <section className={`navx navx-acc ${hasActive ? "has-active" : ""}`} style={{ "--c": color } as React.CSSProperties}>
+          <Link href={it.href} className="navx-acc-head">
+            {head(<>
+              {it.href === "/community" && communityUnread > 0 && <span className="navx-badge">{communityUnread > 9 ? "9+" : communityUnread}</span>}
+              <ChevronRight className="navx-chev w-4 h-4" />
+            </>)}
+          </Link>
+        </section>
+      );
+    }
+    const open = openSections[sectionKey] ?? hasActive;
+    return (
+      <section className={`navx navx-acc ${open ? "open" : ""} ${hasActive ? "has-active" : ""}`} style={{ "--c": color } as React.CSSProperties}>
+        <button type="button" className="navx-acc-head" aria-expanded={open}
+          onClick={() => setOpenSections(prev => ({ ...prev, [sectionKey]: !open }))}>
+          {head(<>
+            <span className="navx-count">{items.length}</span>
+            <ChevronDown className="navx-chev w-4 h-4" />
+          </>)}
+        </button>
+        {open && list}
+      </section>
     );
   }
 
@@ -521,14 +554,9 @@ export function Layout({ children }: { children: ReactNode }) {
       )}
 
       {/* Navigation — one accent colour per section, see NAV_SECTIONS above */}
-      <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2 space-y-2">
+      <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2.5 navx-wrap">
         {visibleNavSections.map((section, si) => (
-          <div key={section.key}>
-            <NavSection label={section.label} items={section.items} color={section.color} sectionIndex={si} />
-            {si < visibleNavSections.length - 1 && (
-              <div className="h-px mx-2 mt-2" style={{ background: "rgba(255,255,255,0.05)" }} />
-            )}
-          </div>
+          <NavSection key={section.key} sectionKey={section.key} label={section.label} items={section.items} color={section.color} sectionIndex={si} />
         ))}
       </nav>
 
