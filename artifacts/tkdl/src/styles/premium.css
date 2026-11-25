@@ -113,3 +113,19 @@
 .pulse-more span { color: rgba(255,255,255,.55); font-weight: 600; letter-spacing: .06em; }
 .pulse-more:hover { background: rgba(255,92,147,.18); }
 .pulse-more.ghost { border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: #c9c5d8; }
+
+/* Side menu: game modes and league pages as a two-column grid of tiles */
+.nav-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 2px 4px 0; }
+.nav-tile { --c: #888; position: relative; display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 6px 7px; min-width: 0; border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.07); background: linear-gradient(160deg, rgba(255,255,255,.035), rgba(255,255,255,.01)); color: rgba(255,255,255,.72);
+  transition: border-color .16s ease, background .16s ease, color .16s ease, box-shadow .16s ease; }
+.nav-tile:hover { color: #fff; border-color: color-mix(in srgb, var(--c) 45%, transparent); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 12%, transparent), rgba(255,255,255,.015)); }
+.nav-tile-ico { position: relative; flex: none; width: 26px; height: 26px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+  color: var(--c); background: rgba(0,0,0,.35); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+.nav-tile-label { min-width: 0; font-family: Oswald, sans-serif; font-size: .72rem; line-height: 1.12; letter-spacing: .02em; overflow-wrap: normal; word-break: normal; hyphens: manual; }
+.nav-tile.active { color: #fff; border-color: color-mix(in srgb, var(--c) 70%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 24%, transparent), rgba(10,8,16,.6));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--c) 22%, transparent), inset 0 1px 0 rgba(255,255,255,.08); }
+.nav-tile.active .nav-tile-ico { color: #0a0a10; background: var(--c); border-color: var(--c); box-shadow: 0 0 12px color-mix(in srgb, var(--c) 55%, transparent); }
+.nav-tile.active .nav-tile-label { font-weight: 700; }
+.nav-tile-label.long { font-size: .64rem; letter-spacing: 0; }

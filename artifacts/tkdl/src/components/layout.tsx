@@ -368,22 +368,30 @@ export function Layout({ children }: { children: ReactNode }) {
   // established brand orange like every other section; it's not muted here
   // — Card Clash itself is on hold, but colouring its nav row the same way
   // as the rest isn't a change to the feature, just to this row's paint.
-  const NAV_SECTIONS: Array<{ key: string; label: string; items: NavItem[]; color: string; show: boolean }> = [
-    { key: "hub",          label: "Hub",          items: hubNav,               color: "#0066ff", show: true },
-    { key: "community",    label: "Off the Oche", items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
-    { key: "play",         label: "Play",         items: dynamicPlayNav,       color: "#ff005c", show: dynamicPlayNav.length > 0 },
-    { key: "practice",     label: "Practice",     items: practiceNav,          color: "#00e5a0", show: true },
-    // Career (A6) is listed only when the tour_career_2 flag makes it available to this account.
-    { key: "tour",         label: "Tour Mode",    items: careerAvailable ? tourModeNav : tourModeNav.filter(i => i.href !== "/career"), color: "#6366f1", show: true },
-    { key: "master501",    label: "Master 501",   items: master501Nav,         color: "#00c8a0", show: true },
-    { key: "bot",          label: "Bot",          items: dynamicBotNav,        color: "#22d3ee", show: dynamicBotNav.length > 0 },
-    { key: "cardclash",    label: "Card Clash",   items: dynamicCardClashNav,  color: "#f97316", show: dynamicCardClashNav.length > 0 },
-    { key: "bossbattle",   label: "Boss Battle",  items: dynamicBossBattleNav, color: "#ef4444", show: dynamicBossBattleNav.length > 0 },
-    { key: "boardcurse",   label: "Board Curse",  items: dynamicBoardCurseNav, color: "#eab308", show: dynamicBoardCurseNav.length > 0 },
-    { key: "tkdllive",     label: "TKDL LIVE",    items: dynamicTkdlLiveNav,   color: "#ffd24a", show: dynamicTkdlLiveNav.length > 0 },
-    { key: "league",       label: "League",       items: leagueNav,            color: "#38bdf8", show: true },
-    { key: "achievements", label: "Achievements", items: achievementsNav,      color: "#8b5cf6", show: true },
-    { key: "admin",        label: "Admin",        items: configNav,            color: "#8a8a94", show: !!authUser?.isAdmin },
+  // Grouped into five sections (was fourteen, most holding a single link):
+  // the everyday links stay as rows, the game modes and league pages sit in
+  // a two-column grid of tiles, so the whole menu takes far less scrolling.
+  // Each link keeps its own accent colour.
+  type NavSectionDef = { key: string; label: string; items: Array<NavItem & { color?: string }>; color: string; show: boolean; tiles?: boolean };
+  const tint = (items: NavItem[], color: string) => items.map(i => ({ ...i, color }));
+  const NAV_SECTIONS: NavSectionDef[] = [
+    { key: "home",   label: "Home",       color: "#0066ff", show: true,
+      items: [...tint(hubNav, "#0066ff"), ...((communityEnabled || !!authUser?.isAdmin) ? tint(communityNav, "#22c55e") : [])] },
+    { key: "play",   label: "Play",       color: "#ff005c", show: true,
+      items: [...tint(dynamicPlayNav, "#ff005c"), ...tint(practiceNav, "#00e5a0")] },
+    { key: "modes",  label: "Game modes", color: "#a78bfa", show: true, tiles: true,
+      items: [
+        ...tint(careerAvailable ? tourModeNav : tourModeNav.filter(i => i.href !== "/career"), "#6366f1"),
+        ...tint(master501Nav, "#00c8a0"),
+        ...tint(dynamicBotNav, "#22d3ee"),
+        ...tint(dynamicBossBattleNav, "#ef4444"),
+        ...tint(dynamicBoardCurseNav, "#eab308"),
+        ...tint(dynamicCardClashNav, "#f97316"),
+        ...tint(dynamicTkdlLiveNav, "#ffd24a"),
+      ] },
+    { key: "league", label: "League",     color: "#38bdf8", show: true, tiles: true,
+      items: [...tint(leagueNav, "#38bdf8"), ...tint(achievementsNav, "#8b5cf6")] },
+    { key: "admin",  label: "Admin",      color: "#8a8a94", show: !!authUser?.isAdmin, items: tint(configNav, "#8a8a94") },
   ];
 
   function NavLink({ item, color, sectionIndex, itemIndex }: { item: NavItem; color: string; sectionIndex: number; itemIndex: number }) {
@@ -403,7 +411,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
     return (
       <Link href={item.href}
-        className={`nav-item sidebar-fade-in flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-200 text-sm relative ${
+        className={`nav-item sidebar-fade-in flex items-center gap-3 px-3 py-2 rounded-xl transition-colors duration-200 text-sm relative ${
           isActive ? "active text-white" : "text-white/60 hover:text-white"
         } ${collapsed ? "justify-center px-2" : ""}`}
         style={{ "--c": color, animationDelay: `${delayMs}ms` } as React.CSSProperties}
@@ -427,7 +435,20 @@ export function Layout({ children }: { children: ReactNode }) {
     );
   }
 
-  function NavSection({ label, items, color, sectionIndex }: { label: string; items: NavItem[]; color: string; sectionIndex: number }) {
+  function NavTile({ item, color, sectionIndex, itemIndex }: { item: NavItem; color: string; sectionIndex: number; itemIndex: number }) {
+    const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+    const dot = item.href === "/tkdl-live" && hasNewEdition;
+    return (
+      <Link href={item.href}
+        className={`nav-tile sidebar-fade-in${isActive ? " active" : ""}`}
+        style={{ "--c": color, animationDelay: `${150 + sectionIndex * 45 + 20 + itemIndex * 14}ms` } as React.CSSProperties}>
+        <span className="nav-tile-ico"><item.icon className="h-4 w-4" />{dot && <span className="nav-item-badge-dot absolute" style={{ "--c": color, top: -2, right: -2 } as React.CSSProperties} />}</span>
+        <span className={`nav-tile-label${item.label.length > 11 && !item.label.includes(" ") ? " long" : ""}`}>{item.label}</span>
+      </Link>
+    );
+  }
+
+  function NavSection({ label, items, color, sectionIndex, tiles }: { label: string; items: Array<NavItem & { color?: string }>; color: string; sectionIndex: number; tiles?: boolean }) {
     return (
       <div>
         <div className={`px-3 mb-1 flex items-center gap-1.5 sidebar-fade-in ${collapsed ? "justify-center px-0" : ""}`}
@@ -439,9 +460,15 @@ export function Layout({ children }: { children: ReactNode }) {
             </span>
           )}
         </div>
-        <div className="space-y-0.5">
-          {items.map((item, i) => <NavLink key={item.href} item={item} color={color} sectionIndex={sectionIndex} itemIndex={i} />)}
-        </div>
+        {tiles && !collapsed ? (
+          <div className="nav-tiles">
+            {items.map((item, i) => <NavTile key={item.href} item={item} color={item.color ?? color} sectionIndex={sectionIndex} itemIndex={i} />)}
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {items.map((item, i) => <NavLink key={item.href} item={item} color={item.color ?? color} sectionIndex={sectionIndex} itemIndex={i} />)}
+          </div>
+        )}
       </div>
     );
   }
@@ -456,14 +483,14 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Logo */}
-      <div className={`relative sidebar-fade-in ${collapsed ? "flex flex-col items-center px-2 pt-6 pb-4" : "px-5 pt-6 pb-4"}`}
+      <div className={`relative sidebar-fade-in ${collapsed ? "flex flex-col items-center px-2 pt-6 pb-4" : "px-5 pt-4 pb-3"}`}
         style={{ borderBottom: "1px solid rgba(255,0,92,0.2)" }}>
         <div className="absolute top-0 left-0 right-0 h-0.5"
           style={{ background: "linear-gradient(90deg, #ff005c 0%, rgba(255,0,92,0.5) 55%, transparent 100%)" }} />
         <div className={`flex items-center gap-3 ${collapsed ? "mb-2" : "mb-1.5"}`}>
           <div className="relative shrink-0 cursor-default">
             <div className="absolute" style={{ inset: -4, background: "rgba(255,0,92,0.3)", filter: "blur(12px)", borderRadius: "0.7rem" }} />
-            <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: "3.2rem", height: "3.2rem", borderRadius: "0.6rem", objectFit: "cover" }} />
+            <img src="/icon-192.png" alt="TKDL" className="relative z-10" style={{ width: collapsed ? "3.2rem" : "2.8rem", height: collapsed ? "3.2rem" : "2.8rem", borderRadius: "0.6rem", objectFit: "cover" }} />
           </div>
           {!collapsed && (
             <p style={{ fontFamily: "'Montserrat', sans-serif", textTransform: "uppercase", lineHeight: 1.2, marginBottom: 0, letterSpacing: "0.04em" }}>
@@ -524,7 +551,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <nav className="nav-edge-fade flex-1 overflow-y-auto py-3 px-2 space-y-2">
         {visibleNavSections.map((section, si) => (
           <div key={section.key}>
-            <NavSection label={section.label} items={section.items} color={section.color} sectionIndex={si} />
+            <NavSection label={section.label} items={section.items} color={section.color} sectionIndex={si} tiles={section.tiles} />
             {si < visibleNavSections.length - 1 && (
               <div className="h-px mx-2 mt-2" style={{ background: "rgba(255,255,255,0.05)" }} />
             )}
