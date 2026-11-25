@@ -38,6 +38,7 @@ import { RaceTrack, TrackStats, LivesPods, TerritoryGrid, MatchStrip, ScoreTower
 import "./x01-scorer.css";
 import { ModernX01, type ModernMode } from "./modern-x01";
 import { useScorerStyle } from "./useScorerStyle";
+import { ModernCricket } from "./modern-cricket";
 
 /**
  * Sends a match's accumulated log to the backend for later download from
@@ -190,11 +191,11 @@ function PlayerCard({ name, score, scoreSuffix = "", turn, active, sub }: {
         boxShadow: active ? `0 0 20px ${P_COLOR(turn ? 1 : 0)}22` : undefined,
       }}>
       {active && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: P_COLOR(turn ? 1 : 0) }} />}
-      <div className="text-xs font-bold uppercase tracking-widest mb-1"
+      <div className="sc-pname text-xs font-bold uppercase tracking-widest mb-1"
         style={{ fontFamily: "Oswald, sans-serif", color: P_COLOR(turn ? 1 : 0), opacity: active ? 1 : 0.4 }}>
         {name}
       </div>
-      <div className="font-black leading-none"
+      <div className="sc-pscore font-black leading-none"
         style={{ fontFamily: "Oswald, sans-serif", fontSize: "3rem", color: active ? "#fff" : "rgba(255,255,255,0.3)" }}>
         {score}{scoreSuffix}
       </div>
@@ -244,8 +245,8 @@ function CheckoutBar({ checkout, playerName, playerIdx, active }: { checkout: st
 
 function TurnBanner({ name, turn, msg, className = "" }: { name: string; turn: 0 | 1; msg?: string; className?: string }) {
   return (
-    <div className={`flex items-center justify-center gap-2 text-sm ${className}`}
-      style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif" }}>
+    <div className={`sc-turn flex items-center justify-center gap-2 text-sm ${className}`}
+      style={{ color: "rgba(255,255,255,0.4)", fontFamily: "Oswald, sans-serif", ["--pc" as any]: P_COLOR(turn) }}>
       <Zap className="w-3.5 h-3.5" style={{ color: P_COLOR(turn) }} />
       <span style={{ color: P_COLOR(turn), fontWeight: 700 }}>{name}</span>
       <span className="uppercase tracking-wider text-xs">{msg ?? "— enter your score"}</span>
@@ -286,7 +287,7 @@ function DownloadMatchLogBtn({ logger }: { logger: MatchLogger }) {
 // that doesn't pass it is pixel-identical to pre-cosmetic behaviour.
 function SectionCard({ children, accentColor }: { children: React.ReactNode; accentColor?: string | null }) {
   return (
-    <div className="pdc-card p-3" style={{
+    <div className={`pdc-card p-3${accentColor ? "" : " sc-section"}`} style={{
       borderColor: accentColor ? `${accentColor}66` : "rgba(255,255,255,0.07)",
       boxShadow: accentColor ? `0 0 14px ${accentColor}22` : undefined,
     }}>{children}</div>
@@ -631,15 +632,14 @@ function BoardMarksHUD({ marks, names, engine, viewerIdx }: { marks: BoardMark[]
 function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode }) {
   const landscape = useOrientation();
 
+  // Same ground as the new X01/Cricket scorers, so every game looks like one set.
   const siteBg: React.CSSProperties = {
-    backgroundImage: "linear-gradient(rgba(4,4,10,0.84), rgba(4,4,10,0.92)), url('https://i.postimg.cc/Bbf9fbrp/pdc1.jpg')",
-    backgroundSize: "cover",
-    backgroundPosition: "center",
+    background: "radial-gradient(120% 55% at 50% 0%, #2a0a1c 0%, #0b0a12 62%)",
   };
 
   if (landscape) {
     return (
-      <div style={{ height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", ...siteBg }}>
+      <div className="sc-root" style={{ height: "100dvh", display: "flex", flexDirection: "row", overflow: "hidden", ...siteBg }}>
         <div style={{
           flex: "0 0 44%", overflowY: "auto", padding: "0.5rem 0.75rem",
           borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -654,7 +654,7 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
   }
 
   return (
-    <div style={{
+    <div className="sc-root" style={{
       height: "100dvh", width: "100%", display: "flex", flexDirection: "column",
       overflow: "hidden", padding: "0 0.5rem", ...siteBg,
     }}>
@@ -3818,6 +3818,55 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       prevLegWinsRef.current = legWins;
     }
   }, [legWins, isCardClash]);
+
+  // ── New Cricket layout (mirrors the X01 one; presentation only) ─────────
+  // Card Clash keeps the classic layout (its extra UI lives there).
+  const [preferredStyleCri] = useScorerStyle();
+  const [matchStyleCri, setMatchStyleCri] = useState<"modern" | "classic" | null>(null);
+  const [missQueue, setMissQueue] = useState(0);
+  useEffect(() => {
+    if (missQueue <= 0) return;
+    setMissQueue(q => q - 1);
+    handleDartRefCri.current({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  }, [missQueue]); // eslint-disable-line react-hooks/exhaustive-deps
+  const modernCricket = !isCardClash && cardEffects.length === 0
+    && (matchStyleCri ?? (preferredStyleCri === "classic" ? "classic" : "modern")) === "modern";
+
+  if (modernCricket) {
+    const menuCri: { label: string; onClick: () => void; danger?: boolean }[] = [
+      { label: "Use classic scorer for this match", onClick: () => setMatchStyleCri("classic") },
+      { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } },
+    ];
+    const legNoCri = legWins[0] + legWins[1] + 1;
+    const headingCri = `${cutThroat ? "Cut-Throat" : "Cricket"} · ${setsToWin > 0 ? `Set ${setWins[0] + setWins[1] + 1} · ` : ""}Leg ${legNoCri}`;
+    const legsLineCri = setsToWin > 0 ? `First to ${setsNeeded} sets · ${legsNeeded} legs a set` : legsNeeded > 1 ? `First to ${legsNeeded} legs` : undefined;
+    return (
+      <ModernCricket
+        heading={headingCri}
+        legsLine={legsLineCri}
+        names={[p1Name, p2Name]}
+        solo={soloMode}
+        cutThroat={cutThroat}
+        scores={scores}
+        marks={[marks[0].slice(0, numCount), marks[1].slice(0, numCount)]}
+        nums={CRICKET_NUMS.slice(0, numCount)}
+        labels={CRICKET_LABELS.slice(0, numCount)}
+        turn={turn}
+        legWins={legWins}
+        legsNeeded={legsNeeded}
+        setWins={setsToWin > 0 ? setWins : undefined}
+        visitDarts={visitDarts}
+        disabled={isBotTurnCri || missQueue > 0}
+        waitingMsg={isBotTurnCri ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={handleMiss}
+        onUndo={handleUndo}
+        onEndVisit={() => { if (!isBotTurnCri && missQueue === 0) setMissQueue(Math.max(1, 3 - visitDarts.length)); }}
+        menu={menuCri}
+        topBanner={topBanner}
+      />
+    );
+  }
 
   return (
     <>

@@ -1,0 +1,62 @@
+/* New Cricket scorer. Shares the X01 scorer's frame (modern-x01.css). */
+.mc-root .mx-col { gap: 9px; }
+.mc-board-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; flex: none; }
+.mc-board-cards.solo { grid-template-columns: 1fr; }
+.mc-card { position: relative; border-radius: 16px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.1); background: linear-gradient(180deg,#1b1828,#0c0a12); min-width: 0; }
+.mc-card.is-on { border-color: #ff005c; box-shadow: 0 0 22px rgba(255,0,92,.25); background: linear-gradient(180deg,#2a0f1d,#12080f); }
+.mc-card.is-on::before { content: ""; position: absolute; left: 14px; right: 14px; top: -1px; height: 3px; border-radius: 3px; background: #ff005c; box-shadow: 0 0 10px #ff005c; }
+.mc-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.mc-name { font-family: Oswald, sans-serif; font-weight: 700; font-size: 17px; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mc-card:not(.is-on) .mc-name, .mc-card:not(.is-on) .mc-score { opacity: .72; }
+.mc-score { font-family: Oswald, sans-serif; font-weight: 700; font-size: clamp(36px, 11vw, 48px); line-height: 1; margin-top: 2px;
+  background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mc-stats { display: flex; justify-content: space-between; margin-top: 5px; font-family: Oswald, sans-serif; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #a9a4bd; }
+.mc-stats b { color: #fff; font-size: 12px; }
+
+.mc-marks { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: space-around; border-radius: 18px; padding: 4px 10px; border: 1px solid rgba(255,210,74,.28);
+  background: radial-gradient(120% 80% at 0% 0%, rgba(255,210,74,.1), transparent 55%), linear-gradient(180deg, rgba(23,20,31,.95), rgba(12,10,18,.96)); }
+.mc-row { display: grid; grid-template-columns: 1fr 64px 1fr; align-items: center; min-height: 24px; flex: 1 1 0; }
+.mc-row + .mc-row { border-top: 1px solid rgba(255,255,255,.05); }
+.mc-row.dead { opacity: .32; }
+.mc-row.dead .mc-num { text-decoration: line-through; }
+.mc-cell { display: flex; justify-content: center; }
+.mc-num { text-align: center; font-family: Oswald, sans-serif; font-weight: 700; font-size: 17px; color: #fff; }
+.mc-mark { width: 22px; height: 22px; fill: none; stroke: #4ade80; stroke-width: 2.6; stroke-linecap: round; }
+.mc-mark.closed { stroke: #ffd24a; stroke-width: 2.2; filter: drop-shadow(0 0 4px rgba(255,210,74,.45)); }
+.mc-rule { text-align: center; font-family: Oswald, sans-serif; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #a9a4bd; margin-top: -4px; }
+
+.mc-mult { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: none; }
+.mc-mult button { height: 40px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: #12101a; color: #cfcade; font-family: Oswald, sans-serif !important; font-weight: 700; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; }
+.mc-mult button.on { background: linear-gradient(180deg,#3a3550,#1c1a28); border-color: #fff; color: #fff; }
+.mc-mult button.db { color: #7fb4ff; border-color: rgba(127,180,255,.35); }
+.mc-mult button.db.on { background: linear-gradient(180deg,#14305e,#0b1630); border-color: #7fb4ff; color: #fff; }
+.mc-mult button.tr { color: #ffb070; border-color: rgba(255,176,112,.35); }
+.mc-mult button.tr.on { background: linear-gradient(180deg,#5a2e10,#2a1408); border-color: #ffb070; color: #fff; }
+
+.mc-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; flex: none; }
+.mc-pad button { height: clamp(56px, 9vh, 78px); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.12); background: linear-gradient(180deg,#24202f,#14121c); color: #fff; }
+.mc-pad button span { font-family: Oswald, sans-serif; font-weight: 700; font-size: 26px; line-height: 1;
+  background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mc-pad button small { font-family: Oswald, sans-serif; font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: #8e89a3; margin-top: 2px; }
+.mc-pad button.closed { opacity: .35; }
+.mc-pad button.bull { border-color: rgba(255,92,147,.45); }
+.mc-pad button.bull span { background: none; color: #ff8fb3; -webkit-text-fill-color: #ff8fb3; font-size: 22px; }
+.mc-pad button.miss { color: #ff6b6b; font-family: Oswald, sans-serif; font-weight: 700; font-size: 16px; letter-spacing: .14em; text-transform: uppercase; }
+.mc-pad button.ghost { color: #cfcade; font-family: Oswald, sans-serif; font-weight: 700; font-size: 14px; letter-spacing: .14em; text-transform: uppercase; }
+.mc-pad button.next { grid-column: span 3; background: linear-gradient(180deg,#ffe58a,#e0a800); border: 0; color: #1a1200; font-family: Oswald, sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .14em; text-transform: uppercase; box-shadow: 0 0 22px rgba(255,210,74,.35); }
+
+/* ── Classic game scorers (Killer, Shanghai, Golf…): same family look ── */
+.pm-score-card { border-radius: 16px !important; border: 1px solid rgba(255,255,255,.1) !important; background: linear-gradient(180deg,#1b1828,#0c0a12) !important; box-shadow: none !important; }
+.pm-score-card.is-on { border-color: var(--pc, #ff005c) !important; background: linear-gradient(180deg, color-mix(in srgb, var(--pc, #ff005c) 18%, #12080f), #0c0a12) !important; box-shadow: 0 0 22px color-mix(in srgb, var(--pc, #ff005c) 25%, transparent) !important; }
+.pm-score-card .sc-pname { letter-spacing: .14em; font-size: 12px !important; }
+.pm-score-card .sc-pscore { background: linear-gradient(180deg, #fff 0%, #dfe7f5 38%, #8d9ab4 52%, #f4f7fc 70%, #b9c4da 100%); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+.pm-score-card:not(.is-on) .sc-pscore { opacity: .55; }
+.sc-section { border-radius: 18px !important; border: 1px solid rgba(255,210,74,.28) !important;
+  background: radial-gradient(120% 80% at 0% 0%, rgba(255,210,74,.1), transparent 55%), linear-gradient(180deg, rgba(23,20,31,.95), rgba(12,10,18,.96)) !important; }
+.sc-turn { width: fit-content; margin-left: auto; margin-right: auto; padding: 6px 14px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--pc, #ff005c) 45%, transparent); background: color-mix(in srgb, var(--pc, #ff005c) 10%, rgba(12,10,18,.9)); }
+.sc-visit > div { border-radius: 12px !important; }
+.sc-visit > div[style*="flex: 1"] { background: #0f0d16 !important; border-style: solid !important; border-color: rgba(255,255,255,.1) !important; }
+/* Shared number pad (DartInputBoard): rounded buttons like the new scorers. */
+.pm-keypad > div > button { border-radius: 14px !important; }
+.pm-keypad > div:first-child > button { border-radius: 12px !important; height: 44px; padding: 0 !important; letter-spacing: .14em !important; }
