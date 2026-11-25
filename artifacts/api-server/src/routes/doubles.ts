@@ -1,3 +1,4 @@
+import { parsePlayerIds, pickFromRoster, recordTeamMatchPlayers, picksByTeam, buildEntries, playerTeamEvents, playerTeamEventGames } from "../lib/team-match-players";
 import { Router } from "express";
 import { wagerPot } from "../lib/wager-pot";
 import { eq, and, sql } from "drizzle-orm";
@@ -215,6 +216,22 @@ router.get("/seasons/:id/doubles/matches", async (req, res): Promise<void> => {
   })));
 });
 
+// ── A player's own games for their Doubles pairing / Shift Wars team ─────────
+// Only matches recorded with "who played" picks count here; team stats are
+// unaffected and stay on the team pages.
+router.get("/players/:id/team-events", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid player id" }); return; }
+  try {
+    const totals = await playerTeamEvents(db, id);
+    const recent = await playerTeamEventGames(db, id, 8);
+    res.json({ ...totals, recent });
+  } catch {
+    // Table not created yet (fresh boot) — report nothing rather than fail the profile.
+    res.json({ doubles: { played: 0, won: 0, lost: 0, winPct: 0, teams: [] }, shift_wars: { played: 0, won: 0, lost: 0, winPct: 0, teams: [] }, recent: [] });
+  }
+});
+
 // ── Record a doubles match (against the currently active season) ───────────────
 
 router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<void> => {
@@ -324,6 +341,16 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
 
       const teamPlayerIds = (t: any): number[] =>
         [t.player1_id, t.player2_id, t.player3_id].filter((id): id is number => id != null);
+
+      // Who actually threw for each side — separate from team credit.
+      const wPick = pickFromRoster(parsePlayerIds((req.body as any)?.winnerPlayerIds), teamPlayerIds(winner), winner.team_name);
+      const lPick = pickFromRoster(parsePlayerIds((req.body as any)?.loserPlayerIds), teamPlayerIds(loser), loser.team_name);
+      if (wPick.error) throw new DoublesConflictError(wPick.error);
+      if (lPick.error) throw new DoublesConflictError(lPick.error);
+      await recordTeamMatchPlayers(tx, "doubles", "match", match.id, activeSeason.id, [
+        { teamId: winner.id, playerIds: wPick.ids, won: true },
+        { teamId: loser.id, playerIds: lPick.ids, won: false },
+      ]);
 
       return {
         match, eloChange, loserEliminated,
@@ -633,6 +660,17 @@ router.post("/doubles/combined-matches", matchSubmitRateLimit, async (req, res):
         `);
       }
 
+      {
+        const body = req.body as any;
+        const ros = (t: any): number[] => [t.player1_id, t.player2_id, t.player3_id].filter((id: any): id is number => id != null);
+        const fail = (m: string): never => { throw new DoublesConflictError(m); };
+        const sentCombined = picksByTeam(body?.combinedTeams);
+        await recordTeamMatchPlayers(tx, "doubles", "combined", match.id, activeSeason.id, buildEntries([
+          { teamId: solo.id, teamName: solo.team_name, roster: ros(solo), sent: parsePlayerIds(body?.soloPlayerIds), won: !!soloWon },
+          ...combined.map((c: any) => ({ teamId: c.id, teamName: c.team_name, roster: ros(c), sent: sentCombined.get(c.id) ?? null, won: !soloWon })),
+        ], fail));
+      }
+
       return { match, solo, combined, sideRows, pot, soloPointsDelta, soloEloDelta };
     });
 
@@ -902,6 +940,16 @@ router.post("/doubles/multi-matches", matchSubmitRateLimit, async (req, res): Pr
           INSERT INTO doubles_multi_match_participants (match_id, team_id, is_winner, points_delta, elo_delta, eliminated)
           VALUES (${match.id}, ${lr.teamId}, false, ${lr.pointsDelta}, ${lr.eloDelta}, ${lr.eliminated})
         `);
+      }
+
+      {
+        const ros = (t: any): number[] => [t.player1_id, t.player2_id, t.player3_id].filter((id: any): id is number => id != null);
+        const fail = (m: string): never => { throw new DoublesConflictError(m); };
+        const sent = picksByTeam((req.body as any)?.teamPlayers);
+        await recordTeamMatchPlayers(tx, "doubles", "multi", match.id, activeSeason.id, buildEntries(
+          [winner, ...losers].map((t: any) => ({ teamId: t.id, teamName: t.team_name, roster: ros(t), sent: sent.get(t.id) ?? null, won: t.id === winner.id })),
+          fail,
+        ));
       }
 
       return { match, winner, losers, loserRows, pot, eloChange };

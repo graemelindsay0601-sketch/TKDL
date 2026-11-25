@@ -1,3 +1,4 @@
+import { parsePlayerIds, recordTeamMatchPlayers, picksByTeam, buildEntries } from "../lib/team-match-players";
 import { Router } from "express";
 import { wagerPot } from "../lib/wager-pot";
 import { sql } from "drizzle-orm";
@@ -96,6 +97,15 @@ const AssignPlayerTeamBody = z.object({
 const router = Router();
 
 class ShiftWarsConflictError extends Error {}
+
+async function swRosters(tx: { execute: (q: any) => Promise<any> }, teamIds: number[]): Promise<Map<number, number[]>> {
+  const m = new Map<number, number[]>(teamIds.map(id => [id, []]));
+  if (!teamIds.length) return m;
+  const r = await tx.execute(sql`SELECT id, shift_wars_team_id FROM players WHERE shift_wars_team_id = ANY(ARRAY[${sql.join(teamIds.map(id => sql`${id}`), sql`, `)}]::int[])`);
+  for (const p of r.rows as any[]) m.get(Number(p.shift_wars_team_id))?.push(Number(p.id));
+  return m;
+}
+
 
 async function activeShiftWarsSeasonId(): Promise<number | null> {
   const rows = await db.execute(sql`
@@ -292,6 +302,15 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
         RETURNING *
       `)).rows as any[];
 
+      {
+        const body = req.body as any;
+        const fail = (m: string): never => { throw new ShiftWarsConflictError(m); };
+        const ros = await swRosters(tx, [winner.id, loser.id]);
+        await recordTeamMatchPlayers(tx, "shift_wars", "match", match.id, seasonId, buildEntries([
+          { teamId: winner.id, teamName: winner.name, roster: ros.get(winner.id)!, sent: parsePlayerIds(body?.winnerPlayerIds), won: true },
+          { teamId: loser.id, teamName: loser.name, roster: ros.get(loser.id)!, sent: parsePlayerIds(body?.loserPlayerIds), won: false },
+        ], fail));
+      }
       return { match, winnerName: winner.name, loserName: loser.name, winnerPointsBefore: winner.points, loserPointsBefore: loser.points };
     });
 
@@ -603,6 +622,16 @@ router.post("/shift-wars/combined-matches", matchSubmitRateLimit, async (req, re
         `);
       }
 
+      {
+        const body = req.body as any;
+        const fail = (m: string): never => { throw new ShiftWarsConflictError(m); };
+        const ros = await swRosters(tx, [solo.id, ...combined.map((c: any) => c.id)]);
+        const sentC = picksByTeam(body?.combinedTeams);
+        await recordTeamMatchPlayers(tx, "shift_wars", "combined", match.id, seasonId, buildEntries([
+          { teamId: solo.id, teamName: solo.name, roster: ros.get(solo.id)!, sent: parsePlayerIds(body?.soloPlayerIds), won: !!soloWon },
+          ...combined.map((c: any) => ({ teamId: c.id, teamName: c.name, roster: ros.get(c.id)!, sent: sentC.get(c.id) ?? null, won: !soloWon })),
+        ], fail));
+      }
       return { match, solo, combined, sideRows, pot, soloPointsDelta };
     });
 
@@ -858,6 +887,16 @@ router.post("/shift-wars/multi-matches", matchSubmitRateLimit, async (req, res):
         `);
       }
 
+      {
+        const fail = (m: string): never => { throw new ShiftWarsConflictError(m); };
+        const all = [winner, ...losers] as any[];
+        const ros = await swRosters(tx, all.map(t => t.id));
+        const sent = picksByTeam((req.body as any)?.teamPlayers);
+        await recordTeamMatchPlayers(tx, "shift_wars", "multi", match.id, seasonId, buildEntries(
+          all.map(t => ({ teamId: t.id, teamName: t.name, roster: ros.get(t.id)!, sent: sent.get(t.id) ?? null, won: t.id === winner.id })),
+          fail,
+        ));
+      }
       return { match, winner, losers, loserRows, pot };
     });
 

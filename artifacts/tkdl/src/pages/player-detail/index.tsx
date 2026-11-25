@@ -304,6 +304,18 @@ export default function PlayerDetail() {
       .catch(() => setShiftWarsTeam(null));
   }, [playerId]);
 
+  // Games this player actually threw in for their pairing / department.
+  // Separate from the team's own record (which every member shares).
+  const [teamEvents, setTeamEvents] = useState<any | null>(null);
+  useEffect(() => {
+    if (!playerId) return;
+    setTeamEvents(null);
+    fetch(`/api/players/${playerId}/team-events`)
+      .then(r => r.ok ? r.json() : null)
+      .then(setTeamEvents)
+      .catch(() => setTeamEvents(null));
+  }, [playerId]);
+
   // The rest of the app's game modes — previously invisible on this page
   // even though every one of them records real per-player data server-side.
   // Each fetch is caught independently so one missing/erroring mode never
@@ -687,6 +699,41 @@ export default function PlayerDetail() {
           </ModeTile>
         </div>
       </div>
+
+      {/* ══ TEAM EVENTS — YOUR GAMES ══ */}
+      {teamEvents && (teamEvents.doubles?.played > 0 || teamEvents.shift_wars?.played > 0) && (
+        <div>
+          <Chapter title="Team events — your games" id="pm-team-events" accent="#38bdf8" />
+          <PmCard accent="#38bdf8" className="p-4">
+            <div className="team-events-grid">
+              {([["doubles", "Doubles", "#0066ff"], ["shift_wars", "Shift Wars", "#22c55e"]] as const).map(([k, label, c]) => {
+                const l = teamEvents[k];
+                return (
+                  <div key={k} className="team-events-tile" style={{ borderColor: `${c}40` }}>
+                    <div className="k" style={{ color: c }}>{label}</div>
+                    <div className="v">{l.won}<span style={{ color: "rgba(255,255,255,0.35)", fontSize: "1rem" }}>–{l.lost}</span></div>
+                    <div className="s">{l.played ? `${l.played} played · ${l.winPct}% won` : "No games yet"}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {Array.isArray(teamEvents.recent) && teamEvents.recent.length > 0 && (
+              <div className="team-events-list">
+                {teamEvents.recent.map((g: any, i: number) => (
+                  <div key={i} className="team-events-row">
+                    <span className={g.won ? "res w" : "res l"}>{g.won ? "W" : "L"}</span>
+                    <span className="who">{g.teamName ?? (g.competition === "doubles" ? "Doubles" : "Shift Wars")}{g.partners ? ` · with ${g.partners}` : " · alone"}</span>
+                    <span className="tag">{g.competition === "doubles" ? "Doubles" : "Shift Wars"}{g.playedAt ? ` · ${new Date(g.playedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Only games you threw in. Team totals stay on the team tables.
+            </p>
+          </PmCard>
+        </div>
+      )}
 
       {/* ══ ELO JOURNEY ══ */}
       {recentMatches && recentMatches.length >= 2 && (

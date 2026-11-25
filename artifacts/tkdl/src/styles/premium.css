@@ -113,3 +113,26 @@
 .pulse-more span { color: rgba(255,255,255,.55); font-weight: 600; letter-spacing: .06em; }
 .pulse-more:hover { background: rgba(255,92,147,.18); }
 .pulse-more.ghost { border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: #c9c5d8; }
+
+/* ── Who played (Doubles / Shift Wars) ───────────────────────────── */
+.who-played { --c:#22c55e; border:1px solid color-mix(in srgb, var(--c) 28%, transparent); background:linear-gradient(180deg, color-mix(in srgb, var(--c) 9%, transparent), rgba(255,255,255,0.015)); border-radius:14px; padding:.7rem .75rem; }
+.who-played-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.15rem .5rem; margin-bottom:.5rem; }
+.who-played-label { font-family:Oswald, sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.06em; font-size:.78rem; color:var(--c); }
+.who-played-hint { font-family:Oswald, sans-serif; font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.45); white-space:nowrap; }
+.who-played-hint.need { color:#ffd24a; }
+.who-played-chips { display:flex; flex-wrap:wrap; gap:.4rem; }
+.who-chip { display:inline-flex; align-items:center; gap:.3rem; min-height:36px; padding:.35rem .7rem; border-radius:999px; font-family:Oswald, sans-serif; font-size:.82rem; letter-spacing:.02em; color:rgba(255,255,255,.7); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); cursor:pointer; transition:all .15s ease; }
+.who-chip.on { color:#0b0d12; font-weight:700; background:var(--c); border-color:var(--c); box-shadow:0 0 14px color-mix(in srgb, var(--c) 45%, transparent); }
+.who-played-empty { font-size:.75rem; color:rgba(255,255,255,.35); font-family:Oswald, sans-serif; }
+.team-events-grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; }
+.team-events-tile { border-radius:14px; padding:.8rem; border:1px solid rgba(255,255,255,.08); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)); }
+.team-events-tile .k { font-family:Oswald, sans-serif; font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:rgba(255,255,255,.45); }
+.team-events-tile .v { font-family:Oswald, sans-serif; font-size:1.6rem; font-weight:700; line-height:1.1; color:#fff; }
+.team-events-tile .s { font-size:.72rem; color:rgba(255,255,255,.5); }
+.team-events-list { margin-top:.7rem; display:flex; flex-direction:column; gap:.35rem; }
+.team-events-row { display:flex; align-items:center; gap:.5rem; font-size:.8rem; padding:.45rem .6rem; border-radius:10px; background:rgba(255,255,255,.025); }
+.team-events-row .res { font-family:Oswald, sans-serif; font-weight:700; width:1.4rem; text-align:center; border-radius:6px; font-size:.72rem; padding:.1rem 0; }
+.team-events-row .res.w { background:rgba(34,197,94,.18); color:#4ade80; }
+.team-events-row .res.l { background:rgba(255,0,92,.15); color:#ff5c8a; }
+.team-events-row .who { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:rgba(255,255,255,.8); }
+.team-events-row .tag { font-size:.68rem; color:rgba(255,255,255,.4); white-space:nowrap; }

@@ -1,4 +1,5 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
+import { WhoPlayed } from "@/components/WhoPlayed";
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useListPlayers, useSubmitMatch, getGetLeaderboardQueryKey, getGetStatsSummaryQueryKey, getGetRecentActivityQueryKey, getListMatchesQueryKey } from "@workspace/api-client-react";
@@ -90,6 +91,10 @@ type SetupData = {
   // sees names/points, never ids — see doubles.ts/shift-wars.ts's
   // /multi-matches routes for the settlement this submits to.
   multiTeamIds?: number[];
+  // Doubles / Shift Wars: official team id → ids of the members who
+  // actually threw. Team stats ignore this; it feeds each player's own
+  // "games for the team" record (team_match_players).
+  whoPlayed?: Record<string, number[]>;
 };
 
 type PlayRecoverySnapshot = {
@@ -467,6 +472,9 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const [combinedMode, setCombinedMode] = useState(false);
   const [extraTeamIds, setExtraTeamIds] = useState<string[]>([]);
   const [extraTeamPlayerIds, setExtraTeamPlayerIds] = useState<Record<string, string[]>>({});
+  const [whoPlayed, setWhoPlayed] = useState<Record<string, number[]>>({});
+  const picksOf = (teamId: string | number | undefined | null): number[] => (teamId == null || teamId === "" ? [] : whoPlayed[String(teamId)] ?? []);
+  const setPicks = (teamId: string | number) => (ids: number[]) => setWhoPlayed(prev => ({ ...prev, [String(teamId)]: ids }));
   // "Multi-team" match (doubles-multi/shift-wars-multi only): 3+ official
   // teams play one live elimination game together — a flat list, not two
   // sides. Doubles needs a real picker (3-6 of however many pairings exist
@@ -662,6 +670,22 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     ...team2Players.filter((p): p is Player => !!p),
     ...(unevenActive && combinedMode ? extraTeamIds.flatMap(id => (extraTeamPlayerIds[id] ?? []).flatMap(pid => rosterOfTeam(id).filter(p => String(p.id) === pid))) : []),
   ];
+  // Who actually threw, per official team. Uneven/combined setups already
+  // name their throwers; balanced and multi matches use the picker.
+  function whoPlayedFor(data: SetupData): Record<string, number[]> | undefined {
+    if (data.combinedMatch) {
+      const m: Record<string, number[]> = { [data.combinedMatch.soloTeamId]: data.combinedMatch.soloPlayers.map(p => p.id) };
+      for (const t of data.combinedMatch.combinedTeams) m[t.teamId] = t.players.map(p => p.id);
+      return m;
+    }
+    const ids = data.doublesTeamIds ?? data.shiftWarsTeamIds;
+    if (ids) {
+      if (data.unevenTurnOrder) return { [ids[0]]: data.team1.map(p => p.id), [ids[1]]: data.team2.map(p => p.id) };
+      return { [ids[0]]: picksOf(ids[0]), [ids[1]]: picksOf(ids[1]) };
+    }
+    if (data.multiTeamIds) return Object.fromEntries(data.multiTeamIds.map(id => [String(id), picksOf(id)]));
+    return undefined;
+  }
   function onStart(data: SetupData) {
     // Always "per-player" — the figure typed into Stake is per player, and
     // the backend (wagerPot/combinedPot in wager-pot.ts/wager.ts) is what
@@ -672,7 +696,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
     // 1-vs-2 match moved a flat 5pts for everyone instead of scaling to a
     // 10pt pot (5 per head on the bigger side). wagerSides/wagerPotScale
     // below are purely for the on-screen preview of that same scaled split.
-    commitSetup({ ...data, stakeMode: "per-player", ...(totalWager ? { wagerSides } : {}) });
+    commitSetup({ ...data, stakeMode: "per-player", ...(totalWager ? { wagerSides } : {}), whoPlayed: whoPlayedFor(data) });
   }
 
   // Stake validation
@@ -725,12 +749,20 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
   const team2Ready = (format === "1v1" && !unevenActive) ? true : team2Players.every(Boolean);
   const ffaReady   = format === "killer-ffa" && ffaPlayers.every(Boolean) && new Set(ffaIds.slice(0, ffaCount).filter(Boolean)).size === ffaCount;
   const doublesReady = format === "doubles-event" && !!doublesTeam1 && !!doublesTeam2 && doublesTeam1.id !== doublesTeam2.id
-    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean))) && combinedReady;
+    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean))) && combinedReady
+    && (unevenActive || (picksOf(doublesTeam1.id).length > 0 && picksOf(doublesTeam2.id).length > 0));
   const shiftWarsReady = format === "shift-wars" && !!shiftWarsTeam1 && !!shiftWarsTeam2 && shiftWarsTeam1.id !== shiftWarsTeam2.id
-    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean))) && combinedReady;
+    && (!unevenActive || (team1Players.every(Boolean) && team2Players.every(Boolean))) && combinedReady
+    && (unevenActive || (picksOf(shiftWarsTeam1.id).length > 0 && picksOf(shiftWarsTeam2.id).length > 0));
+  const whoPlayedMissing = format === "doubles-event"
+    ? !!doublesTeam1 && !!doublesTeam2 && (picksOf(doublesTeam1.id).length === 0 || picksOf(doublesTeam2.id).length === 0)
+    : format === "shift-wars"
+    ? !!shiftWarsTeam1 && !!shiftWarsTeam2 && (picksOf(shiftWarsTeam1.id).length === 0 || picksOf(shiftWarsTeam2.id).length === 0)
+    : false;
+  const multiPicksReady = multiParticipants.every(p => picksOf(p.id).length > 0);
 
   const playersReady = format === "killer-ffa" ? ffaReady
-    : multiActive ? multiReady
+    : multiActive ? (multiReady && multiPicksReady)
     : format === "doubles-event" ? doublesReady
     : format === "shift-wars" ? shiftWarsReady
     : (team1Ready && team2Ready);
@@ -1100,6 +1132,14 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
                 exclude={[doublesTeam2Id].filter(Boolean)} teams={activeDoublesTeams} />
               <DoublesTeamSlot label="Team 2" color="#ee0a78" value={doublesTeam2Id} onChange={setDoublesTeam2Id}
                 exclude={[doublesTeam1Id].filter(Boolean)} teams={activeDoublesTeams} />
+              {!unevenActive && doublesTeam1 && (
+                <WhoPlayed label="Who played" color="#22c55e" roster={doublesTeam1.players}
+                  value={picksOf(doublesTeam1.id)} onChange={setPicks(doublesTeam1.id)} />
+              )}
+              {!unevenActive && doublesTeam2 && (
+                <WhoPlayed label="Who played" color="#ee0a78" roster={doublesTeam2.players}
+                  value={picksOf(doublesTeam2.id)} onChange={setPicks(doublesTeam2.id)} />
+              )}
             </div>
           )
         )}
@@ -1122,6 +1162,14 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
                 <ShiftWarsTeamSlot label="Team 2" color="#ee0a78" value={shiftWarsTeam2Id} onChange={setShiftWarsTeam2Id}
                   exclude={[shiftWarsTeam1Id].filter(Boolean)} teams={shiftWarsTeams} />
               </div>
+              {!unevenActive && shiftWarsTeam1 && shiftWarsTeam2 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <WhoPlayed label={shiftWarsTeam1.name} color="#22c55e" roster={swRoster1}
+                    value={picksOf(shiftWarsTeam1.id)} onChange={setPicks(shiftWarsTeam1.id)} />
+                  <WhoPlayed label={shiftWarsTeam2.name} color="#ee0a78" roster={swRoster2}
+                    value={picksOf(shiftWarsTeam2.id)} onChange={setPicks(shiftWarsTeam2.id)} />
+                </div>
+              )}
               {unevenTeamsEnabled && shiftWarsTeam1 && shiftWarsTeam2 && (swRoster1.length === 0 || swRoster2.length === 0) && (
                 <p className="text-xs" style={{ color: "rgba(255,210,74,0.6)", fontFamily: "Oswald, sans-serif" }}>
                   {swRoster1.length === 0 ? shiftWarsTeam1.name : shiftWarsTeam2.name} has no players assigned yet — an admin needs to add some (Admin → Shift Wars) before Uneven Teams can build a roster for this pairing.
@@ -1375,6 +1423,17 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
                     exclude={multiTeamIds.filter(x => x !== id && x !== "")} teams={activeDoublesTeams} />
                 ))}
               </div>
+              {multiTeamIds.filter(Boolean).length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {multiTeamIds.map((id, i) => {
+                    const t = activeDoublesTeams.find(t => String(t.id) === id);
+                    return t ? (
+                      <WhoPlayed key={id} label={t.teamName} color={["#22c55e","#ee0a78","#ffd24a","#38bdf8","#f97316","#a78bfa"][i]}
+                        roster={t.players} value={picksOf(t.id)} onChange={setPicks(t.id)} />
+                    ) : null;
+                  })}
+                </div>
+              )}
               <div className="flex gap-2">
                 {multiTeamIds.length < multiMax && (
                   <button type="button" onClick={() => setMultiTeamIds(prev => [...prev, ""])}
@@ -1416,6 +1475,12 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
                     <div className="text-xs font-bold uppercase" style={{ fontFamily: "Oswald, sans-serif", color: ["#22c55e","#ee0a78","#38bdf8"][i % 3] }}>{t.name}</div>
                     <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>{t.points}pts</div>
                   </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {shiftWarsTeams.map((t, i) => (
+                  <WhoPlayed key={t.id} label={t.name} color={["#22c55e","#ee0a78","#38bdf8"][i % 3]}
+                    roster={teamRoster(players, t)} value={picksOf(t.id)} onChange={setPicks(t.id)} />
                 ))}
               </div>
             </div>
@@ -1594,7 +1659,7 @@ function SetupScreen({ onStart: commitSetup }: { onStart: (d: SetupData) => void
             : multiActive
             ? `Start Killer — ${multiParticipants.length} Teams`
             : `Start — ${selectedGame?.name}`
-          : format === "killer-ffa" ? "Select players & game" : multiActive ? "Select teams & game" : (format === "doubles-event" || format === "shift-wars") ? "Select teams, game & stake" : "Select players, game & stake"}
+          : format === "killer-ffa" ? "Select players & game" : multiActive ? (multiReady && !multiPicksReady ? "Pick who played for each team" : "Select teams & game") : (format === "doubles-event" || format === "shift-wars") ? (!unevenActive && whoPlayedMissing ? "Pick who played for each team" : "Select teams, game & stake") : "Select players, game & stake"}
         {canStart && <ChevronRight className="inline ml-2 w-5 h-5" />}
       </button>
 
@@ -1755,7 +1820,8 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             soloTeamId,
             soloFieldedCount: soloPlayers.length,
             soloWon,
-            combinedTeams: combinedTeams.map(t => ({ teamId: t.teamId, fieldedCount: t.players.length })),
+            soloPlayerIds: soloPlayers.map(p => p.id),
+            combinedTeams: combinedTeams.map(t => ({ teamId: t.teamId, fieldedCount: t.players.length, playerIds: t.players.map(p => p.id) })),
             stake:    data.stake,
             stakeMode: data.stakeMode,
             gameType: data.gameType.key,
@@ -1798,6 +1864,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             gameType: data.gameType.key,
             winnerFieldedCount,
             loserFieldedCount,
+            ...(data.whoPlayed ? { winnerPlayerIds: data.whoPlayed[winnerTeamId] ?? [], loserPlayerIds: data.whoPlayed[loserTeamId] ?? [] } : {}),
             ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
@@ -1831,6 +1898,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             gameType: data.gameType.key,
             winnerFieldedCount,
             loserFieldedCount,
+            ...(data.whoPlayed ? { winnerPlayerIds: data.whoPlayed[winnerTeamId] ?? [], loserPlayerIds: data.whoPlayed[loserTeamId] ?? [] } : {}),
             ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
@@ -1855,6 +1923,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           body: JSON.stringify({
             participantTeamIds: data.multiTeamIds,
             winnerTeamId: data.multiTeamIds[result.winnerIdx],
+            ...(data.whoPlayed ? { teamPlayers: data.multiTeamIds.map(id => ({ teamId: id, playerIds: data.whoPlayed?.[id] ?? [] })) } : {}),
             stake: data.stake,
             gameType: data.gameType.key,
             ...(idempotencyKey ? { idempotencyKey } : {}),

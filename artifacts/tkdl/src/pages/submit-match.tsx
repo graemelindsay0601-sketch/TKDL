@@ -1,4 +1,5 @@
 import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
+import { WhoPlayed } from "@/components/WhoPlayed";
 import {
   useListPlayers,
   useSubmitMatch,
@@ -746,12 +747,15 @@ function ShiftWarsSubmitSection() {
   const [loserTeamId, setLoserTeamId]   = useState<number | null>(null);
   const [stake, setStake]         = useState("5");
   const [gameType, setGameType]   = useState("");
+  const [whoPlayed, setWhoPlayed] = useState<Record<number, number[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<FinalWhistleReceipt | null>(null);
 
   const winner = teams.find((t: any) => t.id === winnerTeamId) ?? null;
   const loser  = teams.find((t: any) => t.id === loserTeamId)  ?? null;
   const bothSelected = !!winner && !!loser && winner.id !== loser.id;
+  const picks = (id?: number) => (id == null ? [] : whoPlayed[id] ?? []);
+  const picksReady = bothSelected && picks(winner?.id).length > 0 && picks(loser?.id).length > 0;
   const maxStake = winner && loser ? Math.min(winner.points, loser.points) : 25;
   const stakeN   = parseInt(stake) || 0;
 
@@ -766,6 +770,10 @@ function ShiftWarsSubmitSection() {
 
   async function onSubmit() {
     if (!bothSelected || !winner || !loser) return;
+    if (!picksReady) {
+      toast({ title: "Who played?", description: "Pick at least one player for each team", variant: "destructive" });
+      return;
+    }
     if (stakeN < 1) {
       toast({ title: "Invalid Stake", description: "Stake must be at least 1 point", variant: "destructive" });
       return;
@@ -779,7 +787,7 @@ function ShiftWarsSubmitSection() {
       const res = await fetch("/api/shift-wars/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ winnerTeamId: winner.id, loserTeamId: loser.id, stake: stakeN, gameType: gameType || undefined }),
+        body: JSON.stringify({ winnerTeamId: winner.id, loserTeamId: loser.id, winnerPlayerIds: picks(winner.id), loserPlayerIds: picks(loser.id), stake: stakeN, gameType: gameType || undefined }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -791,7 +799,7 @@ function ShiftWarsSubmitSection() {
         { id:winner.id, name:winner.name, result:"win", pointsBefore:winner.points, pointsAfter:winner.points + stakeN, rank:data.newWinnerTeamRank, rankChange:data.winnerTeamRankChange, record:`${winner.wins + 1}W–${winner.losses}L` },
         { id:loser.id, name:loser.name, result:"loss", pointsBefore:loser.points, pointsAfter:Math.max(0,loser.points-stakeN), rank:data.newLoserTeamRank, rankChange:data.loserTeamRankChange, record:`${loser.wins}W–${loser.losses + 1}L` },
       ] });
-      setWinnerTeamId(null); setLoserTeamId(null); setStake("5"); setGameType("");
+      setWinnerTeamId(null); setLoserTeamId(null); setStake("5"); setGameType(""); setWhoPlayed({});
       qc.invalidateQueries({ queryKey: ["leaderboard-shiftwars"] });
       reload();
     } catch (e: any) {
@@ -858,14 +866,23 @@ function ShiftWarsSubmitSection() {
         </div>
       )}
 
+      {bothSelected && winner && loser && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <WhoPlayed label={`${winner.name} · won`} color="#22c55e" roster={(winner.players ?? []).filter((p: any) => p?.id != null)}
+            value={picks(winner.id)} onChange={ids => setWhoPlayed(prev => ({ ...prev, [winner.id]: ids }))} />
+          <WhoPlayed label={`${loser.name} · lost`} color="#ff005c" roster={(loser.players ?? []).filter((p: any) => p?.id != null)}
+            value={picks(loser.id)} onChange={ids => setWhoPlayed(prev => ({ ...prev, [loser.id]: ids }))} />
+        </div>
+      )}
+
       <StakeCard value={stakeN} onChange={v => setStake(String(v))} max={maxStake} bothSelected={bothSelected} />
       <GameTypeCard value={gameType} onChange={setGameType} options={["501", "301", "Cricket", "Killer"]} theme="green" />
 
       <SubmitCTA
         type="button" onClick={onSubmit} theme="green"
-        submitting={submitting} disabled={submitting || !bothSelected || maxStake === 0}
-        ready={bothSelected && !!winner && !!loser} readyLabel={`Confirm: ${winner?.name} def. ${loser?.name}`}
-        idleLabel="Select winning & losing team above"
+        submitting={submitting} disabled={submitting || !picksReady || maxStake === 0}
+        ready={picksReady && !!winner && !!loser} readyLabel={`Confirm: ${winner?.name} def. ${loser?.name}`}
+        idleLabel={bothSelected ? "Pick who played for each team" : "Select winning & losing team above"}
       />
     </div>
   );
@@ -914,6 +931,7 @@ function DoublesSubmitSection() {
   const [loserTeamId, setLoserTeamId]   = useState<number | null>(null);
   const [stake, setStake]         = useState("5");
   const [gameType, setGameType]   = useState("");
+  const [whoPlayed, setWhoPlayed] = useState<Record<number, number[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState<FinalWhistleReceipt | null>(null);
 
@@ -921,6 +939,8 @@ function DoublesSubmitSection() {
   const winner = activeTeams.find((t: any) => t.id === winnerTeamId) ?? null;
   const loser  = activeTeams.find((t: any) => t.id === loserTeamId)  ?? null;
   const bothSelected = !!winner && !!loser && winner.id !== loser.id;
+  const picks = (id?: number) => (id == null ? [] : whoPlayed[id] ?? []);
+  const picksReady = bothSelected && picks(winner?.id).length > 0 && picks(loser?.id).length > 0;
   const maxStake = winner && loser ? Math.min(winner.points, loser.points) : 25;
   const stakeN   = parseInt(stake) || 0;
 
@@ -935,6 +955,10 @@ function DoublesSubmitSection() {
 
   async function onSubmit() {
     if (!bothSelected || !winner || !loser) return;
+    if (!picksReady) {
+      toast({ title: "Who played?", description: "Pick at least one player for each team", variant: "destructive" });
+      return;
+    }
     if (stakeN < 1) {
       toast({ title: "Invalid Stake", description: "Stake must be at least 1 point", variant: "destructive" });
       return;
@@ -948,7 +972,7 @@ function DoublesSubmitSection() {
       const res = await fetch("/api/doubles/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ winnerTeamId: winner.id, loserTeamId: loser.id, stake: stakeN, gameType: gameType || undefined }),
+        body: JSON.stringify({ winnerTeamId: winner.id, loserTeamId: loser.id, winnerPlayerIds: picks(winner.id), loserPlayerIds: picks(loser.id), stake: stakeN, gameType: gameType || undefined }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -961,7 +985,7 @@ function DoublesSubmitSection() {
         { id:winner.id, name:winner.teamName, result:"win", pointsBefore:winner.points, pointsAfter:winner.points + stakeN, eloBefore:winner.elo, eloAfter:winner.elo + eloChange, rank:data.newWinnerTeamRank, rankChange:data.winnerTeamRankChange, record:`${winner.wins + 1}W–${winner.losses}L` },
         { id:loser.id, name:loser.teamName, result:"loss", pointsBefore:loser.points, pointsAfter:Math.max(0,loser.points-stakeN), eloBefore:loser.elo, eloAfter:Math.max(800,loser.elo-eloChange), rank:data.newLoserTeamRank, rankChange:data.loserTeamRankChange, record:`${loser.wins}W–${loser.losses + 1}L`, eliminated:Boolean(data.loserEliminated) },
       ] });
-      setWinnerTeamId(null); setLoserTeamId(null); setStake("5"); setGameType("");
+      setWinnerTeamId(null); setLoserTeamId(null); setStake("5"); setGameType(""); setWhoPlayed({});
       qc.invalidateQueries({ queryKey: ["leaderboard-doubles"] });
       reload();
     } catch (e: any) {
@@ -1029,14 +1053,23 @@ function DoublesSubmitSection() {
         </div>
       )}
 
+      {bothSelected && winner && loser && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <WhoPlayed label={`${winner.teamName} · won`} color="#22c55e" roster={(winner.players ?? []).filter((p: any) => p?.id != null)}
+            value={picks(winner.id)} onChange={ids => setWhoPlayed(prev => ({ ...prev, [winner.id]: ids }))} />
+          <WhoPlayed label={`${loser.teamName} · lost`} color="#ff005c" roster={(loser.players ?? []).filter((p: any) => p?.id != null)}
+            value={picks(loser.id)} onChange={ids => setWhoPlayed(prev => ({ ...prev, [loser.id]: ids }))} />
+        </div>
+      )}
+
       <StakeCard value={stakeN} onChange={v => setStake(String(v))} max={maxStake} bothSelected={bothSelected} />
       <GameTypeCard value={gameType} onChange={setGameType} options={["501", "301", "Cricket", "Killer"]} theme="blue" />
 
       <SubmitCTA
         type="button" onClick={onSubmit} theme="blue"
-        submitting={submitting} disabled={submitting || !bothSelected || maxStake === 0}
-        ready={bothSelected && !!winner && !!loser} readyLabel={`Confirm: ${winner?.teamName} def. ${loser?.teamName}`}
-        idleLabel="Select winning & losing team above"
+        submitting={submitting} disabled={submitting || !picksReady || maxStake === 0}
+        ready={picksReady && !!winner && !!loser} readyLabel={`Confirm: ${winner?.teamName} def. ${loser?.teamName}`}
+        idleLabel={bothSelected ? "Pick who played for each team" : "Select winning & losing team above"}
       />
     </div>
   );
