@@ -122,6 +122,7 @@ import { addSeasonResetLock } from "./db/migrations/add_season_reset_lock";
 import { addUsersPlayerIdUnique } from "./db/migrations/add_users_player_id_unique";
 import { addUsersScorerStyle } from "./db/migrations/add_users_scorer_style";
 import { fixFeb2026Tiebreak } from "./db/migrations/fix_feb_2026_tiebreak";
+import { createTeamMatchPlayers } from "./db/migrations/create_team_match_players";
 import { TEAM_LEADERSHIP_EFFECTIVE_DATE } from "./lib/shift-wars-season-name";
 import { addMatchParticipantDeltas } from "./db/migrations/add_match_participant_deltas";
 import { addDoublesMatchDeltas } from "./db/migrations/add_doubles_match_deltas";
@@ -1789,6 +1790,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("addPerformanceIndexes5", addPerformanceIndexes5);
   await runMigrationStep("addPerformanceIndexes6", addPerformanceIndexes6);
   await runMigrationStep("relaxAdminAnnouncementsAdminId", relaxAdminAnnouncementsAdminId);
+  await runMigrationStep("createTeamMatchPlayers", createTeamMatchPlayers);
   // Catch up if the November season was opened before this code was deployed.
   // Only the live team row is renamed; the outgoing season's snapshot remains
   // unchanged, and the conflict guard avoids merging two separately-used teams.
