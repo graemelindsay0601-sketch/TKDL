@@ -3,6 +3,7 @@
  * (where their practice darts land, ring by ring, from the scorer's dart logs).
  */
 import { Router } from "express";
+import { ensureMatchDartLogs } from "./match-darts";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 
@@ -42,8 +43,11 @@ router.get("/players/:id/honours", async (req, res): Promise<void> => {
 router.get("/players/:id/dart-map", async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid id" }); return; }
+  await ensureMatchDartLogs();
   const cells = await rows<{ seg: number; mult: number; n: number }>(sql`SELECT (d->>'seg')::int seg, COALESCE((d->>'mult')::int, 1) mult, COUNT(*)::int n
-    FROM (SELECT jsonb_array_elements(session_data->'dartLog') d FROM practice_sessions WHERE player1_id = ${id} AND session_data ? 'dartLog') t
+    FROM (SELECT jsonb_array_elements(session_data->'dartLog') d FROM practice_sessions WHERE player1_id = ${id} AND session_data ? 'dartLog'
+      UNION ALL SELECT jsonb_array_elements(CASE WHEN m.winner_id = ${id} THEN l.winner_darts ELSE l.loser_darts END) d
+      FROM match_dart_logs l JOIN matches m ON m.id = l.match_id WHERE m.winner_id = ${id} OR m.loser_id = ${id}) t
     WHERE NOT (d ? 'typed') AND (d->>'seg') IS NOT NULL GROUP BY 1, 2`);
   let total = 0, misses = 0;
   const map: { seg: number; mult: number; n: number }[] = [];

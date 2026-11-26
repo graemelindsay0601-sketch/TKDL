@@ -585,14 +585,15 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 export function botCricketVisit(
   myMarks: number[],
   cfg: BotConfig,
+  nums: number[] = CRICKET_NUMS,
 ): [Dart, Dart, Dart] {
   const darts: Dart[] = [];
   for (let i = 0; i < 3; i++) {
     if (Math.random() > cfg.hitAcc) {
       darts.push(BOT_MISS);
     } else {
-      const priority = CRICKET_NUMS.filter((_, idx) => myMarks[idx] < 3);
-      const pool = priority.length > 0 ? priority : CRICKET_NUMS;
+      const priority = nums.filter((_, idx) => myMarks[idx] < 3);
+      const pool = priority.length > 0 ? priority : nums;
       const seg = pool[Math.floor(Math.random() * Math.min(3, pool.length))];
       const roll = Math.random();
       const mult: 1 | 2 | 3 = roll < cfg.hitAcc * 0.45 ? 3 : roll < cfg.hitAcc * 0.7 ? 2 : 1;

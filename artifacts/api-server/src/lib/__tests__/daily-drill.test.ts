@@ -31,3 +31,10 @@ test("leaderboard keeps each player's best; streak counts consecutive drill days
   assert.equal(streak(1, sessions.slice(0, 2), "2026-11-26"), 2, "today not done yet: the run up to yesterday still counts");
   assert.equal(londonDay(new Date("2026-06-30T23:30:00Z")), "2026-07-01", "London time in summer");
 });
+
+import { passedPlayers } from "../daily-drill.ts";
+test("passedPlayers finds who was ahead and is now behind", () => {
+  assert.deepEqual(passedPlayers([1, 2, 3, 4], [1, 4, 2, 3], 4), [2, 3]);
+  assert.deepEqual(passedPlayers([1, 2], [5, 1, 2], 5), [1, 2]); // new entry straight to the top
+  assert.deepEqual(passedPlayers([1, 2, 3], [1, 2, 3], 3), []);
+});

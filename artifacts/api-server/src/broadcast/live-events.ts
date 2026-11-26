@@ -46,6 +46,8 @@ import {
   type BroadcastStory, type LeagueType,
 } from "@workspace/db";
 import { SINGLES_ONLY } from "./history-reconstruction.ts";
+import { matchReports } from "../lib/match-report-db.ts";
+import { recordMatchIds } from "../lib/league-records-db.ts";
 import { detectAndUpdateStories, type StoredStandingSnapshot } from "./story-engine.ts";
 import { latestPublishedEdition, isEditionProgramme } from "./edition-engine.ts";
 import { programmeSegmentId, type EditionProgramme } from "./director-math.ts";
@@ -258,7 +260,7 @@ function computeOverlays(freshStories: readonly BroadcastStory[], matchPlayedAtB
 // C.2 getLivePayload
 // ═══════════════════════════════════════════════════════════════════════
 
-export type LiveTickerItem = { matchId: number; leagueType: LeagueType; winnerId: number; loserId: number; playedAt: string };
+export type LiveTickerItem = { matchId: number; leagueType: LeagueType; winnerId: number; loserId: number; playedAt: string; tag?: string };
 
 export type LivePayload = {
   currentEditionId: number | null;
@@ -321,6 +323,12 @@ export async function getLivePayload(now: Date = new Date()): Promise<LivePayloa
   ]);
 
   const matchPlayedAtById = new Map(recentMatches.map(m => [m.matchId, m.playedAt] as const));
+  // Short angle for each singles result on the ticker ("upset", "out on D16"), from the automatic match report.
+  const singlesIds = recentMatches.filter(m => m.leagueType === "singles").map(m => m.matchId);
+  const [reports, recordIds] = await Promise.all([
+    matchReports(singlesIds).catch(() => new Map<number, { ticker: string | null }>()),
+    recordMatchIds(singlesIds).catch(() => new Set<number>()),
+  ]);
   const standingsCache: StandingsCache = new Map();
   const previousProgramme = previous && isEditionProgramme(previous.programme) ? previous.programme : null;
 
@@ -332,7 +340,7 @@ export async function getLivePayload(now: Date = new Date()): Promise<LivePayloa
   return {
     currentEditionId: previous?.id ?? null,
     leaders,
-    tickerItems: recentMatches.map(m => ({ matchId: m.matchId, leagueType: m.leagueType, winnerId: m.winnerId, loserId: m.loserId, playedAt: m.playedAt.toISOString() })),
+    tickerItems: recentMatches.map(m => { const tag = m.leagueType !== "singles" ? null : recordIds.has(m.matchId) ? "league record" : reports.get(m.matchId)?.ticker; return { matchId: m.matchId, leagueType: m.leagueType, winnerId: m.winnerId, loserId: m.loserId, playedAt: m.playedAt.toISOString(), ...(tag ? { tag } : {}) }; }),
     overlays: computeOverlays(freshStories, matchPlayedAtById, now),
     invalidSegmentIds,
   };

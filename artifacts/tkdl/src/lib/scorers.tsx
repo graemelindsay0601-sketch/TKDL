@@ -2476,8 +2476,10 @@ const CRICKET_NUMS = [20, 19, 18, 17, 16, 15, 25];
 const CRICKET_LABELS = ["20", "19", "18", "17", "16", "15", "Bull"];
 const markSymbol = (m: number) => m === 0 ? "" : m === 1 ? "/" : m === 2 ? "✕" : "●";
 
-export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0 }: {
+export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull = true, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, cardEffects = [], legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, nums: numsProp }: {
   p1Name: string; p2Name: string; cutThroat?: boolean; includesBull?: boolean; botConfig?: BotConfig;
+  /** Numbers in play, bull last (Tactics uses 20 down to 10). Defaults to 20–15 and the bull. */
+  nums?: number[];
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onLiveState?: (state: LiveScoreState) => void;
@@ -2508,12 +2510,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   firstThrower?: 0 | 1;
 }) {
   const safeTimeout = useSafeTimeout();
-  const numCount = includesBull ? 7 : 6;
+  const NUMS = numsProp ?? CRICKET_NUMS;
+  const ZERO = () => Array(NUMS.length).fill(0) as number[];
+  const numCount = includesBull ? NUMS.length : NUMS.length - 1;
   const legs = legsProp;
   useEffect(() => { onLegStart?.(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setsNeeded = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
-  const [marks, setMarks]       = useSnapState<CricketMarks>("CricketScorer.marks", () => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [marks, setMarks]       = useSnapState<CricketMarks>("CricketScorer.marks", () => initialRecovery?.marks ?? [ZERO(), ZERO()] as CricketMarks);
   const [scores, setScores]     = useSnapState<[number,number]>("CricketScorer.scores", () => initialRecovery?.scores ?? [0,0]);
   const [turn, setTurn]         = useSnapState<0|1>("CricketScorer.turn", () => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
   const [legWins, setLegWins]       = useSnapState<[number, number]>("CricketScorer.legWins", () => initialRecovery?.legWins ?? [0, 0]);
@@ -2529,9 +2533,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const [lockedNumbers, setLockedNumbers] = useSnapState<[Set<number>, Set<number>]>("CricketScorer.lockedNumbers", [new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
   const [protectedNumbers, setProtectedNumbers] = useSnapState<[Set<number>, Set<number>]>("CricketScorer.protectedNumbers", [new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
   const [turnCounter, setTurnCounter] = useSnapState<number>("CricketScorer.turnCounter", 1); // FIX 309: Track turn number in leg (1-based) for Early Closer
-  const [prevTurnMarks, setPrevTurnMarks] = useSnapState<[number[],number[]]>("CricketScorer.prevTurnMarks", [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
-  const [lastVisitMarkGains, setLastVisitMarkGains] = useSnapState<[number[],number[]]>("CricketScorer.lastVisitMarkGains", [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks gained last visit for Momentum Killer/Streak Breaker
-  const [visitMarkGains, setVisitMarkGains] = useSnapState<number[]>("CricketScorer.visitMarkGains", [0,0,0,0,0,0,0]); // Track marks gained this visit
+  const [prevTurnMarks, setPrevTurnMarks] = useSnapState<[number[],number[]]>("CricketScorer.prevTurnMarks", [ZERO(), ZERO()] as CricketMarks); // Track marks from previous turn for Momentum Killer
+  const [lastVisitMarkGains, setLastVisitMarkGains] = useSnapState<[number[],number[]]>("CricketScorer.lastVisitMarkGains", [ZERO(), ZERO()] as CricketMarks); // Track marks gained last visit for Momentum Killer/Streak Breaker
+  const [visitMarkGains, setVisitMarkGains] = useSnapState<number[]>("CricketScorer.visitMarkGains", ZERO()); // Track marks gained this visit
   const [cricketVisitScore, setCricketVisitScore] = useSnapState("CricketScorer.cricketVisitScore", 0); // Track score gained this visit
   const [cricketVisitMarks, setCricketVisitMarks] = useSnapState("CricketScorer.cricketVisitMarks", 0); // Track total marks gained this visit
   const [cricketClosedThisVisit, setCricketClosedThisVisit] = useSnapState("CricketScorer.cricketClosedThisVisit", false); // Track if number was closed this visit
@@ -2634,7 +2638,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     });
 
     // Reset visit state
-    setVisitMarkGains([0,0,0,0,0,0,0]);
+    setVisitMarkGains(ZERO());
     setCricketVisitScore(0);
     setCricketVisitMarks(0);
     setCricketClosedThisVisit(false);
@@ -2825,7 +2829,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     let calledNumber: number | undefined;
     for (let i = 0; i < numCount; i++) {
       if (marks[turn][i] < 3) {
-        calledNumber = CRICKET_NUMS[i];
+        calledNumber = NUMS[i];
         break;
       }
     }
@@ -2837,7 +2841,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const opp: 0|1 = turn === 0 ? 1 : 0;
       const oppMarks = marks[opp];
       const closedNumbers: number[] = [];
-      CRICKET_NUMS.forEach((num, idx) => {
+      NUMS.forEach((num, idx) => {
         if (oppMarks[idx] >= 3) closedNumbers.push(num);
       });
       if (closedNumbers.length > 0) {
@@ -2931,7 +2935,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     let calledNumber: number | undefined;
     for (let i = 0; i < numCount; i++) {
       if (marks[turn][i] < 3) {
-        calledNumber = CRICKET_NUMS[i];
+        calledNumber = NUMS[i];
         break;
       }
     }
@@ -2946,7 +2950,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const opp: 0|1 = turn === 0 ? 1 : 0;
       const oppMarks = marks[opp];
       const closedNumbers: number[] = [];
-      CRICKET_NUMS.forEach((num, idx) => {
+      NUMS.forEach((num, idx) => {
         if (oppMarks[idx] >= 3) closedNumbers.push(num);
       });
       
@@ -3093,7 +3097,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       legWinPendingRef.current = false;
       const ns: 0|1 = legStarter === 0 ? 1 : 0;
       setLegStarter(ns);
-      setMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+      setMarks([ZERO(), ZERO()] as CricketMarks);
       // Fold in any Board Mark reward/penalty that hasn't settled yet (see
       // pendingBoardMarkAdjustmentRef's BUGFIX note) so it isn't silently
       // lost if this leg ended on the exact same dart that triggered it.
@@ -3111,9 +3115,9 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       setLockedNumbers([new Set(), new Set()]);
       setProtectedNumbers([new Set(), new Set()]);
       setTurnCounter(1);
-      setPrevTurnMarks([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-      setLastVisitMarkGains([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-      setVisitMarkGains([0,0,0,0,0,0,0]);
+      setPrevTurnMarks([ZERO(), ZERO()] as CricketMarks);
+      setLastVisitMarkGains([ZERO(), ZERO()] as CricketMarks);
+      setVisitMarkGains(ZERO());
       setCricketVisitScore(0);
       setCricketVisitMarks(0);
       setCricketClosedThisVisit(false);
@@ -3336,7 +3340,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       if (nv.length === 3) { setVisitDarts([]); setTurn(t => soloMode ? 0 : (t===0?1:0)); setLastHit(""); }
       return;
     }
-    const numIdx = CRICKET_NUMS.indexOf(effectiveDart.segment);
+    const numIdx = NUMS.indexOf(effectiveDart.segment);
     const nv = [...visitDarts, dart];
 
     if (numIdx >= 0) {
@@ -3392,11 +3396,11 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       const canClose = !isCardClash || !ccBlockClosing(activeEffects, turn);
       
       // FIX 306: Check if number is protected by opponent's Closing Protection
-      const isProtected = isCardClash && protectedNumbers[turn === 0 ? 1 : 0].has(CRICKET_NUMS[numIdx]);
+      const isProtected = isCardClash && protectedNumbers[turn === 0 ? 1 : 0].has(NUMS[numIdx]);
       const effectiveCanClose = canClose && !isProtected;
       
       // Card Clash: Check if number is locked (Number Prison)
-      const isLocked = isCardClash && lockedNumbers[turn].has(CRICKET_NUMS[numIdx]);
+      const isLocked = isCardClash && lockedNumbers[turn].has(NUMS[numIdx]);
       const effectiveHitsAfterLock = isLocked ? 0 : effectiveHits;
 
       // BUGFIX AUDIT (610 Shutdown): maxMarksPerTurn field was defined but never enforced —
@@ -3444,7 +3448,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (hasClosingProtection) {
             setProtectedNumbers(prev => {
               const newProtected = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
-              newProtected[turn].add(CRICKET_NUMS[numIdx]);
+              newProtected[turn].add(NUMS[numIdx]);
               return newProtected;
             });
           }
@@ -3460,7 +3464,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (hasReOpeningBlock) {
             setLockedNumbers(prev => {
               const newLocked = [new Set(prev[0]), new Set(prev[1])] as [Set<number>, Set<number>];
-              newLocked[turn].add(CRICKET_NUMS[numIdx]);
+              newLocked[turn].add(NUMS[numIdx]);
               return newLocked;
             });
           }
@@ -3505,7 +3509,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               : extra;
             setScores(ps => {
               const ns: [number,number] = [...ps] as [number,number];
-              const val = CRICKET_NUMS[numIdx];
+              const val = NUMS[numIdx];
               if (cutThroat) ns[opp] += effectiveExtra * val;
               else ns[turn] += effectiveExtra * val;
               // Card Clash: per-mark penalty/bonus (Mark Erasure, Momentum Arsenal)
@@ -3542,7 +3546,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           setMarks(prev => {
             const nm: typeof marks = [[ ...prev[0] ] as any, [ ...prev[1] ] as any];
             for (const segment of bullEffect.bullMarksSegments ?? []) {
-              const segIdx = CRICKET_NUMS.indexOf(segment);
+              const segIdx = NUMS.indexOf(segment);
               if (segIdx >= 0) nm[turn][segIdx] = Math.min(3, nm[turn][segIdx] + 1);
             }
             return nm;
@@ -3568,7 +3572,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           if (perfectRound && perfectRound.bonusIfAllMarksThisTurn) {
             // Count marks this turn on all numbers in visitDarts
             const marksThisTurn = visitDarts.reduce((sum, dart) => {
-              const idx = CRICKET_NUMS.indexOf(dart.segment);
+              const idx = NUMS.indexOf(dart.segment);
               return idx >= 0 ? sum + 1 : sum;
             }, 0);
             
@@ -3602,7 +3606,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
               // Player is behind - apply 1.5x bonus to marks scored this turn
               // Each mark = +10 points, so 1.5x means +15 per mark (bonus of +5 per mark)
               let marksThisTurn = 0;
-              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]];
+              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [ZERO(), ZERO()] as CricketMarks;
               for (let i = 0; i < numCount; i++) {
                 marksThisTurn += (marks[turn][i] - lastMarks[turn][i]);
               }
@@ -3640,7 +3644,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             if (closedByPlayer > closedByOpp) {
               // Apply 1.3x bonus to marks scored this turn using ceil
               let marksThisTurn = 0;
-              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]];
+              const lastMarks = snapHistory.length > 0 ? snapHistory[snapHistory.length - 1].marks : [ZERO(), ZERO()] as CricketMarks;
               for (let i = 0; i < numCount; i++) {
                 marksThisTurn += (marks[turn][i] - lastMarks[turn][i]);
               }
@@ -3731,7 +3735,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         });
         
         // Reset visit tracking state for next player
-        setVisitMarkGains([0,0,0,0,0,0,0]);
+        setVisitMarkGains(ZERO());
         setCricketVisitScore(0);
         setCricketVisitMarks(0);
         setCricketClosedThisVisit(false);
@@ -3788,7 +3792,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   const isBotTurnCri = !!botConfig && turn === 1;
   useEffect(() => {
     if (!botConfig || turn !== 1) return;
-    const [d1, d2, d3] = botCricketVisit([...marks[1]], botConfig);
+    const [d1, d2, d3] = botCricketVisit([...marks[1]], botConfig, NUMS);
     const t1 = safeTimeout(() => handleDartRefCri.current(d1), 700);
     const t2 = safeTimeout(() => handleDartRefCri.current(d2), 1400);
     const t3 = safeTimeout(() => handleDartRefCri.current(d3), 2100);
@@ -3841,7 +3845,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } },
     ];
     const legNoCri = legWins[0] + legWins[1] + 1;
-    const headingCri = `${cutThroat ? "Cut-Throat" : "Cricket"} · ${setsToWin > 0 ? `Set ${setWins[0] + setWins[1] + 1} · ` : ""}Leg ${legNoCri}`;
+    const headingCri = `${cutThroat ? "Cut-Throat" : NUMS.length > 7 ? "Tactics" : "Cricket"} · ${setsToWin > 0 ? `Set ${setWins[0] + setWins[1] + 1} · ` : ""}Leg ${legNoCri}`;
     const legsLineCri = setsToWin > 0 ? `First to ${setsNeeded} sets · ${legsNeeded} legs a set` : legsNeeded > 1 ? `First to ${legsNeeded} legs` : undefined;
     return (
       <ModernCricket
@@ -3852,8 +3856,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         cutThroat={cutThroat}
         scores={scores}
         marks={[marks[0].slice(0, numCount), marks[1].slice(0, numCount)]}
-        nums={CRICKET_NUMS.slice(0, numCount)}
-        labels={CRICKET_LABELS.slice(0, numCount)}
+        nums={NUMS.slice(0, numCount)}
+        labels={NUMS.slice(0, numCount).map(n => n === 25 ? "Bull" : String(n))}
         turn={turn}
         legWins={legWins}
         legsNeeded={legsNeeded}
@@ -3941,8 +3945,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       <SectionCard accentColor={scorerThemeColor}>
         {newScoringUI ? (
           <CricketBoard
-            numbers={CRICKET_NUMS.slice(0, numCount)}
-            labels={CRICKET_LABELS.slice(0, numCount)}
+            numbers={NUMS.slice(0, numCount)}
+            labels={NUMS.slice(0, numCount).map(n => n === 25 ? "Bull" : String(n))}
             marks={[marks[0].slice(0, numCount), marks[1].slice(0, numCount)]}
             playerNames={[p1Name, p2Name]}
           />
@@ -3953,7 +3957,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
             <div className="text-center text-xs font-bold pb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>NUM</div>
             <div className="text-center text-xs font-bold pb-1" style={{ color: P_COLOR(1), fontFamily: "Oswald, sans-serif" }}>{p2Name.toUpperCase()}</div>
 
-            {CRICKET_NUMS.slice(0, numCount).map((num, idx) => (
+            {NUMS.slice(0, numCount).map((num, idx) => (
               <div key={num} style={{ display: "contents" }}>
                 <div className="text-center py-2 text-lg font-bold" style={{
                   fontFamily: "Oswald, sans-serif",
@@ -3986,13 +3990,13 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
           </div>
         )}
       </SectionCard>
-      {isBotTurnCri ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={includesBull ? "— hit 15–20 or Bull" : "— hit 15–20 (no bull)"} />}
+      {isBotTurnCri ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={`— hit ${Math.min(...NUMS.filter(n => n !== 25))}–20${includesBull ? " or Bull" : " (no bull)"}`} />}
       <VisitDarts darts={visitDarts} />
       </div>}
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard visitDartCount={visitDarts.length}
           onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
-          activeSegments={CRICKET_NUMS.slice(0, numCount)} highlightSegments={CRICKET_NUMS.slice(0, numCount)}
+          activeSegments={NUMS.slice(0, numCount)} highlightSegments={NUMS.slice(0, numCount)}
           markedSegments={isCardClash && isChaosLabMode ? boardMarksToSegments(activeBoardMarks, "CRICKET") : undefined}
           disabled={isBotTurnCri}
         />

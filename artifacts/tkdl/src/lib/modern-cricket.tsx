@@ -89,7 +89,7 @@ export function ModernCricket(p: ModernCricketProps) {
   };
 
   return (
-    <div className="mx-root mc-root" role="application" aria-label="Cricket scorer">
+    <div className={`mx-root mc-root${p.nums.length > 7 ? " wide" : ""}`} role="application" aria-label="Cricket scorer">
       <div className="mx-col">
         <header className="mx-head">
           <button className="mx-icon" aria-label="Match menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}><MoreHorizontal size={20} /></button>

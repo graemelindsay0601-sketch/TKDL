@@ -72,6 +72,7 @@ export function LiveTicker({ items, namesByKey, compact = false }: LiveTickerPro
               <b>{displayName(item.leagueType, item.winnerId, namesByKey)}</b>
               <em>def</em>
               <span>{displayName(item.leagueType, item.loserId, namesByKey)}</span>
+              {item.tag && <small className="lv-tick-tag">{item.tag}</small>}
             </div>
           ))}
         </div>
