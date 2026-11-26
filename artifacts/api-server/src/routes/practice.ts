@@ -1152,6 +1152,18 @@ router.get("/shadow-bot/:playerId/matches", async (req, res): Promise<void> => {
 });
 
 // GET /api/practice/game-leaderboard?gameTypeKey=...
+// Ghost race: a player's best finished solo leg of a game (fewest darts) with its dart log, to race against.
+router.get("/practice/ghost", async (req, res): Promise<void> => {
+  const playerId = Number(req.query.playerId), key = String(req.query.gameTypeKey ?? "");
+  if (!Number.isInteger(playerId) || playerId <= 0 || !key) { res.status(400).json({ error: "playerId and gameTypeKey are needed" }); return; }
+  const r = (await db.execute(sql`SELECT p1_darts, created_at, session_data->'dartLog' AS log FROM practice_sessions
+    WHERE player1_id = ${playerId} AND player2_id IS NULL AND game_type_key = ${key} AND winner_idx = 0 AND p1_darts >= 6
+      AND session_data ? 'dartLog' AND jsonb_array_length(session_data->'dartLog') = p1_darts
+    ORDER BY p1_darts ASC, created_at DESC LIMIT 1`)).rows[0] as { p1_darts: number; created_at: string; log: { seg: number; mult: number; val: number }[] } | undefined;
+  if (!r) { res.json({ ghost: null }); return; }
+  res.json({ ghost: { darts: Number(r.p1_darts), playedAt: r.created_at, values: r.log.map(d => Number(d.val) || 0), mults: r.log.map(d => Number(d.mult) || 1) } });
+});
+
 router.get("/practice/game-leaderboard", async (req, res): Promise<void> => {
   try {
     const key = String(req.query.gameTypeKey ?? "").trim();
