@@ -4212,8 +4212,8 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
-  p1Name: string; p2Name: string; config: any; gameKey: string; botConfig?: BotConfig;
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
+  p1Name: string; p2Name: string; config: any; gameKey: string; title?: string; rules?: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
@@ -4493,23 +4493,30 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
             />
           </>
         )}
-        {/* Progress bars */}
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => (
-            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
-            <div className="text-xs font-bold uppercase mb-1" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
-            <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
-              {positions[i]}/{sequence.length}
-            </div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-              Next: {sequence[positions[i]]?.label ?? "DONE"}
-            </div>
-            <div className="mt-2 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
-              <div className="h-full rounded-full transition-all" style={{ background: P_COLOR(i), width: `${(positions[i]/sequence.length)*100}%` }} />
-            </div>
+        {title && (
+          <div className="text-center">
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{title}</h2>
           </div>
-        ))}
-      </div>
+        )}
+        <div className="seq-cards grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <PlayerCard key={i} name={names[i]} score={`${positions[i]}/${sequence.length}`} turn={i===1} active={turn===i}
+              sub={`Next: ${sequence[positions[i]]?.label ?? "Done"}`} />
+          ))}
+        </div>
+        {!showGrandNationalTrack && (
+          <SectionCard>
+            <div className="seq-path">
+              {sequence.map((t, k) => {
+                const here0 = positions[0] === k, here1 = positions[1] === k;
+                const done = k < Math.min(positions[0], positions[1]);
+                return (
+                  <span key={k} className={`seq-step${done ? " done" : ""}${here0 ? " p0" : ""}${here1 ? " p1" : ""}`}>{t.label}</span>
+                );
+              })}
+            </div>
+          </SectionCard>
+        )}
       {isBotTurnSeq ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={curTarget ? `— aim at ${curTarget.label}` : ""} />}
         <VisitDarts darts={visitDarts} />
       </div>}
@@ -5512,9 +5519,12 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
               {[0,1].map(i => (
                 <button key={i}
                   onClick={() => { if (!thrown[i]) { setThrown(p=>{const n=[...p] as [boolean,boolean]; n[i]=true; return n;}); } }}
-                  style={{ padding:"2rem 1rem", borderRadius:"0.75rem", cursor: thrown[i]?"default":"pointer", background: thrown[i]?`${P_COLOR(i)}22`:"rgba(255,255,255,0.04)", border: thrown[i]?`2px solid ${P_COLOR(i)}`:"1px solid rgba(255,255,255,0.1)", color: P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
-                  <div className="font-bold text-lg">{names[i]}</div>
-                  <div className="text-xs mt-1 opacity-70">{thrown[i]?"✓ Thrown":"Tap when thrown"}</div>
+                  className="mc-card active:scale-[.97]"
+                  style={{ padding:"1.6rem 1rem", cursor: thrown[i]?"default":"pointer", textAlign:"center", fontFamily:"Oswald,sans-serif",
+                    ...(thrown[i] ? { borderColor:P_COLOR(i), boxShadow:`0 0 22px ${P_COLOR(i)}40` } : {}) }}>
+                  <Target className="w-7 h-7 mx-auto mb-2" style={{ color: thrown[i] ? P_COLOR(i) : "rgba(255,255,255,.35)" }} />
+                  <div className="font-bold text-xl uppercase tracking-wide" style={{ color:"#fff" }}>{names[i]}</div>
+                  <div className="text-[11px] mt-1.5 uppercase tracking-[.14em]" style={{ color: thrown[i] ? P_COLOR(i) : "rgba(255,255,255,.45)" }}>{thrown[i]?"✓ Thrown":"Tap when thrown"}</div>
                 </button>
               ))}
             </div>
@@ -5532,9 +5542,10 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
             <div className="grid grid-cols-2 gap-4">
               {[0,1].map(i => (
                 <button key={i} onClick={() => onWin(i as 0|1, "Nearest the Bull")}
-                  style={{ padding:"2.5rem 1rem", borderRadius:"0.75rem", cursor:"pointer", background:`${P_COLOR(i)}18`, border:`2px solid ${P_COLOR(i)}44`, color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
+                  className="mc-card active:scale-[.97]"
+                  style={{ padding:"2rem 1rem", cursor:"pointer", textAlign:"center", borderColor:`${P_COLOR(i)}88`, boxShadow:`0 0 20px ${P_COLOR(i)}30`, color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>
                   <Trophy className="w-8 h-8 mx-auto mb-2" />
-                  <div className="font-bold text-xl">{names[i]}</div>
+                  <div className="font-bold text-xl uppercase tracking-wide" style={{ color:"#fff" }}>{names[i]}</div>
                   <div className="text-xs mt-1 opacity-60">Tap — they were closest</div>
                 </button>
               ))}
@@ -9405,34 +9416,31 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
       ? "Only doubles count · 1 pt per hit · max 99"
       : "Only trebles count · 1 pt per hit · max 99";
     return (
-      <div style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"1.5rem", ...siteBg }}>
-        <div className="text-center mb-6">
+      <div className="kp-root" style={{ minHeight:"100dvh", display:"flex", flexDirection:"column", justifyContent:"center", gap:16, padding:"1.5rem 1rem", ...siteBg }}>
+        <div className="kp-head">
           <div className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color:"#00c8a0", fontFamily:"Oswald,sans-serif" }}>
             99 Darts · {variantLabel}
           </div>
-          <h2 className="text-3xl font-black uppercase" style={{ fontFamily:"Oswald,sans-serif", color:"#fff" }}>
+          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>
             Pick Your Target
           </h2>
-          <p className="text-xs mt-2" style={{ color:"rgba(255,255,255,0.3)" }}>{rule}</p>
+          <p className="text-xs mt-2" style={{ color:"rgba(255,255,255,0.4)" }}>{rule}</p>
         </div>
-        <div className="grid grid-cols-5 gap-2 mb-3" style={{ maxWidth:"17rem" }}>
-          {nums.map(n => (
-            <button key={n} onClick={() => setTarget(n)}
-              className="rounded-lg font-black text-lg transition-all active:scale-95 hover:brightness-125"
-              style={{ fontFamily:"Oswald,sans-serif", padding:"0.55rem 0", background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.1)", color:"#fff" }}>
-              {n}
+        <div className="mc-card" style={{ padding:12, width:"100%", maxWidth:"26rem", margin:"0 auto" }}>
+          <div className="kp-grid">
+            {nums.map(n => (
+              <button key={n} onClick={() => setTarget(n)}><span>{n}</span></button>
+            ))}
+          </div>
+          {variant !== "trebles" && (
+            <button onClick={() => setTarget(25)} className="active:scale-95"
+              style={{ marginTop:8, width:"100%", height:52, borderRadius:14, fontFamily:"Oswald,sans-serif", fontWeight:700, fontSize:16, letterSpacing:".12em", textTransform:"uppercase",
+                background:"linear-gradient(180deg,#2a0f1d,#12080f)", border:"1px solid rgba(255,0,92,.55)", color:"#ff5c93", boxShadow:"0 0 16px rgba(255,0,92,.2)" }}>
+              Bull
             </button>
-          ))}
+          )}
         </div>
-        {variant !== "trebles" && (
-          <button onClick={() => setTarget(25)}
-            className="rounded-lg font-black text-sm transition-all active:scale-95 hover:brightness-125 mb-6"
-            style={{ fontFamily:"Oswald,sans-serif", padding:"0.55rem 2.5rem", background:"rgba(255,0,92,0.15)", border:"1px solid rgba(255,0,92,0.4)", color:"#ff005c" }}>
-            Bull
-          </button>
-        )}
-        {variant === "trebles" && <div className="mb-6" />}
-        <button onClick={onAbandon} className="text-xs" style={{ color:"rgba(255,255,255,0.2)" }}>← Back</button>
+        <button onClick={onAbandon} className="kp-abandon" style={{ width:"100%", maxWidth:"26rem", margin:"0 auto" }}>← Back</button>
       </div>
     );
   }

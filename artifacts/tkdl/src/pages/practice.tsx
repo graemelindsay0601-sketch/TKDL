@@ -75,9 +75,11 @@ function GameCard({ gt, selected, expanded, isFav, onSelect, onToggleExpand, onT
           <div className="font-bold text-sm truncate" style={{ fontFamily: "Oswald, sans-serif", color: selected ? "#fff" : "rgba(255,255,255,0.75)", letterSpacing: "0.05em" }}>
             {gt.name}
           </div>
-          <div className="text-xs mt-0.5 leading-tight line-clamp-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-            {gt.description}
-          </div>
+          {!expanded && (
+            <div className="text-xs mt-0.5 leading-tight line-clamp-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+              {gt.description}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           <button onClick={e => { e.stopPropagation(); onToggleFav(); }} className="p-1 rounded"
@@ -91,8 +93,8 @@ function GameCard({ gt, selected, expanded, isFav, onSelect, onToggleExpand, onT
         </div>
       </div>
       {expanded && (
-        <div className="mt-3 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.07)" }} onClick={e => e.stopPropagation()}>
-          <p className="text-xs leading-relaxed mb-2.5" style={{ color: "rgba(255,255,255,0.5)" }}>{gt.description}</p>
+        <div className="mt-2" onClick={e => e.stopPropagation()}>
+          <p className="text-xs leading-relaxed mb-2.5" style={{ color: "rgba(255,255,255,0.55)" }}>{gt.description}</p>
           <button onClick={onRules} className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5"
             style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif", cursor: "pointer" }}>
             <BookOpen className="w-3.5 h-3.5" />Full rules
@@ -958,7 +960,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     </div>
     {showBackTop && (
       <button onClick={() => (document.querySelector("main") ?? window).scrollTo({ top: 0, behavior: "smooth" })}
-        className="fixed bottom-24 right-5 z-30 w-11 h-11 rounded-full flex items-center justify-center"
+        className="fixed bottom-[10.5rem] right-5 z-30 w-11 h-11 rounded-full flex items-center justify-center"
         style={{ background: "rgba(20,14,32,0.92)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.6)", cursor: "pointer", boxShadow: "0 10px 28px -10px rgba(0,0,0,0.6)" }}
         title="Back to top">
         <ArrowUp className="w-4 h-4" />
@@ -1061,7 +1063,7 @@ function PracticeOverScreen({ result, data, stats, onBack }: {
         </div>
         <div className="text-xs font-bold uppercase tracking-widest mb-1" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>Practice Complete</div>
         <div className="text-4xl font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#fff", letterSpacing: "0.08em" }}>
-          {data.soloPlay ? "Practice Complete!" : data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${p2Label ?? "CPU"} Wins!`) : `${winner} Wins!`}
+          {data.soloPlay ? "Nice Work!" : data.solo ? (result.winnerIdx === 0 ? "You Win!" : `${p2Label ?? "CPU"} Wins!`) : `${winner} Wins!`}
         </div>
         {result.detail && <div className="text-sm mt-1" style={{ color: themeColor, fontFamily: "Oswald, sans-serif" }}>{result.detail}</div>}
       </div>
