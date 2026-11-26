@@ -93,6 +93,10 @@ const MULT_CFG = {
   3: { label: "TREBLE", color: "#ff6b9d",               activeColor: "#ff6b9d",               bg: "rgba(255,107,157,0.14)", border: "rgba(255,107,157,0.5)" },
 } as const;
 
+/** On inside party games when the premium scorer is in use: DartInputBoard draws the new keypad. */
+export const PremiumScorerContext = createContext(false);
+export const usePremiumScorer = () => useContext(PremiumScorerContext);
+
 // ── DartInputBoard ─────────────────────────────────────────────────────────────
 export function DartInputBoard({
   onDart, onMiss, onUndo,
@@ -147,6 +151,7 @@ export function DartInputBoard({
 }) {
   const [mult, setMult] = useState<1 | 2 | 3>(1);
   const [singleRing, setSingleRing] = useState<"inner" | "outer">("outer");
+  const premium = usePremiumScorer();
 
   // Reset the multiplier back to Single whenever a new visit begins, so a
   // Treble/Double selection doesn't carry over to the next player/turn.
@@ -236,6 +241,47 @@ export function DartInputBoard({
       userSelect: "none",
     };
   };
+
+  if (premium) {
+    const bullMark = markFor(25);
+    const multOpts = distinguishSingleRing
+      ? ([
+        { key: "double", label: "Double", cls: "m2", on: mult === 2, pick: () => setMult(2) },
+        { key: "outer", label: "Big", cls: "m1", on: mult === 1 && singleRing === "outer", pick: () => { setMult(1); setSingleRing("outer"); } },
+        { key: "treble", label: "Treble", cls: "m3", on: mult === 3, pick: () => setMult(3) },
+        { key: "inner", label: "Small", cls: "m4", on: mult === 1 && singleRing === "inner", pick: () => { setMult(1); setSingleRing("inner"); } },
+      ])
+      : ([
+        { key: "s", label: "Single", cls: "m1", on: mult === 1, pick: () => setMult(1) },
+        { key: "d", label: "Double", cls: "m2", on: mult === 2, pick: () => setMult(m => (m === 2 ? 1 : 2)) },
+        { key: "t", label: "Treble", cls: "m3", on: mult === 3, pick: () => setMult(m => (m === 3 ? 1 : 3)) },
+      ]);
+    return (
+      <div className={`ps-keys${disabled ? " is-off" : ""}`} aria-disabled={disabled}>
+        <div className={`mx-mult${distinguishSingleRing ? " four" : ""}`} role="group" aria-label="Multiplier">
+          {multOpts.map(o => <button key={o.key} className={`${o.cls}${o.on ? " on" : ""}`} aria-pressed={o.on} onClick={o.pick}>{o.label}</button>)}
+        </div>
+        <div className="mx-grid">
+          {GRID_NUMS.map(n => {
+            const mark = markFor(n), act = isActive(n);
+            return (
+              <button key={n} className={`${act ? "" : "dim"}${isHigh(n) ? " hi" : ""}${mark ? " marked" : ""}`} disabled={!act}
+                style={mark ? { borderColor: mark.color, boxShadow: `0 0 10px ${mark.color}66` } : undefined} onClick={() => act && fire(n)}>
+                <span>{n}</span>
+                {mark && <><i className="ps-mark-ic">{mark.icon}</i><i className="ps-mark-mag" style={{ color: mark.color }}>{mark.requiredMult === 3 ? "T" : mark.requiredMult === 2 ? "D" : ""}{mark.magnitudeLabel}</i></>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mx-row4">
+          <button className={`bull25${isHigh(25) ? " hi" : ""}`} style={bullMark ? { borderColor: bullMark.color } : undefined} onClick={() => fire(25, 1)}>{fatBull ? "Bull 50" : "25"}</button>
+          <button className="bull50" style={bullMark ? { borderColor: bullMark.color } : undefined} onClick={() => fire(25, 2)}>Bull</button>
+          <button className="miss" onClick={onMiss}>Miss</button>
+          <button className="ghost" onClick={onUndo}>Undo</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pm-keypad" style={{ opacity: disabled ? 0.45 : 1, pointerEvents: disabled ? "none" : undefined, userSelect: "none" }}>

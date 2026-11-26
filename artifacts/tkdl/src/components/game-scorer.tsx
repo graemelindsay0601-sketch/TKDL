@@ -5,7 +5,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useSnapState } from "@/lib/snap-state";
 import { resolveBullUp, botBullThrow, type BullThrow, type BullUpState } from "@/lib/darts-rules";
-import type { Dart } from "@/lib/dartboard";
+import { PremiumScorerContext, type Dart } from "@/lib/dartboard";
+import { useScorerStyle } from "@/lib/useScorerStyle";
+import "@/lib/modern-x01.css";
+import "./premium-scorer.css";
 import {
   X01Scorer, CricketScorer, KillerScorer, SequenceScorer,
   HalveItScorer, CountUpScorer, GotchaScorer, BaseballScorer,
@@ -258,6 +261,10 @@ export function GameScorer({
   // Everything else (X01, Cricket, Killer, every non-party engine) ignores
   // this entirely and renders exactly as before.
   const newScoringUI = useNewScoringUI();
+  // Premium scorer for every other game (X01 and Cricket already have their own). Behind the same
+  // "New Scoring UI" flag until it's switched on for everyone; a player who picked the classic scorer keeps it.
+  const [scorerStyle] = useScorerStyle();
+  const premium = newScoringUI && scorerStyle !== "classic" && gameType.engine !== "X01" && gameType.engine !== "Cricket";
   const reportLiveState = useCallback((state: LiveScoreState) => {
     if (!onLiveState) return;
     onLiveState(starterIdx === 1 && !swapless
@@ -433,5 +440,7 @@ export function GameScorer({
   }
   } // end renderInner
 
-  return renderInner();
+  return premium
+    ? <PremiumScorerContext.Provider value><div className="ps-root">{renderInner()}</div></PremiumScorerContext.Provider>
+    : renderInner();
 }

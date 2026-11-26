@@ -1,0 +1,98 @@
+/* Premium scorer for every party game: the same look as the new X01/Cricket scorers.
+   Applied by GameScorer as .ps-root around the classic engines, so the game rules are untouched. */
+.ps-root { color: #fff; font-family: Inter, system-ui, sans-serif; }
+.ps-root .pdc-divider { display: none; }
+.ps-root .max-w-lg { max-width: 480px; }
+.ps-root > div > .space-y-4 > * + *, .ps-root .space-y-4 > * + * { margin-top: 10px !important; }
+.ps-root .space-y-3 > * + * { margin-top: 8px !important; }
+
+/* Title block: slim, centred, chrome lettering like the X01 header */
+.ps-root h2.pm-chrome {
+  font-family: Oswald, sans-serif !important; font-weight: 600 !important; font-size: 17px !important;
+  letter-spacing: .14em !important; text-transform: uppercase; line-height: 1.2;
+  background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent !important;
+}
+.ps-root .text-center > svg:first-child { width: 20px !important; height: 20px !important; margin-bottom: 2px !important; }
+.ps-root .text-center > h2.pm-chrome + p, .ps-root .text-center > p.text-xs {
+  font-size: 11.5px !important; line-height: 1.35; color: #a9a6b8 !important;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px !important;
+}
+
+/* Player cards → mx-card */
+.ps-root .pm-score-card {
+  position: relative; border-radius: 18px !important; padding: 10px 12px 9px !important; text-align: left !important;
+  background: rgba(22,20,32,.92) !important; border: 1px solid rgba(255,255,255,.1) !important; box-shadow: none !important;
+}
+.ps-root .pm-score-card.is-on {
+  background: linear-gradient(165deg, rgba(255,0,92,.24), rgba(22,18,32,.96) 58%) !important;
+  border-color: rgba(255,0,92,.75) !important;
+  box-shadow: 0 0 26px rgba(255,0,92,.28), inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+.ps-root .pm-score-card > .absolute.top-0 { left: 14px !important; right: 14px !important; height: 3px !important; border-radius: 0 0 3px 3px; background: #ff005c !important; }
+.ps-root .pm-score-card .sc-pname {
+  font-family: Oswald, sans-serif !important; font-weight: 700 !important; font-size: 17px !important; letter-spacing: .06em !important;
+  opacity: 1 !important; color: transparent !important; margin-bottom: 0 !important;
+  background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%);
+  -webkit-background-clip: text; background-clip: text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ps-root .pm-score-card .sc-pscore {
+  font-family: Oswald, sans-serif !important; font-weight: 700 !important; font-size: clamp(40px, 13vw, 60px) !important;
+  line-height: .95 !important; font-variant-numeric: tabular-nums; color: transparent !important;
+  background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%);
+  -webkit-background-clip: text; background-clip: text; filter: drop-shadow(0 2px 0 rgba(0,0,0,.55));
+}
+.ps-root .pm-score-card:not(.is-on) .sc-pname, .ps-root .pm-score-card:not(.is-on) .sc-pscore { opacity: .7 !important; }
+.ps-root .pm-score-card.is-on .sc-pscore { filter: drop-shadow(0 2px 0 rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(255,0,92,.45)); }
+.ps-root .pm-score-card > .text-xs.mt-1 { font-size: 11px !important; color: #a9a6b8 !important; margin-top: 4px !important; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.08); }
+
+/* Panels */
+.ps-root .sc-section, .ps-root .pdc-card:not(.pm-score-card) {
+  border-radius: 16px !important; background: rgba(22,20,32,.92) !important; border-color: rgba(255,255,255,.1) !important;
+}
+
+/* Whose turn → slim gold-edged note */
+.ps-root .sc-turn {
+  align-self: center; width: fit-content; margin-left: auto; margin-right: auto; padding: 6px 14px; border-radius: 999px;
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
+  font-size: 13px !important; letter-spacing: .06em; text-transform: uppercase; color: #c9c5d8 !important;
+}
+.ps-root .sc-turn > span:nth-child(2) { color: #fff !important; }
+.ps-root .x01-bust-banner { font-size: 15px !important; letter-spacing: .06em; }
+
+/* This visit → mx-slots */
+.ps-root .sc-visit { gap: 6px !important; }
+.ps-root .sc-visit > div:not(:last-child), .ps-root .sc-visit > div:only-child {
+  height: 50px; padding: 0 !important; border-radius: 14px !important; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.42) !important; border: 1px solid rgba(255,255,255,.08) !important;
+}
+.ps-root .sc-visit > div > div:first-child:not(:only-child) { font-size: 10px !important; font-weight: 900; letter-spacing: .14em; color: #8e8aa0 !important; }
+.ps-root .sc-visit > div > div:nth-child(2) { font-size: 22px !important; line-height: 1.05; }
+.ps-root .sc-visit > div > div:nth-child(3) { display: none; }
+.ps-root .sc-visit > div:last-child:not(:only-child) { min-width: 64px !important; height: 50px; padding: 0 8px !important; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,210,74,.1); border: 1px solid rgba(255,210,74,.45); text-align: center !important; }
+
+/* Keypad (DartInputBoard premium branch) */
+.ps-keys { display: flex; flex-direction: column; gap: 6px; user-select: none; }
+.ps-keys.is-off { opacity: .45; pointer-events: none; }
+.ps-keys button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; color: #fff; }
+.ps-keys .mx-mult.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ps-keys .mx-mult .m4 { border: 1px solid rgba(192,132,252,.45); background: rgba(192,132,252,.08); color: #d4b0ff; }
+.ps-keys .mx-mult .m4.on { background: rgba(192,132,252,.3); border-color: #c084fc; color: #fff; box-shadow: 0 0 16px rgba(192,132,252,.35); }
+.ps-keys .mx-grid { flex: none; grid-template-rows: repeat(4, 50px); }
+.ps-keys .mx-grid button { position: relative; color: transparent; }
+.ps-keys .mx-grid button span {
+  background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 2px 0 rgba(0,0,0,.55));
+}
+.ps-keys .mx-grid button.dim { opacity: .22; }
+.ps-keys .mx-grid button.hi, .ps-keys .mx-row4 button.hi { border-color: #ffd24a; background: linear-gradient(180deg, rgba(255,210,74,.28), #1b1608); box-shadow: 0 0 16px rgba(255,210,74,.3); }
+.ps-keys .mx-grid button.hi span { background: linear-gradient(180deg, #fff6cf 0%, #ffd24a 44%, #b67f00 54%, #ffe28a 80%, #fff1b8 100%); -webkit-background-clip: text; background-clip: text; }
+.ps-keys .mx-grid button:active:not(:disabled), .ps-keys .mx-row4 button:active, .ps-keys .mx-mult button:active { transform: translateY(1px); filter: brightness(1.25); }
+.ps-keys .ps-mark-ic { position: absolute; top: 2px; left: 4px; font-style: normal; font-size: 11px; }
+.ps-keys .ps-mark-mag { position: absolute; bottom: 2px; right: 4px; font-style: normal; font-size: 9px; font-weight: 800; background: rgba(0,0,0,.55); padding: 0 3px; border-radius: 3px; }
+.ps-keys .mx-row4 .miss { border: 1px solid rgba(255,0,92,.45); background: rgba(255,0,92,.08); color: #ff7aa8; text-transform: uppercase; font-size: 15px; letter-spacing: .06em; }
+.ps-keys .mx-row4 .ghost { background: rgba(255,255,255,.05); color: #c9c5d8; font-family: Inter, sans-serif; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+@media (max-height: 700px) { .ps-keys .mx-grid { grid-template-rows: repeat(4, 44px); } .ps-keys .mx-row4 button { height: 44px; } }
+.ps-keys .mx-grid button { font-family: Oswald, sans-serif; font-size: 24px; font-weight: 600; }
+.ps-keys .mx-row4 button { font-family: Oswald, sans-serif; font-size: 18px; font-weight: 600; }
+.ps-keys .mx-mult button { font-family: Inter, system-ui, sans-serif; font-size: 13px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
