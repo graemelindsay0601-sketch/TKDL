@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { MatchSpotlight } from "@/components/MatchSpotlight";
+import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // ══════════════════════════════════════════════════════════════════════════
 // HUB REWORK v3 — see the mockup this was built from for the full rationale.
@@ -771,6 +772,8 @@ export default function Dashboard() {
       <ExploreAndReference settings={appSettings} />
 
       <Flashback />
+
+      <MonthlyLeagueReports compact />
 
       {/* ── LEADERBOARD + RECENT ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

@@ -1,4 +1,5 @@
 import { Glow, DartboardBackdrop, Chapter } from "@/components/premium/Premium";
+import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Banknote, Crown, History, Percent } from "lucide-react";
@@ -190,6 +191,7 @@ export default function HallOfFame() {
 
           <LeagueRecordsBook />
 
+          <MonthlyLeagueReports />
           <div data-testid="hall-skill">
           <SectionTitle icon={<Target className="w-4 h-4"/>} eyebrow="BEYOND THE TABLE" title="Skill, Practice & Tour" description="Records earned across practice, achievements and Tour Mode." accent="#a78bfa" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

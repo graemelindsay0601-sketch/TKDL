@@ -242,6 +242,17 @@ function ShiftWarsRow({ team, idx }: { team: any; idx: number }) {
   );
 }
 
+/** Last five league results this season, newest on the left. */
+function FormDots({ form }: { form?: ("W" | "L")[] }) {
+  if (!form?.length) return null;
+  return (
+    <div className="pm-form" aria-label={`Form: ${form.join(" ")}`}>
+      {form.map((r, i) => <span key={i} className={r === "W" ? "w" : "l"}>{r}</span>)}
+      {Array.from({ length: 5 - form.length }, (_, i) => <span key={`e${i}`} className="e" />)}
+    </div>
+  );
+}
+
 function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: number; maxElo: number; glow?: ReturnType<typeof glowRowStyle>; icon?: CosmeticDefinition; tag?: CosmeticDefinition }) {
   const isTop3 = idx < 3;
   const pColor = POS_COLORS[idx] ?? "rgba(255,255,255,0.4)";
@@ -266,6 +277,7 @@ function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: n
             {streak >= 3 && <span className="flex items-center gap-0.5 text-xs font-bold shrink-0" style={{ color: "#ff005c" }}><Flame className="w-3 h-3 streak-fire" />{streak}W</span>}
           </div>
           {entry.title && <div className="text-xs truncate" style={{ color: "rgba(255,210,74,0.5)", fontStyle: "italic", lineHeight: 1.3 }}>{entry.title}</div>}
+          <FormDots form={entry.form} />
         </div>
         <TierDot tier={entry.tier} />
         <div className="hidden sm:flex shrink-0"><TierBadge tier={entry.tier} /></div>
