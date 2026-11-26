@@ -40,6 +40,7 @@ import "./x01-scorer.css";
 import { ModernX01, type ModernMode } from "./modern-x01";
 import { useScorerStyle } from "./useScorerStyle";
 import { ModernCricket } from "./modern-cricket";
+import { ModernParty, TargetChips } from "./modern-party";
 import "./modern-x01.css";
 import "./modern-cricket.css";
 
@@ -4130,6 +4131,7 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [classicKill, setClassicKill] = useState(false);
   if (phase === "assign") {
     // One-screen number pick, in the same look as the new scorers.
     const choosing = assigning === 1 && !!botConfig;
@@ -4167,6 +4169,34 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
           <button className="kp-abandon" onClick={() => { if (window.confirm("Abandon this match?")) onAbandon(); }}>Abandon match</button>
         </div>
       </div>
+    );
+  }
+
+  if (newScoringUI && !classicKill) {
+    const opp = turn === 0 ? 1 : 0;
+    const aim = isKiller[turn] ? killerNums[opp] : killerNums[turn];
+    return (
+      <ModernParty
+        heading="Killer"
+        sub={`${lives} ${lives === 1 ? "life" : "lives"} each`}
+        rules="Hit your own double to become a Killer. Once you are, hit your opponent's double to take a life. Hit your own double as a Killer and you lose one. Last player with lives wins."
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({
+          score: playerLives[i], unit: playerLives[i] === 1 ? "life" : "lives", out: playerLives[i] <= 0,
+          line: isKiller[i] ? `☠ Killer · D${killerNums[i]}` : `D${killerNums[i]} · not killer yet`,
+        })) as [any, any]}
+        note={msg || (isKiller[turn] ? `Hit D${killerNums[opp]} to take a life` : `Hit D${killerNums[turn]} to become Killer`)}
+        visitDarts={visitDarts}
+        disabled={isBotTurnKill}
+        waitingMsg={isBotTurnKill ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={handleMiss}
+        onUndo={handleUndo}
+        highlight={aim ? [aim] : undefined}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicKill(true)}
+      />
     );
   }
 
@@ -4354,6 +4384,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   };
 
   const curTarget = sequence[positions[turn]];
+  const [classicSeq, setClassicSeq] = useState(false);
+  const modernSeq = !!newScoringUI && !classicSeq;
   const botSeqTarget = sequence[positions[1]];
 
   const handleDartRefSeq = useRef(handleDart);
@@ -4407,6 +4439,31 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
         }
       }
     };
+    if (modernSeq) {
+      const isBotSh = !!botConfig && shanghaiTurn === 1;
+      const ticks = `${shanghaiHits.s ? "S✓" : "S·"} ${shanghaiHits.d ? "D✓" : "D·"} ${shanghaiHits.t ? "T✓" : "T·"}`;
+      return (
+        <ModernParty
+          heading="Shanghai"
+          sub={`Round ${shanghaiRound} of ${maxRounds}`}
+          rules={rules ?? "Each round has a target number, starting at 1. Score what you hit on it. Hit its single, double and treble in one visit (a Shanghai) and you win on the spot. Highest score after the last round wins."}
+          names={[p1Name, p2Name]}
+          turn={shanghaiTurn}
+          cards={[0, 1].map(i => ({ score: shanghaiScores[i], line: i === shanghaiTurn ? ticks : undefined })) as [any, any]}
+          panel={<TargetChips items={Array.from({ length: maxRounds }, (_, k) => String(k + 1))} current={shanghaiRound - 1} />}
+          note={shanghaiHits.s && shanghaiHits.d && shanghaiHits.t ? "Shanghai!" : `Aim at ${shanghaiRound} · S, D and T for a Shanghai`}
+          visitDarts={shanghaiDarts}
+          disabled={isBotSh}
+          waitingMsg={isBotSh ? `${p2Name} throwing` : undefined}
+          onDart={handleShDart}
+          onMiss={() => handleShDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+          onUndo={() => shanghaiDarts.length > 0 && setShanghaiDarts(p => p.slice(0, -1))}
+          highlight={[shanghaiRound]}
+          onAbandon={onAbandon}
+          onClassic={() => setClassicSeq(true)}
+        />
+      );
+    }
     return (
       <div className="max-w-lg mx-auto space-y-4">
         <div className="pdc-divider" />
@@ -4433,6 +4490,28 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
           highlightSegments={[shanghaiRound]} />
         <AbandonBtn onAbandon={onAbandon} />
       </div>
+    );
+  }
+
+  if (isStraightLine && pickedStart === null && modernSeq) {
+    return (
+      <ModernParty
+        heading="Straight Line"
+        sub="Pick your starting number"
+        rules={rules}
+        names={[p1Name, p2Name]}
+        turn={0}
+        cards={[{ score: 0, unit: `/${sequence.length || 10}` }, { score: 0, unit: `/${sequence.length || 10}` }]}
+        note="Pick a number"
+        visitDarts={[]}
+        onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicSeq(true)}
+        customPad={<>
+          <div className="mx-note">Work Double → Big → Treble → Small → Bull → Bullseye, then back out through its opposite number.</div>
+          <div className="mx-grid mp-pick">{Array.from({ length: 20 }, (_, i) => i + 1).map(n => <button key={n} onClick={() => setPickedStart(n)}><span>{n}</span></button>)}</div>
+        </>}
+      />
     );
   }
 
@@ -4477,6 +4556,36 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   // Shanghai's early return above, etc.) keeps its existing progress-bar
   // rendering unchanged regardless of the flag's state.
   const showGrandNationalTrack = !!newScoringUI && gameKey === "grand_national";
+
+  if (modernSeq) {
+    const lab = curTarget?.label ?? "";
+    return (
+      <ModernParty
+        heading={title ?? "Round the Clock"}
+        rules={rules}
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({ score: positions[i], unit: `/${sequence.length}`, line: `Next: ${sequence[positions[i]]?.label ?? "Done"}` })) as [any, any]}
+        panel={showGrandNationalTrack
+          ? <RaceTrack max={sequence.length} tickLabels={["START", "LAP 2", "POST"]} lanes={[
+              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 },
+            ]} />
+          : <TargetChips items={sequence.map(t => t.label)} current={positions[turn]} />}
+        note={lab ? `Aim at ${lab}` : undefined}
+        visitDarts={visitDarts}
+        disabled={isBotTurnSeq}
+        waitingMsg={isBotTurnSeq ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={curTarget ? [curTarget.seg] : []}
+        ringMode={isStraightLine}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicSeq(true)}
+      />
+    );
+  }
 
   return (
     <ScorerLayout
@@ -4629,6 +4738,33 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     const t3 = safeTimeout(() => handleDartRefHL.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [classicHL, setClassicHL] = useState(false);
+  if (newScoringUI && !classicHL) {
+    const v = visitValue(visitDarts);
+    return (
+      <ModernParty
+        heading="High-Low"
+        sub={startLives > 1 ? `${startLives} lives each` : "Sudden death"}
+        rules="Every visit must score below the low target or above the high one. Do it and that target moves to your score. Fail and you lose a life. The first visit of the game sets the high target. T1 scores nothing."
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0 })) as [any, any]}
+        panel={<div className="mp-hl"><div><small>Score below</small><b className="lo">{low}</b></div><div><small>Score above</small><b className="hi">{high ?? "—"}</b></div></div>}
+        note={flash ?? (high === null ? "First visit sets the high target" : `Under ${low} or over ${high}`)}
+        noteTone={flash ? "bust" : "gold"}
+        visitDarts={visitDarts}
+        visitValue={v}
+        disabled={isBotTurnHL}
+        waitingMsg={isBotTurnHL ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicHL(true)}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -4798,6 +4934,37 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     const t3 = safeTimeout(() => handleDartRefHalve.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [classicHalve, setClassicHalve] = useState(false);
+  if (newScoringUI && !classicHalve) {
+    const label = String(targetLabels[round]);
+    return (
+      <ModernParty
+        heading={isBobs ? "Bob's 27" : "Halve-It"}
+        sub={`Round ${round + 1} of ${targets.length}`}
+        rules={isBobs ? "Twenty rounds, D1 to D20. Every double you hit adds its value; miss all three and you lose the double's value. Highest score wins." : "Hit the round's target with your three darts to add what you score. Miss it with all three and your total is halved. Highest score after the last round wins."}
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({
+          score: scores[i],
+          line: turn === i && roundScore > 0 ? `+${roundScore} this round` : i === turn ? `Aim at ${label}` : (turnInRound === 1 && i === 0 ? "Done this round" : "Waiting"),
+        })) as [any, any]}
+        panel={<TargetChips items={targetLabels.map(t => String(t).replace("Any Double", "D").replace("Any Treble", "T"))} current={round} />}
+        note={hit ? `${label} hit · +${roundScore}` : visitDarts.length ? `Still need ${label}` : `Aim at ${label}`}
+        visitDarts={visitDarts}
+        visitLabel="Round"
+        visitValue={roundScore}
+        disabled={isBotTurnHalve}
+        waitingMsg={isBotTurnHalve ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={typeof curTarget === "number" ? [curTarget] : curTarget === "Bull" ? [25] : undefined}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicHalve(true)}
+      />
+    );
+  }
 
   return (
     <ScorerLayout
@@ -5053,6 +5220,33 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
     const t3 = safeTimeout(() => handleDartRefGotcha.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [classicGotcha, setClassicGotcha] = useState(false);
+  if (newScoringUI && !classicGotcha) {
+    const visit = visitDarts.reduce((t, d) => t + d.value, 0);
+    const opp = turn === 0 ? 1 : 0;
+    const proj = scores[turn] + visit;
+    return (
+      <ModernParty
+        heading="Gotcha!"
+        sub={`Race to exactly ${target}`}
+        rules={`Race to exactly ${target}. Go over and the visit doesn't count. Land on your opponent's exact score and they're sent back to 0 — Gotcha!`}
+        names={[p1Name, p2Name]}
+        turn={turn}
+        cards={[0, 1].map(i => ({ score: i === turn ? proj : scores[i], unit: `/${target}`, line: scores[i] >= target ? "Home" : `${target - (i === turn ? proj : scores[i])} to go` })) as [any, any]}
+        note={msg || (proj > target ? "Over — this visit won't count" : proj === scores[opp] && proj > 0 ? `On ${scores[opp]} — Gotcha if it stays!` : `${target - proj} to go · ${names[opp]} on ${scores[opp]}`)}
+        noteTone={proj > target ? "bust" : "gold"}
+        visitDarts={visitDarts}
+        disabled={isBotTurnGotcha}
+        waitingMsg={isBotTurnGotcha ? `${p2Name} throwing` : undefined}
+        onDart={handleDart}
+        onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
+        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+        onClassic={() => setClassicGotcha(true)}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
