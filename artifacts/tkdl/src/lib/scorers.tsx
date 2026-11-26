@@ -7003,7 +7003,7 @@ export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [fleet] = useState<[boolean[], boolean[]]>(() => [makeFleetCells(), makeFleetCells()]);
+  const [fleet] = useSnapState<[boolean[], boolean[]]>("BattleshipScorer.fleet", () => [makeFleetCells(), makeFleetCells()]);
   const [revealed, setRevealed] = useSnapState<[boolean[], boolean[]]>("BattleshipScorer.revealed", () => [Array(20).fill(false), Array(20).fill(false)]);
   const [turn, setTurn] = useSnapState<0 | 1>("BattleshipScorer.turn", 0);
   const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("BattleshipScorer.visitDarts", []);
@@ -7131,7 +7131,7 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const startLives = config?.lives ?? 3;
-  const [myNum] = useState<[number, number]>(() => {
+  const [myNum] = useSnapState<[number, number]>("BlindKillersScorer.myNum", () => {
     const pool = Array.from({ length: 20 }, (_, i) => i + 1);
     const i1 = Math.floor(Math.random() * pool.length);
     const n1 = pool.splice(i1, 1)[0];
@@ -7241,7 +7241,7 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [nums] = useState<[number, number]>(assignDonkeyNums);
+  const [nums] = useSnapState<[number, number]>("DonkeyDerbyScorer.nums", assignDonkeyNums);
   const [pos, setPos] = useSnapState<[number, number]>("DonkeyDerbyScorer.pos", [0, 0]);
   const [turn, setTurn] = useSnapState<0 | 1>("DonkeyDerbyScorer.turn", 0);
   const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("DonkeyDerbyScorer.visitDarts", []);
@@ -7737,7 +7737,7 @@ export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const maxHp = config?.hp ?? 9;
-  const [nums] = useState<[number, number]>(assignDonkeyNums);
+  const [nums] = useSnapState<[number, number]>("FightGameScorer.nums", assignDonkeyNums);
   const [hp, setHp] = useSnapState<[number, number]>("FightGameScorer.hp", [maxHp, maxHp]);
   const [turn, setTurn] = useSnapState<0 | 1>("FightGameScorer.turn", 0);
   const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FightGameScorer.visitDarts", []);
