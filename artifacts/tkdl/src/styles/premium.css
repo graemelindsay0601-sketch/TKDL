@@ -242,6 +242,18 @@
   .tkdl-main :is(button, a[href], [role="button"]):not(:disabled):active { scale: 1; }
 }
 
+/* Daily drill streak */
+.pm-drill-streak { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; color: #ffb08a;
+  background: radial-gradient(circle at 50% 20%, rgba(255,140,60,.35), rgba(40,14,4,.9)); border: 1px solid rgba(255,122,61,.55); box-shadow: 0 0 18px rgba(255,106,43,.3); }
+.pm-drill-streak b { font: 700 22px/1 Oswald, sans-serif; color: #fff; } .pm-drill-streak span { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+
+/* Ghost race banner (inside the X01 scorer) */
+.pm-ghost { display: flex; align-items: center; gap: 8px; margin: 0 8px 6px; padding: 7px 12px; border-radius: 999px; color: var(--gc);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 16%, rgba(12,10,18,.92)), rgba(12,10,18,.92)); border: 1px solid color-mix(in srgb, var(--gc) 50%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--gc) 25%, transparent); }
+.pm-ghost .t { flex: 1; min-width: 0; font: 700 12.5px/1.2 Oswald, sans-serif; letter-spacing: .05em; text-transform: uppercase; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-ghost .bar { width: 54px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; } .pm-ghost .bar i { display: block; height: 100%; background: var(--gc); }
+.pm-drill-stat { border-radius: 14px; padding: 10px 6px; text-align: center; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); }
+.pm-drill-stat b { display: block; font: 700 22px/1 Oswald, sans-serif; color: #fff; } .pm-drill-stat span { font-size: 11px; color: #a9a4bd; }
 /* Profile: honours shelf */
 .pm-honour-count { min-width: 26px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font: 700 12px Oswald, sans-serif; color: #140f02; }
 .pm-honour-count.p1 { background: linear-gradient(180deg,#ffe58a,#d99a00); } .pm-honour-count.p2 { background: linear-gradient(180deg,#fff,#9aa6bd); } .pm-honour-count.p3 { background: linear-gradient(180deg,#f0b27a,#9c5a2a); }

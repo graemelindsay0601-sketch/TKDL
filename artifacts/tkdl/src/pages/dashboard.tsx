@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { MatchSpotlight } from "@/components/MatchSpotlight";
+import { DailyDrill } from "@/components/DailyDrill";
 import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -773,6 +774,7 @@ export default function Dashboard() {
 
       <Flashback />
 
+      <DailyDrill />
       <MonthlyLeagueReports compact />
 
       {/* ── LEADERBOARD + RECENT ── */}
