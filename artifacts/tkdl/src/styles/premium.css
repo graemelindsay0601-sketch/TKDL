@@ -271,3 +271,58 @@
 .pm-welcome .btns { display: flex; gap: 8px; } .pm-welcome .btns button { flex: 1; padding: 12px; border-radius: 14px; font: 700 14px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
 .pm-welcome .btns .go { color: #120c02; background: linear-gradient(180deg, #fff, var(--wc)); } .pm-welcome .btns .ghost { color: #fff; border: 1px solid rgba(255,255,255,.2); }
 .pm-welcome .skip { margin-top: 10px; font-size: 12px; color: rgba(255,255,255,.4); }
+/* Daily drill streak */
+.pm-drill-streak { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; color: #ffb08a;
+  background: radial-gradient(circle at 50% 20%, rgba(255,140,60,.35), rgba(40,14,4,.9)); border: 1px solid rgba(255,122,61,.55); box-shadow: 0 0 18px rgba(255,106,43,.3); }
+.pm-drill-streak b { font: 700 22px/1 Oswald, sans-serif; color: #fff; } .pm-drill-streak span { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+
+/* Ghost race banner (inside the X01 scorer) */
+.pm-ghost { display: flex; align-items: center; gap: 8px; margin: 0 8px 6px; padding: 7px 12px; border-radius: 999px; color: var(--gc);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gc) 16%, rgba(12,10,18,.92)), rgba(12,10,18,.92)); border: 1px solid color-mix(in srgb, var(--gc) 50%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--gc) 25%, transparent); }
+.pm-ghost .t { flex: 1; min-width: 0; font: 700 12.5px/1.2 Oswald, sans-serif; letter-spacing: .05em; text-transform: uppercase; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-ghost .bar { width: 54px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); overflow: hidden; } .pm-ghost .bar i { display: block; height: 100%; background: var(--gc); }
+.pm-drill-stat { border-radius: 14px; padding: 10px 6px; text-align: center; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); }
+.pm-drill-stat b { display: block; font: 700 22px/1 Oswald, sans-serif; color: #fff; } .pm-drill-stat span { font-size: 11px; color: #a9a4bd; }
+/* Profile: honours shelf */
+.pm-honour-count { min-width: 26px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font: 700 12px Oswald, sans-serif; color: #140f02; }
+.pm-honour-count.p1 { background: linear-gradient(180deg,#ffe58a,#d99a00); } .pm-honour-count.p2 { background: linear-gradient(180deg,#fff,#9aa6bd); } .pm-honour-count.p3 { background: linear-gradient(180deg,#f0b27a,#9c5a2a); }
+.pm-honours { border-radius: 22px; padding: 14px 10px 6px; background: radial-gradient(ellipse at 50% 0%, rgba(255,210,74,.12), transparent 60%), linear-gradient(180deg,#1a1326,#0b0912); border: 1px solid rgba(255,210,74,.28); box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06); }
+.pm-honours .shelf { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; padding-bottom: 14px; margin-bottom: 12px; position: relative; }
+.pm-honours .shelf::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 0; height: 12px; border-radius: 4px; background: linear-gradient(180deg,#7a4a22,#3b220f); box-shadow: 0 6px 12px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.18); }
+.pm-honours .piece { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 0 2px; }
+.pm-honours .spot { position: absolute; top: -6px; left: 50%; width: 90%; height: 75%; transform: translateX(-50%); background: radial-gradient(ellipse at 50% 20%, rgba(255,230,160,.22), transparent 70%); pointer-events: none; }
+.pm-honours img { width: 100%; max-width: 120px; aspect-ratio: 340/448; object-fit: contain; filter: drop-shadow(0 8px 10px rgba(0,0,0,.5)); }
+.pm-honours .place { font: 700 13px/1.1 Oswald, sans-serif; text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+.pm-honours .place.p1 { color: #ffd24a; text-shadow: 0 0 10px rgba(255,210,74,.5); } .pm-honours .place.p2 { color: #e4e8f0; } .pm-honours .place.p3 { color: #f0b27a; }
+.pm-honours .what { font-size: 11px; color: #d8d4e6; line-height: 1.25; }
+.pm-honours .when { font-size: 10.5px; color: #8b86a0; }
+/* Profile: dart map */
+.pm-seg { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); width: max-content; margin: 0 auto 6px; }
+.pm-seg button { padding: 6px 14px; border-radius: 999px; font: 700 12px Oswald, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #a9a4bd; }
+.pm-seg button.on { color: #1a0710; background: linear-gradient(180deg,#ff8fb4,#ff3d7f); box-shadow: 0 0 12px rgba(255,61,127,.45); }
+.pm-dartmap { width: 100%; max-width: 330px; display: block; margin: 0 auto; }
+.pm-dartmap .num { font: 700 11px Oswald, sans-serif; fill: #d8d4e6; }
+.pm-heatkey { display: flex; align-items: center; gap: 8px; justify-content: center; font-size: 10.5px; color: #8b86a0; }
+.pm-heatkey i { width: 120px; height: 6px; border-radius: 3px; background: linear-gradient(90deg, rgb(60,30,110), rgb(168,40,200), rgb(255,40,120), rgb(255,120,70), rgb(255,214,80)); }
+.pm-dm-stat { border-radius: 14px; padding: 10px 6px; text-align: center; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); }
+.pm-dm-stat b { display: block; font: 700 22px/1 Oswald, sans-serif; color: #fff; } .pm-dm-stat span { font-size: 11px; color: #a9a4bd; }
+.pm-dm-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .pm-dm-row .k { font: 700 11px Oswald, sans-serif; text-transform: uppercase; letter-spacing: .12em; color: #8b86a0; width: 70px; }
+.pm-dm-row .chip { padding: 4px 10px; border-radius: 999px; font: 700 12px Oswald, sans-serif; letter-spacing: .04em; }
+.pm-dm-row .chip.hot { color: #2a1400; background: linear-gradient(180deg,#ffe08a,#ff9f45); } .pm-dm-row .chip.cold { color: #e9e3ff; background: rgba(120,80,200,.25); border: 1px solid rgba(168,85,247,.45); }
+/* Standings: form guide (last 5) */
+.pm-form { display: flex; gap: 3px; margin-top: 4px; }
+.pm-form span { width: 15px; height: 15px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; font: 700 9px/1 Oswald, sans-serif; letter-spacing: 0; }
+.pm-form .w { background: linear-gradient(180deg, #2fe08a, #12a35c); color: #04220f; box-shadow: 0 0 6px rgba(34,197,94,.35); }
+.pm-form .l { background: linear-gradient(180deg, #ff4d84, #c9104c); color: #2a0010; box-shadow: 0 0 6px rgba(255,0,92,.3); }
+.pm-form .e { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+.pm-form span:first-child { outline: 1.5px solid rgba(255,255,255,.55); outline-offset: 1px; }
+
+/* Monthly awards tiles */
+.pm-award { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; position: relative; overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ac) 16%, transparent), rgba(18,14,28,.9) 60%);
+  border: 1px solid color-mix(in srgb, var(--ac) 45%, transparent); box-shadow: 0 10px 22px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06); }
+.pm-award .medal { flex: none; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #120c02;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, var(--ac) 45%, color-mix(in srgb, var(--ac) 55%, #000) 100%); box-shadow: 0 0 16px color-mix(in srgb, var(--ac) 55%, transparent), inset 0 -2px 4px rgba(0,0,0,.35); }
+.pm-award .k { font: 700 10px/1.2 Oswald, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--ac); }
+.pm-award .n { font: 700 18px/1.15 Oswald, sans-serif; text-transform: uppercase; letter-spacing: .03em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-award .s { font-size: 12px; color: #a9a4bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

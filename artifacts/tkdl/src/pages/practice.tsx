@@ -1,4 +1,6 @@
 import { PageHero } from "@/components/premium/Premium";
+import { DailyDrill } from "@/components/DailyDrill";
+import { GhostBanner, type GhostLeg } from "@/components/GhostRace";
 import { useState, useEffect, useRef } from "react";
 import { NearlyThere } from "@/components/achievements-v2/NearlyThere";
 import { createPortal } from "react-dom";
@@ -242,6 +244,17 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     fetch("/api/game-types").then(r => r.json()).then(setGameTypes).catch(() => {});
   }, []);
 
+  // Deep link from the daily drill: ?game=<key>&solo=1 picks the game (and solo mode) once the games have loaded.
+  const [linkedGameDone, setLinkedGameDone] = useState(false);
+  useEffect(() => {
+    if (linkedGameDone || !gameTypes.length) return;
+    const params = new URLSearchParams(search), key = params.get("game");
+    setLinkedGameDone(true);
+    if (!key) return;
+    const gt = gameTypes.find(g => g.key === key);
+    if (gt) { setGame(gt); if (params.get("solo") === "1") setMode("solo"); }
+  }, [gameTypes, search, linkedGameDone]);
+
   useEffect(() => {
     const key = selectedGame?.key;
     if (!key) { setGameLb([]); return; }
@@ -421,6 +434,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           ))}
         </div>
       </PageHero>
+
+      <DailyDrill />
 
 
       {/* Coach drill deep-link banner */}
@@ -1148,6 +1163,17 @@ export default function Practice() {
   const endRun = () => { liveRef.current = false; clearMatchSnapshot(PRACTICE_RESUME_KEY); };
   const [gameResult, setResult]       = useState<GameResult | null>(null);
   const [practiceStats, setPracticeStats] = useState<PracticeStats | null>(null);
+  // Ghost race: in solo X01, race your own best leg of the same game.
+  const [ghost, setGhost] = useState<GhostLeg | null>(null);
+  const [myDarts, setMyDarts] = useState<{ values: number[]; mults: number[] }>({ values: [], mults: [] });
+  const x01Cfg = (() => { try { return setupData?.gameType.config ? JSON.parse(setupData.gameType.config) : {}; } catch { return {}; } })() as { startingScore?: number; doubleOut?: boolean };
+  const ghostable = !!setupData?.soloPlay && setupData.gameType.engine === "X01" && (setupData.legs ?? 1) <= 1;
+  useEffect(() => {
+    setGhost(null); setMyDarts({ values: [], mults: [] });
+    if (!ghostable || !setupData) return;
+    fetch(`/api/practice/ghost?playerId=${setupData.p1.id}&gameTypeKey=${encodeURIComponent(setupData.gameType.key)}`)
+      .then(r => r.ok ? r.json() : null).then(d => setGhost(d?.ghost ?? null)).catch(() => {});
+  }, [ghostable, setupData?.p1.id, setupData?.gameType.key, runId]);
 
   // Native-app parity: keep the screen awake, stop pinch-zoom, and trap the
   // back button/swipe behind a confirmation for as long as a session is live
@@ -1238,6 +1264,8 @@ export default function Practice() {
           onWin={r => { endRun(); clearCardClashSession(); setResult(r); setPhase("done"); }}
           onAbandon={() => { endRun(); clearCardClashSession(); setPhase("setup"); }}
           onPracticeStats={s => setPracticeStats(s)}
+          onDartLog={ghost ? (d => setMyDarts({ values: d.map(x => x.value), mults: d.map(x => x.multiplier) })) : undefined}
+          topBanner={ghost ? <GhostBanner ghost={ghost} start={x01Cfg.startingScore ?? 501} doubleOut={x01Cfg.doubleOut !== false} myValues={myDarts.values} myMults={myDarts.mults} /> : undefined}
         />
         </SnapStateProvider>
       </div>,

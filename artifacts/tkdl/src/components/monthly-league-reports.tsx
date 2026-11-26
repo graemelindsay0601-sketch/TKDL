@@ -1,27 +1,82 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { CalendarDays, ExternalLink, Newspaper, Trophy } from "lucide-react";
+import { Crown, Zap, Target, TrendingUp, Trophy } from "lucide-react";
 import { useFetch } from "@/hooks/use-fetch";
 import { ShareCardButton } from "@/components/ShareCardButton";
+import { Chapter, PmCard } from "@/components/premium/Premium";
 
-type Competition={leagueType:string;seasonId:number|null;seasonName:string|null;championId:number|null;championName:string|null;isActive:boolean;matchCount:number};
-type Report={monthKey:string;label:string;isCurrent:boolean;totalMatches:number;competitions:Competition[];playerOfMonth:{playerId:number;playerName:string;wins:number}|null;headlineResult:{matchKey:string;winnerName:string;loserName:string;stake:number;playedAt:string}|null};
-const LABELS:Record<string,string>={singles:"Singles",doubles:"Doubles Event",shift_wars:"Shift Wars"};
+type Competition = { leagueType: string; seasonId: number | null; seasonName: string | null; championId: number | null; championName: string | null; isActive: boolean; matchCount: number };
+type Report = {
+  monthKey: string; label: string; isCurrent: boolean; totalMatches: number; competitions: Competition[];
+  playerOfMonth: { playerId: number; playerName: string; wins: number } | null;
+  biggestUpset?: { winnerId: number; winnerName: string; loserName: string; elo: number } | null;
+  most180s?: { playerId: number; playerName: string; count: number } | null;
+  sharpest?: { playerId: number; playerName: string; wins: number; played: number; rate: number } | null;
+};
 
-export function MonthlyLeagueReports(){
-  const {data,loading}=useFetch<{reports:Report[]}>("/api/insights/monthly-reports");
-  const [selected,setSelected]=useState("");
-  useEffect(()=>{if(!selected&&data?.reports[0])setSelected(data.reports[0].monthKey)},[data,selected]);
-  if(loading)return <div className="pdc-card h-48 animate-pulse"/>;
-  const report=data?.reports.find(r=>r.monthKey===selected)??data?.reports[0];
-  if(!report)return null;
-  return <section className="pdc-card overflow-hidden" data-testid="monthly-league-reports">
-    <div className="h-1" style={{background:"linear-gradient(90deg,#ff005c,#6f2cff,#0066ff)"}}/>
-    <div className="p-5 sm:p-6"><div className="flex flex-col sm:flex-row sm:items-center gap-4"><div className="w-11 h-11 rounded-xl flex items-center justify-center" style={{background:"rgba(255,0,92,.12)",border:"1px solid rgba(255,0,92,.25)",color:"#ff005c"}}><Newspaper className="w-5 h-5"/></div><div className="flex-1"><div className="text-[0.58rem] tracking-[.2em] font-black" style={{color:"rgba(255,0,92,.7)"}}>TKDL MONTH IN REVIEW</div><h2 className="text-2xl font-black uppercase" style={{fontFamily:"Oswald, sans-serif"}}>Monthly League Report</h2><p className="text-xs text-white/35">A permanent snapshot of the title races, results and standout player.</p></div><select value={report.monthKey} onChange={e=>setSelected(e.target.value)} className="bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm font-bold">{data!.reports.map(r=><option key={r.monthKey} value={r.monthKey}>{r.label}{r.isCurrent?" · LIVE":""}</option>)}</select></div>
-      <div className="flex items-center gap-3 mt-5"><CalendarDays className="w-4 h-4 text-white/30"/><div className="font-black uppercase text-lg" style={{fontFamily:"Oswald, sans-serif",color:"#ffd24a"}}>{report.label}</div>{report.isCurrent&&<span className="text-[0.55rem] font-black tracking-widest rounded-full px-2 py-1" style={{color:"#22c55e",background:"rgba(34,197,94,.1)"}}>IN PROGRESS</span>}<span className="ml-auto font-mono text-sm text-white/35">{report.totalMatches} matches</span></div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">{report.competitions.map(c=><div key={c.leagueType} className="rounded-xl p-4" style={{background:"rgba(255,255,255,.025)",border:"1px solid rgba(255,255,255,.07)"}}><div className="text-[0.58rem] font-black tracking-widest text-white/35">{LABELS[c.leagueType]?.toUpperCase()}</div><div className="font-black uppercase mt-2 truncate" style={{fontFamily:"Oswald, sans-serif",color:c.leagueType==="singles"?"#ff005c":c.leagueType==="doubles"?"#0066ff":"#22c55e"}}>{c.seasonName??"No season recorded"}</div><div className="text-xs mt-2 text-white/40">{c.matchCount} matches</div>{c.championName?<div className="flex items-center gap-1.5 text-xs font-bold mt-2" style={{color:"#ffd24a"}}><Trophy className="w-3 h-3"/>{c.championName}</div>:<div className="text-xs mt-2 text-white/25">{c.isActive?"Title race live":"Champion not recorded"}</div>}</div>)}</div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">{report.playerOfMonth&&<div className="rounded-xl p-4" style={{background:"rgba(255,210,74,.05)",border:"1px solid rgba(255,210,74,.14)"}}><div className="text-[0.58rem] font-black tracking-widest" style={{color:"rgba(255,210,74,.6)"}}>SINGLES PLAYER OF THE MONTH</div><Link href={`/players/${report.playerOfMonth.playerId}`}><div className="font-black uppercase text-lg mt-1" style={{fontFamily:"Oswald, sans-serif",color:"#ffd24a"}}>{report.playerOfMonth.playerName}</div></Link><div className="text-xs text-white/40">{report.playerOfMonth.wins} wins this season</div></div>}{report.headlineResult&&<div className="rounded-xl p-4" style={{background:"rgba(0,102,255,.05)",border:"1px solid rgba(0,102,255,.16)"}}><div className="text-[0.58rem] font-black tracking-widest" style={{color:"rgba(0,157,255,.7)"}}>BIGGEST WAGER</div><div className="font-black uppercase mt-1" style={{fontFamily:"Oswald, sans-serif"}}>{report.headlineResult.winnerName} beat {report.headlineResult.loserName}</div><div className="flex items-center gap-3 mt-2"><span className="text-xs text-white/40">{report.headlineResult.stake} points</span><Link href={`/match-centre/${report.headlineResult.matchKey}`} className="inline-flex items-center gap-1 text-[0.6rem] font-black" style={{color:"#00d9ff"}}>MATCH <ExternalLink className="w-3 h-3"/></Link></div></div>}</div>
-      <div className="flex justify-end mt-4"><ShareCardButton filename={`tkdl-monthly-report-${report.monthKey}`} label="Share report" spec={{eyebrow:`TKDL · ${report.label}`,title:"Monthly League Report",subtitle:`${report.totalMatches} matches across the league`,badge:report.isCurrent?"Live report":"Season archive",accent:"#ff005c",secondaryAccent:"#0066ff",stats:[{label:"Matches",value:String(report.totalMatches)},{label:"Player of month",value:report.playerOfMonth?.playerName??"—"},{label:"Biggest wager",value:report.headlineResult?`${report.headlineResult.stake} pts`:"—"}]}}/></div>
+type Award = { key: string; kicker: string; name: string; stat: string; href?: string; color: string; icon: React.ReactNode };
+function awardsOf(r: Report): Award[] {
+  const out: Award[] = [];
+  const champ = r.competitions.find(c => c.leagueType === "singles" && !c.isActive && c.championName);
+  if (champ) out.push({ key: "champ", kicker: "Champion", name: champ.championName!, stat: champ.seasonName ?? "Singles", href: champ.championId ? `/players/${champ.championId}` : undefined, color: "#ffd24a", icon: <Crown className="w-5 h-5" /> });
+  if (r.playerOfMonth) out.push({ key: "potm", kicker: "Player of the month", name: r.playerOfMonth.playerName, stat: `${r.playerOfMonth.wins} wins`, href: `/players/${r.playerOfMonth.playerId}`, color: "#ffb020", icon: <Trophy className="w-5 h-5" /> });
+  if (r.biggestUpset) out.push({ key: "upset", kicker: "Biggest upset", name: r.biggestUpset.winnerName, stat: `beat ${r.biggestUpset.loserName} · +${r.biggestUpset.elo} ELO`, href: `/players/${r.biggestUpset.winnerId}`, color: "#ff5c93", icon: <Zap className="w-5 h-5" /> });
+  if (r.most180s) out.push({ key: "180", kicker: "Most 180s", name: r.most180s.playerName, stat: `${r.most180s.count} maximum${r.most180s.count === 1 ? "" : "s"}`, href: `/players/${r.most180s.playerId}`, color: "#4fa8ff", icon: <Target className="w-5 h-5" /> });
+  if (r.sharpest) out.push({ key: "sharp", kicker: "Sharpest", name: r.sharpest.playerName, stat: `${Math.round(r.sharpest.rate * 100)}% from ${r.sharpest.played} matches`, href: `/players/${r.sharpest.playerId}`, color: "#3ee0b4", icon: <TrendingUp className="w-5 h-5" /> });
+  return out;
+}
+
+function AwardTile({ a }: { a: Award }) {
+  const body = (
+    <div className="pm-award" style={{ ["--ac" as string]: a.color }}>
+      <div className="medal">{a.icon}</div>
+      <div className="min-w-0">
+        <div className="k">{a.kicker}</div>
+        <div className="n">{a.name}</div>
+        <div className="s">{a.stat}</div>
+      </div>
     </div>
-  </section>;
+  );
+  return a.href ? <Link href={a.href}>{body}</Link> : body;
+}
+
+/** Monthly awards. `compact` (the Hub) shows the latest month; the full view (Hall of Fame) lets you pick a month. */
+export function MonthlyLeagueReports({ compact = false }: { compact?: boolean }) {
+  const { data, loading } = useFetch<{ reports: Report[] }>("/api/insights/monthly-reports");
+  const [selected, setSelected] = useState("");
+  const reports = (data?.reports ?? []).filter(r => awardsOf(r).length > 0);
+  useEffect(() => { if (!selected && reports[0]) setSelected(reports[0].monthKey); }, [reports, selected]);
+  if (loading) return <div className="pm-card h-40 animate-pulse" />;
+  const report = reports.find(r => r.monthKey === selected) ?? reports[0];
+  if (!report) return null;
+  const awards = awardsOf(report);
+  return (
+    <section data-testid="monthly-league-reports">
+      <Chapter title="Monthly awards" accent="#ffb020"
+        aside={compact ? <Link href="/hall-of-fame" className="pm-chip" style={{ color: "#ffd24a", borderColor: "rgba(255,210,74,.45)" }}>All months →</Link> : undefined} />
+      <PmCard accent="#ffb020" className="p-4">
+        <div className="flex items-center gap-2 flex-wrap mb-3" style={{ position: "relative", zIndex: 1 }}>
+          <div className="pm-metal" style={{ fontFamily: "Oswald, sans-serif", fontSize: 20, textTransform: "uppercase", letterSpacing: ".04em" }}>{report.label}</div>
+          {report.isCurrent && <span className="pm-chip" style={{ color: "#ffc2d6", borderColor: "rgba(255,92,147,.45)" }}><span className="live-dot" /> So far</span>}
+          <span className="ml-auto text-xs" style={{ color: "#a9a4bd" }}>{report.totalMatches} matches</span>
+        </div>
+        {!compact && reports.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2" style={{ position: "relative", zIndex: 1 }}>
+            {reports.slice(0, 12).map(r => (
+              <button key={r.monthKey} onClick={() => setSelected(r.monthKey)} className="pm-chip shrink-0"
+                style={r.monthKey === report.monthKey ? { color: "#1a1200", background: "linear-gradient(180deg,#ffe58a,#e0a800)", borderColor: "#ffd24a" } : { color: "#c9c4da" }}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" style={{ position: "relative", zIndex: 1 }}>{awards.map(a => <AwardTile key={a.key} a={a} />)}</div>
+        <div className="flex justify-end mt-3" style={{ position: "relative", zIndex: 1 }}>
+          <ShareCardButton filename={`tkdl-awards-${report.monthKey}`} label="Share"
+            spec={{ eyebrow: `TKDL · ${report.label}`, title: "Monthly awards", subtitle: `${report.totalMatches} matches`, badge: report.isCurrent ? "So far" : "Final", accent: "#ffd24a", secondaryAccent: "#ff5c93",
+              stats: awards.slice(0, 3).map(a => ({ label: a.kicker, value: a.name })) }} />
+        </div>
+      </PmCard>
+    </section>
+  );
 }
