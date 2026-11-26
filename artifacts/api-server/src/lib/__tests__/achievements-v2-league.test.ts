@@ -119,3 +119,14 @@ test("a season entered as a final table only (no match rows) still counts: found
   const other = evaluateLeague({ ...base, seasons, player: { id: 3, careerPeakElo: 1000, eliminationsCount: 0, longestWinStreak: 0 } });
   assert.equal(other.feats.foundingMember, undefined);
 });
+
+test("Nov 2026 additions: format wins, darts, 170s, dates and three-peat", () => {
+  const d = (iso: string) => new Date(iso);
+  const ms = [match(1, ME, 2, d("2026-01-25T19:00:00Z"), { gameType: "Cricket" }), match(1, ME, 2, d("2026-01-31T12:30:00Z"), { winnerDarts: 45, winner170s: 1 }),
+    match(1, ME, 2, d("2026-02-01T20:00:00Z")), match(1, 3, ME, d("2026-02-14T20:00:00Z")), match(2, ME, 3, d("2026-11-30T20:00:00Z"))];
+  const r = evaluateLeague(ctx(ms));
+  assert.equal(r.metrics.cricketWins, 1); assert.equal(r.metrics.x01Wins, 3); assert.equal(r.metrics.leagueDarts, 45); assert.equal(r.metrics.s170plus, 1);
+  assert.ok(r.feats.burnsNight); assert.ok(r.feats.stAndrews); assert.ok(r.feats.lunchBreak); assert.ok(r.feats.weekendWarrior, "Sat 31 Jan and Sun 1 Feb");
+  assert.ok(r.feats.threePeat, "three straight wins over player 2"); assert.equal(r.feats.valentines, undefined, "lost on the 14th");
+  assert.equal(r.seasons.get(1)?.seasonMatches, 4);
+});

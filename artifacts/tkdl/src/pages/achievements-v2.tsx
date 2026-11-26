@@ -94,6 +94,12 @@ function UpdateNotice() {
   );
 }
 
+/** Every level of every track, every feat and this season's goal steps: what there is to earn, counted the way the classics were. */
+const levelsOf = (a: AreaView) => ({
+  earned: a.tracks.reduce((n, t) => n + t.level, 0) + a.feats.filter(f => f.earnedAt).length + a.seasonGoals.reduce((n, g) => n + g.completed, 0),
+  total: a.tracks.reduce((n, t) => n + t.levels.length, 0) + a.feats.length + a.seasonGoals.reduce((n, g) => n + g.targets.length, 0),
+});
+
 export default function AchievementsV2Page() {
   const { user } = useAuth();
   const search = new URLSearchParams(useSearch());
@@ -126,7 +132,7 @@ export default function AchievementsV2Page() {
         <div className="av2-plaques">
           <div><b className="gold">{fmt(view.score)}</b><span>Points</span></div>
           <div><b className="pink">{view.featsEarned}</b><span>Feats</span></div>
-          <div><b className="blue">{view.areas.reduce((t, a) => t + a.earned, 0)}<small>/{view.areas.reduce((t, a) => t + a.total, 0)}</small></b><span>Unlocked</span></div>
+          <div><b className="blue">{view.areas.reduce((t, a) => t + levelsOf(a).earned, 0)}<small>/{view.areas.reduce((t, a) => t + levelsOf(a).total, 0)}</small></b><span>Levels earned</span></div>
           <div><b className="purple">{view.nearly.length}</b><span>Nearly there</span></div>
         </div>
         <div className="stage">
@@ -177,10 +183,10 @@ export default function AchievementsV2Page() {
       )}
 
       <section>
-        <h2>The cabinet <small>{area ? `${AREA_TAB[area.area]} ${area.earned} / ${area.total}` : ""}</small></h2>
+        <h2>The cabinet <small>{area ? `${AREA_TAB[area.area]} ${levelsOf(area).earned} / ${levelsOf(area).total} levels` : ""}</small></h2>
         <div className="av2-tabs">
           {view.areas.map(a => (
-            <button key={a.area} onClick={() => setTab(a.area)} className={tab === a.area ? "on" : ""}>{AREA_TAB[a.area] ?? a.name} <span>{a.earned}/{a.total}</span></button>
+            <button key={a.area} onClick={() => setTab(a.area)} className={tab === a.area ? "on" : ""}>{AREA_TAB[a.area] ?? a.name} <span>{a.earned}/{a.total}</span><em className="lv">{levelsOf(a).earned}/{levelsOf(a).total} levels</em></button>
           ))}
         </div>
         {tab === "CAREER" && <p className="av2-career-note">Bragging rights only: these count across all your Career saves and never change anything inside Career. 180s, checkouts, averages and nine-darters count from matches you throw live.</p>}

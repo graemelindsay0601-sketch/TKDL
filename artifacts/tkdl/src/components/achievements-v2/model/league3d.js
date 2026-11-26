@@ -302,8 +302,8 @@ PIECES["peak-elo"] = { name: "Peak Elo", build(K) {
 
 /** The full award: piece on its plinth, sized so every piece frames the same. */
 export function award(id, tier, font) {
-  const [pid, icon] = id.split("~"), P = PIECES[pid], K = kit(tier), g = new THREE.Group(); g.userData.ry = P.ry ?? (P.noPlinth ? -0.18 : undefined); g.userData.fit = P.fit ?? 1;
-  if (!P.noPlinth) g.add(plinth(K, font, P.name));
+  const [pid, icon, label] = id.split("~"), P = PIECES[pid], K = kit(tier), g = new THREE.Group(); g.userData.ry = P.ry ?? (P.noPlinth ? -0.18 : undefined); g.userData.fit = P.fit ?? 1;
+  if (!P.noPlinth) g.add(plinth(K, font, label ?? P.name));
   const piece = P.build(K, font, icon); g.add(piece);
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
@@ -1480,3 +1480,96 @@ Object.assign(ICONS, {
   watch: (c, w) => { c.beginPath(); c.arc(.5 * w, .56 * w, .26 * w, 0, 7); c.fill(); c.fillRect(.45 * w, .16 * w, .1 * w, .1 * w); c.lineWidth = .03 * w; c.strokeStyle = "#fff"; c.beginPath(); c.arc(.5 * w, .14 * w, .05 * w, 0, 7); c.stroke();
     c.fillStyle = "#000"; c.beginPath(); c.arc(.5 * w, .56 * w, .2 * w, 0, 7); c.fill(); c.fillStyle = "#fff"; c.fillRect(.48 * w, .4 * w, .04 * w, .18 * w); c.fillRect(.48 * w, .54 * w, .14 * w, .04 * w); },
 });
+
+
+// ================================================================ Nov 2026: emblems and two award families for the expanded catalogue
+const disc = (c, w, x, y, r) => { c.beginPath(); c.arc(x * w, y * w, r * w, 0, 7); c.fill(); };
+Object.assign(ICONS, {
+  x01: txt("501", .3), n27: txt("27", .46), n170: txt("170", .3), t20: txt("T20", .3), n99: txt("99", .46), pro: txt("PRO", .3), avg: txt("AVG", .28),
+  legs: txt("LEG", .3), n29: txt("29", .46), sh: txt("S·D·T", .2), n180: txt("180", .3),
+  stumps: (c, w) => { for (const x of [.3, .47, .64]) c.fillRect(x * w, .28 * w, .07 * w, .56 * w); c.fillRect(.28 * w, .22 * w, .2 * w, .045 * w); c.fillRect(.52 * w, .22 * w, .2 * w, .045 * w); },
+  half: (c, w) => { c.lineWidth = .05 * w; c.strokeStyle = "#fff"; c.beginPath(); c.arc(.5 * w, .5 * w, .3 * w, 0, 7); c.stroke(); c.beginPath(); c.moveTo(.5 * w, .2 * w); c.arc(.5 * w, .5 * w, .3 * w, -Math.PI / 2, Math.PI / 2); c.closePath(); c.fill(); },
+  baseball: (c, w) => { disc(c, w, .5, .5, .32); c.strokeStyle = "#000"; c.lineWidth = .025 * w; c.beginPath(); c.arc(.12 * w, .5 * w, .3 * w, -0.8, 0.8); c.stroke(); c.beginPath(); c.arc(.88 * w, .5 * w, .3 * w, Math.PI - 0.8, Math.PI + 0.8); c.stroke(); },
+  golf: (c, w) => { c.beginPath(); c.ellipse(.5 * w, .8 * w, .32 * w, .07 * w, 0, 0, 7); c.fill(); c.fillRect(.47 * w, .14 * w, .035 * w, .66 * w); poly(c, w, [[.505, .14], [.8, .24], [.505, .34]]); },
+  football: (c, w) => { disc(c, w, .5, .5, .33); c.fillStyle = "#000"; poly(c, w, [[.5, .36], [.63, .46], [.58, .61], [.42, .61], [.37, .46]]); for (const [x, y] of [[.5, .2], [.8, .45], [.7, .78], [.3, .78], [.2, .45]]) { c.beginPath(); c.arc(x * w, y * w, .07 * w, 0, 7); c.fill(); } },
+  tennis: (c, w) => { disc(c, w, .5, .5, .32); c.strokeStyle = "#000"; c.lineWidth = .03 * w; c.beginPath(); c.arc(.18 * w, .5 * w, .26 * w, -1, 1); c.stroke(); c.beginPath(); c.arc(.82 * w, .5 * w, .26 * w, Math.PI - 1, Math.PI + 1); c.stroke(); },
+  ship: (c, w) => { poly(c, w, [[.12, .62], [.88, .62], [.76, .8], [.24, .8]]); c.fillRect(.48 * w, .16 * w, .04 * w, .46 * w); poly(c, w, [[.53, .2], [.78, .56], [.53, .56]]); poly(c, w, [[.46, .26], [.46, .56], [.26, .56]]); },
+  ball8: (c, w) => { disc(c, w, .5, .5, .33); c.fillStyle = "#000"; disc(c, w, .5, .5, .15); c.fillStyle = "#fff"; txt("8", .2)(c, w); },
+  xo: (c, w) => { c.lineWidth = .045 * w; c.strokeStyle = "#fff"; c.lineCap = "round"; for (const k of [.38, .62]) { c.beginPath(); c.moveTo(k * w, .16 * w); c.lineTo(k * w, .84 * w); c.stroke(); c.beginPath(); c.moveTo(.16 * w, k * w); c.lineTo(.84 * w, k * w); c.stroke(); }
+    c.beginPath(); c.moveTo(.2 * w, .2 * w); c.lineTo(.32 * w, .32 * w); c.moveTo(.32 * w, .2 * w); c.lineTo(.2 * w, .32 * w); c.stroke(); c.beginPath(); c.arc(.5 * w, .5 * w, .07 * w, 0, 7); c.stroke(); c.beginPath(); c.moveTo(.68 * w, .68 * w); c.lineTo(.8 * w, .8 * w); c.moveTo(.8 * w, .68 * w); c.lineTo(.68 * w, .8 * w); c.stroke(); },
+  chequer: (c, w) => { c.fillRect(.2 * w, .14 * w, .04 * w, .72 * w); for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) if ((i + j) % 2 === 0) c.fillRect((.24 + i * .14) * w, (.16 + j * .12) * w, .14 * w, .12 * w);
+    c.lineWidth = .02 * w; c.strokeStyle = "#fff"; c.strokeRect(.24 * w, .16 * w, .56 * w, .36 * w); },
+  thistle: (c, w) => { c.beginPath(); c.ellipse(.5 * w, .5 * w, .13 * w, .15 * w, 0, 0, 7); c.fill(); for (let i = -3; i <= 3; i++) poly(c, w, [[.5 + i * .04, .38], [.5 + i * .075, .14], [.5 + i * .04 + .03, .38]]);
+    c.fillRect(.48 * w, .62 * w, .04 * w, .24 * w); poly(c, w, [[.5, .74], [.22, .62], [.3, .74]]); poly(c, w, [[.5, .74], [.78, .62], [.7, .74]]); },
+  saltire: (c, w) => { c.lineWidth = .11 * w; c.strokeStyle = "#fff"; c.lineCap = "butt"; c.beginPath(); c.moveTo(.16 * w, .2 * w); c.lineTo(.84 * w, .8 * w); c.moveTo(.84 * w, .2 * w); c.lineTo(.16 * w, .8 * w); c.stroke(); },
+  pumpkin: (c, w) => { for (const [x, r] of [[.33, .2], [.67, .2], [.5, .24]]) { c.beginPath(); c.ellipse(x * w, .56 * w, r * w, .26 * w, 0, 0, 7); c.fill(); } c.fillRect(.47 * w, .2 * w, .06 * w, .12 * w);
+    c.fillStyle = "#000"; poly(c, w, [[.36, .48], [.44, .48], [.4, .4]]); poly(c, w, [[.56, .48], [.64, .48], [.6, .4]]); poly(c, w, [[.32, .62], [.68, .62], [.6, .72], [.4, .72]]); },
+  dartx: (c, w) => { c.save(); c.translate(.5 * w, .5 * w); c.rotate(-Math.PI / 4); c.fillRect(-.02 * w, -.38 * w, .04 * w, .18 * w); c.fillRect(-.045 * w, -.2 * w, .09 * w, .28 * w); c.fillRect(-.02 * w, .08 * w, .04 * w, .12 * w);
+    for (const s of [-1, 1]) { c.beginPath(); c.moveTo(0, .16 * w); c.lineTo(s * .14 * w, .3 * w); c.lineTo(s * .12 * w, .4 * w); c.lineTo(0, .34 * w); c.fill(); } c.restore(); },
+});
+/** An emblem drawn on a canvas, raised from a plane: shared by the two award families below. */
+const relief = (icon, size, mat) => {
+  const tex = canvasTex(512, 512, (c, w) => { c.fillStyle = "#000"; c.fillRect(0, 0, w, w); c.fillStyle = "#fff"; (ICONS[icon] ?? ICONS.star)(c, w); });
+  const m = mat.clone(); m.alphaMap = tex; m.transparent = true; m.displacementMap = tex; m.displacementScale = 0.02; m.bumpMap = tex; m.bumpScale = 2;
+  return new THREE.Mesh(new THREE.PlaneGeometry(size, size, 160, 160), m);
+};
+const FIELD_DEEP = new THREE.MeshPhysicalMaterial({ color: 0x0c1430, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.03 });
+/** Laurel sprig: leaves along a curve, mirrored by `side`. */
+const laurel = (K, side, r, y0, y1) => {
+  const g = new THREE.Group(), n = 8, cy = (y0 + y1) / 2, ry = (y1 - y0) / 2, pt = (t) => { const a = -Math.PI / 2 + t * Math.PI * 0.9; return [side * Math.cos(a) * r, cy + Math.sin(a) * ry, a]; };
+  const stem = []; for (let i = 0; i <= 40; i++) { const [x, y] = pt(i / 40); stem.push([x, y, 0.01]); } g.add(tube(stem, 0.012, K.accent, 120));
+  const leafShape = new THREE.Shape(); leafShape.moveTo(0, 0); leafShape.quadraticCurveTo(0.05, 0.07, 0, 0.16); leafShape.quadraticCurveTo(-0.05, 0.07, 0, 0);
+  for (let i = 0; i < n; i++) { const t = (i + 0.5) / n, [x, y, a] = pt(t);
+    for (const o of [1, -1]) { const leaf = extrude(leafShape, 0.008, K.bright, 0.006); leaf.position.set(x, y, 0.0); leaf.rotation.z = (a + Math.PI / 2) * (side > 0 ? 1 : -1) + (side > 0 ? 0 : Math.PI) * 0 + o * 0.55 * side + (side > 0 ? -Math.PI / 2 : Math.PI / 2) + Math.PI / 2; g.add(leaf); } }
+  return g;
+};
+
+/** Practice game families: a medallion on a fluted stem — rope-edged disc, enamel ring set with beads, the game's emblem raised in the
+ *  centre, laurel round it and a dart finial. One shape across the family so the shelf reads as a set; the emblem tells them apart. */
+PIECES["legend"] = { name: "", build(K, font, icon = "star") {
+  const g = new THREE.Group();
+  g.add(turnedFoot(K, 0.44));
+  g.add(smooth([[0, 0.15], [0.22, 0.15], [0.2, 0.19], [0.12, 0.24], [0.15, 0.29], [0.11, 0.33], [0, 0.33]], K.main));
+  g.add(fluted([[0.075, 0.33], [0.085, 0.38], [0.065, 0.62], [0.075, 0.68], [0.12, 0.72], [0.0, 0.73]], 16, 0.2, K.main, { t0: 0.08, t1: 0.82 }));
+  g.add(ring(0.09, 0.012, K.trim, 0.36)); g.add(ring(0.095, 0.012, K.trim, 0.66));
+  const med = new THREE.Group(); med.position.y = 1.16; g.add(med);
+  const R = 0.46, rim = new THREE.Shape(); rim.absarc(0, 0, R, 0, Math.PI * 2, false);
+  const body = extrude(rim, 0.08, K.main, 0.02); body.position.z = -0.04; med.add(body);
+  med.add(at(new THREE.Mesh(new THREE.TorusGeometry(R + 0.005, 0.024, 16, 200), K.trim), 0, 0, 0.0));
+  const en = new THREE.Mesh(new THREE.RingGeometry(0.31, 0.43, 160), K.enamel); en.position.z = 0.062; med.add(en);
+  med.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.31, 0.012, 12, 160), K.bright), 0, 0, 0.064));
+  med.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.012, 12, 160), K.bright), 0, 0, 0.064));
+  for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; med.add(at(ball(0.011, K.gem ?? K.bright), Math.cos(a) * 0.37, Math.sin(a) * 0.37, 0.068)); }
+  const core = new THREE.Mesh(new THREE.CircleGeometry(0.305, 96), FIELD_DEEP); core.position.z = 0.062; med.add(core);
+  const em = relief(icon, 0.6, K.bright); em.position.z = 0.066; med.add(em);
+  const back = new THREE.Mesh(new THREE.CircleGeometry(0.44, 96), engrave(K.main, guilloche(), 0.4)); back.position.z = -0.062; back.rotation.y = Math.PI; med.add(back);
+  // cradle where the stem meets the medallion
+  g.add(smooth([[0, 0.7], [0.16, 0.72], [0.2, 0.76], [0.14, 0.78], [0, 0.78]], K.accent));
+  med.add(laurel(K, 1, 0.56, -0.5, 0.42)); med.add(laurel(K, -1, 0.56, -0.5, 0.42));
+  const fin = dart(K, K.enamel); fin.scale.setScalar(0.55); fin.rotation.z = Math.PI; fin.position.set(0, R + 0.52, 0); med.add(fin);
+  if (K.glow) med.add(at(new THREE.Mesh(new THREE.TorusGeometry(R + 0.05, 0.008, 8, 160), K.glow), 0, 0, -0.01));
+  g.scale.setScalar(1.06); return g; } };
+
+/** Everything else added in Nov 2026: a heraldic shield on a short stand, crossed darts behind, a coronet on the chief and the emblem raised in the field. */
+PIECES["crest"] = { name: "", build(K, font, icon = "star") {
+  const g = new THREE.Group();
+  g.add(turnedFoot(K, 0.4));
+  g.add(fluted([[0.1, 0.15], [0.11, 0.2], [0.08, 0.42], [0.1, 0.48], [0.16, 0.52], [0, 0.53]], 12, 0.18, K.main, { t0: 0.1, t1: 0.8 }));
+  const sh = new THREE.Group(); sh.position.y = 1.12; g.add(sh);
+  const shape = (k) => { const s = new THREE.Shape(); s.moveTo(-0.42 * k, 0.48 * k); s.lineTo(0.42 * k, 0.48 * k); s.lineTo(0.42 * k, 0.04 * k);
+    s.quadraticCurveTo(0.42 * k, -0.38 * k, 0, -0.6 * k); s.quadraticCurveTo(-0.42 * k, -0.38 * k, -0.42 * k, 0.04 * k); s.lineTo(-0.42 * k, 0.48 * k); return s; };
+  const body = extrude(shape(1), 0.08, K.main, 0.022); body.position.z = -0.04; sh.add(body);
+  const field = new THREE.Mesh(new THREE.ShapeGeometry(shape(0.84), 48), K.enamel); field.position.set(0, -0.02, 0.064); sh.add(field);
+  const pts = shape(0.92).getPoints(120).map(p => [p.x, p.y - 0.012, 0.066]); sh.add(tube(pts, 0.012, K.bright, 300));
+  const core = new THREE.Mesh(new THREE.CircleGeometry(0.26, 96), FIELD_DEEP); core.position.set(0, 0.0, 0.068); sh.add(core);
+  sh.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.014, 12, 140), K.bright), 0, 0, 0.07));
+  for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; sh.add(at(ball(0.01, K.gem ?? K.bright), Math.cos(a) * 0.3, Math.sin(a) * 0.3, 0.07)); }
+  const em = relief(icon, 0.5, K.bright); em.position.set(0, 0, 0.072); sh.add(em);
+  // coronet on the chief
+  const crown = new THREE.Group(); crown.position.set(0, 0.52, 0); sh.add(crown);
+  crown.add(new THREE.Mesh(new RoundedBoxGeometry(0.56, 0.07, 0.1, 3, 0.02), K.accent));
+  for (let i = -2; i <= 2; i++) { crown.add(at(ball(0.035, K.gem ?? K.bright), i * 0.12, 0.08, 0)); crown.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 16), K.accent), i * 0.12, 0.05, 0)); }
+  // scroll brackets either side where the shield meets the stand
+  for (const s of [-1, 1]) sh.add(tube([[s * 0.06, -0.62, 0], [s * 0.2, -0.66, 0.02], [s * 0.34, -0.58, 0.03], [s * 0.36, -0.46, 0.03], [s * 0.3, -0.42, 0.03]], 0.02, K.accent, 80));
+  if (K.glow) sh.add(tube(shape(1.06).getPoints(120).map(p => [p.x, p.y - 0.01, -0.05]), 0.008, K.glow, 300));
+  g.scale.setScalar(1.2); return g; } };

@@ -175,3 +175,26 @@ test("Master-501 Speed run and Tier jumper, and Boss slayer", () => {
   assert.ok(evaluateModes([], [], bosses, new Date()).feats.bossSlayer);
   assert.equal(evaluateModes([], [], bosses.slice(0, 5), new Date()).feats.bossSlayer, undefined);
 });
+
+test("practice (Nov 2026 additions): game families, wins, best average and the new feats", () => {
+  const s = (d: string, key: string, extra: Partial<{ darts: number; score: number; checkoutHits: number; won: boolean | null }> = {}) =>
+    ({ gameTypeKey: key, darts: 60, score: 900, s180: 0, checkoutAttempts: 0, checkoutHits: 0, won: null, createdAt: at(d), ...extra });
+  const sessions = [s("2026-12-25", "501_double_out", { darts: 30, score: 1020, won: true }), s("2026-12-25", "atc"), s("2026-12-25", "around_the_world"),
+    s("2026-12-26", "cricket", { won: false }), s("2026-12-26", "bobs27", { darts: 450, checkoutHits: 10 }), s("2026-12-26", "quackshot")];
+  const f = evaluatePractice(sessions, () => null);
+  assert.equal(f.metrics["game:game-x01"], 1); assert.equal(f.metrics["game:game-clock"], 2, "old and new Around the World keys both count");
+  assert.equal(f.metrics["game:game-cricket"], 1); assert.equal(f.metrics["game:game-bobs-27"], 1); assert.equal(f.metrics["game:game-party"], 1);
+  assert.equal(f.metrics.practiceWins, 1); assert.equal(f.metrics.practiceBestAvg, 102, "1020 in 30 darts");
+  assert.ok(f.feats.tonAverage); assert.ok(f.feats.christmasPractice); assert.ok(f.feats.deadeye); assert.ok(f.feats.bigDay, "570 darts on the 26th");
+  assert.equal(f.feats.partyAnimal, undefined, "only one party game tried");
+});
+
+test("master-501, board curse and bosses (Nov 2026 additions)", () => {
+  const run = (tier: number, round: number, result: string, d: string) => ({ tier, round, legsFormat: 5, legsWon: result === "win" ? 3 : 1, legsLost: result === "win" ? 1 : 3, result, completedAt: at(d) });
+  const m = evaluateMaster501([run(1, 1, "loss", "2026-03-01"), run(1, 1, "loss", "2026-03-02"), run(1, 1, "loss", "2026-03-03"), run(1, 1, "win", "2026-03-04"), run(1, 2, "win", "2026-03-05"), run(1, 3, "win", "2026-03-06")]);
+  assert.equal(m.metrics.m501Legs, 12); assert.equal(m.metrics.m501Tiers, 1); assert.ok(m.feats.neverSayDie);
+  const bosses = ["a", "b", "c", "d", "e", "f"].map((id, i) => ({ bossId: id, attempts: 2, wins: i < 2 ? 1 : 0, cleanSweep: false, highestAscension: 0 }));
+  const x = evaluateModes([{ format: "bot", wins: 2, losses: 1 }, { format: "local", wins: 1, losses: 0 }, { format: "endless", wins: 1, losses: 3 }], [], bosses, new Date());
+  assert.equal(x.metrics.bcPlayed, 8); assert.equal(x.metrics.bossAttempts, 12); assert.equal(x.metrics.bossWins, 2);
+  assert.ok(x.feats.curseCollector); assert.ok(x.feats.bossRegular);
+});

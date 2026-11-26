@@ -213,3 +213,6 @@
 .av2-feat.locked .n { color: rgba(255,255,255,.78); font-family: Oswald, sans-serif; font-weight: 600; font-size: 12px; letter-spacing: .02em; }
 .av2-feat.locked .g { color: rgba(255,255,255,.55); }
 .av2-item.locked .n { color: rgba(255,255,255,.7); }
+/* level counts under each cabinet tab */
+.av2-tabs button .lv { font-style: normal; font-family: Inter, system-ui, sans-serif; font-size: 9.5px; letter-spacing: .02em; text-transform: none; opacity: .55; font-weight: 600; }
+.av2-tabs button.on .lv { opacity: .75; }
