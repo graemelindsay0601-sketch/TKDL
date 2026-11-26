@@ -1,4 +1,6 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
+import { HonoursCabinet } from "@/components/profile/HonoursCabinet";
+import { DartMap } from "@/components/profile/DartMap";
 import { AchievementsShelf } from "@/components/achievements-v2/AchievementsShelf";
 import { useAchievementsV2Status } from "@/components/achievements-v2/api";
 import { useGetPlayerStats, getGetPlayerStatsQueryKey } from "@workspace/api-client-react";
@@ -659,6 +661,8 @@ export default function PlayerDetail() {
 
       <DartsLocker playerId={player.id} setup={(player as any).dartsSetup ?? null} editable={isOwnProfile} />
 
+      <HonoursCabinet playerId={playerId} />
+
       {/* ══ GAME MODES ══ */}
       {/* One tile per mode instead of a full-width card each — same colors
           the Hub uses for these modes (dashboard.tsx's GAME_MODES), so a
@@ -856,6 +860,8 @@ export default function PlayerDetail() {
           </div>
         </CollapsibleSection>
       )}
+
+      <DartMap playerId={playerId} own={isOwnProfile} />
 
       {/* ══ HIGH CHECKOUTS ══ */}
       {((practiceAgg as any)?.highest_checkout > 0) && (
