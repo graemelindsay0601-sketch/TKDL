@@ -39,6 +39,8 @@ import "./x01-scorer.css";
 import { ModernX01, type ModernMode } from "./modern-x01";
 import { useScorerStyle } from "./useScorerStyle";
 import { ModernCricket } from "./modern-cricket";
+import "./modern-x01.css";
+import "./modern-cricket.css";
 
 /**
  * Sends a match's accumulated log to the backend for later download from
@@ -4124,42 +4126,41 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
   }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (phase === "assign") {
+    // One-screen number pick, in the same look as the new scorers.
+    const choosing = assigning === 1 && !!botConfig;
     return (
-      <div style={{ maxWidth:"512px", margin:"0 auto", padding:"1rem 0.5rem" }}>
-        <div className="pdc-divider" />
-        <div className="text-center mb-4">
-          <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily:"Oswald,sans-serif" }}>Killer — Pick Numbers</h2>
-          <p className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.4)" }}>
-            <span style={{ color:P_COLOR(assigning) }}>{names[assigning]}</span>
-            {assigning === 1 && botConfig ? " — CPU choosing…" : " — tap your number (1–20)"}
-          </p>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"0.5rem" }}>
-          {Array.from({length:20},(_,i)=>i+1).map(n => {
-            const taken = killerNums.includes(n);
-            const disabled = taken || (assigning === 1 && !!botConfig);
-            return (
-              <button key={n} onClick={() => !disabled && assignNumber(n)}
-                style={{
-                  padding:"1rem 0", borderRadius:"0.5rem", fontFamily:"Oswald,sans-serif",
-                  fontWeight:700, fontSize:"1.1rem", cursor:disabled?"not-allowed":"pointer",
-                  background: killerNums[0]===n?`${P_COLOR(0)}33`:killerNums[1]===n?`${P_COLOR(1)}33`:"rgba(255,255,255,0.05)",
-                  border: killerNums[0]===n?`1.5px solid ${P_COLOR(0)}`:killerNums[1]===n?`1.5px solid ${P_COLOR(1)}`:"1px solid rgba(255,255,255,0.1)",
-                  color: taken?(killerNums[0]===n?P_COLOR(0):P_COLOR(1)):"rgba(255,255,255,0.8)",
-                }}>D{n}
-              </button>
-            );
-          })}
-        </div>
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          {[0,1].map(i=>(
-            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor:killerNums[i]!==null?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
-              <div className="text-xs" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
-              <div className="text-xl font-bold" style={{ fontFamily:"Oswald,sans-serif", color:"#fff" }}>{killerNums[i]!==null?`D${killerNums[i]}`:"—"}</div>
+      <div className="mx-root kp-root" role="application" aria-label="Killer: pick numbers">
+        <div className="mx-col">
+          <header className="kp-head">
+            <span className="kp-kick">Killer · Pick your numbers</span>
+            <div className="kp-turn" style={{ ["--pc" as any]: P_COLOR(assigning) }}>
+              <b>{names[assigning]}</b> {choosing ? "is choosing…" : "— tap your double"}
             </div>
-          ))}
+          </header>
+          <div className="kp-grid">
+            {Array.from({length:20},(_,i)=>i+1).map(n => {
+              const owner = killerNums[0]===n ? 0 : killerNums[1]===n ? 1 : null;
+              const disabled = owner !== null || choosing;
+              return (
+                <button key={n} disabled={disabled} onClick={() => !disabled && assignNumber(n)}
+                  className={owner !== null ? "taken" : ""} style={owner !== null ? { ["--pc" as any]: P_COLOR(owner) } : undefined}>
+                  <span>D{n}</span>
+                  {owner !== null && <small>{names[owner]}</small>}
+                </button>
+              );
+            })}
+          </div>
+          <div className="kp-cards">
+            {[0,1].map(i=>(
+              <div key={i} className={`mc-card${assigning === i ? " is-on" : ""}`}>
+                <div className="mc-card-top"><span className="mc-name">{names[i]}</span></div>
+                <div className="mc-score">{killerNums[i]!==null?`D${killerNums[i]}`:"—"}</div>
+                <div className="mc-stats"><span>{killerNums[i]!==null ? "Locked in" : assigning === i ? "Picking" : "Waiting"}</span><span>Lives <b>{lives}</b></span></div>
+              </div>
+            ))}
+          </div>
+          <button className="kp-abandon" onClick={() => { if (window.confirm("Abandon this match?")) onAbandon(); }}>Abandon match</button>
         </div>
-        <div className="mt-4"><AbandonBtn onAbandon={onAbandon} /></div>
       </div>
     );
   }
@@ -4178,9 +4179,9 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {[0,1].map(i=>(
-              <div key={i} className="pdc-card p-4 text-center" style={{ borderColor:turn===i?P_COLOR(i):"rgba(255,255,255,0.06)" }}>
-                <div className="text-xs font-bold uppercase" style={{ color:P_COLOR(i), fontFamily:"Oswald,sans-serif" }}>{names[i]}</div>
-                <div className="text-sm mt-1" style={{ color:"rgba(255,255,255,0.5)", fontFamily:"Oswald,sans-serif" }}>D{killerNums[i]}</div>
+              <div key={i} className={`mc-card text-center${turn===i ? " is-on" : ""}`}>
+                <div className="mc-name" style={{ display:"block" }}>{names[i]}</div>
+                <div className="mc-score" style={{ fontSize:"2rem" }}>D{killerNums[i]}</div>
                 <div className="text-lg font-bold" style={{ fontFamily:"Oswald,sans-serif", color:isKiller[i]?"#ffd24a":"rgba(255,255,255,0.3)" }}>
                   {isKiller[i]?"☠ KILLER":"○ Not yet"}
                 </div>
