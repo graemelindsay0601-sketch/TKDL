@@ -227,3 +227,17 @@
 .pdc-card.pm-empty[style*="ff7b9d"]::before { background: radial-gradient(circle, #ff6b6b 0 9%, transparent 10% 30%, rgba(255,107,107,.6) 31% 34%, transparent 35% 62%, rgba(255,107,107,.5) 63% 66%, transparent 67%); box-shadow: 0 0 0 1px rgba(255,107,107,.4); margin-bottom: 0; }
 .pdc-card.pm-empty.space-y-3::before { display: none; }
 .pdc-card.pm-empty > div[style*="0.3"] { color: #b9b3cc !important; }
+
+/* ── Page transitions and tap feedback ─────────────────────────────── */
+/* A page eases up and in when opened. Fill mode "backwards" so nothing stays applied after it
+   ends: a lasting translate would trap full-screen pop-ups (Final Whistle,
+   menus) inside the page box. */
+.pm-route-in { animation: pmRouteIn .32s cubic-bezier(.16,1,.3,1) backwards; }
+@keyframes pmRouteIn { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: none; } }
+/* A small press when tapping buttons, links and chips in the app pages. */
+.tkdl-main :is(button, a[href], [role="button"]):not(:disabled) { transition: scale .12s ease, filter .12s ease; }
+.tkdl-main :is(button, a[href], [role="button"]):not(:disabled):active { scale: .97; filter: brightness(1.12); }
+@media (prefers-reduced-motion: reduce) {
+  .pm-route-in { animation: none; }
+  .tkdl-main :is(button, a[href], [role="button"]):not(:disabled):active { scale: 1; }
+}
