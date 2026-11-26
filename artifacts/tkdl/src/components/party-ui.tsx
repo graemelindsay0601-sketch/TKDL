@@ -15,6 +15,7 @@
 // the app, just with more graphic presence than a flat number in a box.
 
 import React from "react";
+import { usePremiumScorer } from "@/lib/dartboard";
 
 export const GOLD = "#ffd24a";
 export const P_COLOR = (i: number) => (i === 0 ? "#22c55e" : "#ee0a78");
@@ -269,6 +270,8 @@ export function TerritoryGrid({
   lastHit?: number;
   order: number[];
 }) {
+  // Premium scorer: flatter cells so the keypad still fits on one screen.
+  const cellRatio = usePremiumScorer() ? "1.7" : "1";
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 5 }}>
       {order.map((n) => {
@@ -278,7 +281,7 @@ export function TerritoryGrid({
           <div
             key={n}
             style={{
-              aspectRatio: "1", borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
+              aspectRatio: cellRatio, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
               fontFamily: FONT, fontWeight: 700, fontSize: "0.75rem", position: "relative",
               background: color ? `linear-gradient(160deg, ${color}55, ${color}22)` : "linear-gradient(160deg,#14212b,#0c161d)",
               border: `1px solid ${color ?? "rgba(56,189,248,0.15)"}`,
@@ -422,6 +425,8 @@ export function SnakesLaddersBoard({
   snakes: Record<number, number>;
   positions: [number, number];
 }) {
+  // Premium scorer: flatter cells so the keypad still fits on one screen.
+  const cellRatio = usePremiumScorer() ? "1.7" : "1";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       {rows.map((row, ri) => (
@@ -435,7 +440,7 @@ export function SnakesLaddersBoard({
               <div
                 key={n}
                 style={{
-                  position: "relative", aspectRatio: "1", borderRadius: 7,
+                  position: "relative", aspectRatio: cellRatio, borderRadius: 7,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontFamily: FONT, fontWeight: 700, fontSize: "0.68rem",
                   background: isLadder ? "rgba(74,222,128,0.12)" : isSnake ? "rgba(248,113,113,0.12)" : "linear-gradient(160deg,#17171f,#101014)",

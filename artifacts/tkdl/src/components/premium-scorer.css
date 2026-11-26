@@ -96,3 +96,4 @@
 .ps-keys .mx-grid button { font-family: Oswald, sans-serif; font-size: 24px; font-weight: 600; }
 .ps-keys .mx-row4 button { font-family: Oswald, sans-serif; font-size: 18px; font-weight: 600; }
 .ps-keys .mx-mult button { font-family: Inter, system-ui, sans-serif; font-size: 13px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.ps-root .pm-score-card .sc-pscore { white-space: nowrap; font-size: clamp(30px, 10.5vw, 58px) !important; }
