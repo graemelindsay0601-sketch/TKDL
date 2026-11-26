@@ -69,10 +69,13 @@ const fmtLabel = (seg: number, m: 1 | 2 | 3, ring?: "inner" | "outer") =>
 
 /** GameScorer provides "switch this match to the classic scorer". */
 export const PartyClassicContext = createContext<(() => void) | null>(null);
+/** GameScorer provides "open this game's full rules" (the same rules sheet as the game list). */
+export const PartyRulesContext = createContext<(() => void) | null>(null);
 
 export function ModernParty(p: ModernPartyProps) {
   const ctxClassic = useContext(PartyClassicContext);
   const onClassic = p.onClassic ?? ctxClassic ?? undefined;
+  const openRules = useContext(PartyRulesContext);
   const [mult, setMult] = useState<1 | 2 | 3>(1);
   const [ring, setRing] = useState<"outer" | "inner">("outer");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -149,7 +152,7 @@ export function ModernParty(p: ModernPartyProps) {
 
         {menuOpen && (
           <div className="mx-menu" role="menu">
-            {p.rules && <button role="menuitem" onClick={() => { setMenuOpen(false); setRulesOpen(true); }}>How to play</button>}
+            {(openRules || p.rules) && <button role="menuitem" onClick={() => { setMenuOpen(false); if (openRules) openRules(); else setRulesOpen(true); }}>How to play</button>}
             {onClassic && <button role="menuitem" onClick={() => { setMenuOpen(false); onClassic(); }}>Use classic scorer for this match</button>}
             <button role="menuitem" className="danger" onClick={() => { setMenuOpen(false); if (window.confirm("Abandon this match?")) p.onAbandon(); }}>Abandon match</button>
             <button role="menuitem" className="close" onClick={() => setMenuOpen(false)}>Close</button>
@@ -186,7 +189,7 @@ export function ModernParty(p: ModernPartyProps) {
 
             {p.targets ? (
               <>
-                <div className="mc-mult" role="group" aria-label="Multiplier">
+                <div className={`mc-mult${p.ringMode ? " mp-four" : ""}`} role="group" aria-label="Multiplier">
                   {p.ringMode ? multOpts.map(o => <button key={o.k} className={`${o.cls === "m2" ? "db" : o.cls === "m3" ? "tr" : ""}${o.on ? " on" : ""}`} aria-pressed={o.on} disabled={busy} onClick={o.pick}>{o.label}</button>)
                     : <>
                       <button className={mult === 1 ? "on" : ""} aria-pressed={mult === 1} disabled={busy} onClick={() => setMult(1)}>Single</button>

@@ -65,3 +65,19 @@
 .mp-root.has-tpad .mp-chips { gap: 7px; }
 .mp-root.has-tpad .mp-chips span { min-width: 42px; height: 40px; border-radius: 12px; font-size: 18px; }
 @media (max-height: 760px) { .mp-root.has-tpad .mp-chips span { min-width: 34px; height: 32px; font-size: 15px; } }
+.mp-legs { display: flex; flex-direction: column; gap: 12px; text-align: center; padding-top: 6px; }
+.mp-legs > b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 64px; line-height: 1; background: linear-gradient(180deg, #fff6cf 0%, #ffd24a 44%, #b67f00 54%, #ffe28a 80%, #fff1b8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mp-legs input { width: 100%; accent-color: #ffd24a; }
+.mp-ttt { display: grid; grid-template-columns: repeat(3, 56px); gap: 6px; }
+.mp-ttt span { height: 56px; border-radius: 12px; display: grid; place-items: center; font-family: Oswald, sans-serif; font-weight: 700; font-size: 26px; color: #6d6a7c; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); }
+.mp-ttt span.x { color: #ff7aa8; border-color: rgba(255,0,92,.55); background: rgba(255,0,92,.1); }
+.mp-ttt span.o { color: #6fe0a0; border-color: rgba(60,200,120,.5); background: rgba(60,200,120,.08); }
+.mp-winners { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.mp-winners button { height: 140px; border-radius: 18px; border: 1px solid rgba(255,210,74,.45); background: linear-gradient(180deg,#2a2638,#17151f); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.mp-winners span { font-family: Oswald, sans-serif; font-weight: 700; font-size: 24px; text-transform: uppercase; background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mp-winners small { font-size: 11px; color: #a9a6b8; }
+
+.mc-mult.mp-four { grid-template-columns: repeat(4, 1fr); }
+.mp-panel > * { width: 100%; }
+.mp-root:not(.has-tpad) .mp-panel { max-height: 17vh; }
+.mp-winners button.on { border-color: #ff005c; box-shadow: 0 0 22px rgba(255,0,92,.3); }

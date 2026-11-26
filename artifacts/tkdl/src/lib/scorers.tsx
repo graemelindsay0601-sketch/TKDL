@@ -4132,6 +4132,33 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
   }, [turn, botConfig, phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [classicKill, setClassicKill] = useState(false);
+  if (phase === "assign" && newScoringUI && !classicKill) {
+    const choosing = assigning === 1 && !!botConfig;
+    return (
+      <ModernParty
+        heading="Killer" sub="Pick your doubles"
+        names={[p1Name, p2Name]} turn={assigning}
+        cards={[0, 1].map(i => ({ score: killerNums[i] !== null ? `D${killerNums[i]}` : "—", line: { label: "Status", value: killerNums[i] !== null ? "Locked in" : assigning === i ? "Picking" : "Waiting" }, stats: [{ label: "Lives", value: lives }, { label: "Killer", value: "Not yet" }] })) as [any, any]}
+        visitDarts={[]} onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon} onClassic={() => setClassicKill(true)}
+        customPad={<>
+          <div className="mx-note">{choosing ? `${p2Name} is choosing…` : `${names[assigning]} — tap your double`}</div>
+          <div className="kp-grid">
+            {Array.from({ length: 20 }, (_, i) => i + 1).map(n => {
+              const owner = killerNums[0] === n ? 0 : killerNums[1] === n ? 1 : null;
+              const dis = owner !== null || choosing;
+              return (
+                <button key={n} disabled={dis} onClick={() => !dis && assignNumber(n)} className={owner !== null ? "taken" : ""} style={owner !== null ? { ["--pc" as any]: P_COLOR(owner) } : undefined}>
+                  <span>D{n}</span>{owner !== null && <small>{names[owner]}</small>}
+                </button>
+              );
+            })}
+          </div>
+        </>}
+      />
+    );
+  }
+
   if (phase === "assign") {
     // One-screen number pick, in the same look as the new scorers.
     const choosing = assigning === 1 && !!botConfig;
@@ -5767,8 +5794,8 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
 }
 
 // ── Nearest Bull Scorer ────────────────────────────────────────────────────────
-export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
-  p1Name: string; p2Name: string; botConfig?: BotConfig;
+export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, newScoringUI }: {
+  p1Name: string; p2Name: string; botConfig?: BotConfig; newScoringUI?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const safeTimeout = useSafeTimeout();
@@ -5794,6 +5821,46 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
       safeTimeout(() => onWin(score >= bs ? 0 : 1, `${score} vs ${bs}`), 1800);
     }, 900);
   };
+
+  if (newScoringUI) {
+    const pickScore = (v: number | null) => v === null ? "–" : v === 50 ? "Bull 50" : v === 25 ? "Outer 25" : "Miss";
+    const human = !botConfig;
+    const nbPad = human ? (phase === "throwing" ? (
+      <>
+        <div className="mx-note">Each player throws three darts. Tap when you've thrown.</div>
+        <div className="mp-winners">{[0, 1].map(i => (
+          <button key={i} className={thrown[i] ? "on" : ""} onClick={() => { if (!thrown[i]) setThrown(p => { const n = [...p] as [boolean, boolean]; n[i] = true; return n; }); }}>
+            <span>{names[i]}</span><small>{thrown[i] ? "✓ Thrown" : "Tap when thrown"}</small>
+          </button>))}</div>
+        {thrown[0] && thrown[1] && <button className="mp-next" style={{ marginTop: 10, width: "100%" }} onClick={() => setPhase("declare")}>Declare winner</button>}
+      </>
+    ) : (
+      <>
+        <div className="mx-note">Look at the board — who is closest?</div>
+        <div className="mp-winners">{[0, 1].map(i => <button key={i} onClick={() => onWin(i as 0 | 1, "Nearest the Bull")}><span>{names[i]}</span><small>Tap — they were closest</small></button>)}</div>
+      </>
+    )) : (
+      <>
+        <div className="mx-note">{p1Score === null ? "Your closest dart to the bull" : botScore === null ? `${p2Name} throwing…` : "Result"}</div>
+        {p1Score === null && <div className="mc-pad mp-tpad" style={{ gridTemplateColumns: "1fr" }}>
+          <button className="bull" onClick={() => handleP1Pick(50)}><span>Bull · 50</span></button>
+          <button onClick={() => handleP1Pick(25)}><span>Outer bull · 25</span></button>
+          <button className="miss" onClick={() => handleP1Pick(0)}>Miss</button>
+        </div>}
+      </>
+    );
+    return (
+      <ModernParty
+        heading="Nearest the Bull" sub="Closest dart wins"
+        names={[p1Name, p2Name]} turn={0}
+        cards={[{ score: human ? (thrown[0] ? "✓" : "–") : pickScore(p1Score), line: { label: "Status", value: human ? (thrown[0] ? "Thrown" : "To throw") : p1Score === null ? "To throw" : "Thrown" }, stats: [{ label: "Darts", value: 3 }, { label: "Aim", value: "Bull" }] },
+               { score: human ? (thrown[1] ? "✓" : "–") : pickScore(botScore), line: { label: "Status", value: human ? (thrown[1] ? "Thrown" : "To throw") : botScore === null ? "Waiting" : "Thrown" }, stats: [{ label: "Darts", value: 3 }, { label: "Aim", value: "Bull" }] }]}
+        visitDarts={[]} onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon}
+        customPad={nbPad}
+      />
+    );
+  }
 
   // ── Human vs Human ───────────────────────────────────────────────────────────
   if (!botConfig) {
@@ -5900,10 +5967,25 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
 }
 
 // ── Manual Scorer ──────────────────────────────────────────────────────────────
-export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon }: {
+export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; gameName: string; rules?: string;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading={gameName} sub="Declare the winner"
+        names={[p1Name, p2Name]} turn={0}
+        cards={[{ score: "–" }, { score: "–" }]}
+        visitDarts={[]} onDart={() => {}} onMiss={() => {}} onUndo={() => {}}
+        onAbandon={onAbandon}
+        customPad={<><div className="mx-note">{rules ?? "Play your game, then tap who won."}</div>
+          <div className="mp-winners">{[0, 1].map(i => <button key={i} onClick={() => onWin(i as 0 | 1)}><span>{i === 0 ? p1Name : p2Name}</span><small>Tap — they won</small></button>)}</div></>}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-5">
       <div className="pdc-divider" />
@@ -5938,10 +6020,11 @@ export function ManualScorer({ p1Name, p2Name, gameName, rules, onWin, onAbandon
 // Each player calls ONE double at the start of the leg and must finish exactly
 // on it — hitting a different double (even one that would otherwise check you
 // out) doesn't count, so the whole leg has to be routed around your own call.
-export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { startScore?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -6011,6 +6094,25 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
   const dblLabel = (seg: number) => seg === 25 ? "DB" : `D${seg}`;
   const showPicker = callPhase !== null && !(botConfig && callPhase === 1);
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Pick a Double" sub={`${startScore} · finish on your called double`}
+        names={[p1Name, p2Name]} turn={callPhase !== null ? callPhase : turn}
+        cards={[0, 1].map(i => ({ score: remaining[i], line: { label: "Double", value: called[i] ? dblLabel(called[i]!.seg) : "not called" }, stats: [{ label: "From", value: startScore }, { label: "Visit", value: i === turn ? visitDarts.reduce((t, d) => t + d.value, 0) : "–" }] })) as [any, any]}
+        note={flash ?? (callPhase !== null ? `${names[callPhase]}, call your double` : `Finish on ${dblLabel(called[turn]!.seg)}`)}
+        visitDarts={visitDarts} disabled={isBotTurnPAD} waitingMsg={isBotTurnPAD ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={callPhase === null && remaining[turn] === (called[turn]!.seg === 25 ? 50 : called[turn]!.seg * 2) ? [called[turn]!.seg] : undefined}
+        onAbandon={onAbandon}
+        customPad={callPhase !== null ? (showPicker
+          ? <><div className="mx-note">You must finish this leg on the double you call</div>
+              <div className="mx-grid mp-pick">{DOUBLE_OPTIONS.map(opt => <button key={opt.seg} onClick={() => handleCall(callPhase, opt.seg)}><span>{dblLabel(opt.seg)}</span></button>)}</div></>
+          : <div className="mx-note">{p2Name} is calling a double…</div>) : undefined}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -6070,10 +6172,11 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
 // ── Legs Scorer ───────────────────────────────────────────────────────────────
 // Standard double-out X01, but the winner of each leg picks the NEXT leg's
 // starting score (clamped to the configured range) instead of it being fixed.
-export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { minScore?: number; maxScore?: number; legsToWin?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -6145,6 +6248,27 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
     return () => clearTimeout(t);
   }, [picker, phase, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Legs" sub={`First to ${legsToWin} legs`}
+        names={[p1Name, p2Name]} turn={phase === "picking" ? picker : turn}
+        cards={[0, 1].map(i => ({ score: phase === "picking" ? legWins[i] : remaining[i], unit: phase === "picking" ? "legs" : undefined, badge: `${legWins[i]} ${legWins[i] === 1 ? "leg" : "legs"}`, line: { label: "Leg from", value: pickedScore }, stats: [{ label: "Legs", value: `${legWins[i]}/${legsToWin}` }, { label: "Visit", value: phase === "playing" && i === turn ? visitDarts.reduce((t, d) => t + d.value, 0) : "–" }] })) as [any, any]}
+        note={flash ?? (phase === "picking" ? `${names[picker]} picks the start score` : "Check out on a double")}
+        visitDarts={visitDarts} disabled={isBotTurnLegs} waitingMsg={isBotTurnLegs ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+        customPad={phase === "picking" ? (
+          <div className="mp-legs">
+            <b>{pickedScore}</b>
+            <input type="range" min={minScore} max={maxScore} value={pickedScore} onChange={e => setPickedScore(Number(e.target.value))} />
+            <div className="mx-quick">{[101, 170, 201, 301, 501].filter(v => v >= minScore && v <= maxScore).map(v => <button key={v} className={pickedScore === v ? "gold" : ""} onClick={() => setPickedScore(v)}><span>{v}</span></button>)}</div>
+            <button className="mp-next" onClick={() => startLeg(pickedScore)}>Start leg at {pickedScore}</button>
+          </div>) : undefined}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -6206,9 +6330,10 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
 
 // ── Noughts & Crosses Scorer ───────────────────────────────────────────────────
 const NC_LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
-export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
+export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -6251,6 +6376,22 @@ export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAband
     const t3 = safeTimeout(() => handleDartRefNC.current(botNoughtsCrossesDart(cells, 1, botConfig)), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Noughts & Crosses" sub="Three in a row"
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: i === 0 ? "✕" : "○", line: { label: "Squares", value: cells.filter(c => c === i).length }, stats: [{ label: "Open", value: cells.filter(c => c === null).length }, { label: "Plays", value: i === 0 ? "Crosses" : "Noughts" }] })) as [any, any]}
+        panel={<div className="mp-ttt">{cells.map((c, i) => <span key={i} className={c === null ? "" : c === 0 ? "x" : "o"}>{c === null ? i + 1 : c === 0 ? "✕" : "○"}</span>)}</div>}
+        note="Hit an open number 1–9"
+        visitDarts={visitDarts} disabled={isBotTurnNC} waitingMsg={isBotTurnNC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={cells.map((c, i) => c === null ? i + 1 : null).filter((x): x is number => x !== null)}
+        onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -6782,6 +6923,26 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
 
   const gap = harePos - houndPos;
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Hare and Hounds" sub="Race 1 → 20"
+        rules="Player one is the Hare, racing round the board 1 to 20. Player two is the Hound, chasing on the same path. Single moves one, double two, treble three. The Hare wins by finishing; the Hound wins by catching up."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[{ score: harePos, unit: "/20", badge: "🐇 Hare", line: { label: "Next", value: Math.min(20, harePos + 1) }, stats: [{ label: "Lead", value: gap }, { label: "To go", value: 20 - harePos }] },
+                { score: houndPos, unit: "/20", badge: "🐕 Hound", line: { label: "Next", value: Math.min(20, houndPos + 1) }, stats: [{ label: "Behind", value: gap }, { label: "To go", value: 20 - houndPos }] }]}
+        panel={<RaceTrack max={20} tickLabels={["START", "10", "FINISH"]} lanes={[
+          { label: names[0], pos: harePos, emoji: "🐇", playerIdx: 1, leadFill: true },
+          { label: names[1], pos: houndPos, emoji: "🐕", playerIdx: 0 },
+        ]} />}
+        note={harePos === 0 && houndPos === 0 ? "Under starter's orders" : gap > 0 ? `Hare ${gap} clear · hit ${target}` : `Hit ${target}`}
+        visitDarts={visitDarts} disabled={isBotTurnHH} waitingMsg={isBotTurnHH ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -6915,6 +7076,26 @@ export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, on
     // scoring dart mid-visit restart the whole 3-dart sequence.
   }, [turn, botConfig, skipNext]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Prisoner" sub="Round the clock 1 → 20"
+        rules="Round the clock from 1 to 20, but only the big (outer) single and the double/treble count. Hit the small inner single and you're jailed: your next visit is skipped."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: positions[i], unit: "/20", badge: skipNext[i] ? "🔒 Jailed" : undefined, out: skipNext[i], line: { label: "Next", value: Math.min(20, positions[i] + 1) }, stats: [{ label: "Done", value: positions[i] }, { label: "To go", value: 20 - positions[i] }] })) as [any, any]}
+        panel={<RaceTrack max={20} tickLabels={["START", "10", "FINISH"]} lanes={[
+          { label: names[0], pos: positions[0], emoji: skipNext[0] ? "🔒" : "🏃", playerIdx: 1, leadFill: true },
+          { label: names[1], pos: positions[1], emoji: skipNext[1] ? "🔒" : "🏃", playerIdx: 0 },
+        ]} />}
+        note={skipNext[turn] ? "In jail — visit skipped" : `Hit ${target} · big single, not the small one`}
+        noteTone={skipNext[turn] ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnPR || skipNext[turn]} waitingMsg={isBotTurnPR ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[target]} ringMode onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -7014,6 +7195,22 @@ export function KnockoutScorer({ p1Name, p2Name, config, botConfig, onWin, onAba
     const t3 = safeTimeout(() => handleDartRefKO.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Knockout" sub={`${maxStrikes} strikes and you're out`}
+        rules="Each visit must beat the last visit's score. Fail and you take a strike. The opening visit sets the bar."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: strikes[i], unit: `/${maxStrikes} strikes`, out: strikes[i] >= maxStrikes, line: { label: "Needs", value: lastScore === null ? "any score" : `${lastScore + 1}+` }, stats: [{ label: "Bar", value: lastScore ?? "–" }, { label: "Lives left", value: Math.max(0, maxStrikes - strikes[i]) }] })) as [any, any]}
+        panel={<div className="mp-big"><small>{lastScore === null ? "Opening visit sets the bar" : "Beat this score"}</small><b>{lastScore ?? "—"}</b></div>}
+        note={flash ?? (lastScore === null ? "Set the opening bar" : `Needs ${lastScore + 1}+`)} noteTone={flash ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnKO} waitingMsg={isBotTurnKO ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -7147,6 +7344,22 @@ export function TennisScorer({ p1Name, p2Name, config, botConfig, onWin, onAband
     const t3 = safeTimeout(() => handleDartRefTN.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [thrower, botConfig, halfIsA]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Darts Tennis" sub={`First to ${gamesToWin} games`}
+        rules="The server throws three darts, then the returner. Only the numbers in play this point count. Highest visit wins the point. Four points takes the game (no deuce)."
+        names={[p1Name, p2Name]} turn={thrower}
+        cards={[0, 1].map(i => ({ score: TENNIS_LABELS[Math.min(points[i], 3)], badge: server === i ? "🎾 Serve" : undefined, line: { label: "Games", value: games[i] }, stats: [{ label: "Points", value: points[i] }, { label: "To win", value: gamesToWin }] })) as [any, any]}
+        panel={<TargetChips items={half.map(String)} current={-1} done={() => true} />}
+        note={flash ?? (servePhase === "serve" ? "Serving · numbers in play only" : `Returning · beat ${serverTotal}`)}
+        visitDarts={visitDarts} disabled={isBotTurnTN} waitingMsg={isBotTurnTN ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        allowed={half} onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -7300,6 +7513,23 @@ export function FollowTheLeaderScorer({ p1Name, p2Name, config, botConfig, onWin
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [chaser, phase, botConfig, calledTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Follow the Leader" sub={`${startLives} lives each`}
+        rules="The leader calls a target by throwing one dart. The chaser must match it exactly within three darts or lose a life. Match it and the lead swaps."
+        names={[p1Name, p2Name]} turn={phase === "calling" ? leader : chaser}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0, badge: leader === i ? "👑 Leader" : undefined, line: { label: "Target", value: calledTarget?.label ?? "–" }, stats: [{ label: "Role", value: leader === i ? "Leader" : "Chaser" }, { label: "Lives", value: `${Math.max(0, lives[i])}/${startLives}` }] })) as [any, any]}
+        panel={<div className="mp-big"><small>{phase === "calling" ? `${names[leader]} is calling…` : `${names[chaser]} must hit`}</small><b>{calledTarget?.label ?? "?"}</b></div>}
+        note={flash ?? (phase === "calling" ? "Throw one dart to call the target" : `Hit ${calledTarget?.label} exactly`)}
+        visitDarts={phase === "chasing" ? visitDarts : []} disabled={isBotTurnFL} waitingMsg={isBotTurnFL ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => phase === "chasing" && visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={phase === "chasing" && calledTarget ? [calledTarget.seg] : undefined}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -7421,6 +7651,22 @@ export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const shipsRemaining = (i: number) => 6 - fleet[i as 0|1].filter((f, idx) => f && revealed[i as 0|1][idx]).length;
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Battleship Darts" sub={`Firing at ${names[targetPlayer]}'s grid`}
+        rules="Each player has a hidden six-cell fleet on the numbers 1–20, hidden even from themselves. Fire at your opponent's numbers to find and sink their ships. Sink all six first to win."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: shipsRemaining(i), unit: "/6 ships", line: { label: "Hits taken", value: 6 - shipsRemaining(i) }, stats: [{ label: "Fired at", value: revealed[i].filter(Boolean).length }, { label: "Afloat", value: shipsRemaining(i) }] })) as [any, any]}
+        panel={<TerritoryGrid order={Array.from({ length: 20 }, (_, i) => i + 1)} lastHit={lastHitCell ?? undefined} claims={Object.fromEntries(Array.from({ length: 20 }, (_, i) => i).filter(i => revealed[targetPlayer][i] && fleet[targetPlayer][i]).map(i => [i + 1, turn as 0 | 1]))} />}
+        note={flash ?? `Fire at ${names[targetPlayer]}'s grid`}
+        visitDarts={visitDarts} disabled={isBotTurnBS} waitingMsg={isBotTurnBS ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        allowed={Array.from({ length: 20 }, (_, i) => i + 1)} onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -7552,6 +7798,21 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Blind Killers" sub={`${startLives} lives each`}
+        rules="Everyone's double is secret, even from themselves. Throw for doubles: hit your own to go live as a killer, hit a live opponent's to take a life."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0, badge: isKiller[i] ? "🔓 Killer" : undefined, line: { label: "Double", value: revealed[i] ? `D${myNum[i]}` : "🔒 hidden" }, stats: [{ label: "Status", value: isKiller[i] ? "Killer" : revealed[i] ? "Revealed" : "Hidden" }, { label: "Lives", value: `${Math.max(0, lives[i])}/${startLives}` }] })) as [any, any]}
+        note={flash ?? "Throw for a double, any double"}
+        visitDarts={visitDarts} disabled={isBotTurnBK} waitingMsg={isBotTurnBK ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -7665,6 +7926,26 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
     // start of its turn; including pos made every scoring or knock-back dart
     // mid-visit restart the whole 3-dart sequence.
   }, [turn, botConfig, nums, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Donkey Derby" sub="First to 20 lengths"
+        rules="Each player's donkey runs on its own number. Hit yours to move forward; hit your rival's to knock them back. First to 20 lengths wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: pos[i], unit: "/20", line: { label: "Number", value: nums[i] }, stats: [{ label: "Lead", value: pos[i] - pos[i === 0 ? 1 : 0] }, { label: "To go", value: 20 - pos[i] }] })) as [any, any]}
+        panel={<RaceTrack max={20} tickLabels={["START", "10", "FINISH"]} lanes={[
+          { label: names[0], pos: pos[0], emoji: "🐴", playerIdx: 1, leadFill: true },
+          { label: names[1], pos: pos[1], emoji: "🐴", playerIdx: 0 },
+        ]} />}
+        note={flash ?? `Hit ${nums[turn]} to advance · ${nums[turn === 0 ? 1 : 0]} knocks ${names[turn === 0 ? 1 : 0]} back`}
+        visitDarts={visitDarts} disabled={isBotTurnDD || over} waitingMsg={isBotTurnDD ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[nums[turn], nums[turn === 0 ? 1 : 0]]} targetLabels={[`${nums[turn]} · go`, `${nums[turn === 0 ? 1 : 0]} · knock`]}
+        onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -7788,6 +8069,22 @@ export function LimboScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, bar, lives, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Limbo" sub={`Bar starts at ${startBar}`}
+        rules={`Score under the bar to clear it — the bar then drops to whatever you scored. Fail and you lose a life. ${maxLives} lives each.`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i as 0 | 1]), unit: lives[i as 0 | 1] === 1 ? "life" : "lives", out: lives[i as 0 | 1] <= 0, line: { label: "Stay under", value: bar }, stats: [{ label: "Bar", value: bar }, { label: "Visit", value: i === turn ? visitDarts.reduce((t, d) => t + d.value, 0) : "–" }] })) as [any, any]}
+        panel={<LimboBar value={bar} max={startBar} />}
+        note={flash ?? `Stay under ${bar}`} noteTone={flash ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnLM || over} waitingMsg={isBotTurnLM ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -7899,6 +8196,23 @@ export function SnakesLaddersScorer({ p1Name, p2Name, botConfig, onWin, onAbando
     const t1 = safeTimeout(() => handleDartRefSL.current(botSnakesLaddersDart(botConfig)), 900);
     return () => clearTimeout(t1);
   }, [turn, botConfig, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Snakes & Ladders" sub="First to square 30"
+        rules="One dart a turn. Any number converts to a roll of 1–6 (the bull is 6). Land on a ladder to climb, a snake to slide. First to square 30 wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: pos[i], unit: "/30", line: { label: "To go", value: 30 - pos[i] }, stats: [{ label: "Square", value: pos[i] }, { label: "Lead", value: pos[i] - pos[i === 0 ? 1 : 0] }] })) as [any, any]}
+        panel={<SnakesLaddersBoard rows={SL_ROWS} ladders={SL_LADDERS} snakes={SL_SNAKES} positions={pos} />}
+        note={flash ?? "Throw any number for your roll"}
+        visitDarts={[]} visitLabel="Square" visitValue={pos[turn]}
+        disabled={isBotTurnSL || over} waitingMsg={isBotTurnSL ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => {}}
+        onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -8030,6 +8344,21 @@ export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, round, over]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Quackshot" sub={`Round ${Math.min(round, totalRounds)} of ${totalRounds}`}
+        rules="Aim for the bull: double bull +3, bull +2, the inner (small) single +1. The treble is a trap at −2 and the outer single −1. Highest score after the last round wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Round", value: `${Math.min(round, totalRounds)}/${totalRounds}` }, stats: [{ label: "Lead", value: scores[i] - scores[i === 0 ? 1 : 0] }, { label: "Rounds left", value: Math.max(0, totalRounds - round + 1) }] })) as [any, any]}
+        note={flash ?? "Aim for the bull · watch the treble trap"}
+        visitDarts={visitDarts} disabled={isBotTurnQS || over} waitingMsg={isBotTurnQS ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        ringMode onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -8156,6 +8485,22 @@ export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
     // nums never changes after mount, so it's harmless either way — left out
     // for consistency with the same fix elsewhere.
   }, [turn, botConfig, over]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Fight Game" sub={`${maxHp} HP each`}
+        rules="Each fighter has a number. Hit your rival's number to damage them; hit your own to heal. Knock their HP to zero to win."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: hp[i], unit: "HP", out: hp[i] <= 0, line: { label: "Number", value: nums[i] }, stats: [{ label: "HP", value: `${hp[i]}/${maxHp}` }, { label: "Lead", value: hp[i] - hp[i === 0 ? 1 : 0] }] })) as [any, any]}
+        note={flash ?? `Hit ${nums[otherTurnFG]} to attack · ${nums[turn]} to heal`}
+        visitDarts={visitDarts} disabled={isBotTurnFG || over} waitingMsg={isBotTurnFG ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={[nums[otherTurnFG], nums[turn]]} targetLabels={[`${nums[otherTurnFG]} · attack`, `${nums[turn]} · heal`]}
+        onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -8743,9 +9088,10 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
 }
 
 // ── Three-in-a-Bed Scorer ──────────────────────────────────────────────────────
-export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, onWin, onAbandon }: {
+export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; winsNeeded?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [roundWins, setRoundWins]   = useSnapState<[number,number]>("ThreeInABedScorer.roundWins", [0,0]);
@@ -8814,6 +9160,23 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
     const t3 = safeTimeout(() => handleDartRef3B.current(mk()), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, phase, target, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Three-in-a-Bed" sub={`First to ${winsNeeded} rounds`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: roundWins[i], unit: `/${winsNeeded}`, line: { label: "Called", value: i === turn && target ? `T${target}` : "–" }, stats: [{ label: "Rounds", value: roundWins[i] }, { label: "To win", value: winsNeeded - roundWins[i] }] })) as [any, any]}
+        note={msg || (phase === "call" ? (isBotTurn3B ? `${p2Name} is choosing…` : "Call your treble") : `All three in T${target}`)}
+        visitDarts={visitDarts} disabled={isBotTurn3B} waitingMsg={isBotTurn3B ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        targets={phase === "throw" && target ? [target] : undefined} targetLabels={target ? [`T${target}`] : undefined}
+        onAbandon={onAbandon}
+        customPad={phase === "call" ? (isBotTurn3B ? <div className="mx-note">{p2Name} is choosing a treble…</div>
+          : <><div className="mx-note">Pick your treble</div><div className="mx-grid mp-pick">{NUMS.map(n => <button key={n} onClick={() => callTarget(n)}><span>T{n}</span></button>)}</div></>) : undefined}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -9778,12 +10141,13 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
 }
 
 // ── 99 Darts Scorer ────────────────────────────────────────────────────────────
-export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPracticeStats }: {
+export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string;
   config: { variant?: "standard" | "doubles" | "trebles" };
   onWin: (w: 0|1, d?: string) => void;
   onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const variant = config.variant ?? "standard";
@@ -9894,6 +10258,20 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
   const remaining = TOTAL_DARTS - dartsInFlight;
   const visitNum  = Math.floor(dartsThrown / 3) + 1;
   const pct = dartsInFlight > 0 ? Math.round((score / (dartsInFlight * maxPerDart)) * 100) : 0;
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading={`99 Darts · ${targetLabel}`} sub={variantLabel}
+        names={[p1Name, ""]} turn={0} solo
+        cards={[{ score, unit: `/${maxScore}`, line: { label: "Accuracy", value: `${pct}%` }, stats: [{ label: "Visit", value: `${done ? 33 : visitNum}/33` }, { label: "Darts left", value: remaining }] }, { score: 0 }]}
+        note={flashMsg ?? `Aim at ${targetLabel}`}
+        visitDarts={visitDarts} disabled={done}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        targets={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <ScorerLayout
