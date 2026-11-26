@@ -37,6 +37,7 @@ import { AnnouncementsManager } from "./announcements-manager";
 import { NotificationAnalytics } from "./notification-analytics";
 import { NotificationDeliveryHistory } from "./notification-delivery-history";
 import { IntegrityHealth } from "./integrity-health";
+import { LeagueWeek } from "./league-week";
 import { OperationsDashboard } from "./operations-dashboard";
 import { BroadcastHealth } from "./broadcast-health";
 import { ArcadeBalance } from "./arcade-balance";
@@ -335,6 +336,10 @@ function AdminContent({ onLock }: { onLock: () => void }) {
       <div id="user-accounts" className="scroll-mt-24"><UserAccountsManager players={players} /></div>
 
       <div className="adm-group"><Trophy className="w-4 h-4" /><span>League operations</span></div>
+
+      <CollapsibleAdminSection sectionId="league-week" title="Weekly round-up & pairings" icon={Users} accent="#3ee0b4" borderColor="rgba(62,224,180,0.2)" background="rgba(62,224,180,0.025)">
+        <LeagueWeek />
+      </CollapsibleAdminSection>
 
       <CollapsibleAdminSection sectionId="integrity-health" title="Integrity & Health" icon={Activity} accent="#a855f7" borderColor="rgba(168,85,247,0.2)" background="rgba(168,85,247,0.025)">
         <IntegrityHealth />

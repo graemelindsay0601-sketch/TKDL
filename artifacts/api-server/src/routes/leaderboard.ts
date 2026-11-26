@@ -35,6 +35,18 @@ router.get("/leaderboard", async (_req, res): Promise<void> => {
   const currentRanks = new Map(sorted.map((p, i) => [p.id, i + 1]));
   const positionChanges = await getPositionChanges(currentRanks);
 
+  // Form guide: each player's last five results this season, newest first.
+  const form = new Map<number, ("W" | "L")[]>();
+  try {
+    const recent = await db.execute(sql`SELECT m.winner_id, m.loser_id FROM matches m JOIN seasons s ON s.id = m.season_id AND s.is_active = true
+      ORDER BY m.played_at DESC, m.id DESC LIMIT 2000`);
+    for (const r of recent.rows as { winner_id: number; loser_id: number }[]) {
+      for (const [pid, res] of [[Number(r.winner_id), "W"], [Number(r.loser_id), "L"]] as const) {
+        const list = form.get(pid) ?? []; if (list.length < 5) { list.push(res); form.set(pid, list); }
+      }
+    }
+  } catch { /* form is a nice-to-have; the table still loads without it */ }
+
   const leaderboard = sorted.map((p, i) => {
     const rank = i + 1;
     const isChampion = (titleCounts.get(p.id) ?? 0) > 0;
@@ -43,6 +55,7 @@ router.get("/leaderboard", async (_req, res): Promise<void> => {
     return {
       position:      rank,
       positionChange: positionChanges.get(p.id) ?? 0,
+      form:          form.get(p.id) ?? [],
       playerId:      p.id,
       playerName:    p.name,
       wins:          p.seasonWins,

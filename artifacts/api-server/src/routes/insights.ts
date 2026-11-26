@@ -98,7 +98,8 @@ router.get("/insights/records", async (_req, res): Promise<void> => {
 });
 
 router.get("/insights/monthly-reports", async (_req, res): Promise<void> => {
-  const [seasonResult, feed, singlesWins] = await Promise.all([
+  const singles = sql`m.game_type NOT LIKE 'team_%' AND m.game_type <> 'multi_killer'`;
+  const [seasonResult, feed, singlesWins, upsets, maxes, losses] = await Promise.all([
     db.execute(sql`SELECT id,name,start_date,end_date,is_active,league_type,champion_id,champion_name FROM seasons ORDER BY start_date DESC,id DESC`),
     resultFeed(),
     db.execute(sql`
@@ -106,6 +107,13 @@ router.get("/insights/monthly-reports", async (_req, res): Promise<void> => {
       FROM matches m WHERE m.game_type NOT LIKE 'team_%' AND m.game_type <> 'multi_killer'
       GROUP BY m.season_id,m.winner_id,m.winner_name
     `),
+    db.execute(sql`SELECT DISTINCT ON (m.season_id) m.season_id, m.winner_id, m.winner_name, m.loser_name, m.elo_change, m.played_at
+      FROM matches m WHERE ${singles} AND m.elo_change IS NOT NULL ORDER BY m.season_id, m.elo_change DESC, m.played_at`),
+    db.execute(sql`SELECT season_id, pid, MAX(name) AS name, SUM(n)::int AS n FROM (
+        SELECT m.season_id, m.winner_id pid, m.winner_name name, COALESCE(m.winner_180s,0) n FROM matches m WHERE ${singles}
+        UNION ALL SELECT m.season_id, m.loser_id, m.loser_name, COALESCE(m.loser_180s,0) FROM matches m WHERE ${singles}) x
+      GROUP BY season_id, pid HAVING SUM(n) > 0`),
+    db.execute(sql`SELECT m.season_id, m.loser_id player_id, COUNT(*)::int losses FROM matches m WHERE ${singles} GROUP BY m.season_id, m.loser_id`),
   ]);
   const seasons = seasonResult.rows as any[];
   const wins = singlesWins.rows as any[];
@@ -132,9 +140,19 @@ router.get("/insights/monthly-reports", async (_req, res): Promise<void> => {
     const biggest = [...group.results].sort((a:ResultRow,b:ResultRow)=>Number(b.stake)-Number(a.stake))[0];
     const singlesSeason = group.seasons.find((s:any)=>s.league_type==="singles");
     const topPlayer = wins.filter((w:any)=>Number(w.season_id)===Number(singlesSeason?.id)).sort((a:any,b:any)=>Number(b.wins)-Number(a.wins))[0];
+    const sid = Number(singlesSeason?.id);
+    const upset = (upsets.rows as any[]).find(u => Number(u.season_id) === sid && Number(u.elo_change) > 0);
+    const max = (maxes.rows as any[]).filter(r => Number(r.season_id) === sid).sort((a, b) => Number(b.n) - Number(a.n))[0];
+    // Sharpest: best win rate from 8+ matches
+    const lossBy = new Map((losses.rows as any[]).filter(r => Number(r.season_id) === sid).map(r => [Number(r.player_id), Number(r.losses)]));
+    const sharp = wins.filter((w:any)=>Number(w.season_id)===sid).map((w:any) => { const l = lossBy.get(Number(w.player_id)) ?? 0, n = Number(w.wins) + l; return { playerId: Number(w.player_id), playerName: w.player_name, wins: Number(w.wins), played: n, rate: n ? Number(w.wins) / n : 0 }; })
+      .filter((x: any) => x.played >= 8).sort((a: any, b: any) => b.rate - a.rate || b.played - a.played)[0];
     const label = new Date(`${group.monthKey}-15T12:00:00Z`).toLocaleDateString("en-GB", { month:"long", year:"numeric", timeZone:"Europe/London" });
     return { monthKey:group.monthKey, label, isCurrent:group.isCurrent, totalMatches:group.results.length, competitions,
       playerOfMonth:topPlayer ? { playerId:Number(topPlayer.player_id), playerName:topPlayer.player_name, wins:Number(topPlayer.wins) }:null,
+      biggestUpset: upset ? { winnerId: Number(upset.winner_id), winnerName: upset.winner_name, loserName: upset.loser_name, elo: Number(upset.elo_change), playedAt: upset.played_at } : null,
+      most180s: max ? { playerId: Number(max.pid), playerName: max.name, count: Number(max.n) } : null,
+      sharpest: sharp ?? null,
       headlineResult:biggest ? { matchKey:biggest.match_key, winnerName:biggest.winner_name, loserName:biggest.loser_name, stake:Number(biggest.stake), playedAt:biggest.played_at }:null };
   });
   res.json({ generatedAt:new Date().toISOString(), reports });

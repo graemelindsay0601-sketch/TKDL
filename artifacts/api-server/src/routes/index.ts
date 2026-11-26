@@ -44,6 +44,8 @@ import matchCentreRouter from "./match-centre";
 import teamMatchCorrectionsRouter from "./team-match-corrections";
 import adminHealthRouter from "./admin-health";
 import dailyDrillRouter from "./daily-drill";
+import profileExtrasRouter from "./profile-extras";
+import leagueWeekRouter from "./league-week";
 import insightsRouter from "./insights";
 import matchPostersRouter from "./match-posters";
 import { logAdminAction } from "../lib/adminAudit";
@@ -115,6 +117,8 @@ router.use(matchCentreRouter);
 router.use(teamMatchCorrectionsRouter);
 router.use(adminHealthRouter);
 router.use(dailyDrillRouter);
+router.use(profileExtrasRouter);
+router.use(leagueWeekRouter);
 router.use(insightsRouter);
 router.use(matchPostersRouter);
 
