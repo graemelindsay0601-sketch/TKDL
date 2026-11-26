@@ -113,25 +113,39 @@ export function useExitGuard(active: boolean, onExit: () => void): void {
 // play.tsx because each scoring engine must explicitly define which of its
 // state is safe to restore. Keeping this small helper avoids forcing that
 // heavier contract onto unrelated modes.
+// Saved in localStorage (not sessionStorage) so a match outlives the phone
+// closing the app in the background; saves older than 12 hours are ignored.
+const SNAPSHOT_MAX_AGE = 12 * 60 * 60 * 1000;
+
+export function writeMatchSnapshot(key: string, data: unknown): void {
+  try { localStorage.setItem(key, JSON.stringify({ __tkdlSnap: 1, savedAt: Date.now(), data })); } catch { /* storage unavailable — non-critical */ }
+}
+
 export function useMatchSnapshot<T>(key: string, active: boolean, data: T | null): void {
   useEffect(() => {
     if (!active || data == null) return;
-    try { sessionStorage.setItem(key, JSON.stringify(data)); } catch { /* storage unavailable — non-critical */ }
-    return () => {
-      try { sessionStorage.removeItem(key); } catch { /* ignore */ }
-    };
+    writeMatchSnapshot(key, data);
+    return () => clearMatchSnapshot(key);
   }, [key, active, data]);
 }
 
 export function readMatchSnapshot<T>(key: string): T | null {
   try {
-    const raw = sessionStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
+    const raw = localStorage.getItem(key) ?? sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { __tkdlSnap?: number; savedAt?: number; data?: T } | T;
+    if (parsed && typeof parsed === "object" && (parsed as { __tkdlSnap?: number }).__tkdlSnap === 1) {
+      const wrapped = parsed as { savedAt?: number; data?: T };
+      if (!wrapped.savedAt || Date.now() - wrapped.savedAt > SNAPSHOT_MAX_AGE) { clearMatchSnapshot(key); return null; }
+      return wrapped.data ?? null;
+    }
+    return parsed as T;
   } catch {
     return null;
   }
 }
 
 export function clearMatchSnapshot(key: string): void {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
   try { sessionStorage.removeItem(key); } catch { /* ignore */ }
 }

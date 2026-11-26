@@ -3,6 +3,7 @@
  * Used by both /play (real matches) and /practice (practice sessions).
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useSnapState } from "@/lib/snap-state";
 import { resolveBullUp, botBullThrow, type BullThrow, type BullUpState } from "@/lib/darts-rules";
 import type { Dart } from "@/lib/dartboard";
 import {
@@ -251,7 +252,7 @@ export function GameScorer({
   // they skip the bull-up rather than hand the bot's start to the human.
   const swapless = gameType.engine === "X01" || gameType.engine === "Cricket";
   const isBullUpApplicable = !!bullUp && !soloMode && firstThrower === undefined && (swapless || !botConfig);
-  const [starterIdx, setStarterIdx] = useState<0 | 1 | null>(() => initialRecovery?.starterIdx ?? firstThrower ?? (isBullUpApplicable ? null : 0));
+  const [starterIdx, setStarterIdx] = useSnapState<0 | 1 | null>("GameScorer.starterIdx", () => initialRecovery?.starterIdx ?? firstThrower ?? (isBullUpApplicable ? null : 0));
   // Admin-preview-only redesign of the 8 party game scoring screens — see
   // useNewScoringUI() and /admin's Feature Flags panel ("New Scoring UI").
   // Everything else (X01, Cricket, Killer, every non-party engine) ignores

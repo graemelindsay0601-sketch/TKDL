@@ -20,7 +20,9 @@ import { CheckoutBurst } from "@/components/CheckoutBurst";
 import { PostMatchAnalysisModal } from "@/components/stats/post-match-analysis";
 import { MatchNightPresentation, type MatchNightSide } from "@/components/MatchNightPresentation";
 import { ShareCardButton } from "@/components/ShareCardButton";
-import { useWakeLock, useZoomLock, useExitGuard, readMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+import { useWakeLock, useZoomLock, useExitGuard, readMatchSnapshot, writeMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+import { SnapStateProvider, type SnapValues } from "@/lib/snap-state";
+import { ResumeMatchCard } from "@/components/ResumeMatchCard";
 
 import { teamRoster, wagerShares, totalWagerError, validCombinedSelection, type WagerAccount } from "@/lib/live-scorer-setup";
 import type { LiveScoreState } from "@/lib/scorers";
@@ -105,6 +107,8 @@ type PlayRecoverySnapshot = {
   player2Equipment: EquippedCards | null;
   equipmentPhase: "player1" | "player2" | "done";
   savedAt: number;
+  /** Every game's own scorer values (see lib/snap-state), for engines without scorerState. */
+  scorerValues?: SnapValues | null;
 };
 
 type CompletedMatchSnapshot = {
@@ -122,6 +126,7 @@ type CompletedMatchSnapshot = {
 type InterruptedMatch = {
   setupData: SetupData;
   scorerState: ScorerRecoveryState | null;
+  scorerValues: SnapValues | null;
   player1Equipment: EquippedCards | null;
   player2Equipment: EquippedCards | null;
   equipmentPhase: "player1" | "player2" | "done";
@@ -135,6 +140,7 @@ function decodeInterruptedMatch(value: unknown): InterruptedMatch | null {
     return {
       setupData: candidate.setupData,
       scorerState: isScorerRecoveryState(scorer) && recoveryMatchesEngine(scorer, candidate.setupData.gameType?.engine ?? "") ? scorer : null,
+      scorerValues: candidate.scorerValues && typeof candidate.scorerValues === "object" && Object.keys(candidate.scorerValues).length > 0 ? candidate.scorerValues : null,
       player1Equipment: candidate.player1Equipment ?? null,
       player2Equipment: candidate.player2Equipment ?? null,
       equipmentPhase: candidate.equipmentPhase === "player2" || candidate.equipmentPhase === "done" ? candidate.equipmentPhase : "player1",
@@ -142,7 +148,7 @@ function decodeInterruptedMatch(value: unknown): InterruptedMatch | null {
   }
   // Backward compatibility with the original setup-only snapshot.
   if (typeof candidate.format === "string" && Array.isArray(candidate.team1) && Array.isArray(candidate.team2) && candidate.gameType) {
-    return { setupData: candidate as SetupData, scorerState: null, player1Equipment: null, player2Equipment: null, equipmentPhase: "player1" };
+    return { setupData: candidate as SetupData, scorerState: null, scorerValues: null, player1Equipment: null, player2Equipment: null, equipmentPhase: "player1" };
   }
   return null;
 }
@@ -2142,6 +2148,11 @@ export default function Play() {
   const [scorerRecoveryState, setScorerRecoveryState] = useState<ScorerRecoveryState | null>(null);
   const [showResultPresentation, setShowResultPresentation] = useState(false);
   const [interruptedMatch, setInterruptedMatch] = useState<InterruptedMatch | null>(initialRecovery.completed ? null : initialRecovery.interrupted);
+  // Match resume for every game: the scorer's own values, saved as it's played.
+  const [snapInitial, setSnapInitial] = useState<SnapValues | null>(null);
+  const [scorerRun, setScorerRun] = useState(0);
+  const snapValuesRef = useRef<SnapValues | null>(null);
+  const scorerLiveRef = useRef(false);
   const liveScoreRef                 = useRef<LiveScoreState | null>(null);
   const liveSessionIdRef             = useRef<string | null>(null);
   const liveFinishedRef              = useRef(false);
@@ -2173,6 +2184,8 @@ export default function Play() {
   };
 
   const reset = () => {
+    scorerLiveRef.current = false;
+    snapValuesRef.current = null;
     clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
     setInterruptedMatch(null);
     matchIdempotencyKeyRef.current = null;
@@ -2243,13 +2256,20 @@ export default function Play() {
   useWakeLock(isLive);
   useZoomLock(isLive);
   useExitGuard(isLive || phase === "intro", reset);
-  useEffect(() => {
+  const saveInterrupted = () => {
     if ((phase !== "equipment" && phase !== "intro" && !isLive) || !setupData) return;
     const snapshot: PlayRecoverySnapshot = {
       version: 2, setupData, scorerState: scorerRecoveryState,
       player1Equipment, player2Equipment, equipmentPhase, savedAt: Date.now(),
+      scorerValues: snapValuesRef.current,
     };
-    try { sessionStorage.setItem(PLAY_SNAPSHOT_KEY, JSON.stringify(snapshot)); } catch { /* recovery is best-effort */ }
+    writeMatchSnapshot(PLAY_SNAPSHOT_KEY, snapshot);
+  };
+  const saveInterruptedRef = useRef(saveInterrupted);
+  saveInterruptedRef.current = saveInterrupted;
+  useEffect(() => {
+    saveInterrupted();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, isLive, setupData, scorerRecoveryState, player1Equipment, player2Equipment, equipmentPhase]);
 
   if (phase === "setup") {
@@ -2257,43 +2277,41 @@ export default function Play() {
     return (
       <>
         {interrupted && (
-          <div className="max-w-2xl mx-auto mb-4 pdc-card p-3 flex items-center gap-3" style={{ borderColor: "rgba(255,210,74,0.3)", background: "rgba(255,210,74,0.06)" }}>
-            <AlertCircle className="w-4 h-4 shrink-0" style={{ color: "#ffd24a" }} />
-            <div className="flex-1 text-xs" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.6)" }}>
-              Your last match ({interrupted.setupData.team1.map(p => p.name).join(" & ")} vs {interrupted.setupData.team2.map(p => p.name).join(" & ") || "—"}, {interrupted.setupData.gameType.name}) was interrupted. {interrupted.scorerState ? "The score, turn and current visit are ready to continue." : "The matchup is ready to restart."}
-            </div>
-            <button
-              onClick={() => {
-                const data = interrupted.setupData;
-                setSetupData(data);
-                setScorerRecoveryState(interrupted.scorerState);
-                setPlayer1Equipment(interrupted.player1Equipment);
-                setPlayer2Equipment(interrupted.player2Equipment);
-                setEquipmentPhase(interrupted.equipmentPhase);
-                if (interrupted.scorerState) {
-                  setPhase("playing");
-                } else if (cardClashEnabled && data.format !== "shift-wars" && (data.gameType.key === "x01" || data.gameType.key === "cricket")) {
-                  setPhase("equipment");
-                } else {
-                  setPhase("intro");
-                }
-              }}
-              className="shrink-0 text-xs font-bold uppercase px-3 py-1.5 rounded-lg"
-              style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a", background: "rgba(255,210,74,0.12)", border: "1px solid rgba(255,210,74,0.3)", cursor: "pointer" }}>
-              {interrupted.scorerState ? "Resume score" : "Restart matchup"}
-            </button>
-            <button
-              onClick={() => { clearMatchSnapshot(PLAY_SNAPSHOT_KEY); setInterruptedMatch(null); }}
-              className="shrink-0 text-xs"
-              style={{ color: "rgba(255,255,255,0.3)", cursor: "pointer" }}>
-              Dismiss
-            </button>
-          </div>
+          <ResumeMatchCard
+            title={interrupted.setupData.gameType.name}
+            players={[interrupted.setupData.team1.map(p => p.name).join(" & "), interrupted.setupData.team2.map(p => p.name).join(" & ") || null]}
+            detail={interrupted.scorerState || interrupted.scorerValues ? "The score and whose turn it is are saved." : "The matchup is saved; the game will restart from the beginning."}
+            resumeLabel={interrupted.scorerState || interrupted.scorerValues ? "Resume match" : "Restart matchup"}
+            onResume={() => {
+              const data = interrupted.setupData;
+              setSetupData(data);
+              setScorerRecoveryState(interrupted.scorerState);
+              setSnapInitial(interrupted.scorerValues);
+              snapValuesRef.current = interrupted.scorerValues;
+              setScorerRun(n => n + 1);
+              setPlayer1Equipment(interrupted.player1Equipment);
+              setPlayer2Equipment(interrupted.player2Equipment);
+              setEquipmentPhase(interrupted.equipmentPhase);
+              if (interrupted.scorerState || interrupted.scorerValues) {
+                scorerLiveRef.current = true;
+                setPhase("playing");
+              } else if (cardClashEnabled && data.format !== "shift-wars" && (data.gameType.key === "x01" || data.gameType.key === "cricket")) {
+                setPhase("equipment");
+              } else {
+                setPhase("intro");
+              }
+            }}
+            onDiscard={() => { clearMatchSnapshot(PLAY_SNAPSHOT_KEY); setInterruptedMatch(null); }}
+          />
         )}
         <SetupScreen onStart={d => {
           clearMatchSnapshot(PLAY_SNAPSHOT_KEY);
           setInterruptedMatch(null);
           setScorerRecoveryState(null);
+          setSnapInitial(null);
+          snapValuesRef.current = null;
+          setScorerRun(n => n + 1);
+          scorerLiveRef.current = true;
           setSetupData(d);
           // Route to equipment selection if Card Clash is enabled and game type is X01 or CRICKET
           if (cardClashEnabled && d.format !== "shift-wars" && (d.gameType.key === "x01" || d.gameType.key === "cricket")) {
@@ -2403,6 +2421,8 @@ export default function Play() {
     // fullscreen scorer (no scrolling) the same way DartCounter/DartsMind do.
     return createPortal(
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
+        <SnapStateProvider key={scorerRun} initial={snapInitial}
+          onChange={values => { if (!scorerLiveRef.current) return; snapValuesRef.current = values; saveInterruptedRef.current(); }}>
         <GameScorer
           p1Name={p1Name}
           p2Name={p2Name}
@@ -2419,6 +2439,7 @@ export default function Play() {
               ? setScorerRecoveryState : undefined;
           })()}
           onWin={r => {
+            scorerLiveRef.current = false;
             setInterruptedMatch(null);
             setScorerRecoveryState(null);
             // Generated once, right here, before GameOverScreen's own
@@ -2437,7 +2458,7 @@ export default function Play() {
               idempotencyKey: matchIdempotencyKeyRef.current,
               savedAt: Date.now(),
             };
-            try { sessionStorage.setItem(PLAY_SNAPSHOT_KEY, JSON.stringify(completedSnapshot)); } catch { /* recovery is best-effort */ }
+            writeMatchSnapshot(PLAY_SNAPSHOT_KEY, completedSnapshot);
             finishLiveBroadcast(r);
             setResult(r);
             setShowResultPresentation(true);
@@ -2446,6 +2467,7 @@ export default function Play() {
           onAbandon={reset}
           onPracticeStats={s => setMatchStats(s)}
         />
+        </SnapStateProvider>
       </div>,
       document.body
     );
