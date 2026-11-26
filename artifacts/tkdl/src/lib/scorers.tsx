@@ -3930,7 +3930,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
       )}
       {/* Scores */}
       {newScoringUI ? (
-        <TrackStats items={[0,1].map(i => ({ label: names[i], value: `${scores[i]}`, playerIdx: i as 0 | 1 }))} />
+        <TrackStats items={[0,1].map(i => ({ label: names[i], value: `${scores[i]}`, playerIdx: i as 0 | 1, active: turn === i }))} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {[0,1].map(i => (
@@ -4482,22 +4482,6 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
     <ScorerLayout
       top={<div className="space-y-3">
         <div className="pdc-divider" />
-        {showGrandNationalTrack && (
-          <>
-            <TrackStats items={[
-              { label: names[0], value: `${positions[0]}/${sequence.length}`, playerIdx: 0 },
-              { label: names[1], value: `${positions[1]}/${sequence.length}`, playerIdx: 1 },
-            ]} />
-            <RaceTrack
-              max={sequence.length}
-              tickLabels={["START", "LAP 2", "POST"]}
-              lanes={[
-                { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
-                { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 },
-              ]}
-            />
-          </>
-        )}
         {title && (
           <div className="text-center">
             <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{title}</h2>
@@ -4509,6 +4493,16 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
               sub={`Next: ${sequence[positions[i]]?.label ?? "Done"}`} />
           ))}
         </div>
+        {showGrandNationalTrack && (
+          <RaceTrack
+            max={sequence.length}
+            tickLabels={["START", "LAP 2", "POST"]}
+            lanes={[
+              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 },
+            ]}
+          />
+        )}
         {!showGrandNationalTrack && (
           <SectionCard>
             <div className="seq-path">
@@ -4819,8 +4813,8 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       </div>
       {newScoringUI ? (
         <TrackStats items={[
-          { label: names[0], value: `${scores[0]}`, playerIdx: 0 },
-          { label: names[1], value: `${scores[1]}`, playerIdx: 1 },
+          { label: names[0], value: `${scores[0]}`, playerIdx: 0, active: turn === 0 },
+          { label: names[1], value: `${scores[1]}`, playerIdx: 1, active: turn === 1 },
         ]} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -5071,7 +5065,7 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
         <div className="grid grid-cols-2 gap-3">
           {[0,1].map(i => (
             <ScoreTower key={i} label={names[i]} value={scores[i]} max={target} playerIdx={i as 0 | 1}
-              active={turn === i} countsDown={false} />
+              active={turn === i} countsDown={false} sub={scores[i] >= target ? "home" : `${target - scores[i]} to go`} />
           ))}
         </div>
       ) : (
@@ -6439,16 +6433,16 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
       </div>
       {newScoringUI ? (
         <>
-          <TrackStats items={[
-            { label: `${names[0]} · Hare`, value: gap > 0 ? `${gap} lengths clear` : "level!", playerIdx: 0 },
-            { label: `${names[1]} · Hound`, value: gap > 0 ? "closing in" : "caught up!", playerIdx: 1 },
-          ]} />
+          <div className="text-center text-xs font-bold uppercase tracking-widest" style={{ fontFamily: "Oswald, sans-serif", color: "#ffd24a" }}>
+            {harePos === 0 && houndPos === 0 ? "Under starter's orders" : gap > 0 ? `Hare ${gap} length${gap === 1 ? "" : "s"} clear` : "Neck and neck"}
+          </div>
+          {/* Runner colours follow this game's PlayerCards (first player pink), not P_COLOR's default. */}
           <RaceTrack
             max={20}
             tickLabels={["START", "10", "FINISH"]}
             lanes={[
-              { label: names[0], pos: harePos, emoji: "🐇", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: houndPos, emoji: "🐕", playerIdx: 1 },
+              { label: names[0], pos: harePos, emoji: "🐇", playerIdx: 1, leadFill: true },
+              { label: names[1], pos: houndPos, emoji: "🐕", playerIdx: 0 },
             ]}
           />
         </>
@@ -6570,16 +6564,12 @@ export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, on
       </div>
       {newScoringUI && (
         <>
-          <TrackStats items={[
-            { label: names[0], value: skipNext[0] ? "🔒 jailed" : `${positions[0]}/20`, playerIdx: 0 },
-            { label: names[1], value: skipNext[1] ? "🔒 jailed" : `${positions[1]}/20`, playerIdx: 1 },
-          ]} />
           <RaceTrack
             max={20}
             tickLabels={["START", "10", "FINISH"]}
             lanes={[
-              { label: names[0], pos: positions[0], emoji: skipNext[0] ? "🔒" : "🏃", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: positions[1], emoji: skipNext[1] ? "🔒" : "🏃", playerIdx: 1 },
+              { label: names[0], pos: positions[0], emoji: skipNext[0] ? "🔒" : "🏃", playerIdx: 1, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: skipNext[1] ? "🔒" : "🏃", playerIdx: 0 },
             ]}
           />
         </>
@@ -7327,16 +7317,12 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
       </div>
       {newScoringUI ? (
         <>
-          <TrackStats items={[
-            { label: `${names[0]} · #${nums[0]}`, value: `${pos[0]}/20`, playerIdx: 0 },
-            { label: `${names[1]} · #${nums[1]}`, value: `${pos[1]}/20`, playerIdx: 1 },
-          ]} />
           <RaceTrack
             max={20}
             tickLabels={["START", "10", "FINISH"]}
             lanes={[
-              { label: names[0], pos: pos[0], emoji: "🐴", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: pos[1], emoji: "🐴", playerIdx: 1 },
+              { label: names[0], pos: pos[0], emoji: "🐴", playerIdx: 1, leadFill: true },
+              { label: names[1], pos: pos[1], emoji: "🐴", playerIdx: 0 },
             ]}
           />
         </>
@@ -7715,8 +7701,8 @@ export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
       </div>
       {newScoringUI ? (
         <TrackStats items={[
-          { label: names[0], value: `${scores[0]}`, playerIdx: 0 },
-          { label: names[1], value: `${scores[1]}`, playerIdx: 1 },
+          { label: names[0], value: `${scores[0]}`, playerIdx: 0, active: turn === 0 },
+          { label: names[1], value: `${scores[1]}`, playerIdx: 1, active: turn === 1 },
         ]} />
       ) : (
         <div className="grid grid-cols-2 gap-3">
