@@ -326,3 +326,15 @@
 .pm-award .k { font: 700 10px/1.2 Oswald, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--ac); }
 .pm-award .n { font: 700 18px/1.15 Oswald, sans-serif; text-transform: uppercase; letter-spacing: .03em; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pm-award .s { font-size: 12px; color: #a9a4bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* League record banner (Hub) */
+.pm-record{position:relative;overflow:hidden;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;border:1px solid rgba(255,210,74,.45);background:linear-gradient(110deg,rgba(255,210,74,.16),rgba(255,138,0,.06) 55%,rgba(10,8,18,.9));box-shadow:0 0 28px rgba(255,190,40,.14),inset 0 1px 0 rgba(255,255,255,.08)}
+.pm-record-shine{position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,240,180,.18) 45%,transparent 60%);transform:translateX(-100%);animation:pm-record-sweep 4.5s ease-in-out infinite}
+@keyframes pm-record-sweep{0%,55%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.pm-record-shine{animation:none}}
+.pm-record-icon{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;color:#2a1a00;background:radial-gradient(circle at 35% 30%,#fff3b0,#ffd24a 45%,#c98a00);box-shadow:0 0 16px rgba(255,210,74,.5)}
+.pm-record>span:last-child{display:flex;flex-direction:column;position:relative;z-index:1}
+.pm-record-kick{font:700 .58rem Oswald,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#ffd24a}
+.pm-record-main{font:800 .98rem/1.15 Oswald,sans-serif;color:#fff;margin-top:2px}
+.pm-record-main b{color:#ffe58a}
+.pm-record-sub{font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px}

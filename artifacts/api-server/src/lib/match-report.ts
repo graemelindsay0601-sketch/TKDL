@@ -15,8 +15,9 @@ export type ReportFacts = {
   matchId: number; gameType: string; stake: number; upset: boolean;
   winner: ReportSide; loser: ReportSide;
   meetingNumber?: number | null; winnerWinsBefore?: number | null; loserWinsBefore?: number | null;
+  records?: { title: string; unit: string; playerName: string; value: number; previous: number; previousHolder: string | null }[];
 };
-export type MatchReport = { headline: string; standfirst: string; paragraphs: string[]; keyStats: { label: string; winner: string; loser: string }[]; ticker: string | null };
+export type MatchReport = { records: string[]; headline: string; standfirst: string; paragraphs: string[]; keyStats: { label: string; winner: string; loser: string }[]; ticker: string | null };
 
 const pick = <T,>(seed: number, list: T[]): T => list[Math.abs(seed) % list.length];
 const n = (v: number | null | undefined) => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -57,12 +58,15 @@ export function writeMatchReport(f: ReportFacts): MatchReport {
   // Headline: the strongest true angle wins.
   let headline: string, ticker: string | null = null;
   if (f.upset) { headline = pick(seed, [`${W} stuns ${L}`, `Upset: ${W} topples ${L}`, `${W} pulls off the upset against ${L}`]); ticker = "upset"; }
+  else if (n(f.winner.darts) === 9 && /^501(_double_out)?$/i.test(f.gameType)) { headline = `NINE-DARTER! ${W} hits perfection against ${L}`; ticker = "nine-darter"; }
   else if (w180 >= 2) { headline = `${W} fires ${plural(w180, "maximum")} past ${L}`; ticker = plural(w180, "180"); }
   else if (revenge) { headline = pick(seed, [`${W} bites back against ${L}`, `${W} closes the gap on ${L}`]); ticker = "revenge win"; }
   else if (firstMeeting) { headline = `${W} wins the first meeting with ${L}`; ticker = "first meeting"; }
   else if (dominance) { headline = pick(seed, [`${W} has ${L}'s number again`, `Same story: ${W} beats ${L}`]); ticker = `${wPrev! + 1}–${lPrev} in the series`; }
   else if (dbl) { headline = pick(seed, [`${W} finds ${dbl} to beat ${L}`, `${dbl} does it for ${W} against ${L}`]); }
   else headline = pick(seed, [`${W} beats ${L}`, `${W} gets the better of ${L}`, `${W} sees off ${L}`]);
+  const records = (f.records ?? []).map(r => `${r.playerName}: ${r.title.toLowerCase()}, ${r.value} ${r.unit} (was ${r.previous}${r.previousHolder ? `, ${r.previousHolder}` : ""}).`);
+  if (f.records?.length) { headline = `League record! ${f.records[0].playerName} ${f.records[0].title.toLowerCase().replace(/^(fewest|most|longest)/, "sets the $1")}`; ticker = "league record"; }
   if (!ticker && dbl) ticker = `out on ${dbl}`;
   if (!ticker && w180 === 1) ticker = "a 180";
 
@@ -103,7 +107,8 @@ export function writeMatchReport(f: ReportFacts): MatchReport {
     else fin.push(`Little between them on the doubles: ${wRate}% to ${lRate}%.`);
   }
   const wDarts = n(f.winner.darts);
-  if (wDarts && isX01(f.gameType) && wDarts <= 18) fin.push(`It took just ${wDarts} darts.`);
+  if (wDarts === 9 && /^501(_double_out)?$/i.test(f.gameType)) fin.push(`A nine-dart leg: the perfect game of darts.`);
+  else if (wDarts && isX01(f.gameType) && wDarts <= 18) fin.push(`It took just ${wDarts} darts.`);
   if (fin.length) paras.push(fin.join(" "));
 
   // 4. The rivalry.
@@ -120,5 +125,5 @@ export function writeMatchReport(f: ReportFacts): MatchReport {
   if (wRate != null || lRate != null) keyStats.push({ label: "Doubles", winner: wRate != null ? `${wRate}%` : "—", loser: lRate != null ? `${lRate}%` : "—" });
   if (f.winner.s180 != null || f.loser.s180 != null) keyStats.push({ label: "180s", winner: String(w180), loser: String(l180) });
 
-  return { headline, standfirst, paragraphs: paras, keyStats, ticker };
+  return { records, headline, standfirst, paragraphs: paras, keyStats, ticker };
 }

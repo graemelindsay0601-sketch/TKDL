@@ -886,6 +886,19 @@ export async function sendRankChangeNotifications(
   }
 }
 
+/** Tell players the winner of a match just climbed past them in the table (not the two who played). */
+export async function sendOvertakenNotifications(matchId: number, passerName: string, passed: Array<{ id: number; newRank: number }>): Promise<void> {
+  try {
+    for (const p of passed) {
+      await createNotification({ playerId: p.id, type: "rank_change", title: "⚔️ Overtaken",
+        body: `${passerName} just passed you in the table. You're now #${p.newRank}.`,
+        data: { kind: "overtaken", newRank: p.newRank, url: "/leaderboard" }, dedupeKey: `overtaken:${matchId}:${p.id}` });
+    }
+  } catch (err) {
+    logger.error({ err }, "Failed to send overtaken notifications");
+  }
+}
+
 /**
  * Send threat alert if someone gets close to a player's rank
  */

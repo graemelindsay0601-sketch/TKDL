@@ -123,6 +123,12 @@ router.post("/practice/sessions", matchSubmitRateLimit, async (req, res): Promis
     // double-count. The client still sees the same { ok: true } either way.
     if (!inserted) return;
 
+    // Fire-and-forget: a solo session may knock someone down today's daily drill board.
+    if (body.player1Id && !body.player2Id) {
+      import("../lib/daily-drill-db").then(m => m.notifyDrillOvertakes(body.player1Id!, Number((inserted as { id: number }).id)))
+        .catch(err => req.log.error({ err }, "Daily drill overtake alert error"));
+    }
+
     // Fire-and-forget: shadow bot achievement check for P1. Logged, not
     // swallowed — a bare .catch(() => {}) here left zero diagnostic trail
     // if this ever actually failed, unlike every other error path in this

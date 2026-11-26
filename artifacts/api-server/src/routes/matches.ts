@@ -10,7 +10,7 @@ import { checkMatchAchievements, checkStatAchievements } from "../lib/achievemen
 import { checkAndGrantTitles } from "../lib/titles";
 import { checkMatchTriggersForInterview } from "../lib/interviewDeskService";
 import { createAutoPost } from "../lib/communityNotify";
-import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchResultBroadcast, sendRankChangeNotifications } from "../services/notificationService";
+import { sendMatchResultNotification, sendThreatAlertNotifications, sendMatchResultBroadcast, sendRankChangeNotifications, sendOvertakenNotifications } from "../services/notificationService";
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 import { addCoinsToPlayer, removeCardFromPlayer } from "../services/card-shop-service";
 import { CARD_CLASH_BENCHED } from "../lib/card-clash-bench";
@@ -425,6 +425,13 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     winnerRankChange = oldWinnerRank - newWinnerRank; // positive = moved up
     loserRankChange  = oldLoserRank  - newLoserRank;
 
+    // Overtaken alerts: everyone else the winner just climbed past hears who did it.
+    if (winnerRankChange > 0) {
+      const passed = roster.filter(p => p.id !== winnerId && p.id !== loserId && (afterRanks.get(p.id) ?? 0) > (beforeRanks.get(p.id) ?? 0)
+        // Only players who were genuinely ahead on points, not just on a tiebreak (start of month everyone is level).
+        && p.points > winnerPointsBefore);
+      void sendOvertakenNotifications(match.id, winner.name, passed.map(p => ({ id: p.id, newRank: afterRanks.get(p.id) ?? 0 })));
+    }
     if (winnerRankChange !== 0 || loserRankChange !== 0) {
       void sendRankChangeNotifications([
         ...(winnerRankChange !== 0 ? [{ id: winnerId, name: winner.name, newRank: newWinnerRank, oldRank: oldWinnerRank }] : []),
@@ -579,6 +586,9 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       });
     }
   })();
+
+  // League records this result may have broken (Hub banner + TKDL LIVE ticker). Fire and forget.
+  void import("../lib/league-records-db").then(m => m.detectRecords(match.id)).catch(err => console.error("League record check error:", err));
 
   // Send push notifications (fire and forget)
   void (async () => {

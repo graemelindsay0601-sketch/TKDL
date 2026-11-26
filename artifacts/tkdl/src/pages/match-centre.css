@@ -82,3 +82,5 @@
 .md-report-stats>div{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.05)}
 .md-report-stats b{font:800 .95rem Oswald,sans-serif;color:#ffd24a}.md-report-stats b:last-child{text-align:right;color:rgba(255,255,255,.55)}
 .md-report-stats span{font:700 .55rem Oswald,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.35)}
+.md-report-record{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:9px 11px;border-radius:10px;border:1px solid rgba(255,210,74,.4);background:linear-gradient(110deg,rgba(255,210,74,.16),rgba(255,210,74,.03));font-size:.78rem;color:#fff3c4}
+.md-report-record svg{flex:none;margin-top:2px;color:#ffd24a}.md-report-record b{font:800 .62rem Oswald,sans-serif;letter-spacing:.14em;color:#ffd24a;margin-right:4px}

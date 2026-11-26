@@ -54,3 +54,16 @@ test("x01 variants like 301_double_out count as x01", () => {
   const r = writeMatchReport({ ...base, gameType: "301_double_out", winner: { name: "Graeme", log: [{ seg: 5, mult: 2, val: 10, phase: "checkout" }] } });
   assert.match(r.paragraphs.join(" "), /won it on D5/);
 });
+
+test("a broken league record leads the report", () => {
+  const r = writeMatchReport({ ...base, records: [{ title: "Fewest darts to win a 501", unit: "darts", playerName: "Graeme", value: 12, previous: 15, previousHolder: "Robert" }] });
+  assert.equal(r.headline, "League record! Graeme sets the fewest darts to win a 501");
+  assert.equal(r.ticker, "league record");
+  assert.deepEqual(r.records, ["Graeme: fewest darts to win a 501, 12 darts (was 15, Robert)."]);
+});
+
+test("a 501 won in nine darts is called a nine-darter", () => {
+  const r = writeMatchReport({ ...base, winner: { name: "Graeme", darts: 9, s180: 2 } });
+  assert.match(r.headline, /^NINE-DARTER!/);
+  assert.match(r.paragraphs.join(" "), /perfect game/);
+});

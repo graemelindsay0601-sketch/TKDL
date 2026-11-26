@@ -51,3 +51,12 @@ export function streak(playerId: number, sessions: DrillSession[], today: string
   while (done.has(day)) { n++; day = prev(day); }
   return n;
 }
+
+/** Players `playerId` was behind before and is ahead of now (on any ranked board of ids, best first). */
+export function passedPlayers(before: number[], after: number[], playerId: number): number[] {
+  const b = before.indexOf(playerId), a = after.indexOf(playerId);
+  if (a < 0) return [];
+  const aheadBefore = b < 0 ? before : before.slice(0, b);
+  const behindNow = new Set(after.slice(a + 1));
+  return aheadBefore.filter(id => behindNow.has(id));
+}

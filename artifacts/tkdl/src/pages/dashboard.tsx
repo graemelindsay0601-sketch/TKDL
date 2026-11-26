@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { MatchSpotlight } from "@/components/MatchSpotlight";
 import { SeasonBadge } from "@/components/SeasonalTheme";
 import { DailyDrill } from "@/components/DailyDrill";
+import { RecordBanner } from "@/components/RecordBanner";
 import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -761,6 +762,8 @@ export default function Dashboard() {
     <div className="pm-page space-y-4">
 
       {currentPlayer && <FreshnessBar playerName={currentPlayer.playerName} previousVisit={visit?.previousVisit ?? null} pulse={pulse} />}
+
+      <RecordBanner />
 
       <StateBand leaderboard={leaderboard} summary={summary} currentPlayer={currentPlayer} form={formData?.results ?? null} />
 
