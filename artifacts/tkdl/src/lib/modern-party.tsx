@@ -29,10 +29,11 @@ export type ModernPartyProps = {
   heading: string;
   sub?: string;
   rules?: string;
-  names: [string, string];
-  turn: 0 | 1;
+  names: string[];
+  turn: number;
   solo?: boolean;
-  cards: [PartyCard, PartyCard];
+  /** Two players: two big cards. Three or more: a compact ranked list in the same style. */
+  cards: PartyCard[];
   /** The game's own visual (target row, track, board...). */
   panel?: ReactNode;
   /** Status line above the pad, e.g. "Aim at 16". */
@@ -96,7 +97,7 @@ export function ModernParty(p: ModernPartyProps) {
     setMult(1);
   };
 
-  const card = (i: 0 | 1) => {
+  const card = (i: number) => {
     const on = p.turn === i;
     const c = p.cards[i];
     const line = c.line && typeof c.line === "object" && "label" in (c.line as object) ? c.line as { label: string; value: ReactNode } : null;
@@ -161,10 +162,23 @@ export function ModernParty(p: ModernPartyProps) {
 
         {p.topBanner && <div className="mx-banner">{p.topBanner}</div>}
 
-        <div className={`mx-board${p.solo ? " solo" : ""}`}>
-          {card(0)}
-          {!p.solo && card(1)}
-        </div>
+        {p.cards.length > 2 ? (
+          <div className="mp-list">
+            {p.cards.map((c, i) => (
+              <div key={i} className={`mp-row${p.turn === i ? " is-on" : ""}${c.out ? " is-out" : ""}`}>
+                <span className="mx-name">{p.names[i]}</span>
+                {c.badge && <span className="mp-badge">{c.badge}</span>}
+                <span className="mp-row-line">{c.line && typeof c.line === "object" && "label" in (c.line as object) ? <>{(c.line as { label: string }).label} <b>{(c.line as { value: ReactNode }).value}</b></> : c.line as ReactNode}</span>
+                <span className="mx-score mp-row-score">{c.score}{c.unit && <small>{c.unit}</small>}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className={`mx-board${p.solo ? " solo" : ""}`}>
+            {card(0)}
+            {!p.solo && card(1)}
+          </div>
+        )}
 
         {p.panel ? <div className="mp-panel">{p.panel}</div> : p.targets && !p.customPad ? <div className="mp-spacer" /> : null}
 

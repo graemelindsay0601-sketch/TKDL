@@ -9241,7 +9241,8 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
 // ── Team X01 Scorer ────────────────────────────────────────────────────────────
 const TEAM_COLORS: [string, string] = ["#22c55e", "#ee0a78"];
 
-export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState }: {
+export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState, newScoringUI }: {
+  newScoringUI?: boolean;
   teamNames: [string[], string[]];
   config: { startingScore: number; doubleOut?: boolean; doubleIn?: boolean };
   onWin: (w: 0|1, detail?: string) => void;
@@ -9367,6 +9368,44 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
 
   const currentPlayerName = (team: 0|1) => teamNames[team][playerIdx[team]];
 
+  // Premium scorer (same frame as the 1v1 X01 scorer), behind New Scoring UI.
+  const [preferredTeamStyle] = useScorerStyle();
+  const [teamMode, setTeamMode] = useState<ModernMode>(preferredTeamStyle === "perdart" ? "perdart" : "total");
+  const [classicTeam, setClassicTeam] = useState(false);
+  const [teamQueue, setTeamQueue] = useState<Dart[]>([]);
+  const teamDartRef = useRef(handleDart); teamDartRef.current = handleDart;
+  useEffect(() => {
+    if (!teamQueue.length) return;
+    if (bust) { setTeamQueue([]); return; }
+    const [d, ...rest] = teamQueue;
+    setTeamQueue(rest);
+    teamDartRef.current(d);
+  }, [teamQueue, bust]);
+  if (newScoringUI && !classicTeam) {
+    const teamLabel = (t: 0 | 1) => teamNames[t].join(" & ");
+    const visits = (t: 0 | 1) => history.filter(h => h.team === t);
+    const stat = (t: 0 | 1) => { const v = visits(t); const tot = v.reduce((a, h) => a + h.score, 0); return { avg: v.length ? (tot / v.length).toFixed(1) : "–", darts: v.length * 3 }; };
+    const live = Math.max(0, scores[teamTurn] - (bust ? 0 : cum));
+    const lastFor = (t: 0 | 1) => { const v = visits(t); return v.length ? v[v.length - 1].score : null; };
+    return (
+      <ModernX01
+        mode={teamMode} canTotal onMode={setTeamMode}
+        names={[teamLabel(0), teamLabel(1)]} solo={false}
+        scores={scores} turn={teamTurn}
+        heading={`Team ${startingScore}`} legsLine={`${currentPlayerName(teamTurn)} to throw`}
+        legWins={[0, 0]} legsNeeded={1}
+        stats={[stat(0), stat(1)]}
+        routes={[teamTurn === 0 && live <= 170 ? CHECKOUTS[live] : undefined, teamTurn === 1 && live <= 170 ? CHECKOUTS[live] : undefined]}
+        visitDarts={visitDarts} bust={bust} bustMsg={bustMsg}
+        disabled={bust || teamQueue.length > 0} doubleOut={doubleOut}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        onDarts={ds => { if (!bust && visitDarts.length === 0) setTeamQueue(ds); }}
+        menu={[{ label: "Use classic scorer for this match", onClick: () => setClassicTeam(true) }, { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } }]}
+        lastVisit={[lastFor(0), lastFor(1)]}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -9442,7 +9481,8 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
 }
 
 // ── Team Cricket Scorer ────────────────────────────────────────────────────────
-export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState }: {
+export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState, newScoringUI }: {
+  newScoringUI?: boolean;
   teamNames: [string[], string[]];
   cutThroat?: boolean;
   onWin: (w: 0|1, detail?: string) => void;
@@ -9550,6 +9590,29 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
 
   const currentPlayer = (team: 0|1) => teamNames[team][playerIdx[team]];
 
+  const [classicTeamCri, setClassicTeamCri] = useState(false);
+  const [teamMissQueue, setTeamMissQueue] = useState(0);
+  const teamCriDartRef = useRef(handleDart); teamCriDartRef.current = handleDart;
+  useEffect(() => {
+    if (teamMissQueue <= 0) return;
+    setTeamMissQueue(q => q - 1);
+    teamCriDartRef.current({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
+  }, [teamMissQueue]);
+  if (newScoringUI && !classicTeamCri) {
+    return (
+      <ModernCricket
+        heading={`${cutThroat ? "Cut-Throat" : "Team Cricket"}`} legsLine={`${currentPlayer(teamTurn)} to throw`}
+        names={[teamNames[0].join(" & "), teamNames[1].join(" & ")]} solo={false} cutThroat={cutThroat}
+        scores={scores} marks={marks as [number[], number[]]} nums={CRICKET_NUMS} labels={CRICKET_NUMS.map(n => n === 25 ? "Bull" : String(n))}
+        turn={teamTurn} legWins={[0, 0]} legsNeeded={1}
+        visitDarts={visitDarts} disabled={teamMissQueue > 0}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        onEndVisit={() => { if (teamMissQueue === 0) setTeamMissQueue(Math.max(1, 3 - visitDarts.length)); }}
+        menu={[{ label: "Use classic scorer for this match", onClick: () => setClassicTeamCri(true) }, { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } }]}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -9613,7 +9676,8 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
 }
 
 // ── Multi-player Killer Scorer (3–6 individual players) ────────────────────────
-export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: {
+export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon, newScoringUI }: {
+  newScoringUI?: boolean;
   playerNames: string[];
   lives?: number;
   onWin: (winnerIdx: number, detail?: string) => void;
@@ -9709,6 +9773,34 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => { if (visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); };
+
+  if (newScoringUI) {
+    const cards = playerNames.map((_, i) => ({
+      score: phase === "assign" ? (killerNums[i] !== null ? `D${killerNums[i]}` : "—") : Math.max(0, playerLives[i]),
+      unit: phase === "assign" ? undefined : (playerLives[i] === 1 ? "life" : "lives"),
+      out: eliminated[i], badge: isKiller[i] && !eliminated[i] ? "☠ Killer" : eliminated[i] ? "Out" : undefined,
+      line: { label: "Double", value: killerNums[i] !== null ? `D${killerNums[i]}` : "picking" },
+    }));
+    return (
+      <ModernParty
+        heading="Killer" sub={`${n} players · ${lives} lives`}
+        names={playerNames} turn={phase === "assign" ? assigningIdx : turn}
+        cards={cards}
+        note={msg || (phase === "play" ? (!isKiller[turn] ? `Hit D${killerNums[turn]} to become Killer` : "Hit an opponent's double") : undefined)}
+        visitDarts={phase === "play" ? visitDarts : []}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        highlight={killerNums.filter((num): num is number => num !== null)}
+        onAbandon={onAbandon}
+        customPad={phase === "assign" ? <>
+          <div className="mx-note">{playerNames[assigningIdx]} — tap your double</div>
+          <div className="kp-grid">{Array.from({ length: 20 }, (_, i) => i + 1).map(num => {
+            const owner = killerNums.indexOf(num);
+            return <button key={num} disabled={owner !== -1} className={owner !== -1 ? "taken" : ""} style={owner !== -1 ? { ["--pc" as any]: pColor(owner) } : undefined} onClick={() => owner === -1 && assignNumber(num)}><span>D{num}</span>{owner !== -1 && <small>{playerNames[owner]}</small>}</button>;
+          })}</div>
+        </> : undefined}
+      />
+    );
+  }
 
   if (phase === "assign") {
     return (
