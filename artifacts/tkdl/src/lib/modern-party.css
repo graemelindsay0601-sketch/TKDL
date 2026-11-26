@@ -35,3 +35,33 @@
 .mp-hl small { display: block; font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: #8e8aa0; }
 .mp-hl b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 38px; line-height: 1.05; }
 .mp-hl .lo { color: #5fb8ff; } .mp-hl .hi { color: #ff7aa8; }
+.mp-big { text-align: center; }
+.mp-big small { display: block; font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: #8e8aa0; }
+.mp-big b { font-family: Oswald, sans-serif; font-weight: 700; font-size: 44px; line-height: 1.05; background: linear-gradient(180deg, #fff6cf 0%, #ffd24a 44%, #b67f00 54%, #ffe28a 80%, #fff1b8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.mp-balls { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.mp-balls i { width: 12px; height: 12px; border-radius: 50%; }
+/* 501-style cards */
+.mp-badge { flex: none; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #ffd24a; }
+.mp-card .mx-last { min-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Cricket-style target pad: fixed-height buttons like Cricket; the game panel takes the spare room */
+.mp-root.has-tpad .mp-panel { flex: 1 1 auto; max-height: none; display: flex; align-items: center; justify-content: center; }
+.mp-root.has-tpad .mp-spacer { flex: 1 1 auto; }
+.mp-tpad { flex: none; grid-template-columns: repeat(4, 1fr); }
+.mp-tpad button { height: clamp(56px, 9vh, 78px); }
+.mp-tpad button span { font-size: 28px; }
+.mp-tpad.n1 > button:first-child { grid-column: span 4; }
+.mp-tpad.n1 > button:first-child span { font-size: 40px; }
+.mp-tpad.n2 > button:nth-child(-n+2) { grid-column: span 2; }
+.mp-tpad.n3 > button:nth-child(-n+3) { grid-column: span 1; }
+.mp-tpad.n3 > button:nth-child(3) { grid-column: span 2; }
+.mp-tpad button.hi { border-color: #ffd24a; box-shadow: 0 0 18px rgba(255,210,74,.28); }
+.mp-tpad .next { grid-column: span 2 !important; }
+.mp-next { flex: none; height: 50px; border-radius: 14px; border: 0; background: linear-gradient(180deg,#ffe58a,#e0a800); color: #1a1200; font-family: Oswald, sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .14em; text-transform: uppercase; box-shadow: 0 0 22px rgba(255,210,74,.3); }
+.mp-next:disabled { opacity: .45; }
+.mp-root .mx-grid { grid-template-rows: repeat(4, minmax(36px, 1fr)); }
+@media (max-height: 700px) { .mp-next { height: 42px; } }
+/* With a target pad the game panel becomes the centre board, like Cricket's marks board */
+.mp-root.has-tpad .mp-panel { border-radius: 18px; border: 1px solid rgba(255,210,74,.28); background: radial-gradient(120% 80% at 0% 0%, rgba(255,210,74,.1), transparent 55%), linear-gradient(180deg, rgba(23,20,31,.95), rgba(12,10,18,.96)); padding: 10px; }
+.mp-root.has-tpad .mp-chips { gap: 7px; }
+.mp-root.has-tpad .mp-chips span { min-width: 42px; height: 40px; border-radius: 12px; font-size: 18px; }
+@media (max-height: 760px) { .mp-root.has-tpad .mp-chips span { min-width: 34px; height: 32px; font-size: 15px; } }

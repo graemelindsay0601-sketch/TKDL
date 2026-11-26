@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { MoreHorizontal, X } from "lucide-react";
 import type { Dart } from "@/lib/dartboard";
 import "./modern-x01.css";
@@ -15,8 +15,10 @@ export type PartyCard = {
   score: ReactNode;
   /** Small text after the score, e.g. "/20" or "runs". */
   unit?: string;
-  /** One short line under the score (next target, lives, status). */
-  line?: ReactNode;
+  /** The 501-style line under the score: "Last 60" → { label: "Last", value: 60 }. A plain string is shown as is. */
+  line?: ReactNode | { label: string; value: ReactNode };
+  /** Small text top-right of the card, where 501 shows the leg dots. */
+  badge?: ReactNode;
   /** Small label/value pairs along the bottom of the card. */
   stats?: { label: string; value: ReactNode }[];
   /** Greyed out (knocked out, in jail...). */
@@ -56,12 +58,21 @@ export type ModernPartyProps = {
   topBanner?: ReactNode;
   /** Replaces the pad entirely (number pickers, choose-a-target screens). */
   customPad?: ReactNode;
+  /** Cricket-style pad: just these numbers as big buttons (25 = Bull), plus Miss, Undo and Next player. */
+  targets?: number[];
+  /** Labels for targets (default: the number, "Bull" for 25). */
+  targetLabels?: string[];
 };
 
 const fmtLabel = (seg: number, m: 1 | 2 | 3, ring?: "inner" | "outer") =>
   seg === 25 ? (m === 2 ? "DB" : "Bull") : m === 1 ? (ring === "inner" ? `${seg}i` : String(seg)) : m === 2 ? `D${seg}` : `T${seg}`;
 
+/** GameScorer provides "switch this match to the classic scorer". */
+export const PartyClassicContext = createContext<(() => void) | null>(null);
+
 export function ModernParty(p: ModernPartyProps) {
+  const ctxClassic = useContext(PartyClassicContext);
+  const onClassic = p.onClassic ?? ctxClassic ?? undefined;
   const [mult, setMult] = useState<1 | 2 | 3>(1);
   const [ring, setRing] = useState<"outer" | "inner">("outer");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -74,7 +85,7 @@ export function ModernParty(p: ModernPartyProps) {
   const canPress = (n: number) => !p.allowed || p.allowed.includes(n);
 
   const fire = (seg: number, forced?: 1 | 2) => {
-    if (p.disabled) return;
+    if (p.disabled || missQueue > 0) return;
     const m = (forced ?? (seg === 25 && mult === 3 ? 2 : mult)) as 1 | 2 | 3;
     const r = p.ringMode && m === 1 && seg !== 25 ? ring : undefined;
     const val = seg === 25 ? (m === 2 || p.fatBull ? 50 : 25) : seg * m;
@@ -85,17 +96,35 @@ export function ModernParty(p: ModernPartyProps) {
   const card = (i: 0 | 1) => {
     const on = p.turn === i;
     const c = p.cards[i];
+    const line = c.line && typeof c.line === "object" && "label" in (c.line as object) ? c.line as { label: string; value: ReactNode } : null;
     return (
       <div key={i} className={`mx-card mp-card${on ? " is-on" : ""}${c.out ? " is-out" : ""}`}>
-        <div className="mx-card-top"><span className="mx-name">{p.names[i]}</span></div>
+        <div className="mx-card-top">
+          <span className="mx-name">{p.names[i]}</span>
+          {c.badge && <span className="mp-badge">{c.badge}</span>}
+        </div>
         <div className="mx-score mp-score">{c.score}{c.unit && <small>{c.unit}</small>}</div>
-        {c.line && <span className={`mx-route${on ? " is-on" : ""}`}>{c.line}</span>}
-        {c.stats && c.stats.length > 0 && (
-          <div className="mx-stats">{c.stats.map(s => <span key={s.label}>{s.label} <b>{s.value}</b></span>)}</div>
-        )}
+        {line ? <span className="mx-last">{line.label} <b>{line.value}</b></span>
+          : c.line ? <span className="mx-last">{c.line as ReactNode}</span>
+          : <span className="mx-last">&nbsp;</span>}
+        <div className="mx-stats">
+          {(c.stats && c.stats.length ? c.stats : [{ label: on ? "Throwing" : "Waiting", value: "" }]).map(s => <span key={s.label}>{s.label} <b>{s.value}</b></span>)}
+        </div>
       </div>
     );
   };
+
+  // "Next player": the rest of the visit goes in as misses, one at a time through the game's own handler.
+  const [missQueue, setMissQueue] = useState(0);
+  const missRef = useRef(p.onMiss); missRef.current = p.onMiss;
+  useEffect(() => { setMissQueue(0); }, [p.turn]);
+  useEffect(() => {
+    if (missQueue <= 0) return;
+    setMissQueue(q => q - 1);
+    missRef.current();
+  }, [missQueue]);
+  const endVisit = () => { if (!p.disabled && missQueue === 0) setMissQueue(Math.max(1, 3 - p.visitDarts.length)); };
+  const busy = !!p.disabled || missQueue > 0;
 
   const multOpts = p.ringMode
     ? [
@@ -107,7 +136,7 @@ export function ModernParty(p: ModernPartyProps) {
     : ([1, 2, 3] as const).map(m => ({ k: String(m), label: m === 1 ? "Single" : m === 2 ? "Double" : "Treble", cls: `m${m}`, on: mult === m, pick: () => setMult(mult === m && m !== 1 ? 1 : m) }));
 
   return (
-    <div className="mx-root mp-root" role="application" aria-label={`${p.heading} scorer`}>
+    <div className={`mx-root mp-root${p.targets && !p.customPad ? " has-tpad" : ""}`} role="application" aria-label={`${p.heading} scorer`}>
       <div className="mx-col">
         <header className="mx-head">
           <button className="mx-icon" aria-label="Match menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}><MoreHorizontal size={20} /></button>
@@ -121,7 +150,7 @@ export function ModernParty(p: ModernPartyProps) {
         {menuOpen && (
           <div className="mx-menu" role="menu">
             {p.rules && <button role="menuitem" onClick={() => { setMenuOpen(false); setRulesOpen(true); }}>How to play</button>}
-            {p.onClassic && <button role="menuitem" onClick={() => { setMenuOpen(false); p.onClassic!(); }}>Use classic scorer for this match</button>}
+            {onClassic && <button role="menuitem" onClick={() => { setMenuOpen(false); onClassic(); }}>Use classic scorer for this match</button>}
             <button role="menuitem" className="danger" onClick={() => { setMenuOpen(false); if (window.confirm("Abandon this match?")) p.onAbandon(); }}>Abandon match</button>
             <button role="menuitem" className="close" onClick={() => setMenuOpen(false)}>Close</button>
           </div>
@@ -134,7 +163,7 @@ export function ModernParty(p: ModernPartyProps) {
           {!p.solo && card(1)}
         </div>
 
-        {p.panel && <div className="mp-panel">{p.panel}</div>}
+        {p.panel ? <div className="mp-panel">{p.panel}</div> : p.targets && !p.customPad ? <div className="mp-spacer" /> : null}
 
         {p.customPad ? <div className="mp-custom">{p.customPad}</div> : (
           <>
@@ -155,20 +184,49 @@ export function ModernParty(p: ModernPartyProps) {
               {p.waitingMsg ?? p.note ?? `${p.names[p.turn]} to throw`}
             </div>
 
-            <div className={`mx-mult${p.ringMode ? " mp-four" : ""}`} role="group" aria-label="Ring">
-              {multOpts.map(o => <button key={o.k} className={`${o.cls}${o.on ? " on" : ""}`} aria-pressed={o.on} disabled={p.disabled} onClick={o.pick}>{o.label}</button>)}
-            </div>
-            <div className="mx-grid">
-              {Array.from({ length: 20 }, (_, k) => 20 - k).map(n => (
-                <button key={n} className={p.highlight?.includes(n) ? "hi" : ""} disabled={p.disabled || !canPress(n)} onClick={() => fire(n)}><span>{n}</span></button>
-              ))}
-            </div>
-            <div className="mx-row4">
-              <button className={`bull25${p.highlight?.includes(25) ? " hi" : ""}`} disabled={p.disabled || !canPress(25)} onClick={() => fire(25, 1)}>{p.fatBull ? "Bull 50" : "25"}</button>
-              <button className="bull50" disabled={p.disabled || !canPress(25)} onClick={() => fire(25, 2)}>Bull</button>
-              <button className="ghost" disabled={p.disabled} onClick={p.onMiss}>Miss</button>
-              <button className="ghost" onClick={p.onUndo}>Undo</button>
-            </div>
+            {p.targets ? (
+              <>
+                <div className="mc-mult" role="group" aria-label="Multiplier">
+                  {p.ringMode ? multOpts.map(o => <button key={o.k} className={`${o.cls === "m2" ? "db" : o.cls === "m3" ? "tr" : ""}${o.on ? " on" : ""}`} aria-pressed={o.on} disabled={busy} onClick={o.pick}>{o.label}</button>)
+                    : <>
+                      <button className={mult === 1 ? "on" : ""} aria-pressed={mult === 1} disabled={busy} onClick={() => setMult(1)}>Single</button>
+                      <button className={`db${mult === 2 ? " on" : ""}`} aria-pressed={mult === 2} disabled={busy} onClick={() => setMult(m => m === 2 ? 1 : 2)}>Double</button>
+                      <button className={`tr${mult === 3 ? " on" : ""}`} aria-pressed={mult === 3} disabled={busy} onClick={() => setMult(m => m === 3 ? 1 : 3)}>Treble</button>
+                    </>}
+                </div>
+                <div className={`mc-pad mp-tpad n${Math.min(p.targets.length, 8)}`}>
+                  {p.targets.map((n, k) => {
+                    const isBull = n === 25;
+                    return (
+                      <button key={`${n}-${k}`} className={`${isBull ? "bull" : ""}${p.highlight?.includes(n) ? " hi" : ""}`} disabled={busy || (isBull && mult === 3)} onClick={() => fire(n)}>
+                        <span>{p.targetLabels?.[k] ?? (isBull ? (mult === 2 ? "D-Bull" : "Bull") : n)}</span>
+                      </button>
+                    );
+                  })}
+                  <button className="miss" disabled={busy} onClick={p.onMiss}>Miss</button>
+                  <button className="ghost" onClick={p.onUndo}>Undo</button>
+                  <button className="next" disabled={busy} onClick={endVisit}>{p.visitDarts.length === 0 ? "No score" : "Next player"}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`mx-mult${p.ringMode ? " mp-four" : ""}`} role="group" aria-label="Ring">
+                  {multOpts.map(o => <button key={o.k} className={`${o.cls}${o.on ? " on" : ""}`} aria-pressed={o.on} disabled={busy} onClick={o.pick}>{o.label}</button>)}
+                </div>
+                <div className="mx-grid">
+                  {Array.from({ length: 20 }, (_, k) => 20 - k).map(n => (
+                    <button key={n} className={p.highlight?.includes(n) ? "hi" : ""} disabled={busy || !canPress(n)} onClick={() => fire(n)}><span>{n}</span></button>
+                  ))}
+                </div>
+                <div className="mx-row4">
+                  <button className={`bull25${p.highlight?.includes(25) ? " hi" : ""}`} disabled={busy || !canPress(25)} onClick={() => fire(25, 1)}>{p.fatBull ? "Bull 50" : "25"}</button>
+                  <button className="bull50" disabled={busy || !canPress(25)} onClick={() => fire(25, 2)}>Bull</button>
+                  <button className="ghost" disabled={busy} onClick={p.onMiss}>Miss</button>
+                  <button className="ghost" onClick={p.onUndo}>Undo</button>
+                </div>
+                <button className="mp-next" disabled={busy} onClick={endVisit}>{p.visitDarts.length === 0 ? "No score" : "Next player"}</button>
+              </>
+            )}
           </>
         )}
 

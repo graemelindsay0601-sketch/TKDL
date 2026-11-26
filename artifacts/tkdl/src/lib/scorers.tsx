@@ -4184,8 +4184,12 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
         turn={turn}
         cards={[0, 1].map(i => ({
           score: playerLives[i], unit: playerLives[i] === 1 ? "life" : "lives", out: playerLives[i] <= 0,
-          line: isKiller[i] ? `☠ Killer · D${killerNums[i]}` : `D${killerNums[i]} · not killer yet`,
+          badge: isKiller[i] ? "☠ Killer" : undefined,
+          line: { label: "Double", value: `D${killerNums[i]}` },
+          stats: [{ label: "Status", value: isKiller[i] ? "Killer" : "Not yet" }, { label: "Lives", value: `${Math.max(0, playerLives[i])}/${lives}` }],
         })) as [any, any]}
+        targets={(isKiller[turn] ? [killerNums[turn === 0 ? 1 : 0], killerNums[turn]] : [killerNums[turn]]).filter((n): n is number => n !== null)}
+        targetLabels={(isKiller[turn] ? [`D${killerNums[turn === 0 ? 1 : 0]}`, `D${killerNums[turn]} (own)`] : [`D${killerNums[turn]}`])}
         note={msg || (isKiller[turn] ? `Hit D${killerNums[opp]} to take a life` : `Hit D${killerNums[turn]} to become Killer`)}
         visitDarts={visitDarts}
         disabled={isBotTurnKill}
@@ -4449,7 +4453,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
           rules={rules ?? "Each round has a target number, starting at 1. Score what you hit on it. Hit its single, double and treble in one visit (a Shanghai) and you win on the spot. Highest score after the last round wins."}
           names={[p1Name, p2Name]}
           turn={shanghaiTurn}
-          cards={[0, 1].map(i => ({ score: shanghaiScores[i], line: i === shanghaiTurn ? ticks : undefined })) as [any, any]}
+          cards={[0, 1].map(i => ({ score: shanghaiScores[i], line: { label: "Shanghai", value: i === shanghaiTurn ? ticks : "–" }, stats: [{ label: "Round", value: `${shanghaiRound}/${maxRounds}` }, { label: "Target", value: shanghaiRound }] })) as [any, any]}
+          targets={[shanghaiRound]}
           panel={<TargetChips items={Array.from({ length: maxRounds }, (_, k) => String(k + 1))} current={shanghaiRound - 1} />}
           note={shanghaiHits.s && shanghaiHits.d && shanghaiHits.t ? "Shanghai!" : `Aim at ${shanghaiRound} · S, D and T for a Shanghai`}
           visitDarts={shanghaiDarts}
@@ -4565,7 +4570,9 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
         rules={rules}
         names={[p1Name, p2Name]}
         turn={turn}
-        cards={[0, 1].map(i => ({ score: positions[i], unit: `/${sequence.length}`, line: `Next: ${sequence[positions[i]]?.label ?? "Done"}` })) as [any, any]}
+        cards={[0, 1].map(i => ({ score: positions[i], unit: `/${sequence.length}`, line: { label: "Next", value: sequence[positions[i]]?.label ?? "Done" }, stats: [{ label: "Done", value: positions[i] }, { label: "To go", value: sequence.length - positions[i] }] })) as [any, any]}
+        targets={curTarget ? [curTarget.seg] : undefined}
+        targetLabels={curTarget ? [curTarget.seg === 25 ? "Bull" : String(curTarget.seg)] : undefined}
         panel={showGrandNationalTrack
           ? <RaceTrack max={sequence.length} tickLabels={["START", "LAP 2", "POST"]} lanes={[
               { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
@@ -4749,7 +4756,7 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         rules="Every visit must score below the low target or above the high one. Do it and that target moves to your score. Fail and you lose a life. The first visit of the game sets the high target. T1 scores nothing."
         names={[p1Name, p2Name]}
         turn={turn}
-        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0 })) as [any, any]}
+        cards={[0, 1].map(i => ({ score: Math.max(0, lives[i]), unit: lives[i] === 1 ? "life" : "lives", out: lives[i] <= 0, line: { label: "Needs", value: high === null ? "set the high" : `<${low} or >${high}` }, stats: [{ label: "Low", value: low }, { label: "High", value: high ?? "–" }] })) as [any, any]}
         panel={<div className="mp-hl"><div><small>Score below</small><b className="lo">{low}</b></div><div><small>Score above</small><b className="hi">{high ?? "—"}</b></div></div>}
         note={flash ?? (high === null ? "First visit sets the high target" : `Under ${low} or over ${high}`)}
         noteTone={flash ? "bust" : "gold"}
@@ -4947,8 +4954,10 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
         turn={turn}
         cards={[0, 1].map(i => ({
           score: scores[i],
-          line: turn === i && roundScore > 0 ? `+${roundScore} this round` : i === turn ? `Aim at ${label}` : (turnInRound === 1 && i === 0 ? "Done this round" : "Waiting"),
+          line: { label: "Target", value: label },
+          stats: [{ label: "Round", value: `${round + 1}/${targets.length}` }, { label: "This round", value: i === turn ? roundScore : "–" }],
         })) as [any, any]}
+        targets={typeof curTarget === "number" ? [curTarget] : curTarget === "Bull" ? [25] : undefined}
         panel={<TargetChips items={targetLabels.map(t => String(t).replace("Any Double", "D").replace("Any Treble", "T"))} current={round} />}
         note={hit ? `${label} hit · +${roundScore}` : visitDarts.length ? `Still need ${label}` : `Aim at ${label}`}
         visitDarts={visitDarts}
@@ -5113,6 +5122,25 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading={bullsOnly ? "Bull Rush" : accumulate ? "Accumulator" : noOuterBull ? "No Black" : maxRounds > 0 ? "High Score" : "Count Up"}
+        sub={bullsOnly ? `First to ${target} bulls` : maxRounds > 0 ? `${maxRounds} rounds` : accumulate ? "Beat your last visit" : `Race to ${target}`}
+        rules={bullsOnly ? "Only bull hits count, inner or outer. First to the target wins." : accumulate ? "Each visit must score more than your previous one, or your total is halved." : noOuterBull ? "Count up to the target, but an outer bull (25) makes the whole visit score zero. The bullseye is fine." : "Score as many points as you can."}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: maxRounds === 0 && !accumulate ? `/${target}` : undefined, line: { label: "Last", value: lastVisit[i] }, stats: [{ label: maxRounds > 0 ? "Round" : "To go", value: maxRounds > 0 ? `${Math.min(rounds[i] + 1, maxRounds)}/${maxRounds}` : Math.max(0, target - scores[i]) }, { label: "Visits", value: rounds[i] }] })) as [any, any]}
+        targets={bullsOnly ? [25] : undefined}
+        note={halvMsg || (bullsOnly ? "Aim at the bull" : accumulate ? sub(turn) : "Score as many as you can")}
+        noteTone={halvMsg ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnCU} waitingMsg={isBotTurnCU ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={bullsOnly ? [25] : undefined}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -5233,7 +5261,7 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
         rules={`Race to exactly ${target}. Go over and the visit doesn't count. Land on your opponent's exact score and they're sent back to 0 — Gotcha!`}
         names={[p1Name, p2Name]}
         turn={turn}
-        cards={[0, 1].map(i => ({ score: i === turn ? proj : scores[i], unit: `/${target}`, line: scores[i] >= target ? "Home" : `${target - (i === turn ? proj : scores[i])} to go` })) as [any, any]}
+        cards={[0, 1].map(i => ({ score: i === turn ? proj : scores[i], unit: `/${target}`, line: { label: "To go", value: target - (i === turn ? proj : scores[i]) }, stats: [{ label: "Race to", value: target }, { label: "Visit", value: i === turn ? visit : "–" }] })) as [any, any]}
         note={msg || (proj > target ? "Over — this visit won't count" : proj === scores[opp] && proj > 0 ? `On ${scores[opp]} — Gotcha if it stays!` : `${target - proj} to go · ${names[opp]} on ${scores[opp]}`)}
         noteTone={proj > target ? "bust" : "gold"}
         visitDarts={visitDarts}
@@ -5280,10 +5308,11 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
 }
 
 // ── Baseball Scorer ────────────────────────────────────────────────────────────
-export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, onAbandon, onTurnChanged }: {
+export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, onAbandon, onTurnChanged, newScoringUI }: {
   p1Name: string; p2Name: string; innings?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onTurnChanged?: (t: 0|1) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [inning, setInning]         = useSnapState("BaseballScorer.inning", 1);
@@ -5322,6 +5351,24 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Baseball" sub={`Inning ${inning} of ${innings}`}
+        rules="Nine innings. Each inning's number is the target: single = 1 run, double = 2, treble = 3. Most runs wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: runs[i], unit: runs[i] === 1 ? "run" : "runs", line: { label: "Inning", value: `${inning}/${innings}` }, stats: [{ label: "Target", value: inning }, { label: "Lead", value: runs[i] - runs[i === 0 ? 1 : 0] }] })) as [any, any]}
+        targets={[inning]}
+        panel={<TargetChips items={Array.from({ length: innings }, (_, k) => String(k + 1))} current={inning - 1} />}
+        note={`Aim at ${inning} · S 1 · D 2 · T 3`}
+        visitDarts={visitDarts} visitLabel="Runs" visitValue={visitDarts.reduce((t, d) => t + (d.segment === inning ? d.multiplier : 0), 0)}
+        disabled={isBotTurnBaseball} waitingMsg={isBotTurnBaseball ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[inning]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -5347,9 +5394,10 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
 // ── Scram Scorer ───────────────────────────────────────────────────────────────
 const SCRAM_NUMS = [20,19,18,17,16,15,25];
 
-export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
+export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [phase, setPhase]             = useSnapState<1|2>("ScramScorer.phase", 1);
@@ -5418,6 +5466,23 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Scram" sub={`Phase ${phase} of 2`}
+        rules="Two phases. The stopper closes numbers (20–15 and the bull) by hitting them; the scorer scores on numbers that are still open. Swap roles for phase two. Highest scoring total wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: phaseScores[i], unit: "pts", badge: i === stopper ? "Stopper" : "Scorer", line: { label: "Role", value: i === stopper ? "Close numbers" : "Score on open" }, stats: [{ label: "Phase", value: `${phase}/2` }, { label: "Closed", value: `${closed.filter(Boolean).length}/7` }] })) as [any, any]}
+        targets={SCRAM_NUMS}
+        panel={<TargetChips items={SCRAM_NUMS.map(n => n === 25 ? "Bull" : String(n))} current={-1} done={i => !closed[i]} />}
+        note={turn === stopper ? `Close numbers · ${closed.filter(Boolean).length}/7 closed` : "Score on the open numbers"}
+        visitDarts={visitDarts} disabled={isBotTurnScram} waitingMsg={isBotTurnScram ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        allowed={SCRAM_NUMS} highlight={SCRAM_NUMS.filter((_, i) => !closed[i])} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -5461,11 +5526,12 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
 }
 
 // ── Football Darts Scorer ──────────────────────────────────────────────────────
-export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; goalsToWin?: number;
   botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   // null = kickoff (uncontested — both need to hit bull to win possession)
@@ -5542,6 +5608,21 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
     return "— hit Bull to steal possession from opponent";
   };
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Football Darts" sub={`First to ${goalsToWin} goals`}
+        rules="Hit the bull to win possession. With possession, any double scores a goal. You keep the ball until your opponent hits the bull."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: goals[i], unit: goals[i] === 1 ? "goal" : "goals", badge: possession === i ? "⚽ Ball" : undefined, line: { label: "Ball", value: possessionLabel(i) }, stats: [{ label: "First to", value: goalsToWin }, { label: "Lead", value: goals[i] - goals[i === 0 ? 1 : 0] }] })) as [any, any]}
+        note={msg || turnMsg().replace(/^— /, "")}
+        visitDarts={visitDarts} disabled={isBotTurnFB} waitingMsg={isBotTurnFB ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={handleMiss} onUndo={handleUndo}
+        highlight={possession === turn ? undefined : [25]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -5574,12 +5655,13 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
 }
 
 // ── Golf Darts Scorer ──────────────────────────────────────────────────────────
-export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged }: {
+export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
   p1Name: string; p2Name: string; holes?: number;
   botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [hole, setHole]             = useSnapState("GolfScorer.hole", 1);
@@ -5637,6 +5719,23 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
     const t3 = safeTimeout(() => handleDartRefGolf.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Golf Darts" sub={`Hole ${hole} of ${holes}`}
+        rules="Each hole's number is the target. Your score for the hole is the dart you hit it with (1, 2 or 3); miss all three and it's 4. Lowest total after the last hole wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: totalScores[i], unit: "strokes", line: { label: "Hole", value: `${hole}/${holes}` }, stats: [{ label: "Par", value: hole }, { label: "Lowest wins", value: "" }] })) as [any, any]}
+        targets={[hole]}
+        panel={<TargetChips items={Array.from({ length: holes }, (_, k) => String(k + 1))} current={hole - 1} />}
+        note={`Hit ${hole} · fewer darts is better`}
+        visitDarts={visitDarts} disabled={isBotTurnGolf} waitingMsg={isBotTurnGolf ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[hole]} onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <ScorerLayout
@@ -6197,10 +6296,11 @@ export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAband
 // ── Checkout Challenge Scorer ──────────────────────────────────────────────────
 // Every visit is a fresh, independent attempt at the same starting score — you
 // only win by actually checking it out inside one visit, not by accumulating.
-export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { startScore?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -6249,6 +6349,21 @@ export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onW
 
   const suggested = CHECKOUTS[startScore];
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Checkout Challenge" sub={`${startScore} every visit`}
+        rules={`Every visit starts from a fresh ${startScore}. Check it out in one visit, finishing on a double, to win.`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: remaining[i], line: { label: "Checkout", value: i === turn && suggested ? suggested : "–" }, stats: [{ label: "Attempt", value: attempts[i] + 1 }, { label: "From", value: startScore }] })) as [any, any]}
+        note={suggested ? `Checkout: ${suggested}` : "Check out to win"}
+        visitDarts={visitDarts} disabled={isBotTurnCC} waitingMsg={isBotTurnCC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -6273,10 +6388,11 @@ export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onW
 }
 
 // ── Fives Scorer ────────────────────────────────────────────────────────────────
-export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { target?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -6325,6 +6441,22 @@ export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
   const liveTotal = visitDarts.reduce((s,d) => s+d.value, 0);
   const liveOK = visitDarts.length > 0 && liveTotal % 5 === 0;
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Fives" sub={`Race to ${target}`}
+        rules="Each visit counts only if its total is a multiple of 5; then you score total ÷ 5. First to the target wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: `/${target}`, line: { label: "To go", value: target - scores[i] }, stats: [{ label: "Visit", value: i === turn ? liveTotal : "–" }, { label: "Fives", value: i === turn && liveTotal % 5 === 0 ? liveTotal / 5 : "–" }] })) as [any, any]}
+        note={flash || (visitDarts.length ? (liveOK ? `${liveTotal} · a multiple of 5` : `${liveTotal} · not a multiple of 5 yet`) : "Score a multiple of 5")}
+        noteTone={flash && !flash.startsWith("✓") ? "bust" : "gold"}
+        visitDarts={visitDarts} disabled={isBotTurnFv} waitingMsg={isBotTurnFv ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -6353,10 +6485,11 @@ export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
 }
 
 // ── Oche Roulette Scorer ────────────────────────────────────────────────────────
-export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { rounds?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -6405,6 +6538,23 @@ export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, o
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig, target]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Oche Roulette" sub={round > totalRounds ? "Sudden death" : `Round ${round} of ${totalRounds}`}
+        rules="Each round spins a random target. Both players get three darts at it: hits score, misses score nothing. Highest total after the last round wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Target", value: target === 25 ? "Bull" : target }, stats: [{ label: "Round", value: round > totalRounds ? "SD" : `${round}/${totalRounds}` }, { label: "Lead", value: scores[i] - scores[i === 0 ? 1 : 0] }] })) as [any, any]}
+        targets={[target]}
+        panel={<div className="mp-big"><small>Tonight's target</small><b>{target === 25 ? "Bull" : target}</b></div>}
+        note={`Aim at ${target === 25 ? "the bull" : target}`}
+        visitDarts={visitDarts} disabled={isBotTurnOR} waitingMsg={isBotTurnOR ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <div className="max-w-lg mx-auto space-y-4">
       <div className="pdc-divider" />
@@ -6441,10 +6591,11 @@ export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, o
 }
 
 // ── 180 Challenge Scorer ────────────────────────────────────────────────────────
-export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; config?: { attempts?: number }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
@@ -6497,6 +6648,22 @@ export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
     const t3 = safeTimeout(() => handleDartRefOE.current(d3), 2100);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [turn, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="180 Challenge" sub="T20 · T20 · T20"
+        rules="Take turns going for a perfect visit: three treble 20s. The first to hit 180 wins. If nobody does, the best visit wins."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: bestVisit[i], line: { label: "Attempts", value: `${attempts[i]}/${maxAttempts}` }, stats: [{ label: "Best", value: bestVisit[i] }, { label: "Left", value: maxAttempts - attempts[i] }] })) as [any, any]}
+        targets={[20]} targetLabels={["20"]}
+        note="Go for T20, T20, T20"
+        visitDarts={visitDarts} disabled={isBotTurnOE} waitingMsg={isBotTurnOE ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[20]} onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-4">
@@ -8042,10 +8209,11 @@ function botSnookerDart(segs: number[], cfg: BotConfig): Dart {
   return { segment: seg, multiplier: 1, value: seg, label: `${seg}` };
 }
 
-export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [ballIdx,    setBallIdx]    = useSnapState("SnookerScorer.ballIdx", 0);
@@ -8105,6 +8273,23 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
   const isRed = ballIdx < 15;
   const redCount = Math.min(ballIdx + 1, 15);
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Snooker Darts" sub={isRed ? `Red ${redCount} of 15` : `${ball.label} ball`}
+        rules="Pot the 15 reds by hitting any of 1–15, then the colours in order on their own numbers. Each pot scores the ball's value. Highest total wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: "pts", line: { label: "On", value: isRed ? `Red ${redCount}/15` : ball.label }, stats: [{ label: "Ball", value: `+${ball.value}` }, { label: "Lead", value: scores[i] - scores[i === 0 ? 1 : 0] }] })) as [any, any]}
+        targets={isRed ? undefined : ball.segs}
+        panel={<div className="mp-balls">{SNOOKER_BALLS.map((b, i) => <i key={i} style={{ background: b.color, opacity: i < ballIdx ? 0.2 : i === ballIdx ? 1 : 0.4, boxShadow: i === ballIdx ? `0 0 8px ${b.color}` : "none" }} />)}</div>}
+        note={potted ? "Potted!" : `${ball.emoji} ${isRed ? "Any of 1–15" : `Aim at ${ball.segs[0]}`} · +${ball.value}`}
+        visitDarts={visitDarts} disabled={isBotTurnSnk || potted} waitingMsg={isBotTurnSnk ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && !potted && setVisitDarts(p => p.slice(0, -1))}
+        highlight={ball.segs} allowed={ball.segs} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -8149,10 +8334,11 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
 }
 
 // ── JDC Challenge 41 ──────────────────────────────────────────────────────────
-export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const SH1 = [10,11,12,13,14,15];
@@ -8223,6 +8409,23 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
     :phase==="dbl"?`Phase 2 — Doubles ${DBL[0]}–D${DBL.at(-1)}`
     :`Phase 3 — Shanghai ${SH2[0]}–${SH2.at(-1)}`;
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="JDC Challenge 41" sub={label}
+        rules="Three phases: Shanghai on 10–15, then doubles, then Shanghai on 15–20. Score what you hit on each target. A Shanghai (single, double and treble of the target in one visit) scores a bonus."
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Target", value: phase === "dbl" ? `D${target}` : target }, stats: [{ label: "Phase", value: phase === "sh1" ? "1/3" : phase === "dbl" ? "2/3" : "3/3" }, { label: "S·D·T", value: i === turn && phase !== "dbl" ? `${shHits.s ? "✓" : "·"}${shHits.d ? "✓" : "·"}${shHits.t ? "✓" : "·"}` : "–" }] })) as [any, any]}
+        targets={[target]}
+        panel={<TargetChips items={phaseArr.map(t => phase === "dbl" ? `D${t}` : String(t))} current={idx} />}
+        note={msg || (phase === "dbl" ? `Hit D${target}` : `Aim at ${target}`)}
+        visitDarts={visitDarts} disabled={isBotTurnJDC} waitingMsg={isBotTurnJDC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -8250,10 +8453,11 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
 }
 
 // ── Exponential Bundle ─────────────────────────────────────────────────────────
-export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const TARGETS=[7,8,9,10,11,12];
@@ -8296,6 +8500,24 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [half, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Exponential Bundle" sub={`Round ${tIdx + 1} of 6`}
+        rules="Each round has a target. A single scores the number, a double scores it squared and a treble scores it cubed. Highest total wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: scores[i], line: { label: "Target", value: target }, stats: [{ label: "Round", value: `${tIdx + 1}/6` }, { label: "Treble", value: target * target * target }] })) as [any, any]}
+        targets={[target]}
+        panel={<TargetChips items={TARGETS.map(String)} current={tIdx} />}
+        note={`${target} · S ${target} · D ${target * target} · T ${target * target * target}`}
+        visitDarts={visitDarts} visitValue={visitDarts.reduce((t, d) => d.segment !== target ? t : t + Math.pow(target, d.multiplier), 0)}
+        disabled={isBotTurnExp} waitingMsg={isBotTurnExp ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[target]} onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -8319,10 +8541,11 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
 }
 
 // ── Shooting Gallery ───────────────────────────────────────────────────────────
-export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const ROUNDS=5;
@@ -8381,6 +8604,23 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
     return () => clearTimeout(t);
   }, [half, remain, dartCount, botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Shooting Gallery" sub={`Round ${round + 1} of ${ROUNDS}`}
+        rules="Each round sets a checkout target. Check it out on a double in as few darts as you can; that many darts is your score. Bust or take 9+ darts and it's 10. Lowest total wins."
+        names={[p1Name, p2Name]} turn={half}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: "darts", line: { label: "Left", value: i === half ? remain : "–" }, stats: [{ label: "Round", value: `${round + 1}/${ROUNDS}` }, { label: "Target", value: roundTarget }] })) as [any, any]}
+        panel={<div className="mp-big"><small>Remaining · dart {dartCount + 1}</small><b>{remain}</b></div>}
+        note={msg || "Check out on a double"}
+        visitDarts={[]} visitLabel="Target" visitValue={roundTarget}
+        disabled={isBotTurnSG} waitingMsg={isBotTurnSG ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={handleSgUndo}
+        onAbandon={onAbandon}
+      />
+    );
+  }
+
   return (
     <ScorerLayout
       top={<div className="space-y-3">
@@ -8407,10 +8647,11 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
 }
 
 // ── Dead Centre ────────────────────────────────────────────────────────────────
-export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin, onAbandon, onPracticeStats }: {
+export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
   p1Name: string; p2Name: string; target?: number; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
+  newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const [scores,setScores]         = useSnapState<[number,number]>("DeadCentreScorer.scores", [0,0]);
@@ -8458,6 +8699,23 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
     const t3=safeTimeout(()=>handleDartRefDC.current(mk()),2100);
     return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);};
   },[turn,botConfig]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (newScoringUI) {
+    return (
+      <ModernParty
+        heading="Dead Centre" sub={`Race to ${target}`}
+        rules={`Every dart must hit the bull (25 or 50). Miss the bull with any dart and your score resets to 0. First to ${target} wins.`}
+        names={[p1Name, p2Name]} turn={turn}
+        cards={[0, 1].map(i => ({ score: scores[i], unit: `/${target}`, line: { label: "To go", value: target - scores[i] }, stats: [{ label: "Visit", value: i === turn ? visitPts : "–" }, { label: "Bull only", value: "" }] })) as [any, any]}
+        targets={[25]} targetLabels={["Bull"]}
+        note={msg || (busted ? "Busted — back to 0" : "Bull only")} noteTone={msg || busted ? "bust" : "gold"}
+        visitDarts={visitDarts} visitValue={visitPts}
+        disabled={isBotTurnDC} waitingMsg={isBotTurnDC ? `${p2Name} throwing` : undefined}
+        onDart={handleDart} onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})} onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        highlight={[25]} onAbandon={onAbandon}
+      />
+    );
+  }
 
   return (
     <ScorerLayout
