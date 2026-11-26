@@ -211,3 +211,19 @@
    the arc colour set inline): add a faint full-ring track and a soft glow so
    they read as part of the premium set. */
 .animate-spin.rounded-full.border-2.border-transparent { border-right-color: rgba(255,255,255,.08) !important; border-bottom-color: rgba(255,255,255,.08) !important; border-left-color: rgba(255,255,255,.08) !important; box-shadow: 0 0 16px rgba(255,210,74,.18); }
+
+/* Empty states ("No teams yet", "Nothing here"): a soft dartboard mark,
+   dashed gold edge and readable text instead of a faint line on a box. */
+.pdc-card.pm-empty { position: relative; border: 1px dashed rgba(255,210,74,.3) !important; border-radius: 20px !important;
+  background: radial-gradient(80% 70% at 50% 0%, rgba(255,210,74,.07), transparent 60%), linear-gradient(180deg, rgba(23,20,31,.7), rgba(12,10,18,.8)) !important;
+  color: #b9b3cc !important; }
+.pdc-card.pm-empty > * { color: #b9b3cc; }
+.pdc-card.pm-empty::before { content: ""; display: block; width: 44px; height: 44px; margin: 0 auto 12px; border-radius: 50%; opacity: .55;
+  background: radial-gradient(circle, #ffd24a 0 9%, transparent 10% 30%, rgba(255,210,74,.6) 31% 34%, transparent 35% 62%, rgba(255,210,74,.5) 63% 66%, transparent 67%);
+  box-shadow: 0 0 0 1px rgba(255,210,74,.35), 0 0 18px rgba(255,210,74,.15); }
+/* "Couldn't load" boxes share the layout but stay red. */
+.pdc-card.pm-empty[style*="ff7b9d"] { color: #ff9db6 !important; border-color: rgba(255,107,107,.4) !important; background: radial-gradient(80% 70% at 50% 0%, rgba(255,0,92,.1), transparent 60%), linear-gradient(180deg, rgba(23,20,31,.7), rgba(12,10,18,.8)) !important; }
+.pdc-card.pm-empty[style*="ff7b9d"] > span { color: #ff9db6; }
+.pdc-card.pm-empty[style*="ff7b9d"]::before { background: radial-gradient(circle, #ff6b6b 0 9%, transparent 10% 30%, rgba(255,107,107,.6) 31% 34%, transparent 35% 62%, rgba(255,107,107,.5) 63% 66%, transparent 67%); box-shadow: 0 0 0 1px rgba(255,107,107,.4); margin-bottom: 0; }
+.pdc-card.pm-empty.space-y-3::before { display: none; }
+.pdc-card.pm-empty > div[style*="0.3"] { color: #b9b3cc !important; }

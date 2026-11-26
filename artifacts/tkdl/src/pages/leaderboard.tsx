@@ -739,7 +739,7 @@ export default function Standings() {
       )}
 
       {isLoading ? <Spinner /> : isError ? (
-        <div className="pdc-card px-6 py-12 text-center">
+        <div className="pdc-card pm-empty px-6 py-12 text-center">
           <div className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", color: "#ff005c" }}>Couldn’t load these standings</div>
           <div className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>The server may still be waking. Try this tab again in a moment.</div>
         </div>
@@ -749,7 +749,7 @@ export default function Standings() {
           {mode === "season" && (
             <div className="space-y-1.5">
               {active.map((entry, idx) => <SeasonRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxElo} glow={glowFor(entry.equippedGlowId)} icon={cosmeticFor(entry.equippedProfileIconId)} tag={cosmeticFor(entry.equippedLeaderboardTagId)} />)}
-              {active.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No players yet.</div>}
+              {active.length === 0 && <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No players yet.</div>}
               {eliminated.length > 0 && (
                 <div className="mt-5 space-y-1.5">
                   <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest px-4 py-2.5 rounded-xl"
@@ -781,7 +781,7 @@ export default function Standings() {
           {mode === "career" && (
             <div className="space-y-1.5">
               {careerRows.map((entry, idx) => <CareerRow key={entry.playerId} entry={entry} idx={idx} maxElo={maxCarElo} sortKey={careerSort} glow={glowFor(entry.equippedGlowId)} icon={cosmeticFor(entry.equippedProfileIconId)} tag={cosmeticFor(entry.equippedLeaderboardTagId)} />)}
-              {careerRows.length === 0 && <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data.</div>}
+              {careerRows.length === 0 && <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No data.</div>}
               <div className="pt-2 text-xs" style={{ color: "rgba(255,255,255,0.15)" }}>
                 🏆 Season champion · Net Pts = points gained minus points lost across all wager seasons
               </div>
@@ -793,7 +793,7 @@ export default function Standings() {
             <div className="space-y-1.5">
               {doublesRows.map((team, idx) => <DoublesRow key={team.id} team={team} idx={idx} />)}
               {doublesRows.length === 0 && (
-                <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
                   Doubles draw pending — teams will appear here automatically when the new season draw completes.
                 </div>
               )}
@@ -806,7 +806,7 @@ export default function Standings() {
             <div className="space-y-1.5">
               {shiftWarsRows.map((team, idx) => <ShiftWarsRow key={team.id} team={team} idx={idx} />)}
               {shiftWarsRows.length === 0 && (
-                <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+                <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
                   No Shift Wars teams yet — an admin needs to set them up.
                 </div>
               )}
@@ -834,7 +834,7 @@ export default function Standings() {
           {mode === "achievements" && (
             <div className="space-y-1.5">
               {achRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🏅</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No achievements unlocked yet — start playing!</div>
                 </div>
@@ -851,7 +851,7 @@ export default function Standings() {
           {mode === "bot" && (
             <div className="space-y-1.5">
               {botRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🤖</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No practice sessions yet — hit the Shadow Bot!</div>
                 </div>
@@ -868,7 +868,7 @@ export default function Standings() {
           {mode === "tour" && (
             <div className="space-y-1.5">
               {tourRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🏆</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No tour trophies yet — enter a tour!</div>
                 </div>
@@ -889,7 +889,7 @@ export default function Standings() {
           {mode === "records" && (
             <div className="space-y-2">
               {recordsRows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🎯</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No checkouts recorded yet — hit the practice board!</div>
                 </div>
@@ -946,7 +946,7 @@ export default function Standings() {
           {mode === "master501" && (
             <div className="space-y-1.5">
               {m501Rows.length === 0 ? (
-                <div className="pdc-card px-6 py-16 text-center space-y-3">
+                <div className="pdc-card pm-empty px-6 py-16 text-center space-y-3">
                   <div className="text-4xl">🎯</div>
                   <div className="text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>No Master-501 runs yet — start climbing the ladder!</div>
                 </div>
