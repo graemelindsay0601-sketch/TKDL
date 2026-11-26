@@ -81,7 +81,8 @@ function RoutePage({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
-        {children}
+        {/* Each page eases in when opened (pm-route-in, premium.css). */}
+        <div className="pm-route-in">{children}</div>
       </Suspense>
     </ErrorBoundary>
   );
