@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { matchReports } from "../lib/match-report-db";
 
 type MatchMode = "singles" | "team" | "doubles" | "shift_wars";
 
@@ -63,6 +64,7 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
         const history:any=h2h.rows[0];
         context={meetingNumber:Number(history.prior_meetings)+1,winnerWinsBefore:Number(history.winner_wins),loserWinsBefore:Number(history.loser_wins)};
       }
+      const report = teamGame ? null : (await matchReports([row.id])).get(Number(row.id)) ?? null;
       result = {
         key: req.params.key, mode: teamGame ? "team" : "singles", isCombined: teamGame && winnerPeople.length !== loserPeople.length, isMulti: false,
         playedAt: row.played_at, seasonName: row.season_name, gameType: row.game_type, notes: row.notes, stake: row.stake,
@@ -70,6 +72,7 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
         loser: { name: row.loser_name, pointsDelta: sumDelta(loserPeople, "points_delta", -row.stake), eloDelta: sumDelta(loserPeople, "elo_delta", -row.elo_change) },
         participants,
         context,
+        report,
         stats: {
           winner: { darts: row.winner_darts, scores100: row.winner_100s, scores140: row.winner_140s, scores170: row.winner_170s, scores180: row.winner_180s, checkoutAttempts: row.winner_checkout_attempts, checkoutHits: row.winner_checkout_hits },
           loser: { darts: row.loser_darts, scores100: row.loser_100s, scores140: row.loser_140s, scores170: row.loser_170s, scores180: row.loser_180s, checkoutAttempts: row.loser_checkout_attempts, checkoutHits: row.loser_checkout_hits },

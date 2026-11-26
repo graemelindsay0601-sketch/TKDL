@@ -21,7 +21,7 @@ const arc = (cx: number, cy: number, r0: number, r1: number, a0: number, a1: num
   return `M${p(r0, a0)} L${p(r1, a0)} A${r1},${r1} 0 0 1 ${p(r1, a1)} L${p(r0, a1)} A${r0},${r0} 0 0 0 ${p(r0, a0)} Z`;
 };
 
-/** Where a player's practice darts land, ring by ring, with a doubles report under it. */
+/** Where a player's darts land, ring by ring, with a doubles report under it. */
 export function DartMap({ playerId, own }: { playerId: number; own: boolean }) {
   const { data } = useFetch<{ total: number; misses: number; cells: Cell[] }>(`/api/players/${playerId}/dart-map`);
   const [mode, setMode] = useState<"all" | "doubles">("all");
@@ -38,7 +38,7 @@ export function DartMap({ playerId, own }: { playerId: number; own: boolean }) {
   const t20 = get(20, 3), trebles = ORDER.reduce((n, s) => n + get(s, 3), 0);
   return (
     <section id="pm-dartmap" style={{ scrollMarginTop: 64 }}>
-      <Chapter title="Dart map" accent="#ff5c93" aside={<span className="pm-chip">{data.total.toLocaleString("en-GB")} practice darts</span>} />
+      <Chapter title="Dart map" accent="#ff5c93" aside={<span className="pm-chip">{data.total.toLocaleString("en-GB")} darts</span>} />
       <PmCard accent="#ff5c93" className="p-4">
         <div className="pm-seg" style={{ position: "relative", zIndex: 1 }}>
           {(["all", "doubles"] as const).map(m => <button key={m} className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{m === "all" ? "Every dart" : "Doubles"}</button>)}
@@ -74,7 +74,7 @@ export function DartMap({ playerId, own }: { playerId: number; own: boolean }) {
             {own && byHits.at(-1) && <p className="text-xs" style={{ color: "#ffc2d6" }}>Worth a session on {label(byHits.at(-1)!.seg)}: Round the Clock (Doubles) and Pick a Double are good for it.</p>}
           </div>
         )}
-        <p className="text-[11px] mt-3" style={{ color: "rgba(255,255,255,.35)", position: "relative", zIndex: 1 }}>From practice games played dart by dart on the scorer. League matches don't record each dart yet.</p>
+        <p className="text-[11px] mt-3" style={{ color: "rgba(255,255,255,.35)", position: "relative", zIndex: 1 }}>From practice games and league matches played dart by dart on the scorer (league darts count from this update on).</p>
       </PmCard>
     </section>
   );

@@ -92,3 +92,4 @@
   .lv-takeover .lv-story-col{zoom:1.2}
   .lv-takeover .lv-scene-shell>.grid,.lv-takeover .lv-scene-shell>div:not(.lv-story-col){zoom:1.15}
 }
+.lv-tick .lv-tick-tag{font-size:9px;letter-spacing:.14em;color:#ffd24a;padding:1px 6px;border-radius:999px;border:1px solid rgba(255,210,74,.35)}

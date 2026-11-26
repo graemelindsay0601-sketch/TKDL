@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import { format } from "date-fns";
-import { ArrowLeft, Award, CalendarDays, Gauge, Images, Swords, Target, Trophy, Users } from "lucide-react";
+import { ArrowLeft, Award, CalendarDays, Gauge, Images, Newspaper, Swords, Target, Trophy, Users } from "lucide-react";
 import { ShareCardButton } from "@/components/ShareCardButton";
 import "./match-centre.css";
 
 type Side={name:string;pointsDelta:number|null;eloDelta:number|null};
-type Detail={key:string;mode:string;isCombined:boolean;isMulti?:boolean;playedAt:string;seasonName:string|null;gameType:string;notes:string|null;stake:number;winner:Side;loser:Side;participants:any[];stats:{winner:any;loser:any}|null;context?:{meetingNumber:number;winnerWinsBefore:number;loserWinsBefore:number}|null;poster?:{id:number;status:string;kicker:string;reason:string|null;createdAt:string}|null};
+type Detail={key:string;mode:string;isCombined:boolean;isMulti?:boolean;playedAt:string;seasonName:string|null;gameType:string;notes:string|null;stake:number;winner:Side;loser:Side;participants:any[];stats:{winner:any;loser:any}|null;context?:{meetingNumber:number;winnerWinsBefore:number;loserWinsBefore:number}|null;poster?:{id:number;status:string;kicker:string;reason:string|null;createdAt:string}|null;report?:{headline:string;standfirst:string;paragraphs:string[];keyStats:{label:string;winner:string;loser:string}[]}|null};
 const labels:Record<string,string>={singles:"Singles",team:"Uneven Teams",doubles:"Doubles Event",shift_wars:"Shift Wars"};
 const game=(s:string)=>s.replace(/^(team_|doubles_|shift_wars_)/,"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
 const signed=(n:number|null,suffix="")=>n==null?"—":`${n>0?"+":""}${n}${suffix}`;
@@ -38,6 +38,7 @@ export default function MatchDetail(){
         <div className="md-team loser"><small>RUNNER-UP</small><Swords/><h1>{data.loser.name}</h1><div>{signed(data.loser.pointsDelta," PTS")} {data.loser.eloDelta!=null&&<span>{signed(data.loser.eloDelta," ELO")}</span>}</div></div>
       </div>
     </header>
+    {data.report&&<section className="md-panel md-report"><small className="md-report-kicker"><Newspaper size={13}/> MATCH REPORT</small><h2 className="md-report-head">{data.report.headline}</h2><p className="md-report-sub">{data.report.standfirst}</p>{data.report.paragraphs.map((p,i)=><p key={i} className="md-report-p">{p}</p>)}{data.report.keyStats.length>0&&<div className="md-report-stats">{data.report.keyStats.map(k=><div key={k.label}><b>{k.winner}</b><span>{k.label}</span><b>{k.loser}</b></div>)}</div>}</section>}
     {statsAvailable&&<section className="md-panel"><h2><Target/> Match statistics</h2><div className="md-stat-head"><span>{data.winner.name}</span><b>STAT</b><span>{data.loser.name}</span></div>{[["Darts used","darts"],["100+ scores","scores100"],["140+ scores","scores140"],["170+ scores","scores170"],["180s","scores180"]].map(([label,k])=><div className="md-stat" key={k}><strong>{data.stats!.winner[k]??"—"}</strong><span>{label}</span><strong>{data.stats!.loser[k]??"—"}</strong></div>)}<div className="md-stat"><strong>{checkout(data.stats!.winner)}</strong><span>Checkout rate</span><strong>{checkout(data.stats!.loser)}</strong></div></section>}
     {data.context&&<section className="md-panel"><h2><Swords/> Rivalry entering the match</h2><div className="md-rivalry"><div><small>{data.winner.name}</small><strong>{data.context.winnerWinsBefore}</strong><span>previous wins</span></div><div><small>MEETING</small><strong>#{data.context.meetingNumber}</strong><span>{data.context.meetingNumber===1?"First recorded meeting":"recorded head-to-head"}</span></div><div><small>{data.loser.name}</small><strong>{data.context.loserWinsBefore}</strong><span>previous wins</span></div></div></section>}
     {data.participants.length>0&&<section className="md-panel"><h2><Users/> Result settlement</h2><div className="md-settlement">{data.participants.map((p,i)=><div key={i}><div><small>{p.team==="winner"?"WINNING SIDE":"OPPOSITION"}</small><strong>{p.playerName}</strong>{p.fieldedCount&&<span>{p.fieldedCount} darts in rotation</span>}</div><b className={(p.pointsDelta??0)>=0?"positive":"negative"}>{signed(p.pointsDelta," pts")}</b><b>{signed(p.eloDelta," Elo")}</b></div>)}</div></section>}

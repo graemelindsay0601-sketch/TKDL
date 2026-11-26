@@ -1809,6 +1809,12 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           } : {}),
         } });
         setSubmittedMatchId(createdMatch.id);
+        // Keep every dart of the match (dart map + match report). Best effort: the match is already saved.
+        const p1Log = stats?.dartLog ?? [], p2Log = stats?.p2DartLog ?? [];
+        if (p1Log.length || p2Log.length) {
+          fetch(`/api/matches/${createdMatch.id}/darts`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+            body: JSON.stringify({ winnerDarts: wIdx === 0 ? p1Log : p2Log, loserDarts: wIdx === 0 ? p2Log : p1Log }) }).catch(() => {});
+        }
         setViewerRankChange(createdMatch.winnerRankChange ?? 0);
         setViewerNewRank(createdMatch.newWinnerRank ?? null);
       } else if (data.combinedMatch && (data.format === "doubles-event" || data.format === "shift-wars")) {

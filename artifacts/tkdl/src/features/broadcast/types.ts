@@ -79,7 +79,7 @@ export type CurrentEditionResponse = {
 export type LiveLeader = { entityId: number; name: string; points: number } | null;
 export type LiveLeaders = { singles: LiveLeader; doubles: LiveLeader; shift_wars: LiveLeader };
 
-export type LiveTickerItem = { matchId: number; leagueType: LeagueType; winnerId: number; loserId: number; playedAt: string };
+export type LiveTickerItem = { matchId: number; leagueType: LeagueType; winnerId: number; loserId: number; playedAt: string; tag?: string };
 
 export type LiveOverlayClass = "just_in" | "breaking";
 export type LiveOverlayItem = {
