@@ -9,6 +9,7 @@ export const FEATURES = {
   CARD_CLASH: "card_clash",
   TKDL_LIVE: "tkdl_live",
   NEW_SCORING_UI: "new_scoring_ui",
+  CLUBHOUSE: "clubhouse",
   TOUR_CAREER_2: "tour_career_2",
 } as const;
 
@@ -64,6 +65,12 @@ export async function initializeFeatureFlags() {
         enabled: false,
         adminTestMode: true,
         description: "New Scoring UI - redesigned party game scoring screens (admin preview only until switched live for everyone)",
+      },
+      {
+        featureName: FEATURES.CLUBHOUSE,
+        enabled: false,
+        adminTestMode: true,
+        description: "The Clubhouse - each player's 3D darts room (admin preview only until switched live for everyone)",
       },
     ]).onConflictDoNothing({ target: featureFlagsTable.featureName });
 
