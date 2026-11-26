@@ -4212,8 +4212,8 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
-  p1Name: string; p2Name: string; config: any; gameKey: string; botConfig?: BotConfig;
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
+  p1Name: string; p2Name: string; config: any; gameKey: string; title?: string; rules?: string; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
@@ -4493,23 +4493,30 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
             />
           </>
         )}
-        {/* Progress bars */}
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => (
-            <div key={i} className="pdc-card p-3 text-center" style={{ borderColor: turn===i ? P_COLOR(i) : "rgba(255,255,255,0.06)" }}>
-            <div className="text-xs font-bold uppercase mb-1" style={{ color: P_COLOR(i), fontFamily: "Oswald, sans-serif" }}>{names[i]}</div>
-            <div className="text-xl font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "#fff" }}>
-              {positions[i]}/{sequence.length}
-            </div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>
-              Next: {sequence[positions[i]]?.label ?? "DONE"}
-            </div>
-            <div className="mt-2 h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
-              <div className="h-full rounded-full transition-all" style={{ background: P_COLOR(i), width: `${(positions[i]/sequence.length)*100}%` }} />
-            </div>
+        {title && (
+          <div className="text-center">
+            <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{title}</h2>
           </div>
-        ))}
-      </div>
+        )}
+        <div className="seq-cards grid grid-cols-2 gap-3">
+          {[0,1].map(i => (
+            <PlayerCard key={i} name={names[i]} score={`${positions[i]}/${sequence.length}`} turn={i===1} active={turn===i}
+              sub={`Next: ${sequence[positions[i]]?.label ?? "Done"}`} />
+          ))}
+        </div>
+        {!showGrandNationalTrack && (
+          <SectionCard>
+            <div className="seq-path">
+              {sequence.map((t, k) => {
+                const here0 = positions[0] === k, here1 = positions[1] === k;
+                const done = k < Math.min(positions[0], positions[1]);
+                return (
+                  <span key={k} className={`seq-step${done ? " done" : ""}${here0 ? " p0" : ""}${here1 ? " p1" : ""}`}>{t.label}</span>
+                );
+              })}
+            </div>
+          </SectionCard>
+        )}
       {isBotTurnSeq ? <TurnBanner name={names[1]} turn={1} msg="— CPU THROWING…" /> : <TurnBanner name={names[turn]} turn={turn} msg={curTarget ? `— aim at ${curTarget.label}` : ""} />}
         <VisitDarts darts={visitDarts} />
       </div>}
