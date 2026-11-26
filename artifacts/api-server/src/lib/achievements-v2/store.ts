@@ -12,7 +12,7 @@
 import { sql } from "drizzle-orm";
 import { computeAll, type Exec } from "./report.ts";
 import { grantRewards } from "./rewards.ts";
-import { CATALOGUE, levelPoints, SEASON_GOAL_POINTS, type Area } from "./catalogue.ts";
+import { ADDED_NOV_2026, CATALOGUE, levelPoints, SEASON_GOAL_POINTS, type Area } from "./catalogue.ts";
 import type { AchievementState } from "./evaluate.ts";
 
 export const WELCOME_COINS = 250;
@@ -70,6 +70,16 @@ export async function syncAll(db: Exec, setting: Setting, pay: Pay, now = new Da
   await ensureTables(db);
   const launched = !!(await setting.get(LAUNCHED_KEY));
   const mode = launched ? "live" : "history";
+  // Keys new to the catalogue are credited from history the first time a sync sees them (no coins, no notifications),
+  // so adding achievements later doesn't pay out and ping everyone for things done long ago.
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS achievement_v2_catalogue_keys (key TEXT PRIMARY KEY, added_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`);
+  let known = new Set((await db.execute(sql`SELECT key FROM achievement_v2_catalogue_keys`)).rows.map(r => String(r.key)));
+  if (known.size === 0 && launched) {
+    const before = CATALOGUE.map(d => d.key).filter(k => !ADDED_NOV_2026.has(k));
+    for (const rows of chunks(before.map(k => sql`(${k})`))) await db.execute(sql`INSERT INTO achievement_v2_catalogue_keys (key) VALUES ${sql.join(rows, sql`, `)} ON CONFLICT DO NOTHING`);
+    known = new Set(before);
+  }
+  const modeFor = (key: string): "history" | "live" => (mode === "live" && known.has(key) ? "live" : "history");
   const all = await computeAll(db, now);
 
   const items = new Map<string, { value: number; level: number; earned: boolean }>();
@@ -126,16 +136,17 @@ export async function syncAll(db: Exec, setting: Setting, pay: Pay, now = new Da
   const byKey = new Map(unlocks.map(u => [`${u.playerId}|${u.key}|${u.level}|${u.seasonId}`, u]));
   for (const batch of chunks(unlocks)) {
     const ins = await db.execute(sql`INSERT INTO achievement_v2_unlocks (player_id, key, area, kind, level, season_id, coins, source, seen)
-      VALUES ${sql.join(batch.map(u => sql`(${u.playerId}, ${u.key}, ${u.area}, ${u.kind}, ${u.level}, ${u.seasonId}, ${mode === "live" ? u.coins : 0}, ${mode}, ${mode === "history"})`), sql`, `)}
+      VALUES ${sql.join(batch.map(u => { const m = modeFor(u.key); return sql`(${u.playerId}, ${u.key}, ${u.area}, ${u.kind}, ${u.level}, ${u.seasonId}, ${m === "live" ? u.coins : 0}, ${m}, ${m === "history"})`; }), sql`, `)}
       ON CONFLICT (player_id, key, level, season_id) DO NOTHING RETURNING player_id, key, level, season_id`);
     for (const r of ins.rows) {
       made++;
       const u = byKey.get(`${r.player_id}|${r.key}|${r.level}|${r.season_id}`);
-      if (mode === "live" && u) landed.set(u.playerId, [...(landed.get(u.playerId) ?? []), u]);
-      if (mode === "live" && u && u.coins > 0) { await pay(u.playerId, u.coins, `v2:${u.key}:${u.level}${u.seasonId ? `:s${u.seasonId}` : ""}`); coinsPaid += u.coins; }
+      if (u && modeFor(u.key) === "live") landed.set(u.playerId, [...(landed.get(u.playerId) ?? []), u]);
+      if (u && modeFor(u.key) === "live" && u.coins > 0) { await pay(u.playerId, u.coins, `v2:${u.key}:${u.level}${u.seasonId ? `:s${u.seasonId}` : ""}`); coinsPaid += u.coins; }
     }
   }
 
+  for (const rows of chunks(CATALOGUE.map(d => sql`(${d.key})`))) await db.execute(sql`INSERT INTO achievement_v2_catalogue_keys (key) VALUES ${sql.join(rows, sql`, `)} ON CONFLICT DO NOTHING`);
   if (notify) for (const [pid, list] of landed) { try { await notify(pid, list); } catch { /* a notification never fails a sync */ } }
 
   let welcomed = 0;

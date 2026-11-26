@@ -54,7 +54,8 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
   const formats = new Set<string>();
   const winsByDay = new Map<string, number>();
   const weekTally = new Map<string, { wins: number; losses: number; last: Date }>();
-  let stakePointsWon = 0, stake10Wins = 0, s180 = 0, s140 = 0, s100 = 0, checkouts = 0, scorerMatches = 0;
+  let stakePointsWon = 0, stake10Wins = 0, s180 = 0, s140 = 0, s100 = 0, s170 = 0, checkouts = 0, scorerMatches = 0, leagueDarts = 0, x01Wins = 0, cricketWins = 0;
+  const winStreakVs = new Map<number, number>();
   const doubles: { attempts: number; hits: number }[] = [];
 
   for (const m of mine) {
@@ -64,6 +65,8 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
       run++; bestRun = Math.max(bestRun, run);
       stakePointsWon += m.stake; if (m.stake >= 10) stake10Wins++;
       formats.add(m.gameType);
+      if (/cricket|tactics/i.test(m.gameType)) cricketWins++; else if (/^\s*\d{3,4}\b|x01|_out|double|treble|straight/i.test(m.gameType)) x01Wins++;
+      winStreakVs.set(o, (winStreakVs.get(o) ?? 0) + 1); if ((winStreakVs.get(o) ?? 0) >= 3) earn("threePeat", at);
       winsVs.set(o, (winsVs.get(o) ?? 0) + 1);
       winsByDay.set(dayKey(at), (winsByDay.get(dayKey(at)) ?? 0) + 1); if ((winsByDay.get(dayKey(at)) ?? 0) >= 3) earn("bigNight", at);
       if (m.eloChange >= 25) earn("upsetElo", at);
@@ -84,6 +87,7 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     } else {
       run = 0;
       lossesVs.set(o, (lossesVs.get(o) ?? 0) + 1);
+      winStreakVs.set(o, 0);
     }
     recent.push(w); if (recent.length > 6) recent.shift();
     if (recent.length === 6 && recent.join() === "false,false,false,true,true,true") earn("bounceBack", at);
@@ -99,7 +103,7 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     const their180 = (w ? m.loser180s : m.winner180s) ?? 0;
     if (my.darts !== null && my.darts !== undefined) {
       scorerMatches++;
-      s180 += my.s180 ?? 0; s140 += (my.s140 ?? 0) + (my.s170 ?? 0); s100 += my.s100 ?? 0;
+      s180 += my.s180 ?? 0; s140 += (my.s140 ?? 0) + (my.s170 ?? 0); s100 += my.s100 ?? 0; s170 += my.s170 ?? 0; leagueDarts += my.darts ?? 0;
       checkouts += my.hits ?? 0;
       if ((my.att ?? 0) > 0) doubles.push({ attempts: my.att ?? 0, hits: my.hits ?? 0 });
       if ((my.s180 ?? 0) >= 2) earn("two180s", at);
@@ -123,7 +127,7 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     let r = 0, best = 0; const beaten = new Set<number>(), fmts = new Set<string>(); let wins = 0, losses = 0;
     for (const m of list) { if (won(m)) { wins++; r++; best = Math.max(best, r); beaten.add(opp(m)); fmts.add(m.gameType); } else { losses++; r = 0; } }
     const st = standing(sid, me), s = seasonById.get(sid);
-    seasons.set(sid, { seasonWins: wins, seasonDistinctBeaten: beaten.size, seasonBestRun: best, seasonFormatsWon: fmts.size,
+    seasons.set(sid, { seasonMatches: list.length, seasonWins: wins, seasonDistinctBeaten: beaten.size, seasonBestRun: best, seasonFormatsWon: fmts.size,
       seasonTopFive: s && !s.isActive && st && st.position <= 5 ? 1 : 0 });
     const last = list[list.length - 1].playedAt;
     if (s && !s.isActive) {
@@ -141,6 +145,7 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
 
   // ---- the fun ones: when and where you played, not just what you scored
   const lp = mine.map(m => ({ m, t: londonParts(m.playedAt) }));
+  const weekendWins = new Map<string, Set<string>>();
   const winDays = new Set<string>(); const perDay = new Map<string, number>(), beatToday = new Map<string, number>(), eloWeek = new Map<string, number>();
   lp.forEach(({ m, t }, i) => {
     const w = won(m), at = m.playedAt;
@@ -154,6 +159,15 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     if (t.h >= 4 && t.h < 12) earn("earlyDoors", at);
     if (t.d === 13 && t.wd === "Fri") earn("friday13", at);
     if (t.m === 12 && t.d >= 24 && t.d <= 26) earn("festive", at);
+    if (t.m === 1 && t.d === 25) earn("burnsNight", at);
+    if (t.m === 11 && t.d === 30) earn("stAndrews", at);
+    if (t.m === 12 && t.d === 31) earn("hogmanay", at);
+    if (t.m === 11 && t.d === 5) earn("bonfireNight", at);
+    if (t.m === 10 && t.d === 31) earn("halloween", at);
+    if (t.m === 2 && t.d === 14) earn("valentines", at);
+    if (t.m === 2 && t.d === 29) earn("leapDay", at);
+    if (t.h >= 12 && t.h < 14) earn("lunchBreak", at);
+    if (t.wd === "Sat" || t.wd === "Sun") { const wk = weekKey(at), seen = weekendWins.get(wk) ?? new Set<string>(); seen.add(t.wd); weekendWins.set(wk, seen); if (seen.size === 2) earn("weekendWarrior", at); }
     const k = `${t.day}|${opp(m)}`; beatToday.set(k, (beatToday.get(k) ?? 0) + 1); if ((beatToday.get(k) ?? 0) >= 2) earn("doubleTake", at);
   });
   // full house: played every other active player in a finished season
@@ -195,7 +209,7 @@ export function evaluateLeague(ctx: LeagueContext): LeagueResult {
     mostBeatenWins: Math.max(0, ...winsVs.values()),
     top3Finishes: seasonRows.filter(s => s.position <= 3).length,
     titles: ctx.seasons.filter(s => !s.isActive && championOf(s.id) === me).length,
-    s180, s140plus: s140, s100plus: s100, checkouts, checkoutRate, scorerMatches,
+    s180, s140plus: s140, s100plus: s100, s170plus: s170, checkouts, checkoutRate, scorerMatches, leagueDarts, x01Wins, cricketWins,
     survivedStreak: bestSafe, presentStreak: bestPresent,
   };
   return { metrics, feats, seasons };

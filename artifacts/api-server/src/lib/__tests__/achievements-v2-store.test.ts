@@ -126,3 +126,20 @@ test("a live feat recorded as it happens is awarded, shows as unseen and can be 
   assert.equal((await unseenUnlocks(db as never, 1)).length, 0);
   assert.equal((await q(pg, "SELECT count(*)::int AS n FROM achievement_v2_live"))[0].n, 1);
 });
+
+test("keys added to the catalogue after launch are credited from history: no coins, no notification, already seen", async () => {
+  const { pg, db, setting, store, paid, pay } = await setup();
+  store.set(LAUNCHED_KEY, "2026-01-01");
+  // A Burns Night win: League wins (existing) and Burns Night (added Nov 2026) both unlock
+  await pg.exec("INSERT INTO matches (season_id,winner_id,loser_id,stake,elo_change,game_type,played_at) VALUES (1,1,3,5,8,'501','2026-01-25T19:00:00Z')");
+  const told: string[] = [];
+  const r = await syncAll(db as never, setting, pay, new Date(), async (_pid, list) => { told.push(...list.map(u => u.key)); });
+  assert.equal(r.mode, "live");
+  const rows = await q(pg, "SELECT key, source, coins, seen FROM achievement_v2_unlocks WHERE player_id = 1 AND key IN ('league-wins', 'burns-night') ORDER BY key");
+  assert.deepEqual(rows.map(x => [x.key, x.source, x.coins, x.seen]), [["burns-night", "history", 0, true], ["league-wins", "live", 10, false]]);
+  assert.ok(told.includes("league-wins") && !told.includes("burns-night"));
+  assert.ok(!paid.some(p => p.detail.startsWith("v2:burns-night")));
+  // the next sync treats it like any other key
+  const known = await q(pg, "SELECT count(*)::int AS n FROM achievement_v2_catalogue_keys WHERE key = 'burns-night'");
+  assert.equal(known[0].n, 1);
+});

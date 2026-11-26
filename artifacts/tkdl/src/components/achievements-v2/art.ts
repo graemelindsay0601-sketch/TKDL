@@ -81,12 +81,69 @@ const SEAL: Record<string, string> = {
   "unbeaten-season": "shield",
   "upset-of-the-night": "bang",
   "variety-pack": "shapes",
-  "weekend-grinder": "weekend"
+  "weekend-grinder": "weekend",
+  // Nov 2026
+  "burns-night": "thistle",
+  "st-andrews-day": "saltire",
+  "hogmanay": "clock",
+  "bonfire-night": "fireworks",
+  "trick-or-treat": "pumpkin",
+  "sweetheart": "heart",
+  "leap-day": "n29",
+  "lunch-break": "sun",
+  "weekend-warrior": "weekend",
+  "three-peat": "repeat",
+  "double-header": "pair",
+  "weekend-shift": "weekend",
+  "big-day": "hourglass",
+  "deadeye": "target",
+  "ton-average": "hundred",
+  "christmas-cracker": "tree",
+  "party-animal": "mask",
+  "m501-never-say-die": "bounce",
+  "curse-collector": "shapes",
+  "boss-regular": "crownskull"
 };
 const SHOWPIECE_MODEL: Record<string, string> = { "clean-sweep": "grand-slam", "inseparable": "inseparable", "iron-discipline": "grindstone",
   "m501-world-champion": "dart-in-stone", "boss-slayer": "boss-slayer", "world-champion": "world-champion" };
 const SHOWPIECES = new Set(["clean-sweep", "inseparable", "iron-discipline", "m501-world-champion", "boss-slayer", "world-champion"]);
 
+/** Tracks added in Nov 2026 share two award families (a medallion for practice games, a crest for the rest); the emblem and the plinth name tell them apart. */
+export const TRACK_PIECE: Record<string, string> = {
+  "league-x01-wins": "crest~x01~X01 wins",
+  "league-cricket-wins": "crest~stumps~Cricket wins",
+  "league-darts": "crest~dartx~Darts thrown",
+  "league-170s": "crest~n170~170 club",
+  "doubles-stake-points": "crest~chips~Team stakes",
+  "practice-wins": "crest~trophy~Practice wins",
+  "practice-best-average": "crest~avg~Best average",
+  "game-x01": "legend~x01~X01",
+  "game-cricket": "legend~stumps~Cricket",
+  "game-clock": "legend~clock~Round the clock",
+  "game-shanghai": "legend~sh~Shanghai",
+  "game-halve-it": "legend~half~Halve-It",
+  "game-killer": "legend~skull~Killer",
+  "game-bobs-27": "legend~n27~Bob's 27",
+  "game-baseball": "legend~baseball~Baseball",
+  "game-golf": "legend~golf~Golf",
+  "game-football": "legend~football~Football",
+  "game-checkout": "legend~n170~Checkout drills",
+  "game-scoring": "legend~t20~Scoring drills",
+  "game-99-darts": "legend~n99~99 Darts",
+  "game-bull": "legend~target~Bull games",
+  "game-tennis": "legend~tennis~Tennis",
+  "game-battleship": "legend~ship~Battleship",
+  "game-snooker": "legend~ball8~Snooker",
+  "game-noughts": "legend~xo~Noughts & Crosses",
+  "game-races": "legend~chequer~Race games",
+  "game-party": "legend~mask~Party games",
+  "game-pro-drills": "legend~pro~Pro drills",
+  "m501-legs": "crest~legs~Legs won",
+  "m501-tiers": "crest~stairs~Tiers cleared",
+  "board-curse-played": "crest~flame~Board Curse",
+  "boss-attempts": "crest~crownskull~Boss fights",
+  "boss-wins": "crest~crown~Boss wins",
+};
 /** A track's piece in its metal (the gold piece stands in, as a silhouette, while locked). */
 export const trackArt = (key: string, metal: Metal | null) => `${BASE}/${key}-${(metal ?? "GOLD").toLowerCase()}.webp`;
 export const isShowpiece = (key: string) => SHOWPIECES.has(key);
@@ -96,7 +153,7 @@ export const featArt = (key: string) => SHOWPIECES.has(key) ? `${BASE}/${key}-sh
 export const LOCKED = { filter: "brightness(0) drop-shadow(0 0 1px rgba(255,255,255,.35))", opacity: 0.5 } as const;
 
 /** The 3D model behind a piece of art: a track in a metal, a feat's seal, or a showpiece. */
-export const trackModel = (key: string, metal: Metal) => ({ id: key, tier: metal });
+export const trackModel = (key: string, metal: Metal) => ({ id: TRACK_PIECE[key] ?? key, tier: metal });
 export const featModel = (key: string) => SHOWPIECES.has(key) ? { id: SHOWPIECE_MODEL[key] ?? key, tier: "SHOWPIECE" } : { id: `feat-seal~${SEAL[key] ?? "star"}`, tier: "GOLD" };
 const METAL_ORDER: Metal[] = ["BRONZE", "SILVER", "GOLD", "PLATINUM"];
 /** Metal for a track level (mirrors the server): Diamond only when complete; the rest spread across the other four. */

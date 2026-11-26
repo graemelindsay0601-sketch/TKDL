@@ -24,6 +24,37 @@ const feat = (area: Area, key: string, title: string, goal: string, metric: stri
 const season = (area: Area, key: string, title: string, goal: string, metric: string, targets: number[]): SeasonDef =>
   ({ kind: "SEASON", area, key, title, goal, metric, targets });
 
+/**
+ * Practice game families: one "games played" track each. `match` tests a practice session's game key; keys have
+ * varied over time ("501" and "501_double_out", "atc" and "around_the_world"), so the patterns are deliberately loose.
+ * Team and multi-player keys never reach practice. Exported for the evaluator (areas.ts).
+ */
+export const GAME_FAMILIES: { key: string; title: string; goal: string; match: RegExp }[] = [
+  { key: "game-x01", title: "X01 regular", goal: "Play {n} X01 practice games (301, 501 and the rest)", match: /^\d{3,4}(_|$)|x01|^bull_finish$/ },
+  { key: "game-cricket", title: "Cricket regular", goal: "Play {n} Cricket practice games", match: /cricket|tactics/ },
+  { key: "game-clock", title: "Round the clock", goal: "Play {n} Around the World and Round the Clock games", match: /around|clock|^atc$|round_the_board|bermuda/ },
+  { key: "game-shanghai", title: "Shanghai regular", goal: "Play {n} games of Shanghai", match: /shanghai/ },
+  { key: "game-halve-it", title: "Halve-It regular", goal: "Play {n} games of Halve-It", match: /halve/ },
+  { key: "game-killer", title: "Killer regular", goal: "Play {n} games of Killer", match: /killer/ },
+  { key: "game-bobs-27", title: "Bob's 27 regular", goal: "Play {n} games of Bob's 27", match: /bob/ },
+  { key: "game-baseball", title: "Baseball regular", goal: "Play {n} games of Baseball Darts", match: /baseball/ },
+  { key: "game-golf", title: "Golf regular", goal: "Play {n} rounds of Golf Darts", match: /golf/ },
+  { key: "game-football", title: "Football regular", goal: "Play {n} games of Football Darts", match: /football/ },
+  { key: "game-checkout", title: "Checkout drills", goal: "Play {n} checkout drills (Checkout Challenge, Shooting Gallery, Pick a Double)", match: /checkout|shooting|pick_a_double|double_or_nothing/ },
+  { key: "game-scoring", title: "Scoring drills", goal: "Play {n} scoring drills (High Score, Count Up, Accumulator, 180 Challenge)", match: /high_score|count_up|accumulator|one_eighty/ },
+  { key: "game-99-darts", title: "99 Darts regular", goal: "Play {n} rounds of 99 Darts", match: /99_darts|ninety/ },
+  { key: "game-bull", title: "Bull games", goal: "Play {n} bull games (Bull Rush, Dead Centre, Nearest the Bull)", match: /bull_rush|dead_centre|nearest_bull/ },
+  { key: "game-tennis", title: "Tennis regular", goal: "Play {n} games of Darts Tennis", match: /tennis/ },
+  { key: "game-battleship", title: "Battleship regular", goal: "Play {n} games of Battleship Darts", match: /battleship/ },
+  { key: "game-snooker", title: "Snooker regular", goal: "Play {n} games of Snooker Darts", match: /snooker/ },
+  { key: "game-noughts", title: "Noughts & Crosses regular", goal: "Play {n} games of Noughts & Crosses", match: /noughts/ },
+  { key: "game-races", title: "Race games", goal: "Play {n} race games (Grand National, Hare and Hounds, Donkey Derby, Snakes & Ladders, Chase the Dragon)", match: /grand_national|hare|donkey|snakes|dragon/ },
+  { key: "game-party", title: "Party games", goal: "Play {n} party games (Quackshot, Limbo, Fight Game and friends)", match: /quackshot|limbo|fight_game|follow_the_leader|blind_killers|knockout|oche_roulette|prisoner|high_low|three_in_a_bed|^legs$|sudden_death|scram|fives|gotcha|no_black/ },
+  { key: "game-pro-drills", title: "Pro drills", goal: "Play {n} pro drills (JDC Challenge, Exponential Bundle, Straight Line)", match: /jdc|exponential|straight_line/ },
+];
+/** Party games for Party animal (distinct keys tried). */
+export const PARTY_GAME = GAME_FAMILIES.find(f => f.key === "game-party")!.match;
+
 export const LEAGUE_CATALOGUE: AchievementDef[] = [
   // Tracks: results (every recorded league match counts)
   track("LEAGUE", "league-wins", "League wins", "Win {n} league matches", "wins", [1, 5, 10, 25, 50, 100, 150, 250]),
@@ -83,11 +114,28 @@ export const LEAGUE_CATALOGUE: AchievementDef[] = [
   feat("LEAGUE", "hat-trick", "Hat-trick", "Hit three 180s in one league match", "three180s", 60, { scorer: true }),
   feat("LEAGUE", "ice-cold", "Ice cold", "Win a league match hitting half your darts at a double (6+ darts)", "iceCold", 40, { scorer: true }),
   feat("LEAGUE", "answer-back", "Answer back", "Hit a 180 in a match where your opponent hit two", "answerBack", 30, { scorer: true }),
+  // Tracks added Nov 2026
+  track("LEAGUE", "league-x01-wins", "X01 wins", "Win {n} league matches of 301, 501 or another X01 game", "x01Wins", [5, 10, 25, 50, 100, 150]),
+  track("LEAGUE", "league-cricket-wins", "Cricket wins", "Win {n} league Cricket matches", "cricketWins", [3, 5, 10, 25, 50]),
+  track("LEAGUE", "league-darts", "League darts thrown", "Throw {n} darts in league matches", "leagueDarts", [500, 2500, 5000, 10000, 25000], { scorer: true }),
+  track("LEAGUE", "league-170s", "League 170+ visits", "Hit {n} visits of 170 or more in league matches", "s170plus", [1, 2, 3, 5, 10], { scorer: true }),
+  // Feats added Nov 2026: Scottish and seasonal dates, and a few more moments
+  feat("LEAGUE", "burns-night", "Burns Night", "Win a league match on 25 January", "burnsNight", 30),
+  feat("LEAGUE", "st-andrews-day", "St Andrew's Day", "Win a league match on 30 November", "stAndrews", 30),
+  feat("LEAGUE", "hogmanay", "Hogmanay", "Win a league match on 31 December", "hogmanay", 30),
+  feat("LEAGUE", "bonfire-night", "Bonfire Night", "Win a league match on 5 November", "bonfireNight", 20),
+  feat("LEAGUE", "trick-or-treat", "Trick or treat", "Win a league match on Halloween", "halloween", 20),
+  feat("LEAGUE", "sweetheart", "Sweetheart", "Win a league match on Valentine's Day", "valentines", 20),
+  feat("LEAGUE", "leap-day", "Once in four years", "Win a league match on 29 February", "leapDay", 60, { secret: { hint: "This one only comes round every four years." } }),
+  feat("LEAGUE", "lunch-break", "Lunch break", "Win a league match between noon and 2pm", "lunchBreak", 20),
+  feat("LEAGUE", "weekend-warrior", "Weekend warrior", "Win a league match on both days of a weekend", "weekendWarrior", 20),
+  feat("LEAGUE", "three-peat", "Three-peat", "Beat the same player three meetings in a row", "threePeat", 30),
   // Season goals
   season("LEAGUE", "season-wins", "Win matches", "Win {n} league matches this season", "seasonWins", [5, 10, 15]),
   season("LEAGUE", "season-beaten", "Beat different players", "Beat {n} different players this season", "seasonDistinctBeaten", [5]),
   season("LEAGUE", "season-run", "Winning run", "Win {n} in a row this season", "seasonBestRun", [3]),
   season("LEAGUE", "season-formats", "Mix it up", "Win in {n} different formats this season", "seasonFormatsWon", [3]),
+  season("LEAGUE", "season-matches", "Regular", "Play {n} league matches this season", "seasonMatches", [15]),
   season("LEAGUE", "season-top-five", "Finish strong", "Finish the season in the top 5", "seasonTopFive", [1]),
 ];
 
@@ -107,6 +155,8 @@ export const TEAMS_CATALOGUE: AchievementDef[] = [
   feat("TEAMS", "doubles-debut", "Partners in crime", "Win your first ever doubles match", "doublesDebut", 20),
   feat("TEAMS", "threes-company", "Three's company", "Play a doubles season in a team of three", "threesCompany", 20),
   feat("TEAMS", "reunited", "Reunited", "Get drawn with the same partner in two different seasons", "reunited", 30),
+  track("TEAMS", "doubles-stake-points", "Team points from stakes", "Win {n} points from stakes in doubles", "teamStakePoints", [10, 25, 50, 100, 200]),
+  feat("TEAMS", "double-header", "Double header", "Win two doubles matches on the same day", "doubleHeader", 20),
   season("TEAMS", "season-team-wins", "Team season goal", "Win {n} doubles matches this season", "seasonTeamWins", [5, 10]),
   // Shift Wars (a department's recorded results count for its members)
   track("TEAMS", "shift-wins", "Department wins", "Your department wins {n} Shift Wars matches", "deptWins", [1, 5, 10, 25, 50]),
@@ -120,6 +170,7 @@ export const TEAMS_CATALOGUE: AchievementDef[] = [
   feat("TEAMS", "employee-of-the-month", "Employee of the month", "Your department wins the Shift Wars season", "employeeOfMonth", 80),
   feat("TEAMS", "friday-feeling", "Friday feeling", "Your department wins a Shift Wars match on a Friday", "fridayFeeling", 20),
   feat("TEAMS", "full-rota", "Full rota", "Your department plays in every week of a Shift Wars season", "fullRota", 40),
+  feat("TEAMS", "weekend-shift", "Weekend shift", "Your department wins a Shift Wars match on a weekend", "weekendShift", 20),
   season("TEAMS", "season-dept-matches", "Department season goal", "Play {n} matches for your department this season", "monthMatches", [5]),
   season("TEAMS", "season-rota-regular", "Rota regular", "Play in {n} different weeks this season", "monthWeeks", [3]),
 ];
@@ -142,8 +193,19 @@ export const PRACTICE_CATALOGUE: AchievementDef[] = [
   feat("PRACTICE", "ton-up-session", "Ton-up session", "Hit three 180s in one practice session", "tonUpSession", 40),
   feat("PRACTICE", "new-year", "New year, new me", "Practise on New Year's Day", "newYear", 30),
   feat("PRACTICE", "long-session", "Long session", "Throw 300+ darts in one session", "longSession", 20),
+  // Tracks added Nov 2026
+  track("PRACTICE", "practice-wins", "Practice wins", "Win {n} practice games against a bot or a friend", "practiceWins", [5, 10, 25, 50, 100, 250]),
+  track("PRACTICE", "practice-best-average", "Best practice average", "Average {n} or more in an X01 practice game (30+ darts)", "practiceBestAvg", [40, 50, 60, 70, 80, 90, 100]),
+  // One track per game family: practice games played
+  ...GAME_FAMILIES.map(f => track("PRACTICE", f.key, f.title, f.goal, `game:${f.key}`, [5, 10, 25, 50, 100, 250])),
+  feat("PRACTICE", "big-day", "Big day", "Throw 500+ practice darts in one day", "bigDay", 30),
+  feat("PRACTICE", "deadeye", "Deadeye", "Hit 10 checkouts in one practice game", "deadeye", 30),
+  feat("PRACTICE", "ton-average", "Ton average", "Average 100+ in an X01 practice game (30+ darts)", "tonAverage", 60),
+  feat("PRACTICE", "christmas-cracker", "Christmas cracker", "Practise on Christmas Day", "christmasPractice", 30),
+  feat("PRACTICE", "party-animal", "Party animal", "Try 10 different party games", "partyAnimal", 30),
   season("PRACTICE", "season-practice-days", "Regular", "Practise on {n} different days this season", "seasonPracticeDays", [8]),
   season("PRACTICE", "season-practice-180s", "Max out", "Hit {n} practice 180s this season", "seasonPractice180s", [10]),
+  season("PRACTICE", "season-practice-sessions", "Grinder", "Play {n} practice games this season", "seasonPracticeSessions", [20]),
   season("PRACTICE", "season-sharpshooter", "Sharpshooter", "Raise your practice checkout rate over last season", "seasonRateUp", [1]),
 ];
 
@@ -152,6 +214,9 @@ export const MASTER501_CATALOGUE: AchievementDef[] = [
   track("MASTER501", "m501-runs", "Runs completed", "Complete {n} Master-501 runs", "m501Runs", [5, 10, 25, 50, 100, 200]),
   track("MASTER501", "m501-wins", "Master-501 wins", "Win {n} Master-501 matches", "m501Wins", [1, 5, 10, 25, 50, 100]),
   track("MASTER501", "m501-run", "Winning run", "Win {n} Master-501 matches in a row", "m501Run", [2, 3, 5, 8, 12]),
+  track("MASTER501", "m501-legs", "Legs won", "Win {n} Master-501 legs", "m501Legs", [10, 25, 50, 100, 250, 500]),
+  track("MASTER501", "m501-tiers", "Tiers cleared", "Clear {n} Master-501 tiers", "m501Tiers", [2, 3, 4, 5]),
+  feat("MASTER501", "m501-never-say-die", "Never say die", "Win a Master-501 match straight after losing three", "neverSayDie", 30),
   feat("MASTER501", "m501-flawless", "Flawless", "Win a best-of-5 without dropping a leg", "flawless", 30),
   feat("MASTER501", "m501-last-gasp", "Last gasp", "Win a match in the deciding leg", "lastGasp", 20),
   feat("MASTER501", "m501-clean-tier", "Clean tier", "Clear a tier without losing a match", "cleanTier", 60),
@@ -163,10 +228,15 @@ export const MASTER501_CATALOGUE: AchievementDef[] = [
 export const MODES_CATALOGUE: AchievementDef[] = [
   track("MODES", "board-curse-wins", "Board Curse wins", "Win {n} Board Curse matches", "bcWins", [1, 5, 10, 25, 50]),
   track("MODES", "board-curse-streak", "Endless streak", "Reach a {n}-run Endless streak", "bcStreak", [5, 10, 25, 50]),
+  track("MODES", "board-curse-played", "Board Curse matches", "Play {n} Board Curse matches", "bcPlayed", [5, 10, 25, 50, 100]),
+  feat("MODES", "curse-collector", "Curse collector", "Win Board Curse in 3 different formats", "curseCollector", 30),
   feat("MODES", "quick-clear", "Quick clear", "Clear a board in 12 visits or fewer", "quickClear", 40),
   feat("MODES", "both-sides", "Both sides", "Beat a bot and a local opponent in Board Curse", "bothSides", 20),
   track("MODES", "bosses-defeated", "Bosses defeated", "Defeat {n} bosses on the ladder", "bossesDefeated", [1, 2, 3, 4, 5, 6]),
   track("MODES", "boss-ascension", "Ascension", "Reach ascension {n} on any boss", "bossAscension", [1, 2]),
+  track("MODES", "boss-attempts", "Boss fights", "Fight bosses {n} times", "bossAttempts", [5, 10, 25, 50, 100]),
+  track("MODES", "boss-wins", "Boss wins", "Beat bosses {n} times", "bossWins", [3, 5, 10, 25, 50]),
+  feat("MODES", "boss-regular", "Boss regular", "Fight every boss on the ladder at least once", "bossRegular", 30),
   feat("MODES", "first-time", "First time", "Beat a boss on your first attempt", "firstTime", 40),
   feat("MODES", "never-gave-up", "Never gave up", "Beat a boss after 5 or more attempts", "neverGaveUp", 30),
   feat("MODES", "boss-slayer", "Boss slayer", "Beat all six bosses at the top ascension", "bossSlayer", 150, { showpiece: true }),
@@ -195,6 +265,13 @@ export const CAREER_CATALOGUE: AchievementDef[] = [
   feat("CAREER", "gold-watch", "Gold Watch", "Retire a save with at least one title", "goldWatch", 30),
   feat("CAREER", "world-champion", "World Champion", "Win the World Championship in Career", "worldChampion", 150, { showpiece: true }),
 ];
+
+/** Items added in Nov 2026. The first sync that sees a key credits it from history (no coins, no notifications), as at launch;
+ *  this list only seeds the record of which keys existed before, for databases that predate that record (see store.ts). */
+export const ADDED_NOV_2026 = new Set<string>([
+  "league-x01-wins", "league-cricket-wins", "league-darts", "league-170s", "burns-night", "st-andrews-day", "hogmanay", "bonfire-night", "trick-or-treat", "sweetheart", "leap-day", "lunch-break", "weekend-warrior", "three-peat", "season-matches", "doubles-stake-points", "double-header", "weekend-shift", "practice-wins", "practice-best-average", "big-day", "deadeye", "ton-average", "christmas-cracker", "party-animal", "season-practice-sessions", "m501-legs", "m501-tiers", "m501-never-say-die", "board-curse-played", "curse-collector", "boss-attempts", "boss-wins", "boss-regular",
+  ...GAME_FAMILIES.map(f => f.key),
+]);
 
 export const CATALOGUE: AchievementDef[] = [...LEAGUE_CATALOGUE, ...TEAMS_CATALOGUE, ...PRACTICE_CATALOGUE, ...MASTER501_CATALOGUE, ...MODES_CATALOGUE, ...CAREER_CATALOGUE];
 
