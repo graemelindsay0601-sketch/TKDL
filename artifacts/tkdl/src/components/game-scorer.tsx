@@ -318,16 +318,16 @@ export function GameScorer({
   // ── Team engines (variable-length, 2v2 / 3v3 / Uneven Teams) ─────────────────
   if (gameType.engine === "TeamX01" && teamNames) {
     return <TeamX01Scorer teamNames={orderedTeams!} config={cfg as any} onWin={win} onAbandon={onAbandon} onLiveState={live} turnOrder={teamTurnOrder}
-      initialRecovery={initialRecovery?.engine === "TeamX01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportTeamX01Recovery : undefined} />;
+      initialRecovery={initialRecovery?.engine === "TeamX01" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportTeamX01Recovery : undefined} newScoringUI={party} />;
   }
 
   if (gameType.engine === "TeamCricket" && teamNames) {
     return <TeamCricketScorer teamNames={orderedTeams!} cutThroat={!!cfg.cutThroat} onWin={win} onAbandon={onAbandon} onLiveState={live} turnOrder={teamTurnOrder}
-      initialRecovery={initialRecovery?.engine === "TeamCricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportTeamCricketRecovery : undefined} />;
+      initialRecovery={initialRecovery?.engine === "TeamCricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportTeamCricketRecovery : undefined} newScoringUI={party} />;
   }
 
   if (gameType.engine === "MultiKiller" && playerNames) {
-    return <MultiKillerScorer playerNames={playerNames} lives={(cfg.lives as number) ?? 3} onWin={win} onAbandon={onAbandon} />;
+    return <MultiKillerScorer playerNames={playerNames} lives={(cfg.lives as number) ?? 3} onWin={win} onAbandon={onAbandon} newScoringUI={party} />;
   }
 
   // ── Standard 1v1 engines ─────────────────────────────────────────────────────
