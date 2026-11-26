@@ -60,3 +60,21 @@
 /* Shared number pad (DartInputBoard): rounded buttons like the new scorers. */
 .pm-keypad > div > button { border-radius: 14px !important; }
 .pm-keypad > div:first-child > button { border-radius: 12px !important; height: 44px; padding: 0 !important; letter-spacing: .14em !important; }
+
+/* ── Killer: pick-your-number screen ─────────────────────────────── */
+.kp-root .mx-col { gap: 12px; justify-content: center; }
+.kp-head { text-align: center; }
+.kp-kick { display: block; font-family: Oswald, sans-serif; font-weight: 700; font-size: 24px; letter-spacing: .06em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff7d6 0%, #ffd24a 45%, #b8860b 70%, #ffe9a3 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.kp-turn { display: inline-block; margin-top: 8px; padding: 6px 14px; border-radius: 999px; font-size: 13px; color: #cfcade;
+  border: 1px solid color-mix(in srgb, var(--pc) 45%, transparent); background: color-mix(in srgb, var(--pc) 10%, rgba(12,10,18,.9)); }
+.kp-turn b { font-family: Oswald, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: var(--pc); }
+.kp-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
+.kp-grid button { height: clamp(54px, 8.5vh, 70px); border-radius: 14px; border: 1px solid rgba(255,255,255,.12); background: linear-gradient(180deg,#24202f,#14121c); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.kp-grid button span { font-family: Oswald, sans-serif; font-weight: 700; font-size: 20px;
+  background: linear-gradient(180deg, #fff 0%, #f1eff7 42%, #a7a3ba 52%, #e9e7f1 78%, #fff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.kp-grid button.taken { opacity: 1 !important; border-color: var(--pc); background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 28%, #14121c), #0c0a12); box-shadow: 0 0 16px color-mix(in srgb, var(--pc) 35%, transparent); }
+.kp-grid button.taken span { background: none; -webkit-text-fill-color: #fff; color: #fff; }
+.kp-grid button small { font-family: Oswald, sans-serif; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--pc); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 3px; }
+.kp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kp-abandon { height: 40px; border-radius: 999px; border: 1px solid rgba(255,255,255,.1); background: transparent; color: #8e89a3; font-family: Oswald, sans-serif; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
