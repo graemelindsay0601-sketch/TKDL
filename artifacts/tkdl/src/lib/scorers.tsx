@@ -1,3 +1,4 @@
+import { useSnapState } from "./snap-state";
 /**
  * Game engine scorer components — each handles its own state + dart input.
  * All scorers receive: p1Name, p2Name, config (parsed from game_type), onWin(0|1, detail?), onAbandon
@@ -749,28 +750,28 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
     [startingScore, p1StartingScore, p2StartingScore],
   );
 
-  const [scores, setScores]         = useState<[number, number]>(() => initialRecovery?.scores ?? startingScores);
-  const [legWins, setLegWins]       = useState<[number, number]>(() => initialRecovery?.legWins ?? [0, 0]);
-  const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
-  const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []); // Track who won each leg (for conditional cards)
-  const [started, setStarted]       = useState<[boolean, boolean]>(() => initialRecovery?.started ?? [!doubleIn, !doubleIn]);
-  const [turn, setTurn]             = useState<0 | 1>(() => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
-  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
+  const [scores, setScores]         = useSnapState<[number, number]>("X01Scorer.scores", () => initialRecovery?.scores ?? startingScores);
+  const [legWins, setLegWins]       = useSnapState<[number, number]>("X01Scorer.legWins", () => initialRecovery?.legWins ?? [0, 0]);
+  const [setWins, setSetWins]       = useSnapState<[number, number]>("X01Scorer.setWins", () => initialRecovery?.setWins ?? [0, 0]);
+  const [legHistory, setLegHistory] = useSnapState<(0|1)[]>("X01Scorer.legHistory", () => initialRecovery?.legHistory ?? []); // Track who won each leg (for conditional cards)
+  const [started, setStarted]       = useSnapState<[boolean, boolean]>("X01Scorer.started", () => initialRecovery?.started ?? [!doubleIn, !doubleIn]);
+  const [turn, setTurn]             = useSnapState<0 | 1>("X01Scorer.turn", () => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
+  const [legStarter, setLegStarter] = useSnapState<0 | 1>("X01Scorer.legStarter", () => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
   // Leg counters (A6.5): legNo keys the bot turn so a bot that wins a leg AND
   // starts the next one still throws; legInSet drives the set-aware starter rule.
-  const [legNo, setLegNo]           = useState<number>(() => initialRecovery?.legNo ?? 1);
-  const [legInSet, setLegInSet]     = useState<number>(() => initialRecovery?.legInSet ?? 1);
+  const [legNo, setLegNo]           = useSnapState<number>("X01Scorer.legNo", () => initialRecovery?.legNo ?? 1);
+  const [legInSet, setLegInSet]     = useSnapState<number>("X01Scorer.legInSet", () => initialRecovery?.legInSet ?? 1);
   const dartLogRef                  = useRef<Dart[]>(initialRecovery?.dartLog ?? []);
   const pushDartLog = (darts: Dart[]) => { dartLogRef.current = darts; onDartLog?.(darts); };
   const visitStartOpenedRef         = useRef<boolean>(true);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("X01Scorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
   /** Soft-tip round-limit cork in progress (leg starter throws first; same ring re-throws in reverse order). */
   // `decided` holds the cork (so the bot stays idle) until the next leg actually begins.
-  const [cork, setCork]             = useState<{ starter: 0 | 1; throws: BullThrow[]; decided?: boolean } | null>(() => initialRecovery?.cork ?? null);
-  const [bust, setBust]             = useState(false);
+  const [cork, setCork]             = useSnapState<{ starter: 0 | 1; throws: BullThrow[]; decided?: boolean } | null>("X01Scorer.cork", () => initialRecovery?.cork ?? null);
+  const [bust, setBust]             = useSnapState("X01Scorer.bust", false);
   const [bustMsg, setBustMsg]       = useState("");
-  const [freeRetriesUsed, setFreeRetriesUsed] = useState<[number, number]>([0, 0]); // Track free retries per player this turn
-  const [history, setHistory]       = useState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[]; leg?: number; openedBefore?: boolean }[]>(() => initialRecovery?.history ?? []);
+  const [freeRetriesUsed, setFreeRetriesUsed] = useSnapState<[number, number]>("X01Scorer.freeRetriesUsed", [0, 0]); // Track free retries per player this turn
+  const [history, setHistory]       = useSnapState<{ turn: 0|1; score: number; left: number; darts: Dart[]; boardMarkNotes?: BoardMarkVisitNote[]; leg?: number; openedBefore?: boolean }[]>("X01Scorer.history", () => initialRecovery?.history ?? []);
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -787,10 +788,10 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // scoring logic above (including all the Card Clash chaos-mode branches).
   const { data: appSettings } = useSettings();
   const voiceEnabled = appSettings?.voice_callouts_enabled === true;
-  const [voiceMuted, setVoiceMutedState] = useState(() => isVoiceMuted());
+  const [voiceMuted, setVoiceMutedState] = useSnapState("X01Scorer.voiceMuted", () => isVoiceMuted());
   const toggleVoiceMuted = () => setVoiceMutedState(prev => { setVoiceMuted(!prev); return !prev; });
   const [callerVoices, setCallerVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [callerVoiceURI, setCallerVoiceURI] = useState<string | null>(() => getSelectedVoiceURI());
+  const [callerVoiceURI, setCallerVoiceURI] = useSnapState<string | null>("X01Scorer.callerVoiceURI", () => getSelectedVoiceURI());
   useEffect(() => {
     if (!voiceEnabled) return;
     return onVoicesChanged(() => setCallerVoices(getAvailableVoices()));
@@ -823,13 +824,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [voiceEnabled, voiceMuted, legWins, p1Name, p2Name]);
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
-  const [p1Cards, setP1Cards]         = useState<any[]>([]);
-  const [p2Cards, setP2Cards]         = useState<any[]>([]);
-  const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  const [p1Cards, setP1Cards]         = useSnapState<any[]>("X01Scorer.p1Cards", []);
+  const [p2Cards, setP2Cards]         = useSnapState<any[]>("X01Scorer.p2Cards", []);
+  const [cardsUsed, setCardsUsed]     = useSnapState<any[]>("X01Scorer.cardsUsed", []);
   // Purpose-built log for reward reporting (separate from cardsUsed, which drives UI "already used" checks). Tracks every activation, equip-mode AND chaos.
-  const [cardActivationLog, setCardActivationLog] = useState<{ cardId: string; usedBy: 0 | 1 }[]>([]);
-  const [isCardClash, setIsCardClash] = useState(false);
-  const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [cardActivationLog, setCardActivationLog] = useSnapState<{ cardId: string; usedBy: 0 | 1 }[]>("X01Scorer.cardActivationLog", []);
+  const [isCardClash, setIsCardClash] = useSnapState("X01Scorer.isCardClash", false);
+  const [activeEffects, setActiveEffects] = useSnapState<CCEffect[]>("X01Scorer.activeEffects", []);
   const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
@@ -839,14 +840,14 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   }, [cardActivationLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chaos Mode state (no equip — random mystery card dealt each visit)
-  const [isChaosMode, setIsChaosMode] = useState(false);
+  const [isChaosMode, setIsChaosMode] = useSnapState("X01Scorer.isChaosMode", false);
   const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
   const chaosResolvedKeyRef = useRef<string>("");
 
   // Chaos Lab state (Board Marks v1) — a separate mode from regular Chaos Mode,
   // never required by Standard Card Clash or existing Chaos Mode.
-  const [isChaosLabMode, setIsChaosLabMode] = useState(false);
-  const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
+  const [isChaosLabMode, setIsChaosLabMode] = useSnapState("X01Scorer.isChaosLabMode", false);
+  const [activeBoardMarks, setActiveBoardMarks] = useSnapState<BoardMark[]>("X01Scorer.activeBoardMarks", []);
   const boardMarkVisitEndKeyRef = useRef<string>("");
   // BUGFIX: a Hot/Trap reward applied via setScores on a dart that ALSO wins
   // the leg was getting silently wiped by resetForLeg's setScores([starting,
@@ -1736,7 +1737,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // Career pairs: your partner's visits are thrown by their seeded bot, like the opponent's.
   // The planner is read through a ref (like the bot's): a refreshed callback after a checkpoint must never
   // re-plan a visit that is already being thrown.
-  const [partnerTurn, setPartnerTurn] = useState(false);
+  const [partnerTurn, setPartnerTurn] = useSnapState("X01Scorer.partnerTurn", false);
   const partnerPlannerRef = useRef(partnerVisitPlanner);
   partnerPlannerRef.current = partnerVisitPlanner;
   useEffect(() => {
@@ -1993,7 +1994,7 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // lives there). Visit total also needs plain double-out / straight-out
   // rules, because it turns a typed score into darts.
   const [preferredStyle] = useScorerStyle();
-  const [matchStyle, setMatchStyle] = useState<ModernMode | "classic" | null>(null);
+  const [matchStyle, setMatchStyle] = useSnapState<ModernMode | "classic" | null>("X01Scorer.matchStyle", null);
   const modernAllowed = !isCardClash && cardEffects.length === 0 && !roundLimit;
   const totalAllowed = modernAllowed && !doubleIn && !noTrebles && !trebleOut && !masterOut && !bullFinish && !partnerVisitPlanner;
   const wantedStyle: ModernMode | "classic" = matchStyle ?? preferredStyle;
@@ -2512,37 +2513,37 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   useEffect(() => { onLegStart?.(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const setsNeeded = setsToWin > 0 ? Math.ceil(setsToWin / 2) : 0;
   const legsNeeded = setsToWin > 0 ? Math.ceil(legsToWinSet / 2) : (legs ? Math.ceil(legs / 2) : 0);
-  const [marks, setMarks]       = useState<CricketMarks>(() => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]     = useState<[number,number]>(() => initialRecovery?.scores ?? [0,0]);
-  const [turn, setTurn]         = useState<0|1>(() => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
-  const [legWins, setLegWins]       = useState<[number, number]>(() => initialRecovery?.legWins ?? [0, 0]);
-  const [setWins, setSetWins]       = useState<[number, number]>(() => initialRecovery?.setWins ?? [0, 0]);
-  const [legHistory, setLegHistory] = useState<(0|1)[]>(() => initialRecovery?.legHistory ?? []);
-  const [legStarter, setLegStarter] = useState<0 | 1>(() => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
-  const [lastHit, setLastHit]   = useState<string>(() => initialRecovery?.lastHit ?? "");
+  const [marks, setMarks]       = useSnapState<CricketMarks>("CricketScorer.marks", () => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]     = useSnapState<[number,number]>("CricketScorer.scores", () => initialRecovery?.scores ?? [0,0]);
+  const [turn, setTurn]         = useSnapState<0|1>("CricketScorer.turn", () => initialRecovery?.turn ?? (soloMode ? 0 : firstThrower));
+  const [legWins, setLegWins]       = useSnapState<[number, number]>("CricketScorer.legWins", () => initialRecovery?.legWins ?? [0, 0]);
+  const [setWins, setSetWins]       = useSnapState<[number, number]>("CricketScorer.setWins", () => initialRecovery?.setWins ?? [0, 0]);
+  const [legHistory, setLegHistory] = useSnapState<(0|1)[]>("CricketScorer.legHistory", () => initialRecovery?.legHistory ?? []);
+  const [legStarter, setLegStarter] = useSnapState<0 | 1>("CricketScorer.legStarter", () => initialRecovery?.legStarter ?? (soloMode ? 0 : firstThrower));
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("CricketScorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
+  const [lastHit, setLastHit]   = useSnapState<string>("CricketScorer.lastHit", () => initialRecovery?.lastHit ?? "");
   useEffect(() => {
     onLiveState?.({ mode: "cricket", scores, turn, detail: [`${marks[0].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`, `${marks[1].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`], lastVisit: lastHit || undefined });
   }, [marks, scores, turn, lastHit, onLiveState]);
-  const [snapHistory, setSnapHistory] = useState<CricketUndoSnapshot[]>(() => initialRecovery?.snapHistory ?? []);
-  const [lockedNumbers, setLockedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
-  const [protectedNumbers, setProtectedNumbers] = useState<[Set<number>, Set<number>]>([new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
-  const [turnCounter, setTurnCounter] = useState<number>(1); // FIX 309: Track turn number in leg (1-based) for Early Closer
-  const [prevTurnMarks, setPrevTurnMarks] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
-  const [lastVisitMarkGains, setLastVisitMarkGains] = useState<[number[],number[]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks gained last visit for Momentum Killer/Streak Breaker
-  const [visitMarkGains, setVisitMarkGains] = useState<number[]>([0,0,0,0,0,0,0]); // Track marks gained this visit
-  const [cricketVisitScore, setCricketVisitScore] = useState(0); // Track score gained this visit
-  const [cricketVisitMarks, setCricketVisitMarks] = useState(0); // Track total marks gained this visit
-  const [cricketClosedThisVisit, setCricketClosedThisVisit] = useState(false); // Track if number was closed this visit
+  const [snapHistory, setSnapHistory] = useSnapState<CricketUndoSnapshot[]>("CricketScorer.snapHistory", () => initialRecovery?.snapHistory ?? []);
+  const [lockedNumbers, setLockedNumbers] = useSnapState<[Set<number>, Set<number>]>("CricketScorer.lockedNumbers", [new Set(), new Set()]); // Track locked numbers per player (Number Prison, Re-Opening Block)
+  const [protectedNumbers, setProtectedNumbers] = useSnapState<[Set<number>, Set<number>]>("CricketScorer.protectedNumbers", [new Set(), new Set()]); // FIX 306: Numbers that can't be closed by opponent
+  const [turnCounter, setTurnCounter] = useSnapState<number>("CricketScorer.turnCounter", 1); // FIX 309: Track turn number in leg (1-based) for Early Closer
+  const [prevTurnMarks, setPrevTurnMarks] = useSnapState<[number[],number[]]>("CricketScorer.prevTurnMarks", [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks from previous turn for Momentum Killer
+  const [lastVisitMarkGains, setLastVisitMarkGains] = useSnapState<[number[],number[]]>("CricketScorer.lastVisitMarkGains", [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]); // Track marks gained last visit for Momentum Killer/Streak Breaker
+  const [visitMarkGains, setVisitMarkGains] = useSnapState<number[]>("CricketScorer.visitMarkGains", [0,0,0,0,0,0,0]); // Track marks gained this visit
+  const [cricketVisitScore, setCricketVisitScore] = useSnapState("CricketScorer.cricketVisitScore", 0); // Track score gained this visit
+  const [cricketVisitMarks, setCricketVisitMarks] = useSnapState("CricketScorer.cricketVisitMarks", 0); // Track total marks gained this visit
+  const [cricketClosedThisVisit, setCricketClosedThisVisit] = useSnapState("CricketScorer.cricketClosedThisVisit", false); // Track if number was closed this visit
 
   // Card Clash state (populated from sessionStorage by CardClashMatchScorer)
-  const [p1Cards, setP1Cards]         = useState<any[]>([]);
-  const [p2Cards, setP2Cards]         = useState<any[]>([]);
-  const [cardsUsed, setCardsUsed]     = useState<any[]>([]);
+  const [p1Cards, setP1Cards]         = useSnapState<any[]>("CricketScorer.p1Cards", []);
+  const [p2Cards, setP2Cards]         = useSnapState<any[]>("CricketScorer.p2Cards", []);
+  const [cardsUsed, setCardsUsed]     = useSnapState<any[]>("CricketScorer.cardsUsed", []);
   // Purpose-built log for reward reporting (separate from cardsUsed, which drives UI "already used" checks). Tracks every activation, equip-mode AND chaos.
-  const [cardActivationLog, setCardActivationLog] = useState<{ cardId: string; usedBy: 0 | 1 }[]>([]);
-  const [isCardClash, setIsCardClash] = useState(false);
-  const [activeEffects, setActiveEffects] = useState<CCEffect[]>([]);
+  const [cardActivationLog, setCardActivationLog] = useSnapState<{ cardId: string; usedBy: 0 | 1 }[]>("CricketScorer.cardActivationLog", []);
+  const [isCardClash, setIsCardClash] = useSnapState("CricketScorer.isCardClash", false);
+  const [activeEffects, setActiveEffects] = useSnapState<CCEffect[]>("CricketScorer.activeEffects", []);
   const [lastActivation, setLastActivation] = useState<{ cardName: string; player: 0 | 1; key: string } | null>(null);
   const [showCards, setShowCards] = useState(false);
   const [selectedCard, setSelectedCard] = useState<any>(null);
@@ -2552,14 +2553,14 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   }, [cardActivationLog]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chaos Mode state (no equip — random mystery card dealt each visit)
-  const [isChaosMode, setIsChaosMode] = useState(false);
+  const [isChaosMode, setIsChaosMode] = useSnapState("CricketScorer.isChaosMode", false);
   const [chaosOptions, setChaosOptions] = useState<CardData[] | null>(null);
   const chaosResolvedKeyRef = useRef<string>("");
 
   // Chaos Lab state (Board Marks v1) — a separate mode from regular Chaos Mode,
   // never required by Standard Card Clash or existing Chaos Mode.
-  const [isChaosLabMode, setIsChaosLabMode] = useState(false);
-  const [activeBoardMarks, setActiveBoardMarks] = useState<BoardMark[]>([]);
+  const [isChaosLabMode, setIsChaosLabMode] = useSnapState("CricketScorer.isChaosLabMode", false);
+  const [activeBoardMarks, setActiveBoardMarks] = useSnapState<BoardMark[]>("CricketScorer.activeBoardMarks", []);
   const boardMarkVisitEndKeyRef = useRef<string>("");
   // BUGFIX: a Hot/Trap reward applied via setScores on a dart that ALSO wins
   // the leg was getting silently wiped by resetForLeg's setScores([starting,
@@ -3824,8 +3825,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
   // ── New Cricket layout (mirrors the X01 one; presentation only) ─────────
   // Card Clash keeps the classic layout (its extra UI lives there).
   const [preferredStyleCri] = useScorerStyle();
-  const [matchStyleCri, setMatchStyleCri] = useState<"modern" | "classic" | null>(null);
-  const [missQueue, setMissQueue] = useState(0);
+  const [matchStyleCri, setMatchStyleCri] = useSnapState<"modern" | "classic" | null>("CricketScorer.matchStyleCri", null);
+  const [missQueue, setMissQueue] = useSnapState("CricketScorer.missQueue", 0);
   useEffect(() => {
     if (missQueue <= 0) return;
     setMissQueue(q => q - 1);
@@ -4029,15 +4030,15 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
   newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [phase, setPhase]           = useState<"assign"|"play">("assign");
-  const [assigning, setAssigning]   = useState<0|1>(0);
-  const [killerNums, setKillerNums] = useState<[number|null, number|null]>([null, null]);
-  const [isKiller, setIsKiller]     = useState<[boolean, boolean]>([false, false]);
-  const [playerLives, setLives]     = useState<[number, number]>([lives, lives]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [phase, setPhase]           = useSnapState<"assign"|"play">("KillerScorer.phase", "assign");
+  const [assigning, setAssigning]   = useSnapState<0|1>("KillerScorer.assigning", 0);
+  const [killerNums, setKillerNums] = useSnapState<[number|null, number|null]>("KillerScorer.killerNums", [null, null]);
+  const [isKiller, setIsKiller]     = useSnapState<[boolean, boolean]>("KillerScorer.isKiller", [false, false]);
+  const [playerLives, setLives]     = useSnapState<[number, number]>("KillerScorer.playerLives", [lives, lives]);
+  const [turn, setTurn]             = useSnapState<0|1>("KillerScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("KillerScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
-  const [snapHistory, setSnapHistory] = useState<{killerNums: [number|null,number|null], isKiller: [boolean,boolean], playerLives: [number,number], turn: 0|1, visitDarts: Dart[]}[]>([]);
+  const [snapHistory, setSnapHistory] = useSnapState<{killerNums: [number|null,number|null], isKiller: [boolean,boolean], playerLives: [number,number], turn: 0|1, visitDarts: Dart[]}[]>("KillerScorer.snapHistory", []);
   const names = [p1Name, p2Name];
 
   // Bot auto-picks a number during assign phase
@@ -4293,23 +4294,23 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, botConfig, onW
   // sequence exists at all, so this has to live above buildSequence()'s
   // call and gate a picker screen the same way the Shanghai branch below
   // gates its own early return.
-  const [pickedStart, setPickedStart] = useState<number | null>(
+  const [pickedStart, setPickedStart] = useSnapState<number | null>("SequenceScorer.pickedStart", 
     (config?.startNumber as number | undefined) ?? null
   );
 
   const sequence = buildSequence();
 
   // Shanghai state
-  const [shanghaiRound, setShanghaiRound]   = useState(1);
-  const [shanghaiTurn, setShanghaiTurn]     = useState<0|1>(0);
-  const [shanghaiScores, setShanghaiScores] = useState<[number,number]>([0,0]);
-  const [shanghaiDarts, setShanghaiDarts]   = useState<Dart[]>([]);
-  const [shanghaiHits, setShanghaiHits]     = useState<{s:boolean;d:boolean;t:boolean}>({s:false,d:false,t:false});
+  const [shanghaiRound, setShanghaiRound]   = useSnapState("SequenceScorer.shanghaiRound", 1);
+  const [shanghaiTurn, setShanghaiTurn]     = useSnapState<0|1>("SequenceScorer.shanghaiTurn", 0);
+  const [shanghaiScores, setShanghaiScores] = useSnapState<[number,number]>("SequenceScorer.shanghaiScores", [0,0]);
+  const [shanghaiDarts, setShanghaiDarts]   = useSnapState<Dart[]>("SequenceScorer.shanghaiDarts", []);
+  const [shanghaiHits, setShanghaiHits]     = useSnapState<{s:boolean;d:boolean;t:boolean}>("SequenceScorer.shanghaiHits", {s:false,d:false,t:false});
 
   // Sequence state
-  const [positions, setPositions]   = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [positions, setPositions]   = useSnapState<[number,number]>("SequenceScorer.positions", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("SequenceScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("SequenceScorer.visitDarts", []);
 
   const maxRounds = config?.rounds ?? 7;
 
@@ -4546,11 +4547,11 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   const names = [p1Name, p2Name];
   const startLives = Math.max(1, (config?.lives as number | undefined) ?? 1);
 
-  const [low, setLow]               = useState(21);
-  const [high, setHigh]             = useState<number | null>(null);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [lives, setLives]           = useState<[number, number]>([startLives, startLives]);
+  const [low, setLow]               = useSnapState("HighLowScorer.low", 21);
+  const [high, setHigh]             = useSnapState<number | null>("HighLowScorer.high", null);
+  const [turn, setTurn]             = useSnapState<0|1>("HighLowScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("HighLowScorer.visitDarts", []);
+  const [lives, setLives]           = useSnapState<[number, number]>("HighLowScorer.lives", [startLives, startLives]);
   const [flash, setFlash]           = useState<string | null>(null);
 
   const visitValue = (darts: Dart[]) =>
@@ -4704,13 +4705,13 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
     ? targets.map(n=>`D${n}`)
     : HALVEIT_LABELS;
 
-  const [round, setRound]           = useState(0);
-  const [turnInRound, setTIR]       = useState<0|1>(0);
-  const [scores, setScores]         = useState<[number,number]>(isBobs ? [27,27] : [0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [roundScore, setRoundScore] = useState(0);
-  const [hit, setHit]               = useState(false);
-  const [turn, setTurn]             = useState<0|1>(0);
+  const [round, setRound]           = useSnapState("HalveItScorer.round", 0);
+  const [turnInRound, setTIR]       = useSnapState<0|1>("HalveItScorer.turnInRound", 0);
+  const [scores, setScores]         = useSnapState<[number,number]>("HalveItScorer.scores", isBobs ? [27,27] : [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("HalveItScorer.visitDarts", []);
+  const [roundScore, setRoundScore] = useSnapState("HalveItScorer.roundScore", 0);
+  const [hit, setHit]               = useSnapState("HalveItScorer.hit", false);
+  const [turn, setTurn]             = useSnapState<0|1>("HalveItScorer.turn", 0);
 
   const names = [p1Name, p2Name];
   const curTarget = targets[round];
@@ -4859,11 +4860,11 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   const bullsOnly = config.bullsOnly ?? false;   // Bull Rush: count bull hits only
   const accumulate = config.accumulate ?? false; // Accumulator: each visit must beat previous or score halves
   const noOuterBull = config.noOuterBull ?? false; // No Black: outer bull (25) scores 0
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [rounds, setRounds]         = useState<[number,number]>([0,0]);
-  const [lastVisit, setLastVisit]   = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useSnapState<[number,number]>("CountUpScorer.scores", [0,0]);
+  const [rounds, setRounds]         = useSnapState<[number,number]>("CountUpScorer.rounds", [0,0]);
+  const [lastVisit, setLastVisit]   = useSnapState<[number,number]>("CountUpScorer.lastVisit", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("CountUpScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("CountUpScorer.visitDarts", []);
   const [halvMsg, setHalvMsg]       = useState("");
   const names = [p1Name, p2Name];
 
@@ -4997,9 +4998,9 @@ export function GotchaScorer({ p1Name, p2Name, target = 301, botConfig, onWin, o
   newScoringUI?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useSnapState<[number,number]>("GotchaScorer.scores", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("GotchaScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("GotchaScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
   const handleDartRefGotcha = useRef<(d: Dart) => void>(() => {});
@@ -5086,10 +5087,10 @@ export function BaseballScorer({ p1Name, p2Name, innings = 9, botConfig, onWin, 
   onTurnChanged?: (t: 0|1) => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [inning, setInning]         = useState(1);
-  const [half, setHalf]             = useState<0|1>(0); // 0=bottom(P1), 1=top(P2)
-  const [runs, setRuns]             = useState<[number,number]>([0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [inning, setInning]         = useSnapState("BaseballScorer.inning", 1);
+  const [half, setHalf]             = useSnapState<0|1>("BaseballScorer.half", 0); // 0=bottom(P1), 1=top(P2)
+  const [runs, setRuns]             = useSnapState<[number,number]>("BaseballScorer.runs", [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("BaseballScorer.visitDarts", []);
   const names = [p1Name, p2Name];
   const handleDartRefBaseball = useRef<(d: Dart) => void>(() => {});
   const isBotTurnBaseball = !!botConfig && half === 1;
@@ -5152,12 +5153,12 @@ export function ScramScorer({ p1Name, p2Name, botConfig, onWin, onAbandon }: {
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [phase, setPhase]             = useState<1|2>(1);
-  const [stopper, setStopper]         = useState<0|1>(0);   // who is stopper this phase
-  const [closed, setClosed]           = useState<boolean[]>([false,false,false,false,false,false,false]);
-  const [phaseScores, setPhaseScores] = useState<[number,number]>([0,0]); // scorer's total each phase
-  const [turn, setTurn]               = useState<0|1>(0);
-  const [visitDarts, setVisitDarts]   = useState<Dart[]>([]);
+  const [phase, setPhase]             = useSnapState<1|2>("ScramScorer.phase", 1);
+  const [stopper, setStopper]         = useSnapState<0|1>("ScramScorer.stopper", 0);   // who is stopper this phase
+  const [closed, setClosed]           = useSnapState<boolean[]>("ScramScorer.closed", [false,false,false,false,false,false,false]);
+  const [phaseScores, setPhaseScores] = useSnapState<[number,number]>("ScramScorer.phaseScores", [0,0]); // scorer's total each phase
+  const [turn, setTurn]               = useSnapState<0|1>("ScramScorer.turn", 0);
+  const [visitDarts, setVisitDarts]   = useSnapState<Dart[]>("ScramScorer.visitDarts", []);
   const names = [p1Name, p2Name];
   const scorer: 0|1 = stopper === 0 ? 1 : 0;
   const handleDartRefScram = useRef<(d: Dart) => void>(() => {});
@@ -5269,10 +5270,10 @@ export function FootballScorer({ p1Name, p2Name, goalsToWin = 5, botConfig, onWi
 }) {
   const safeTimeout = useSafeTimeout();
   // null = kickoff (uncontested — both need to hit bull to win possession)
-  const [goals, setGoals]           = useState<[number,number]>([0,0]);
-  const [possession, setPossession] = useState<0|1|null>(null);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [goals, setGoals]           = useSnapState<[number,number]>("FootballScorer.goals", [0,0]);
+  const [possession, setPossession] = useSnapState<0|1|null>("FootballScorer.possession", null);
+  const [turn, setTurn]             = useSnapState<0|1>("FootballScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FootballScorer.visitDarts", []);
   const [msg, setMsg]               = useState("KICKOFF — hit the bull to win possession!");
   const names = [p1Name, p2Name];
 
@@ -5382,10 +5383,10 @@ export function GolfScorer({ p1Name, p2Name, holes = 9, botConfig, onWin, onAban
   onTurnChanged?: (t: 0|1) => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [hole, setHole]             = useState(1);
-  const [half, setHalf]             = useState<0|1>(0);
-  const [totalScores, setTotal]     = useState<[number,number]>([0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [hole, setHole]             = useSnapState("GolfScorer.hole", 1);
+  const [half, setHalf]             = useSnapState<0|1>("GolfScorer.half", 0);
+  const [totalScores, setTotal]     = useSnapState<[number,number]>("GolfScorer.totalScores", [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("GolfScorer.visitDarts", []);
   const names = [p1Name, p2Name];
 
   const nextHalf = useCallback((addedScore: number) => {
@@ -5473,10 +5474,10 @@ export function NearestBullScorer({ p1Name, p2Name, botConfig, onWin, onAbandon 
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [phase,   setPhase]   = useState<"throwing"|"declare">("throwing");
-  const [thrown,  setThrown]  = useState<[boolean,boolean]>([false,false]);
-  const [p1Score, setP1Score] = useState<number|null>(null);
-  const [botScore,setBotScore]= useState<number|null>(null);
+  const [phase,   setPhase]   = useSnapState<"throwing"|"declare">("NearestBullScorer.phase", "throwing");
+  const [thrown,  setThrown]  = useSnapState<[boolean,boolean]>("NearestBullScorer.thrown", [false,false]);
+  const [p1Score, setP1Score] = useSnapState<number|null>("NearestBullScorer.p1Score", null);
+  const [botScore,setBotScore]= useSnapState<number|null>("NearestBullScorer.botScore", null);
   const names = [p1Name, p2Name];
 
   const computeBotScore = (acc: number): number => {
@@ -5645,11 +5646,11 @@ export function PickADoubleScorer({ p1Name, p2Name, config, botConfig, onWin, on
   const startScore = config?.startScore ?? 301;
   const DOUBLE_OPTIONS = [...Array.from({ length: 20 }, (_, i) => ({ seg: i + 1 })), { seg: 25 }];
 
-  const [called, setCalled] = useState<[{ seg: number; mult: 2 } | null, { seg: number; mult: 2 } | null]>([null, null]);
-  const [callPhase, setCallPhase] = useState<0 | 1 | null>(0);
-  const [remaining, setRemaining] = useState<[number, number]>([startScore, startScore]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [called, setCalled] = useSnapState<[{ seg: number; mult: 2 } | null, { seg: number; mult: 2 } | null]>("PickADoubleScorer.called", [null, null]);
+  const [callPhase, setCallPhase] = useSnapState<0 | 1 | null>("PickADoubleScorer.callPhase", 0);
+  const [remaining, setRemaining] = useSnapState<[number, number]>("PickADoubleScorer.remaining", [startScore, startScore]);
+  const [turn, setTurn] = useSnapState<0 | 1>("PickADoubleScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("PickADoubleScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleCall = (idx: 0 | 1, seg: number) => {
@@ -5779,13 +5780,13 @@ export function LegsScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon
   const legsToWin = config?.legsToWin ?? 3;
   const defaultPick = Math.min(maxScore, Math.max(minScore, 301));
 
-  const [legWins, setLegWins] = useState<[number, number]>([0, 0]);
-  const [picker, setPicker] = useState<0 | 1>(0);
-  const [phase, setPhase] = useState<"picking" | "playing">("picking");
-  const [pickedScore, setPickedScore] = useState(defaultPick);
-  const [remaining, setRemaining] = useState<[number, number]>([defaultPick, defaultPick]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [legWins, setLegWins] = useSnapState<[number, number]>("LegsScorer.legWins", [0, 0]);
+  const [picker, setPicker] = useSnapState<0 | 1>("LegsScorer.picker", 0);
+  const [phase, setPhase] = useSnapState<"picking" | "playing">("LegsScorer.phase", "picking");
+  const [pickedScore, setPickedScore] = useSnapState("LegsScorer.pickedScore", defaultPick);
+  const [remaining, setRemaining] = useSnapState<[number, number]>("LegsScorer.remaining", [defaultPick, defaultPick]);
+  const [turn, setTurn] = useSnapState<0 | 1>("LegsScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("LegsScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const startLeg = (score: number) => {
@@ -5909,9 +5910,9 @@ export function NoughtsCrossesScorer({ p1Name, p2Name, botConfig, onWin, onAband
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [cells, setCells] = useState<(0|1|null)[]>(Array(9).fill(null));
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [cells, setCells] = useSnapState<(0|1|null)[]>("NoughtsCrossesScorer.cells", Array(9).fill(null));
+  const [turn, setTurn] = useSnapState<0 | 1>("NoughtsCrossesScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("NoughtsCrossesScorer.visitDarts", []);
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -6001,10 +6002,10 @@ export function CheckoutChallengeScorer({ p1Name, p2Name, config, botConfig, onW
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const startScore = config?.startScore ?? 170;
-  const [remaining, setRemaining] = useState<[number, number]>([startScore, startScore]);
-  const [attempts, setAttempts] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [remaining, setRemaining] = useSnapState<[number, number]>("CheckoutChallengeScorer.remaining", [startScore, startScore]);
+  const [attempts, setAttempts] = useSnapState<[number, number]>("CheckoutChallengeScorer.attempts", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("CheckoutChallengeScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("CheckoutChallengeScorer.visitDarts", []);
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -6077,9 +6078,9 @@ export function FivesScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const target = config?.target ?? 51;
-  const [scores, setScores] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores] = useSnapState<[number, number]>("FivesScorer.scores", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("FivesScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FivesScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleDart = (dart: Dart) => {
@@ -6159,11 +6160,11 @@ export function OcheRouletteScorer({ p1Name, p2Name, config, botConfig, onWin, o
   const totalRounds = config?.rounds ?? 9;
   const pickTarget = () => { const pool = [...Array.from({length:20},(_,i)=>i+1), 25]; return pool[Math.floor(Math.random()*pool.length)]; };
 
-  const [round, setRound] = useState(1);
-  const [target, setTarget] = useState<number>(() => pickTarget());
-  const [scores, setScores] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [round, setRound] = useSnapState("OcheRouletteScorer.round", 1);
+  const [target, setTarget] = useSnapState<number>("OcheRouletteScorer.target", () => pickTarget());
+  const [scores, setScores] = useSnapState<[number, number]>("OcheRouletteScorer.scores", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("OcheRouletteScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("OcheRouletteScorer.visitDarts", []);
 
   const advanceRound = (finalScores: [number, number]) => {
     if (round >= totalRounds && finalScores[0] !== finalScores[1]) {
@@ -6245,10 +6246,10 @@ export function OneEightyScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const maxAttempts = config?.attempts ?? 10;
-  const [attempts, setAttempts] = useState<[number, number]>([0, 0]);
-  const [bestVisit, setBestVisit] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [attempts, setAttempts] = useSnapState<[number, number]>("OneEightyScorer.attempts", [0, 0]);
+  const [bestVisit, setBestVisit] = useSnapState<[number, number]>("OneEightyScorer.bestVisit", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("OneEightyScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("OneEightyScorer.visitDarts", []);
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -6350,10 +6351,10 @@ export function HareHoundsScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [harePos, setHarePos] = useState(0);
-  const [houndPos, setHoundPos] = useState(0);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [harePos, setHarePos] = useSnapState("HareHoundsScorer.harePos", 0);
+  const [houndPos, setHoundPos] = useSnapState("HareHoundsScorer.houndPos", 0);
+  const [turn, setTurn] = useSnapState<0 | 1>("HareHoundsScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("HareHoundsScorer.visitDarts", []);
 
   const target = turn === 0 ? harePos + 1 : houndPos + 1;
 
@@ -6485,10 +6486,10 @@ export function PrisonerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, on
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [positions, setPositions] = useState<[number, number]>([0, 0]);
-  const [skipNext, setSkipNext] = useState<[boolean, boolean]>([false, false]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [positions, setPositions] = useSnapState<[number, number]>("PrisonerScorer.positions", [0, 0]);
+  const [skipNext, setSkipNext] = useSnapState<[boolean, boolean]>("PrisonerScorer.skipNext", [false, false]);
+  const [turn, setTurn] = useSnapState<0 | 1>("PrisonerScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("PrisonerScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const target = positions[turn] + 1;
@@ -6603,10 +6604,10 @@ export function KnockoutScorer({ p1Name, p2Name, config, botConfig, onWin, onAba
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const maxStrikes = config?.strikes ?? 3;
-  const [lastScore, setLastScore] = useState<number | null>(null);
-  const [strikes, setStrikes] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [lastScore, setLastScore] = useSnapState<number | null>("KnockoutScorer.lastScore", null);
+  const [strikes, setStrikes] = useSnapState<[number, number]>("KnockoutScorer.strikes", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("KnockoutScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("KnockoutScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleDart = (dart: Dart) => {
@@ -6711,13 +6712,13 @@ export function TennisScorer({ p1Name, p2Name, config, botConfig, onWin, onAband
   const names = [p1Name, p2Name];
   const gamesToWin = config?.gamesToWin ?? 3;
 
-  const [server, setServer] = useState<0 | 1>(0);
-  const [halfIsA, setHalfIsA] = useState(true);
-  const [servePhase, setServePhase] = useState<"serve" | "return">("serve");
-  const [serverTotal, setServerTotal] = useState(0);
-  const [points, setPoints] = useState<[number, number]>([0, 0]);
-  const [games, setGames] = useState<[number, number]>([0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [server, setServer] = useSnapState<0 | 1>("TennisScorer.server", 0);
+  const [halfIsA, setHalfIsA] = useSnapState("TennisScorer.halfIsA", true);
+  const [servePhase, setServePhase] = useSnapState<"serve" | "return">("TennisScorer.servePhase", "serve");
+  const [serverTotal, setServerTotal] = useSnapState("TennisScorer.serverTotal", 0);
+  const [points, setPoints] = useSnapState<[number, number]>("TennisScorer.points", [0, 0]);
+  const [games, setGames] = useSnapState<[number, number]>("TennisScorer.games", [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TennisScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const half = halfIsA ? TENNIS_HALF_A : TENNIS_HALF_B;
@@ -6853,11 +6854,11 @@ export function FollowTheLeaderScorer({ p1Name, p2Name, config, botConfig, onWin
   const names = [p1Name, p2Name];
   const startLives = config?.lives ?? 3;
 
-  const [leader, setLeader] = useState<0 | 1>(0);
-  const [lives, setLives] = useState<[number, number]>([startLives, startLives]);
-  const [calledTarget, setCalledTarget] = useState<{ seg: number; mult: 1|2|3; label: string } | null>(null);
-  const [phase, setPhase] = useState<"calling" | "chasing">("calling");
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [leader, setLeader] = useSnapState<0 | 1>("FollowTheLeaderScorer.leader", 0);
+  const [lives, setLives] = useSnapState<[number, number]>("FollowTheLeaderScorer.lives", [startLives, startLives]);
+  const [calledTarget, setCalledTarget] = useSnapState<{ seg: number; mult: 1|2|3; label: string } | null>("FollowTheLeaderScorer.calledTarget", null);
+  const [phase, setPhase] = useSnapState<"calling" | "chasing">("FollowTheLeaderScorer.phase", "calling");
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FollowTheLeaderScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const chaser: 0 | 1 = leader === 0 ? 1 : 0;
@@ -7003,13 +7004,13 @@ export function BattleshipScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, 
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const [fleet] = useState<[boolean[], boolean[]]>(() => [makeFleetCells(), makeFleetCells()]);
-  const [revealed, setRevealed] = useState<[boolean[], boolean[]]>(() => [Array(20).fill(false), Array(20).fill(false)]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [revealed, setRevealed] = useSnapState<[boolean[], boolean[]]>("BattleshipScorer.revealed", () => [Array(20).fill(false), Array(20).fill(false)]);
+  const [turn, setTurn] = useSnapState<0 | 1>("BattleshipScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("BattleshipScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
   // Used only by the new-scoring-UI TerritoryGrid, to ring the most recent
   // hit — the original grid conveys this through the flash text instead.
-  const [lastHitCell, setLastHitCell] = useState<number | null>(null);
+  const [lastHitCell, setLastHitCell] = useSnapState<number | null>("BattleshipScorer.lastHitCell", null);
 
   const targetPlayer: 0 | 1 = turn === 0 ? 1 : 0;
 
@@ -7138,11 +7139,11 @@ export function BlindKillersScorer({ p1Name, p2Name, config, botConfig, onWin, o
     const n2 = pool.splice(i2, 1)[0];
     return [n1, n2];
   });
-  const [revealed, setRevealed] = useState<[boolean, boolean]>([false, false]);
-  const [isKiller, setIsKiller] = useState<[boolean, boolean]>([false, false]);
-  const [lives, setLives] = useState<[number, number]>([startLives, startLives]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [revealed, setRevealed] = useSnapState<[boolean, boolean]>("BlindKillersScorer.revealed", [false, false]);
+  const [isKiller, setIsKiller] = useSnapState<[boolean, boolean]>("BlindKillersScorer.isKiller", [false, false]);
+  const [lives, setLives] = useSnapState<[number, number]>("BlindKillersScorer.lives", [startLives, startLives]);
+  const [turn, setTurn] = useSnapState<0 | 1>("BlindKillersScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("BlindKillersScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
 
   const handleDart = (dart: Dart) => {
@@ -7241,11 +7242,11 @@ export function DonkeyDerbyScorer({ p1Name, p2Name, botConfig, onWin, onAbandon,
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const [nums] = useState<[number, number]>(assignDonkeyNums);
-  const [pos, setPos] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [pos, setPos] = useSnapState<[number, number]>("DonkeyDerbyScorer.pos", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("DonkeyDerbyScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("DonkeyDerbyScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("DonkeyDerbyScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7376,12 +7377,12 @@ export function LimboScorer({ p1Name, p2Name, config, botConfig, onWin, onAbando
   const names = [p1Name, p2Name];
   const startBar = config?.startBar ?? 60;
   const maxLives = config?.lives ?? 3;
-  const [bar, setBar] = useState(startBar);
-  const [lives, setLives] = useState<[number, number]>([maxLives, maxLives]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [bar, setBar] = useSnapState("LimboScorer.bar", startBar);
+  const [lives, setLives] = useSnapState<[number, number]>("LimboScorer.lives", [maxLives, maxLives]);
+  const [turn, setTurn] = useSnapState<0 | 1>("LimboScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("LimboScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("LimboScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7499,10 +7500,10 @@ export function SnakesLaddersScorer({ p1Name, p2Name, botConfig, onWin, onAbando
 }) {
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
-  const [pos, setPos] = useState<[number, number]>([1, 1]);
-  const [turn, setTurn] = useState<0 | 1>(0);
+  const [pos, setPos] = useSnapState<[number, number]>("SnakesLaddersScorer.pos", [1, 1]);
+  const [turn, setTurn] = useSnapState<0 | 1>("SnakesLaddersScorer.turn", 0);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("SnakesLaddersScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over) return;
@@ -7609,12 +7610,12 @@ export function QuackshotScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
   const safeTimeout = useSafeTimeout();
   const names = [p1Name, p2Name];
   const totalRounds = config?.rounds ?? 8;
-  const [round, setRound] = useState(1);
-  const [scores, setScores] = useState<[number, number]>([0, 0]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [round, setRound] = useSnapState("QuackshotScorer.round", 1);
+  const [scores, setScores] = useSnapState<[number, number]>("QuackshotScorer.scores", [0, 0]);
+  const [turn, setTurn] = useSnapState<0 | 1>("QuackshotScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("QuackshotScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("QuackshotScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7737,11 +7738,11 @@ export function FightGameScorer({ p1Name, p2Name, config, botConfig, onWin, onAb
   const names = [p1Name, p2Name];
   const maxHp = config?.hp ?? 9;
   const [nums] = useState<[number, number]>(assignDonkeyNums);
-  const [hp, setHp] = useState<[number, number]>([maxHp, maxHp]);
-  const [turn, setTurn] = useState<0 | 1>(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [hp, setHp] = useSnapState<[number, number]>("FightGameScorer.hp", [maxHp, maxHp]);
+  const [turn, setTurn] = useSnapState<0 | 1>("FightGameScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("FightGameScorer.visitDarts", []);
   const [flash, setFlash] = useState<string | null>(null);
-  const [over, setOver] = useState(false);
+  const [over, setOver] = useSnapState("FightGameScorer.over", false);
 
   const handleDart = (dart: Dart) => {
     if (over || visitDarts.length >= 3) return;
@@ -7852,11 +7853,11 @@ export function SnookerScorer({ p1Name, p2Name, botConfig, onWin, onAbandon, onP
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [ballIdx,    setBallIdx]    = useState(0);
-  const [half,       setHalf]       = useState<0|1>(0);
-  const [scores,     setScores]     = useState<[number,number]>([0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [potted,     setPotted]     = useState(false);
+  const [ballIdx,    setBallIdx]    = useSnapState("SnookerScorer.ballIdx", 0);
+  const [half,       setHalf]       = useSnapState<0|1>("SnookerScorer.half", 0);
+  const [scores,     setScores]     = useSnapState<[number,number]>("SnookerScorer.scores", [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("SnookerScorer.visitDarts", []);
+  const [potted,     setPotted]     = useSnapState("SnookerScorer.potted", false);
   const names = [p1Name, p2Name];
   const ball  = SNOOKER_BALLS[ballIdx];
   const ballIdxRef = useRef(ballIdx); ballIdxRef.current = ballIdx;
@@ -7962,12 +7963,12 @@ export function JDCChallenge41Scorer({ p1Name, p2Name, botConfig, onWin, onAband
   const SH1 = [10,11,12,13,14,15];
   const DBL = [...Array.from({length:20},(_,i)=>i+1), 25];
   const SH2 = [15,16,17,18,19,20];
-  const [phase, setPhase]           = useState<"sh1"|"dbl"|"sh2">("sh1");
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [idx, setIdx]               = useState(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [shHits, setShHits]         = useState({s:false,d:false,t:false});
+  const [phase, setPhase]           = useSnapState<"sh1"|"dbl"|"sh2">("JDCChallenge41Scorer.phase", "sh1");
+  const [scores, setScores]         = useSnapState<[number,number]>("JDCChallenge41Scorer.scores", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("JDCChallenge41Scorer.turn", 0);
+  const [idx, setIdx]               = useSnapState("JDCChallenge41Scorer.idx", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("JDCChallenge41Scorer.visitDarts", []);
+  const [shHits, setShHits]         = useSnapState("JDCChallenge41Scorer.shHits", {s:false,d:false,t:false});
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
   const handleDartRefJDC = useRef<(d: Dart) => void>(() => {});
@@ -8061,10 +8062,10 @@ export function ExponentialBundleScorer({ p1Name, p2Name, botConfig, onWin, onAb
 }) {
   const safeTimeout = useSafeTimeout();
   const TARGETS=[7,8,9,10,11,12];
-  const [tIdx,setTIdx]             = useState(0);
-  const [half,setHalf]             = useState<0|1>(0);
-  const [scores,setScores]         = useState<[number,number]>([0,0]);
-  const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
+  const [tIdx,setTIdx]             = useSnapState("ExponentialBundleScorer.tIdx", 0);
+  const [half,setHalf]             = useSnapState<0|1>("ExponentialBundleScorer.half", 0);
+  const [scores,setScores]         = useSnapState<[number,number]>("ExponentialBundleScorer.scores", [0,0]);
+  const [visitDarts,setVisitDarts] = useSnapState<Dart[]>("ExponentialBundleScorer.visitDarts", []);
   const names=[p1Name,p2Name];
   const target=TARGETS[tIdx];
   const handleDartRefExp = useRef<(d: Dart) => void>(() => {});
@@ -8131,14 +8132,14 @@ export function ShootingGalleryScorer({ p1Name, p2Name, botConfig, onWin, onAban
   const safeTimeout = useSafeTimeout();
   const ROUNDS=5;
   const rng=()=>Math.floor(Math.random()*10)+121;
-  const [round,setRound]             = useState(0);
-  const [half,setHalf]               = useState<0|1>(0);
-  const [scores,setScores]           = useState<[number,number]>([0,0]);
-  const [dartCount,setDartCount]     = useState(0);
-  const [roundTarget,setRoundTarget] = useState(rng);
-  const [remain,setRemain]           = useState(()=>roundTarget);
+  const [round,setRound]             = useSnapState("ShootingGalleryScorer.round", 0);
+  const [half,setHalf]               = useSnapState<0|1>("ShootingGalleryScorer.half", 0);
+  const [scores,setScores]           = useSnapState<[number,number]>("ShootingGalleryScorer.scores", [0,0]);
+  const [dartCount,setDartCount]     = useSnapState("ShootingGalleryScorer.dartCount", 0);
+  const [roundTarget,setRoundTarget] = useSnapState("ShootingGalleryScorer.roundTarget", rng);
+  const [remain,setRemain]           = useSnapState("ShootingGalleryScorer.remain", ()=>roundTarget);
   const [msg,setMsg]                 = useState("");
-  const [sgHistory,setSgHistory]     = useState<{remain:number,dartCount:number}[]>([]);
+  const [sgHistory,setSgHistory]     = useSnapState<{remain:number,dartCount:number}[]>("ShootingGalleryScorer.sgHistory", []);
   const names=[p1Name,p2Name];
   const handleDartRefSG = useRef<(d: Dart) => void>(() => {});
   const isBotTurnSG = !!botConfig && half === 1;
@@ -8217,11 +8218,11 @@ export function DeadCentreScorer({ p1Name, p2Name, target=300, botConfig, onWin,
   onPracticeStats?: (s: PracticeStats) => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [scores,setScores]         = useState<[number,number]>([0,0]);
-  const [turn,setTurn]             = useState<0|1>(0);
-  const [visitDarts,setVisitDarts] = useState<Dart[]>([]);
-  const [visitPts,setVisitPts]     = useState(0);
-  const [busted,setBusted]         = useState(false);
+  const [scores,setScores]         = useSnapState<[number,number]>("DeadCentreScorer.scores", [0,0]);
+  const [turn,setTurn]             = useSnapState<0|1>("DeadCentreScorer.turn", 0);
+  const [visitDarts,setVisitDarts] = useSnapState<Dart[]>("DeadCentreScorer.visitDarts", []);
+  const [visitPts,setVisitPts]     = useSnapState("DeadCentreScorer.visitPts", 0);
+  const [busted,setBusted]         = useSnapState("DeadCentreScorer.busted", false);
   const [msg,setMsg]               = useState("");
   const names=[p1Name,p2Name];
 
@@ -8294,11 +8295,11 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [roundWins, setRoundWins]   = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [phase, setPhase]           = useState<"call"|"throw">("call");
-  const [target, setTarget]         = useState<number|null>(null);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [roundWins, setRoundWins]   = useSnapState<[number,number]>("ThreeInABedScorer.roundWins", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("ThreeInABedScorer.turn", 0);
+  const [phase, setPhase]           = useSnapState<"call"|"throw">("ThreeInABedScorer.phase", "call");
+  const [target, setTarget]         = useSnapState<number|null>("ThreeInABedScorer.target", null);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("ThreeInABedScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
   const names = [p1Name, p2Name];
   const NUMS = Array.from({length:20},(_,i)=>i+1);
@@ -8454,13 +8455,13 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
 }) {
   const safeTimeout = useSafeTimeout();
   const { startingScore = 501, doubleOut = true } = config;
-  const [scores, setScores]         = useState<[number, number]>(() => initialRecovery?.scores ?? [startingScore, startingScore]);
-  const [teamTurn, setTeamTurn]     = useState<0|1>(() => initialRecovery?.teamTurn ?? 0);
-  const [playerIdx, setPlayerIdx]   = useState<[number, number]>(() => initialRecovery?.playerIdx ?? [0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
-  const [bust, setBust]             = useState(false);
+  const [scores, setScores]         = useSnapState<[number, number]>("TeamX01Scorer.scores", () => initialRecovery?.scores ?? [startingScore, startingScore]);
+  const [teamTurn, setTeamTurn]     = useSnapState<0|1>("TeamX01Scorer.teamTurn", () => initialRecovery?.teamTurn ?? 0);
+  const [playerIdx, setPlayerIdx]   = useSnapState<[number, number]>("TeamX01Scorer.playerIdx", () => initialRecovery?.playerIdx ?? [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamX01Scorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
+  const [bust, setBust]             = useSnapState("TeamX01Scorer.bust", false);
   const [bustMsg, setBustMsg]       = useState("");
-  const [history, setHistory]       = useState<{ team:0|1; player:number; score:number; left:number }[]>(() => initialRecovery?.history ?? []);
+  const [history, setHistory]       = useSnapState<{ team:0|1; player:number; score:number; left:number }[]>("TeamX01Scorer.history", () => initialRecovery?.history ?? []);
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -8637,12 +8638,12 @@ export function TeamCricketScorer({ teamNames, cutThroat = false, onWin, onAband
   onRecoveryState?: (state: TeamCricketRecoveryState) => void;
 }) {
   const safeTimeout = useSafeTimeout();
-  const [marks, setMarks]           = useState<CricketMarks>(() => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]         = useState<[number,number]>(() => initialRecovery?.scores ?? [0,0]);
-  const [teamTurn, setTeamTurn]     = useState<0|1>(() => initialRecovery?.teamTurn ?? 0);
-  const [playerIdx, setPlayerIdx]   = useState<[number,number]>(() => initialRecovery?.playerIdx ?? [0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>(() => initialRecovery?.visitDarts ?? []);
-  const [lastHit, setLastHit]       = useState(() => initialRecovery?.lastHit ?? "");
+  const [marks, setMarks]           = useSnapState<CricketMarks>("TeamCricketScorer.marks", () => initialRecovery?.marks ?? [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]         = useSnapState<[number,number]>("TeamCricketScorer.scores", () => initialRecovery?.scores ?? [0,0]);
+  const [teamTurn, setTeamTurn]     = useSnapState<0|1>("TeamCricketScorer.teamTurn", () => initialRecovery?.teamTurn ?? 0);
+  const [playerIdx, setPlayerIdx]   = useSnapState<[number,number]>("TeamCricketScorer.playerIdx", () => initialRecovery?.playerIdx ?? [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamCricketScorer.visitDarts", () => initialRecovery?.visitDarts ?? []);
+  const [lastHit, setLastHit]       = useSnapState("TeamCricketScorer.lastHit", () => initialRecovery?.lastHit ?? "");
   useEffect(() => {
     onLiveState?.({ mode: "cricket", scores, turn: teamTurn, currentPlayer: teamNames[teamTurn][playerIdx[teamTurn]], detail: [`${marks[0].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`, `${marks[1].reduce((sum, value) => sum + Math.min(3, value), 0)} marks`], lastVisit: lastHit || undefined });
   }, [marks, scores, teamTurn, playerIdx, lastHit, onLiveState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -8807,14 +8808,14 @@ export function MultiKillerScorer({ playerNames, lives = 3, onWin, onAbandon }: 
   const MCOLORS = ["#22c55e","#ee0a78","#ffd24a","#38bdf8","#f97316","#a78bfa"];
   const pColor = (i: number) => MCOLORS[i % MCOLORS.length];
 
-  const [phase, setPhase]           = useState<"assign"|"play">("assign");
-  const [assigningIdx, setAssigning] = useState(0);
-  const [killerNums, setKillerNums] = useState<(number|null)[]>(() => Array(n).fill(null));
-  const [isKiller, setIsKiller]     = useState<boolean[]>(() => Array(n).fill(false));
-  const [playerLives, setPlayerLives] = useState<number[]>(() => Array(n).fill(lives));
-  const [eliminated, setEliminated] = useState<boolean[]>(() => Array(n).fill(false));
-  const [turn, setTurn]             = useState(0);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [phase, setPhase]           = useSnapState<"assign"|"play">("MultiKillerScorer.phase", "assign");
+  const [assigningIdx, setAssigning] = useSnapState("MultiKillerScorer.assigningIdx", 0);
+  const [killerNums, setKillerNums] = useSnapState<(number|null)[]>("MultiKillerScorer.killerNums", () => Array(n).fill(null));
+  const [isKiller, setIsKiller]     = useSnapState<boolean[]>("MultiKillerScorer.isKiller", () => Array(n).fill(false));
+  const [playerLives, setPlayerLives] = useSnapState<number[]>("MultiKillerScorer.playerLives", () => Array(n).fill(lives));
+  const [eliminated, setEliminated] = useSnapState<boolean[]>("MultiKillerScorer.eliminated", () => Array(n).fill(false));
+  const [turn, setTurn]             = useSnapState("MultiKillerScorer.turn", 0);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("MultiKillerScorer.visitDarts", []);
   const [msg, setMsg]               = useState("");
 
   const nextLivingPlayer = useCallback((from: number, elim: boolean[]) => {
@@ -8988,12 +8989,12 @@ export function DoublesTeamCricketScorer({ team1, team2, cutThroat = false, incl
 }) {
   const safeTimeout = useSafeTimeout();
   const numCount = includesBull ? 7 : 6;
-  const [marks, setMarks]       = useState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>([[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
-  const [scores, setScores]     = useState<[number,number]>([0,0]);
-  const [turn, setTurn]         = useState<0|1>(0);
-  const [active, setActive]     = useState<[0|1, 0|1]>([0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [lastHit, setLastHit]   = useState<string>("");
+  const [marks, setMarks]       = useSnapState<[[number,number,number,number,number,number,number],[number,number,number,number,number,number,number]]>("DoublesTeamCricketScorer.marks", [[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]]);
+  const [scores, setScores]     = useSnapState<[number,number]>("DoublesTeamCricketScorer.scores", [0,0]);
+  const [turn, setTurn]         = useSnapState<0|1>("DoublesTeamCricketScorer.turn", 0);
+  const [active, setActive]     = useSnapState<[0|1, 0|1]>("DoublesTeamCricketScorer.active", [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("DoublesTeamCricketScorer.visitDarts", []);
+  const [lastHit, setLastHit]   = useSnapState<string>("DoublesTeamCricketScorer.lastHit", "");
 
   const teams = [team1, team2] as [[string, string], [string, string]];
   const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -9133,13 +9134,13 @@ export function TeamHalveItScorer({ team1, team2, gameKey, onWin, onAbandon }: {
   const targets = isBobs ? Array.from({length:20},(_,i)=>i+1) : HALVEIT_TARGETS;
   const targetLabels = isBobs ? targets.map(n=>`D${n}`) : HALVEIT_LABELS;
 
-  const [round, setRound]           = useState(0);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [active, setActive]         = useState<[0|1, 0|1]>([0, 0]);
-  const [scores, setScores]         = useState<[number,number]>(isBobs ? [27,27] : [0,0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [roundScore, setRoundScore] = useState(0);
-  const [hit, setHit]               = useState(false);
+  const [round, setRound]           = useSnapState("TeamHalveItScorer.round", 0);
+  const [turn, setTurn]             = useSnapState<0|1>("TeamHalveItScorer.turn", 0);
+  const [active, setActive]         = useSnapState<[0|1, 0|1]>("TeamHalveItScorer.active", [0, 0]);
+  const [scores, setScores]         = useSnapState<[number,number]>("TeamHalveItScorer.scores", isBobs ? [27,27] : [0,0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamHalveItScorer.visitDarts", []);
+  const [roundScore, setRoundScore] = useSnapState("TeamHalveItScorer.roundScore", 0);
+  const [hit, setHit]               = useSnapState("TeamHalveItScorer.hit", false);
 
   const teams = [team1, team2] as [[string, string], [string, string]];
   const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -9237,11 +9238,11 @@ export function TeamCountUpScorer({ team1, team2, config, onWin, onAbandon }: {
   const maxRounds = config.rounds ?? 0;
   const bullsOnly = config.bullsOnly ?? false;
 
-  const [scores, setScores]         = useState<[number,number]>([0,0]);
-  const [rounds, setRounds]         = useState<[number,number]>([0,0]);
-  const [turn, setTurn]             = useState<0|1>(0);
-  const [active, setActive]         = useState<[0|1, 0|1]>([0, 0]);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
+  const [scores, setScores]         = useSnapState<[number,number]>("TeamCountUpScorer.scores", [0,0]);
+  const [rounds, setRounds]         = useSnapState<[number,number]>("TeamCountUpScorer.rounds", [0,0]);
+  const [turn, setTurn]             = useSnapState<0|1>("TeamCountUpScorer.turn", 0);
+  const [active, setActive]         = useSnapState<[0|1, 0|1]>("TeamCountUpScorer.active", [0, 0]);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("TeamCountUpScorer.visitDarts", []);
 
   const teams = [team1, team2] as [[string, string], [string, string]];
   const TC = (i: 0|1) => i === 0 ? "#22c55e" : "#ee0a78";
@@ -9333,11 +9334,11 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
 }) {
   const safeTimeout = useSafeTimeout();
   const variant = config.variant ?? "standard";
-  const [target, setTarget]         = useState<number | null>(null);
-  const [visitDarts, setVisitDarts] = useState<Dart[]>([]);
-  const [dartsThrown, setDartsThrown] = useState(0);
-  const [score, setScore]           = useState(0);
-  const [done, setDone]             = useState(false);
+  const [target, setTarget]         = useSnapState<number | null>("NinetyNineDartsScorer.target", null);
+  const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("NinetyNineDartsScorer.visitDarts", []);
+  const [dartsThrown, setDartsThrown] = useSnapState("NinetyNineDartsScorer.dartsThrown", 0);
+  const [score, setScore]           = useSnapState("NinetyNineDartsScorer.score", 0);
+  const [done, setDone]             = useSnapState("NinetyNineDartsScorer.done", false);
   const [flashMsg, setFlashMsg]     = useState<string | null>(null);
 
   const TOTAL_DARTS = 99;
@@ -9516,16 +9517,16 @@ export function Master501Scorer({
 }) {
   const safeTimeout = useSafeTimeout();
   const START = 501;
-  const [score,      setScore]      = useState(START);
-  const [legWins,    setLegWins]    = useState(0);
-  const [legLosses,  setLegLosses]  = useState(0);
-  const [dil,        setDil]        = useState(0);   // darts in current leg (committed)
-  const [visitDarts, setVD]         = useState<Dart[]>([]);
-  const [bust,       setBust]       = useState(false);
+  const [score,      setScore]      = useSnapState("Master501Scorer.score", START);
+  const [legWins,    setLegWins]    = useSnapState("Master501Scorer.legWins", 0);
+  const [legLosses,  setLegLosses]  = useSnapState("Master501Scorer.legLosses", 0);
+  const [dil,        setDil]        = useSnapState("Master501Scorer.dil", 0);   // darts in current leg (committed)
+  const [visitDarts, setVD]         = useSnapState<Dart[]>("Master501Scorer.visitDarts", []);
+  const [bust,       setBust]       = useSnapState("Master501Scorer.bust", false);
   const [bustMsg,    setBustMsg]    = useState("");
   const [flash,      setFlash]      = useState("");
-  const [legDone,    setLegDone]    = useState<"win" | "loss" | null>(null);
-  const [matchDone,  setMatchDone]  = useState<"win" | "loss" | null>(null);
+  const [legDone,    setLegDone]    = useSnapState<"win" | "loss" | null>("Master501Scorer.legDone", null);
+  const [matchDone,  setMatchDone]  = useSnapState<"win" | "loss" | null>("Master501Scorer.matchDone", null);
   const { fs, toggle: toggleFs, supported: fsSupported } = useFullscreen();
   const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 

@@ -1,5 +1,6 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { Link, useLocation } from "wouter";
+import { ResumeNudge } from "@/components/ResumeNudge";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
@@ -665,6 +666,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
         <main className="tkdl-main flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 1 }}>
           <div className="tkdl-content-frame max-w-5xl mx-auto p-4 md:p-6 lg:p-8">
+            <ResumeNudge />
             {children}
           </div>
         </main>

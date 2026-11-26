@@ -21,7 +21,9 @@ import {
   LevelBotPicker, PersonaCard, ShadowPlayerPicker,
   type SoloBotMode, type ShadowProfileData, type ShadowProfileLocked, type ShadowProfileResult,
 } from "@/components/BotPickers";
-import { useWakeLock, useZoomLock, useExitGuard } from "@/lib/nativeParity";
+import { useWakeLock, useZoomLock, useExitGuard, readMatchSnapshot, writeMatchSnapshot, clearMatchSnapshot } from "@/lib/nativeParity";
+import { SnapStateProvider, type SnapValues } from "@/lib/snap-state";
+import { ResumeMatchCard } from "@/components/ResumeMatchCard";
 import "@/styles/practice-refresh.css";
 
 type Player = { id: number; name: string; points: number; elo: number; status: string; isActive: boolean };
@@ -1126,9 +1128,22 @@ function clearCardClashSession() {
   sessionStorage.removeItem("card_clash_p2_cards");
 }
 
+const PRACTICE_RESUME_KEY = "tkdl_practice_resume";
+type PracticeResume = { setupData: SetupData; scorer: SnapValues };
+
 export default function Practice() {
   const [phase, setPhase]             = useState<"setup" | "playing" | "done">("setup");
   const [setupData, setSetupData]     = useState<SetupData | null>(null);
+  // Match resume: the running game is saved to the phone as it's played, so
+  // if the app is closed in the background it can carry on from here.
+  const [resume, setResume] = useState<PracticeResume | null>(() => {
+    const saved = readMatchSnapshot<PracticeResume>(PRACTICE_RESUME_KEY);
+    return saved?.setupData?.gameType && saved.scorer ? saved : null;
+  });
+  const [snapInitial, setSnapInitial] = useState<SnapValues | null>(null);
+  const [runId, setRunId] = useState(0);
+  const liveRef = useRef(false);
+  const endRun = () => { liveRef.current = false; clearMatchSnapshot(PRACTICE_RESUME_KEY); };
   const [gameResult, setResult]       = useState<GameResult | null>(null);
   const [practiceStats, setPracticeStats] = useState<PracticeStats | null>(null);
 
@@ -1138,7 +1153,7 @@ export default function Practice() {
   const isLive = phase === "playing";
   useWakeLock(isLive);
   useZoomLock(isLive);
-  useExitGuard(isLive, () => { clearCardClashSession(); setPhase("setup"); });
+  useExitGuard(isLive, () => { endRun(); clearCardClashSession(); setPhase("setup"); });
 
   // SCORER_THEME cosmetic — accents the logged-in viewer's own live scoring
   // surface (X01 & Cricket only, see GameScorer). Same "own account, solo
@@ -1160,7 +1175,20 @@ export default function Practice() {
     : null;
 
   if (phase === "setup") {
-    return <SetupScreen onStart={d => {
+    return <>
+      {resume && (
+        <ResumeMatchCard
+          title={resume.setupData.gameType.name}
+          players={[resume.setupData.p1.name, resume.setupData.botName ?? resume.setupData.p2?.name ?? (resume.setupData.soloPlay ? null : "CPU")]}
+          onResume={() => {
+            setSetupData(resume.setupData); setSnapInitial(resume.scorer); setRunId(n => n + 1);
+            liveRef.current = true; setResume(null); setPhase("playing");
+          }}
+          onDiscard={() => { clearMatchSnapshot(PRACTICE_RESUME_KEY); setResume(null); }}
+        />
+      )}
+      <SetupScreen onStart={d => {
+      clearMatchSnapshot(PRACTICE_RESUME_KEY); setResume(null); setSnapInitial(null); setRunId(n => n + 1); liveRef.current = true;
       // Fire-and-forget: log that a session actually started, not just
       // when (if) it finishes. practice_sessions only ever gets a row on
       // successful completion, so a session that freezes/crashes/gets
@@ -1179,7 +1207,8 @@ export default function Practice() {
         }),
       }).catch(() => {});
       setSetupData(d); setPhase("playing");
-    }} />;
+    }} />
+    </>;
   }
 
   if (phase === "playing" && setupData) {
@@ -1191,6 +1220,8 @@ export default function Practice() {
       }}>
         <div className="ambient-blob-red" />
         <div className="ambient-blob-blue" />
+        <SnapStateProvider key={runId} initial={snapInitial}
+          onChange={values => { if (liveRef.current) writeMatchSnapshot(PRACTICE_RESUME_KEY, { setupData, scorer: values } satisfies PracticeResume); }}>
         <GameScorer
           p1Name={setupData.p1.name}
           p2Name={p2Name}
@@ -1202,10 +1233,11 @@ export default function Practice() {
           soloMode={setupData.soloPlay}
           bullUp={setupData.bullUp}
           scorerThemeColor={scorerAccentColor}
-          onWin={r => { clearCardClashSession(); setResult(r); setPhase("done"); }}
-          onAbandon={() => { clearCardClashSession(); setPhase("setup"); }}
+          onWin={r => { endRun(); clearCardClashSession(); setResult(r); setPhase("done"); }}
+          onAbandon={() => { endRun(); clearCardClashSession(); setPhase("setup"); }}
           onPracticeStats={s => setPracticeStats(s)}
         />
+        </SnapStateProvider>
       </div>,
       document.body
     );
