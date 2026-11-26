@@ -818,7 +818,7 @@ function ShiftWarsSubmitSection() {
 
   if (error) {
     return (
-      <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+      <div className="pdc-card pm-empty px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
         <span>Couldn’t load Shift Wars teams. The server may still be waking — try again in a moment.</span>
         <button
           onClick={() => void reload()}
@@ -832,7 +832,7 @@ function ShiftWarsSubmitSection() {
 
   if (teams.length === 0) {
     return (
-      <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+      <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
         No Shift Wars teams yet — ask an admin to set them up first.
       </div>
     );
@@ -1004,7 +1004,7 @@ function DoublesSubmitSection() {
 
   if (error) {
     return (
-      <div className="pdc-card px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
+      <div className="pdc-card pm-empty px-6 py-12 text-center text-sm" style={{ color: "#ff7b9d", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
         <span>Couldn’t load the Doubles draw. The server may still be waking — try again in a moment.</span>
         <button
           onClick={() => void reload()}
@@ -1018,7 +1018,7 @@ function DoublesSubmitSection() {
 
   if (activeTeams.length === 0) {
     return (
-      <div className="pdc-card px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
+      <div className="pdc-card pm-empty px-6 py-16 text-center text-sm" style={{ color: "rgba(255,255,255,0.3)" }}>
         Doubles draw pending — submissions will unlock automatically when the new season teams are ready.
       </div>
     );

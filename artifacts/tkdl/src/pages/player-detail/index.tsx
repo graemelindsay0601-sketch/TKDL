@@ -1855,7 +1855,7 @@ export default function PlayerDetail() {
         </div>
 
         {filteredAch.length === 0 && (
-          <div className="pdc-card px-6 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>
+          <div className="pdc-card pm-empty px-6 py-10 text-center text-sm" style={{ color: "rgba(255,255,255,0.25)" }}>
             No achievements in this category yet.
           </div>
         )}
