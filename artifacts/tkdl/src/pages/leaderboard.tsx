@@ -178,7 +178,7 @@ function DoublesChemistry({ partnerships }: { partnerships: any[] }) {
           </div>
           <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.35)" }}>Every pairing across every Doubles Event season, including partnerships formed inside a triple.</p>
         </div>
-        <span className="text-xs font-bold px-2 py-1 rounded-full" style={{ color: "#0066ff", background: "rgba(0,102,255,0.12)", border: "1px solid rgba(0,102,255,0.22)" }}>{partnerships.length} pairings</span>
+        <span className="text-xs font-bold px-2 py-1 rounded-full shrink-0 whitespace-nowrap" style={{ color: "#0066ff", background: "rgba(0,102,255,0.12)", border: "1px solid rgba(0,102,255,0.22)" }}>{partnerships.length} pairings</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
         {partnerships.map((pair, index) => {
