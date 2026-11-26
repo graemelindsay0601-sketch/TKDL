@@ -93,3 +93,14 @@
 @media (max-height: 760px) { .seq-step { min-width: 26px; height: 26px; font-size: 11px; } }
 .seq-path { gap: 4px; }
 .seq-step { min-width: 28px; height: 28px; }
+
+/* Tactics: 20 down to 10 plus the bull. Marks in two columns, a five-wide pad. */
+.mc-root.wide .mc-marks { display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; grid-template-rows: repeat(6, minmax(0, 1fr)); column-gap: 14px; }
+.mc-root.wide .mc-row { grid-template-columns: 1fr 40px 1fr; min-height: 0; }
+.mc-root.wide .mc-row + .mc-row { border-top: 0; }
+.mc-root.wide .mc-row:nth-child(6n + 1) { border-top: 0; }
+.mc-root.wide .mc-row { border-bottom: 1px solid rgba(255,255,255,.05); }
+.mc-root.wide .mc-pad { grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.mc-root.wide .mc-pad button { height: clamp(46px, 7vh, 64px); }
+.mc-root.wide .mc-pad button span { font-size: 22px; }
+.mc-root.wide .mc-pad button.next { grid-column: span 5; height: clamp(44px, 6vh, 56px); }

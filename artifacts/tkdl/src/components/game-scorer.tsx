@@ -329,7 +329,7 @@ export function GameScorer({
         firstThrower={starterIdx} botVisitPlanner={botVisitPlanner} botCorkPlanner={botCorkPlanner} onDartLog={onDartLog} partnerVisitPlanner={partnerVisitPlanner} topBanner={topBanner} />;
 
     case "Cricket":
-      return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
+      return <CricketScorer p1Name={ep1} p2Name={ep2} cutThroat={!!cfg.cutThroat} includesBull={cfg.includesBull !== false} nums={gameType.key === "tactics" ? [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 25] : undefined} botConfig={botConfig} onWin={win} onAbandon={onAbandon} onPracticeStats={onPracticeStats} onLiveState={live} newScoringUI={newScoringUI} scorerThemeColor={scorerThemeColor}
         initialRecovery={initialRecovery?.engine === "Cricket" ? initialRecovery.state : undefined} onRecoveryState={onRecoveryState ? reportCricketRecovery : undefined}
         firstThrower={starterIdx} topBanner={topBanner} />;
 

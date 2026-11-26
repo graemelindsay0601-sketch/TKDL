@@ -126,6 +126,7 @@ import { createTeamMatchPlayers } from "./db/migrations/create_team_match_player
 import { resetClassicScorerChoice } from "./db/migrations/reset_classic_scorer_choice";
 import { syncPlayerNamesOnce } from "./db/migrations/sync_player_names";
 import { fixGameDescriptionsOnce } from "./db/migrations/fix_game_descriptions";
+import { fixTacticsDescriptionOnce } from "./db/migrations/fix_tactics_description";
 import { TEAM_LEADERSHIP_EFFECTIVE_DATE } from "./lib/shift-wars-season-name";
 import { addMatchParticipantDeltas } from "./db/migrations/add_match_participant_deltas";
 import { addDoublesMatchDeltas } from "./db/migrations/add_doubles_match_deltas";
@@ -884,7 +885,7 @@ async function seedGameTypes() {
     { key: "around_clock_quick",   name: "Around the Clock (Quick)",  engine: "Sequence", category: "practice",    description: "Race 1–20 with no bull to finish. A double moves you on 2 numbers and a treble 3.",   config: JSON.stringify({ type: "atw", quick: true }),                                                             enabled: true, sortOrder: 52 },
     { key: "killer_1_life",        name: "Sudden Death Killer",       engine: "Killer",   category: "party",       description: "Killer with 1 life only. Hit opponent's double ONCE and they're instantly eliminated. No mercy!", config: JSON.stringify({ lives: 1 }),                                                                             enabled: true, sortOrder: 53 },
     { key: "501_no_trebles",       name: "501 – No Treble Ring",      engine: "X01",      category: "party",       description: "501 Double Out but trebles don't count — darts landing in the treble ring score as singles only.", config: JSON.stringify({ startingScore: 501, doubleOut: true, noTrebles: true }),                                enabled: true, sortOrder: 54 },
-    { key: "tactics",              name: "Tactics (Mickey Mouse)",    engine: "Cricket",  category: "competitive", description: "Cricket by another name: close 15–20 and the bull, score on numbers your opponent hasn't closed.",                      config: JSON.stringify({ cutThroat: false, includesBull: true }),                                                 enabled: true, sortOrder: 55 },
+    { key: "tactics",              name: "Tactics (Mickey Mouse)",    engine: "Cricket",  category: "competitive", description: "Cricket on 10–20 and the bull: twelve numbers to close, more room for tactics.",                      config: JSON.stringify({ cutThroat: false, includesBull: true }),                                                 enabled: true, sortOrder: 55 },
     { key: "cricket_no_bull",      name: "Cricket – No Bull",         engine: "Cricket",  category: "competitive", description: "Standard Cricket but the bull is removed. Only 15–20 in play — six targets not seven.",          config: JSON.stringify({ cutThroat: false, includesBull: false }),                                               enabled: true, sortOrder: 56 },
     { key: "2001_double_out",      name: "2001 – Double Out",         engine: "X01",      category: "competitive", description: "Ultra-endurance: 2001 to start, double out to finish. The ultimate long-session challenge.",     config: JSON.stringify({ startingScore: 2001, doubleIn: false, doubleOut: true }),                                 enabled: true, sortOrder: 57 },
     { key: "701_bo3",              name: "701 – Best of 3 Legs",      engine: "X01",      category: "competitive", description: "Marathon best of 3 legs at 701 Double Out. Serious endurance test.",                            config: JSON.stringify({ startingScore: 701, doubleIn: false, doubleOut: true, legs: 3 }),                        enabled: true, sortOrder: 58 },
@@ -1798,6 +1799,7 @@ async function initSchemaAndData(): Promise<boolean> {
   await runMigrationStep("resetClassicScorerChoice", resetClassicScorerChoice);
   await runInitStep("syncPlayerNamesOnce", syncPlayerNamesOnce);
   await runInitStep("fixGameDescriptionsOnce", fixGameDescriptionsOnce);
+  await runInitStep("fixTacticsDescriptionOnce", fixTacticsDescriptionOnce);
   // Catch up if the November season was opened before this code was deployed.
   // Only the live team row is renamed; the outgoing season's snapshot remains
   // unchanged, and the conflict guard avoids merging two separately-used teams.

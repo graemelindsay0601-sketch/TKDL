@@ -62,7 +62,7 @@ const darts = (value: unknown): value is Dart[] => Array.isArray(value) && value
     && Number.isFinite(dart.value) && typeof dart.label === "string";
 });
 const cricketMarks = (value: unknown): value is CricketMarks => pair(value)
-  && value.every(side => Array.isArray(side) && side.length === 7 && side.every(Number.isFinite));
+  && value.every(side => Array.isArray(side) && side.length >= 7 && side.every(Number.isFinite));
 const stats = (value: unknown): value is X01StatsAccumulator => {
   if (!value || typeof value !== "object") return false;
   const item = value as Partial<X01StatsAccumulator>;
