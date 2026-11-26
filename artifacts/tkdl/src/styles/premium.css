@@ -242,6 +242,35 @@
   .tkdl-main :is(button, a[href], [role="button"]):not(:disabled):active { scale: 1; }
 }
 
+/* Seasonal touches */
+.pm-season-strip { position: relative; flex: none; height: 3px; z-index: 3; opacity: .9; box-shadow: 0 0 10px rgba(255,255,255,.15); pointer-events: none; }
+.pm-season-fx { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
+.pm-season-fx i { position: absolute; top: -12px; display: block; animation: pm-fall linear infinite; opacity: .55; }
+.pm-season-fx.snow i { width: 6px; height: 6px; border-radius: 50%; background: #fff; filter: blur(.4px); }
+.pm-season-fx.sparks i { width: 4px; height: 4px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.pm-season-fx.hearts i { width: 8px; height: 8px; background: var(--c); transform: rotate(45deg); border-radius: 2px 50% 50% 50%; }
+@keyframes pm-fall { 0% { transform: translate3d(0,-10px,0); } 100% { transform: translate3d(30px,105vh,0); } }
+@media (prefers-reduced-motion: reduce) { .pm-season-fx { display: none; } }
+.pm-season-badge { color: #fff !important; border-color: color-mix(in srgb, var(--s1) 70%, transparent) !important; background: linear-gradient(90deg, color-mix(in srgb, var(--s1) 35%, transparent), color-mix(in srgb, var(--s2) 25%, transparent)) !important; }
+/* Welcome tour */
+.pm-welcome { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: flex-end; justify-content: center; padding: 16px; background: rgba(4,3,8,.72); backdrop-filter: blur(6px); }
+@media (min-width: 640px) { .pm-welcome { align-items: center; } }
+.pm-welcome .card { position: relative; width: 100%; max-width: 420px; border-radius: 26px; padding: 22px 20px 18px; text-align: center; overflow: hidden;
+  background: radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--wc) 28%, transparent), transparent 60%), linear-gradient(170deg,#1c1530,#0a0812); border: 1px solid color-mix(in srgb, var(--wc) 50%, transparent); box-shadow: 0 30px 60px rgba(0,0,0,.6), 0 0 30px color-mix(in srgb, var(--wc) 20%, transparent); animation: fw-in .35s ease both; }
+.pm-welcome .x { position: absolute; top: 12px; right: 12px; color: rgba(255,255,255,.45); }
+.pm-welcome .kick { font: 700 11px Oswald, sans-serif; letter-spacing: .2em; text-transform: uppercase; color: var(--wc); }
+.pm-welcome .medal { width: 70px; height: 70px; margin: 12px auto 8px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #120c02;
+  background: radial-gradient(circle at 35% 30%, #fff, var(--wc) 50%, color-mix(in srgb, var(--wc) 55%, #000)); box-shadow: 0 0 24px color-mix(in srgb, var(--wc) 60%, transparent); }
+.pm-welcome h2 { font: 700 30px/1 Oswald, sans-serif; text-transform: uppercase; letter-spacing: .03em; color: #fff; }
+.pm-welcome ul { text-align: left; margin: 14px 4px 0; display: grid; gap: 8px; }
+.pm-welcome li { position: relative; padding-left: 18px; font-size: 14px; color: #d8d4e6; line-height: 1.4; }
+.pm-welcome li::before { content: ""; position: absolute; left: 2px; top: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--wc); box-shadow: 0 0 8px var(--wc); }
+.pm-welcome .todo { margin-top: 14px; display: grid; gap: 6px; text-align: left; }
+.pm-welcome .todo .item { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); color: #fff; font: 600 14px Inter, sans-serif; }
+.pm-welcome .dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 12px; } .pm-welcome .dots i { width: 7px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.18); transition: width .2s; } .pm-welcome .dots i.on { width: 20px; background: var(--wc); }
+.pm-welcome .btns { display: flex; gap: 8px; } .pm-welcome .btns button { flex: 1; padding: 12px; border-radius: 14px; font: 700 14px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.pm-welcome .btns .go { color: #120c02; background: linear-gradient(180deg, #fff, var(--wc)); } .pm-welcome .btns .ghost { color: #fff; border: 1px solid rgba(255,255,255,.2); }
+.pm-welcome .skip { margin-top: 10px; font-size: 12px; color: rgba(255,255,255,.4); }
 /* Daily drill streak */
 .pm-drill-streak { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; color: #ffb08a;
   background: radial-gradient(circle at 50% 20%, rgba(255,140,60,.35), rgba(40,14,4,.9)); border: 1px solid rgba(255,122,61,.55); box-shadow: 0 0 18px rgba(255,106,43,.3); }

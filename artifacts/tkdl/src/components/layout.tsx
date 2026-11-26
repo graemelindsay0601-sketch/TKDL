@@ -1,6 +1,8 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { Link, useLocation } from "wouter";
 import { ResumeNudge } from "@/components/ResumeNudge";
+import { SeasonalTheme } from "@/components/SeasonalTheme";
+import { WelcomeTour } from "@/components/WelcomeTour";
 import { useQuery } from "@tanstack/react-query";
 import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
@@ -663,6 +665,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           ) : <div aria-hidden className="h-11 w-11" />}
         </header>
+        <SeasonalTheme />
 
         <main className="tkdl-main flex-1 overflow-y-auto" style={{ position: "relative", zIndex: 1 }}>
           <div className="tkdl-content-frame max-w-5xl mx-auto p-4 md:p-6 lg:p-8">
@@ -675,6 +678,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {!inCareerSave && <LiveTicker />}
 
       <NotificationOptInPrompt />
+      <WelcomeTour />
 
       {updateReady && !matchInProgressRoute && (
         <div className="fixed z-40 left-1/2 -translate-x-1/2 bottom-20 lg:bottom-10 flex items-center gap-3 rounded-xl px-4 py-3 shadow-2xl"

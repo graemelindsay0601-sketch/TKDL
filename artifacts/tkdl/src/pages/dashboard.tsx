@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { MatchSpotlight } from "@/components/MatchSpotlight";
+import { SeasonBadge } from "@/components/SeasonalTheme";
 import { DailyDrill } from "@/components/DailyDrill";
 import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 
@@ -125,6 +126,7 @@ function FreshnessBar({ playerName, previousVisit, pulse }: { playerName: string
         Welcome back, <span className="font-bold" style={{ color: "#fff" }}>{playerName}</span>
         {previousVisit && <> — last visit {timeAgo(previousVisit)}</>}
       </div>
+      <SeasonBadge />
       {newCount > 0 && (
         <span className="font-black uppercase" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.6rem", letterSpacing: "0.1em", color: "#34e0c9", background: "rgba(52,224,201,0.1)", border: "1px solid rgba(52,224,201,0.3)", padding: "0.25rem 0.6rem", borderRadius: 999 }}>
           {newCount} new since then
