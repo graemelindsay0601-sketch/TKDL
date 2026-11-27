@@ -1,5 +1,6 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { HonoursCabinet } from "@/components/profile/HonoursCabinet";
+import { ClubhouseDoor } from "@/components/clubhouse/ClubhouseDoor";
 import { DartMap } from "@/components/profile/DartMap";
 import { AchievementsShelf } from "@/components/achievements-v2/AchievementsShelf";
 import { useAchievementsV2Status } from "@/components/achievements-v2/api";
@@ -661,6 +662,7 @@ export default function PlayerDetail() {
 
       <DartsLocker playerId={player.id} setup={(player as any).dartsSetup ?? null} editable={isOwnProfile} />
 
+      <ClubhouseDoor playerId={playerId} />
       <HonoursCabinet playerId={playerId} />
 
       {/* ══ GAME MODES ══ */}

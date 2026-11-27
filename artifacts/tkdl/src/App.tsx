@@ -17,6 +17,7 @@ const Leaderboard = lazyWithRetry(() => import("@/pages/leaderboard"), "leaderbo
 const SubmitMatch = lazyWithRetry(() => import("@/pages/submit-match"), "submit-match");
 const Players = lazyWithRetry(() => import("@/pages/players"), "players");
 const PlayerDetail = lazyWithRetry(() => import("@/pages/player-detail"), "player-detail");
+const Clubhouse = lazyWithRetry(() => import("@/pages/clubhouse"), "clubhouse");
 const Seasons = lazyWithRetry(() => import("@/pages/seasons"), "seasons");
 const SeasonDetail = lazyWithRetry(() => import("@/pages/season-detail"), "season-detail");
 const Achievements = lazyWithRetry(() => import("@/pages/achievements"), "achievements");
@@ -98,6 +99,9 @@ function AppRoutes() {
       )}
       <Route path="/broadcast">
         <Suspense fallback={null}><Broadcast /></Suspense>
+      </Route>
+      <Route path="/clubhouse/:id">
+        <Suspense fallback={null}><Clubhouse /></Suspense>
       </Route>
       <Route path="/tkdl-live">
         <Suspense fallback={null}><TkdlLive /></Suspense>

@@ -410,6 +410,13 @@ export async function initializeFeatureFlags() {
       ON CONFLICT (feature_name) DO NOTHING
     `);
 
+    // The Clubhouse: admin preview first, same insert-only pattern.
+    await db.execute(sql`
+      INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)
+      VALUES (${FEATURES.CLUBHOUSE}, false, true, ${"The Clubhouse - each player's 3D darts room (admin preview only until switched live for everyone)"})
+      ON CONFLICT (feature_name) DO NOTHING
+    `);
+
     // Career starts Hidden. Never overwrite an administrator's staged choice.
     await db.execute(sql`
       INSERT INTO feature_flags (feature_name, enabled, admin_test_mode, description)

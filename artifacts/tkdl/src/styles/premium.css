@@ -338,3 +338,10 @@
 .pm-record-main{font:800 .98rem/1.15 Oswald,sans-serif;color:#fff;margin-top:2px}
 .pm-record-main b{color:#ffe58a}
 .pm-record-sub{font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px}
+
+/* Clubhouse entry on the profile */
+.ch-door{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;border:1px solid rgba(255,45,122,.45);background:radial-gradient(120% 120% at 0% 0%,rgba(255,45,122,.22),transparent 55%),linear-gradient(160deg,#2a0f1d,#0c0a12);box-shadow:0 0 26px rgba(255,45,122,.16)}
+.ch-door-ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:#ffd24a;background:rgba(0,0,0,.35);border:1px solid rgba(255,210,74,.35)}
+.ch-door-txt{flex:1;display:flex;flex-direction:column}
+.ch-door-txt small{font-size:10px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#ff8fb8}
+.ch-door-txt b{font-family:Oswald,sans-serif;font-size:18px;letter-spacing:.04em;text-transform:uppercase;color:#fff}
