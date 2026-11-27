@@ -2,18 +2,20 @@ import { Glow, DartboardBackdrop, Chapter } from "@/components/premium/Premium";
 import { MonthlyLeagueReports } from "@/components/monthly-league-reports";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
-import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Banknote, Crown, History, Percent } from "lucide-react";
+import { Award, Trophy, Zap, Target, Flame, Star, Dumbbell, Medal, ArrowLeft, Skull, TrendingDown, Banknote, Crown, History, Percent, Globe2, CircleSlash, CircleDot } from "lucide-react";
 import { TierBadge } from "@/components/tier-badge";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, type CosmeticDefinition } from "@/lib/cosmetics";
 import { useFetch } from "@/hooks/use-fetch";
 
-type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerGamesPlayed: number; careerWinRate: number; careerPeakElo: number; careerPoints: number; leagueTitles: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number; eliminationsCount: number; timesEliminated: number; biggestSingleLoss: number };
+type PlayerRecord = { id: number; name: string; careerWins: number; careerLosses: number; careerGamesPlayed: number; careerWinRate: number; careerPeakElo: number; careerPoints: number; leagueTitles: number; longestWinStreak: number; longestLossStreak: number; careerBiggestPointsFall: number; sessions: number; total180s: number; tourTrophies: number; achievements: number; eliminationsCount: number; timesEliminated: number; biggestSingleLoss: number; cricketWins?: number; atwWins?: number; nineMarkVisits?: number; trebleSkips?: number; cricketBlanks?: number; bullTrouble?: number; atwStalls?: number };
 type Champion = { id: number; name: string; championId: number; championName: string; endDate: string | null };
 type HofData = {
   mostTitles: PlayerRecord[]; mostWins: PlayerRecord[]; highestElo: PlayerRecord[]; mostPoints: PlayerRecord[]; longestStreak: PlayerRecord[];
   mostSessions: PlayerRecord[]; most180s: PlayerRecord[]; mostTourTrophies: PlayerRecord[]; mostAchievements: PlayerRecord[];
   lowestWinRate: PlayerRecord[]; longestLossStreak: PlayerRecord[]; biggestPointsFall: PlayerRecord[];
   mostEliminations: PlayerRecord[]; mostTimesEliminated: PlayerRecord[]; biggestSingleLoss: PlayerRecord[]; champions: Champion[];
+  mostCricketWins?: PlayerRecord[]; mostAtwWins?: PlayerRecord[]; mostNineMarks?: PlayerRecord[]; mostTrebleSkips?: PlayerRecord[];
+  mostCricketBlanks?: PlayerRecord[]; worstBullTrouble?: PlayerRecord[]; mostAtwStalls?: PlayerRecord[];
 };
 
 const MEDAL_COLORS = ["#ffd24a", "#c0c8d8", "#cd7f32"];
@@ -133,7 +135,7 @@ export function HallPage({ shame = false }: { shame?: boolean }) {
   // see usePlayerNameStyles' comment above), deduped and order-stable so the
   // fetch effect doesn't re-fire every render.
   const goodWinnerIds = data
-    ? [data.mostTitles, data.mostWins, data.highestElo, data.mostPoints, data.longestStreak, data.mostEliminations, data.mostSessions, data.most180s, data.mostTourTrophies, data.mostAchievements]
+    ? [data.mostTitles, data.mostWins, data.highestElo, data.mostPoints, data.longestStreak, data.mostEliminations, data.mostSessions, data.most180s, data.mostTourTrophies, data.mostAchievements, data.mostCricketWins, data.mostAtwWins, data.mostNineMarks, data.mostTrebleSkips]
         .map(top => top?.[0]?.id).filter((id): id is number => !!id)
     : [];
   const nameStylesById = usePlayerNameStyles(goodWinnerIds);
@@ -224,6 +226,16 @@ export function HallPage({ shame = false }: { shame?: boolean }) {
           </div>
           </div>
 
+          {[data.mostCricketWins, data.mostAtwWins, data.mostNineMarks, data.mostTrebleSkips].some(t => t?.length) && <div data-testid="hall-games">
+          <SectionTitle icon={<Globe2 className="w-4 h-4"/>} eyebrow="AWAY FROM 501" title="Cricket & Around the World" description="Wins count from every result. Marks and skips come from games played on the TKDL scorer." accent="#22c55e" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {!!data.mostCricketWins?.length && <RecordCard icon={<Target className="w-4 h-4" />} label="Cricket King" accent="#22c55e" top={data.mostCricketWins} valueKey="cricketWins" subtitle="MOST CRICKET WINS" nameStyle={nameStyleFor(data.mostCricketWins[0]?.id)} />}
+            {!!data.mostNineMarks?.length && <RecordCard icon={<Zap className="w-4 h-4" />} label="Nine-Mark Club" accent="#22c55e" top={data.mostNineMarks} valueKey="nineMarkVisits" subtitle="MOST 9-MARK VISITS" description="Three trebles on cricket numbers in one visit." nameStyle={nameStyleFor(data.mostNineMarks[0]?.id)} />}
+            {!!data.mostAtwWins?.length && <RecordCard icon={<Globe2 className="w-4 h-4" />} label="Globetrotter" accent="#19c3c8" top={data.mostAtwWins} valueKey="atwWins" subtitle="MOST AROUND THE WORLD WINS" nameStyle={nameStyleFor(data.mostAtwWins[0]?.id)} />}
+            {!!data.mostTrebleSkips?.length && <RecordCard icon={<Flame className="w-4 h-4" />} label="Express Route" accent="#19c3c8" top={data.mostTrebleSkips} valueKey="trebleSkips" subtitle="MOST TREBLE SKIPS" description="Trebles that jumped three numbers in Around the World." nameStyle={nameStyleFor(data.mostTrebleSkips[0]?.id)} />}
+          </div>
+          </div>}
+
           </>}
 
           {shame && <div data-testid="wall-shame">
@@ -232,6 +244,9 @@ export function HallPage({ shame = false }: { shame?: boolean }) {
             {data.mostTimesEliminated?.length > 0 && <RecordCard icon={<Skull className="w-4 h-4" />} label="Last One Standing... Elsewhere" accent="#ff005c" top={data.mostTimesEliminated} valueKey="timesEliminated" medals={["💀","🪦","😵"]} rankColors={SHAME_COLORS} subtitle="MOST TIMES ELIMINATED" description="Counts confirmed occasions this player was reduced to zero points. Tracking begins with this update." />}
             <RecordCard icon={<TrendingDown className="w-4 h-4" />} label="The Choke Award"    accent="#ff005c" top={data.longestLossStreak}  valueKey="longestLossStreak" medals={["🫠","😬","😅"]} rankColors={SHAME_COLORS} subtitle="LONGEST LOSING STREAK" />
             <RecordCard icon={<Skull className="w-4 h-4" />}       label="The Collapse"       accent="#ff005c" top={data.biggestPointsFall}  valueKey="careerBiggestPointsFall" suffix=" pts" medals={["💀","😬","😅"]} rankColors={SHAME_COLORS} subtitle="BIGGEST FALL FROM PEAK (ALL-TIME)" />
+            {!!data.worstBullTrouble?.length && <RecordCard icon={<CircleDot className="w-4 h-4" />} label="Bull Trouble" accent="#ff005c" top={data.worstBullTrouble} valueKey="bullTrouble" suffix=" darts" medals={["🐂","😬","😅"]} rankColors={SHAME_COLORS} subtitle="MOST DARTS STUCK ON THE BULLS" description="Most darts thrown at the 25 and bullseye in one Around the World game." />}
+            {!!data.mostAtwStalls?.length && <RecordCard icon={<Globe2 className="w-4 h-4" />} label="Going Nowhere" accent="#ff005c" top={data.mostAtwStalls} valueKey="atwStalls" medals={["🧭","😬","😅"]} rankColors={SHAME_COLORS} subtitle="AROUND THE WORLD VISITS WITHOUT MOVING" />}
+            {!!data.mostCricketBlanks?.length && <RecordCard icon={<CircleSlash className="w-4 h-4" />} label="Bowled Out" accent="#ff005c" top={data.mostCricketBlanks} valueKey="cricketBlanks" medals={["🦆","😬","😅"]} rankColors={SHAME_COLORS} subtitle="CRICKET VISITS WITH NO MARKS" />}
             <RecordCard icon={<Banknote className="w-4 h-4" />}    label="Highway Robbery"    accent="#ff005c" top={data.biggestSingleLoss}  valueKey="biggestSingleLoss" suffix=" pts" medals={["💸","😬","😅"]} rankColors={SHAME_COLORS} subtitle="BIGGEST SINGLE-MATCH LOSS" />
           </div>
           </div>}

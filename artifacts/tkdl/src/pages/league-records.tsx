@@ -5,7 +5,7 @@ import { Glow, DartboardBackdrop } from "@/components/premium/Premium";
 import "./league-records.css";
 
 type Entry = { playerId: number | null; name: string; value: number; date: string | null; matchKey: string | null; detail: string | null };
-type Rec = { key: string; group: "oche" | "results" | "teams"; label: string; unit: string; better: "low" | "high"; scorer?: boolean; note?: string; entries: Entry[] };
+type Rec = { key: string; group: "oche" | "results" | "teams" | "games"; label: string; unit: string; better: "low" | "high"; scorer?: boolean; note?: string; entries: Entry[] };
 type Broken = { id: number; title: string; unit: string; matchId: number; playerId: number; playerName: string; value: number; previous: number; previousHolder: string | null; at: string };
 type Watch = { playerId: number; name: string; label: string; current: number; record: number; holder: string };
 type Board = { records: Rec[]; watch: Watch[]; broken: Broken[] };
@@ -13,6 +13,7 @@ type Board = { records: Rec[]; watch: Watch[]; broken: Broken[] };
 const GROUPS = [
   { key: "oche", title: "On the oche", sub: "From matches played on the TKDL scorer.", icon: Crosshair, colour: "#19c3c8" },
   { key: "results", title: "Results", sub: "From every league result.", icon: Trophy, colour: "#ffd24a" },
+  { key: "games", title: "Cricket & Around the World", sub: "Wins from every result; darts and visits from games on the scorer.", icon: Target, colour: "#22c55e" },
   { key: "teams", title: "Teams", sub: "Doubles, Shift Wars and team matches.", icon: Users, colour: "#a855f7" },
 ] as const;
 

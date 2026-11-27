@@ -1827,6 +1827,12 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
           fetch(`/api/matches/${createdMatch.id}/darts`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
             body: JSON.stringify({ winnerDarts: wIdx === 0 ? p1Log : p2Log, loserDarts: wIdx === 0 ? p2Log : p1Log }) }).catch(() => {});
         }
+        // Cricket / Around the World: per-player game stats for League Records. Best effort too.
+        const gs = (stats?.sessionData as any)?.gameStats;
+        if (Array.isArray(gs) && gs.length === 2) {
+          fetch(`/api/matches/${createdMatch.id}/game-stats`, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+            body: JSON.stringify({ winner: gs[wIdx], loser: gs[wIdx === 0 ? 1 : 0] }) }).catch(() => {});
+        }
         setViewerRankChange(createdMatch.winnerRankChange ?? 0);
         setViewerNewRank(createdMatch.newWinnerRank ?? null);
       } else if (data.combinedMatch && (data.format === "doubles-event" || data.format === "shift-wars")) {

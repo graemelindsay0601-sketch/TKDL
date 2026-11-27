@@ -342,6 +342,33 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
       .where(and(eq(seasonsTable.isActive, false), eq(seasonsTable.leagueType, "singles"))),
   ]);
 
+  // Cricket & Around the World: wins from every result, the rest from games
+  // scored live (match_game_stats; missing on a database that has none yet).
+  const gameQ = await db.execute(drizzleSql`
+    WITH g AS (
+      SELECT m.winner_id AS player_id, s.game, s.winner AS d FROM match_game_stats s JOIN matches m ON m.id = s.match_id
+      UNION ALL
+      SELECT m.loser_id, s.game, s.loser FROM match_game_stats s JOIN matches m ON m.id = s.match_id
+    )
+    SELECT player_id,
+      COALESCE(SUM((d->>'nineMarkVisits')::int) FILTER (WHERE game = 'cricket'), 0)::int AS nine_marks,
+      COALESCE(SUM((d->>'blankVisits')::int)    FILTER (WHERE game = 'cricket'), 0)::int AS cricket_blanks,
+      COALESCE(SUM((d->>'trebleSkips')::int)    FILTER (WHERE game = 'atw'), 0)::int AS treble_skips,
+      COALESCE(MAX((d->>'bullDarts')::int)      FILTER (WHERE game = 'atw'), 0)::int AS bull_trouble,
+      COALESCE(SUM((d->>'blankVisits')::int)    FILTER (WHERE game = 'atw'), 0)::int AS atw_stalls
+    FROM g GROUP BY player_id
+  `).catch(() => ({ rows: [] as any[] }));
+  const winsQ = await db.execute(drizzleSql`
+    SELECT winner_id AS player_id,
+      COUNT(*) FILTER (WHERE game_type IN ('cricket','cutthroat_cricket','cricket_no_bull','tactics'))::int AS cricket_wins,
+      COUNT(*) FILTER (WHERE game_type IN ('around_the_world','atw'))::int AS atw_wins
+    FROM matches GROUP BY winner_id
+  `).catch(() => ({ rows: [] as any[] }));
+  const gameMap = new Map<number, any>();
+  for (const r of gameQ.rows as any[]) gameMap.set(Number(r.player_id), r);
+  const gameWinsMap = new Map<number, any>();
+  for (const r of winsQ.rows as any[]) gameWinsMap.set(Number(r.player_id), r);
+
   const practiceMap = new Map<number, { sessions: number; total_darts: number; total_180s: number }>();
   for (const r of practiceQ.rows as any[]) practiceMap.set(r.player_id, { sessions: Number(r.sessions), total_darts: Number(r.total_darts), total_180s: Number(r.total_180s) });
 
@@ -383,6 +410,13 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     eliminationsCount: p.eliminationsCount ?? 0,
     timesEliminated:   p.timesEliminated ?? 0,
     biggestSingleLoss: biggestLossMap.get(p.id) ?? 0,
+    cricketWins:       Number(gameWinsMap.get(p.id)?.cricket_wins ?? 0),
+    atwWins:           Number(gameWinsMap.get(p.id)?.atw_wins ?? 0),
+    nineMarkVisits:    Number(gameMap.get(p.id)?.nine_marks ?? 0),
+    trebleSkips:       Number(gameMap.get(p.id)?.treble_skips ?? 0),
+    cricketBlanks:     Number(gameMap.get(p.id)?.cricket_blanks ?? 0),
+    bullTrouble:       Number(gameMap.get(p.id)?.bull_trouble ?? 0),
+    atwStalls:         Number(gameMap.get(p.id)?.atw_stalls ?? 0),
   }));
 
   // Return the top three places rather than exactly three people. Anyone tied
@@ -414,6 +448,14 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     mostTimesEliminated: rankedBy("timesEliminated").filter(p => p.timesEliminated > 0),
     biggestSingleLoss: rankedBy("biggestSingleLoss"),
     lowestWinRate:     rankedBy("careerWinRate", "low", qualifiedWinRates),
+    // Cricket & Around the World (only players with a non-zero value, so an empty card hides)
+    mostCricketWins:   rankedBy("cricketWins").filter(p => p.cricketWins > 0),
+    mostAtwWins:       rankedBy("atwWins").filter(p => p.atwWins > 0),
+    mostNineMarks:     rankedBy("nineMarkVisits").filter(p => p.nineMarkVisits > 0),
+    mostTrebleSkips:   rankedBy("trebleSkips").filter(p => p.trebleSkips > 0),
+    mostCricketBlanks: rankedBy("cricketBlanks").filter(p => p.cricketBlanks > 0),
+    worstBullTrouble:  rankedBy("bullTrouble").filter(p => p.bullTrouble > 0),
+    mostAtwStalls:     rankedBy("atwStalls").filter(p => p.atwStalls > 0),
     champions: completedSeasons
       .filter(season => season.championId && season.championName)
       .sort((a, b) => String(b.endDate ?? b.startDate).localeCompare(String(a.endDate ?? a.startDate)) || b.id - a.id)

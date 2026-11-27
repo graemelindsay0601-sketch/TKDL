@@ -830,7 +830,7 @@ async function seedGameTypes() {
     { key: "cricket",              name: "Cricket",                  engine: "Cricket",     category: "competitive", description: "Close 15–20 and bull. Score when opponent hasn't closed.",                config: JSON.stringify({ cutThroat: false, includesBull: true }),                                                 enabled: true, sortOrder: 9  },
     { key: "cutthroat_cricket",    name: "Cut-Throat Cricket",       engine: "Cricket",     category: "competitive", description: "Scoring points hurts opponents instead of helping you.",                  config: JSON.stringify({ cutThroat: true,  includesBull: true }),                                                 enabled: true, sortOrder: 10 },
     // ── Practice — skill games ──────────────────────────────────────────────
-    { key: "around_the_world",     name: "Around the World",         engine: "Sequence",    category: "practice",    description: "Hit 1–20 in order, then bull to win.",                                    config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: true  }),                               enabled: true, sortOrder: 11 },
+    { key: "around_the_world",     name: "Around the World",         engine: "Sequence",    category: "practice",    description: "1–20 in order (doubles and trebles skip ahead), then 25, then bullseye.", config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: true  }),                               enabled: true, sortOrder: 11 },
     { key: "around_world_trebles", name: "Round the World (Trebles)",engine: "Sequence",    category: "practice",    description: "As above, but must hit the treble of each number.",                       config: JSON.stringify({ type: "sequential", maxNumber: 20, treblesOnly: true  }),                               enabled: true, sortOrder: 12 },
     { key: "round_the_clock",      name: "Round the Clock",          engine: "Sequence",    category: "practice",    description: "Hit 1–20 in order. No bull required.",                                    config: JSON.stringify({ type: "sequential", maxNumber: 20, includeBull: false }),                               enabled: true, sortOrder: 13 },
     { key: "shanghai",             name: "Shanghai",                 engine: "Sequence",    category: "practice",    description: "Rounds 1–7. Hit single, double, and treble of the round number to win.", config: JSON.stringify({ type: "shanghai", rounds: 7 }),                                                          enabled: true, sortOrder: 14 },
@@ -970,6 +970,13 @@ async function seedGameTypes() {
   await db.execute(sql`
     UPDATE game_types SET config = '{"callDouble":true,"startScore":301}'
     WHERE key = 'pick_a_double' AND config NOT LIKE '%startScore%'
+  `);
+
+  // Around the World now finishes 25 then bullseye, with doubles/trebles
+  // skipping ahead — refresh the old one-line description to match.
+  await db.execute(sql`
+    UPDATE game_types SET description = '1–20 in order (doubles and trebles skip ahead), then 25, then bullseye.'
+    WHERE key = 'around_the_world' AND description = 'Hit 1–20 in order, then bull to win.'
   `);
 
   // Add rules_text column if not present (safe to run every boot)

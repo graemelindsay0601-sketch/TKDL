@@ -6,9 +6,10 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { winRuns } from "./league-records";
 import { recentRecords } from "./league-records-db";
+import { CRICKET_KEYS, ATW_KEYS } from "./match-game-stats";
 
 export type Entry = { playerId: number | null; name: string; value: number; date: string | null; matchKey: string | null; detail: string | null };
-export type BoardRecord = { key: string; group: "oche" | "results" | "teams"; label: string; unit: string; better: "low" | "high"; scorer?: boolean; note?: string; entries: Entry[] };
+export type BoardRecord = { key: string; group: "oche" | "results" | "teams" | "games"; label: string; unit: string; better: "low" | "high"; scorer?: boolean; note?: string; entries: Entry[] };
 
 const SINGLES = sql`m.game_type NOT LIKE 'team_%' AND m.game_type <> 'multi_killer'`;
 
@@ -142,6 +143,34 @@ export async function buildRecordsBoard() {
   {
     const rows = await q(sql`SELECT t.player_id, MAX(p.name) name, SUM(t.one_eighties)::int value, MAX(t.played_at) date FROM team_thrower_stats t JOIN players p ON p.id = t.player_id GROUP BY t.player_id HAVING SUM(t.one_eighties) > 0`);
     add({ key: "team_180s", group: "teams", label: "Most 180s in team matches", unit: "180s", better: "high", scorer: true }, top3(rows, "high").map(r => entry(r)));
+  }
+
+  // ── Cricket & Around the World ──
+  // Wins come from every result; darts/marks/visits only from games scored live (match_game_stats).
+  const inKeys = (keys: readonly string[]) => sql.join(keys.map(k => sql`${k}`), sql`, `);
+  for (const [game, keys, name] of [["cricket", CRICKET_KEYS, "Cricket"], ["atw", ATW_KEYS, "Around the World"]] as const) {
+    const fast = await q(sql`SELECT m.id match_id, m.winner_id player_id, m.winner_name name, (g.winner->>'darts')::int value, m.played_at date, m.loser_name opp
+      FROM match_game_stats g JOIN matches m ON m.id = g.match_id WHERE g.game = ${game} AND (g.winner->>'darts')::int > 0`);
+    add({ key: `${game}_fewest_darts`, group: "games", label: game === "atw" ? "Fastest Around the World" : "Fewest darts to win at Cricket", unit: "darts", better: "low", scorer: true,
+      ...(game === "atw" ? { note: "9 darts is perfect: seven trebles, the 25, then the bullseye." } : {}) },
+      top3(fast, "low").map(r => entry(r, `v ${r.opp}`)));
+    const best = await q(sql`SELECT m.id match_id, m.winner_id player_id, m.winner_name name, (g.winner->>'bestVisit')::int value, m.played_at date, m.loser_name opp FROM match_game_stats g JOIN matches m ON m.id = g.match_id WHERE g.game = ${game}
+      UNION ALL SELECT m.id, m.loser_id, m.loser_name, (g.loser->>'bestVisit')::int, m.played_at, m.winner_name FROM match_game_stats g JOIN matches m ON m.id = g.match_id WHERE g.game = ${game}`);
+    add({ key: `${game}_best_visit`, group: "games", label: game === "atw" ? "Around the World: most numbers in one visit" : "Cricket: most marks in one visit",
+      unit: game === "atw" ? "numbers" : "marks", better: "high", scorer: true, ...(game === "cricket" ? { note: "9 is the maximum: three trebles." } : {}) },
+      top3(best.filter(r => Number(r.value) > 0), "high").map(r => entry(r, `v ${r.opp}`)));
+    const wins = await q(sql`SELECT m.winner_id player_id, MAX(m.winner_name) name, m.season_id, MAX(s.name) season, COUNT(*)::int value, MAX(m.played_at) date
+      FROM matches m LEFT JOIN seasons s ON s.id = m.season_id WHERE m.game_type IN (${inKeys(keys)}) GROUP BY m.winner_id, m.season_id`);
+    add({ key: `${game}_wins_season`, group: "games", label: `${name}: most wins in a season`, unit: "wins", better: "high" },
+      top3(wins, "high").map(r => entry({ ...r, match_id: null }, r.season ?? null)));
+  }
+  {
+    const nines = await q(sql`SELECT x.player_id, MAX(x.name) name, SUM(x.n)::int value, MAX(x.date) date FROM (
+        SELECT m.winner_id player_id, m.winner_name name, (g.winner->>'nineMarkVisits')::int n, m.played_at date FROM match_game_stats g JOIN matches m ON m.id = g.match_id WHERE g.game = 'cricket'
+        UNION ALL SELECT m.loser_id, m.loser_name, (g.loser->>'nineMarkVisits')::int, m.played_at FROM match_game_stats g JOIN matches m ON m.id = g.match_id WHERE g.game = 'cricket') x
+      GROUP BY x.player_id HAVING SUM(x.n) > 0`);
+    add({ key: "cricket_nine_marks", group: "games", label: "Cricket: most 9-mark visits (all time)", unit: "visits", better: "high", scorer: true },
+      top3(nines, "high").map(r => entry({ ...r, match_id: null })));
   }
 
   // ── Record watch: live runs close to the record ──
