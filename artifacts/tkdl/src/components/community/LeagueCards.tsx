@@ -3,7 +3,10 @@
 // still come from the PostCard they sit in.
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { Swords, Trophy, Flame, Zap, Crown, Target, Skull, TrendingUp, Award, CalendarDays, ChevronRight, Check, X } from "lucide-react";
+import { Swords, Trophy, Flame, Zap, Crown, Target, Skull, TrendingUp, Award, CalendarDays, ChevronRight, Check, X, Crosshair, Coins, Star } from "lucide-react";
+import { useFetch } from "@/hooks/use-fetch";
+import { useQueryClient } from "@tanstack/react-query";
+import { useBounties } from "./WantedChip";
 import { useToast } from "@/hooks/use-toast";
 import "./league-cards.css";
 
@@ -34,6 +37,10 @@ const KIND: Record<string, { icon: typeof Trophy; colour: string; tag: string }>
   target_hit:     { icon: Target,     colour: "#19c3c8", tag: "League Target" },
   gaffer:         { icon: Crown,      colour: "#ffd24a", tag: "The Gaffer" },
   callout_result: { icon: Swords,     colour: "#ff005c", tag: "Call-out" },
+  callout_streak: { icon: Swords,     colour: "#ff5c93", tag: "Call-out run" },
+  motm:           { icon: Star,       colour: "#ffd24a", tag: "Moment of the Month" },
+  bounty_on:      { icon: Crosshair,  colour: "#ff3b3b", tag: "Bounty" },
+  bounty_claimed: { icon: Coins,      colour: "#ffd24a", tag: "Bounty" },
 };
 
 const ago = (iso: string) => {
@@ -53,7 +60,7 @@ export function MomentBody({ meta, at }: { meta: MomentMeta; at: string }) {
           <p className="lc-line">{meta.line}</p>
         </div>
         {meta.stat != null && meta.stat !== "" && (
-          <div className="lc-stat"><b>{meta.stat}</b>{meta.statLabel ? <small>{meta.statLabel}</small> : null}</div>
+          <div className="lc-stat"><b className={typeof meta.stat === "string" && isNaN(Number(meta.stat)) ? "word" : ""}>{meta.stat}</b>{meta.statLabel ? <small>{meta.statLabel}</small> : null}</div>
         )}
       </div>
       {meta.link && <Link href={meta.link} className="lc-link">{meta.matchId ? "See the match" : "See more"} <ChevronRight size={13} /></Link>}
@@ -96,8 +103,9 @@ export function RoundupBody({ meta, at }: { meta: RoundupMeta; at: string }) {
   );
 }
 
-export function CalloutBody({ postId, meta: initial, picks: initialPicks, myPick: initialMine, me, at }: {
+export function CalloutBody({ postId, meta: initial, picks: initialPicks, myPick: initialMine, me, at, streaks }: {
   postId: number; meta: CalloutMeta; picks: Record<string, number> | null; myPick: number | null; me: number | null; at: string;
+  streaks?: { challenger: number; target: number } | null;
 }) {
   const { toast } = useToast();
   const [meta, setMeta] = useState(initial);
@@ -121,7 +129,8 @@ export function CalloutBody({ postId, meta: initial, picks: initialPicks, myPick
     }
   };
   const total = Object.values(picks).reduce((a, b) => a + b, 0);
-  const sides = [{ id: meta.challengerId, name: meta.challengerName, role: "Called out" }, { id: meta.targetId, name: meta.targetName, role: "Called" }];
+  const sides = [{ id: meta.challengerId, name: meta.challengerName, role: "Called out", run: streaks?.challenger ?? 0 },
+    { id: meta.targetId, name: meta.targetName, role: "Called", run: streaks?.target ?? 0 }];
   const live = meta.status === "open" || meta.status === "accepted";
   const involved = me === meta.challengerId || me === meta.targetId;
   const statusText: Record<CalloutMeta["status"], string> = {
@@ -138,7 +147,7 @@ export function CalloutBody({ postId, meta: initial, picks: initialPicks, myPick
           const share = total ? Math.round(((picks[s.id] ?? 0) / total) * 100) : 0;
           return (
             <div key={s.id} className={`lc-side${won ? " won" : ""}${lost ? " lost" : ""}${mine === s.id ? " mine" : ""}`}>
-              <small>{s.role}</small>
+              <small>{s.role}{s.run >= 2 && <span className="lc-streak" title={`${s.run} call-outs won in a row`}><Flame size={11} />{s.run}</span>}</small>
               <Link href={`/players/${s.id}`} className="lc-name">{s.name}</Link>
               {won && <span className="lc-won"><Trophy size={11} /> Won</span>}
               {total > 0 && <div className="lc-share"><i style={{ width: `${share}%` }} /><span>{share}% backing</span></div>}
@@ -211,6 +220,73 @@ export function TipsterTable({ rows }: { rows: { playerId: number; name: string;
       {rows.slice(0, 5).map((r, i) => (
         <Link key={r.playerId} href={`/players/${r.playerId}`} className="lc-tip-row"><span className="lc-rk">{i + 1}</span><span className="lc-nm">{r.name}</span><b>{r.right}/{r.total}</b></Link>
       ))}
+    </div>
+  );
+}
+
+/** Moment of the Month: the vote while it's open, then the winner for a few days. */
+export function MotmCard({ me }: { me: number | null }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data } = useFetch<null | {
+    month: string; label: string; closesAt: string; open: boolean; winnerPostId: number | null; myVote: number | null;
+    options: { postId: number; players: number[]; kind: string; title: string; line: string; stat: string | number | null; statLabel: string | null; votes: number }[];
+  }>("/api/community/motm");
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const total = data.options.reduce((a: number, o: any) => a + o.votes, 0);
+  const daysLeft = Math.max(0, Math.ceil((new Date(data.closesAt).getTime() - Date.now()) / 86400000));
+  const vote = async (postId: number) => {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/community/motm/vote", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postId }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) toast({ title: j.error ?? "Couldn't vote", variant: "destructive" });
+      else await qc.invalidateQueries({ queryKey: ["raw-fetch", "/api/community/motm"] });
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="lc-motm">
+      <div className="lc-top"><span className="lc-tag"><Star size={12} /> Moment of the Month</span><span className="lc-ago">{data.open ? (daysLeft ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : "Closes today") : "Result"}</span></div>
+      <div className="lc-title">{data.label}</div>
+      <p className="lc-motm-sub">{data.open ? "Pick the league's favourite moment. One vote each, and not your own." : "The league has spoken."}</p>
+      {data.options.map((o: any) => {
+        const k = KIND[o.kind] ?? KIND.record;
+        const share = total ? Math.round((o.votes / total) * 100) : 0;
+        const mine = data.myVote === o.postId, win = data.winnerPostId === o.postId;
+        const canVote = data.open && me && !o.players.includes(me);
+        return (
+          <button key={o.postId} disabled={!canVote || busy} onClick={() => vote(o.postId)} className={`lc-opt${mine ? " mine" : ""}${win ? " win" : ""}`} style={{ ["--k" as any]: k.colour }}>
+            {(total > 0 || !data.open) && <i style={{ width: `${share}%` }} />}
+            <span style={{ minWidth: 0 }}>
+              <span className="ot">{win && <Trophy size={12} style={{ display: "inline", marginRight: 4 }} />}{o.title}</span>
+              <span className="ol" style={{ display: "block" }}>{o.line}</span>
+            </span>
+            <span className="ov">{o.votes}<small>{mine ? "your vote" : o.votes === 1 ? "vote" : "votes"}</small></span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The Wanted board: everyone with a live bounty on them. */
+export function WantedBoard() {
+  const list = useBounties();
+  if (!list.length) return null;
+  return (
+    <div className="lc-board">
+      <div className="lc-top"><span className="lc-tag"><Crosshair size={12} /> Wanted</span><small style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>Beat them in a league match to claim it</small></div>
+      <div className="lc-board-row">
+        {list.map(b => (
+          <Link key={b.id} href={`/players/${b.playerId}`} className="lc-poster">
+            <span className="w">WANTED</span>
+            <span className="n">{b.name}</span>
+            <span className="r">{b.reasonText}</span>
+            <span className={`lc-wanted l${b.level} lv`}><Coins className="w-2.5 h-2.5" />{b.levelName}</span>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

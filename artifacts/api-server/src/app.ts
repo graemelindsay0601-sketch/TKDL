@@ -145,6 +145,7 @@ import { initializeFeaturedCardScheduler } from "./services/featured-card-shop-s
 import { CARD_CLASH_BENCHED } from "./lib/card-clash-bench";
 import { initializeCommunityTopPostScheduler } from "./services/communityTopPostScheduler";
 import { initializeRoundupScheduler } from "./lib/community-roundup";
+import { initializeOcheExtrasScheduler } from "./lib/oche-extras-db";
 import webpush from "web-push";
 import { seedTitles, sweepAllPlayerTitles } from "./lib/titles";
 import bcrypt from "bcryptjs";
@@ -1875,6 +1876,7 @@ async function initRuntime() {
   if (!CARD_CLASH_BENCHED) await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
   await runInitStep("initializeCommunityTopPostScheduler", initializeCommunityTopPostScheduler);
   await runInitStep("initializeRoundupScheduler", initializeRoundupScheduler);
+  await runInitStep("initializeOcheExtrasScheduler", initializeOcheExtrasScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
   await runInitStep("initializeLeagueTargetScheduler", async () => {
     const { initializeLeagueTargetScheduler } = await import("./lib/league-target-db");

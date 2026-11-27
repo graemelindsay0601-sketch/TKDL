@@ -600,8 +600,11 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
       winner180s: winner180s ?? 0, loser180s: loser180s ?? 0, wasUpset: !!match.wasUpsetWin,
       winnerPointsBefore, loserPointsBefore, winnerStreakAfter, loserStreakBefore: loserWinStreakBefore, loserEliminated,
     }, broken);
+    const extras = await import("../lib/oche-extras-db");
+    await extras.claimBounty({ id: match.id, winnerId, loserId, winnerName: winner.name, loserName: loser.name });
     const { settleCallouts } = await import("../lib/community-callouts-db");
     await settleCallouts({ id: match.id, winnerId, loserId, winnerName: winner.name, loserName: loser.name, playedAt: new Date(match.playedAt) });
+    await extras.syncBounties();
   })().catch(err => console.error("League moments error:", err));
 
   // Send push notifications (fire and forget)

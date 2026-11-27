@@ -173,6 +173,18 @@ export async function buildRecordsBoard() {
       top3(nines, "high").map(r => entry({ ...r, match_id: null })));
   }
 
+  // ── Off the Oche: call-outs and bounties ──
+  {
+    const { allCalloutStreaks } = await import("./oche-extras-db");
+    const streaks = await allCalloutStreaks().catch(() => new Map<number, { current: number; best: number }>());
+    const names = new Map((await q(sql`SELECT id, name FROM players`)).map(r => [Number(r.id), String(r.name)]));
+    add({ key: "callout_streak", group: "results", label: "Longest call-out winning run", unit: "wins", better: "high", note: "Call-outs on Off the Oche, settled by a league match." },
+      top3([...streaks.entries()].filter(([, v]) => v.best > 0).map(([id, v]) => ({ player_id: id, name: names.get(id) ?? "?", value: v.best, date: null })), "high").map(r => entry(r)));
+    const claims = await q(sql`SELECT b.claimed_by player_id, p.name, COUNT(*)::int value, MAX(b.claimed_at) date FROM community_bounties b JOIN players p ON p.id = b.claimed_by
+      WHERE b.claimed_by IS NOT NULL GROUP BY b.claimed_by, p.name`);
+    add({ key: "bounties_claimed", group: "results", label: "Most bounties claimed", unit: "bounties", better: "high" }, top3(claims, "high").map(r => entry(r)));
+  }
+
   // ── Record watch: live runs close to the record ──
   const watch: { playerId: number; name: string; label: string; current: number; record: number; holder: string }[] = [];
   const best = records.find(r => r.key === "win_streak")?.entries[0];
