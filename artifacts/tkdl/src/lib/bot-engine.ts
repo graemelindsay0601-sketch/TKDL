@@ -365,6 +365,7 @@ function gauss(mean: number, sd: number): number {
 }
 
 function makeDart(seg: number, mult: 1 | 2 | 3, ring?: "inner" | "outer"): Dart {
+  if (seg === 25 && mult === 3) mult = 2; // there's no treble bull: the best a bull dart can be is the double (inner) bull
   const val = seg === 25 ? (mult === 2 ? 50 : 25) : seg * mult;
   const lbl =
     seg === 25 ? (mult === 2 ? "DB" : "Bull") :
