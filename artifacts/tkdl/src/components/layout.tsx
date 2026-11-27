@@ -4,7 +4,7 @@ import { ResumeNudge } from "@/components/ResumeNudge";
 import { SeasonalTheme } from "@/components/SeasonalTheme";
 import { WelcomeTour } from "@/components/WelcomeTour";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, ChevronDown, ChevronRight } from "lucide-react";
+import { Trophy, Users, History, Medal, Shield, Plus, Target, LayoutDashboard, BookOpen, Menu, X, Swords, Dumbbell, CircuitBoard, Star, Award, UserCircle, LogIn, MessageSquare, Bell, Skull, Flame, Tv, Sparkles, ChevronLeft, CalendarDays, Download, RefreshCw, Radio, Images, Briefcase, ChevronDown, ChevronRight, ScrollText } from "lucide-react";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { useGetStatsSummary, useGetLeaderboard } from "@workspace/api-client-react";
 import { useAuth } from "@/context/auth";
@@ -59,22 +59,23 @@ const tkdlLiveNav = [
 const leagueNav = [
   { href: "/leaderboard",  label: "Standings",    icon: Trophy          },
   { href: "/players",      label: "Players",      icon: Users           },
-  // Full head-to-head comparison view (see pages/head-to-head.tsx, routed at
-  // /h2h in App.tsx — not /head-to-head, which this link pointed at until
-  // now and which 404'd since no such route is registered). Same situation
-  // /broadcast was in below: a fully working route reachable only via a
-  // buried link on a player's match-history row, with no way to find it
-  // from the nav.
-  { href: "/h2h",           label: "Head to Head", icon: Swords          },
   { href: "/match-centre",  label: "Match Centre", icon: CalendarDays    },
-  { href: "/posters",       label: "Poster Library", icon: Images        },
   { href: "/seasons",      label: "Seasons",      icon: History         },
-  { href: "/hall-of-fame", label: "Hall of Fame", icon: Award           },
   { href: "/rules",        label: "Rules",        icon: BookOpen        },
   // Full-screen spectator/TV view (see pages/broadcast.tsx) — was a fully
   // working route with no link anywhere in the app, so nobody could find it
   // outside of typing the URL directly.
   { href: "/broadcast",    label: "Broadcast",    icon: Tv              },
+];
+
+// Records & honours: the league's history in one place (split out of League).
+const recordsNav = [
+  { href: "/records",       label: "League Records", icon: ScrollText     },
+  { href: "/hall-of-fame",  label: "Hall of Fame",   icon: Award          },
+  { href: "/hall-of-shame", label: "Hall of Shame",  icon: Skull          },
+  // Full head-to-head comparison view (pages/head-to-head.tsx, routed at /h2h).
+  { href: "/h2h",           label: "Head to Head",   icon: Swords         },
+  { href: "/posters",       label: "Poster Library", icon: Images         },
 ];
 
 const achievementsNav = [
@@ -374,6 +375,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const NAV_SECTIONS: Array<{ key: string; label: string; items: NavItem[]; color: string; show: boolean }> = [
     { key: "hub",          label: "Hub",          items: hubNav,               color: "#0066ff", show: true },
     { key: "league",       label: "League",       items: leagueNav,            color: "#38bdf8", show: true },
+    { key: "records",      label: "Records",      items: recordsNav,           color: "#ffd24a", show: true },
     { key: "community",    label: "Off the Oche", items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
     { key: "play",         label: "Play",         items: dynamicPlayNav,       color: "#ff005c", show: dynamicPlayNav.length > 0 },
     { key: "practice",     label: "Practice",     items: practiceNav,          color: "#00e5a0", show: true },

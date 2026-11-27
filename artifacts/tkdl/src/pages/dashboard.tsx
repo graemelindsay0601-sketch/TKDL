@@ -708,6 +708,7 @@ function ExploreAndReference({ settings }: { settings: any }) {
   ];
 
   const reference = [
+    { label: "League Records", icon: <Trophy className="w-3 h-3" />, href: "/records" },
     { label: "Hall of Fame", icon: <Award className="w-3 h-3" />, href: "/hall-of-fame" },
     { label: "Seasons",      icon: <History className="w-3 h-3" />, href: "/seasons" },
     { label: "Rules",        icon: <BookOpen className="w-3 h-3" />, href: "/rules" },

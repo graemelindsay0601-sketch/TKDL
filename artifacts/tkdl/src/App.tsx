@@ -38,6 +38,8 @@ const TourRun = lazyWithRetry(() => import("@/pages/tour-run"), "tour-run");
 const CareerApp = lazyWithRetry(() => import("@/features/career"), "career");
 const Master501 = lazyWithRetry(() => import("@/pages/master501"), "master501");
 const HallOfFame = lazyWithRetry(() => import("@/pages/hall-of-fame"), "hall-of-fame");
+const HallOfShame = lazyWithRetry(() => import("@/pages/hall-of-shame"), "hall-of-shame");
+const LeagueRecords = lazyWithRetry(() => import("@/pages/league-records"), "league-records");
 const Broadcast = lazyWithRetry(() => import("@/pages/broadcast"), "broadcast");
 const TkdlLive = lazyWithRetry(() => import("@/pages/tkdl-live"), "tkdl-live");
 const Kiosk = lazyWithRetry(() => import("@/pages/kiosk"), "kiosk");
@@ -194,6 +196,12 @@ function AppRoutes() {
             </Route>
             <Route path="/hall-of-fame">
               <RoutePage><HallOfFame /></RoutePage>
+            </Route>
+            <Route path="/hall-of-shame">
+              <RoutePage><HallOfShame /></RoutePage>
+            </Route>
+            <Route path="/records">
+              <RoutePage><LeagueRecords /></RoutePage>
             </Route>
             <Route path="/community">
               <RoutePage><Community /></RoutePage>
