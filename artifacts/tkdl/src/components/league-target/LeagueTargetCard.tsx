@@ -11,7 +11,7 @@ export type LeagueTarget = {
 };
 
 const MONTH = (k: string, short = false) => new Date(`${k}-01T12:00:00Z`).toLocaleString("en-GB", { month: short ? "short" : "long", timeZone: "UTC" });
-const KIND: Record<string, string> = { LEADERBOARD_TAG: "Tag", BANNER: "Banner", FRAME: "Frame", CLUBHOUSE_ROOM: "Clubhouse room", NAME_STYLE: "Name style" };
+const KIND: Record<string, string> = { LEADERBOARD_TAG: "Tag", BANNER: "Banner", FRAME: "Frame", CLUBHOUSE_ROOM: "Room", NAME_STYLE: "Name style" };
 
 /** Hub card: this month's League Target, your part in it, and the exclusive unlocks it leads to. */
 export function LeagueTargetCard() {
