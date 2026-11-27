@@ -4469,8 +4469,12 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
           else setShanghaiRound(r => r+1);
         } else if (shanghaiTurn === 1) {
           if (shanghaiRound >= maxRounds) {
+            // shanghaiScores is this render's copy, from before this dart, so add the final dart's points here
+            // (otherwise a last-dart score that changes the lead is lost and the wrong player wins).
+            const fin: [number, number] = [...shanghaiScores] as [number, number];
+            fin[shanghaiTurn] += scored;
             safeTimeout(() => {
-              const [s0,s1] = shanghaiScores;
+              const [s0,s1] = fin;
               onWin(s0 >= s1 ? 0 : 1, `${s0} vs ${s1} after ${maxRounds} rounds`);
             }, 300);
           } else {

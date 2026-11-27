@@ -156,13 +156,14 @@ function Picker({ options, pickBy, onDone }: { options: Option[]; pickBy: string
               {sel.games.map(x => <button key={x.param} className={game === x.param ? "on" : ""} onClick={() => { setGame(x.param); setLevel(null); }}>{x.label}</button>)}
             </div>
           )}
-          <div className="gf-levels">
-            {targets?.map((t, i) => (
+          <div className="gf-levels" style={{ gridTemplateColumns: `repeat(${new Set(targets ?? []).size || 3}, 1fr)` }}>
+            {targets?.map((t, i) => i > 0 && t === targets[i - 1] ? null : (
               <button key={i} className={`gf-lv l${i + 1}${level === i + 1 ? " on" : ""}`} onClick={() => setLevel(i + 1)}>
                 <span>{LEVELS[i]}</span><b>{t}{sel.key === "finishing" ? "%" : ""}</b><em>{sel.key === "finishing" ? "checkout" : sel.unit}</em>
               </button>
             ))}
           </div>
+          {targets && new Set(targets).size < 3 && <p className="gf-psub" style={{ margin: "6px 0 0" }}>The league's already near the top of this one, so there {new Set(targets).size === 1 ? "is one level" : "are two levels"}.</p>}
           <button className="gf-go" disabled={!level || busy} onClick={confirm}>{busy ? "Locking in…" : "Lock it in"}</button>
           {err && <p className="gf-err">{err}</p>}
         </div>
