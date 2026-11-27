@@ -287,6 +287,7 @@ router.get("/admin/operations/deployment-health", requireAdminSession, async (_r
         UNION ALL SELECT id,equipped_recap_style_id FROM players WHERE equipped_recap_style_id IS NOT NULL
         UNION ALL SELECT id,equipped_rank_up_effect_id FROM players WHERE equipped_rank_up_effect_id IS NOT NULL
         UNION ALL SELECT id,equipped_account_accent_id FROM players WHERE equipped_account_accent_id IS NOT NULL
+        UNION ALL SELECT id,equipped_clubhouse_room_id FROM players WHERE equipped_clubhouse_room_id IS NOT NULL
       )
       SELECT
         (SELECT COUNT(*)::int FROM player_currency WHERE card_points<0) negative_balances,

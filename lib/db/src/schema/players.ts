@@ -114,6 +114,8 @@ export const playersTable = pgTable("players", {
   // TROPHY_CASE_STYLE cosmetic category — a background/border/glow skin on
   // this player's own pinned Trophy Case strip (account page + player-detail).
   equippedTrophyCaseStyleId: text("equipped_trophy_case_style_id"),
+  // CLUBHOUSE_ROOM cosmetic category — the look of the player's Clubhouse room.
+  equippedClubhouseRoomId: text("equipped_clubhouse_room_id"),
   // RECAP_STYLE cosmetic category — a background skin for this player's own
   // Season Recap Card.
   equippedRecapStyleId: text("equipped_recap_style_id"),

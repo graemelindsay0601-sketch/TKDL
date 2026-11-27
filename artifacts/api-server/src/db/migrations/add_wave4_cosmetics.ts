@@ -10,6 +10,8 @@ import { logger } from "../../lib/logger";
 export async function addWave4CosmeticColumns(): Promise<void> {
   try {
     await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS equipped_trophy_case_style_id TEXT`);
+    // CLUBHOUSE_ROOM (the Clubhouse's room look)
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS equipped_clubhouse_room_id TEXT`);
   } catch (err) {
     logger.error({ err }, "Failed to add wave-4 cosmetic columns");
   }

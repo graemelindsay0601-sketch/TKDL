@@ -296,6 +296,16 @@ const PLAYER_CARD_FINISHES: SeedCosmetic[] = [
   { id: "finish-prismatic", category: "PLAYER_CARD_FINISH", name: "Prismatic", rarity: "LEGENDARY", price: 800, iconKey: "prismatic", color: "#ffd24a", sortOrder: 3 },
 ];
 
+// CLUBHOUSE_ROOM: the look of a player's Clubhouse (wallpaper, wood, lighting, neon). The room key rides in
+// iconKey (see components/clubhouse/themes.ts); no item equipped = the default pub back room.
+const CLUBHOUSE_ROOMS: SeedCosmetic[] = [
+  { id: "room-midnight", category: "CLUBHOUSE_ROOM", name: "Midnight Lounge",   rarity: "COMMON",    price: 150, iconKey: "midnight", color: "#2f7bff", sortOrder: 0 },
+  { id: "room-baize",    category: "CLUBHOUSE_ROOM", name: "Snooker Hall",      rarity: "COMMON",    price: 150, iconKey: "baize",    color: "#25c26e", sortOrder: 1 },
+  { id: "room-gold",     category: "CLUBHOUSE_ROOM", name: "Gold Lounge",       rarity: "RARE",      price: 320, iconKey: "gold",     color: "#ffd24a", sortOrder: 2 },
+  { id: "room-arcade",   category: "CLUBHOUSE_ROOM", name: "Neon Arcade",       rarity: "EPIC",      price: 500, iconKey: "arcade",   color: "#c084fc", sortOrder: 3 },
+  { id: "room-stage",    category: "CLUBHOUSE_ROOM", name: "Championship Stage", rarity: "LEGENDARY", price: 800, iconKey: "stage",    color: "#19c3c8", sortOrder: 4 },
+];
+
 // TROPHY_CASE_STYLE payload rides in `color` only — a flat background/
 // border/glow skin for the pinned Trophy Case strip. Priced like GLOW/
 // POST_ACCENT (a flat colour swap), see lib/cosmetics.ts's
@@ -366,7 +376,7 @@ const CHAMPION_EXCLUSIVES: SeedCosmetic[] = [
 // adds or updates rows, on every boot, so tweaking a price/colour just
 // means editing the arrays above and redeploying.
 export async function seedCosmeticDefinitions(): Promise<void> {
-  for (const c of [...NAME_STYLES, ...PROFILE_ICONS, ...BANNERS, ...FRAMES, ...GLOWS, ...RESULT_THEMES, ...BUBBLE_COLORS, ...AVATAR_BADGES, ...LEADERBOARD_TAGS, ...TAGLINE_STYLES, ...POST_ACCENTS, ...STICKERS, ...CHECKOUT_EFFECTS, ...SCORER_THEMES, ...PLAYER_CARD_FINISHES, ...TROPHY_CASE_STYLES, ...RECAP_STYLES, ...RANK_UP_EFFECTS, ...ACCOUNT_ACCENTS, ...CHAMPION_EXCLUSIVES]) {
+  for (const c of [...NAME_STYLES, ...PROFILE_ICONS, ...BANNERS, ...FRAMES, ...GLOWS, ...RESULT_THEMES, ...BUBBLE_COLORS, ...AVATAR_BADGES, ...LEADERBOARD_TAGS, ...TAGLINE_STYLES, ...POST_ACCENTS, ...STICKERS, ...CHECKOUT_EFFECTS, ...SCORER_THEMES, ...PLAYER_CARD_FINISHES, ...TROPHY_CASE_STYLES, ...RECAP_STYLES, ...RANK_UP_EFFECTS, ...ACCOUNT_ACCENTS, ...CLUBHOUSE_ROOMS, ...CHAMPION_EXCLUSIVES]) {
     try {
       await db
         .insert(cosmeticDefinitionsTable)
