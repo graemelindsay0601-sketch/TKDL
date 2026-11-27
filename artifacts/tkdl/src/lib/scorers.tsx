@@ -4657,18 +4657,9 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
     : curTarget.seg === 25 ? "Outer bull (25) next · no skipping the bulls"
     : (() => {
         const bullAt = sequence.findIndex(t => t.seg === 25);
-        const at = positions[turn];
-        const jump = (m: number) => sequence[Math.min(at + m, bullAt === -1 ? sequence.length - 1 : bullAt)]?.label;
-        return `Aim at ${curTarget.seg}`;
+        const n = curTarget.seg, land = (m: number) => sequence[Math.min(positions[turn] + m, bullAt === -1 ? sequence.length - 1 : bullAt)]?.label;
+        return [`${n} → ${land(1)}`, `D${n} → ${land(2)}`, `T${n} → ${land(3)}`].join("\u2003|\u2003");
       })();
-  // "4 → 5 · D4 → 6 · T4 → 7": where each ring of the current number takes you.
-  const atwMoves = !curTarget || curTarget.seg === 25 ? null : (() => {
-    const bullAt = sequence.findIndex(t => t.seg === 25);
-    const at = positions[turn];
-    const land = (m: number) => sequence[Math.min(at + m, bullAt === -1 ? sequence.length - 1 : bullAt)]?.label ?? "";
-    const n = curTarget.seg;
-    return [{ k: `${n}`, to: land(1), c: "#e9e6f5" }, { k: `D${n}`, to: land(2), c: "#7fb2ff" }, { k: `T${n}`, to: land(3), c: "#ffb27a" }];
-  })();
 
   if (modernSeq) {
     const lab = curTarget?.label ?? "";
@@ -4691,21 +4682,10 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
               <div style={{ minWidth: 0, fontFamily: "Oswald, sans-serif" }}>
                 <div style={{ fontSize: 11, letterSpacing: ".14em", color: "rgba(255,255,255,.45)", textTransform: "uppercase" }}>{names[turn]} needs</div>
                 <div style={{ fontSize: curTarget?.seg === 25 ? 34 : 54, fontWeight: 700, lineHeight: 1, color: "#ffd24a", textShadow: "0 0 18px rgba(255,210,74,.35)" }}>{curTarget?.label ?? "Done"}</div>
-                {atwMoves ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 9 }}>
-                    {atwMoves.map(m => (
-                      <div key={m.k} style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 14, lineHeight: 1 }}>
-                        <span style={{ minWidth: 38, padding: "4px 7px", borderRadius: 8, textAlign: "center", fontWeight: 700, color: m.c, background: "rgba(255,255,255,.06)", border: `1px solid ${m.c}55` }}>{m.k}</span>
-                        <span style={{ color: "rgba(255,255,255,.35)" }}>→</span>
-                        <span style={{ fontWeight: 700, color: "#fff" }}>{m.to}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,.55)", marginTop: 8 }}>
-                    {curTarget?.mult === 2 ? "Only the bullseye counts" : "Only the outer bull counts · bullseye next"}
-                  </div>
-                )}
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,.55)", marginTop: 8 }}>
+                  {curTarget?.seg === 25 ? (curTarget.mult === 2 ? "Only the bullseye counts" : "Only the outer bull counts · bullseye next")
+                    : sequence.slice(positions[turn] + 1, positions[turn] + 5).map(t => t.label).join(" · ") || "Last one"}
+                </div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,.35)", marginTop: 4 }}>{positions[turn]} of {sequence.length} done</div>
               </div>
             </div>
