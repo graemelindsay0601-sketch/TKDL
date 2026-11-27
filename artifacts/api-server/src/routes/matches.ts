@@ -247,6 +247,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
   let winnerPointsBefore: number, loserPointsBefore: number;
   let winnerEloBefore: number, loserEloBefore: number;
   let winnerStreakAfter: number;
+  let loserWinStreakBefore = 0;
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -350,6 +351,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
         winnerEloBefore: w.elo,
         loserEloBefore: l.elo,
         winnerStreakAfter: winnerStreak,
+        loserWinStreakBefore: l.currentWinStreak,
       };
     });
 
@@ -365,6 +367,7 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     winnerEloBefore     = result.winnerEloBefore;
     loserEloBefore      = result.loserEloBefore;
     winnerStreakAfter   = result.winnerStreakAfter;
+    loserWinStreakBefore = result.loserWinStreakBefore;
     // Achievements v2: Back from the brink can only be seen at the moment it happens (points before aren't stored)
     if (result.winnerPointsBefore === 1) void recordLiveFeat(db as never, winnerId, "backFromBrink", new Date()).catch(() => {});
   } catch (err) {
@@ -587,8 +590,19 @@ router.post("/matches", matchSubmitRateLimit, async (req, res): Promise<void> =>
     }
   })();
 
-  // League records this result may have broken (Hub banner + TKDL LIVE ticker). Fire and forget.
-  void import("../lib/league-records-db").then(m => m.detectRecords(match.id)).catch(err => console.error("League record check error:", err));
+  // League records this result may have broken (Hub banner + TKDL LIVE ticker), then
+  // the Off the Oche "league moments" for this result (records included). Fire and forget.
+  void (async () => {
+    const broken = await import("../lib/league-records-db").then(m => m.detectRecords(match.id)).catch(err => { console.error("League record check error:", err); return []; });
+    const { postMatchHighlights } = await import("../lib/community-highlights-db");
+    await postMatchHighlights({
+      matchId: match.id, gameType: match.gameType, winnerId, winnerName: winner.name, loserId, loserName: loser.name,
+      winner180s: winner180s ?? 0, loser180s: loser180s ?? 0, wasUpset: !!match.wasUpsetWin,
+      winnerPointsBefore, loserPointsBefore, winnerStreakAfter, loserStreakBefore: loserWinStreakBefore, loserEliminated,
+    }, broken);
+    const { settleCallouts } = await import("../lib/community-callouts-db");
+    await settleCallouts({ id: match.id, winnerId, loserId, winnerName: winner.name, loserName: loser.name, playedAt: new Date(match.playedAt) });
+  })().catch(err => console.error("League moments error:", err));
 
   // Send push notifications (fire and forget)
   void (async () => {

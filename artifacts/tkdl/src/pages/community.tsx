@@ -3,13 +3,14 @@ import { useState, useEffect, useRef, useCallback, useMemo, type ReactElement } 
 import { useAuth } from "@/context/auth";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Image as ImageIcon, Send, X, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown, Pin, Search, Eye, Bookmark, SmilePlus } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, Send, X, Clock, CheckCircle, AlertCircle, Pencil, Flame, Trophy, Users, ArrowUpDown, Pin, Search, Eye, Bookmark, SmilePlus, Swords } from "lucide-react";
 import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle, taglineStyleCSS } from "@/lib/cosmetics";
 // Canonical tier→color map (see tier-badge.tsx) — this file's own local
 // copy had quietly drifted on Silver (#9ca3af vs the real #c0c8d8) until a
 // visual-consistency sweep caught it; importing instead of redefining
 // keeps it from drifting again.
 import { TIER_COLORS } from "@/components/tier-badge";
+import { MomentBody, RoundupBody, CalloutBody, CalloutComposer, TipsterTable } from "@/components/community/LeagueCards";
 
 const EMOJIS = ["👍", "❤️", "😂", "🎯", "🏆"] as const;
 // Darts-themed "sticker" reactions — a second, visually distinct row next
@@ -146,6 +147,9 @@ type Post = {
   myRsvped?: boolean;
   poll_options?: PollOption[] | null;
   poll_my_vote?: number | null;
+  auto_meta?: any;
+  callout_picks?: Record<string, number> | null;
+  callout_my_pick?: number | null;
   player_name_style_id: string | null;
   player_post_accent_id: string | null;
   player_win_streak: number;
@@ -375,6 +379,12 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   };
 
   const isPending = post.status === "pending";
+  const special = post.post_type === "highlight" || post.post_type === "roundup" || post.post_type === "callout";
+  const [replyOpen, setReplyOpen] = useState(false);
+  const MOMENT_TINT: Record<string, string> = { max: "255,0,92", big_finish: "34,197,94", upset: "168,85,247", record: "255,210,74", streak: "255,138,31",
+    elimination: "239,68,68", target_hit: "25,195,200", gaffer: "255,210,74", callout_result: "255,0,92" };
+  const specialTint = post.post_type === "callout" ? "rgba(255,0,92,.18)" : post.post_type === "roundup" ? "rgba(25,195,200,.16)"
+    : post.post_type === "highlight" ? `rgba(${MOMENT_TINT[post.auto_meta?.kind] ?? "255,210,74"},.2)` : null;
   // POST_ACCENT cosmetic — a personal border/background tint on the
   // author's own post. Pending posts keep their own "awaiting approval"
   // colour treatment above, which takes precedence — a purchased accent
@@ -393,7 +403,7 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
         border: "1px solid transparent",
         background: isPending
           ? "linear-gradient(160deg, rgba(255,200,0,.12), rgba(18,16,26,.96) 60%) padding-box, linear-gradient(140deg, rgba(255,200,0,.6), rgba(255,200,0,.15)) border-box"
-          : `radial-gradient(120% 80% at 0% 0%, ${post.pinned ? "rgba(255,210,74,.14)" : "rgba(168,85,247,.12)"}, transparent 55%) padding-box, linear-gradient(180deg, #17141f, #0c0a12) padding-box, linear-gradient(140deg, ${post.pinned ? "rgba(255,210,74,.8)" : "rgba(255,255,255,.22)"} 0%, rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 65%, ${post.pinned ? "rgba(255,210,74,.45)" : "rgba(168,85,247,.35)"} 100%) border-box`,
+          : `radial-gradient(120% 80% at 0% 0%, ${post.pinned ? "rgba(255,210,74,.14)" : specialTint ?? "rgba(168,85,247,.12)"}, transparent 55%) padding-box, linear-gradient(180deg, #17141f, #0c0a12) padding-box, linear-gradient(140deg, ${post.pinned ? "rgba(255,210,74,.8)" : "rgba(255,255,255,.22)"} 0%, rgba(255,255,255,.06) 35%, rgba(255,255,255,.03) 65%, ${post.pinned ? "rgba(255,210,74,.45)" : "rgba(168,85,247,.35)"} 100%) border-box`,
         boxShadow: `0 14px 34px rgba(0,0,0,.45)${post.pinned ? ", 0 0 26px rgba(255,210,74,.14)" : ""}`,
         ...postAccent,
       }}>
@@ -430,8 +440,21 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
       )}
 
       <div className="p-4">
+        {/* Cards the app posts itself: league moments, the Monday round-up, call-outs. */}
+        {special && (
+          <div className="mb-1 relative">
+            {post.post_type === "highlight" && <MomentBody meta={post.auto_meta} at={post.created_at} />}
+            {post.post_type === "roundup" && <RoundupBody meta={post.auto_meta} at={post.created_at} />}
+            {post.post_type === "callout" && <CalloutBody postId={post.id} meta={post.auto_meta} picks={post.callout_picks ?? null} myPick={post.callout_my_pick ?? null} me={user?.playerId ?? null} at={post.created_at} />}
+            {isAdmin && (
+              <button onClick={() => onDelete?.(post.id)} className="absolute -top-1 -right-1 p-1 rounded-lg opacity-30 hover:opacity-80" style={{ color: "#ff005c" }} title="Remove">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
         {/* Header */}
-        <div className="flex items-start gap-3 mb-3">
+        {!special && <div className="flex items-start gap-3 mb-3">
           <PlayerAvatar name={post.player_name} tier={post.player_tier} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -468,10 +491,10 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
               </button>
             )}
           </div>
-        </div>
+        </div>}
 
         {/* Content / inline edit */}
-        {editing ? (
+        {special ? null : editing ? (
           <div className="mb-3">
             <textarea
               value={editText}
@@ -644,13 +667,13 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
               </button>
             )}
 
-            <span className="ml-auto flex items-center gap-1.5 text-xs"
-              style={{ color: "rgba(255,255,255,0.25)" }}>
+            <button type="button" onClick={() => setReplyOpen(o => !o)} className="ml-auto flex items-center gap-1.5 text-xs"
+              style={{ color: replyOpen && special ? "#ffd24a" : "rgba(255,255,255,0.25)" }} aria-label="Comments">
               <MessageSquare className="w-3.5 h-3.5" />
               <span style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.04em" }}>
                 {post.comment_count}
               </span>
-            </span>
+            </button>
 
             {user && (
               <button onClick={() => onBookmark?.(post.id)}
@@ -682,8 +705,10 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
           </div>
         )}
 
-        {/* Comments — inline preview, not gated behind a click to expand */}
-        {!isPending && (post.comment_count > 0 || user) && (
+        {/* Comments — inline preview, not gated behind a click to expand.
+            The app's own cards keep the comment box tucked away until someone
+            comments or taps the comment icon, so a run of moments stays compact. */}
+        {!isPending && (post.comment_count > 0 || (user && (!special || replyOpen))) && (
           <div className="mt-3 space-y-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "0.75rem" }}>
             {comments === null ? (
               post.comment_count > 0 && <div className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>Loading…</div>
@@ -834,7 +859,10 @@ export default function CommunityPage() {
   // fetch the first time they're opened (see the effect below), so the tab
   // reflects everything that actually matches, not just what happened to be
   // paged in already.
-  const [tab,  setTab]  = useState<"all" | "photos" | "mine" | "saved">("all");
+  const [tab,  setTab]  = useState<"all" | "moments" | "callouts" | "photos" | "mine" | "saved">("all");
+  const [showCallout, setShowCallout] = useState(false);
+  const [leaguePlayers, setLeaguePlayers] = useState<{ id: number; name: string }[]>([]);
+  const [tipsters, setTipsters] = useState<{ playerId: number; name: string; right: number; total: number }[]>([]);
   const [sort, setSort] = useState<"new" | "top">("new");
   const [expandedPhotoId, setExpandedPhotoId] = useState<number | null>(null);
   const [groupExpandedId, setGroupExpandedId] = useState<number | null>(null);
@@ -891,6 +919,12 @@ export default function CommunityPage() {
     } finally { setLoading(false); setLoadMore(false); }
   }, [offset]);
 
+  useEffect(() => {
+    fetch("/api/players").then(r => r.ok ? r.json() : []).then((list: any[]) =>
+      setLeaguePlayers(list.filter(p => p.status !== "INACTIVE" && p.status !== "ELIMINATED").map(p => ({ id: Number(p.id), name: String(p.name) })).sort((a, b) => a.name.localeCompare(b.name)))).catch(() => {});
+    fetch("/api/community/predictions/leaderboard").then(r => r.ok ? r.json() : []).then(setTipsters).catch(() => {});
+  }, []);
+
   const loadPending = useCallback(async () => {
     if (!user?.isAdmin) return;
     const r = await fetch("/api/community/posts/pending", { credentials: "include" });
@@ -929,13 +963,15 @@ export default function CommunityPage() {
     if (tab === "all") return;
     const cacheKey = tab === "mine" ? `mine:${user?.playerId ?? "anon"}`
                     : tab === "saved" ? `saved:${user?.playerId ?? "anon"}`
-                    : "photos";
+                    : tab;
     if ((tab === "mine" || tab === "saved") && !user?.playerId) return;
     if (fetchedTabsRef.current.has(cacheKey)) return;
     fetchedTabsRef.current.add(cacheKey);
 
     const params = tab === "mine" ? `player_id=${user!.playerId}`
                   : tab === "saved" ? `bookmarked_only=true`
+                  : tab === "moments" ? `kind=moments`
+                  : tab === "callouts" ? `kind=callouts`
                   : `photo_only=true`;
     setTabFetchLoading(true);
     fetch(`/api/community/posts?limit=100&${params}`)
@@ -970,7 +1006,7 @@ export default function CommunityPage() {
   // system, just a sort of fields the page already fetches.
   const highlights = useMemo(() => {
     return [...posts]
-      .filter(p => engagementScore(p) > 0)
+      .filter(p => (p.post_type === "manual" || p.post_type === "poll") && engagementScore(p) > 0)
       .sort((a, b) => engagementScore(b) - engagementScore(a))
       .slice(0, 3);
   }, [posts]);
@@ -980,14 +1016,17 @@ export default function CommunityPage() {
   // presence/online-status feature.
   const activeMembers = useMemo(() => {
     const seen = new Map<number, Post>();
-    for (const p of posts) if (!seen.has(p.player_id)) seen.set(p.player_id, p);
+    for (const p of posts) if ((p.post_type === "manual" || p.post_type === "poll") && !seen.has(p.player_id)) seen.set(p.player_id, p);
     return [...seen.values()].slice(0, 12);
   }, [posts]);
 
   const visiblePosts = useMemo(() => {
     let list = posts;
+    const isMoment = (p: Post) => p.post_type === "highlight" || p.post_type === "roundup";
     if (tab === "photos")      list = list.filter(p => p.photo_content_type);
-    else if (tab === "mine")   list = list.filter(p => p.player_id === user?.playerId);
+    else if (tab === "moments")  list = list.filter(isMoment);
+    else if (tab === "callouts") list = list.filter(p => p.post_type === "callout");
+    else if (tab === "mine")   list = list.filter(p => !isMoment(p) && p.player_id === user?.playerId);
     else if (tab === "saved")  list = list.filter(p => p.myBookmarked);
     if (sort === "top") list = [...list].sort((a, b) => engagementScore(b) - engagementScore(a));
     // Pinned posts float to the top regardless of sort — a stable partition
@@ -1520,6 +1559,17 @@ export default function CommunityPage() {
         </Link>
       )}
 
+      {/* Call-outs: challenge another player to a league match. */}
+      {user?.playerId && (showCallout
+        ? <CalloutComposer players={leaguePlayers} me={user.playerId} onClose={() => setShowCallout(false)}
+            onDone={() => { setShowCallout(false); fetchedTabsRef.current.delete("callouts"); loadPosts(true); }} />
+        : <button onClick={() => setShowCallout(true)} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl text-xs"
+            style={{ fontFamily: "Oswald, sans-serif", letterSpacing: "0.14em", textTransform: "uppercase", color: "#ff5c93", background: "rgba(255,0,92,0.07)", border: "1px solid rgba(255,0,92,0.35)" }}>
+            <Swords className="w-4 h-4" /> Call someone out
+          </button>)}
+
+      <TipsterTable rows={tipsters} />
+
       {/* Create poll — admin-only organizer tool (see POST /community/polls'
           header comment for why). Collapsed behind a small text trigger
           rather than living in the main composer, since a poll isn't the
@@ -1616,10 +1666,12 @@ export default function CommunityPage() {
 
       {/* Tabs + sort — filters/reorders the feed already loaded above */}
       {!loading && posts.length > 0 && !searchQuery.trim() && (
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex gap-1.5 flex-wrap">
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5" style={{ scrollbarWidth: "none" }}>
             {([
               ["all", "All", null],
+              ["moments", "Moments", "⚡"],
+              ["callouts", "Call-outs", "⚔️"],
               ["photos", "Photos", "📸"],
               ["mine", "Mine", "👤"],
               ["saved", "Saved", "🔖"],
@@ -1637,7 +1689,7 @@ export default function CommunityPage() {
               </button>
             ))}
           </div>
-          <div className="flex gap-0.5 p-0.5 rounded-lg shrink-0" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="flex gap-0.5 p-0.5 rounded-lg shrink-0 self-start" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}>
             {(["new", "top"] as const).map(key => (
               <button key={key} onClick={() => setSort(key)}
                 className="px-2 py-1 rounded-md text-xs font-bold flex items-center gap-1"
@@ -1695,9 +1747,9 @@ export default function CommunityPage() {
         </div>
       ) : visiblePosts.length === 0 ? (
         <div className="text-center py-16">
-          <div className="text-4xl mb-3">{tab === "photos" ? "📸" : tab === "mine" ? "👤" : tab === "saved" ? "🔖" : "🎯"}</div>
+          <div className="text-4xl mb-3">{tab === "photos" ? "📸" : tab === "mine" ? "👤" : tab === "saved" ? "🔖" : tab === "moments" ? "⚡" : tab === "callouts" ? "⚔️" : "🎯"}</div>
           <p className="text-sm font-bold" style={{ fontFamily: "Oswald, sans-serif", color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em" }}>
-            {tab === "photos" ? "NO PHOTOS YET" : tab === "mine" ? "YOU HAVEN'T POSTED" : tab === "saved" ? "NOTHING SAVED YET" : "NOTHING HERE YET"}
+            {tab === "photos" ? "NO PHOTOS YET" : tab === "mine" ? "YOU HAVEN'T POSTED" : tab === "saved" ? "NOTHING SAVED YET" : tab === "moments" ? "NO BIG MOMENTS YET" : tab === "callouts" ? "NO CALL-OUTS YET" : "NOTHING HERE YET"}
           </p>
         </div>
       ) : tab === "photos" ? (
