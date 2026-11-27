@@ -10,7 +10,7 @@ import { useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, postAccentStyle,
 // visual-consistency sweep caught it; importing instead of redefining
 // keeps it from drifting again.
 import { TIER_COLORS } from "@/components/tier-badge";
-import { MomentBody, RoundupBody, CalloutBody, CalloutComposer, TipsterTable } from "@/components/community/LeagueCards";
+import { MomentBody, RoundupBody, CalloutBody, CalloutComposer, TipsterTable, MotmCard, WantedBoard } from "@/components/community/LeagueCards";
 
 const EMOJIS = ["👍", "❤️", "😂", "🎯", "🏆"] as const;
 // Darts-themed "sticker" reactions — a second, visually distinct row next
@@ -150,6 +150,7 @@ type Post = {
   auto_meta?: any;
   callout_picks?: Record<string, number> | null;
   callout_my_pick?: number | null;
+  callout_streaks?: { challenger: number; target: number } | null;
   player_name_style_id: string | null;
   player_post_accent_id: string | null;
   player_win_streak: number;
@@ -382,7 +383,8 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
   const special = post.post_type === "highlight" || post.post_type === "roundup" || post.post_type === "callout";
   const [replyOpen, setReplyOpen] = useState(false);
   const MOMENT_TINT: Record<string, string> = { max: "255,0,92", big_finish: "34,197,94", upset: "168,85,247", record: "255,210,74", streak: "255,138,31",
-    elimination: "239,68,68", target_hit: "25,195,200", gaffer: "255,210,74", callout_result: "255,0,92" };
+    elimination: "239,68,68", target_hit: "25,195,200", gaffer: "255,210,74", callout_result: "255,0,92",
+    callout_streak: "255,92,147", motm: "255,210,74", bounty_on: "255,59,59", bounty_claimed: "255,210,74" };
   const specialTint = post.post_type === "callout" ? "rgba(255,0,92,.18)" : post.post_type === "roundup" ? "rgba(25,195,200,.16)"
     : post.post_type === "highlight" ? `rgba(${MOMENT_TINT[post.auto_meta?.kind] ?? "255,210,74"},.2)` : null;
   // POST_ACCENT cosmetic — a personal border/background tint on the
@@ -445,7 +447,7 @@ function PostCard({ post, onReact, onComment, isAdmin, onApprove, onReject, onDe
           <div className="mb-1 relative">
             {post.post_type === "highlight" && <MomentBody meta={post.auto_meta} at={post.created_at} />}
             {post.post_type === "roundup" && <RoundupBody meta={post.auto_meta} at={post.created_at} />}
-            {post.post_type === "callout" && <CalloutBody postId={post.id} meta={post.auto_meta} picks={post.callout_picks ?? null} myPick={post.callout_my_pick ?? null} me={user?.playerId ?? null} at={post.created_at} />}
+            {post.post_type === "callout" && <CalloutBody postId={post.id} meta={post.auto_meta} picks={post.callout_picks ?? null} myPick={post.callout_my_pick ?? null} me={user?.playerId ?? null} at={post.created_at} streaks={post.callout_streaks ?? null} />}
             {isAdmin && (
               <button onClick={() => onDelete?.(post.id)} className="absolute -top-1 -right-1 p-1 rounded-lg opacity-30 hover:opacity-80" style={{ color: "#ff005c" }} title="Remove">
                 <X className="w-4 h-4" />
@@ -1568,6 +1570,8 @@ export default function CommunityPage() {
             <Swords className="w-4 h-4" /> Call someone out
           </button>)}
 
+      <MotmCard me={user?.playerId ?? null} />
+      <WantedBoard />
       <TipsterTable rows={tipsters} />
 
       {/* Create poll — admin-only organizer tool (see POST /community/polls'

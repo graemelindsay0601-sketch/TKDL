@@ -8,6 +8,7 @@ import { getSettingBool } from "../lib/settingsService";
 
 import { ensureCalloutTables, sweepExpired, openBetween, createCallout, getCallout, respond as respondCallout, predict as predictCallout, predictionLeaders } from "../lib/community-callouts-db";
 import { validateNewCallout, canPredict, CALLOUT_LINES, CALLOUT_GAMES } from "../lib/community-callouts";
+import { currentMotm, voteMotm, liveBounties, allCalloutStreaks } from "../lib/oche-extras-db";
 const router = Router();
 
 // ── Post photo ────────────────────────────────────────────────────────────
@@ -245,7 +246,10 @@ router.get("/community/posts", async (req, res): Promise<void> => {
       myBookmarks = new Set((bm.rows as any[]).map(r => r.post_id as number));
     }
 
-    res.json(posts.map(p => ({ ...p, myReactions: myReactions[p.id] ?? [], myBookmarked: myBookmarks.has(p.id) })));
+    // Call-out cards show each player's current call-out winning run.
+    const streaks = posts.some(p => p.post_type === "callout") ? await allCalloutStreaks().catch(() => new Map()) : new Map();
+    res.json(posts.map(p => ({ ...p, myReactions: myReactions[p.id] ?? [], myBookmarked: myBookmarks.has(p.id),
+      ...(p.post_type === "callout" ? { callout_streaks: { challenger: streaks.get(Number(p.auto_meta?.challengerId))?.current ?? 0, target: streaks.get(Number(p.auto_meta?.targetId))?.current ?? 0 } } : {}) })));
   } catch (err: any) {
     res.status(500).json({
       error: "community/posts failed",
@@ -303,6 +307,20 @@ router.post("/community/callouts/:id/predict", authedWriteRateLimit, async (req,
 
 router.get("/community/predictions/leaderboard", async (_req, res): Promise<void> => {
   res.json(await predictionLeaders());
+});
+
+// ── Moment of the Month and bounties ─────────────────────────────────────────
+router.get("/community/motm", async (req, res): Promise<void> => {
+  res.json(await currentMotm(sessionPlayerId(req)).catch(() => null));
+});
+router.post("/community/motm/vote", authedWriteRateLimit, async (req, res): Promise<void> => {
+  const me = requireAuth(req, res); if (!me) return;
+  const err = await voteMotm(me, Number(req.body?.postId));
+  if (err) { res.status(400).json({ error: err }); return; }
+  res.json({ ok: true });
+});
+router.get("/community/bounties", async (_req, res): Promise<void> => {
+  res.json(await liveBounties().catch(() => []));
 });
 
 // ── GET /community/wall-of-fame ──────────────────────────────────────────────

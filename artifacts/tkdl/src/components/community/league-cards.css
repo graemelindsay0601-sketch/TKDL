@@ -12,6 +12,7 @@
   background: color-mix(in srgb, var(--lc) 14%, transparent); border: 1px solid color-mix(in srgb, var(--lc) 45%, transparent);
   box-shadow: 0 0 22px color-mix(in srgb, var(--lc) 22%, transparent); }
 .lc-stat b { display: block; font: 700 30px/1 Oswald, sans-serif; color: #fff; }
+.lc-stat b.word { font-size: 19px; letter-spacing: .04em; text-transform: uppercase; }
 .lc-stat small { display: block; margin-top: 3px; font: 500 9.5px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--lc) 70%, #fff); }
 .lc-link { display: inline-flex; align-items: center; gap: 2px; margin-top: 10px; font: 600 11px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--lc, #ffd24a); }
 .lc-moment { padding: 2px 0 4px; }
@@ -76,3 +77,37 @@
 .lc-rk { width: 20px; text-align: center; font: 700 13px Oswald, sans-serif; color: #ffd24a; }
 .lc-nm { flex: 1; font: 600 15px Oswald, sans-serif; color: #fff; }
 .lc-tip-row b { font: 700 15px Oswald, sans-serif; color: #ffd24a; }
+
+/* Bounties */
+.lc-wanted { display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 6px; font: 700 9.5px/1.2 Oswald, sans-serif; letter-spacing: .14em; text-transform: uppercase; flex: none;
+  color: #1a1200; background: linear-gradient(180deg, #e3a76a, #a8652c); box-shadow: 0 0 10px rgba(205,127,50,.45); }
+.lc-wanted.l2 { background: linear-gradient(180deg, #f1f4fa, #9aa4b8); box-shadow: 0 0 10px rgba(192,200,216,.5); }
+.lc-wanted.l3 { background: linear-gradient(180deg, #ffe58a, #e0a800); box-shadow: 0 0 12px rgba(255,210,74,.6); }
+.lc-wanted.lg { padding: 4px 9px; font-size: 11px; }
+.lc-board { --lc: #ff3b3b; padding: 12px 14px; border-radius: 18px; border: 1px solid rgba(255,59,59,.35);
+  background: radial-gradient(120% 90% at 100% 0%, rgba(255,59,59,.16), transparent 60%), linear-gradient(180deg, #17121a, #0c0a12); }
+.lc-board-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 2px; }
+.lc-poster { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 9px; border-radius: 12px; text-align: center;
+  background: linear-gradient(180deg, #2a2016, #18120d); border: 1px solid rgba(255,255,255,.08); }
+.lc-poster .w { font: 700 15px/1 Oswald, sans-serif; letter-spacing: .3em; color: #ff6b6b; }
+.lc-poster .n { font: 700 20px/1.05 Oswald, sans-serif; text-transform: uppercase; color: #fff; overflow-wrap: anywhere; }
+.lc-poster .r { font-size: 11.5px; color: rgba(255,255,255,.55); }
+.lc-poster .lv { align-self: center; margin-top: 2px; }
+
+/* Moment of the Month vote */
+.lc-motm { --lc: #ff005c; padding: 14px; border-radius: 20px; border: 1px solid rgba(255,0,92,.45);
+  background: radial-gradient(120% 80% at 0% 0%, rgba(255,0,92,.2), transparent 60%), radial-gradient(90% 60% at 100% 100%, rgba(255,210,74,.12), transparent 60%), linear-gradient(180deg, #17141f, #0c0a12);
+  box-shadow: 0 14px 34px rgba(0,0,0,.45), 0 0 26px rgba(255,0,92,.12); }
+.lc-motm .lc-title { font-size: 24px; }
+.lc-motm-sub { margin: 4px 0 10px; font-size: 13px; color: rgba(255,255,255,.55); }
+.lc-opt { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 12px; margin-top: 7px; border-radius: 14px; overflow: hidden;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); }
+.lc-opt.mine { border-color: rgba(255,210,74,.7); box-shadow: 0 0 14px rgba(255,210,74,.15); }
+.lc-opt.win { border-color: rgba(255,210,74,.9); background: rgba(255,210,74,.1); }
+.lc-opt i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgba(255,0,92,.22), rgba(255,0,92,.08)); }
+.lc-opt > * { position: relative; }
+.lc-opt .ot { font: 700 14px/1.1 Oswald, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: var(--k, #ffd24a); }
+.lc-opt .ol { font-size: 13px; line-height: 1.35; color: #e6e2f0; }
+.lc-opt .ov { margin-left: auto; flex: none; text-align: right; font: 700 18px/1 Oswald, sans-serif; color: #fff; }
+.lc-opt .ov small { display: block; font: 500 9px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.4); }
+.lc-streak { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; font: 700 12px Oswald, sans-serif; color: #ff8a1f; vertical-align: middle; }

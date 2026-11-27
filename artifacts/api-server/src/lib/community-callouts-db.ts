@@ -86,6 +86,7 @@ export async function settleCallouts(match: { id: number; winnerId: number; lose
       link: `/match-centre/league-${match.id}`, title: answered ? "CALL-OUT ANSWERED" : "CALL-OUT BACKED UP",
       line: answered ? `${match.winnerName} answered ${match.loserName}'s call-out and won.` : `${match.winnerName} called out ${match.loserName} and backed it up.`,
     });
+    await import("./oche-extras-db").then(x => x.afterCalloutSettled(row.id, match.winnerId, match.winnerName));
     for (const pid of [m.challengerId, m.targetId]) void createNotification({ playerId: pid, type: "callout", entityId: row.id, entityType: "post",
       message: `Call-out settled: ${match.winnerName} beat ${match.loserName}.` });
     const right = (await db.execute(sql`SELECT player_id FROM community_predictions WHERE post_id = ${row.id} AND correct`)).rows as { player_id: number }[];

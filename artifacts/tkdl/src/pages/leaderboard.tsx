@@ -10,6 +10,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { apiFetchJson } from "@/lib/api-fetch";
 import { useCosmeticsCatalog, glowRowStyle, leaderboardTagStyle, tagIcon, isExclusiveUnlock, PROFILE_ICON_MAP, type CosmeticDefinition } from "@/lib/cosmetics";
 import { GafferArmband } from "@/components/gaffer/Armband";
+import { WantedChip } from "@/components/community/WantedChip";
 import { StandingsWhatIf } from "@/components/standings-what-if";
 
 type Mode = "season" | "doubles" | "shiftwars" | "career" | "achievements" | "bot" | "tour" | "master501" | "records";
@@ -274,6 +275,7 @@ function SeasonRow({ entry, idx, maxElo, glow, icon, tag }: { entry: any; idx: n
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-black uppercase leading-tight" style={{ fontFamily: "Oswald, sans-serif", fontSize: idx === 0 ? "1.2rem" : "1rem", letterSpacing: "0.04em", color: idx === 0 ? "#fff" : "rgba(255,255,255,0.85)" }}>{entry.playerName}</span>
             <GafferArmband playerId={entry.playerId} />
+            <WantedChip playerId={entry.playerId} />
             <NameFlair icon={icon} tag={tag} />
             {isTop3 && <span className="text-base leading-none">{POS_MEDALS[idx]}</span>}
             {streak >= 3 && <span className="flex items-center gap-0.5 text-xs font-bold shrink-0" style={{ color: "#ff005c" }}><Flame className="w-3 h-3 streak-fire" />{streak}W</span>}

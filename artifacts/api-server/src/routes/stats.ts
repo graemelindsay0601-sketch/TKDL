@@ -364,6 +364,16 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
       COUNT(*) FILTER (WHERE game_type IN ('around_the_world','atw'))::int AS atw_wins
     FROM matches GROUP BY winner_id
   `).catch(() => ({ rows: [] as any[] }));
+  // Off the Oche: bounties claimed, best call-out run, call-outs declined.
+  const ooQ = await db.execute(drizzleSql`
+    SELECT p.id AS player_id,
+      (SELECT COUNT(*)::int FROM community_bounties b WHERE b.claimed_by = p.id) AS bounties,
+      (SELECT COUNT(*)::int FROM community_posts cp WHERE cp.post_type = 'callout' AND cp.auto_meta->>'status' = 'declined' AND (cp.auto_meta->>'targetId')::int = p.id) AS ducked
+    FROM players p`).catch(() => ({ rows: [] as any[] }));
+  const ooMap = new Map<number, any>();
+  for (const r of ooQ.rows as any[]) ooMap.set(Number(r.player_id), r);
+  const { allCalloutStreaks } = await import("../lib/oche-extras-db");
+  const coStreaks = await allCalloutStreaks().catch(() => new Map<number, { current: number; best: number }>());
   const gameMap = new Map<number, any>();
   for (const r of gameQ.rows as any[]) gameMap.set(Number(r.player_id), r);
   const gameWinsMap = new Map<number, any>();
@@ -417,6 +427,9 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     cricketBlanks:     Number(gameMap.get(p.id)?.cricket_blanks ?? 0),
     bullTrouble:       Number(gameMap.get(p.id)?.bull_trouble ?? 0),
     atwStalls:         Number(gameMap.get(p.id)?.atw_stalls ?? 0),
+    bountiesClaimed:   Number(ooMap.get(p.id)?.bounties ?? 0),
+    calloutBest:       coStreaks.get(p.id)?.best ?? 0,
+    calloutsDucked:    Number(ooMap.get(p.id)?.ducked ?? 0),
   }));
 
   // Return the top three places rather than exactly three people. Anyone tied
@@ -456,6 +469,9 @@ router.get("/stats/hall-of-fame", async (_req, res): Promise<void> => {
     mostCricketBlanks: rankedBy("cricketBlanks").filter(p => p.cricketBlanks > 0),
     worstBullTrouble:  rankedBy("bullTrouble").filter(p => p.bullTrouble > 0),
     mostAtwStalls:     rankedBy("atwStalls").filter(p => p.atwStalls > 0),
+    mostBounties:      rankedBy("bountiesClaimed").filter(p => p.bountiesClaimed > 0),
+    bestCalloutRun:    rankedBy("calloutBest").filter(p => p.calloutBest > 0),
+    mostDucked:        rankedBy("calloutsDucked").filter(p => p.calloutsDucked > 0),
     champions: completedSeasons
       .filter(season => season.championId && season.championName)
       .sort((a, b) => String(b.endDate ?? b.startDate).localeCompare(String(a.endDate ?? a.startDate)) || b.id - a.id)

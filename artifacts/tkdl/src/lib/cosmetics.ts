@@ -169,7 +169,7 @@ export function nameStyleCSS(cosmetic: CosmeticDefinition | undefined | null): C
 
 /** Earned-only unlocks from League Target (-lt-) and The Gaffer (-gf-). They get effects nothing in the Store has. */
 export function isExclusiveUnlock(cosmetic: CosmeticDefinition | undefined | null): boolean {
-  return !!cosmetic && /-(lt|gf)-/.test(cosmetic.id);
+  return !!cosmetic && /-(lt|gf|oo)-/.test(cosmetic.id);
 }
 
 // LEGENDARY gradients get a slow animated shimmer (index.css's
@@ -189,7 +189,9 @@ export function frameClassName(cosmetic: CosmeticDefinition | undefined | null):
 /** Small icon shown in front of an exclusive leaderboard tag. */
 export function tagIcon(cosmetic: CosmeticDefinition | undefined | null): string {
   if (!isExclusiveUnlock(cosmetic)) return "";
-  return cosmetic!.id.includes("-lt-") ? "🎯" : cosmetic!.id === "tag-gf-the-gaffer" ? "👑" : "🛡️";
+  const id = cosmetic!.id;
+  if (id.includes("-oo-")) return id.includes("bounty") ? "💰" : id.includes("callout") ? "⚔️" : "⚡";
+  return id.includes("-lt-") ? "🎯" : id === "tag-gf-the-gaffer" ? "👑" : "🛡️";
 }
 
 // CSS for a BANNER cosmetic — its `gradient` column is a full CSS

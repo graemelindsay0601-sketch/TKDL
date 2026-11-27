@@ -1,5 +1,6 @@
 import { CARD_CLASH_BENCHED } from "@/lib/card-clash-bench";
 import { GafferArmband } from "@/components/gaffer/Armband";
+import { WantedChip } from "@/components/community/WantedChip";
 import { HonoursCabinet } from "@/components/profile/HonoursCabinet";
 import { ClubhouseDoor } from "@/components/clubhouse/ClubhouseDoor";
 import { DartMap } from "@/components/profile/DartMap";
@@ -598,7 +599,7 @@ export default function PlayerDetail() {
                   ...(isEliminated ? {} : nameStyleCSS(equippedNameStyle)) }}>
                 {player.name}
               </h1>
-              <div className="mt-1.5 empty:hidden flex"><GafferArmband playerId={playerId} size="lg" /></div>
+              <div className="mt-1.5 empty:hidden flex gap-1.5"><GafferArmband playerId={playerId} size="lg" /><WantedChip playerId={playerId} size="lg" /></div>
               {(player as any).tagline && (
                 <div className="mt-1" style={{ fontFamily: "Oswald, sans-serif", fontSize: "0.85rem",
                   letterSpacing: "0.06em", fontStyle: "italic", opacity: 0.9,
