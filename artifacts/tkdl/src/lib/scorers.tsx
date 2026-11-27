@@ -4664,7 +4664,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
         const bullAt = sequence.findIndex(t => t.seg === 25);
         const at = positions[turn];
         const jump = (m: number) => sequence[Math.min(at + m, bullAt === -1 ? sequence.length - 1 : bullAt)]?.label;
-        return `Aim at ${curTarget.seg} · double → ${jump(2)}, treble → ${jump(3)}`;
+        const n = curTarget.seg, d = jump(2), t = jump(3);
+        return d === t ? `Aim at ${n} · D${n} or T${n} takes you to ${d}` : `Aim at ${n} · D${n} takes you to ${d}, T${n} to ${t}`;
       })();
 
   if (modernSeq) {
