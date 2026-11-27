@@ -121,3 +121,45 @@ export async function playerTeamEventGames(db: { execute: (q: any) => Promise<an
     teamId: Number(x.team_id), teamName: x.team_name ?? null, won: !!x.won, playedAt: x.played_at, partners: x.partners ?? null,
   }));
 }
+
+/** One thrower's numbers from the team X01 scorer (so team results count toward 180s and checkout targets). */
+export type ThrowerStat = { playerId: number; darts: number; points: number; oneEighties: number; checkoutAttempts: number; checkoutHits: number };
+
+/**
+ * Parse `playerStats` from a request body. Only players in `allowed` (who belong to the match) are kept, and
+ * every number is held to what a single team match could produce, so a bad client can't invent figures.
+ */
+export function parseThrowerStats(raw: unknown, allowed: number[]): ThrowerStat[] {
+  if (!Array.isArray(raw)) return [];
+  const ok = new Set(allowed);
+  const int = (v: unknown, max: number) => { const n = Number(v); return Number.isInteger(n) && n >= 0 && n <= max ? n : null; };
+  const out = new Map<number, ThrowerStat>();
+  for (const r of raw.slice(0, 16)) {
+    const playerId = Number((r as any)?.playerId);
+    if (!ok.has(playerId)) continue;
+    const darts = int((r as any).darts, 600), points = int((r as any).points, 30000), oneEighties = int((r as any).oneEighties, 60);
+    const checkoutAttempts = int((r as any).checkoutAttempts, 300), checkoutHits = int((r as any).checkoutHits, 30);
+    if (darts == null || points == null || oneEighties == null || checkoutAttempts == null || checkoutHits == null) continue;
+    if (checkoutHits > checkoutAttempts || oneEighties * 3 > darts || points > darts * 60) continue;
+    out.set(playerId, { playerId, darts, points, oneEighties, checkoutAttempts, checkoutHits });
+  }
+  return [...out.values()];
+}
+
+let throwerTable: Promise<void> | null = null;
+export function ensureThrowerStatsTable(db: { execute: (q: any) => Promise<any> }): Promise<void> {
+  throwerTable ??= db.execute(sql`CREATE TABLE IF NOT EXISTS team_thrower_stats (
+    competition TEXT NOT NULL, match_kind TEXT NOT NULL, match_id INTEGER NOT NULL, player_id INTEGER NOT NULL,
+    darts INTEGER NOT NULL, points INTEGER NOT NULL, one_eighties INTEGER NOT NULL,
+    checkout_attempts INTEGER NOT NULL, checkout_hits INTEGER NOT NULL, played_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (competition, match_kind, match_id, player_id))`).then(() => undefined).catch((err: unknown) => { throwerTable = null; throw err; });
+  return throwerTable;
+}
+
+/** Store thrower stats for a team match (competition "doubles" | "shift_wars" | "team"). */
+export async function recordThrowerStats(tx: { execute: (q: any) => Promise<any> }, competition: string, matchKind: string, matchId: number, stats: ThrowerStat[]): Promise<void> {
+  for (const s of stats) await tx.execute(sql`
+    INSERT INTO team_thrower_stats (competition, match_kind, match_id, player_id, darts, points, one_eighties, checkout_attempts, checkout_hits)
+    VALUES (${competition}, ${matchKind}, ${matchId}, ${s.playerId}, ${s.darts}, ${s.points}, ${s.oneEighties}, ${s.checkoutAttempts}, ${s.checkoutHits})
+    ON CONFLICT DO NOTHING`);
+}

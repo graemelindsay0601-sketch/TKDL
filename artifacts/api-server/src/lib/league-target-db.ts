@@ -97,6 +97,9 @@ export async function monthStats(key: string): Promise<MonthStats & { perPlayer:
     }
   }
 
+  // 180s thrown in team matches on the team scorer (doubles, Shift Wars, 2v2), stored per thrower.
+  for (const r of await rows(sql`SELECT COALESCE(SUM(one_eighties), 0)::int n FROM team_thrower_stats WHERE played_at >= ${from} AND played_at < ${to}`)) oneEighties += Number(r.n) || 0;
+
   const players = [...perPlayer.values()].filter(n => n >= MIN_MATCHES).length;
   return { matches, pairings: pairs.size, oneEighties, players, perPlayer, pairList: [...pairs] };
 }

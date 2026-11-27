@@ -73,6 +73,8 @@ export async function challengeProgress(key: ChallengeKey, month: string, target
       if (Number(r.w)) add(r.winner_id, Number(r.w));
       if (Number(r.l)) add(r.loser_id, Number(r.l));
     }
+    for (const r of await rows(sql`SELECT player_id, SUM(one_eighties)::int n FROM team_thrower_stats WHERE played_at >= ${from} AND played_at < ${to} GROUP BY player_id`))
+      if (Number(r.n)) add(Number(r.player_id), Number(r.n));
     return { value: [...perPlayer.values()].reduce((a, b) => a + b, 0), perPlayer, contributors: [...perPlayer.keys()] };
   }
   if (key === "gotm") {
@@ -101,6 +103,8 @@ export async function challengeProgress(key: ChallengeKey, month: string, target
       if (Number(r.wa)) put(r.winner_id, Number(r.wh) || 0, Number(r.wa));
       if (Number(r.la)) put(r.loser_id, Number(r.lh) || 0, Number(r.la));
     }
+    for (const r of await rows(sql`SELECT player_id, SUM(checkout_hits)::int h, SUM(checkout_attempts)::int a FROM team_thrower_stats
+        WHERE played_at >= ${from} AND played_at < ${to} GROUP BY player_id`)) if (Number(r.a)) put(Number(r.player_id), Number(r.h) || 0, Number(r.a));
     let h = 0, a = 0;
     for (const [id, [hh, aa]] of att) { h += hh; a += aa; perPlayer.set(id, Math.round((hh / aa) * 100)); }
     const value = a >= 20 ? Math.round((h / a) * 100) : 0;

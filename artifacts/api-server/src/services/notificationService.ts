@@ -88,8 +88,12 @@ export async function createNotification(payload: NotificationPayload): Promise<
 
     let notificationId = (notification as any)?.id as number | undefined;
     if (!notificationId && payload.dedupeKey) {
+      // Already created under this dedupe key: it was pushed (or queued) the first time, so stop here.
+      // Carrying on used to queue the push again, so anything on a timer (Career reminders, achievement
+      // unlocks, drill overtakes) could buzz the same player repeatedly with the same message.
       const existing = await db.execute(sql`SELECT id FROM notifications WHERE dedupe_key = ${payload.dedupeKey} LIMIT 1`);
-      notificationId = Number((existing.rows[0] as any)?.id);
+      const id = Number((existing.rows[0] as any)?.id);
+      if (id) return id;
     }
     if (!notificationId) throw new Error("Notification insert returned no id");
     
