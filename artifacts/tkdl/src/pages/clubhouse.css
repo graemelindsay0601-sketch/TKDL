@@ -13,3 +13,5 @@
 .ch-card b { font-family: Oswald, sans-serif; font-size: 22px; letter-spacing: .04em; text-transform: uppercase; color: #ffe58a; padding-right: 36px; }
 .ch-card span { font-size: 14px; color: #d8d4e6; }
 .ch-x { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: #c9c5d8; display: grid; place-items: center; }
+
+.ch-walk { height: 42px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255,210,74,.5); background: rgba(255,210,74,.12); color: #ffd24a; font-family: Oswald, sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
