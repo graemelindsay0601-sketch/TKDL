@@ -1,3 +1,4 @@
+import { useFeature } from "@/lib/useFeature";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { Coins, Check, Lock, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -6,7 +7,7 @@ import {
   type CosmeticDefinition,
 } from "@/lib/cosmetics";
 
-type CosmeticCategory = "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT" | "ACCOUNT_ACCENT";
+type CosmeticCategory = "NAME_STYLE" | "PROFILE_ICON" | "BANNER" | "FRAME" | "GLOW" | "RESULT_THEME" | "BUBBLE_COLOR" | "AVATAR_BADGE" | "LEADERBOARD_TAG" | "TAGLINE_STYLE" | "POST_ACCENT" | "STICKER" | "CHECKOUT_EFFECT" | "SCORER_THEME" | "PLAYER_CARD_FINISH" | "TROPHY_CASE_STYLE" | "RECAP_STYLE" | "RANK_UP_EFFECT" | "ACCOUNT_ACCENT" | "CLUBHOUSE_ROOM";
 type Rarity = "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
 
 interface CosmeticsShopProps {
@@ -31,6 +32,7 @@ interface OwnedState {
   equippedScorerThemeId: string | null;
   equippedPlayerCardFinishId: string | null;
   equippedTrophyCaseStyleId: string | null;
+  equippedClubhouseRoomId?: string | null;
   equippedRecapStyleId: string | null;
   equippedRankUpEffectId: string | null;
   equippedAccountAccentId: string | null;
@@ -64,13 +66,14 @@ const CATEGORY_META: Record<CosmeticCategory, { tabLabel: string; title: string;
   TROPHY_CASE_STYLE: { tabLabel: "Trophy", title: "Trophy Case Styles", subtitle: "A background & border skin for your pinned Trophy Case strip, on your account page and your public profile." },
   RECAP_STYLE: { tabLabel: "Recap", title: "Season Recap Styles", subtitle: "A background skin for your Season Recap Card — browsable from your Season History." },
   RANK_UP_EFFECT: { tabLabel: "Rank Up", title: "Rank-Up Celebrations", subtitle: "A particle-burst animation on your real-match result screen when a win moves you up the leaderboard." },
+  CLUBHOUSE_ROOM: { tabLabel: "Clubhouse", title: "Clubhouse Rooms", subtitle: "The look of your Clubhouse — wallpaper, wood, lighting and neon. Everyone who visits your room sees it." },
   ACCOUNT_ACCENT: { tabLabel: "Accent", title: "Account Page Accent", subtitle: "A swatch colour for buttons & highlights on your own account page only — nobody else sees this, not on your profile, not on the leaderboard." },
 };
 
 const CATEGORY_ORDER: CosmeticCategory[] = [
   "NAME_STYLE", "PROFILE_ICON", "BANNER", "FRAME", "GLOW", "RESULT_THEME", "BUBBLE_COLOR",
   "AVATAR_BADGE", "LEADERBOARD_TAG", "TAGLINE_STYLE", "POST_ACCENT", "STICKER", "CHECKOUT_EFFECT",
-  "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT", "ACCOUNT_ACCENT",
+  "SCORER_THEME", "PLAYER_CARD_FINISH", "TROPHY_CASE_STYLE", "RECAP_STYLE", "RANK_UP_EFFECT", "ACCOUNT_ACCENT", "CLUBHOUSE_ROOM",
 ];
 
 const RARITY_ORDER: Rarity[] = ["COMMON", "RARE", "EPIC", "LEGENDARY"];
@@ -94,6 +97,7 @@ const EQUIPPED_ID_KEY: Partial<Record<CosmeticCategory, keyof OwnedState>> = {
   RECAP_STYLE: "equippedRecapStyleId",
   RANK_UP_EFFECT: "equippedRankUpEffectId",
   ACCOUNT_ACCENT: "equippedAccountAccentId",
+  CLUBHOUSE_ROOM: "equippedClubhouseRoomId",
   // STICKER deliberately omitted — not equipped to a slot, see the shop
   // section above (equippable={false}) and schema/cosmetics.ts.
 };
@@ -126,6 +130,8 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
   }, [playerId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  // Clubhouse rooms only go on sale once the Clubhouse is on for this session.
+  const clubhouseOn = useFeature("clubhouse");
 
   const isOwned = useCallback((id: string) => owned?.ownedIds.includes(id) ?? false, [owned]);
 
@@ -300,6 +306,11 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
           }} />
         ) : null;
       }
+      case "CLUBHOUSE_ROOM":
+        return (
+          <div style={{ width: "100%", height: "24px", borderRadius: "6px", border: `1px solid ${c.color}88`,
+            background: `linear-gradient(180deg, ${c.color}55, #0b0910 70%), repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 6px, transparent 6px 12px)` }} />
+        );
       case "TROPHY_CASE_STYLE":
         return (
           <div style={{
@@ -351,7 +362,7 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
           long page" layout. Each tab shows an owned/total count so you can
           spot which categories still have something left to unlock. */}
       <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "2px" }}>
-        {CATEGORY_ORDER.map(cat => {
+        {CATEGORY_ORDER.filter(cat => cat !== "CLUBHOUSE_ROOM" || clubhouseOn).map(cat => {
           const active = cat === activeCategory;
           const counts = countsByCategory[cat];
           return (

@@ -7,6 +7,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Font } from "three/addons/loaders/FontLoader.js";
 import { award } from "@/components/achievements-v2/model/league3d.js";
 import { studioEnvironment } from "@/components/achievements-v2/model/trophies3d.js";
+import { themeFor, type RoomTheme } from "./themes";
 
 export type ClubInfo = { title: string; lines: string[] };
 export type ClubData = {
@@ -16,6 +17,8 @@ export type ClubData = {
   chalk: { label: string; value: string }[];
   rival: { name: string; record: string } | null;
   walkon: { nickname: string; a: string; b: string } | null;
+  /** CLUBHOUSE_ROOM theme key; null = the default pub room. */
+  theme?: string | null;
 };
 
 const W = 7.2, D = 7, H = 4.2; // room size
@@ -27,11 +30,11 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
   return t;
 }
 
-function woodFloor() {
+function woodFloor(T: RoomTheme) {
   return canvasTex(1024, 1024, g => {
     for (let i = 0; i < 16; i++) {
-      const y = i * 64, base = 44 + ((i * 37) % 22);
-      g.fillStyle = `rgb(${base + 30},${base + 12},${base - 10})`; g.fillRect(0, y, 1024, 64);
+      const y = i * 64, v = (i * 37) % 22;
+      g.fillStyle = `rgb(${T.floor[0] + v + 30},${T.floor[1] + v + 12},${T.floor[2] + v - 10})`; g.fillRect(0, y, 1024, 64);
       for (let k = 0; k < 40; k++) { g.fillStyle = `rgba(30,15,5,${0.05 + Math.random() * 0.08})`; g.fillRect(Math.random() * 1024, y + Math.random() * 64, 80 + Math.random() * 200, 1 + Math.random() * 2); }
       g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(0, y, 1024, 2);
       const off = (i % 2) * 256; for (let x = off; x < 1024; x += 512) g.fillRect(x, y, 2, 64);
@@ -39,11 +42,11 @@ function woodFloor() {
   });
 }
 
-function wallTex() {
+function wallTex(T: RoomTheme) {
   return canvasTex(512, 512, g => {
-    const grd = g.createLinearGradient(0, 0, 0, 512); grd.addColorStop(0, "#3a0d1f"); grd.addColorStop(1, "#22060f");
+    const grd = g.createLinearGradient(0, 0, 0, 512); grd.addColorStop(0, T.wallTop); grd.addColorStop(1, T.wallBottom);
     g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
-    for (let x = 0; x < 512; x += 32) { g.fillStyle = "rgba(255,255,255,.025)"; g.fillRect(x, 0, 14, 512); }
+    for (let x = 0; x < 512; x += 32) { g.fillStyle = T.stripe; g.fillRect(x, 0, 14, 512); }
   });
 }
 
@@ -93,11 +96,11 @@ function plaqueTex(lines: [string, string, string], gold: boolean) {
   });
 }
 
-function neonTex(text: string) {
+function neonTex(text: string, colour: string) {
   return canvasTex(1024, 256, g => {
     g.clearRect(0, 0, 1024, 256);
     g.font = "bold 150px Oswald, Arial"; g.textAlign = "center"; g.textBaseline = "middle";
-    g.shadowColor = "#ff2d7a"; g.shadowBlur = 40; g.fillStyle = "#ff8fb8"; g.fillText(text, 512, 128);
+    g.shadowColor = colour; g.shadowBlur = 40; g.fillStyle = colour; g.fillText(text, 512, 128);
     g.shadowBlur = 0; g.fillStyle = "#ffe6ef"; g.fillText(text, 512, 128);
   });
 }
@@ -105,6 +108,7 @@ function neonTex(text: string) {
 const ord = (p: number) => (p === 1 ? "1st" : p === 2 ? "2nd" : "3rd");
 
 export function buildClubhouse(el: HTMLElement, data: ClubData, font: Font | null, onPick: (info: ClubInfo | null) => void) {
+  const T = themeFor(data.theme);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   const w = el.clientWidth, h = el.clientHeight;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.setSize(w, h);
@@ -118,27 +122,27 @@ export function buildClubhouse(el: HTMLElement, data: ClubData, font: Font | nul
   const tag = (o: THREE.Object3D, info: ClubInfo) => { o.userData.info = info; pickables.push(o); };
 
   // Room shell
-  const floorTex = woodFloor(); floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(2, 2);
+  const floorTex = woodFloor(T); floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(2, 2);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.6, metalness: 0.05 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-  const wt = wallTex(); wt.wrapS = THREE.RepeatWrapping; wt.repeat.set(3, 1);
+  const wt = wallTex(T); wt.wrapS = THREE.RepeatWrapping; wt.repeat.set(3, 1);
   const wallMat = new THREE.MeshStandardMaterial({ map: wt, roughness: 0.85 });
   const back = new THREE.Mesh(new THREE.PlaneGeometry(W, H), wallMat); back.position.set(0, H / 2, -D / 2); back.receiveShadow = true; scene.add(back);
   for (const sx of [-1, 1]) {
     const side = new THREE.Mesh(new THREE.PlaneGeometry(D, H), wallMat); side.position.set(sx * W / 2, H / 2, 0); side.rotation.y = -sx * Math.PI / 2; side.receiveShadow = true; scene.add(side);
   }
   // Wainscot + skirting
-  const wood = new THREE.MeshStandardMaterial({ color: 0x3b2414, roughness: 0.55 });
+  const wood = new THREE.MeshStandardMaterial({ color: T.wood, roughness: 0.55 });
   const wain = new THREE.Mesh(new THREE.BoxGeometry(W, 1.1, 0.06), wood); wain.position.set(0, 0.55, -D / 2 + 0.03); wain.receiveShadow = true; scene.add(wain);
-  const rail = new THREE.Mesh(new THREE.BoxGeometry(W, 0.06, 0.12), new THREE.MeshStandardMaterial({ color: 0xb8892f, metalness: 0.7, roughness: 0.3 })); rail.position.set(0, 1.12, -D / 2 + 0.06); scene.add(rail);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(W, 0.06, 0.12), new THREE.MeshStandardMaterial({ color: T.rail, metalness: 0.7, roughness: 0.3 })); rail.position.set(0, 1.12, -D / 2 + 0.06); scene.add(rail);
   const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ color: 0x0d0a10 })); ceil.rotation.x = Math.PI / 2; ceil.position.y = H; scene.add(ceil);
 
   // Lights
-  scene.add(new THREE.AmbientLight(0xffe6cc, 0.25));
+  scene.add(new THREE.AmbientLight(T.ambient, 0.25));
   const hemi = new THREE.HemisphereLight(0xffd9b0, 0x1a0a12, 0.35); scene.add(hemi);
-  const spot = new THREE.SpotLight(0xfff1dc, 60, 12, 0.5, 0.45, 1.4); spot.position.set(0, 3.9, -0.8); spot.target.position.set(0, 1.73, -D / 2); spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); scene.add(spot, spot.target);
-  const warmL = new THREE.PointLight(0xffb070, 14, 9, 1.6); warmL.position.set(-3.2, 3, -1.2); scene.add(warmL);
-  const warmR = new THREE.PointLight(0xffb070, 14, 9, 1.6); warmR.position.set(3.2, 3, -1.2); scene.add(warmR);
+  const spot = new THREE.SpotLight(T.spot, 60, 12, 0.5, 0.45, 1.4); spot.position.set(0, 3.9, -0.8); spot.target.position.set(0, 1.73, -D / 2); spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); scene.add(spot, spot.target);
+  const warmL = new THREE.PointLight(T.warm, 14, 9, 1.6); warmL.position.set(-3.2, 3, -1.2); scene.add(warmL);
+  const warmR = new THREE.PointLight(T.warm, 14, 9, 1.6); warmR.position.set(3.2, 3, -1.2); scene.add(warmR);
 
   // Dartboard, cabinet surround and oche
   const cab = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.25, 0.08), new THREE.MeshStandardMaterial({ color: 0x2a160b, roughness: 0.35 }));
@@ -149,9 +153,9 @@ export function buildClubhouse(el: HTMLElement, data: ClubData, font: Font | nul
   const oche = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.02, 0.05), new THREE.MeshStandardMaterial({ color: 0xffd24a, metalness: 0.8, roughness: 0.25 })); oche.position.set(0, 0.011, -D / 2 + 2.37); scene.add(oche);
 
   // Neon sign
-  const neon = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshBasicMaterial({ map: neonTex("TKDL"), transparent: true, toneMapped: false }));
+  const neon = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6), new THREE.MeshBasicMaterial({ map: neonTex("TKDL", T.neon), transparent: true, toneMapped: false }));
   neon.position.set(0, 3.15, -D / 2 + 0.02); scene.add(neon);
-  const neonGlow = new THREE.PointLight(0xff2d7a, 4, 4, 2); neonGlow.position.set(0, 3.1, -D / 2 + 0.5); scene.add(neonGlow);
+  const neonGlow = new THREE.PointLight(T.neonGlow, 4, 4, 2); neonGlow.position.set(0, 3.1, -D / 2 + 0.5); scene.add(neonGlow);
 
   // Trophy shelf (left of the board): the player's top achievement pieces in their metals
   const shelfMat = new THREE.MeshStandardMaterial({ color: 0x4a2c16, roughness: 0.45 });

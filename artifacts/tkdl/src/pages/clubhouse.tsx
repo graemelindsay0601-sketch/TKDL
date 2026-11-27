@@ -15,10 +15,12 @@ const RANK: Record<Metal, number> = { DIAMOND: 5, PLATINUM: 4, GOLD: 3, SILVER: 
 const j = (u: string) => fetch(u, { credentials: "include" }).then(r => (r.ok ? r.json() : null)).catch(() => null);
 
 async function loadClub(id: number): Promise<(ClubData & { walkonRaw: WalkOn | null }) | null> {
-  const [player, honours, ach, rival, walkons] = await Promise.all([
+  const [player, honours, ach, rival, walkons, cos, catalog] = await Promise.all([
     j(`/api/players/${id}`), j(`/api/players/${id}/honours`),
     j(`/api/achievements-v2/players/${id}?preview=1`), j(`/api/players/${id}/nemesis`), fetchWalkOns([id]),
+    j(`/api/players/${id}/cosmetics`), j(`/api/cosmetics/catalog`),
   ]);
+  const roomItem = Array.isArray(catalog) ? catalog.find((c: any) => c.id === cos?.equippedClubhouseRoomId) : null;
   if (!player?.name) return null;
   const view: PlayerView | null = ach?.view ?? null;
   const tracks = (view?.areas ?? []).flatMap(a => a.tracks.map(t => ({ ...t, area: a.name })))
@@ -38,6 +40,7 @@ async function loadClub(id: number): Promise<(ClubData & { walkonRaw: WalkOn | n
     rival: rival?.playerName ? { name: rival.playerName, record: `${rival.winsAgainst}–${rival.losses}` } : null,
     walkon: walkons[id] ? { nickname: walkons[id].nickname, a: hexOf(walkons[id].colourA), b: hexOf(walkons[id].colourB, "#ffd24a") } : null,
     walkonRaw: walkons[id] ?? null,
+    theme: roomItem?.iconKey ?? null,
   };
 }
 
