@@ -374,20 +374,20 @@ export function Layout({ children }: { children: ReactNode }) {
   // as the rest isn't a change to the feature, just to this row's paint.
   const NAV_SECTIONS: Array<{ key: string; label: string; items: NavItem[]; color: string; show: boolean }> = [
     { key: "hub",          label: "Hub",          items: hubNav,               color: "#0066ff", show: true },
-    { key: "league",       label: "League",       items: leagueNav,            color: "#38bdf8", show: true },
-    { key: "records",      label: "Records",      items: recordsNav,           color: "#ffd24a", show: true },
-    { key: "community",    label: "Off the Oche", items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
     { key: "play",         label: "Play",         items: dynamicPlayNav,       color: "#ff005c", show: dynamicPlayNav.length > 0 },
+    { key: "league",       label: "League",       items: leagueNav,            color: "#38bdf8", show: true },
     { key: "practice",     label: "Practice",     items: practiceNav,          color: "#00e5a0", show: true },
     // Career (A6) is listed only when the tour_career_2 flag makes it available to this account.
     { key: "tour",         label: "Tour Mode",    items: careerAvailable ? tourModeNav : tourModeNav.filter(i => i.href !== "/career"), color: "#6366f1", show: true },
+    { key: "records",      label: "Records",      items: recordsNav,           color: "#ffd24a", show: true },
     { key: "master501",    label: "Master 501",   items: master501Nav,         color: "#00c8a0", show: true },
     { key: "bot",          label: "Bot",          items: dynamicBotNav,        color: "#22d3ee", show: dynamicBotNav.length > 0 },
-    { key: "cardclash",    label: "Card Clash",   items: dynamicCardClashNav,  color: "#f97316", show: dynamicCardClashNav.length > 0 },
     { key: "bossbattle",   label: "Boss Battle",  items: dynamicBossBattleNav, color: "#ef4444", show: dynamicBossBattleNav.length > 0 },
     { key: "boardcurse",   label: "Board Curse",  items: dynamicBoardCurseNav, color: "#eab308", show: dynamicBoardCurseNav.length > 0 },
-    { key: "tkdllive",     label: "TKDL LIVE",    items: dynamicTkdlLiveNav,   color: "#ffd24a", show: dynamicTkdlLiveNav.length > 0 },
+    { key: "cardclash",    label: "Card Clash",   items: dynamicCardClashNav,  color: "#f97316", show: dynamicCardClashNav.length > 0 },
     { key: "achievements", label: "Achievements", items: achievementsNav,      color: "#8b5cf6", show: true },
+    { key: "community",    label: "Off the Oche", items: communityNav,         color: "#22c55e", show: communityEnabled || !!authUser?.isAdmin },
+    { key: "tkdllive",     label: "TKDL LIVE",    items: dynamicTkdlLiveNav,   color: "#ffd24a", show: dynamicTkdlLiveNav.length > 0 },
     { key: "admin",        label: "Admin",        items: configNav,            color: "#8a8a94", show: !!authUser?.isAdmin },
   ];
 
