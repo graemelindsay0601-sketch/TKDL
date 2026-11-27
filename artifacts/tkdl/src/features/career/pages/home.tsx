@@ -20,6 +20,7 @@ import { CareerEventAtmosphere, atmosphereFromCalendarEvent } from "../atmospher
 import { ContextHelp } from "../guidance";
 import { TournamentResume } from "./tournament";
 import { NextMove } from "./next-move";
+import { CareerWelcome } from "../welcome";
 import type { ShellContext } from "../shell";
 import type { CareerEvent, QualificationEvent } from "../types";
 import "./home.css";
@@ -47,6 +48,8 @@ function TodayHome({ ctx }: { ctx: ShellContext }) {
   });
   return (
     <div className="career-home career-home--guide">
+      {/* New Careers land here: the first-season checklist (it hides itself after season 1, when done or when dismissed). */}
+      <CareerWelcome save={save} entered={events.some(e => !!e.human?.entryStatus && e.human.entryStatus !== "WITHDRAWN")} />
       <CareerGuide save={save} overview={ctx.overview}>
         <NextMove save={save} overview={ctx.overview} events={events} activeTournament={active} pendingReview={!!legacy.data?.pendingReview}
           onEnter={onEnter} entering={enter.isPending} message={message} embedded />

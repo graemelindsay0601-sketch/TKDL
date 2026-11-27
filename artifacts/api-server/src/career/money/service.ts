@@ -25,7 +25,7 @@ export type Member = { key: string; name: string; professional: boolean; average
 type Root = RootRow & { player_id?: number };
 
 export type MoneyGameFormat = "301" | "501" | "701";
-const MONEY_FORMATS: Record<MoneyGameFormat, X01Format> = {
+export const MONEY_FORMATS: Record<MoneyGameFormat, X01Format> = {
   "301": { startingScore: 301, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf },
   "501": { startingScore: 501, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf },
   "701": { startingScore: 701, inRule: "STRAIGHT", outRule: "DOUBLE", unit: "LEGS", bestOfLegs: MONEY.bestOf },

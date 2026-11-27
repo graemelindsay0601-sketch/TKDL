@@ -9,12 +9,12 @@ const dismissedKey = (saveId: string) => `tkdl-career-welcome-${saveId}`;
 const visitedKey = (saveId: string, place: string) => `tkdl-career-visited-${place}-${saveId}`;
 const read = (key: string) => { try { return localStorage.getItem(key) === "1"; } catch { return false; } };
 /** Remember (on this device) that a player has opened a page the first-season checklist points to. */
-export function markVisited(saveId: string, place: "nights" | "road") { try { localStorage.setItem(visitedKey(saveId, place), "1"); } catch { /* convenience only */ } }
+export function markVisited(saveId: string, place: "nights" | "road" | "goals") { try { localStorage.setItem(visitedKey(saveId, place), "1"); } catch { /* convenience only */ } }
 
 type Step = { key: string; title: string; text: string; done: boolean; href?: string; action?: string };
 
 /**
- * Your first season, one step at a time: a short checklist at the top of Play that ticks itself off from what you've
+ * Your first season, one step at a time: a short checklist at the top of Today and Play that ticks itself off from what you've
  * actually done (entries, results, weeks played, prize money, pages opened). Shown in season 1 until every step is done
  * or you hide it; everything it says is also in the Career Guide.
  */
@@ -30,6 +30,7 @@ export function CareerWelcome({ save, entered }: { save: CareerSave; entered: bo
     { key: "play", title: "Play your first event", text: "Press Continue to move to your match, then play it on the live scorer.", done: played },
     { key: "week", title: "Finish your first week", text: "Continue moves the calendar on. Results, rankings and money update as you go.", done: save.currentWeek > 1 },
     { key: "money", title: "Win some prize money", text: "Even a quarter-final at a club night pays something. Your balance is at the top.", done: (finance.data?.careerEarningsPence ?? 0) > 0 },
+    { key: "goals", title: "Set yourself a goal", text: "Pick what you're playing for this season: a title, a ranking or prize money. Your Guide follows it.", done: read(visitedKey(save.id, "goals")), href: `${base}/goals`, action: "Goals" },
     { key: "nights", title: "Try a night out", text: "Free weeknights can go on your club, money matches and more.", done: read(visitedKey(save.id, "nights")), href: `${base}/nights`, action: "Nights Out" },
     { key: "road", title: "See your routes to a Tour Card", text: "When you're ready to aim higher, this shows every way in.", done: read(visitedKey(save.id, "road")), href: `${base}/road-to-the-tour`, action: "Road to the Tour" },
   ];
