@@ -1,6 +1,8 @@
 import { Award, ChevronRight, Radio, Target, Trophy, X, Zap } from "lucide-react";
 import type { CSSProperties } from "react";
 import "./match-night-presentation.css";
+import { useWalkOns, hexOf } from "@/components/walkon/walkon";
+import { WalkOnFx } from "@/components/walkon/WalkOnFx";
 
 export type MatchNightSide = {
   title: string;
@@ -27,6 +29,8 @@ export function MatchNightPresentation({ mode, sides, format, game, stake, stake
   const isResult = mode === "result";
   const winner = winnerIndex === undefined ? undefined : sides[winnerIndex];
   const isFreeForAll = sides.length > 2;
+  // Personal walk-ons (set up in the Clubhouse) for one-player sides.
+  const walkons = useWalkOns(sides.map(sd => (sd.players?.length === 1 ? sd.players[0].id : 0)).filter(Boolean));
 
   return (
     <div className={`match-night match-night--${mode}`} role="dialog" aria-label={isResult ? "Match result presentation" : "Match introduction"}>
@@ -58,7 +62,15 @@ export function MatchNightPresentation({ mode, sides, format, game, stake, stake
               {sides.map((side, index) => (
                 <div className="match-night__side-wrap" key={`${side.title}-${index}`}>
                   {!isFreeForAll && index === 1 && <div className="match-night__versus"><span>VS</span></div>}
-                  <article className="match-night__side" style={{ "--side-accent": index % 2 === 0 ? "#ff005c" : "#0066ff" } as CSSProperties}>
+                  <article
+                    className={`match-night__side${side.players?.length === 1 && walkons[side.players[0].id] ? " has-walkon" : ""}`}
+                    style={{
+                      "--side-accent": side.players?.length === 1 && walkons[side.players[0].id] ? hexOf(walkons[side.players[0].id].colourA) : index % 2 === 0 ? "#ff005c" : "#0066ff",
+                      "--side-accent2": side.players?.length === 1 && walkons[side.players[0].id] ? hexOf(walkons[side.players[0].id].colourB, "#ffd24a") : "#ffd24a",
+                    } as CSSProperties}>
+                    {side.players?.length === 1 && walkons[side.players[0].id] && (
+                      <WalkOnFx style={walkons[side.players[0].id].style} colourA={walkons[side.players[0].id].colourA} colourB={walkons[side.players[0].id].colourB} />
+                    )}
                     <div className="match-night__side-index">{String(index + 1).padStart(2, "0")}</div>
                     {side.players?.length ? (
                       <div className="match-night__portraits">
@@ -73,6 +85,7 @@ export function MatchNightPresentation({ mode, sides, format, game, stake, stake
                     ) : <Target />}
                     <small>{isFreeForAll ? `Player ${index + 1}` : index === 0 ? "Side A" : "Side B"}</small>
                     <h1>{side.title}</h1>
+                    {side.players?.length === 1 && walkons[side.players[0].id]?.nickname && <div className="match-night__nick">“{walkons[side.players[0].id].nickname}”</div>}
                     {side.members.length > 1 && <p>{side.members.join(" · ")}</p>}
                     {side.members.length === 1 && side.players?.[0]?.tagline && <blockquote>“{side.players[0].tagline}”</blockquote>}
                     <div className="match-night__numbers">

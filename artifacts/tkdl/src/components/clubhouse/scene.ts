@@ -15,6 +15,7 @@ export type ClubData = {
   trophies: { id: string; tier: string; title: string; detail: string }[];
   chalk: { label: string; value: string }[];
   rival: { name: string; record: string } | null;
+  walkon: { nickname: string; a: string; b: string } | null;
 };
 
 const W = 7.2, D = 7, H = 4.2; // room size
@@ -201,14 +202,34 @@ export function buildClubhouse(el: HTMLElement, data: ClubData, font: Font | nul
       g.font = "bold 50px Oswald, Arial"; g.fillText(data.rival!.name.toUpperCase(), 220, 390);
       g.fillStyle = "#ffd24a"; g.font = "44px Oswald, Arial"; g.fillText(data.rival!.record, 220, 456);
     }), roughness: 0.6 }), wood]);
-    rv.rotation.y = -Math.PI / 2; rv.position.set(W / 2 - 0.04, 2.05, -2.1); scene.add(rv);
+    rv.rotation.y = -Math.PI / 2; rv.position.set(W / 2 - 0.04, 2.05, -2.6); scene.add(rv);
     tag(rv, { title: `Rival: ${data.rival.name}`, lines: [`Head to head: ${data.rival.record}`] });
   }
 
+  // Framed shirt on the right wall: the player's walk-on nickname and colours
+  {
+    const wk = data.walkon;
+    const tex = canvasTex(512, 600, g => {
+      g.fillStyle = "#120f18"; g.fillRect(0, 0, 512, 600);
+      const a = wk?.a ?? "#3a3644", b2 = wk?.b ?? "#6d6a7c";
+      g.fillStyle = a; g.beginPath();
+      g.moveTo(150, 90); g.lineTo(206, 70); g.quadraticCurveTo(256, 110, 306, 70); g.lineTo(362, 90); g.lineTo(450, 170); g.lineTo(400, 236); g.lineTo(366, 210);
+      g.lineTo(366, 520); g.lineTo(146, 520); g.lineTo(146, 210); g.lineTo(112, 236); g.lineTo(62, 170); g.closePath(); g.fill();
+      g.fillStyle = b2; g.fillRect(146, 250, 220, 26); g.fillRect(146, 290, 220, 10);
+      g.fillStyle = "#fff"; g.textAlign = "center"; g.font = "bold 44px Oswald, Arial";
+      g.fillText((wk?.nickname || data.name).toUpperCase().slice(0, 14), 256, 380);
+      g.font = "bold 110px Oswald, Arial"; g.fillStyle = b2; g.fillText(data.name.charAt(0).toUpperCase(), 256, 490);
+      g.strokeStyle = "#ffd24a"; g.lineWidth = 10; g.strokeRect(12, 12, 488, 576);
+    });
+    const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.12, 0.05), [wood, wood, wood, wood, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55 }), wood]);
+    shirt.rotation.y = -Math.PI / 2; shirt.position.set(W / 2 - 0.04, 2.0, -1.3); scene.add(shirt);
+    tag(shirt, wk ? { title: `“${wk.nickname || data.name}”`, lines: ["Walk-on shirt, in their walk-on colours."] } : { title: "The shirt", lines: ["Set up a walk-on to put your nickname and colours on it."] });
+  }
+
   // A high table and stools for the room's feel
-  const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 40), wood); tableTop.position.set(2.5, 1.05, -2.6); tableTop.castShadow = true; scene.add(tableTop);
-  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.05, 12), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.3 })); leg.position.set(2.5, 0.52, -2.6); scene.add(leg);
-  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 30), leg.material); foot.position.set(2.5, 0.015, -2.6); scene.add(foot);
+  const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.05, 40), wood); tableTop.position.set(2.6, 1.05, -1.95); tableTop.castShadow = true; scene.add(tableTop);
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.05, 12), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.3 })); leg.position.set(2.6, 0.52, -1.95); scene.add(leg);
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 30), leg.material); foot.position.set(2.6, 0.015, -1.95); scene.add(foot);
 
   // Camera: stand at the oche-ish spot and look round the room
   const camera = new THREE.PerspectiveCamera(w / h < 0.8 ? 74 : 54, w / h, 0.1, 50);
