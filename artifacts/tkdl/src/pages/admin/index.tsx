@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, UserMinus, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity, Search, ChevronsUp, Radio, Layers3, Gamepad2 } from "lucide-react";
+import { ShieldAlert, RotateCcw, AlertTriangle, Swords, Trash2, UserMinus, Users, Lock, ChevronDown, ChevronUp, Trophy, Zap, Pencil, Check, Building2, Activity, Search, ChevronsUp, Radio, Layers3, Gamepad2, Crown } from "lucide-react";
 import { format } from "date-fns";
 
 import { ADMIN_PIN_KEY, PinScreen } from "./pin-screen";
@@ -38,6 +38,7 @@ import { NotificationAnalytics } from "./notification-analytics";
 import { NotificationDeliveryHistory } from "./notification-delivery-history";
 import { IntegrityHealth } from "./integrity-health";
 import { LeagueWeek } from "./league-week";
+import { LeagueChallenges } from "./league-challenges";
 import { OperationsDashboard } from "./operations-dashboard";
 import { BroadcastHealth } from "./broadcast-health";
 import { ArcadeBalance } from "./arcade-balance";
@@ -55,6 +56,7 @@ const ADMIN_TOOLS = [
   ["feature-flags", "Feature Flags", "access settings toggles"],
   ["game-types", "Game Types", "scorer formats"],
   ["user-accounts", "User Accounts", "login password players"],
+  ["league-challenges", "League Target & The Gaffer", "monthly target gaffer vote challenge cancel"],
   ["integrity-health", "Integrity & Health", "league checks problems"],
   ["singles-season", "Singles Season", "standings playoffs"],
   ["season-tables", "Past season tables", "final tables standings no games tidy"],
@@ -339,6 +341,10 @@ function AdminContent({ onLock }: { onLock: () => void }) {
 
       <CollapsibleAdminSection sectionId="league-week" title="Weekly round-up & pairings" icon={Users} accent="#3ee0b4" borderColor="rgba(62,224,180,0.2)" background="rgba(62,224,180,0.025)">
         <LeagueWeek />
+      </CollapsibleAdminSection>
+
+      <CollapsibleAdminSection sectionId="league-challenges" title="League Target & The Gaffer" icon={Crown} accent="#ffd24a" borderColor="rgba(255,210,74,0.2)" background="rgba(255,210,74,0.025)">
+        <LeagueChallenges players={players as { id: number; name: string }[] | undefined} />
       </CollapsibleAdminSection>
 
       <CollapsibleAdminSection sectionId="integrity-health" title="Integrity & Health" icon={Activity} accent="#a855f7" borderColor="rgba(168,85,247,0.2)" background="rgba(168,85,247,0.025)">

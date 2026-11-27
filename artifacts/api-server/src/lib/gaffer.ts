@@ -49,6 +49,16 @@ export function levelTargets(key: ChallengeKey, previous: number[]): [number, nu
   return [a, b, c];
 }
 
+/**
+ * Challenges that only track when matches are played on the app's scorer (180s and checkouts aren't sent
+ * with a plain result). They're only offered once the last 2 months show the league is producing that data.
+ */
+export const SCORER_ONLY: ChallengeKey[] = ["oneEighties", "finishing"];
+export function scorerDataReady(key: ChallengeKey, previous: number[]): boolean {
+  if (!SCORER_ONLY.includes(key)) return true;
+  return Math.max(0, ...previous.slice(0, 2)) >= CHALLENGES[key].floor;
+}
+
 /** Match needed in a month to stand for Gaffer. */
 export const CANDIDATE_MIN_MATCHES = 3;
 /** Days at the end of the month the vote is open. */

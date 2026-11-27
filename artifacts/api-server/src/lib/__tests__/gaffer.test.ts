@@ -48,3 +48,12 @@ test("ladders and game keys", () => {
   assert.equal(nextStep(SQUAD_LADDER, 1)?.hits, 3);
   assert.equal(gameKey(" Cricket "), "cricket");
 });
+
+test("scorer-only challenges need real scorer data in a recent month", async () => {
+  const { scorerDataReady } = await import("../gaffer.ts");
+  assert.equal(scorerDataReady("oneEighties", [0, 1]), false);
+  assert.equal(scorerDataReady("oneEighties", [0, 3]), true);
+  assert.equal(scorerDataReady("finishing", [0, 0]), false);
+  assert.equal(scorerDataReady("finishing", [27]), true);
+  assert.equal(scorerDataReady("meet", []), true);
+});

@@ -1240,6 +1240,30 @@
   .cosmetic-name-legendary { animation: none; }
 }
 
+/* ── Exclusive unlocks (League Target / The Gaffer) — effects nothing in the Store has ── */
+.cosmetic-name-exclusive { animation: cosmetic-shimmer 3s linear infinite, cosmetic-exclusive-glow 2.4s ease-in-out infinite; }
+@keyframes cosmetic-exclusive-glow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(255,210,74,.35)); }
+  50% { filter: drop-shadow(0 0 14px rgba(255,210,74,.95)) drop-shadow(0 0 2px #fff); }
+}
+.cosmetic-frame-bullseye { animation: cosmetic-bullseye 2.2s ease-in-out infinite; }
+@keyframes cosmetic-bullseye {
+  0%, 100% { box-shadow: 0 0 0 2px #ff3b3b, 0 0 0 5px rgba(25,195,200,.9), 0 0 0 8px rgba(255,59,59,.5), 0 0 18px rgba(25,195,200,.5); }
+  50% { box-shadow: 0 0 0 2px #ff3b3b, 0 0 0 7px rgba(25,195,200,.6), 0 0 0 12px rgba(255,59,59,.25), 0 0 28px rgba(25,195,200,.8); }
+}
+.cosmetic-frame-exclusive { animation: cosmetic-frame-ex 3s linear infinite; }
+@keyframes cosmetic-frame-ex {
+  0%, 100% { box-shadow: 0 0 0 2px #22c55e, 0 0 16px rgba(34,197,94,.7); }
+  50% { box-shadow: 0 0 0 2px #ffd24a, 0 0 24px rgba(255,210,74,.85); }
+}
+.cosmetic-tag-exclusive { position: relative; overflow: hidden; }
+.cosmetic-tag-exclusive::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.45) 50%, transparent 70%);
+  transform: translateX(-120%); animation: cosmetic-tag-glint 3.5s ease-in-out infinite; }
+@keyframes cosmetic-tag-glint { 0%, 60% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce) {
+  .cosmetic-name-exclusive, .cosmetic-frame-bullseye, .cosmetic-frame-exclusive, .cosmetic-tag-exclusive::after { animation: none; }
+}
+
 /* ── Profile cosmetics: CHECKOUT_EFFECT particle burst ────────────────
    Plays once on Practice's result screen when the logged-in viewer won
    and has a CHECKOUT_EFFECT cosmetic equipped (see practice.tsx's

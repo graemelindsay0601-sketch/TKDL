@@ -5,7 +5,7 @@ import "./league-target.css";
 type Step = { hits: number; id: string; name: string; category: string; rarity: string; owned: boolean };
 export type LeagueTarget = {
   available: boolean; live: boolean; month: string; label: string; unit: string; blurb: string; target: number; value: number;
-  daysLeft: number; minMatches: number; sharing: number;
+  daysLeft: number; minMatches: number; sharing: number; voided?: boolean;
   history: { month: string; label: string; target: number; value: number | null; hit: boolean | null; live: boolean }[];
   me: null | { matches: number; qualifies: boolean; hits: number; next: { hits: number; name: string; category: string } | null; ladder: Step[] };
 };
@@ -16,7 +16,7 @@ const KIND: Record<string, string> = { LEADERBOARD_TAG: "Tag", BANNER: "Banner",
 /** Hub card: this month's League Target, your part in it, and the exclusive unlocks it leads to. */
 export function LeagueTargetCard() {
   const { data } = useFetch<LeagueTarget>("/api/league-target");
-  if (!data?.available) return null;
+  if (!data?.available || data.voided) return null;
   return <LeagueTargetView t={data} />;
 }
 

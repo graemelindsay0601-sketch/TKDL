@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Coins, Check, Lock, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, glowRowStyle, resultThemeColor, bubbleColorStyle, leaderboardTagStyle, taglineStyleCSS, postAccentStyle, stickerEmoji, checkoutEffect, scorerThemeColor, playerCardFinish, trophyCaseStyle, recapStyleCSS, rankUpEffect, accountAccentColor, RARITY_COLORS, PROFILE_ICON_MAP, AVATAR_BADGE_MAP,
+  useCosmeticsCatalog, nameStyleCSS, nameStyleClassName, bannerCSS, frameStyle, frameClassName, glowRowStyle, resultThemeColor, bubbleColorStyle, leaderboardTagStyle, taglineStyleCSS, postAccentStyle, stickerEmoji, checkoutEffect, scorerThemeColor, playerCardFinish, trophyCaseStyle, recapStyleCSS, rankUpEffect, accountAccentColor, RARITY_COLORS, PROFILE_ICON_MAP, AVATAR_BADGE_MAP,
   type CosmeticDefinition,
 } from "@/lib/cosmetics";
 
@@ -232,7 +232,7 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
       case "BANNER":
         return <div style={{ width: "100%", height: "32px", borderRadius: "6px", ...bannerCSS(c) }} />;
       case "FRAME":
-        return <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#15151f", ...frameStyle(c) }} />;
+        return <div className={frameClassName(c)} style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#15151f", ...frameStyle(c) }} />;
       case "GLOW":
         return <div style={{ width: "100%", height: "24px", borderRadius: "6px", background: "#15151f", ...glowRowStyle(c) }} />;
       case "RESULT_THEME":
