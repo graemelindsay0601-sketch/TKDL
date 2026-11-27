@@ -673,6 +673,17 @@ function ScorerLayout({ top, bot }: { top: React.ReactNode; bot: React.ReactNode
 // ── X01 Scorer ─────────────────────────────────────────────────────────────────
 export type LiveScoreState = { mode: "x01" | "cricket"; scores: [number, number]; turn: 0 | 1; detail?: [string, string]; currentPlayer?: string; lastVisit?: string; checkout?: string };
 
+/** Segments that score 0 for this player under the live effects (Boss Battle / Board Curse): shown struck through on the new pad. */
+function deadKeysFor(effects: CCEffect[], player: number): number[] {
+  const live = effects.filter(e => e.status === "active" && e.affectsPlayer === player);
+  const out = new Set<number>();
+  for (const e of live) {
+    for (const n of e.segmentBlock ?? []) out.add(n);
+    if (e.lockdownSegment !== undefined) for (const n of [...Array.from({ length: 20 }, (_, k) => k + 1), 25]) if (n !== e.lockdownSegment) out.add(n);
+  }
+  return [...out];
+}
+
 export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, onLiveState, legs: legsProp, setsToWin = 0, legsToWinSet = 3, soloMode = false, cardEffects = [], onCardsUsedChange, onLegStart, onVisitStart, topBanner, newScoringUI, scorerThemeColor, initialRecovery, onRecoveryState, firstThrower = 0, botVisitPlanner, botCorkPlanner, onDartLog, partnerVisitPlanner }: {
   p1Name: string; p2Name: string;
   config: {
@@ -1998,8 +2009,13 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
   // rules, because it turns a typed score into darts.
   const [preferredStyle] = useScorerStyle();
   const [matchStyle, setMatchStyle] = useSnapState<ModernMode | "classic" | null>("X01Scorer.matchStyle", null);
-  const modernAllowed = !isCardClash && cardEffects.length === 0 && !roundLimit;
-  const totalAllowed = modernAllowed && !doubleIn && !noTrebles && !trebleOut && !masterOut && !bullFinish && !partnerVisitPlanner;
+  // Boss Battle and Board Curse run the effects engine with no cards in hand:
+  // those get the new layout too (per dart only, so every dart meets the
+  // effects), with the effects HUD in the banner. Real Card Clash / Chaos keep
+  // the classic layout, where the card hand and chaos tools live.
+  const effectsOnly = isCardClash && !isChaosMode && !isChaosLabMode && p1Cards.length === 0 && p2Cards.length === 0;
+  const modernAllowed = (!isCardClash || effectsOnly) && !roundLimit;
+  const totalAllowed = modernAllowed && !isCardClash && cardEffects.length === 0 && !doubleIn && !noTrebles && !trebleOut && !masterOut && !bullFinish && !partnerVisitPlanner;
   const wantedStyle: ModernMode | "classic" = matchStyle ?? preferredStyle;
   const modernMode: ModernMode | null = !modernAllowed || wantedStyle === "classic" ? null : (wantedStyle === "total" && totalAllowed ? "total" : "perdart");
   // Visit total queues its darts here; one dart per render so the engine sees each in order.
@@ -2068,7 +2084,8 @@ export function X01Scorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon,
         onMiss={handleMiss}
         onUndo={handleUndo}
         onDarts={queueVisit}
-        topBanner={topBanner}
+        topBanner={isCardClash ? <>{topBanner}<CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} /></> : topBanner}
+        deadKeys={isCardClash ? deadKeysFor(activeEffects, turn) : undefined}
         menu={menu}
         lastVisit={lastVisit}
       />
@@ -3850,7 +3867,8 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
     setMissQueue(q => q - 1);
     handleDartRefCri.current({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   }, [missQueue]); // eslint-disable-line react-hooks/exhaustive-deps
-  const modernCricket = !isCardClash && cardEffects.length === 0
+  const effectsOnlyCri = isCardClash && !isChaosMode && !isChaosLabMode && p1Cards.length === 0 && p2Cards.length === 0;
+  const modernCricket = (!isCardClash || effectsOnlyCri)
     && (matchStyleCri ?? (preferredStyleCri === "classic" ? "classic" : "modern")) === "modern";
 
   if (modernCricket) {
@@ -3884,7 +3902,7 @@ export function CricketScorer({ p1Name, p2Name, cutThroat = false, includesBull 
         onUndo={handleUndo}
         onEndVisit={() => { if (!isBotTurnCri && missQueue === 0) setMissQueue(Math.max(1, 3 - visitDarts.length)); }}
         menu={menuCri}
-        topBanner={topBanner}
+        topBanner={isCardClash ? <>{topBanner}<CCEffectsHUD effects={activeEffects} names={[p1Name, p2Name]} lastActivation={lastActivation} /></> : topBanner}
       />
     );
   }
@@ -10582,8 +10600,9 @@ export function NinetyNineDartsScorer({ p1Name, config, onWin, onAbandon, onPrac
 // ── Master-501 Scorer ──────────────────────────────────────────────────────────
 // Solo 501 double-out vs a per-leg dart budget. Exceed the budget = leg loss.
 export function Master501Scorer({
-  playerName, dartLimit, legs, legsNeeded, tierName, tierColor, onMatchResult, onAbandon, onPracticeStats,
+  playerName, dartLimit, legs, legsNeeded, tierName, tierColor, onMatchResult, onAbandon, onPracticeStats, newScoringUI,
 }: {
+  newScoringUI?: boolean;
   playerName: string;
   dartLimit:  number;
   legs:       number;
@@ -10620,7 +10639,8 @@ export function Master501Scorer({
   const coAttRef      = useRef(0);
   const coHitsRef     = useRef(0);
 
-  const dartsUsed = dil + visitDarts.length;
+  // On a winning visit the darts are already counted in dil (and stay on show in visitDarts).
+  const dartsUsed = dil + (legDone ? 0 : visitDarts.length);
   const dartsLeft = dartLimit - dartsUsed;
   const frac      = Math.max(0, dartsLeft) / dartLimit;
   const dColor    = frac > 0.5 ? "#22c55e" : frac > 0.2 ? "#ffd24a" : "#ff005c";
@@ -10734,6 +10754,86 @@ export function Master501Scorer({
   const liveScore501  = score - cumRender;
   const m501Checkout  = (!bust && !legDone && liveScore501 >= 2 && liveScore501 <= 170)
     ? CHECKOUTS[liveScore501] : undefined;
+
+  // ── New scorer layout (Visit total / Per dart), like 501 everywhere else ──
+  // Presentation only: every score still goes through handleDart, so the dart
+  // limit, busts, the double-out and the session stats are unchanged. The
+  // Master-501 bits (tier, darts-left meter, win/lose legs) ride in the banner.
+  const [preferredM5] = useScorerStyle();
+  const [matchStyleM5, setMatchStyleM5] = useSnapState<ModernMode | "classic" | null>("Master501Scorer.matchStyle", null);
+  const wantedM5: ModernMode | "classic" = matchStyleM5 ?? preferredM5;
+  const modeM5: ModernMode | null = !newScoringUI || wantedM5 === "classic" ? null : wantedM5 === "total" ? "total" : "perdart";
+  const m5QueueRef = useRef<Dart[]>([]);
+  const [m5Tick, setM5Tick] = useState(0);
+  const handleDartRefM5 = useRef(handleDart);
+  handleDartRefM5.current = handleDart;
+  useEffect(() => {
+    if (m5QueueRef.current.length === 0) return;
+    if (bust || legDone || matchDone) { m5QueueRef.current = []; return; }
+    handleDartRefM5.current(m5QueueRef.current.shift()!);
+  }, [m5Tick, visitDarts, dil, bust, legDone, matchDone]);
+  const m5History = useRef<number[]>([]);
+  const lastScoreRef = useRef(score);
+  useEffect(() => { if (score < lastScoreRef.current) m5History.current.push(lastScoreRef.current - score); lastScoreRef.current = score; }, [score]);
+
+  if (modeM5) {
+    const legNo = legWins + legLosses + 1;
+    const banner = (
+      <div className="m5-banner" style={{ ["--m5" as any]: tierColor, ["--dc" as any]: dColor }}>
+        <div className="m5-row">
+          <span className="m5-tier">{tierName}</span>
+          <span className="m5-legs" title={`${legLosses} of ${losingThreshold} legs lost`}>
+            <b>Legs lost</b>
+            {lDots.map((d, i) => <i key={`l${i}`} className={d === "loss" ? "l" : ""} />)}
+          </span>
+        </div>
+        <div className="m5-meter">
+          <span className="m5-left"><b>{Math.max(0, dartsLeft)}</b> darts left <small>of {dartLimit}</small></span>
+          <span className="m5-bar"><i style={{ width: `${frac * 100}%` }} /></span>
+        </div>
+        {flash && !bust && <div className={`m5-flash ${legDone === "win" ? "win" : "loss"}`}>{flash}</div>}
+      </div>
+    );
+    const darts = dartLogRef.current.length;
+    return (
+      <ModernX01
+        mode={modeM5}
+        canTotal
+        onMode={m => setMatchStyleM5(m)}
+        names={[playerName, ""]}
+        solo
+        scores={[score, 0]}
+        turn={0}
+        heading={`Master 501 · Leg ${legNo}`}
+        legsLine={`Win ${legsNeeded} legs before you lose ${losingThreshold}`}
+        legWins={[legWins, 0]}
+        legsNeeded={legsNeeded}
+        stats={[{ avg: darts ? ((totalScoreRef.current / darts) * 3).toFixed(1) : "–", darts: dartsUsed }, { avg: "–", darts: 0 }]}
+        routes={[m501Checkout, undefined]}
+        visitDarts={visitDarts}
+        bust={bust}
+        bustMsg={bustMsg}
+        waitingMsg={legDone ? (legDone === "win" ? "Leg won" : "Out of darts") : undefined}
+        disabled={isDisabled || m5QueueRef.current.length > 0}
+        doubleOut
+        onDart={handleDart}
+        onMiss={handleMiss}
+        onUndo={handleUndo}
+        onDarts={ds => {
+          if (isDisabled || visitDarts.length > 0 || m5QueueRef.current.length > 0) return;
+          m5QueueRef.current = ds.map(d => ({ ...d, typed: true }) as Dart);
+          setM5Tick(t => t + 1);
+        }}
+        topBanner={banner}
+        menu={[
+          ...(fsSupported ? [{ label: fs ? "Exit fullscreen" : "Fullscreen", onClick: toggleFs }] : []),
+          { label: "Use classic scorer for this match", onClick: () => setMatchStyleM5("classic") },
+          { label: "Abandon match", danger: true, onClick: () => { if (window.confirm("Abandon this match?")) onAbandon(); } },
+        ]}
+        lastVisit={[m5History.current.length ? m5History.current[m5History.current.length - 1] : null, null]}
+      />
+    );
+  }
 
   return (
     <ScorerLayout

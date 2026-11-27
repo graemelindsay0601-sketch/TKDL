@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Target, ArrowRight, CheckCircle, Lock, RotateCcw, Zap, Shield, Flame, TrendingUp } from "lucide-react";
 import { Master501Scorer } from "@/lib/scorers";
+import { useNewScoringUI } from "@/lib/useNewScoringUI";
 import { type PracticeStats } from "@/lib/stats-types";
 import { SessionHistorySection } from "@/components/session-history";
 import { useCurrentPlayer } from "@/context/auth";
@@ -62,6 +63,7 @@ const M501_TIER_META: Record<number, { label: string; color: string; emoji: stri
 };
 
 export default function Master501() {
+  const newScoringUI = useNewScoringUI();
   const [players,     setPlayers]     = useState<Player[]>([]);
   const [playerId,    setPlayerId]    = useState<number | null>(null);
   const [progress,    setProgress]    = useState<Progress | null>(null);
@@ -477,6 +479,7 @@ export default function Master501() {
     return createPortal(
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#06040e" }}>
         <Master501Scorer
+          newScoringUI={newScoringUI}
           playerName={playerName}
           dartLimit={startCfg.dartLimit}
           legs={startCfg.legs}
