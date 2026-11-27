@@ -158,6 +158,8 @@ test("the monthly sub goal: set once a month from Partner up, settled at the mon
   await db.execute(sql`DELETE FROM career_stream_shorts WHERE career_save_id=${id}`);
   // And partner deals taken in earlier tests: a giveaway completing this week adds its followers.
   await db.execute(sql`UPDATE career_stream_partner_deals SET status='EXPIRED' WHERE career_save_id=${id} AND status='ACTIVE'`);
+  // And VOD replays of earlier tests' streams: one falling inside this week's VOD window adds a follower (the last source of flakiness here).
+  await db.execute(sql`UPDATE career_streams SET tally = jsonb_set(tally, '{vodWeeks}', '9999'::jsonb) WHERE career_save_id=${id}`);
   const root = { id, world_seed: String((await rows(sql`SELECT world_seed FROM career_saves WHERE id=${id}`))[0].world_seed) };
   await settleStreamingWeek(db, root, s.currentSeason, end);
   await settleStreamingWeek(db, root, s.currentSeason, end);

@@ -378,7 +378,7 @@ async function bullUp(id: string, matchId: string, humanThrow: "INNER" | "OUTER"
   return s;
 }
 /** Plays the match exactly as the browser would: the seeded bot visits and a human dart policy, checkpointed per visit. */
-async function playOut(id: string, matchId: string, session: any, human: BotSkill, humanSeed: string, opts: { stopAfterVisits?: number } = {}) {
+async function playOut(id: string, matchId: string, session: any, human: BotSkill | "MISS_EVERYTHING", humanSeed: string, opts: { stopAfterVisits?: number } = {}) {
   const darts: Dart[] = [...session.darts];
   let revision = session.revision, visits = 0;
   const humanRng = seededRandom(humanSeed);
@@ -388,6 +388,7 @@ async function playOut(id: string, matchId: string, session: any, human: BotSkil
     const p = st.turn;
     const plan = p === 1
       ? planBotX01Visit(st.scores[1], session.bot.config, { doubleOut: true, opened: st.opened[1], rng: seededRandom(session.bot.seed, "bot-visit", st.visits.filter(v => v.thrower === 1).length) })
+      : human === "MISS_EVERYTHING" ? [0, 1, 2].map(() => ({ segment: 0, multiplier: 1 as const, value: 0 }))
       : planBotX01Visit(st.scores[0], human, { doubleOut: true, opened: st.opened[0], rng: humanRng });
     let s = st;
     for (const d of plan) { const r = throwDart(s, d); s = r.state; darts.push(d); if (!["SCORED", "UNOPENED", "OPENED"].includes(r.outcome)) break; }
@@ -673,7 +674,9 @@ test("losing the first match: elimination recorded, no further human matches, ca
   const event = await enterFirst(id, e => e.definitionKey === "friday-night-501" && e.capability.executable);
   const matchId = await advanceToHumanMatch(id);
   const s = await bullUp(id, matchId, "MISS");
-  const done = await playOut(id, matchId, s, WEAK, "weak");
+  // A weak but scoring human still beat the seeded opponent now and then, so this test made CI flaky:
+  // a human who misses every dart can't win.
+  const done = await playOut(id, matchId, s, "MISS_EVERYTHING", "weak");
   assert.equal(done.session.result.humanWon, false);
   assert.deepEqual(done.session.result.nextHumanMatchIds, []);
   const row = (await q(sql`SELECT winner_key FROM career_tournament_matches WHERE career_save_id = ${id} AND id = ${matchId}`))[0];

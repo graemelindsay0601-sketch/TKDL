@@ -143,5 +143,8 @@ test("Clip of the Week: at most one a week, and a win brings followers", async (
     if (won.length) { wins++; assert.ok(after - before >= Math.max(CLIP_OF_WEEK.minFollowers, 30), `spotlight ${after - before}`); assert.equal(Number(won[0].views), 3000, "the best clip is the entry"); }
   }
   assert.ok(wins > 3 && wins < 20, `wins ${wins}`);
+  // The channel view lists the top 8 clips; with 20 tied entries the winners weren't always among them, which made this flaky.
+  // Lift one winner to the top so this checks the flag reaches the view.
+  await db.execute(sql`UPDATE career_stream_clips SET views = 1000000 WHERE career_save_id=${id} AND id = (SELECT id FROM career_stream_clips WHERE career_save_id=${id} AND clip_of_week LIMIT 1)`);
   assert.ok((await streaming.read(actor, id)).clips.some(c => c.clipOfWeek));
 });
