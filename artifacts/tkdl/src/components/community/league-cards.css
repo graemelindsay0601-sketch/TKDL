@@ -1,0 +1,78 @@
+/* Off the Oche: cards the app posts itself (moments, round-up, call-outs). */
+.lc-moment, .lc-roundup, .lc-callout, .lc-composer, .lc-tipsters { font-family: Inter, system-ui, sans-serif; color: #ece9f5; }
+.lc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.lc-tag { display: inline-flex; align-items: center; gap: 6px; font: 600 10.5px/1 Oswald, sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--lc, #ffd24a); }
+.lc-ago { font: 400 11px Oswald, sans-serif; letter-spacing: .04em; color: rgba(255,255,255,.3); }
+.lc-title { font: 700 28px/1 Oswald, sans-serif; letter-spacing: .03em; text-transform: uppercase;
+  background: linear-gradient(180deg, #fff 0%, color-mix(in srgb, var(--lc, #ffd24a) 60%, #fff) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lc-line { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: #d9d5e6; }
+.lc-row { display: flex; align-items: center; gap: 12px; }
+.lc-copy { flex: 1; min-width: 0; }
+.lc-stat { flex: none; min-width: 74px; padding: 8px 10px; border-radius: 14px; text-align: center;
+  background: color-mix(in srgb, var(--lc) 14%, transparent); border: 1px solid color-mix(in srgb, var(--lc) 45%, transparent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--lc) 22%, transparent); }
+.lc-stat b { display: block; font: 700 30px/1 Oswald, sans-serif; color: #fff; }
+.lc-stat small { display: block; margin-top: 3px; font: 500 9.5px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--lc) 70%, #fff); }
+.lc-link { display: inline-flex; align-items: center; gap: 2px; margin-top: 10px; font: 600 11px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: var(--lc, #ffd24a); }
+.lc-moment { padding: 2px 0 4px; }
+
+.lc-roundup { --lc: #19c3c8; }
+.lc-roundup .lc-title { font-size: 22px; }
+.lc-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 12px 0; }
+.lc-nums div { padding: 8px 4px; border-radius: 12px; text-align: center; background: rgba(25,195,200,.08); border: 1px solid rgba(25,195,200,.25); }
+.lc-nums b { display: block; font: 700 22px/1 Oswald, sans-serif; color: #fff; }
+.lc-nums small { font: 500 9.5px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #8fe3e6; }
+.lc-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lc-tile { display: flex; flex-direction: column; gap: 2px; padding: 9px 10px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); }
+.lc-tile-l { display: inline-flex; align-items: center; gap: 5px; font: 500 9.5px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.45); }
+.lc-tile-n { font: 700 16px/1.1 Oswald, sans-serif; color: #ffd24a; }
+.lc-tile-v { font-size: 12px; color: rgba(255,255,255,.6); }
+.lc-records { margin-top: 10px; display: grid; gap: 4px; font-size: 13px; color: #f1e3b0; }
+.lc-records div { display: flex; align-items: center; gap: 6px; }
+.lc-records svg { color: #ffd24a; flex: none; }
+
+.lc-callout { --lc: #ff005c; }
+.lc-vs { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lc-side { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); min-width: 0; }
+.lc-side small { font: 500 9.5px Oswald, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.4); }
+.lc-name { font: 700 20px/1.05 Oswald, sans-serif; text-transform: uppercase; letter-spacing: .02em; color: #fff; overflow-wrap: anywhere; }
+.lc-side.mine { border-color: rgba(255,210,74,.6); box-shadow: 0 0 16px rgba(255,210,74,.15); }
+.lc-side.won { border-color: rgba(34,197,94,.7); background: rgba(34,197,94,.1); }
+.lc-side.lost { opacity: .55; }
+.lc-won { display: inline-flex; align-items: center; gap: 4px; font: 600 11px Oswald, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #22c55e; }
+.lc-vs-badge { position: absolute; right: -19px; top: 50%; transform: translateY(-50%); z-index: 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 11px Oswald, sans-serif; color: #fff; background: linear-gradient(180deg, #ff3d7f, #c40047); box-shadow: 0 0 14px rgba(255,0,92,.55); }
+.lc-share { position: relative; height: 18px; border-radius: 9px; overflow: hidden; background: rgba(255,255,255,.06); }
+.lc-share i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgba(255,0,92,.45), rgba(255,0,92,.25)); }
+.lc-share span { position: relative; display: block; padding: 0 7px; font: 500 10.5px/18px Oswald, sans-serif; letter-spacing: .06em; color: #fff; }
+.lc-tip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 8px; border-radius: 10px; font: 600 11px Oswald, sans-serif; letter-spacing: .1em; text-transform: uppercase;
+  color: #ffd24a; background: rgba(255,210,74,.08); border: 1px solid rgba(255,210,74,.4); }
+.lc-quote { margin: 10px 0 0; font-size: 15px; font-style: italic; color: #f3c8d7; }
+.lc-status { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: rgba(255,255,255,.55); }
+.lc-status .lc-link { margin-top: 0; }
+.lc-answer { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.lc-answer button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; border-radius: 12px; font: 700 13px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.lc-answer .go { color: #1a1200; background: linear-gradient(180deg, #ffe58a, #e0a800); }
+.lc-answer .no { color: rgba(255,255,255,.7); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.15); }
+.lc-callout.is-declined .lc-vs, .lc-callout.is-expired .lc-vs { opacity: .6; }
+
+.lc-composer { --lc: #ff005c; padding: 16px; border-radius: 20px; border: 1px solid rgba(255,0,92,.4);
+  background: radial-gradient(120% 80% at 0% 0%, rgba(255,0,92,.16), transparent 60%), linear-gradient(180deg, #17141f, #0c0a12); box-shadow: 0 14px 34px rgba(0,0,0,.45); }
+.lc-composer label { display: block; margin: 12px 0 6px; font: 600 11px Oswald, sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #fff; }
+.lc-composer label small { color: rgba(255,255,255,.35); letter-spacing: .06em; text-transform: none; font-weight: 400; }
+.lc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lc-chips button { padding: 6px 10px; border-radius: 999px; font-size: 13px; color: #cfcade; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); }
+.lc-chips button.on { color: #1a1200; background: linear-gradient(180deg, #ffe58a, #e0a800); border-color: #ffd24a; }
+.lc-send { margin-top: 14px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border-radius: 14px;
+  font: 700 14px Oswald, sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #fff; background: linear-gradient(180deg, #ff3d7f, #c40047); box-shadow: 0 0 18px rgba(255,0,92,.35); }
+.lc-send:disabled { opacity: .4; box-shadow: none; }
+.lc-help { margin: 8px 0 0; font-size: 12px; color: rgba(255,255,255,.4); text-align: center; }
+.lc-x { color: rgba(255,255,255,.5); }
+
+.lc-tipsters { --lc: #ffd24a; padding: 12px 14px; border-radius: 18px; border: 1px solid rgba(255,210,74,.3); background: linear-gradient(160deg, rgba(255,210,74,.1), #110e18 60%); }
+.lc-tipsters .lc-top small { font-size: 11px; color: rgba(255,255,255,.35); }
+.lc-tip-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.06); }
+.lc-tip-row:first-of-type { border-top: 0; }
+.lc-rk { width: 20px; text-align: center; font: 700 13px Oswald, sans-serif; color: #ffd24a; }
+.lc-nm { flex: 1; font: 600 15px Oswald, sans-serif; color: #fff; }
+.lc-tip-row b { font: 700 15px Oswald, sans-serif; color: #ffd24a; }

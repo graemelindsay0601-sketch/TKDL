@@ -256,8 +256,9 @@ export async function gafferNotices(now = new Date()): Promise<void> {
   if (g.gaffer_id && who) {
     const by = pickDeadlineFor(g).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
     if (!g.challenge) await notifyOnce(g.gaffer_id, `gf-elected:${g.month}`, `👑 You're ${m}'s Gaffer`, `Pick the league's challenge by ${by}, or Meet the League runs.`);
-    await notifyAll(ids.filter(i => i !== g.gaffer_id), `gf-new:${g.month}`, `👑 ${who} is ${m}'s Gaffer`,
-      g.chosen_by === "vote" ? "Voted in by the league." : g.chosen_by === "admin" ? "Appointed by the league admin." : "No votes, so the player with the most matches takes charge.");
+    const how = g.chosen_by === "vote" ? "Voted in by the league." : g.chosen_by === "admin" ? "Appointed by the league admin." : "No votes, so the player with the most matches takes charge.";
+    await notifyAll(ids.filter(i => i !== g.gaffer_id), `gf-new:${g.month}`, `👑 ${who} is ${m}'s Gaffer`, how);
+    await import("./community-highlights-db").then(x => x.postGafferHighlight(g.month, m, g.gaffer_id!, who, how)).catch(() => {});
   }
   if (g.challenge && g.target != null) {
     const def = CHALLENGES[g.challenge];

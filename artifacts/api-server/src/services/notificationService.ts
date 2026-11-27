@@ -26,6 +26,8 @@ export interface NotificationPayload {
     // Off the Oche (community tab) additions — an @mention in a post/comment,
     // and the weekly Top of the Board coin-reward payout.
     | "post_mentioned" | "top_post_reward"
+    // Off the Oche call-outs: challenged, accepted, settled, predictions.
+    | "callout"
     // Interview Desk (test/preview — see routes/interview-desk.ts's header).
     // Time-boxed like threat_alert: the request expires once the live
     // window it was asked for has passed, so it needs to actually reach the
@@ -187,6 +189,7 @@ async function shouldSendNotification(payload: NotificationPayload, prefs: any):
     // able to silence.
     post_mentioned:        "community_activity",
     top_post_reward:       "community_activity",
+    callout:               "community_activity",
     career_reminder:       "career_reminders",
     league_challenge:      "league_challenges",
   };

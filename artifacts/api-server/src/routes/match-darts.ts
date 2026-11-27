@@ -34,8 +34,10 @@ router.post("/matches/:id/darts", async (req, res): Promise<void> => {
   const m = (await db.execute(sql`SELECT id FROM matches WHERE id = ${id} AND played_at >= NOW() - INTERVAL '6 hours'`)).rows[0];
   if (!m) { res.status(404).json({ error: "Match not found or too old" }); return; }
   await ensureMatchDartLogs();
-  await db.execute(sql`INSERT INTO match_dart_logs (match_id, winner_darts, loser_darts) VALUES (${id}, ${JSON.stringify(w)}::jsonb, ${JSON.stringify(l)}::jsonb) ON CONFLICT (match_id) DO NOTHING`);
+  const saved = await db.execute(sql`INSERT INTO match_dart_logs (match_id, winner_darts, loser_darts) VALUES (${id}, ${JSON.stringify(w)}::jsonb, ${JSON.stringify(l)}::jsonb) ON CONFLICT (match_id) DO NOTHING RETURNING match_id`);
   res.json({ ok: true });
+  // A ton-plus winning finish is an Off the Oche "league moment" (once per match).
+  if (saved.rows.length) void import("../lib/community-highlights-db").then(m => m.postFinishHighlight(id, w.filter(d => !d.typed))).catch(() => {});
 });
 
 export default router;

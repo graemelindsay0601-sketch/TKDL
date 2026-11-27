@@ -6,6 +6,8 @@ import { authedWriteRateLimit } from "../middleware/writeRateLimit";
 import { currentLeagueId } from "../lib/currentLeague";
 import { getSettingBool } from "../lib/settingsService";
 
+import { ensureCalloutTables, sweepExpired, openBetween, createCallout, getCallout, respond as respondCallout, predict as predictCallout, predictionLeaders } from "../lib/community-callouts-db";
+import { validateNewCallout, canPredict, CALLOUT_LINES, CALLOUT_GAMES } from "../lib/community-callouts";
 const router = Router();
 
 // ── Post photo ────────────────────────────────────────────────────────────
@@ -130,6 +132,13 @@ router.get("/community/posts", async (req, res): Promise<void> => {
     const photoOnly     = req.query.photo_only === "true";
     const search        = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 100) : "";
     const bookmarkedOnly = req.query.bookmarked_only === "true";
+    // Which kinds of post: people's own posts, the league moments (highlights +
+    // the Monday round-up), call-outs, or everything (the default).
+    const kind = String(req.query.kind ?? "all");
+    const types = kind === "people" ? ["manual", "poll"] : kind === "moments" ? ["highlight", "roundup"] : kind === "callouts" ? ["callout"]
+      : filterPlayer ? ["manual", "poll", "callout"] : ["manual", "poll", "highlight", "roundup", "callout"];
+    await ensureCalloutTables();
+    await sweepExpired();
 
     // "Saved" tab — a bookmarked-only view of the feed. Signed out (or
     // somehow no player id) can't have bookmarks, so there's nothing to
@@ -197,10 +206,16 @@ router.get("/community/posts", async (req, res): Promise<void> => {
         ) ELSE NULL END AS poll_options,
         CASE WHEN cp.post_type = 'poll' THEN (
           SELECT option_id FROM community_poll_votes WHERE post_id = cp.id AND player_id = ${myPlayerId}
-        ) ELSE NULL END AS poll_my_vote
+        ) ELSE NULL END AS poll_my_vote,
+        CASE WHEN cp.post_type = 'callout' THEN (
+          SELECT jsonb_object_agg(pick_id::text, n) FROM (SELECT pick_id, COUNT(*)::int n FROM community_predictions WHERE post_id = cp.id GROUP BY pick_id) x
+        ) ELSE NULL END AS callout_picks,
+        CASE WHEN cp.post_type = 'callout' THEN (
+          SELECT pick_id FROM community_predictions WHERE post_id = cp.id AND player_id = ${myPlayerId}
+        ) ELSE NULL END AS callout_my_pick
       FROM community_posts cp
       JOIN players pl ON pl.id = cp.player_id
-      WHERE cp.status = 'approved' AND cp.post_type IN ('manual', 'poll')
+      WHERE cp.status = 'approved' AND cp.post_type IN (${sql.join(types.map(t => sql`${t}`), sql`, `)})
       ${playerFilter}
       ${photoFilter}
       ${searchFilter}
@@ -239,6 +254,55 @@ router.get("/community/posts", async (req, res): Promise<void> => {
       code: err?.code,
     });
   }
+});
+
+// ── Call-outs and predictions ────────────────────────────────────────────────
+// A player calls out another to a league match (a preset line, no free text, so
+// it goes live without moderation). The target accepts or declines; everyone
+// else can tip the winner; it settles itself on the pair's next singles result
+// (settleCallouts in matches.ts).
+router.get("/community/callouts/options", (_req, res) => { res.json({ lines: CALLOUT_LINES, games: CALLOUT_GAMES }); });
+
+router.post("/community/callouts", authedWriteRateLimit, async (req, res): Promise<void> => {
+  if (!await featureEnabled(req, "community_enabled") && !sessionIsAdmin(req)) { res.status(503).json({ error: "Community feature not yet enabled" }); return; }
+  const me = requireAuth(req, res); if (!me) return;
+  await ensureCalloutTables(); await sweepExpired();
+  const targetId = Number(req.body?.targetId);
+  const line = CALLOUT_LINES.includes(req.body?.line) ? req.body.line as string : null;
+  const game = CALLOUT_GAMES.includes(req.body?.game) ? req.body.game as string : null;
+  const people = (await db.execute(sql`SELECT id, name, status FROM players WHERE id IN (${me}, ${Number.isInteger(targetId) ? targetId : 0})`)).rows as any[];
+  const mine = people.find(p => Number(p.id) === me), target = people.find(p => Number(p.id) === targetId);
+  const err = validateNewCallout(me, targetId, !!target && target.status !== "INACTIVE" && target.status !== "ELIMINATED", target ? await openBetween(me, targetId) : 0);
+  if (err || !mine) { res.status(400).json({ error: err ?? "Not found" }); return; }
+  const id = await createCallout({ id: me, name: mine.name }, { id: targetId, name: target.name }, game, line);
+  res.status(201).json({ id });
+});
+
+router.post("/community/callouts/:id/respond", authedWriteRateLimit, async (req, res): Promise<void> => {
+  const me = requireAuth(req, res); if (!me) return;
+  await ensureCalloutTables(); await sweepExpired();
+  const row = await getCallout(Number(req.params.id));
+  if (!row) { res.status(404).json({ error: "Call-out not found" }); return; }
+  if (row.auto_meta.targetId !== me) { res.status(403).json({ error: "Only the player called out can answer" }); return; }
+  if (row.auto_meta.status !== "open") { res.status(409).json({ error: "Already answered" }); return; }
+  await respondCallout(row, req.body?.accept === true);
+  res.json({ ok: true });
+});
+
+router.post("/community/callouts/:id/predict", authedWriteRateLimit, async (req, res): Promise<void> => {
+  const me = requireAuth(req, res); if (!me) return;
+  await ensureCalloutTables(); await sweepExpired();
+  const row = await getCallout(Number(req.params.id));
+  if (!row) { res.status(404).json({ error: "Call-out not found" }); return; }
+  const pick = Number(req.body?.pickId);
+  const err = canPredict(row.auto_meta, me, pick);
+  if (err) { res.status(400).json({ error: err }); return; }
+  await predictCallout(row.id, me, pick);
+  res.json({ ok: true });
+});
+
+router.get("/community/predictions/leaderboard", async (_req, res): Promise<void> => {
+  res.json(await predictionLeaders());
 });
 
 // ── GET /community/wall-of-fame ──────────────────────────────────────────────

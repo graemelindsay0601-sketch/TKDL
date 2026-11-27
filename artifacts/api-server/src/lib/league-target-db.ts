@@ -46,6 +46,11 @@ async function rows(q: ReturnType<typeof sql>): Promise<any[]> {
 /** Everything the targets count for one month, plus each player's match count. */
 export async function monthStats(key: string): Promise<MonthStats & { perPlayer: Map<number, number>; pairList: string[] }> {
   const { from, to } = bounds(key);
+  return rangeStats(from, to);
+}
+
+/** The same counts for any window (the weekly Off the Oche round-up uses it). */
+export async function rangeStats(from: Date, to: Date): Promise<MonthStats & { perPlayer: Map<number, number>; pairList: string[] }> {
   const perPlayer = new Map<number, number>();
   const pairs = new Set<string>();
   let matches = 0, oneEighties = 0;
@@ -188,8 +193,12 @@ export async function leagueTargetNotices(now = new Date()): Promise<void> {
     players: `${t.target} players with ${MIN_MATCHES}+ matches`, oneEighties: `${t.target} 180s on the scorer` };
   await notifyAll(ids, `lt-new:${t.month}`, `🎯 ${monthName(t.month)}'s League Target`,
     `The league's going for ${goal[t.kind]}. Play ${MIN_MATCHES}+ matches this month to share in it.`);
-  if (value >= t.target) await notifyAll(ids, `lt-hit:${t.month}`, "🎯 League Target hit!",
-    `${value} of ${t.target} ${info.unit}. Everyone with ${MIN_MATCHES}+ matches this month shares in it.`);
+  if (value >= t.target) {
+    await notifyAll(ids, `lt-hit:${t.month}`, "🎯 League Target hit!",
+      `${value} of ${t.target} ${info.unit}. Everyone with ${MIN_MATCHES}+ matches this month shares in it.`);
+    const top = [...stats.perPlayer.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id);
+    await import("./community-highlights-db").then(m => m.postTargetHitHighlight(t.month, monthName(t.month), value, t.target, info.unit, top)).catch(() => {});
+  }
   else if (daysLeft <= 7) await notifyAll(ids, `lt-week:${t.month}`, "🎯 A week left on the League Target",
     `${t.target - value} ${info.unit} to go (${value} of ${t.target}).`);
 }

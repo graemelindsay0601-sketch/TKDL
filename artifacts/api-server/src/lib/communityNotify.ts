@@ -35,7 +35,8 @@ export type NotificationType =
   | "match_result"
   | "achievement_unlocked"
   | "post_mentioned"
-  | "top_post_reward";
+  | "top_post_reward"
+  | "callout";
 
 // A short, generic title per type — the old pipeline never had a title at
 // all (message-only), so this is new, not a behavior change to preserve.
@@ -49,6 +50,7 @@ const TITLE_BY_TYPE: Record<NotificationType, string> = {
   match_result:          "Match Result", // dead in practice — nothing calls createNotification with this type; real match results go through notificationService.ts's own sendMatchResultNotification family.
   post_mentioned:        "You Were Mentioned",
   top_post_reward:       "Top of the Board!",
+  callout:               "Call-out",
 };
 
 // ── Create an in-app notification + fire push ────────────────────────────────
