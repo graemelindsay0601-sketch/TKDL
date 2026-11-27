@@ -1859,6 +1859,10 @@ async function initRuntime() {
   if (!CARD_CLASH_BENCHED) await runInitStep("initializeFeaturedCardScheduler", initializeFeaturedCardScheduler);
   await runInitStep("initializeCommunityTopPostScheduler", initializeCommunityTopPostScheduler);
   await runInitStep("initializeSeasonResetScheduler", initializeSeasonResetScheduler);
+  await runInitStep("initializeLeagueTargetScheduler", async () => {
+    const { initializeLeagueTargetScheduler } = await import("./lib/league-target-db");
+    initializeLeagueTargetScheduler();
+  });
   // One-off storage clean-ups for long careers, after startup and one after the other (each records when it is done).
   void (async () => {
     const { removeTournamentMatchCopies } = await import("./career/world/compact");

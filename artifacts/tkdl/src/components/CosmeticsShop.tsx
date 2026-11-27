@@ -606,7 +606,7 @@ export function CosmeticsShop({ playerId, playerName }: CosmeticsShopProps) {
                       border: "1px dashed rgba(255,255,255,0.12)", borderRadius: "6px", padding: "5px 0",
                     }}
                   >
-                    <Lock className="w-3 h-3" /> {(c as { earnedBy?: string }).earnedBy ? "Achievement" : "Exclusive"}
+                    <Lock className="w-3 h-3" /> {(c as { earnedBy?: string }).earnedBy?.startsWith("Help hit") ? "League Target" : (c as { earnedBy?: string }).earnedBy ? "Achievement" : "Exclusive"}
                   </div>
                 ) : (
                   <button

@@ -10,6 +10,7 @@ export const FEATURES = {
   TKDL_LIVE: "tkdl_live",
   NEW_SCORING_UI: "new_scoring_ui",
   CLUBHOUSE: "clubhouse",
+  LEAGUE_TARGET: "league_target",
   TOUR_CAREER_2: "tour_career_2",
 } as const;
 
@@ -71,6 +72,12 @@ export async function initializeFeatureFlags() {
         enabled: false,
         adminTestMode: true,
         description: "The Clubhouse - each player's 3D darts room (admin preview only until switched live for everyone)",
+      },
+      {
+        featureName: FEATURES.LEAGUE_TARGET,
+        enabled: false,
+        adminTestMode: true,
+        description: "League Target - monthly league-wide goal. Tracks silently in the background; unlocks are only given out once switched on for everyone",
       },
     ]).onConflictDoNothing({ target: featureFlagsTable.featureName });
 
