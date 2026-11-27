@@ -56,7 +56,7 @@ const TABS = [
 ];
 
 /** Engines whose scorers support Solo Training (one player, no opponent). */
-const SOLO_ENGINES = new Set(["X01", "Cricket"]);
+const SOLO_ENGINES = new Set(["X01", "Cricket", "Sequence", "CountUp", "HalveIt", "NinetyNine"]);
 
 // Expandable, favouritable game card — click the body to select the game
 // for setup, click the star to favourite it (device-local, see
@@ -534,7 +534,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           <div>
             <div className="text-xs font-black uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa" }}>Solo Practice Mode</div>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-              No opponent. Just you and the board. Works with X01 and Cricket games; for the rest, pick Two-player or Play against a bot.
+              No opponent. Just you and the board. Works with X01, Cricket and the solo drills (Around the World, Halve-It, Bob's 27, Count-Up, 99 Darts and more); for the rest, pick Two-player or Play against a bot.
             </p>
           </div>
         </div>

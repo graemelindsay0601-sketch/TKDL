@@ -4278,8 +4278,10 @@ export function KillerScorer({ p1Name, p2Name, lives = 3, botConfig, onWin, onAb
 }
 
 // ── Sequence Scorer (Around the World, Round the Clock, Shanghai, etc.) ────────
-export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI }: {
+export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, botConfig, onWin, onAbandon, onPracticeStats, onTurnChanged, newScoringUI, soloMode }: {
   p1Name: string; p2Name: string; config: any; gameKey: string; title?: string; rules?: string; botConfig?: BotConfig;
+  /** Solo Training: one player, no opponent; the race is against the dart count. */
+  soloMode?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   onTurnChanged?: (t: 0|1) => void;
@@ -4376,6 +4378,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   const [positions, setPositions]   = useSnapState<[number,number]>("SequenceScorer.positions", [0,0]);
   const [turn, setTurn]             = useSnapState<0|1>("SequenceScorer.turn", 0);
   const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("SequenceScorer.visitDarts", []);
+  const [soloDarts, setSoloDarts]   = useSnapState<number>("SequenceScorer.soloDarts", 0);
+  const seats = soloMode ? [0] : [0, 1];
 
   const maxRounds = config?.rounds ?? 7;
 
@@ -4393,6 +4397,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
     const nv = [...visitDarts, dart];
+    const thrown = soloDarts + 1;
+    if (soloMode) setSoloDarts(thrown);
     const target = sequence[positions[turn]] as (typeof sequence[number] & { ring?: "inner" | "outer" }) | undefined;
     // Straight Line needs an EXACT bed match (right ring included) — hitting
     // a treble when "big single" was called for shouldn't skip ahead the
@@ -4408,10 +4414,10 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
       if (!isStraightLine && target!.mult === 1) pos += (dart.multiplier - 1); // T1 → skip 2 extra? No, each dart advances once. Let extra multiplier advance once.
       const newPos = Math.min(pos, sequence.length);
       setPositions(prev => { const n:[number,number]=[...prev] as [number,number]; n[turn]=newPos; return n; });
-      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, `Finished the sequence!`); }, 200); return; }
+      if (newPos >= sequence.length) { safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"sequence"} }); onWin(turn, soloMode ? `Finished in ${thrown} darts` : `Finished the sequence!`); }, 200); return; }
     }
     setVisitDarts(nv);
-    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
+    if (nv.length === 3) { setVisitDarts([]); const nt: 0|1 = soloMode ? 0 : turn===0?1:0; setTurn(nt); onTurnChanged?.(nt); }
   };
 
   const curTarget = sequence[positions[turn]];
@@ -4437,8 +4443,10 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
       const nd = [...shanghaiDarts, dart];
       setShanghaiDarts(nd);
       const n = shanghaiRound;
+      let scored = 0;
       if (dart.segment === n) {
         const pts = dart.value; // n×mult
+        scored = pts;
         setShanghaiScores(prev => { const s: [number,number] = [...prev] as [number,number]; s[shanghaiTurn] += pts; return s; });
         setShanghaiHits(prev => ({
           s: prev.s || dart.multiplier === 1,
@@ -4455,7 +4463,11 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
       if (nd.length === 3) {
         setShanghaiDarts([]);
         setShanghaiHits({s:false,d:false,t:false});
-        if (shanghaiTurn === 1) {
+        if (soloMode) {
+          const total = shanghaiScores[0] + scored;
+          if (shanghaiRound >= maxRounds) safeTimeout(() => onWin(0, `${total} points in ${maxRounds} rounds`), 300);
+          else setShanghaiRound(r => r+1);
+        } else if (shanghaiTurn === 1) {
           if (shanghaiRound >= maxRounds) {
             safeTimeout(() => {
               const [s0,s1] = shanghaiScores;
@@ -4479,6 +4491,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
           sub={`Round ${shanghaiRound} of ${maxRounds}`}
           rules={rules ?? "Each round has a target number, starting at 1. Score what you hit on it. Hit its single, double and treble in one visit (a Shanghai) and you win on the spot. Highest score after the last round wins."}
           names={[p1Name, p2Name]}
+          solo={soloMode}
           turn={shanghaiTurn}
           cards={[0, 1].map(i => ({ score: shanghaiScores[i], line: { label: "Shanghai", value: i === shanghaiTurn ? ticks : "–" }, stats: [{ label: "Round", value: `${shanghaiRound}/${maxRounds}` }, { label: "Target", value: shanghaiRound }] })) as [any, any]}
           targets={[shanghaiRound]}
@@ -4503,8 +4516,8 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
           <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>Shanghai</h2>
           <p className="text-sm" style={{ color: "#ffd24a", fontFamily: "Oswald, sans-serif" }}>Round {shanghaiRound} of {maxRounds} — Target: {shanghaiRound}</p>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={shanghaiScores[i]} turn={i===0} active={shanghaiTurn===i} />)}
+        <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+          {seats.map(i => <PlayerCard key={i} name={names[i]} score={shanghaiScores[i]} turn={i===0} active={shanghaiTurn===i} />)}
         </div>
         <div className="pdc-card p-3 text-center" style={{ borderColor: "rgba(255,210,74,0.2)" }}>
           <p className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.3)", fontFamily: "Oswald, sans-serif" }}>This visit</p>
@@ -4532,6 +4545,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
         sub="Pick your starting number"
         rules={rules}
         names={[p1Name, p2Name]}
+        solo={soloMode}
         turn={0}
         cards={[{ score: 0, unit: `/${sequence.length || 10}` }, { score: 0, unit: `/${sequence.length || 10}` }]}
         note="Pick a number"
@@ -4596,15 +4610,17 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
         heading={title ?? "Round the Clock"}
         rules={rules}
         names={[p1Name, p2Name]}
+        solo={soloMode}
+        sub={soloMode ? `${soloDarts} darts thrown` : undefined}
         turn={turn}
         cards={[0, 1].map(i => ({ score: positions[i], unit: `/${sequence.length}`, line: { label: "Next", value: sequence[positions[i]]?.label ?? "Done" }, stats: [{ label: "Done", value: positions[i] }, { label: "To go", value: sequence.length - positions[i] }] })) as [any, any]}
         targets={curTarget ? [curTarget.seg] : undefined}
         targetLabels={curTarget ? [curTarget.seg === 25 ? "Bull" : String(curTarget.seg)] : undefined}
         panel={showGrandNationalTrack
           ? <RaceTrack max={sequence.length} tickLabels={["START", "LAP 2", "POST"]} lanes={[
-              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 },
-            ]} />
+              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0 as const, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 as const },
+            ].slice(0, seats.length)} />
           : <TargetChips items={sequence.map(t => t.label)} current={positions[turn]} />}
         note={lab ? `Aim at ${lab}` : undefined}
         visitDarts={visitDarts}
@@ -4612,7 +4628,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
         waitingMsg={isBotTurnSeq ? `${p2Name} throwing` : undefined}
         onDart={handleDart}
         onMiss={() => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" })}
-        onUndo={() => visitDarts.length > 0 && setVisitDarts(p => p.slice(0, -1))}
+        onUndo={() => { if (visitDarts.length > 0) { setVisitDarts(p => p.slice(0, -1)); if (soloMode) setSoloDarts(n => Math.max(0, n - 1)); } }}
         highlight={curTarget ? [curTarget.seg] : []}
         ringMode={isStraightLine}
         onAbandon={onAbandon}
@@ -4630,10 +4646,10 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
             <h2 className="pm-chrome text-3xl font-bold uppercase tracking-wide" style={{ fontFamily: "Oswald, sans-serif" }}>{title}</h2>
           </div>
         )}
-        <div className="seq-cards grid grid-cols-2 gap-3">
-          {[0,1].map(i => (
+        <div className={`seq-cards grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+          {seats.map(i => (
             <PlayerCard key={i} name={names[i]} score={`${positions[i]}/${sequence.length}`} turn={i===1} active={turn===i}
-              sub={`Next: ${sequence[positions[i]]?.label ?? "Done"}`} />
+              sub={soloMode ? `Next: ${sequence[positions[i]]?.label ?? "Done"} · ${soloDarts} darts` : `Next: ${sequence[positions[i]]?.label ?? "Done"}`} />
           ))}
         </div>
         {showGrandNationalTrack && (
@@ -4641,17 +4657,17 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
             max={sequence.length}
             tickLabels={["START", "LAP 2", "POST"]}
             lanes={[
-              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0, leadFill: true },
-              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 },
-            ]}
+              { label: names[0], pos: positions[0], emoji: "🐎", playerIdx: 0 as const, leadFill: true },
+              { label: names[1], pos: positions[1], emoji: "🐎", playerIdx: 1 as const },
+            ].slice(0, seats.length)}
           />
         )}
         {!showGrandNationalTrack && (
           <SectionCard>
             <div className="seq-path">
               {sequence.map((t, k) => {
-                const here0 = positions[0] === k, here1 = positions[1] === k;
-                const done = k < Math.min(positions[0], positions[1]);
+                const here0 = positions[0] === k, here1 = !soloMode && positions[1] === k;
+                const done = k < (soloMode ? positions[0] : Math.min(positions[0], positions[1]));
                 return (
                   <span key={k} className={`seq-step${done ? " done" : ""}${here0 ? " p0" : ""}${here1 ? " p1" : ""}`}>{t.label}</span>
                 );
@@ -4665,7 +4681,7 @@ export function SequenceScorer({ p1Name, p2Name, config, gameKey, title, rules, 
       bot={<div className="flex flex-col gap-2">
         <DartInputBoard visitDartCount={visitDarts.length} onDart={handleDart}
           onMiss={() => handleDart({segment:0,multiplier:1,value:0,label:"Miss"})}
-          onUndo={() => visitDarts.length > 0 && setVisitDarts(p=>p.slice(0,-1))}
+          onUndo={() => { if (visitDarts.length > 0) { setVisitDarts(p => p.slice(0, -1)); if (soloMode) setSoloDarts(n => Math.max(0, n - 1)); } }}
           highlightSegments={curTarget ? [curTarget.seg] : []}
           disabled={isBotTurnSeq}
           distinguishSingleRing={isStraightLine}
@@ -4865,8 +4881,10 @@ export function HighLowScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
 const HALVEIT_TARGETS = [20,16,"D",17,"Bull",18,19,"T"];
 const HALVEIT_LABELS  = ["20","16","Any Double","17","Bull","18","19","Any Treble"];
 
-export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, soloMode }: {
   p1Name: string; p2Name: string; gameKey: string; botConfig?: BotConfig;
+  /** Solo Training: one player; the game ends after the last round (or at 0 or below in Bob's 27). */
+  soloMode?: boolean;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   newScoringUI?: boolean;
@@ -4889,6 +4907,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
   const [turn, setTurn]             = useSnapState<0|1>("HalveItScorer.turn", 0);
 
   const names = [p1Name, p2Name];
+  const seats = soloMode ? [0] : [0, 1];
   const curTarget = targets[round];
 
   const dartHitsTarget = (dart: Dart): boolean => {
@@ -4930,6 +4949,19 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
         return ns;
       });
       setVisitDarts([]); setRoundScore(0); setHit(false);
+      if (soloMode) {
+        // Same scoring as above, worked out here so the finish line uses the up-to-date total.
+        const before = scores[0];
+        const after = hitTarget || rs > 0 ? before + rs : isBobs ? before - (targets[round] as number) * 2 : Math.floor(before / 2);
+        const finish = (msg: string) => safeTimeout(() => {
+          onPracticeStats?.({ sessionData: { mode: "halveit", p1Score: after, p2Score: 0 } });
+          onWin(0, msg);
+        }, 300);
+        if (isBobs && after <= 0) finish(`Out on D${targets[round]} (round ${round + 1} of ${targets.length})`);
+        else if (round + 1 >= targets.length) finish(`${after} points`);
+        else setRound(r => r + 1);
+        return;
+      }
       if (turnInRound === 1) {
         // Both players done this round
         if (round + 1 >= targets.length) {
@@ -4978,6 +5010,7 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
         sub={`Round ${round + 1} of ${targets.length}`}
         rules={isBobs ? "Twenty rounds, D1 to D20. Every double you hit adds its value; miss all three and you lose the double's value. Highest score wins." : "Hit the round's target with your three darts to add what you score. Miss it with all three and your total is halved. Highest score after the last round wins."}
         names={[p1Name, p2Name]}
+        solo={soloMode}
         turn={turn}
         cards={[0, 1].map(i => ({
           score: scores[i],
@@ -5016,12 +5049,12 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
       </div>
       {newScoringUI ? (
         <TrackStats items={[
-          { label: names[0], value: `${scores[0]}`, playerIdx: 0, active: turn === 0 },
-          { label: names[1], value: `${scores[1]}`, playerIdx: 1, active: turn === 1 },
-        ]} />
+          { label: names[0], value: `${scores[0]}`, playerIdx: 0 as const, active: turn === 0 },
+          { label: names[1], value: `${scores[1]}`, playerIdx: 1 as const, active: turn === 1 },
+        ].slice(0, seats.length)} />
       ) : (
-        <div className="grid grid-cols-2 gap-3">
-          {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
+        <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+          {seats.map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} />)}
         </div>
       )}
       {/* Round targets progress */}
@@ -5056,11 +5089,13 @@ export function HalveItScorer({ p1Name, p2Name, gameKey, botConfig, onWin, onAba
 }
 
 // ── Count Up Scorer ────────────────────────────────────────────────────────────
-export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI }: {
+export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAbandon, onPracticeStats, newScoringUI, soloMode }: {
   p1Name: string; p2Name: string; config: { target?: number; rounds?: number; bullsOnly?: boolean; accumulate?: boolean; noOuterBull?: boolean }; botConfig?: BotConfig;
   onWin: (w: 0|1, d?: string) => void; onAbandon: () => void;
   onPracticeStats?: (s: PracticeStats) => void;
   newScoringUI?: boolean;
+  /** Solo Training: one player; race to the target (counting visits) or score as much as you can in the rounds. */
+  soloMode?: boolean;
 }) {
   const safeTimeout = useSafeTimeout();
   const target = config.target ?? 501;
@@ -5075,6 +5110,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
   const [visitDarts, setVisitDarts] = useSnapState<Dart[]>("CountUpScorer.visitDarts", []);
   const [halvMsg, setHalvMsg]       = useState("");
   const names = [p1Name, p2Name];
+  const seats = soloMode ? [0] : [0, 1];
 
   const handleDart = (dart: Dart) => {
     if (visitDarts.length >= 3) return;
@@ -5102,7 +5138,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
           ns[turn] += cum;
         }
         if (maxRounds === 0 && ns[turn] >= target) {
-          const label = bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
+          const label = soloMode ? `Reached ${target}${bullsOnly ? " bulls" : ""} in ${rounds[0] + 1} visits` : bullsOnly ? `${ns[turn]} bulls!` : `Reached ${target} pts!`;
           safeTimeout(() => { onPracticeStats?.({ sessionData:{mode:"countup"} }); onWin(turn, label); }, 300);
         }
         return ns;
@@ -5111,11 +5147,11 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
       setRounds(prev => {
         const nr: [number,number] = [...prev] as [number,number];
         nr[turn]++;
-        if (maxRounds > 0 && nr[0] >= maxRounds && nr[1] >= maxRounds) {
+        if (maxRounds > 0 && nr[0] >= maxRounds && (soloMode || nr[1] >= maxRounds)) {
           safeTimeout(() => {
             setScores(sc => {
               onPracticeStats?.({ sessionData:{mode:"countup", p1Score:sc[0], p2Score:sc[1]} });
-            onWin(sc[0] >= sc[1] ? 0 : 1, `${sc[0]} vs ${sc[1]}`);
+            onWin(soloMode ? 0 : sc[0] >= sc[1] ? 0 : 1, soloMode ? `${sc[0]} points in ${maxRounds} rounds` : `${sc[0]} vs ${sc[1]}`);
               return sc;
             });
           }, 300);
@@ -5123,7 +5159,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         return nr;
       });
       setVisitDarts([]);
-      setTurn(t => t===0?1:0);
+      setTurn(t => soloMode ? 0 : t===0?1:0);
     }
   };
 
@@ -5155,7 +5191,7 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
         heading={bullsOnly ? "Bull Rush" : accumulate ? "Accumulator" : noOuterBull ? "No Black" : maxRounds > 0 ? "High Score" : "Count Up"}
         sub={bullsOnly ? `First to ${target} bulls` : maxRounds > 0 ? `${maxRounds} rounds` : accumulate ? "Beat your last visit" : `Race to ${target}`}
         rules={bullsOnly ? "Only bull hits count, inner or outer. First to the target wins." : accumulate ? "Each visit must score more than your previous one, or your total is halved." : noOuterBull ? "Count up to the target, but an outer bull (25) makes the whole visit score zero. The bullseye is fine." : "Score as many points as you can."}
-        names={[p1Name, p2Name]} turn={turn}
+        names={[p1Name, p2Name]} solo={soloMode} turn={turn}
         cards={[0, 1].map(i => ({ score: scores[i], unit: maxRounds === 0 && !accumulate ? `/${target}` : undefined, line: { label: "Last", value: lastVisit[i] }, stats: [{ label: maxRounds > 0 ? "Round" : "To go", value: maxRounds > 0 ? `${Math.min(rounds[i] + 1, maxRounds)}/${maxRounds}` : Math.max(0, target - scores[i]) }, { label: "Visits", value: rounds[i] }] })) as [any, any]}
         targets={bullsOnly ? [25] : undefined}
         note={halvMsg || (bullsOnly ? "Aim at the bull" : accumulate ? sub(turn) : "Score as many as you can")}
@@ -5188,15 +5224,15 @@ export function CountUpScorer({ p1Name, p2Name, config, botConfig, onWin, onAban
           </p>
         </div>
         {newScoringUI && !accumulate && maxRounds === 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {[0,1].map(i => (
+          <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+            {seats.map(i => (
               <ScoreTower key={i} label={names[i]} value={scores[i]} max={target} playerIdx={i as 0 | 1}
                 active={turn === i} countsDown={false} sub={sub(i)} />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {[0,1].map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
+          <div className={`grid ${soloMode ? "grid-cols-1" : "grid-cols-2"} gap-3`}>
+            {seats.map(i => <PlayerCard key={i} name={names[i]} score={scores[i]} turn={i===0} active={turn===i} sub={sub(i)} />)}
           </div>
         )}
         {halvMsg && <div className="text-center font-bold text-sm" style={{ color:"#ff005c", fontFamily:"Oswald,sans-serif" }}>{halvMsg}</div>}
