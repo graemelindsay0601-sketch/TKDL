@@ -55,6 +55,9 @@ const TABS = [
   { key: "mini-games",  label: "Mini-Games"  },
 ];
 
+/** Engines whose scorers support Solo Training (one player, no opponent). */
+const SOLO_ENGINES = new Set(["X01", "Cricket"]);
+
 // Expandable, favouritable game card — click the body to select the game
 // for setup, click the star to favourite it (device-local, see
 // PRACTICE_REDESIGN_BUILD_PLAN.md Phase 1), click the chevron to reveal a
@@ -123,6 +126,8 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
   const [p1Id, setP1Id]           = useState("");
   const [p2Id, setP2Id]           = useState("");
   const [selectedGame, setGame]   = useState<GameTypeOption | null>(null);
+  // Switching to Solo Training drops a picked game that can't be played alone.
+  useEffect(() => { if (mode === "solo" && selectedGame && !SOLO_ENGINES.has(selectedGame.engine)) setGame(null); }, [mode, selectedGame]);
   const [rulesGame, setRulesGame] = useState<GameTypeOption | null>(null);
   const [formatMode, setFormatMode] = useState<"legs" | "sets">("legs");
   const [selectedLegs, setSelectedLegs] = useState(1);
@@ -311,7 +316,9 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
     party: "#ee0a78",
     "mini-games": "#ffd24a",
   };
-  const enabledGames = gameTypes.filter(g => g.enabled !== false);
+  // Solo Training only lists games whose scorer can actually be played alone; the rest
+  // would hand turns to a "CPU" player 2 with no CPU behind it.
+  const enabledGames = gameTypes.filter(g => g.enabled !== false && (mode !== "solo" || SOLO_ENGINES.has(g.engine)));
   const totalGames = enabledGames.length;
   const catCounts: Record<string, number> = {};
   for (const t of TABS) catCounts[t.key] = enabledGames.filter(g => g.category === t.key).length;
@@ -527,7 +534,7 @@ function SetupScreen({ onStart }: { onStart: (d: SetupData) => void }) {
           <div>
             <div className="text-xs font-black uppercase tracking-widest mb-0.5" style={{ fontFamily: "Oswald, sans-serif", color: "#a78bfa" }}>Solo Practice Mode</div>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-              No opponent. Just you and the board. Track your darts, checkout rate, and three-dart average on X01 games.
+              No opponent. Just you and the board. Works with X01 and Cricket games; for the rest, pick Two-player or Play against a bot.
             </p>
           </div>
         </div>
