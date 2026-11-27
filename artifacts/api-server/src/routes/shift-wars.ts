@@ -1,4 +1,4 @@
-import { parsePlayerIds, recordTeamMatchPlayers, picksByTeam, buildEntries } from "../lib/team-match-players";
+import { parsePlayerIds, recordTeamMatchPlayers, picksByTeam, buildEntries, parseThrowerStats, recordThrowerStats, ensureThrowerStatsTable } from "../lib/team-match-players";
 import { Router } from "express";
 import { wagerPot } from "../lib/wager-pot";
 import { sql } from "drizzle-orm";
@@ -310,6 +310,9 @@ router.post("/shift-wars/matches", matchSubmitRateLimit, async (req, res): Promi
           { teamId: winner.id, teamName: winner.name, roster: ros.get(winner.id)!, sent: parsePlayerIds(body?.winnerPlayerIds), won: true },
           { teamId: loser.id, teamName: loser.name, roster: ros.get(loser.id)!, sent: parsePlayerIds(body?.loserPlayerIds), won: false },
         ], fail));
+        // Per-thrower numbers from the team scorer (180s, checkouts), only for members of the two departments.
+        await ensureThrowerStatsTable(tx);
+        await recordThrowerStats(tx, "shift_wars", "match", match.id, parseThrowerStats(body?.playerStats, [...(ros.get(winner.id) ?? []), ...(ros.get(loser.id) ?? [])].map(Number)));
       }
       return { match, winnerName: winner.name, loserName: loser.name, winnerPointsBefore: winner.points, loserPointsBefore: loser.points };
     });

@@ -26,6 +26,18 @@ type CentreMatch = {
 const router = Router();
 
 type DetailKind = "league" | "doubles" | "doubles-combined" | "doubles-multi" | "shift" | "shift-combined" | "shift-multi";
+async function scoredLive(kind: string, id: number, result: any): Promise<boolean> {
+  try {
+    if (kind === "league") {
+      if (result?.stats?.winner?.darts != null) return true;
+      return (await db.execute(sql`SELECT 1 FROM team_thrower_stats WHERE competition = 'team' AND match_id = ${id} LIMIT 1`)).rows.length > 0;
+    }
+    const comp = kind === "doubles" ? "doubles" : kind === "shift" ? "shift_wars" : null;
+    if (!comp) return false;
+    return (await db.execute(sql`SELECT 1 FROM team_thrower_stats WHERE competition = ${comp} AND match_kind = 'match' AND match_id = ${id} LIMIT 1`)).rows.length > 0;
+  } catch { return false; } // team_thrower_stats not created yet
+}
+
 function parseDetailKey(value: string): { kind: DetailKind; id: number } | null {
   const match = /^(league|doubles-combined|doubles-multi|doubles|shift-combined|shift-multi|shift)-(\d+)$/.exec(value);
   if (!match || Number(match[2]) < 1) return null;
@@ -143,6 +155,9 @@ router.get("/match-centre/:key", async (req, res): Promise<void> => {
     id:Number(poster.id),status:poster.status,kicker:poster.kicker,
     reason:poster.reason,createdAt:poster.created_at,
   }:null;
+  // Played on the app's scorer (so its 180s and checkouts count): singles store darts, team matches store
+  // per-thrower stats. Shown as a "Scored live" badge.
+  result.scoredLive = await scoredLive(parsed.kind, parsed.id, result);
   res.json(result);
 });
 

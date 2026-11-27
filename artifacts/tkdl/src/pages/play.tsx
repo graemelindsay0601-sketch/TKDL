@@ -1697,6 +1697,18 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
   const [submittedMatchId, setSubmittedMatchId] = useState<number | null>(null);
   const [analysisPlayerId, setAnalysisPlayerId] = useState<number | null>(null);
 
+  // Team X01: each thrower's 180s and checkouts, matched from scorer names to player ids, so team results
+  // count toward the 180s and checkout targets. The server only keeps players who are really in the match.
+  const throwerStatsBody = (): { playerStats?: ({ playerId: number } & NonNullable<GameResult["throwerStats"]>[string])[] } => {
+    if (!result.throwerStats) return {};
+    const everyone = [...data.team1, ...data.team2];
+    const list = Object.entries(result.throwerStats).flatMap(([name, st]) => {
+      const p = everyone.find(x => x.name === name);
+      return p && Number(p.id) > 0 ? [{ playerId: Number(p.id), ...st }] : [];
+    });
+    return list.length ? { playerStats: list } : {};
+  };
+
   // Resolve winner/loser for display and submission
   const isTeam = data.format === "2v2" || data.format === "3v3" || data.format === "uneven-teams" || data.format === "doubles-event" || data.format === "shift-wars";
   const isMultiTeam = data.format === "doubles-multi" || data.format === "shift-wars-multi";
@@ -1877,6 +1889,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             winnerFieldedCount,
             loserFieldedCount,
             ...(data.whoPlayed ? { winnerPlayerIds: data.whoPlayed[winnerTeamId] ?? [], loserPlayerIds: data.whoPlayed[loserTeamId] ?? [] } : {}),
+            ...throwerStatsBody(),
             ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
@@ -1911,6 +1924,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             winnerFieldedCount,
             loserFieldedCount,
             ...(data.whoPlayed ? { winnerPlayerIds: data.whoPlayed[winnerTeamId] ?? [], loserPlayerIds: data.whoPlayed[loserTeamId] ?? [] } : {}),
+            ...throwerStatsBody(),
             ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {
@@ -1960,6 +1974,7 @@ function GameOverScreen({ result, data, stats, player1Equipment, player2Equipmen
             stake:     data.stake,
             stakeMode: data.stakeMode,
             gameType:  data.gameType.key,
+            ...throwerStatsBody(),
             ...(idempotencyKey ? { idempotencyKey } : {}),
           }),
         }).then(async r => {

@@ -3,8 +3,8 @@ import { logger } from "../lib/logger";
 import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { isFeatureAvailable } from "../services/feature-flags-service";
-import { LADDER, KIND_INFO, MIN_MATCHES, monthKey, nextStep } from "../lib/league-target";
-import { LEAGUE_TARGET_FLAG, adminVoidTarget, currentTarget, hitsByPlayer, monthStats, settleLeagueTargets, type TargetRow } from "../lib/league-target-db";
+import { LADDER, KIND_INFO, MIN_MATCHES, monthKey, nextStep, shiftMonth } from "../lib/league-target";
+import { LEAGUE_TARGET_FLAG, adminVoidTarget, currentTarget, scorerUse, hitsByPlayer, monthStats, settleLeagueTargets, type TargetRow } from "../lib/league-target-db";
 
 const router = Router();
 
@@ -55,7 +55,8 @@ router.get("/admin/league-target", async (req, res): Promise<void> => {
   const snap = await snapshot((req.session as any)?.playerId ?? null);
   const all = (await db.execute(sql`SELECT t.*, (SELECT COUNT(*)::int FROM league_target_shares s WHERE s.month = t.month) AS sharers
     FROM league_targets t ORDER BY month DESC LIMIT 12`)).rows;
-  res.json({ ...snap, months: all, thisMonth: monthKey(new Date()) });
+  const now = monthKey(new Date());
+  res.json({ ...snap, months: all, thisMonth: now, scorerUse: [await scorerUse(now), await scorerUse(shiftMonth(now, -1)), await scorerUse(shiftMonth(now, -2))] });
   } catch (err) { logger.error({ err }, "League Target admin view failed"); res.status(500).json({ error: "League Target unavailable" }); }
 });
 

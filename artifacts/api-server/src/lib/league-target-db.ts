@@ -97,6 +97,9 @@ export async function monthStats(key: string): Promise<MonthStats & { perPlayer:
     }
   }
 
+  // 180s thrown in team matches on the team scorer (doubles, Shift Wars, 2v2), stored per thrower.
+  for (const r of await rows(sql`SELECT COALESCE(SUM(one_eighties), 0)::int n FROM team_thrower_stats WHERE played_at >= ${from} AND played_at < ${to}`)) oneEighties += Number(r.n) || 0;
+
   const players = [...perPlayer.values()].filter(n => n >= MIN_MATCHES).length;
   return { matches, pairings: pairs.size, oneEighties, players, perPlayer, pairList: [...pairs] };
 }
@@ -203,4 +206,16 @@ export { KIND_INFO };
 /** Admin: this month's target counts for nothing (no result, no unlocks, no more pushes). */
 export async function adminVoidTarget(month: string): Promise<void> {
   await db.execute(sql`UPDATE league_targets SET voided = true WHERE month = ${month} AND settled_at IS NULL`);
+}
+
+/** How many of a month's results were played on the app's scorer (darts recorded), out of all results. */
+export async function scorerUse(key: string): Promise<{ month: string; scored: number; total: number }> {
+  const { from, to } = bounds(key);
+  const total = (await monthStats(key)).matches;
+  const one = async (q: ReturnType<typeof sql>) => Number((await rows(q))[0]?.n ?? 0);
+  const singles = await one(sql`SELECT COUNT(*)::int n FROM matches m WHERE m.played_at >= ${from} AND m.played_at < ${to}
+    AND (m.winner_darts IS NOT NULL OR EXISTS (SELECT 1 FROM team_thrower_stats t WHERE t.competition = 'team' AND t.match_id = m.id))`);
+  const teams = await one(sql`SELECT COUNT(DISTINCT (competition, match_kind, match_id))::int n FROM team_thrower_stats
+    WHERE competition <> 'team' AND played_at >= ${from} AND played_at < ${to}`);
+  return { month: key, scored: Math.min(total, singles + teams), total };
 }

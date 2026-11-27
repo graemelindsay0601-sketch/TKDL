@@ -9281,11 +9281,14 @@ export function ThreeInABedScorer({ p1Name, p2Name, winsNeeded = 5, botConfig, o
 // ── Team X01 Scorer ────────────────────────────────────────────────────────────
 const TEAM_COLORS: [string, string] = ["#22c55e", "#ee0a78"];
 
+/** One thrower's numbers in a team X01 match (so team results count toward 180s and checkout targets). */
+export type TeamThrowerStats = { darts: number; points: number; oneEighties: number; checkoutAttempts: number; checkoutHits: number };
+
 export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState, turnOrder = "alternate", initialRecovery, onRecoveryState, newScoringUI }: {
   newScoringUI?: boolean;
   teamNames: [string[], string[]];
   config: { startingScore: number; doubleOut?: boolean; doubleIn?: boolean };
-  onWin: (w: 0|1, detail?: string) => void;
+  onWin: (w: 0|1, detail?: string, throwerStats?: Record<string, TeamThrowerStats>) => void;
   onAbandon: () => void;
   onLiveState?: (state: LiveScoreState) => void;
   /**
@@ -9319,6 +9322,27 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
   const [bust, setBust]             = useSnapState("TeamX01Scorer.bust", false);
   const [bustMsg, setBustMsg]       = useState("");
   const [history, setHistory]       = useSnapState<{ team:0|1; player:number; score:number; left:number }[]>("TeamX01Scorer.history", () => initialRecovery?.history ?? []);
+  const [throwerStats, setThrowerStats] = useSnapState<Record<string, TeamThrowerStats>>("TeamX01Scorer.throwerStats", {});
+  /**
+   * Add a finished visit to the thrower's numbers. Done once the visit is over (3 darts, bust or win) so Undo
+   * mid-visit never double counts. A checkout attempt is a dart thrown with a double finish on (2-40 even, or 50).
+   */
+  const recordVisit = (team: 0|1, darts: Dart[], startRem: number, outcome: "scored" | "bust" | "won"): Record<string, TeamThrowerStats> => {
+    const name = teamNames[team][playerIdx[team]];
+    const prev = throwerStats[name] ?? { darts: 0, points: 0, oneEighties: 0, checkoutAttempts: 0, checkoutHits: 0 };
+    const total = darts.reduce((n, d) => n + d.value, 0);
+    let rem = startRem, attempts = 0;
+    for (const d of darts) { if (doubleOut && ((rem > 0 && rem <= 40 && rem % 2 === 0) || rem === 50)) attempts++; rem -= d.value; }
+    const next = { ...throwerStats, [name]: {
+      darts: prev.darts + darts.length,
+      points: prev.points + (outcome === "bust" ? 0 : total),
+      oneEighties: prev.oneEighties + (outcome !== "bust" && darts.length === 3 && total === 180 ? 1 : 0),
+      checkoutAttempts: prev.checkoutAttempts + attempts,
+      checkoutHits: prev.checkoutHits + (outcome === "won" && attempts > 0 ? 1 : 0),
+    } };
+    setThrowerStats(next);
+    return next;
+  };
   useEffect(() => {
     const visitTotal = visitDarts.reduce((sum, dart) => sum + dart.value, 0);
     const liveScores: [number, number] = [...scores] as [number, number];
@@ -9379,17 +9403,20 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
       setBust(true);
       setBustMsg(rem < 0 ? "BUST — overshot!" : "BUST — can't leave 1!");
       setVisitDarts(nv);
+      recordVisit(capturedTeam, nv, scores[capturedTeam], "bust");
       safeTimeout(() => advanceTurn(capturedTeam, sideCompletedFullPass), 1500);
       return;
     }
     if (rem === 0) {
       if (isValidOut(dart)) {
         setVisitDarts(nv);
-        safeTimeout(() => onWin(capturedTeam, `${teamNames[capturedTeam].join(" & ")} win!`), 300);
+        const stats = recordVisit(capturedTeam, nv, scores[capturedTeam], "won");
+        safeTimeout(() => onWin(capturedTeam, `${teamNames[capturedTeam].join(" & ")} win!`, stats), 300);
       } else {
         setBust(true);
         setBustMsg(doubleOut ? "BUST — must finish on a double!" : "BUST!");
         setVisitDarts(nv);
+        recordVisit(capturedTeam, nv, scores[capturedTeam], "bust");
         safeTimeout(() => advanceTurn(capturedTeam, sideCompletedFullPass), 1500);
       }
       return;
@@ -9398,9 +9425,10 @@ export function TeamX01Scorer({ teamNames, config, onWin, onAbandon, onLiveState
     if (nv.length === 3) {
       setScores(prev => { const n: [number,number] = [...prev] as [number,number]; n[capturedTeam] -= cum; return n; });
       setHistory(h => [...h, { team: capturedTeam, player: playerIdx[capturedTeam], score: cum, left: rem }]);
+      recordVisit(capturedTeam, nv, scores[capturedTeam], "scored");
       advanceTurn(capturedTeam, sideCompletedFullPass);
     }
-  }, [bust, visitDarts, teamTurn, scores, playerIdx, doubleOut, isValidOut, advanceTurn, onWin, teamNames]);
+  }, [bust, visitDarts, teamTurn, scores, playerIdx, doubleOut, isValidOut, advanceTurn, onWin, teamNames, throwerStats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMiss = () => handleDart({ segment: 0, multiplier: 1, value: 0, label: "Miss" });
   const handleUndo = () => { if (!bust && visitDarts.length > 0) setVisitDarts(p => p.slice(0, -1)); };

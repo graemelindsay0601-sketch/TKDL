@@ -1,4 +1,4 @@
-import { parsePlayerIds, pickFromRoster, recordTeamMatchPlayers, picksByTeam, buildEntries, playerTeamEvents, playerTeamEventGames } from "../lib/team-match-players";
+import { parsePlayerIds, pickFromRoster, recordTeamMatchPlayers, picksByTeam, buildEntries, playerTeamEvents, playerTeamEventGames, parseThrowerStats, recordThrowerStats, ensureThrowerStatsTable } from "../lib/team-match-players";
 import { Router } from "express";
 import { wagerPot } from "../lib/wager-pot";
 import { eq, and, sql } from "drizzle-orm";
@@ -351,6 +351,9 @@ router.post("/doubles/matches", matchSubmitRateLimit, async (req, res): Promise<
         { teamId: winner.id, playerIds: wPick.ids, won: true },
         { teamId: loser.id, playerIds: lPick.ids, won: false },
       ]);
+      // Per-thrower numbers from the team scorer (180s, checkouts), only for members of these two teams.
+      await ensureThrowerStatsTable(tx);
+      await recordThrowerStats(tx, "doubles", "match", match.id, parseThrowerStats((req.body as any)?.playerStats, [...teamPlayerIds(winner), ...teamPlayerIds(loser)]));
 
       return {
         match, eloChange, loserEliminated,

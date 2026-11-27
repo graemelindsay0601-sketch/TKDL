@@ -12,7 +12,7 @@ import {
   ScramScorer, FootballScorer, GolfScorer, NearestBullScorer, ManualScorer,
   JDCChallenge41Scorer, ExponentialBundleScorer, ShootingGalleryScorer, DeadCentreScorer, SnookerScorer,
   ThreeInABedScorer, HighLowScorer,
-  TeamX01Scorer, TeamCricketScorer, MultiKillerScorer,
+  TeamX01Scorer, TeamCricketScorer, MultiKillerScorer, type TeamThrowerStats,
   NinetyNineDartsScorer,
   PickADoubleScorer, LegsScorer, NoughtsCrossesScorer, CheckoutChallengeScorer, FivesScorer, OcheRouletteScorer, OneEightyScorer,
   HareHoundsScorer, PrisonerScorer, KnockoutScorer, TennisScorer, FollowTheLeaderScorer, BattleshipScorer, BlindKillersScorer,
@@ -39,6 +39,8 @@ export type GameTypeOption = {
 export type GameResult = {
   winnerIdx: number; // 0|1 for 2-player/team games; 0..N-1 for multi-player FFA
   detail?: string;
+  /** Team X01 only: each thrower's numbers, keyed by player name (see TeamThrowerStats in scorers.tsx). */
+  throwerStats?: Record<string, TeamThrowerStats>;
 };
 
 function safeParse(s: string | null | undefined): Record<string, unknown> {
@@ -312,7 +314,7 @@ export function GameScorer({
       ? starterIdx === 1 ? [teamNames[1], teamNames[0]] : teamNames
       : undefined;
     const cfg = safeParse(gameType.config);
-    const win = (idx: number, detail?: string) => wrappedOnWin({ winnerIdx: idx, detail });
+    const win = (idx: number, detail?: string, throwerStats?: Record<string, TeamThrowerStats>) => wrappedOnWin({ winnerIdx: idx, detail, ...(throwerStats ? { throwerStats } : {}) });
     const live = onLiveState ? reportLiveState : undefined;
 
   // ── Team engines (variable-length, 2v2 / 3v3 / Uneven Teams) ─────────────────

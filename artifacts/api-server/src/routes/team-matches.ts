@@ -10,6 +10,7 @@ import { sendMatchResultBroadcast, sendRankChangeNotifications, sendTeamMatchRes
 import { rankPlayersByPoints, type RankablePlayer } from "../lib/leaderboardRank";
 import { invalidateProgressCache } from "./players";
 import { upsertResultPoster } from "../services/matchPosterService";
+import { parseThrowerStats, recordThrowerStats, ensureThrowerStatsTable } from "../lib/team-match-players";
 
 const TeamMatchBody = z.object({
   winnerIds: z.array(z.number().int().positive()).min(1).max(6),
@@ -239,6 +240,9 @@ router.post("/team-matches", matchSubmitRateLimit, async (req, res): Promise<voi
         })),
       ];
       await tx.insert(matchParticipantsTable).values(participantRows);
+      // Per-thrower numbers from the team scorer (180s, checkouts), only for the players in this match.
+      await ensureThrowerStatsTable(tx);
+      await recordThrowerStats(tx, "team", "match", newMatch.id, parseThrowerStats((req.body as any)?.playerStats, allIds));
 
       // Split the selected pot across both sides, keeping integer points
       // conserved. Total mode does not multiply the wager by headcount.
