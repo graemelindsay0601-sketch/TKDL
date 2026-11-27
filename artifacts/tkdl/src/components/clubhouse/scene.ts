@@ -101,7 +101,8 @@ function neonTex(text: string, colour: string) {
     g.clearRect(0, 0, 1024, 256);
     g.font = "bold 150px Oswald, Arial"; g.textAlign = "center"; g.textBaseline = "middle";
     g.shadowColor = colour; g.shadowBlur = 40; g.fillStyle = colour; g.fillText(text, 512, 128);
-    g.shadowBlur = 0; g.fillStyle = "#ffe6ef"; g.fillText(text, 512, 128);
+    g.shadowBlur = 0; g.fillText(text, 512, 128);
+    g.globalAlpha = 0.45; g.fillStyle = "#ffffff"; g.fillText(text, 512, 128); g.globalAlpha = 1;
   });
 }
 
